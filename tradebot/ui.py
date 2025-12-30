@@ -39,7 +39,6 @@ class PositionsApp(App):
     BINDINGS = [
         ("q", "quit", "Quit"),
         ("r", "refresh", "Refresh"),
-        ("enter", "open_position", "Details"),
     ]
 
     CSS = """
@@ -127,14 +126,6 @@ class PositionsApp(App):
 
     async def action_refresh(self) -> None:
         await self.refresh_positions(hard=True)
-
-    def action_open_position(self) -> None:
-        row = self._table.cursor_coordinate.row
-        if 0 <= row < len(self._row_keys):
-            key = self._row_keys[row]
-            item = self._row_item_by_key.get(key)
-            if item:
-                self.push_screen(PositionDetailScreen(self._client, item))
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         item = self._row_item_by_key.get(event.row_key.value)
@@ -411,51 +402,60 @@ class PositionDetailScreen(Screen):
             self._client.release_ticker(con_id)
 
     def _render(self) -> None:
-        contract = self._item.contract
-        lines: list[Text] = []
-        lines.append(Text(f"{contract.symbol} {contract.secType}", style="bold"))
-        lines.append(Text(f"ConId: {contract.conId}"))
-        if contract.localSymbol:
-            lines.append(Text(f"Local: {contract.localSymbol}"))
-        if contract.exchange:
-            lines.append(Text(f"Exchange: {contract.exchange}"))
-        if contract.currency:
-            lines.append(Text(f"Currency: {contract.currency}"))
-        if contract.lastTradeDateOrContractMonth:
-            lines.append(Text(f"Expiry: {_fmt_expiry(contract.lastTradeDateOrContractMonth)}"))
-        if contract.right:
-            lines.append(Text(f"Right: {contract.right}"))
-        if contract.strike:
-            lines.append(Text(f"Strike: {_fmt_money(contract.strike)}"))
-        if contract.multiplier:
-            lines.append(Text(f"Contract Size: {contract.multiplier}"))
-        lines.append(Text(""))
-        lines.append(Text(f"Position: {_fmt_qty(float(self._item.position))}"))
-        if self._item.averageCost:
-            lines.append(Text(f"Avg Cost: {_fmt_money(float(self._item.averageCost))}"))
-        if self._item.marketValue is not None:
-            lines.append(Text(f"Market Value: {_fmt_money(float(self._item.marketValue))}"))
-        if self._item.unrealizedPNL is not None:
-            lines.append(Text(f"Unrealized P&L: {_fmt_money(float(self._item.unrealizedPNL))}"))
-        if self._item.realizedPNL is not None:
-            lines.append(Text(f"Realized P&L: {_fmt_money(float(self._item.realizedPNL))}"))
-        lines.append(Text(""))
-        if self._ticker:
-            bid = _safe_num(self._ticker.bid)
-            ask = _safe_num(self._ticker.ask)
-            last = _safe_num(self._ticker.last)
-            price = _ticker_price(self._ticker)
-            mid = _midpoint(bid, ask)
-            lines.append(
-                Text(
-                    f"Bid: {_fmt_quote(bid)}  Ask: {_fmt_quote(ask)}  Last: {_fmt_quote(last)}"
+        try:
+            contract = self._item.contract
+            lines: list[Text] = []
+            lines.append(Text(f"{contract.symbol} {contract.secType}", style="bold"))
+            lines.append(Text(f"ConId: {contract.conId}"))
+            if contract.localSymbol:
+                lines.append(Text(f"Local: {contract.localSymbol}"))
+            if contract.exchange:
+                lines.append(Text(f"Exchange: {contract.exchange}"))
+            if contract.currency:
+                lines.append(Text(f"Currency: {contract.currency}"))
+            if contract.lastTradeDateOrContractMonth:
+                lines.append(
+                    Text(f"Expiry: {_fmt_expiry(contract.lastTradeDateOrContractMonth)}")
                 )
-            )
-            lines.append(Text(f"Price: {_fmt_quote(price)}"))
-            mid_text = Text("Mid: ")
-            mid_text.append(_fmt_quote(mid), style="orange1")
-            lines.append(mid_text)
-        self._details.update(Text("\n").join(lines))
+            if contract.right:
+                lines.append(Text(f"Right: {contract.right}"))
+            if contract.strike:
+                lines.append(Text(f"Strike: {_fmt_money(contract.strike)}"))
+            if contract.multiplier:
+                lines.append(Text(f"Contract Size: {contract.multiplier}"))
+            lines.append(Text(""))
+            lines.append(Text(f"Position: {_fmt_qty(float(self._item.position))}"))
+            if self._item.averageCost:
+                lines.append(Text(f"Avg Cost: {_fmt_money(float(self._item.averageCost))}"))
+            if self._item.marketValue is not None:
+                lines.append(Text(f"Market Value: {_fmt_money(float(self._item.marketValue))}"))
+            if self._item.unrealizedPNL is not None:
+                lines.append(
+                    Text(f"Unrealized P&L: {_fmt_money(float(self._item.unrealizedPNL))}")
+                )
+            if self._item.realizedPNL is not None:
+                lines.append(
+                    Text(f"Realized P&L: {_fmt_money(float(self._item.realizedPNL))}")
+                )
+            lines.append(Text(""))
+            if self._ticker:
+                bid = _safe_num(self._ticker.bid)
+                ask = _safe_num(self._ticker.ask)
+                last = _safe_num(self._ticker.last)
+                price = _ticker_price(self._ticker)
+                mid = _midpoint(bid, ask)
+                lines.append(
+                    Text(
+                        f"Bid: {_fmt_quote(bid)}  Ask: {_fmt_quote(ask)}  Last: {_fmt_quote(last)}"
+                    )
+                )
+                lines.append(Text(f"Price: {_fmt_quote(price)}"))
+                mid_text = Text("Mid: ")
+                mid_text.append(_fmt_quote(mid), style="orange1")
+                lines.append(mid_text)
+            self._details.update(Text("\n").join(lines))
+        except Exception as exc:
+            self._details.update(Text(f"Detail render error: {exc}", style="red"))
 
 
 def _portfolio_sort_key(item: PortfolioItem) -> float:
