@@ -138,9 +138,8 @@ class IBKRClient:
 
     async def ensure_ticker(self, contract: Contract) -> Ticker:
         await self.connect()
-        md_type = 1 if contract.secType in ("STK", "OPT") else 3
-        # Prefer live for equities; fallback will occur if not subscribed.
-        self._ib.reqMarketDataType(md_type)
+        # Allow delayed market data fallback when real-time is unavailable.
+        self._ib.reqMarketDataType(3)
         con_id = int(contract.conId or 0)
         if con_id in self._detail_tickers:
             return self._detail_tickers[con_id]
@@ -248,8 +247,8 @@ class IBKRClient:
 
     async def _ensure_proxy_tickers(self) -> None:
         await self.connect()
-        # Prefer live for equities; fallback will occur if not subscribed.
-        self._ib.reqMarketDataType(1)
+        # Allow delayed market data fallback when real-time is unavailable.
+        self._ib.reqMarketDataType(3)
         if not self._proxy_contracts:
             self._proxy_contracts = await self._qualify_proxy_contracts()
         if not self._proxy_tickers:

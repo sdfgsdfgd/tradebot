@@ -39,8 +39,8 @@ class PositionsApp(App):
     BINDINGS = [
         ("q", "quit", "Quit"),
         ("r", "refresh", "Refresh"),
-        ("k", "up", "Up"),
-        ("j", "down", "Down"),
+        ("j", "cursor_down", "Down"),
+        ("k", "cursor_up", "Up"),
     ]
 
     CSS = """
@@ -128,6 +128,12 @@ class PositionsApp(App):
 
     async def action_refresh(self) -> None:
         await self.refresh_positions(hard=True)
+
+    def action_cursor_down(self) -> None:
+        self._table.action_cursor_down()
+
+    def action_cursor_up(self) -> None:
+        self._table.action_cursor_up()
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         item = self._row_item_by_key.get(event.row_key.value)
@@ -446,12 +452,16 @@ class PositionDetailScreen(Screen):
                 last = _safe_num(self._ticker.last)
                 price = _ticker_price(self._ticker)
                 mid = _midpoint(bid, ask)
+                close = _ticker_close(self._ticker)
                 lines.append(
                     Text(
                         f"Bid: {_fmt_quote(bid)}  Ask: {_fmt_quote(ask)}  Last: {_fmt_quote(last)}"
                     )
                 )
-                lines.append(Text(f"Price: {_fmt_quote(price)}"))
+                if price is None and close is not None:
+                    lines.append(Text(f"Price: Closed ({_fmt_quote(close)})", style="red"))
+                else:
+                    lines.append(Text(f"Price: {_fmt_quote(price)}"))
                 mid_text = Text("Mid: ")
                 mid_text.append(_fmt_quote(mid), style="orange1")
                 lines.append(mid_text)
@@ -638,11 +648,14 @@ def _ticker_line(
         tag = _market_data_tag(ticker)
         price = _ticker_price(ticker)
         close = _ticker_close(ticker)
-        if price is None or close is None or price <= 0 or close <= 0:
+        if price is None or price <= 0:
             if close and close > 0:
                 text.append_text(_ticker_closed(label + tag, close))
             else:
                 text.append_text(_ticker_missing(label + tag))
+            continue
+        if close is None or close <= 0:
+            text.append_text(_ticker_price_only(label + tag, price))
             continue
         change = price - close
         pct = (change / close) * 100.0
@@ -677,6 +690,21 @@ def _ticker_missing(label: str) -> Text:
     text.append(" ", style="dim")
     text.append(blank_change, style="dim")
     text.append(" ", style="dim")
+    text.append(blank_pct, style="dim")
+    return text
+
+
+def _ticker_price_only(label: str, price: float) -> Text:
+    label_text = label.ljust(_TICKER_WIDTHS["label"])
+    price_text = f"{price:,.2f}".rjust(_TICKER_WIDTHS["price"])
+    blank_change = "n/a".rjust(_TICKER_WIDTHS["change"])
+    blank_pct = "".rjust(_TICKER_WIDTHS["pct"])
+    text = Text(label_text)
+    text.append(" ")
+    text.append(price_text)
+    text.append(" ")
+    text.append(blank_change, style="dim")
+    text.append(" ")
     text.append(blank_pct, style="dim")
     return text
 
