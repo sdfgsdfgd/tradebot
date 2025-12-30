@@ -40,6 +40,7 @@ class IBKRClient:
         self._ib.updatePortfolioEvent += self._on_stream_update
         self._ib.pendingTickersEvent += self._on_stream_update
         self._ib.pnlEvent += self._on_stream_update
+        self._ib.accountValueEvent += self._on_stream_update
 
     @property
     def is_connected(self) -> bool:
