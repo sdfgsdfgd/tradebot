@@ -391,8 +391,8 @@ class PositionDetailScreen(Screen):
     async def on_mount(self) -> None:
         self._details = self.query_one("#details", Static)
         self._ticker = await self._client.ensure_ticker(self._item.contract)
-        self._refresh_task = self.set_interval(0.25, self._render)
-        self._render()
+        self._refresh_task = self.set_interval(0.25, self._render_details)
+        self._render_details()
 
     async def on_unmount(self) -> None:
         if self._refresh_task:
@@ -401,7 +401,7 @@ class PositionDetailScreen(Screen):
         if con_id:
             self._client.release_ticker(con_id)
 
-    def _render(self) -> None:
+    def _render_details(self) -> None:
         try:
             contract = self._item.contract
             lines: list[Text] = []
