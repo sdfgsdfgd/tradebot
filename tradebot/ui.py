@@ -76,6 +76,7 @@ class PositionsApp(App):
         self._proxy_tickers: dict[str, Ticker] = {}
         self._proxy_error: str | None = None
         self._pnl: PnL | None = None
+        self._net_liq: tuple[float | None, str | None] = (None, None)
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -133,6 +134,7 @@ class PositionsApp(App):
             self._proxy_tickers = self._client.proxy_tickers()
             self._proxy_error = self._client.proxy_error()
             self._pnl = self._client.pnl()
+            self._net_liq = self._client.account_value("NetLiquidation")
             self._render_table()
 
     def _mark_dirty(self) -> None:
@@ -171,6 +173,7 @@ class PositionsApp(App):
             self._add_section(title, sec_type, items)
         self._add_total_row(items)
         self._add_daily_row(self._pnl)
+        self._add_net_liq_row(self._net_liq)
         self._render_ticker_bar()
         self._status.update(self._status_text())
         self._restore_cursor(prev_row_key, prev_row_index, prev_column)
@@ -266,6 +269,31 @@ class PositionsApp(App):
             key="daily",
         )
         self._row_keys.append("daily")
+
+    def _add_net_liq_row(self, net_liq: tuple[float | None, str | None]) -> None:
+        value, currency = net_liq
+        if value is None:
+            return
+        style = "bold white on #1f1f1f"
+        label = Text("NET LIQ", style=style)
+        blank = Text("")
+        amount = _fmt_money(value)
+        if currency:
+            amount = f"{amount} {currency}"
+        amount_text = Text(amount)
+        self._table.add_row(
+            label,
+            blank,
+            blank,
+            blank,
+            blank,
+            blank,
+            amount_text,
+            blank,
+            blank,
+            key="netliq",
+        )
+        self._row_keys.append("netliq")
     def _render_ticker_bar(self) -> None:
         prefix = f"MKT:{_market_session_label()} | "
         line1 = _ticker_line(

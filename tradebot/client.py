@@ -5,7 +5,7 @@ import asyncio
 import time
 from typing import Callable, Iterable
 
-from ib_insync import ContFuture, Contract, IB, PnL, PortfolioItem, Stock, Ticker
+from ib_insync import AccountValue, ContFuture, Contract, IB, PnL, PortfolioItem, Stock, Ticker
 
 from .config import IBKRConfig
 
@@ -129,6 +129,19 @@ class IBKRClient:
 
     def pnl(self) -> PnL | None:
         return self._pnl
+
+    def account_value(self, tag: str) -> tuple[float | None, str | None]:
+        account = self._config.account or ""
+        values = [v for v in self._ib.accountValues(account) if v.tag == tag]
+        if not values:
+            return None, None
+        chosen = _pick_account_value(values)
+        if not chosen:
+            return None, None
+        try:
+            return float(chosen.value), chosen.currency
+        except (TypeError, ValueError):
+            return None, chosen.currency
 
     async def hard_refresh(self) -> None:
         async with self._lock:
@@ -270,6 +283,14 @@ class IBKRClient:
     def _on_stream_update(self, *_, **__) -> None:
         if self._update_callback:
             self._update_callback()
+
+
+def _pick_account_value(values: list[AccountValue]) -> AccountValue | None:
+    for currency in ("BASE", "USD", "AUD"):
+        for value in values:
+            if value.currency == currency:
+                return value
+    return values[0] if values else None
 
     def _start_reconnect_loop(self) -> None:
         if self._reconnect_task and not self._reconnect_task.done():
