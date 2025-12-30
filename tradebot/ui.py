@@ -39,6 +39,8 @@ class PositionsApp(App):
     BINDINGS = [
         ("q", "quit", "Quit"),
         ("r", "refresh", "Refresh"),
+        ("k", "up", "Up"),
+        ("j", "down", "Down"),
     ]
 
     CSS = """
