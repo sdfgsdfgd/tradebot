@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import time
+from datetime import datetime, timezone
 from typing import Callable, Iterable
 
 from ib_insync import AccountValue, ContFuture, Contract, IB, PnL, PortfolioItem, Stock, Ticker
@@ -34,13 +35,14 @@ class IBKRClient:
         self._update_callback: Callable[[], None] | None = None
         self._pnl: PnL | None = None
         self._pnl_account: str | None = None
+        self._account_value_cache: dict[tuple[str, str], tuple[float, datetime]] = {}
         self._connectivity_lost = False
         self._reconnect_task: asyncio.Task | None = None
         self._ib.errorEvent += self._on_error
         self._ib.updatePortfolioEvent += self._on_stream_update
         self._ib.pendingTickersEvent += self._on_stream_update
         self._ib.pnlEvent += self._on_stream_update
-        self._ib.accountValueEvent += self._on_stream_update
+        self._ib.accountValueEvent += self._on_account_value
 
     @property
     def is_connected(self) -> bool:
@@ -82,6 +84,7 @@ class IBKRClient:
         self._proxy_error = None
         self._pnl = None
         self._pnl_account = None
+        self._account_value_cache = {}
 
     async def fetch_portfolio(self) -> list[PortfolioItem]:
         """Fetch a snapshot of portfolio items (filtered by account if provided)."""
@@ -131,18 +134,24 @@ class IBKRClient:
     def pnl(self) -> PnL | None:
         return self._pnl
 
-    def account_value(self, tag: str) -> tuple[float | None, str | None]:
+    def account_value(
+        self, tag: str
+    ) -> tuple[float | None, str | None, datetime | None]:
         account = self._config.account or ""
+        cached = _pick_cached_value(self._account_value_cache, tag)
+        if cached:
+            value, currency, updated_at = cached
+            return value, currency, updated_at
         values = [v for v in self._ib.accountValues(account) if v.tag == tag]
         if not values:
-            return None, None
+            return None, None, None
         chosen = _pick_account_value(values)
         if not chosen:
-            return None, None
+            return None, None, None
         try:
-            return float(chosen.value), chosen.currency
+            return float(chosen.value), chosen.currency, None
         except (TypeError, ValueError):
-            return None, chosen.currency
+            return None, chosen.currency, None
 
     async def hard_refresh(self) -> None:
         async with self._lock:
@@ -285,6 +294,19 @@ class IBKRClient:
         if self._update_callback:
             self._update_callback()
 
+    def _on_account_value(self, value: AccountValue) -> None:
+        if self._config.account and value.account != self._config.account:
+            return
+        try:
+            parsed = float(value.value)
+        except (TypeError, ValueError):
+            parsed = None
+        if parsed is not None:
+            key = (value.tag, value.currency)
+            self._account_value_cache[key] = (parsed, datetime.now(timezone.utc))
+        if self._update_callback:
+            self._update_callback()
+
 
 def _pick_account_value(values: list[AccountValue]) -> AccountValue | None:
     for currency in ("BASE", "USD", "AUD"):
@@ -292,6 +314,20 @@ def _pick_account_value(values: list[AccountValue]) -> AccountValue | None:
             if value.currency == currency:
                 return value
     return values[0] if values else None
+
+
+def _pick_cached_value(
+    cache: dict[tuple[str, str], tuple[float, datetime]], tag: str
+) -> tuple[float, str, datetime] | None:
+    for currency in ("BASE", "USD", "AUD"):
+        key = (tag, currency)
+        if key in cache:
+            value, updated = cache[key]
+            return value, currency, updated
+    for (cached_tag, currency), (value, updated) in cache.items():
+        if cached_tag == tag:
+            return value, currency, updated
+    return None
 
     def _start_reconnect_loop(self) -> None:
         if self._reconnect_task and not self._reconnect_task.done():

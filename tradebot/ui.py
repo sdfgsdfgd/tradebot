@@ -76,7 +76,12 @@ class PositionsApp(App):
         self._proxy_tickers: dict[str, Ticker] = {}
         self._proxy_error: str | None = None
         self._pnl: PnL | None = None
-        self._net_liq: tuple[float | None, str | None] = (None, None)
+        self._net_liq: tuple[float | None, str | None, datetime | None] = (
+            None,
+            None,
+            None,
+        )
+        self._net_liq_daily_anchor: float | None = None
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -135,6 +140,7 @@ class PositionsApp(App):
             self._proxy_error = self._client.proxy_error()
             self._pnl = self._client.pnl()
             self._net_liq = self._client.account_value("NetLiquidation")
+            self._maybe_update_netliq_anchor()
             self._render_table()
 
     def _mark_dirty(self) -> None:
@@ -173,10 +179,20 @@ class PositionsApp(App):
             self._add_section(title, sec_type, items)
         self._add_total_row(items)
         self._add_daily_row(self._pnl)
-        self._add_net_liq_row(self._net_liq)
+        self._add_net_liq_row(self._net_liq, self._pnl)
         self._render_ticker_bar()
         self._status.update(self._status_text())
         self._restore_cursor(prev_row_key, prev_row_index, prev_column)
+
+    def _maybe_update_netliq_anchor(self) -> None:
+        value, _currency, updated_at = self._net_liq
+        if value is None or updated_at is None:
+            return
+        if not hasattr(self, "_net_liq_updated_at") or self._net_liq_updated_at != updated_at:
+            daily = _pnl_value(self._pnl)
+            if daily is not None:
+                self._net_liq_daily_anchor = daily
+            self._net_liq_updated_at = updated_at
 
     def _status_text(self) -> str:
         conn = "connected" if self._client.is_connected else "disconnected"
@@ -270,8 +286,10 @@ class PositionsApp(App):
         )
         self._row_keys.append("daily")
 
-    def _add_net_liq_row(self, net_liq: tuple[float | None, str | None]) -> None:
-        value, currency = net_liq
+    def _add_net_liq_row(
+        self, net_liq: tuple[float | None, str | None, datetime | None], pnl: PnL | None
+    ) -> None:
+        value, currency, updated_at = net_liq
         if value is None:
             return
         style = "bold white on #1f1f1f"
@@ -281,6 +299,17 @@ class PositionsApp(App):
         if currency:
             amount = f"{amount} {currency}"
         amount_text = Text(amount)
+        ts_text = Text("")
+        if updated_at:
+            local_ts = updated_at.astimezone().strftime("%H:%M:%S")
+            ts_text = Text(f"@ {local_ts}", style="dim")
+        est_text = Text("")
+        est_value = _estimate_net_liq(value, pnl, self._net_liq_daily_anchor)
+        if est_value is not None:
+            est_amount = _fmt_money(est_value)
+            if currency:
+                est_amount = f"{est_amount} {currency}"
+            est_text = Text(f"~{est_amount}", style="yellow")
         self._table.add_row(
             label,
             blank,
@@ -289,8 +318,8 @@ class PositionsApp(App):
             blank,
             blank,
             amount_text,
-            blank,
-            blank,
+            ts_text,
+            est_text,
             key="netliq",
         )
         self._row_keys.append("netliq")
@@ -395,6 +424,24 @@ def _pnl_pct_value(pct: float | None) -> Text:
     if pct < 0:
         return Text(text, style="red")
     return Text(text)
+
+
+def _pnl_value(pnl: PnL | None) -> float | None:
+    if not pnl:
+        return None
+    value = pnl.dailyPnL
+    if value is None or (isinstance(value, float) and math.isnan(value)):
+        return None
+    return float(value)
+
+
+def _estimate_net_liq(
+    net_liq: float, pnl: PnL | None, anchor: float | None
+) -> float | None:
+    daily = _pnl_value(pnl)
+    if daily is None or anchor is None:
+        return None
+    return net_liq + (daily - anchor)
 
 
 _SECTION_ORDER = (
