@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 from ib_insync import PnL, PortfolioItem, Ticker
 from rich.text import Text
 from textual.app import App, ComposeResult
+from textual.screen import Screen
 from textual.widgets import Header, Footer, DataTable, Static
 
 from .client import IBKRClient
@@ -38,6 +39,7 @@ class PositionsApp(App):
     BINDINGS = [
         ("q", "quit", "Quit"),
         ("r", "refresh", "Refresh"),
+        ("enter", "open_position", "Details"),
     ]
 
     CSS = """
@@ -58,6 +60,10 @@ class PositionsApp(App):
         height: 1;
         padding: 0 1;
     }
+
+    DataTable > .datatable--cursor {
+        background: #2a2a2a;
+    }
     """
 
     def __init__(self) -> None:
@@ -70,6 +76,7 @@ class PositionsApp(App):
         self._dirty_task: asyncio.Task | None = None
         self._row_count = 0
         self._row_keys: list[str] = []
+        self._row_item_by_key: dict[str, PortfolioItem] = {}
         self._column_count = 0
         self._index_tickers: dict[str, Ticker] = {}
         self._index_error: str | None = None
@@ -95,6 +102,7 @@ class PositionsApp(App):
         self._ticker = self.query_one("#ticker", Static)
         self._status = self.query_one("#status", Static)
         self._setup_columns()
+        self._table.cursor_type = "row"
         self._table.focus()
         self._client.set_update_callback(self._mark_dirty)
         await self.refresh_positions()
@@ -119,6 +127,19 @@ class PositionsApp(App):
 
     async def action_refresh(self) -> None:
         await self.refresh_positions(hard=True)
+
+    def action_open_position(self) -> None:
+        row = self._table.cursor_coordinate.row
+        if 0 <= row < len(self._row_keys):
+            key = self._row_keys[row]
+            item = self._row_item_by_key.get(key)
+            if item:
+                self.push_screen(PositionDetailScreen(self._client, item))
+
+    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        item = self._row_item_by_key.get(event.row_key.value)
+        if item:
+            self.push_screen(PositionDetailScreen(self._client, item))
 
     async def refresh_positions(self, hard: bool = False) -> None:
         if self._refresh_lock.locked():
@@ -171,6 +192,7 @@ class PositionsApp(App):
 
         self._table.clear()
         self._row_keys = []
+        self._row_item_by_key = {}
         items = list(self._snapshot.items)
         self._row_count = sum(
             1 for item in items if item.contract.secType in _SECTION_TYPES
@@ -218,6 +240,7 @@ class PositionsApp(App):
             row_key = f"{sec_type}:{item.contract.conId}"
             self._table.add_row(*_portfolio_row(item), key=row_key)
             self._row_keys.append(row_key)
+            self._row_item_by_key[row_key] = item
 
     def _section_header_row(self, title: str) -> list[Text]:
         style = "bold white on #2b2b2b"
@@ -354,6 +377,85 @@ class PositionsApp(App):
             target_row = min(max(row_index, 0), len(self._row_keys) - 1)
         target_col = min(max(column, 0), max(self._column_count - 1, 0))
         self._table.cursor_coordinate = (target_row, target_col)
+
+
+class PositionDetailScreen(Screen):
+    BINDINGS = [
+        ("escape", "app.pop_screen", "Back"),
+        ("b", "app.pop_screen", "Back"),
+    ]
+
+    def __init__(self, client: IBKRClient, item: PortfolioItem) -> None:
+        super().__init__()
+        self._client = client
+        self._item = item
+        self._ticker: Ticker | None = None
+        self._refresh_task = None
+
+    def compose(self) -> ComposeResult:
+        yield Header(show_clock=True)
+        yield Static("", id="details")
+        yield Footer()
+
+    async def on_mount(self) -> None:
+        self._details = self.query_one("#details", Static)
+        self._ticker = await self._client.ensure_ticker(self._item.contract)
+        self._refresh_task = self.set_interval(0.25, self._render)
+        self._render()
+
+    async def on_unmount(self) -> None:
+        if self._refresh_task:
+            self._refresh_task.stop()
+        con_id = int(self._item.contract.conId or 0)
+        if con_id:
+            self._client.release_ticker(con_id)
+
+    def _render(self) -> None:
+        contract = self._item.contract
+        lines: list[Text] = []
+        lines.append(Text(f"{contract.symbol} {contract.secType}", style="bold"))
+        lines.append(Text(f"ConId: {contract.conId}"))
+        if contract.localSymbol:
+            lines.append(Text(f"Local: {contract.localSymbol}"))
+        if contract.exchange:
+            lines.append(Text(f"Exchange: {contract.exchange}"))
+        if contract.currency:
+            lines.append(Text(f"Currency: {contract.currency}"))
+        if contract.lastTradeDateOrContractMonth:
+            lines.append(Text(f"Expiry: {_fmt_expiry(contract.lastTradeDateOrContractMonth)}"))
+        if contract.right:
+            lines.append(Text(f"Right: {contract.right}"))
+        if contract.strike:
+            lines.append(Text(f"Strike: {_fmt_money(contract.strike)}"))
+        if contract.multiplier:
+            lines.append(Text(f"Contract Size: {contract.multiplier}"))
+        lines.append(Text(""))
+        lines.append(Text(f"Position: {_fmt_qty(float(self._item.position))}"))
+        if self._item.averageCost:
+            lines.append(Text(f"Avg Cost: {_fmt_money(float(self._item.averageCost))}"))
+        if self._item.marketValue is not None:
+            lines.append(Text(f"Market Value: {_fmt_money(float(self._item.marketValue))}"))
+        if self._item.unrealizedPNL is not None:
+            lines.append(Text(f"Unrealized P&L: {_fmt_money(float(self._item.unrealizedPNL))}"))
+        if self._item.realizedPNL is not None:
+            lines.append(Text(f"Realized P&L: {_fmt_money(float(self._item.realizedPNL))}"))
+        lines.append(Text(""))
+        if self._ticker:
+            bid = _safe_num(self._ticker.bid)
+            ask = _safe_num(self._ticker.ask)
+            last = _safe_num(self._ticker.last)
+            price = _ticker_price(self._ticker)
+            mid = _midpoint(bid, ask)
+            lines.append(
+                Text(
+                    f"Bid: {_fmt_quote(bid)}  Ask: {_fmt_quote(ask)}  Last: {_fmt_quote(last)}"
+                )
+            )
+            lines.append(Text(f"Price: {_fmt_quote(price)}"))
+            mid_text = Text("Mid: ")
+            mid_text.append(_fmt_quote(mid), style="orange1")
+            lines.append(mid_text)
+        self._details.update(Text("\n").join(lines))
 
 
 def _portfolio_sort_key(item: PortfolioItem) -> float:
@@ -590,3 +692,27 @@ def _ticker_closed(label: str, last_price: float) -> Text:
     text.append(" ")
     text.append(blank_pct, style="red")
     return text
+
+
+def _safe_num(value: float | None) -> float | None:
+    if value is None:
+        return None
+    try:
+        num = float(value)
+    except (TypeError, ValueError):
+        return None
+    if math.isnan(num) or num == 0:
+        return None
+    return num
+
+
+def _midpoint(bid: float | None, ask: float | None) -> float | None:
+    if bid is None or ask is None:
+        return None
+    return (bid + ask) / 2.0
+
+
+def _fmt_quote(value: float | None) -> str:
+    if value is None:
+        return "n/a"
+    return f"{value:,.2f}"

@@ -32,6 +32,7 @@ class IBKRClient:
         self._proxy_tickers: dict[str, Ticker] = {}
         self._proxy_task: asyncio.Task | None = None
         self._proxy_error: str | None = None
+        self._detail_tickers: dict[int, Ticker] = {}
         self._update_callback: Callable[[], None] | None = None
         self._pnl: PnL | None = None
         self._pnl_account: str | None = None
@@ -82,6 +83,7 @@ class IBKRClient:
         self._proxy_tickers = {}
         self._proxy_task = None
         self._proxy_error = None
+        self._detail_tickers = {}
         self._pnl = None
         self._pnl_account = None
         self._account_value_cache = {}
@@ -133,6 +135,26 @@ class IBKRClient:
 
     def pnl(self) -> PnL | None:
         return self._pnl
+
+    async def ensure_ticker(self, contract: Contract) -> Ticker:
+        await self.connect()
+        # Allow delayed market data fallback when real-time is unavailable.
+        self._ib.reqMarketDataType(3)
+        con_id = int(contract.conId or 0)
+        if con_id in self._detail_tickers:
+            return self._detail_tickers[con_id]
+        ticker = self._ib.reqMktData(contract)
+        if con_id:
+            self._detail_tickers[con_id] = ticker
+        return ticker
+
+    def release_ticker(self, con_id: int) -> None:
+        ticker = self._detail_tickers.pop(con_id, None)
+        if ticker:
+            try:
+                self._ib.cancelMktData(ticker.contract)
+            except Exception:
+                pass
 
     def account_value(
         self, tag: str
