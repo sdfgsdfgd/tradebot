@@ -1,6 +1,6 @@
 # tradebot
 
-Minimal IBKR TUI client & bot
+Minimal IBKR TUI trading client & bot
 
 ![tradebot TUI](docs/tradebot-demo.png)
 
