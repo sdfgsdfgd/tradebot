@@ -9,7 +9,19 @@ Minimal IBKR TUI for live positions, built for a fast read‑only overview and a
 - Positions grouped by **Options / Stocks / Futures / Futures Options (FOP)**.
 - **Unrealized / Realized** P&L, **Daily P&L**, and **Net Liquidation** (with last‑update timestamp and an estimate).
 - Event‑driven UI refresh (redraws only on data changes, throttled to 250ms).
-- **Details screen** per position with contract info, bid/ask/last, and **mid** (orange).
+- **Details screen** per position with contract metadata, live quotes, and an execution panel.
+- **Overnight routing** for equities during the overnight session via the `OVERNIGHT` exchange.
+
+## Details Screen
+![Details screen](docs/details.png)
+
+- Contract metadata (conId, local symbol, exchange, currency, expiry/right/strike).
+- Position snapshot (qty, avg cost, market value, unrealized/realized P&L).
+- Market data header shows **exchange** and **Live/Delayed** status.
+- Bid/Ask/Last + price line (mark/close fallback).
+- **Underlying quotes** shown for OPT/FOP positions.
+- **Execution panel** with tick size, mid (highlighted), optimistic/aggressive prices, custom price, and qty.
+- **Hotkeys**: `B` buy, `S` sell, `j/k` or arrows to select rows, `h/l` to nudge custom price/qty, `r` to refresh market data.
 
 ## Architecture
 - `tradebot/config.py` — runtime config (host/port/client id/refresh interval).
@@ -38,6 +50,13 @@ Optional env vars:
 - **b** / **Esc** — back
 - **r** — hard refresh (resubscribe)
 - **q** — quit
+
+Details screen:
+- **B** — send Buy
+- **S** — send Sell
+- **j/k** or **Up/Down** — move selection
+- **h/l** or **Left/Right** — nudge price/qty or jump selection
+- **r** — refresh market data for the current contract
 
 ## Notes
 - `[L]` = live data, `[D]` = delayed data.
