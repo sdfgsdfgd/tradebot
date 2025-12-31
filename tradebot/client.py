@@ -268,6 +268,26 @@ class IBKRClient:
         order_contract = _normalize_order_contract(order_contract)
         return self._ib.placeOrder(order_contract, order)
 
+    def open_trades_for_conids(self, con_ids: Iterable[int]) -> list[Trade]:
+        if not self._ib.isConnected():
+            return []
+        targets = {int(con_id) for con_id in con_ids if con_id}
+        if not targets:
+            return []
+        trades: list[Trade] = []
+        for trade in self._ib.openTrades():
+            try:
+                trade_con_id = int(getattr(trade.contract, "conId", 0) or 0)
+            except (TypeError, ValueError):
+                continue
+            if trade_con_id in targets:
+                trades.append(trade)
+        return trades
+
+    async def cancel_trade(self, trade: Trade) -> None:
+        await self.connect()
+        self._ib.cancelOrder(trade.order)
+
     async def resolve_underlying_contract(self, contract: Contract) -> Contract | None:
         if contract.secType == "OPT":
             candidate = Stock(

@@ -6,10 +6,11 @@ import math
 from datetime import datetime, time
 from zoneinfo import ZoneInfo
 
-from ib_insync import PnL, PortfolioItem, Ticker
+from ib_insync import PnL, PortfolioItem, Ticker, Trade
 from rich.text import Text
 from textual.app import App, ComposeResult
 from textual import events
+from textual.containers import Horizontal
 from textual.screen import Screen
 from textual.widgets import Header, Footer, DataTable, Static
 
@@ -60,6 +61,23 @@ class PositionsApp(App):
 
     #status {
         height: 1;
+        padding: 0 1;
+    }
+
+    #detail-body {
+        height: 1fr;
+        layout: horizontal;
+    }
+
+    #detail-left {
+        width: 2fr;
+        height: 1fr;
+        padding: 0 1;
+    }
+
+    #detail-right {
+        width: 1fr;
+        height: 1fr;
         padding: 0 1;
     }
 
@@ -399,6 +417,7 @@ class PositionDetailScreen(Screen):
         ("right", "exec_jump_right", "Exec Jump Right"),
         ("h", "exec_left", "Exec Left"),
         ("l", "exec_right", "Exec Right"),
+        ("c", "cancel_order", "Cancel Order"),
     ]
 
     def __init__(
@@ -418,15 +437,24 @@ class PositionDetailScreen(Screen):
         self._exec_qty_input = ""
         self._exec_qty = _default_order_qty(item)
         self._exec_status: str | None = None
+        self._active_panel = "exec"
+        self._orders_selected = 0
+        self._orders_scroll = 0
+        self._orders_rows: list[Trade] = []
         self._refresh_task = None
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
-        yield Static("", id="details")
+        yield Horizontal(
+            Static("", id="detail-left"),
+            Static("", id="detail-right"),
+            id="detail-body",
+        )
         yield Footer()
 
     async def on_mount(self) -> None:
-        self._details = self.query_one("#details", Static)
+        self._detail_left = self.query_one("#detail-left", Static)
+        self._detail_right = self.query_one("#detail-right", Static)
         self._ticker = await self._client.ensure_ticker(self._item.contract)
         await self._load_underlying()
         self._refresh_task = self.set_interval(self._refresh_sec, self._render_details)
@@ -461,14 +489,28 @@ class PositionDetailScreen(Screen):
                 return
 
     def action_exec_up(self) -> None:
-        self._exec_selected = max(self._exec_selected - 1, 0)
+        if self._active_panel == "orders":
+            if self._orders_rows:
+                self._orders_selected = max(self._orders_selected - 1, 0)
+        else:
+            self._exec_selected = max(self._exec_selected - 1, 0)
         self._render_details()
 
     def action_exec_down(self) -> None:
-        self._exec_selected = min(self._exec_selected + 1, len(self._exec_rows) - 1)
+        if self._active_panel == "orders":
+            if self._orders_rows:
+                self._orders_selected = min(
+                    self._orders_selected + 1, len(self._orders_rows) - 1
+                )
+        else:
+            self._exec_selected = min(self._exec_selected + 1, len(self._exec_rows) - 1)
         self._render_details()
 
     def action_exec_left(self) -> None:
+        if self._active_panel == "orders":
+            self._active_panel = "exec"
+            self._render_details()
+            return
         selected = self._exec_rows[self._exec_selected]
         if selected == "custom":
             self._adjust_custom_price(-1)
@@ -479,22 +521,49 @@ class PositionDetailScreen(Screen):
         self._render_details()
 
     def action_exec_right(self) -> None:
+        if self._active_panel == "orders":
+            self._render_details()
+            return
         selected = self._exec_rows[self._exec_selected]
         if selected == "custom":
             self._adjust_custom_price(1)
         elif selected == "qty":
             self._adjust_qty(1)
         else:
-            self._exec_selected = self._exec_rows.index("mid")
+            self._active_panel = "orders"
         self._render_details()
 
     def action_exec_jump_left(self) -> None:
-        self._exec_selected = self._exec_rows.index("custom")
+        if self._active_panel == "orders":
+            self._active_panel = "exec"
+        else:
+            self._exec_selected = self._exec_rows.index("custom")
         self._render_details()
 
     def action_exec_jump_right(self) -> None:
+        if self._active_panel == "orders":
+            self._render_details()
+            return
         self._exec_selected = self._exec_rows.index("mid")
         self._render_details()
+
+    def action_cancel_order(self) -> None:
+        if self._active_panel != "orders":
+            return
+        trade = self._selected_order()
+        if not trade:
+            self._exec_status = "Cancel: no order"
+            self._render_details()
+            return
+        order_id = trade.order.orderId or trade.order.permId or 0
+        self._exec_status = f"Canceling #{order_id}"
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            self._exec_status = "Cancel: no loop"
+            self._render_details()
+            return
+        loop.create_task(self._cancel_order(trade))
 
     async def action_refresh_ticker(self) -> None:
         con_id = int(self._item.contract.conId or 0)
@@ -615,9 +684,13 @@ class PositionDetailScreen(Screen):
                     )
                 )
             lines.extend(self._render_execution_block())
-            self._details.update(Text("\n").join(lines))
+            self._detail_left.update(Text("\n").join(lines))
         except Exception as exc:
-            self._details.update(Text(f"Detail render error: {exc}", style="red"))
+            self._detail_left.update(Text(f"Detail render error: {exc}", style="red"))
+        try:
+            self._render_orders_panel()
+        except Exception as exc:
+            self._detail_right.update(Text(f"Orders render error: {exc}", style="red"))
 
     def _render_execution_block(self) -> list[Text]:
         contract = self._item.contract
@@ -658,7 +731,11 @@ class PositionDetailScreen(Screen):
             ("qty", f"Qty: {qty}"),
         ]
         for idx, (key, label) in enumerate(rows):
-            style = "bold on #2b2b2b" if idx == self._exec_selected else ""
+            style = (
+                "bold on #2b2b2b"
+                if self._active_panel == "exec" and idx == self._exec_selected
+                else ""
+            )
             if key == "mid":
                 lines.append(Text(""))
                 line = Text("Mid: ")
@@ -669,6 +746,91 @@ class PositionDetailScreen(Screen):
                 line.stylize(style)
             lines.append(line)
         return lines
+
+    def _render_orders_panel(self) -> None:
+        con_ids: list[int] = []
+        con_id = int(self._item.contract.conId or 0)
+        if con_id:
+            con_ids.append(con_id)
+        if self._underlying_con_id and self._underlying_con_id != con_id:
+            con_ids.append(self._underlying_con_id)
+        trades = self._client.open_trades_for_conids(con_ids)
+        trades.sort(key=_trade_sort_key, reverse=True)
+        self._orders_rows = trades
+        if not trades:
+            self._orders_selected = 0
+            self._orders_scroll = 0
+            lines = [Text("Orders", style="bold"), Text("No open orders", style="dim")]
+            self._detail_right.update(Text("\n").join(lines))
+            return
+        if self._orders_selected >= len(trades):
+            self._orders_selected = len(trades) - 1
+        header = Text("Label Status Side Qty Type@Price Fill/Rem Id", style="dim")
+        lines: list[Text] = [Text("Orders", style="bold"), header]
+        available = self._detail_right.size.height
+        visible = len(trades)
+        if available:
+            visible = max(available - len(lines), 1)
+        max_scroll = max(len(trades) - visible, 0)
+        self._orders_scroll = min(max(self._orders_scroll, 0), max_scroll)
+        if self._orders_selected < self._orders_scroll:
+            self._orders_scroll = self._orders_selected
+        elif self._orders_selected >= self._orders_scroll + visible:
+            self._orders_scroll = self._orders_selected - visible + 1
+        start = self._orders_scroll
+        end = min(start + visible, len(trades))
+        for idx in range(start, end):
+            trade = trades[idx]
+            line = self._format_order_line(trade)
+            if self._active_panel == "orders" and idx == self._orders_selected:
+                line.stylize("bold on #2b2b2b")
+            lines.append(line)
+        self._detail_right.update(Text("\n").join(lines))
+
+    def _format_order_line(self, trade: Trade) -> Text:
+        contract = trade.contract
+        label = getattr(contract, "localSymbol", "") or getattr(contract, "symbol", "") or "?"
+        label = label[:10]
+        status = trade.orderStatus.status or "n/a"
+        status = status.replace("PreSubmitted", "PreSub")
+        side = (trade.order.action or "?")[:1]
+        qty = _fmt_qty(float(trade.order.totalQuantity or 0))
+        order_type = trade.order.orderType or ""
+        price = self._order_price(trade)
+        if price is not None:
+            type_label = f"{order_type}@{_fmt_quote(price)}"
+        else:
+            type_label = order_type
+        filled = _fmt_qty(float(trade.orderStatus.filled or 0))
+        remaining = _fmt_qty(float(trade.orderStatus.remaining or 0))
+        order_id = trade.order.orderId or trade.order.permId or 0
+        line = (
+            f"{label:<10} {status:<10} {side:<1} {qty:>4} "
+            f"{type_label:<12} {filled}/{remaining} #{order_id}"
+        )
+        return Text(line)
+
+    def _order_price(self, trade: Trade) -> float | None:
+        order = trade.order
+        price = _safe_num(getattr(order, "lmtPrice", None))
+        if price is not None:
+            return price
+        return _safe_num(getattr(order, "auxPrice", None))
+
+    def _selected_order(self) -> Trade | None:
+        if not self._orders_rows:
+            return None
+        idx = min(max(self._orders_selected, 0), len(self._orders_rows) - 1)
+        return self._orders_rows[idx]
+
+    async def _cancel_order(self, trade: Trade) -> None:
+        try:
+            await self._client.cancel_trade(trade)
+            order_id = trade.order.orderId or trade.order.permId or 0
+            self._exec_status = f"Cancel sent #{order_id}"
+        except Exception as exc:
+            self._exec_status = f"Cancel error: {exc}"
+        self._render_details()
 
     def _handle_digit(self, char: str) -> None:
         selected = self._exec_rows[self._exec_selected]
@@ -800,6 +962,13 @@ def _portfolio_row(item: PortfolioItem) -> list[Text | str]:
         unreal_pct,
         realized,
     ]
+
+
+def _trade_sort_key(trade: Trade) -> int:
+    order = trade.order
+    order_id = getattr(order, "orderId", 0) or 0
+    perm_id = getattr(order, "permId", 0) or 0
+    return int(order_id or perm_id or 0)
 
 
 def _pnl_text(value: float | None) -> Text:
