@@ -12,6 +12,8 @@ Minimal IBKR TUI for live positions, built for a fast read‑only overview and a
   - Bypass Redirect Order warning for Stock API Orders
   - Bypass No Overfill Protection precaution for destinations where implied natively
   - Bypass Route Marketable to BBO warning for API orders
+  - Example:
+    ![IB Gateway API Precautions](docs/ibg-precautions.png)
 
 ## Features
 - Top bar with **NQ/ES/YM futures** plus **QQQ/TQQQ proxy**, session label, and live/delayed tags.
