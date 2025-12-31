@@ -388,6 +388,7 @@ class PositionDetailScreen(Screen):
     BINDINGS = [
         ("escape", "app.pop_screen", "Back"),
         ("b", "app.pop_screen", "Back"),
+        ("q", "app.pop_screen", "Back"),
     ]
 
     def __init__(
