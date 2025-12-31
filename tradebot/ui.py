@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 from ib_insync import PnL, PortfolioItem, Ticker
 from rich.text import Text
 from textual.app import App, ComposeResult
+from textual import events
 from textual.screen import Screen
 from textual.widgets import Header, Footer, DataTable, Static
 
@@ -389,6 +390,15 @@ class PositionDetailScreen(Screen):
         ("escape", "app.pop_screen", "Back"),
         ("b", "app.pop_screen", "Back"),
         ("q", "app.pop_screen", "Back"),
+        ("r", "refresh_ticker", "Refresh MD"),
+        ("up", "exec_up", "Exec Up"),
+        ("down", "exec_down", "Exec Down"),
+        ("j", "exec_down", "Exec Down"),
+        ("k", "exec_up", "Exec Up"),
+        ("left", "exec_jump_left", "Exec Jump Left"),
+        ("right", "exec_jump_right", "Exec Jump Right"),
+        ("h", "exec_left", "Exec Left"),
+        ("l", "exec_right", "Exec Right"),
     ]
 
     def __init__(
@@ -402,6 +412,12 @@ class PositionDetailScreen(Screen):
         self._underlying_ticker: Ticker | None = None
         self._underlying_con_id: int | None = None
         self._underlying_label: str | None = None
+        self._exec_rows = ["mid", "optimistic", "aggressive", "custom", "qty"]
+        self._exec_selected = 0
+        self._exec_custom_input = ""
+        self._exec_qty_input = ""
+        self._exec_qty = _default_order_qty(item)
+        self._exec_status: str | None = None
         self._refresh_task = None
 
     def compose(self) -> ComposeResult:
@@ -425,6 +441,75 @@ class PositionDetailScreen(Screen):
         if self._underlying_con_id:
             self._client.release_ticker(self._underlying_con_id)
 
+    def on_key(self, event: events.Key) -> None:
+        if event.key == "backspace":
+            self._handle_backspace()
+            event.stop()
+            return
+        if event.character:
+            if event.character == "B":
+                self._submit_order("BUY")
+                event.stop()
+                return
+            if event.character in ("S", "s"):
+                self._submit_order("SELL")
+                event.stop()
+                return
+            if event.character in "0123456789.":
+                self._handle_digit(event.character)
+                event.stop()
+                return
+
+    def action_exec_up(self) -> None:
+        self._exec_selected = max(self._exec_selected - 1, 0)
+        self._render_details()
+
+    def action_exec_down(self) -> None:
+        self._exec_selected = min(self._exec_selected + 1, len(self._exec_rows) - 1)
+        self._render_details()
+
+    def action_exec_left(self) -> None:
+        selected = self._exec_rows[self._exec_selected]
+        if selected == "custom":
+            self._adjust_custom_price(-1)
+        elif selected == "qty":
+            self._adjust_qty(-1)
+        else:
+            self._exec_selected = self._exec_rows.index("custom")
+        self._render_details()
+
+    def action_exec_right(self) -> None:
+        selected = self._exec_rows[self._exec_selected]
+        if selected == "custom":
+            self._adjust_custom_price(1)
+        elif selected == "qty":
+            self._adjust_qty(1)
+        else:
+            self._exec_selected = self._exec_rows.index("mid")
+        self._render_details()
+
+    def action_exec_jump_left(self) -> None:
+        self._exec_selected = self._exec_rows.index("custom")
+        self._render_details()
+
+    def action_exec_jump_right(self) -> None:
+        self._exec_selected = self._exec_rows.index("mid")
+        self._render_details()
+
+    async def action_refresh_ticker(self) -> None:
+        con_id = int(self._item.contract.conId or 0)
+        if con_id:
+            self._client.release_ticker(con_id)
+        self._ticker = await self._client.ensure_ticker(self._item.contract)
+        if self._underlying_con_id:
+            self._client.release_ticker(self._underlying_con_id)
+            self._underlying_con_id = None
+            self._underlying_ticker = None
+            self._underlying_label = None
+            await self._load_underlying()
+        self._exec_status = "MD refreshed"
+        self._render_details()
+
     async def _load_underlying(self) -> None:
         contract = self._item.contract
         if contract.secType not in ("OPT", "FOP"):
@@ -443,6 +528,10 @@ class PositionDetailScreen(Screen):
 
     def _render_details(self) -> None:
         try:
+            con_id = int(self._item.contract.conId or 0)
+            latest = self._client.portfolio_item(con_id) if con_id else None
+            if latest:
+                self._item = latest
             contract = self._item.contract
             lines: list[Text] = []
             lines.append(Text(f"{contract.symbol} {contract.secType}", style="bold"))
@@ -480,7 +569,13 @@ class PositionDetailScreen(Screen):
             lines.append(Text(""))
             if self._ticker:
                 md_exchange = getattr(self._ticker.contract, "exchange", "") or ""
-                lines.append(Text(f"MD Exchange: {md_exchange or 'n/a'}", style="dim"))
+                md_label = _market_data_label(self._ticker)
+                lines.append(
+                    Text(
+                        f"MD: {md_exchange or 'n/a'} ({md_label})",
+                        style="dim",
+                    )
+                )
                 bid = _safe_num(self._ticker.bid)
                 ask = _safe_num(self._ticker.ask)
                 last = _safe_num(self._ticker.last)
@@ -499,15 +594,18 @@ class PositionDetailScreen(Screen):
                     lines.append(Text(f"Price: Mark ({_fmt_quote(mark)})", style="yellow"))
                 else:
                     lines.append(Text(f"Price: {_fmt_quote(price)}"))
-                mid_text = Text("Mid: ")
-                mid_text.append(_fmt_quote(mid), style="orange1")
-                lines.append(mid_text)
             if self._underlying_ticker:
                 lines.append(Text(""))
                 label = self._underlying_label or "Underlying"
                 lines.append(Text(f"{label}", style="bold"))
                 md_exchange = getattr(self._underlying_ticker.contract, "exchange", "") or ""
-                lines.append(Text(f"MD Exchange: {md_exchange or 'n/a'}", style="dim"))
+                md_label = _market_data_label(self._underlying_ticker)
+                lines.append(
+                    Text(
+                        f"MD: {md_exchange or 'n/a'} ({md_label})",
+                        style="dim",
+                    )
+                )
                 bid = _safe_num(self._underlying_ticker.bid)
                 ask = _safe_num(self._underlying_ticker.ask)
                 last = _safe_num(self._underlying_ticker.last)
@@ -516,9 +614,163 @@ class PositionDetailScreen(Screen):
                         f"Bid: {_fmt_quote(bid)}  Ask: {_fmt_quote(ask)}  Last: {_fmt_quote(last)}"
                     )
                 )
+            lines.extend(self._render_execution_block())
             self._details.update(Text("\n").join(lines))
         except Exception as exc:
             self._details.update(Text(f"Detail render error: {exc}", style="red"))
+
+    def _render_execution_block(self) -> list[Text]:
+        contract = self._item.contract
+        if contract.secType not in ("STK", "OPT"):
+            return []
+        bid = _safe_num(self._ticker.bid) if self._ticker else None
+        ask = _safe_num(self._ticker.ask) if self._ticker else None
+        last = _safe_num(self._ticker.last) if self._ticker else None
+        mark = _mark_price(self._item)
+        tick = _tick_size(contract, self._ticker, last or mark)
+        mid = _round_to_tick(_midpoint(bid, ask), tick)
+        optimistic_buy = _round_to_tick(_optimistic_price(bid, ask, mid, "BUY"), tick)
+        optimistic_sell = _round_to_tick(_optimistic_price(bid, ask, mid, "SELL"), tick)
+        aggressive_buy = _round_to_tick(_aggressive_price(bid, ask, mid, "BUY"), tick)
+        aggressive_sell = _round_to_tick(_aggressive_price(bid, ask, mid, "SELL"), tick)
+        custom = _parse_float(self._exec_custom_input)
+        if custom is not None:
+            custom = _round_to_tick(custom, tick)
+        qty = self._exec_qty
+        lines: list[Text] = []
+        lines.append(Text(""))
+        lines.append(Text("Execution", style="bold"))
+        lines.append(Text(f"Tick: {tick:.{_tick_decimals(tick)}f}", style="dim"))
+        lines.append(Text("B=Buy  S=Sell", style="dim"))
+        if self._exec_status:
+            lines.append(Text(self._exec_status, style="yellow"))
+        rows = [
+            ("mid", "Mid"),
+            (
+                "optimistic",
+                f"Optimistic (B/S): {_fmt_quote(optimistic_buy)} / {_fmt_quote(optimistic_sell)}",
+            ),
+            (
+                "aggressive",
+                f"Aggressive (B/S): {_fmt_quote(aggressive_buy)} / {_fmt_quote(aggressive_sell)}",
+            ),
+            ("custom", f"Custom: {_fmt_quote(custom)}"),
+            ("qty", f"Qty: {qty}"),
+        ]
+        for idx, (key, label) in enumerate(rows):
+            style = "bold on #2b2b2b" if idx == self._exec_selected else ""
+            if key == "mid":
+                lines.append(Text(""))
+                line = Text("Mid: ")
+                line.append(_fmt_quote(mid), style="orange1")
+            else:
+                line = Text(label)
+            if style:
+                line.stylize(style)
+            lines.append(line)
+        return lines
+
+    def _handle_digit(self, char: str) -> None:
+        selected = self._exec_rows[self._exec_selected]
+        if selected == "qty":
+            self._exec_qty_input = _append_digit(self._exec_qty_input, char, allow_decimal=False)
+            parsed = _parse_int(self._exec_qty_input)
+            if parsed:
+                self._exec_qty = parsed
+        else:
+            if selected != "custom":
+                self._exec_selected = self._exec_rows.index("custom")
+            self._exec_custom_input = _append_digit(self._exec_custom_input, char, allow_decimal=True)
+        self._render_details()
+
+    def _handle_backspace(self) -> None:
+        selected = self._exec_rows[self._exec_selected]
+        if selected == "qty":
+            self._exec_qty_input = self._exec_qty_input[:-1]
+            parsed = _parse_int(self._exec_qty_input)
+            if parsed:
+                self._exec_qty = parsed
+        else:
+            self._exec_custom_input = self._exec_custom_input[:-1]
+        self._render_details()
+
+    def _adjust_custom_price(self, direction: int) -> None:
+        tick = _tick_size(self._item.contract, self._ticker, _mark_price(self._item))
+        current = _parse_float(self._exec_custom_input)
+        if current is None:
+            bid = _safe_num(self._ticker.bid) if self._ticker else None
+            ask = _safe_num(self._ticker.ask) if self._ticker else None
+            mid = _midpoint(bid, ask)
+            current = _round_to_tick(mid, tick) or 0.0
+        adjusted = _round_to_tick(current + (tick * direction), tick)
+        if adjusted is None:
+            return
+        self._exec_custom_input = f"{adjusted:.{_tick_decimals(tick)}f}"
+
+    def _adjust_qty(self, direction: int) -> None:
+        next_qty = max(1, int(self._exec_qty) + direction)
+        self._exec_qty = next_qty
+        self._exec_qty_input = str(next_qty)
+
+    def _submit_order(self, action: str) -> None:
+        contract = self._item.contract
+        if contract.secType not in ("STK", "OPT"):
+            self._exec_status = "Exec: unsupported contract"
+            self._render_details()
+            return
+        qty = int(self._exec_qty) if self._exec_qty else 0
+        if qty <= 0:
+            self._exec_status = "Exec: invalid qty"
+            self._render_details()
+            return
+        price = self._selected_exec_price(action)
+        if price is None:
+            self._exec_status = "Exec: price n/a"
+            self._render_details()
+            return
+        outside_rth = contract.secType == "STK"
+        self._exec_status = f"Sending {action} {qty} @ {price:.2f}"
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            self._exec_status = "Exec: no loop"
+            self._render_details()
+            return
+        loop.create_task(self._place_order(action, qty, price, outside_rth))
+
+    async def _place_order(
+        self, action: str, qty: int, price: float, outside_rth: bool
+    ) -> None:
+        try:
+            await self._client.place_limit_order(
+                self._item.contract, action, qty, price, outside_rth
+            )
+            self._exec_status = f"Sent {action} {qty} @ {price:.2f}"
+        except Exception as exc:
+            self._exec_status = f"Exec error: {exc}"
+        self._render_details()
+
+    def _selected_exec_price(self, action: str) -> float | None:
+        bid = _safe_num(self._ticker.bid) if self._ticker else None
+        ask = _safe_num(self._ticker.ask) if self._ticker else None
+        last = _safe_num(self._ticker.last) if self._ticker else None
+        mark = _mark_price(self._item)
+        tick = _tick_size(self._item.contract, self._ticker, last or mark)
+        mid = _round_to_tick(_midpoint(bid, ask), tick)
+        fallback = _round_to_tick(last or mark, tick)
+        selected = self._exec_rows[self._exec_selected]
+        if selected == "mid":
+            return mid or fallback
+        if selected == "optimistic":
+            value = _optimistic_price(bid, ask, mid, action)
+            return _round_to_tick(value, tick) or fallback
+        if selected == "aggressive":
+            value = _aggressive_price(bid, ask, mid, action)
+            return _round_to_tick(value, tick) or fallback
+        if selected == "custom":
+            value = _parse_float(self._exec_custom_input)
+            return _round_to_tick(value, tick) if value is not None else None
+        return fallback
 
 
 def _portfolio_sort_key(item: PortfolioItem) -> float:
@@ -672,6 +924,15 @@ def _market_data_tag(ticker: Ticker) -> str:
     return ""
 
 
+def _market_data_label(ticker: Ticker) -> str:
+    md_type = getattr(ticker, "marketDataType", None)
+    if md_type in (1, 2):
+        return "Live"
+    if md_type in (3, 4):
+        return "Delayed"
+    return "n/a"
+
+
 def _market_session_label() -> str:
     now_et = datetime.now(ZoneInfo("America/New_York")).time()
     if time(4, 0) <= now_et < time(9, 30):
@@ -816,3 +1077,100 @@ def _fmt_quote(value: float | None) -> str:
     if value is None:
         return "n/a"
     return f"{value:,.2f}"
+
+
+def _default_order_qty(item: PortfolioItem) -> int:
+    return 1
+
+
+def _tick_size(contract, ticker: Ticker | None, ref_price: float | None) -> float:
+    if ticker is not None:
+        value = getattr(ticker, "minTick", None)
+        if value:
+            try:
+                tick = float(value)
+                if tick > 0:
+                    return tick
+            except (TypeError, ValueError):
+                pass
+    value = getattr(contract, "minTick", None)
+    if value:
+        try:
+            tick = float(value)
+            if tick > 0:
+                return tick
+        except (TypeError, ValueError):
+            pass
+    if contract.secType == "OPT":
+        if ref_price is not None and ref_price >= 3:
+            return 0.05
+        return 0.01
+    return 0.01
+
+
+def _round_to_tick(value: float | None, tick: float) -> float | None:
+    if value is None:
+        return None
+    if not tick:
+        return value
+    return round(value / tick) * tick
+
+
+def _tick_decimals(tick: float) -> int:
+    text = f"{tick:.10f}".rstrip("0").rstrip(".")
+    if "." in text:
+        return len(text.split(".")[1])
+    return 0
+
+
+def _optimistic_price(
+    bid: float | None, ask: float | None, mid: float | None, action: str
+) -> float | None:
+    if mid is None:
+        return bid if action == "BUY" else ask
+    if action == "BUY":
+        if bid is None:
+            return mid
+        return (mid + bid) / 2.0
+    if ask is None:
+        return mid
+    return (mid + ask) / 2.0
+
+
+def _aggressive_price(
+    bid: float | None, ask: float | None, mid: float | None, action: str
+) -> float | None:
+    if action == "BUY":
+        return ask or mid or bid
+    return bid or mid or ask
+
+
+def _append_digit(value: str, char: str, allow_decimal: bool) -> str:
+    if char == "." and not allow_decimal:
+        return value
+    if char == "." and "." in value:
+        return value
+    if char == "." and not value:
+        return "0."
+    return value + char
+
+
+def _parse_float(value: str) -> float | None:
+    if not value:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _parse_int(value: str) -> int | None:
+    if not value:
+        return None
+    if not value.isdigit():
+        return None
+    try:
+        parsed = int(value)
+    except ValueError:
+        return None
+    return parsed if parsed > 0 else None

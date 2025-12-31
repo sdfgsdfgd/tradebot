@@ -5,10 +5,22 @@ import asyncio
 import copy
 import math
 import time
-from datetime import datetime, timezone
+from datetime import datetime, time as dtime, timezone
 from typing import Callable, Iterable
+from zoneinfo import ZoneInfo
 
-from ib_insync import AccountValue, ContFuture, Contract, IB, PnL, PortfolioItem, Stock, Ticker
+from ib_insync import (
+    AccountValue,
+    ContFuture,
+    Contract,
+    IB,
+    LimitOrder,
+    PnL,
+    PortfolioItem,
+    Stock,
+    Ticker,
+    Trade,
+)
 
 from .config import IBKRConfig
 
@@ -18,6 +30,22 @@ _INDEX_CONTRACTS: dict[str, list[str]] = {
     "YM": ["ECBOT", "CBOT", "GLOBEX"],
 }
 _PROXY_SYMBOLS = ("QQQ", "TQQQ")
+_ET_ZONE = ZoneInfo("America/New_York")
+_PREMARKET_START = dtime(4, 0)
+_RTH_START = dtime(9, 30)
+_RTH_END = dtime(16, 0)
+_AFTER_END = dtime(20, 0)
+_OVERNIGHT_END = dtime(3, 50)
+
+
+def _session_flags(now: datetime) -> tuple[bool, bool]:
+    """Return (outside_rth, include_overnight) for US equity sessions."""
+    current = now.time()
+    outside_rth = (_PREMARKET_START <= current < _RTH_START) or (
+        _RTH_END <= current < _AFTER_END
+    )
+    include_overnight = current >= _AFTER_END or current < _OVERNIGHT_END
+    return outside_rth, include_overnight
 
 
 class IBKRClient:
@@ -171,6 +199,18 @@ class IBKRClient:
     def pnl(self) -> PnL | None:
         return self._pnl
 
+    def portfolio_item(self, con_id: int) -> PortfolioItem | None:
+        if not con_id or not self._ib.isConnected():
+            return None
+        account = self._config.account or ""
+        for item in self._ib.portfolio(account):
+            try:
+                if int(item.contract.conId or 0) == con_id:
+                    return item
+            except (TypeError, ValueError):
+                continue
+        return None
+
     async def ensure_ticker(self, contract: Contract) -> Ticker:
         use_proxy = contract.secType in ("STK", "OPT")
         if use_proxy:
@@ -187,17 +227,46 @@ class IBKRClient:
             return self._detail_tickers[con_id][1]
         req_contract = contract
         if contract.secType == "STK":
-            primary_exchange = getattr(contract, "primaryExchange", "") or ""
-            if (not contract.exchange or contract.exchange == "SMART") and primary_exchange:
+            _, include_overnight = _session_flags(datetime.now(tz=_ET_ZONE))
+            if include_overnight:
                 req_contract = copy.copy(contract)
-                req_contract.exchange = primary_exchange
-            elif not contract.exchange:
-                req_contract = copy.copy(contract)
-                req_contract.exchange = "SMART"
+                req_contract.exchange = "OVERNIGHT"
+            else:
+                primary_exchange = getattr(contract, "primaryExchange", "") or ""
+                if (not contract.exchange or contract.exchange == "SMART") and primary_exchange:
+                    req_contract = copy.copy(contract)
+                    req_contract.exchange = primary_exchange
+                elif not contract.exchange:
+                    req_contract = copy.copy(contract)
+                    req_contract.exchange = "SMART"
         ticker = ib.reqMktData(req_contract)
         if con_id:
             self._detail_tickers[con_id] = (ib, ticker)
         return ticker
+
+    async def place_limit_order(
+        self,
+        contract: Contract,
+        action: str,
+        quantity: float,
+        limit_price: float,
+        outside_rth: bool,
+    ) -> Trade:
+        await self.connect()
+        order_contract = contract
+        order = LimitOrder(action, quantity, limit_price, tif="DAY")
+        if contract.secType == "STK":
+            allow_outside = outside_rth
+            outside_session, include_overnight = _session_flags(
+                datetime.now(tz=_ET_ZONE)
+            )
+            if include_overnight:
+                order_contract = copy.copy(contract)
+                order_contract.exchange = "OVERNIGHT"
+            if allow_outside and outside_session:
+                order.outsideRth = True
+        order_contract = _normalize_order_contract(order_contract)
+        return self._ib.placeOrder(order_contract, order)
 
     async def resolve_underlying_contract(self, contract: Contract) -> Contract | None:
         if contract.secType == "OPT":
@@ -331,8 +400,14 @@ class IBKRClient:
         if not self._proxy_contracts:
             self._proxy_contracts = await self._qualify_proxy_contracts()
         if not self._proxy_tickers:
+            _, include_overnight = _session_flags(datetime.now(tz=_ET_ZONE))
             for symbol, contract in self._proxy_contracts.items():
-                self._proxy_tickers[symbol] = self._ib_proxy.reqMktData(contract)
+                req_contract = contract
+                if include_overnight and contract.secType == "STK":
+                    if contract.exchange != "OVERNIGHT":
+                        req_contract = copy.copy(contract)
+                        req_contract.exchange = "OVERNIGHT"
+                self._proxy_tickers[symbol] = self._ib_proxy.reqMktData(req_contract)
 
     async def _qualify_proxy_contracts(self) -> dict[str, Contract]:
         qualified: dict[str, Contract] = {}
@@ -431,13 +506,18 @@ class IBKRClient:
             self._ib_proxy.reqMarketDataType(3)
             req_contract = contract
             if contract.secType == "STK":
-                primary_exchange = getattr(contract, "primaryExchange", "") or ""
-                if (not contract.exchange or contract.exchange == "SMART") and primary_exchange:
+                _, include_overnight = _session_flags(datetime.now(tz=_ET_ZONE))
+                if include_overnight:
                     req_contract = copy.copy(contract)
-                    req_contract.exchange = primary_exchange
-                elif not contract.exchange:
-                    req_contract = copy.copy(contract)
-                    req_contract.exchange = "SMART"
+                    req_contract.exchange = "OVERNIGHT"
+                else:
+                    primary_exchange = getattr(contract, "primaryExchange", "") or ""
+                    if (not contract.exchange or contract.exchange == "SMART") and primary_exchange:
+                        req_contract = copy.copy(contract)
+                        req_contract.exchange = primary_exchange
+                    elif not contract.exchange:
+                        req_contract = copy.copy(contract)
+                        req_contract.exchange = "SMART"
             try:
                 self._ib_proxy.cancelMktData(contract)
             except Exception:
@@ -609,3 +689,12 @@ def _pick_cached_value(
         if cached_tag == tag:
             return value, currency, updated
     return None
+
+
+def _normalize_order_contract(contract: Contract) -> Contract:
+    if contract.exchange:
+        return contract
+    normalized = copy.copy(contract)
+    if contract.secType in ("STK", "OPT", "FUT", "FOP"):
+        normalized.exchange = "SMART"
+    return normalized
