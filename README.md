@@ -1,6 +1,6 @@
 # tradebot
 
-Minimal IBKR TUI for live positions, built for a fast read‑only overview and a simple detail drill‑down.
+Minimal IBKR TUI client & bot
 
 ![tradebot TUI](docs/tradebot-demo.png)
 
