@@ -4,6 +4,15 @@ Minimal IBKR TUI for live positions, built for a fast read‑only overview and a
 
 ![tradebot TUI](docs/tradebot-demo.png)
 
+## Prerequisites
+- Run **IB Gateway** (or TWS) with the API enabled.
+- In **API → Precautions**, enable the bypasses below (orders can be rejected without them):
+  - Bypass Order Precautions for API Orders
+  - Bypass price‑based volatility risk warning for API Orders
+  - Bypass Redirect Order warning for Stock API Orders
+  - Bypass No Overfill Protection precaution for destinations where implied natively
+  - Bypass Route Marketable to BBO warning for API orders
+
 ## Features
 - Top bar with **NQ/ES/YM futures** plus **QQQ/TQQQ proxy**, session label, and live/delayed tags.
 - Positions grouped by **Options / Stocks / Futures / Futures Options (FOP)**.
