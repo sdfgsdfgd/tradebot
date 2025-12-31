@@ -138,7 +138,13 @@ class PositionsApp(App):
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         item = self._row_item_by_key.get(event.row_key.value)
         if item:
-            self.push_screen(PositionDetailScreen(self._client, item))
+            self.push_screen(
+                PositionDetailScreen(
+                    self._client,
+                    item,
+                    self._config.detail_refresh_sec,
+                )
+            )
 
     async def refresh_positions(self, hard: bool = False) -> None:
         if self._refresh_lock.locked():
@@ -384,11 +390,17 @@ class PositionDetailScreen(Screen):
         ("b", "app.pop_screen", "Back"),
     ]
 
-    def __init__(self, client: IBKRClient, item: PortfolioItem) -> None:
+    def __init__(
+        self, client: IBKRClient, item: PortfolioItem, refresh_sec: float
+    ) -> None:
         super().__init__()
         self._client = client
         self._item = item
+        self._refresh_sec = max(refresh_sec, 0.1)
         self._ticker: Ticker | None = None
+        self._underlying_ticker: Ticker | None = None
+        self._underlying_con_id: int | None = None
+        self._underlying_label: str | None = None
         self._refresh_task = None
 
     def compose(self) -> ComposeResult:
@@ -399,7 +411,8 @@ class PositionDetailScreen(Screen):
     async def on_mount(self) -> None:
         self._details = self.query_one("#details", Static)
         self._ticker = await self._client.ensure_ticker(self._item.contract)
-        self._refresh_task = self.set_interval(0.25, self._render_details)
+        await self._load_underlying()
+        self._refresh_task = self.set_interval(self._refresh_sec, self._render_details)
         self._render_details()
 
     async def on_unmount(self) -> None:
@@ -408,6 +421,24 @@ class PositionDetailScreen(Screen):
         con_id = int(self._item.contract.conId or 0)
         if con_id:
             self._client.release_ticker(con_id)
+        if self._underlying_con_id:
+            self._client.release_ticker(self._underlying_con_id)
+
+    async def _load_underlying(self) -> None:
+        contract = self._item.contract
+        if contract.secType not in ("OPT", "FOP"):
+            return
+        underlying = await self._client.resolve_underlying_contract(contract)
+        if not underlying:
+            return
+        self._underlying_ticker = await self._client.ensure_ticker(underlying)
+        con_id = int(getattr(underlying, "conId", 0) or 0)
+        if con_id:
+            self._underlying_con_id = con_id
+        symbol = getattr(underlying, "localSymbol", "") or getattr(underlying, "symbol", "")
+        sec_type = getattr(underlying, "secType", "")
+        if symbol or sec_type:
+            self._underlying_label = " ".join(part for part in (symbol, sec_type) if part)
 
     def _render_details(self) -> None:
         try:
@@ -447,12 +478,15 @@ class PositionDetailScreen(Screen):
                 )
             lines.append(Text(""))
             if self._ticker:
+                md_exchange = getattr(self._ticker.contract, "exchange", "") or ""
+                lines.append(Text(f"MD Exchange: {md_exchange or 'n/a'}", style="dim"))
                 bid = _safe_num(self._ticker.bid)
                 ask = _safe_num(self._ticker.ask)
                 last = _safe_num(self._ticker.last)
                 price = _ticker_price(self._ticker)
                 mid = _midpoint(bid, ask)
                 close = _ticker_close(self._ticker)
+                mark = _mark_price(self._item)
                 lines.append(
                     Text(
                         f"Bid: {_fmt_quote(bid)}  Ask: {_fmt_quote(ask)}  Last: {_fmt_quote(last)}"
@@ -460,11 +494,27 @@ class PositionDetailScreen(Screen):
                 )
                 if price is None and close is not None:
                     lines.append(Text(f"Price: Closed ({_fmt_quote(close)})", style="red"))
+                elif price is None and mark is not None:
+                    lines.append(Text(f"Price: Mark ({_fmt_quote(mark)})", style="yellow"))
                 else:
                     lines.append(Text(f"Price: {_fmt_quote(price)}"))
                 mid_text = Text("Mid: ")
                 mid_text.append(_fmt_quote(mid), style="orange1")
                 lines.append(mid_text)
+            if self._underlying_ticker:
+                lines.append(Text(""))
+                label = self._underlying_label or "Underlying"
+                lines.append(Text(f"{label}", style="bold"))
+                md_exchange = getattr(self._underlying_ticker.contract, "exchange", "") or ""
+                lines.append(Text(f"MD Exchange: {md_exchange or 'n/a'}", style="dim"))
+                bid = _safe_num(self._underlying_ticker.bid)
+                ask = _safe_num(self._underlying_ticker.ask)
+                last = _safe_num(self._underlying_ticker.last)
+                lines.append(
+                    Text(
+                        f"Bid: {_fmt_quote(bid)}  Ask: {_fmt_quote(ask)}  Last: {_fmt_quote(last)}"
+                    )
+                )
             self._details.update(Text("\n").join(lines))
         except Exception as exc:
             self._details.update(Text(f"Detail render error: {exc}", style="red"))
@@ -600,8 +650,15 @@ def _ticker_price(ticker: Ticker) -> float | None:
 def _ticker_close(ticker: Ticker) -> float | None:
     for attr in ("close", "prevLast"):
         value = getattr(ticker, attr, None)
-        if value:
-            return float(value)
+        if value is None:
+            continue
+        try:
+            num = float(value)
+        except (TypeError, ValueError):
+            continue
+        if math.isnan(num) or num == 0:
+            continue
+        return num
     return None
 
 
@@ -734,6 +791,18 @@ def _safe_num(value: float | None) -> float | None:
     if math.isnan(num) or num == 0:
         return None
     return num
+
+
+def _mark_price(item: PortfolioItem) -> float | None:
+    value = _safe_num(getattr(item, "marketPrice", None))
+    if value is not None:
+        return value
+    if item.marketValue is not None and item.position:
+        try:
+            return float(item.marketValue) / float(item.position)
+        except (TypeError, ValueError, ZeroDivisionError):
+            return None
+    return None
 
 
 def _midpoint(bid: float | None, ask: float | None) -> float | None:
