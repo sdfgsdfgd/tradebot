@@ -43,6 +43,7 @@ class PositionsApp(App):
         ("r", "refresh", "Refresh"),
         ("j", "cursor_down", "Down"),
         ("k", "cursor_up", "Up"),
+        ("l", "open_details", "Details"),
     ]
 
     CSS = """
@@ -153,6 +154,21 @@ class PositionsApp(App):
 
     def action_cursor_up(self) -> None:
         self._table.action_cursor_up()
+
+    def action_open_details(self) -> None:
+        row_index = self._table.cursor_coordinate.row
+        if row_index < 0 or row_index >= len(self._row_keys):
+            return
+        row_key = self._row_keys[row_index]
+        item = self._row_item_by_key.get(row_key)
+        if item:
+            self.push_screen(
+                PositionDetailScreen(
+                    self._client,
+                    item,
+                    self._config.detail_refresh_sec,
+                )
+            )
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         item = self._row_item_by_key.get(event.row_key.value)
@@ -507,17 +523,14 @@ class PositionDetailScreen(Screen):
         self._render_details()
 
     def action_exec_left(self) -> None:
-        if self._active_panel == "orders":
-            self._active_panel = "exec"
-            self._render_details()
-            return
         selected = self._exec_rows[self._exec_selected]
+        if self._active_panel != "exec" or selected not in ("custom", "qty"):
+            self.app.pop_screen()
+            return
         if selected == "custom":
             self._adjust_custom_price(-1)
-        elif selected == "qty":
-            self._adjust_qty(-1)
         else:
-            self._exec_selected = self._exec_rows.index("custom")
+            self._adjust_qty(-1)
         self._render_details()
 
     def action_exec_right(self) -> None:
