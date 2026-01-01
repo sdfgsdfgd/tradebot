@@ -14,7 +14,7 @@ This package provides a minimal backtest runner that builds **synthetic option p
 python -m tradebot.backtest --config backtest.sample.json
 ```
 
-Use `--no-write` to skip CSV output.
+Use `--no-write` to skip CSV output. Add `--calibrate` to refresh the synthetic calibration using delayed LAST quotes.
 
 ## Cache layout
 Bars are cached under `db/` (configurable):
@@ -33,6 +33,8 @@ See `backtest.sample.json`. Core fields:
 - `starting_cash`
 - `risk_free_rate` (fixed; TODO: load historical rates)
 - `cache_dir` (default `db`)
+- `calibration_dir` (default `db/calibration`)
+- `calibrate` (true = refresh calibration before backtest)
 - `output_dir` (default `backtests/out`)
 
 ### strategy
@@ -80,6 +82,13 @@ These modules will be reused in a live trading engine (future work), where marke
 - Synthetic options are **directional approximations**, not true bid/ask markets.
 - Equity option quotes require OPRA for real data.
 - Futures options bid/ask require CME options subscriptions.
+
+## Calibration (delayed LAST)
+When `calibrate` is enabled (or `--calibrate` is passed), the engine will:
+- Pull **delayed LAST** prices (tickType 68) across strikes/expiries.
+- Fit IV parameters (floor, risk premium, skew, term slope) per expiry bucket.
+- Persist results under `db/calibration/<SYMBOL>.json`.
+This improves synthetic pricing without requiring OPRA/CME bid/ask.
 
 ## TODO
 - Regime gating hooks

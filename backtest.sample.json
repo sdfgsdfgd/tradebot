@@ -7,6 +7,8 @@
     "starting_cash": 100000,
     "risk_free_rate": 0.02,
     "cache_dir": "db",
+    "calibration_dir": "db/calibration",
+    "calibrate": false,
     "output_dir": "backtests/out"
   },
   "strategy": {

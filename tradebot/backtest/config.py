@@ -26,7 +26,9 @@ class BacktestConfig:
     starting_cash: float
     risk_free_rate: float
     cache_dir: Path
+    calibration_dir: Path
     output_dir: Path
+    calibrate: bool
 
 
 @dataclass(frozen=True)
@@ -80,7 +82,9 @@ def load_config(path: str | Path) -> ConfigBundle:
         starting_cash=float(backtest_raw.get("starting_cash", 100_000.0)),
         risk_free_rate=float(backtest_raw.get("risk_free_rate", 0.02)),
         cache_dir=Path(backtest_raw.get("cache_dir", "db")),
+        calibration_dir=Path(backtest_raw.get("calibration_dir", "db/calibration")),
         output_dir=Path(backtest_raw.get("output_dir", "backtests/out")),
+        calibrate=bool(backtest_raw.get("calibrate", False)),
     )
 
     entry_days = _parse_weekdays(strategy_raw.get("entry_days", []))

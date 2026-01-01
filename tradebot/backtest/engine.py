@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from datetime import datetime, time
 
 from .config import ConfigBundle
+from .calibration import ensure_calibration, load_calibration
 from .data import IBKRHistoricalData
 from .models import Bar, EquityPoint, SpreadTrade, SummaryStats
 from .strategy import CreditSpreadStrategy
@@ -46,6 +47,11 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
         term_slope=cfg.synthetic.term_slope,
         skew=cfg.synthetic.skew,
     )
+    calibration = None
+    if cfg.backtest.calibrate:
+        calibration = ensure_calibration(cfg)
+    else:
+        calibration = load_calibration(cfg.backtest.calibration_dir, cfg.strategy.symbol)
 
     strategy = CreditSpreadStrategy(cfg.strategy)
     returns = deque(maxlen=surface_params.rv_lookback)
@@ -73,24 +79,48 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
             open_trade = None
 
         if open_trade:
-            current_value = _spread_value(open_trade, bar, rv, cfg, surface_params, meta.min_tick, is_future)
+            current_value = _spread_value(open_trade, bar, rv, cfg, surface_params, meta.min_tick, is_future, calibration)
             if _hit_profit(open_trade, current_value):
                 exit_debit = _spread_value_from_spec(
-                    open_trade, bar, rv, cfg, surface_params, meta.min_tick, is_future, mode="exit"
+                    open_trade,
+                    bar,
+                    rv,
+                    cfg,
+                    surface_params,
+                    meta.min_tick,
+                    is_future,
+                    mode="exit",
+                    calibration=calibration,
                 )
                 _close_trade(open_trade, bar.ts, exit_debit, "profit", trades)
                 equity += open_trade.pnl(meta.multiplier)
                 open_trade = None
             elif _hit_stop(open_trade, current_value, cfg.strategy.stop_loss_basis):
                 exit_debit = _spread_value_from_spec(
-                    open_trade, bar, rv, cfg, surface_params, meta.min_tick, is_future, mode="exit"
+                    open_trade,
+                    bar,
+                    rv,
+                    cfg,
+                    surface_params,
+                    meta.min_tick,
+                    is_future,
+                    mode="exit",
+                    calibration=calibration,
                 )
                 _close_trade(open_trade, bar.ts, exit_debit, "stop", trades)
                 equity += open_trade.pnl(meta.multiplier)
                 open_trade = None
             elif cfg.strategy.dte == 0 and is_last_bar:
                 exit_debit = _spread_value_from_spec(
-                    open_trade, bar, rv, cfg, surface_params, meta.min_tick, is_future, mode="exit"
+                    open_trade,
+                    bar,
+                    rv,
+                    cfg,
+                    surface_params,
+                    meta.min_tick,
+                    is_future,
+                    mode="exit",
+                    calibration=calibration,
                 )
                 _close_trade(open_trade, bar.ts, exit_debit, "eod", trades)
                 equity += open_trade.pnl(meta.multiplier)
@@ -101,7 +131,15 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
             if last_entry_date != bar.ts.date():
                 spec = strategy.build_spec(bar.ts, bar.close)
                 entry_credit = _spread_value_from_spec(
-                    spec, bar, rv, cfg, surface_params, meta.min_tick, is_future, mode="entry"
+                    spec,
+                    bar,
+                    rv,
+                    cfg,
+                    surface_params,
+                    meta.min_tick,
+                    is_future,
+                    mode="entry",
+                    calibration=calibration,
                 )
                 min_credit = cfg.strategy.min_credit if cfg.strategy.min_credit is not None else meta.min_tick
                 if entry_credit >= min_credit:
@@ -121,14 +159,22 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
 
         unrealized = 0.0
         if open_trade:
-            mark_value = _spread_value(open_trade, bar, rv, cfg, surface_params, meta.min_tick, is_future)
+            mark_value = _spread_value(open_trade, bar, rv, cfg, surface_params, meta.min_tick, is_future, calibration)
             unrealized = (open_trade.entry_credit - mark_value) * meta.multiplier * open_trade.qty
         equity_curve.append(EquityPoint(ts=bar.ts, equity=equity + unrealized))
         prev_bar = bar
 
     if open_trade and prev_bar:
         exit_debit = _spread_value_from_spec(
-            open_trade, prev_bar, rv, cfg, surface_params, meta.min_tick, is_future, mode="exit"
+            open_trade,
+            prev_bar,
+            rv,
+            cfg,
+            surface_params,
+            meta.min_tick,
+            is_future,
+            mode="exit",
+            calibration=calibration,
         )
         _close_trade(open_trade, prev_bar.ts, exit_debit, "end", trades)
         equity += open_trade.pnl(meta.multiplier)
@@ -146,9 +192,20 @@ def _spread_value(
     surface_params: IVSurfaceParams,
     min_tick: float,
     is_future: bool,
+    calibration,
 ) -> float:
     spec = trade
-    return _spread_value_from_spec(spec, bar, rv, cfg, surface_params, min_tick, is_future, mode="mark")
+    return _spread_value_from_spec(
+        spec,
+        bar,
+        rv,
+        cfg,
+        surface_params,
+        min_tick,
+        is_future,
+        mode="mark",
+        calibration=calibration,
+    )
 
 
 def _spread_value_from_spec(
@@ -160,8 +217,11 @@ def _spread_value_from_spec(
     min_tick: float,
     is_future: bool,
     mode: str,
+    calibration,
 ) -> float:
     dte_days = max((spec.expiry - bar.ts.date()).days, 0)
+    if calibration:
+        surface_params = calibration.surface_params(dte_days, surface_params)
     atm_iv = iv_atm(rv, dte_days, surface_params)
     forward = bar.close
     if dte_days == 0:
