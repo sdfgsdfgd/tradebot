@@ -645,6 +645,11 @@ class PositionDetailScreen(Screen):
                         style="dim",
                     )
                 )
+                md_local = getattr(self._ticker.contract, "localSymbol", "") or ""
+                md_debug = f"MD Contract: {self._ticker.contract.secType}"
+                if md_local:
+                    md_debug += f" {md_local}"
+                lines.append(Text(md_debug, style="dim"))
                 bid = _safe_num(self._ticker.bid)
                 ask = _safe_num(self._ticker.ask)
                 last = _safe_num(self._ticker.last)
@@ -675,6 +680,11 @@ class PositionDetailScreen(Screen):
                         style="dim",
                     )
                 )
+                md_local = getattr(self._underlying_ticker.contract, "localSymbol", "") or ""
+                md_debug = f"MD Contract: {self._underlying_ticker.contract.secType}"
+                if md_local:
+                    md_debug += f" {md_local}"
+                lines.append(Text(md_debug, style="dim"))
                 bid = _safe_num(self._underlying_ticker.bid)
                 ask = _safe_num(self._underlying_ticker.ask)
                 last = _safe_num(self._underlying_ticker.last)
