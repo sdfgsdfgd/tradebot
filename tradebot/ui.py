@@ -523,6 +523,10 @@ class PositionDetailScreen(Screen):
         self._render_details()
 
     def action_exec_left(self) -> None:
+        if self._active_panel == "orders":
+            self._active_panel = "exec"
+            self._render_details()
+            return
         selected = self._exec_rows[self._exec_selected]
         if self._active_panel != "exec" or selected not in ("custom", "qty"):
             self.app.pop_screen()
