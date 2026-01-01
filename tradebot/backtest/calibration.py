@@ -138,19 +138,24 @@ def save_calibration(calibration_dir: Path, book: CalibrationBook) -> None:
     path.write_text(json.dumps(payload, indent=2))
 
 
-def ensure_calibration(cfg: ConfigBundle) -> CalibrationBook | None:
+def ensure_calibration(cfg: ConfigBundle, rv_override: float | None = None) -> CalibrationBook | None:
     symbol = cfg.strategy.symbol
     book = load_calibration(cfg.backtest.calibration_dir, symbol)
     asof = datetime.now().date().isoformat()
     if book and all(_has_record_today(bucket, asof) for bucket in book.buckets):
         return book
-    updated = calibrate_symbol(cfg, book, asof)
+    updated = calibrate_symbol(cfg, book, asof, rv_override=rv_override)
     if updated:
         save_calibration(cfg.backtest.calibration_dir, updated)
     return updated
 
 
-def calibrate_symbol(cfg: ConfigBundle, book: CalibrationBook | None, asof: str) -> CalibrationBook | None:
+def calibrate_symbol(
+    cfg: ConfigBundle,
+    book: CalibrationBook | None,
+    asof: str,
+    rv_override: float | None = None,
+) -> CalibrationBook | None:
     symbol = cfg.strategy.symbol
     if book is None:
         book = CalibrationBook(
@@ -168,7 +173,7 @@ def calibrate_symbol(cfg: ConfigBundle, book: CalibrationBook | None, asof: str)
         ib.disconnect()
         return book
 
-    rv = _recent_realized_vol(cfg, symbol, cfg.strategy.exchange)
+    rv = rv_override if rv_override is not None else _recent_realized_vol(cfg, symbol, cfg.strategy.exchange)
 
     for bucket in book.buckets:
         if _has_record_today(bucket, asof):

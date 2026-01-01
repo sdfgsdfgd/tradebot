@@ -49,7 +49,7 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
     )
     calibration = None
     if cfg.backtest.calibrate:
-        calibration = ensure_calibration(cfg)
+        calibration = ensure_calibration(cfg, rv_override=_rv_from_bars(bars, cfg))
     else:
         calibration = load_calibration(cfg.backtest.calibration_dir, cfg.strategy.symbol)
 
@@ -206,6 +206,19 @@ def _spread_value(
         mode="mark",
         calibration=calibration,
     )
+
+
+def _rv_from_bars(bars: list[Bar], cfg: ConfigBundle) -> float:
+    closes = [bar.close for bar in bars if bar.close]
+    returns = []
+    for idx in range(1, len(closes)):
+        if closes[idx - 1] > 0:
+            returns.append(math.log(closes[idx] / closes[idx - 1]))
+    if not returns:
+        return cfg.synthetic.iv_floor
+    rv = ewma_vol(returns[-cfg.synthetic.rv_lookback :], cfg.synthetic.rv_ewma_lambda)
+    rv *= math.sqrt(_annualization_factor(cfg.backtest.bar_size, cfg.backtest.use_rth))
+    return rv
 
 
 def _spread_value_from_spec(

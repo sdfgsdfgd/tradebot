@@ -1,0 +1,74 @@
+{
+  "symbol": "SLV",
+  "buckets": [
+    {
+      "min_dte": 0,
+      "max_dte": 2,
+      "records": []
+    },
+    {
+      "min_dte": 3,
+      "max_dte": 7,
+      "records": []
+    },
+    {
+      "min_dte": 8,
+      "max_dte": 30,
+      "records": [
+        {
+          "asof": "2026-01-02",
+          "params": {
+            "iv_floor": 0.03,
+            "iv_risk_premium": 1.0,
+            "skew": -0.5,
+            "term_slope": 0.0
+          },
+          "mae": 0.654235652535113,
+          "mape": 0.13450901766626452,
+          "samples": 2
+        }
+      ]
+    },
+    {
+      "min_dte": 31,
+      "max_dte": 60,
+      "records": []
+    },
+    {
+      "min_dte": 61,
+      "max_dte": 120,
+      "records": [
+        {
+          "asof": "2026-01-02",
+          "params": {
+            "iv_floor": 0.03,
+            "iv_risk_premium": 1.0,
+            "skew": 0.0,
+            "term_slope": 0.0
+          },
+          "mae": 3.8020821880755546,
+          "mape": 0.5996351386213405,
+          "samples": 2
+        }
+      ]
+    },
+    {
+      "min_dte": 121,
+      "max_dte": 3650,
+      "records": [
+        {
+          "asof": "2026-01-02",
+          "params": {
+            "iv_floor": 0.03,
+            "iv_risk_premium": 1.0,
+            "skew": 0.0,
+            "term_slope": 0.0
+          },
+          "mae": 14.142298146962734,
+          "mape": 0.8745869534914104,
+          "samples": 2
+        }
+      ]
+    }
+  ]
+}
