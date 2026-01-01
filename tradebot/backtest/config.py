@@ -128,6 +128,8 @@ def _parse_date(value: str | None) -> date:
 
 
 def _parse_weekdays(days: list[str]) -> tuple[int, ...]:
+    if not days:
+        return (0, 1, 2, 3, 4)
     parsed: list[int] = []
     for day in days:
         if not isinstance(day, str):
@@ -136,4 +138,6 @@ def _parse_weekdays(days: list[str]) -> tuple[int, ...]:
         if key not in _WEEKDAYS:
             raise ValueError(f"Unknown weekday: {day}")
         parsed.append(_WEEKDAYS[key])
+    if not parsed:
+        return (0, 1, 2, 3, 4)
     return tuple(parsed)

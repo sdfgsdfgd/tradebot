@@ -43,6 +43,7 @@ See `backtest.sample.json`. Core fields:
 - `exchange` (optional; futures default to CME)
 - `right` (`PUT` or `CALL`)
 - `entry_days` (3-letter names, e.g. `Tue`)
+  - If omitted or empty, defaults to all weekdays.
 - `dte` (0 for 0DTE)
 - `otm_pct` (percent OTM for short strike)
 - `width_pct` (spread width as % of spot)
@@ -82,6 +83,11 @@ These modules will be reused in a live trading engine (future work), where marke
 - Synthetic options are **directional approximations**, not true bid/ask markets.
 - Equity option quotes require OPRA for real data.
 - Futures options bid/ask require CME options subscriptions.
+
+## Testing notes (volatility)
+- **Realized vol over time:** RV is computed per bar using EWMA of returns, so it moves through time during the backtest.
+- **IV over time:** IV is synthetic (RV + static params). Calibration adjusts those params using *today’s* delayed LAST, so it improves realism for “now,” not historical regimes.
+- **Persisted buckets:** Calibration records accumulate, but backtests currently use the **latest record only** (no as‑of date matching).
 
 ## Calibration (delayed LAST)
 When `calibrate` is enabled (or `--calibrate` is passed), the engine will:
