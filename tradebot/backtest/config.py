@@ -44,6 +44,7 @@ class StrategyConfig:
     exit_dte: int
     quantity: int
     stop_loss_basis: str
+    min_credit: float | None
 
 
 @dataclass(frozen=True)
@@ -78,7 +79,7 @@ def load_config(path: str | Path) -> ConfigBundle:
         use_rth=bool(backtest_raw.get("use_rth", False)),
         starting_cash=float(backtest_raw.get("starting_cash", 100_000.0)),
         risk_free_rate=float(backtest_raw.get("risk_free_rate", 0.02)),
-        cache_dir=Path(backtest_raw.get("cache_dir", "data/cache")),
+        cache_dir=Path(backtest_raw.get("cache_dir", "db")),
         output_dir=Path(backtest_raw.get("output_dir", "backtests/out")),
     )
 
@@ -97,6 +98,9 @@ def load_config(path: str | Path) -> ConfigBundle:
         exit_dte=int(strategy_raw.get("exit_dte", 0)),
         quantity=int(strategy_raw.get("quantity", 1)),
         stop_loss_basis=strategy_raw.get("stop_loss_basis", "max_loss"),
+        min_credit=(
+            float(strategy_raw["min_credit"]) if "min_credit" in strategy_raw else None
+        ),
     )
 
     synthetic = SyntheticConfig(

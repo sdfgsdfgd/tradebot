@@ -55,8 +55,9 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
     open_trade: SpreadTrade | None = None
     prev_bar: Bar | None = None
     last_entry_date = None
-
-    for bar in bars:
+    for idx, bar in enumerate(bars):
+        next_bar = bars[idx + 1] if idx + 1 < len(bars) else None
+        is_last_bar = next_bar is None or next_bar.ts.date() != bar.ts.date()
         if prev_bar is not None:
             if prev_bar.close > 0:
                 returns.append(math.log(bar.close / prev_bar.close))
@@ -87,6 +88,13 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
                 _close_trade(open_trade, bar.ts, exit_debit, "stop", trades)
                 equity += open_trade.pnl(meta.multiplier)
                 open_trade = None
+            elif cfg.strategy.dte == 0 and is_last_bar:
+                exit_debit = _spread_value_from_spec(
+                    open_trade, bar, rv, cfg, surface_params, meta.min_tick, is_future, mode="exit"
+                )
+                _close_trade(open_trade, bar.ts, exit_debit, "eod", trades)
+                equity += open_trade.pnl(meta.multiplier)
+                open_trade = None
 
         # TODO: add regime gating hook before entry decisions.
         if open_trade is None and strategy.should_enter(bar.ts):
@@ -95,19 +103,21 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
                 entry_credit = _spread_value_from_spec(
                     spec, bar, rv, cfg, surface_params, meta.min_tick, is_future, mode="entry"
                 )
-                open_trade = SpreadTrade(
-                    symbol=cfg.strategy.symbol,
-                    right=spec.right,
-                    entry_time=bar.ts,
-                    expiry=spec.expiry,
-                    short_strike=spec.short_strike,
-                    long_strike=spec.long_strike,
-                    qty=spec.qty,
-                    entry_credit=entry_credit,
-                    stop_loss=cfg.strategy.stop_loss,
-                    profit_target=cfg.strategy.profit_target,
-                )
-                last_entry_date = bar.ts.date()
+                min_credit = cfg.strategy.min_credit if cfg.strategy.min_credit is not None else meta.min_tick
+                if entry_credit >= min_credit:
+                    open_trade = SpreadTrade(
+                        symbol=cfg.strategy.symbol,
+                        right=spec.right,
+                        entry_time=bar.ts,
+                        expiry=spec.expiry,
+                        short_strike=spec.short_strike,
+                        long_strike=spec.long_strike,
+                        qty=spec.qty,
+                        entry_credit=entry_credit,
+                        stop_loss=cfg.strategy.stop_loss,
+                        profit_target=cfg.strategy.profit_target,
+                    )
+                    last_entry_date = bar.ts.date()
 
         unrealized = 0.0
         if open_trade:
@@ -154,7 +164,10 @@ def _spread_value_from_spec(
     dte_days = max((spec.expiry - bar.ts.date()).days, 0)
     atm_iv = iv_atm(rv, dte_days, surface_params)
     forward = bar.close
-    t = max(dte_days / 365.0, 1e-6)
+    if dte_days == 0:
+        t = max(_session_hours(cfg.backtest.use_rth) / (24.0 * 365.0), _min_time(cfg.backtest.bar_size))
+    else:
+        t = max(dte_days / 365.0, _min_time(cfg.backtest.bar_size))
     short_iv = iv_for_strike(atm_iv, forward, spec.short_strike, surface_params)
     long_iv = iv_for_strike(atm_iv, forward, spec.long_strike, surface_params)
     if is_future:
@@ -245,8 +258,28 @@ def _summarize(
 
 def _annualization_factor(bar_size: str, use_rth: bool) -> float:
     label = bar_size.lower()
-    if \"hour\" in label:
+    if "hour" in label:
         return 252 * (6.5 if use_rth else 24)
-    if \"day\" in label:
+    if "day" in label:
         return 252
     return 252 * (6.5 if use_rth else 24)
+
+
+def _session_hours(use_rth: bool) -> float:
+    return 6.5 if use_rth else 24.0
+
+
+def _min_time(bar_size: str) -> float:
+    label = bar_size.lower()
+    if "hour" in label:
+        hours = 1.0
+    elif "min" in label:
+        try:
+            hours = float(label.split("min")[0].strip()) / 60.0
+        except (ValueError, IndexError):
+            hours = 0.5
+    elif "day" in label:
+        hours = 24.0
+    else:
+        hours = 1.0
+    return hours / (24.0 * 365.0)

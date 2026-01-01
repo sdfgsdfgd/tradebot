@@ -242,7 +242,11 @@ class IBKRClient:
         elif contract.secType in ("OPT", "FOP"):
             if not contract.exchange:
                 req_contract = copy.copy(contract)
-                req_contract.exchange = "SMART"
+                if contract.secType == "FOP":
+                    primary_exchange = getattr(contract, "primaryExchange", "") or ""
+                    req_contract.exchange = primary_exchange or "CME"
+                else:
+                    req_contract.exchange = "SMART"
         ticker = ib.reqMktData(req_contract)
         if con_id:
             self._detail_tickers[con_id] = (ib, ticker)
@@ -545,7 +549,11 @@ class IBKRClient:
             elif contract.secType in ("OPT", "FOP"):
                 if not contract.exchange:
                     req_contract = copy.copy(contract)
-                    req_contract.exchange = "SMART"
+                    if contract.secType == "FOP":
+                        primary_exchange = getattr(contract, "primaryExchange", "") or ""
+                        req_contract.exchange = primary_exchange or "CME"
+                    else:
+                        req_contract.exchange = "SMART"
             try:
                 self._ib_proxy.cancelMktData(contract)
             except Exception:
@@ -632,7 +640,11 @@ class IBKRClient:
                 req_contract = ticker.contract
                 if req_contract.secType in ("OPT", "FOP") and not req_contract.exchange:
                     req_contract = copy.copy(req_contract)
-                    req_contract.exchange = "SMART"
+                    if req_contract.secType == "FOP":
+                        primary_exchange = getattr(req_contract, "primaryExchange", "") or ""
+                        req_contract.exchange = primary_exchange or "CME"
+                    else:
+                        req_contract.exchange = "SMART"
                 try:
                     self._ib_proxy.cancelMktData(ticker.contract)
                 except Exception:

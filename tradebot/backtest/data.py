@@ -70,8 +70,8 @@ class IBKRHistoricalData:
         use_rth: bool,
         cache_dir: Path,
     ) -> list[Bar]:
-        cache_dir.mkdir(parents=True, exist_ok=True)
         cache_path = _cache_path(cache_dir, symbol, start, end, bar_size, use_rth)
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
         if cache_path.exists():
             return _read_cache(cache_path)
         contract, _ = self.resolve_contract(symbol, exchange)
@@ -128,7 +128,7 @@ def _duration_for_bar_size(bar_size: str) -> str:
 def _cache_path(cache_dir: Path, symbol: str, start: datetime, end: datetime, bar: str, use_rth: bool) -> Path:
     tag = "rth" if use_rth else "full"
     safe_bar = bar.replace(" ", "")
-    return cache_dir / f"{symbol}_{start.date()}_{end.date()}_{safe_bar}_{tag}.csv"
+    return cache_dir / symbol / f"{symbol}_{start.date()}_{end.date()}_{safe_bar}_{tag}.csv"
 
 
 def _read_cache(path: Path) -> list[Bar]:
@@ -170,6 +170,8 @@ def _convert_bar(bar) -> Bar:
     dt = bar.date
     if isinstance(dt, str):
         dt = util.parseIBDatetime(dt)
+    if getattr(dt, "tzinfo", None) is not None:
+        dt = dt.replace(tzinfo=None)
     return Bar(
         ts=dt,
         open=float(bar.open),

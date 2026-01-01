@@ -667,6 +667,7 @@ class PositionDetailScreen(Screen):
                 if md_local:
                     md_debug += f" {md_local}"
                 lines.append(Text(md_debug, style="dim"))
+                lines.append(_quote_status_line(self._ticker))
                 bid = _safe_num(self._ticker.bid)
                 ask = _safe_num(self._ticker.ask)
                 last = _safe_num(self._ticker.last)
@@ -702,6 +703,7 @@ class PositionDetailScreen(Screen):
                 if md_local:
                     md_debug += f" {md_local}"
                 lines.append(Text(md_debug, style="dim"))
+                lines.append(_quote_status_line(self._underlying_ticker))
                 bid = _safe_num(self._underlying_ticker.bid)
                 ask = _safe_num(self._underlying_ticker.ask)
                 last = _safe_num(self._underlying_ticker.last)
@@ -1127,6 +1129,15 @@ def _market_data_label(ticker: Ticker) -> str:
     if md_type in (3, 4):
         return "Delayed"
     return "n/a"
+
+
+def _quote_status_line(ticker: Ticker) -> Text:
+    bid = _safe_num(getattr(ticker, "bid", None))
+    ask = _safe_num(getattr(ticker, "ask", None))
+    last = _safe_num(getattr(ticker, "last", None))
+    bid_ask = "ok" if bid is not None and ask is not None else "n/a"
+    last_label = "ok" if last is not None else "n/a"
+    return Text(f"MD Quotes: bid/ask {bid_ask} · last {last_label}", style="dim")
 
 
 def _market_session_label() -> str:
