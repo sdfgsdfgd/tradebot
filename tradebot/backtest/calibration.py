@@ -173,7 +173,12 @@ def calibrate_symbol(cfg: ConfigBundle, book: CalibrationBook | None, asof: str)
     for bucket in book.buckets:
         if _has_record_today(bucket, asof):
             continue
-        expiry = _pick_expiry(chain.expirations, bucket.min_dte, bucket.max_dte)
+        expiry = _pick_expiry(
+            chain.expirations,
+            bucket.min_dte,
+            bucket.max_dte,
+            cfg.strategy.dte,
+        )
         if not expiry:
             continue
         samples = _sample_contracts(ib, symbol, chain, expiry, spot, is_future)
@@ -222,9 +227,14 @@ def _resolve_chain(ib: IB, symbol: str, exchange: str | None) -> tuple[float | N
     return spot, chain, False
 
 
-def _pick_expiry(expirations: Iterable[str], min_dte: int, max_dte: int) -> str | None:
+def _pick_expiry(
+    expirations: Iterable[str],
+    min_dte: int,
+    max_dte: int,
+    target_dte: int,
+) -> str | None:
     today = datetime.now().date()
-    chosen = None
+    candidates: list[tuple[int, str]] = []
     for exp in sorted(expirations):
         try:
             exp_date = datetime.strptime(exp, "%Y%m%d").date()
@@ -232,9 +242,14 @@ def _pick_expiry(expirations: Iterable[str], min_dte: int, max_dte: int) -> str 
             continue
         dte = (exp_date - today).days
         if min_dte <= dte <= max_dte:
-            chosen = exp
-            break
-    return chosen
+            candidates.append((dte, exp))
+    if not candidates:
+        return None
+    target = target_dte
+    if target < min_dte or target > max_dte:
+        target = int(round((min_dte + max_dte) / 2))
+    candidates.sort(key=lambda item: (abs(item[0] - target), item[0]))
+    return candidates[0][1]
 
 
 def _sample_contracts(ib: IB, symbol: str, chain, expiry: str, spot: float, is_future: bool) -> list[_Sample]:
