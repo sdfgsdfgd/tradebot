@@ -51,6 +51,7 @@ class StrategyConfig:
     ema_preset: str | None
     ema_directional: bool
     legs: tuple["LegConfig", ...] | None
+    filters: "FiltersConfig" | None
 
 
 @dataclass(frozen=True)
@@ -70,6 +71,18 @@ class LegConfig:
     right: str
     moneyness_pct: float
     qty: int
+
+
+@dataclass(frozen=True)
+class FiltersConfig:
+    rv_min: float | None
+    rv_max: float | None
+    ema_spread_min_pct: float | None
+    ema_slope_min_pct: float | None
+    entry_start_hour: int | None
+    entry_end_hour: int | None
+    skip_first_bars: int
+    cooldown_bars: int
 
 
 @dataclass(frozen=True)
@@ -121,6 +134,7 @@ def load_config(path: str | Path) -> ConfigBundle:
         ema_preset=_parse_ema_preset(strategy_raw.get("ema_preset")),
         ema_directional=bool(strategy_raw.get("ema_directional", False)),
         legs=_parse_legs(strategy_raw.get("legs")),
+        filters=_parse_filters(strategy_raw.get("filters")),
     )
 
     synthetic = SyntheticConfig(
@@ -196,3 +210,24 @@ def _parse_legs(raw) -> tuple[LegConfig, ...] | None:
             raise ValueError(f"legs[{idx}].qty must be positive")
         legs.append(LegConfig(action=action, right=right, moneyness_pct=moneyness, qty=qty))
     return tuple(legs)
+
+
+def _parse_filters(raw) -> FiltersConfig | None:
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise ValueError("filters must be an object")
+    def _f(val):
+        return None if val is None else float(val)
+    def _i(val):
+        return None if val is None else int(val)
+    return FiltersConfig(
+        rv_min=_f(raw.get("rv_min")),
+        rv_max=_f(raw.get("rv_max")),
+        ema_spread_min_pct=_f(raw.get("ema_spread_min_pct")),
+        ema_slope_min_pct=_f(raw.get("ema_slope_min_pct")),
+        entry_start_hour=_i(raw.get("entry_start_hour")),
+        entry_end_hour=_i(raw.get("entry_end_hour")),
+        skip_first_bars=int(raw.get("skip_first_bars", 0) or 0),
+        cooldown_bars=int(raw.get("cooldown_bars", 0) or 0),
+    )

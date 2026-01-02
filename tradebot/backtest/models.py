@@ -29,20 +29,20 @@ class OptionTrade:
     legs: list[OptionLeg]
     entry_time: datetime
     expiry: date
-    entry_credit: float
+    entry_price: float
     stop_loss: float
     profit_target: float
     exit_time: datetime | None = None
-    exit_debit: float | None = None
+    exit_price: float | None = None
     exit_reason: str | None = None
 
     def is_open(self) -> bool:
         return self.exit_time is None
 
     def pnl(self, multiplier: float) -> float:
-        if self.exit_debit is None:
+        if self.exit_price is None:
             return 0.0
-        return (self.entry_credit - self.exit_debit) * multiplier
+        return (self.entry_price - self.exit_price) * multiplier
 
 
 @dataclass(frozen=True)

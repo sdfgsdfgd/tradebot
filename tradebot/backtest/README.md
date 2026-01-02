@@ -128,6 +128,29 @@ Example (naked short put):
 ]
 ```
 
+#### Regime filters (optional)
+Add a `filters` block to gate entries:
+- `rv_min`, `rv_max`: annualized realized vol bounds
+- `ema_spread_min_pct`: require |EMA_fast-EMA_slow| / price (%) above threshold
+- `ema_slope_min_pct`: require EMA fast slope (%) above threshold
+- `entry_start_hour`, `entry_end_hour`: hourly window (0–23)
+- `skip_first_bars`: skip first N bars of each session
+- `cooldown_bars`: minimum bars between entries
+
+Example:
+```json
+"filters": {
+  "rv_min": 0.15,
+  "rv_max": 0.60,
+  "ema_spread_min_pct": 0.05,
+  "ema_slope_min_pct": 0.01,
+  "entry_start_hour": 10,
+  "entry_end_hour": 15,
+  "skip_first_bars": 2,
+  "cooldown_bars": 4
+}
+```
+
 ### synthetic
 - `rv_lookback` (bars)
 - `rv_ewma_lambda`

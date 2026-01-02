@@ -36,8 +36,8 @@ def _write_trades(path: Path, result: BacktestResult) -> None:
                 "exit_time",
                 "expiry",
                 "legs",
-                "entry_credit",
-                "exit_debit",
+                "entry_price",
+                "exit_price",
                 "exit_reason",
             ]
         )
@@ -52,8 +52,8 @@ def _write_trades(path: Path, result: BacktestResult) -> None:
                     trade.exit_time.isoformat() if trade.exit_time else "",
                     trade.expiry.isoformat(),
                     legs,
-                    f"{trade.entry_credit:.4f}",
-                    f"{trade.exit_debit:.4f}" if trade.exit_debit is not None else "",
+                    f"{trade.entry_price:.4f}",
+                    f"{trade.exit_price:.4f}" if trade.exit_price is not None else "",
                     trade.exit_reason or "",
                 ]
             )

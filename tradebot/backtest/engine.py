@@ -76,10 +76,19 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
     open_trade: OptionTrade | None = None
     prev_bar: Bar | None = None
     last_entry_date = None
+    filters = cfg.strategy.filters
     ema_periods = _ema_periods(cfg.strategy.ema_preset)
+    ema_needed = ema_periods is not None or (
+        filters
+        and (filters.ema_spread_min_pct is not None or filters.ema_slope_min_pct is not None)
+    )
     ema_fast = None
     ema_slow = None
+    prev_ema_fast = None
     ema_count = 0
+    bars_in_day = 0
+    last_entry_idx = None
+    last_date = None
     for idx, bar in enumerate(bars):
         next_bar = bars[idx + 1] if idx + 1 < len(bars) else None
         is_last_bar = next_bar is None or next_bar.ts.date() != bar.ts.date()
@@ -88,7 +97,12 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
                 returns.append(math.log(bar.close / prev_bar.close))
         rv = ewma_vol(returns, surface_params.rv_ewma_lambda)
         rv *= math.sqrt(_annualization_factor(cfg.backtest.bar_size, cfg.backtest.use_rth))
+        if last_date != bar.ts.date():
+            bars_in_day = 0
+            last_date = bar.ts.date()
+        bars_in_day += 1
         if ema_periods and bar.close > 0:
+            prev_ema_fast = ema_fast
             ema_fast = _ema_next(ema_fast, bar.close, ema_periods[0])
             ema_slow = _ema_next(ema_slow, bar.close, ema_periods[1])
             ema_count += 1
@@ -160,26 +174,60 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
         # TODO: add regime gating hook before entry decisions.
         ema_gate_ok = True
         ema_right_override = None
-        if ema_periods:
-            ema_gate_ok = (
-                ema_count >= ema_periods[1]
-                and ema_fast is not None
-                and ema_slow is not None
-            )
-            if ema_gate_ok:
-                if cfg.strategy.ema_directional:
-                    if ema_fast > ema_slow:
-                        ema_right_override = "CALL"
-                    elif ema_fast < ema_slow:
-                        ema_right_override = "PUT"
-                    else:
-                        ema_gate_ok = False
+        ema_ready = ema_periods is not None and ema_count >= ema_periods[1] and ema_fast is not None and ema_slow is not None
+        if ema_needed and not ema_ready:
+            ema_gate_ok = False
+        elif ema_ready:
+            if cfg.strategy.ema_directional:
+                if ema_fast > ema_slow:
+                    ema_right_override = "CALL"
+                elif ema_fast < ema_slow:
+                    ema_right_override = "PUT"
                 else:
-                    ema_gate_ok = ema_fast > ema_slow
-        if open_trade is None and strategy.should_enter(bar.ts) and ema_gate_ok:
+                    ema_gate_ok = False
+            else:
+                ema_gate_ok = ema_fast > ema_slow
+
+        filters_ok = True
+        if filters:
+            if filters.rv_min is not None and rv < filters.rv_min:
+                filters_ok = False
+            if filters.rv_max is not None and rv > filters.rv_max:
+                filters_ok = False
+            if filters.entry_start_hour is not None and filters.entry_end_hour is not None:
+                hour = bar.ts.hour
+                start = filters.entry_start_hour
+                end = filters.entry_end_hour
+                if start <= end:
+                    if not (start <= hour < end):
+                        filters_ok = False
+                else:
+                    if not (hour >= start or hour < end):
+                        filters_ok = False
+            if filters.skip_first_bars and bars_in_day <= filters.skip_first_bars:
+                filters_ok = False
+            if filters.cooldown_bars and last_entry_idx is not None:
+                if (idx - last_entry_idx) < filters.cooldown_bars:
+                    filters_ok = False
+            if filters.ema_spread_min_pct is not None:
+                if not ema_ready:
+                    filters_ok = False
+                else:
+                    spread_pct = abs(ema_fast - ema_slow) / max(bar.close, 1e-9) * 100.0
+                    if spread_pct < filters.ema_spread_min_pct:
+                        filters_ok = False
+            if filters.ema_slope_min_pct is not None:
+                if not ema_ready or prev_ema_fast is None:
+                    filters_ok = False
+                else:
+                    slope_pct = abs(ema_fast - prev_ema_fast) / max(bar.close, 1e-9) * 100.0
+                    if slope_pct < filters.ema_slope_min_pct:
+                        filters_ok = False
+
+        if open_trade is None and strategy.should_enter(bar.ts) and ema_gate_ok and filters_ok:
             if last_entry_date != bar.ts.date():
                 spec = strategy.build_spec(bar.ts, bar.close, right_override=ema_right_override)
-                entry_credit = _trade_value_from_spec(
+                entry_price = _trade_value_from_spec(
                     spec,
                     bar,
                     rv,
@@ -191,22 +239,25 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
                     calibration=calibration,
                 )
                 min_credit = cfg.strategy.min_credit if cfg.strategy.min_credit is not None else meta.min_tick
-                if entry_credit >= min_credit:
+                if entry_price >= 0 and entry_price < min_credit:
+                    pass
+                else:
                     open_trade = OptionTrade(
                         symbol=cfg.strategy.symbol,
                         legs=spec.legs,
                         entry_time=bar.ts,
                         expiry=spec.expiry,
-                        entry_credit=entry_credit,
+                        entry_price=entry_price,
                         stop_loss=cfg.strategy.stop_loss,
                         profit_target=cfg.strategy.profit_target,
                     )
                     last_entry_date = bar.ts.date()
+                    last_entry_idx = idx
 
         unrealized = 0.0
         if open_trade:
             mark_value = _trade_value(open_trade, bar, rv, cfg, surface_params, meta.min_tick, is_future, calibration)
-            unrealized = (open_trade.entry_credit - mark_value) * meta.multiplier
+            unrealized = (open_trade.entry_price - mark_value) * meta.multiplier
         equity_curve.append(EquityPoint(ts=bar.ts, equity=equity + unrealized))
         prev_bar = bar
 
@@ -321,25 +372,29 @@ def _trade_value_from_spec(
             price = quote.mid
         sign = 1 if leg.action == "SELL" else -1
         net += sign * price * leg.qty
-    return max(0.0, net)
+    return net
 
 
 def _hit_profit(trade: OptionTrade, current_value: float) -> bool:
-    target = trade.entry_credit * trade.profit_target
-    return (trade.entry_credit - current_value) >= target
+    target = abs(trade.entry_price) * trade.profit_target
+    return (trade.entry_price - current_value) >= target
 
 
 def _hit_stop(trade: OptionTrade, current_value: float, basis: str) -> bool:
     max_loss = _max_loss(trade)
-    if basis == "credit" or max_loss is None:
-        return current_value >= trade.entry_credit * (1 + trade.stop_loss)
-    loss = max(0.0, current_value - trade.entry_credit)
+    loss = max(0.0, current_value - trade.entry_price)
+    if basis == "credit":
+        if trade.entry_price >= 0:
+            return current_value >= trade.entry_price * (1 + trade.stop_loss)
+        return loss >= abs(trade.entry_price) * trade.stop_loss
+    if max_loss is None:
+        return loss >= abs(trade.entry_price) * trade.stop_loss
     return loss >= max_loss * trade.stop_loss
 
 
-def _close_trade(trade: OptionTrade, ts: datetime, debit: float, reason: str, trades: list[OptionTrade]) -> None:
+def _close_trade(trade: OptionTrade, ts: datetime, price: float, reason: str, trades: list[OptionTrade]) -> None:
     trade.exit_time = ts
-    trade.exit_debit = debit
+    trade.exit_price = price
     trade.exit_reason = reason
     trades.append(trade)
 
@@ -407,7 +462,9 @@ def _max_loss(trade: OptionTrade) -> float | None:
     if {a.action, b.action} != {"BUY", "SELL"}:
         return None
     width = abs(a.strike - b.strike)
-    return max(0.0, width - trade.entry_credit)
+    if trade.entry_price >= 0:
+        return max(0.0, width - trade.entry_price)
+    return abs(trade.entry_price)
 
 
 def _annualization_factor(bar_size: str, use_rth: bool) -> float:
