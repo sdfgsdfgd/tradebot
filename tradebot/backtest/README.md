@@ -2,6 +2,52 @@
 
 This package provides a minimal backtest runner that builds **synthetic option prices** from underlying bars and evaluates a single strategy per run. The code is structured to be reusable for a future live trading engine.
 
+## Full config example (all parameters)
+```json
+{
+  "backtest": {
+    "start": "2025-01-01",
+    "end": "2025-12-31",
+    "bar_size": "1 hour",
+    "use_rth": false,
+    "starting_cash": 100000,
+    "risk_free_rate": 0.02,
+    "cache_dir": "db",
+    "calibration_dir": "db/calibration",
+    "calibrate": false,
+    "output_dir": "backtests/out"
+  },
+  "strategy": {
+    "name": "credit_spread",
+    "symbol": "SLV",
+    "right": "CALL",
+    "entry_days": [],
+    "dte": 30,
+    "otm_pct": -1.0,
+    "width_pct": 2.0,
+    "profit_target": 3.0,
+    "stop_loss": 0.35,
+    "exit_dte": 30,
+    "quantity": 1,
+    "min_credit": 0.01,
+    "ema_preset": "9/21"
+  },
+  "synthetic": {
+    "rv_lookback": 60,
+    "rv_ewma_lambda": 0.94,
+    "iv_risk_premium": 1.2,
+    "iv_floor": 0.05,
+    "term_slope": 0.02,
+    "skew": -0.25,
+    "min_spread_pct": 0.1
+  }
+}
+```
+Notes:
+- `entry_days: []` defaults to all weekdays.
+- `otm_pct` can be negative for ITM (e.g., `-1.0` = 1% ITM).
+- `synthetic` is optional; defaults are used if omitted.
+
 ## What it does
 - Pulls **hourly underlying bars** via IBKR and caches them on disk.
 - Builds **synthetic option chains** using EWMA realized volatility + skew.
@@ -46,10 +92,11 @@ See `backtest.sample.json`. Core fields:
   - If omitted or empty, defaults to all weekdays.
 - `dte` (0 for 0DTE)
 - `otm_pct` (percent OTM for short strike)
+  - Negative values mean ITM (e.g., `-1.0` = 1% ITM).
 - `width_pct` (spread width as % of spot)
 - `profit_target` (fraction of credit, e.g. 0.5)
 - `stop_loss` (fraction of max loss, e.g. 0.35)
-- `exit_dte` (not used yet; placeholder)
+- `exit_dte` (placeholder; currently not enforced)
 - `quantity`
 - `min_credit` (minimum credit to enter; units are option price)
 - `ema_preset` (optional; `"9/21"` or `"20/50"`; entry allowed only when fast > slow)
@@ -63,6 +110,7 @@ See `backtest.sample.json`. Core fields:
 - `term_slope`
 - `skew`
 - `min_spread_pct`
+  - This block is optional; defaults are used if omitted.
 
 ## 0DTE behavior
 - Uses a **minimum time value** equal to one session for pricing (prevents zero premium).

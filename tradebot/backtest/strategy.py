@@ -27,9 +27,11 @@ class CreditSpreadStrategy:
         expiry = _expiry_from_dte(ts.date(), self._cfg.dte)
         width = spot * (self._cfg.width_pct / 100.0)
         if self._cfg.right == "PUT":
+            # Negative otm_pct means ITM (e.g., -1 = 1% ITM).
             short_strike = spot * (1 - self._cfg.otm_pct / 100.0)
             long_strike = short_strike - width
         else:
+            # Negative otm_pct means ITM (e.g., -1 = 1% ITM).
             short_strike = spot * (1 + self._cfg.otm_pct / 100.0)
             long_strike = short_strike + width
         return SpreadSpec(

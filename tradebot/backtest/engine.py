@@ -80,7 +80,15 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
 
         if open_trade and prev_bar and bar.ts.date() > open_trade.expiry:
             exit_debit = _spread_value_from_spec(
-                open_trade, prev_bar, rv, cfg, surface_params, meta.min_tick, is_future, mode="exit"
+                open_trade,
+                prev_bar,
+                rv,
+                cfg,
+                surface_params,
+                meta.min_tick,
+                is_future,
+                mode="exit",
+                calibration=calibration,
             )
             _close_trade(open_trade, prev_bar.ts, exit_debit, "expiry", trades)
             equity += open_trade.pnl(meta.multiplier)
