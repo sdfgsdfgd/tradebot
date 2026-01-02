@@ -47,6 +47,7 @@ class StrategyConfig:
     quantity: int
     stop_loss_basis: str
     min_credit: float | None
+    ema_preset: str | None
 
 
 @dataclass(frozen=True)
@@ -105,6 +106,7 @@ def load_config(path: str | Path) -> ConfigBundle:
         min_credit=(
             float(strategy_raw["min_credit"]) if "min_credit" in strategy_raw else None
         ),
+        ema_preset=_parse_ema_preset(strategy_raw.get("ema_preset")),
     )
 
     synthetic = SyntheticConfig(
@@ -141,3 +143,17 @@ def _parse_weekdays(days: list[str]) -> tuple[int, ...]:
     if not parsed:
         return (0, 1, 2, 3, 4)
     return tuple(parsed)
+
+
+def _parse_ema_preset(value) -> str | None:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        cleaned = value.strip()
+        if not cleaned:
+            return None
+        lowered = cleaned.lower()
+        if lowered in ("none", "null"):
+            return None
+        return cleaned
+    return None

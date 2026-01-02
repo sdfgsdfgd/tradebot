@@ -61,6 +61,10 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
     open_trade: SpreadTrade | None = None
     prev_bar: Bar | None = None
     last_entry_date = None
+    ema_periods = _ema_periods(cfg.strategy.ema_preset)
+    ema_fast = None
+    ema_slow = None
+    ema_count = 0
     for idx, bar in enumerate(bars):
         next_bar = bars[idx + 1] if idx + 1 < len(bars) else None
         is_last_bar = next_bar is None or next_bar.ts.date() != bar.ts.date()
@@ -69,6 +73,10 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
                 returns.append(math.log(bar.close / prev_bar.close))
         rv = ewma_vol(returns, surface_params.rv_ewma_lambda)
         rv *= math.sqrt(_annualization_factor(cfg.backtest.bar_size, cfg.backtest.use_rth))
+        if ema_periods and bar.close > 0:
+            ema_fast = _ema_next(ema_fast, bar.close, ema_periods[0])
+            ema_slow = _ema_next(ema_slow, bar.close, ema_periods[1])
+            ema_count += 1
 
         if open_trade and prev_bar and bar.ts.date() > open_trade.expiry:
             exit_debit = _spread_value_from_spec(
@@ -127,7 +135,15 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
                 open_trade = None
 
         # TODO: add regime gating hook before entry decisions.
-        if open_trade is None and strategy.should_enter(bar.ts):
+        ema_gate_ok = True
+        if ema_periods:
+            ema_gate_ok = (
+                ema_count >= ema_periods[1]
+                and ema_fast is not None
+                and ema_slow is not None
+                and ema_fast > ema_slow
+            )
+        if open_trade is None and strategy.should_enter(bar.ts) and ema_gate_ok:
             if last_entry_date != bar.ts.date():
                 spec = strategy.build_spec(bar.ts, bar.close)
                 entry_credit = _spread_value_from_spec(
@@ -219,6 +235,24 @@ def _rv_from_bars(bars: list[Bar], cfg: ConfigBundle) -> float:
     rv = ewma_vol(returns[-cfg.synthetic.rv_lookback :], cfg.synthetic.rv_ewma_lambda)
     rv *= math.sqrt(_annualization_factor(cfg.backtest.bar_size, cfg.backtest.use_rth))
     return rv
+
+
+def _ema_periods(preset: str | None) -> tuple[int, int] | None:
+    if not preset:
+        return None
+    key = preset.strip().lower()
+    if key in ("9/21", "9-21", "9_21"):
+        return (9, 21)
+    if key in ("20/50", "20-50", "20_50"):
+        return (20, 50)
+    return None
+
+
+def _ema_next(current: float | None, price: float, period: int) -> float:
+    alpha = 2.0 / (period + 1.0)
+    if current is None:
+        return price
+    return (alpha * price) + (1.0 - alpha) * current
 
 
 def _spread_value_from_spec(

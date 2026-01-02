@@ -52,6 +52,7 @@ See `backtest.sample.json`. Core fields:
 - `exit_dte` (not used yet; placeholder)
 - `quantity`
 - `min_credit` (minimum credit to enter; units are option price)
+- `ema_preset` (optional; `"9/21"` or `"20/50"`; entry allowed only when fast > slow)
 
 ### synthetic
 - `rv_lookback` (bars)
