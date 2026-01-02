@@ -8,7 +8,7 @@ from datetime import datetime, time
 
 from .config import ConfigBundle
 from .calibration import ensure_calibration, load_calibration
-from .data import IBKRHistoricalData
+from .data import IBKRHistoricalData, ContractMeta
 from .models import Bar, EquityPoint, SpreadTrade, SummaryStats
 from .strategy import CreditSpreadStrategy
 from .synth import IVSurfaceParams, black_76, black_scholes, ewma_vol, iv_atm, iv_for_strike, mid_edge_quote
@@ -25,18 +25,33 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
     data = IBKRHistoricalData()
     start_dt = datetime.combine(cfg.backtest.start, time(0, 0))
     end_dt = datetime.combine(cfg.backtest.end, time(23, 59))
-    bars = data.load_or_fetch_bars(
-        symbol=cfg.strategy.symbol,
-        exchange=cfg.strategy.exchange,
-        start=start_dt,
-        end=end_dt,
-        bar_size=cfg.backtest.bar_size,
-        use_rth=cfg.backtest.use_rth,
-        cache_dir=cfg.backtest.cache_dir,
-    )
+    if cfg.backtest.offline:
+        bars = data.load_cached_bars(
+            symbol=cfg.strategy.symbol,
+            exchange=cfg.strategy.exchange,
+            start=start_dt,
+            end=end_dt,
+            bar_size=cfg.backtest.bar_size,
+            use_rth=cfg.backtest.use_rth,
+            cache_dir=cfg.backtest.cache_dir,
+        )
+    else:
+        bars = data.load_or_fetch_bars(
+            symbol=cfg.strategy.symbol,
+            exchange=cfg.strategy.exchange,
+            start=start_dt,
+            end=end_dt,
+            bar_size=cfg.backtest.bar_size,
+            use_rth=cfg.backtest.use_rth,
+            cache_dir=cfg.backtest.cache_dir,
+        )
     if not bars:
         raise RuntimeError("No bars loaded for backtest")
-    contract, meta = data.resolve_contract(cfg.strategy.symbol, cfg.strategy.exchange)
+    if cfg.backtest.offline:
+        exchange = cfg.strategy.exchange or ("CME" if cfg.strategy.symbol in ("MNQ", "MBT") else "SMART")
+        meta = ContractMeta(symbol=cfg.strategy.symbol, exchange=exchange, multiplier=1.0, min_tick=0.01)
+    else:
+        _, meta = data.resolve_contract(cfg.strategy.symbol, cfg.strategy.exchange)
     is_future = meta.exchange != "SMART"
 
     surface_params = IVSurfaceParams(
@@ -144,16 +159,26 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
 
         # TODO: add regime gating hook before entry decisions.
         ema_gate_ok = True
+        ema_right_override = None
         if ema_periods:
             ema_gate_ok = (
                 ema_count >= ema_periods[1]
                 and ema_fast is not None
                 and ema_slow is not None
-                and ema_fast > ema_slow
             )
+            if ema_gate_ok:
+                if cfg.strategy.ema_directional:
+                    if ema_fast > ema_slow:
+                        ema_right_override = "CALL"
+                    elif ema_fast < ema_slow:
+                        ema_right_override = "PUT"
+                    else:
+                        ema_gate_ok = False
+                else:
+                    ema_gate_ok = ema_fast > ema_slow
         if open_trade is None and strategy.should_enter(bar.ts) and ema_gate_ok:
             if last_entry_date != bar.ts.date():
-                spec = strategy.build_spec(bar.ts, bar.close)
+                spec = strategy.build_spec(bar.ts, bar.close, right_override=ema_right_override)
                 entry_credit = _spread_value_from_spec(
                     spec,
                     bar,

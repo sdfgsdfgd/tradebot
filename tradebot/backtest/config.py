@@ -29,6 +29,7 @@ class BacktestConfig:
     calibration_dir: Path
     output_dir: Path
     calibrate: bool
+    offline: bool
 
 
 @dataclass(frozen=True)
@@ -48,6 +49,7 @@ class StrategyConfig:
     stop_loss_basis: str
     min_credit: float | None
     ema_preset: str | None
+    ema_directional: bool
 
 
 @dataclass(frozen=True)
@@ -86,6 +88,7 @@ def load_config(path: str | Path) -> ConfigBundle:
         calibration_dir=Path(backtest_raw.get("calibration_dir", "db/calibration")),
         output_dir=Path(backtest_raw.get("output_dir", "backtests/out")),
         calibrate=bool(backtest_raw.get("calibrate", False)),
+        offline=bool(backtest_raw.get("offline", False)),
     )
 
     entry_days = _parse_weekdays(strategy_raw.get("entry_days", []))
@@ -107,6 +110,7 @@ def load_config(path: str | Path) -> ConfigBundle:
             float(strategy_raw["min_credit"]) if "min_credit" in strategy_raw else None
         ),
         ema_preset=_parse_ema_preset(strategy_raw.get("ema_preset")),
+        ema_directional=bool(strategy_raw.get("ema_directional", False)),
     )
 
     synthetic = SyntheticConfig(

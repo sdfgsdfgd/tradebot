@@ -23,10 +23,11 @@ class CreditSpreadStrategy:
     def should_enter(self, ts: datetime) -> bool:
         return ts.weekday() in self._cfg.entry_days
 
-    def build_spec(self, ts: datetime, spot: float) -> SpreadSpec:
+    def build_spec(self, ts: datetime, spot: float, right_override: str | None = None) -> SpreadSpec:
         expiry = _expiry_from_dte(ts.date(), self._cfg.dte)
         width = spot * (self._cfg.width_pct / 100.0)
-        if self._cfg.right == "PUT":
+        right = (right_override or self._cfg.right).upper()
+        if right == "PUT":
             # Negative otm_pct means ITM (e.g., -1 = 1% ITM).
             short_strike = spot * (1 - self._cfg.otm_pct / 100.0)
             long_strike = short_strike - width
@@ -35,7 +36,7 @@ class CreditSpreadStrategy:
             short_strike = spot * (1 + self._cfg.otm_pct / 100.0)
             long_strike = short_strike + width
         return SpreadSpec(
-            right=self._cfg.right,
+            right=right,
             short_strike=short_strike,
             long_strike=long_strike,
             expiry=expiry,

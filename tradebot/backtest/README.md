@@ -82,6 +82,7 @@ See `backtest.sample.json`. Core fields:
 - `calibration_dir` (default `db/calibration`)
 - `calibrate` (true = refresh calibration before backtest)
 - `output_dir` (default `backtests/out`)
+- `offline` (true = use cached bars only; skip IBKR connections)
 
 ### strategy
 - `name` (currently `credit_spread`)
@@ -101,6 +102,7 @@ See `backtest.sample.json`. Core fields:
 - `min_credit` (minimum credit to enter; units are option price)
 - `ema_preset` (optional; `"9/21"` or `"20/50"`; entry allowed only when fast > slow)
   - EMA periods are **bar-based** (hourly bars = 9/21 hours; daily bars = 9/21 days).
+- `ema_directional` (optional; if true, EMA direction selects CALL vs PUT: fast>slow = CALL, fast<slow = PUT)
 
 ### synthetic
 - `rv_lookback` (bars)

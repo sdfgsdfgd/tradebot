@@ -79,6 +79,21 @@ class IBKRHistoricalData:
         _write_cache(cache_path, bars)
         return bars
 
+    def load_cached_bars(
+        self,
+        symbol: str,
+        exchange: str | None,
+        start: datetime,
+        end: datetime,
+        bar_size: str,
+        use_rth: bool,
+        cache_dir: Path,
+    ) -> list[Bar]:
+        cache_path = _cache_path(cache_dir, symbol, start, end, bar_size, use_rth)
+        if not cache_path.exists():
+            raise FileNotFoundError(f"No cached bars found at {cache_path}")
+        return _read_cache(cache_path)
+
     def _fetch_bars(
         self,
         contract: object,
