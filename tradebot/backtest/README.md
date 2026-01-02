@@ -53,6 +53,7 @@ See `backtest.sample.json`. Core fields:
 - `quantity`
 - `min_credit` (minimum credit to enter; units are option price)
 - `ema_preset` (optional; `"9/21"` or `"20/50"`; entry allowed only when fast > slow)
+  - EMA periods are **bar-based** (hourly bars = 9/21 hours; daily bars = 9/21 days).
 
 ### synthetic
 - `rv_lookback` (bars)
