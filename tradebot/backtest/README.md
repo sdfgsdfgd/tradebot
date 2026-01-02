@@ -180,6 +180,91 @@ Example:
 - `trades.csv` (entry/exit per trade)
 - `equity_curve.csv` (equity over time)
 
+## Leaderboard (SLV 1h sweeps)
+PnL is reported in **premium points * contract multiplier**. Offline sweeps use multiplier=1.0, so treat PnL as **relative**; equity options would scale by ~100x.
+
+Sweep grid (period: 2025-07-02 -> 2026-01-02):
+- DTE: 5/10/20
+- Moneyness: 1/2/3%
+- PT: 0.5/1.0
+- SL: 0.35/0.8
+- EMA: 9/21 or 20/50
+- min_trades=8, entry_days=all weekdays
+
+Full leaderboard is in `tradebot/backtest/LEADERBOARD.md`.
+
+### Unfiltered (no regime filters)
+Long CALL (debit), top 10 by PnL:
+| PnL | Win | Trades | Hold(h) | DTE | M% | PT | SL | EMA |
+| --- | --- | ------ | ------- | --- | --- | -- | -- | --- |
+| 12.55 | 70.59% | 17 | 231.9 | 20 | 2.0 | 1.0 | 0.8 | 20/50 |
+| 12.42 | 76.92% | 13 | 317.5 | 20 | 2.0 | 1.0 | 0.8 | 9/21 |
+| 12.28 | 75.00% | 16 | 233.1 | 20 | 1.0 | 1.0 | 0.8 | 20/50 |
+| 12.24 | 65.22% | 23 | 179.5 | 20 | 3.0 | 1.0 | 0.8 | 9/21 |
+| 11.98 | 70.59% | 17 | 230.6 | 20 | 3.0 | 1.0 | 0.8 | 20/50 |
+| 11.25 | 71.43% | 14 | 299.7 | 20 | 1.0 | 1.0 | 0.8 | 9/21 |
+| 10.82 | 63.64% | 22 | 169.5 | 10 | 1.0 | 1.0 | 0.8 | 20/50 |
+| 10.57 | 67.86% | 28 | 143.1 | 10 | 2.0 | 1.0 | 0.8 | 9/21 |
+| 10.10 | 74.07% | 27 | 133.8 | 20 | 3.0 | 0.5 | 0.8 | 20/50 |
+| 9.97 | 75.00% | 24 | 153.4 | 20 | 2.0 | 0.5 | 0.8 | 20/50 |
+
+Top 30% ranges (of profitable combos): DTE 10-20, M% 1-3, PT 0.5-1.0, SL 0.8 only, EMA 20/50 > 9/21.
+
+Short PUT (credit), top 10 by PnL:
+| PnL | Win | Trades | Hold(h) | DTE | M% | PT | SL | EMA |
+| --- | --- | ------ | ------- | --- | --- | -- | -- | --- |
+| 9.56 | 80.00% | 70 | 48.5 | 5 | 1.0 | 0.5 | 0.8 | 20/50 |
+| 8.79 | 78.57% | 14 | 259.4 | 10 | 1.0 | 1.0 | 0.8 | 20/50 |
+| 8.68 | 73.91% | 23 | 142.3 | 5 | 1.0 | 1.0 | 0.8 | 20/50 |
+| 8.14 | 60.00% | 10 | 423.2 | 20 | 3.0 | 1.0 | 0.35 | 9/21 |
+| 8.10 | 75.95% | 79 | 39.1 | 5 | 2.0 | 0.5 | 0.8 | 20/50 |
+| 7.68 | 75.00% | 8 | 523.9 | 20 | 1.0 | 1.0 | 0.35 | 9/21 |
+| 7.18 | 73.68% | 57 | 62.8 | 10 | 1.0 | 0.5 | 0.8 | 20/50 |
+| 7.00 | 60.76% | 79 | 39.8 | 10 | 2.0 | 0.5 | 0.35 | 20/50 |
+| 6.64 | 69.23% | 26 | 135.6 | 5 | 1.0 | 1.0 | 0.8 | 9/21 |
+| 6.49 | 60.71% | 28 | 110.0 | 5 | 2.0 | 1.0 | 0.35 | 20/50 |
+
+Top 30% ranges (of profitable combos): DTE 5-20, M% 1-3, PT 0.5-1.0, SL 0.35-0.8, EMA 20/50 > 9/21.
+
+Iron condor and call debit spread had **0 profitable combos** in this grid (see leaderboard file for details).
+
+### Filtered (rv/ema/time window enabled)
+Filters: `rv_min=0.15, rv_max=0.60, ema_spread_min_pct=0.05, ema_slope_min_pct=0.01, entry_start_hour=10, entry_end_hour=15, skip_first_bars=2, cooldown_bars=4`
+
+Long CALL (debit), top 10 by PnL:
+| PnL | Win | Trades | Hold(h) | DTE | M% | PT | SL | EMA |
+| --- | --- | ------ | ------- | --- | --- | -- | -- | --- |
+| 17.17 | 83.33% | 12 | 315.8 | 20 | 1.0 | 1.0 | 0.8 | 20/50 |
+| 16.41 | 75.00% | 16 | 222.8 | 20 | 2.0 | 1.0 | 0.8 | 20/50 |
+| 15.91 | 75.00% | 16 | 216.6 | 20 | 3.0 | 1.0 | 0.8 | 20/50 |
+| 15.16 | 80.95% | 21 | 167.7 | 20 | 1.0 | 0.5 | 0.8 | 9/21 |
+| 14.83 | 80.95% | 21 | 159.7 | 20 | 1.0 | 0.5 | 0.8 | 20/50 |
+| 14.64 | 81.82% | 11 | 342.5 | 20 | 1.0 | 1.0 | 0.8 | 9/21 |
+| 14.53 | 81.82% | 22 | 148.0 | 20 | 2.0 | 0.5 | 0.8 | 20/50 |
+| 14.29 | 79.17% | 24 | 144.0 | 20 | 2.0 | 0.5 | 0.8 | 9/21 |
+| 13.84 | 76.92% | 13 | 285.8 | 20 | 2.0 | 1.0 | 0.8 | 9/21 |
+| 13.82 | 66.67% | 21 | 164.3 | 10 | 1.0 | 1.0 | 0.8 | 20/50 |
+
+Top 30% ranges (of profitable combos): DTE 10-20, M% 1-3, PT 0.5-1.0, SL 0.8 only, EMA 20/50 ≈ 9/21.
+
+Short PUT (credit), top 10 by PnL:
+| PnL | Win | Trades | Hold(h) | DTE | M% | PT | SL | EMA |
+| --- | --- | ------ | ------- | --- | --- | -- | -- | --- |
+| 11.86 | 81.36% | 59 | 48.4 | 5 | 1.0 | 0.5 | 0.8 | 20/50 |
+| 10.84 | 83.05% | 59 | 50.3 | 5 | 1.0 | 0.5 | 0.8 | 9/21 |
+| 9.97 | 72.31% | 65 | 41.5 | 5 | 1.0 | 0.5 | 0.35 | 20/50 |
+| 9.34 | 73.77% | 61 | 44.4 | 5 | 1.0 | 0.5 | 0.35 | 9/21 |
+| 8.83 | 82.54% | 63 | 43.4 | 5 | 2.0 | 0.5 | 0.8 | 9/21 |
+| 8.56 | 71.64% | 67 | 35.3 | 5 | 2.0 | 0.5 | 0.35 | 9/21 |
+| 8.11 | 71.43% | 21 | 139.5 | 5 | 1.0 | 1.0 | 0.35 | 20/50 |
+| 7.16 | 77.05% | 61 | 41.2 | 5 | 2.0 | 0.5 | 0.8 | 20/50 |
+| 6.83 | 62.50% | 8 | 462.8 | 20 | 1.0 | 1.0 | 0.35 | 20/50 |
+| 6.79 | 68.12% | 69 | 33.5 | 5 | 2.0 | 0.5 | 0.35 | 20/50 |
+
+Top 30% ranges (of profitable combos): DTE 5-20, M% 1-3, PT 0.5-1.0, SL 0.35-0.8, EMA 20/50 > 9/21.
+
+Iron condor and call debit spread had **0 profitable combos** in this grid (see leaderboard file for details).
+
 ## Reuse for live trading
 The backtest engine is built around reusable components:
 - **Strategy layer** emits intents
