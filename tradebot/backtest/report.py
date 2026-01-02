@@ -32,29 +32,26 @@ def _write_trades(path: Path, result: BacktestResult) -> None:
         writer.writerow(
             [
                 "symbol",
-                "right",
                 "entry_time",
                 "exit_time",
                 "expiry",
-                "short_strike",
-                "long_strike",
-                "qty",
+                "legs",
                 "entry_credit",
                 "exit_debit",
                 "exit_reason",
             ]
         )
         for trade in result.trades:
+            legs = "; ".join(
+                f"{leg.action} {leg.right} {leg.strike:.2f} x{leg.qty}" for leg in trade.legs
+            )
             writer.writerow(
                 [
                     trade.symbol,
-                    trade.right,
                     trade.entry_time.isoformat(),
                     trade.exit_time.isoformat() if trade.exit_time else "",
                     trade.expiry.isoformat(),
-                    f"{trade.short_strike:.2f}",
-                    f"{trade.long_strike:.2f}",
-                    trade.qty,
+                    legs,
                     f"{trade.entry_credit:.4f}",
                     f"{trade.exit_debit:.4f}" if trade.exit_debit is not None else "",
                     trade.exit_reason or "",

@@ -50,6 +50,7 @@ class StrategyConfig:
     min_credit: float | None
     ema_preset: str | None
     ema_directional: bool
+    legs: tuple["LegConfig", ...] | None
 
 
 @dataclass(frozen=True)
@@ -61,6 +62,14 @@ class SyntheticConfig:
     term_slope: float
     skew: float
     min_spread_pct: float
+
+
+@dataclass(frozen=True)
+class LegConfig:
+    action: str
+    right: str
+    moneyness_pct: float
+    qty: int
 
 
 @dataclass(frozen=True)
@@ -111,6 +120,7 @@ def load_config(path: str | Path) -> ConfigBundle:
         ),
         ema_preset=_parse_ema_preset(strategy_raw.get("ema_preset")),
         ema_directional=bool(strategy_raw.get("ema_directional", False)),
+        legs=_parse_legs(strategy_raw.get("legs")),
     )
 
     synthetic = SyntheticConfig(
@@ -161,3 +171,28 @@ def _parse_ema_preset(value) -> str | None:
             return None
         return cleaned
     return None
+
+
+def _parse_legs(raw) -> tuple[LegConfig, ...] | None:
+    if not raw:
+        return None
+    if not isinstance(raw, list):
+        raise ValueError("legs must be a list")
+    legs: list[LegConfig] = []
+    for idx, leg in enumerate(raw, start=1):
+        if not isinstance(leg, dict):
+            raise ValueError(f"legs[{idx}] must be an object")
+        action = str(leg.get("action", "")).strip().upper()
+        if action not in ("BUY", "SELL"):
+            raise ValueError(f"legs[{idx}].action must be BUY or SELL")
+        right = str(leg.get("right", "")).strip().upper()
+        if right not in ("PUT", "CALL"):
+            raise ValueError(f"legs[{idx}].right must be PUT or CALL")
+        if "moneyness_pct" not in leg:
+            raise ValueError(f"legs[{idx}] requires moneyness_pct")
+        moneyness = float(leg["moneyness_pct"])
+        qty = int(leg.get("qty", 1))
+        if qty <= 0:
+            raise ValueError(f"legs[{idx}].qty must be positive")
+        legs.append(LegConfig(action=action, right=right, moneyness_pct=moneyness, qty=qty))
+    return tuple(legs)

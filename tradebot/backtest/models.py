@@ -16,22 +16,19 @@ class Bar:
 
 
 @dataclass(frozen=True)
-class SpreadLeg:
+class OptionLeg:
+    action: str
     right: str
     strike: float
-    expiry: date
     qty: int
 
 
 @dataclass
-class SpreadTrade:
+class OptionTrade:
     symbol: str
-    right: str
+    legs: list[OptionLeg]
     entry_time: datetime
     expiry: date
-    short_strike: float
-    long_strike: float
-    qty: int
     entry_credit: float
     stop_loss: float
     profit_target: float
@@ -45,7 +42,7 @@ class SpreadTrade:
     def pnl(self, multiplier: float) -> float:
         if self.exit_debit is None:
             return 0.0
-        return (self.entry_credit - self.exit_debit) * multiplier * self.qty
+        return (self.entry_credit - self.exit_debit) * multiplier
 
 
 @dataclass(frozen=True)

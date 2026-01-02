@@ -9,14 +9,14 @@ from datetime import datetime, time
 from .config import ConfigBundle
 from .calibration import ensure_calibration, load_calibration
 from .data import IBKRHistoricalData, ContractMeta
-from .models import Bar, EquityPoint, SpreadTrade, SummaryStats
-from .strategy import CreditSpreadStrategy
+from .models import Bar, EquityPoint, OptionLeg, OptionTrade, SummaryStats
+from .strategy import CreditSpreadStrategy, TradeSpec
 from .synth import IVSurfaceParams, black_76, black_scholes, ewma_vol, iv_atm, iv_for_strike, mid_edge_quote
 
 
 @dataclass(frozen=True)
 class BacktestResult:
-    trades: list[SpreadTrade]
+    trades: list[OptionTrade]
     equity: list[EquityPoint]
     summary: SummaryStats
 
@@ -72,8 +72,8 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
     returns = deque(maxlen=surface_params.rv_lookback)
     equity = cfg.backtest.starting_cash
     equity_curve: list[EquityPoint] = []
-    trades: list[SpreadTrade] = []
-    open_trade: SpreadTrade | None = None
+    trades: list[OptionTrade] = []
+    open_trade: OptionTrade | None = None
     prev_bar: Bar | None = None
     last_entry_date = None
     ema_periods = _ema_periods(cfg.strategy.ema_preset)
@@ -94,7 +94,7 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
             ema_count += 1
 
         if open_trade and prev_bar and bar.ts.date() > open_trade.expiry:
-            exit_debit = _spread_value_from_spec(
+            exit_debit = _trade_value_from_spec(
                 open_trade,
                 prev_bar,
                 rv,
@@ -110,9 +110,9 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
             open_trade = None
 
         if open_trade:
-            current_value = _spread_value(open_trade, bar, rv, cfg, surface_params, meta.min_tick, is_future, calibration)
+            current_value = _trade_value(open_trade, bar, rv, cfg, surface_params, meta.min_tick, is_future, calibration)
             if _hit_profit(open_trade, current_value):
-                exit_debit = _spread_value_from_spec(
+                exit_debit = _trade_value_from_spec(
                     open_trade,
                     bar,
                     rv,
@@ -127,7 +127,7 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
                 equity += open_trade.pnl(meta.multiplier)
                 open_trade = None
             elif _hit_stop(open_trade, current_value, cfg.strategy.stop_loss_basis):
-                exit_debit = _spread_value_from_spec(
+                exit_debit = _trade_value_from_spec(
                     open_trade,
                     bar,
                     rv,
@@ -142,7 +142,7 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
                 equity += open_trade.pnl(meta.multiplier)
                 open_trade = None
             elif cfg.strategy.dte == 0 and is_last_bar:
-                exit_debit = _spread_value_from_spec(
+                exit_debit = _trade_value_from_spec(
                     open_trade,
                     bar,
                     rv,
@@ -179,7 +179,7 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
         if open_trade is None and strategy.should_enter(bar.ts) and ema_gate_ok:
             if last_entry_date != bar.ts.date():
                 spec = strategy.build_spec(bar.ts, bar.close, right_override=ema_right_override)
-                entry_credit = _spread_value_from_spec(
+                entry_credit = _trade_value_from_spec(
                     spec,
                     bar,
                     rv,
@@ -192,14 +192,11 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
                 )
                 min_credit = cfg.strategy.min_credit if cfg.strategy.min_credit is not None else meta.min_tick
                 if entry_credit >= min_credit:
-                    open_trade = SpreadTrade(
+                    open_trade = OptionTrade(
                         symbol=cfg.strategy.symbol,
-                        right=spec.right,
+                        legs=spec.legs,
                         entry_time=bar.ts,
                         expiry=spec.expiry,
-                        short_strike=spec.short_strike,
-                        long_strike=spec.long_strike,
-                        qty=spec.qty,
                         entry_credit=entry_credit,
                         stop_loss=cfg.strategy.stop_loss,
                         profit_target=cfg.strategy.profit_target,
@@ -208,13 +205,13 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
 
         unrealized = 0.0
         if open_trade:
-            mark_value = _spread_value(open_trade, bar, rv, cfg, surface_params, meta.min_tick, is_future, calibration)
-            unrealized = (open_trade.entry_credit - mark_value) * meta.multiplier * open_trade.qty
+            mark_value = _trade_value(open_trade, bar, rv, cfg, surface_params, meta.min_tick, is_future, calibration)
+            unrealized = (open_trade.entry_credit - mark_value) * meta.multiplier
         equity_curve.append(EquityPoint(ts=bar.ts, equity=equity + unrealized))
         prev_bar = bar
 
     if open_trade and prev_bar:
-        exit_debit = _spread_value_from_spec(
+        exit_debit = _trade_value_from_spec(
             open_trade,
             prev_bar,
             rv,
@@ -233,8 +230,8 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
     return BacktestResult(trades=trades, equity=equity_curve, summary=summary)
 
 
-def _spread_value(
-    trade: SpreadTrade,
+def _trade_value(
+    trade: OptionTrade,
     bar: Bar,
     rv: float,
     cfg: ConfigBundle,
@@ -243,9 +240,8 @@ def _spread_value(
     is_future: bool,
     calibration,
 ) -> float:
-    spec = trade
-    return _spread_value_from_spec(
-        spec,
+    return _trade_value_from_spec(
+        trade,
         bar,
         rv,
         cfg,
@@ -288,8 +284,8 @@ def _ema_next(current: float | None, price: float, period: int) -> float:
     return (alpha * price) + (1.0 - alpha) * current
 
 
-def _spread_value_from_spec(
-    spec,
+def _trade_value_from_spec(
+    spec: TradeSpec | OptionTrade,
     bar: Bar,
     rv: float,
     cfg: ConfigBundle,
@@ -308,37 +304,40 @@ def _spread_value_from_spec(
         t = max(_session_hours(cfg.backtest.use_rth) / (24.0 * 365.0), _min_time(cfg.backtest.bar_size))
     else:
         t = max(dte_days / 365.0, _min_time(cfg.backtest.bar_size))
-    short_iv = iv_for_strike(atm_iv, forward, spec.short_strike, surface_params)
-    long_iv = iv_for_strike(atm_iv, forward, spec.long_strike, surface_params)
-    if is_future:
-        short_mid = black_76(forward, spec.short_strike, t, cfg.backtest.risk_free_rate, short_iv, spec.right)
-        long_mid = black_76(forward, spec.long_strike, t, cfg.backtest.risk_free_rate, long_iv, spec.right)
-    else:
-        short_mid = black_scholes(forward, spec.short_strike, t, cfg.backtest.risk_free_rate, short_iv, spec.right)
-        long_mid = black_scholes(forward, spec.long_strike, t, cfg.backtest.risk_free_rate, long_iv, spec.right)
-    short_quote = mid_edge_quote(short_mid, cfg.synthetic.min_spread_pct, min_tick)
-    long_quote = mid_edge_quote(long_mid, cfg.synthetic.min_spread_pct, min_tick)
-    if mode == "entry":
-        return max(0.0, short_quote.bid - long_quote.ask)
-    if mode == "exit":
-        return max(0.0, short_quote.ask - long_quote.bid)
-    return max(0.0, short_quote.mid - long_quote.mid)
+    legs = spec.legs
+    net = 0.0
+    for leg in legs:
+        leg_iv = iv_for_strike(atm_iv, forward, leg.strike, surface_params)
+        if is_future:
+            mid = black_76(forward, leg.strike, t, cfg.backtest.risk_free_rate, leg_iv, leg.right)
+        else:
+            mid = black_scholes(forward, leg.strike, t, cfg.backtest.risk_free_rate, leg_iv, leg.right)
+        quote = mid_edge_quote(mid, cfg.synthetic.min_spread_pct, min_tick)
+        if mode == "entry":
+            price = quote.bid if leg.action == "SELL" else quote.ask
+        elif mode == "exit":
+            price = quote.ask if leg.action == "SELL" else quote.bid
+        else:
+            price = quote.mid
+        sign = 1 if leg.action == "SELL" else -1
+        net += sign * price * leg.qty
+    return max(0.0, net)
 
 
-def _hit_profit(trade: SpreadTrade, current_value: float) -> bool:
+def _hit_profit(trade: OptionTrade, current_value: float) -> bool:
     target = trade.entry_credit * trade.profit_target
     return (trade.entry_credit - current_value) >= target
 
 
-def _hit_stop(trade: SpreadTrade, current_value: float, basis: str) -> bool:
-    if basis == "credit":
+def _hit_stop(trade: OptionTrade, current_value: float, basis: str) -> bool:
+    max_loss = _max_loss(trade)
+    if basis == "credit" or max_loss is None:
         return current_value >= trade.entry_credit * (1 + trade.stop_loss)
-    max_loss = max(trade.long_strike - trade.short_strike, trade.short_strike - trade.long_strike) - trade.entry_credit
     loss = max(0.0, current_value - trade.entry_credit)
     return loss >= max_loss * trade.stop_loss
 
 
-def _close_trade(trade: SpreadTrade, ts: datetime, debit: float, reason: str, trades: list[SpreadTrade]) -> None:
+def _close_trade(trade: OptionTrade, ts: datetime, debit: float, reason: str, trades: list[OptionTrade]) -> None:
     trade.exit_time = ts
     trade.exit_debit = debit
     trade.exit_reason = reason
@@ -346,7 +345,7 @@ def _close_trade(trade: SpreadTrade, ts: datetime, debit: float, reason: str, tr
 
 
 def _summarize(
-    trades: list[SpreadTrade],
+    trades: list[OptionTrade],
     starting_cash: float,
     equity_curve: list[EquityPoint],
     multiplier: float,
@@ -394,6 +393,21 @@ def _summarize(
         max_drawdown=max_dd,
         avg_hold_hours=avg_hold,
     )
+
+
+def _max_loss(trade: OptionTrade) -> float | None:
+    legs = trade.legs
+    if len(legs) != 2:
+        return None
+    a, b = legs
+    if a.right != b.right:
+        return None
+    if a.qty != b.qty:
+        return None
+    if {a.action, b.action} != {"BUY", "SELL"}:
+        return None
+    width = abs(a.strike - b.strike)
+    return max(0.0, width - trade.entry_credit)
 
 
 def _annualization_factor(bar_size: str, use_rth: bool) -> float:

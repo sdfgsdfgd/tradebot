@@ -104,6 +104,30 @@ See `backtest.sample.json`. Core fields:
   - EMA periods are **bar-based** (hourly bars = 9/21 hours; daily bars = 9/21 days).
 - `ema_directional` (optional; if true, EMA direction selects CALL vs PUT: fast>slow = CALL, fast<slow = PUT)
 
+#### Multi-leg strategies
+You can replace the default spread params with explicit legs. If `legs` is present, it is used instead of `right/otm_pct/width_pct`.
+
+Each leg supports:
+- `action`: `BUY` or `SELL`
+- `right`: `PUT` or `CALL`
+- `moneyness_pct`: percent from spot (negative = ITM)
+- `qty`: leg quantity (multiplied by `strategy.quantity`)
+
+Example (short call spread):
+```json
+"legs": [
+  {"action": "SELL", "right": "CALL", "moneyness_pct": 2.0, "qty": 1},
+  {"action": "BUY", "right": "CALL", "moneyness_pct": 4.0, "qty": 1}
+]
+```
+
+Example (naked short put):
+```json
+"legs": [
+  {"action": "SELL", "right": "PUT", "moneyness_pct": 2.0, "qty": 1}
+]
+```
+
 ### synthetic
 - `rv_lookback` (bars)
 - `rv_ewma_lambda`
