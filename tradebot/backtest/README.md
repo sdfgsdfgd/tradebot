@@ -30,7 +30,17 @@ This package provides a minimal backtest runner that builds **synthetic option p
     "exit_dte": 30,
     "quantity": 1,
     "min_credit": 0.01,
-    "ema_preset": "9/21"
+    "ema_preset": "9/21",
+    "filters": {
+      "rv_min": 0.15,
+      "rv_max": 0.60,
+      "ema_spread_min_pct": 0.05,
+      "ema_slope_min_pct": 0.01,
+      "entry_start_hour": 10,
+      "entry_end_hour": 15,
+      "skip_first_bars": 2,
+      "cooldown_bars": 4
+    }
   },
   "synthetic": {
     "rv_lookback": 60,
