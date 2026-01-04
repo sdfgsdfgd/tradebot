@@ -10,7 +10,7 @@ This package provides a minimal backtest runner that builds **synthetic option p
     "end": "2025-12-31",
     "bar_size": "1 hour",
     "use_rth": false,
-    "starting_cash": 100000,
+    "starting_cash": 10000,
     "risk_free_rate": 0.02,
     "cache_dir": "db",
     "calibration_dir": "db/calibration",
@@ -31,6 +31,7 @@ This package provides a minimal backtest runner that builds **synthetic option p
     "quantity": 1,
     "min_credit": 0.01,
     "ema_preset": "9/21",
+    "ema_entry_mode": "trend",
     "filters": {
       "rv_min": 0.15,
       "rv_max": 0.60,
@@ -101,18 +102,44 @@ See `backtest.sample.json`. Core fields:
 - `right` (`PUT` or `CALL`)
 - `entry_days` (3-letter names, e.g. `Tue`)
   - If omitted or empty, defaults to all weekdays.
+- `max_entries_per_day` (optional; defaults to `1`)
+  - `0` means unlimited.
+- `max_open_trades` (optional; defaults to `1`)
+  - Limits concurrent open trades (stacking). `0` means unlimited.
 - `dte` (0 for 0DTE)
 - `otm_pct` (percent OTM for short strike)
   - Negative values mean ITM (e.g., `-1.0` = 1% ITM).
 - `width_pct` (spread width as % of spot)
-- `profit_target` (fraction of credit, e.g. 0.5)
+- `profit_target` (multiplier of entry premium/credit)
+  - `0.5` = +50% of premium/credit
+  - `1.0` = +100%
+  - `10.0` = +1000% (10x)
 - `stop_loss` (fraction of max loss, e.g. 0.35)
-- `exit_dte` (placeholder; currently not enforced)
+- `exit_dte` (optional; if >0, exit when remaining DTE is <= this value)
+  - Uses **business days** to match how `dte` is counted.
+  - Ignored if `exit_dte >= entry dte` (treated as disabled).
 - `quantity`
 - `min_credit` (minimum credit to enter; units are option price)
-- `ema_preset` (optional; `"9/21"` or `"20/50"`; entry allowed only when fast > slow)
+- `ema_preset` (optional; `"3/7"`, `"9/21"` or `"20/50"`)
+- `ema_entry_mode` (optional; `"trend"` or `"cross"`; defaults to `"trend"`)
+  - `trend`: entry allowed only when fast > slow (current behavior)
+  - `cross`: entry allowed only on a fast/slow crossover (more “pivot”-style)
   - EMA periods are **bar-based** (hourly bars = 9/21 hours; daily bars = 9/21 days).
 - `ema_directional` (optional; if true, EMA direction selects CALL vs PUT: fast>slow = CALL, fast<slow = PUT)
+- `exit_on_signal_flip` (optional; if true, exit when EMA signal flips against the open trade)
+  - Uses `flip_exit_*` settings below.
+- `flip_exit_mode` (optional; `"entry"`, `"state"`, `"cross"`; default `"entry"`)
+  - `"entry"` = match entry mode (`trend` -> state, `cross` -> cross).
+- `flip_exit_min_hold_bars` (optional; default `0`)
+  - Prevents immediate whipsaw flip exits right after entry.
+- `flip_exit_only_if_profit` (optional; default `false`)
+  - Only flip-exit if the trade is currently profitable.
+- `direction_source` (optional; defaults to `"ema"`)
+  - Currently only `"ema"` is supported.
+- `directional_legs` (optional; when present, the engine chooses different legs for `up` vs `down` direction)
+  - Direction is derived from `direction_source` (currently EMA state/cross).
+  - This is **single-expiry only** (no calendars yet).
+  - When `directional_legs` is provided, it takes precedence over `legs` / `right`.
 
 #### Multi-leg strategies
 You can replace the default spread params with explicit legs. If `legs` is present, it is used instead of `right/otm_pct/width_pct`.
@@ -136,6 +163,24 @@ Example (naked short put):
 "legs": [
   {"action": "SELL", "right": "PUT", "moneyness_pct": 2.0, "qty": 1}
 ]
+```
+
+#### Directional legs (up/down mapping)
+To “trade bottoms” more intelligently (e.g., sell puts on an up signal), configure different leg sets for `up` vs `down`.
+
+Example: up = short put, down = long put (single expiry):
+```json
+"ema_preset": "3/7",
+"ema_entry_mode": "cross",
+"direction_source": "ema",
+"directional_legs": {
+  "up": [
+    {"action": "SELL", "right": "PUT", "moneyness_pct": 2.0, "qty": 1}
+  ],
+  "down": [
+    {"action": "BUY", "right": "PUT", "moneyness_pct": 2.0, "qty": 1}
+  ]
+}
 ```
 
 #### Regime filters (optional)
@@ -181,89 +226,12 @@ Example:
 - `equity_curve.csv` (equity over time)
 
 ## Leaderboard (SLV 1h sweeps)
-PnL is reported in **premium points * contract multiplier**. Offline sweeps use multiplier=1.0, so treat PnL as **relative**; equity options would scale by ~100x.
-
-Sweep grid (period: 2025-07-02 -> 2026-01-02):
-- DTE: 5/10/20
-- Moneyness: 1/2/3%
-- PT: 0.5/1.0
-- SL: 0.35/0.8
-- EMA: 9/21 or 20/50
-- min_trades=8, entry_days=all weekdays
+PnL is reported in **premium points * contract multiplier**.
+- Equity options use multiplier `100`, so values are approximately **USD per contract**.
+- When `max_entries_per_day=0` and `max_open_trades=0`, results reflect **stacking / pyramiding** subject to `starting_cash` and margin.
 
 Full leaderboard is in `tradebot/backtest/LEADERBOARD.md`.
-
-### Unfiltered (no regime filters)
-Long CALL (debit), top 10 by PnL:
-| PnL | Win | Trades | Hold(h) | DTE | M% | PT | SL | EMA |
-| --- | --- | ------ | ------- | --- | --- | -- | -- | --- |
-| 12.55 | 70.59% | 17 | 231.9 | 20 | 2.0 | 1.0 | 0.8 | 20/50 |
-| 12.42 | 76.92% | 13 | 317.5 | 20 | 2.0 | 1.0 | 0.8 | 9/21 |
-| 12.28 | 75.00% | 16 | 233.1 | 20 | 1.0 | 1.0 | 0.8 | 20/50 |
-| 12.24 | 65.22% | 23 | 179.5 | 20 | 3.0 | 1.0 | 0.8 | 9/21 |
-| 11.98 | 70.59% | 17 | 230.6 | 20 | 3.0 | 1.0 | 0.8 | 20/50 |
-| 11.25 | 71.43% | 14 | 299.7 | 20 | 1.0 | 1.0 | 0.8 | 9/21 |
-| 10.82 | 63.64% | 22 | 169.5 | 10 | 1.0 | 1.0 | 0.8 | 20/50 |
-| 10.57 | 67.86% | 28 | 143.1 | 10 | 2.0 | 1.0 | 0.8 | 9/21 |
-| 10.10 | 74.07% | 27 | 133.8 | 20 | 3.0 | 0.5 | 0.8 | 20/50 |
-| 9.97 | 75.00% | 24 | 153.4 | 20 | 2.0 | 0.5 | 0.8 | 20/50 |
-
-Top 30% ranges (of profitable combos): DTE 10-20, M% 1-3, PT 0.5-1.0, SL 0.8 only, EMA 20/50 > 9/21.
-
-Short PUT (credit), top 10 by PnL:
-| PnL | Win | Trades | Hold(h) | DTE | M% | PT | SL | EMA |
-| --- | --- | ------ | ------- | --- | --- | -- | -- | --- |
-| 9.56 | 80.00% | 70 | 48.5 | 5 | 1.0 | 0.5 | 0.8 | 20/50 |
-| 8.79 | 78.57% | 14 | 259.4 | 10 | 1.0 | 1.0 | 0.8 | 20/50 |
-| 8.68 | 73.91% | 23 | 142.3 | 5 | 1.0 | 1.0 | 0.8 | 20/50 |
-| 8.14 | 60.00% | 10 | 423.2 | 20 | 3.0 | 1.0 | 0.35 | 9/21 |
-| 8.10 | 75.95% | 79 | 39.1 | 5 | 2.0 | 0.5 | 0.8 | 20/50 |
-| 7.68 | 75.00% | 8 | 523.9 | 20 | 1.0 | 1.0 | 0.35 | 9/21 |
-| 7.18 | 73.68% | 57 | 62.8 | 10 | 1.0 | 0.5 | 0.8 | 20/50 |
-| 7.00 | 60.76% | 79 | 39.8 | 10 | 2.0 | 0.5 | 0.35 | 20/50 |
-| 6.64 | 69.23% | 26 | 135.6 | 5 | 1.0 | 1.0 | 0.8 | 9/21 |
-| 6.49 | 60.71% | 28 | 110.0 | 5 | 2.0 | 1.0 | 0.35 | 20/50 |
-
-Top 30% ranges (of profitable combos): DTE 5-20, M% 1-3, PT 0.5-1.0, SL 0.35-0.8, EMA 20/50 > 9/21.
-
-Iron condor and call debit spread had **0 profitable combos** in this grid (see leaderboard file for details).
-
-### Filtered (rv/ema/time window enabled)
-Filters: `rv_min=0.15, rv_max=0.60, ema_spread_min_pct=0.05, ema_slope_min_pct=0.01, entry_start_hour=10, entry_end_hour=15, skip_first_bars=2, cooldown_bars=4`
-
-Long CALL (debit), top 10 by PnL:
-| PnL | Win | Trades | Hold(h) | DTE | M% | PT | SL | EMA |
-| --- | --- | ------ | ------- | --- | --- | -- | -- | --- |
-| 17.17 | 83.33% | 12 | 315.8 | 20 | 1.0 | 1.0 | 0.8 | 20/50 |
-| 16.41 | 75.00% | 16 | 222.8 | 20 | 2.0 | 1.0 | 0.8 | 20/50 |
-| 15.91 | 75.00% | 16 | 216.6 | 20 | 3.0 | 1.0 | 0.8 | 20/50 |
-| 15.16 | 80.95% | 21 | 167.7 | 20 | 1.0 | 0.5 | 0.8 | 9/21 |
-| 14.83 | 80.95% | 21 | 159.7 | 20 | 1.0 | 0.5 | 0.8 | 20/50 |
-| 14.64 | 81.82% | 11 | 342.5 | 20 | 1.0 | 1.0 | 0.8 | 9/21 |
-| 14.53 | 81.82% | 22 | 148.0 | 20 | 2.0 | 0.5 | 0.8 | 20/50 |
-| 14.29 | 79.17% | 24 | 144.0 | 20 | 2.0 | 0.5 | 0.8 | 9/21 |
-| 13.84 | 76.92% | 13 | 285.8 | 20 | 2.0 | 1.0 | 0.8 | 9/21 |
-| 13.82 | 66.67% | 21 | 164.3 | 10 | 1.0 | 1.0 | 0.8 | 20/50 |
-
-Top 30% ranges (of profitable combos): DTE 10-20, M% 1-3, PT 0.5-1.0, SL 0.8 only, EMA 20/50 ≈ 9/21.
-
-Short PUT (credit), top 10 by PnL:
-| PnL | Win | Trades | Hold(h) | DTE | M% | PT | SL | EMA |
-| --- | --- | ------ | ------- | --- | --- | -- | -- | --- |
-| 11.86 | 81.36% | 59 | 48.4 | 5 | 1.0 | 0.5 | 0.8 | 20/50 |
-| 10.84 | 83.05% | 59 | 50.3 | 5 | 1.0 | 0.5 | 0.8 | 9/21 |
-| 9.97 | 72.31% | 65 | 41.5 | 5 | 1.0 | 0.5 | 0.35 | 20/50 |
-| 9.34 | 73.77% | 61 | 44.4 | 5 | 1.0 | 0.5 | 0.35 | 9/21 |
-| 8.83 | 82.54% | 63 | 43.4 | 5 | 2.0 | 0.5 | 0.8 | 9/21 |
-| 8.56 | 71.64% | 67 | 35.3 | 5 | 2.0 | 0.5 | 0.35 | 9/21 |
-| 8.11 | 71.43% | 21 | 139.5 | 5 | 1.0 | 1.0 | 0.35 | 20/50 |
-| 7.16 | 77.05% | 61 | 41.2 | 5 | 2.0 | 0.5 | 0.8 | 20/50 |
-| 6.83 | 62.50% | 8 | 462.8 | 20 | 1.0 | 1.0 | 0.35 | 20/50 |
-| 6.79 | 68.12% | 69 | 33.5 | 5 | 2.0 | 0.5 | 0.35 | 20/50 |
-
-Top 30% ranges (of profitable combos): DTE 5-20, M% 1-3, PT 0.5-1.0, SL 0.35-0.8, EMA 20/50 > 9/21.
-
-Iron condor and call debit spread had **0 profitable combos** in this grid (see leaderboard file for details).
+Machine-readable presets are in `tradebot/backtest/leaderboard.json` (regenerate with `python -m tradebot.backtest.generate_leaderboard`).
 
 ## Reuse for live trading
 The backtest engine is built around reusable components:
@@ -281,7 +249,7 @@ These modules will be reused in a live trading engine (future work), where marke
 ## Testing notes (volatility)
 - **Realized vol over time:** RV is computed per bar using EWMA of returns, so it moves through time during the backtest.
 - **IV over time:** IV is synthetic (RV + static params). Calibration adjusts those params using *today’s* delayed LAST, so it improves realism for “now,” not historical regimes.
-- **Persisted buckets:** Calibration records accumulate, but backtests currently use the **latest record only** (no as‑of date matching).
+- **Persisted buckets:** Calibration records accumulate, and backtests apply the latest record **as-of the simulated bar date** (walk-forward). If no record exists yet for that date/bucket, the base synthetic params are used.
 
 ## Calibration (delayed LAST)
 When `calibrate` is enabled (or `--calibrate` is passed), the engine will:

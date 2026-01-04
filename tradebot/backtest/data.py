@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import csv
+from functools import lru_cache
 from dataclasses import dataclass
 from datetime import datetime, timedelta, time
 from pathlib import Path
@@ -147,8 +148,13 @@ def _cache_path(cache_dir: Path, symbol: str, start: datetime, end: datetime, ba
 
 
 def _read_cache(path: Path) -> list[Bar]:
+    return list(_read_cache_cached(str(path)))
+
+
+@lru_cache(maxsize=32)
+def _read_cache_cached(path: str) -> tuple[Bar, ...]:
     rows: list[Bar] = []
-    with path.open("r", newline="") as handle:
+    with Path(path).open("r", newline="") as handle:
         reader = csv.DictReader(handle)
         for row in reader:
             rows.append(
@@ -161,7 +167,7 @@ def _read_cache(path: Path) -> list[Bar]:
                     volume=float(row["volume"]),
                 )
             )
-    return rows
+    return tuple(rows)
 
 
 def _write_cache(path: Path, bars: Iterable[Bar]) -> None:

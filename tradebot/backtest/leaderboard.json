@@ -1,0 +1,3638 @@
+{
+  "bar_size": "1 hour",
+  "end": "2026-01-02",
+  "generated_at": "2026-01-04T10:06:27.719792+00:00",
+  "grid": {
+    "dte": [
+      0,
+      5,
+      10,
+      20
+    ],
+    "ema_preset": [
+      "3/7",
+      "9/21",
+      "20/50"
+    ],
+    "exit_on_signal_flip": [
+      false,
+      true
+    ],
+    "flip_exit_min_hold_bars": [
+      6
+    ],
+    "flip_exit_only_if_profit": [
+      true
+    ],
+    "min_trades": 8,
+    "moneyness_pct": [
+      1.0,
+      2.0
+    ],
+    "profit_target": [
+      0.5,
+      1.0,
+      2.0,
+      5.0,
+      10.0,
+      20.0,
+      50.0,
+      100.0,
+      200.0
+    ],
+    "stop_loss": [
+      0.35,
+      0.8,
+      1.0
+    ]
+  },
+  "groups": [
+    {
+      "entries": [
+        {
+          "metrics": {
+            "avg_hold_hours": 350.1333333333333,
+            "max_drawdown": 116815.45963813446,
+            "pnl": 307185.70321076136,
+            "trades": 1050,
+            "win_rate": 0.8133333333333334
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": true,
+            "flip_exit_min_hold_bars": 6,
+            "flip_exit_only_if_profit": true,
+            "legs": [
+              {
+                "action": "BUY",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "CALL"
+              }
+            ],
+            "profit_target": 5.0,
+            "stop_loss": 1.0
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 355.02219979818364,
+            "max_drawdown": 123887.46863685333,
+            "pnl": 301686.7743802305,
+            "trades": 991,
+            "win_rate": 0.8143289606458123
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": true,
+            "flip_exit_min_hold_bars": 6,
+            "flip_exit_only_if_profit": true,
+            "legs": [
+              {
+                "action": "BUY",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "CALL"
+              }
+            ],
+            "profit_target": 5.0,
+            "stop_loss": 1.0
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 382.1495016611296,
+            "max_drawdown": 154587.83903096325,
+            "pnl": 294587.2179284274,
+            "trades": 903,
+            "win_rate": 0.8261351052048727
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": true,
+            "flip_exit_min_hold_bars": 6,
+            "flip_exit_only_if_profit": true,
+            "legs": [
+              {
+                "action": "BUY",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "CALL"
+              }
+            ],
+            "profit_target": 10.0,
+            "stop_loss": 1.0
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 382.1495016611296,
+            "max_drawdown": 154587.83903096325,
+            "pnl": 294587.2179284274,
+            "trades": 903,
+            "win_rate": 0.8261351052048727
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": true,
+            "flip_exit_min_hold_bars": 6,
+            "flip_exit_only_if_profit": true,
+            "legs": [
+              {
+                "action": "BUY",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "CALL"
+              }
+            ],
+            "profit_target": 20.0,
+            "stop_loss": 1.0
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 382.1495016611296,
+            "max_drawdown": 154587.83903096325,
+            "pnl": 294587.2179284274,
+            "trades": 903,
+            "win_rate": 0.8261351052048727
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": true,
+            "flip_exit_min_hold_bars": 6,
+            "flip_exit_only_if_profit": true,
+            "legs": [
+              {
+                "action": "BUY",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "CALL"
+              }
+            ],
+            "profit_target": 50.0,
+            "stop_loss": 1.0
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 382.1495016611296,
+            "max_drawdown": 154587.83903096325,
+            "pnl": 294587.2179284274,
+            "trades": 903,
+            "win_rate": 0.8261351052048727
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": true,
+            "flip_exit_min_hold_bars": 6,
+            "flip_exit_only_if_profit": true,
+            "legs": [
+              {
+                "action": "BUY",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "CALL"
+              }
+            ],
+            "profit_target": 100.0,
+            "stop_loss": 1.0
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 382.1495016611296,
+            "max_drawdown": 154587.83903096325,
+            "pnl": 294587.2179284274,
+            "trades": 903,
+            "win_rate": 0.8261351052048727
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": true,
+            "flip_exit_min_hold_bars": 6,
+            "flip_exit_only_if_profit": true,
+            "legs": [
+              {
+                "action": "BUY",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "CALL"
+              }
+            ],
+            "profit_target": 200.0,
+            "stop_loss": 1.0
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 377.6307531380753,
+            "max_drawdown": 155040.271898388,
+            "pnl": 294156.6376156329,
+            "trades": 956,
+            "win_rate": 0.8200836820083682
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": true,
+            "flip_exit_min_hold_bars": 6,
+            "flip_exit_only_if_profit": true,
+            "legs": [
+              {
+                "action": "BUY",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "CALL"
+              }
+            ],
+            "profit_target": 10.0,
+            "stop_loss": 1.0
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 328.12382934443286,
+            "max_drawdown": 118075.55389167828,
+            "pnl": 291189.34344259306,
+            "trades": 961,
+            "win_rate": 0.7804370447450573
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": true,
+            "flip_exit_min_hold_bars": 6,
+            "flip_exit_only_if_profit": true,
+            "legs": [
+              {
+                "action": "BUY",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "CALL"
+              }
+            ],
+            "profit_target": 5.0,
+            "stop_loss": 0.8
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 381.96398305084745,
+            "max_drawdown": 156454.52419713535,
+            "pnl": 290980.45231331437,
+            "trades": 944,
+            "win_rate": 0.8188559322033898
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": true,
+            "flip_exit_min_hold_bars": 6,
+            "flip_exit_only_if_profit": true,
+            "legs": [
+              {
+                "action": "BUY",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "CALL"
+              }
+            ],
+            "profit_target": 20.0,
+            "stop_loss": 1.0
+          }
+        }
+      ],
+      "filters": null,
+      "name": "Long CALL (unfiltered)"
+    },
+    {
+      "entries": [
+        {
+          "metrics": {
+            "avg_hold_hours": 609.8835616438356,
+            "max_drawdown": 16396.26485429579,
+            "pnl": 46195.3553336452,
+            "trades": 146,
+            "win_rate": 0.7328767123287672
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "BUY",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "CALL"
+              }
+            ],
+            "profit_target": 5.0,
+            "stop_loss": 1.0
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 533.8493150684932,
+            "max_drawdown": 16396.26485429579,
+            "pnl": 45513.10424968258,
+            "trades": 146,
+            "win_rate": 0.6986301369863014
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "BUY",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "CALL"
+              }
+            ],
+            "profit_target": 5.0,
+            "stop_loss": 0.8
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 630.2534246575342,
+            "max_drawdown": 19768.46571424394,
+            "pnl": 45076.431664520715,
+            "trades": 146,
+            "win_rate": 0.7328767123287672
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "BUY",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "CALL"
+              }
+            ],
+            "profit_target": 10.0,
+            "stop_loss": 1.0
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 630.2534246575342,
+            "max_drawdown": 19768.46571424394,
+            "pnl": 45076.431664520715,
+            "trades": 146,
+            "win_rate": 0.7328767123287672
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "BUY",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "CALL"
+              }
+            ],
+            "profit_target": 20.0,
+            "stop_loss": 1.0
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 630.2534246575342,
+            "max_drawdown": 19768.46571424394,
+            "pnl": 45076.431664520715,
+            "trades": 146,
+            "win_rate": 0.7328767123287672
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "BUY",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "CALL"
+              }
+            ],
+            "profit_target": 50.0,
+            "stop_loss": 1.0
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 630.2534246575342,
+            "max_drawdown": 19768.46571424394,
+            "pnl": 45076.431664520715,
+            "trades": 146,
+            "win_rate": 0.7328767123287672
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "BUY",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "CALL"
+              }
+            ],
+            "profit_target": 100.0,
+            "stop_loss": 1.0
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 630.2534246575342,
+            "max_drawdown": 19768.46571424394,
+            "pnl": 45076.431664520715,
+            "trades": 146,
+            "win_rate": 0.7328767123287672
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "BUY",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "CALL"
+              }
+            ],
+            "profit_target": 200.0,
+            "stop_loss": 1.0
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 600.6575342465753,
+            "max_drawdown": 14564.689977328104,
+            "pnl": 44810.7219633561,
+            "trades": 146,
+            "win_rate": 0.7191780821917808
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "BUY",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "CALL"
+              }
+            ],
+            "profit_target": 5.0,
+            "stop_loss": 1.0
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 554.2191780821918,
+            "max_drawdown": 19768.46571424394,
+            "pnl": 44394.180580558095,
+            "trades": 146,
+            "win_rate": 0.6986301369863014
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "BUY",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "CALL"
+              }
+            ],
+            "profit_target": 10.0,
+            "stop_loss": 0.8
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 554.2191780821918,
+            "max_drawdown": 19768.46571424394,
+            "pnl": 44394.180580558095,
+            "trades": 146,
+            "win_rate": 0.6986301369863014
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "BUY",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "CALL"
+              }
+            ],
+            "profit_target": 20.0,
+            "stop_loss": 0.8
+          }
+        }
+      ],
+      "filters": {
+        "cooldown_bars": 4,
+        "ema_slope_min_pct": 0.01,
+        "ema_spread_min_pct": 0.05,
+        "entry_end_hour": 15,
+        "entry_start_hour": 10,
+        "rv_max": 0.6,
+        "rv_min": 0.15,
+        "skip_first_bars": 2
+      },
+      "name": "Long CALL (filtered)"
+    },
+    {
+      "entries": [
+        {
+          "metrics": {
+            "avg_hold_hours": 69.79285714285714,
+            "max_drawdown": 876.997414313164,
+            "pnl": 3804.627613623452,
+            "trades": 140,
+            "win_rate": 0.9428571428571428
+          },
+          "strategy": {
+            "dte": 5,
+            "ema_entry_mode": "trend",
+            "ema_preset": "9/21",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "SELL",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 0.5,
+            "stop_loss": 0.35
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 69.79285714285714,
+            "max_drawdown": 876.997414313164,
+            "pnl": 3804.627613623452,
+            "trades": 140,
+            "win_rate": 0.9428571428571428
+          },
+          "strategy": {
+            "dte": 5,
+            "ema_entry_mode": "trend",
+            "ema_preset": "9/21",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "SELL",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 0.5,
+            "stop_loss": 0.8
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 69.79285714285714,
+            "max_drawdown": 876.997414313164,
+            "pnl": 3804.627613623452,
+            "trades": 140,
+            "win_rate": 0.9428571428571428
+          },
+          "strategy": {
+            "dte": 5,
+            "ema_entry_mode": "trend",
+            "ema_preset": "9/21",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "SELL",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 0.5,
+            "stop_loss": 1.0
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 72.62121212121212,
+            "max_drawdown": 1010.1025373389475,
+            "pnl": 3323.569111506852,
+            "trades": 132,
+            "win_rate": 0.9318181818181818
+          },
+          "strategy": {
+            "dte": 5,
+            "ema_entry_mode": "trend",
+            "ema_preset": "3/7",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "SELL",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 0.5,
+            "stop_loss": 0.35
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 72.62121212121212,
+            "max_drawdown": 1010.1025373389475,
+            "pnl": 3323.569111506852,
+            "trades": 132,
+            "win_rate": 0.9318181818181818
+          },
+          "strategy": {
+            "dte": 5,
+            "ema_entry_mode": "trend",
+            "ema_preset": "3/7",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "SELL",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 0.5,
+            "stop_loss": 0.8
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 72.62121212121212,
+            "max_drawdown": 1010.1025373389475,
+            "pnl": 3323.569111506852,
+            "trades": 132,
+            "win_rate": 0.9318181818181818
+          },
+          "strategy": {
+            "dte": 5,
+            "ema_entry_mode": "trend",
+            "ema_preset": "3/7",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "SELL",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 0.5,
+            "stop_loss": 1.0
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 68.3931623931624,
+            "max_drawdown": 876.997414313164,
+            "pnl": 3220.64351273826,
+            "trades": 117,
+            "win_rate": 0.9316239316239316
+          },
+          "strategy": {
+            "dte": 5,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "SELL",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 0.5,
+            "stop_loss": 0.35
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 68.3931623931624,
+            "max_drawdown": 876.997414313164,
+            "pnl": 3220.64351273826,
+            "trades": 117,
+            "win_rate": 0.9316239316239316
+          },
+          "strategy": {
+            "dte": 5,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "SELL",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 0.5,
+            "stop_loss": 0.8
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 68.3931623931624,
+            "max_drawdown": 876.997414313164,
+            "pnl": 3220.64351273826,
+            "trades": 117,
+            "win_rate": 0.9316239316239316
+          },
+          "strategy": {
+            "dte": 5,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "SELL",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 0.5,
+            "stop_loss": 1.0
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 62.30921052631579,
+            "max_drawdown": 977.4667047058538,
+            "pnl": 3012.2749536095107,
+            "trades": 152,
+            "win_rate": 0.9407894736842105
+          },
+          "strategy": {
+            "dte": 5,
+            "ema_entry_mode": "trend",
+            "ema_preset": "3/7",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "SELL",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 0.5,
+            "stop_loss": 0.35
+          }
+        }
+      ],
+      "filters": null,
+      "name": "Short PUT (unfiltered)"
+    },
+    {
+      "entries": [
+        {
+          "metrics": {
+            "avg_hold_hours": 118.0,
+            "max_drawdown": 948.4467752439105,
+            "pnl": 3278.882943616426,
+            "trades": 67,
+            "win_rate": 0.9402985074626866
+          },
+          "strategy": {
+            "dte": 10,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "SELL",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 0.5,
+            "stop_loss": 0.35
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 118.0,
+            "max_drawdown": 948.4467752439105,
+            "pnl": 3278.882943616426,
+            "trades": 67,
+            "win_rate": 0.9402985074626866
+          },
+          "strategy": {
+            "dte": 10,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "SELL",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 0.5,
+            "stop_loss": 0.8
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 118.0,
+            "max_drawdown": 948.4467752439105,
+            "pnl": 3278.882943616426,
+            "trades": 67,
+            "win_rate": 0.9402985074626866
+          },
+          "strategy": {
+            "dte": 10,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "SELL",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 0.5,
+            "stop_loss": 1.0
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 121.1470588235294,
+            "max_drawdown": 744.8890364954332,
+            "pnl": 3190.1602197645016,
+            "trades": 68,
+            "win_rate": 0.9264705882352942
+          },
+          "strategy": {
+            "dte": 10,
+            "ema_entry_mode": "trend",
+            "ema_preset": "9/21",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "SELL",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 0.5,
+            "stop_loss": 0.35
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 121.1470588235294,
+            "max_drawdown": 744.8890364954332,
+            "pnl": 3190.1602197645016,
+            "trades": 68,
+            "win_rate": 0.9264705882352942
+          },
+          "strategy": {
+            "dte": 10,
+            "ema_entry_mode": "trend",
+            "ema_preset": "9/21",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "SELL",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 0.5,
+            "stop_loss": 0.8
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 121.1470588235294,
+            "max_drawdown": 744.8890364954332,
+            "pnl": 3190.1602197645016,
+            "trades": 68,
+            "win_rate": 0.9264705882352942
+          },
+          "strategy": {
+            "dte": 10,
+            "ema_entry_mode": "trend",
+            "ema_preset": "9/21",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "SELL",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 0.5,
+            "stop_loss": 1.0
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 101.69444444444444,
+            "max_drawdown": 702.5543523233591,
+            "pnl": 3180.43281198858,
+            "trades": 72,
+            "win_rate": 0.9583333333333334
+          },
+          "strategy": {
+            "dte": 10,
+            "ema_entry_mode": "trend",
+            "ema_preset": "9/21",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "SELL",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 0.5,
+            "stop_loss": 0.35
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 101.69444444444444,
+            "max_drawdown": 702.5543523233591,
+            "pnl": 3180.43281198858,
+            "trades": 72,
+            "win_rate": 0.9583333333333334
+          },
+          "strategy": {
+            "dte": 10,
+            "ema_entry_mode": "trend",
+            "ema_preset": "9/21",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "SELL",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 0.5,
+            "stop_loss": 0.8
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 101.69444444444444,
+            "max_drawdown": 702.5543523233591,
+            "pnl": 3180.43281198858,
+            "trades": 72,
+            "win_rate": 0.9583333333333334
+          },
+          "strategy": {
+            "dte": 10,
+            "ema_entry_mode": "trend",
+            "ema_preset": "9/21",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "SELL",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 0.5,
+            "stop_loss": 1.0
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 66.0,
+            "max_drawdown": 875.7833132727028,
+            "pnl": 3165.047592512454,
+            "trades": 94,
+            "win_rate": 0.9680851063829787
+          },
+          "strategy": {
+            "dte": 5,
+            "ema_entry_mode": "trend",
+            "ema_preset": "3/7",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "SELL",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 0.5,
+            "stop_loss": 0.35
+          }
+        }
+      ],
+      "filters": {
+        "cooldown_bars": 4,
+        "ema_slope_min_pct": 0.01,
+        "ema_spread_min_pct": 0.05,
+        "entry_end_hour": 15,
+        "entry_start_hour": 10,
+        "rv_max": 0.6,
+        "rv_min": 0.15,
+        "skip_first_bars": 2
+      },
+      "name": "Short PUT (filtered)"
+    },
+    {
+      "entries": [
+        {
+          "metrics": {
+            "avg_hold_hours": 609.1629370629371,
+            "max_drawdown": 215333.69913059706,
+            "pnl": 615968.771480543,
+            "trades": 1430,
+            "win_rate": 0.7664335664335664
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "BUY",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "CALL"
+              },
+              {
+                "action": "SELL",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 200.0,
+            "stop_loss": 0.35
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 609.1629370629371,
+            "max_drawdown": 215333.69913059706,
+            "pnl": 615968.771480543,
+            "trades": 1430,
+            "win_rate": 0.7664335664335664
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "BUY",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "CALL"
+              },
+              {
+                "action": "SELL",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 200.0,
+            "stop_loss": 0.8
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 609.1629370629371,
+            "max_drawdown": 215333.69913059706,
+            "pnl": 615968.771480543,
+            "trades": 1430,
+            "win_rate": 0.7664335664335664
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "BUY",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "CALL"
+              },
+              {
+                "action": "SELL",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 200.0,
+            "stop_loss": 1.0
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 553.7027972027972,
+            "max_drawdown": 178121.59700446116,
+            "pnl": 591452.5972182569,
+            "trades": 1430,
+            "win_rate": 0.7664335664335664
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "BUY",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "CALL"
+              },
+              {
+                "action": "SELL",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 100.0,
+            "stop_loss": 0.35
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 553.7027972027972,
+            "max_drawdown": 178121.59700446116,
+            "pnl": 591452.5972182569,
+            "trades": 1430,
+            "win_rate": 0.7664335664335664
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "BUY",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "CALL"
+              },
+              {
+                "action": "SELL",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 100.0,
+            "stop_loss": 0.8
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 553.7027972027972,
+            "max_drawdown": 178121.59700446116,
+            "pnl": 591452.5972182569,
+            "trades": 1430,
+            "win_rate": 0.7664335664335664
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "BUY",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "CALL"
+              },
+              {
+                "action": "SELL",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 100.0,
+            "stop_loss": 1.0
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 568.4884696016771,
+            "max_drawdown": 177382.67769099737,
+            "pnl": 573753.0393422426,
+            "trades": 1431,
+            "win_rate": 0.756114605171209
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "BUY",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "CALL"
+              },
+              {
+                "action": "SELL",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 100.0,
+            "stop_loss": 0.35
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 568.4884696016771,
+            "max_drawdown": 177382.67769099737,
+            "pnl": 573753.0393422426,
+            "trades": 1431,
+            "win_rate": 0.756114605171209
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "BUY",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "CALL"
+              },
+              {
+                "action": "SELL",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 100.0,
+            "stop_loss": 0.8
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 568.4884696016771,
+            "max_drawdown": 177382.67769099737,
+            "pnl": 573753.0393422426,
+            "trades": 1431,
+            "win_rate": 0.756114605171209
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "BUY",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "CALL"
+              },
+              {
+                "action": "SELL",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 100.0,
+            "stop_loss": 1.0
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 611.6694619147449,
+            "max_drawdown": 232323.17635758,
+            "pnl": 570653.0272481441,
+            "trades": 1431,
+            "win_rate": 0.756114605171209
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "BUY",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "CALL"
+              },
+              {
+                "action": "SELL",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 200.0,
+            "stop_loss": 0.35
+          }
+        }
+      ],
+      "filters": null,
+      "name": "Risk Reversal (unfiltered) [BUY CALL + SELL PUT]"
+    },
+    {
+      "entries": [
+        {
+          "metrics": {
+            "avg_hold_hours": 626.7054794520548,
+            "max_drawdown": 21516.613599836775,
+            "pnl": 70651.43812225928,
+            "trades": 146,
+            "win_rate": 0.8356164383561644
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "BUY",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "CALL"
+              },
+              {
+                "action": "SELL",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 200.0,
+            "stop_loss": 0.35
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 626.7054794520548,
+            "max_drawdown": 21516.613599836775,
+            "pnl": 70651.43812225928,
+            "trades": 146,
+            "win_rate": 0.8356164383561644
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "BUY",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "CALL"
+              },
+              {
+                "action": "SELL",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 200.0,
+            "stop_loss": 0.8
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 626.7054794520548,
+            "max_drawdown": 21516.613599836775,
+            "pnl": 70651.43812225928,
+            "trades": 146,
+            "win_rate": 0.8356164383561644
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "BUY",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "CALL"
+              },
+              {
+                "action": "SELL",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 200.0,
+            "stop_loss": 1.0
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 568.0890410958904,
+            "max_drawdown": 16593.11649388775,
+            "pnl": 66791.18242819434,
+            "trades": 146,
+            "win_rate": 0.8356164383561644
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "BUY",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "CALL"
+              },
+              {
+                "action": "SELL",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 100.0,
+            "stop_loss": 0.35
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 568.0890410958904,
+            "max_drawdown": 16593.11649388775,
+            "pnl": 66791.18242819434,
+            "trades": 146,
+            "win_rate": 0.8356164383561644
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "BUY",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "CALL"
+              },
+              {
+                "action": "SELL",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 100.0,
+            "stop_loss": 0.8
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 568.0890410958904,
+            "max_drawdown": 16593.11649388775,
+            "pnl": 66791.18242819434,
+            "trades": 146,
+            "win_rate": 0.8356164383561644
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "BUY",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "CALL"
+              },
+              {
+                "action": "SELL",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 100.0,
+            "stop_loss": 1.0
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 627.9925373134329,
+            "max_drawdown": 19754.221152867307,
+            "pnl": 65616.55380810528,
+            "trades": 134,
+            "win_rate": 0.835820895522388
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "9/21",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "BUY",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "CALL"
+              },
+              {
+                "action": "SELL",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 200.0,
+            "stop_loss": 0.35
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 627.9925373134329,
+            "max_drawdown": 19754.221152867307,
+            "pnl": 65616.55380810528,
+            "trades": 134,
+            "win_rate": 0.835820895522388
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "9/21",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "BUY",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "CALL"
+              },
+              {
+                "action": "SELL",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 200.0,
+            "stop_loss": 0.8
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 627.9925373134329,
+            "max_drawdown": 19754.221152867307,
+            "pnl": 65616.55380810528,
+            "trades": 134,
+            "win_rate": 0.835820895522388
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "9/21",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "BUY",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "CALL"
+              },
+              {
+                "action": "SELL",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 200.0,
+            "stop_loss": 1.0
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 630.2534246575342,
+            "max_drawdown": 23567.919695133576,
+            "pnl": 64734.54299988441,
+            "trades": 146,
+            "win_rate": 0.821917808219178
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "BUY",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "CALL"
+              },
+              {
+                "action": "SELL",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 200.0,
+            "stop_loss": 0.35
+          }
+        }
+      ],
+      "filters": {
+        "cooldown_bars": 4,
+        "ema_slope_min_pct": 0.01,
+        "ema_spread_min_pct": 0.05,
+        "entry_end_hour": 15,
+        "entry_start_hour": 10,
+        "rv_max": 0.6,
+        "rv_min": 0.15,
+        "skip_first_bars": 2
+      },
+      "name": "Risk Reversal (filtered) [BUY CALL + SELL PUT]"
+    },
+    {
+      "entries": [
+        {
+          "metrics": {
+            "avg_hold_hours": 605.3112813370474,
+            "max_drawdown": 5052.375447668259,
+            "pnl": 14506.488519094473,
+            "trades": 1436,
+            "win_rate": 0.834958217270195
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "SELL",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "PUT"
+              },
+              {
+                "action": "BUY",
+                "moneyness_pct": 3.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 1.0,
+            "stop_loss": 1.0
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 612.1260445682451,
+            "max_drawdown": 5057.375449009694,
+            "pnl": 14381.83958924467,
+            "trades": 1436,
+            "win_rate": 0.834958217270195
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "SELL",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "PUT"
+              },
+              {
+                "action": "BUY",
+                "moneyness_pct": 3.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 2.0,
+            "stop_loss": 1.0
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 612.1260445682451,
+            "max_drawdown": 5057.375449009694,
+            "pnl": 14381.83958924467,
+            "trades": 1436,
+            "win_rate": 0.834958217270195
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "SELL",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "PUT"
+              },
+              {
+                "action": "BUY",
+                "moneyness_pct": 3.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 5.0,
+            "stop_loss": 1.0
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 612.1260445682451,
+            "max_drawdown": 5057.375449009694,
+            "pnl": 14381.83958924467,
+            "trades": 1436,
+            "win_rate": 0.834958217270195
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "SELL",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "PUT"
+              },
+              {
+                "action": "BUY",
+                "moneyness_pct": 3.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 10.0,
+            "stop_loss": 1.0
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 612.1260445682451,
+            "max_drawdown": 5057.375449009694,
+            "pnl": 14381.83958924467,
+            "trades": 1436,
+            "win_rate": 0.834958217270195
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "SELL",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "PUT"
+              },
+              {
+                "action": "BUY",
+                "moneyness_pct": 3.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 20.0,
+            "stop_loss": 1.0
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 612.1260445682451,
+            "max_drawdown": 5057.375449009694,
+            "pnl": 14381.83958924467,
+            "trades": 1436,
+            "win_rate": 0.834958217270195
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "SELL",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "PUT"
+              },
+              {
+                "action": "BUY",
+                "moneyness_pct": 3.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 50.0,
+            "stop_loss": 1.0
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 612.1260445682451,
+            "max_drawdown": 5057.375449009694,
+            "pnl": 14381.83958924467,
+            "trades": 1436,
+            "win_rate": 0.834958217270195
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "SELL",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "PUT"
+              },
+              {
+                "action": "BUY",
+                "moneyness_pct": 3.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 100.0,
+            "stop_loss": 1.0
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 612.1260445682451,
+            "max_drawdown": 5057.375449009694,
+            "pnl": 14381.83958924467,
+            "trades": 1436,
+            "win_rate": 0.834958217270195
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "SELL",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "PUT"
+              },
+              {
+                "action": "BUY",
+                "moneyness_pct": 3.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 200.0,
+            "stop_loss": 1.0
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 607.0647632311977,
+            "max_drawdown": 5286.259972443184,
+            "pnl": 14157.607363740568,
+            "trades": 1436,
+            "win_rate": 0.8119777158774373
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "SELL",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "PUT"
+              },
+              {
+                "action": "BUY",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 1.0,
+            "stop_loss": 1.0
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 612.1260445682451,
+            "max_drawdown": 5291.259978678872,
+            "pnl": 14057.178545998311,
+            "trades": 1436,
+            "win_rate": 0.8119777158774373
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "SELL",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "PUT"
+              },
+              {
+                "action": "BUY",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 2.0,
+            "stop_loss": 1.0
+          }
+        }
+      ],
+      "filters": null,
+      "name": "Put Credit Spread (unfiltered)"
+    },
+    {
+      "entries": [
+        {
+          "metrics": {
+            "avg_hold_hours": 623.417808219178,
+            "max_drawdown": 468.00497937870387,
+            "pnl": 1661.4421811973373,
+            "trades": 146,
+            "win_rate": 0.8698630136986302
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "SELL",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "PUT"
+              },
+              {
+                "action": "BUY",
+                "moneyness_pct": 3.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 1.0,
+            "stop_loss": 1.0
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 630.2534246575342,
+            "max_drawdown": 469.0049796023832,
+            "pnl": 1646.8575158254127,
+            "trades": 146,
+            "win_rate": 0.8698630136986302
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "SELL",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "PUT"
+              },
+              {
+                "action": "BUY",
+                "moneyness_pct": 3.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 2.0,
+            "stop_loss": 1.0
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 630.2534246575342,
+            "max_drawdown": 469.0049796023832,
+            "pnl": 1646.8575158254127,
+            "trades": 146,
+            "win_rate": 0.8698630136986302
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "SELL",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "PUT"
+              },
+              {
+                "action": "BUY",
+                "moneyness_pct": 3.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 5.0,
+            "stop_loss": 1.0
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 630.2534246575342,
+            "max_drawdown": 469.0049796023832,
+            "pnl": 1646.8575158254127,
+            "trades": 146,
+            "win_rate": 0.8698630136986302
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "SELL",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "PUT"
+              },
+              {
+                "action": "BUY",
+                "moneyness_pct": 3.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 10.0,
+            "stop_loss": 1.0
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 630.2534246575342,
+            "max_drawdown": 469.0049796023832,
+            "pnl": 1646.8575158254127,
+            "trades": 146,
+            "win_rate": 0.8698630136986302
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "SELL",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "PUT"
+              },
+              {
+                "action": "BUY",
+                "moneyness_pct": 3.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 20.0,
+            "stop_loss": 1.0
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 630.2534246575342,
+            "max_drawdown": 469.0049796023832,
+            "pnl": 1646.8575158254127,
+            "trades": 146,
+            "win_rate": 0.8698630136986302
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "SELL",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "PUT"
+              },
+              {
+                "action": "BUY",
+                "moneyness_pct": 3.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 50.0,
+            "stop_loss": 1.0
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 630.2534246575342,
+            "max_drawdown": 469.0049796023832,
+            "pnl": 1646.8575158254127,
+            "trades": 146,
+            "win_rate": 0.8698630136986302
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "SELL",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "PUT"
+              },
+              {
+                "action": "BUY",
+                "moneyness_pct": 3.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 100.0,
+            "stop_loss": 1.0
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 630.2534246575342,
+            "max_drawdown": 469.0049796023832,
+            "pnl": 1646.8575158254127,
+            "trades": 146,
+            "win_rate": 0.8698630136986302
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "SELL",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "PUT"
+              },
+              {
+                "action": "BUY",
+                "moneyness_pct": 3.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 200.0,
+            "stop_loss": 1.0
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 625.4589041095891,
+            "max_drawdown": 498.4419395928908,
+            "pnl": 1641.4783563124272,
+            "trades": 146,
+            "win_rate": 0.863013698630137
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "SELL",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "PUT"
+              },
+              {
+                "action": "BUY",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 1.0,
+            "stop_loss": 1.0
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 630.2534246575342,
+            "max_drawdown": 499.4419406353809,
+            "pnl": 1633.360055333693,
+            "trades": 146,
+            "win_rate": 0.863013698630137
+          },
+          "strategy": {
+            "dte": 20,
+            "ema_entry_mode": "trend",
+            "ema_preset": "20/50",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "SELL",
+                "moneyness_pct": 1.0,
+                "qty": 1,
+                "right": "PUT"
+              },
+              {
+                "action": "BUY",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "PUT"
+              }
+            ],
+            "profit_target": 2.0,
+            "stop_loss": 1.0
+          }
+        }
+      ],
+      "filters": {
+        "cooldown_bars": 4,
+        "ema_slope_min_pct": 0.01,
+        "ema_spread_min_pct": 0.05,
+        "entry_end_hour": 15,
+        "entry_start_hour": 10,
+        "rv_max": 0.6,
+        "rv_min": 0.15,
+        "skip_first_bars": 2
+      },
+      "name": "Put Credit Spread (filtered)"
+    },
+    {
+      "entries": [],
+      "filters": null,
+      "name": "Iron Condor (unfiltered)"
+    },
+    {
+      "entries": [
+        {
+          "metrics": {
+            "avg_hold_hours": 7.074766355140187,
+            "max_drawdown": 17.51383114671262,
+            "pnl": 42.52157930176642,
+            "trades": 107,
+            "win_rate": 0.7102803738317757
+          },
+          "strategy": {
+            "dte": 0,
+            "ema_entry_mode": "trend",
+            "ema_preset": "3/7",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "SELL",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "PUT"
+              },
+              {
+                "action": "BUY",
+                "moneyness_pct": 3.0,
+                "qty": 1,
+                "right": "PUT"
+              },
+              {
+                "action": "SELL",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "CALL"
+              },
+              {
+                "action": "BUY",
+                "moneyness_pct": 3.0,
+                "qty": 1,
+                "right": "CALL"
+              }
+            ],
+            "profit_target": 1.0,
+            "stop_loss": 0.8
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 7.074766355140187,
+            "max_drawdown": 17.51383114671262,
+            "pnl": 42.52157930176642,
+            "trades": 107,
+            "win_rate": 0.7102803738317757
+          },
+          "strategy": {
+            "dte": 0,
+            "ema_entry_mode": "trend",
+            "ema_preset": "3/7",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "SELL",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "PUT"
+              },
+              {
+                "action": "BUY",
+                "moneyness_pct": 3.0,
+                "qty": 1,
+                "right": "PUT"
+              },
+              {
+                "action": "SELL",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "CALL"
+              },
+              {
+                "action": "BUY",
+                "moneyness_pct": 3.0,
+                "qty": 1,
+                "right": "CALL"
+              }
+            ],
+            "profit_target": 1.0,
+            "stop_loss": 1.0
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 7.074766355140187,
+            "max_drawdown": 17.51383114671262,
+            "pnl": 42.52157930176642,
+            "trades": 107,
+            "win_rate": 0.7102803738317757
+          },
+          "strategy": {
+            "dte": 0,
+            "ema_entry_mode": "trend",
+            "ema_preset": "3/7",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "SELL",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "PUT"
+              },
+              {
+                "action": "BUY",
+                "moneyness_pct": 3.0,
+                "qty": 1,
+                "right": "PUT"
+              },
+              {
+                "action": "SELL",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "CALL"
+              },
+              {
+                "action": "BUY",
+                "moneyness_pct": 3.0,
+                "qty": 1,
+                "right": "CALL"
+              }
+            ],
+            "profit_target": 2.0,
+            "stop_loss": 0.8
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 7.074766355140187,
+            "max_drawdown": 17.51383114671262,
+            "pnl": 42.52157930176642,
+            "trades": 107,
+            "win_rate": 0.7102803738317757
+          },
+          "strategy": {
+            "dte": 0,
+            "ema_entry_mode": "trend",
+            "ema_preset": "3/7",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "SELL",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "PUT"
+              },
+              {
+                "action": "BUY",
+                "moneyness_pct": 3.0,
+                "qty": 1,
+                "right": "PUT"
+              },
+              {
+                "action": "SELL",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "CALL"
+              },
+              {
+                "action": "BUY",
+                "moneyness_pct": 3.0,
+                "qty": 1,
+                "right": "CALL"
+              }
+            ],
+            "profit_target": 2.0,
+            "stop_loss": 1.0
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 7.074766355140187,
+            "max_drawdown": 17.51383114671262,
+            "pnl": 42.52157930176642,
+            "trades": 107,
+            "win_rate": 0.7102803738317757
+          },
+          "strategy": {
+            "dte": 0,
+            "ema_entry_mode": "trend",
+            "ema_preset": "3/7",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "SELL",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "PUT"
+              },
+              {
+                "action": "BUY",
+                "moneyness_pct": 3.0,
+                "qty": 1,
+                "right": "PUT"
+              },
+              {
+                "action": "SELL",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "CALL"
+              },
+              {
+                "action": "BUY",
+                "moneyness_pct": 3.0,
+                "qty": 1,
+                "right": "CALL"
+              }
+            ],
+            "profit_target": 5.0,
+            "stop_loss": 0.8
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 7.074766355140187,
+            "max_drawdown": 17.51383114671262,
+            "pnl": 42.52157930176642,
+            "trades": 107,
+            "win_rate": 0.7102803738317757
+          },
+          "strategy": {
+            "dte": 0,
+            "ema_entry_mode": "trend",
+            "ema_preset": "3/7",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "SELL",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "PUT"
+              },
+              {
+                "action": "BUY",
+                "moneyness_pct": 3.0,
+                "qty": 1,
+                "right": "PUT"
+              },
+              {
+                "action": "SELL",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "CALL"
+              },
+              {
+                "action": "BUY",
+                "moneyness_pct": 3.0,
+                "qty": 1,
+                "right": "CALL"
+              }
+            ],
+            "profit_target": 5.0,
+            "stop_loss": 1.0
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 7.074766355140187,
+            "max_drawdown": 17.51383114671262,
+            "pnl": 42.52157930176642,
+            "trades": 107,
+            "win_rate": 0.7102803738317757
+          },
+          "strategy": {
+            "dte": 0,
+            "ema_entry_mode": "trend",
+            "ema_preset": "3/7",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "SELL",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "PUT"
+              },
+              {
+                "action": "BUY",
+                "moneyness_pct": 3.0,
+                "qty": 1,
+                "right": "PUT"
+              },
+              {
+                "action": "SELL",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "CALL"
+              },
+              {
+                "action": "BUY",
+                "moneyness_pct": 3.0,
+                "qty": 1,
+                "right": "CALL"
+              }
+            ],
+            "profit_target": 10.0,
+            "stop_loss": 0.8
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 7.074766355140187,
+            "max_drawdown": 17.51383114671262,
+            "pnl": 42.52157930176642,
+            "trades": 107,
+            "win_rate": 0.7102803738317757
+          },
+          "strategy": {
+            "dte": 0,
+            "ema_entry_mode": "trend",
+            "ema_preset": "3/7",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "SELL",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "PUT"
+              },
+              {
+                "action": "BUY",
+                "moneyness_pct": 3.0,
+                "qty": 1,
+                "right": "PUT"
+              },
+              {
+                "action": "SELL",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "CALL"
+              },
+              {
+                "action": "BUY",
+                "moneyness_pct": 3.0,
+                "qty": 1,
+                "right": "CALL"
+              }
+            ],
+            "profit_target": 10.0,
+            "stop_loss": 1.0
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 7.074766355140187,
+            "max_drawdown": 17.51383114671262,
+            "pnl": 42.52157930176642,
+            "trades": 107,
+            "win_rate": 0.7102803738317757
+          },
+          "strategy": {
+            "dte": 0,
+            "ema_entry_mode": "trend",
+            "ema_preset": "3/7",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "SELL",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "PUT"
+              },
+              {
+                "action": "BUY",
+                "moneyness_pct": 3.0,
+                "qty": 1,
+                "right": "PUT"
+              },
+              {
+                "action": "SELL",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "CALL"
+              },
+              {
+                "action": "BUY",
+                "moneyness_pct": 3.0,
+                "qty": 1,
+                "right": "CALL"
+              }
+            ],
+            "profit_target": 20.0,
+            "stop_loss": 0.8
+          }
+        },
+        {
+          "metrics": {
+            "avg_hold_hours": 7.074766355140187,
+            "max_drawdown": 17.51383114671262,
+            "pnl": 42.52157930176642,
+            "trades": 107,
+            "win_rate": 0.7102803738317757
+          },
+          "strategy": {
+            "dte": 0,
+            "ema_entry_mode": "trend",
+            "ema_preset": "3/7",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "exit_on_signal_flip": false,
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": false,
+            "legs": [
+              {
+                "action": "SELL",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "PUT"
+              },
+              {
+                "action": "BUY",
+                "moneyness_pct": 3.0,
+                "qty": 1,
+                "right": "PUT"
+              },
+              {
+                "action": "SELL",
+                "moneyness_pct": 2.0,
+                "qty": 1,
+                "right": "CALL"
+              },
+              {
+                "action": "BUY",
+                "moneyness_pct": 3.0,
+                "qty": 1,
+                "right": "CALL"
+              }
+            ],
+            "profit_target": 20.0,
+            "stop_loss": 1.0
+          }
+        }
+      ],
+      "filters": {
+        "cooldown_bars": 4,
+        "ema_slope_min_pct": 0.01,
+        "ema_spread_min_pct": 0.05,
+        "entry_end_hour": 15,
+        "entry_start_hour": 10,
+        "rv_max": 0.6,
+        "rv_min": 0.15,
+        "skip_first_bars": 2
+      },
+      "name": "Iron Condor (filtered)"
+    }
+  ],
+  "start": "2025-07-02",
+  "symbol": "SLV",
+  "use_rth": false
+}

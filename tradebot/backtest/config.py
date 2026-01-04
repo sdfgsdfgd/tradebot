@@ -39,6 +39,8 @@ class StrategyConfig:
     exchange: str | None
     right: str
     entry_days: tuple[int, ...]
+    max_entries_per_day: int
+    max_open_trades: int
     dte: int
     otm_pct: float
     width_pct: float
@@ -49,7 +51,14 @@ class StrategyConfig:
     stop_loss_basis: str
     min_credit: float | None
     ema_preset: str | None
+    ema_entry_mode: str
     ema_directional: bool
+    exit_on_signal_flip: bool
+    flip_exit_mode: str
+    flip_exit_min_hold_bars: int
+    flip_exit_only_if_profit: bool
+    direction_source: str
+    directional_legs: dict[str, tuple["LegConfig", ...]] | None
     legs: tuple["LegConfig", ...] | None
     filters: "FiltersConfig" | None
 
@@ -120,6 +129,10 @@ def load_config(path: str | Path) -> ConfigBundle:
         exchange=strategy_raw.get("exchange"),
         right=str(strategy_raw.get("right", "PUT")).upper(),
         entry_days=entry_days,
+        max_entries_per_day=_parse_non_negative_int(
+            strategy_raw.get("max_entries_per_day"), default=1
+        ),
+        max_open_trades=_parse_non_negative_int(strategy_raw.get("max_open_trades"), default=1),
         dte=int(strategy_raw.get("dte", 0)),
         otm_pct=float(strategy_raw.get("otm_pct", 2.5)),
         width_pct=float(strategy_raw.get("width_pct", 1.0)),
@@ -132,7 +145,16 @@ def load_config(path: str | Path) -> ConfigBundle:
             float(strategy_raw["min_credit"]) if "min_credit" in strategy_raw else None
         ),
         ema_preset=_parse_ema_preset(strategy_raw.get("ema_preset")),
+        ema_entry_mode=_parse_ema_entry_mode(strategy_raw.get("ema_entry_mode")),
         ema_directional=bool(strategy_raw.get("ema_directional", False)),
+        exit_on_signal_flip=bool(strategy_raw.get("exit_on_signal_flip", False)),
+        flip_exit_mode=_parse_flip_exit_mode(strategy_raw.get("flip_exit_mode")),
+        flip_exit_min_hold_bars=_parse_non_negative_int(
+            strategy_raw.get("flip_exit_min_hold_bars"), default=0
+        ),
+        flip_exit_only_if_profit=bool(strategy_raw.get("flip_exit_only_if_profit", False)),
+        direction_source=_parse_direction_source(strategy_raw.get("direction_source")),
+        directional_legs=_parse_directional_legs(strategy_raw.get("directional_legs")),
         legs=_parse_legs(strategy_raw.get("legs")),
         filters=_parse_filters(strategy_raw.get("filters")),
     )
@@ -185,6 +207,70 @@ def _parse_ema_preset(value) -> str | None:
             return None
         return cleaned
     return None
+
+
+def _parse_ema_entry_mode(value) -> str:
+    if value is None:
+        return "trend"
+    if isinstance(value, str):
+        cleaned = value.strip().lower()
+        if cleaned in ("trend", "state"):
+            return "trend"
+        if cleaned in ("cross", "crossover"):
+            return "cross"
+    raise ValueError(f"Invalid ema_entry_mode: {value!r} (expected 'trend' or 'cross')")
+
+
+def _parse_flip_exit_mode(value) -> str:
+    if value is None:
+        return "entry"
+    if isinstance(value, str):
+        cleaned = value.strip().lower()
+        if cleaned in ("entry", "default", "same", "auto"):
+            return "entry"
+        if cleaned in ("state", "trend"):
+            return "state"
+        if cleaned in ("cross", "crossover"):
+            return "cross"
+    raise ValueError(
+        f"Invalid flip_exit_mode: {value!r} (expected 'entry', 'state', or 'cross')"
+    )
+
+
+def _parse_direction_source(value) -> str:
+    if value is None:
+        return "ema"
+    if isinstance(value, str):
+        cleaned = value.strip().lower()
+        if cleaned in ("ema",):
+            return "ema"
+    raise ValueError(f"Invalid direction_source: {value!r} (expected 'ema')")
+
+
+def _parse_non_negative_int(value, *, default: int) -> int:
+    if value is None:
+        return default
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"Expected integer, got: {value!r}") from None
+    if parsed < 0:
+        raise ValueError(f"Expected non-negative integer, got: {value!r}")
+    return parsed
+
+
+def _parse_directional_legs(raw) -> dict[str, tuple[LegConfig, ...]] | None:
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise ValueError("directional_legs must be an object")
+    parsed: dict[str, tuple[LegConfig, ...]] = {}
+    for key in ("up", "down"):
+        legs_raw = raw.get(key)
+        if not legs_raw:
+            continue
+        parsed[key] = _parse_legs(legs_raw) or ()
+    return parsed or None
 
 
 def _parse_legs(raw) -> tuple[LegConfig, ...] | None:

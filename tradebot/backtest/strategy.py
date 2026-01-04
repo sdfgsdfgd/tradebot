@@ -21,9 +21,18 @@ class CreditSpreadStrategy:
     def should_enter(self, ts: datetime) -> bool:
         return ts.weekday() in self._cfg.entry_days
 
-    def build_spec(self, ts: datetime, spot: float, right_override: str | None = None) -> TradeSpec:
+    def build_spec(
+        self,
+        ts: datetime,
+        spot: float,
+        *,
+        right_override: str | None = None,
+        legs_override: tuple[LegConfig, ...] | None = None,
+    ) -> TradeSpec:
         expiry = _expiry_from_dte(ts.date(), self._cfg.dte)
-        if self._cfg.legs:
+        if legs_override:
+            legs = _build_legs(legs_override, spot, self._cfg.quantity)
+        elif self._cfg.legs:
             legs = _build_legs(self._cfg.legs, spot, self._cfg.quantity)
         else:
             legs = _build_default_legs(self._cfg, spot, right_override)

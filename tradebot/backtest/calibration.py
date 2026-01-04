@@ -51,8 +51,37 @@ class CalibrationBook:
                 return bucket.records[-1].params
         return None
 
+    def params_asof(self, dte: int, asof: str) -> CalibrationParams | None:
+        """Return the latest params for the given dte bucket as-of a date (YYYY-MM-DD).
+
+        This is used to avoid lookahead bias in backtests by not applying calibration
+        records from the future relative to the simulated timestamp.
+        """
+        for bucket in self.buckets:
+            if not (bucket.min_dte <= dte <= bucket.max_dte):
+                continue
+            chosen: CalibrationRecord | None = None
+            for rec in bucket.records:
+                if rec.asof <= asof:
+                    chosen = rec
+            return chosen.params if chosen else None
+        return None
+
     def surface_params(self, dte: int, base: IVSurfaceParams) -> IVSurfaceParams:
         override = self.latest_params(dte)
+        if not override:
+            return base
+        return IVSurfaceParams(
+            rv_lookback=base.rv_lookback,
+            rv_ewma_lambda=base.rv_ewma_lambda,
+            iv_risk_premium=override.iv_risk_premium,
+            iv_floor=override.iv_floor,
+            term_slope=override.term_slope,
+            skew=override.skew,
+        )
+
+    def surface_params_asof(self, dte: int, asof: str, base: IVSurfaceParams) -> IVSurfaceParams:
+        override = self.params_asof(dte, asof)
         if not override:
             return base
         return IVSurfaceParams(

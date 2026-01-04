@@ -32,6 +32,7 @@ class OptionTrade:
     entry_price: float
     stop_loss: float
     profit_target: float
+    margin_required: float = 0.0
     exit_time: datetime | None = None
     exit_price: float | None = None
     exit_reason: str | None = None

@@ -4,7 +4,7 @@ from __future__ import annotations
 import math
 from collections import deque
 from dataclasses import dataclass
-from datetime import datetime, time
+from datetime import date, datetime, time, timedelta
 
 from .config import ConfigBundle
 from .calibration import ensure_calibration, load_calibration
@@ -47,12 +47,20 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
         )
     if not bars:
         raise RuntimeError("No bars loaded for backtest")
+    is_future = cfg.strategy.symbol in ("MNQ", "MBT")
     if cfg.backtest.offline:
-        exchange = cfg.strategy.exchange or ("CME" if cfg.strategy.symbol in ("MNQ", "MBT") else "SMART")
-        meta = ContractMeta(symbol=cfg.strategy.symbol, exchange=exchange, multiplier=1.0, min_tick=0.01)
+        exchange = "CME" if is_future else "SMART"
+        multiplier = 1.0 if is_future else 100.0
+        meta = ContractMeta(symbol=cfg.strategy.symbol, exchange=exchange, multiplier=multiplier, min_tick=0.01)
     else:
         _, meta = data.resolve_contract(cfg.strategy.symbol, cfg.strategy.exchange)
-    is_future = meta.exchange != "SMART"
+        if not is_future and meta.exchange == "SMART":
+            meta = ContractMeta(
+                symbol=meta.symbol,
+                exchange=meta.exchange,
+                multiplier=100.0,
+                min_tick=meta.min_tick,
+            )
 
     surface_params = IVSurfaceParams(
         rv_lookback=cfg.synthetic.rv_lookback,
@@ -70,21 +78,28 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
 
     strategy = CreditSpreadStrategy(cfg.strategy)
     returns = deque(maxlen=surface_params.rv_lookback)
-    equity = cfg.backtest.starting_cash
+    cash = cfg.backtest.starting_cash
+    margin_used = 0.0
     equity_curve: list[EquityPoint] = []
     trades: list[OptionTrade] = []
-    open_trade: OptionTrade | None = None
+    open_trades: list[OptionTrade] = []
     prev_bar: Bar | None = None
-    last_entry_date = None
+    entries_today = 0
     filters = cfg.strategy.filters
     ema_periods = _ema_periods(cfg.strategy.ema_preset)
+    needs_direction = cfg.strategy.directional_legs is not None
+    if needs_direction and cfg.strategy.direction_source == "ema" and ema_periods is None:
+        raise ValueError("directional_legs requires ema_preset when direction_source='ema'")
     ema_needed = ema_periods is not None or (
         filters
         and (filters.ema_spread_min_pct is not None or filters.ema_slope_min_pct is not None)
     )
+    if needs_direction:
+        ema_needed = True
     ema_fast = None
     ema_slow = None
     prev_ema_fast = None
+    prev_ema_slow = None
     ema_count = 0
     bars_in_day = 0
     last_entry_idx = None
@@ -100,93 +115,179 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
         if last_date != bar.ts.date():
             bars_in_day = 0
             last_date = bar.ts.date()
+            entries_today = 0
         bars_in_day += 1
         if ema_periods and bar.close > 0:
             prev_ema_fast = ema_fast
+            prev_ema_slow = ema_slow
             ema_fast = _ema_next(ema_fast, bar.close, ema_periods[0])
             ema_slow = _ema_next(ema_slow, bar.close, ema_periods[1])
             ema_count += 1
+        ema_ready = (
+            ema_periods is not None
+            and ema_count >= ema_periods[1]
+            and ema_fast is not None
+            and ema_slow is not None
+        )
 
-        if open_trade and prev_bar and bar.ts.date() > open_trade.expiry:
-            exit_debit = _trade_value_from_spec(
-                open_trade,
-                prev_bar,
-                rv,
-                cfg,
-                surface_params,
-                meta.min_tick,
-                is_future,
-                mode="exit",
-                calibration=calibration,
-            )
-            _close_trade(open_trade, prev_bar.ts, exit_debit, "expiry", trades)
-            equity += open_trade.pnl(meta.multiplier)
-            open_trade = None
+        if open_trades and prev_bar:
+            still_open: list[OptionTrade] = []
+            for trade in open_trades:
+                if bar.ts.date() > trade.expiry:
+                    exit_debit = _trade_value_from_spec(
+                        trade,
+                        prev_bar,
+                        rv,
+                        cfg,
+                        surface_params,
+                        meta.min_tick,
+                        is_future,
+                        mode="exit",
+                        calibration=calibration,
+                    )
+                    _close_trade(trade, prev_bar.ts, exit_debit, "expiry", trades)
+                    cash += (-exit_debit) * meta.multiplier
+                    margin_used = max(0.0, margin_used - trade.margin_required)
+                else:
+                    still_open.append(trade)
+            open_trades = still_open
 
-        if open_trade:
-            current_value = _trade_value(open_trade, bar, rv, cfg, surface_params, meta.min_tick, is_future, calibration)
-            if _hit_profit(open_trade, current_value):
-                exit_debit = _trade_value_from_spec(
-                    open_trade,
-                    bar,
-                    rv,
-                    cfg,
-                    surface_params,
-                    meta.min_tick,
-                    is_future,
-                    mode="exit",
-                    calibration=calibration,
+        liquidation = 0.0
+        if open_trades:
+            exit_mode = _flip_exit_mode(cfg)
+            cross_up = False
+            cross_down = False
+            if (
+                cfg.strategy.exit_on_signal_flip
+                and ema_ready
+                and exit_mode == "cross"
+                and prev_ema_fast is not None
+                and prev_ema_slow is not None
+            ):
+                cross_up = prev_ema_fast <= prev_ema_slow and ema_fast > ema_slow
+                cross_down = prev_ema_fast >= prev_ema_slow and ema_fast < ema_slow
+
+            still_open = []
+            for trade in open_trades:
+                current_value = _trade_value(
+                    trade, bar, rv, cfg, surface_params, meta.min_tick, is_future, calibration
                 )
-                _close_trade(open_trade, bar.ts, exit_debit, "profit", trades)
-                equity += open_trade.pnl(meta.multiplier)
-                open_trade = None
-            elif _hit_stop(open_trade, current_value, cfg.strategy.stop_loss_basis):
-                exit_debit = _trade_value_from_spec(
-                    open_trade,
-                    bar,
-                    rv,
+                should_close = False
+                reason = ""
+
+                if _hit_profit(trade, current_value):
+                    should_close = True
+                    reason = "profit"
+                elif _hit_stop(trade, current_value, cfg.strategy.stop_loss_basis, bar.close):
+                    should_close = True
+                    reason = "stop"
+                elif _hit_exit_dte(cfg, trade, bar.ts.date()):
+                    should_close = True
+                    reason = "exit_dte"
+                elif _hit_flip_exit(
                     cfg,
-                    surface_params,
-                    meta.min_tick,
-                    is_future,
-                    mode="exit",
-                    calibration=calibration,
-                )
-                _close_trade(open_trade, bar.ts, exit_debit, "stop", trades)
-                equity += open_trade.pnl(meta.multiplier)
-                open_trade = None
-            elif cfg.strategy.dte == 0 and is_last_bar:
-                exit_debit = _trade_value_from_spec(
-                    open_trade,
+                    trade,
                     bar,
-                    rv,
-                    cfg,
-                    surface_params,
-                    meta.min_tick,
-                    is_future,
-                    mode="exit",
-                    calibration=calibration,
-                )
-                _close_trade(open_trade, bar.ts, exit_debit, "eod", trades)
-                equity += open_trade.pnl(meta.multiplier)
-                open_trade = None
+                    current_value,
+                    ema_ready,
+                    ema_fast,
+                    ema_slow,
+                    cross_up,
+                    cross_down,
+                ):
+                    should_close = True
+                    reason = "flip"
+                elif cfg.strategy.dte == 0 and is_last_bar:
+                    should_close = True
+                    reason = "eod"
+
+                if should_close:
+                    exit_debit = _trade_value_from_spec(
+                        trade,
+                        bar,
+                        rv,
+                        cfg,
+                        surface_params,
+                        meta.min_tick,
+                        is_future,
+                        mode="exit",
+                        calibration=calibration,
+                    )
+                    _close_trade(trade, bar.ts, exit_debit, reason, trades)
+                    cash += (-exit_debit) * meta.multiplier
+                    margin_used = max(0.0, margin_used - trade.margin_required)
+                else:
+                    still_open.append(trade)
+                    liquidation += (-current_value) * meta.multiplier
+            open_trades = still_open
 
         # TODO: add regime gating hook before entry decisions.
         ema_gate_ok = True
         ema_right_override = None
-        ema_ready = ema_periods is not None and ema_count >= ema_periods[1] and ema_fast is not None and ema_slow is not None
+        direction = None
         if ema_needed and not ema_ready:
             ema_gate_ok = False
         elif ema_ready:
-            if cfg.strategy.ema_directional:
-                if ema_fast > ema_slow:
-                    ema_right_override = "CALL"
-                elif ema_fast < ema_slow:
-                    ema_right_override = "PUT"
-                else:
+            if needs_direction:
+                if cfg.strategy.direction_source != "ema":
                     ema_gate_ok = False
+                elif cfg.strategy.ema_entry_mode == "cross":
+                    if prev_ema_fast is None or prev_ema_slow is None:
+                        ema_gate_ok = False
+                    else:
+                        cross_up = prev_ema_fast <= prev_ema_slow and ema_fast > ema_slow
+                        cross_down = prev_ema_fast >= prev_ema_slow and ema_fast < ema_slow
+                        if cross_up:
+                            direction = "up"
+                        elif cross_down:
+                            direction = "down"
+                        else:
+                            direction = None
+                        ema_gate_ok = (
+                            direction is not None
+                            and cfg.strategy.directional_legs is not None
+                            and direction in cfg.strategy.directional_legs
+                        )
+                else:
+                    if ema_fast > ema_slow:
+                        direction = "up"
+                    elif ema_fast < ema_slow:
+                        direction = "down"
+                    else:
+                        direction = None
+                    ema_gate_ok = (
+                        direction is not None
+                        and cfg.strategy.directional_legs is not None
+                        and direction in cfg.strategy.directional_legs
+                    )
+            elif cfg.strategy.ema_entry_mode == "cross":
+                if prev_ema_fast is None or prev_ema_slow is None:
+                    ema_gate_ok = False
+                else:
+                    cross_up = prev_ema_fast <= prev_ema_slow and ema_fast > ema_slow
+                    cross_down = prev_ema_fast >= prev_ema_slow and ema_fast < ema_slow
+                    bias = _ema_bias(cfg)
+                    if bias == "up":
+                        ema_gate_ok = cross_up
+                    elif bias == "down":
+                        ema_gate_ok = cross_down
+                    else:
+                        ema_gate_ok = cross_up or cross_down
+                    if cfg.strategy.ema_directional:
+                        if cross_up:
+                            ema_right_override = "CALL"
+                        elif cross_down:
+                            ema_right_override = "PUT"
             else:
-                ema_gate_ok = ema_fast > ema_slow
+                if cfg.strategy.ema_directional:
+                    if ema_fast > ema_slow:
+                        ema_right_override = "CALL"
+                    elif ema_fast < ema_slow:
+                        ema_right_override = "PUT"
+                    else:
+                        ema_gate_ok = False
+                else:
+                    ema_gate_ok = ema_fast > ema_slow
 
         filters_ok = True
         if filters:
@@ -224,10 +325,34 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
                     if slope_pct < filters.ema_slope_min_pct:
                         filters_ok = False
 
-        if open_trade is None and strategy.should_enter(bar.ts) and ema_gate_ok and filters_ok:
-            if last_entry_date != bar.ts.date():
-                spec = strategy.build_spec(bar.ts, bar.close, right_override=ema_right_override)
-                entry_price = _trade_value_from_spec(
+        open_slots_ok = cfg.strategy.max_open_trades == 0 or len(open_trades) < cfg.strategy.max_open_trades
+        entries_ok = cfg.strategy.max_entries_per_day == 0 or entries_today < cfg.strategy.max_entries_per_day
+        if open_slots_ok and entries_ok and strategy.should_enter(bar.ts) and ema_gate_ok and filters_ok:
+            legs_override = None
+            if needs_direction and direction and cfg.strategy.directional_legs:
+                legs_override = cfg.strategy.directional_legs.get(direction)
+            spec = strategy.build_spec(
+                bar.ts,
+                bar.close,
+                right_override=ema_right_override,
+                legs_override=legs_override,
+            )
+            entry_price = _trade_value_from_spec(
+                spec,
+                bar,
+                rv,
+                cfg,
+                surface_params,
+                meta.min_tick,
+                is_future,
+                mode="entry",
+                calibration=calibration,
+            )
+            min_credit = cfg.strategy.min_credit if cfg.strategy.min_credit is not None else meta.min_tick
+            if entry_price >= 0 and entry_price < min_credit:
+                pass
+            else:
+                mark_price = _trade_value_from_spec(
                     spec,
                     bar,
                     rv,
@@ -235,46 +360,49 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
                     surface_params,
                     meta.min_tick,
                     is_future,
-                    mode="entry",
+                    mode="mark",
                     calibration=calibration,
                 )
-                min_credit = cfg.strategy.min_credit if cfg.strategy.min_credit is not None else meta.min_tick
-                if entry_price >= 0 and entry_price < min_credit:
-                    pass
-                else:
-                    open_trade = OptionTrade(
-                        symbol=cfg.strategy.symbol,
-                        legs=spec.legs,
-                        entry_time=bar.ts,
-                        expiry=spec.expiry,
-                        entry_price=entry_price,
-                        stop_loss=cfg.strategy.stop_loss,
-                        profit_target=cfg.strategy.profit_target,
-                    )
-                    last_entry_date = bar.ts.date()
+                mark_liquidation = (-mark_price) * meta.multiplier
+                candidate = OptionTrade(
+                    symbol=cfg.strategy.symbol,
+                    legs=spec.legs,
+                    entry_time=bar.ts,
+                    expiry=spec.expiry,
+                    entry_price=entry_price,
+                    stop_loss=cfg.strategy.stop_loss,
+                    profit_target=cfg.strategy.profit_target,
+                )
+                candidate.margin_required = _margin_required(candidate, bar.close, meta.multiplier)
+                cash_after = cash + (entry_price * meta.multiplier)
+                margin_after = margin_used + candidate.margin_required
+                equity_after = cash_after + liquidation + mark_liquidation
+                if cash_after >= 0 and equity_after >= margin_after:
+                    open_trades.append(candidate)
+                    cash = cash_after
+                    margin_used = margin_after
+                    entries_today += 1
                     last_entry_idx = idx
-
-        unrealized = 0.0
-        if open_trade:
-            mark_value = _trade_value(open_trade, bar, rv, cfg, surface_params, meta.min_tick, is_future, calibration)
-            unrealized = (open_trade.entry_price - mark_value) * meta.multiplier
-        equity_curve.append(EquityPoint(ts=bar.ts, equity=equity + unrealized))
+                    liquidation += mark_liquidation
+        equity_curve.append(EquityPoint(ts=bar.ts, equity=cash + liquidation))
         prev_bar = bar
 
-    if open_trade and prev_bar:
-        exit_debit = _trade_value_from_spec(
-            open_trade,
-            prev_bar,
-            rv,
-            cfg,
-            surface_params,
-            meta.min_tick,
-            is_future,
-            mode="exit",
-            calibration=calibration,
-        )
-        _close_trade(open_trade, prev_bar.ts, exit_debit, "end", trades)
-        equity += open_trade.pnl(meta.multiplier)
+    if open_trades and prev_bar:
+        for trade in open_trades:
+            exit_debit = _trade_value_from_spec(
+                trade,
+                prev_bar,
+                rv,
+                cfg,
+                surface_params,
+                meta.min_tick,
+                is_future,
+                mode="exit",
+                calibration=calibration,
+            )
+            _close_trade(trade, prev_bar.ts, exit_debit, "end", trades)
+            cash += (-exit_debit) * meta.multiplier
+            margin_used = max(0.0, margin_used - trade.margin_required)
 
     summary = _summarize(trades, cfg.backtest.starting_cash, equity_curve, meta.multiplier)
     data.disconnect()
@@ -321,10 +449,46 @@ def _ema_periods(preset: str | None) -> tuple[int, int] | None:
     if not preset:
         return None
     key = preset.strip().lower()
+    if key in ("3/7", "3-7", "3_7"):
+        return (3, 7)
     if key in ("9/21", "9-21", "9_21"):
         return (9, 21)
     if key in ("20/50", "20-50", "20_50"):
         return (20, 50)
+    return None
+
+
+def _ema_bias(cfg: ConfigBundle) -> str:
+    if cfg.strategy.ema_directional:
+        return "any"
+    legs = cfg.strategy.legs
+    if legs:
+        first = legs[0]
+        action = first.action.upper()
+        right = first.right.upper()
+        if (action, right) in (("BUY", "CALL"), ("SELL", "PUT")):
+            return "up"
+        if (action, right) in (("BUY", "PUT"), ("SELL", "CALL")):
+            return "down"
+        return "any"
+    right = cfg.strategy.right.upper()
+    if right == "PUT":
+        return "up"
+    if right == "CALL":
+        return "down"
+    return "any"
+
+
+def _direction_from_legs(legs: list[OptionLeg]) -> str | None:
+    if not legs:
+        return None
+    first = legs[0]
+    action = first.action.upper()
+    right = first.right.upper()
+    if (action, right) in (("BUY", "CALL"), ("SELL", "PUT")):
+        return "up"
+    if (action, right) in (("BUY", "PUT"), ("SELL", "CALL")):
+        return "down"
     return None
 
 
@@ -348,7 +512,11 @@ def _trade_value_from_spec(
 ) -> float:
     dte_days = max((spec.expiry - bar.ts.date()).days, 0)
     if calibration:
-        surface_params = calibration.surface_params(dte_days, surface_params)
+        surface_params = calibration.surface_params_asof(
+            dte_days,
+            bar.ts.date().isoformat(),
+            surface_params,
+        )
     atm_iv = iv_atm(rv, dte_days, surface_params)
     forward = bar.close
     if dte_days == 0:
@@ -356,23 +524,48 @@ def _trade_value_from_spec(
     else:
         t = max(dte_days / 365.0, _min_time(cfg.backtest.bar_size))
     legs = spec.legs
-    net = 0.0
+    if len(legs) <= 1:
+        net = 0.0
+        for leg in legs:
+            leg_iv = iv_for_strike(atm_iv, forward, leg.strike, surface_params)
+            if is_future:
+                mid = black_76(forward, leg.strike, t, cfg.backtest.risk_free_rate, leg_iv, leg.right)
+            else:
+                mid = black_scholes(forward, leg.strike, t, cfg.backtest.risk_free_rate, leg_iv, leg.right)
+            quote = mid_edge_quote(mid, cfg.synthetic.min_spread_pct, min_tick)
+            if mode == "entry":
+                price = quote.bid if leg.action == "SELL" else quote.ask
+            elif mode == "exit":
+                price = quote.ask if leg.action == "SELL" else quote.bid
+            else:
+                price = quote.mid
+            sign = 1 if leg.action == "SELL" else -1
+            net += sign * price * leg.qty
+        return net
+
+    # Multi-leg combos: apply a single bid/ask edge to the net mid instead of legging each spread.
+    net_mid = 0.0
     for leg in legs:
         leg_iv = iv_for_strike(atm_iv, forward, leg.strike, surface_params)
         if is_future:
             mid = black_76(forward, leg.strike, t, cfg.backtest.risk_free_rate, leg_iv, leg.right)
         else:
             mid = black_scholes(forward, leg.strike, t, cfg.backtest.risk_free_rate, leg_iv, leg.right)
-        quote = mid_edge_quote(mid, cfg.synthetic.min_spread_pct, min_tick)
-        if mode == "entry":
-            price = quote.bid if leg.action == "SELL" else quote.ask
-        elif mode == "exit":
-            price = quote.ask if leg.action == "SELL" else quote.bid
-        else:
-            price = quote.mid
         sign = 1 if leg.action == "SELL" else -1
-        net += sign * price * leg.qty
-    return net
+        net_mid += sign * mid * leg.qty
+
+    abs_mid = abs(net_mid)
+    quote = mid_edge_quote(abs_mid, cfg.synthetic.min_spread_pct, min_tick)
+    mid_signed = quote.mid if net_mid >= 0 else -quote.mid
+    bid_signed = quote.bid if net_mid >= 0 else -quote.bid
+    ask_signed = quote.ask if net_mid >= 0 else -quote.ask
+
+    if mode == "mark":
+        return mid_signed
+    if mode == "entry":
+        return bid_signed if net_mid >= 0 else ask_signed
+    # mode == "exit"
+    return ask_signed if net_mid >= 0 else bid_signed
 
 
 def _hit_profit(trade: OptionTrade, current_value: float) -> bool:
@@ -380,7 +573,7 @@ def _hit_profit(trade: OptionTrade, current_value: float) -> bool:
     return (trade.entry_price - current_value) >= target
 
 
-def _hit_stop(trade: OptionTrade, current_value: float, basis: str) -> bool:
+def _hit_stop(trade: OptionTrade, current_value: float, basis: str, spot: float) -> bool:
     max_loss = _max_loss(trade)
     loss = max(0.0, current_value - trade.entry_price)
     if basis == "credit":
@@ -388,8 +581,117 @@ def _hit_stop(trade: OptionTrade, current_value: float, basis: str) -> bool:
             return current_value >= trade.entry_price * (1 + trade.stop_loss)
         return loss >= abs(trade.entry_price) * trade.stop_loss
     if max_loss is None:
-        return loss >= abs(trade.entry_price) * trade.stop_loss
+        max_loss = _max_loss_estimate(trade, spot)
+    if max_loss is None:
+        max_loss = abs(trade.entry_price)
     return loss >= max_loss * trade.stop_loss
+
+
+def _flip_exit_mode(cfg: ConfigBundle) -> str:
+    mode = (cfg.strategy.flip_exit_mode or "entry").strip().lower()
+    if mode == "entry":
+        return "cross" if cfg.strategy.ema_entry_mode == "cross" else "state"
+    if mode in ("state", "cross"):
+        return mode
+    return "state"
+
+
+def _hit_exit_dte(cfg: ConfigBundle, trade: OptionTrade, today: date) -> bool:
+    if cfg.strategy.exit_dte <= 0:
+        return False
+    entry_dte = _business_days_until(trade.entry_time.date(), trade.expiry)
+    if cfg.strategy.exit_dte >= entry_dte:
+        return False
+    remaining = _business_days_until(today, trade.expiry)
+    return remaining <= cfg.strategy.exit_dte
+
+
+def _hit_flip_exit(
+    cfg: ConfigBundle,
+    trade: OptionTrade,
+    bar: Bar,
+    current_value: float,
+    ema_ready: bool,
+    ema_fast: float | None,
+    ema_slow: float | None,
+    cross_up: bool,
+    cross_down: bool,
+) -> bool:
+    if not cfg.strategy.exit_on_signal_flip:
+        return False
+    if cfg.strategy.direction_source != "ema":
+        return False
+    if not ema_ready or ema_fast is None or ema_slow is None:
+        return False
+    if cfg.strategy.flip_exit_min_hold_bars:
+        held = _bars_held(cfg.backtest.bar_size, trade.entry_time, bar.ts)
+        if held < cfg.strategy.flip_exit_min_hold_bars:
+            return False
+    if cfg.strategy.flip_exit_only_if_profit:
+        if (trade.entry_price - current_value) <= 0:
+            return False
+    trade_dir = _direction_from_legs(trade.legs)
+    if trade_dir is None:
+        return False
+
+    mode = _flip_exit_mode(cfg)
+    if mode == "cross":
+        if trade_dir == "up":
+            return cross_down
+        if trade_dir == "down":
+            return cross_up
+        return False
+
+    # state mode
+    if trade_dir == "up":
+        return ema_fast < ema_slow
+    if trade_dir == "down":
+        return ema_fast > ema_slow
+    return False
+
+
+def _bars_held(bar_size: str, start: datetime, end: datetime) -> int:
+    hours = _bar_hours(bar_size)
+    if hours <= 0:
+        return 0
+    return int((end - start).total_seconds() / 3600.0 / hours)
+
+
+def _bar_hours(bar_size: str) -> float:
+    label = bar_size.lower().strip()
+    if "hour" in label:
+        try:
+            prefix = label.split("hour")[0].strip()
+            return float(prefix) if prefix else 1.0
+        except ValueError:
+            return 1.0
+    if "min" in label:
+        try:
+            prefix = label.split("min")[0].strip()
+            mins = float(prefix) if prefix else 30.0
+            return mins / 60.0
+        except ValueError:
+            return 0.5
+    if "day" in label:
+        try:
+            prefix = label.split("day")[0].strip()
+            days = float(prefix) if prefix else 1.0
+            return days * 24.0
+        except ValueError:
+            return 24.0
+    return 1.0
+
+
+def _business_days_until(start: date, end: date) -> int:
+    if end <= start:
+        return 0
+    days = 0
+    cursor = start
+    while cursor < end:
+        cursor += timedelta(days=1)
+        if cursor.weekday() < 5:
+            days += 1
+    return days
 
 
 def _close_trade(trade: OptionTrade, ts: datetime, price: float, reason: str, trades: list[OptionTrade]) -> None:
@@ -494,3 +796,64 @@ def _min_time(bar_size: str) -> float:
     else:
         hours = 1.0
     return hours / (24.0 * 365.0)
+
+
+def _margin_required(trade: OptionTrade, spot: float, multiplier: float) -> float:
+    if trade.entry_price <= 0:
+        return 0.0
+    max_loss = _max_loss(trade)
+    if max_loss is None:
+        max_loss = _max_loss_estimate(trade, spot)
+    if max_loss is None:
+        return 0.0
+    return max(0.0, max_loss) * multiplier
+
+
+def _max_loss_estimate(trade: OptionTrade, spot: float) -> float | None:
+    strikes = sorted({leg.strike for leg in trade.legs})
+    if not strikes:
+        return None
+    high = max(spot, strikes[-1]) * 5.0
+    candidates = [0.0] + strikes + [high]
+    min_pnl = None
+    for price in candidates:
+        pnl = trade.entry_price + _payoff_at_expiry(trade.legs, price)
+        if min_pnl is None or pnl < min_pnl:
+            min_pnl = pnl
+    if min_pnl is None:
+        return None
+    return max(0.0, -min_pnl)
+
+
+def _payoff_at_expiry(legs: list[OptionLeg], spot: float) -> float:
+    payoff = 0.0
+    for leg in legs:
+        right = leg.right.upper()
+        if right == "CALL":
+            intrinsic = max(spot - leg.strike, 0.0)
+        else:
+            intrinsic = max(leg.strike - spot, 0.0)
+        sign = 1.0 if leg.action.upper() == "BUY" else -1.0
+        payoff += sign * intrinsic * leg.qty
+    return payoff
+
+
+def _equity_after_entry(
+    cash_after: float,
+    open_trades: list[OptionTrade],
+    candidate: OptionTrade,
+    bar: Bar,
+    rv: float,
+    cfg: ConfigBundle,
+    surface_params: IVSurfaceParams,
+    meta: ContractMeta,
+    is_future: bool,
+    calibration,
+) -> float:
+    liquidation = 0.0
+    for trade in open_trades:
+        mark_value = _trade_value(trade, bar, rv, cfg, surface_params, meta.min_tick, is_future, calibration)
+        liquidation += (-mark_value) * meta.multiplier
+    candidate_mark = _trade_value(candidate, bar, rv, cfg, surface_params, meta.min_tick, is_future, calibration)
+    liquidation += (-candidate_mark) * meta.multiplier
+    return cash_after + liquidation

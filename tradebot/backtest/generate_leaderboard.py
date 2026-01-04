@@ -1,0 +1,456 @@
+"""Generate a machine-readable leaderboard from offline sweeps.
+
+This keeps bot presets and documentation reproducible without scraping markdown.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+from datetime import date, datetime, timezone
+from itertools import product
+from pathlib import Path
+import sys
+import time
+
+from .config import (
+    BacktestConfig,
+    ConfigBundle,
+    FiltersConfig,
+    LegConfig,
+    StrategyConfig,
+    SyntheticConfig,
+)
+from .engine import run_backtest
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="Generate leaderboard JSON from offline sweeps")
+    parser.add_argument("--symbol", default="SLV")
+    parser.add_argument("--start", default="2025-07-02")
+    parser.add_argument("--end", default="2026-01-02")
+    parser.add_argument("--bar-size", default="1 hour")
+    parser.add_argument("--use-rth", action="store_true")
+    parser.add_argument("--out", default="tradebot/backtest/leaderboard.json")
+    args = parser.parse_args()
+
+    start = _parse_date(args.start)
+    end = _parse_date(args.end)
+
+    grid = {
+        "dte": [0, 5, 10, 20],
+        "moneyness_pct": [1.0, 2.0],
+        "profit_target": [0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0, 200.0],
+        "stop_loss": [0.35, 0.8, 1.0],
+        "ema_preset": ["3/7", "9/21", "20/50"],
+        "exit_on_signal_flip": [False, True],
+        "flip_exit_min_hold_bars": [6],
+        "flip_exit_only_if_profit": [True],
+        "min_trades": 8,
+    }
+
+    filters = {
+        "rv_min": 0.15,
+        "rv_max": 0.60,
+        "ema_spread_min_pct": 0.05,
+        "ema_slope_min_pct": 0.01,
+        "entry_start_hour": 10,
+        "entry_end_hour": 15,
+        "skip_first_bars": 2,
+        "cooldown_bars": 4,
+    }
+
+    base_backtest = BacktestConfig(
+        start=start,
+        end=end,
+        bar_size=args.bar_size,
+        use_rth=bool(args.use_rth),
+        starting_cash=10000.0,
+        risk_free_rate=0.02,
+        cache_dir=Path("db"),
+        calibration_dir=Path("db/calibration"),
+        output_dir=Path("backtests/out"),
+        calibrate=False,
+        offline=True,
+    )
+
+    synthetic = SyntheticConfig(
+        rv_lookback=60,
+        rv_ewma_lambda=0.94,
+        iv_risk_premium=1.2,
+        iv_floor=0.05,
+        term_slope=0.02,
+        skew=-0.25,
+        min_spread_pct=0.1,
+    )
+
+    groups = [
+        _group_spec(
+            "Long CALL (unfiltered)",
+            "CALL",
+            [{"action": "BUY", "right": "CALL", "qty": 1}],
+            None,
+            ema_entry_mode="trend",
+        ),
+        _group_spec(
+            "Long CALL (filtered)",
+            "CALL",
+            [{"action": "BUY", "right": "CALL", "qty": 1}],
+            filters,
+            ema_entry_mode="trend",
+        ),
+        _group_spec(
+            "Short PUT (unfiltered)",
+            "PUT",
+            [{"action": "SELL", "right": "PUT", "qty": 1}],
+            None,
+            ema_entry_mode="trend",
+        ),
+        _group_spec(
+            "Short PUT (filtered)",
+            "PUT",
+            [{"action": "SELL", "right": "PUT", "qty": 1}],
+            filters,
+            ema_entry_mode="trend",
+        ),
+        _group_spec(
+            "Risk Reversal (unfiltered) [BUY CALL + SELL PUT]",
+            "CALL",
+            [
+                {"action": "BUY", "right": "CALL", "qty": 1},
+                {"action": "SELL", "right": "PUT", "qty": 1},
+            ],
+            None,
+            ema_entry_mode="trend",
+        ),
+        _group_spec(
+            "Risk Reversal (filtered) [BUY CALL + SELL PUT]",
+            "CALL",
+            [
+                {"action": "BUY", "right": "CALL", "qty": 1},
+                {"action": "SELL", "right": "PUT", "qty": 1},
+            ],
+            filters,
+            ema_entry_mode="trend",
+        ),
+        _group_spec(
+            "Put Credit Spread (unfiltered)",
+            "PUT",
+            [
+                {"action": "SELL", "right": "PUT", "qty": 1, "moneyness_offset_pct": 0.0},
+                {"action": "BUY", "right": "PUT", "qty": 1, "moneyness_offset_pct": 1.0},
+            ],
+            None,
+            ema_entry_mode="trend",
+        ),
+        _group_spec(
+            "Put Credit Spread (filtered)",
+            "PUT",
+            [
+                {"action": "SELL", "right": "PUT", "qty": 1, "moneyness_offset_pct": 0.0},
+                {"action": "BUY", "right": "PUT", "qty": 1, "moneyness_offset_pct": 1.0},
+            ],
+            filters,
+            ema_entry_mode="trend",
+        ),
+        _group_spec(
+            "Iron Condor (unfiltered)",
+            "PUT",
+            [
+                {"action": "SELL", "right": "PUT", "qty": 1, "moneyness_offset_pct": 0.0},
+                {"action": "BUY", "right": "PUT", "qty": 1, "moneyness_offset_pct": 1.0},
+                {"action": "SELL", "right": "CALL", "qty": 1, "moneyness_offset_pct": 0.0},
+                {"action": "BUY", "right": "CALL", "qty": 1, "moneyness_offset_pct": 1.0},
+            ],
+            None,
+            ema_entry_mode="trend",
+        ),
+        _group_spec(
+            "Iron Condor (filtered)",
+            "PUT",
+            [
+                {"action": "SELL", "right": "PUT", "qty": 1, "moneyness_offset_pct": 0.0},
+                {"action": "BUY", "right": "PUT", "qty": 1, "moneyness_offset_pct": 1.0},
+                {"action": "SELL", "right": "CALL", "qty": 1, "moneyness_offset_pct": 0.0},
+                {"action": "BUY", "right": "CALL", "qty": 1, "moneyness_offset_pct": 1.0},
+            ],
+            filters,
+            ema_entry_mode="trend",
+        ),
+    ]
+
+    payload = {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "symbol": args.symbol,
+        "start": start.isoformat(),
+        "end": end.isoformat(),
+        "bar_size": args.bar_size,
+        "use_rth": bool(args.use_rth),
+        "grid": grid,
+        "groups": [],
+    }
+
+    progress = _Progress(
+        total=_count_total_combos(grid) * len(groups),
+        interval_sec=120.0,
+        groups=len(groups),
+    )
+    for group_idx, group in enumerate(groups, start=1):
+        progress.start_group(group_idx, group["name"], total=_count_total_combos(grid))
+        entries = _run_group(
+            symbol=args.symbol,
+            backtest=base_backtest,
+            synthetic=synthetic,
+            grid=grid,
+            group=group,
+            progress=progress,
+        )
+        progress.finish_group()
+        payload["groups"].append(
+            {
+                "name": group["name"],
+                "filters": group["filters"],
+                "entries": entries,
+            }
+        )
+
+    out_path = Path(args.out)
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text(json.dumps(payload, indent=2, sort_keys=True))
+
+
+def _group_spec(
+    name: str,
+    right: str,
+    leg_templates: list[dict],
+    filters: dict | None,
+    *,
+    ema_entry_mode: str,
+) -> dict:
+    return {
+        "name": name,
+        "right": right,
+        "leg_templates": leg_templates,
+        "filters": filters,
+        "ema_entry_mode": ema_entry_mode,
+    }
+
+
+def _run_group(
+    *,
+    symbol: str,
+    backtest: BacktestConfig,
+    synthetic: SyntheticConfig,
+    grid: dict,
+    group: dict,
+    progress: "_Progress",
+    top_n: int = 10,
+) -> list[dict]:
+    results: list[dict] = []
+
+    g = grid
+    base_combos = product(g["dte"], g["moneyness_pct"], g["profit_target"], g["stop_loss"], g["ema_preset"])
+    for dte, moneyness, pt, sl, ema in base_combos:
+        for flip in g["exit_on_signal_flip"]:
+            if flip:
+                flip_variants = product(g["flip_exit_min_hold_bars"], g["flip_exit_only_if_profit"])
+            else:
+                flip_variants = [(0, False)]
+
+            for hold, only_profit in flip_variants:
+                progress.advance()
+                legs = tuple(
+                    LegConfig(
+                        action=leg["action"],
+                        right=leg["right"],
+                        moneyness_pct=float(moneyness) + float(leg.get("moneyness_offset_pct", 0.0)),
+                        qty=int(leg["qty"]),
+                    )
+                    for leg in group["leg_templates"]
+                )
+
+                filters_cfg = None
+                if group["filters"]:
+                    f = group["filters"]
+                    filters_cfg = FiltersConfig(
+                        rv_min=f.get("rv_min"),
+                        rv_max=f.get("rv_max"),
+                        ema_spread_min_pct=f.get("ema_spread_min_pct"),
+                        ema_slope_min_pct=f.get("ema_slope_min_pct"),
+                        entry_start_hour=f.get("entry_start_hour"),
+                        entry_end_hour=f.get("entry_end_hour"),
+                        skip_first_bars=int(f.get("skip_first_bars", 0)),
+                        cooldown_bars=int(f.get("cooldown_bars", 0)),
+                    )
+
+                strategy = StrategyConfig(
+                    name="credit_spread",
+                    symbol=symbol,
+                    exchange=None,
+                    right=group["right"],
+                    entry_days=(0, 1, 2, 3, 4),
+                    max_entries_per_day=0,
+                    max_open_trades=0,
+                    dte=int(dte),
+                    otm_pct=1.0,
+                    width_pct=1.0,
+                    profit_target=float(pt),
+                    stop_loss=float(sl),
+                    exit_dte=0,
+                    quantity=1,
+                    stop_loss_basis="max_loss",
+                    min_credit=0.01,
+                    ema_preset=ema,
+                    ema_entry_mode=str(group.get("ema_entry_mode", "trend")),
+                    ema_directional=False,
+                    exit_on_signal_flip=bool(flip),
+                    flip_exit_mode="entry",
+                    flip_exit_min_hold_bars=int(hold),
+                    flip_exit_only_if_profit=bool(only_profit),
+                    direction_source="ema",
+                    directional_legs=None,
+                    legs=legs,
+                    filters=filters_cfg,
+                )
+
+                result = run_backtest(ConfigBundle(backtest=backtest, strategy=strategy, synthetic=synthetic))
+                summary = result.summary
+                if summary.trades < int(g["min_trades"]):
+                    continue
+                if summary.total_pnl <= 0:
+                    continue
+
+                results.append(
+                    {
+                        "metrics": {
+                            "pnl": summary.total_pnl,
+                            "win_rate": summary.win_rate,
+                            "trades": summary.trades,
+                            "avg_hold_hours": summary.avg_hold_hours,
+                            "max_drawdown": summary.max_drawdown,
+                        },
+                        "strategy": {
+                            "dte": int(dte),
+                            "profit_target": float(pt),
+                            "stop_loss": float(sl),
+                            "ema_preset": str(ema) if ema is not None else None,
+                            "ema_entry_mode": str(group.get("ema_entry_mode", "trend")),
+                            "exit_on_signal_flip": bool(flip),
+                            "flip_exit_min_hold_bars": int(hold),
+                            "flip_exit_only_if_profit": bool(only_profit),
+                            "legs": [
+                                {
+                                    "action": leg.action,
+                                    "right": leg.right,
+                                    "moneyness_pct": leg.moneyness_pct,
+                                    "qty": leg.qty,
+                                }
+                                for leg in legs
+                            ],
+                            "entry_days": ["Mon", "Tue", "Wed", "Thu", "Fri"],
+                        },
+                    }
+                )
+
+    results.sort(key=lambda row: (row["metrics"]["pnl"], row["metrics"]["win_rate"]), reverse=True)
+    return results[:top_n]
+
+
+def _parse_date(value: str) -> date:
+    year, month, day = value.split("-")
+    return date(int(year), int(month), int(day))
+
+
+def _count_total_combos(grid: dict) -> int:
+    base = (
+        len(grid["dte"])
+        * len(grid["moneyness_pct"])
+        * len(grid["profit_target"])
+        * len(grid["stop_loss"])
+        * len(grid["ema_preset"])
+    )
+    per_base = 0
+    for flip in grid["exit_on_signal_flip"]:
+        per_base += (
+            len(grid["flip_exit_min_hold_bars"]) * len(grid["flip_exit_only_if_profit"])
+            if flip
+            else 1
+        )
+    return base * per_base
+
+
+class _Progress:
+    def __init__(self, *, total: int, interval_sec: float, groups: int) -> None:
+        self._total = max(int(total), 1)
+        self._interval_sec = float(interval_sec)
+        self._groups = int(groups)
+
+        self._done = 0
+        self._start = time.monotonic()
+        self._last_print = self._start
+
+        self._group_idx = 0
+        self._group_name = ""
+        self._group_total = 1
+        self._group_done = 0
+        self._last_line_len = 0
+
+    def start_group(self, group_idx: int, group_name: str, *, total: int) -> None:
+        self._group_idx = int(group_idx)
+        self._group_name = str(group_name)
+        self._group_total = max(int(total), 1)
+        self._group_done = 0
+        self._print(force=True, newline=True)
+
+    def finish_group(self) -> None:
+        self._print(force=True, newline=True)
+
+    def advance(self, n: int = 1) -> None:
+        self._done += int(n)
+        self._group_done += int(n)
+        now = time.monotonic()
+        if now - self._last_print >= self._interval_sec:
+            self._print(force=True, newline=False)
+            self._last_print = now
+
+    def _print(self, *, force: bool, newline: bool) -> None:
+        if not force:
+            return
+        elapsed = max(time.monotonic() - self._start, 1e-6)
+        rate = self._done / elapsed
+        remaining = self._total - self._done
+        eta = remaining / rate if rate > 0 else None
+
+        overall_pct = (self._done / self._total) * 100.0
+        group_pct = (self._group_done / self._group_total) * 100.0
+
+        eta_s = _fmt_duration(eta) if eta is not None else "--:--:--"
+        line = (
+            f"[{self._group_idx}/{self._groups}] {self._group_name} | "
+            f"group {group_pct:5.1f}% ({self._group_done}/{self._group_total}) | "
+            f"overall {overall_pct:5.1f}% ({self._done}/{self._total}) | "
+            f"{rate:5.2f} combos/s | ETA {eta_s}"
+        )
+
+        if sys.stdout.isatty() and not newline:
+            pad = max(0, self._last_line_len - len(line))
+            sys.stdout.write("\r" + line + (" " * pad))
+            sys.stdout.flush()
+            self._last_line_len = len(line)
+            return
+
+        end = "\n" if newline or not sys.stdout.isatty() else ""
+        print(line, end=end, flush=True)
+        self._last_line_len = 0
+
+
+def _fmt_duration(seconds: float | None) -> str:
+    if seconds is None or seconds < 0:
+        return "--:--:--"
+    seconds_int = int(seconds)
+    h, rem = divmod(seconds_int, 3600)
+    m, s = divmod(rem, 60)
+    return f"{h:02d}:{m:02d}:{s:02d}"
+
+
+if __name__ == "__main__":
+    main()
