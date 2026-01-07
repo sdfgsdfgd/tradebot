@@ -53,6 +53,9 @@ class IBKRClient:
         self._config = config
         self._ib = IB()
         self._ib_proxy = IB()
+        self._shutdown = False
+        self._connect_lock = asyncio.Lock()
+        self._connect_proxy_lock = asyncio.Lock()
         self._lock = asyncio.Lock()
         self._proxy_lock = asyncio.Lock()
         self._account_updates_started = False
@@ -72,14 +75,20 @@ class IBKRClient:
         self._pnl: PnL | None = None
         self._pnl_account: str | None = None
         self._account_value_cache: dict[tuple[str, str], tuple[float, datetime]] = {}
-        self._connectivity_lost = False
+        self._session_close_cache: dict[int, tuple[float | None, float | None, float]] = {}
+        self._farm_connectivity_lost = False
+        self._reconnect_requested = False
+        self._resubscribe_main_needed = False
+        self._resubscribe_proxy_needed = False
         self._reconnect_task: asyncio.Task | None = None
         self._ib.errorEvent += self._on_error_main
+        self._ib.disconnectedEvent += self._on_disconnected_main
         self._ib.updatePortfolioEvent += self._on_stream_update
         self._ib.pendingTickersEvent += self._on_stream_update
         self._ib.pnlEvent += self._on_stream_update
         self._ib.accountValueEvent += self._on_account_value
         self._ib_proxy.errorEvent += self._on_error_proxy
+        self._ib_proxy.disconnectedEvent += self._on_disconnected_proxy
         self._ib_proxy.pendingTickersEvent += self._on_stream_update
 
     @property
@@ -87,44 +96,55 @@ class IBKRClient:
         return self._ib.isConnected()
 
     async def connect(self) -> None:
+        self._shutdown = False
         if self._ib.isConnected():
             return
-        if hasattr(self._ib, "connectAsync"):
-            await self._ib.connectAsync(
-                self._config.host,
-                self._config.port,
-                clientId=self._config.client_id,
-                timeout=5,
-            )
-        else:
-            await asyncio.to_thread(
-                self._ib.connect,
-                self._config.host,
-                self._config.port,
-                self._config.client_id,
-                5,
-            )
+        async with self._connect_lock:
+            if self._ib.isConnected():
+                return
+            if hasattr(self._ib, "connectAsync"):
+                await self._ib.connectAsync(
+                    self._config.host,
+                    self._config.port,
+                    clientId=self._config.client_id,
+                    timeout=5,
+                )
+            else:
+                await asyncio.to_thread(
+                    self._ib.connect,
+                    self._config.host,
+                    self._config.port,
+                    self._config.client_id,
+                    5,
+                )
 
     async def connect_proxy(self) -> None:
+        self._shutdown = False
         if self._ib_proxy.isConnected():
             return
-        if hasattr(self._ib_proxy, "connectAsync"):
-            await self._ib_proxy.connectAsync(
-                self._config.host,
-                self._config.port,
-                clientId=self._config.proxy_client_id,
-                timeout=2,
-            )
-        else:
-            await asyncio.to_thread(
-                self._ib_proxy.connect,
-                self._config.host,
-                self._config.port,
-                self._config.proxy_client_id,
-                2,
-            )
+        async with self._connect_proxy_lock:
+            if self._ib_proxy.isConnected():
+                return
+            if hasattr(self._ib_proxy, "connectAsync"):
+                await self._ib_proxy.connectAsync(
+                    self._config.host,
+                    self._config.port,
+                    clientId=self._config.proxy_client_id,
+                    timeout=5,
+                )
+            else:
+                await asyncio.to_thread(
+                    self._ib_proxy.connect,
+                    self._config.host,
+                    self._config.port,
+                    self._config.proxy_client_id,
+                    5,
+                )
 
     async def disconnect(self) -> None:
+        self._shutdown = True
+        self._stop_reconnect_loop()
+        self._reconnect_requested = False
         if self._ib.isConnected():
             try:
                 self._ib.disconnect()
@@ -150,6 +170,9 @@ class IBKRClient:
         self._pnl = None
         self._pnl_account = None
         self._account_value_cache = {}
+        self._session_close_cache = {}
+        self._resubscribe_main_needed = False
+        self._resubscribe_proxy_needed = False
 
     async def fetch_portfolio(self) -> list[PortfolioItem]:
         """Fetch a snapshot of portfolio items (filtered by account if provided)."""
@@ -211,6 +234,15 @@ class IBKRClient:
                 continue
         return None
 
+    def ticker_for_con_id(self, con_id: int) -> Ticker | None:
+        if not con_id:
+            return None
+        entry = self._detail_tickers.get(int(con_id))
+        if not entry:
+            return None
+        _ib, ticker = entry
+        return ticker
+
     async def ensure_ticker(self, contract: Contract) -> Ticker:
         use_proxy = contract.secType in ("STK", "OPT")
         if use_proxy:
@@ -223,8 +255,6 @@ class IBKRClient:
             self._ib.reqMarketDataType(3)
             ib = self._ib
         con_id = int(contract.conId or 0)
-        if con_id in self._detail_tickers:
-            return self._detail_tickers[con_id][1]
         req_contract = contract
         if contract.secType == "STK":
             _, include_overnight = _session_flags(datetime.now(tz=_ET_ZONE))
@@ -247,6 +277,20 @@ class IBKRClient:
                     req_contract.exchange = primary_exchange or "CME"
                 else:
                     req_contract.exchange = "SMART"
+        cached = self._detail_tickers.get(con_id) if con_id else None
+        if cached:
+            cached_ib, cached_ticker = cached
+            desired_exchange = getattr(req_contract, "exchange", "") or ""
+            current_exchange = getattr(cached_ticker.contract, "exchange", "") or ""
+            if contract.secType == "STK" and desired_exchange and desired_exchange != current_exchange:
+                try:
+                    cached_ib.cancelMktData(cached_ticker.contract)
+                except Exception:
+                    pass
+                ticker = ib.reqMktData(req_contract)
+                self._detail_tickers[con_id] = (ib, ticker)
+                return ticker
+            return cached_ticker
         ticker = ib.reqMktData(req_contract)
         if con_id:
             self._detail_tickers[con_id] = (ib, ticker)
@@ -314,6 +358,96 @@ class IBKRClient:
             return qualified or candidate
         return None
 
+    async def session_closes(
+        self,
+        contract: Contract,
+        *,
+        cache_ttl_sec: float = 900.0,
+    ) -> tuple[float | None, float | None]:
+        """Return (prev_close, close_3_sessions_ago) for the given contract.
+
+        Uses 1-day bars with useRTH=True and a small in-memory TTL cache to
+        avoid pacing issues.
+        """
+        con_id = int(getattr(contract, "conId", 0) or 0)
+        if not con_id:
+            return None, None
+        cached = self._session_close_cache.get(con_id)
+        if cached:
+            prev_close, close_3ago, cached_at = cached
+            if time.monotonic() - cached_at < cache_ttl_sec:
+                return prev_close, close_3ago
+        use_proxy = contract.secType in ("STK", "OPT")
+        lock = self._proxy_lock if use_proxy else self._lock
+        async with lock:
+            cached = self._session_close_cache.get(con_id)
+            if cached:
+                prev_close, close_3ago, cached_at = cached
+                if time.monotonic() - cached_at < cache_ttl_sec:
+                    return prev_close, close_3ago
+            if use_proxy:
+                await self.connect_proxy()
+                ib = self._ib_proxy
+            else:
+                await self.connect()
+                ib = self._ib
+            req_contract = contract
+            if contract.secType in ("STK", "OPT") and (
+                not getattr(contract, "exchange", "") or getattr(contract, "exchange", "") == "OVERNIGHT"
+            ):
+                req_contract = copy.copy(contract)
+                req_contract.exchange = "SMART"
+            bars = await ib.reqHistoricalDataAsync(
+                req_contract,
+                endDateTime="",
+                durationStr="2 W",
+                barSizeSetting="1 day",
+                whatToShow="TRADES",
+                useRTH=True,
+                formatDate=1,
+                keepUpToDate=False,
+            )
+            closes: list[float] = []
+            for bar in bars or []:
+                try:
+                    value = float(getattr(bar, "close", 0.0) or 0.0)
+                except (TypeError, ValueError):
+                    continue
+                if value > 0:
+                    closes.append(value)
+            prev_close = closes[-1] if closes else None
+            close_3ago = closes[-4] if len(closes) >= 4 else None
+            self._session_close_cache[con_id] = (
+                prev_close,
+                close_3ago,
+                time.monotonic(),
+            )
+            return prev_close, close_3ago
+
+    async def stock_option_chain(self, symbol: str):
+        """Return (qualified_underlying, chain) for an equity option underlyer."""
+        candidate = Stock(symbol=symbol, exchange="SMART", currency="USD")
+        underlying = await self._qualify_contract(candidate, use_proxy=True) or candidate
+        await self.connect_proxy()
+        chains = self._ib_proxy.reqSecDefOptParams(
+            underlying.symbol,
+            "",
+            underlying.secType,
+            int(getattr(underlying, "conId", 0) or 0),
+        )
+        if not chains:
+            return None
+        chain = next((c for c in chains if getattr(c, "exchange", None) == "SMART"), chains[0])
+        return underlying, chain
+
+    async def qualify_proxy_contracts(self, *contracts: Contract) -> list[Contract]:
+        await self.connect_proxy()
+        try:
+            result = await self._ib_proxy.qualifyContractsAsync(*contracts)
+        except Exception:
+            return []
+        return list(result or [])
+
     def release_ticker(self, con_id: int) -> None:
         entry = self._detail_tickers.pop(con_id, None)
         if entry:
@@ -358,6 +492,7 @@ class IBKRClient:
             self._pnl = None
             self._pnl_account = None
             self._account_updates_started = False
+            self._session_close_cache = {}
             await self._ensure_account_updates()
             for ticker in self._index_tickers.values():
                 try:
@@ -511,12 +646,39 @@ class IBKRClient:
         if errorCode == 10167 and not self._proxy_force_delayed:
             self._proxy_force_delayed = True
             self._start_proxy_resubscribe()
-        if errorCode in (10089, 10168) and contract:
+        if errorCode in (10089, 10090, 10091, 10168) and contract:
             con_id = int(getattr(contract, "conId", 0) or 0)
             if con_id and con_id not in self._proxy_contract_force_delayed:
                 self._proxy_contract_force_delayed.add(con_id)
                 self._start_proxy_contract_delayed_resubscribe(contract)
         self._handle_conn_error(errorCode)
+
+    def _on_disconnected_main(self) -> None:
+        if self._shutdown:
+            return
+        self._resubscribe_main_needed = True
+        self._account_updates_started = False
+        self._pnl = None
+        self._pnl_account = None
+        self._account_value_cache = {}
+        self._index_tickers = {}
+        self._index_task = None
+        self._reconnect_requested = True
+        self._start_reconnect_loop()
+        if self._update_callback:
+            self._update_callback()
+
+    def _on_disconnected_proxy(self) -> None:
+        if self._shutdown:
+            return
+        self._resubscribe_proxy_needed = True
+        self._proxy_task = None
+        self._proxy_tickers = {}
+        self._proxy_probe_task = None
+        self._reconnect_requested = True
+        self._start_reconnect_loop()
+        if self._update_callback:
+            self._update_callback()
 
     def _start_proxy_contract_delayed_resubscribe(self, contract: Contract) -> None:
         try:
@@ -568,11 +730,9 @@ class IBKRClient:
 
     def _handle_conn_error(self, error_code: int) -> None:
         if error_code == 1100:
-            self._connectivity_lost = True
-            self._start_reconnect_loop()
+            self._farm_connectivity_lost = True
         elif error_code in (1101, 1102):
-            self._connectivity_lost = False
-            self._stop_reconnect_loop()
+            self._farm_connectivity_lost = False
 
     def _start_proxy_resubscribe(self) -> None:
         if self._proxy_task and not self._proxy_task.done():
@@ -687,30 +847,81 @@ class IBKRClient:
 
     async def _reconnect_until_deadline(self) -> None:
         deadline = time.monotonic() + self._config.reconnect_timeout_sec
-        while self._connectivity_lost and time.monotonic() < deadline:
+        while self._reconnect_requested and time.monotonic() < deadline:
             await self._reconnect_once()
+            if not self._reconnect_requested:
+                break
             await asyncio.sleep(self._config.reconnect_interval_sec)
 
     async def _reconnect_once(self) -> None:
         async with self._lock:
-            await self.disconnect()
-            await self.connect()
-            self._account_updates_started = False
-            self._index_tickers = {}
-            self._index_task = None
-            await self._ensure_account_updates()
-            await self._ensure_index_tickers()
+            if not self._ib.isConnected():
+                try:
+                    await self.connect()
+                except Exception:
+                    return
+                self._resubscribe_main_needed = True
+            if self._resubscribe_main_needed and self._ib.isConnected():
+                self._account_updates_started = False
+                await self._ensure_account_updates()
+                for con_id, (ib, ticker) in list(self._detail_tickers.items()):
+                    if ib is not self._ib:
+                        continue
+                    try:
+                        self._detail_tickers[con_id] = (
+                            self._ib,
+                            self._ib.reqMktData(ticker.contract),
+                        )
+                    except Exception:
+                        continue
+                self._index_tickers = {}
+                self._index_task = None
+                await self._ensure_index_tickers()
+                self._resubscribe_main_needed = False
         async with self._proxy_lock:
-            try:
-                await self.connect_proxy()
-            except Exception as exc:
-                self._proxy_error = str(exc)
+            if not self._ib_proxy.isConnected():
+                try:
+                    await self.connect_proxy()
+                except Exception as exc:
+                    self._proxy_error = str(exc)
+                    return
+                self._resubscribe_proxy_needed = True
+            if self._resubscribe_proxy_needed and self._ib_proxy.isConnected():
+                md_type = 3 if self._proxy_force_delayed else 1
+                self._ib_proxy.reqMarketDataType(md_type)
+                for con_id, (ib, ticker) in list(self._detail_tickers.items()):
+                    if ib is not self._ib_proxy:
+                        continue
+                    req_contract = ticker.contract
+                    if req_contract.secType in ("OPT", "FOP") and not req_contract.exchange:
+                        req_contract = copy.copy(req_contract)
+                        if req_contract.secType == "FOP":
+                            primary_exchange = getattr(req_contract, "primaryExchange", "") or ""
+                            req_contract.exchange = primary_exchange or "CME"
+                        else:
+                            req_contract.exchange = "SMART"
+                    try:
+                        self._detail_tickers[con_id] = (
+                            self._ib_proxy,
+                            self._ib_proxy.reqMktData(req_contract),
+                        )
+                    except Exception:
+                        continue
                 self._proxy_tickers = {}
                 self._proxy_task = None
-                return
-            self._proxy_tickers = {}
-            self._proxy_task = None
-            await self._ensure_proxy_tickers()
+                await self._ensure_proxy_tickers()
+                self._proxy_probe_task = None
+                self._start_proxy_probe()
+                self._resubscribe_proxy_needed = False
+        if (
+            self._ib.isConnected()
+            and self._ib_proxy.isConnected()
+            and not self._resubscribe_main_needed
+            and not self._resubscribe_proxy_needed
+        ):
+            self._reconnect_requested = False
+            if self._update_callback:
+                self._update_callback()
 
 
 def _pick_account_value(values: list[AccountValue]) -> AccountValue | None:

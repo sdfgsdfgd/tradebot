@@ -243,7 +243,7 @@ def _run_group(
     grid: dict,
     group: dict,
     progress: "_Progress",
-    top_n: int = 10,
+    top_n: int = 2000,
 ) -> list[dict]:
     results: list[dict] = []
 
