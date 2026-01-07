@@ -97,6 +97,9 @@ See `backtest.sample.json`. Core fields:
 
 ### strategy
 - `name` (currently `credit_spread`)
+- `instrument` (optional; `"options"` (default) or `"spot"`)
+  - `"options"` runs the synthetic options engine (current default).
+  - `"spot"` runs a simple underlying/spot engine using the cached bar close as the trade price.
 - `symbol` (e.g. `MNQ`, `SLV`)
 - `exchange` (optional; futures default to CME)
 - `right` (`PUT` or `CALL`)
@@ -140,6 +143,16 @@ See `backtest.sample.json`. Core fields:
   - Direction is derived from `direction_source` (currently EMA state/cross).
   - This is **single-expiry only** (no calendars yet).
   - When `directional_legs` is provided, it takes precedence over `legs` / `right`.
+
+#### Spot / underlying mode (instrument = "spot")
+When `instrument="spot"`, the engine trades the underlying itself instead of synthetic options:
+- `directional_spot` (optional; map `up`/`down` to spot actions)
+  - Example long-only: `{"up": {"action": "BUY", "qty": 1}}`
+  - Example long/short: `{"up": {"action": "BUY", "qty": 1}, "down": {"action": "SELL", "qty": 1}}`
+- `spot_profit_target_pct` / `spot_stop_loss_pct` (optional; exit early on +/- move from entry)
+  - Example: `spot_profit_target_pct=0.02` = take profit at +2% move (sign-adjusted for shorts)
+- `spot_close_eod` (optional; default `false`)
+  - If `true`, closes any open spot positions on the last bar of each day.
 
 #### Multi-leg strategies
 You can replace the default spread params with explicit legs. If `legs` is present, it is used instead of `right/otm_pct/width_pct`.

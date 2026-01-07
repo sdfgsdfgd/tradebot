@@ -35,6 +35,7 @@ class BacktestConfig:
 @dataclass(frozen=True)
 class StrategyConfig:
     name: str
+    instrument: str
     symbol: str
     exchange: str | None
     right: str
@@ -59,8 +60,12 @@ class StrategyConfig:
     flip_exit_only_if_profit: bool
     direction_source: str
     directional_legs: dict[str, tuple["LegConfig", ...]] | None
+    directional_spot: dict[str, "SpotLegConfig"] | None
     legs: tuple["LegConfig", ...] | None
     filters: "FiltersConfig" | None
+    spot_profit_target_pct: float | None
+    spot_stop_loss_pct: float | None
+    spot_close_eod: bool
 
 
 @dataclass(frozen=True)
@@ -79,6 +84,12 @@ class LegConfig:
     action: str
     right: str
     moneyness_pct: float
+    qty: int
+
+
+@dataclass(frozen=True)
+class SpotLegConfig:
+    action: str
     qty: int
 
 
@@ -125,6 +136,7 @@ def load_config(path: str | Path) -> ConfigBundle:
     entry_days = _parse_weekdays(strategy_raw.get("entry_days", []))
     strategy = StrategyConfig(
         name=strategy_raw.get("name", "credit_spread"),
+        instrument=_parse_instrument(strategy_raw.get("instrument")),
         symbol=strategy_raw.get("symbol", "MNQ"),
         exchange=strategy_raw.get("exchange"),
         right=str(strategy_raw.get("right", "PUT")).upper(),
@@ -155,8 +167,12 @@ def load_config(path: str | Path) -> ConfigBundle:
         flip_exit_only_if_profit=bool(strategy_raw.get("flip_exit_only_if_profit", False)),
         direction_source=_parse_direction_source(strategy_raw.get("direction_source")),
         directional_legs=_parse_directional_legs(strategy_raw.get("directional_legs")),
+        directional_spot=_parse_directional_spot(strategy_raw.get("directional_spot")),
         legs=_parse_legs(strategy_raw.get("legs")),
         filters=_parse_filters(strategy_raw.get("filters")),
+        spot_profit_target_pct=_parse_optional_float(strategy_raw.get("spot_profit_target_pct")),
+        spot_stop_loss_pct=_parse_optional_float(strategy_raw.get("spot_stop_loss_pct")),
+        spot_close_eod=bool(strategy_raw.get("spot_close_eod", False)),
     )
 
     synthetic = SyntheticConfig(
@@ -317,3 +333,46 @@ def _parse_filters(raw) -> FiltersConfig | None:
         skip_first_bars=int(raw.get("skip_first_bars", 0) or 0),
         cooldown_bars=int(raw.get("cooldown_bars", 0) or 0),
     )
+
+
+def _parse_instrument(value) -> str:
+    if value is None:
+        return "options"
+    if isinstance(value, str):
+        cleaned = value.strip().lower()
+        if cleaned in ("options", "option", "opts"):
+            return "options"
+        if cleaned in ("spot", "stock", "equity", "shares", "futures"):
+            return "spot"
+    raise ValueError(f"Invalid instrument: {value!r} (expected 'options' or 'spot')")
+
+
+def _parse_optional_float(value) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"Expected float, got: {value!r}") from None
+
+
+def _parse_directional_spot(raw) -> dict[str, SpotLegConfig] | None:
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise ValueError("directional_spot must be an object")
+    parsed: dict[str, SpotLegConfig] = {}
+    for key in ("up", "down"):
+        leg_raw = raw.get(key)
+        if not leg_raw:
+            continue
+        if not isinstance(leg_raw, dict):
+            raise ValueError(f"directional_spot.{key} must be an object")
+        action = str(leg_raw.get("action", "")).strip().upper()
+        if action not in ("BUY", "SELL"):
+            raise ValueError(f"directional_spot.{key}.action must be BUY or SELL")
+        qty = int(leg_raw.get("qty", 1))
+        if qty <= 0:
+            raise ValueError(f"directional_spot.{key}.qty must be positive")
+        parsed[key] = SpotLegConfig(action=action, qty=qty)
+    return parsed or None

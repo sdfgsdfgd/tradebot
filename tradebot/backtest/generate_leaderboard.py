@@ -62,6 +62,7 @@ def main() -> None:
         "profit_target": [0.5, 1.0, 2.0, 5.0, 10.0, 20.0, 50.0, 100.0, 200.0],
         "stop_loss": [0.35, 0.8, 1.0],
         "ema_preset": ["3/7", "9/21", "20/50"],
+        "ema_entry_mode": ["trend", "cross"],
         "exit_on_signal_flip": [False, True],
         "flip_exit_min_hold_bars": [6],
         "flip_exit_only_if_profit": [True],
@@ -198,6 +199,43 @@ def main() -> None:
         ),
     ]
 
+    # Directional flip presets: choose legs based on the EMA-derived up/down direction.
+    # Useful for reversal-style strategies (e.g. 3/7 cross entry + flip exit).
+    groups.extend(
+        [
+            {
+                "name": "Directional Flip Credit Spreads (unfiltered) [PUT up / CALL down]",
+                "right": "PUT",
+                "filters": None,
+                "directional_leg_templates": {
+                    "up": [
+                        {"action": "SELL", "right": "PUT", "qty": 1, "moneyness_offset_pct": 0.0},
+                        {"action": "BUY", "right": "PUT", "qty": 1, "moneyness_offset_pct": 1.0},
+                    ],
+                    "down": [
+                        {"action": "SELL", "right": "CALL", "qty": 1, "moneyness_offset_pct": 0.0},
+                        {"action": "BUY", "right": "CALL", "qty": 1, "moneyness_offset_pct": 1.0},
+                    ],
+                },
+            },
+            {
+                "name": "Directional Flip Credit Spreads (filtered) [PUT up / CALL down]",
+                "right": "PUT",
+                "filters": filters,
+                "directional_leg_templates": {
+                    "up": [
+                        {"action": "SELL", "right": "PUT", "qty": 1, "moneyness_offset_pct": 0.0},
+                        {"action": "BUY", "right": "PUT", "qty": 1, "moneyness_offset_pct": 1.0},
+                    ],
+                    "down": [
+                        {"action": "SELL", "right": "CALL", "qty": 1, "moneyness_offset_pct": 0.0},
+                        {"action": "BUY", "right": "CALL", "qty": 1, "moneyness_offset_pct": 1.0},
+                    ],
+                },
+            },
+        ]
+    )
+
     payload = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "symbol": args.symbol,
@@ -283,19 +321,26 @@ def _run_group(
 
     def _combos():
         g = grid
-        base_combos = product(g["dte"], g["moneyness_pct"], g["profit_target"], g["stop_loss"], g["ema_preset"])
-        for dte, moneyness, pt, sl, ema in base_combos:
+        base_combos = product(
+            g["dte"],
+            g["moneyness_pct"],
+            g["profit_target"],
+            g["stop_loss"],
+            g["ema_preset"],
+            g["ema_entry_mode"],
+        )
+        for dte, moneyness, pt, sl, ema, entry_mode in base_combos:
             for flip in g["exit_on_signal_flip"]:
                 if flip:
                     flip_variants = product(g["flip_exit_min_hold_bars"], g["flip_exit_only_if_profit"])
                 else:
                     flip_variants = [(0, False)]
                 for hold, only_profit in flip_variants:
-                    yield (dte, moneyness, pt, sl, ema, bool(flip), int(hold), bool(only_profit))
+                    yield (dte, moneyness, pt, sl, ema, str(entry_mode), bool(flip), int(hold), bool(only_profit))
 
     results: list[dict] = []
     if jobs == 1:
-        for dte, moneyness, pt, sl, ema, flip, hold, only_profit in _combos():
+        for dte, moneyness, pt, sl, ema, entry_mode, flip, hold, only_profit in _combos():
             progress.advance()
             entry = _run_combo(
                 symbol=symbol,
@@ -309,6 +354,7 @@ def _run_group(
                 profit_target=pt,
                 stop_loss=sl,
                 ema_preset=ema,
+                ema_entry_mode=entry_mode,
                 exit_on_signal_flip=flip,
                 flip_exit_min_hold_bars=hold,
                 flip_exit_only_if_profit=only_profit,
@@ -365,25 +411,50 @@ def _run_combo(
     profit_target: float,
     stop_loss: float,
     ema_preset: str,
+    ema_entry_mode: str,
     exit_on_signal_flip: bool,
     flip_exit_min_hold_bars: int,
     flip_exit_only_if_profit: bool,
 ) -> dict | None:
-    legs = tuple(
-        LegConfig(
-            action=leg["action"],
-            right=leg["right"],
-            moneyness_pct=float(moneyness) + float(leg.get("moneyness_offset_pct", 0.0)),
-            qty=int(leg["qty"]),
+    directional_legs = None
+    legs = None
+    legs_for_display: tuple[LegConfig, ...] = ()
+
+    if group.get("directional_leg_templates"):
+        directional_legs = {}
+        for key in ("up", "down"):
+            templates = group.get("directional_leg_templates", {}).get(key) or []
+            if not templates:
+                continue
+            directional_legs[key] = tuple(
+                LegConfig(
+                    action=leg["action"],
+                    right=leg["right"],
+                    moneyness_pct=float(moneyness) + float(leg.get("moneyness_offset_pct", 0.0)),
+                    qty=int(leg["qty"]),
+                )
+                for leg in templates
+            )
+        if directional_legs:
+            legs_for_display = directional_legs.get("up") or next(iter(directional_legs.values()))
+    else:
+        legs = tuple(
+            LegConfig(
+                action=leg["action"],
+                right=leg["right"],
+                moneyness_pct=float(moneyness) + float(leg.get("moneyness_offset_pct", 0.0)),
+                qty=int(leg["qty"]),
+            )
+            for leg in group["leg_templates"]
         )
-        for leg in group["leg_templates"]
-    )
+        legs_for_display = legs
 
     strategy = StrategyConfig(
         name="credit_spread",
+        instrument="options",
         symbol=symbol,
         exchange=None,
-        right=group["right"],
+        right=str(group.get("right", "PUT")),
         entry_days=(0, 1, 2, 3, 4),
         max_entries_per_day=0,
         max_open_trades=0,
@@ -397,16 +468,20 @@ def _run_combo(
         stop_loss_basis="max_loss",
         min_credit=0.01,
         ema_preset=ema_preset,
-        ema_entry_mode=str(group.get("ema_entry_mode", "trend")),
+        ema_entry_mode=str(ema_entry_mode),
         ema_directional=False,
         exit_on_signal_flip=bool(exit_on_signal_flip),
         flip_exit_mode="entry",
         flip_exit_min_hold_bars=int(flip_exit_min_hold_bars),
         flip_exit_only_if_profit=bool(flip_exit_only_if_profit),
         direction_source="ema",
-        directional_legs=None,
+        directional_legs=directional_legs,
+        directional_spot=None,
         legs=legs,
         filters=filters_cfg,
+        spot_profit_target_pct=None,
+        spot_stop_loss_pct=None,
+        spot_close_eod=False,
     )
 
     result = run_backtest(ConfigBundle(backtest=backtest, strategy=strategy, synthetic=synthetic))
@@ -416,6 +491,41 @@ def _run_combo(
     if summary.total_pnl <= 0:
         return None
 
+    strategy_payload = {
+        "instrument": "options",
+        "dte": int(dte),
+        "profit_target": float(profit_target),
+        "stop_loss": float(stop_loss),
+        "ema_preset": str(ema_preset) if ema_preset is not None else None,
+        "ema_entry_mode": str(ema_entry_mode),
+        "exit_on_signal_flip": bool(exit_on_signal_flip),
+        "flip_exit_min_hold_bars": int(flip_exit_min_hold_bars),
+        "flip_exit_only_if_profit": bool(flip_exit_only_if_profit),
+        "legs": [
+            {
+                "action": leg.action,
+                "right": leg.right,
+                "moneyness_pct": leg.moneyness_pct,
+                "qty": leg.qty,
+            }
+            for leg in legs_for_display
+        ],
+        "entry_days": ["Mon", "Tue", "Wed", "Thu", "Fri"],
+    }
+    if directional_legs:
+        strategy_payload["directional_legs"] = {
+            key: [
+                {
+                    "action": leg.action,
+                    "right": leg.right,
+                    "moneyness_pct": leg.moneyness_pct,
+                    "qty": leg.qty,
+                }
+                for leg in dlegs
+            ]
+            for key, dlegs in directional_legs.items()
+        }
+
     return {
         "metrics": {
             "pnl": summary.total_pnl,
@@ -424,26 +534,7 @@ def _run_combo(
             "avg_hold_hours": summary.avg_hold_hours,
             "max_drawdown": summary.max_drawdown,
         },
-        "strategy": {
-            "dte": int(dte),
-            "profit_target": float(profit_target),
-            "stop_loss": float(stop_loss),
-            "ema_preset": str(ema_preset) if ema_preset is not None else None,
-            "ema_entry_mode": str(group.get("ema_entry_mode", "trend")),
-            "exit_on_signal_flip": bool(exit_on_signal_flip),
-            "flip_exit_min_hold_bars": int(flip_exit_min_hold_bars),
-            "flip_exit_only_if_profit": bool(flip_exit_only_if_profit),
-            "legs": [
-                {
-                    "action": leg.action,
-                    "right": leg.right,
-                    "moneyness_pct": leg.moneyness_pct,
-                    "qty": leg.qty,
-                }
-                for leg in legs
-            ],
-            "entry_days": ["Mon", "Tue", "Wed", "Thu", "Fri"],
-        },
+        "strategy": strategy_payload,
     }
 
 
@@ -458,10 +549,10 @@ def _init_worker(ctx: dict) -> None:
         os.chdir(cwd)
 
 
-def _run_combo_worker(combo: tuple[int, float, float, float, str, bool, int, bool]) -> dict | None:
+def _run_combo_worker(combo: tuple[int, float, float, float, str, str, bool, int, bool]) -> dict | None:
     if _WORKER_CTX is None:
         raise RuntimeError("Worker context not initialized")
-    dte, moneyness, pt, sl, ema, flip, hold, only_profit = combo
+    dte, moneyness, pt, sl, ema, entry_mode, flip, hold, only_profit = combo
     return _run_combo(
         symbol=_WORKER_CTX["symbol"],
         backtest=_WORKER_CTX["backtest"],
@@ -474,6 +565,7 @@ def _run_combo_worker(combo: tuple[int, float, float, float, str, bool, int, boo
         profit_target=pt,
         stop_loss=sl,
         ema_preset=ema,
+        ema_entry_mode=entry_mode,
         exit_on_signal_flip=flip,
         flip_exit_min_hold_bars=hold,
         flip_exit_only_if_profit=only_profit,
@@ -492,6 +584,7 @@ def _count_total_combos(grid: dict) -> int:
         * len(grid["profit_target"])
         * len(grid["stop_loss"])
         * len(grid["ema_preset"])
+        * len(grid["ema_entry_mode"])
     )
     per_base = 0
     for flip in grid["exit_on_signal_flip"]:

@@ -6,17 +6,17 @@ from collections import deque
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 
-from .config import ConfigBundle
+from .config import ConfigBundle, SpotLegConfig
 from .calibration import ensure_calibration, load_calibration
 from .data import IBKRHistoricalData, ContractMeta
-from .models import Bar, EquityPoint, OptionLeg, OptionTrade, SummaryStats
+from .models import Bar, EquityPoint, OptionLeg, OptionTrade, SpotTrade, SummaryStats
 from .strategy import CreditSpreadStrategy, TradeSpec
 from .synth import IVSurfaceParams, black_76, black_scholes, ewma_vol, iv_atm, iv_for_strike, mid_edge_quote
 
 
 @dataclass(frozen=True)
 class BacktestResult:
-    trades: list[OptionTrade]
+    trades: list[OptionTrade | SpotTrade]
     equity: list[EquityPoint]
     summary: SummaryStats
 
@@ -50,17 +50,32 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
     is_future = cfg.strategy.symbol in ("MNQ", "MBT")
     if cfg.backtest.offline:
         exchange = "CME" if is_future else "SMART"
-        multiplier = 1.0 if is_future else 100.0
+        if cfg.strategy.instrument == "spot":
+            multiplier = _spot_multiplier(cfg.strategy.symbol, is_future)
+        else:
+            multiplier = 1.0 if is_future else 100.0
         meta = ContractMeta(symbol=cfg.strategy.symbol, exchange=exchange, multiplier=multiplier, min_tick=0.01)
     else:
         _, meta = data.resolve_contract(cfg.strategy.symbol, cfg.strategy.exchange)
-        if not is_future and meta.exchange == "SMART":
+        if cfg.strategy.instrument == "spot":
+            meta = ContractMeta(
+                symbol=meta.symbol,
+                exchange=meta.exchange,
+                multiplier=_spot_multiplier(cfg.strategy.symbol, is_future, default=meta.multiplier),
+                min_tick=meta.min_tick,
+            )
+        elif not is_future and meta.exchange == "SMART":
             meta = ContractMeta(
                 symbol=meta.symbol,
                 exchange=meta.exchange,
                 multiplier=100.0,
                 min_tick=meta.min_tick,
             )
+
+    if cfg.strategy.instrument == "spot":
+        result = _run_spot_backtest(cfg, bars, meta)
+        data.disconnect()
+        return result
 
     surface_params = IVSurfaceParams(
         rv_lookback=cfg.synthetic.rv_lookback,
@@ -412,6 +427,320 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
     return BacktestResult(trades=trades, equity=equity_curve, summary=summary)
 
 
+def _spot_multiplier(symbol: str, is_future: bool, default: float = 1.0) -> float:
+    if not is_future:
+        return 1.0
+    overrides = {
+        "MNQ": 2.0,  # Micro E-mini Nasdaq-100
+        "MBT": 0.1,  # Micro Bitcoin (0.1 BTC)
+    }
+    return overrides.get(symbol, default if default > 0 else 1.0)
+
+
+def _run_spot_backtest(cfg: ConfigBundle, bars: list[Bar], meta: ContractMeta) -> BacktestResult:
+    returns = deque(maxlen=cfg.synthetic.rv_lookback)
+    cash = cfg.backtest.starting_cash
+    margin_used = 0.0
+    equity_curve: list[EquityPoint] = []
+    trades: list[SpotTrade] = []
+    open_trades: list[SpotTrade] = []
+    prev_bar: Bar | None = None
+    entries_today = 0
+    filters = cfg.strategy.filters
+    ema_periods = _ema_periods(cfg.strategy.ema_preset)
+    needs_direction = cfg.strategy.directional_spot is not None
+    if ema_periods is None:
+        raise ValueError("spot backtests require ema_preset")
+    ema_needed = True
+
+    ema_fast = None
+    ema_slow = None
+    prev_ema_fast = None
+    prev_ema_slow = None
+    ema_count = 0
+    bars_in_day = 0
+    last_entry_idx = None
+    last_date = None
+    for idx, bar in enumerate(bars):
+        next_bar = bars[idx + 1] if idx + 1 < len(bars) else None
+        is_last_bar = next_bar is None or next_bar.ts.date() != bar.ts.date()
+        if prev_bar is not None:
+            if prev_bar.close > 0:
+                returns.append(math.log(bar.close / prev_bar.close))
+        rv = ewma_vol(returns, cfg.synthetic.rv_ewma_lambda)
+        rv *= math.sqrt(_annualization_factor(cfg.backtest.bar_size, cfg.backtest.use_rth))
+        if last_date != bar.ts.date():
+            bars_in_day = 0
+            last_date = bar.ts.date()
+            entries_today = 0
+        bars_in_day += 1
+
+        prev_ema_fast = ema_fast
+        prev_ema_slow = ema_slow
+        if bar.close > 0:
+            ema_fast = _ema_next(ema_fast, bar.close, ema_periods[0])
+            ema_slow = _ema_next(ema_slow, bar.close, ema_periods[1])
+            ema_count += 1
+        ema_ready = ema_needed and ema_count >= ema_periods[1] and ema_fast is not None and ema_slow is not None
+
+        liquidation = 0.0
+        if open_trades:
+            exit_mode = _flip_exit_mode(cfg)
+            cross_up = False
+            cross_down = False
+            if (
+                cfg.strategy.exit_on_signal_flip
+                and ema_ready
+                and exit_mode == "cross"
+                and prev_ema_fast is not None
+                and prev_ema_slow is not None
+            ):
+                cross_up = prev_ema_fast <= prev_ema_slow and ema_fast > ema_slow
+                cross_down = prev_ema_fast >= prev_ema_slow and ema_fast < ema_slow
+
+            still_open = []
+            for trade in open_trades:
+                current_price = bar.close
+                current_value = (trade.qty * current_price) * meta.multiplier
+                should_close = False
+                reason = ""
+
+                if _spot_hit_profit(trade, current_price):
+                    should_close = True
+                    reason = "profit"
+                elif _spot_hit_stop(trade, current_price):
+                    should_close = True
+                    reason = "stop"
+                elif _spot_hit_flip_exit(
+                    cfg,
+                    trade,
+                    bar,
+                    ema_ready,
+                    ema_fast,
+                    ema_slow,
+                    cross_up,
+                    cross_down,
+                ):
+                    should_close = True
+                    reason = "flip"
+                elif cfg.strategy.spot_close_eod and is_last_bar:
+                    should_close = True
+                    reason = "eod"
+
+                if should_close:
+                    exit_price = bar.close
+                    _close_spot_trade(trade, bar.ts, exit_price, reason, trades)
+                    cash += (trade.qty * exit_price) * meta.multiplier
+                    margin_used = max(0.0, margin_used - trade.margin_required)
+                else:
+                    still_open.append(trade)
+                    liquidation += current_value
+            open_trades = still_open
+
+        ema_gate_ok = True
+        direction = None
+        if ema_needed and not ema_ready:
+            ema_gate_ok = False
+        elif ema_ready:
+            if cfg.strategy.ema_entry_mode == "cross":
+                if prev_ema_fast is None or prev_ema_slow is None:
+                    ema_gate_ok = False
+                else:
+                    cross_up = prev_ema_fast <= prev_ema_slow and ema_fast > ema_slow
+                    cross_down = prev_ema_fast >= prev_ema_slow and ema_fast < ema_slow
+                    if cross_up:
+                        direction = "up"
+                    elif cross_down:
+                        direction = "down"
+                    else:
+                        direction = None
+            else:
+                if ema_fast > ema_slow:
+                    direction = "up"
+                elif ema_fast < ema_slow:
+                    direction = "down"
+                else:
+                    direction = None
+
+            if needs_direction:
+                ema_gate_ok = (
+                    direction is not None
+                    and cfg.strategy.directional_spot is not None
+                    and direction in cfg.strategy.directional_spot
+                )
+            else:
+                ema_gate_ok = direction == "up"
+
+        filters_ok = True
+        if filters:
+            if filters.rv_min is not None and rv < filters.rv_min:
+                filters_ok = False
+            if filters.rv_max is not None and rv > filters.rv_max:
+                filters_ok = False
+            if filters.entry_start_hour is not None and filters.entry_end_hour is not None:
+                hour = bar.ts.hour
+                start = filters.entry_start_hour
+                end = filters.entry_end_hour
+                if start <= end:
+                    if not (start <= hour < end):
+                        filters_ok = False
+                else:
+                    if not (hour >= start or hour < end):
+                        filters_ok = False
+            if filters.skip_first_bars and bars_in_day <= filters.skip_first_bars:
+                filters_ok = False
+            if filters.cooldown_bars and last_entry_idx is not None:
+                if (idx - last_entry_idx) < filters.cooldown_bars:
+                    filters_ok = False
+            if filters.ema_spread_min_pct is not None:
+                if not ema_ready:
+                    filters_ok = False
+                else:
+                    spread_pct = abs(ema_fast - ema_slow) / max(bar.close, 1e-9) * 100.0
+                    if spread_pct < filters.ema_spread_min_pct:
+                        filters_ok = False
+            if filters.ema_slope_min_pct is not None:
+                if not ema_ready or prev_ema_fast is None:
+                    filters_ok = False
+                else:
+                    slope_pct = abs(ema_fast - prev_ema_fast) / max(bar.close, 1e-9) * 100.0
+                    if slope_pct < filters.ema_slope_min_pct:
+                        filters_ok = False
+
+        open_slots_ok = cfg.strategy.max_open_trades == 0 or len(open_trades) < cfg.strategy.max_open_trades
+        entries_ok = cfg.strategy.max_entries_per_day == 0 or entries_today < cfg.strategy.max_entries_per_day
+        if (
+            open_slots_ok
+            and entries_ok
+            and (bar.ts.weekday() in cfg.strategy.entry_days)
+            and ema_gate_ok
+            and filters_ok
+        ):
+            spot_leg = None
+            if needs_direction and direction and cfg.strategy.directional_spot:
+                spot_leg = cfg.strategy.directional_spot.get(direction)
+            elif direction == "up":
+                spot_leg = None
+
+            if spot_leg is None and not needs_direction and direction == "up":
+                spot_leg = SpotLegConfig(action="BUY", qty=1)
+
+            if spot_leg is not None:
+                qty = int(spot_leg.qty) * int(cfg.strategy.quantity)
+                signed_qty = qty if spot_leg.action.upper() == "BUY" else -qty
+                entry_price = bar.close
+                candidate = SpotTrade(
+                    symbol=cfg.strategy.symbol,
+                    qty=signed_qty,
+                    entry_time=bar.ts,
+                    entry_price=entry_price,
+                    profit_target_pct=cfg.strategy.spot_profit_target_pct,
+                    stop_loss_pct=cfg.strategy.spot_stop_loss_pct,
+                )
+                candidate.margin_required = abs(signed_qty * entry_price) * meta.multiplier
+                cash_after = cash - (signed_qty * entry_price) * meta.multiplier
+                margin_after = margin_used + candidate.margin_required
+                mark_liquidation = (signed_qty * entry_price) * meta.multiplier
+                equity_after = cash_after + liquidation + mark_liquidation
+                if cash_after >= 0 and equity_after >= margin_after:
+                    open_trades.append(candidate)
+                    cash = cash_after
+                    margin_used = margin_after
+                    entries_today += 1
+                    last_entry_idx = idx
+                    liquidation += mark_liquidation
+
+        equity_curve.append(EquityPoint(ts=bar.ts, equity=cash + liquidation))
+        prev_bar = bar
+
+    if open_trades and prev_bar:
+        for trade in open_trades:
+            exit_price = prev_bar.close
+            _close_spot_trade(trade, prev_bar.ts, exit_price, "end", trades)
+            cash += (trade.qty * exit_price) * meta.multiplier
+            margin_used = max(0.0, margin_used - trade.margin_required)
+
+    summary = _summarize(trades, cfg.backtest.starting_cash, equity_curve, meta.multiplier)
+    return BacktestResult(trades=trades, equity=equity_curve, summary=summary)
+
+
+def _spot_hit_profit(trade: SpotTrade, price: float) -> bool:
+    if trade.profit_target_pct is None:
+        return False
+    entry = trade.entry_price
+    if entry <= 0:
+        return False
+    move = (price - entry) / entry
+    if trade.qty < 0:
+        move = -move
+    return move >= trade.profit_target_pct
+
+
+def _spot_hit_stop(trade: SpotTrade, price: float) -> bool:
+    if trade.stop_loss_pct is None:
+        return False
+    entry = trade.entry_price
+    if entry <= 0:
+        return False
+    move = (price - entry) / entry
+    if trade.qty < 0:
+        move = -move
+    return move <= -trade.stop_loss_pct
+
+
+def _spot_hit_flip_exit(
+    cfg: ConfigBundle,
+    trade: SpotTrade,
+    bar: Bar,
+    ema_ready: bool,
+    ema_fast: float | None,
+    ema_slow: float | None,
+    cross_up: bool,
+    cross_down: bool,
+) -> bool:
+    if not cfg.strategy.exit_on_signal_flip:
+        return False
+    if cfg.strategy.direction_source != "ema":
+        return False
+    if not ema_ready or ema_fast is None or ema_slow is None:
+        return False
+    if cfg.strategy.flip_exit_min_hold_bars:
+        held = _bars_held(cfg.backtest.bar_size, trade.entry_time, bar.ts)
+        if held < cfg.strategy.flip_exit_min_hold_bars:
+            return False
+    if cfg.strategy.flip_exit_only_if_profit:
+        pnl = (price := bar.close) - trade.entry_price
+        if trade.qty < 0:
+            pnl = -pnl
+        if pnl <= 0:
+            return False
+
+    trade_dir = "up" if trade.qty > 0 else "down" if trade.qty < 0 else None
+    if trade_dir is None:
+        return False
+
+    mode = _flip_exit_mode(cfg)
+    if mode == "cross":
+        if trade_dir == "up":
+            return cross_down
+        if trade_dir == "down":
+            return cross_up
+        return False
+
+    if trade_dir == "up":
+        return ema_fast < ema_slow
+    if trade_dir == "down":
+        return ema_fast > ema_slow
+    return False
+
+
+def _close_spot_trade(trade: SpotTrade, ts: datetime, price: float, reason: str, trades: list[SpotTrade]) -> None:
+    trade.exit_time = ts
+    trade.exit_price = price
+    trade.exit_reason = reason
+    trades.append(trade)
+
+
 def _trade_value(
     trade: OptionTrade,
     bar: Bar,
@@ -705,7 +1034,7 @@ def _close_trade(trade: OptionTrade, ts: datetime, price: float, reason: str, tr
 
 
 def _summarize(
-    trades: list[OptionTrade],
+    trades: list[OptionTrade | SpotTrade],
     starting_cash: float,
     equity_curve: list[EquityPoint],
     multiplier: float,

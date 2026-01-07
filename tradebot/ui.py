@@ -2196,6 +2196,14 @@ class BotScreen(Screen):
             for entry in group.get("entries", []):
                 strat = entry.get("strategy", {})
                 metrics = entry.get("metrics", {})
+                instrument = str(strat.get("instrument", "options") or "options").strip().lower()
+                if instrument != "options":
+                    continue
+                if strat.get("directional_legs"):
+                    continue
+                legs = strat.get("legs", [])
+                if not isinstance(legs, list) or not legs:
+                    continue
                 try:
                     dte = int(strat.get("dte", 0))
                 except (TypeError, ValueError):

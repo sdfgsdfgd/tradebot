@@ -47,6 +47,28 @@ class OptionTrade:
         return (self.entry_price - self.exit_price) * multiplier
 
 
+@dataclass
+class SpotTrade:
+    symbol: str
+    qty: int
+    entry_time: datetime
+    entry_price: float
+    profit_target_pct: float | None = None
+    stop_loss_pct: float | None = None
+    margin_required: float = 0.0
+    exit_time: datetime | None = None
+    exit_price: float | None = None
+    exit_reason: str | None = None
+
+    def is_open(self) -> bool:
+        return self.exit_time is None
+
+    def pnl(self, multiplier: float) -> float:
+        if self.exit_price is None:
+            return 0.0
+        return (self.exit_price - self.entry_price) * self.qty * multiplier
+
+
 @dataclass(frozen=True)
 class EquityPoint:
     ts: datetime
