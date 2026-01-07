@@ -373,6 +373,9 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
                     stop_loss=cfg.strategy.stop_loss,
                     profit_target=cfg.strategy.profit_target,
                 )
+                candidate.max_loss = _max_loss(candidate)
+                if candidate.max_loss is None:
+                    candidate.max_loss = _max_loss_estimate(candidate, bar.close)
                 candidate.margin_required = _margin_required(candidate, bar.close, meta.multiplier)
                 cash_after = cash + (entry_price * meta.multiplier)
                 margin_after = margin_used + candidate.margin_required
@@ -574,12 +577,12 @@ def _hit_profit(trade: OptionTrade, current_value: float) -> bool:
 
 
 def _hit_stop(trade: OptionTrade, current_value: float, basis: str, spot: float) -> bool:
-    max_loss = _max_loss(trade)
     loss = max(0.0, current_value - trade.entry_price)
     if basis == "credit":
         if trade.entry_price >= 0:
             return current_value >= trade.entry_price * (1 + trade.stop_loss)
         return loss >= abs(trade.entry_price) * trade.stop_loss
+    max_loss = trade.max_loss if trade.max_loss is not None else _max_loss(trade)
     if max_loss is None:
         max_loss = _max_loss_estimate(trade, spot)
     if max_loss is None:
@@ -801,7 +804,7 @@ def _min_time(bar_size: str) -> float:
 def _margin_required(trade: OptionTrade, spot: float, multiplier: float) -> float:
     if trade.entry_price <= 0:
         return 0.0
-    max_loss = _max_loss(trade)
+    max_loss = trade.max_loss if trade.max_loss is not None else _max_loss(trade)
     if max_loss is None:
         max_loss = _max_loss_estimate(trade, spot)
     if max_loss is None:
