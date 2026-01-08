@@ -124,7 +124,30 @@ def main() -> None:
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     tag = "rth" if use_rth else "full"
     safe_bar = bar_size.replace(" ", "")
-    base = f"{str(args.symbol).strip().upper()}_{start}_{end}_{safe_bar}_{tag}_{stamp}"
+    sym = str(args.symbol).strip().upper()
+    ex_tag = str(args.exchange).strip().upper() if args.exchange else ""
+    entry_tag = str(args.entry_ema).strip().replace("/", "x").replace("-", "x").replace("_", "x")
+    regime_tag = (
+        str(regime_raw).strip().replace("/", "x").replace("-", "x").replace("_", "x")
+        if regime_raw
+        else "none"
+    )
+    base_parts = [sym]
+    if ex_tag:
+        base_parts.append(ex_tag)
+    base_parts.extend(
+        [
+            str(start),
+            str(end),
+            safe_bar,
+            tag,
+            f"e{entry_tag}",
+            f"r{regime_tag}",
+            f"c{confirm_bars}",
+            stamp,
+        ]
+    )
+    base = "_".join(base_parts)
     events_csv = out_dir / f"{base}_events.csv"
     summary_json = out_dir / f"{base}_summary.json"
 
