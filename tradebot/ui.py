@@ -10,7 +10,7 @@ from datetime import date, datetime, time, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from ib_insync import Bag, ComboLeg, Contract, Option, PnL, PortfolioItem, Ticker, Trade
+from ib_insync import Bag, ComboLeg, Contract, Option, PnL, PortfolioItem, Stock, Ticker, Trade
 from rich.text import Text
 from textual.app import App, ComposeResult
 from textual import events
@@ -20,6 +20,17 @@ from textual.widgets import Header, Footer, DataTable, Static
 
 from .client import IBKRClient
 from .config import load_config
+from .signals import (
+    direction_from_action_right,
+    ema_cross,
+    ema_next,
+    ema_periods,
+    ema_slope_pct,
+    ema_spread_pct,
+    ema_state_direction,
+    flip_exit_mode,
+    parse_bar_size,
+)
 from .store import PortfolioSnapshot
 
 
@@ -1357,6 +1368,11 @@ class _BotInstance:
     auto_trade: bool = False
     state: str = "RUNNING"
     last_propose_date: date | None = None
+    open_direction: str | None = None
+    last_entry_bar_ts: datetime | None = None
+    last_exit_bar_ts: datetime | None = None
+    entries_today: int = 0
+    entries_today_date: date | None = None
     error: str | None = None
     touched_conids: set[int] = field(default_factory=set)
 
@@ -1404,6 +1420,19 @@ class _BotProposal:
     status: str = "PROPOSED"
     order_id: int | None = None
     error: str | None = None
+
+
+@dataclass(frozen=True)
+class _SignalSnapshot:
+    bar_ts: datetime
+    close: float
+    ema_fast: float
+    ema_slow: float
+    prev_ema_fast: float | None
+    prev_ema_slow: float | None
+    cross_up: bool
+    cross_down: bool
+    bars_in_day: int
 
 
 class BotConfigScreen(Screen[_BotConfigResult | None]):
@@ -1472,6 +1501,14 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
         self._fields = [
             _BotConfigField("Symbol", "text", "symbol"),
             _BotConfigField("Auto trade", "bool", "auto_trade"),
+            _BotConfigField("Instrument", "enum", "instrument", options=("options", "spot")),
+            _BotConfigField(
+                "Signal bar size",
+                "enum",
+                "signal_bar_size",
+                options=("1 hour", "30 mins", "15 mins", "5 mins", "1 day"),
+            ),
+            _BotConfigField("Signal use RTH", "bool", "signal_use_rth"),
             _BotConfigField("DTE", "int", "dte"),
             _BotConfigField("Profit target (PT)", "float", "profit_target"),
             _BotConfigField("Stop loss (SL)", "float", "stop_loss"),
@@ -1484,13 +1521,20 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
                 options=("OPTIMISTIC", "MID", "AGGRESSIVE", "CROSS"),
             ),
             _BotConfigField("Chase proposals", "bool", "chase_proposals"),
-            _BotConfigField("EMA preset", "enum", "ema_preset", options=("", "3/7", "9/21", "20/50")),
+            _BotConfigField("EMA preset", "text", "ema_preset"),
             _BotConfigField("EMA entry mode", "enum", "ema_entry_mode", options=("trend", "cross")),
             _BotConfigField("Entry start hour", "text", "filters.entry_start_hour"),
             _BotConfigField("Entry end hour", "text", "filters.entry_end_hour"),
             _BotConfigField("Flip-exit", "bool", "exit_on_signal_flip"),
             _BotConfigField("Flip min hold bars", "int", "flip_exit_min_hold_bars"),
             _BotConfigField("Flip only if profit", "bool", "flip_exit_only_if_profit"),
+            _BotConfigField("Spot close EOD", "bool", "spot_close_eod"),
+            _BotConfigField("Spot PT %", "float", "spot_profit_target_pct"),
+            _BotConfigField("Spot SL %", "float", "spot_stop_loss_pct"),
+            _BotConfigField("Spot up action", "enum", "directional_spot.up.action", options=("", "BUY")),
+            _BotConfigField("Spot up qty", "int", "directional_spot.up.qty"),
+            _BotConfigField("Spot down action", "enum", "directional_spot.down.action", options=("", "SELL")),
+            _BotConfigField("Spot down qty", "int", "directional_spot.down.qty"),
         ]
         legs = self._strategy.get("legs", [])
         if not isinstance(legs, list):
@@ -2063,7 +2107,7 @@ class BotScreen(Screen):
             self._status = "Propose: select an instance"
             self._render_status()
             return
-        self._queue_proposal(instance)
+        self._queue_proposal(instance, intent="enter", direction=None, signal_bar_ts=None)
 
     def _selected_preset(self) -> _BotPreset | None:
         row = self._presets_table.cursor_coordinate.row
@@ -2092,9 +2136,17 @@ class BotScreen(Screen):
     def _open_config_for_preset(self, preset: _BotPreset) -> None:
         entry = preset.entry
         strategy = copy.deepcopy(entry.get("strategy", {}) or {})
+        strategy.setdefault("instrument", "options")
         strategy.setdefault("price_mode", "OPTIMISTIC")
         strategy.setdefault("chase_proposals", True)
         strategy.setdefault("max_entries_per_day", 1)
+        if "signal_bar_size" not in strategy:
+            strategy["signal_bar_size"] = str(self._payload.get("bar_size", "1 hour") if self._payload else "1 hour")
+        if "signal_use_rth" not in strategy:
+            strategy["signal_use_rth"] = bool(self._payload.get("use_rth", False) if self._payload else False)
+        strategy.setdefault("spot_close_eod", True)
+        if "directional_spot" not in strategy:
+            strategy["directional_spot"] = {"up": {"action": "BUY", "qty": 1}, "down": {"action": "SELL", "qty": 1}}
         filters = _filters_for_group(self._payload, preset.group) if self._payload else None
         symbol = str(self._payload.get("symbol", "SLV") if self._payload else "SLV")
 
@@ -2198,8 +2250,6 @@ class BotScreen(Screen):
                 metrics = entry.get("metrics", {})
                 instrument = str(strat.get("instrument", "options") or "options").strip().lower()
                 if instrument != "options":
-                    continue
-                if strat.get("directional_legs"):
                     continue
                 legs = strat.get("legs", [])
                 if not isinstance(legs, list) or not legs:
@@ -2333,8 +2383,13 @@ class BotScreen(Screen):
         self._instances_table.clear()
         self._instance_rows = []
         for instance in self._instances:
-            legs_desc = _legs_label(instance.strategy.get("legs", []))
-            dte = instance.strategy.get("dte", "")
+            instrument = self._strategy_instrument(instance.strategy or {})
+            if instrument == "spot":
+                legs_desc = "SPOT"
+                dte = "-"
+            else:
+                legs_desc = _legs_label(instance.strategy.get("legs", []))
+                dte = instance.strategy.get("dte", "")
             auto = "ON" if instance.auto_trade else "OFF"
             bt_pnl = ""
             if instance.metrics:
@@ -2403,29 +2458,154 @@ class BotScreen(Screen):
             return
         async with self._refresh_lock:
             await self._refresh_positions()
-            self._auto_propose_tick()
+            await self._auto_propose_tick()
             await self._chase_proposals_tick()
             self._auto_send_tick()
             self._render_status()
 
-    def _auto_propose_tick(self) -> None:
+    async def _auto_propose_tick(self) -> None:
         if self._proposal_task and not self._proposal_task.done():
             return
-        today = datetime.now(tz=ZoneInfo("America/New_York")).date()
+        now_et = datetime.now(tz=ZoneInfo("America/New_York"))
+
         for instance in self._instances:
             if instance.state != "RUNNING":
                 continue
-            if instance.last_propose_date == today:
-                continue
             if not self._can_propose_now(instance):
                 continue
+
             pending = any(
                 p.status == "PROPOSED" and p.instance_id == instance.instance_id for p in self._proposals
             )
             if pending:
                 continue
-            self._queue_proposal(instance)
-            instance.last_propose_date = today
+
+            symbol = str(
+                instance.symbol or (self._payload.get("symbol", "SLV") if self._payload else "SLV")
+            ).strip().upper()
+
+            ema_preset = instance.strategy.get("ema_preset")
+            if not ema_preset:
+                continue
+
+            snap = await self._signal_snapshot_for_symbol(
+                symbol=symbol,
+                ema_preset_raw=str(ema_preset),
+                bar_size=self._signal_bar_size(instance),
+                use_rth=self._signal_use_rth(instance),
+            )
+            if snap is None:
+                continue
+            if not self._signal_filters_ok(instance, snap):
+                continue
+
+            instrument = self._strategy_instrument(instance.strategy)
+            open_items: list[PortfolioItem] = []
+            open_dir: str | None = None
+            if instrument == "spot":
+                open_item = self._spot_open_position(symbol)
+                if open_item is not None:
+                    open_items = [open_item]
+                    try:
+                        pos = float(getattr(open_item, "position", 0.0) or 0.0)
+                    except (TypeError, ValueError):
+                        pos = 0.0
+                    open_dir = "up" if pos > 0 else "down" if pos < 0 else None
+            else:
+                open_items = self._options_open_positions(instance)
+                open_dir = instance.open_direction or self._open_direction_from_positions(open_items)
+
+            if not open_items and instance.open_direction is not None:
+                instance.open_direction = None
+
+            if open_items:
+                if instance.last_exit_bar_ts is not None and instance.last_exit_bar_ts == snap.bar_ts:
+                    continue
+
+                if instrument == "spot":
+                    open_item = open_items[0]
+                    try:
+                        pos = float(getattr(open_item, "position", 0.0) or 0.0)
+                    except (TypeError, ValueError):
+                        pos = 0.0
+                    avg_cost = _safe_num(getattr(open_item, "averageCost", None))
+                    market_price = _safe_num(getattr(open_item, "marketPrice", None))
+                    if market_price is None:
+                        ticker = await self._client.ensure_ticker(open_item.contract)
+                        market_price = _ticker_price(ticker)
+                    move = None
+                    if avg_cost is not None and avg_cost > 0 and market_price is not None and market_price > 0 and pos:
+                        move = (market_price - avg_cost) / avg_cost
+                        if pos < 0:
+                            move = -move
+
+                    try:
+                        pt = (
+                            float(instance.strategy.get("spot_profit_target_pct"))
+                            if instance.strategy.get("spot_profit_target_pct") is not None
+                            else None
+                        )
+                    except (TypeError, ValueError):
+                        pt = None
+                    try:
+                        sl = (
+                            float(instance.strategy.get("spot_stop_loss_pct"))
+                            if instance.strategy.get("spot_stop_loss_pct") is not None
+                            else None
+                        )
+                    except (TypeError, ValueError):
+                        sl = None
+
+                    if move is not None and pt is not None and move >= pt:
+                        self._queue_proposal(
+                            instance, intent="exit", direction=open_dir, signal_bar_ts=snap.bar_ts
+                        )
+                        break
+                    if move is not None and sl is not None and move <= -sl:
+                        self._queue_proposal(
+                            instance, intent="exit", direction=open_dir, signal_bar_ts=snap.bar_ts
+                        )
+                        break
+
+                    if bool(instance.strategy.get("spot_close_eod")) and (now_et.hour > 15 or now_et.hour == 15 and now_et.minute >= 55):
+                        self._queue_proposal(
+                            instance, intent="exit", direction=open_dir, signal_bar_ts=snap.bar_ts
+                        )
+                        break
+
+                if self._should_exit_on_flip(instance, snap, open_dir, open_items):
+                    self._queue_proposal(instance, intent="exit", direction=open_dir, signal_bar_ts=snap.bar_ts)
+                    break
+                continue
+
+            if not self._entry_limit_ok(instance):
+                continue
+            if instance.last_entry_bar_ts is not None and instance.last_entry_bar_ts == snap.bar_ts:
+                continue
+            if not self._cooldown_ok(instance, snap.bar_ts):
+                continue
+
+            skip_first = 0
+            if isinstance(instance.filters, dict):
+                try:
+                    skip_first = int(instance.filters.get("skip_first_bars", 0) or 0)
+                except (TypeError, ValueError):
+                    skip_first = 0
+            if skip_first > 0 and snap.bars_in_day <= skip_first:
+                continue
+
+            direction = self._entry_direction_for_instance(instance, snap)
+            if direction is None:
+                continue
+            if direction not in self._allowed_entry_directions(instance):
+                continue
+
+            self._queue_proposal(
+                instance,
+                intent="enter",
+                direction=direction,
+                signal_bar_ts=snap.bar_ts,
+            )
             break
 
     def _auto_send_tick(self) -> None:
@@ -2568,7 +2748,14 @@ class BotScreen(Screen):
         proposal.last = new_last
         return changed
 
-    def _queue_proposal(self, instance: _BotInstance) -> None:
+    def _queue_proposal(
+        self,
+        instance: _BotInstance,
+        *,
+        intent: str,
+        direction: str | None,
+        signal_bar_ts: datetime | None,
+    ) -> None:
         if self._proposal_task and not self._proposal_task.done():
             self._status = "Propose: busy"
             self._render_status()
@@ -2579,9 +2766,18 @@ class BotScreen(Screen):
             self._status = "Propose: no loop"
             self._render_status()
             return
-        self._status = f"Proposing for instance {instance.instance_id}..."
+        action = "Exiting" if intent == "exit" else "Proposing"
+        dir_note = f" ({direction})" if direction else ""
+        self._status = f"{action} for instance {instance.instance_id}{dir_note}..."
         self._render_status()
-        self._proposal_task = loop.create_task(self._propose_for_instance(instance))
+        self._proposal_task = loop.create_task(
+            self._propose_for_instance(
+                instance,
+                intent=str(intent),
+                direction=direction,
+                signal_bar_ts=signal_bar_ts,
+            )
+        )
 
     def _can_propose_now(self, instance: _BotInstance) -> bool:
         entry_days = instance.strategy.get("entry_days", [])
@@ -2604,6 +2800,350 @@ class BotScreen(Screen):
                 if not (hour >= start or hour < end):
                     return False
         return True
+
+    def _strategy_instrument(self, strategy: dict) -> str:
+        value = strategy.get("instrument", "options")
+        cleaned = str(value or "options").strip().lower()
+        return "spot" if cleaned == "spot" else "options"
+
+    def _signal_bar_size(self, instance: _BotInstance) -> str:
+        raw = instance.strategy.get("signal_bar_size")
+        if raw:
+            return str(raw)
+        if self._payload:
+            return str(self._payload.get("bar_size", "1 hour"))
+        return "1 hour"
+
+    def _signal_use_rth(self, instance: _BotInstance) -> bool:
+        raw = instance.strategy.get("signal_use_rth")
+        if raw is not None:
+            return bool(raw)
+        if self._payload:
+            return bool(self._payload.get("use_rth", False))
+        return False
+
+    def _signal_duration_str(self, bar_size: str) -> str:
+        label = str(bar_size or "").strip().lower()
+        if label.startswith(("5 mins", "15 mins", "30 mins")):
+            return "1 W"
+        if "hour" in label:
+            return "2 W"
+        if "day" in label:
+            return "1 Y"
+        return "2 W"
+
+    def _signal_filters_ok(self, instance: _BotInstance, snap: _SignalSnapshot) -> bool:
+        filters = instance.filters or {}
+        if not isinstance(filters, dict):
+            return True
+        spread_min = filters.get("ema_spread_min_pct")
+        if spread_min is not None:
+            try:
+                spread_min = float(spread_min)
+            except (TypeError, ValueError):
+                spread_min = None
+            if spread_min is not None:
+                spread = ema_spread_pct(snap.ema_fast, snap.ema_slow, snap.close)
+                if spread < spread_min:
+                    return False
+        slope_min = filters.get("ema_slope_min_pct")
+        if slope_min is not None:
+            try:
+                slope_min = float(slope_min)
+            except (TypeError, ValueError):
+                slope_min = None
+            if slope_min is not None:
+                if snap.prev_ema_fast is None:
+                    return False
+                slope = ema_slope_pct(snap.ema_fast, snap.prev_ema_fast, snap.close)
+                if slope < slope_min:
+                    return False
+        return True
+
+    def _cooldown_ok(self, instance: _BotInstance, bar_ts: datetime) -> bool:
+        filters = instance.filters or {}
+        if not isinstance(filters, dict):
+            return True
+        cooldown = filters.get("cooldown_bars")
+        if cooldown is None:
+            return True
+        try:
+            cooldown_bars = int(cooldown)
+        except (TypeError, ValueError):
+            return True
+        if cooldown_bars <= 0:
+            return True
+        if instance.last_entry_bar_ts is None:
+            return True
+        bar_size = parse_bar_size(self._signal_bar_size(instance))
+        if bar_size is None:
+            return True
+        delta = bar_ts - instance.last_entry_bar_ts
+        required = bar_size.duration * cooldown_bars
+        return delta >= required
+
+    async def _signal_snapshot_for_symbol(
+        self,
+        *,
+        symbol: str,
+        ema_preset_raw: str | None,
+        bar_size: str,
+        use_rth: bool,
+    ) -> _SignalSnapshot | None:
+        periods = ema_periods(ema_preset_raw)
+        if periods is None:
+            return None
+        fast_p, slow_p = periods
+
+        contract = Stock(symbol=str(symbol).strip().upper(), exchange="SMART", currency="USD")
+        qualified = await self._client.qualify_proxy_contracts(contract)
+        if qualified:
+            contract = qualified[0]
+
+        bars = await self._client.historical_bars(
+            contract,
+            duration_str=self._signal_duration_str(bar_size),
+            bar_size=bar_size,
+            use_rth=use_rth,
+            cache_ttl_sec=30.0,
+        )
+        if not bars:
+            return None
+
+        bar_def = parse_bar_size(bar_size)
+        if bar_def is not None and len(bars) >= 2:
+            now_et = datetime.now(tz=ZoneInfo("America/New_York")).replace(tzinfo=None)
+            last_ts, _ = bars[-1]
+            if last_ts + bar_def.duration > now_et:
+                bars = bars[:-1]
+        if len(bars) < (slow_p + 1):
+            return None
+
+        ema_fast = None
+        ema_slow = None
+        prev_ema_fast = None
+        prev_ema_slow = None
+        count = 0
+        last_ts = None
+        last_close = None
+        for ts, close in bars:
+            if close <= 0:
+                continue
+            last_ts = ts
+            last_close = close
+            prev_ema_fast = ema_fast
+            prev_ema_slow = ema_slow
+            ema_fast = ema_next(ema_fast, close, fast_p)
+            ema_slow = ema_next(ema_slow, close, slow_p)
+            count += 1
+        if (
+            last_ts is None
+            or last_close is None
+            or ema_fast is None
+            or ema_slow is None
+            or count < slow_p
+        ):
+            return None
+
+        cross_up = False
+        cross_down = False
+        if prev_ema_fast is not None and prev_ema_slow is not None:
+            cross_up, cross_down = ema_cross(prev_ema_fast, prev_ema_slow, ema_fast, ema_slow)
+
+        bars_in_day = 0
+        if last_ts is not None:
+            last_date = last_ts.date()
+            bars_in_day = sum(1 for ts, _ in bars if ts.date() == last_date)
+
+        return _SignalSnapshot(
+            bar_ts=last_ts,
+            close=float(last_close),
+            ema_fast=float(ema_fast),
+            ema_slow=float(ema_slow),
+            prev_ema_fast=float(prev_ema_fast) if prev_ema_fast is not None else None,
+            prev_ema_slow=float(prev_ema_slow) if prev_ema_slow is not None else None,
+            cross_up=bool(cross_up),
+            cross_down=bool(cross_down),
+            bars_in_day=int(bars_in_day),
+        )
+
+    def _reset_daily_counters_if_needed(self, instance: _BotInstance) -> None:
+        today = datetime.now(tz=ZoneInfo("America/New_York")).date()
+        if instance.entries_today_date != today:
+            instance.entries_today_date = today
+            instance.entries_today = 0
+
+    def _entry_limit_ok(self, instance: _BotInstance) -> bool:
+        self._reset_daily_counters_if_needed(instance)
+        raw = instance.strategy.get("max_entries_per_day", 1)
+        try:
+            max_entries = int(raw)
+        except (TypeError, ValueError):
+            max_entries = 1
+        if max_entries <= 0:
+            return True
+        return instance.entries_today < max_entries
+
+    def _spot_open_position(self, symbol: str) -> PortfolioItem | None:
+        sym = str(symbol or "").strip().upper()
+        for item in self._positions:
+            contract = getattr(item, "contract", None)
+            if not contract or contract.secType != "STK":
+                continue
+            if str(getattr(contract, "symbol", "") or "").strip().upper() != sym:
+                continue
+            try:
+                pos = float(getattr(item, "position", 0.0) or 0.0)
+            except (TypeError, ValueError):
+                pos = 0.0
+            if pos:
+                return item
+        return None
+
+    def _options_open_positions(self, instance: _BotInstance) -> list[PortfolioItem]:
+        if not instance.touched_conids:
+            return []
+        open_items: list[PortfolioItem] = []
+        for item in self._positions:
+            contract = getattr(item, "contract", None)
+            if not contract or contract.secType not in ("OPT", "FOP"):
+                continue
+            con_id = int(getattr(contract, "conId", 0) or 0)
+            if con_id not in instance.touched_conids:
+                continue
+            try:
+                pos = float(getattr(item, "position", 0.0) or 0.0)
+            except (TypeError, ValueError):
+                pos = 0.0
+            if pos:
+                open_items.append(item)
+        return open_items
+
+    def _open_direction_from_positions(self, items: list[PortfolioItem]) -> str | None:
+        if not items:
+            return None
+        biggest_any = None
+        biggest_any_abs = 0.0
+        biggest_short = None
+        biggest_short_abs = 0.0
+        for item in items:
+            try:
+                pos = float(getattr(item, "position", 0.0) or 0.0)
+            except (TypeError, ValueError):
+                continue
+            abs_pos = abs(pos)
+            if abs_pos > biggest_any_abs:
+                biggest_any_abs = abs_pos
+                biggest_any = item
+            if pos < 0 and abs_pos > biggest_short_abs:
+                biggest_short_abs = abs_pos
+                biggest_short = item
+
+        chosen = biggest_short or biggest_any
+        if chosen is None:
+            return None
+        contract = getattr(chosen, "contract", None)
+        if not contract:
+            return None
+        right_char = str(getattr(contract, "right", "") or "").upper()
+        right = "CALL" if right_char in ("C", "CALL") else "PUT" if right_char in ("P", "PUT") else ""
+        try:
+            pos = float(getattr(chosen, "position", 0.0) or 0.0)
+        except (TypeError, ValueError):
+            return None
+        action = "BUY" if pos > 0 else "SELL" if pos < 0 else ""
+        return direction_from_action_right(action, right)
+
+    def _should_exit_on_flip(
+        self,
+        instance: _BotInstance,
+        snap: _SignalSnapshot,
+        open_dir: str | None,
+        open_items: list[PortfolioItem],
+    ) -> bool:
+        if not bool(instance.strategy.get("exit_on_signal_flip")):
+            return False
+        if open_dir not in ("up", "down"):
+            return False
+        mode = flip_exit_mode(
+            instance.strategy.get("flip_exit_mode"),
+            instance.strategy.get("ema_entry_mode"),
+        )
+        if mode == "cross":
+            if open_dir == "up":
+                hit = snap.cross_down
+            else:
+                hit = snap.cross_up
+        else:
+            state = ema_state_direction(snap.ema_fast, snap.ema_slow)
+            if open_dir == "up":
+                hit = state == "down"
+            else:
+                hit = state == "up"
+        if not hit:
+            return False
+
+        hold_bars_raw = instance.strategy.get("flip_exit_min_hold_bars", 0)
+        try:
+            hold_bars = int(hold_bars_raw)
+        except (TypeError, ValueError):
+            hold_bars = 0
+        if hold_bars > 0 and instance.last_entry_bar_ts is not None:
+            bar_def = parse_bar_size(self._signal_bar_size(instance))
+            if bar_def is not None:
+                if (snap.bar_ts - instance.last_entry_bar_ts) < (bar_def.duration * hold_bars):
+                    return False
+
+        if bool(instance.strategy.get("flip_exit_only_if_profit")):
+            pnl = 0.0
+            for item in open_items:
+                try:
+                    pnl += float(getattr(item, "unrealizedPNL", 0.0) or 0.0)
+                except (TypeError, ValueError):
+                    continue
+            if pnl <= 0:
+                return False
+        return True
+
+    def _entry_direction_for_instance(self, instance: _BotInstance, snap: _SignalSnapshot) -> str | None:
+        entry_mode = str(instance.strategy.get("ema_entry_mode") or "trend").strip().lower()
+        if entry_mode == "cross":
+            if snap.cross_up:
+                return "up"
+            if snap.cross_down:
+                return "down"
+            return None
+        return ema_state_direction(snap.ema_fast, snap.ema_slow)
+
+    def _allowed_entry_directions(self, instance: _BotInstance) -> set[str]:
+        strategy = instance.strategy or {}
+        instrument = self._strategy_instrument(strategy)
+        if instrument == "spot":
+            mapping = strategy.get("directional_spot") if isinstance(strategy.get("directional_spot"), dict) else None
+            if mapping:
+                allowed = set()
+                for key in ("up", "down"):
+                    leg = mapping.get(key)
+                    if not isinstance(leg, dict):
+                        continue
+                    action = str(leg.get("action", "")).strip().upper()
+                    if action in ("BUY", "SELL"):
+                        allowed.add(key)
+                return allowed
+            return {"up"}
+
+        if isinstance(strategy.get("directional_legs"), dict):
+            allowed = {k for k in ("up", "down") if strategy["directional_legs"].get(k)}
+            return allowed or {"up", "down"}
+
+        legs = strategy.get("legs", [])
+        if isinstance(legs, list) and legs:
+            first = legs[0] if isinstance(legs[0], dict) else None
+            if isinstance(first, dict):
+                bias = direction_from_action_right(first.get("action", ""), first.get("right", ""))
+                if bias in ("up", "down"):
+                    return {bias}
+        return {"up", "down"}
 
     async def _strike_by_delta(
         self,
@@ -2692,23 +3232,416 @@ class BotScreen(Screen):
                 self._tracked_conids.discard(con_id)
         return best_strike
 
-    async def _propose_for_instance(self, instance: _BotInstance) -> None:
-        strat = instance.strategy
-        legs_raw = strat.get("legs", []) or []
-        if not isinstance(legs_raw, list) or not legs_raw:
-            self._status = "Propose: no legs configured"
-            self._render_status()
-            return
+    async def _propose_for_instance(
+        self,
+        instance: _BotInstance,
+        *,
+        intent: str,
+        direction: str | None,
+        signal_bar_ts: datetime | None,
+    ) -> None:
+        strat = instance.strategy or {}
+        instrument = self._strategy_instrument(strat)
+        intent_clean = str(intent or "enter").strip().lower()
+        intent_clean = "exit" if intent_clean == "exit" else "enter"
+        symbol = str(
+            instance.symbol or (self._payload.get("symbol", "SLV") if self._payload else "SLV")
+        ).strip().upper()
 
         raw_mode = str(strat.get("price_mode") or "OPTIMISTIC").strip().upper()
         if raw_mode not in ("OPTIMISTIC", "MID", "AGGRESSIVE", "CROSS"):
             raw_mode = "OPTIMISTIC"
         price_mode = raw_mode
 
-        dte = int(strat.get("dte", 0))
-        symbol = instance.symbol or str(
-            self._payload.get("symbol", "SLV") if self._payload else "SLV"
-        )
+        def _invert(action: str) -> str:
+            return "SELL" if action == "BUY" else "BUY"
+
+        def _leg_price(bid: float | None, ask: float | None, last: float | None, action: str) -> float | None:
+            mid = _midpoint(bid, ask)
+            if price_mode == "CROSS":
+                return ask if action == "BUY" else bid
+            if price_mode == "MID":
+                return mid or last
+            if price_mode == "OPTIMISTIC":
+                return _optimistic_price(bid, ask, mid, action) or mid or last
+            if price_mode == "AGGRESSIVE":
+                return _aggressive_price(bid, ask, mid, action) or mid or last
+            return mid or last
+
+        def _bump_entry_counters() -> None:
+            self._reset_daily_counters_if_needed(instance)
+            instance.entries_today += 1
+
+        def _finalize_leg_orders(
+            *,
+            underlying: Contract,
+            leg_orders: list[_BotLegOrder],
+            leg_quotes: list[tuple[float | None, float | None, float | None, Ticker]],
+        ) -> None:
+            if not leg_orders:
+                self._status = "Propose: no legs configured"
+                self._render_status()
+                return
+
+            # Compute net price in "debit units": BUY adds, SELL subtracts.
+            debit_mid = 0.0
+            debit_bid = 0.0
+            debit_ask = 0.0
+            desired_debit = 0.0
+            tick = None
+            for leg_order, (bid, ask, last, ticker) in zip(leg_orders, leg_quotes):
+                mid = _midpoint(bid, ask)
+                leg_mid = mid or last
+                if leg_mid is None:
+                    self._status = "Quote: missing mid/last (cannot price)"
+                    self._render_status()
+                    return
+                leg_bid = bid or mid or last
+                leg_ask = ask or mid or last
+                if leg_bid is None or leg_ask is None:
+                    self._status = "Quote: missing bid/ask (cannot price)"
+                    self._render_status()
+                    return
+                leg_desired = _leg_price(bid, ask, last, leg_order.action)
+                if leg_desired is None:
+                    self._status = "Quote: missing bid/ask/last (cannot price)"
+                    self._render_status()
+                    return
+                leg_tick = _tick_size(leg_order.contract, ticker, leg_desired)
+                tick = leg_tick if tick is None else min(tick, leg_tick)
+                sign = 1.0 if leg_order.action == "BUY" else -1.0
+                debit_mid += sign * float(leg_mid) * leg_order.ratio
+                debit_bid += sign * float(leg_bid) * leg_order.ratio
+                debit_ask += sign * float(leg_ask) * leg_order.ratio
+                desired_debit += sign * float(leg_desired) * leg_order.ratio
+
+            tick = tick or 0.01
+
+            if len(leg_orders) == 1:
+                single = leg_orders[0]
+                (bid, ask, last, ticker) = leg_quotes[0]
+                limit = _leg_price(bid, ask, last, single.action)
+                if limit is None:
+                    self._status = "Quote: no bid/ask/last (cannot price)"
+                    self._render_status()
+                    return
+                limit = _round_to_tick(float(limit), tick)
+                proposal = _BotProposal(
+                    instance_id=instance.instance_id,
+                    preset=None,
+                    underlying=underlying,
+                    order_contract=single.contract,
+                    legs=leg_orders,
+                    action=single.action,
+                    quantity=single.ratio,
+                    limit_price=float(limit),
+                    created_at=datetime.now(tz=ZoneInfo("America/New_York")),
+                    bid=bid,
+                    ask=ask,
+                    last=last,
+                )
+                con_id = int(getattr(single.contract, "conId", 0) or 0)
+                if con_id:
+                    instance.touched_conids.add(con_id)
+                self._add_proposal(proposal)
+                self._status = f"Proposed {single.action} {single.ratio} {symbol} @ {limit:.2f}"
+                if intent_clean == "enter":
+                    if direction in ("up", "down"):
+                        instance.open_direction = str(direction)
+                    if signal_bar_ts is not None:
+                        instance.last_entry_bar_ts = signal_bar_ts
+                    _bump_entry_counters()
+                elif signal_bar_ts is not None:
+                    instance.last_exit_bar_ts = signal_bar_ts
+                self._render_status()
+                return
+
+            # Multi-leg combo: represent as BUY (debit) or SELL (credit) with positive price.
+            order_action = "BUY" if debit_mid >= 0 else "SELL"
+            order_bid = debit_bid
+            order_ask = debit_ask
+            order_last = debit_mid
+            order_limit = desired_debit
+            if order_action == "SELL":
+                order_bid = -debit_ask
+                order_ask = -debit_bid
+                order_last = -debit_mid
+                order_limit = -desired_debit
+            if order_limit <= 0:
+                self._status = "Quote: combo price not positive (cannot price)"
+                self._render_status()
+                return
+
+            order_limit = _round_to_tick(float(order_limit), tick)
+            combo_legs: list[ComboLeg] = []
+            for leg_order in leg_orders:
+                con_id = int(getattr(leg_order.contract, "conId", 0) or 0)
+                if not con_id:
+                    self._status = "Contract: missing conId for combo leg"
+                    self._render_status()
+                    return
+                leg_action = leg_order.action if order_action == "BUY" else _invert(leg_order.action)
+                combo_legs.append(
+                    ComboLeg(
+                        conId=con_id,
+                        ratio=leg_order.ratio,
+                        action=leg_action,
+                        exchange="SMART",
+                    )
+                )
+            bag = Bag(symbol=symbol, exchange="SMART", currency="USD", comboLegs=combo_legs)
+
+            proposal = _BotProposal(
+                instance_id=instance.instance_id,
+                preset=None,
+                underlying=underlying,
+                order_contract=bag,
+                legs=leg_orders,
+                action=order_action,
+                quantity=1,
+                limit_price=float(order_limit),
+                created_at=datetime.now(tz=ZoneInfo("America/New_York")),
+                bid=order_bid,
+                ask=order_ask,
+                last=order_last,
+            )
+            for leg_order in leg_orders:
+                con_id = int(getattr(leg_order.contract, "conId", 0) or 0)
+                if con_id:
+                    instance.touched_conids.add(con_id)
+            self._add_proposal(proposal)
+            self._status = (
+                f"Proposed {order_action} BAG {symbol} @ {order_limit:.2f} ({len(leg_orders)} legs)"
+            )
+            if intent_clean == "enter":
+                if direction in ("up", "down"):
+                    instance.open_direction = str(direction)
+                if signal_bar_ts is not None:
+                    instance.last_entry_bar_ts = signal_bar_ts
+                _bump_entry_counters()
+            elif signal_bar_ts is not None:
+                instance.last_exit_bar_ts = signal_bar_ts
+            self._render_status()
+
+        if intent_clean == "exit":
+            if instrument == "spot":
+                open_item = self._spot_open_position(symbol)
+                if open_item is None:
+                    self._status = f"Exit: no spot position for {symbol}"
+                    self._render_status()
+                    return
+                try:
+                    pos = float(getattr(open_item, "position", 0.0) or 0.0)
+                except (TypeError, ValueError):
+                    pos = 0.0
+                if not pos:
+                    self._status = f"Exit: no spot position for {symbol}"
+                    self._render_status()
+                    return
+
+                action = "SELL" if pos > 0 else "BUY"
+                qty = int(abs(pos))
+                if qty <= 0:
+                    self._status = f"Exit: invalid position size for {symbol}"
+                    self._render_status()
+                    return
+
+                contract = open_item.contract
+                con_id = int(getattr(contract, "conId", 0) or 0)
+                if con_id:
+                    self._tracked_conids.add(con_id)
+                ticker = await self._client.ensure_ticker(contract)
+                bid = _safe_num(getattr(ticker, "bid", None))
+                ask = _safe_num(getattr(ticker, "ask", None))
+                last = _safe_num(getattr(ticker, "last", None))
+                limit = _leg_price(bid, ask, last, action)
+                if limit is None:
+                    self._status = "Quote: no bid/ask/last (cannot price)"
+                    self._render_status()
+                    return
+                tick = _tick_size(contract, ticker, limit) or 0.01
+                limit = _round_to_tick(float(limit), tick)
+                proposal = _BotProposal(
+                    instance_id=instance.instance_id,
+                    preset=None,
+                    underlying=contract,
+                    order_contract=contract,
+                    legs=[_BotLegOrder(contract=contract, action=action, ratio=qty)],
+                    action=action,
+                    quantity=qty,
+                    limit_price=float(limit),
+                    created_at=datetime.now(tz=ZoneInfo("America/New_York")),
+                    bid=bid,
+                    ask=ask,
+                    last=last,
+                )
+                if con_id:
+                    instance.touched_conids.add(con_id)
+                self._add_proposal(proposal)
+                if signal_bar_ts is not None:
+                    instance.last_exit_bar_ts = signal_bar_ts
+                self._status = f"Proposed EXIT {action} {qty} {symbol} @ {limit:.2f}"
+                self._render_status()
+                return
+
+            open_items = self._options_open_positions(instance)
+            if not open_items:
+                self._status = f"Exit: no option positions for instance {instance.instance_id}"
+                self._render_status()
+                return
+            underlying = Stock(symbol=symbol, exchange="SMART", currency="USD")
+            qualified = await self._client.qualify_proxy_contracts(underlying)
+            if qualified:
+                underlying = qualified[0]
+
+            leg_orders: list[_BotLegOrder] = []
+            leg_quotes: list[tuple[float | None, float | None, float | None, Ticker]] = []
+            for item in open_items:
+                contract = item.contract
+                try:
+                    pos = float(getattr(item, "position", 0.0) or 0.0)
+                except (TypeError, ValueError):
+                    continue
+                if not pos:
+                    continue
+                ratio = int(abs(pos))
+                if ratio <= 0:
+                    continue
+                action = "SELL" if pos > 0 else "BUY"
+                con_id = int(getattr(contract, "conId", 0) or 0)
+                if con_id:
+                    self._tracked_conids.add(con_id)
+                ticker = await self._client.ensure_ticker(contract)
+                bid = _safe_num(getattr(ticker, "bid", None))
+                ask = _safe_num(getattr(ticker, "ask", None))
+                last = _safe_num(getattr(ticker, "last", None))
+                leg_orders.append(_BotLegOrder(contract=contract, action=action, ratio=ratio))
+                leg_quotes.append((bid, ask, last, ticker))
+
+            if not leg_orders:
+                self._status = f"Exit: no option positions for instance {instance.instance_id}"
+                self._render_status()
+                return
+            _finalize_leg_orders(underlying=underlying, leg_orders=leg_orders, leg_quotes=leg_quotes)
+            return
+
+        if instrument == "spot":
+            if direction not in ("up", "down"):
+                ema_preset = strat.get("ema_preset")
+                if ema_preset:
+                    snap = await self._signal_snapshot_for_symbol(
+                        symbol=symbol,
+                        ema_preset_raw=str(ema_preset),
+                        bar_size=self._signal_bar_size(instance),
+                        use_rth=self._signal_use_rth(instance),
+                    )
+                    if snap is not None:
+                        direction = self._entry_direction_for_instance(instance, snap) or ema_state_direction(
+                            snap.ema_fast, snap.ema_slow
+                        )
+            direction = direction if direction in ("up", "down") else "up"
+
+            mapping = strat.get("directional_spot") if isinstance(strat.get("directional_spot"), dict) else None
+            chosen = mapping.get(direction) if mapping else None
+            if not isinstance(chosen, dict):
+                if direction == "up":
+                    chosen = {"action": "BUY", "qty": 1}
+                else:
+                    chosen = {"action": "SELL", "qty": 1}
+            action = str(chosen.get("action", "")).strip().upper()
+            if action not in ("BUY", "SELL"):
+                self._status = f"Propose: invalid spot action for {direction}"
+                self._render_status()
+                return
+            try:
+                qty = int(chosen.get("qty", 1) or 1)
+            except (TypeError, ValueError):
+                qty = 1
+            qty = max(1, abs(qty))
+
+            contract = Stock(symbol=symbol, exchange="SMART", currency="USD")
+            qualified = await self._client.qualify_proxy_contracts(contract)
+            if qualified:
+                contract = qualified[0]
+
+            con_id = int(getattr(contract, "conId", 0) or 0)
+            if con_id:
+                self._tracked_conids.add(con_id)
+            ticker = await self._client.ensure_ticker(contract)
+            bid = _safe_num(getattr(ticker, "bid", None))
+            ask = _safe_num(getattr(ticker, "ask", None))
+            last = _safe_num(getattr(ticker, "last", None))
+            limit = _leg_price(bid, ask, last, action)
+            if limit is None:
+                self._status = "Quote: no bid/ask/last (cannot price)"
+                self._render_status()
+                return
+            tick = _tick_size(contract, ticker, limit) or 0.01
+            limit = _round_to_tick(float(limit), tick)
+            proposal = _BotProposal(
+                instance_id=instance.instance_id,
+                preset=None,
+                underlying=contract,
+                order_contract=contract,
+                legs=[_BotLegOrder(contract=contract, action=action, ratio=qty)],
+                action=action,
+                quantity=qty,
+                limit_price=float(limit),
+                created_at=datetime.now(tz=ZoneInfo("America/New_York")),
+                bid=bid,
+                ask=ask,
+                last=last,
+            )
+            if con_id:
+                instance.touched_conids.add(con_id)
+            instance.open_direction = str(direction)
+            if signal_bar_ts is not None:
+                instance.last_entry_bar_ts = signal_bar_ts
+            _bump_entry_counters()
+            self._add_proposal(proposal)
+            self._status = f"Proposed {action} {qty} {symbol} @ {limit:.2f} ({direction})"
+            self._render_status()
+            return
+
+        legs_raw: list[dict] | None = None
+        if isinstance(strat.get("directional_legs"), dict):
+            dmap = strat.get("directional_legs") or {}
+            if direction not in ("up", "down"):
+                ema_preset = strat.get("ema_preset")
+                if ema_preset:
+                    snap = await self._signal_snapshot_for_symbol(
+                        symbol=symbol,
+                        ema_preset_raw=str(ema_preset),
+                        bar_size=self._signal_bar_size(instance),
+                        use_rth=self._signal_use_rth(instance),
+                    )
+                    if snap is not None:
+                        direction = self._entry_direction_for_instance(instance, snap) or ema_state_direction(
+                            snap.ema_fast, snap.ema_slow
+                        )
+            if direction in ("up", "down") and dmap.get(direction):
+                legs_raw = dmap.get(direction)
+            else:
+                for key in ("up", "down"):
+                    if dmap.get(key):
+                        legs_raw = dmap.get(key)
+                        direction = key
+                        break
+
+        if legs_raw is None:
+            raw = strat.get("legs", []) or []
+            legs_raw = raw if isinstance(raw, list) else []
+
+        if not isinstance(legs_raw, list) or not legs_raw:
+            self._status = "Propose: no legs configured"
+            self._render_status()
+            return
+
+        dte_raw = strat.get("dte", 0)
+        try:
+            dte = int(dte_raw or 0)
+        except (TypeError, ValueError):
+            dte = 0
 
         chain_info = await self._client.stock_option_chain(symbol)
         if not chain_info:
@@ -2732,36 +3665,31 @@ class BotScreen(Screen):
             self._render_status()
             return
 
-        def _invert(action: str) -> str:
-            return "SELL" if action == "BUY" else "BUY"
-
-        def _leg_price(bid: float | None, ask: float | None, last: float | None, action: str) -> float | None:
-            mid = _midpoint(bid, ask)
-            if price_mode == "CROSS":
-                return ask if action == "BUY" else bid
-            if price_mode == "MID":
-                return mid or last
-            if price_mode == "OPTIMISTIC":
-                return _optimistic_price(bid, ask, mid, action) or mid or last
-            if price_mode == "AGGRESSIVE":
-                return _aggressive_price(bid, ask, mid, action) or mid or last
-            return mid or last
-
         # Build and qualify option legs.
         strikes = getattr(chain, "strikes", [])
         trading_class = getattr(chain, "tradingClass", None)
         option_candidates: list[Option] = []
         leg_specs: list[tuple[str, str, int, float, float | None]] = []
         for leg_raw in legs_raw:
+            if not isinstance(leg_raw, dict):
+                self._status = "Propose: invalid leg config"
+                self._render_status()
+                return
             action = str(leg_raw.get("action", "")).upper()
             right = str(leg_raw.get("right", "")).upper()
             if action not in ("BUY", "SELL") or right not in ("PUT", "CALL"):
                 self._status = "Propose: invalid leg config"
                 self._render_status()
                 return
-            ratio = int(leg_raw.get("qty", 1) or 1)
+            try:
+                ratio = int(leg_raw.get("qty", 1) or 1)
+            except (TypeError, ValueError):
+                ratio = 1
             ratio = max(1, abs(ratio))
-            moneyness = float(leg_raw.get("moneyness_pct", 0.0) or 0.0)
+            try:
+                moneyness = float(leg_raw.get("moneyness_pct", 0.0) or 0.0)
+            except (TypeError, ValueError):
+                moneyness = 0.0
             delta_target = leg_raw.get("delta")
             try:
                 delta_target = float(delta_target) if delta_target is not None else None
@@ -2819,128 +3747,7 @@ class BotScreen(Screen):
             leg_orders.append(_BotLegOrder(contract=contract, action=action, ratio=ratio))
             leg_quotes.append((bid, ask, last, ticker))
 
-        # Compute net price in "debit units": BUY adds, SELL subtracts.
-        debit_mid = 0.0
-        debit_bid = 0.0
-        debit_ask = 0.0
-        desired_debit = 0.0
-        tick = None
-        for leg_order, (bid, ask, last, ticker) in zip(leg_orders, leg_quotes):
-            mid = _midpoint(bid, ask)
-            leg_mid = mid or last
-            if leg_mid is None:
-                self._status = "Quote: missing mid/last (cannot price)"
-                self._render_status()
-                return
-            leg_bid = bid or mid or last
-            leg_ask = ask or mid or last
-            if leg_bid is None or leg_ask is None:
-                self._status = "Quote: missing bid/ask (cannot price)"
-                self._render_status()
-                return
-            leg_desired = _leg_price(bid, ask, last, leg_order.action)
-            if leg_desired is None:
-                self._status = "Quote: missing bid/ask/last (cannot price)"
-                self._render_status()
-                return
-            leg_tick = _tick_size(leg_order.contract, ticker, leg_desired)
-            tick = leg_tick if tick is None else min(tick, leg_tick)
-            sign = 1.0 if leg_order.action == "BUY" else -1.0
-            debit_mid += sign * float(leg_mid) * leg_order.ratio
-            debit_bid += sign * float(leg_bid) * leg_order.ratio
-            debit_ask += sign * float(leg_ask) * leg_order.ratio
-            desired_debit += sign * float(leg_desired) * leg_order.ratio
-
-        tick = tick or 0.01
-
-        if len(leg_orders) == 1:
-            single = leg_orders[0]
-            (bid, ask, last, ticker) = leg_quotes[0]
-            limit = _leg_price(bid, ask, last, single.action)
-            if limit is None:
-                self._status = "Quote: no bid/ask/last (cannot price)"
-                self._render_status()
-                return
-            limit = _round_to_tick(float(limit), tick)
-            proposal = _BotProposal(
-                instance_id=instance.instance_id,
-                preset=None,
-                underlying=underlying,
-                order_contract=single.contract,
-                legs=leg_orders,
-                action=single.action,
-                quantity=single.ratio,
-                limit_price=float(limit),
-                created_at=datetime.now(tz=ZoneInfo("America/New_York")),
-                bid=bid,
-                ask=ask,
-                last=last,
-            )
-            con_id = int(getattr(single.contract, "conId", 0) or 0)
-            if con_id:
-                instance.touched_conids.add(con_id)
-            self._add_proposal(proposal)
-            self._status = f"Proposed {single.action} {single.ratio} {symbol} @ {limit:.2f}"
-            self._render_status()
-            return
-
-        # Multi-leg combo: represent as BUY (debit) or SELL (credit) with positive price.
-        order_action = "BUY" if debit_mid >= 0 else "SELL"
-        order_bid = debit_bid
-        order_ask = debit_ask
-        order_last = debit_mid
-        order_limit = desired_debit
-        if order_action == "SELL":
-            order_bid = -debit_ask
-            order_ask = -debit_bid
-            order_last = -debit_mid
-            order_limit = -desired_debit
-        if order_limit <= 0:
-            # Avoid submitting a zero/negative price in order terms.
-            self._status = "Quote: combo price not positive (cannot price)"
-            self._render_status()
-            return
-
-        order_limit = _round_to_tick(float(order_limit), tick)
-        combo_legs: list[ComboLeg] = []
-        for leg_order in leg_orders:
-            con_id = int(getattr(leg_order.contract, "conId", 0) or 0)
-            if not con_id:
-                self._status = "Contract: missing conId for combo leg"
-                self._render_status()
-                return
-            leg_action = leg_order.action if order_action == "BUY" else _invert(leg_order.action)
-            combo_legs.append(
-                ComboLeg(
-                    conId=con_id,
-                    ratio=leg_order.ratio,
-                    action=leg_action,
-                    exchange="SMART",
-                )
-            )
-        bag = Bag(symbol=symbol, exchange="SMART", currency="USD", comboLegs=combo_legs)
-
-        proposal = _BotProposal(
-            instance_id=instance.instance_id,
-            preset=None,
-            underlying=underlying,
-            order_contract=bag,
-            legs=leg_orders,
-            action=order_action,
-            quantity=1,
-            limit_price=float(order_limit),
-            created_at=datetime.now(tz=ZoneInfo("America/New_York")),
-            bid=order_bid,
-            ask=order_ask,
-            last=order_last,
-        )
-        for leg_order in leg_orders:
-            con_id = int(getattr(leg_order.contract, "conId", 0) or 0)
-            if con_id:
-                instance.touched_conids.add(con_id)
-        self._add_proposal(proposal)
-        self._status = f"Proposed {order_action} BAG {symbol} @ {order_limit:.2f} ({len(leg_orders)} legs)"
-        self._render_status()
+        _finalize_leg_orders(underlying=underlying, leg_orders=leg_orders, leg_quotes=leg_quotes)
 
     def _submit_proposal(self) -> None:
         self._submit_selected_proposal()
@@ -3027,8 +3834,13 @@ class BotScreen(Screen):
         elif self._active_panel == "instances":
             instance = self._selected_instance()
             if instance:
-                legs_desc = _legs_label(instance.strategy.get("legs", []))
-                dte = instance.strategy.get("dte", "?")
+                instrument = self._strategy_instrument(instance.strategy or {})
+                if instrument == "spot":
+                    legs_desc = "SPOT"
+                    dte = "-"
+                else:
+                    legs_desc = _legs_label(instance.strategy.get("legs", []))
+                    dte = instance.strategy.get("dte", "?")
                 auto = "ON" if instance.auto_trade else "OFF"
                 lines.append(Text(""))
                 lines.append(Text(f"Selected instance #{instance.instance_id}", style="bold"))
@@ -3134,10 +3946,17 @@ def _proposal_lines(proposal: _BotProposal) -> list[Text]:
     if len(legs) == 1 and proposal.order_contract.secType != "BAG":
         contract = legs[0].contract
         local = getattr(contract, "localSymbol", "") or getattr(contract, "symbol", "")
-        expiry = getattr(contract, "lastTradeDateOrContractMonth", "") or "?"
-        right = getattr(contract, "right", "") or "?"
-        strike = getattr(contract, "strike", None)
-        header = f"{local} {expiry}{right} {strike}"
+        sec_type = getattr(contract, "secType", "") or ""
+        if sec_type == "STK":
+            header = f"{local} STK".strip()
+        elif sec_type == "FUT":
+            expiry = getattr(contract, "lastTradeDateOrContractMonth", "") or ""
+            header = f"{local} {expiry} FUT".strip()
+        else:
+            expiry = getattr(contract, "lastTradeDateOrContractMonth", "") or "?"
+            right = getattr(contract, "right", "") or "?"
+            strike = getattr(contract, "strike", None)
+            header = f"{local} {expiry}{right} {strike}"
     else:
         symbol = getattr(proposal.order_contract, "symbol", "") or getattr(
             proposal.underlying, "symbol", ""

@@ -12,6 +12,11 @@ from .data import IBKRHistoricalData, ContractMeta
 from .models import Bar, EquityPoint, OptionLeg, OptionTrade, SpotTrade, SummaryStats
 from .strategy import CreditSpreadStrategy, TradeSpec
 from .synth import IVSurfaceParams, black_76, black_scholes, ewma_vol, iv_atm, iv_for_strike, mid_edge_quote
+from ..signals import (
+    ema_next as _ema_next_shared,
+    ema_periods as _ema_periods_shared,
+    flip_exit_mode as _flip_exit_mode_shared,
+)
 
 
 @dataclass(frozen=True)
@@ -778,16 +783,7 @@ def _rv_from_bars(bars: list[Bar], cfg: ConfigBundle) -> float:
 
 
 def _ema_periods(preset: str | None) -> tuple[int, int] | None:
-    if not preset:
-        return None
-    key = preset.strip().lower()
-    if key in ("3/7", "3-7", "3_7"):
-        return (3, 7)
-    if key in ("9/21", "9-21", "9_21"):
-        return (9, 21)
-    if key in ("20/50", "20-50", "20_50"):
-        return (20, 50)
-    return None
+    return _ema_periods_shared(preset)
 
 
 def _ema_bias(cfg: ConfigBundle) -> str:
@@ -825,10 +821,7 @@ def _direction_from_legs(legs: list[OptionLeg]) -> str | None:
 
 
 def _ema_next(current: float | None, price: float, period: int) -> float:
-    alpha = 2.0 / (period + 1.0)
-    if current is None:
-        return price
-    return (alpha * price) + (1.0 - alpha) * current
+    return _ema_next_shared(current, price, period)
 
 
 def _trade_value_from_spec(
@@ -920,12 +913,7 @@ def _hit_stop(trade: OptionTrade, current_value: float, basis: str, spot: float)
 
 
 def _flip_exit_mode(cfg: ConfigBundle) -> str:
-    mode = (cfg.strategy.flip_exit_mode or "entry").strip().lower()
-    if mode == "entry":
-        return "cross" if cfg.strategy.ema_entry_mode == "cross" else "state"
-    if mode in ("state", "cross"):
-        return mode
-    return "state"
+    return _flip_exit_mode_shared(cfg.strategy.flip_exit_mode, cfg.strategy.ema_entry_mode)
 
 
 def _hit_exit_dte(cfg: ConfigBundle, trade: OptionTrade, today: date) -> bool:

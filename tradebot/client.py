@@ -20,6 +20,7 @@ from ib_insync import (
     Stock,
     Ticker,
     Trade,
+    util,
 )
 
 from .config import IBKRConfig
@@ -71,6 +72,9 @@ class IBKRClient:
         self._proxy_probe_task: asyncio.Task | None = None
         self._proxy_contract_force_delayed: set[int] = set()
         self._detail_tickers: dict[int, tuple[IB, Ticker]] = {}
+        self._historical_bar_cache: dict[
+            tuple[str, int, str, str, bool, str], tuple[list[tuple[datetime, float]], float]
+        ] = {}
         self._update_callback: Callable[[], None] | None = None
         self._pnl: PnL | None = None
         self._pnl_account: str | None = None
@@ -423,6 +427,90 @@ class IBKRClient:
                 time.monotonic(),
             )
             return prev_close, close_3ago
+
+    async def historical_bars(
+        self,
+        contract: Contract,
+        *,
+        duration_str: str,
+        bar_size: str,
+        use_rth: bool,
+        what_to_show: str = "TRADES",
+        cache_ttl_sec: float = 30.0,
+    ) -> list[tuple[datetime, float]]:
+        """Return [(bar_ts, close), ...] for the given contract.
+
+        Uses a small in-memory TTL cache to avoid pacing issues when the bot is running.
+        """
+        con_id = int(getattr(contract, "conId", 0) or 0)
+        sec_type = str(getattr(contract, "secType", "") or "")
+        symbol = str(getattr(contract, "symbol", "") or "")
+        key = (
+            symbol,
+            con_id,
+            sec_type,
+            str(bar_size),
+            bool(use_rth),
+            str(duration_str),
+        )
+        cached = self._historical_bar_cache.get(key)
+        if cached:
+            bars, cached_at = cached
+            if time.monotonic() - cached_at < float(cache_ttl_sec):
+                return list(bars)
+
+        use_proxy = sec_type in ("STK", "OPT")
+        lock = self._proxy_lock if use_proxy else self._lock
+        async with lock:
+            cached = self._historical_bar_cache.get(key)
+            if cached:
+                bars, cached_at = cached
+                if time.monotonic() - cached_at < float(cache_ttl_sec):
+                    return list(bars)
+            if use_proxy:
+                await self.connect_proxy()
+                ib = self._ib_proxy
+            else:
+                await self.connect()
+                ib = self._ib
+
+            req_contract = contract
+            if sec_type in ("STK", "OPT") and (
+                not getattr(contract, "exchange", "") or getattr(contract, "exchange", "") == "OVERNIGHT"
+            ):
+                req_contract = copy.copy(contract)
+                req_contract.exchange = "SMART"
+
+            raw = await ib.reqHistoricalDataAsync(
+                req_contract,
+                endDateTime="",
+                durationStr=str(duration_str),
+                barSizeSetting=str(bar_size),
+                whatToShow=str(what_to_show),
+                useRTH=1 if use_rth else 0,
+                formatDate=1,
+                keepUpToDate=False,
+            )
+
+            bars: list[tuple[datetime, float]] = []
+            for bar in raw or []:
+                dt = getattr(bar, "date", None)
+                if isinstance(dt, str):
+                    dt = util.parseIBDatetime(dt)
+                if dt is None:
+                    continue
+                if getattr(dt, "tzinfo", None) is not None:
+                    dt = dt.replace(tzinfo=None)
+                try:
+                    close = float(getattr(bar, "close", 0.0) or 0.0)
+                except (TypeError, ValueError):
+                    continue
+                if close <= 0:
+                    continue
+                bars.append((dt, close))
+
+            self._historical_bar_cache[key] = (bars, time.monotonic())
+            return list(bars)
 
     async def stock_option_chain(self, symbol: str):
         """Return (qualified_underlying, chain) for an equity option underlyer."""
