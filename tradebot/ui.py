@@ -1433,6 +1433,7 @@ class _SignalSnapshot:
     cross_up: bool
     cross_down: bool
     bars_in_day: int
+    rv: float | None
 
 
 class BotConfigScreen(Screen[_BotConfigResult | None]):
@@ -1502,6 +1503,8 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
             _BotConfigField("Symbol", "text", "symbol"),
             _BotConfigField("Auto trade", "bool", "auto_trade"),
             _BotConfigField("Instrument", "enum", "instrument", options=("options", "spot")),
+            _BotConfigField("Spot secType", "enum", "spot_sec_type", options=("STK", "FUT")),
+            _BotConfigField("Spot exchange", "text", "spot_exchange"),
             _BotConfigField(
                 "Signal bar size",
                 "enum",
@@ -1512,6 +1515,8 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
             _BotConfigField("DTE", "int", "dte"),
             _BotConfigField("Profit target (PT)", "float", "profit_target"),
             _BotConfigField("Stop loss (SL)", "float", "stop_loss"),
+            _BotConfigField("Exit DTE", "int", "exit_dte"),
+            _BotConfigField("Stop loss basis", "enum", "stop_loss_basis", options=("max_loss", "credit")),
             _BotConfigField("Entry days", "text", "entry_days"),
             _BotConfigField("Max entries/day", "int", "max_entries_per_day"),
             _BotConfigField(
@@ -2140,6 +2145,10 @@ class BotScreen(Screen):
         strategy.setdefault("price_mode", "OPTIMISTIC")
         strategy.setdefault("chase_proposals", True)
         strategy.setdefault("max_entries_per_day", 1)
+        strategy.setdefault("exit_dte", 0)
+        strategy.setdefault("stop_loss_basis", "max_loss")
+        strategy.setdefault("spot_sec_type", "STK")
+        strategy.setdefault("spot_exchange", "")
         if "signal_bar_size" not in strategy:
             strategy["signal_bar_size"] = str(self._payload.get("bar_size", "1 hour") if self._payload else "1 hour")
         if "signal_use_rth" not in strategy:
@@ -2385,7 +2394,8 @@ class BotScreen(Screen):
         for instance in self._instances:
             instrument = self._strategy_instrument(instance.strategy or {})
             if instrument == "spot":
-                legs_desc = "SPOT"
+                sec_type = str((instance.strategy or {}).get("spot_sec_type") or "").strip().upper()
+                legs_desc = "SPOT-FUT" if sec_type == "FUT" else "SPOT-STK"
                 dte = "-"
             else:
                 legs_desc = _legs_label(instance.strategy.get("legs", []))
@@ -2488,8 +2498,12 @@ class BotScreen(Screen):
             if not ema_preset:
                 continue
 
-            snap = await self._signal_snapshot_for_symbol(
-                symbol=symbol,
+            signal_contract = await self._signal_contract(instance, symbol)
+            if signal_contract is None:
+                continue
+
+            snap = await self._signal_snapshot_for_contract(
+                contract=signal_contract,
                 ema_preset_raw=str(ema_preset),
                 bar_size=self._signal_bar_size(instance),
                 use_rth=self._signal_use_rth(instance),
@@ -2503,7 +2517,11 @@ class BotScreen(Screen):
             open_items: list[PortfolioItem] = []
             open_dir: str | None = None
             if instrument == "spot":
-                open_item = self._spot_open_position(symbol)
+                open_item = self._spot_open_position(
+                    symbol=symbol,
+                    sec_type=str(getattr(signal_contract, "secType", "") or "STK"),
+                    con_id=int(getattr(signal_contract, "conId", 0) or 0),
+                )
                 if open_item is not None:
                     open_items = [open_item]
                     try:
@@ -2572,6 +2590,68 @@ class BotScreen(Screen):
                             instance, intent="exit", direction=open_dir, signal_bar_ts=snap.bar_ts
                         )
                         break
+
+                if instrument != "spot":
+                    if self._should_exit_on_dte(instance, open_items, now_et.date()):
+                        self._queue_proposal(
+                            instance, intent="exit", direction=open_dir, signal_bar_ts=snap.bar_ts
+                        )
+                        break
+
+                    entry_value, current_value = self._options_position_values(open_items)
+                    if entry_value is not None and current_value is not None:
+                        profit = float(entry_value) - float(current_value)
+                        try:
+                            profit_target = float(instance.strategy.get("profit_target", 0.0) or 0.0)
+                        except (TypeError, ValueError):
+                            profit_target = 0.0
+                        if profit_target > 0 and abs(entry_value) > 0:
+                            if profit >= abs(entry_value) * profit_target:
+                                self._queue_proposal(
+                                    instance,
+                                    intent="exit",
+                                    direction=open_dir,
+                                    signal_bar_ts=snap.bar_ts,
+                                )
+                                break
+
+                        try:
+                            stop_loss = float(instance.strategy.get("stop_loss", 0.0) or 0.0)
+                        except (TypeError, ValueError):
+                            stop_loss = 0.0
+                        if stop_loss > 0:
+                            loss = max(0.0, float(current_value) - float(entry_value))
+                            basis = str(instance.strategy.get("stop_loss_basis") or "max_loss").strip().lower()
+                            if basis == "credit":
+                                if entry_value >= 0:
+                                    if current_value >= entry_value * (1.0 + stop_loss):
+                                        self._queue_proposal(
+                                            instance,
+                                            intent="exit",
+                                            direction=open_dir,
+                                            signal_bar_ts=snap.bar_ts,
+                                        )
+                                        break
+                                elif loss >= abs(entry_value) * stop_loss:
+                                    self._queue_proposal(
+                                        instance,
+                                        intent="exit",
+                                        direction=open_dir,
+                                        signal_bar_ts=snap.bar_ts,
+                                    )
+                                    break
+                            else:
+                                max_loss = self._options_max_loss_estimate(open_items, spot=float(snap.close))
+                                if max_loss is None or max_loss <= 0:
+                                    max_loss = abs(entry_value)
+                                if max_loss and loss >= float(max_loss) * stop_loss:
+                                    self._queue_proposal(
+                                        instance,
+                                        intent="exit",
+                                        direction=open_dir,
+                                        signal_bar_ts=snap.bar_ts,
+                                    )
+                                    break
 
                 if self._should_exit_on_flip(instance, snap, open_dir, open_items):
                     self._queue_proposal(instance, intent="exit", direction=open_dir, signal_bar_ts=snap.bar_ts)
@@ -2806,6 +2886,48 @@ class BotScreen(Screen):
         cleaned = str(value or "options").strip().lower()
         return "spot" if cleaned == "spot" else "options"
 
+    def _spot_sec_type(self, instance: _BotInstance, symbol: str) -> str:
+        raw = (instance.strategy or {}).get("spot_sec_type")
+        cleaned = str(raw or "").strip().upper()
+        if cleaned in ("STK", "FUT"):
+            return cleaned
+        sym = str(symbol or "").strip().upper()
+        if sym in {"MNQ", "MES", "ES", "NQ", "YM", "RTY", "M2K"}:
+            return "FUT"
+        return "STK"
+
+    def _spot_exchange(self, instance: _BotInstance, symbol: str, *, sec_type: str) -> str:
+        raw = (instance.strategy or {}).get("spot_exchange")
+        cleaned = str(raw or "").strip().upper()
+        if cleaned:
+            return cleaned
+        if sec_type == "FUT":
+            sym = str(symbol or "").strip().upper()
+            if sym in ("YM", "MYM"):
+                return "CBOT"
+            return "CME"
+        return "SMART"
+
+    async def _spot_contract(self, instance: _BotInstance, symbol: str) -> Contract | None:
+        sec_type = self._spot_sec_type(instance, symbol)
+        exchange = self._spot_exchange(instance, symbol, sec_type=sec_type)
+        if sec_type == "FUT":
+            contract = await self._client.front_future(symbol, exchange=exchange, cache_ttl_sec=3600.0)
+            if contract is None:
+                return None
+            return contract
+
+        contract = Stock(symbol=str(symbol).strip().upper(), exchange="SMART", currency="USD")
+        qualified = await self._client.qualify_proxy_contracts(contract)
+        return qualified[0] if qualified else contract
+
+    async def _signal_contract(self, instance: _BotInstance, symbol: str) -> Contract | None:
+        if self._strategy_instrument(instance.strategy) == "spot":
+            return await self._spot_contract(instance, symbol)
+        contract = Stock(symbol=str(symbol).strip().upper(), exchange="SMART", currency="USD")
+        qualified = await self._client.qualify_proxy_contracts(contract)
+        return qualified[0] if qualified else contract
+
     def _signal_bar_size(self, instance: _BotInstance) -> str:
         raw = instance.strategy.get("signal_bar_size")
         if raw:
@@ -2836,6 +2958,23 @@ class BotScreen(Screen):
         filters = instance.filters or {}
         if not isinstance(filters, dict):
             return True
+        rv_min = filters.get("rv_min")
+        rv_max = filters.get("rv_max")
+        if rv_min is not None or rv_max is not None:
+            if snap.rv is None:
+                return False
+            try:
+                rv_min_f = float(rv_min) if rv_min is not None else None
+            except (TypeError, ValueError):
+                rv_min_f = None
+            try:
+                rv_max_f = float(rv_max) if rv_max is not None else None
+            except (TypeError, ValueError):
+                rv_max_f = None
+            if rv_min_f is not None and snap.rv < rv_min_f:
+                return False
+            if rv_max_f is not None and snap.rv > rv_max_f:
+                return False
         spread_min = filters.get("ema_spread_min_pct")
         if spread_min is not None:
             try:
@@ -2882,10 +3021,10 @@ class BotScreen(Screen):
         required = bar_size.duration * cooldown_bars
         return delta >= required
 
-    async def _signal_snapshot_for_symbol(
+    async def _signal_snapshot_for_contract(
         self,
         *,
-        symbol: str,
+        contract: Contract,
         ema_preset_raw: str | None,
         bar_size: str,
         use_rth: bool,
@@ -2894,11 +3033,6 @@ class BotScreen(Screen):
         if periods is None:
             return None
         fast_p, slow_p = periods
-
-        contract = Stock(symbol=str(symbol).strip().upper(), exchange="SMART", currency="USD")
-        qualified = await self._client.qualify_proxy_contracts(contract)
-        if qualified:
-            contract = qualified[0]
 
         bars = await self._client.historical_bars(
             contract,
@@ -2919,6 +3053,19 @@ class BotScreen(Screen):
         if len(bars) < (slow_p + 1):
             return None
 
+        def _annualization_factor(bar: str, rth: bool) -> float:
+            label = str(bar or "").strip().lower()
+            if "day" in label:
+                return 252.0
+            bar_def = parse_bar_size(bar)
+            if bar_def is None:
+                return 252.0
+            hours = bar_def.duration.total_seconds() / 3600.0
+            if hours <= 0:
+                return 252.0
+            session_hours = 6.5 if rth else 24.0
+            return 252.0 * (session_hours / hours)
+
         ema_fast = None
         ema_slow = None
         prev_ema_fast = None
@@ -2926,9 +3073,17 @@ class BotScreen(Screen):
         count = 0
         last_ts = None
         last_close = None
+        rv_returns: list[float] = []
+        prev_close = None
         for ts, close in bars:
             if close <= 0:
                 continue
+            if prev_close is not None and prev_close > 0:
+                try:
+                    rv_returns.append(math.log(close / prev_close))
+                except (ValueError, ZeroDivisionError):
+                    pass
+            prev_close = close
             last_ts = ts
             last_close = close
             prev_ema_fast = ema_fast
@@ -2944,6 +3099,15 @@ class BotScreen(Screen):
             or count < slow_p
         ):
             return None
+
+        rv = 0.0
+        if rv_returns:
+            lookback = 60
+            lam = 0.94
+            variance = 0.0
+            for r in rv_returns[-lookback:]:
+                variance = lam * variance + (1.0 - lam) * (r * r)
+            rv = math.sqrt(max(0.0, variance)) * math.sqrt(_annualization_factor(bar_size, use_rth))
 
         cross_up = False
         cross_down = False
@@ -2965,6 +3129,7 @@ class BotScreen(Screen):
             cross_up=bool(cross_up),
             cross_down=bool(cross_down),
             bars_in_day=int(bars_in_day),
+            rv=float(rv) if rv is not None else None,
         )
 
     def _reset_daily_counters_if_needed(self, instance: _BotInstance) -> None:
@@ -2984,11 +3149,15 @@ class BotScreen(Screen):
             return True
         return instance.entries_today < max_entries
 
-    def _spot_open_position(self, symbol: str) -> PortfolioItem | None:
+    def _spot_open_position(self, *, symbol: str, sec_type: str, con_id: int = 0) -> PortfolioItem | None:
         sym = str(symbol or "").strip().upper()
+        stype = str(sec_type or "STK").strip().upper() or "STK"
+        desired_con_id = int(con_id or 0)
+        best = None
+        best_abs = 0.0
         for item in self._positions:
             contract = getattr(item, "contract", None)
-            if not contract or contract.secType != "STK":
+            if not contract or contract.secType != stype:
                 continue
             if str(getattr(contract, "symbol", "") or "").strip().upper() != sym:
                 continue
@@ -2996,9 +3165,19 @@ class BotScreen(Screen):
                 pos = float(getattr(item, "position", 0.0) or 0.0)
             except (TypeError, ValueError):
                 pos = 0.0
-            if pos:
-                return item
-        return None
+            if not pos:
+                continue
+            if desired_con_id:
+                try:
+                    if int(getattr(contract, "conId", 0) or 0) == desired_con_id:
+                        return item
+                except (TypeError, ValueError):
+                    pass
+            abs_pos = abs(pos)
+            if abs_pos > best_abs:
+                best_abs = abs_pos
+                best = item
+        return best
 
     def _options_open_positions(self, instance: _BotInstance) -> list[PortfolioItem]:
         if not instance.touched_conids:
@@ -3018,6 +3197,113 @@ class BotScreen(Screen):
             if pos:
                 open_items.append(item)
         return open_items
+
+    def _options_position_values(self, items: list[PortfolioItem]) -> tuple[float | None, float | None]:
+        if not items:
+            return None, None
+        cost_basis = 0.0
+        market_value = 0.0
+        for item in items:
+            cost_basis += float(_cost_basis(item))
+            mv = _safe_num(getattr(item, "marketValue", None))
+            if mv is None:
+                try:
+                    mv = float(getattr(item, "position", 0.0) or 0.0) * float(getattr(item, "marketPrice", 0.0) or 0.0)
+                    mv *= _infer_multiplier(item)
+                except (TypeError, ValueError):
+                    mv = 0.0
+            market_value += float(mv)
+
+        # Convert into the backtest sign convention: SELL credit = positive, BUY debit = negative.
+        entry_value = -float(cost_basis)
+        current_value = -float(market_value)
+        return entry_value, current_value
+
+    def _options_max_loss_estimate(self, items: list[PortfolioItem], *, spot: float) -> float | None:
+        if not items:
+            return None
+        entry_value, _ = self._options_position_values(items)
+        if entry_value is None:
+            return None
+        strikes: list[float] = []
+        legs: list[tuple[str, str, float, int, float]] = []
+        for item in items:
+            contract = getattr(item, "contract", None)
+            if not contract:
+                continue
+            raw_right = str(getattr(contract, "right", "") or "").upper()
+            right = "CALL" if raw_right in ("C", "CALL") else "PUT" if raw_right in ("P", "PUT") else ""
+            if not right:
+                continue
+            try:
+                strike = float(getattr(contract, "strike", 0.0) or 0.0)
+            except (TypeError, ValueError):
+                continue
+            try:
+                pos = float(getattr(item, "position", 0.0) or 0.0)
+            except (TypeError, ValueError):
+                continue
+            qty = int(abs(pos))
+            if qty <= 0:
+                continue
+            action = "BUY" if pos > 0 else "SELL"
+            mult = _infer_multiplier(item)
+            strikes.append(strike)
+            legs.append((action, right, strike, qty, mult))
+        if not strikes or not legs:
+            return None
+        strikes = sorted(set(strikes))
+        high = max(float(spot), strikes[-1]) * 5.0
+        candidates = [0.0] + strikes + [high]
+
+        def _payoff(price: float) -> float:
+            payoff = 0.0
+            for action, right, strike, qty, mult in legs:
+                if right == "CALL":
+                    intrinsic = max(price - strike, 0.0)
+                else:
+                    intrinsic = max(strike - price, 0.0)
+                sign = 1.0 if action == "BUY" else -1.0
+                payoff += sign * intrinsic * float(qty) * float(mult)
+            return payoff
+
+        min_pnl = None
+        for price in candidates:
+            pnl = float(entry_value) + _payoff(float(price))
+            if min_pnl is None or pnl < min_pnl:
+                min_pnl = pnl
+        if min_pnl is None:
+            return None
+        return max(0.0, -float(min_pnl))
+
+    def _should_exit_on_dte(self, instance: _BotInstance, items: list[PortfolioItem], today: date) -> bool:
+        raw_exit = instance.strategy.get("exit_dte", 0)
+        try:
+            exit_dte = int(raw_exit or 0)
+        except (TypeError, ValueError):
+            exit_dte = 0
+        if exit_dte <= 0:
+            return False
+        raw_entry = instance.strategy.get("dte", 0)
+        try:
+            entry_dte = int(raw_entry or 0)
+        except (TypeError, ValueError):
+            entry_dte = 0
+        if entry_dte > 0 and exit_dte >= entry_dte:
+            return False
+
+        expiries: list[date] = []
+        for item in items:
+            contract = getattr(item, "contract", None)
+            if not contract:
+                continue
+            exp = _contract_expiry_date(getattr(contract, "lastTradeDateOrContractMonth", None))
+            if exp is not None:
+                expiries.append(exp)
+        if not expiries:
+            return False
+        remaining = min(_business_days_until(today, exp) for exp in expiries)
+        return remaining <= exit_dte
 
     def _open_direction_from_positions(self, items: list[PortfolioItem]) -> str | None:
         if not items:
@@ -3425,7 +3711,8 @@ class BotScreen(Screen):
 
         if intent_clean == "exit":
             if instrument == "spot":
-                open_item = self._spot_open_position(symbol)
+                sec_type = self._spot_sec_type(instance, symbol)
+                open_item = self._spot_open_position(symbol=symbol, sec_type=sec_type, con_id=0)
                 if open_item is None:
                     self._status = f"Exit: no spot position for {symbol}"
                     self._render_status()
@@ -3529,11 +3816,16 @@ class BotScreen(Screen):
             if direction not in ("up", "down"):
                 ema_preset = strat.get("ema_preset")
                 if ema_preset:
-                    snap = await self._signal_snapshot_for_symbol(
-                        symbol=symbol,
+                    signal_contract = await self._signal_contract(instance, symbol)
+                    snap = (
+                        await self._signal_snapshot_for_contract(
+                            contract=signal_contract,
                         ema_preset_raw=str(ema_preset),
                         bar_size=self._signal_bar_size(instance),
                         use_rth=self._signal_use_rth(instance),
+                    )
+                        if signal_contract is not None
+                        else None
                     )
                     if snap is not None:
                         direction = self._entry_direction_for_instance(instance, snap) or ema_state_direction(
@@ -3559,10 +3851,11 @@ class BotScreen(Screen):
                 qty = 1
             qty = max(1, abs(qty))
 
-            contract = Stock(symbol=symbol, exchange="SMART", currency="USD")
-            qualified = await self._client.qualify_proxy_contracts(contract)
-            if qualified:
-                contract = qualified[0]
+            contract = await self._spot_contract(instance, symbol)
+            if contract is None:
+                self._status = f"Contract: not found for {symbol}"
+                self._render_status()
+                return
 
             con_id = int(getattr(contract, "conId", 0) or 0)
             if con_id:
@@ -3609,11 +3902,16 @@ class BotScreen(Screen):
             if direction not in ("up", "down"):
                 ema_preset = strat.get("ema_preset")
                 if ema_preset:
-                    snap = await self._signal_snapshot_for_symbol(
-                        symbol=symbol,
+                    signal_contract = await self._signal_contract(instance, symbol)
+                    snap = (
+                        await self._signal_snapshot_for_contract(
+                            contract=signal_contract,
                         ema_preset_raw=str(ema_preset),
                         bar_size=self._signal_bar_size(instance),
                         use_rth=self._signal_use_rth(instance),
+                    )
+                        if signal_contract is not None
+                        else None
                     )
                     if snap is not None:
                         direction = self._entry_direction_for_instance(instance, snap) or ema_state_direction(
@@ -3836,7 +4134,8 @@ class BotScreen(Screen):
             if instance:
                 instrument = self._strategy_instrument(instance.strategy or {})
                 if instrument == "spot":
-                    legs_desc = "SPOT"
+                    sec_type = str((instance.strategy or {}).get("spot_sec_type") or "").strip().upper()
+                    legs_desc = "SPOT-FUT" if sec_type == "FUT" else "SPOT-STK"
                     dte = "-"
                 else:
                     legs_desc = _legs_label(instance.strategy.get("legs", []))
@@ -4054,6 +4353,35 @@ def _add_business_days(anchor: date, days: int) -> date:
         if current.weekday() < 5:
             remaining -= 1
     return current
+
+
+def _business_days_until(start: date, end: date) -> int:
+    if end <= start:
+        return 0
+    days = 0
+    cursor = start
+    while cursor < end:
+        cursor += timedelta(days=1)
+        if cursor.weekday() < 5:
+            days += 1
+    return days
+
+
+def _contract_expiry_date(raw: object) -> date | None:
+    if raw is None:
+        return None
+    text = str(raw).strip()
+    if len(text) >= 8 and text[:8].isdigit():
+        try:
+            return date(int(text[:4]), int(text[4:6]), int(text[6:8]))
+        except ValueError:
+            return None
+    if len(text) >= 6 and text[:6].isdigit():
+        try:
+            return date(int(text[:4]), int(text[4:6]), 1)
+        except ValueError:
+            return None
+    return None
 
 
 def _strike_from_moneyness(spot: float, right: str, moneyness_pct: float) -> float:

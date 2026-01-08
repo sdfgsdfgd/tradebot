@@ -13,6 +13,7 @@ from ib_insync import (
     AccountValue,
     ContFuture,
     Contract,
+    Future,
     IB,
     LimitOrder,
     PnL,
@@ -75,6 +76,7 @@ class IBKRClient:
         self._historical_bar_cache: dict[
             tuple[str, int, str, str, bool, str], tuple[list[tuple[datetime, float]], float]
         ] = {}
+        self._front_future_cache: dict[tuple[str, str], tuple[Contract, float]] = {}
         self._update_callback: Callable[[], None] | None = None
         self._pnl: PnL | None = None
         self._pnl_account: str | None = None
@@ -535,6 +537,96 @@ class IBKRClient:
         except Exception:
             return []
         return list(result or [])
+
+    async def front_future(
+        self,
+        symbol: str,
+        *,
+        exchange: str = "CME",
+        cache_ttl_sec: float = 3600.0,
+    ) -> Contract | None:
+        """Resolve a tradable front-month future contract.
+
+        Uses a TTL cache to avoid repeated contract-details requests in the live UI.
+        """
+        sym = str(symbol or "").strip().upper()
+        ex = str(exchange or "").strip().upper() or "CME"
+        key = (sym, ex)
+        cached = self._front_future_cache.get(key)
+        if cached:
+            contract, cached_at = cached
+            if time.monotonic() - cached_at < float(cache_ttl_sec):
+                return contract
+
+        def _parse_expiry(raw: str | None) -> datetime | None:
+            if not raw:
+                return None
+            cleaned = str(raw).strip()
+            if len(cleaned) >= 8 and cleaned[:8].isdigit():
+                try:
+                    return datetime(int(cleaned[:4]), int(cleaned[4:6]), int(cleaned[6:8]))
+                except ValueError:
+                    return None
+            if len(cleaned) >= 6 and cleaned[:6].isdigit():
+                try:
+                    return datetime(int(cleaned[:4]), int(cleaned[4:6]), 1)
+                except ValueError:
+                    return None
+            return None
+
+        async with self._lock:
+            cached = self._front_future_cache.get(key)
+            if cached:
+                contract, cached_at = cached
+                if time.monotonic() - cached_at < float(cache_ttl_sec):
+                    return contract
+            await self.connect()
+            candidate = Future(symbol=sym, lastTradeDateOrContractMonth="", exchange=ex, currency="USD")
+            try:
+                details = await self._ib.reqContractDetailsAsync(candidate)
+            except Exception:
+                details = []
+            if not details:
+                return None
+
+            today = datetime.now(tz=_ET_ZONE).date()
+            best = None
+            best_dt = None
+            for d in details:
+                contract = getattr(d, "contract", None)
+                if not contract:
+                    continue
+                if getattr(contract, "secType", "") != "FUT":
+                    continue
+                exp_raw = getattr(d, "realExpirationDate", None) or getattr(
+                    contract, "lastTradeDateOrContractMonth", None
+                )
+                exp_dt = _parse_expiry(str(exp_raw) if exp_raw is not None else None)
+                if exp_dt is None:
+                    continue
+                exp_date = exp_dt.date()
+                if exp_date < today:
+                    continue
+                if best_dt is None or exp_date < best_dt:
+                    best_dt = exp_date
+                    best = contract
+
+            if best is None:
+                for d in details:
+                    contract = getattr(d, "contract", None)
+                    if contract and getattr(contract, "secType", "") == "FUT":
+                        best = contract
+                        break
+            if best is None:
+                return None
+
+            try:
+                qualified = await self._ib.qualifyContractsAsync(best)
+            except Exception:
+                qualified = []
+            resolved = qualified[0] if qualified else best
+            self._front_future_cache[key] = (resolved, time.monotonic())
+            return resolved
 
     def release_ticker(self, con_id: int) -> None:
         entry = self._detail_tickers.pop(con_id, None)
