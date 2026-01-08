@@ -12,14 +12,15 @@ from .data import IBKRHistoricalData, ContractMeta
 from .models import Bar, EquityPoint, OptionLeg, OptionTrade, SpotTrade, SummaryStats
 from .strategy import CreditSpreadStrategy, TradeSpec
 from .synth import IVSurfaceParams, black_76, black_scholes, ewma_vol, iv_atm, iv_for_strike, mid_edge_quote
-from ..signals import (
-    ema_next as _ema_next_shared,
-    ema_periods as _ema_periods_shared,
-    flip_exit_mode as _flip_exit_mode_shared,
-    ema_state_direction,
-    trend_confirmed_state,
-    update_cross_confirm,
+from ..decision_core import (
+    EmaDecisionEngine,
+    EmaDecisionSnapshot,
+    annualization_factor,
+    cooldown_ok_by_index,
+    flip_exit_hit,
+    signal_filters_ok,
 )
+from ..signals import ema_periods as _ema_periods_shared
 
 
 @dataclass(frozen=True)
@@ -119,23 +120,19 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
     )
     if needs_direction:
         ema_needed = True
-    ema_fast = None
-    ema_slow = None
-    prev_ema_fast = None
-    prev_ema_slow = None
-    ema_count = 0
+
+    signal_engine: EmaDecisionEngine | None = None
+    if ema_periods is not None:
+        signal_engine = EmaDecisionEngine(
+            ema_preset=str(cfg.strategy.ema_preset),
+            ema_entry_mode=cfg.strategy.ema_entry_mode,
+            entry_confirm_bars=cfg.strategy.entry_confirm_bars,
+            regime_ema_preset=cfg.strategy.regime_ema_preset,
+        )
+
     bars_in_day = 0
     last_entry_idx = None
     last_date = None
-    entry_state: str | None = None
-    entry_streak = 0
-    pending_cross_dir: str | None = None
-    pending_cross_bars = 0
-
-    regime_periods = _ema_periods(cfg.strategy.regime_ema_preset)
-    regime_fast = None
-    regime_slow = None
-    regime_count = 0
     for idx, bar in enumerate(bars):
         next_bar = bars[idx + 1] if idx + 1 < len(bars) else None
         is_last_bar = next_bar is None or next_bar.ts.date() != bar.ts.date()
@@ -143,37 +140,14 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
             if prev_bar.close > 0:
                 returns.append(math.log(bar.close / prev_bar.close))
         rv = ewma_vol(returns, surface_params.rv_ewma_lambda)
-        rv *= math.sqrt(_annualization_factor(cfg.backtest.bar_size, cfg.backtest.use_rth))
+        rv *= math.sqrt(annualization_factor(cfg.backtest.bar_size, cfg.backtest.use_rth))
         if last_date != bar.ts.date():
             bars_in_day = 0
             last_date = bar.ts.date()
             entries_today = 0
         bars_in_day += 1
-
-        if regime_periods and bar.close > 0:
-            regime_fast = _ema_next(regime_fast, bar.close, regime_periods[0])
-            regime_slow = _ema_next(regime_slow, bar.close, regime_periods[1])
-            regime_count += 1
-        if ema_periods and bar.close > 0:
-            prev_ema_fast = ema_fast
-            prev_ema_slow = ema_slow
-            ema_fast = _ema_next(ema_fast, bar.close, ema_periods[0])
-            ema_slow = _ema_next(ema_slow, bar.close, ema_periods[1])
-            ema_count += 1
-        ema_ready = (
-            ema_periods is not None
-            and ema_count >= ema_periods[1]
-            and ema_fast is not None
-            and ema_slow is not None
-        )
-        regime_ready = (
-            regime_periods is None
-            or (
-                regime_count >= regime_periods[1]
-                and regime_fast is not None
-                and regime_slow is not None
-            )
-        )
+        signal = signal_engine.update(bar.close) if signal_engine is not None else None
+        ema_ready = bool(signal and signal.ema_ready)
 
         if open_trades and prev_bar:
             still_open: list[OptionTrade] = []
@@ -199,19 +173,6 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
 
         liquidation = 0.0
         if open_trades:
-            exit_mode = _flip_exit_mode(cfg)
-            cross_up = False
-            cross_down = False
-            if (
-                cfg.strategy.exit_on_signal_flip
-                and ema_ready
-                and exit_mode == "cross"
-                and prev_ema_fast is not None
-                and prev_ema_slow is not None
-            ):
-                cross_up = prev_ema_fast <= prev_ema_slow and ema_fast > ema_slow
-                cross_down = prev_ema_fast >= prev_ema_slow and ema_fast < ema_slow
-
             still_open = []
             for trade in open_trades:
                 current_value = _trade_value(
@@ -234,11 +195,7 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
                     trade,
                     bar,
                     current_value,
-                    ema_ready,
-                    ema_fast,
-                    ema_slow,
-                    cross_up,
-                    cross_down,
+                    signal,
                 ):
                     should_close = True
                     reason = "flip"
@@ -266,53 +223,7 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
                     liquidation += (-current_value) * meta.multiplier
             open_trades = still_open
 
-        entry_signal_dir = None
-        if ema_ready and ema_fast is not None and ema_slow is not None:
-            state = ema_state_direction(ema_fast, ema_slow)
-            if state is None:
-                entry_state = None
-                entry_streak = 0
-            elif state == entry_state:
-                entry_streak += 1
-            else:
-                entry_state = state
-                entry_streak = 1
-
-            cross_up = False
-            cross_down = False
-            if prev_ema_fast is not None and prev_ema_slow is not None:
-                cross_up = prev_ema_fast <= prev_ema_slow and ema_fast > ema_slow
-                cross_down = prev_ema_fast >= prev_ema_slow and ema_fast < ema_slow
-
-            if cfg.strategy.ema_entry_mode == "cross":
-                entry_signal_dir, pending_cross_dir, pending_cross_bars = update_cross_confirm(
-                    cross_up=cross_up,
-                    cross_down=cross_down,
-                    state=state,
-                    confirm_bars=cfg.strategy.entry_confirm_bars,
-                    pending_dir=pending_cross_dir,
-                    pending_bars=pending_cross_bars,
-                )
-            else:
-                entry_signal_dir = trend_confirmed_state(
-                    state,
-                    entry_streak,
-                    confirm_bars=cfg.strategy.entry_confirm_bars,
-                )
-        else:
-            entry_state = None
-            entry_streak = 0
-            pending_cross_dir = None
-            pending_cross_bars = 0
-
-        if regime_periods is not None:
-            regime_dir = (
-                ema_state_direction(regime_fast, regime_slow)
-                if regime_ready and regime_fast is not None and regime_slow is not None
-                else None
-            )
-            if entry_signal_dir is not None and regime_dir != entry_signal_dir:
-                entry_signal_dir = None
+        entry_signal_dir = signal.entry_dir if signal is not None else None
 
         ema_gate_ok = True
         ema_right_override = None
@@ -354,41 +265,20 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
                 else:
                     ema_gate_ok = entry_signal_dir == "up"
 
-        filters_ok = True
-        if filters:
-            if filters.rv_min is not None and rv < filters.rv_min:
-                filters_ok = False
-            if filters.rv_max is not None and rv > filters.rv_max:
-                filters_ok = False
-            if filters.entry_start_hour is not None and filters.entry_end_hour is not None:
-                hour = bar.ts.hour
-                start = filters.entry_start_hour
-                end = filters.entry_end_hour
-                if start <= end:
-                    if not (start <= hour < end):
-                        filters_ok = False
-                else:
-                    if not (hour >= start or hour < end):
-                        filters_ok = False
-            if filters.skip_first_bars and bars_in_day <= filters.skip_first_bars:
-                filters_ok = False
-            if filters.cooldown_bars and last_entry_idx is not None:
-                if (idx - last_entry_idx) < filters.cooldown_bars:
-                    filters_ok = False
-            if filters.ema_spread_min_pct is not None:
-                if not ema_ready:
-                    filters_ok = False
-                else:
-                    spread_pct = abs(ema_fast - ema_slow) / max(bar.close, 1e-9) * 100.0
-                    if spread_pct < filters.ema_spread_min_pct:
-                        filters_ok = False
-            if filters.ema_slope_min_pct is not None:
-                if not ema_ready or prev_ema_fast is None:
-                    filters_ok = False
-                else:
-                    slope_pct = abs(ema_fast - prev_ema_fast) / max(bar.close, 1e-9) * 100.0
-                    if slope_pct < filters.ema_slope_min_pct:
-                        filters_ok = False
+        cooldown_ok = cooldown_ok_by_index(
+            current_idx=idx,
+            last_entry_idx=last_entry_idx,
+            cooldown_bars=filters.cooldown_bars if filters else 0,
+        )
+        filters_ok = signal_filters_ok(
+            filters,
+            bar_ts=bar.ts,
+            bars_in_day=bars_in_day,
+            close=float(bar.close),
+            rv=float(rv),
+            signal=signal,
+            cooldown_ok=cooldown_ok,
+        )
 
         open_slots_ok = cfg.strategy.max_open_trades == 0 or len(open_trades) < cfg.strategy.max_open_trades
         entries_ok = cfg.strategy.max_entries_per_day == 0 or entries_today < cfg.strategy.max_entries_per_day
@@ -503,23 +393,16 @@ def _run_spot_backtest(cfg: ConfigBundle, bars: list[Bar], meta: ContractMeta) -
         raise ValueError("spot backtests require ema_preset")
     ema_needed = True
 
-    ema_fast = None
-    ema_slow = None
-    prev_ema_fast = None
-    prev_ema_slow = None
-    ema_count = 0
+    signal_engine = EmaDecisionEngine(
+        ema_preset=str(cfg.strategy.ema_preset),
+        ema_entry_mode=cfg.strategy.ema_entry_mode,
+        entry_confirm_bars=cfg.strategy.entry_confirm_bars,
+        regime_ema_preset=cfg.strategy.regime_ema_preset,
+    )
+
     bars_in_day = 0
     last_entry_idx = None
     last_date = None
-    entry_state: str | None = None
-    entry_streak = 0
-    pending_cross_dir: str | None = None
-    pending_cross_bars = 0
-
-    regime_periods = _ema_periods(cfg.strategy.regime_ema_preset)
-    regime_fast = None
-    regime_slow = None
-    regime_count = 0
     for idx, bar in enumerate(bars):
         next_bar = bars[idx + 1] if idx + 1 < len(bars) else None
         is_last_bar = next_bar is None or next_bar.ts.date() != bar.ts.date()
@@ -527,49 +410,17 @@ def _run_spot_backtest(cfg: ConfigBundle, bars: list[Bar], meta: ContractMeta) -
             if prev_bar.close > 0:
                 returns.append(math.log(bar.close / prev_bar.close))
         rv = ewma_vol(returns, cfg.synthetic.rv_ewma_lambda)
-        rv *= math.sqrt(_annualization_factor(cfg.backtest.bar_size, cfg.backtest.use_rth))
+        rv *= math.sqrt(annualization_factor(cfg.backtest.bar_size, cfg.backtest.use_rth))
         if last_date != bar.ts.date():
             bars_in_day = 0
             last_date = bar.ts.date()
             entries_today = 0
         bars_in_day += 1
-
-        if regime_periods and bar.close > 0:
-            regime_fast = _ema_next(regime_fast, bar.close, regime_periods[0])
-            regime_slow = _ema_next(regime_slow, bar.close, regime_periods[1])
-            regime_count += 1
-        regime_ready = (
-            regime_periods is None
-            or (
-                regime_count >= regime_periods[1]
-                and regime_fast is not None
-                and regime_slow is not None
-            )
-        )
-
-        prev_ema_fast = ema_fast
-        prev_ema_slow = ema_slow
-        if bar.close > 0:
-            ema_fast = _ema_next(ema_fast, bar.close, ema_periods[0])
-            ema_slow = _ema_next(ema_slow, bar.close, ema_periods[1])
-            ema_count += 1
-        ema_ready = ema_needed and ema_count >= ema_periods[1] and ema_fast is not None and ema_slow is not None
+        signal = signal_engine.update(bar.close)
+        ema_ready = bool(ema_needed and signal.ema_ready)
 
         liquidation = 0.0
         if open_trades:
-            exit_mode = _flip_exit_mode(cfg)
-            cross_up = False
-            cross_down = False
-            if (
-                cfg.strategy.exit_on_signal_flip
-                and ema_ready
-                and exit_mode == "cross"
-                and prev_ema_fast is not None
-                and prev_ema_slow is not None
-            ):
-                cross_up = prev_ema_fast <= prev_ema_slow and ema_fast > ema_slow
-                cross_down = prev_ema_fast >= prev_ema_slow and ema_fast < ema_slow
-
             still_open = []
             for trade in open_trades:
                 current_price = bar.close
@@ -587,11 +438,7 @@ def _run_spot_backtest(cfg: ConfigBundle, bars: list[Bar], meta: ContractMeta) -
                     cfg,
                     trade,
                     bar,
-                    ema_ready,
-                    ema_fast,
-                    ema_slow,
-                    cross_up,
-                    cross_down,
+                    signal,
                 ):
                     should_close = True
                     reason = "flip"
@@ -609,53 +456,7 @@ def _run_spot_backtest(cfg: ConfigBundle, bars: list[Bar], meta: ContractMeta) -
                     liquidation += current_value
             open_trades = still_open
 
-        entry_signal_dir = None
-        if ema_ready and ema_fast is not None and ema_slow is not None:
-            state = ema_state_direction(ema_fast, ema_slow)
-            if state is None:
-                entry_state = None
-                entry_streak = 0
-            elif state == entry_state:
-                entry_streak += 1
-            else:
-                entry_state = state
-                entry_streak = 1
-
-            cross_up = False
-            cross_down = False
-            if prev_ema_fast is not None and prev_ema_slow is not None:
-                cross_up = prev_ema_fast <= prev_ema_slow and ema_fast > ema_slow
-                cross_down = prev_ema_fast >= prev_ema_slow and ema_fast < ema_slow
-
-            if cfg.strategy.ema_entry_mode == "cross":
-                entry_signal_dir, pending_cross_dir, pending_cross_bars = update_cross_confirm(
-                    cross_up=cross_up,
-                    cross_down=cross_down,
-                    state=state,
-                    confirm_bars=cfg.strategy.entry_confirm_bars,
-                    pending_dir=pending_cross_dir,
-                    pending_bars=pending_cross_bars,
-                )
-            else:
-                entry_signal_dir = trend_confirmed_state(
-                    state,
-                    entry_streak,
-                    confirm_bars=cfg.strategy.entry_confirm_bars,
-                )
-        else:
-            entry_state = None
-            entry_streak = 0
-            pending_cross_dir = None
-            pending_cross_bars = 0
-
-        if regime_periods is not None:
-            regime_dir = (
-                ema_state_direction(regime_fast, regime_slow)
-                if regime_ready and regime_fast is not None and regime_slow is not None
-                else None
-            )
-            if entry_signal_dir is not None and regime_dir != entry_signal_dir:
-                entry_signal_dir = None
+        entry_signal_dir = signal.entry_dir
 
         ema_gate_ok = True
         direction = None
@@ -672,41 +473,20 @@ def _run_spot_backtest(cfg: ConfigBundle, bars: list[Bar], meta: ContractMeta) -
             else:
                 ema_gate_ok = direction == "up"
 
-        filters_ok = True
-        if filters:
-            if filters.rv_min is not None and rv < filters.rv_min:
-                filters_ok = False
-            if filters.rv_max is not None and rv > filters.rv_max:
-                filters_ok = False
-            if filters.entry_start_hour is not None and filters.entry_end_hour is not None:
-                hour = bar.ts.hour
-                start = filters.entry_start_hour
-                end = filters.entry_end_hour
-                if start <= end:
-                    if not (start <= hour < end):
-                        filters_ok = False
-                else:
-                    if not (hour >= start or hour < end):
-                        filters_ok = False
-            if filters.skip_first_bars and bars_in_day <= filters.skip_first_bars:
-                filters_ok = False
-            if filters.cooldown_bars and last_entry_idx is not None:
-                if (idx - last_entry_idx) < filters.cooldown_bars:
-                    filters_ok = False
-            if filters.ema_spread_min_pct is not None:
-                if not ema_ready:
-                    filters_ok = False
-                else:
-                    spread_pct = abs(ema_fast - ema_slow) / max(bar.close, 1e-9) * 100.0
-                    if spread_pct < filters.ema_spread_min_pct:
-                        filters_ok = False
-            if filters.ema_slope_min_pct is not None:
-                if not ema_ready or prev_ema_fast is None:
-                    filters_ok = False
-                else:
-                    slope_pct = abs(ema_fast - prev_ema_fast) / max(bar.close, 1e-9) * 100.0
-                    if slope_pct < filters.ema_slope_min_pct:
-                        filters_ok = False
+        cooldown_ok = cooldown_ok_by_index(
+            current_idx=idx,
+            last_entry_idx=last_entry_idx,
+            cooldown_bars=filters.cooldown_bars if filters else 0,
+        )
+        filters_ok = signal_filters_ok(
+            filters,
+            bar_ts=bar.ts,
+            bars_in_day=bars_in_day,
+            close=float(bar.close),
+            rv=float(rv),
+            signal=signal,
+            cooldown_ok=cooldown_ok,
+        )
 
         open_slots_ok = cfg.strategy.max_open_trades == 0 or len(open_trades) < cfg.strategy.max_open_trades
         entries_ok = cfg.strategy.max_entries_per_day == 0 or entries_today < cfg.strategy.max_entries_per_day
@@ -793,46 +573,34 @@ def _spot_hit_flip_exit(
     cfg: ConfigBundle,
     trade: SpotTrade,
     bar: Bar,
-    ema_ready: bool,
-    ema_fast: float | None,
-    ema_slow: float | None,
-    cross_up: bool,
-    cross_down: bool,
+    signal: EmaDecisionSnapshot | None,
 ) -> bool:
-    if not cfg.strategy.exit_on_signal_flip:
-        return False
     if cfg.strategy.direction_source != "ema":
         return False
-    if not ema_ready or ema_fast is None or ema_slow is None:
+    trade_dir = "up" if trade.qty > 0 else "down" if trade.qty < 0 else None
+    if trade_dir is None:
         return False
+    if not flip_exit_hit(
+        exit_on_signal_flip=bool(cfg.strategy.exit_on_signal_flip),
+        open_dir=trade_dir,
+        signal=signal,
+        flip_exit_mode_raw=cfg.strategy.flip_exit_mode,
+        ema_entry_mode_raw=cfg.strategy.ema_entry_mode,
+    ):
+        return False
+
     if cfg.strategy.flip_exit_min_hold_bars:
         held = _bars_held(cfg.backtest.bar_size, trade.entry_time, bar.ts)
         if held < cfg.strategy.flip_exit_min_hold_bars:
             return False
+
     if cfg.strategy.flip_exit_only_if_profit:
         pnl = (price := bar.close) - trade.entry_price
         if trade.qty < 0:
             pnl = -pnl
         if pnl <= 0:
             return False
-
-    trade_dir = "up" if trade.qty > 0 else "down" if trade.qty < 0 else None
-    if trade_dir is None:
-        return False
-
-    mode = _flip_exit_mode(cfg)
-    if mode == "cross":
-        if trade_dir == "up":
-            return cross_down
-        if trade_dir == "down":
-            return cross_up
-        return False
-
-    if trade_dir == "up":
-        return ema_fast < ema_slow
-    if trade_dir == "down":
-        return ema_fast > ema_slow
-    return False
+    return True
 
 
 def _close_spot_trade(trade: SpotTrade, ts: datetime, price: float, reason: str, trades: list[SpotTrade]) -> None:
@@ -874,7 +642,7 @@ def _rv_from_bars(bars: list[Bar], cfg: ConfigBundle) -> float:
     if not returns:
         return cfg.synthetic.iv_floor
     rv = ewma_vol(returns[-cfg.synthetic.rv_lookback :], cfg.synthetic.rv_ewma_lambda)
-    rv *= math.sqrt(_annualization_factor(cfg.backtest.bar_size, cfg.backtest.use_rth))
+    rv *= math.sqrt(annualization_factor(cfg.backtest.bar_size, cfg.backtest.use_rth))
     return rv
 
 
@@ -914,10 +682,6 @@ def _direction_from_legs(legs: list[OptionLeg]) -> str | None:
     if (action, right) in (("BUY", "PUT"), ("SELL", "CALL")):
         return "down"
     return None
-
-
-def _ema_next(current: float | None, price: float, period: int) -> float:
-    return _ema_next_shared(current, price, period)
 
 
 def _trade_value_from_spec(
@@ -1008,10 +772,6 @@ def _hit_stop(trade: OptionTrade, current_value: float, basis: str, spot: float)
     return loss >= max_loss * trade.stop_loss
 
 
-def _flip_exit_mode(cfg: ConfigBundle) -> str:
-    return _flip_exit_mode_shared(cfg.strategy.flip_exit_mode, cfg.strategy.ema_entry_mode)
-
-
 def _hit_exit_dte(cfg: ConfigBundle, trade: OptionTrade, today: date) -> bool:
     if cfg.strategy.exit_dte <= 0:
         return False
@@ -1027,43 +787,31 @@ def _hit_flip_exit(
     trade: OptionTrade,
     bar: Bar,
     current_value: float,
-    ema_ready: bool,
-    ema_fast: float | None,
-    ema_slow: float | None,
-    cross_up: bool,
-    cross_down: bool,
+    signal: EmaDecisionSnapshot | None,
 ) -> bool:
-    if not cfg.strategy.exit_on_signal_flip:
-        return False
     if cfg.strategy.direction_source != "ema":
         return False
-    if not ema_ready or ema_fast is None or ema_slow is None:
+    trade_dir = _direction_from_legs(trade.legs)
+    if trade_dir is None:
         return False
+    if not flip_exit_hit(
+        exit_on_signal_flip=bool(cfg.strategy.exit_on_signal_flip),
+        open_dir=trade_dir,
+        signal=signal,
+        flip_exit_mode_raw=cfg.strategy.flip_exit_mode,
+        ema_entry_mode_raw=cfg.strategy.ema_entry_mode,
+    ):
+        return False
+
     if cfg.strategy.flip_exit_min_hold_bars:
         held = _bars_held(cfg.backtest.bar_size, trade.entry_time, bar.ts)
         if held < cfg.strategy.flip_exit_min_hold_bars:
             return False
+
     if cfg.strategy.flip_exit_only_if_profit:
         if (trade.entry_price - current_value) <= 0:
             return False
-    trade_dir = _direction_from_legs(trade.legs)
-    if trade_dir is None:
-        return False
-
-    mode = _flip_exit_mode(cfg)
-    if mode == "cross":
-        if trade_dir == "up":
-            return cross_down
-        if trade_dir == "down":
-            return cross_up
-        return False
-
-    # state mode
-    if trade_dir == "up":
-        return ema_fast < ema_slow
-    if trade_dir == "down":
-        return ema_fast > ema_slow
-    return False
+    return True
 
 
 def _bars_held(bar_size: str, start: datetime, end: datetime) -> int:
@@ -1183,15 +931,6 @@ def _max_loss(trade: OptionTrade) -> float | None:
     if trade.entry_price >= 0:
         return max(0.0, width - trade.entry_price)
     return abs(trade.entry_price)
-
-
-def _annualization_factor(bar_size: str, use_rth: bool) -> float:
-    label = bar_size.lower()
-    if "hour" in label:
-        return 252 * (6.5 if use_rth else 24)
-    if "day" in label:
-        return 252
-    return 252 * (6.5 if use_rth else 24)
 
 
 def _session_hours(use_rth: bool) -> float:

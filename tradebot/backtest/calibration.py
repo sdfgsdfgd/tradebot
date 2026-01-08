@@ -12,6 +12,7 @@ from ib_insync import IB, ContFuture, Option, FuturesOption, Stock, util
 
 from .config import ConfigBundle
 from ..config import load_config
+from ..decision_core import annualization_factor
 from .data import IBKRHistoricalData
 from .synth import IVSurfaceParams, black_76, black_scholes, ewma_vol, iv_atm, iv_for_strike
 
@@ -442,16 +443,7 @@ def _recent_realized_vol(cfg: ConfigBundle, symbol: str, exchange: str | None) -
     if not returns:
         return cfg.synthetic.iv_floor
     rv = ewma_vol(returns[-cfg.synthetic.rv_lookback :], cfg.synthetic.rv_ewma_lambda)
-    return rv * math.sqrt(_annualization_factor(cfg.backtest.bar_size, cfg.backtest.use_rth))
-
-
-def _annualization_factor(bar_size: str, use_rth: bool) -> float:
-    label = bar_size.lower()
-    if "hour" in label:
-        return 252 * (6.5 if use_rth else 24)
-    if "day" in label:
-        return 252
-    return 252 * (6.5 if use_rth else 24)
+    return rv * math.sqrt(annualization_factor(cfg.backtest.bar_size, cfg.backtest.use_rth))
 
 
 def _has_record_today(bucket: CalibrationBucket, asof: str) -> bool:

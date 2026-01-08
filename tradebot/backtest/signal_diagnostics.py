@@ -18,6 +18,7 @@ from pathlib import Path
 
 from .data import IBKRHistoricalData
 from .models import Bar
+from ..decision_core import annualization_factor
 from ..signals import (
     ema_cross,
     ema_next,
@@ -336,20 +337,6 @@ def _index_for_ts(bars: list[Bar], ts: datetime) -> int:
     raise ValueError(f"Event timestamp not found in bars: {ts!r}")
 
 
-def _annualization_factor(bar_size: str, use_rth: bool) -> float:
-    label = str(bar_size or "").strip().lower()
-    if "day" in label:
-        return 252.0
-    bar_def = parse_bar_size(bar_size)
-    if bar_def is None:
-        return 252.0
-    hours = bar_def.duration.total_seconds() / 3600.0
-    if hours <= 0:
-        return 252.0
-    session_hours = 6.5 if use_rth else 24.0
-    return 252.0 * (session_hours / hours)
-
-
 def _rv_series(
     closes: list[float],
     *,
@@ -369,7 +356,7 @@ def _rv_series(
         else:
             returns.append(0.0)
 
-    ann = math.sqrt(_annualization_factor(bar_size, use_rth))
+    ann = math.sqrt(annualization_factor(bar_size, use_rth))
     out: list[float | None] = [None]
     for i in range(1, len(closes)):
         start = max(0, i - lookback)

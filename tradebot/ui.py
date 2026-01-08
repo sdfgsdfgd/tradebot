@@ -20,18 +20,20 @@ from textual.widgets import Header, Footer, DataTable, Static
 
 from .client import IBKRClient
 from .config import load_config
+from .decision_core import (
+    EmaDecisionEngine,
+    EmaDecisionSnapshot,
+    cooldown_ok_by_time,
+    flip_exit_hit,
+    realized_vol_from_closes,
+    signal_filters_ok,
+)
 from .signals import (
     direction_from_action_right,
-    ema_cross,
-    ema_next,
     ema_periods,
-    ema_slope_pct,
-    ema_spread_pct,
     ema_state_direction,
     flip_exit_mode,
     parse_bar_size,
-    trend_confirmed_state,
-    update_cross_confirm,
 )
 from .store import PortfolioSnapshot
 
@@ -1428,14 +1430,7 @@ class _BotProposal:
 class _SignalSnapshot:
     bar_ts: datetime
     close: float
-    ema_fast: float
-    ema_slow: float
-    prev_ema_fast: float | None
-    prev_ema_slow: float | None
-    cross_up: bool
-    cross_down: bool
-    entry_dir: str | None
-    regime_dir: str | None
+    signal: EmaDecisionSnapshot
     bars_in_day: int
     rv: float | None
 
@@ -2550,7 +2545,37 @@ class BotScreen(Screen):
             )
             if snap is None:
                 continue
-            if not self._signal_filters_ok(instance, snap):
+
+            entry_days = instance.strategy.get("entry_days", [])
+            if entry_days:
+                allowed_days = {_weekday_num(day) for day in entry_days}
+            else:
+                allowed_days = {0, 1, 2, 3, 4}
+            if snap.bar_ts.weekday() not in allowed_days:
+                continue
+
+            cooldown_bars = 0
+            if isinstance(instance.filters, dict):
+                raw = instance.filters.get("cooldown_bars", 0)
+                try:
+                    cooldown_bars = int(raw or 0)
+                except (TypeError, ValueError):
+                    cooldown_bars = 0
+            cooldown_ok = cooldown_ok_by_time(
+                current_bar_ts=snap.bar_ts,
+                last_entry_bar_ts=instance.last_entry_bar_ts,
+                bar_size=self._signal_bar_size(instance),
+                cooldown_bars=cooldown_bars,
+            )
+            if not signal_filters_ok(
+                instance.filters,
+                bar_ts=snap.bar_ts,
+                bars_in_day=snap.bars_in_day,
+                close=float(snap.close),
+                rv=snap.rv,
+                signal=snap.signal,
+                cooldown_ok=cooldown_ok,
+            ):
                 continue
 
             instrument = self._strategy_instrument(instance.strategy)
@@ -2701,17 +2726,6 @@ class BotScreen(Screen):
             if not self._entry_limit_ok(instance):
                 continue
             if instance.last_entry_bar_ts is not None and instance.last_entry_bar_ts == snap.bar_ts:
-                continue
-            if not self._cooldown_ok(instance, snap.bar_ts):
-                continue
-
-            skip_first = 0
-            if isinstance(instance.filters, dict):
-                try:
-                    skip_first = int(instance.filters.get("skip_first_bars", 0) or 0)
-                except (TypeError, ValueError):
-                    skip_first = 0
-            if skip_first > 0 and snap.bars_in_day <= skip_first:
                 continue
 
             direction = self._entry_direction_for_instance(instance, snap)
@@ -2908,17 +2922,6 @@ class BotScreen(Screen):
         now = datetime.now(tz=ZoneInfo("America/New_York"))
         if now.weekday() not in allowed:
             return False
-        filters = instance.filters
-        if filters and filters.get("entry_start_hour") is not None and filters.get("entry_end_hour") is not None:
-            start = int(filters["entry_start_hour"])
-            end = int(filters["entry_end_hour"])
-            hour = now.hour
-            if start <= end:
-                if not (start <= hour < end):
-                    return False
-            else:
-                if not (hour >= start or hour < end):
-                    return False
         return True
 
     def _strategy_instrument(self, strategy: dict) -> str:
@@ -2994,73 +2997,6 @@ class BotScreen(Screen):
             return "1 Y"
         return "2 W"
 
-    def _signal_filters_ok(self, instance: _BotInstance, snap: _SignalSnapshot) -> bool:
-        filters = instance.filters or {}
-        if not isinstance(filters, dict):
-            return True
-        rv_min = filters.get("rv_min")
-        rv_max = filters.get("rv_max")
-        if rv_min is not None or rv_max is not None:
-            if snap.rv is None:
-                return False
-            try:
-                rv_min_f = float(rv_min) if rv_min is not None else None
-            except (TypeError, ValueError):
-                rv_min_f = None
-            try:
-                rv_max_f = float(rv_max) if rv_max is not None else None
-            except (TypeError, ValueError):
-                rv_max_f = None
-            if rv_min_f is not None and snap.rv < rv_min_f:
-                return False
-            if rv_max_f is not None and snap.rv > rv_max_f:
-                return False
-        spread_min = filters.get("ema_spread_min_pct")
-        if spread_min is not None:
-            try:
-                spread_min = float(spread_min)
-            except (TypeError, ValueError):
-                spread_min = None
-            if spread_min is not None:
-                spread = ema_spread_pct(snap.ema_fast, snap.ema_slow, snap.close)
-                if spread < spread_min:
-                    return False
-        slope_min = filters.get("ema_slope_min_pct")
-        if slope_min is not None:
-            try:
-                slope_min = float(slope_min)
-            except (TypeError, ValueError):
-                slope_min = None
-            if slope_min is not None:
-                if snap.prev_ema_fast is None:
-                    return False
-                slope = ema_slope_pct(snap.ema_fast, snap.prev_ema_fast, snap.close)
-                if slope < slope_min:
-                    return False
-        return True
-
-    def _cooldown_ok(self, instance: _BotInstance, bar_ts: datetime) -> bool:
-        filters = instance.filters or {}
-        if not isinstance(filters, dict):
-            return True
-        cooldown = filters.get("cooldown_bars")
-        if cooldown is None:
-            return True
-        try:
-            cooldown_bars = int(cooldown)
-        except (TypeError, ValueError):
-            return True
-        if cooldown_bars <= 0:
-            return True
-        if instance.last_entry_bar_ts is None:
-            return True
-        bar_size = parse_bar_size(self._signal_bar_size(instance))
-        if bar_size is None:
-            return True
-        delta = bar_ts - instance.last_entry_bar_ts
-        required = bar_size.duration * cooldown_bars
-        return delta >= required
-
     async def _signal_snapshot_for_contract(
         self,
         *,
@@ -3075,20 +3011,7 @@ class BotScreen(Screen):
         periods = ema_periods(ema_preset_raw)
         if periods is None:
             return None
-        fast_p, slow_p = periods
-
-        entry_mode = str(entry_mode_raw or "trend").strip().lower()
-        try:
-            confirm_bars = int(entry_confirm_bars or 0)
-        except (TypeError, ValueError):
-            confirm_bars = 0
-        confirm_bars = max(0, confirm_bars)
-
-        regime_periods = ema_periods(regime_ema_preset_raw)
-        reg_fast_p = None
-        reg_slow_p = None
-        if regime_periods is not None:
-            reg_fast_p, reg_slow_p = regime_periods
+        _, slow_p = periods
 
         bars = await self._client.historical_bars(
             contract,
@@ -3109,130 +3032,44 @@ class BotScreen(Screen):
         if len(bars) < (slow_p + 1):
             return None
 
-        def _annualization_factor(bar: str, rth: bool) -> float:
-            label = str(bar or "").strip().lower()
-            if "day" in label:
-                return 252.0
-            bar_def = parse_bar_size(bar)
-            if bar_def is None:
-                return 252.0
-            hours = bar_def.duration.total_seconds() / 3600.0
-            if hours <= 0:
-                return 252.0
-            session_hours = 6.5 if rth else 24.0
-            return 252.0 * (session_hours / hours)
+        try:
+            engine = EmaDecisionEngine(
+                ema_preset=str(ema_preset_raw),
+                ema_entry_mode=entry_mode_raw,
+                entry_confirm_bars=entry_confirm_bars,
+                regime_ema_preset=regime_ema_preset_raw,
+            )
+        except ValueError:
+            return None
 
-        ema_fast = None
-        ema_slow = None
-        prev_ema_fast = None
-        prev_ema_slow = None
-        count = 0
         last_ts = None
         last_close = None
-        entry_state = None
-        entry_streak = 0
-        pending_cross_dir = None
-        pending_cross_bars = 0
-        entry_dir = None
-        regime_fast = None
-        regime_slow = None
-        regime_count = 0
-        rv_returns: list[float] = []
-        prev_close = None
+        closes: list[float] = []
+        last_signal = None
         for ts, close in bars:
             if close <= 0:
                 continue
-            if prev_close is not None and prev_close > 0:
-                try:
-                    rv_returns.append(math.log(close / prev_close))
-                except (ValueError, ZeroDivisionError):
-                    pass
-            prev_close = close
             last_ts = ts
-            last_close = close
-            prev_ema_fast = ema_fast
-            prev_ema_slow = ema_slow
-            ema_fast = ema_next(ema_fast, close, fast_p)
-            ema_slow = ema_next(ema_slow, close, slow_p)
-            if reg_fast_p is not None and reg_slow_p is not None:
-                regime_fast = ema_next(regime_fast, close, reg_fast_p)
-                regime_slow = ema_next(regime_slow, close, reg_slow_p)
-                regime_count += 1
-            count += 1
+            last_close = float(close)
+            closes.append(float(close))
+            last_signal = engine.update(float(close))
 
-            if ema_fast is not None and ema_slow is not None:
-                state = ema_state_direction(ema_fast, ema_slow)
-                if state is None:
-                    entry_state = None
-                    entry_streak = 0
-                elif state == entry_state:
-                    entry_streak += 1
-                else:
-                    entry_state = state
-                    entry_streak = 1
-
-                cross_up = False
-                cross_down = False
-                if prev_ema_fast is not None and prev_ema_slow is not None:
-                    cross_up, cross_down = ema_cross(prev_ema_fast, prev_ema_slow, ema_fast, ema_slow)
-
-                if entry_mode == "cross":
-                    entry_dir, pending_cross_dir, pending_cross_bars = update_cross_confirm(
-                        cross_up=bool(cross_up),
-                        cross_down=bool(cross_down),
-                        state=state,
-                        confirm_bars=confirm_bars,
-                        pending_dir=pending_cross_dir,
-                        pending_bars=pending_cross_bars,
-                    )
-                else:
-                    entry_dir = trend_confirmed_state(state, entry_streak, confirm_bars=confirm_bars)
-        if (
-            last_ts is None
-            or last_close is None
-            or ema_fast is None
-            or ema_slow is None
-            or count < slow_p
-        ):
+        if last_ts is None or last_close is None or last_signal is None or not last_signal.ema_ready:
             return None
 
-        rv = 0.0
-        if rv_returns:
-            lookback = 60
-            lam = 0.94
-            variance = 0.0
-            for r in rv_returns[-lookback:]:
-                variance = lam * variance + (1.0 - lam) * (r * r)
-            rv = math.sqrt(max(0.0, variance)) * math.sqrt(_annualization_factor(bar_size, use_rth))
-
-        cross_up = False
-        cross_down = False
-        if prev_ema_fast is not None and prev_ema_slow is not None:
-            cross_up, cross_down = ema_cross(prev_ema_fast, prev_ema_slow, ema_fast, ema_slow)
-
-        regime_dir = None
-        if reg_fast_p is not None and reg_slow_p is not None:
-            if regime_count >= reg_slow_p and regime_fast is not None and regime_slow is not None:
-                regime_dir = ema_state_direction(regime_fast, regime_slow)
-            if entry_dir is not None and regime_dir != entry_dir:
-                entry_dir = None
-
-        bars_in_day = 0
-        if last_ts is not None:
-            last_date = last_ts.date()
-            bars_in_day = sum(1 for ts, _ in bars if ts.date() == last_date)
+        bars_in_day = sum(1 for ts, _ in bars if ts.date() == last_ts.date())
+        rv = realized_vol_from_closes(
+            closes,
+            lookback=60,
+            lam=0.94,
+            bar_size=bar_size,
+            use_rth=use_rth,
+        )
 
         return _SignalSnapshot(
             bar_ts=last_ts,
             close=float(last_close),
-            ema_fast=float(ema_fast),
-            ema_slow=float(ema_slow),
-            prev_ema_fast=float(prev_ema_fast) if prev_ema_fast is not None else None,
-            prev_ema_slow=float(prev_ema_slow) if prev_ema_slow is not None else None,
-            cross_up=bool(cross_up),
-            cross_down=bool(cross_down),
-            entry_dir=str(entry_dir) if entry_dir is not None else None,
-            regime_dir=str(regime_dir) if regime_dir is not None else None,
+            signal=last_signal,
             bars_in_day=int(bars_in_day),
             rv=float(rv) if rv is not None else None,
         )
@@ -3452,26 +3289,13 @@ class BotScreen(Screen):
         open_dir: str | None,
         open_items: list[PortfolioItem],
     ) -> bool:
-        if not bool(instance.strategy.get("exit_on_signal_flip")):
-            return False
-        if open_dir not in ("up", "down"):
-            return False
-        mode = flip_exit_mode(
-            instance.strategy.get("flip_exit_mode"),
-            instance.strategy.get("ema_entry_mode"),
-        )
-        if mode == "cross":
-            if open_dir == "up":
-                hit = snap.cross_down
-            else:
-                hit = snap.cross_up
-        else:
-            state = ema_state_direction(snap.ema_fast, snap.ema_slow)
-            if open_dir == "up":
-                hit = state == "down"
-            else:
-                hit = state == "up"
-        if not hit:
+        if not flip_exit_hit(
+            exit_on_signal_flip=bool(instance.strategy.get("exit_on_signal_flip")),
+            open_dir=open_dir,
+            signal=snap.signal,
+            flip_exit_mode_raw=instance.strategy.get("flip_exit_mode"),
+            ema_entry_mode_raw=instance.strategy.get("ema_entry_mode"),
+        ):
             return False
 
         hold_bars_raw = instance.strategy.get("flip_exit_min_hold_bars", 0)
@@ -3497,16 +3321,8 @@ class BotScreen(Screen):
         return True
 
     def _entry_direction_for_instance(self, instance: _BotInstance, snap: _SignalSnapshot) -> str | None:
-        if snap.entry_dir in ("up", "down"):
-            return str(snap.entry_dir)
-        entry_mode = str(instance.strategy.get("ema_entry_mode") or "trend").strip().lower()
-        if entry_mode == "cross":
-            if snap.cross_up:
-                return "up"
-            if snap.cross_down:
-                return "down"
-            return None
-        return ema_state_direction(snap.ema_fast, snap.ema_slow)
+        entry_dir = snap.signal.entry_dir
+        return str(entry_dir) if entry_dir in ("up", "down") else None
 
     def _allowed_entry_directions(self, instance: _BotInstance) -> set[str]:
         strategy = instance.strategy or {}
@@ -3938,8 +3754,8 @@ class BotScreen(Screen):
                         else None
                     )
                     if snap is not None:
-                        direction = self._entry_direction_for_instance(instance, snap) or ema_state_direction(
-                            snap.ema_fast, snap.ema_slow
+                        direction = self._entry_direction_for_instance(instance, snap) or (
+                            str(snap.signal.state) if snap.signal.state in ("up", "down") else None
                         )
             direction = direction if direction in ("up", "down") else "up"
 
@@ -4027,8 +3843,8 @@ class BotScreen(Screen):
                         else None
                     )
                     if snap is not None:
-                        direction = self._entry_direction_for_instance(instance, snap) or ema_state_direction(
-                            snap.ema_fast, snap.ema_slow
+                        direction = self._entry_direction_for_instance(instance, snap) or (
+                            str(snap.signal.state) if snap.signal.state in ("up", "down") else None
                         )
             if direction in ("up", "down") and dmap.get(direction):
                 legs_raw = dmap.get(direction)
