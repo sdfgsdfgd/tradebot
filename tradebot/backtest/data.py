@@ -105,6 +105,39 @@ class IBKRHistoricalData:
     ) -> list[Bar]:
         self.connect()
         duration = _duration_for_bar_size(bar_size)
+
+        # IBKR does not allow setting endDateTime for continuous futures ("CONTFUT").
+        # For those, request a single window and slice locally.
+        if getattr(contract, "secType", None) == "CONTFUT" or isinstance(contract, ContFuture):
+            days = max(int((end - start).total_seconds() // 86400), 0)
+            if days <= 7:
+                duration = "1 W"
+            elif days <= 14:
+                duration = "2 W"
+            elif days <= 31:
+                duration = "1 M"
+            elif days <= 93:
+                duration = "3 M"
+            elif days <= 186:
+                duration = "6 M"
+            elif days <= 366:
+                duration = "1 Y"
+            else:
+                duration = "2 Y"
+            chunk = self._ib.reqHistoricalData(
+                contract,
+                endDateTime="",
+                durationStr=duration,
+                barSizeSetting=bar_size,
+                whatToShow="TRADES",
+                useRTH=1 if use_rth else 0,
+                formatDate=1,
+                keepUpToDate=False,
+            )
+            if not chunk:
+                return []
+            bars = [_convert_bar(bar) for bar in chunk]
+            return [bar for bar in bars if start <= bar.ts <= end]
         cursor = end
         collected: list[Bar] = []
         while cursor >= start:
