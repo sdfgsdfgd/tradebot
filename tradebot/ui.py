@@ -23,6 +23,7 @@ from .config import load_config
 from .decision_core import (
     EmaDecisionEngine,
     EmaDecisionSnapshot,
+    apply_regime_gate,
     cooldown_ok_by_time,
     flip_exit_hit,
     realized_vol_from_closes,
@@ -1503,6 +1504,7 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
 
         self._strategy.setdefault("entry_confirm_bars", 0)
         self._strategy.setdefault("regime_ema_preset", "")
+        self._strategy.setdefault("regime_bar_size", "")
 
         if instrument == "spot":
             self._strategy.setdefault("spot_sec_type", "STK")
@@ -1531,6 +1533,12 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
             _BotConfigField("EMA entry mode", "enum", "ema_entry_mode", options=("trend", "cross")),
             _BotConfigField("Entry confirm bars", "int", "entry_confirm_bars"),
             _BotConfigField("Regime EMA preset", "text", "regime_ema_preset"),
+            _BotConfigField(
+                "Regime bar size",
+                "enum",
+                "regime_bar_size",
+                options=("", "1 hour", "30 mins", "15 mins", "5 mins", "1 day"),
+            ),
             _BotConfigField("Entry start hour", "text", "filters.entry_start_hour"),
             _BotConfigField("Entry end hour", "text", "filters.entry_end_hour"),
             _BotConfigField("Flip-exit", "bool", "exit_on_signal_flip"),
@@ -2542,6 +2550,7 @@ class BotScreen(Screen):
                 entry_mode_raw=instance.strategy.get("ema_entry_mode"),
                 entry_confirm_bars=instance.strategy.get("entry_confirm_bars", 0),
                 regime_ema_preset_raw=instance.strategy.get("regime_ema_preset"),
+                regime_bar_size_raw=instance.strategy.get("regime_bar_size"),
             )
             if snap is None:
                 continue
@@ -3007,6 +3016,7 @@ class BotScreen(Screen):
         entry_mode_raw: str | None = None,
         entry_confirm_bars: int = 0,
         regime_ema_preset_raw: str | None = None,
+        regime_bar_size_raw: str | None = None,
     ) -> _SignalSnapshot | None:
         periods = ema_periods(ema_preset_raw)
         if periods is None:
@@ -3032,12 +3042,18 @@ class BotScreen(Screen):
         if len(bars) < (slow_p + 1):
             return None
 
+        regime_preset = str(regime_ema_preset_raw or "").strip()
+        regime_bar_size = str(regime_bar_size_raw or "").strip()
+        if not regime_bar_size or regime_bar_size.lower() in ("same", "default"):
+            regime_bar_size = str(bar_size)
+        use_mtf_regime = bool(regime_preset) and (str(regime_bar_size) != str(bar_size))
+
         try:
             engine = EmaDecisionEngine(
                 ema_preset=str(ema_preset_raw),
                 ema_entry_mode=entry_mode_raw,
                 entry_confirm_bars=entry_confirm_bars,
-                regime_ema_preset=regime_ema_preset_raw,
+                regime_ema_preset=None if use_mtf_regime else regime_ema_preset_raw,
             )
         except ValueError:
             return None
@@ -3065,6 +3081,59 @@ class BotScreen(Screen):
             bar_size=bar_size,
             use_rth=use_rth,
         )
+
+        if use_mtf_regime:
+            regime_periods = ema_periods(regime_preset)
+            if regime_periods is None:
+                return None
+            _, regime_slow_p = regime_periods
+
+            regime_bars = await self._client.historical_bars(
+                contract,
+                duration_str=self._signal_duration_str(regime_bar_size),
+                bar_size=regime_bar_size,
+                use_rth=use_rth,
+                cache_ttl_sec=30.0,
+            )
+            if not regime_bars:
+                return None
+
+            regime_def = parse_bar_size(regime_bar_size)
+            if regime_def is not None and len(regime_bars) >= 2:
+                now_et = datetime.now(tz=ZoneInfo("America/New_York")).replace(tzinfo=None)
+                reg_last_ts, _ = regime_bars[-1]
+                if reg_last_ts + regime_def.duration > now_et:
+                    regime_bars = regime_bars[:-1]
+            if len(regime_bars) < (regime_slow_p + 1):
+                return None
+
+            try:
+                regime_engine = EmaDecisionEngine(
+                    ema_preset=regime_preset,
+                    ema_entry_mode="trend",
+                    entry_confirm_bars=0,
+                    regime_ema_preset=None,
+                )
+            except ValueError:
+                return None
+
+            last_regime = None
+            for ts, close in regime_bars:
+                if ts > last_ts:
+                    break
+                if close <= 0:
+                    continue
+                last_regime = regime_engine.update(float(close))
+
+            regime_ready = bool(last_regime and last_regime.ema_ready)
+            regime_dir = last_regime.state if last_regime is not None else None
+            last_signal = apply_regime_gate(
+                last_signal,
+                regime_dir=regime_dir,
+                regime_ready=regime_ready,
+            )
+            if last_signal is None:
+                return None
 
         return _SignalSnapshot(
             bar_ts=last_ts,
@@ -3743,15 +3812,16 @@ class BotScreen(Screen):
                     snap = (
                         await self._signal_snapshot_for_contract(
                             contract=signal_contract,
-                        ema_preset_raw=str(ema_preset),
-                        bar_size=self._signal_bar_size(instance),
-                        use_rth=self._signal_use_rth(instance),
-                        entry_mode_raw=strat.get("ema_entry_mode"),
-                        entry_confirm_bars=strat.get("entry_confirm_bars", 0),
-                        regime_ema_preset_raw=strat.get("regime_ema_preset"),
-                    )
-                        if signal_contract is not None
-                        else None
+                            ema_preset_raw=str(ema_preset),
+                            bar_size=self._signal_bar_size(instance),
+                            use_rth=self._signal_use_rth(instance),
+                            entry_mode_raw=strat.get("ema_entry_mode"),
+                            entry_confirm_bars=strat.get("entry_confirm_bars", 0),
+                            regime_ema_preset_raw=strat.get("regime_ema_preset"),
+                            regime_bar_size_raw=strat.get("regime_bar_size"),
+                        )
+                            if signal_contract is not None
+                            else None
                     )
                     if snap is not None:
                         direction = self._entry_direction_for_instance(instance, snap) or (
@@ -3832,15 +3902,16 @@ class BotScreen(Screen):
                     snap = (
                         await self._signal_snapshot_for_contract(
                             contract=signal_contract,
-                        ema_preset_raw=str(ema_preset),
-                        bar_size=self._signal_bar_size(instance),
-                        use_rth=self._signal_use_rth(instance),
-                        entry_mode_raw=strat.get("ema_entry_mode"),
-                        entry_confirm_bars=strat.get("entry_confirm_bars", 0),
-                        regime_ema_preset_raw=strat.get("regime_ema_preset"),
-                    )
-                        if signal_contract is not None
-                        else None
+                            ema_preset_raw=str(ema_preset),
+                            bar_size=self._signal_bar_size(instance),
+                            use_rth=self._signal_use_rth(instance),
+                            entry_mode_raw=strat.get("ema_entry_mode"),
+                            entry_confirm_bars=strat.get("entry_confirm_bars", 0),
+                            regime_ema_preset_raw=strat.get("regime_ema_preset"),
+                            regime_bar_size_raw=strat.get("regime_bar_size"),
+                        )
+                            if signal_contract is not None
+                            else None
                     )
                     if snap is not None:
                         direction = self._entry_direction_for_instance(instance, snap) or (

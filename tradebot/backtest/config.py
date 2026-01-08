@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
+from ..signals import parse_bar_size
+
 _WEEKDAYS = {
     "MON": 0,
     "TUE": 1,
@@ -55,6 +57,7 @@ class StrategyConfig:
     ema_entry_mode: str
     entry_confirm_bars: int
     regime_ema_preset: str | None
+    regime_bar_size: str | None
     ema_directional: bool
     exit_on_signal_flip: bool
     flip_exit_mode: str
@@ -162,6 +165,7 @@ def load_config(path: str | Path) -> ConfigBundle:
         ema_entry_mode=_parse_ema_entry_mode(strategy_raw.get("ema_entry_mode")),
         entry_confirm_bars=_parse_non_negative_int(strategy_raw.get("entry_confirm_bars"), default=0),
         regime_ema_preset=_parse_ema_preset(strategy_raw.get("regime_ema_preset")),
+        regime_bar_size=_parse_bar_size(strategy_raw.get("regime_bar_size")),
         ema_directional=bool(strategy_raw.get("ema_directional", False)),
         exit_on_signal_flip=bool(strategy_raw.get("exit_on_signal_flip", False)),
         flip_exit_mode=_parse_flip_exit_mode(strategy_raw.get("flip_exit_mode")),
@@ -227,6 +231,22 @@ def _parse_ema_preset(value) -> str | None:
             return None
         return cleaned
     return None
+
+
+def _parse_bar_size(value) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError(f"Invalid bar size: {value!r}")
+    cleaned = value.strip()
+    if not cleaned:
+        return None
+    lowered = cleaned.lower()
+    if lowered in ("none", "null", "same", "default"):
+        return None
+    if parse_bar_size(cleaned) is None:
+        raise ValueError(f"Invalid bar size: {value!r}")
+    return cleaned
 
 
 def _parse_ema_entry_mode(value) -> str:

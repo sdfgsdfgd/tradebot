@@ -294,6 +294,36 @@ class EmaDecisionEngine:
         )
 
 
+def apply_regime_gate(
+    signal: EmaDecisionSnapshot | None,
+    *,
+    regime_dir: str | None,
+    regime_ready: bool,
+) -> EmaDecisionSnapshot | None:
+    if signal is None:
+        return None
+    cleaned_regime_dir = str(regime_dir) if regime_dir in ("up", "down") else None
+    entry_dir = signal.entry_dir
+    if entry_dir is not None:
+        if not bool(regime_ready):
+            entry_dir = None
+        elif cleaned_regime_dir is None or cleaned_regime_dir != entry_dir:
+            entry_dir = None
+    return EmaDecisionSnapshot(
+        ema_fast=signal.ema_fast,
+        ema_slow=signal.ema_slow,
+        prev_ema_fast=signal.prev_ema_fast,
+        prev_ema_slow=signal.prev_ema_slow,
+        ema_ready=signal.ema_ready,
+        cross_up=signal.cross_up,
+        cross_down=signal.cross_down,
+        state=signal.state,
+        entry_dir=entry_dir,
+        regime_dir=cleaned_regime_dir,
+        regime_ready=bool(regime_ready),
+    )
+
+
 def flip_exit_hit(
     *,
     exit_on_signal_flip: bool,
@@ -420,4 +450,3 @@ def signal_filters_ok(
                 return False
 
     return True
-

@@ -15,6 +15,7 @@ from .synth import IVSurfaceParams, black_76, black_scholes, ewma_vol, iv_atm, i
 from ..decision_core import (
     EmaDecisionEngine,
     EmaDecisionSnapshot,
+    apply_regime_gate,
     annualization_factor,
     cooldown_ok_by_index,
     flip_exit_hit,
@@ -82,7 +83,32 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
             )
 
     if cfg.strategy.instrument == "spot":
-        result = _run_spot_backtest(cfg, bars, meta)
+        regime_preset = cfg.strategy.regime_ema_preset
+        regime_bar = cfg.strategy.regime_bar_size or cfg.backtest.bar_size
+        use_mtf_regime = bool(regime_preset) and str(regime_bar) != str(cfg.backtest.bar_size)
+        regime_bars = None
+        if use_mtf_regime:
+            if cfg.backtest.offline:
+                regime_bars = data.load_cached_bars(
+                    symbol=cfg.strategy.symbol,
+                    exchange=cfg.strategy.exchange,
+                    start=start_dt,
+                    end=end_dt,
+                    bar_size=str(regime_bar),
+                    use_rth=cfg.backtest.use_rth,
+                    cache_dir=cfg.backtest.cache_dir,
+                )
+            else:
+                regime_bars = data.load_or_fetch_bars(
+                    symbol=cfg.strategy.symbol,
+                    exchange=cfg.strategy.exchange,
+                    start=start_dt,
+                    end=end_dt,
+                    bar_size=str(regime_bar),
+                    use_rth=cfg.backtest.use_rth,
+                    cache_dir=cfg.backtest.cache_dir,
+                )
+        result = _run_spot_backtest(cfg, bars, meta, regime_bars=regime_bars)
         data.disconnect()
         return result
 
@@ -121,14 +147,52 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
     if needs_direction:
         ema_needed = True
 
+    regime_preset = cfg.strategy.regime_ema_preset
+    regime_bar = cfg.strategy.regime_bar_size or cfg.backtest.bar_size
+    use_mtf_regime = bool(regime_preset) and str(regime_bar) != str(cfg.backtest.bar_size)
+    regime_bars = None
+    if use_mtf_regime:
+        if cfg.backtest.offline:
+            regime_bars = data.load_cached_bars(
+                symbol=cfg.strategy.symbol,
+                exchange=cfg.strategy.exchange,
+                start=start_dt,
+                end=end_dt,
+                bar_size=str(regime_bar),
+                use_rth=cfg.backtest.use_rth,
+                cache_dir=cfg.backtest.cache_dir,
+            )
+        else:
+            regime_bars = data.load_or_fetch_bars(
+                symbol=cfg.strategy.symbol,
+                exchange=cfg.strategy.exchange,
+                start=start_dt,
+                end=end_dt,
+                bar_size=str(regime_bar),
+                use_rth=cfg.backtest.use_rth,
+                cache_dir=cfg.backtest.cache_dir,
+            )
+
     signal_engine: EmaDecisionEngine | None = None
     if ema_periods is not None:
         signal_engine = EmaDecisionEngine(
             ema_preset=str(cfg.strategy.ema_preset),
             ema_entry_mode=cfg.strategy.ema_entry_mode,
             entry_confirm_bars=cfg.strategy.entry_confirm_bars,
-            regime_ema_preset=cfg.strategy.regime_ema_preset,
+            regime_ema_preset=None if use_mtf_regime else cfg.strategy.regime_ema_preset,
         )
+    regime_engine = (
+        EmaDecisionEngine(
+            ema_preset=str(regime_preset),
+            ema_entry_mode="trend",
+            entry_confirm_bars=0,
+            regime_ema_preset=None,
+        )
+        if use_mtf_regime
+        else None
+    )
+    regime_idx = 0
+    last_regime = None
 
     bars_in_day = 0
     last_entry_idx = None
@@ -147,6 +211,15 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
             entries_today = 0
         bars_in_day += 1
         signal = signal_engine.update(bar.close) if signal_engine is not None else None
+        if use_mtf_regime and signal is not None and regime_engine is not None and regime_bars is not None:
+            while regime_idx < len(regime_bars) and regime_bars[regime_idx].ts <= bar.ts:
+                last_regime = regime_engine.update(regime_bars[regime_idx].close)
+                regime_idx += 1
+            signal = apply_regime_gate(
+                signal,
+                regime_dir=last_regime.state if last_regime is not None else None,
+                regime_ready=bool(last_regime and last_regime.ema_ready),
+            )
         ema_ready = bool(signal and signal.ema_ready)
 
         if open_trades and prev_bar:
@@ -377,7 +450,13 @@ def _spot_multiplier(symbol: str, is_future: bool, default: float = 1.0) -> floa
     return overrides.get(symbol, default if default > 0 else 1.0)
 
 
-def _run_spot_backtest(cfg: ConfigBundle, bars: list[Bar], meta: ContractMeta) -> BacktestResult:
+def _run_spot_backtest(
+    cfg: ConfigBundle,
+    bars: list[Bar],
+    meta: ContractMeta,
+    *,
+    regime_bars: list[Bar] | None = None,
+) -> BacktestResult:
     returns = deque(maxlen=cfg.synthetic.rv_lookback)
     cash = cfg.backtest.starting_cash
     margin_used = 0.0
@@ -393,12 +472,25 @@ def _run_spot_backtest(cfg: ConfigBundle, bars: list[Bar], meta: ContractMeta) -
         raise ValueError("spot backtests require ema_preset")
     ema_needed = True
 
+    use_mtf_regime = bool(regime_bars) and bool(cfg.strategy.regime_ema_preset)
     signal_engine = EmaDecisionEngine(
         ema_preset=str(cfg.strategy.ema_preset),
         ema_entry_mode=cfg.strategy.ema_entry_mode,
         entry_confirm_bars=cfg.strategy.entry_confirm_bars,
-        regime_ema_preset=cfg.strategy.regime_ema_preset,
+        regime_ema_preset=None if use_mtf_regime else cfg.strategy.regime_ema_preset,
     )
+    regime_engine = (
+        EmaDecisionEngine(
+            ema_preset=str(cfg.strategy.regime_ema_preset),
+            ema_entry_mode="trend",
+            entry_confirm_bars=0,
+            regime_ema_preset=None,
+        )
+        if use_mtf_regime
+        else None
+    )
+    regime_idx = 0
+    last_regime = None
 
     bars_in_day = 0
     last_entry_idx = None
@@ -417,6 +509,17 @@ def _run_spot_backtest(cfg: ConfigBundle, bars: list[Bar], meta: ContractMeta) -
             entries_today = 0
         bars_in_day += 1
         signal = signal_engine.update(bar.close)
+        if use_mtf_regime and regime_engine is not None and regime_bars is not None:
+            while regime_idx < len(regime_bars) and regime_bars[regime_idx].ts <= bar.ts:
+                last_regime = regime_engine.update(regime_bars[regime_idx].close)
+                regime_idx += 1
+            signal = apply_regime_gate(
+                signal,
+                regime_dir=last_regime.state if last_regime is not None else None,
+                regime_ready=bool(last_regime and last_regime.ema_ready),
+            )
+            if signal is None:
+                continue
         ema_ready = bool(ema_needed and signal.ema_ready)
 
         liquidation = 0.0

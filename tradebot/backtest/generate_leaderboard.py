@@ -471,6 +471,7 @@ def _run_combo(
         ema_entry_mode=str(ema_entry_mode),
         entry_confirm_bars=0,
         regime_ema_preset=None,
+        regime_bar_size=None,
         ema_directional=False,
         exit_on_signal_flip=bool(exit_on_signal_flip),
         flip_exit_mode="entry",
