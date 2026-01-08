@@ -1499,12 +1499,23 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
         self.action_save()
 
     def _build_fields(self) -> None:
+        instrument_raw = self._strategy.get("instrument", "options")
+        instrument = "spot" if str(instrument_raw or "").strip().lower() == "spot" else "options"
+
+        if instrument == "spot":
+            self._strategy.setdefault("spot_sec_type", "STK")
+            self._strategy.setdefault("spot_exchange", "")
+            self._strategy.setdefault("spot_close_eod", True)
+            if not isinstance(self._strategy.get("directional_spot"), dict):
+                self._strategy["directional_spot"] = {
+                    "up": {"action": "BUY", "qty": 1},
+                    "down": {"action": "SELL", "qty": 1},
+                }
+
         self._fields = [
             _BotConfigField("Symbol", "text", "symbol"),
             _BotConfigField("Auto trade", "bool", "auto_trade"),
             _BotConfigField("Instrument", "enum", "instrument", options=("options", "spot")),
-            _BotConfigField("Spot secType", "enum", "spot_sec_type", options=("STK", "FUT")),
-            _BotConfigField("Spot exchange", "text", "spot_exchange"),
             _BotConfigField(
                 "Signal bar size",
                 "enum",
@@ -1512,20 +1523,8 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
                 options=("1 hour", "30 mins", "15 mins", "5 mins", "1 day"),
             ),
             _BotConfigField("Signal use RTH", "bool", "signal_use_rth"),
-            _BotConfigField("DTE", "int", "dte"),
-            _BotConfigField("Profit target (PT)", "float", "profit_target"),
-            _BotConfigField("Stop loss (SL)", "float", "stop_loss"),
-            _BotConfigField("Exit DTE", "int", "exit_dte"),
-            _BotConfigField("Stop loss basis", "enum", "stop_loss_basis", options=("max_loss", "credit")),
             _BotConfigField("Entry days", "text", "entry_days"),
             _BotConfigField("Max entries/day", "int", "max_entries_per_day"),
-            _BotConfigField(
-                "Price mode",
-                "enum",
-                "price_mode",
-                options=("OPTIMISTIC", "MID", "AGGRESSIVE", "CROSS"),
-            ),
-            _BotConfigField("Chase proposals", "bool", "chase_proposals"),
             _BotConfigField("EMA preset", "text", "ema_preset"),
             _BotConfigField("EMA entry mode", "enum", "ema_entry_mode", options=("trend", "cross")),
             _BotConfigField("Entry start hour", "text", "filters.entry_start_hour"),
@@ -1533,14 +1532,41 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
             _BotConfigField("Flip-exit", "bool", "exit_on_signal_flip"),
             _BotConfigField("Flip min hold bars", "int", "flip_exit_min_hold_bars"),
             _BotConfigField("Flip only if profit", "bool", "flip_exit_only_if_profit"),
-            _BotConfigField("Spot close EOD", "bool", "spot_close_eod"),
-            _BotConfigField("Spot PT %", "float", "spot_profit_target_pct"),
-            _BotConfigField("Spot SL %", "float", "spot_stop_loss_pct"),
-            _BotConfigField("Spot up action", "enum", "directional_spot.up.action", options=("", "BUY")),
-            _BotConfigField("Spot up qty", "int", "directional_spot.up.qty"),
-            _BotConfigField("Spot down action", "enum", "directional_spot.down.action", options=("", "SELL")),
-            _BotConfigField("Spot down qty", "int", "directional_spot.down.qty"),
         ]
+
+        if instrument == "spot":
+            self._fields.extend(
+                [
+                    _BotConfigField("Spot secType", "enum", "spot_sec_type", options=("STK", "FUT")),
+                    _BotConfigField("Spot exchange", "text", "spot_exchange"),
+                    _BotConfigField("Spot close EOD", "bool", "spot_close_eod"),
+                    _BotConfigField("Spot PT %", "float", "spot_profit_target_pct"),
+                    _BotConfigField("Spot SL %", "float", "spot_stop_loss_pct"),
+                    _BotConfigField("Spot up action", "enum", "directional_spot.up.action", options=("", "BUY")),
+                    _BotConfigField("Spot up qty", "int", "directional_spot.up.qty"),
+                    _BotConfigField("Spot down action", "enum", "directional_spot.down.action", options=("", "SELL")),
+                    _BotConfigField("Spot down qty", "int", "directional_spot.down.qty"),
+                ]
+            )
+            return
+
+        self._fields.extend(
+            [
+                _BotConfigField("DTE", "int", "dte"),
+                _BotConfigField("Profit target (PT)", "float", "profit_target"),
+                _BotConfigField("Stop loss (SL)", "float", "stop_loss"),
+                _BotConfigField("Exit DTE", "int", "exit_dte"),
+                _BotConfigField("Stop loss basis", "enum", "stop_loss_basis", options=("max_loss", "credit")),
+                _BotConfigField(
+                    "Price mode",
+                    "enum",
+                    "price_mode",
+                    options=("OPTIMISTIC", "MID", "AGGRESSIVE", "CROSS"),
+                ),
+                _BotConfigField("Chase proposals", "bool", "chase_proposals"),
+            ]
+        )
+
         legs = self._strategy.get("legs", [])
         if not isinstance(legs, list):
             legs = []
@@ -1676,6 +1702,8 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
             self._set_value(field, None)
         else:
             self._set_value(field, new_val)
+        if field.path == "instrument":
+            self._build_fields()
         self._refresh_table()
 
     def on_key(self, event: events.Key) -> None:
