@@ -30,6 +30,8 @@ from .signals import (
     ema_state_direction,
     flip_exit_mode,
     parse_bar_size,
+    trend_confirmed_state,
+    update_cross_confirm,
 )
 from .store import PortfolioSnapshot
 
@@ -1432,6 +1434,8 @@ class _SignalSnapshot:
     prev_ema_slow: float | None
     cross_up: bool
     cross_down: bool
+    entry_dir: str | None
+    regime_dir: str | None
     bars_in_day: int
     rv: float | None
 
@@ -1502,6 +1506,9 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
         instrument_raw = self._strategy.get("instrument", "options")
         instrument = "spot" if str(instrument_raw or "").strip().lower() == "spot" else "options"
 
+        self._strategy.setdefault("entry_confirm_bars", 0)
+        self._strategy.setdefault("regime_ema_preset", "")
+
         if instrument == "spot":
             self._strategy.setdefault("spot_sec_type", "STK")
             self._strategy.setdefault("spot_exchange", "")
@@ -1527,6 +1534,8 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
             _BotConfigField("Max entries/day", "int", "max_entries_per_day"),
             _BotConfigField("EMA preset", "text", "ema_preset"),
             _BotConfigField("EMA entry mode", "enum", "ema_entry_mode", options=("trend", "cross")),
+            _BotConfigField("Entry confirm bars", "int", "entry_confirm_bars"),
+            _BotConfigField("Regime EMA preset", "text", "regime_ema_preset"),
             _BotConfigField("Entry start hour", "text", "filters.entry_start_hour"),
             _BotConfigField("Entry end hour", "text", "filters.entry_end_hour"),
             _BotConfigField("Flip-exit", "bool", "exit_on_signal_flip"),
@@ -2535,6 +2544,9 @@ class BotScreen(Screen):
                 ema_preset_raw=str(ema_preset),
                 bar_size=self._signal_bar_size(instance),
                 use_rth=self._signal_use_rth(instance),
+                entry_mode_raw=instance.strategy.get("ema_entry_mode"),
+                entry_confirm_bars=instance.strategy.get("entry_confirm_bars", 0),
+                regime_ema_preset_raw=instance.strategy.get("regime_ema_preset"),
             )
             if snap is None:
                 continue
@@ -3056,11 +3068,27 @@ class BotScreen(Screen):
         ema_preset_raw: str | None,
         bar_size: str,
         use_rth: bool,
+        entry_mode_raw: str | None = None,
+        entry_confirm_bars: int = 0,
+        regime_ema_preset_raw: str | None = None,
     ) -> _SignalSnapshot | None:
         periods = ema_periods(ema_preset_raw)
         if periods is None:
             return None
         fast_p, slow_p = periods
+
+        entry_mode = str(entry_mode_raw or "trend").strip().lower()
+        try:
+            confirm_bars = int(entry_confirm_bars or 0)
+        except (TypeError, ValueError):
+            confirm_bars = 0
+        confirm_bars = max(0, confirm_bars)
+
+        regime_periods = ema_periods(regime_ema_preset_raw)
+        reg_fast_p = None
+        reg_slow_p = None
+        if regime_periods is not None:
+            reg_fast_p, reg_slow_p = regime_periods
 
         bars = await self._client.historical_bars(
             contract,
@@ -3101,6 +3129,14 @@ class BotScreen(Screen):
         count = 0
         last_ts = None
         last_close = None
+        entry_state = None
+        entry_streak = 0
+        pending_cross_dir = None
+        pending_cross_bars = 0
+        entry_dir = None
+        regime_fast = None
+        regime_slow = None
+        regime_count = 0
         rv_returns: list[float] = []
         prev_close = None
         for ts, close in bars:
@@ -3118,7 +3154,39 @@ class BotScreen(Screen):
             prev_ema_slow = ema_slow
             ema_fast = ema_next(ema_fast, close, fast_p)
             ema_slow = ema_next(ema_slow, close, slow_p)
+            if reg_fast_p is not None and reg_slow_p is not None:
+                regime_fast = ema_next(regime_fast, close, reg_fast_p)
+                regime_slow = ema_next(regime_slow, close, reg_slow_p)
+                regime_count += 1
             count += 1
+
+            if ema_fast is not None and ema_slow is not None:
+                state = ema_state_direction(ema_fast, ema_slow)
+                if state is None:
+                    entry_state = None
+                    entry_streak = 0
+                elif state == entry_state:
+                    entry_streak += 1
+                else:
+                    entry_state = state
+                    entry_streak = 1
+
+                cross_up = False
+                cross_down = False
+                if prev_ema_fast is not None and prev_ema_slow is not None:
+                    cross_up, cross_down = ema_cross(prev_ema_fast, prev_ema_slow, ema_fast, ema_slow)
+
+                if entry_mode == "cross":
+                    entry_dir, pending_cross_dir, pending_cross_bars = update_cross_confirm(
+                        cross_up=bool(cross_up),
+                        cross_down=bool(cross_down),
+                        state=state,
+                        confirm_bars=confirm_bars,
+                        pending_dir=pending_cross_dir,
+                        pending_bars=pending_cross_bars,
+                    )
+                else:
+                    entry_dir = trend_confirmed_state(state, entry_streak, confirm_bars=confirm_bars)
         if (
             last_ts is None
             or last_close is None
@@ -3142,6 +3210,13 @@ class BotScreen(Screen):
         if prev_ema_fast is not None and prev_ema_slow is not None:
             cross_up, cross_down = ema_cross(prev_ema_fast, prev_ema_slow, ema_fast, ema_slow)
 
+        regime_dir = None
+        if reg_fast_p is not None and reg_slow_p is not None:
+            if regime_count >= reg_slow_p and regime_fast is not None and regime_slow is not None:
+                regime_dir = ema_state_direction(regime_fast, regime_slow)
+            if entry_dir is not None and regime_dir != entry_dir:
+                entry_dir = None
+
         bars_in_day = 0
         if last_ts is not None:
             last_date = last_ts.date()
@@ -3156,6 +3231,8 @@ class BotScreen(Screen):
             prev_ema_slow=float(prev_ema_slow) if prev_ema_slow is not None else None,
             cross_up=bool(cross_up),
             cross_down=bool(cross_down),
+            entry_dir=str(entry_dir) if entry_dir is not None else None,
+            regime_dir=str(regime_dir) if regime_dir is not None else None,
             bars_in_day=int(bars_in_day),
             rv=float(rv) if rv is not None else None,
         )
@@ -3420,6 +3497,8 @@ class BotScreen(Screen):
         return True
 
     def _entry_direction_for_instance(self, instance: _BotInstance, snap: _SignalSnapshot) -> str | None:
+        if snap.entry_dir in ("up", "down"):
+            return str(snap.entry_dir)
         entry_mode = str(instance.strategy.get("ema_entry_mode") or "trend").strip().lower()
         if entry_mode == "cross":
             if snap.cross_up:
@@ -3851,6 +3930,9 @@ class BotScreen(Screen):
                         ema_preset_raw=str(ema_preset),
                         bar_size=self._signal_bar_size(instance),
                         use_rth=self._signal_use_rth(instance),
+                        entry_mode_raw=strat.get("ema_entry_mode"),
+                        entry_confirm_bars=strat.get("entry_confirm_bars", 0),
+                        regime_ema_preset_raw=strat.get("regime_ema_preset"),
                     )
                         if signal_contract is not None
                         else None
@@ -3937,6 +4019,9 @@ class BotScreen(Screen):
                         ema_preset_raw=str(ema_preset),
                         bar_size=self._signal_bar_size(instance),
                         use_rth=self._signal_use_rth(instance),
+                        entry_mode_raw=strat.get("ema_entry_mode"),
+                        entry_confirm_bars=strat.get("entry_confirm_bars", 0),
+                        regime_ema_preset_raw=strat.get("regime_ema_preset"),
                     )
                         if signal_contract is not None
                         else None

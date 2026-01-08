@@ -16,6 +16,9 @@ from ..signals import (
     ema_next as _ema_next_shared,
     ema_periods as _ema_periods_shared,
     flip_exit_mode as _flip_exit_mode_shared,
+    ema_state_direction,
+    trend_confirmed_state,
+    update_cross_confirm,
 )
 
 
@@ -124,6 +127,15 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
     bars_in_day = 0
     last_entry_idx = None
     last_date = None
+    entry_state: str | None = None
+    entry_streak = 0
+    pending_cross_dir: str | None = None
+    pending_cross_bars = 0
+
+    regime_periods = _ema_periods(cfg.strategy.regime_ema_preset)
+    regime_fast = None
+    regime_slow = None
+    regime_count = 0
     for idx, bar in enumerate(bars):
         next_bar = bars[idx + 1] if idx + 1 < len(bars) else None
         is_last_bar = next_bar is None or next_bar.ts.date() != bar.ts.date()
@@ -137,6 +149,11 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
             last_date = bar.ts.date()
             entries_today = 0
         bars_in_day += 1
+
+        if regime_periods and bar.close > 0:
+            regime_fast = _ema_next(regime_fast, bar.close, regime_periods[0])
+            regime_slow = _ema_next(regime_slow, bar.close, regime_periods[1])
+            regime_count += 1
         if ema_periods and bar.close > 0:
             prev_ema_fast = ema_fast
             prev_ema_slow = ema_slow
@@ -148,6 +165,14 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
             and ema_count >= ema_periods[1]
             and ema_fast is not None
             and ema_slow is not None
+        )
+        regime_ready = (
+            regime_periods is None
+            or (
+                regime_count >= regime_periods[1]
+                and regime_fast is not None
+                and regime_slow is not None
+            )
         )
 
         if open_trades and prev_bar:
@@ -241,7 +266,54 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
                     liquidation += (-current_value) * meta.multiplier
             open_trades = still_open
 
-        # TODO: add regime gating hook before entry decisions.
+        entry_signal_dir = None
+        if ema_ready and ema_fast is not None and ema_slow is not None:
+            state = ema_state_direction(ema_fast, ema_slow)
+            if state is None:
+                entry_state = None
+                entry_streak = 0
+            elif state == entry_state:
+                entry_streak += 1
+            else:
+                entry_state = state
+                entry_streak = 1
+
+            cross_up = False
+            cross_down = False
+            if prev_ema_fast is not None and prev_ema_slow is not None:
+                cross_up = prev_ema_fast <= prev_ema_slow and ema_fast > ema_slow
+                cross_down = prev_ema_fast >= prev_ema_slow and ema_fast < ema_slow
+
+            if cfg.strategy.ema_entry_mode == "cross":
+                entry_signal_dir, pending_cross_dir, pending_cross_bars = update_cross_confirm(
+                    cross_up=cross_up,
+                    cross_down=cross_down,
+                    state=state,
+                    confirm_bars=cfg.strategy.entry_confirm_bars,
+                    pending_dir=pending_cross_dir,
+                    pending_bars=pending_cross_bars,
+                )
+            else:
+                entry_signal_dir = trend_confirmed_state(
+                    state,
+                    entry_streak,
+                    confirm_bars=cfg.strategy.entry_confirm_bars,
+                )
+        else:
+            entry_state = None
+            entry_streak = 0
+            pending_cross_dir = None
+            pending_cross_bars = 0
+
+        if regime_periods is not None:
+            regime_dir = (
+                ema_state_direction(regime_fast, regime_slow)
+                if regime_ready and regime_fast is not None and regime_slow is not None
+                else None
+            )
+            if entry_signal_dir is not None and regime_dir != entry_signal_dir:
+                entry_signal_dir = None
+
         ema_gate_ok = True
         ema_right_override = None
         direction = None
@@ -251,63 +323,36 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
             if needs_direction:
                 if cfg.strategy.direction_source != "ema":
                     ema_gate_ok = False
-                elif cfg.strategy.ema_entry_mode == "cross":
-                    if prev_ema_fast is None or prev_ema_slow is None:
-                        ema_gate_ok = False
-                    else:
-                        cross_up = prev_ema_fast <= prev_ema_slow and ema_fast > ema_slow
-                        cross_down = prev_ema_fast >= prev_ema_slow and ema_fast < ema_slow
-                        if cross_up:
-                            direction = "up"
-                        elif cross_down:
-                            direction = "down"
-                        else:
-                            direction = None
-                        ema_gate_ok = (
-                            direction is not None
-                            and cfg.strategy.directional_legs is not None
-                            and direction in cfg.strategy.directional_legs
-                        )
                 else:
-                    if ema_fast > ema_slow:
-                        direction = "up"
-                    elif ema_fast < ema_slow:
-                        direction = "down"
-                    else:
-                        direction = None
+                    direction = entry_signal_dir
                     ema_gate_ok = (
                         direction is not None
                         and cfg.strategy.directional_legs is not None
                         and direction in cfg.strategy.directional_legs
                     )
             elif cfg.strategy.ema_entry_mode == "cross":
-                if prev_ema_fast is None or prev_ema_slow is None:
-                    ema_gate_ok = False
+                bias = _ema_bias(cfg)
+                if bias == "up":
+                    ema_gate_ok = entry_signal_dir == "up"
+                elif bias == "down":
+                    ema_gate_ok = entry_signal_dir == "down"
                 else:
-                    cross_up = prev_ema_fast <= prev_ema_slow and ema_fast > ema_slow
-                    cross_down = prev_ema_fast >= prev_ema_slow and ema_fast < ema_slow
-                    bias = _ema_bias(cfg)
-                    if bias == "up":
-                        ema_gate_ok = cross_up
-                    elif bias == "down":
-                        ema_gate_ok = cross_down
-                    else:
-                        ema_gate_ok = cross_up or cross_down
-                    if cfg.strategy.ema_directional:
-                        if cross_up:
-                            ema_right_override = "CALL"
-                        elif cross_down:
-                            ema_right_override = "PUT"
+                    ema_gate_ok = entry_signal_dir in ("up", "down")
+                if cfg.strategy.ema_directional:
+                    if entry_signal_dir == "up":
+                        ema_right_override = "CALL"
+                    elif entry_signal_dir == "down":
+                        ema_right_override = "PUT"
             else:
                 if cfg.strategy.ema_directional:
-                    if ema_fast > ema_slow:
+                    if entry_signal_dir == "up":
                         ema_right_override = "CALL"
-                    elif ema_fast < ema_slow:
+                    elif entry_signal_dir == "down":
                         ema_right_override = "PUT"
                     else:
                         ema_gate_ok = False
                 else:
-                    ema_gate_ok = ema_fast > ema_slow
+                    ema_gate_ok = entry_signal_dir == "up"
 
         filters_ok = True
         if filters:
@@ -466,6 +511,15 @@ def _run_spot_backtest(cfg: ConfigBundle, bars: list[Bar], meta: ContractMeta) -
     bars_in_day = 0
     last_entry_idx = None
     last_date = None
+    entry_state: str | None = None
+    entry_streak = 0
+    pending_cross_dir: str | None = None
+    pending_cross_bars = 0
+
+    regime_periods = _ema_periods(cfg.strategy.regime_ema_preset)
+    regime_fast = None
+    regime_slow = None
+    regime_count = 0
     for idx, bar in enumerate(bars):
         next_bar = bars[idx + 1] if idx + 1 < len(bars) else None
         is_last_bar = next_bar is None or next_bar.ts.date() != bar.ts.date()
@@ -479,6 +533,19 @@ def _run_spot_backtest(cfg: ConfigBundle, bars: list[Bar], meta: ContractMeta) -
             last_date = bar.ts.date()
             entries_today = 0
         bars_in_day += 1
+
+        if regime_periods and bar.close > 0:
+            regime_fast = _ema_next(regime_fast, bar.close, regime_periods[0])
+            regime_slow = _ema_next(regime_slow, bar.close, regime_periods[1])
+            regime_count += 1
+        regime_ready = (
+            regime_periods is None
+            or (
+                regime_count >= regime_periods[1]
+                and regime_fast is not None
+                and regime_slow is not None
+            )
+        )
 
         prev_ema_fast = ema_fast
         prev_ema_slow = ema_slow
@@ -542,31 +609,60 @@ def _run_spot_backtest(cfg: ConfigBundle, bars: list[Bar], meta: ContractMeta) -
                     liquidation += current_value
             open_trades = still_open
 
+        entry_signal_dir = None
+        if ema_ready and ema_fast is not None and ema_slow is not None:
+            state = ema_state_direction(ema_fast, ema_slow)
+            if state is None:
+                entry_state = None
+                entry_streak = 0
+            elif state == entry_state:
+                entry_streak += 1
+            else:
+                entry_state = state
+                entry_streak = 1
+
+            cross_up = False
+            cross_down = False
+            if prev_ema_fast is not None and prev_ema_slow is not None:
+                cross_up = prev_ema_fast <= prev_ema_slow and ema_fast > ema_slow
+                cross_down = prev_ema_fast >= prev_ema_slow and ema_fast < ema_slow
+
+            if cfg.strategy.ema_entry_mode == "cross":
+                entry_signal_dir, pending_cross_dir, pending_cross_bars = update_cross_confirm(
+                    cross_up=cross_up,
+                    cross_down=cross_down,
+                    state=state,
+                    confirm_bars=cfg.strategy.entry_confirm_bars,
+                    pending_dir=pending_cross_dir,
+                    pending_bars=pending_cross_bars,
+                )
+            else:
+                entry_signal_dir = trend_confirmed_state(
+                    state,
+                    entry_streak,
+                    confirm_bars=cfg.strategy.entry_confirm_bars,
+                )
+        else:
+            entry_state = None
+            entry_streak = 0
+            pending_cross_dir = None
+            pending_cross_bars = 0
+
+        if regime_periods is not None:
+            regime_dir = (
+                ema_state_direction(regime_fast, regime_slow)
+                if regime_ready and regime_fast is not None and regime_slow is not None
+                else None
+            )
+            if entry_signal_dir is not None and regime_dir != entry_signal_dir:
+                entry_signal_dir = None
+
         ema_gate_ok = True
         direction = None
         if ema_needed and not ema_ready:
             ema_gate_ok = False
         elif ema_ready:
-            if cfg.strategy.ema_entry_mode == "cross":
-                if prev_ema_fast is None or prev_ema_slow is None:
-                    ema_gate_ok = False
-                else:
-                    cross_up = prev_ema_fast <= prev_ema_slow and ema_fast > ema_slow
-                    cross_down = prev_ema_fast >= prev_ema_slow and ema_fast < ema_slow
-                    if cross_up:
-                        direction = "up"
-                    elif cross_down:
-                        direction = "down"
-                    else:
-                        direction = None
-            else:
-                if ema_fast > ema_slow:
-                    direction = "up"
-                elif ema_fast < ema_slow:
-                    direction = "down"
-                else:
-                    direction = None
-
+            direction = entry_signal_dir
             if needs_direction:
                 ema_gate_ok = (
                     direction is not None

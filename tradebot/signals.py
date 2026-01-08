@@ -89,6 +89,81 @@ def ema_slope_pct(fast: float, prev_fast: float, price: float) -> float:
     return abs(float(fast) - float(prev_fast)) / denom * 100.0
 
 
+def normalize_ema_entry_mode(mode: str | None) -> str:
+    cleaned = str(mode or "trend").strip().lower()
+    return "cross" if cleaned in ("cross", "crossover") else "trend"
+
+
+def update_cross_confirm(
+    *,
+    cross_up: bool,
+    cross_down: bool,
+    state: str | None,
+    confirm_bars: int,
+    pending_dir: str | None,
+    pending_bars: int,
+) -> tuple[str | None, str | None, int]:
+    """Debounce cross entries by requiring N bars of persistence after the cross.
+
+    Semantics:
+    - confirm_bars == 0: emit immediately on the cross bar.
+    - confirm_bars  > 0: emit on the bar that is confirm_bars bars after the cross,
+      as long as the EMA state remains in the crossed direction.
+    """
+    try:
+        confirm = int(confirm_bars or 0)
+    except (TypeError, ValueError):
+        confirm = 0
+    confirm = max(0, confirm)
+
+    if confirm <= 0:
+        if cross_up:
+            return "up", None, 0
+        if cross_down:
+            return "down", None, 0
+        return None, None, 0
+
+    if cross_up:
+        pending_dir = "up"
+        pending_bars = 0
+    elif cross_down:
+        pending_dir = "down"
+        pending_bars = 0
+
+    if pending_dir is None:
+        return None, None, 0
+
+    if state != pending_dir:
+        return None, None, 0
+
+    if not (cross_up or cross_down):
+        pending_bars += 1
+
+    if pending_bars >= confirm:
+        return pending_dir, None, 0
+    return None, pending_dir, pending_bars
+
+
+def trend_confirmed_state(state: str | None, state_streak: int, *, confirm_bars: int) -> str | None:
+    """Return state only once it has persisted for confirm_bars after a change.
+
+    For trend mode, this acts like a simple hysteresis / debounce gate:
+    - confirm_bars == 0: returns state as-is.
+    - confirm_bars  > 0: requires state_streak >= confirm_bars + 1.
+    """
+    try:
+        confirm = int(confirm_bars or 0)
+    except (TypeError, ValueError):
+        confirm = 0
+    confirm = max(0, confirm)
+
+    if state not in ("up", "down"):
+        return None
+    if confirm <= 0:
+        return state
+    return state if int(state_streak or 0) >= (confirm + 1) else None
+
+
 @dataclass(frozen=True)
 class BarSize:
     label: str
@@ -110,4 +185,3 @@ def parse_bar_size(bar_size: str) -> BarSize | None:
     if label.startswith("1 day"):
         return BarSize(label="1 day", duration=timedelta(days=1))
     return None
-

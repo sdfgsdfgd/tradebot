@@ -18,7 +18,16 @@ from pathlib import Path
 
 from .data import IBKRHistoricalData
 from .models import Bar
-from ..signals import ema_cross, ema_next, ema_periods, ema_slope_pct, ema_spread_pct, parse_bar_size
+from ..signals import (
+    ema_cross,
+    ema_next,
+    ema_periods,
+    ema_slope_pct,
+    ema_spread_pct,
+    ema_state_direction,
+    parse_bar_size,
+    update_cross_confirm,
+)
 
 
 @dataclass(frozen=True)
@@ -175,9 +184,8 @@ def main() -> None:
     regime_ema_fast = None
     regime_ema_slow = None
 
-    entry_state = None
-    entry_streak = 0
-    entry_streak_started_by_change = False
+    pending_cross_dir = None
+    pending_cross_bars = 0
 
     events: list[_Event] = []
     gated_events: list[_Event] = []
@@ -209,18 +217,7 @@ def main() -> None:
         if prev_entry_fast is not None and prev_entry_slow is not None:
             cross_up, cross_down = ema_cross(prev_entry_fast, prev_entry_slow, entry_ema_fast, entry_ema_slow)
 
-        state = "up" if entry_ema_fast > entry_ema_slow else "down" if entry_ema_fast < entry_ema_slow else None
-        if state is None:
-            entry_state = None
-            entry_streak = 0
-            entry_streak_started_by_change = False
-        else:
-            if state == entry_state:
-                entry_streak += 1
-            else:
-                entry_state = state
-                entry_streak = 1
-                entry_streak_started_by_change = True
+        state = ema_state_direction(entry_ema_fast, entry_ema_slow)
 
         slope = None
         if prev_entry_fast_for_slope is not None:
@@ -255,16 +252,18 @@ def main() -> None:
             events.append(e)
 
         # Regime gating + confirm-bars view of the same stream.
-        gated_dir = _gated_entry_direction(
-            cross_up=cross_up,
-            cross_down=cross_down,
-            entry_state=entry_state,
-            entry_streak=entry_streak,
-            entry_streak_started_by_change=entry_streak_started_by_change,
+        gated_dir, pending_cross_dir, pending_cross_bars = update_cross_confirm(
+            cross_up=bool(cross_up),
+            cross_down=bool(cross_down),
+            state=state,
             confirm_bars=confirm_bars,
-            regime_ema_fast=regime_ema_fast,
-            regime_ema_slow=regime_ema_slow,
+            pending_dir=pending_cross_dir,
+            pending_bars=pending_cross_bars,
         )
+        if gated_dir in ("up", "down") and regime_ema_fast is not None and regime_ema_slow is not None:
+            regime = ema_state_direction(regime_ema_fast, regime_ema_slow)
+            if regime != gated_dir:
+                gated_dir = None
         if gated_dir in ("up", "down"):
             gated_events.append(
                 _Event(
@@ -279,7 +278,6 @@ def main() -> None:
                     bars_in_day=bars_in_day[idx],
                 )
             )
-            entry_streak_started_by_change = False
 
     # Metrics computation.
     event_rows = []
@@ -384,44 +382,6 @@ def _rv_series(
             variance = lam * variance + (1.0 - lam) * (r * r)
         out.append(math.sqrt(max(0.0, variance)) * ann)
     return out
-
-
-def _gated_entry_direction(
-    *,
-    cross_up: bool,
-    cross_down: bool,
-    entry_state: str | None,
-    entry_streak: int,
-    entry_streak_started_by_change: bool,
-    confirm_bars: int,
-    regime_ema_fast: float | None,
-    regime_ema_slow: float | None,
-) -> str | None:
-    # Cross-based entry, optionally delayed by confirm_bars.
-    if entry_state not in ("up", "down"):
-        return None
-
-    if confirm_bars <= 0:
-        if cross_up:
-            cand = "up"
-        elif cross_down:
-            cand = "down"
-        else:
-            return None
-    else:
-        # After a state change, wait N bars and only then trigger.
-        if not entry_streak_started_by_change:
-            return None
-        if entry_streak != (confirm_bars + 1):
-            return None
-        cand = entry_state
-
-    # Optional regime gate.
-    if regime_ema_fast is not None and regime_ema_slow is not None:
-        regime = "up" if regime_ema_fast > regime_ema_slow else "down" if regime_ema_fast < regime_ema_slow else None
-        if regime != cand:
-            return None
-    return cand
 
 
 def _event_metrics(bars: list[Bar], idx: int, direction: str, *, lookahead_bars: int, extrema_window: int) -> _EventMetrics:

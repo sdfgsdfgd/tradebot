@@ -53,6 +53,8 @@ class StrategyConfig:
     min_credit: float | None
     ema_preset: str | None
     ema_entry_mode: str
+    entry_confirm_bars: int
+    regime_ema_preset: str | None
     ema_directional: bool
     exit_on_signal_flip: bool
     flip_exit_mode: str
@@ -158,6 +160,8 @@ def load_config(path: str | Path) -> ConfigBundle:
         ),
         ema_preset=_parse_ema_preset(strategy_raw.get("ema_preset")),
         ema_entry_mode=_parse_ema_entry_mode(strategy_raw.get("ema_entry_mode")),
+        entry_confirm_bars=_parse_non_negative_int(strategy_raw.get("entry_confirm_bars"), default=0),
+        regime_ema_preset=_parse_ema_preset(strategy_raw.get("regime_ema_preset")),
         ema_directional=bool(strategy_raw.get("ema_directional", False)),
         exit_on_signal_flip=bool(strategy_raw.get("exit_on_signal_flip", False)),
         flip_exit_mode=_parse_flip_exit_mode(strategy_raw.get("flip_exit_mode")),
