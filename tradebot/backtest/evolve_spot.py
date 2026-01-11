@@ -333,6 +333,122 @@ def _print_leaderboards(rows: list[dict], *, title: str, top_n: int) -> None:
     _print_top(rows, title=f"{title} — Top by pnl", top_n=top_n, sort_key=_score_row_pnl)
 
 
+def _load_spot_milestones() -> dict | None:
+    path = Path(__file__).resolve().parent / "spot_milestones.json"
+    if not path.exists():
+        return None
+    return json.loads(path.read_text())
+
+
+def _milestone_entry_for(
+    milestones: dict | None,
+    *,
+    symbol: str,
+    signal_bar_size: str,
+    use_rth: bool,
+    sort_by: str,
+) -> tuple[dict, dict | None, dict] | None:
+    if not milestones:
+        return None
+
+    groups = milestones.get("groups") or []
+    candidates: list[tuple[dict, dict | None, dict]] = []
+    for group in groups:
+        if not isinstance(group, dict):
+            continue
+        entries = group.get("entries") or []
+        if not entries:
+            continue
+        entry = entries[0]
+        if not isinstance(entry, dict):
+            continue
+        strategy = entry.get("strategy") or {}
+        metrics = entry.get("metrics") or {}
+        if not isinstance(strategy, dict) or not isinstance(metrics, dict):
+            continue
+        if str(entry.get("symbol") or "").strip().upper() != str(symbol).strip().upper():
+            continue
+        if str(strategy.get("signal_bar_size") or "").strip().lower() != str(signal_bar_size).strip().lower():
+            continue
+        if bool(strategy.get("signal_use_rth")) != bool(use_rth):
+            continue
+        filters = group.get("filters")
+        candidates.append((strategy, filters if isinstance(filters, dict) else None, metrics))
+
+    if not candidates:
+        return None
+
+    def _score(c: tuple[dict, dict | None, dict]) -> tuple:
+        _, _, m = c
+        if str(sort_by).strip().lower() == "pnl":
+            return _score_row_pnl(m)
+        return _score_row_pnl_dd(m)
+
+    return sorted(candidates, key=_score, reverse=True)[0]
+
+
+def _apply_milestone_base(
+    cfg: ConfigBundle, *, strategy: dict, filters: dict | None
+) -> ConfigBundle:
+    # Milestone strategies come from `asdict(StrategyConfig)` which flattens nested dataclasses.
+    # Only copy scalar knobs we know are safe/needed for backtest reproduction/sweeps.
+    keep_keys = (
+        "ema_preset",
+        "ema_entry_mode",
+        "entry_confirm_bars",
+        "entry_signal",
+        "orb_window_mins",
+        "orb_risk_reward",
+        "orb_target_mode",
+        "regime_mode",
+        "regime_bar_size",
+        "regime_ema_preset",
+        "supertrend_atr_period",
+        "supertrend_multiplier",
+        "supertrend_source",
+        "regime2_mode",
+        "regime2_bar_size",
+        "regime2_ema_preset",
+        "regime2_supertrend_atr_period",
+        "regime2_supertrend_multiplier",
+        "regime2_supertrend_source",
+        "spot_exit_mode",
+        "spot_atr_period",
+        "spot_pt_atr_mult",
+        "spot_sl_atr_mult",
+        "spot_profit_target_pct",
+        "spot_stop_loss_pct",
+        "spot_close_eod",
+        "exit_on_signal_flip",
+        "flip_exit_mode",
+        "flip_exit_min_hold_bars",
+        "flip_exit_only_if_profit",
+        "max_open_trades",
+    )
+
+    strat_over: dict[str, object] = {}
+    for key in keep_keys:
+        if key in strategy:
+            strat_over[key] = strategy[key]
+
+    out = replace(cfg, strategy=replace(cfg.strategy, **strat_over))
+
+    if not filters:
+        return replace(out, strategy=replace(out.strategy, filters=None))
+
+    f = _mk_filters(
+        ema_spread_min_pct=filters.get("ema_spread_min_pct"),
+        ema_slope_min_pct=filters.get("ema_slope_min_pct"),
+        cooldown_bars=int(filters.get("cooldown_bars") or 0),
+        skip_first_bars=int(filters.get("skip_first_bars") or 0),
+        volume_ratio_min=filters.get("volume_ratio_min"),
+        volume_ema_period=filters.get("volume_ema_period"),
+        entry_start_hour_et=filters.get("entry_start_hour_et"),
+        entry_end_hour_et=filters.get("entry_end_hour_et"),
+    )
+    return replace(out, strategy=replace(out.strategy, filters=f))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Controlled spot evolution sweeps (MNQ spot)")
     parser.add_argument("--symbol", default="MNQ")
@@ -354,8 +470,8 @@ def main() -> None:
     parser.add_argument(
         "--base",
         default="champion",
-        choices=("champion", "dual_regime"),
-        help="Select the base strategy shape to start from.",
+        choices=("default", "champion", "champion_pnl", "dual_regime"),
+        help="Select the base strategy shape to start from (champion comes from spot_milestones.json).",
     )
     parser.add_argument("--max-open-trades", type=int, default=2)
     parser.add_argument("--close-eod", action="store_true", default=False)
@@ -406,6 +522,7 @@ def main() -> None:
             "all",
             "ema",
             "combo",
+            "squeeze",
             "volume",
             "tod",
             "atr",
@@ -450,6 +567,8 @@ def main() -> None:
         meta = ContractMeta(symbol=symbol, exchange=exchange, multiplier=multiplier, min_tick=0.01)
     else:
         _, meta = data.resolve_contract(symbol, exchange=None)
+
+    milestones = _load_spot_milestones()
 
     def _bars(bar_size: str) -> list:
         if offline:
@@ -538,7 +657,20 @@ def main() -> None:
             max_open_trades=max_open_trades,
             spot_close_eod=close_eod,
         )
-        if str(args.base).strip().lower() == "dual_regime":
+        base_name = str(args.base).strip().lower()
+        if base_name in ("champion", "champion_pnl"):
+            sort_by = "pnl" if base_name == "champion_pnl" else "pnl_dd"
+            selected = _milestone_entry_for(
+                milestones,
+                symbol=symbol,
+                signal_bar_size=str(bar_size),
+                use_rth=use_rth,
+                sort_by=sort_by,
+            )
+            if selected is not None:
+                base_strategy, base_filters, _ = selected
+                cfg = _apply_milestone_base(cfg, strategy=base_strategy, filters=base_filters)
+        elif base_name == "dual_regime":
             cfg = replace(
                 cfg,
                 strategy=replace(
@@ -1209,6 +1341,124 @@ def main() -> None:
 
         _print_leaderboards(stage3, title="Combo sweep (multi-axis, constrained)", top_n=int(args.top))
 
+    def _sweep_squeeze() -> None:
+        """Squeeze a few high-leverage axes from the current champion baseline.
+
+        Targeted (fast): regime2 timeframe, volume gate, and time-of-day windows,
+        including small combinations of these axes.
+        """
+        bars_sig = _bars_cached(signal_bar_size)
+        base = _base_bundle(bar_size=signal_bar_size, filters=None)
+        base_row = _run_cfg(
+            cfg=base, bars=bars_sig, regime_bars=_regime_bars_for(base), regime2_bars=_regime2_bars_for(base)
+        )
+        if base_row:
+            base_row["note"] = "base"
+            _record_milestone(base, base_row, "base")
+
+        def _shortlist(items: list[tuple[ConfigBundle, dict, str]], *, top_pnl_dd: int, top_pnl: int) -> list:
+            by_dd = sorted(items, key=lambda t: _score_row_pnl_dd(t[1]), reverse=True)[: int(top_pnl_dd)]
+            by_pnl = sorted(items, key=lambda t: _score_row_pnl(t[1]), reverse=True)[: int(top_pnl)]
+            seen: set[str] = set()
+            out: list[tuple[ConfigBundle, dict, str]] = []
+            for cfg, row, note in by_dd + by_pnl:
+                key = _milestone_key(cfg)
+                if key in seen:
+                    continue
+                seen.add(key)
+                out.append((cfg, row, note))
+            return out
+
+        # Stage 1: sweep regime2 timeframe + params (bounded), with no extra filters.
+        stage1: list[tuple[ConfigBundle, dict, str]] = []
+        stage1.append((base, base_row, "base") if base_row else (base, {}, "base"))
+        atr_periods = [2, 3, 4, 5, 6, 7, 10, 11]
+        multipliers = [0.05, 0.075, 0.1, 0.125, 0.15, 0.2, 0.25, 0.3]
+        sources = ["close", "hl2"]
+        for r2_bar in ("4 hours", "1 day"):
+            for atr_p in atr_periods:
+                for mult in multipliers:
+                    for src in sources:
+                        cfg = replace(
+                            base,
+                            strategy=replace(
+                                base.strategy,
+                                regime2_mode="supertrend",
+                                regime2_bar_size=r2_bar,
+                                regime2_supertrend_atr_period=int(atr_p),
+                                regime2_supertrend_multiplier=float(mult),
+                                regime2_supertrend_source=str(src),
+                                filters=None,
+                                entry_confirm_bars=0,
+                            ),
+                        )
+                        row = _run_cfg(
+                            cfg=cfg,
+                            bars=bars_sig,
+                            regime_bars=_regime_bars_for(cfg),
+                            regime2_bars=_regime2_bars_for(cfg),
+                        )
+                        if not row:
+                            continue
+                        note = f"r2=ST({atr_p},{mult},{src})@{r2_bar}"
+                        row["note"] = note
+                        stage1.append((cfg, row, note))
+
+        stage1 = [t for t in stage1 if t[1]]
+        shortlisted = _shortlist(stage1, top_pnl_dd=15, top_pnl=10)
+        print("")
+        print(f"Squeeze sweep: stage1 candidates={len(stage1)} shortlist={len(shortlisted)} (min_trades={run_min_trades})")
+
+        # Stage 2: apply volume + TOD + confirm gates on the shortlist (small combos).
+        vol_variants = [
+            (None, None, "vol=-"),
+            (1.0, 20, "vol>=1.0@20"),
+            (1.1, 20, "vol>=1.1@20"),
+            (1.2, 20, "vol>=1.2@20"),
+            (1.5, 10, "vol>=1.5@10"),
+            (1.5, 20, "vol>=1.5@20"),
+        ]
+        tod_variants = [
+            (None, None, "tod=base"),
+            (18, 3, "tod=18-03 ET"),
+            (9, 16, "tod=9-16 ET"),
+            (10, 15, "tod=10-15 ET"),
+            (11, 16, "tod=11-16 ET"),
+        ]
+        confirm_variants = [(0, "confirm=0"), (1, "confirm=1"), (2, "confirm=2")]
+
+        rows: list[dict] = []
+        for base_cfg, _, base_note in shortlisted:
+            for vratio, vema, v_note in vol_variants:
+                for tod_s, tod_e, tod_note in tod_variants:
+                    for confirm, confirm_note in confirm_variants:
+                        f = _mk_filters(
+                            volume_ratio_min=vratio,
+                            volume_ema_period=vema,
+                            entry_start_hour_et=tod_s,
+                            entry_end_hour_et=tod_e,
+                        )
+                        cfg = replace(
+                            base_cfg,
+                            strategy=replace(base_cfg.strategy, filters=f, entry_confirm_bars=int(confirm)),
+                        )
+                        row = _run_cfg(
+                            cfg=cfg,
+                            bars=bars_sig,
+                            regime_bars=_regime_bars_for(cfg),
+                            regime2_bars=_regime2_bars_for(cfg),
+                        )
+                        if not row:
+                            continue
+                        note = f"{base_note} | {v_note} | {tod_note} | {confirm_note}"
+                        row["note"] = note
+                        _record_milestone(cfg, row, note)
+                        rows.append(row)
+
+        if base_row:
+            rows.append(base_row)
+        _print_leaderboards(rows, title="Squeeze sweep (regime2 tf+params → vol/TOD/confirm)", top_n=int(args.top))
+
     axis = str(args.axis).strip().lower()
     print(
         f"{symbol} spot evolve sweep ({start.isoformat()} -> {end.isoformat()}, use_rth={use_rth}, "
@@ -1219,6 +1469,8 @@ def main() -> None:
         _sweep_ema()
     if axis == "combo":
         _sweep_combo()
+    if axis == "squeeze":
+        _sweep_squeeze()
     if axis in ("all", "volume"):
         _sweep_volume()
     if axis in ("all", "tod"):

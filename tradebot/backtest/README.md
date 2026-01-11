@@ -291,9 +291,17 @@ For deeper “one axis at a time” exploration (still spot-only), run a single 
 python -m tradebot.backtest.evolve_spot --axis regime --cache-dir db
 ```
 
-Quick “current #1” snapshots (generated 2026-01-11, post-fix):
+Quick “current #1” snapshots (generated 2026-01-11, post-fix; squeeze follow-up):
 
-- **Best 30m (risk-adjusted):**
+- **New best 30m (risk-adjusted):**
+  - Signal (timing): `30 mins`, EMA `2/4` cross, `entry_confirm_bars=0`
+  - Regime (bias): Supertrend on `4 hours`, `ATR=2`, `mult=0.05`, `src=close`
+  - Regime2 (confirm): Supertrend on `4 hours`, `ATR=3`, `mult=0.125`, `src=hl2`
+  - Exits: `spot_exit_mode=atr`, `spot_atr_period=14`, `spot_pt_atr_mult=1.0`, `spot_sl_atr_mult=1.5`, `exit_on_signal_flip=true`, `flip_exit_min_hold_bars=0`
+  - Loosenings: `max_entries_per_day=0`, `max_open_trades=1`, `spot_close_eod=true`
+  - Stats: `trades=1067`, `win=58.1%`, `pnl=+56377.0`, `dd=897.5`, `pnl/dd=62.82`
+
+- **Prior best 30m (risk-adjusted):**
   - Signal (timing): `30 mins`, EMA `2/4` cross, `entry_confirm_bars=0`
   - Regime (bias): Supertrend on `4 hours`, `ATR=2`, `mult=0.05`, `src=close`
   - Regime2 (confirm): Supertrend on `4 hours`, `ATR=3`, `mult=0.25`, `src=close`
@@ -301,7 +309,15 @@ Quick “current #1” snapshots (generated 2026-01-11, post-fix):
   - Loosenings: `max_entries_per_day=0`, `max_open_trades=1`, `spot_close_eod=true`
   - Stats: `trades=1155`, `win=55.84%`, `pnl=+54779.0`, `dd=899.0`, `pnl/dd=60.93`
 
-- **Best 30m (max PnL):**
+- **New best 30m (max PnL):**
+  - Signal (timing): `30 mins`, EMA `2/4` cross, `entry_confirm_bars=0`
+  - Regime (bias): Supertrend on `4 hours`, `ATR=3`, `mult=0.05`, `src=close`
+  - Regime2 (confirm): Supertrend on `4 hours`, `ATR=7`, `mult=0.075`, `src=hl2`
+  - Exits: `spot_exit_mode=pct`, `spot_profit_target_pct=0.01`, `spot_stop_loss_pct=0.03`, `exit_on_signal_flip=true`, `flip_exit_min_hold_bars=4`
+  - Loosenings: `max_entries_per_day=0`, `max_open_trades=0`, `spot_close_eod=false`
+  - Stats: `trades=1103`, `win=64.0%`, `pnl=+88550.5`, `dd=1928.0`, `pnl/dd=45.93`
+
+- **Prior best 30m (max PnL):**
   - Signal (timing): `30 mins`, EMA `2/4` cross, `entry_confirm_bars=0`
   - Regime (bias): Supertrend on `4 hours`, `ATR=3`, `mult=0.05`, `src=close`
   - Regime2 (confirm): Supertrend on `4 hours`, `ATR=3`, `mult=0.25`, `src=close`
