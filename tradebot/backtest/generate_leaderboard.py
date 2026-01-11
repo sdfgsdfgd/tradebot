@@ -40,6 +40,19 @@ def main() -> None:
         help="Progress update interval in seconds (0 = only group start/end)",
     )
     parser.add_argument("--out", default="tradebot/backtest/leaderboard.json")
+    parser.add_argument(
+        "--include-spot-milestones",
+        dest="include_spot_milestones",
+        action="store_true",
+        default=True,
+        help="Append tradebot/backtest/spot_milestones.json groups into the generated output (default: on)",
+    )
+    parser.add_argument(
+        "--no-include-spot-milestones",
+        dest="include_spot_milestones",
+        action="store_false",
+        help="Disable appending spot milestones into the generated output",
+    )
     args = parser.parse_args()
 
     start = _parse_date(args.start)
@@ -271,6 +284,18 @@ def main() -> None:
                 "entries": entries,
             }
         )
+
+    if bool(args.include_spot_milestones):
+        milestones_path = Path(__file__).resolve().parent / "spot_milestones.json"
+        try:
+            spot_payload = json.loads(milestones_path.read_text())
+            if isinstance(spot_payload, dict):
+                spot_groups = spot_payload.get("groups", [])
+                if isinstance(spot_groups, list) and spot_groups:
+                    payload["groups"].extend(list(spot_groups))
+        except Exception:
+            # Keep leaderboard generation robust; milestones are optional.
+            pass
 
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)

@@ -15,8 +15,9 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta, timezone
 from typing import Iterable, Mapping
+from zoneinfo import ZoneInfo
 
 from .signals import (
     ema_cross,
@@ -31,6 +32,15 @@ from .signals import (
     trend_confirmed_state,
     update_cross_confirm,
 )
+
+_ET_ZONE = ZoneInfo("America/New_York")
+
+
+def _ts_to_et(ts: datetime) -> datetime:
+    """Interpret naive datetimes as UTC and return an ET-aware timestamp."""
+    if getattr(ts, "tzinfo", None) is None:
+        ts = ts.replace(tzinfo=timezone.utc)
+    return ts.astimezone(_ET_ZONE)
 
 
 def annualization_factor(bar_size: str, use_rth: bool) -> float:
@@ -294,6 +304,201 @@ class EmaDecisionEngine:
         )
 
 
+class OrbDecisionEngine:
+    """Opening Range Breakout (ORB) entry signal.
+
+    OR is defined as the high/low in the first N minutes after 9:30am ET.
+    Emits a one-shot entry_dir ("up" or "down") when close breaks out of that range.
+    """
+
+    def __init__(
+        self,
+        *,
+        window_mins: int = 15,
+        open_time_et: time = time(9, 30),
+    ) -> None:
+        try:
+            mins = int(window_mins)
+        except (TypeError, ValueError):
+            mins = 15
+        self._window_mins = max(1, mins)
+        self._open_time_et = open_time_et
+
+        self._session_date = None
+        self._or_high: float | None = None
+        self._or_low: float | None = None
+        self._or_ready = False
+        self._breakout_fired = False
+
+    @property
+    def or_high(self) -> float | None:
+        return self._or_high
+
+    @property
+    def or_low(self) -> float | None:
+        return self._or_low
+
+    @property
+    def or_ready(self) -> bool:
+        return bool(self._or_ready)
+
+    def update(self, *, ts: datetime, high: float, low: float, close: float) -> EmaDecisionSnapshot:
+        ts_et = _ts_to_et(ts)
+        session_date = ts_et.date()
+
+        if self._session_date != session_date:
+            self._session_date = session_date
+            self._or_high = None
+            self._or_low = None
+            self._or_ready = False
+            self._breakout_fired = False
+
+        start = datetime.combine(session_date, self._open_time_et, tzinfo=_ET_ZONE)
+        end = start + timedelta(minutes=int(self._window_mins))
+
+        in_or = start <= ts_et < end
+        if in_or and high > 0 and low > 0:
+            self._or_high = float(high) if self._or_high is None else max(self._or_high, float(high))
+            self._or_low = float(low) if self._or_low is None else min(self._or_low, float(low))
+
+        if not self._or_ready and self._or_high is not None and self._or_low is not None and ts_et >= end:
+            self._or_ready = True
+
+        entry_dir = None
+        if self._or_ready and not self._breakout_fired and self._or_high is not None and self._or_low is not None:
+            if float(close) > float(self._or_high):
+                entry_dir = "up"
+            elif float(close) < float(self._or_low):
+                entry_dir = "down"
+            if entry_dir is not None:
+                self._breakout_fired = True
+
+        return EmaDecisionSnapshot(
+            ema_fast=None,
+            ema_slow=None,
+            prev_ema_fast=None,
+            prev_ema_slow=None,
+            ema_ready=True,
+            cross_up=False,
+            cross_down=False,
+            state=None,
+            entry_dir=entry_dir,
+            regime_dir=None,
+            regime_ready=True,
+        )
+
+
+@dataclass(frozen=True)
+class SupertrendSnapshot:
+    direction: str | None  # "up" | "down"
+    ready: bool
+    atr: float | None = None
+    upper: float | None = None
+    lower: float | None = None
+    value: float | None = None
+
+
+class SupertrendEngine:
+    def __init__(
+        self,
+        *,
+        atr_period: int = 10,
+        multiplier: float = 3.0,
+        source: str = "hl2",
+    ) -> None:
+        try:
+            period = int(atr_period)
+        except (TypeError, ValueError):
+            period = 10
+        self._atr_period = max(1, period)
+        try:
+            self._multiplier = float(multiplier)
+        except (TypeError, ValueError):
+            self._multiplier = 3.0
+        self._source = str(source or "hl2").strip().lower()
+
+        self._prev_close: float | None = None
+        self._atr: float | None = None
+        self._atr_seed_sum = 0.0
+        self._atr_seed_count = 0
+        self._final_upper: float | None = None
+        self._final_lower: float | None = None
+        self._direction: int | None = None  # 1=up, -1=down
+
+    def update(self, *, high: float, low: float, close: float) -> SupertrendSnapshot:
+        if close <= 0 or high <= 0 or low <= 0:
+            return SupertrendSnapshot(direction=None, ready=False)
+
+        tr = float(high) - float(low)
+        if self._prev_close is not None:
+            prev = float(self._prev_close)
+            tr = max(tr, abs(float(high) - prev), abs(float(low) - prev))
+
+        if self._atr is None:
+            self._atr_seed_sum += tr
+            self._atr_seed_count += 1
+            if self._atr_seed_count >= self._atr_period:
+                self._atr = self._atr_seed_sum / float(self._atr_period)
+        else:
+            # Wilder's smoothing (TradingView ta.rma): atr = (prev_atr*(p-1) + tr) / p
+            p = float(self._atr_period)
+            self._atr = (self._atr * (p - 1.0) + tr) / p
+
+        prev_upper = self._final_upper
+        prev_lower = self._final_lower
+        prev_close = self._prev_close
+        self._prev_close = float(close)
+
+        if self._atr is None:
+            return SupertrendSnapshot(direction=None, ready=False)
+
+        hl2 = (float(high) + float(low)) / 2.0
+        src = float(close) if self._source in ("close", "c") else hl2
+        upper_basic = src + (self._multiplier * float(self._atr))
+        lower_basic = src - (self._multiplier * float(self._atr))
+
+        if prev_upper is None:
+            upper = upper_basic
+        else:
+            upper = (
+                upper_basic
+                if (upper_basic < prev_upper) or (prev_close is not None and float(prev_close) > prev_upper)
+                else prev_upper
+            )
+
+        if prev_lower is None:
+            lower = lower_basic
+        else:
+            lower = (
+                lower_basic
+                if (lower_basic > prev_lower) or (prev_close is not None and float(prev_close) < prev_lower)
+                else prev_lower
+            )
+
+        direction = self._direction
+        if direction is None:
+            direction = 1
+        else:
+            if direction == -1 and prev_upper is not None and float(close) > float(prev_upper):
+                direction = 1
+            elif direction == 1 and prev_lower is not None and float(close) < float(prev_lower):
+                direction = -1
+
+        self._final_upper = float(upper)
+        self._final_lower = float(lower)
+        self._direction = int(direction)
+
+        value = float(lower) if direction == 1 else float(upper)
+        return SupertrendSnapshot(
+            direction="up" if direction == 1 else "down",
+            ready=True,
+            atr=float(self._atr),
+            upper=float(upper),
+            lower=float(lower),
+            value=value,
+        )
+
+
 def apply_regime_gate(
     signal: EmaDecisionSnapshot | None,
     *,
@@ -359,8 +564,11 @@ def signal_filters_ok(
     bar_ts: datetime,
     bars_in_day: int,
     close: float,
-    rv: float | None,
-    signal: EmaDecisionSnapshot | None,
+    volume: float | None = None,
+    volume_ema: float | None = None,
+    volume_ema_ready: bool = True,
+    rv: float | None = None,
+    signal: EmaDecisionSnapshot | None = None,
     cooldown_ok: bool = True,
 ) -> bool:
     if filters is None:
@@ -389,23 +597,41 @@ def signal_filters_ok(
         if rv_max_f is not None and float(rv) > rv_max_f:
             return False
 
-    entry_start_hour = _get("entry_start_hour")
-    entry_end_hour = _get("entry_end_hour")
-    if entry_start_hour is not None and entry_end_hour is not None:
+    entry_start_hour_et = _get("entry_start_hour_et")
+    entry_end_hour_et = _get("entry_end_hour_et")
+    if entry_start_hour_et is not None and entry_end_hour_et is not None:
         try:
-            start = int(entry_start_hour)
-            end = int(entry_end_hour)
+            start = int(entry_start_hour_et)
+            end = int(entry_end_hour_et)
         except (TypeError, ValueError):
             start = None
             end = None
         if start is not None and end is not None:
-            hour = int(bar_ts.hour)
+            hour = int(_ts_to_et(bar_ts).hour)
             if start <= end:
                 if not (start <= hour < end):
                     return False
             else:
                 if not (hour >= start or hour < end):
                     return False
+    else:
+        entry_start_hour = _get("entry_start_hour")
+        entry_end_hour = _get("entry_end_hour")
+        if entry_start_hour is not None and entry_end_hour is not None:
+            try:
+                start = int(entry_start_hour)
+                end = int(entry_end_hour)
+            except (TypeError, ValueError):
+                start = None
+                end = None
+            if start is not None and end is not None:
+                hour = int(bar_ts.hour)
+                if start <= end:
+                    if not (start <= hour < end):
+                        return False
+                else:
+                    if not (hour >= start or hour < end):
+                        return False
 
     skip_first = _get("skip_first_bars")
     try:
@@ -447,6 +673,24 @@ def signal_filters_ok(
                 return False
             slope = ema_slope_pct(signal.ema_fast, signal.prev_ema_fast, close)
             if slope < slope_min_f:
+                return False
+
+    volume_ratio_min = _get("volume_ratio_min")
+    if volume_ratio_min is not None:
+        try:
+            ratio_min = float(volume_ratio_min)
+        except (TypeError, ValueError):
+            ratio_min = None
+        if ratio_min is not None:
+            if not bool(volume_ema_ready):
+                return False
+            if volume is None or volume_ema is None:
+                return False
+            denom = float(volume_ema)
+            if denom <= 0:
+                return False
+            ratio = float(volume) / denom
+            if ratio < ratio_min:
                 return False
 
     return True

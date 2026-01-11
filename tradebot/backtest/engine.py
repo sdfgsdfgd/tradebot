@@ -15,13 +15,15 @@ from .synth import IVSurfaceParams, black_76, black_scholes, ewma_vol, iv_atm, i
 from ..decision_core import (
     EmaDecisionEngine,
     EmaDecisionSnapshot,
+    OrbDecisionEngine,
+    SupertrendEngine,
     apply_regime_gate,
     annualization_factor,
     cooldown_ok_by_index,
     flip_exit_hit,
     signal_filters_ok,
 )
-from ..signals import ema_periods as _ema_periods_shared
+from ..signals import ema_next, ema_periods as _ema_periods_shared
 
 
 @dataclass(frozen=True)
@@ -83,9 +85,15 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
             )
 
     if cfg.strategy.instrument == "spot":
+        regime_mode = str(getattr(cfg.strategy, "regime_mode", "ema") or "ema").strip().lower()
+        if regime_mode not in ("ema", "supertrend"):
+            regime_mode = "ema"
         regime_preset = cfg.strategy.regime_ema_preset
         regime_bar = cfg.strategy.regime_bar_size or cfg.backtest.bar_size
-        use_mtf_regime = bool(regime_preset) and str(regime_bar) != str(cfg.backtest.bar_size)
+        if regime_mode == "supertrend":
+            use_mtf_regime = str(regime_bar) != str(cfg.backtest.bar_size)
+        else:
+            use_mtf_regime = bool(regime_preset) and str(regime_bar) != str(cfg.backtest.bar_size)
         regime_bars = None
         if use_mtf_regime:
             if cfg.backtest.offline:
@@ -108,7 +116,90 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
                     use_rth=cfg.backtest.use_rth,
                     cache_dir=cfg.backtest.cache_dir,
                 )
-        result = _run_spot_backtest(cfg, bars, meta, regime_bars=regime_bars)
+        regime2_mode = str(getattr(cfg.strategy, "regime2_mode", "off") or "off").strip().lower()
+        if regime2_mode not in ("off", "ema", "supertrend"):
+            regime2_mode = "off"
+        regime2_preset = getattr(cfg.strategy, "regime2_ema_preset", None)
+        regime2_bar = getattr(cfg.strategy, "regime2_bar_size", None) or cfg.backtest.bar_size
+        if regime2_mode == "supertrend":
+            use_mtf_regime2 = str(regime2_bar) != str(cfg.backtest.bar_size)
+        else:
+            use_mtf_regime2 = bool(regime2_preset) and str(regime2_bar) != str(cfg.backtest.bar_size)
+        regime2_bars = None
+        if use_mtf_regime2:
+            if cfg.backtest.offline:
+                regime2_bars = data.load_cached_bars(
+                    symbol=cfg.strategy.symbol,
+                    exchange=cfg.strategy.exchange,
+                    start=start_dt,
+                    end=end_dt,
+                    bar_size=str(regime2_bar),
+                    use_rth=cfg.backtest.use_rth,
+                    cache_dir=cfg.backtest.cache_dir,
+                )
+            else:
+                regime2_bars = data.load_or_fetch_bars(
+                    symbol=cfg.strategy.symbol,
+                    exchange=cfg.strategy.exchange,
+                    start=start_dt,
+                    end=end_dt,
+                    bar_size=str(regime2_bar),
+                    use_rth=cfg.backtest.use_rth,
+                    cache_dir=cfg.backtest.cache_dir,
+                )
+
+        tick_mode = str(getattr(cfg.strategy, "tick_gate_mode", "off") or "off").strip().lower()
+        if tick_mode not in ("off", "raschke"):
+            tick_mode = "off"
+        tick_bars = None
+        if tick_mode != "off":
+            tick_symbol = str(getattr(cfg.strategy, "tick_gate_symbol", "TICK-NYSE") or "TICK-NYSE").strip()
+            tick_exchange = str(getattr(cfg.strategy, "tick_gate_exchange", "NYSE") or "NYSE").strip()
+            try:
+                z_lookback = int(getattr(cfg.strategy, "tick_width_z_lookback", 252) or 252)
+            except (TypeError, ValueError):
+                z_lookback = 252
+            try:
+                ma_period = int(getattr(cfg.strategy, "tick_band_ma_period", 10) or 10)
+            except (TypeError, ValueError):
+                ma_period = 10
+            try:
+                slope_lb = int(getattr(cfg.strategy, "tick_width_slope_lookback", 3) or 3)
+            except (TypeError, ValueError):
+                slope_lb = 3
+            tick_warm_days = max(60, z_lookback + ma_period + slope_lb + 5)
+            tick_start_dt = start_dt - timedelta(days=tick_warm_days)
+            # $TICK is defined for RTH only (NYSE hours).
+            tick_use_rth = True
+            if cfg.backtest.offline:
+                tick_bars = data.load_cached_bars(
+                    symbol=tick_symbol,
+                    exchange=tick_exchange,
+                    start=tick_start_dt,
+                    end=end_dt,
+                    bar_size="1 day",
+                    use_rth=tick_use_rth,
+                    cache_dir=cfg.backtest.cache_dir,
+                )
+            else:
+                tick_bars = data.load_or_fetch_bars(
+                    symbol=tick_symbol,
+                    exchange=tick_exchange,
+                    start=tick_start_dt,
+                    end=end_dt,
+                    bar_size="1 day",
+                    use_rth=tick_use_rth,
+                    cache_dir=cfg.backtest.cache_dir,
+                )
+
+        result = _run_spot_backtest(
+            cfg,
+            bars,
+            meta,
+            regime_bars=regime_bars,
+            regime2_bars=regime2_bars,
+            tick_bars=tick_bars,
+        )
         data.disconnect()
         return result
 
@@ -147,9 +238,15 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
     if needs_direction:
         ema_needed = True
 
+    regime_mode = str(getattr(cfg.strategy, "regime_mode", "ema") or "ema").strip().lower()
+    if regime_mode not in ("ema", "supertrend"):
+        regime_mode = "ema"
     regime_preset = cfg.strategy.regime_ema_preset
     regime_bar = cfg.strategy.regime_bar_size or cfg.backtest.bar_size
-    use_mtf_regime = bool(regime_preset) and str(regime_bar) != str(cfg.backtest.bar_size)
+    if regime_mode == "supertrend":
+        use_mtf_regime = str(regime_bar) != str(cfg.backtest.bar_size)
+    else:
+        use_mtf_regime = bool(regime_preset) and str(regime_bar) != str(cfg.backtest.bar_size)
     regime_bars = None
     if use_mtf_regime:
         if cfg.backtest.offline:
@@ -179,7 +276,9 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
             ema_preset=str(cfg.strategy.ema_preset),
             ema_entry_mode=cfg.strategy.ema_entry_mode,
             entry_confirm_bars=cfg.strategy.entry_confirm_bars,
-            regime_ema_preset=None if use_mtf_regime else cfg.strategy.regime_ema_preset,
+            regime_ema_preset=(
+                None if (use_mtf_regime or regime_mode == "supertrend") else cfg.strategy.regime_ema_preset
+            ),
         )
     regime_engine = (
         EmaDecisionEngine(
@@ -188,11 +287,32 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
             entry_confirm_bars=0,
             regime_ema_preset=None,
         )
-        if use_mtf_regime
+        if use_mtf_regime and regime_mode == "ema"
+        else None
+    )
+    supertrend_engine = (
+        SupertrendEngine(
+            atr_period=int(getattr(cfg.strategy, "supertrend_atr_period", 10) or 10),
+            multiplier=float(getattr(cfg.strategy, "supertrend_multiplier", 3.0) or 3.0),
+            source=str(getattr(cfg.strategy, "supertrend_source", "hl2") or "hl2"),
+        )
+        if regime_mode == "supertrend"
         else None
     )
     regime_idx = 0
     last_regime = None
+    last_supertrend = None
+
+    volume_period = None
+    if filters is not None and getattr(filters, "volume_ratio_min", None) is not None:
+        raw_period = getattr(filters, "volume_ema_period", None)
+        try:
+            volume_period = int(raw_period) if raw_period is not None else 20
+        except (TypeError, ValueError):
+            volume_period = 20
+        volume_period = max(1, volume_period)
+    volume_ema = None
+    volume_count = 0
 
     bars_in_day = 0
     last_entry_idx = None
@@ -210,8 +330,32 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
             last_date = bar.ts.date()
             entries_today = 0
         bars_in_day += 1
+        if volume_period is not None:
+            volume_ema = ema_next(volume_ema, float(bar.volume), volume_period)
+            volume_count += 1
         signal = signal_engine.update(bar.close) if signal_engine is not None else None
-        if use_mtf_regime and signal is not None and regime_engine is not None and regime_bars is not None:
+        if supertrend_engine is not None:
+            if use_mtf_regime and regime_bars is not None:
+                while regime_idx < len(regime_bars) and regime_bars[regime_idx].ts <= bar.ts:
+                    reg_bar = regime_bars[regime_idx]
+                    last_supertrend = supertrend_engine.update(
+                        high=float(reg_bar.high),
+                        low=float(reg_bar.low),
+                        close=float(reg_bar.close),
+                    )
+                    regime_idx += 1
+            else:
+                last_supertrend = supertrend_engine.update(
+                    high=float(bar.high),
+                    low=float(bar.low),
+                    close=float(bar.close),
+                )
+            signal = apply_regime_gate(
+                signal,
+                regime_dir=last_supertrend.direction if last_supertrend is not None else None,
+                regime_ready=bool(last_supertrend and last_supertrend.ready),
+            )
+        elif use_mtf_regime and signal is not None and regime_engine is not None and regime_bars is not None:
             while regime_idx < len(regime_bars) and regime_bars[regime_idx].ts <= bar.ts:
                 last_regime = regime_engine.update(regime_bars[regime_idx].close)
                 regime_idx += 1
@@ -348,6 +492,9 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
             bar_ts=bar.ts,
             bars_in_day=bars_in_day,
             close=float(bar.close),
+            volume=float(bar.volume),
+            volume_ema=float(volume_ema) if volume_ema is not None else None,
+            volume_ema_ready=bool(volume_count >= volume_period) if volume_period else True,
             rv=float(rv),
             signal=signal,
             cooldown_ok=cooldown_ok,
@@ -456,6 +603,8 @@ def _run_spot_backtest(
     meta: ContractMeta,
     *,
     regime_bars: list[Bar] | None = None,
+    regime2_bars: list[Bar] | None = None,
+    tick_bars: list[Bar] | None = None,
 ) -> BacktestResult:
     returns = deque(maxlen=cfg.synthetic.rv_lookback)
     cash = cfg.backtest.starting_cash
@@ -466,18 +615,54 @@ def _run_spot_backtest(
     prev_bar: Bar | None = None
     entries_today = 0
     filters = cfg.strategy.filters
-    ema_periods = _ema_periods(cfg.strategy.ema_preset)
-    needs_direction = cfg.strategy.directional_spot is not None
-    if ema_periods is None:
-        raise ValueError("spot backtests require ema_preset")
-    ema_needed = True
+    entry_signal = str(getattr(cfg.strategy, "entry_signal", "ema") or "ema").strip().lower()
+    if entry_signal not in ("ema", "orb"):
+        entry_signal = "ema"
 
-    use_mtf_regime = bool(regime_bars) and bool(cfg.strategy.regime_ema_preset)
-    signal_engine = EmaDecisionEngine(
-        ema_preset=str(cfg.strategy.ema_preset),
-        ema_entry_mode=cfg.strategy.ema_entry_mode,
-        entry_confirm_bars=cfg.strategy.entry_confirm_bars,
-        regime_ema_preset=None if use_mtf_regime else cfg.strategy.regime_ema_preset,
+    ema_periods = _ema_periods(cfg.strategy.ema_preset) if entry_signal == "ema" else None
+    needs_direction = cfg.strategy.directional_spot is not None
+    if entry_signal == "ema" and ema_periods is None:
+        raise ValueError("spot backtests require ema_preset")
+    ema_needed = entry_signal == "ema"
+
+    regime_mode = str(getattr(cfg.strategy, "regime_mode", "ema") or "ema").strip().lower()
+    if regime_mode not in ("ema", "supertrend"):
+        regime_mode = "ema"
+    use_mtf_regime = bool(regime_bars) and (
+        regime_mode == "supertrend" or bool(cfg.strategy.regime_ema_preset)
+    )
+    regime2_mode = str(getattr(cfg.strategy, "regime2_mode", "off") or "off").strip().lower()
+    if regime2_mode not in ("off", "ema", "supertrend"):
+        regime2_mode = "off"
+    regime2_preset = str(getattr(cfg.strategy, "regime2_ema_preset", "") or "").strip()
+    if regime2_mode == "ema" and not regime2_preset:
+        regime2_mode = "off"
+    regime2_bar = str(getattr(cfg.strategy, "regime2_bar_size", "") or "").strip() or str(cfg.backtest.bar_size)
+    if regime2_mode != "off" and str(regime2_bar) != str(cfg.backtest.bar_size) and not regime2_bars:
+        raise ValueError("regime2_mode enabled but regime2_bars was not provided for multi-timeframe regime2")
+    use_mtf_regime2 = bool(regime2_bars) and (
+        regime2_mode == "supertrend" or bool(regime2_preset)
+    )
+    signal_engine = (
+        EmaDecisionEngine(
+            ema_preset=str(cfg.strategy.ema_preset),
+            ema_entry_mode=cfg.strategy.ema_entry_mode,
+            entry_confirm_bars=cfg.strategy.entry_confirm_bars,
+            regime_ema_preset=(
+                None
+                if (use_mtf_regime or regime_mode == "supertrend")
+                else cfg.strategy.regime_ema_preset
+            ),
+        )
+        if entry_signal == "ema"
+        else None
+    )
+    orb_engine = (
+        OrbDecisionEngine(
+            window_mins=int(getattr(cfg.strategy, "orb_window_mins", 15) or 15),
+        )
+        if entry_signal == "orb"
+        else None
     )
     regime_engine = (
         EmaDecisionEngine(
@@ -486,11 +671,94 @@ def _run_spot_backtest(
             entry_confirm_bars=0,
             regime_ema_preset=None,
         )
-        if use_mtf_regime
+        if use_mtf_regime and regime_mode == "ema"
+        else None
+    )
+    supertrend_engine = (
+        SupertrendEngine(
+            atr_period=int(getattr(cfg.strategy, "supertrend_atr_period", 10) or 10),
+            multiplier=float(getattr(cfg.strategy, "supertrend_multiplier", 3.0) or 3.0),
+            source=str(getattr(cfg.strategy, "supertrend_source", "hl2") or "hl2"),
+        )
+        if regime_mode == "supertrend"
+        else None
+    )
+    regime2_engine = (
+        EmaDecisionEngine(
+            ema_preset=str(regime2_preset),
+            ema_entry_mode="trend",
+            entry_confirm_bars=0,
+            regime_ema_preset=None,
+        )
+        if regime2_mode == "ema" and regime2_preset
+        else None
+    )
+    supertrend2_engine = (
+        SupertrendEngine(
+            atr_period=int(getattr(cfg.strategy, "regime2_supertrend_atr_period", 10) or 10),
+            multiplier=float(getattr(cfg.strategy, "regime2_supertrend_multiplier", 3.0) or 3.0),
+            source=str(getattr(cfg.strategy, "regime2_supertrend_source", "hl2") or "hl2"),
+        )
+        if regime2_mode == "supertrend"
         else None
     )
     regime_idx = 0
     last_regime = None
+    last_supertrend = None
+    regime2_idx = 0
+    last_regime2 = None
+    last_supertrend2 = None
+
+    tick_mode = str(getattr(cfg.strategy, "tick_gate_mode", "off") or "off").strip().lower()
+    if tick_mode not in ("off", "raschke"):
+        tick_mode = "off"
+    tick_neutral_policy = str(getattr(cfg.strategy, "tick_neutral_policy", "allow") or "allow").strip().lower()
+    if tick_neutral_policy not in ("allow", "block"):
+        tick_neutral_policy = "allow"
+
+    tick_ma_period = max(1, int(getattr(cfg.strategy, "tick_band_ma_period", 10) or 10))
+    tick_z_lookback = max(5, int(getattr(cfg.strategy, "tick_width_z_lookback", 252) or 252))
+    tick_z_enter = float(getattr(cfg.strategy, "tick_width_z_enter", 1.0) or 1.0)
+    tick_z_exit = max(0.0, float(getattr(cfg.strategy, "tick_width_z_exit", 0.5) or 0.5))
+    tick_slope_lookback = max(
+        1, int(getattr(cfg.strategy, "tick_width_slope_lookback", 3) or 3)
+    )
+
+    tick_idx = 0
+    tick_state = "neutral"  # "neutral" | "wide" | "narrow"
+    tick_dir: str | None = None
+    tick_ready = False
+    tick_highs: deque[float] = deque(maxlen=tick_ma_period)
+    tick_lows: deque[float] = deque(maxlen=tick_ma_period)
+    tick_high_sum = 0.0
+    tick_low_sum = 0.0
+    tick_widths: deque[float] = deque(maxlen=tick_z_lookback)
+    tick_width_hist: list[float] = []
+
+    exit_mode = str(getattr(cfg.strategy, "spot_exit_mode", "pct") or "pct").strip().lower()
+    if exit_mode not in ("pct", "atr"):
+        exit_mode = "pct"
+    exit_atr_engine = (
+        SupertrendEngine(
+            atr_period=int(getattr(cfg.strategy, "spot_atr_period", 14) or 14),
+            multiplier=1.0,
+            source="hl2",
+        )
+        if exit_mode == "atr"
+        else None
+    )
+    last_exit_atr = None
+
+    volume_period = None
+    if filters is not None and getattr(filters, "volume_ratio_min", None) is not None:
+        raw_period = getattr(filters, "volume_ema_period", None)
+        try:
+            volume_period = int(raw_period) if raw_period is not None else 20
+        except (TypeError, ValueError):
+            volume_period = 20
+        volume_period = max(1, volume_period)
+    volume_ema = None
+    volume_count = 0
 
     bars_in_day = 0
     last_entry_idx = None
@@ -508,8 +776,48 @@ def _run_spot_backtest(
             last_date = bar.ts.date()
             entries_today = 0
         bars_in_day += 1
-        signal = signal_engine.update(bar.close)
-        if use_mtf_regime and regime_engine is not None and regime_bars is not None:
+        if volume_period is not None:
+            volume_ema = ema_next(volume_ema, float(bar.volume), volume_period)
+            volume_count += 1
+        if exit_atr_engine is not None:
+            last_exit_atr = exit_atr_engine.update(
+                high=float(bar.high),
+                low=float(bar.low),
+                close=float(bar.close),
+            )
+        if signal_engine is not None:
+            signal = signal_engine.update(bar.close)
+        elif orb_engine is not None:
+            signal = orb_engine.update(
+                ts=bar.ts,
+                high=float(bar.high),
+                low=float(bar.low),
+                close=float(bar.close),
+            )
+        else:
+            signal = None
+        if supertrend_engine is not None:
+            if use_mtf_regime and regime_bars is not None:
+                while regime_idx < len(regime_bars) and regime_bars[regime_idx].ts <= bar.ts:
+                    reg_bar = regime_bars[regime_idx]
+                    last_supertrend = supertrend_engine.update(
+                        high=float(reg_bar.high),
+                        low=float(reg_bar.low),
+                        close=float(reg_bar.close),
+                    )
+                    regime_idx += 1
+            else:
+                last_supertrend = supertrend_engine.update(
+                    high=float(bar.high),
+                    low=float(bar.low),
+                    close=float(bar.close),
+                )
+            signal = apply_regime_gate(
+                signal,
+                regime_dir=last_supertrend.direction if last_supertrend is not None else None,
+                regime_ready=bool(last_supertrend and last_supertrend.ready),
+            )
+        elif use_mtf_regime and regime_engine is not None and regime_bars is not None:
             while regime_idx < len(regime_bars) and regime_bars[regime_idx].ts <= bar.ts:
                 last_regime = regime_engine.update(regime_bars[regime_idx].close)
                 regime_idx += 1
@@ -518,9 +826,97 @@ def _run_spot_backtest(
                 regime_dir=last_regime.state if last_regime is not None else None,
                 regime_ready=bool(last_regime and last_regime.ema_ready),
             )
-            if signal is None:
-                continue
-        ema_ready = bool(ema_needed and signal.ema_ready)
+
+        if supertrend2_engine is not None:
+            if use_mtf_regime2 and regime2_bars is not None:
+                while regime2_idx < len(regime2_bars) and regime2_bars[regime2_idx].ts <= bar.ts:
+                    reg_bar = regime2_bars[regime2_idx]
+                    last_supertrend2 = supertrend2_engine.update(
+                        high=float(reg_bar.high),
+                        low=float(reg_bar.low),
+                        close=float(reg_bar.close),
+                    )
+                    regime2_idx += 1
+            else:
+                last_supertrend2 = supertrend2_engine.update(
+                    high=float(bar.high),
+                    low=float(bar.low),
+                    close=float(bar.close),
+                )
+            signal = apply_regime_gate(
+                signal,
+                regime_dir=last_supertrend2.direction if last_supertrend2 is not None else None,
+                regime_ready=bool(last_supertrend2 and last_supertrend2.ready),
+            )
+        elif regime2_engine is not None:
+            if use_mtf_regime2 and regime2_bars is not None:
+                while regime2_idx < len(regime2_bars) and regime2_bars[regime2_idx].ts <= bar.ts:
+                    last_regime2 = regime2_engine.update(regime2_bars[regime2_idx].close)
+                    regime2_idx += 1
+            else:
+                last_regime2 = regime2_engine.update(bar.close)
+            signal = apply_regime_gate(
+                signal,
+                regime_dir=last_regime2.state if last_regime2 is not None else None,
+                regime_ready=bool(last_regime2 and last_regime2.ema_ready),
+            )
+        ema_ready = bool(ema_needed and signal is not None and signal.ema_ready)
+
+        if tick_mode != "off" and tick_bars is not None:
+            while tick_idx < len(tick_bars) and tick_bars[tick_idx].ts <= bar.ts:
+                tbar = tick_bars[tick_idx]
+                high_v = float(tbar.high)
+                low_v = float(tbar.low)
+
+                if len(tick_highs) == tick_highs.maxlen:
+                    tick_high_sum -= tick_highs[0]
+                if len(tick_lows) == tick_lows.maxlen:
+                    tick_low_sum -= tick_lows[0]
+                tick_highs.append(high_v)
+                tick_lows.append(low_v)
+                tick_high_sum += high_v
+                tick_low_sum += low_v
+
+                tick_ready = False
+                tick_dir = None
+                if len(tick_highs) >= tick_ma_period and len(tick_lows) >= tick_ma_period:
+                    upper = tick_high_sum / float(tick_ma_period)
+                    lower = tick_low_sum / float(tick_ma_period)
+                    width = float(upper) - float(lower)
+                    tick_widths.append(width)
+                    tick_width_hist.append(width)
+
+                    # Use a bounded window for normalization, but don't require a full 252 sessions.
+                    min_z = min(tick_z_lookback, 30)
+                    if len(tick_widths) >= max(5, min_z) and len(tick_width_hist) >= (tick_slope_lookback + 1):
+                        w_list = list(tick_widths)
+                        mean = sum(w_list) / float(len(w_list))
+                        var = sum((w - mean) ** 2 for w in w_list) / float(len(w_list))
+                        std = math.sqrt(var)
+                        z = (width - mean) / std if std > 1e-9 else 0.0
+                        delta = width - tick_width_hist[-1 - tick_slope_lookback]
+
+                        if tick_state == "neutral":
+                            if z >= tick_z_enter and delta > 0:
+                                tick_state = "wide"
+                            elif z <= (-tick_z_enter) and delta < 0:
+                                tick_state = "narrow"
+                        elif tick_state == "wide":
+                            if z < tick_z_exit:
+                                tick_state = "neutral"
+                        elif tick_state == "narrow":
+                            if z > (-tick_z_exit):
+                                tick_state = "neutral"
+
+                        if tick_state == "wide":
+                            tick_dir = "up"
+                        elif tick_state == "narrow":
+                            tick_dir = "down"
+                        else:
+                            tick_dir = None
+                        tick_ready = True
+
+                tick_idx += 1
 
         liquidation = 0.0
         if open_trades:
@@ -559,22 +955,30 @@ def _run_spot_backtest(
                     liquidation += current_value
             open_trades = still_open
 
-        entry_signal_dir = signal.entry_dir
+        entry_signal_dir = signal.entry_dir if signal is not None else None
+        if tick_mode != "off":
+            if not tick_ready:
+                entry_signal_dir = None
+            elif tick_dir is None:
+                if tick_neutral_policy == "block":
+                    entry_signal_dir = None
+            elif entry_signal_dir is not None and entry_signal_dir != tick_dir:
+                entry_signal_dir = None
 
-        ema_gate_ok = True
-        direction = None
+        entry_ok = True
+        direction = entry_signal_dir
         if ema_needed and not ema_ready:
-            ema_gate_ok = False
-        elif ema_ready:
-            direction = entry_signal_dir
-            if needs_direction:
-                ema_gate_ok = (
-                    direction is not None
-                    and cfg.strategy.directional_spot is not None
-                    and direction in cfg.strategy.directional_spot
-                )
-            else:
-                ema_gate_ok = direction == "up"
+            entry_ok = False
+            direction = None
+        if needs_direction:
+            entry_ok = (
+                entry_ok
+                and direction is not None
+                and cfg.strategy.directional_spot is not None
+                and direction in cfg.strategy.directional_spot
+            )
+        else:
+            entry_ok = entry_ok and direction == "up"
 
         cooldown_ok = cooldown_ok_by_index(
             current_idx=idx,
@@ -586,6 +990,9 @@ def _run_spot_backtest(
             bar_ts=bar.ts,
             bars_in_day=bars_in_day,
             close=float(bar.close),
+            volume=float(bar.volume),
+            volume_ema=float(volume_ema) if volume_ema is not None else None,
+            volume_ema_ready=bool(volume_count >= volume_period) if volume_period else True,
             rv=float(rv),
             signal=signal,
             cooldown_ok=cooldown_ok,
@@ -597,7 +1004,7 @@ def _run_spot_backtest(
             open_slots_ok
             and entries_ok
             and (bar.ts.weekday() in cfg.strategy.entry_days)
-            and ema_gate_ok
+            and entry_ok
             and filters_ok
         ):
             spot_leg = None
@@ -610,29 +1017,94 @@ def _run_spot_backtest(
                 spot_leg = SpotLegConfig(action="BUY", qty=1)
 
             if spot_leg is not None:
+                can_open = True
                 qty = int(spot_leg.qty) * int(cfg.strategy.quantity)
                 signed_qty = qty if spot_leg.action.upper() == "BUY" else -qty
                 entry_price = bar.close
-                candidate = SpotTrade(
-                    symbol=cfg.strategy.symbol,
-                    qty=signed_qty,
-                    entry_time=bar.ts,
-                    entry_price=entry_price,
-                    profit_target_pct=cfg.strategy.spot_profit_target_pct,
-                    stop_loss_pct=cfg.strategy.spot_stop_loss_pct,
-                )
-                candidate.margin_required = abs(signed_qty * entry_price) * meta.multiplier
-                cash_after = cash - (signed_qty * entry_price) * meta.multiplier
-                margin_after = margin_used + candidate.margin_required
-                mark_liquidation = (signed_qty * entry_price) * meta.multiplier
-                equity_after = cash_after + liquidation + mark_liquidation
-                if cash_after >= 0 and equity_after >= margin_after:
-                    open_trades.append(candidate)
-                    cash = cash_after
-                    margin_used = margin_after
-                    entries_today += 1
-                    last_entry_idx = idx
-                    liquidation += mark_liquidation
+                target_price = None
+                stop_price = None
+                profit_target_pct = cfg.strategy.spot_profit_target_pct
+                stop_loss_pct = cfg.strategy.spot_stop_loss_pct
+                if entry_signal == "orb" and orb_engine is not None and direction in ("up", "down"):
+                    orb_high = orb_engine.or_high
+                    orb_low = orb_engine.or_low
+                    if orb_high is not None and orb_low is not None and orb_high > 0 and orb_low > 0:
+                        stop_price = float(orb_low) if direction == "up" else float(orb_high)
+                        rr = float(getattr(cfg.strategy, "orb_risk_reward", 2.0) or 2.0)
+                        target_mode = str(getattr(cfg.strategy, "orb_target_mode", "rr") or "rr").strip().lower()
+                        if target_mode not in ("rr", "or_range"):
+                            target_mode = "rr"
+
+                        if rr <= 0:
+                            can_open = False
+                        elif target_mode == "or_range":
+                            rng = float(orb_high) - float(orb_low)
+                            if rng <= 0:
+                                can_open = False
+                            else:
+                                target_price = (
+                                    float(orb_high) + (rr * rng)
+                                    if direction == "up"
+                                    else float(orb_low) - (rr * rng)
+                                )
+                                if (
+                                    (direction == "up" and float(target_price) <= float(entry_price))
+                                    or (direction == "down" and float(target_price) >= float(entry_price))
+                                ):
+                                    can_open = False
+                        else:
+                            risk = abs(float(entry_price) - float(stop_price))
+                            if risk <= 0:
+                                can_open = False
+                            else:
+                                target_price = (
+                                    float(entry_price) + (rr * risk)
+                                    if direction == "up"
+                                    else float(entry_price) - (rr * risk)
+                                )
+                    profit_target_pct = None
+                    stop_loss_pct = None
+                elif exit_mode == "atr":
+                    atr = float(getattr(last_exit_atr, "atr", 0.0) or 0.0)
+                    if atr > 0 and direction in ("up", "down"):
+                        pt_mult = float(getattr(cfg.strategy, "spot_pt_atr_mult", 1.5) or 1.5)
+                        sl_mult = float(getattr(cfg.strategy, "spot_sl_atr_mult", 1.0) or 1.0)
+                        if signed_qty > 0:
+                            target_price = float(entry_price) + (pt_mult * atr)
+                            stop_price = float(entry_price) - (sl_mult * atr)
+                        else:
+                            target_price = float(entry_price) - (pt_mult * atr)
+                            stop_price = float(entry_price) + (sl_mult * atr)
+                        profit_target_pct = None
+                        stop_loss_pct = None
+                    else:
+                        # Wait until ATR is ready.
+                        can_open = False
+                if not can_open:
+                    pass
+                else:
+                    candidate = SpotTrade(
+                        symbol=cfg.strategy.symbol,
+                        qty=signed_qty,
+                        entry_time=bar.ts,
+                        entry_price=entry_price,
+                        profit_target_pct=profit_target_pct,
+                        stop_loss_pct=stop_loss_pct,
+                        profit_target_price=target_price,
+                        stop_loss_price=stop_price,
+                    )
+                    candidate.margin_required = abs(signed_qty * entry_price) * meta.multiplier
+                    cash_after = cash - (signed_qty * entry_price) * meta.multiplier
+                    margin_after = margin_used + candidate.margin_required
+                    mark_liquidation = (signed_qty * entry_price) * meta.multiplier
+                    equity_after = cash_after + liquidation + mark_liquidation
+                    if cash_after >= 0 and equity_after >= margin_after:
+                        open_trades.append(candidate)
+                        cash = cash_after
+                        margin_used = margin_after
+                        entries_today += 1
+                        last_entry_idx = idx
+                        liquidation += mark_liquidation
 
         equity_curve.append(EquityPoint(ts=bar.ts, equity=cash + liquidation))
         prev_bar = bar
@@ -649,6 +1121,15 @@ def _run_spot_backtest(
 
 
 def _spot_hit_profit(trade: SpotTrade, price: float) -> bool:
+    if trade.profit_target_price is not None:
+        target = float(trade.profit_target_price)
+        if target <= 0:
+            return False
+        if trade.qty > 0:
+            return float(price) >= target
+        if trade.qty < 0:
+            return float(price) <= target
+        return False
     if trade.profit_target_pct is None:
         return False
     entry = trade.entry_price
@@ -661,6 +1142,15 @@ def _spot_hit_profit(trade: SpotTrade, price: float) -> bool:
 
 
 def _spot_hit_stop(trade: SpotTrade, price: float) -> bool:
+    if trade.stop_loss_price is not None:
+        stop = float(trade.stop_loss_price)
+        if stop <= 0:
+            return False
+        if trade.qty > 0:
+            return float(price) <= stop
+        if trade.qty < 0:
+            return float(price) >= stop
+        return False
     if trade.stop_loss_pct is None:
         return False
     entry = trade.entry_price

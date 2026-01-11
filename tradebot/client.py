@@ -5,6 +5,7 @@ import asyncio
 import copy
 import math
 import time
+from dataclasses import dataclass
 from datetime import datetime, time as dtime, timezone
 from typing import Callable, Iterable
 from zoneinfo import ZoneInfo
@@ -38,6 +39,16 @@ _RTH_START = dtime(9, 30)
 _RTH_END = dtime(16, 0)
 _AFTER_END = dtime(20, 0)
 _OVERNIGHT_END = dtime(3, 50)
+
+
+@dataclass(frozen=True)
+class OhlcvBar:
+    ts: datetime
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: float
 
 
 def _session_flags(now: datetime) -> tuple[bool, bool]:
@@ -75,6 +86,9 @@ class IBKRClient:
         self._detail_tickers: dict[int, tuple[IB, Ticker]] = {}
         self._historical_bar_cache: dict[
             tuple[str, int, str, str, bool, str], tuple[list[tuple[datetime, float]], float]
+        ] = {}
+        self._historical_bar_ohlcv_cache: dict[
+            tuple[str, int, str, str, bool, str], tuple[list[OhlcvBar], float]
         ] = {}
         self._front_future_cache: dict[tuple[str, str], tuple[Contract, float]] = {}
         self._update_callback: Callable[[], None] | None = None
@@ -512,6 +526,103 @@ class IBKRClient:
                 bars.append((dt, close))
 
             self._historical_bar_cache[key] = (bars, time.monotonic())
+            return list(bars)
+
+    async def historical_bars_ohlcv(
+        self,
+        contract: Contract,
+        *,
+        duration_str: str,
+        bar_size: str,
+        use_rth: bool,
+        what_to_show: str = "TRADES",
+        cache_ttl_sec: float = 30.0,
+    ) -> list[OhlcvBar]:
+        """Return OHLCV bars for the given contract.
+
+        Uses a small in-memory TTL cache to avoid pacing issues when the bot is running.
+        """
+        con_id = int(getattr(contract, "conId", 0) or 0)
+        sec_type = str(getattr(contract, "secType", "") or "")
+        symbol = str(getattr(contract, "symbol", "") or "")
+        key = (
+            symbol,
+            con_id,
+            sec_type,
+            str(bar_size),
+            bool(use_rth),
+            str(duration_str),
+        )
+        cached = self._historical_bar_ohlcv_cache.get(key)
+        if cached:
+            bars, cached_at = cached
+            if time.monotonic() - cached_at < float(cache_ttl_sec):
+                return list(bars)
+
+        use_proxy = sec_type in ("STK", "OPT")
+        lock = self._proxy_lock if use_proxy else self._lock
+        async with lock:
+            cached = self._historical_bar_ohlcv_cache.get(key)
+            if cached:
+                bars, cached_at = cached
+                if time.monotonic() - cached_at < float(cache_ttl_sec):
+                    return list(bars)
+            if use_proxy:
+                await self.connect_proxy()
+                ib = self._ib_proxy
+            else:
+                await self.connect()
+                ib = self._ib
+
+            req_contract = contract
+            if sec_type in ("STK", "OPT") and (
+                not getattr(contract, "exchange", "") or getattr(contract, "exchange", "") == "OVERNIGHT"
+            ):
+                req_contract = copy.copy(contract)
+                req_contract.exchange = "SMART"
+
+            raw = await ib.reqHistoricalDataAsync(
+                req_contract,
+                endDateTime="",
+                durationStr=str(duration_str),
+                barSizeSetting=str(bar_size),
+                whatToShow=str(what_to_show),
+                useRTH=1 if use_rth else 0,
+                formatDate=1,
+                keepUpToDate=False,
+            )
+
+            bars: list[OhlcvBar] = []
+            for bar in raw or []:
+                dt = getattr(bar, "date", None)
+                if isinstance(dt, str):
+                    dt = util.parseIBDatetime(dt)
+                if dt is None:
+                    continue
+                if getattr(dt, "tzinfo", None) is not None:
+                    dt = dt.replace(tzinfo=None)
+                try:
+                    open_p = float(getattr(bar, "open", 0.0) or 0.0)
+                    high = float(getattr(bar, "high", 0.0) or 0.0)
+                    low = float(getattr(bar, "low", 0.0) or 0.0)
+                    close = float(getattr(bar, "close", 0.0) or 0.0)
+                    volume = float(getattr(bar, "volume", 0.0) or 0.0)
+                except (TypeError, ValueError):
+                    continue
+                if close <= 0:
+                    continue
+                bars.append(
+                    OhlcvBar(
+                        ts=dt,
+                        open=open_p,
+                        high=high,
+                        low=low,
+                        close=close,
+                        volume=volume,
+                    )
+                )
+
+            self._historical_bar_ohlcv_cache[key] = (bars, time.monotonic())
             return list(bars)
 
     async def stock_option_chain(self, symbol: str):

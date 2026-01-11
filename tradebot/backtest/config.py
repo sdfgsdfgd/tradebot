@@ -71,6 +71,33 @@ class StrategyConfig:
     spot_profit_target_pct: float | None
     spot_stop_loss_pct: float | None
     spot_close_eod: bool
+    entry_signal: str = "ema"
+    orb_window_mins: int = 15
+    orb_risk_reward: float = 2.0
+    orb_target_mode: str = "rr"  # "rr" | "or_range"
+    spot_exit_mode: str = "pct"
+    spot_atr_period: int = 14
+    spot_pt_atr_mult: float = 1.5
+    spot_sl_atr_mult: float = 1.0
+    regime_mode: str = "ema"
+    regime2_mode: str = "off"  # "off" | "ema" | "supertrend"
+    regime2_ema_preset: str | None = None
+    regime2_bar_size: str | None = None
+    regime2_supertrend_atr_period: int = 10
+    regime2_supertrend_multiplier: float = 3.0
+    regime2_supertrend_source: str = "hl2"
+    supertrend_atr_period: int = 10
+    supertrend_multiplier: float = 3.0
+    supertrend_source: str = "hl2"
+    tick_gate_mode: str = "off"  # "off" | "raschke"
+    tick_gate_symbol: str = "TICK-NYSE"
+    tick_gate_exchange: str = "NYSE"
+    tick_band_ma_period: int = 10
+    tick_width_z_lookback: int = 252
+    tick_width_z_enter: float = 1.0
+    tick_width_z_exit: float = 0.5
+    tick_width_slope_lookback: int = 3
+    tick_neutral_policy: str = "allow"  # "allow" | "block"
 
 
 @dataclass(frozen=True)
@@ -108,6 +135,10 @@ class FiltersConfig:
     entry_end_hour: int | None
     skip_first_bars: int
     cooldown_bars: int
+    entry_start_hour_et: int | None = None
+    entry_end_hour_et: int | None = None
+    volume_ema_period: int | None = None
+    volume_ratio_min: float | None = None
 
 
 @dataclass(frozen=True)
@@ -181,6 +212,39 @@ def load_config(path: str | Path) -> ConfigBundle:
         spot_profit_target_pct=_parse_optional_float(strategy_raw.get("spot_profit_target_pct")),
         spot_stop_loss_pct=_parse_optional_float(strategy_raw.get("spot_stop_loss_pct")),
         spot_close_eod=bool(strategy_raw.get("spot_close_eod", False)),
+        entry_signal=_parse_entry_signal(strategy_raw.get("entry_signal")),
+        orb_window_mins=_parse_positive_int(strategy_raw.get("orb_window_mins"), default=15),
+        orb_risk_reward=_parse_positive_float(strategy_raw.get("orb_risk_reward"), default=2.0),
+        orb_target_mode=_parse_orb_target_mode(strategy_raw.get("orb_target_mode")),
+        spot_exit_mode=_parse_spot_exit_mode(strategy_raw.get("spot_exit_mode")),
+        spot_atr_period=_parse_positive_int(strategy_raw.get("spot_atr_period"), default=14),
+        spot_pt_atr_mult=_parse_positive_float(strategy_raw.get("spot_pt_atr_mult"), default=1.5),
+        spot_sl_atr_mult=_parse_positive_float(strategy_raw.get("spot_sl_atr_mult"), default=1.0),
+        regime_mode=_parse_regime_mode(strategy_raw.get("regime_mode")),
+        regime2_mode=_parse_regime_gate_mode(strategy_raw.get("regime2_mode")),
+        regime2_ema_preset=_parse_ema_preset(strategy_raw.get("regime2_ema_preset")),
+        regime2_bar_size=_parse_bar_size(strategy_raw.get("regime2_bar_size")),
+        regime2_supertrend_atr_period=_parse_positive_int(
+            strategy_raw.get("regime2_supertrend_atr_period"), default=10
+        ),
+        regime2_supertrend_multiplier=_parse_positive_float(
+            strategy_raw.get("regime2_supertrend_multiplier"), default=3.0
+        ),
+        regime2_supertrend_source=_parse_supertrend_source(
+            strategy_raw.get("regime2_supertrend_source")
+        ),
+        supertrend_atr_period=_parse_positive_int(strategy_raw.get("supertrend_atr_period"), default=10),
+        supertrend_multiplier=_parse_positive_float(strategy_raw.get("supertrend_multiplier"), default=3.0),
+        supertrend_source=_parse_supertrend_source(strategy_raw.get("supertrend_source")),
+        tick_gate_mode=_parse_tick_gate_mode(strategy_raw.get("tick_gate_mode")),
+        tick_gate_symbol=str(strategy_raw.get("tick_gate_symbol", "TICK-NYSE") or "TICK-NYSE").strip(),
+        tick_gate_exchange=str(strategy_raw.get("tick_gate_exchange", "NYSE") or "NYSE").strip(),
+        tick_band_ma_period=_parse_positive_int(strategy_raw.get("tick_band_ma_period"), default=10),
+        tick_width_z_lookback=_parse_positive_int(strategy_raw.get("tick_width_z_lookback"), default=252),
+        tick_width_z_enter=_parse_positive_float(strategy_raw.get("tick_width_z_enter"), default=1.0),
+        tick_width_z_exit=_parse_positive_float(strategy_raw.get("tick_width_z_exit"), default=0.5),
+        tick_width_slope_lookback=_parse_positive_int(strategy_raw.get("tick_width_slope_lookback"), default=3),
+        tick_neutral_policy=_parse_tick_neutral_policy(strategy_raw.get("tick_neutral_policy")),
     )
 
     synthetic = SyntheticConfig(
@@ -347,6 +411,15 @@ def _parse_filters(raw) -> FiltersConfig | None:
         return None if val is None else float(val)
     def _i(val):
         return None if val is None else int(val)
+    volume_period = _i(raw.get("volume_ema_period"))
+    if volume_period is not None and volume_period <= 0:
+        volume_period = None
+    start_et = _i(raw.get("entry_start_hour_et"))
+    end_et = _i(raw.get("entry_end_hour_et"))
+    if start_et is not None and not (0 <= int(start_et) <= 23):
+        start_et = None
+    if end_et is not None and not (0 <= int(end_et) <= 23):
+        end_et = None
     return FiltersConfig(
         rv_min=_f(raw.get("rv_min")),
         rv_max=_f(raw.get("rv_max")),
@@ -354,9 +427,126 @@ def _parse_filters(raw) -> FiltersConfig | None:
         ema_slope_min_pct=_f(raw.get("ema_slope_min_pct")),
         entry_start_hour=_i(raw.get("entry_start_hour")),
         entry_end_hour=_i(raw.get("entry_end_hour")),
+        entry_start_hour_et=start_et,
+        entry_end_hour_et=end_et,
         skip_first_bars=int(raw.get("skip_first_bars", 0) or 0),
         cooldown_bars=int(raw.get("cooldown_bars", 0) or 0),
+        volume_ema_period=volume_period,
+        volume_ratio_min=_f(raw.get("volume_ratio_min")),
     )
+
+
+def _parse_entry_signal(value) -> str:
+    if value is None:
+        return "ema"
+    if isinstance(value, str):
+        cleaned = value.strip().lower()
+        if cleaned in ("ema", "default", ""):
+            return "ema"
+        if cleaned in ("orb", "opening_range", "opening_range_breakout", "opening-range"):
+            return "orb"
+    return "ema"
+
+
+def _parse_orb_target_mode(value) -> str:
+    if value is None:
+        return "rr"
+    if isinstance(value, str):
+        cleaned = value.strip().lower()
+        if cleaned in ("rr", "risk_reward", "risk-reward", "riskreward", "default", ""):
+            return "rr"
+        if cleaned in ("or_range", "or-range", "range", "opening_range", "opening-range"):
+            return "or_range"
+    return "rr"
+
+
+def _parse_spot_exit_mode(value) -> str:
+    if value is None:
+        return "pct"
+    if isinstance(value, str):
+        cleaned = value.strip().lower()
+        if cleaned in ("pct", "percent", "percentage", "fixed", "fixed_pct", "fixed-pct", "default"):
+            return "pct"
+        if cleaned in ("atr", "atr_pct", "atr-pct"):
+            return "atr"
+    return "pct"
+
+
+def _parse_regime_mode(value) -> str:
+    if value is None:
+        return "ema"
+    if isinstance(value, str):
+        cleaned = value.strip().lower()
+        if cleaned in ("ema", "default", ""):
+            return "ema"
+        if cleaned in ("supertrend", "st"):
+            return "supertrend"
+    return "ema"
+
+
+def _parse_regime_gate_mode(value) -> str:
+    if value is None:
+        return "off"
+    if isinstance(value, str):
+        cleaned = value.strip().lower()
+        if cleaned in ("off", "none", "disabled", "false", "0"):
+            return "off"
+        if cleaned in ("ema", "default"):
+            return "ema"
+        if cleaned in ("supertrend", "st"):
+            return "supertrend"
+    return "off"
+
+
+def _parse_tick_gate_mode(value) -> str:
+    if value is None:
+        return "off"
+    if isinstance(value, str):
+        cleaned = value.strip().lower()
+        if cleaned in ("off", "none", "disabled", "false", "0"):
+            return "off"
+        if cleaned in ("raschke", "tick", "tick_width", "tickwidth"):
+            return "raschke"
+    return "off"
+
+
+def _parse_tick_neutral_policy(value) -> str:
+    if value is None:
+        return "allow"
+    if isinstance(value, str):
+        cleaned = value.strip().lower()
+        if cleaned in ("allow", "pass", "permit"):
+            return "allow"
+        if cleaned in ("block", "deny", "none"):
+            return "block"
+    return "allow"
+
+
+def _parse_positive_int(value, *, default: int) -> int:
+    parsed = _parse_non_negative_int(value, default=default)
+    return max(1, int(parsed))
+
+
+def _parse_positive_float(value, *, default: float) -> float:
+    if value is None:
+        return float(default)
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return float(default)
+    return parsed if parsed > 0 else float(default)
+
+
+def _parse_supertrend_source(value) -> str:
+    if value is None:
+        return "hl2"
+    if isinstance(value, str):
+        cleaned = value.strip().lower()
+        if cleaned in ("hl2",):
+            return "hl2"
+        if cleaned in ("close", "c"):
+            return "close"
+    return "hl2"
 
 
 def _parse_instrument(value) -> str:

@@ -6,7 +6,7 @@ import copy
 import json
 import math
 from dataclasses import dataclass, field
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -23,6 +23,8 @@ from .config import load_config
 from .decision_core import (
     EmaDecisionEngine,
     EmaDecisionSnapshot,
+    OrbDecisionEngine,
+    SupertrendEngine,
     apply_regime_gate,
     cooldown_ok_by_time,
     flip_exit_hit,
@@ -31,6 +33,7 @@ from .decision_core import (
 )
 from .signals import (
     direction_from_action_right,
+    ema_next,
     ema_periods,
     ema_state_direction,
     flip_exit_mode,
@@ -1379,6 +1382,8 @@ class _BotInstance:
     entries_today: int = 0
     entries_today_date: date | None = None
     error: str | None = None
+    spot_profit_target_price: float | None = None
+    spot_stop_loss_price: float | None = None
     touched_conids: set[int] = field(default_factory=set)
 
 
@@ -1434,6 +1439,13 @@ class _SignalSnapshot:
     signal: EmaDecisionSnapshot
     bars_in_day: int
     rv: float | None
+    volume: float | None = None
+    volume_ema: float | None = None
+    volume_ema_ready: bool = True
+    atr: float | None = None
+    or_high: float | None = None
+    or_low: float | None = None
+    or_ready: bool = False
 
 
 class BotConfigScreen(Screen[_BotConfigResult | None]):
@@ -1502,12 +1514,34 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
         instrument_raw = self._strategy.get("instrument", "options")
         instrument = "spot" if str(instrument_raw or "").strip().lower() == "spot" else "options"
 
+        self._strategy.setdefault("entry_signal", "ema")
         self._strategy.setdefault("entry_confirm_bars", 0)
+        self._strategy.setdefault("orb_window_mins", 15)
+        self._strategy.setdefault("orb_risk_reward", 2.0)
+        self._strategy.setdefault("orb_target_mode", "rr")
+        self._strategy.setdefault("spot_exit_mode", "pct")
+        self._strategy.setdefault("spot_atr_period", 14)
+        self._strategy.setdefault("spot_pt_atr_mult", 1.5)
+        self._strategy.setdefault("spot_sl_atr_mult", 1.0)
         self._strategy.setdefault("regime_ema_preset", "")
         self._strategy.setdefault("regime_bar_size", "")
+        self._strategy.setdefault("regime_mode", "ema")
+        self._strategy.setdefault("regime2_mode", "off")
+        self._strategy.setdefault("regime2_ema_preset", "")
+        self._strategy.setdefault("regime2_bar_size", "")
+        self._strategy.setdefault("regime2_supertrend_atr_period", 10)
+        self._strategy.setdefault("regime2_supertrend_multiplier", 3.0)
+        self._strategy.setdefault("regime2_supertrend_source", "hl2")
+        self._strategy.setdefault("supertrend_atr_period", 10)
+        self._strategy.setdefault("supertrend_multiplier", 3.0)
+        self._strategy.setdefault("supertrend_source", "hl2")
 
         if instrument == "spot":
-            self._strategy.setdefault("spot_sec_type", "STK")
+            sym = str(self._symbol or self._strategy.get("symbol") or "").strip().upper()
+            default_sec_type = (
+                "FUT" if sym in {"MNQ", "MES", "ES", "NQ", "YM", "RTY", "M2K"} else "STK"
+            )
+            self._strategy.setdefault("spot_sec_type", default_sec_type)
             self._strategy.setdefault("spot_exchange", "")
             self._strategy.setdefault("spot_close_eod", True)
             if not isinstance(self._strategy.get("directional_spot"), dict):
@@ -1524,23 +1558,61 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
                 "Signal bar size",
                 "enum",
                 "signal_bar_size",
-                options=("1 hour", "30 mins", "15 mins", "5 mins", "1 day"),
+                options=("1 hour", "4 hours", "30 mins", "15 mins", "5 mins", "1 day"),
             ),
             _BotConfigField("Signal use RTH", "bool", "signal_use_rth"),
             _BotConfigField("Entry days", "text", "entry_days"),
             _BotConfigField("Max entries/day", "int", "max_entries_per_day"),
+            _BotConfigField("Entry signal", "enum", "entry_signal", options=("ema", "orb")),
             _BotConfigField("EMA preset", "text", "ema_preset"),
             _BotConfigField("EMA entry mode", "enum", "ema_entry_mode", options=("trend", "cross")),
             _BotConfigField("Entry confirm bars", "int", "entry_confirm_bars"),
+            _BotConfigField("ORB window mins", "int", "orb_window_mins"),
+            _BotConfigField("ORB risk reward", "float", "orb_risk_reward"),
+            _BotConfigField("ORB target mode", "enum", "orb_target_mode", options=("rr", "or_range")),
+            _BotConfigField("Regime mode", "enum", "regime_mode", options=("ema", "supertrend")),
             _BotConfigField("Regime EMA preset", "text", "regime_ema_preset"),
             _BotConfigField(
                 "Regime bar size",
                 "enum",
                 "regime_bar_size",
-                options=("", "1 hour", "30 mins", "15 mins", "5 mins", "1 day"),
+                options=("", "1 hour", "4 hours", "30 mins", "15 mins", "5 mins", "1 day"),
             ),
+            _BotConfigField("Supertrend ATR period", "int", "supertrend_atr_period"),
+            _BotConfigField("Supertrend multiplier", "float", "supertrend_multiplier"),
+            _BotConfigField(
+                "Supertrend source",
+                "enum",
+                "supertrend_source",
+                options=("hl2", "close"),
+            ),
+            _BotConfigField(
+                "Regime2 mode",
+                "enum",
+                "regime2_mode",
+                options=("off", "ema", "supertrend"),
+            ),
+            _BotConfigField("Regime2 EMA preset", "text", "regime2_ema_preset"),
+            _BotConfigField(
+                "Regime2 bar size",
+                "enum",
+                "regime2_bar_size",
+                options=("", "1 hour", "4 hours", "30 mins", "15 mins", "5 mins", "1 day"),
+            ),
+            _BotConfigField("Regime2 Supertrend ATR period", "int", "regime2_supertrend_atr_period"),
+            _BotConfigField("Regime2 Supertrend multiplier", "float", "regime2_supertrend_multiplier"),
+            _BotConfigField(
+                "Regime2 Supertrend source",
+                "enum",
+                "regime2_supertrend_source",
+                options=("hl2", "close"),
+            ),
+            _BotConfigField("Entry start hour (ET)", "text", "filters.entry_start_hour_et"),
+            _BotConfigField("Entry end hour (ET)", "text", "filters.entry_end_hour_et"),
             _BotConfigField("Entry start hour", "text", "filters.entry_start_hour"),
             _BotConfigField("Entry end hour", "text", "filters.entry_end_hour"),
+            _BotConfigField("Volume ratio min", "float", "filters.volume_ratio_min"),
+            _BotConfigField("Volume EMA period", "int", "filters.volume_ema_period"),
             _BotConfigField("Flip-exit", "bool", "exit_on_signal_flip"),
             _BotConfigField("Flip min hold bars", "int", "flip_exit_min_hold_bars"),
             _BotConfigField("Flip only if profit", "bool", "flip_exit_only_if_profit"),
@@ -1552,6 +1624,10 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
                     _BotConfigField("Spot secType", "enum", "spot_sec_type", options=("STK", "FUT")),
                     _BotConfigField("Spot exchange", "text", "spot_exchange"),
                     _BotConfigField("Spot close EOD", "bool", "spot_close_eod"),
+                    _BotConfigField("Spot exit mode", "enum", "spot_exit_mode", options=("pct", "atr")),
+                    _BotConfigField("Spot ATR period", "int", "spot_atr_period"),
+                    _BotConfigField("Spot PT ATR mult", "float", "spot_pt_atr_mult"),
+                    _BotConfigField("Spot SL ATR mult", "float", "spot_sl_atr_mult"),
                     _BotConfigField("Spot PT %", "float", "spot_profit_target_pct"),
                     _BotConfigField("Spot SL %", "float", "spot_stop_loss_pct"),
                     _BotConfigField("Spot up action", "enum", "directional_spot.up.action", options=("", "BUY")),
@@ -1869,6 +1945,9 @@ class BotScreen(Screen):
         self._refresh_sec = max(refresh_sec, 0.25)
         self._leaderboard_path = (
             Path(__file__).resolve().parent / "backtest" / "leaderboard.json"
+        )
+        self._spot_milestones_path = (
+            Path(__file__).resolve().parent / "backtest" / "spot_milestones.json"
         )
         self._payload: dict | None = None
         self._presets: list[_BotPreset] = []
@@ -2197,7 +2276,11 @@ class BotScreen(Screen):
         if "directional_spot" not in strategy:
             strategy["directional_spot"] = {"up": {"action": "BUY", "qty": 1}, "down": {"action": "SELL", "qty": 1}}
         filters = _filters_for_group(self._payload, preset.group) if self._payload else None
-        symbol = str(self._payload.get("symbol", "SLV") if self._payload else "SLV")
+        symbol = str(
+            entry.get("symbol")
+            or strategy.get("symbol")
+            or (self._payload.get("symbol", "SLV") if self._payload else "SLV")
+        ).strip().upper()
 
         def _on_done(result: _BotConfigResult | None) -> None:
             if not result:
@@ -2264,7 +2347,7 @@ class BotScreen(Screen):
 
     def _load_leaderboard(self) -> None:
         try:
-            self._payload = json.loads(self._leaderboard_path.read_text())
+            payload = json.loads(self._leaderboard_path.read_text())
         except Exception as exc:
             self._payload = None
             self._presets = []
@@ -2273,6 +2356,39 @@ class BotScreen(Screen):
             self._presets_table.add_columns("Error")
             self._presets_table.add_row(str(exc))
             return
+        if not isinstance(payload, dict):
+            payload = {}
+
+        try:
+            if self._spot_milestones_path.exists():
+                spot_payload = json.loads(self._spot_milestones_path.read_text())
+                if isinstance(spot_payload, dict):
+                    spot_groups = spot_payload.get("groups", [])
+                    if isinstance(spot_groups, list) and spot_groups:
+                        base_groups = payload.get("groups", [])
+                        if not isinstance(base_groups, list):
+                            base_groups = []
+                        merged = list(base_groups)
+                        seen = {
+                            str(group.get("name"))
+                            for group in merged
+                            if isinstance(group, dict) and group.get("name") is not None
+                        }
+                        for group in spot_groups:
+                            if not isinstance(group, dict):
+                                continue
+                            name = str(group.get("name"))
+                            if name and name in seen:
+                                continue
+                            merged.append(group)
+                            if name:
+                                seen.add(name)
+                        payload["groups"] = merged
+        except Exception:
+            # Keep the main leaderboard usable even if the milestones file is malformed.
+            pass
+
+        self._payload = payload
         self._rebuild_presets_table()
 
     def _rebuild_presets_table(self) -> None:
@@ -2298,11 +2414,12 @@ class BotScreen(Screen):
                 strat = entry.get("strategy", {})
                 metrics = entry.get("metrics", {})
                 instrument = str(strat.get("instrument", "options") or "options").strip().lower()
-                if instrument != "options":
+                if instrument not in ("options", "spot"):
                     continue
                 legs = strat.get("legs", [])
-                if not isinstance(legs, list) or not legs:
-                    continue
+                if instrument == "options":
+                    if not isinstance(legs, list) or not legs:
+                        continue
                 try:
                     dte = int(strat.get("dte", 0))
                 except (TypeError, ValueError):
@@ -2328,18 +2445,23 @@ class BotScreen(Screen):
                 self._presets.append(preset)
                 metrics = entry.get("metrics", {})
                 strat = entry.get("strategy", {})
+                instrument = str(strat.get("instrument", "options") or "options").strip().lower()
                 try:
                     dte = int(strat.get("dte", 0))
                 except (TypeError, ValueError):
                     dte = 0
-                legs_desc = _legs_label(strat.get("legs", []))
+                if instrument == "spot":
+                    sec_type = str(strat.get("spot_sec_type") or "").strip().upper()
+                    legs_desc = "SPOT-FUT" if sec_type == "FUT" else "SPOT"
+                else:
+                    legs_desc = _legs_label(strat.get("legs", []))
                 self._preset_rows.append(preset)
                 self._presets_table.add_row(
                     group_name,
                     legs_desc,
-                    str(dte),
-                    _fmt_pct(float(strat.get("profit_target", 0.0)) * 100.0),
-                    _fmt_pct(float(strat.get("stop_loss", 0.0)) * 100.0),
+                    "-" if instrument == "spot" else str(dte),
+                    "-" if instrument == "spot" else _fmt_pct(float(strat.get("profit_target", 0.0)) * 100.0),
+                    "-" if instrument == "spot" else _fmt_pct(float(strat.get("stop_loss", 0.0)) * 100.0),
                     str(strat.get("ema_preset", "")),
                     f"{float(metrics.get('pnl', 0.0)):.2f}",
                     _fmt_pct(float(metrics.get("win_rate", 0.0)) * 100.0),
@@ -2534,8 +2656,11 @@ class BotScreen(Screen):
                 instance.symbol or (self._payload.get("symbol", "SLV") if self._payload else "SLV")
             ).strip().upper()
 
+            entry_signal = str(instance.strategy.get("entry_signal") or "ema").strip().lower()
+            if entry_signal not in ("ema", "orb"):
+                entry_signal = "ema"
             ema_preset = instance.strategy.get("ema_preset")
-            if not ema_preset:
+            if entry_signal == "ema" and not ema_preset:
                 continue
 
             signal_contract = await self._signal_contract(instance, symbol)
@@ -2544,13 +2669,28 @@ class BotScreen(Screen):
 
             snap = await self._signal_snapshot_for_contract(
                 contract=signal_contract,
-                ema_preset_raw=str(ema_preset),
+                ema_preset_raw=str(ema_preset) if ema_preset else None,
                 bar_size=self._signal_bar_size(instance),
                 use_rth=self._signal_use_rth(instance),
+                entry_signal_raw=entry_signal,
                 entry_mode_raw=instance.strategy.get("ema_entry_mode"),
                 entry_confirm_bars=instance.strategy.get("entry_confirm_bars", 0),
+                orb_window_mins_raw=instance.strategy.get("orb_window_mins"),
                 regime_ema_preset_raw=instance.strategy.get("regime_ema_preset"),
                 regime_bar_size_raw=instance.strategy.get("regime_bar_size"),
+                regime_mode_raw=instance.strategy.get("regime_mode"),
+                supertrend_atr_period_raw=instance.strategy.get("supertrend_atr_period"),
+                supertrend_multiplier_raw=instance.strategy.get("supertrend_multiplier"),
+                supertrend_source_raw=instance.strategy.get("supertrend_source"),
+                regime2_ema_preset_raw=instance.strategy.get("regime2_ema_preset"),
+                regime2_bar_size_raw=instance.strategy.get("regime2_bar_size"),
+                regime2_mode_raw=instance.strategy.get("regime2_mode"),
+                regime2_supertrend_atr_period_raw=instance.strategy.get("regime2_supertrend_atr_period"),
+                regime2_supertrend_multiplier_raw=instance.strategy.get("regime2_supertrend_multiplier"),
+                regime2_supertrend_source_raw=instance.strategy.get("regime2_supertrend_source"),
+                filters=instance.filters if isinstance(instance.filters, dict) else None,
+                spot_exit_mode_raw=instance.strategy.get("spot_exit_mode"),
+                spot_atr_period_raw=instance.strategy.get("spot_atr_period"),
             )
             if snap is None:
                 continue
@@ -2581,6 +2721,9 @@ class BotScreen(Screen):
                 bar_ts=snap.bar_ts,
                 bars_in_day=snap.bars_in_day,
                 close=float(snap.close),
+                volume=snap.volume,
+                volume_ema=snap.volume_ema,
+                volume_ema_ready=snap.volume_ema_ready,
                 rv=snap.rv,
                 signal=snap.signal,
                 cooldown_ok=cooldown_ok,
@@ -2609,6 +2752,8 @@ class BotScreen(Screen):
 
             if not open_items and instance.open_direction is not None:
                 instance.open_direction = None
+                instance.spot_profit_target_price = None
+                instance.spot_stop_loss_price = None
 
             if open_items:
                 if instance.last_exit_bar_ts is not None and instance.last_exit_bar_ts == snap.bar_ts:
@@ -2625,8 +2770,58 @@ class BotScreen(Screen):
                     if market_price is None:
                         ticker = await self._client.ensure_ticker(open_item.contract)
                         market_price = _ticker_price(ticker)
+
+                    target_price = instance.spot_profit_target_price
+                    stop_price = instance.spot_stop_loss_price
+                    if (
+                        pos
+                        and market_price is not None
+                        and market_price > 0
+                        and (target_price is not None or stop_price is not None)
+                    ):
+                        try:
+                            mp = float(market_price)
+                        except (TypeError, ValueError):
+                            mp = None
+                        if mp is not None:
+                            if target_price is not None:
+                                try:
+                                    target = float(target_price)
+                                except (TypeError, ValueError):
+                                    target = None
+                                if target is not None and target > 0:
+                                    if (pos > 0 and mp >= target) or (pos < 0 and mp <= target):
+                                        self._queue_proposal(
+                                            instance,
+                                            intent="exit",
+                                            direction=open_dir,
+                                            signal_bar_ts=snap.bar_ts,
+                                        )
+                                        break
+                            if stop_price is not None:
+                                try:
+                                    stop = float(stop_price)
+                                except (TypeError, ValueError):
+                                    stop = None
+                                if stop is not None and stop > 0:
+                                    if (pos > 0 and mp <= stop) or (pos < 0 and mp >= stop):
+                                        self._queue_proposal(
+                                            instance,
+                                            intent="exit",
+                                            direction=open_dir,
+                                            signal_bar_ts=snap.bar_ts,
+                                        )
+                                        break
                     move = None
-                    if avg_cost is not None and avg_cost > 0 and market_price is not None and market_price > 0 and pos:
+                    if (
+                        target_price is None
+                        and stop_price is None
+                        and avg_cost is not None
+                        and avg_cost > 0
+                        and market_price is not None
+                        and market_price > 0
+                        and pos
+                    ):
                         move = (market_price - avg_cost) / avg_cost
                         if pos < 0:
                             move = -move
@@ -2736,6 +2931,14 @@ class BotScreen(Screen):
                 continue
             if instance.last_entry_bar_ts is not None and instance.last_entry_bar_ts == snap.bar_ts:
                 continue
+
+            instrument = self._strategy_instrument(instance.strategy)
+            if instrument == "spot":
+                exit_mode = str(instance.strategy.get("spot_exit_mode") or "pct").strip().lower()
+                if exit_mode == "atr":
+                    atr = float(snap.atr or 0.0) if snap.atr is not None else 0.0
+                    if atr <= 0:
+                        continue
 
             direction = self._entry_direction_for_instance(instance, snap)
             if direction is None:
@@ -3013,17 +3216,37 @@ class BotScreen(Screen):
         ema_preset_raw: str | None,
         bar_size: str,
         use_rth: bool,
+        entry_signal_raw: str | None = None,
+        orb_window_mins_raw: int | None = None,
         entry_mode_raw: str | None = None,
         entry_confirm_bars: int = 0,
+        spot_exit_mode_raw: str | None = None,
+        spot_atr_period_raw: int | None = None,
         regime_ema_preset_raw: str | None = None,
         regime_bar_size_raw: str | None = None,
+        regime_mode_raw: str | None = None,
+        supertrend_atr_period_raw: int | None = None,
+        supertrend_multiplier_raw: float | None = None,
+        supertrend_source_raw: str | None = None,
+        regime2_ema_preset_raw: str | None = None,
+        regime2_bar_size_raw: str | None = None,
+        regime2_mode_raw: str | None = None,
+        regime2_supertrend_atr_period_raw: int | None = None,
+        regime2_supertrend_multiplier_raw: float | None = None,
+        regime2_supertrend_source_raw: str | None = None,
+        filters: dict | None = None,
     ) -> _SignalSnapshot | None:
-        periods = ema_periods(ema_preset_raw)
-        if periods is None:
-            return None
-        _, slow_p = periods
+        entry_signal = str(entry_signal_raw or "ema").strip().lower()
+        if entry_signal not in ("ema", "orb"):
+            entry_signal = "ema"
+        slow_p = None
+        if entry_signal == "ema":
+            periods = ema_periods(ema_preset_raw)
+            if periods is None:
+                return None
+            _, slow_p = periods
 
-        bars = await self._client.historical_bars(
+        bars = await self._client.historical_bars_ohlcv(
             contract,
             duration_str=self._signal_duration_str(bar_size),
             bar_size=bar_size,
@@ -3035,45 +3258,132 @@ class BotScreen(Screen):
 
         bar_def = parse_bar_size(bar_size)
         if bar_def is not None and len(bars) >= 2:
-            now_et = datetime.now(tz=ZoneInfo("America/New_York")).replace(tzinfo=None)
-            last_ts, _ = bars[-1]
-            if last_ts + bar_def.duration > now_et:
+            now_ref = datetime.now(tz=timezone.utc).replace(tzinfo=None)
+            last_ts = bars[-1].ts
+            if last_ts + bar_def.duration > now_ref:
                 bars = bars[:-1]
-        if len(bars) < (slow_p + 1):
+        if slow_p is not None and len(bars) < (slow_p + 1):
             return None
+
+        regime_mode = str(regime_mode_raw or "ema").strip().lower()
+        if regime_mode not in ("ema", "supertrend"):
+            regime_mode = "ema"
 
         regime_preset = str(regime_ema_preset_raw or "").strip()
         regime_bar_size = str(regime_bar_size_raw or "").strip()
         if not regime_bar_size or regime_bar_size.lower() in ("same", "default"):
             regime_bar_size = str(bar_size)
-        use_mtf_regime = bool(regime_preset) and (str(regime_bar_size) != str(bar_size))
+        if regime_mode == "supertrend":
+            use_mtf_regime = str(regime_bar_size) != str(bar_size)
+        else:
+            use_mtf_regime = bool(regime_preset) and (str(regime_bar_size) != str(bar_size))
 
-        try:
-            engine = EmaDecisionEngine(
-                ema_preset=str(ema_preset_raw),
-                ema_entry_mode=entry_mode_raw,
-                entry_confirm_bars=entry_confirm_bars,
-                regime_ema_preset=None if use_mtf_regime else regime_ema_preset_raw,
-            )
-        except ValueError:
-            return None
+        volume_period: int | None = None
+        if isinstance(filters, dict) and filters.get("volume_ratio_min") is not None:
+            raw_period = filters.get("volume_ema_period")
+            try:
+                volume_period = int(raw_period) if raw_period is not None else 20
+            except (TypeError, ValueError):
+                volume_period = 20
+            volume_period = max(1, volume_period)
+
+        exit_mode = str(spot_exit_mode_raw or "pct").strip().lower()
+        if exit_mode not in ("pct", "atr"):
+            exit_mode = "pct"
+        exit_atr_engine = None
+        last_exit_atr = None
+        if exit_mode == "atr":
+            try:
+                atr_p = int(spot_atr_period_raw) if spot_atr_period_raw is not None else 14
+            except (TypeError, ValueError):
+                atr_p = 14
+            atr_p = max(1, atr_p)
+            exit_atr_engine = SupertrendEngine(atr_period=atr_p, multiplier=1.0, source="hl2")
+
+        ema_engine = None
+        orb_engine = None
+        if entry_signal == "ema":
+            try:
+                ema_engine = EmaDecisionEngine(
+                    ema_preset=str(ema_preset_raw),
+                    ema_entry_mode=entry_mode_raw,
+                    entry_confirm_bars=entry_confirm_bars,
+                    regime_ema_preset=(
+                        None if (use_mtf_regime or regime_mode == "supertrend") else regime_ema_preset_raw
+                    ),
+                )
+            except ValueError:
+                return None
+        else:
+            try:
+                window = int(orb_window_mins_raw) if orb_window_mins_raw is not None else 15
+            except (TypeError, ValueError):
+                window = 15
+            window = max(1, window)
+            orb_engine = OrbDecisionEngine(window_mins=window)
 
         last_ts = None
         last_close = None
+        last_volume = None
         closes: list[float] = []
         last_signal = None
-        for ts, close in bars:
+        volume_ema = None
+        volume_count = 0
+        supertrend_engine = None
+        last_supertrend = None
+        if regime_mode == "supertrend" and not use_mtf_regime:
+            try:
+                atr_p = int(supertrend_atr_period_raw) if supertrend_atr_period_raw is not None else 10
+            except (TypeError, ValueError):
+                atr_p = 10
+            try:
+                mult = (
+                    float(supertrend_multiplier_raw)
+                    if supertrend_multiplier_raw is not None
+                    else 3.0
+                )
+            except (TypeError, ValueError):
+                mult = 3.0
+            src = str(supertrend_source_raw or "hl2").strip().lower() or "hl2"
+            supertrend_engine = SupertrendEngine(atr_period=atr_p, multiplier=mult, source=src)
+
+        for bar in bars:
+            close = float(bar.close)
             if close <= 0:
                 continue
-            last_ts = ts
-            last_close = float(close)
-            closes.append(float(close))
-            last_signal = engine.update(float(close))
+            last_ts = bar.ts
+            last_close = close
+            last_volume = float(bar.volume)
+            closes.append(close)
+            if ema_engine is not None:
+                last_signal = ema_engine.update(close)
+            elif orb_engine is not None:
+                last_signal = orb_engine.update(
+                    ts=bar.ts,
+                    high=float(bar.high),
+                    low=float(bar.low),
+                    close=close,
+                )
+            if volume_period is not None:
+                volume_ema = ema_next(volume_ema, float(bar.volume), volume_period)
+                volume_count += 1
+            if supertrend_engine is not None:
+                last_supertrend = supertrend_engine.update(
+                    high=float(bar.high),
+                    low=float(bar.low),
+                    close=float(bar.close),
+                )
+            if exit_atr_engine is not None:
+                last_exit_atr = exit_atr_engine.update(
+                    high=float(bar.high),
+                    low=float(bar.low),
+                    close=float(bar.close),
+                )
 
         if last_ts is None or last_close is None or last_signal is None or not last_signal.ema_ready:
             return None
 
-        bars_in_day = sum(1 for ts, _ in bars if ts.date() == last_ts.date())
+        bars_in_day = sum(1 for bar in bars if bar.ts.date() == last_ts.date())
         rv = realized_vol_from_closes(
             closes,
             lookback=60,
@@ -3082,13 +3392,66 @@ class BotScreen(Screen):
             use_rth=use_rth,
         )
 
-        if use_mtf_regime:
+        if regime_mode == "supertrend":
+            if use_mtf_regime:
+                try:
+                    atr_p = int(supertrend_atr_period_raw) if supertrend_atr_period_raw is not None else 10
+                except (TypeError, ValueError):
+                    atr_p = 10
+                try:
+                    mult = (
+                        float(supertrend_multiplier_raw)
+                        if supertrend_multiplier_raw is not None
+                        else 3.0
+                    )
+                except (TypeError, ValueError):
+                    mult = 3.0
+                src = str(supertrend_source_raw or "hl2").strip().lower() or "hl2"
+
+                regime_bars = await self._client.historical_bars_ohlcv(
+                    contract,
+                    duration_str=self._signal_duration_str(regime_bar_size),
+                    bar_size=regime_bar_size,
+                    use_rth=use_rth,
+                    cache_ttl_sec=30.0,
+                )
+                if not regime_bars:
+                    return None
+                regime_def = parse_bar_size(regime_bar_size)
+                if regime_def is not None and len(regime_bars) >= 2:
+                    now_ref = datetime.now(tz=timezone.utc).replace(tzinfo=None)
+                    reg_last_ts = regime_bars[-1].ts
+                    if reg_last_ts + regime_def.duration > now_ref:
+                        regime_bars = regime_bars[:-1]
+
+                regime_engine = SupertrendEngine(atr_period=atr_p, multiplier=mult, source=src)
+                last_regime = None
+                for bar in regime_bars:
+                    if bar.ts > last_ts:
+                        break
+                    last_regime = regime_engine.update(
+                        high=float(bar.high),
+                        low=float(bar.low),
+                        close=float(bar.close),
+                    )
+                regime_ready = bool(last_regime and last_regime.ready)
+                regime_dir = last_regime.direction if last_regime is not None else None
+            else:
+                regime_ready = bool(last_supertrend and last_supertrend.ready)
+                regime_dir = last_supertrend.direction if last_supertrend is not None else None
+
+            last_signal = apply_regime_gate(
+                last_signal,
+                regime_dir=regime_dir,
+                regime_ready=regime_ready,
+            )
+        elif use_mtf_regime:
             regime_periods = ema_periods(regime_preset)
             if regime_periods is None:
                 return None
             _, regime_slow_p = regime_periods
 
-            regime_bars = await self._client.historical_bars(
+            regime_bars = await self._client.historical_bars_ohlcv(
                 contract,
                 duration_str=self._signal_duration_str(regime_bar_size),
                 bar_size=regime_bar_size,
@@ -3100,9 +3463,9 @@ class BotScreen(Screen):
 
             regime_def = parse_bar_size(regime_bar_size)
             if regime_def is not None and len(regime_bars) >= 2:
-                now_et = datetime.now(tz=ZoneInfo("America/New_York")).replace(tzinfo=None)
-                reg_last_ts, _ = regime_bars[-1]
-                if reg_last_ts + regime_def.duration > now_et:
+                now_ref = datetime.now(tz=timezone.utc).replace(tzinfo=None)
+                reg_last_ts = regime_bars[-1].ts
+                if reg_last_ts + regime_def.duration > now_ref:
                     regime_bars = regime_bars[:-1]
             if len(regime_bars) < (regime_slow_p + 1):
                 return None
@@ -3118,12 +3481,12 @@ class BotScreen(Screen):
                 return None
 
             last_regime = None
-            for ts, close in regime_bars:
-                if ts > last_ts:
+            for bar in regime_bars:
+                if bar.ts > last_ts:
                     break
-                if close <= 0:
+                if float(bar.close) <= 0:
                     continue
-                last_regime = regime_engine.update(float(close))
+                last_regime = regime_engine.update(float(bar.close))
 
             regime_ready = bool(last_regime and last_regime.ema_ready)
             regime_dir = last_regime.state if last_regime is not None else None
@@ -3135,12 +3498,143 @@ class BotScreen(Screen):
             if last_signal is None:
                 return None
 
+        regime2_mode = str(regime2_mode_raw or "off").strip().lower()
+        if regime2_mode not in ("off", "ema", "supertrend"):
+            regime2_mode = "off"
+        if regime2_mode != "off":
+            regime2_bar_size = str(regime2_bar_size_raw or "").strip()
+            if not regime2_bar_size or regime2_bar_size.lower() in ("same", "default"):
+                regime2_bar_size = str(bar_size)
+            use_mtf_regime2 = str(regime2_bar_size) != str(bar_size)
+
+            regime2_ready = False
+            regime2_dir = None
+            if regime2_mode == "supertrend":
+                try:
+                    atr_p = (
+                        int(regime2_supertrend_atr_period_raw)
+                        if regime2_supertrend_atr_period_raw is not None
+                        else 10
+                    )
+                except (TypeError, ValueError):
+                    atr_p = 10
+                try:
+                    mult = (
+                        float(regime2_supertrend_multiplier_raw)
+                        if regime2_supertrend_multiplier_raw is not None
+                        else 3.0
+                    )
+                except (TypeError, ValueError):
+                    mult = 3.0
+                src = str(regime2_supertrend_source_raw or "hl2").strip().lower() or "hl2"
+
+                if use_mtf_regime2:
+                    regime2_bars = await self._client.historical_bars_ohlcv(
+                        contract,
+                        duration_str=self._signal_duration_str(regime2_bar_size),
+                        bar_size=regime2_bar_size,
+                        use_rth=use_rth,
+                        cache_ttl_sec=30.0,
+                    )
+                    if not regime2_bars:
+                        return None
+                    regime2_def = parse_bar_size(regime2_bar_size)
+                    if regime2_def is not None and len(regime2_bars) >= 2:
+                        now_ref = datetime.now(tz=timezone.utc).replace(tzinfo=None)
+                        reg_last_ts = regime2_bars[-1].ts
+                        if reg_last_ts + regime2_def.duration > now_ref:
+                            regime2_bars = regime2_bars[:-1]
+                else:
+                    regime2_bars = bars
+
+                regime2_engine = SupertrendEngine(atr_period=atr_p, multiplier=mult, source=src)
+                last_regime2 = None
+                for bar in regime2_bars:
+                    if bar.ts > last_ts:
+                        break
+                    last_regime2 = regime2_engine.update(
+                        high=float(bar.high),
+                        low=float(bar.low),
+                        close=float(bar.close),
+                    )
+                regime2_ready = bool(last_regime2 and last_regime2.ready)
+                regime2_dir = last_regime2.direction if last_regime2 is not None else None
+            else:
+                regime2_preset = str(regime2_ema_preset_raw or "").strip()
+                if not regime2_preset:
+                    return None
+                regime2_periods = ema_periods(regime2_preset)
+                if regime2_periods is None:
+                    return None
+                _, regime2_slow_p = regime2_periods
+
+                if use_mtf_regime2:
+                    regime2_bars = await self._client.historical_bars_ohlcv(
+                        contract,
+                        duration_str=self._signal_duration_str(regime2_bar_size),
+                        bar_size=regime2_bar_size,
+                        use_rth=use_rth,
+                        cache_ttl_sec=30.0,
+                    )
+                    if not regime2_bars:
+                        return None
+
+                    regime2_def = parse_bar_size(regime2_bar_size)
+                    if regime2_def is not None and len(regime2_bars) >= 2:
+                        now_ref = datetime.now(tz=timezone.utc).replace(tzinfo=None)
+                        reg_last_ts = regime2_bars[-1].ts
+                        if reg_last_ts + regime2_def.duration > now_ref:
+                            regime2_bars = regime2_bars[:-1]
+                else:
+                    regime2_bars = bars
+
+                if len(regime2_bars) < (regime2_slow_p + 1):
+                    return None
+                try:
+                    regime2_engine = EmaDecisionEngine(
+                        ema_preset=regime2_preset,
+                        ema_entry_mode="trend",
+                        entry_confirm_bars=0,
+                        regime_ema_preset=None,
+                    )
+                except ValueError:
+                    return None
+                last_regime2 = None
+                for bar in regime2_bars:
+                    if bar.ts > last_ts:
+                        break
+                    if float(bar.close) <= 0:
+                        continue
+                    last_regime2 = regime2_engine.update(float(bar.close))
+
+                regime2_ready = bool(last_regime2 and last_regime2.ema_ready)
+                regime2_dir = last_regime2.state if last_regime2 is not None else None
+
+            last_signal = apply_regime_gate(
+                last_signal,
+                regime_dir=regime2_dir,
+                regime_ready=regime2_ready,
+            )
+            if last_signal is None:
+                return None
+
         return _SignalSnapshot(
             bar_ts=last_ts,
             close=float(last_close),
             signal=last_signal,
             bars_in_day=int(bars_in_day),
             rv=float(rv) if rv is not None else None,
+            volume=float(last_volume) if last_volume is not None else None,
+            volume_ema=float(volume_ema) if volume_ema is not None else None,
+            volume_ema_ready=bool(volume_count >= volume_period) if volume_period else True,
+            atr=(
+                float(last_exit_atr.atr)
+                if last_exit_atr is not None and bool(last_exit_atr.ready) and last_exit_atr.atr is not None
+                else None
+            ),
+            or_high=orb_engine.or_high if orb_engine is not None else None,
+            or_low=orb_engine.or_low if orb_engine is not None else None,
+            or_ready=bool(orb_engine and orb_engine.or_ready),
         )
 
     def _reset_daily_counters_if_needed(self, instance: _BotInstance) -> None:
@@ -3805,28 +4299,50 @@ class BotScreen(Screen):
             return
 
         if instrument == "spot":
-            if direction not in ("up", "down"):
-                ema_preset = strat.get("ema_preset")
-                if ema_preset:
-                    signal_contract = await self._signal_contract(instance, symbol)
-                    snap = (
-                        await self._signal_snapshot_for_contract(
-                            contract=signal_contract,
-                            ema_preset_raw=str(ema_preset),
-                            bar_size=self._signal_bar_size(instance),
-                            use_rth=self._signal_use_rth(instance),
-                            entry_mode_raw=strat.get("ema_entry_mode"),
-                            entry_confirm_bars=strat.get("entry_confirm_bars", 0),
-                            regime_ema_preset_raw=strat.get("regime_ema_preset"),
-                            regime_bar_size_raw=strat.get("regime_bar_size"),
-                        )
-                            if signal_contract is not None
-                            else None
+            entry_signal = str(strat.get("entry_signal") or "ema").strip().lower()
+            if entry_signal not in ("ema", "orb"):
+                entry_signal = "ema"
+            exit_mode = str(strat.get("spot_exit_mode") or "pct").strip().lower()
+            if exit_mode not in ("pct", "atr"):
+                exit_mode = "pct"
+
+            snap = None
+            if direction not in ("up", "down") or entry_signal == "orb" or exit_mode == "atr":
+                signal_contract = await self._signal_contract(instance, symbol)
+                snap = (
+                    await self._signal_snapshot_for_contract(
+                        contract=signal_contract,
+                        ema_preset_raw=str(strat.get("ema_preset")) if strat.get("ema_preset") else None,
+                        bar_size=self._signal_bar_size(instance),
+                        use_rth=self._signal_use_rth(instance),
+                        entry_signal_raw=entry_signal,
+                        orb_window_mins_raw=strat.get("orb_window_mins"),
+                        entry_mode_raw=strat.get("ema_entry_mode"),
+                        entry_confirm_bars=strat.get("entry_confirm_bars", 0),
+                        spot_exit_mode_raw=strat.get("spot_exit_mode"),
+                        spot_atr_period_raw=strat.get("spot_atr_period"),
+                        regime_ema_preset_raw=strat.get("regime_ema_preset"),
+                        regime_bar_size_raw=strat.get("regime_bar_size"),
+                        regime_mode_raw=strat.get("regime_mode"),
+                        supertrend_atr_period_raw=strat.get("supertrend_atr_period"),
+                        supertrend_multiplier_raw=strat.get("supertrend_multiplier"),
+                        supertrend_source_raw=strat.get("supertrend_source"),
+                        regime2_ema_preset_raw=strat.get("regime2_ema_preset"),
+                        regime2_bar_size_raw=strat.get("regime2_bar_size"),
+                        regime2_mode_raw=strat.get("regime2_mode"),
+                        regime2_supertrend_atr_period_raw=strat.get("regime2_supertrend_atr_period"),
+                        regime2_supertrend_multiplier_raw=strat.get("regime2_supertrend_multiplier"),
+                        regime2_supertrend_source_raw=strat.get("regime2_supertrend_source"),
+                        filters=instance.filters if isinstance(instance.filters, dict) else None,
                     )
-                    if snap is not None:
-                        direction = self._entry_direction_for_instance(instance, snap) or (
-                            str(snap.signal.state) if snap.signal.state in ("up", "down") else None
-                        )
+                    if signal_contract is not None
+                    else None
+                )
+
+            if direction not in ("up", "down") and snap is not None:
+                direction = self._entry_direction_for_instance(instance, snap) or (
+                    str(snap.signal.state) if snap.signal.state in ("up", "down") else None
+                )
             direction = direction if direction in ("up", "down") else "up"
 
             mapping = strat.get("directional_spot") if isinstance(strat.get("directional_spot"), dict) else None
@@ -3867,6 +4383,72 @@ class BotScreen(Screen):
                 return
             tick = _tick_size(contract, ticker, limit) or 0.01
             limit = _round_to_tick(float(limit), tick)
+
+            instance.spot_profit_target_price = None
+            instance.spot_stop_loss_price = None
+            if snap is not None and entry_signal == "orb":
+                try:
+                    rr = float(strat.get("orb_risk_reward", 2.0) or 2.0)
+                except (TypeError, ValueError):
+                    rr = 2.0
+                target_mode = str(strat.get("orb_target_mode", "rr") or "rr").strip().lower()
+                if target_mode not in ("rr", "or_range"):
+                    target_mode = "rr"
+                or_high = snap.or_high
+                or_low = snap.or_low
+                if (
+                    rr > 0
+                    and bool(snap.or_ready)
+                    and or_high is not None
+                    and or_low is not None
+                    and float(or_high) > 0
+                    and float(or_low) > 0
+                ):
+                    stop = float(or_low) if direction == "up" else float(or_high)
+                    if target_mode == "or_range":
+                        rng = float(or_high) - float(or_low)
+                        if rng > 0:
+                            target = (
+                                float(or_high) + (rr * rng)
+                                if direction == "up"
+                                else float(or_low) - (rr * rng)
+                            )
+                            if (
+                                (direction == "up" and float(target) <= float(limit))
+                                or (direction == "down" and float(target) >= float(limit))
+                            ):
+                                self._status = "Propose: ORB target already hit (skip)"
+                                self._render_status()
+                                return
+                            instance.spot_profit_target_price = float(target)
+                            instance.spot_stop_loss_price = float(stop)
+                    else:
+                        risk = abs(float(limit) - stop)
+                        if risk > 0:
+                            target = float(limit) + (rr * risk) if direction == "up" else float(limit) - (rr * risk)
+                            instance.spot_profit_target_price = float(target)
+                            instance.spot_stop_loss_price = float(stop)
+            elif exit_mode == "atr":
+                atr = float(snap.atr) if snap is not None and snap.atr is not None else 0.0
+                if atr <= 0:
+                    self._status = "Propose: ATR not ready (spot_exit_mode=atr)"
+                    self._render_status()
+                    return
+                try:
+                    pt_mult = float(strat.get("spot_pt_atr_mult", 1.5) or 1.5)
+                except (TypeError, ValueError):
+                    pt_mult = 1.5
+                try:
+                    sl_mult = float(strat.get("spot_sl_atr_mult", 1.0) or 1.0)
+                except (TypeError, ValueError):
+                    sl_mult = 1.0
+                if direction == "up":
+                    instance.spot_profit_target_price = float(limit) + (pt_mult * atr)
+                    instance.spot_stop_loss_price = float(limit) - (sl_mult * atr)
+                else:
+                    instance.spot_profit_target_price = float(limit) - (pt_mult * atr)
+                    instance.spot_stop_loss_price = float(limit) + (sl_mult * atr)
+
             proposal = _BotProposal(
                 instance_id=instance.instance_id,
                 preset=None,
@@ -3909,6 +4491,17 @@ class BotScreen(Screen):
                             entry_confirm_bars=strat.get("entry_confirm_bars", 0),
                             regime_ema_preset_raw=strat.get("regime_ema_preset"),
                             regime_bar_size_raw=strat.get("regime_bar_size"),
+                            regime_mode_raw=strat.get("regime_mode"),
+                            supertrend_atr_period_raw=strat.get("supertrend_atr_period"),
+                            supertrend_multiplier_raw=strat.get("supertrend_multiplier"),
+                            supertrend_source_raw=strat.get("supertrend_source"),
+                            regime2_ema_preset_raw=strat.get("regime2_ema_preset"),
+                            regime2_bar_size_raw=strat.get("regime2_bar_size"),
+                            regime2_mode_raw=strat.get("regime2_mode"),
+                            regime2_supertrend_atr_period_raw=strat.get("regime2_supertrend_atr_period"),
+                            regime2_supertrend_multiplier_raw=strat.get("regime2_supertrend_multiplier"),
+                            regime2_supertrend_source_raw=strat.get("regime2_supertrend_source"),
+                            filters=instance.filters if isinstance(instance.filters, dict) else None,
                         )
                             if signal_contract is not None
                             else None
@@ -4218,24 +4811,97 @@ def _preset_lines(preset: _BotPreset) -> list[Text]:
     entry = preset.entry
     metrics = entry.get("metrics", {})
     strat = entry.get("strategy", {})
-    pt = float(strat.get("profit_target", 0.0)) * 100.0
-    sl = float(strat.get("stop_loss", 0.0)) * 100.0
-    lines = [
-        Text(preset.group),
-        Text(f"Legs: {_legs_label(strat.get('legs', []))}", style="dim"),
-        Text(
+    instrument = str(strat.get("instrument", "options") or "options").strip().lower()
+
+    legs_label = _legs_label(strat.get("legs", []))
+    if instrument == "spot":
+        mapping = strat.get("directional_spot") if isinstance(strat.get("directional_spot"), dict) else None
+        if mapping and mapping.get("up") and mapping.get("down"):
+            legs_label = "SPOT (up/down)"
+        else:
+            legs_label = "SPOT"
+
+        signal_bar = str(strat.get("signal_bar_size") or "").strip()
+        entry_signal = str(strat.get("entry_signal") or "ema").strip().lower()
+        confirm = strat.get("entry_confirm_bars", 0)
+        regime_mode = str(strat.get("regime_mode") or "ema").strip().lower()
+        regime = str(strat.get("regime_ema_preset") or "").strip()
+        regime_bar = str(strat.get("regime_bar_size") or "").strip()
+        regime2_mode = str(strat.get("regime2_mode") or "off").strip().lower()
+        regime2 = str(strat.get("regime2_ema_preset") or "").strip()
+        regime2_bar = str(strat.get("regime2_bar_size") or "").strip()
+        mode_parts: list[str] = []
+        if entry_signal == "orb":
+            window = strat.get("orb_window_mins", "?")
+            rr = strat.get("orb_risk_reward", "?")
+            tgt_mode = str(strat.get("orb_target_mode", "rr") or "rr").strip().lower()
+            if tgt_mode not in ("rr", "or_range"):
+                tgt_mode = "rr"
+            mode_parts.append(f"ORB: {window}m {tgt_mode} rr={rr}")
+        else:
+            mode_parts.append(f"EMA: {strat.get('ema_preset', '')} cross c{confirm}")
+        if regime_mode == "supertrend":
+            atr_p = strat.get("supertrend_atr_period", "?")
+            mult = strat.get("supertrend_multiplier", "?")
+            src = str(strat.get("supertrend_source", "hl2") or "hl2").strip()
+            mode_parts.append(f"Regime: ST({atr_p},{mult},{src}) @ {regime_bar or '?'}")
+        elif regime:
+            mode_parts.append(f"Regime: {regime} @ {regime_bar or '?'}")
+        if regime2_mode == "supertrend":
+            atr_p = strat.get("regime2_supertrend_atr_period", "?")
+            mult = strat.get("regime2_supertrend_multiplier", "?")
+            src = str(strat.get("regime2_supertrend_source", "hl2") or "hl2").strip()
+            mode_parts.append(f"Regime2: ST({atr_p},{mult},{src}) @ {regime2_bar or '?'}")
+        elif regime2_mode == "ema" and regime2:
+            mode_parts.append(f"Regime2: {regime2} @ {regime2_bar or '?'}")
+        exit_mode = str(strat.get("spot_exit_mode") or "pct").strip().lower()
+        if exit_mode == "atr":
+            atr_p = strat.get("spot_atr_period", "?")
+            pt_mult = strat.get("spot_pt_atr_mult", "?")
+            sl_mult = strat.get("spot_sl_atr_mult", "?")
+            mode_parts.append(f"Exit: ATR({atr_p}) PTx{pt_mult} SLx{sl_mult}")
+        if signal_bar:
+            mode_parts.append(f"Bar: {signal_bar}")
+        mode = "  ".join(mode_parts)
+    else:
+        pt = float(strat.get("profit_target", 0.0)) * 100.0
+        sl = float(strat.get("stop_loss", 0.0)) * 100.0
+        mode = (
             f"DTE: {strat.get('dte', '?')}  "
             f"PT: {_fmt_pct(pt)}  SL: {_fmt_pct(sl)}  "
-            f"EMA: {strat.get('ema_preset', '')}",
-            style="dim",
-        ),
+            f"EMA: {strat.get('ema_preset', '')}"
+        )
+
+    pnl = float(metrics.get("pnl", 0.0))
+    try:
+        dd = float(metrics.get("max_drawdown")) if metrics.get("max_drawdown") is not None else None
+    except (TypeError, ValueError):
+        dd = None
+    pnl_over_dd = None
+    try:
+        pnl_over_dd = (
+            float(metrics.get("pnl_over_dd"))
+            if metrics.get("pnl_over_dd") is not None
+            else (pnl / dd if dd and dd > 0 else None)
+        )
+    except (TypeError, ValueError, ZeroDivisionError):
+        pnl_over_dd = None
+    lines = [
+        Text(preset.group),
+        Text(f"Legs: {legs_label}", style="dim"),
+        Text(mode, style="dim"),
         Text(
-            f"PnL: {float(metrics.get('pnl', 0.0)):.2f}  "
+            f"PnL: {pnl:.2f}  "
             f"Win: {float(metrics.get('win_rate', 0.0)) * 100.0:.1f}%  "
             f"Trades: {int(metrics.get('trades', 0))}",
             style="dim",
         ),
     ]
+    if dd is not None:
+        extra = f"DD: {dd:.2f}"
+        if pnl_over_dd is not None:
+            extra += f"  PnL/DD: {pnl_over_dd:.2f}"
+        lines.append(Text(extra, style="dim"))
     return lines
 
 

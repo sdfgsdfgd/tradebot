@@ -128,6 +128,20 @@ See `backtest.sample.json`. Core fields:
   - `trend`: entry allowed only when fast > slow (current behavior)
   - `cross`: entry allowed only on a fast/slow crossover (more “pivot”-style)
   - EMA periods are **bar-based** (hourly bars = 9/21 hours; daily bars = 9/21 days).
+- `entry_confirm_bars` (optional; default `0`)
+  - Debounce / confirmation gate for the EMA entry direction.
+  - `cross`: requires the post-cross state to persist for `N` bars.
+  - `trend`: requires the state to persist for `N` bars after a state change.
+- `regime_ema_preset` (optional; e.g. `"8/21"`)
+- `regime_bar_size` (optional; e.g. `"1 hour"`, `"4 hours"`)
+  - If `regime_bar_size` differs from `backtest.bar_size`, the regime is computed on that timeframe (MTF gating).
+- `regime_mode` (optional; `"ema"` (default) or `"supertrend"`)
+  - `"ema"` uses `regime_ema_preset` as the regime direction.
+  - `"supertrend"` uses Supertrend as the regime direction (ignores `regime_ema_preset`).
+  - Supertrend params:
+    - `supertrend_atr_period` (default `10`)
+    - `supertrend_multiplier` (default `3.0`)
+    - `supertrend_source` (`"hl2"` (default) or `"close"`)
 - `ema_directional` (optional; if true, EMA direction selects CALL vs PUT: fast>slow = CALL, fast<slow = PUT)
 - `exit_on_signal_flip` (optional; if true, exit when EMA signal flips against the open trade)
   - Uses `flip_exit_*` settings below.
@@ -201,6 +215,8 @@ Add a `filters` block to gate entries:
 - `rv_min`, `rv_max`: annualized realized vol bounds
 - `ema_spread_min_pct`: require |EMA_fast-EMA_slow| / price (%) above threshold
 - `ema_slope_min_pct`: require EMA fast slope (%) above threshold
+- `volume_ratio_min`: require `volume / EMA(volume)` above threshold
+- `volume_ema_period`: EMA period for volume gating (default `20` when `volume_ratio_min` is set)
 - `entry_start_hour`, `entry_end_hour`: hourly window (0–23)
 - `skip_first_bars`: skip first N bars of each session
 - `cooldown_bars`: minimum bars between entries
@@ -212,6 +228,8 @@ Example:
   "rv_max": 0.60,
   "ema_spread_min_pct": 0.05,
   "ema_slope_min_pct": 0.01,
+  "volume_ratio_min": 1.2,
+  "volume_ema_period": 20,
   "entry_start_hour": 10,
   "entry_end_hour": 15,
   "skip_first_bars": 2,
@@ -244,7 +262,73 @@ PnL is reported in **premium points * contract multiplier**.
 - When `max_entries_per_day=0` and `max_open_trades=0`, results reflect **stacking / pyramiding** subject to `starting_cash` and margin.
 
 Full leaderboard is in `tradebot/backtest/LEADERBOARD.md`.
-Machine-readable presets are in `tradebot/backtest/leaderboard.json` (regenerate with `python -m tradebot.backtest.generate_leaderboard`).
+Machine-readable presets are in `tradebot/backtest/leaderboard.json` (regenerate with `python -m tradebot.backtest.generate_leaderboard`; spot milestones are appended by default).
+
+## Spot leaderboard (MNQ, 12m)
+Spot presets are stored in `tradebot/backtest/spot_milestones.json` and are merged into the TUI presets list alongside the options leaderboard.
+
+These spot presets are **12-month only** (no 6m snapshot entries) and are filtered for stability:
+- win rate `>= 55%`
+- trades `>= 200`
+- pnl/dd `>= 8`
+- sorted by pnl/dd (desc)
+
+Regenerate (offline, uses cached bars in `db/`):
+```bash
+python -m tradebot.backtest.evolve_spot --offline --axis all --write-milestones --cache-dir db
+python -m tradebot.backtest.evolve_spot --offline --axis combo --write-milestones --merge-milestones --cache-dir db
+```
+
+For deeper “one axis at a time” exploration (still spot-only), run a single axis:
+```bash
+python -m tradebot.backtest.evolve_spot --axis regime --cache-dir db
+```
+
+Quick “current #1” snapshot (generated 2026-01-11, post-fix):
+- Signal (timing): `1 hour`, EMA `2/4` cross, `entry_confirm_bars=0`
+- Regime (bias): Supertrend on `4 hours`, `ATR=11`, `mult=0.4`, `src=hl2`
+- Regime2 (confirm): Supertrend on `4 hours`, `ATR=3`, `mult=0.25`, `src=close`
+- Exits: `spot_exit_mode=atr`, `spot_atr_period=14`, `spot_pt_atr_mult=1.0`, `spot_sl_atr_mult=1.0`, `exit_on_signal_flip=true`, `flip_exit_min_hold_bars=4`
+- Loosenings: `max_entries_per_day=0`, `max_open_trades=2`, `spot_close_eod=false`
+- Stats: `trades=506`, `win=61.5%`, `pnl=+42961.5`, `dd=1371.0`, `pnl/dd=31.34`
+- Full preset: see `tradebot/backtest/spot_milestones.json` (entry #01) for the exact strategy payload.
+
+Note: We fixed daily-bar timestamp normalization on 2026-01-11 to avoid lookahead leakage for `1 day` multi-timeframe gates. The current spot leaderboard is generated post-fix.
+
+### LEGACY / OUTDATED (pre-fix, for archaeology only)
+These are milestone configs we recorded **before** the 2026-01-11 daily-bar timestamp normalization fix.
+
+They are preserved to document the evolutionary path, but should **not** be trusted for decision-making because they were affected by lookahead leakage in `1 day` regime gating.
+
+**Legacy 12m champion (pre-fix record, do not trust):**
+- Signal (timing): `1 hour`, EMA `2/4` cross, `entry_confirm_bars=0`
+- Regime (bias): Supertrend on `1 day`, `ATR=7`, `mult=0.4`, `src=close`
+- Exits: `spot_profit_target_pct=0.015`, `spot_stop_loss_pct=0.03`, `exit_on_signal_flip=true`, `flip_exit_min_hold_bars=4`
+- Reported stats (pre-fix): `trades=406`, `win=55.17%`, `pnl=+48453.0`, `dd=1981.5`, `pnl/dd=24.45`
+- Post-fix replay (same params, 2025-01-08 → 2026-01-08): `trades=477`, `win=44.23%`, `pnl=-4321.0`, `dd=11409.0`, `pnl/dd=-0.38`
+- Full preset (for reproducibility; pre-fix record):
+  - `signal_bar_size=1 hour`, `signal_use_rth=false`
+  - `instrument=spot`, `symbol=MNQ`
+  - `ema_preset=2/4`, `ema_entry_mode=cross`, `entry_confirm_bars=0`
+  - `regime_mode=supertrend`, `regime_bar_size=1 day`, `supertrend_atr_period=7`, `supertrend_multiplier=0.4`, `supertrend_source=close`
+  - `exit_on_signal_flip=true`, `flip_exit_mode=entry`, `flip_exit_min_hold_bars=4`, `flip_exit_only_if_profit=false`
+  - `spot_profit_target_pct=0.015`, `spot_stop_loss_pct=0.03`, `spot_close_eod=false`
+  - `directional_spot.up=BUY x1`, `directional_spot.down=SELL x1`, `filters=null`
+
+**Legacy “micro Supertrend” 12m configs (pre-fix records, do not trust):**
+- Regime (bias): Supertrend on `1 day`, `ATR=2`, `mult=0.125`, `src=close`
+  - Reported stats (pre-fix): `trades=546`, `win=56.4%`, `pnl=+60020.0`, `dd=2847.5`, `pnl/dd=21.08`
+  - Post-fix replay (same params): `trades=438`, `win=42.92%`, `pnl=-13467.0`, `dd=20819.5`, `pnl/dd=-0.65`
+- Regime (bias): Supertrend on `1 day`, `ATR=5`, `mult=0.2`, `src=close`, `spot_close_eod=true`
+  - Reported stats (pre-fix): `trades=541`, `win=56.2%`, `pnl=+51361.0`, `dd=2710.5`, `pnl/dd=18.95`
+  - Post-fix replay (same params): `trades=471`, `win=44.80%`, `pnl=-10453.5`, `dd=20065.5`, `pnl/dd=-0.52`
+
+**Prior best (recorded earlier, for comparison):**
+- 2025-01-08 → 2026-01-08: `bar=30 mins`, EMA=`2/4`, `entry_confirm_bars=2`
+- Regime (bias): Supertrend on `4 hours`, `ATR=10`, `mult=0.8`, `src=close`
+- Exits: `spot_profit_target_pct=0.02`, `spot_stop_loss_pct=0.015`, `flip_exit_min_hold_bars=3`
+- Reported stats (earlier record): `trades=661`, `win=49.0%`, `pnl=+33656.0`, `dd=1954.0`, `pnl/dd=17.22`
+- Post-fix replay (same params): `trades=778`, `win=47.43%`, `pnl=+29341.0`, `dd=2750.0`, `pnl/dd=10.67`
 
 ## Reuse for live trading
 The backtest engine is built around reusable components:
@@ -272,7 +356,15 @@ When `calibrate` is enabled (or `--calibrate` is passed), the engine will:
 This improves synthetic pricing without requiring OPRA/CME bid/ask.
 
 ## TODO
-- Regime gating hooks
+- Evolution sweeps (add one axis at a time)
+  - Walk-forward selection (train earlier slice, test later slice)
+  - Time-of-day gating (RTH windows, skip-open/lunch chop)
+  - ATR-scaled exits (dynamic PT/SL vs fixed %)
+  - Dual regime gates (e.g., 1 day bias + 4 hours confirmation)
+  - Volume gates (volume_ratio_min + volume EMA)
+- Opening range breakout (ORB) idea: define OR (first 5–15 min after 9:30am ET), breakout + volume confirm, stop at opposite OR, target 1–2x risk; avoid news days
+  - ORB variations: fib targets (`orb_risk_reward=0.618` / `1.618`), OR-range targets (`orb_target_mode=or_range`), OR buffers, and/or 5m timing bars (heavier data pulls)
+- Spot parameter sweeps (cached OHLCV)
 - Historical rates source
 - Multi-strategy runs
 - Live broker adapter
