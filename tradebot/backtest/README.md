@@ -279,19 +279,45 @@ python -m tradebot.backtest.evolve_spot --offline --axis all --write-milestones 
 python -m tradebot.backtest.evolve_spot --offline --axis combo --write-milestones --merge-milestones --cache-dir db
 ```
 
+Regenerate 30-minute spot champions (adds only a curated top set from that run, merges into existing milestones):
+```bash
+python -m tradebot.backtest.evolve_spot --offline --bar-size "30 mins" --axis combo \
+  --write-milestones --merge-milestones --milestone-add-top-pnl-dd 25 --milestone-add-top-pnl 25 \
+  --cache-dir db
+```
+
 For deeper “one axis at a time” exploration (still spot-only), run a single axis:
 ```bash
 python -m tradebot.backtest.evolve_spot --axis regime --cache-dir db
 ```
 
-Quick “current #1” snapshot (generated 2026-01-11, post-fix):
-- Signal (timing): `1 hour`, EMA `2/4` cross, `entry_confirm_bars=0`
-- Regime (bias): Supertrend on `4 hours`, `ATR=11`, `mult=0.4`, `src=hl2`
-- Regime2 (confirm): Supertrend on `4 hours`, `ATR=3`, `mult=0.25`, `src=close`
-- Exits: `spot_exit_mode=atr`, `spot_atr_period=14`, `spot_pt_atr_mult=1.0`, `spot_sl_atr_mult=1.0`, `exit_on_signal_flip=true`, `flip_exit_min_hold_bars=4`
-- Loosenings: `max_entries_per_day=0`, `max_open_trades=2`, `spot_close_eod=false`
-- Stats: `trades=506`, `win=61.5%`, `pnl=+42961.5`, `dd=1371.0`, `pnl/dd=31.34`
-- Full preset: see `tradebot/backtest/spot_milestones.json` (entry #01) for the exact strategy payload.
+Quick “current #1” snapshots (generated 2026-01-11, post-fix):
+
+- **Best 30m (risk-adjusted):**
+  - Signal (timing): `30 mins`, EMA `2/4` cross, `entry_confirm_bars=0`
+  - Regime (bias): Supertrend on `4 hours`, `ATR=2`, `mult=0.05`, `src=close`
+  - Regime2 (confirm): Supertrend on `4 hours`, `ATR=3`, `mult=0.25`, `src=close`
+  - Exits: `spot_exit_mode=atr`, `spot_atr_period=14`, `spot_pt_atr_mult=1.0`, `spot_sl_atr_mult=1.5`, `exit_on_signal_flip=true`, `flip_exit_min_hold_bars=0`
+  - Loosenings: `max_entries_per_day=0`, `max_open_trades=1`, `spot_close_eod=true`
+  - Stats: `trades=1155`, `win=55.84%`, `pnl=+54779.0`, `dd=899.0`, `pnl/dd=60.93`
+
+- **Best 30m (max PnL):**
+  - Signal (timing): `30 mins`, EMA `2/4` cross, `entry_confirm_bars=0`
+  - Regime (bias): Supertrend on `4 hours`, `ATR=3`, `mult=0.05`, `src=close`
+  - Regime2 (confirm): Supertrend on `4 hours`, `ATR=3`, `mult=0.25`, `src=close`
+  - Exits: `spot_exit_mode=pct`, `spot_profit_target_pct=0.01`, `spot_stop_loss_pct=0.03`, `exit_on_signal_flip=true`, `flip_exit_min_hold_bars=4`
+  - Loosenings: `max_entries_per_day=0`, `max_open_trades=0`, `spot_close_eod=false`
+  - Stats: `trades=1155`, `win=62.8%`, `pnl=+86227.0`, `dd=1928.0`, `pnl/dd=44.72`
+
+- **Best 1h (risk-adjusted):**
+  - Signal (timing): `1 hour`, EMA `2/4` cross, `entry_confirm_bars=0`
+  - Regime (bias): Supertrend on `4 hours`, `ATR=11`, `mult=0.4`, `src=hl2`
+  - Regime2 (confirm): Supertrend on `4 hours`, `ATR=3`, `mult=0.25`, `src=close`
+  - Exits: `spot_exit_mode=atr`, `spot_atr_period=14`, `spot_pt_atr_mult=1.0`, `spot_sl_atr_mult=1.0`, `exit_on_signal_flip=true`, `flip_exit_min_hold_bars=4`
+  - Loosenings: `max_entries_per_day=0`, `max_open_trades=2`, `spot_close_eod=false`
+  - Stats: `trades=506`, `win=61.5%`, `pnl=+42961.5`, `dd=1371.0`, `pnl/dd=31.34`
+
+Full presets: see `tradebot/backtest/spot_milestones.json` (top entries) for exact strategy payloads.
 
 Note: We fixed daily-bar timestamp normalization on 2026-01-11 to avoid lookahead leakage for `1 day` multi-timeframe gates. The current spot leaderboard is generated post-fix.
 

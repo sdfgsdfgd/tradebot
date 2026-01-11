@@ -382,6 +382,24 @@ def main() -> None:
     parser.add_argument("--milestone-min-trades", type=int, default=200)
     parser.add_argument("--milestone-min-pnl-dd", type=float, default=8.0)
     parser.add_argument(
+        "--milestone-add-top-pnl-dd",
+        type=int,
+        default=0,
+        help=(
+            "When used with --merge-milestones, limits how many NEW presets from this run are added "
+            "(top by pnl/dd). 0 = no limit."
+        ),
+    )
+    parser.add_argument(
+        "--milestone-add-top-pnl",
+        type=int,
+        default=0,
+        help=(
+            "When used with --merge-milestones, limits how many NEW presets from this run are added "
+            "(top by pnl). 0 = no limit."
+        ),
+    )
+    parser.add_argument(
         "--axis",
         default="all",
         choices=(
@@ -1231,7 +1249,7 @@ def main() -> None:
         _sweep_loosen()
 
     if bool(args.write_milestones):
-        eligible: list[dict] = []
+        eligible_new: list[dict] = []
         for cfg, row, note in milestone_rows:
             try:
                 win = float(row.get("win_rate") or 0.0)
@@ -1256,7 +1274,7 @@ def main() -> None:
             filters = _filters_payload(cfg.strategy.filters)
             key_obj = dict(strategy)
             key_obj["filters"] = filters
-            eligible.append(
+            eligible_new.append(
                 {
                     "key": json.dumps(key_obj, sort_keys=True, default=str),
                     "strategy": strategy,
@@ -1273,6 +1291,45 @@ def main() -> None:
             )
 
         out_path = Path(args.milestones_out)
+        eligible: list[dict] = []
+
+        def _sort_key(item: dict) -> tuple:
+            m = item.get("metrics") or {}
+            return (
+                float(m.get("pnl_over_dd") or float("-inf")),
+                float(m.get("pnl") or 0.0),
+                float(m.get("win_rate") or 0.0),
+                int(m.get("trades") or 0),
+            )
+
+        def _sort_key_pnl(item: dict) -> tuple:
+            m = item.get("metrics") or {}
+            return (
+                float(m.get("pnl") or float("-inf")),
+                float(m.get("pnl_over_dd") or 0.0),
+                float(m.get("win_rate") or 0.0),
+                int(m.get("trades") or 0),
+            )
+
+        add_top_dd = max(0, int(args.milestone_add_top_pnl_dd or 0))
+        add_top_pnl = max(0, int(args.milestone_add_top_pnl or 0))
+        if bool(args.merge_milestones) and (add_top_dd > 0 or add_top_pnl > 0):
+            by_dd = sorted(eligible_new, key=_sort_key, reverse=True)[:add_top_dd] if add_top_dd > 0 else []
+            by_pnl = (
+                sorted(eligible_new, key=_sort_key_pnl, reverse=True)[:add_top_pnl] if add_top_pnl > 0 else []
+            )
+            seen_new: set[str] = set()
+            limited_new: list[dict] = []
+            for item in by_dd + by_pnl:
+                key = str(item.get("key") or "")
+                if not key or key in seen_new:
+                    continue
+                seen_new.add(key)
+                limited_new.append(item)
+            eligible.extend(limited_new)
+        else:
+            eligible.extend(eligible_new)
+
         if bool(args.merge_milestones) and out_path.exists():
             try:
                 existing = json.loads(out_path.read_text())
@@ -1307,15 +1364,6 @@ def main() -> None:
                             },
                         }
                     )
-
-        def _sort_key(item: dict) -> tuple:
-            m = item.get("metrics") or {}
-            return (
-                float(m.get("pnl_over_dd") or float("-inf")),
-                float(m.get("pnl") or 0.0),
-                float(m.get("win_rate") or 0.0),
-                int(m.get("trades") or 0),
-            )
 
         best_by_key: dict[str, dict] = {}
         for item in eligible:
