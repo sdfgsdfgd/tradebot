@@ -1,6 +1,6 @@
 {
   "name": "spot_milestones",
-  "generated_at": "2026-01-15T13:43:04.898810Z",
+  "generated_at": "2026-01-15T15:47:41.182109Z",
   "notes": "Auto-generated via evolve_spot.py (post-fix). window=2025-01-08\u21922026-01-08, bar_size=30 mins, use_rth=False. thresholds: win>=0.55, trades>=200, pnl/dd>=8.00.",
   "groups": [
     {
@@ -37740,7 +37740,111 @@
       ]
     },
     {
-      "name": "Spot (MNQ) 12m (post-fix) #368 pnl/dd=8.12 pnl=16479 win=55.1% tr=841 \u2014 ST(3,0.4,hl2)@4 hours [tick=raschke dir=wide_only policy=allow z_in=1 z_out=0.5 slope=5 lb=252 | tod=base | spread=base | vol=base]",
+      "name": "Spot (MNQ) 12m (post-fix) #368 pnl/dd=8.13 pnl=22214 win=56.2% tr=1006 \u2014 ST(3,0.4,hl2)@4 hours [slope>=0.005 | cooldown=2 | skip=0]",
+      "filters": {
+        "ema_slope_min_pct": 0.005,
+        "cooldown_bars": 2
+      },
+      "entries": [
+        {
+          "symbol": "MNQ",
+          "metrics": {
+            "pnl": 22214.5,
+            "win_rate": 0.5616302186878728,
+            "trades": 1006,
+            "max_drawdown": 2731.5,
+            "pnl_over_dd": 8.132710964671427
+          },
+          "strategy": {
+            "name": "spot_evolve",
+            "instrument": "spot",
+            "symbol": "MNQ",
+            "exchange": null,
+            "right": "PUT",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "max_entries_per_day": 0,
+            "max_open_trades": 2,
+            "dte": 0,
+            "otm_pct": 0.0,
+            "width_pct": 0.0,
+            "profit_target": 0.0,
+            "stop_loss": 0.0,
+            "exit_dte": 0,
+            "quantity": 1,
+            "stop_loss_basis": "max_loss",
+            "min_credit": null,
+            "ema_preset": "2/4",
+            "ema_entry_mode": "cross",
+            "entry_confirm_bars": 0,
+            "regime_ema_preset": null,
+            "regime_bar_size": "4 hours",
+            "ema_directional": false,
+            "exit_on_signal_flip": true,
+            "flip_exit_mode": "entry",
+            "flip_exit_min_hold_bars": 4,
+            "flip_exit_only_if_profit": false,
+            "direction_source": "ema",
+            "directional_legs": null,
+            "directional_spot": {
+              "up": {
+                "action": "BUY",
+                "qty": 1
+              },
+              "down": {
+                "action": "SELL",
+                "qty": 1
+              }
+            },
+            "legs": null,
+            "spot_profit_target_pct": null,
+            "spot_stop_loss_pct": null,
+            "spot_close_eod": false,
+            "entry_signal": "ema",
+            "orb_window_mins": 15,
+            "orb_risk_reward": 2.0,
+            "orb_target_mode": "rr",
+            "orb_open_time_et": null,
+            "spot_exit_mode": "atr",
+            "spot_atr_period": 14,
+            "spot_pt_atr_mult": 0.7,
+            "spot_sl_atr_mult": 1.6,
+            "spot_exit_time_et": null,
+            "regime_mode": "supertrend",
+            "regime2_mode": "off",
+            "regime2_ema_preset": null,
+            "regime2_bar_size": null,
+            "regime2_supertrend_atr_period": 14,
+            "regime2_supertrend_multiplier": 1.0,
+            "regime2_supertrend_source": "hl2",
+            "supertrend_atr_period": 3,
+            "supertrend_multiplier": 0.4,
+            "supertrend_source": "hl2",
+            "tick_gate_mode": "off",
+            "tick_gate_symbol": "TICK-NYSE",
+            "tick_gate_exchange": "NYSE",
+            "tick_band_ma_period": 10,
+            "tick_width_z_lookback": 252,
+            "tick_width_z_enter": 1.0,
+            "tick_width_z_exit": 0.5,
+            "tick_width_slope_lookback": 3,
+            "tick_neutral_policy": "allow",
+            "tick_direction_policy": "both",
+            "signal_bar_size": "30 mins",
+            "signal_use_rth": false,
+            "spot_sec_type": "FUT",
+            "spot_exchange": "CME"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Spot (MNQ) 12m (post-fix) #369 pnl/dd=8.12 pnl=16479 win=55.1% tr=841 \u2014 ST(3,0.4,hl2)@4 hours [tick=raschke dir=wide_only policy=allow z_in=1 z_out=0.5 slope=5 lb=252 | tod=base | spread=base | vol=base]",
       "filters": null,
       "entries": [
         {
@@ -37841,7 +37945,110 @@
       ]
     },
     {
-      "name": "Spot (MNQ) 12m (post-fix) #369 pnl/dd=8.12 pnl=8490 win=57.9% tr=235 \u2014 ST(14,0.5,close)@4 hours [ST(14,0.5,close) @4 hours | ATR(7) PTx1.0 SLx1.5 | hold=4 | max_open=2 close_eod=0 | no_r2 | - spread>=0.01 cooldown=4 skip=1 confirm=0 tod=18-04 ET]",
+      "name": "Spot (MNQ) 12m (post-fix) #370 pnl/dd=8.12 pnl=22173 win=56.0% tr=1013 \u2014 ST(3,0.4,hl2)@4 hours [- | cooldown=2 | skip=0]",
+      "filters": {
+        "cooldown_bars": 2
+      },
+      "entries": [
+        {
+          "symbol": "MNQ",
+          "metrics": {
+            "pnl": 22173.0,
+            "win_rate": 0.5597235932872655,
+            "trades": 1013,
+            "max_drawdown": 2731.5,
+            "pnl_over_dd": 8.117517847336629
+          },
+          "strategy": {
+            "name": "spot_evolve",
+            "instrument": "spot",
+            "symbol": "MNQ",
+            "exchange": null,
+            "right": "PUT",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "max_entries_per_day": 0,
+            "max_open_trades": 2,
+            "dte": 0,
+            "otm_pct": 0.0,
+            "width_pct": 0.0,
+            "profit_target": 0.0,
+            "stop_loss": 0.0,
+            "exit_dte": 0,
+            "quantity": 1,
+            "stop_loss_basis": "max_loss",
+            "min_credit": null,
+            "ema_preset": "2/4",
+            "ema_entry_mode": "cross",
+            "entry_confirm_bars": 0,
+            "regime_ema_preset": null,
+            "regime_bar_size": "4 hours",
+            "ema_directional": false,
+            "exit_on_signal_flip": true,
+            "flip_exit_mode": "entry",
+            "flip_exit_min_hold_bars": 4,
+            "flip_exit_only_if_profit": false,
+            "direction_source": "ema",
+            "directional_legs": null,
+            "directional_spot": {
+              "up": {
+                "action": "BUY",
+                "qty": 1
+              },
+              "down": {
+                "action": "SELL",
+                "qty": 1
+              }
+            },
+            "legs": null,
+            "spot_profit_target_pct": null,
+            "spot_stop_loss_pct": null,
+            "spot_close_eod": false,
+            "entry_signal": "ema",
+            "orb_window_mins": 15,
+            "orb_risk_reward": 2.0,
+            "orb_target_mode": "rr",
+            "orb_open_time_et": null,
+            "spot_exit_mode": "atr",
+            "spot_atr_period": 14,
+            "spot_pt_atr_mult": 0.7,
+            "spot_sl_atr_mult": 1.6,
+            "spot_exit_time_et": null,
+            "regime_mode": "supertrend",
+            "regime2_mode": "off",
+            "regime2_ema_preset": null,
+            "regime2_bar_size": null,
+            "regime2_supertrend_atr_period": 14,
+            "regime2_supertrend_multiplier": 1.0,
+            "regime2_supertrend_source": "hl2",
+            "supertrend_atr_period": 3,
+            "supertrend_multiplier": 0.4,
+            "supertrend_source": "hl2",
+            "tick_gate_mode": "off",
+            "tick_gate_symbol": "TICK-NYSE",
+            "tick_gate_exchange": "NYSE",
+            "tick_band_ma_period": 10,
+            "tick_width_z_lookback": 252,
+            "tick_width_z_enter": 1.0,
+            "tick_width_z_exit": 0.5,
+            "tick_width_slope_lookback": 3,
+            "tick_neutral_policy": "allow",
+            "tick_direction_policy": "both",
+            "signal_bar_size": "30 mins",
+            "signal_use_rth": false,
+            "spot_sec_type": "FUT",
+            "spot_exchange": "CME"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Spot (MNQ) 12m (post-fix) #371 pnl/dd=8.12 pnl=8490 win=57.9% tr=235 \u2014 ST(14,0.5,close)@4 hours [ST(14,0.5,close) @4 hours | ATR(7) PTx1.0 SLx1.5 | hold=4 | max_open=2 close_eod=0 | no_r2 | - spread>=0.01 cooldown=4 skip=1 confirm=0 tod=18-04 ET]",
       "filters": {
         "ema_spread_min_pct": 0.01,
         "entry_start_hour_et": 18,
@@ -37945,7 +38152,7 @@
       ]
     },
     {
-      "name": "Spot (MNQ) 12m (post-fix) #370 pnl/dd=8.12 pnl=8490 win=57.9% tr=235 \u2014 ST(14,0.5,close)@4 hours [ST(14,0.5,close) @4 hours | ATR(7) PTx1.0 SLx1.5 | hold=4 | max_open=0 close_eod=0 | no_r2 | - spread>=0.01 cooldown=4 skip=1 confirm=0 tod=18-04 ET]",
+      "name": "Spot (MNQ) 12m (post-fix) #372 pnl/dd=8.12 pnl=8490 win=57.9% tr=235 \u2014 ST(14,0.5,close)@4 hours [ST(14,0.5,close) @4 hours | ATR(7) PTx1.0 SLx1.5 | hold=4 | max_open=0 close_eod=0 | no_r2 | - spread>=0.01 cooldown=4 skip=1 confirm=0 tod=18-04 ET]",
       "filters": {
         "ema_spread_min_pct": 0.01,
         "entry_start_hour_et": 18,
@@ -38049,7 +38256,108 @@
       ]
     },
     {
-      "name": "Spot (MNQ) 12m (post-fix) #371 pnl/dd=8.10 pnl=11918 win=58.5% tr=335 \u2014 ST(2,0.6,hl2)@4 hours + R2@4 hours [ST(2,0.6,hl2) @4 hours | ATR(7) PTx1.0 SLx1.5 | hold=4 | max_open=2 close_eod=0 | ST2(4h:3,0.25,close)]",
+      "name": "Spot (MNQ) 12m (post-fix) #373 pnl/dd=8.11 pnl=21320 win=56.1% tr=1041 \u2014 ST(7,0.6,hl2)@4 hours [ema=2/4 | ST(7,0.6,hl2)@4 hours]",
+      "filters": null,
+      "entries": [
+        {
+          "symbol": "MNQ",
+          "metrics": {
+            "pnl": 21320.0,
+            "win_rate": 0.5609990393852066,
+            "trades": 1041,
+            "max_drawdown": 2629.5,
+            "pnl_over_dd": 8.108005324206124
+          },
+          "strategy": {
+            "name": "spot_evolve",
+            "instrument": "spot",
+            "symbol": "MNQ",
+            "exchange": null,
+            "right": "PUT",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "max_entries_per_day": 0,
+            "max_open_trades": 2,
+            "dte": 0,
+            "otm_pct": 0.0,
+            "width_pct": 0.0,
+            "profit_target": 0.0,
+            "stop_loss": 0.0,
+            "exit_dte": 0,
+            "quantity": 1,
+            "stop_loss_basis": "max_loss",
+            "min_credit": null,
+            "ema_preset": "2/4",
+            "ema_entry_mode": "cross",
+            "entry_confirm_bars": 0,
+            "regime_ema_preset": null,
+            "regime_bar_size": "4 hours",
+            "ema_directional": false,
+            "exit_on_signal_flip": true,
+            "flip_exit_mode": "entry",
+            "flip_exit_min_hold_bars": 4,
+            "flip_exit_only_if_profit": false,
+            "direction_source": "ema",
+            "directional_legs": null,
+            "directional_spot": {
+              "up": {
+                "action": "BUY",
+                "qty": 1
+              },
+              "down": {
+                "action": "SELL",
+                "qty": 1
+              }
+            },
+            "legs": null,
+            "spot_profit_target_pct": null,
+            "spot_stop_loss_pct": null,
+            "spot_close_eod": false,
+            "entry_signal": "ema",
+            "orb_window_mins": 15,
+            "orb_risk_reward": 2.0,
+            "orb_target_mode": "rr",
+            "orb_open_time_et": null,
+            "spot_exit_mode": "atr",
+            "spot_atr_period": 14,
+            "spot_pt_atr_mult": 0.7,
+            "spot_sl_atr_mult": 1.6,
+            "spot_exit_time_et": null,
+            "regime_mode": "supertrend",
+            "regime2_mode": "off",
+            "regime2_ema_preset": null,
+            "regime2_bar_size": null,
+            "regime2_supertrend_atr_period": 14,
+            "regime2_supertrend_multiplier": 1.0,
+            "regime2_supertrend_source": "hl2",
+            "supertrend_atr_period": 7,
+            "supertrend_multiplier": 0.6,
+            "supertrend_source": "hl2",
+            "tick_gate_mode": "off",
+            "tick_gate_symbol": "TICK-NYSE",
+            "tick_gate_exchange": "NYSE",
+            "tick_band_ma_period": 10,
+            "tick_width_z_lookback": 252,
+            "tick_width_z_enter": 1.0,
+            "tick_width_z_exit": 0.5,
+            "tick_width_slope_lookback": 3,
+            "tick_neutral_policy": "allow",
+            "tick_direction_policy": "both",
+            "signal_bar_size": "30 mins",
+            "signal_use_rth": false,
+            "spot_sec_type": "FUT",
+            "spot_exchange": "CME"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Spot (MNQ) 12m (post-fix) #374 pnl/dd=8.10 pnl=11918 win=58.5% tr=335 \u2014 ST(2,0.6,hl2)@4 hours + R2@4 hours [ST(2,0.6,hl2) @4 hours | ATR(7) PTx1.0 SLx1.5 | hold=4 | max_open=2 close_eod=0 | ST2(4h:3,0.25,close)]",
       "filters": {
         "entry_start_hour_et": 18,
         "entry_end_hour_et": 4
@@ -38150,7 +38458,7 @@
       ]
     },
     {
-      "name": "Spot (MNQ) 12m (post-fix) #372 pnl/dd=8.10 pnl=11918 win=58.5% tr=335 \u2014 ST(2,0.6,hl2)@4 hours + R2@4 hours [ST(2,0.6,hl2) @4 hours | ATR(7) PTx1.0 SLx1.5 | hold=4 | max_open=0 close_eod=0 | ST2(4h:3,0.25,close)]",
+      "name": "Spot (MNQ) 12m (post-fix) #375 pnl/dd=8.10 pnl=11918 win=58.5% tr=335 \u2014 ST(2,0.6,hl2)@4 hours + R2@4 hours [ST(2,0.6,hl2) @4 hours | ATR(7) PTx1.0 SLx1.5 | hold=4 | max_open=0 close_eod=0 | ST2(4h:3,0.25,close)]",
       "filters": {
         "entry_start_hour_et": 18,
         "entry_end_hour_et": 4
@@ -38251,7 +38559,7 @@
       ]
     },
     {
-      "name": "Spot (MNQ) 12m (post-fix) #373 pnl/dd=8.10 pnl=18670 win=61.4% tr=599 \u2014 ST(14,0.4,hl2)@4 hours [ST(14,0.4,hl2)@4 hours | ATR(14) PTx0.70 SLx1.60 | r2=off]",
+      "name": "Spot (MNQ) 12m (post-fix) #376 pnl/dd=8.10 pnl=18670 win=61.4% tr=599 \u2014 ST(14,0.4,hl2)@4 hours [ST(14,0.4,hl2)@4 hours | ATR(14) PTx0.70 SLx1.60 | r2=off]",
       "filters": {
         "entry_start_hour_et": 18,
         "entry_end_hour_et": 6
@@ -38355,7 +38663,7 @@
       ]
     },
     {
-      "name": "Spot (MNQ) 12m (post-fix) #374 pnl/dd=8.09 pnl=8464 win=57.1% tr=245 \u2014 ST(10,0.6,close)@4 hours [ST(10,0.6,close) @4 hours | ATR(7) PTx1.0 SLx1.5 | hold=4 | max_open=2 close_eod=0 | no_r2 | - spread>=0.01 cooldown=4 skip=0 confirm=0 tod=18-04 ET]",
+      "name": "Spot (MNQ) 12m (post-fix) #377 pnl/dd=8.09 pnl=8464 win=57.1% tr=245 \u2014 ST(10,0.6,close)@4 hours [ST(10,0.6,close) @4 hours | ATR(7) PTx1.0 SLx1.5 | hold=4 | max_open=2 close_eod=0 | no_r2 | - spread>=0.01 cooldown=4 skip=0 confirm=0 tod=18-04 ET]",
       "filters": {
         "ema_spread_min_pct": 0.01,
         "entry_start_hour_et": 18,
@@ -38458,7 +38766,7 @@
       ]
     },
     {
-      "name": "Spot (MNQ) 12m (post-fix) #375 pnl/dd=8.09 pnl=8464 win=57.1% tr=245 \u2014 ST(10,0.6,close)@4 hours [ST(10,0.6,close) @4 hours | ATR(7) PTx1.0 SLx1.5 | hold=4 | max_open=0 close_eod=0 | no_r2 | - spread>=0.01 cooldown=4 skip=0 confirm=0 tod=18-04 ET]",
+      "name": "Spot (MNQ) 12m (post-fix) #378 pnl/dd=8.09 pnl=8464 win=57.1% tr=245 \u2014 ST(10,0.6,close)@4 hours [ST(10,0.6,close) @4 hours | ATR(7) PTx1.0 SLx1.5 | hold=4 | max_open=0 close_eod=0 | no_r2 | - spread>=0.01 cooldown=4 skip=0 confirm=0 tod=18-04 ET]",
       "filters": {
         "ema_spread_min_pct": 0.01,
         "entry_start_hour_et": 18,
@@ -38561,7 +38869,7 @@
       ]
     },
     {
-      "name": "Spot (MNQ) 12m (post-fix) #376 pnl/dd=8.09 pnl=8464 win=57.1% tr=245 \u2014 ST(11,0.6,close)@4 hours [ST(11,0.6,close) @4 hours | ATR(7) PTx1.0 SLx1.5 | hold=4 | max_open=2 close_eod=0 | no_r2 | - spread>=0.01 cooldown=4 skip=0 confirm=0 tod=18-04 ET]",
+      "name": "Spot (MNQ) 12m (post-fix) #379 pnl/dd=8.09 pnl=8464 win=57.1% tr=245 \u2014 ST(11,0.6,close)@4 hours [ST(11,0.6,close) @4 hours | ATR(7) PTx1.0 SLx1.5 | hold=4 | max_open=2 close_eod=0 | no_r2 | - spread>=0.01 cooldown=4 skip=0 confirm=0 tod=18-04 ET]",
       "filters": {
         "ema_spread_min_pct": 0.01,
         "entry_start_hour_et": 18,
@@ -38664,7 +38972,7 @@
       ]
     },
     {
-      "name": "Spot (MNQ) 12m (post-fix) #377 pnl/dd=8.09 pnl=8464 win=57.1% tr=245 \u2014 ST(11,0.6,close)@4 hours [ST(11,0.6,close) @4 hours | ATR(7) PTx1.0 SLx1.5 | hold=4 | max_open=0 close_eod=0 | no_r2 | - spread>=0.01 cooldown=4 skip=0 confirm=0 tod=18-04 ET]",
+      "name": "Spot (MNQ) 12m (post-fix) #380 pnl/dd=8.09 pnl=8464 win=57.1% tr=245 \u2014 ST(11,0.6,close)@4 hours [ST(11,0.6,close) @4 hours | ATR(7) PTx1.0 SLx1.5 | hold=4 | max_open=0 close_eod=0 | no_r2 | - spread>=0.01 cooldown=4 skip=0 confirm=0 tod=18-04 ET]",
       "filters": {
         "ema_spread_min_pct": 0.01,
         "entry_start_hour_et": 18,
@@ -38767,7 +39075,522 @@
       ]
     },
     {
-      "name": "Spot (MNQ) 12m (post-fix) #378 pnl/dd=8.02 pnl=22402 win=56.0% tr=1022 \u2014 ST(3,0.4,hl2)@4 hours [base]",
+      "name": "Spot (MNQ) 12m (post-fix) #381 pnl/dd=8.07 pnl=19644 win=56.3% tr=890 \u2014 ST(3,0.4,hl2)@4 hours [slope>=0.005 | cooldown=4 | skip=0]",
+      "filters": {
+        "ema_slope_min_pct": 0.005,
+        "cooldown_bars": 4
+      },
+      "entries": [
+        {
+          "symbol": "MNQ",
+          "metrics": {
+            "pnl": 19643.5,
+            "win_rate": 0.5629213483146067,
+            "trades": 890,
+            "max_drawdown": 2435.5,
+            "pnl_over_dd": 8.06548963251899
+          },
+          "strategy": {
+            "name": "spot_evolve",
+            "instrument": "spot",
+            "symbol": "MNQ",
+            "exchange": null,
+            "right": "PUT",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "max_entries_per_day": 0,
+            "max_open_trades": 2,
+            "dte": 0,
+            "otm_pct": 0.0,
+            "width_pct": 0.0,
+            "profit_target": 0.0,
+            "stop_loss": 0.0,
+            "exit_dte": 0,
+            "quantity": 1,
+            "stop_loss_basis": "max_loss",
+            "min_credit": null,
+            "ema_preset": "2/4",
+            "ema_entry_mode": "cross",
+            "entry_confirm_bars": 0,
+            "regime_ema_preset": null,
+            "regime_bar_size": "4 hours",
+            "ema_directional": false,
+            "exit_on_signal_flip": true,
+            "flip_exit_mode": "entry",
+            "flip_exit_min_hold_bars": 4,
+            "flip_exit_only_if_profit": false,
+            "direction_source": "ema",
+            "directional_legs": null,
+            "directional_spot": {
+              "up": {
+                "action": "BUY",
+                "qty": 1
+              },
+              "down": {
+                "action": "SELL",
+                "qty": 1
+              }
+            },
+            "legs": null,
+            "spot_profit_target_pct": null,
+            "spot_stop_loss_pct": null,
+            "spot_close_eod": false,
+            "entry_signal": "ema",
+            "orb_window_mins": 15,
+            "orb_risk_reward": 2.0,
+            "orb_target_mode": "rr",
+            "orb_open_time_et": null,
+            "spot_exit_mode": "atr",
+            "spot_atr_period": 14,
+            "spot_pt_atr_mult": 0.7,
+            "spot_sl_atr_mult": 1.6,
+            "spot_exit_time_et": null,
+            "regime_mode": "supertrend",
+            "regime2_mode": "off",
+            "regime2_ema_preset": null,
+            "regime2_bar_size": null,
+            "regime2_supertrend_atr_period": 14,
+            "regime2_supertrend_multiplier": 1.0,
+            "regime2_supertrend_source": "hl2",
+            "supertrend_atr_period": 3,
+            "supertrend_multiplier": 0.4,
+            "supertrend_source": "hl2",
+            "tick_gate_mode": "off",
+            "tick_gate_symbol": "TICK-NYSE",
+            "tick_gate_exchange": "NYSE",
+            "tick_band_ma_period": 10,
+            "tick_width_z_lookback": 252,
+            "tick_width_z_enter": 1.0,
+            "tick_width_z_exit": 0.5,
+            "tick_width_slope_lookback": 3,
+            "tick_neutral_policy": "allow",
+            "tick_direction_policy": "both",
+            "signal_bar_size": "30 mins",
+            "signal_use_rth": false,
+            "spot_sec_type": "FUT",
+            "spot_exchange": "CME"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Spot (MNQ) 12m (post-fix) #382 pnl/dd=8.04 pnl=22443 win=56.2% tr=1015 \u2014 ST(3,0.4,hl2)@4 hours [base]",
+      "filters": {
+        "ema_slope_min_pct": 0.005
+      },
+      "entries": [
+        {
+          "symbol": "MNQ",
+          "metrics": {
+            "pnl": 22443.0,
+            "win_rate": 0.5615763546798029,
+            "trades": 1015,
+            "max_drawdown": 2792.0,
+            "pnl_over_dd": 8.038323782234958
+          },
+          "strategy": {
+            "name": "spot_evolve",
+            "instrument": "spot",
+            "symbol": "MNQ",
+            "exchange": null,
+            "right": "PUT",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "max_entries_per_day": 0,
+            "max_open_trades": 2,
+            "dte": 0,
+            "otm_pct": 0.0,
+            "width_pct": 0.0,
+            "profit_target": 0.0,
+            "stop_loss": 0.0,
+            "exit_dte": 0,
+            "quantity": 1,
+            "stop_loss_basis": "max_loss",
+            "min_credit": null,
+            "ema_preset": "2/4",
+            "ema_entry_mode": "cross",
+            "entry_confirm_bars": 0,
+            "regime_ema_preset": null,
+            "regime_bar_size": "4 hours",
+            "ema_directional": false,
+            "exit_on_signal_flip": true,
+            "flip_exit_mode": "entry",
+            "flip_exit_min_hold_bars": 4,
+            "flip_exit_only_if_profit": false,
+            "direction_source": "ema",
+            "directional_legs": null,
+            "directional_spot": {
+              "up": {
+                "action": "BUY",
+                "qty": 1
+              },
+              "down": {
+                "action": "SELL",
+                "qty": 1
+              }
+            },
+            "legs": null,
+            "spot_profit_target_pct": null,
+            "spot_stop_loss_pct": null,
+            "spot_close_eod": false,
+            "entry_signal": "ema",
+            "orb_window_mins": 15,
+            "orb_risk_reward": 2.0,
+            "orb_target_mode": "rr",
+            "orb_open_time_et": null,
+            "spot_exit_mode": "atr",
+            "spot_atr_period": 14,
+            "spot_pt_atr_mult": 0.7,
+            "spot_sl_atr_mult": 1.6,
+            "spot_exit_time_et": null,
+            "regime_mode": "supertrend",
+            "regime2_mode": "off",
+            "regime2_ema_preset": null,
+            "regime2_bar_size": null,
+            "regime2_supertrend_atr_period": 14,
+            "regime2_supertrend_multiplier": 1.0,
+            "regime2_supertrend_source": "hl2",
+            "supertrend_atr_period": 3,
+            "supertrend_multiplier": 0.4,
+            "supertrend_source": "hl2",
+            "tick_gate_mode": "off",
+            "tick_gate_symbol": "TICK-NYSE",
+            "tick_gate_exchange": "NYSE",
+            "tick_band_ma_period": 10,
+            "tick_width_z_lookback": 252,
+            "tick_width_z_enter": 1.0,
+            "tick_width_z_exit": 0.5,
+            "tick_width_slope_lookback": 3,
+            "tick_neutral_policy": "allow",
+            "tick_direction_policy": "both",
+            "signal_bar_size": "30 mins",
+            "signal_use_rth": false,
+            "spot_sec_type": "FUT",
+            "spot_exchange": "CME"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Spot (MNQ) 12m (post-fix) #383 pnl/dd=8.04 pnl=22443 win=56.2% tr=1015 \u2014 ST(3,0.4,hl2)@4 hours [slope>=0.005 | cooldown=1 | skip=0]",
+      "filters": {
+        "ema_slope_min_pct": 0.005,
+        "cooldown_bars": 1
+      },
+      "entries": [
+        {
+          "symbol": "MNQ",
+          "metrics": {
+            "pnl": 22443.0,
+            "win_rate": 0.5615763546798029,
+            "trades": 1015,
+            "max_drawdown": 2792.0,
+            "pnl_over_dd": 8.038323782234958
+          },
+          "strategy": {
+            "name": "spot_evolve",
+            "instrument": "spot",
+            "symbol": "MNQ",
+            "exchange": null,
+            "right": "PUT",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "max_entries_per_day": 0,
+            "max_open_trades": 2,
+            "dte": 0,
+            "otm_pct": 0.0,
+            "width_pct": 0.0,
+            "profit_target": 0.0,
+            "stop_loss": 0.0,
+            "exit_dte": 0,
+            "quantity": 1,
+            "stop_loss_basis": "max_loss",
+            "min_credit": null,
+            "ema_preset": "2/4",
+            "ema_entry_mode": "cross",
+            "entry_confirm_bars": 0,
+            "regime_ema_preset": null,
+            "regime_bar_size": "4 hours",
+            "ema_directional": false,
+            "exit_on_signal_flip": true,
+            "flip_exit_mode": "entry",
+            "flip_exit_min_hold_bars": 4,
+            "flip_exit_only_if_profit": false,
+            "direction_source": "ema",
+            "directional_legs": null,
+            "directional_spot": {
+              "up": {
+                "action": "BUY",
+                "qty": 1
+              },
+              "down": {
+                "action": "SELL",
+                "qty": 1
+              }
+            },
+            "legs": null,
+            "spot_profit_target_pct": null,
+            "spot_stop_loss_pct": null,
+            "spot_close_eod": false,
+            "entry_signal": "ema",
+            "orb_window_mins": 15,
+            "orb_risk_reward": 2.0,
+            "orb_target_mode": "rr",
+            "orb_open_time_et": null,
+            "spot_exit_mode": "atr",
+            "spot_atr_period": 14,
+            "spot_pt_atr_mult": 0.7,
+            "spot_sl_atr_mult": 1.6,
+            "spot_exit_time_et": null,
+            "regime_mode": "supertrend",
+            "regime2_mode": "off",
+            "regime2_ema_preset": null,
+            "regime2_bar_size": null,
+            "regime2_supertrend_atr_period": 14,
+            "regime2_supertrend_multiplier": 1.0,
+            "regime2_supertrend_source": "hl2",
+            "supertrend_atr_period": 3,
+            "supertrend_multiplier": 0.4,
+            "supertrend_source": "hl2",
+            "tick_gate_mode": "off",
+            "tick_gate_symbol": "TICK-NYSE",
+            "tick_gate_exchange": "NYSE",
+            "tick_band_ma_period": 10,
+            "tick_width_z_lookback": 252,
+            "tick_width_z_enter": 1.0,
+            "tick_width_z_exit": 0.5,
+            "tick_width_slope_lookback": 3,
+            "tick_neutral_policy": "allow",
+            "tick_direction_policy": "both",
+            "signal_bar_size": "30 mins",
+            "signal_use_rth": false,
+            "spot_sec_type": "FUT",
+            "spot_exchange": "CME"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Spot (MNQ) 12m (post-fix) #384 pnl/dd=8.03 pnl=21110 win=56.1% tr=1040 \u2014 ST(6,0.6,hl2)@4 hours [ema=2/4 | ST(6,0.6,hl2)@4 hours]",
+      "filters": null,
+      "entries": [
+        {
+          "symbol": "MNQ",
+          "metrics": {
+            "pnl": 21109.5,
+            "win_rate": 0.5605769230769231,
+            "trades": 1040,
+            "max_drawdown": 2629.5,
+            "pnl_over_dd": 8.027952082144894
+          },
+          "strategy": {
+            "name": "spot_evolve",
+            "instrument": "spot",
+            "symbol": "MNQ",
+            "exchange": null,
+            "right": "PUT",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "max_entries_per_day": 0,
+            "max_open_trades": 2,
+            "dte": 0,
+            "otm_pct": 0.0,
+            "width_pct": 0.0,
+            "profit_target": 0.0,
+            "stop_loss": 0.0,
+            "exit_dte": 0,
+            "quantity": 1,
+            "stop_loss_basis": "max_loss",
+            "min_credit": null,
+            "ema_preset": "2/4",
+            "ema_entry_mode": "cross",
+            "entry_confirm_bars": 0,
+            "regime_ema_preset": null,
+            "regime_bar_size": "4 hours",
+            "ema_directional": false,
+            "exit_on_signal_flip": true,
+            "flip_exit_mode": "entry",
+            "flip_exit_min_hold_bars": 4,
+            "flip_exit_only_if_profit": false,
+            "direction_source": "ema",
+            "directional_legs": null,
+            "directional_spot": {
+              "up": {
+                "action": "BUY",
+                "qty": 1
+              },
+              "down": {
+                "action": "SELL",
+                "qty": 1
+              }
+            },
+            "legs": null,
+            "spot_profit_target_pct": null,
+            "spot_stop_loss_pct": null,
+            "spot_close_eod": false,
+            "entry_signal": "ema",
+            "orb_window_mins": 15,
+            "orb_risk_reward": 2.0,
+            "orb_target_mode": "rr",
+            "orb_open_time_et": null,
+            "spot_exit_mode": "atr",
+            "spot_atr_period": 14,
+            "spot_pt_atr_mult": 0.7,
+            "spot_sl_atr_mult": 1.6,
+            "spot_exit_time_et": null,
+            "regime_mode": "supertrend",
+            "regime2_mode": "off",
+            "regime2_ema_preset": null,
+            "regime2_bar_size": null,
+            "regime2_supertrend_atr_period": 14,
+            "regime2_supertrend_multiplier": 1.0,
+            "regime2_supertrend_source": "hl2",
+            "supertrend_atr_period": 6,
+            "supertrend_multiplier": 0.6,
+            "supertrend_source": "hl2",
+            "tick_gate_mode": "off",
+            "tick_gate_symbol": "TICK-NYSE",
+            "tick_gate_exchange": "NYSE",
+            "tick_band_ma_period": 10,
+            "tick_width_z_lookback": 252,
+            "tick_width_z_enter": 1.0,
+            "tick_width_z_exit": 0.5,
+            "tick_width_slope_lookback": 3,
+            "tick_neutral_policy": "allow",
+            "tick_direction_policy": "both",
+            "signal_bar_size": "30 mins",
+            "signal_use_rth": false,
+            "spot_sec_type": "FUT",
+            "spot_exchange": "CME"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Spot (MNQ) 12m (post-fix) #385 pnl/dd=8.03 pnl=19548 win=56.1% tr=895 \u2014 ST(3,0.4,hl2)@4 hours [- | cooldown=4 | skip=0]",
+      "filters": {
+        "cooldown_bars": 4
+      },
+      "entries": [
+        {
+          "symbol": "MNQ",
+          "metrics": {
+            "pnl": 19548.0,
+            "win_rate": 0.5608938547486033,
+            "trades": 895,
+            "max_drawdown": 2435.5,
+            "pnl_over_dd": 8.026277971669062
+          },
+          "strategy": {
+            "name": "spot_evolve",
+            "instrument": "spot",
+            "symbol": "MNQ",
+            "exchange": null,
+            "right": "PUT",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "max_entries_per_day": 0,
+            "max_open_trades": 2,
+            "dte": 0,
+            "otm_pct": 0.0,
+            "width_pct": 0.0,
+            "profit_target": 0.0,
+            "stop_loss": 0.0,
+            "exit_dte": 0,
+            "quantity": 1,
+            "stop_loss_basis": "max_loss",
+            "min_credit": null,
+            "ema_preset": "2/4",
+            "ema_entry_mode": "cross",
+            "entry_confirm_bars": 0,
+            "regime_ema_preset": null,
+            "regime_bar_size": "4 hours",
+            "ema_directional": false,
+            "exit_on_signal_flip": true,
+            "flip_exit_mode": "entry",
+            "flip_exit_min_hold_bars": 4,
+            "flip_exit_only_if_profit": false,
+            "direction_source": "ema",
+            "directional_legs": null,
+            "directional_spot": {
+              "up": {
+                "action": "BUY",
+                "qty": 1
+              },
+              "down": {
+                "action": "SELL",
+                "qty": 1
+              }
+            },
+            "legs": null,
+            "spot_profit_target_pct": null,
+            "spot_stop_loss_pct": null,
+            "spot_close_eod": false,
+            "entry_signal": "ema",
+            "orb_window_mins": 15,
+            "orb_risk_reward": 2.0,
+            "orb_target_mode": "rr",
+            "orb_open_time_et": null,
+            "spot_exit_mode": "atr",
+            "spot_atr_period": 14,
+            "spot_pt_atr_mult": 0.7,
+            "spot_sl_atr_mult": 1.6,
+            "spot_exit_time_et": null,
+            "regime_mode": "supertrend",
+            "regime2_mode": "off",
+            "regime2_ema_preset": null,
+            "regime2_bar_size": null,
+            "regime2_supertrend_atr_period": 14,
+            "regime2_supertrend_multiplier": 1.0,
+            "regime2_supertrend_source": "hl2",
+            "supertrend_atr_period": 3,
+            "supertrend_multiplier": 0.4,
+            "supertrend_source": "hl2",
+            "tick_gate_mode": "off",
+            "tick_gate_symbol": "TICK-NYSE",
+            "tick_gate_exchange": "NYSE",
+            "tick_band_ma_period": 10,
+            "tick_width_z_lookback": 252,
+            "tick_width_z_enter": 1.0,
+            "tick_width_z_exit": 0.5,
+            "tick_width_slope_lookback": 3,
+            "tick_neutral_policy": "allow",
+            "tick_direction_policy": "both",
+            "signal_bar_size": "30 mins",
+            "signal_use_rth": false,
+            "spot_sec_type": "FUT",
+            "spot_exchange": "CME"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Spot (MNQ) 12m (post-fix) #386 pnl/dd=8.02 pnl=22402 win=56.0% tr=1022 \u2014 ST(3,0.4,hl2)@4 hours [base]",
       "filters": null,
       "entries": [
         {
@@ -38868,7 +39691,211 @@
       ]
     },
     {
-      "name": "Spot (MNQ) 12m (post-fix) #379 pnl/dd=8.02 pnl=11424 win=57.4% tr=289 \u2014 ST(6,1.0,hl2)@4 hours [ST(6,1.0,hl2) @4 hours | ATR(7) PTx1.0 SLx1.5 | hold=4 | max_open=2 close_eod=0 | no_r2 | - spread>=0.01 cooldown=0 skip=0 confirm=0 tod=18-04 ET]",
+      "name": "Spot (MNQ) 12m (post-fix) #387 pnl/dd=8.02 pnl=22402 win=56.0% tr=1022 \u2014 ST(3,0.4,hl2)@4 hours [- | cooldown=1 | skip=0]",
+      "filters": {
+        "cooldown_bars": 1
+      },
+      "entries": [
+        {
+          "symbol": "MNQ",
+          "metrics": {
+            "pnl": 22401.5,
+            "win_rate": 0.5596868884540117,
+            "trades": 1022,
+            "max_drawdown": 2792.0,
+            "pnl_over_dd": 8.023459885386819
+          },
+          "strategy": {
+            "name": "spot_evolve",
+            "instrument": "spot",
+            "symbol": "MNQ",
+            "exchange": null,
+            "right": "PUT",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "max_entries_per_day": 0,
+            "max_open_trades": 2,
+            "dte": 0,
+            "otm_pct": 0.0,
+            "width_pct": 0.0,
+            "profit_target": 0.0,
+            "stop_loss": 0.0,
+            "exit_dte": 0,
+            "quantity": 1,
+            "stop_loss_basis": "max_loss",
+            "min_credit": null,
+            "ema_preset": "2/4",
+            "ema_entry_mode": "cross",
+            "entry_confirm_bars": 0,
+            "regime_ema_preset": null,
+            "regime_bar_size": "4 hours",
+            "ema_directional": false,
+            "exit_on_signal_flip": true,
+            "flip_exit_mode": "entry",
+            "flip_exit_min_hold_bars": 4,
+            "flip_exit_only_if_profit": false,
+            "direction_source": "ema",
+            "directional_legs": null,
+            "directional_spot": {
+              "up": {
+                "action": "BUY",
+                "qty": 1
+              },
+              "down": {
+                "action": "SELL",
+                "qty": 1
+              }
+            },
+            "legs": null,
+            "spot_profit_target_pct": null,
+            "spot_stop_loss_pct": null,
+            "spot_close_eod": false,
+            "entry_signal": "ema",
+            "orb_window_mins": 15,
+            "orb_risk_reward": 2.0,
+            "orb_target_mode": "rr",
+            "orb_open_time_et": null,
+            "spot_exit_mode": "atr",
+            "spot_atr_period": 14,
+            "spot_pt_atr_mult": 0.7,
+            "spot_sl_atr_mult": 1.6,
+            "spot_exit_time_et": null,
+            "regime_mode": "supertrend",
+            "regime2_mode": "off",
+            "regime2_ema_preset": null,
+            "regime2_bar_size": null,
+            "regime2_supertrend_atr_period": 14,
+            "regime2_supertrend_multiplier": 1.0,
+            "regime2_supertrend_source": "hl2",
+            "supertrend_atr_period": 3,
+            "supertrend_multiplier": 0.4,
+            "supertrend_source": "hl2",
+            "tick_gate_mode": "off",
+            "tick_gate_symbol": "TICK-NYSE",
+            "tick_gate_exchange": "NYSE",
+            "tick_band_ma_period": 10,
+            "tick_width_z_lookback": 252,
+            "tick_width_z_enter": 1.0,
+            "tick_width_z_exit": 0.5,
+            "tick_width_slope_lookback": 3,
+            "tick_neutral_policy": "allow",
+            "tick_direction_policy": "both",
+            "signal_bar_size": "30 mins",
+            "signal_use_rth": false,
+            "spot_sec_type": "FUT",
+            "spot_exchange": "CME"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Spot (MNQ) 12m (post-fix) #388 pnl/dd=8.02 pnl=21717 win=56.4% tr=1036 \u2014 ST(21,0.6,hl2)@4 hours [ema=2/4 | ST(21,0.6,hl2)@4 hours]",
+      "filters": null,
+      "entries": [
+        {
+          "symbol": "MNQ",
+          "metrics": {
+            "pnl": 21717.0,
+            "win_rate": 0.5637065637065637,
+            "trades": 1036,
+            "max_drawdown": 2708.5,
+            "pnl_over_dd": 8.018091194388038
+          },
+          "strategy": {
+            "name": "spot_evolve",
+            "instrument": "spot",
+            "symbol": "MNQ",
+            "exchange": null,
+            "right": "PUT",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "max_entries_per_day": 0,
+            "max_open_trades": 2,
+            "dte": 0,
+            "otm_pct": 0.0,
+            "width_pct": 0.0,
+            "profit_target": 0.0,
+            "stop_loss": 0.0,
+            "exit_dte": 0,
+            "quantity": 1,
+            "stop_loss_basis": "max_loss",
+            "min_credit": null,
+            "ema_preset": "2/4",
+            "ema_entry_mode": "cross",
+            "entry_confirm_bars": 0,
+            "regime_ema_preset": null,
+            "regime_bar_size": "4 hours",
+            "ema_directional": false,
+            "exit_on_signal_flip": true,
+            "flip_exit_mode": "entry",
+            "flip_exit_min_hold_bars": 4,
+            "flip_exit_only_if_profit": false,
+            "direction_source": "ema",
+            "directional_legs": null,
+            "directional_spot": {
+              "up": {
+                "action": "BUY",
+                "qty": 1
+              },
+              "down": {
+                "action": "SELL",
+                "qty": 1
+              }
+            },
+            "legs": null,
+            "spot_profit_target_pct": null,
+            "spot_stop_loss_pct": null,
+            "spot_close_eod": false,
+            "entry_signal": "ema",
+            "orb_window_mins": 15,
+            "orb_risk_reward": 2.0,
+            "orb_target_mode": "rr",
+            "orb_open_time_et": null,
+            "spot_exit_mode": "atr",
+            "spot_atr_period": 14,
+            "spot_pt_atr_mult": 0.7,
+            "spot_sl_atr_mult": 1.6,
+            "spot_exit_time_et": null,
+            "regime_mode": "supertrend",
+            "regime2_mode": "off",
+            "regime2_ema_preset": null,
+            "regime2_bar_size": null,
+            "regime2_supertrend_atr_period": 14,
+            "regime2_supertrend_multiplier": 1.0,
+            "regime2_supertrend_source": "hl2",
+            "supertrend_atr_period": 21,
+            "supertrend_multiplier": 0.6,
+            "supertrend_source": "hl2",
+            "tick_gate_mode": "off",
+            "tick_gate_symbol": "TICK-NYSE",
+            "tick_gate_exchange": "NYSE",
+            "tick_band_ma_period": 10,
+            "tick_width_z_lookback": 252,
+            "tick_width_z_enter": 1.0,
+            "tick_width_z_exit": 0.5,
+            "tick_width_slope_lookback": 3,
+            "tick_neutral_policy": "allow",
+            "tick_direction_policy": "both",
+            "signal_bar_size": "30 mins",
+            "signal_use_rth": false,
+            "spot_sec_type": "FUT",
+            "spot_exchange": "CME"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Spot (MNQ) 12m (post-fix) #389 pnl/dd=8.02 pnl=11424 win=57.4% tr=289 \u2014 ST(6,1.0,hl2)@4 hours [ST(6,1.0,hl2) @4 hours | ATR(7) PTx1.0 SLx1.5 | hold=4 | max_open=2 close_eod=0 | no_r2 | - spread>=0.01 cooldown=0 skip=0 confirm=0 tod=18-04 ET]",
       "filters": {
         "ema_spread_min_pct": 0.01,
         "entry_start_hour_et": 18,
@@ -38970,7 +39997,7 @@
       ]
     },
     {
-      "name": "Spot (MNQ) 12m (post-fix) #380 pnl/dd=8.02 pnl=11424 win=57.4% tr=289 \u2014 ST(6,1.0,hl2)@4 hours [ST(6,1.0,hl2) @4 hours | ATR(7) PTx1.0 SLx1.5 | hold=4 | max_open=0 close_eod=0 | no_r2 | - spread>=0.01 cooldown=0 skip=0 confirm=0 tod=18-04 ET]",
+      "name": "Spot (MNQ) 12m (post-fix) #390 pnl/dd=8.02 pnl=11424 win=57.4% tr=289 \u2014 ST(6,1.0,hl2)@4 hours [ST(6,1.0,hl2) @4 hours | ATR(7) PTx1.0 SLx1.5 | hold=4 | max_open=0 close_eod=0 | no_r2 | - spread>=0.01 cooldown=0 skip=0 confirm=0 tod=18-04 ET]",
       "filters": {
         "ema_spread_min_pct": 0.01,
         "entry_start_hour_et": 18,

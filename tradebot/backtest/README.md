@@ -383,11 +383,12 @@ Quick “max net PnL” snapshots (generated 2026-01-15, post-intraday-timestamp
 - **#1 Best 30m (max PnL):**
   - Signal (timing): `30 mins`, EMA `2/4` cross, `entry_confirm_bars=0`
   - Regime (bias): Supertrend on `4 hours`, `ATR=3`, `mult=0.4`, `src=hl2`
+  - Permission (quality): `ema_slope_min_pct=0.005`
   - Permission (time-of-day): `off`
   - Regime2 (confirm): `off`
   - Exits: `spot_exit_mode=atr`, `spot_atr_period=14`, `spot_pt_atr_mult=0.70`, `spot_sl_atr_mult=1.60`, `exit_on_signal_flip=true`, `flip_exit_min_hold_bars=4`
   - Loosenings: `max_entries_per_day=0`, `max_open_trades=2`, `spot_close_eod=false`
-  - Stats: `trades=1022`, `win=56.0%`, `pnl=+22401.5`, `dd=2792.0`, `pnl/dd=8.02`
+  - Stats: `trades=1015`, `win=56.2%`, `pnl=+22443.0`, `dd=2792.0`, `pnl/dd=8.04`
 
 - **#2 Best 30m (max PnL, spread-gated):**
   - Signal (timing): `30 mins`, EMA `2/4` cross, `entry_confirm_bars=0`
