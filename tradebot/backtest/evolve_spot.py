@@ -11,6 +11,7 @@ and explore incremental improvements without confounding:
   F) Dual regime gating (regime2)
   G) Chop-killer quality filters (spread/slope/cooldown/skip-open)
   H) $TICK width gate (Raschke-style)
+  I) Joint sweeps (interaction hunts)
 
 All knobs are opt-in; default bot behavior is unchanged.
 """
@@ -543,12 +544,15 @@ def main() -> None:
             "rv",
             "tod",
             "tod_interaction",
+            "perm_joint",
             "weekday",
             "exit_time",
             "atr",
             "atr_fine",
             "atr_ultra",
             "r2_atr",
+            "r2_tod",
+            "regime_atr",
             "ptsl",
             "hold",
             "orb",
@@ -599,6 +603,54 @@ def main() -> None:
         _, meta = data.resolve_contract(symbol, exchange=None)
 
     milestones = _load_spot_milestones()
+
+    def _merge_filters(base_filters: FiltersConfig | None, *, overrides: dict[str, object]) -> FiltersConfig | None:
+        """Merge base filters with overrides, where `None` deletes a key.
+
+        Used to build joint permission sweeps without being constrained by the combo funnel.
+        """
+        merged: dict[str, object] = dict(_filters_payload(base_filters) or {})
+        for key, val in overrides.items():
+            if val is None:
+                merged.pop(key, None)
+            else:
+                merged[key] = val
+
+        # Keep TOD gating consistent (both-or-neither).
+        if ("entry_start_hour_et" in merged) ^ ("entry_end_hour_et" in merged):
+            merged.pop("entry_start_hour_et", None)
+            merged.pop("entry_end_hour_et", None)
+
+        # Volume gate requires both knobs.
+        if merged.get("volume_ratio_min") is None:
+            merged.pop("volume_ema_period", None)
+
+        return _mk_filters(
+            rv_min=merged.get("rv_min"),
+            rv_max=merged.get("rv_max"),
+            ema_spread_min_pct=merged.get("ema_spread_min_pct"),
+            ema_slope_min_pct=merged.get("ema_slope_min_pct"),
+            cooldown_bars=int(merged.get("cooldown_bars") or 0),
+            skip_first_bars=int(merged.get("skip_first_bars") or 0),
+            volume_ratio_min=merged.get("volume_ratio_min"),
+            volume_ema_period=merged.get("volume_ema_period"),
+            entry_start_hour_et=merged.get("entry_start_hour_et"),
+            entry_end_hour_et=merged.get("entry_end_hour_et"),
+        )
+
+    def _shortlisted_keys(best_by_key: dict, *, top_pnl: int = 8, top_pnl_dd: int = 8) -> list:
+        by_pnl = sorted(best_by_key.items(), key=lambda t: _score_row_pnl(t[1]["row"]), reverse=True)[: int(top_pnl)]
+        by_dd = sorted(best_by_key.items(), key=lambda t: _score_row_pnl_dd(t[1]["row"]), reverse=True)[
+            : int(top_pnl_dd)
+        ]
+        out = []
+        seen = set()
+        for key, _ in by_pnl + by_dd:
+            if key in seen:
+                continue
+            seen.add(key)
+            out.append(key)
+        return out
 
     def _bars(bar_size: str) -> list:
         if offline:
@@ -1031,6 +1083,76 @@ def main() -> None:
             rows.append(base_row)
         _print_leaderboards(rows, title="TOD interaction sweep (overnight micro-grid)", top_n=int(args.top))
 
+    def _sweep_perm_joint() -> None:
+        """Joint permission sweep: TOD × spread × volume (no funnel pruning)."""
+        bars_sig = _bars_cached(signal_bar_size)
+        base = _base_bundle(bar_size=signal_bar_size, filters=None)
+        base_row = _run_cfg(
+            cfg=base, bars=bars_sig, regime_bars=_regime_bars_for(base), regime2_bars=_regime2_bars_for(base)
+        )
+        if base_row:
+            base_row["note"] = "base"
+            _record_milestone(base, base_row, "base")
+
+        base_filters = base.strategy.filters
+
+        tod_windows: list[tuple[int | None, int | None, str, dict[str, object]]] = []
+        tod_windows.append((None, None, "tod=base", {}))
+        tod_windows.append((None, None, "tod=off", {"entry_start_hour_et": None, "entry_end_hour_et": None}))
+        for start_h, end_h, label in (
+            (9, 16, "tod=09-16 ET"),
+            (10, 15, "tod=10-15 ET"),
+            (11, 16, "tod=11-16 ET"),
+        ):
+            tod_windows.append((start_h, end_h, label, {"entry_start_hour_et": int(start_h), "entry_end_hour_et": int(end_h)}))
+        for start_h in (17, 18, 19):
+            for end_h in (3, 4, 5):
+                label = f"tod={start_h:02d}-{end_h:02d} ET"
+                tod_windows.append(
+                    (start_h, end_h, label, {"entry_start_hour_et": int(start_h), "entry_end_hour_et": int(end_h)})
+                )
+
+        spread_variants: list[tuple[str, dict[str, object]]] = [
+            ("spread=base", {}),
+            ("spread=off", {"ema_spread_min_pct": None}),
+        ]
+        for s in (0.002, 0.003, 0.004, 0.005, 0.006, 0.007, 0.008, 0.01):
+            spread_variants.append((f"spread>={s:.4f}", {"ema_spread_min_pct": float(s)}))
+
+        vol_variants: list[tuple[str, dict[str, object]]] = [
+            ("vol=base", {}),
+            ("vol=off", {"volume_ratio_min": None, "volume_ema_period": None}),
+        ]
+        for ratio in (1.0, 1.1, 1.2, 1.5):
+            for ema_p in (10, 20):
+                vol_variants.append((f"vol>={ratio}@{ema_p}", {"volume_ratio_min": float(ratio), "volume_ema_period": int(ema_p)}))
+
+        rows: list[dict] = []
+        for _, _, tod_note, tod_over in tod_windows:
+            for spread_note, spread_over in spread_variants:
+                for vol_note, vol_over in vol_variants:
+                    overrides: dict[str, object] = {}
+                    overrides.update(tod_over)
+                    overrides.update(spread_over)
+                    overrides.update(vol_over)
+                    f = _merge_filters(base_filters, overrides=overrides)
+                    cfg = replace(base, strategy=replace(base.strategy, filters=f))
+                    row = _run_cfg(
+                        cfg=cfg,
+                        bars=bars_sig,
+                        regime_bars=_regime_bars_for(cfg),
+                        regime2_bars=_regime2_bars_for(cfg),
+                    )
+                    if not row:
+                        continue
+                    note = f"{tod_note} | {spread_note} | {vol_note}"
+                    row["note"] = note
+                    _record_milestone(cfg, row, note)
+                    rows.append(row)
+        if base_row:
+            rows.append(base_row)
+        _print_leaderboards(rows, title="Permission joint sweep (TOD × spread × volume)", top_n=int(args.top))
+
     def _sweep_weekdays() -> None:
         """Gate exploration: which UTC weekdays contribute to the edge."""
         bars_sig = _bars_cached(signal_bar_size)
@@ -1416,6 +1538,230 @@ def main() -> None:
         if base_row:
             rows.append(base_row)
         _print_leaderboards(rows, title="Regime2 × ATR joint sweep (PT<1.0 pocket)", top_n=int(args.top))
+
+    def _sweep_r2_tod() -> None:
+        """Joint interaction hunt: regime2 confirm × TOD window (keeps exits fixed)."""
+        bars_sig = _bars_cached(signal_bar_size)
+        base = _base_bundle(bar_size=signal_bar_size, filters=None)
+        base_row = _run_cfg(
+            cfg=base, bars=bars_sig, regime_bars=_regime_bars_for(base), regime2_bars=_regime2_bars_for(base)
+        )
+        if base_row:
+            base_row["note"] = "base"
+            _record_milestone(base, base_row, "base")
+
+        base_filters = base.strategy.filters
+
+        # Stage 1: scan regime2 settings with the current base TOD.
+        r2_variants: list[tuple[dict, str]] = [({"regime2_mode": "off", "regime2_bar_size": None}, "r2=off")]
+        for r2_bar in ("4 hours", "1 day"):
+            for atr_p in (3, 5, 7, 10, 11, 14, 21):
+                for mult in (0.6, 0.8, 1.0, 1.2, 1.5):
+                    for src in ("hl2", "close"):
+                        r2_variants.append(
+                            (
+                                {
+                                    "regime2_mode": "supertrend",
+                                    "regime2_bar_size": str(r2_bar),
+                                    "regime2_supertrend_atr_period": int(atr_p),
+                                    "regime2_supertrend_multiplier": float(mult),
+                                    "regime2_supertrend_source": str(src),
+                                },
+                                f"r2=ST2({r2_bar}:{atr_p},{mult:g},{src})",
+                            )
+                        )
+
+        best_by_r2: dict[tuple, dict] = {}
+        for r2_over, r2_note in r2_variants:
+            cfg = replace(
+                base,
+                strategy=replace(
+                    base.strategy,
+                    regime2_mode=str(r2_over.get("regime2_mode") or "off"),
+                    regime2_bar_size=r2_over.get("regime2_bar_size"),
+                    regime2_supertrend_atr_period=int(r2_over.get("regime2_supertrend_atr_period") or 10),
+                    regime2_supertrend_multiplier=float(r2_over.get("regime2_supertrend_multiplier") or 3.0),
+                    regime2_supertrend_source=str(r2_over.get("regime2_supertrend_source") or "hl2"),
+                ),
+            )
+            row = _run_cfg(
+                cfg=cfg,
+                bars=bars_sig,
+                regime_bars=_regime_bars_for(cfg),
+                regime2_bars=_regime2_bars_for(cfg),
+            )
+            if not row:
+                continue
+            r2_key = (
+                str(getattr(cfg.strategy, "regime2_mode", "off") or "off"),
+                str(getattr(cfg.strategy, "regime2_bar_size", "") or ""),
+                int(getattr(cfg.strategy, "regime2_supertrend_atr_period", 0) or 0),
+                float(getattr(cfg.strategy, "regime2_supertrend_multiplier", 0.0) or 0.0),
+                str(getattr(cfg.strategy, "regime2_supertrend_source", "") or ""),
+            )
+            current = best_by_r2.get(r2_key)
+            if current is None or _score_row_pnl(row) > _score_row_pnl(current["row"]):
+                best_by_r2[r2_key] = {"row": row, "note": r2_note}
+
+        shortlisted = _shortlisted_keys(best_by_r2, top_pnl=10, top_pnl_dd=10)
+        if not shortlisted:
+            print("No eligible regime2 candidates (try lowering --min-trades).")
+            return
+        print("")
+        print(f"R2×TOD: stage1 shortlisted r2={len(shortlisted)} (from {len(best_by_r2)})")
+
+        tod_variants: list[tuple[str, dict[str, object]]] = [
+            ("tod=base", {}),
+            ("tod=off", {"entry_start_hour_et": None, "entry_end_hour_et": None}),
+            ("tod=09-16 ET", {"entry_start_hour_et": 9, "entry_end_hour_et": 16}),
+            ("tod=10-15 ET", {"entry_start_hour_et": 10, "entry_end_hour_et": 15}),
+            ("tod=11-16 ET", {"entry_start_hour_et": 11, "entry_end_hour_et": 16}),
+        ]
+        for start_h in (16, 17, 18, 19, 20):
+            for end_h in (2, 3, 4, 5, 6):
+                tod_variants.append((f"tod={start_h:02d}-{end_h:02d} ET", {"entry_start_hour_et": start_h, "entry_end_hour_et": end_h}))
+
+        rows: list[dict] = []
+        for r2_key in shortlisted:
+            r2_mode, r2_bar, r2_atr, r2_mult, r2_src = r2_key
+            for tod_note, tod_over in tod_variants:
+                f = _merge_filters(base_filters, overrides=tod_over)
+                cfg = replace(
+                    base,
+                    strategy=replace(
+                        base.strategy,
+                        filters=f,
+                        regime2_mode=str(r2_mode),
+                        regime2_bar_size=str(r2_bar) or None,
+                        regime2_supertrend_atr_period=int(r2_atr or 10),
+                        regime2_supertrend_multiplier=float(r2_mult or 3.0),
+                        regime2_supertrend_source=str(r2_src or "hl2"),
+                    ),
+                )
+                row = _run_cfg(
+                    cfg=cfg,
+                    bars=bars_sig,
+                    regime_bars=_regime_bars_for(cfg),
+                    regime2_bars=_regime2_bars_for(cfg),
+                )
+                if not row:
+                    continue
+                if str(r2_mode).strip().lower() == "off":
+                    r2_note = "r2=off"
+                else:
+                    r2_note = f"r2=ST2({r2_bar}:{r2_atr},{r2_mult:g},{r2_src})"
+                note = f"{r2_note} | {tod_note}"
+                row["note"] = note
+                _record_milestone(cfg, row, note)
+                rows.append(row)
+
+        if base_row:
+            rows.append(base_row)
+        _print_leaderboards(rows, title="Regime2 × TOD joint sweep", top_n=int(args.top))
+
+    def _sweep_regime_atr() -> None:
+        """Joint interaction hunt: regime (bias) × ATR exits (includes PTx < 1.0)."""
+        bars_sig = _bars_cached(signal_bar_size)
+        base = _base_bundle(bar_size=signal_bar_size, filters=None)
+        base_row = _run_cfg(
+            cfg=base, bars=bars_sig, regime_bars=_regime_bars_for(base), regime2_bars=_regime2_bars_for(base)
+        )
+        if base_row:
+            base_row["note"] = "base"
+            _record_milestone(base, base_row, "base")
+
+        # Stage 1: scan regime settings using a representative low-PT exit.
+        best_by_regime: dict[tuple, dict] = {}
+        for rbar in ("4 hours", "1 day"):
+            for atr_p in (3, 5, 6, 7, 10, 14, 21):
+                for mult in (0.4, 0.6, 0.8, 1.0, 1.2, 1.5):
+                    for src in ("hl2", "close"):
+                        cfg = replace(
+                            base,
+                            strategy=replace(
+                                base.strategy,
+                                regime_mode="supertrend",
+                                regime_bar_size=str(rbar),
+                                supertrend_atr_period=int(atr_p),
+                                supertrend_multiplier=float(mult),
+                                supertrend_source=str(src),
+                                regime2_mode="off",
+                                regime2_bar_size=None,
+                                spot_exit_mode="atr",
+                                spot_atr_period=14,
+                                spot_pt_atr_mult=0.7,
+                                spot_sl_atr_mult=1.6,
+                                spot_profit_target_pct=None,
+                                spot_stop_loss_pct=None,
+                            ),
+                        )
+                        row = _run_cfg(
+                            cfg=cfg,
+                            bars=bars_sig,
+                            regime_bars=_regime_bars_for(cfg),
+                            regime2_bars=None,
+                        )
+                        if not row:
+                            continue
+                        key = (str(rbar), int(atr_p), float(mult), str(src))
+                        current = best_by_regime.get(key)
+                        if current is None or _score_row_pnl(row) > _score_row_pnl(current["row"]):
+                            best_by_regime[key] = {"row": row}
+
+        shortlisted = _shortlisted_keys(best_by_regime, top_pnl=10, top_pnl_dd=10)
+        if not shortlisted:
+            print("No eligible regime candidates (try lowering --min-trades).")
+            return
+        print("")
+        print(f"Regime×ATR: stage1 shortlisted regimes={len(shortlisted)} (from {len(best_by_regime)})")
+
+        atr_periods = [10, 14, 21]
+        pt_mults = [0.6, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.0]
+        sl_mults = [1.2, 1.4, 1.5, 1.6, 1.8, 2.0]
+
+        rows: list[dict] = []
+        for rbar, atr_p, mult, src in shortlisted:
+            for exit_atr in atr_periods:
+                for pt_m in pt_mults:
+                    for sl_m in sl_mults:
+                        cfg = replace(
+                            base,
+                            strategy=replace(
+                                base.strategy,
+                                regime_mode="supertrend",
+                                regime_bar_size=str(rbar),
+                                supertrend_atr_period=int(atr_p),
+                                supertrend_multiplier=float(mult),
+                                supertrend_source=str(src),
+                                regime2_mode="off",
+                                regime2_bar_size=None,
+                                spot_exit_mode="atr",
+                                spot_atr_period=int(exit_atr),
+                                spot_pt_atr_mult=float(pt_m),
+                                spot_sl_atr_mult=float(sl_m),
+                                spot_profit_target_pct=None,
+                                spot_stop_loss_pct=None,
+                            ),
+                        )
+                        row = _run_cfg(
+                            cfg=cfg,
+                            bars=bars_sig,
+                            regime_bars=_regime_bars_for(cfg),
+                            regime2_bars=None,
+                        )
+                        if not row:
+                            continue
+                        note = (
+                            f"ST({atr_p},{mult:g},{src})@{rbar} | "
+                            f"ATR({exit_atr}) PTx{pt_m:.2f} SLx{sl_m:.2f} | r2=off"
+                        )
+                        row["note"] = note
+                        _record_milestone(cfg, row, note)
+                        rows.append(row)
+
+        if base_row:
+            rows.append(base_row)
+        _print_leaderboards(rows, title="Regime × ATR joint sweep (PT<1.0 pocket)", top_n=int(args.top))
 
     def _sweep_ptsl() -> None:
         bars_sig = _bars_cached(signal_bar_size)
@@ -2534,6 +2880,8 @@ def main() -> None:
         _sweep_tod()
     if axis == "tod_interaction":
         _sweep_tod_interaction()
+    if axis == "perm_joint":
+        _sweep_perm_joint()
     if axis == "weekday":
         _sweep_weekdays()
     if axis == "exit_time":
@@ -2546,6 +2894,10 @@ def main() -> None:
         _sweep_atr_exits_ultra()
     if axis == "r2_atr":
         _sweep_r2_atr()
+    if axis == "r2_tod":
+        _sweep_r2_tod()
+    if axis == "regime_atr":
+        _sweep_regime_atr()
     if axis in ("all", "ptsl"):
         _sweep_ptsl()
     if axis in ("all", "hold"):

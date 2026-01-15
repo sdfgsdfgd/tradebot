@@ -302,6 +302,7 @@ This is a **quick map of what the sweeps actually cover** (outer edges), so we c
 **Permission / quality filters**
 - Time-of-day ET (`--axis tod`): RTH windows `(9–16, 10–15, 11–16)` and overnight micro-grid `start ∈ {16..20}`, `end ∈ {2..6}` (wraps)
 - TOD interaction (`--axis tod_interaction`): `start ∈ {17,18,19}`, `end ∈ {3,4,5}`, `skip_first_bars ∈ {0,1,2}`, `cooldown_bars ∈ {0,1,2}`
+- Permission joint (`--axis perm_joint`): combines `tod` windows (incl base/off + selected RTH/overnight) × `spread` variants × `volume` variants (no funnel pruning)
 - Weekdays (`--axis weekday`): several hand-picked sets (Mon–Fri, Tue–Thu, etc.)
 - EMA spread gate (`--axis spread`): `ema_spread_min_pct ∈ {None, 0.005, 0.01, 0.02, 0.03, 0.05, 0.10}`
 - EMA spread fine (`--axis spread_fine`): `ema_spread_min_pct ∈ {None, 0.0020..0.0080 step 0.0005}`
@@ -321,6 +322,7 @@ This is a **quick map of what the sweeps actually cover** (outer edges), so we c
 - Regime2 EMA confirm (`--axis regime2_ema`): `EMA preset ∈ {3/7,4/9,5/10,8/21,9/21,21/50}`, `bar ∈ {4 hours, 1 day}`
 - Joint regime×regime2 (`--axis joint`): a tight interaction grid around `regime ST(10/14/21, mult 0.4–0.6)` × `regime2 (4h/1d) ST2(3..14, mult 0.2–0.5)`
 - Micro ST neighborhood (`--axis micro_st`): granular mult grid around the current post-fix champ neighborhood (4h ST + 4h ST2, close source)
+- Regime×ATR joint (`--axis regime_atr`): shortlist regimes (`ST @ {4h,1d}`, `ATR ∈ {3,5,6,7,10,14,21}`, `mult ∈ {0.4..1.5}`, `src ∈ {hl2,close}`) → exit micro-grid (`ATR ∈ {10,14,21}`, `PTx ∈ {0.6..1.0}`, `SLx ∈ {1.2..2.0}`)
 
 **Exits / position management**
 - Fixed % exits (`--axis ptsl`): `PT ∈ {0.005, 0.01, 0.015, 0.02}`, `SL ∈ {0.015, 0.02, 0.03}`
@@ -328,6 +330,7 @@ This is a **quick map of what the sweeps actually cover** (outer edges), so we c
 - ATR exits fine (`--axis atr_fine`): `ATR period ∈ {7,10,14,21}`, `PTx ∈ {0.8,0.9,1.0,1.1,1.2}`, `SLx ∈ {1.2..1.8 step 0.1}`
 - ATR exits ultra (`--axis atr_ultra`): `ATR period=7`, `PTx ∈ {1.05,1.08,1.10,1.12,1.15}`, `SLx ∈ {1.35..1.55 step 0.05}`
 - Regime2×ATR joint (`--axis r2_atr`): regime2 Supertrend coarse scan (`ATR ∈ {7,10,11,14,21}`, `mult ∈ {0.6,0.8,1.0,1.2,1.5}`, `src ∈ {hl2,close}`, `bar ∈ {4h,1d}`) → exit micro-grid (`ATR ∈ {14,21}`, `PTx ∈ {0.6..1.0}`, `SLx ∈ {1.2..2.2}`)
+- Regime2×TOD joint (`--axis r2_tod`): shortlist regime2 settings (`ST2 @ {4h,1d}`; see `evolve_spot.py`) → sweep TOD windows (RTH + overnight micro-grid)
 - Flip-exit semantics (`--axis flip_exit`): `exit_on_signal_flip ∈ {on,off}`, `flip_exit_mode ∈ {entry,state,cross}`, `hold ∈ {0,2,4,6}`, `only_if_profit ∈ {0,1}`
 - Loosenings (`--axis loosen`): `max_open_trades ∈ {1,2,3,0}`, `spot_close_eod ∈ {0,1}`
 - Exit-time flatten (`--axis exit_time`): `spot_exit_time_et ∈ {None, 04:00, 09:30, 10:00, 11:00, 16:00, 17:00}`
@@ -374,30 +377,30 @@ Quick “max net PnL” snapshots (generated 2026-01-15, post-intraday-timestamp
 
 - **#1 Best 30m (max PnL):**
   - Signal (timing): `30 mins`, EMA `2/4` cross, `entry_confirm_bars=0`
-  - Regime (bias): Supertrend on `4 hours`, `ATR=6`, `mult=1.0`, `src=hl2`
-  - Permission (time-of-day): `entry_start_hour_et=18`, `entry_end_hour_et=4` (wraps overnight)
+  - Regime (bias): Supertrend on `4 hours`, `ATR=3`, `mult=0.4`, `src=hl2`
+  - Permission (time-of-day): `entry_start_hour_et=18`, `entry_end_hour_et=6` (wraps overnight)
   - Regime2 (confirm): `off`
   - Exits: `spot_exit_mode=atr`, `spot_atr_period=14`, `spot_pt_atr_mult=0.70`, `spot_sl_atr_mult=1.60`, `exit_on_signal_flip=true`, `flip_exit_min_hold_bars=4`
   - Loosenings: `max_entries_per_day=0`, `max_open_trades=2`, `spot_close_eod=false`
-  - Stats: `trades=517`, `win=62.3%`, `pnl=+18722.5`, `dd=1527.0`, `pnl/dd=12.26`
+  - Stats: `trades=604`, `win=61.4%`, `pnl=+19147.5`, `dd=1622.5`, `pnl/dd=11.80`
 
 - **#2 Best 30m (max PnL, lower DD via regime2):**
   - Signal (timing): `30 mins`, EMA `2/4` cross, `entry_confirm_bars=0`
   - Regime (bias): Supertrend on `4 hours`, `ATR=6`, `mult=1.0`, `src=hl2`
-  - Permission (time-of-day): `entry_start_hour_et=18`, `entry_end_hour_et=4` (wraps overnight)
+  - Permission (time-of-day): `entry_start_hour_et=18`, `entry_end_hour_et=6` (wraps overnight)
   - Regime2 (confirm): Supertrend on `4 hours`, `ATR=14`, `mult=1.0`, `src=hl2`
   - Exits: `spot_exit_mode=atr`, `spot_atr_period=14`, `spot_pt_atr_mult=0.70`, `spot_sl_atr_mult=1.60`, `exit_on_signal_flip=true`, `flip_exit_min_hold_bars=4`
   - Loosenings: `max_entries_per_day=0`, `max_open_trades=2`, `spot_close_eod=false`
-  - Stats: `trades=495`, `win=62.2%`, `pnl=+18597.5`, `dd=1159.0`, `pnl/dd=16.05`
+  - Stats: `trades=601`, `win=62.2%`, `pnl=+19108.0`, `dd=2151.5`, `pnl/dd=8.88`
 
-- **#3 Best 30m (max PnL, alternative PT):**
+- **#3 Best 30m (max PnL, alternative ATR exits):**
   - Signal (timing): `30 mins`, EMA `2/4` cross, `entry_confirm_bars=0`
   - Regime (bias): Supertrend on `4 hours`, `ATR=6`, `mult=1.0`, `src=hl2`
-  - Permission (time-of-day): `entry_start_hour_et=18`, `entry_end_hour_et=4` (wraps overnight)
+  - Permission (time-of-day): `entry_start_hour_et=18`, `entry_end_hour_et=6` (wraps overnight)
   - Regime2 (confirm): `off`
-  - Exits: `spot_exit_mode=atr`, `spot_atr_period=14`, `spot_pt_atr_mult=0.75`, `spot_sl_atr_mult=1.60`, `exit_on_signal_flip=true`, `flip_exit_min_hold_bars=4`
+  - Exits: `spot_exit_mode=atr`, `spot_atr_period=10`, `spot_pt_atr_mult=0.75`, `spot_sl_atr_mult=1.40`, `exit_on_signal_flip=true`, `flip_exit_min_hold_bars=4`
   - Loosenings: `max_entries_per_day=0`, `max_open_trades=2`, `spot_close_eod=false`
-  - Stats: `trades=517`, `win=61.1%`, `pnl=+18576.0`, `dd=1388.5`, `pnl/dd=13.38`
+  - Stats: `trades=633`, `win=60.8%`, `pnl=+19060.0`, `dd=2128.5`, `pnl/dd=8.95`
 
 Full presets: see `tradebot/backtest/spot_milestones.json` (top entries) for exact strategy payloads (these are loaded as presets in the TUI automatically).
 
