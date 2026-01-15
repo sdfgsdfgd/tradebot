@@ -552,6 +552,8 @@ def main() -> None:
             "atr_ultra",
             "r2_atr",
             "r2_tod",
+            "ema_perm_joint",
+            "tick_perm_joint",
             "regime_atr",
             "ptsl",
             "hold",
@@ -1152,6 +1154,243 @@ def main() -> None:
         if base_row:
             rows.append(base_row)
         _print_leaderboards(rows, title="Permission joint sweep (TOD × spread × volume)", top_n=int(args.top))
+
+    def _sweep_ema_perm_joint() -> None:
+        """Joint sweep: EMA preset × (TOD/spread/volume) permission gates."""
+        bars_sig = _bars_cached(signal_bar_size)
+        base = _base_bundle(bar_size=signal_bar_size, filters=None)
+        base_row = _run_cfg(
+            cfg=base, bars=bars_sig, regime_bars=_regime_bars_for(base), regime2_bars=_regime2_bars_for(base)
+        )
+        if base_row:
+            base_row["note"] = "base"
+            _record_milestone(base, base_row, "base")
+
+        base_filters = base.strategy.filters
+        presets = ["2/4", "3/7", "4/9", "5/10", "8/21", "9/21", "21/50"]
+
+        # Stage 1: evaluate presets with base filters only.
+        best_by_ema: dict[str, dict] = {}
+        for preset in presets:
+            cfg = replace(base, strategy=replace(base.strategy, ema_preset=str(preset), entry_signal="ema"))
+            row = _run_cfg(
+                cfg=cfg,
+                bars=bars_sig,
+                regime_bars=_regime_bars_for(cfg),
+                regime2_bars=_regime2_bars_for(cfg),
+            )
+            if not row:
+                continue
+            best_by_ema[str(preset)] = {"row": row}
+
+        shortlisted = _shortlisted_keys(best_by_ema, top_pnl=5, top_pnl_dd=5)
+        if not shortlisted:
+            print("No eligible EMA presets (try lowering --min-trades).")
+            return
+        print("")
+        print(f"EMA×Perm: stage1 shortlisted ema={len(shortlisted)} (from {len(best_by_ema)})")
+
+        tod_variants = [
+            ("tod=base", {}),
+            ("tod=off", {"entry_start_hour_et": None, "entry_end_hour_et": None}),
+            ("tod=18-04 ET", {"entry_start_hour_et": 18, "entry_end_hour_et": 4}),
+            ("tod=18-05 ET", {"entry_start_hour_et": 18, "entry_end_hour_et": 5}),
+            ("tod=18-06 ET", {"entry_start_hour_et": 18, "entry_end_hour_et": 6}),
+            ("tod=17-04 ET", {"entry_start_hour_et": 17, "entry_end_hour_et": 4}),
+            ("tod=19-04 ET", {"entry_start_hour_et": 19, "entry_end_hour_et": 4}),
+            ("tod=09-16 ET", {"entry_start_hour_et": 9, "entry_end_hour_et": 16}),
+        ]
+        spread_variants: list[tuple[str, dict[str, object]]] = [
+            ("spread=base", {}),
+            ("spread=off", {"ema_spread_min_pct": None}),
+            ("spread>=0.0030", {"ema_spread_min_pct": 0.003}),
+            ("spread>=0.0040", {"ema_spread_min_pct": 0.004}),
+            ("spread>=0.0050", {"ema_spread_min_pct": 0.005}),
+            ("spread>=0.0070", {"ema_spread_min_pct": 0.007}),
+            ("spread>=0.0100", {"ema_spread_min_pct": 0.01}),
+        ]
+        vol_variants: list[tuple[str, dict[str, object]]] = [
+            ("vol=base", {}),
+            ("vol=off", {"volume_ratio_min": None, "volume_ema_period": None}),
+            ("vol>=1.2@20", {"volume_ratio_min": 1.2, "volume_ema_period": 20}),
+        ]
+
+        rows: list[dict] = []
+        for preset in shortlisted:
+            for tod_note, tod_over in tod_variants:
+                for spread_note, spread_over in spread_variants:
+                    for vol_note, vol_over in vol_variants:
+                        overrides: dict[str, object] = {}
+                        overrides.update(tod_over)
+                        overrides.update(spread_over)
+                        overrides.update(vol_over)
+                        f = _merge_filters(base_filters, overrides=overrides)
+                        cfg = replace(
+                            base,
+                            strategy=replace(
+                                base.strategy,
+                                ema_preset=str(preset),
+                                entry_signal="ema",
+                                filters=f,
+                            ),
+                        )
+                        row = _run_cfg(
+                            cfg=cfg,
+                            bars=bars_sig,
+                            regime_bars=_regime_bars_for(cfg),
+                            regime2_bars=_regime2_bars_for(cfg),
+                        )
+                        if not row:
+                            continue
+                        note = f"ema={preset} | {tod_note} | {spread_note} | {vol_note}"
+                        row["note"] = note
+                        _record_milestone(cfg, row, note)
+                        rows.append(row)
+
+        if base_row:
+            rows.append(base_row)
+        _print_leaderboards(rows, title="EMA × permission joint sweep", top_n=int(args.top))
+
+    def _sweep_tick_perm_joint() -> None:
+        """Joint sweep: Raschke $TICK gate × (TOD/spread/volume) permission gates."""
+        bars_sig = _bars_cached(signal_bar_size)
+        base = _base_bundle(bar_size=signal_bar_size, filters=None)
+        base_row = _run_cfg(
+            cfg=base, bars=bars_sig, regime_bars=_regime_bars_for(base), regime2_bars=_regime2_bars_for(base)
+        )
+        if base_row:
+            base_row["note"] = "base"
+            _record_milestone(base, base_row, "base")
+
+        base_filters = base.strategy.filters
+
+        # Stage 1: scan tick params using base permission filters (cheap shortlist).
+        best_by_tick: dict[tuple, dict] = {}
+        z_enters = [0.8, 1.0, 1.2]
+        z_exits = [0.4, 0.5, 0.6]
+        slope_lbs = [3, 5]
+        lookbacks = [126, 252]
+        policies = ["allow", "block"]
+        dir_policies = ["both", "wide_only"]
+        for dir_policy in dir_policies:
+            for policy in policies:
+                for z_enter in z_enters:
+                    for z_exit in z_exits:
+                        for slope_lb in slope_lbs:
+                            for lookback in lookbacks:
+                                cfg = replace(
+                                    base,
+                                    strategy=replace(
+                                        base.strategy,
+                                        tick_gate_mode="raschke",
+                                        tick_gate_symbol="TICK-AMEX",
+                                        tick_gate_exchange="AMEX",
+                                        tick_neutral_policy=str(policy),
+                                        tick_direction_policy=str(dir_policy),
+                                        tick_band_ma_period=10,
+                                        tick_width_z_lookback=int(lookback),
+                                        tick_width_z_enter=float(z_enter),
+                                        tick_width_z_exit=float(z_exit),
+                                        tick_width_slope_lookback=int(slope_lb),
+                                    ),
+                                )
+                                row = _run_cfg(
+                                    cfg=cfg,
+                                    bars=bars_sig,
+                                    regime_bars=_regime_bars_for(cfg),
+                                    regime2_bars=_regime2_bars_for(cfg),
+                                )
+                                if not row:
+                                    continue
+                                tick_key = (
+                                    str(dir_policy),
+                                    str(policy),
+                                    float(z_enter),
+                                    float(z_exit),
+                                    int(slope_lb),
+                                    int(lookback),
+                                )
+                                current = best_by_tick.get(tick_key)
+                                if current is None or _score_row_pnl(row) > _score_row_pnl(current["row"]):
+                                    best_by_tick[tick_key] = {"row": row}
+
+        shortlisted = _shortlisted_keys(best_by_tick, top_pnl=8, top_pnl_dd=8)
+        if not shortlisted:
+            print("No eligible tick candidates (check $TICK cache/permissions, or lower --min-trades).")
+            return
+        print("")
+        print(f"TICK×Perm: stage1 shortlisted tick={len(shortlisted)} (from {len(best_by_tick)})")
+
+        tod_variants = [
+            ("tod=base", {}),
+            ("tod=off", {"entry_start_hour_et": None, "entry_end_hour_et": None}),
+            ("tod=18-04 ET", {"entry_start_hour_et": 18, "entry_end_hour_et": 4}),
+            ("tod=18-05 ET", {"entry_start_hour_et": 18, "entry_end_hour_et": 5}),
+            ("tod=18-06 ET", {"entry_start_hour_et": 18, "entry_end_hour_et": 6}),
+            ("tod=17-04 ET", {"entry_start_hour_et": 17, "entry_end_hour_et": 4}),
+            ("tod=19-04 ET", {"entry_start_hour_et": 19, "entry_end_hour_et": 4}),
+        ]
+        spread_variants: list[tuple[str, dict[str, object]]] = [
+            ("spread=base", {}),
+            ("spread=off", {"ema_spread_min_pct": None}),
+            ("spread>=0.0030", {"ema_spread_min_pct": 0.003}),
+            ("spread>=0.0040", {"ema_spread_min_pct": 0.004}),
+            ("spread>=0.0050", {"ema_spread_min_pct": 0.005}),
+            ("spread>=0.0070", {"ema_spread_min_pct": 0.007}),
+        ]
+        vol_variants: list[tuple[str, dict[str, object]]] = [
+            ("vol=base", {}),
+            ("vol=off", {"volume_ratio_min": None, "volume_ema_period": None}),
+            ("vol>=1.2@20", {"volume_ratio_min": 1.2, "volume_ema_period": 20}),
+        ]
+
+        rows: list[dict] = []
+        for tick_key in shortlisted:
+            dir_policy, policy, z_enter, z_exit, slope_lb, lookback = tick_key
+            for tod_note, tod_over in tod_variants:
+                for spread_note, spread_over in spread_variants:
+                    for vol_note, vol_over in vol_variants:
+                        overrides: dict[str, object] = {}
+                        overrides.update(tod_over)
+                        overrides.update(spread_over)
+                        overrides.update(vol_over)
+                        f = _merge_filters(base_filters, overrides=overrides)
+                        cfg = replace(
+                            base,
+                            strategy=replace(
+                                base.strategy,
+                                filters=f,
+                                tick_gate_mode="raschke",
+                                tick_gate_symbol="TICK-AMEX",
+                                tick_gate_exchange="AMEX",
+                                tick_neutral_policy=str(policy),
+                                tick_direction_policy=str(dir_policy),
+                                tick_band_ma_period=10,
+                                tick_width_z_lookback=int(lookback),
+                                tick_width_z_enter=float(z_enter),
+                                tick_width_z_exit=float(z_exit),
+                                tick_width_slope_lookback=int(slope_lb),
+                            ),
+                        )
+                        row = _run_cfg(
+                            cfg=cfg,
+                            bars=bars_sig,
+                            regime_bars=_regime_bars_for(cfg),
+                            regime2_bars=_regime2_bars_for(cfg),
+                        )
+                        if not row:
+                            continue
+                        note = (
+                            f"tick=raschke dir={dir_policy} policy={policy} z_in={z_enter:g} z_out={z_exit:g} "
+                            f"slope={slope_lb} lb={lookback} | {tod_note} | {spread_note} | {vol_note}"
+                        )
+                        row["note"] = note
+                        _record_milestone(cfg, row, note)
+                        rows.append(row)
+
+        if base_row:
+            rows.append(base_row)
+        _print_leaderboards(rows, title="Tick × permission joint sweep", top_n=int(args.top))
 
     def _sweep_weekdays() -> None:
         """Gate exploration: which UTC weekdays contribute to the edge."""
@@ -2882,6 +3121,10 @@ def main() -> None:
         _sweep_tod_interaction()
     if axis == "perm_joint":
         _sweep_perm_joint()
+    if axis == "ema_perm_joint":
+        _sweep_ema_perm_joint()
+    if axis == "tick_perm_joint":
+        _sweep_tick_perm_joint()
     if axis == "weekday":
         _sweep_weekdays()
     if axis == "exit_time":

@@ -303,6 +303,8 @@ This is a **quick map of what the sweeps actually cover** (outer edges), so we c
 - Time-of-day ET (`--axis tod`): RTH windows `(9–16, 10–15, 11–16)` and overnight micro-grid `start ∈ {16..20}`, `end ∈ {2..6}` (wraps)
 - TOD interaction (`--axis tod_interaction`): `start ∈ {17,18,19}`, `end ∈ {3,4,5}`, `skip_first_bars ∈ {0,1,2}`, `cooldown_bars ∈ {0,1,2}`
 - Permission joint (`--axis perm_joint`): combines `tod` windows (incl base/off + selected RTH/overnight) × `spread` variants × `volume` variants (no funnel pruning)
+- EMA×permission joint (`--axis ema_perm_joint`): shortlist `ema_preset ∈ {2/4,3/7,4/9,5/10,8/21,9/21,21/50}` → sweep a targeted set of `tod/spread/volume` combos
+- Tick×permission joint (`--axis tick_perm_joint`): shortlist Raschke `$TICK` params (`z_enter/z_exit/slope/lookback/policy/dir_policy`) → sweep a targeted set of `tod/spread/volume` combos
 - Weekdays (`--axis weekday`): several hand-picked sets (Mon–Fri, Tue–Thu, etc.)
 - EMA spread gate (`--axis spread`): `ema_spread_min_pct ∈ {None, 0.005, 0.01, 0.02, 0.03, 0.05, 0.10}`
 - EMA spread fine (`--axis spread_fine`): `ema_spread_min_pct ∈ {None, 0.0020..0.0080 step 0.0005}`
@@ -378,29 +380,29 @@ Quick “max net PnL” snapshots (generated 2026-01-15, post-intraday-timestamp
 - **#1 Best 30m (max PnL):**
   - Signal (timing): `30 mins`, EMA `2/4` cross, `entry_confirm_bars=0`
   - Regime (bias): Supertrend on `4 hours`, `ATR=3`, `mult=0.4`, `src=hl2`
-  - Permission (time-of-day): `entry_start_hour_et=18`, `entry_end_hour_et=6` (wraps overnight)
+  - Permission (time-of-day): `off`
   - Regime2 (confirm): `off`
   - Exits: `spot_exit_mode=atr`, `spot_atr_period=14`, `spot_pt_atr_mult=0.70`, `spot_sl_atr_mult=1.60`, `exit_on_signal_flip=true`, `flip_exit_min_hold_bars=4`
   - Loosenings: `max_entries_per_day=0`, `max_open_trades=2`, `spot_close_eod=false`
-  - Stats: `trades=604`, `win=61.4%`, `pnl=+19147.5`, `dd=1622.5`, `pnl/dd=11.80`
+  - Stats: `trades=1022`, `win=56.0%`, `pnl=+22401.5`, `dd=2792.0`, `pnl/dd=8.02`
 
-- **#2 Best 30m (max PnL, lower DD via regime2):**
+- **#2 Best 30m (max PnL, spread-gated):**
   - Signal (timing): `30 mins`, EMA `2/4` cross, `entry_confirm_bars=0`
-  - Regime (bias): Supertrend on `4 hours`, `ATR=6`, `mult=1.0`, `src=hl2`
-  - Permission (time-of-day): `entry_start_hour_et=18`, `entry_end_hour_et=6` (wraps overnight)
-  - Regime2 (confirm): Supertrend on `4 hours`, `ATR=14`, `mult=1.0`, `src=hl2`
+  - Regime (bias): Supertrend on `4 hours`, `ATR=3`, `mult=0.4`, `src=hl2`
+  - Permission (quality): `ema_spread_min_pct=0.003`
+  - Regime2 (confirm): `off`
   - Exits: `spot_exit_mode=atr`, `spot_atr_period=14`, `spot_pt_atr_mult=0.70`, `spot_sl_atr_mult=1.60`, `exit_on_signal_flip=true`, `flip_exit_min_hold_bars=4`
   - Loosenings: `max_entries_per_day=0`, `max_open_trades=2`, `spot_close_eod=false`
-  - Stats: `trades=601`, `win=62.2%`, `pnl=+19108.0`, `dd=2151.5`, `pnl/dd=8.88`
+  - Stats: `trades=898`, `win=55.7%`, `pnl=+21070.0`, `dd=2229.0`, `pnl/dd=9.45`
 
-- **#3 Best 30m (max PnL, alternative ATR exits):**
+- **#3 Best 30m (max PnL, spread-gated):**
   - Signal (timing): `30 mins`, EMA `2/4` cross, `entry_confirm_bars=0`
-  - Regime (bias): Supertrend on `4 hours`, `ATR=6`, `mult=1.0`, `src=hl2`
-  - Permission (time-of-day): `entry_start_hour_et=18`, `entry_end_hour_et=6` (wraps overnight)
+  - Regime (bias): Supertrend on `4 hours`, `ATR=3`, `mult=0.4`, `src=hl2`
+  - Permission (quality): `ema_spread_min_pct=0.005`
   - Regime2 (confirm): `off`
-  - Exits: `spot_exit_mode=atr`, `spot_atr_period=10`, `spot_pt_atr_mult=0.75`, `spot_sl_atr_mult=1.40`, `exit_on_signal_flip=true`, `flip_exit_min_hold_bars=4`
+  - Exits: `spot_exit_mode=atr`, `spot_atr_period=14`, `spot_pt_atr_mult=0.70`, `spot_sl_atr_mult=1.60`, `exit_on_signal_flip=true`, `flip_exit_min_hold_bars=4`
   - Loosenings: `max_entries_per_day=0`, `max_open_trades=2`, `spot_close_eod=false`
-  - Stats: `trades=633`, `win=60.8%`, `pnl=+19060.0`, `dd=2128.5`, `pnl/dd=8.95`
+  - Stats: `trades=811`, `win=55.7%`, `pnl=+20729.0`, `dd=2070.5`, `pnl/dd=10.01`
 
 Full presets: see `tradebot/backtest/spot_milestones.json` (top entries) for exact strategy payloads (these are loaded as presets in the TUI automatically).
 
