@@ -75,10 +75,12 @@ class StrategyConfig:
     orb_window_mins: int = 15
     orb_risk_reward: float = 2.0
     orb_target_mode: str = "rr"  # "rr" | "or_range"
+    orb_open_time_et: str | None = None  # e.g. "09:30" (defaults to 09:30 ET)
     spot_exit_mode: str = "pct"
     spot_atr_period: int = 14
     spot_pt_atr_mult: float = 1.5
     spot_sl_atr_mult: float = 1.0
+    spot_exit_time_et: str | None = None  # e.g. "09:30" (exit on/after this ET time)
     regime_mode: str = "ema"
     regime2_mode: str = "off"  # "off" | "ema" | "supertrend"
     regime2_ema_preset: str | None = None
@@ -217,10 +219,12 @@ def load_config(path: str | Path) -> ConfigBundle:
         orb_window_mins=_parse_positive_int(strategy_raw.get("orb_window_mins"), default=15),
         orb_risk_reward=_parse_positive_float(strategy_raw.get("orb_risk_reward"), default=2.0),
         orb_target_mode=_parse_orb_target_mode(strategy_raw.get("orb_target_mode")),
+        orb_open_time_et=strategy_raw.get("orb_open_time_et"),
         spot_exit_mode=_parse_spot_exit_mode(strategy_raw.get("spot_exit_mode")),
         spot_atr_period=_parse_positive_int(strategy_raw.get("spot_atr_period"), default=14),
         spot_pt_atr_mult=_parse_positive_float(strategy_raw.get("spot_pt_atr_mult"), default=1.5),
         spot_sl_atr_mult=_parse_positive_float(strategy_raw.get("spot_sl_atr_mult"), default=1.0),
+        spot_exit_time_et=strategy_raw.get("spot_exit_time_et"),
         regime_mode=_parse_regime_mode(strategy_raw.get("regime_mode")),
         regime2_mode=_parse_regime_gate_mode(strategy_raw.get("regime2_mode")),
         regime2_ema_preset=_parse_ema_preset(strategy_raw.get("regime2_ema_preset")),

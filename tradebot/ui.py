@@ -28,6 +28,7 @@ from .decision_core import (
     apply_regime_gate,
     cooldown_ok_by_time,
     flip_exit_hit,
+    parse_time_hhmm,
     realized_vol_from_closes,
     signal_filters_ok,
 )
@@ -1519,10 +1520,12 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
         self._strategy.setdefault("orb_window_mins", 15)
         self._strategy.setdefault("orb_risk_reward", 2.0)
         self._strategy.setdefault("orb_target_mode", "rr")
+        self._strategy.setdefault("orb_open_time_et", "")
         self._strategy.setdefault("spot_exit_mode", "pct")
         self._strategy.setdefault("spot_atr_period", 14)
         self._strategy.setdefault("spot_pt_atr_mult", 1.5)
         self._strategy.setdefault("spot_sl_atr_mult", 1.0)
+        self._strategy.setdefault("spot_exit_time_et", "")
         self._strategy.setdefault("regime_ema_preset", "")
         self._strategy.setdefault("regime_bar_size", "")
         self._strategy.setdefault("regime_mode", "ema")
@@ -1570,6 +1573,7 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
             _BotConfigField("ORB window mins", "int", "orb_window_mins"),
             _BotConfigField("ORB risk reward", "float", "orb_risk_reward"),
             _BotConfigField("ORB target mode", "enum", "orb_target_mode", options=("rr", "or_range")),
+            _BotConfigField("ORB open time (ET)", "text", "orb_open_time_et"),
             _BotConfigField("Regime mode", "enum", "regime_mode", options=("ema", "supertrend")),
             _BotConfigField("Regime EMA preset", "text", "regime_ema_preset"),
             _BotConfigField(
@@ -1624,6 +1628,7 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
                     _BotConfigField("Spot secType", "enum", "spot_sec_type", options=("STK", "FUT")),
                     _BotConfigField("Spot exchange", "text", "spot_exchange"),
                     _BotConfigField("Spot close EOD", "bool", "spot_close_eod"),
+                    _BotConfigField("Spot exit time (ET)", "text", "spot_exit_time_et"),
                     _BotConfigField("Spot exit mode", "enum", "spot_exit_mode", options=("pct", "atr")),
                     _BotConfigField("Spot ATR period", "int", "spot_atr_period"),
                     _BotConfigField("Spot PT ATR mult", "float", "spot_pt_atr_mult"),
@@ -2854,7 +2859,16 @@ class BotScreen(Screen):
                         )
                         break
 
-                    if bool(instance.strategy.get("spot_close_eod")) and (now_et.hour > 15 or now_et.hour == 15 and now_et.minute >= 55):
+                    exit_time = parse_time_hhmm(instance.strategy.get("spot_exit_time_et"))
+                    if exit_time is not None and now_et.time() >= exit_time:
+                        self._queue_proposal(
+                            instance, intent="exit", direction=open_dir, signal_bar_ts=snap.bar_ts
+                        )
+                        break
+
+                    if bool(instance.strategy.get("spot_close_eod")) and (
+                        now_et.hour > 15 or now_et.hour == 15 and now_et.minute >= 55
+                    ):
                         self._queue_proposal(
                             instance, intent="exit", direction=open_dir, signal_bar_ts=snap.bar_ts
                         )
@@ -3320,7 +3334,10 @@ class BotScreen(Screen):
             except (TypeError, ValueError):
                 window = 15
             window = max(1, window)
-            orb_engine = OrbDecisionEngine(window_mins=window)
+            orb_open_time = parse_time_hhmm(instance.strategy.get("orb_open_time_et"), default=time(9, 30))
+            if orb_open_time is None:
+                orb_open_time = time(9, 30)
+            orb_engine = OrbDecisionEngine(window_mins=window, open_time_et=orb_open_time)
 
         last_ts = None
         last_close = None

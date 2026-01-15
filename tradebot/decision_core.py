@@ -43,6 +43,47 @@ def _ts_to_et(ts: datetime) -> datetime:
     return ts.astimezone(_ET_ZONE)
 
 
+def parse_time_hhmm(value: object, *, default: time | None = None) -> time | None:
+    """Parse times like '09:30' or '18:00' into a `datetime.time`.
+
+    Returns `default` when parsing fails or value is empty/None.
+    """
+    if value is None:
+        return default
+    if isinstance(value, time):
+        return value
+    if isinstance(value, (int, float)):
+        try:
+            hour = int(value)
+        except (TypeError, ValueError):
+            return default
+        if 0 <= hour <= 23:
+            return time(hour=hour, minute=0)
+        return default
+    raw = str(value).strip()
+    if not raw:
+        return default
+    if ":" not in raw:
+        try:
+            hour = int(raw)
+        except (TypeError, ValueError):
+            return default
+        if 0 <= hour <= 23:
+            return time(hour=hour, minute=0)
+        return default
+    parts = raw.split(":")
+    if len(parts) != 2:
+        return default
+    try:
+        hour = int(parts[0].strip())
+        minute = int(parts[1].strip())
+    except (TypeError, ValueError):
+        return default
+    if not (0 <= hour <= 23 and 0 <= minute <= 59):
+        return default
+    return time(hour=hour, minute=minute)
+
+
 def annualization_factor(bar_size: str, use_rth: bool) -> float:
     label = str(bar_size or "").strip().lower()
     if "day" in label:
@@ -356,7 +397,9 @@ class OrbDecisionEngine:
         start = datetime.combine(session_date, self._open_time_et, tzinfo=_ET_ZONE)
         end = start + timedelta(minutes=int(self._window_mins))
 
-        in_or = start <= ts_et < end
+        # Our bar timestamps are treated as bar-close timestamps (naive UTC → ET via `_ts_to_et`).
+        # The OR window should therefore include bars whose close time lands within (start, end].
+        in_or = start < ts_et <= end
         if in_or and high > 0 and low > 0:
             self._or_high = float(high) if self._or_high is None else max(self._or_high, float(high))
             self._or_low = float(low) if self._or_low is None else min(self._or_low, float(low))

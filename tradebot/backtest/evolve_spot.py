@@ -140,6 +140,8 @@ def _bundle_base(
 
 def _mk_filters(
     *,
+    rv_min: float | None = None,
+    rv_max: float | None = None,
     ema_spread_min_pct: float | None = None,
     ema_slope_min_pct: float | None = None,
     cooldown_bars: int = 0,
@@ -150,8 +152,8 @@ def _mk_filters(
     entry_end_hour_et: int | None = None,
 ) -> FiltersConfig | None:
     f = FiltersConfig(
-        rv_min=None,
-        rv_max=None,
+        rv_min=rv_min,
+        rv_max=rv_max,
         ema_spread_min_pct=ema_spread_min_pct,
         ema_slope_min_pct=ema_slope_min_pct,
         entry_start_hour=None,
@@ -401,6 +403,7 @@ def _apply_milestone_base(
         "orb_window_mins",
         "orb_risk_reward",
         "orb_target_mode",
+        "orb_open_time_et",
         "regime_mode",
         "regime_bar_size",
         "regime_ema_preset",
@@ -419,6 +422,7 @@ def _apply_milestone_base(
         "spot_sl_atr_mult",
         "spot_profit_target_pct",
         "spot_stop_loss_pct",
+        "spot_exit_time_et",
         "spot_close_eod",
         "exit_on_signal_flip",
         "flip_exit_mode",
@@ -536,15 +540,19 @@ def main() -> None:
             "combo",
             "squeeze",
             "volume",
+            "rv",
             "tod",
             "tod_interaction",
             "weekday",
+            "exit_time",
             "atr",
             "atr_fine",
             "atr_ultra",
+            "r2_atr",
             "ptsl",
             "hold",
             "orb",
+            "frontier",
             "regime",
             "regime2",
             "regime2_ema",
@@ -861,6 +869,42 @@ def main() -> None:
                 rows.append(row)
         _print_leaderboards(rows, title="A) Volume gate sweep", top_n=int(args.top))
 
+    def _sweep_rv() -> None:
+        """Orthogonal gate: annualized realized-vol (EWMA) band."""
+        bars_sig = _bars_cached(signal_bar_size)
+        base = _base_bundle(bar_size=signal_bar_size, filters=None)
+        base_row = _run_cfg(
+            cfg=base, bars=bars_sig, regime_bars=_regime_bars_for(base), regime2_bars=_regime2_bars_for(base)
+        )
+        if base_row:
+            base_row["note"] = "base"
+            _record_milestone(base, base_row, "base")
+
+        rv_mins = [None, 0.25, 0.3, 0.35, 0.4, 0.45]
+        rv_maxs = [None, 0.7, 0.8, 0.9, 1.0]
+        rows: list[dict] = []
+        for rv_min in rv_mins:
+            for rv_max in rv_maxs:
+                if rv_min is None and rv_max is None:
+                    continue
+                f = _mk_filters(rv_min=rv_min, rv_max=rv_max)
+                cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
+                row = _run_cfg(
+                    cfg=cfg,
+                    bars=bars_sig,
+                    regime_bars=_regime_bars_for(cfg),
+                    regime2_bars=_regime2_bars_for(cfg),
+                )
+                if not row:
+                    continue
+                note = f"rv_min={rv_min} rv_max={rv_max}"
+                row["note"] = note
+                _record_milestone(cfg, row, note)
+                rows.append(row)
+        if base_row:
+            rows.append(base_row)
+        _print_leaderboards(rows, title="RV gate sweep (annualized EWMA vol)", top_n=int(args.top))
+
     def _sweep_ema() -> None:
         bars_sig = _bars_cached(signal_bar_size)
         presets = ["2/4", "3/7", "4/9", "5/10", "8/21", "9/21"]
@@ -1027,10 +1071,50 @@ def main() -> None:
             rows.append(base_row)
         _print_leaderboards(rows, title="Weekday sweep (UTC weekday gating)", top_n=int(args.top))
 
+    def _sweep_exit_time() -> None:
+        """Session-aware exit experiment: force a daily time-based flatten (ET)."""
+        bars_sig = _bars_cached(signal_bar_size)
+        base = _base_bundle(bar_size=signal_bar_size, filters=None)
+        base_row = _run_cfg(
+            cfg=base, bars=bars_sig, regime_bars=_regime_bars_for(base), regime2_bars=_regime2_bars_for(base)
+        )
+        if base_row:
+            base_row["note"] = "base"
+            _record_milestone(base, base_row, "base")
+
+        times = [
+            None,
+            "04:00",
+            "09:30",
+            "10:00",
+            "11:00",
+            "16:00",
+            "17:00",
+        ]
+        rows: list[dict] = []
+        for t in times:
+            cfg = replace(base, strategy=replace(base.strategy, spot_exit_time_et=t))
+            row = _run_cfg(
+                cfg=cfg,
+                bars=bars_sig,
+                regime_bars=_regime_bars_for(cfg),
+                regime2_bars=_regime2_bars_for(cfg),
+            )
+            if not row:
+                continue
+            note = "-" if t is None else f"exit_time={t} ET"
+            row["note"] = note
+            _record_milestone(cfg, row, note)
+            rows.append(row)
+        if base_row:
+            rows.append(base_row)
+        _print_leaderboards(rows, title="Exit-time sweep (ET flatten)", top_n=int(args.top))
+
     def _sweep_atr_exits() -> None:
         bars_sig = _bars_cached(signal_bar_size)
         atr_periods = [7, 10, 14, 21]
-        pt_mults = [1.0, 1.5, 2.0]
+        # Include a low-PT pocket (PTx<1.0): this has produced materially higher net PnL post-fix.
+        pt_mults = [0.6, 0.8, 0.9, 1.0, 1.5, 2.0]
         sl_mults = [1.0, 1.5, 2.0]
         rows: list[dict] = []
         for atr_p in atr_periods:
@@ -1066,7 +1150,8 @@ def main() -> None:
     def _sweep_atr_exits_fine() -> None:
         """Fine-grained ATR exit sweep around the current champion neighborhood."""
         bars_sig = _bars_cached(signal_bar_size)
-        atr_periods = [7, 10]
+        # Cover both the risk-adjusted champ neighborhood (ATR 7/10) and the net-PnL pocket (ATR 14/21).
+        atr_periods = [7, 10, 14, 21]
         pt_mults = [0.8, 0.9, 1.0, 1.1, 1.2]
         sl_mults = [1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8]
         rows: list[dict] = []
@@ -1137,6 +1222,201 @@ def main() -> None:
                     rows.append(row)
         _print_leaderboards(rows, title="ATR exits ultra-fine sweep (PT/SL micro-grid)", top_n=int(args.top))
 
+    def _sweep_r2_atr() -> None:
+        """Joint interaction hunt: regime2 confirm × ATR exits (includes PTx < 1.0)."""
+        bars_sig = _bars_cached(signal_bar_size)
+        base = _base_bundle(bar_size=signal_bar_size, filters=None)
+        base_row = _run_cfg(
+            cfg=base, bars=bars_sig, regime_bars=_regime_bars_for(base), regime2_bars=_regime2_bars_for(base)
+        )
+        if base_row:
+            base_row["note"] = "base"
+            _record_milestone(base, base_row, "base")
+
+        # Stage 1: coarse scan to shortlist promising regime2 settings.
+        r2_variants: list[tuple[dict, str]] = [
+            ({"regime2_mode": "off", "regime2_bar_size": None}, "r2=off"),
+        ]
+        r2_bar_sizes = ["4 hours", "1 day"]
+        r2_atr_periods = [7, 10, 11, 14, 21]
+        r2_multipliers = [0.6, 0.8, 1.0, 1.2, 1.5]
+        r2_sources = ["hl2", "close"]
+        for r2_bar in r2_bar_sizes:
+            for atr_p in r2_atr_periods:
+                for mult in r2_multipliers:
+                    for src in r2_sources:
+                        r2_variants.append(
+                            (
+                                {
+                                    "regime2_mode": "supertrend",
+                                    "regime2_bar_size": str(r2_bar),
+                                    "regime2_supertrend_atr_period": int(atr_p),
+                                    "regime2_supertrend_multiplier": float(mult),
+                                    "regime2_supertrend_source": str(src),
+                                },
+                                f"r2=ST2({r2_bar}:{atr_p},{mult},{src})",
+                            )
+                        )
+
+        exit_stage1: list[tuple[dict, str]] = [
+            (
+                {
+                    "spot_exit_mode": "atr",
+                    "spot_atr_period": 14,
+                    "spot_pt_atr_mult": 0.8,
+                    "spot_sl_atr_mult": 1.6,
+                    "spot_profit_target_pct": None,
+                    "spot_stop_loss_pct": None,
+                },
+                "ATR(14) PTx0.80 SLx1.60",
+            ),
+            (
+                {
+                    "spot_exit_mode": "atr",
+                    "spot_atr_period": 14,
+                    "spot_pt_atr_mult": 0.9,
+                    "spot_sl_atr_mult": 1.6,
+                    "spot_profit_target_pct": None,
+                    "spot_stop_loss_pct": None,
+                },
+                "ATR(14) PTx0.90 SLx1.60",
+            ),
+            (
+                {
+                    "spot_exit_mode": "atr",
+                    "spot_atr_period": 21,
+                    "spot_pt_atr_mult": 0.9,
+                    "spot_sl_atr_mult": 1.4,
+                    "spot_profit_target_pct": None,
+                    "spot_stop_loss_pct": None,
+                },
+                "ATR(21) PTx0.90 SLx1.40",
+            ),
+            (
+                {
+                    "spot_exit_mode": "atr",
+                    "spot_atr_period": 14,
+                    "spot_pt_atr_mult": 1.0,
+                    "spot_sl_atr_mult": 1.5,
+                    "spot_profit_target_pct": None,
+                    "spot_stop_loss_pct": None,
+                },
+                "ATR(14) PTx1.00 SLx1.50",
+            ),
+        ]
+
+        stage1: list[tuple[tuple, dict, str]] = []
+        for r2_over, r2_note in r2_variants:
+            for exit_over, exit_note in exit_stage1:
+                cfg = replace(
+                    base,
+                    strategy=replace(
+                        base.strategy,
+                        regime2_mode=str(r2_over.get("regime2_mode") or "off"),
+                        regime2_bar_size=r2_over.get("regime2_bar_size"),
+                        regime2_supertrend_atr_period=int(r2_over.get("regime2_supertrend_atr_period") or 10),
+                        regime2_supertrend_multiplier=float(r2_over.get("regime2_supertrend_multiplier") or 3.0),
+                        regime2_supertrend_source=str(r2_over.get("regime2_supertrend_source") or "hl2"),
+                        spot_exit_mode=str(exit_over["spot_exit_mode"]),
+                        spot_atr_period=int(exit_over["spot_atr_period"]),
+                        spot_pt_atr_mult=float(exit_over["spot_pt_atr_mult"]),
+                        spot_sl_atr_mult=float(exit_over["spot_sl_atr_mult"]),
+                        spot_profit_target_pct=exit_over["spot_profit_target_pct"],
+                        spot_stop_loss_pct=exit_over["spot_stop_loss_pct"],
+                    ),
+                )
+                row = _run_cfg(
+                    cfg=cfg,
+                    bars=bars_sig,
+                    regime_bars=_regime_bars_for(cfg),
+                    regime2_bars=_regime2_bars_for(cfg),
+                )
+                if not row:
+                    continue
+                r2_key = (
+                    str(getattr(cfg.strategy, "regime2_mode", "off") or "off"),
+                    str(getattr(cfg.strategy, "regime2_bar_size", "") or ""),
+                    int(getattr(cfg.strategy, "regime2_supertrend_atr_period", 0) or 0),
+                    float(getattr(cfg.strategy, "regime2_supertrend_multiplier", 0.0) or 0.0),
+                    str(getattr(cfg.strategy, "regime2_supertrend_source", "") or ""),
+                )
+                note = f"{r2_note} | {exit_note}"
+                row["note"] = note
+                stage1.append((r2_key, row, note))
+
+        if not stage1:
+            print("No eligible results in stage1 (try lowering --min-trades).")
+            return
+
+        # Shortlist by best observed metrics per regime2 key.
+        best_by_r2: dict[tuple, dict] = {}
+        for r2_key, row, note in stage1:
+            current = best_by_r2.get(r2_key)
+            if current is None or _score_row_pnl(row) > _score_row_pnl(current["row"]):
+                best_by_r2[r2_key] = {"row": row, "note": note}
+
+        ranked_by_pnl = sorted(best_by_r2.items(), key=lambda t: _score_row_pnl(t[1]["row"]), reverse=True)[:8]
+        ranked_by_dd = sorted(best_by_r2.items(), key=lambda t: _score_row_pnl_dd(t[1]["row"]), reverse=True)[:8]
+        shortlisted_keys = []
+        seen: set[tuple] = set()
+        for r2_key, _ in ranked_by_pnl + ranked_by_dd:
+            if r2_key in seen:
+                continue
+            seen.add(r2_key)
+            shortlisted_keys.append(r2_key)
+
+        print("")
+        print(f"R2×ATR: stage1 shortlisted r2={len(shortlisted_keys)} (from {len(best_by_r2)})")
+
+        # Stage 2: exit microgrid for shortlisted regime2 settings.
+        pt_mults = [0.6, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.0]
+        sl_mults = [1.2, 1.4, 1.5, 1.6, 1.8, 2.0, 2.2]
+        atr_periods = [14, 21]
+
+        rows: list[dict] = []
+        for r2_key in shortlisted_keys:
+            r2_mode, r2_bar, r2_atr, r2_mult, r2_src = r2_key
+            for atr_p in atr_periods:
+                for pt_m in pt_mults:
+                    for sl_m in sl_mults:
+                        cfg = replace(
+                            base,
+                            strategy=replace(
+                                base.strategy,
+                                regime2_mode=str(r2_mode),
+                                regime2_bar_size=str(r2_bar) or None,
+                                regime2_supertrend_atr_period=int(r2_atr or 10),
+                                regime2_supertrend_multiplier=float(r2_mult or 3.0),
+                                regime2_supertrend_source=str(r2_src or "hl2"),
+                                spot_exit_mode="atr",
+                                spot_atr_period=int(atr_p),
+                                spot_pt_atr_mult=float(pt_m),
+                                spot_sl_atr_mult=float(sl_m),
+                                spot_profit_target_pct=None,
+                                spot_stop_loss_pct=None,
+                            ),
+                        )
+                        row = _run_cfg(
+                            cfg=cfg,
+                            bars=bars_sig,
+                            regime_bars=_regime_bars_for(cfg),
+                            regime2_bars=_regime2_bars_for(cfg),
+                        )
+                        if not row:
+                            continue
+                        if str(r2_mode).strip().lower() == "off":
+                            r2_note = "r2=off"
+                        else:
+                            r2_note = f"r2=ST2({r2_bar}:{r2_atr},{r2_mult:g},{r2_src})"
+                        note = f"{r2_note} | ATR({atr_p}) PTx{pt_m:.2f} SLx{sl_m:.2f}"
+                        row["note"] = note
+                        _record_milestone(cfg, row, note)
+                        rows.append(row)
+
+        if base_row:
+            rows.append(base_row)
+        _print_leaderboards(rows, title="Regime2 × ATR joint sweep (PT<1.0 pocket)", top_n=int(args.top))
+
     def _sweep_ptsl() -> None:
         bars_sig = _bars_cached(signal_bar_size)
         pt_vals = [0.005, 0.01, 0.015, 0.02]
@@ -1184,43 +1464,69 @@ def main() -> None:
 
     def _sweep_orb() -> None:
         bars_15m = _bars_cached("15 mins")
+        base = _base_bundle(bar_size="15 mins", filters=None)
+        base_row = _run_cfg(
+            cfg=base, bars=bars_15m, regime_bars=_regime_bars_for(base), regime2_bars=_regime2_bars_for(base)
+        )
+        if base_row:
+            base_row["note"] = "base"
+            _record_milestone(base, base_row, "base")
+
         rows: list[dict] = []
-        # Include classic fib ratios as well (0.618, 1.618) since ORB stop is the opposite OR extreme.
-        rr_vals = [0.618, 0.707, 0.75, 0.786, 0.8, 1.0, 1.5, 1.618, 2.0, 2.5, 3.0]
-        vol_vals = [None, 1.0, 1.2, 1.5]
-        for target_mode in ("rr", "or_range"):
-            for rr in rr_vals:
-                for vol_min in vol_vals:
-                    f = _mk_filters(volume_ratio_min=vol_min, volume_ema_period=20 if vol_min is not None else None)
-                    cfg = _base_bundle(bar_size="15 mins", filters=f)
-                    cfg = replace(
-                        cfg,
-                        strategy=replace(
-                            cfg.strategy,
-                            entry_signal="orb",
-                            ema_preset=None,
-                            entry_confirm_bars=0,
-                            orb_window_mins=15,
-                            orb_risk_reward=float(rr),
-                            orb_target_mode=str(target_mode),
-                            spot_profit_target_pct=None,
-                            spot_stop_loss_pct=None,
-                        ),
-                    )
-                    row = _run_cfg(
-                        cfg=cfg,
-                        bars=bars_15m,
-                        regime_bars=_regime_bars_for(cfg),
-                        regime2_bars=_regime2_bars_for(cfg),
-                    )
-                    if not row:
-                        continue
-                    vol_note = "-" if vol_min is None else f"vol>={vol_min}@20"
-                    note = f"ORB 15m {target_mode} rr={rr} {vol_note}"
-                    row["note"] = note
-                    _record_milestone(cfg, row, note)
-                    rows.append(row)
-        _print_leaderboards(rows, title="D) ORB sweep (15m timing + 1d Supertrend)", top_n=int(args.top))
+        rr_vals = [0.618, 0.707, 0.786, 1.0, 1.272, 1.618, 2.0]
+        vol_vals = [None, 1.2]
+        window_vals = [15, 30, 60]
+        sessions: list[tuple[str, int, int]] = [
+            ("09:30", 9, 16),  # RTH open
+            ("18:00", 18, 4),  # Globex open (overnight window wraps)
+        ]
+        for open_time, start_h, end_h in sessions:
+            for window_mins in window_vals:
+                for target_mode in ("rr", "or_range"):
+                    for rr in rr_vals:
+                        for vol_min in vol_vals:
+                            f = _mk_filters(
+                                entry_start_hour_et=int(start_h),
+                                entry_end_hour_et=int(end_h),
+                                volume_ratio_min=vol_min,
+                                volume_ema_period=20 if vol_min is not None else None,
+                            )
+                            cfg = replace(
+                                base,
+                                strategy=replace(
+                                    base.strategy,
+                                    # Override (not merge) filters so ORB isn't blocked by EMA-only gates.
+                                    filters=f,
+                                    entry_signal="orb",
+                                    ema_preset=None,
+                                    entry_confirm_bars=0,
+                                    orb_open_time_et=str(open_time),
+                                    orb_window_mins=int(window_mins),
+                                    orb_risk_reward=float(rr),
+                                    orb_target_mode=str(target_mode),
+                                    spot_profit_target_pct=None,
+                                    spot_stop_loss_pct=None,
+                                ),
+                            )
+                            row = _run_cfg(
+                                cfg=cfg,
+                                bars=bars_15m,
+                                regime_bars=_regime_bars_for(cfg),
+                                regime2_bars=_regime2_bars_for(cfg),
+                            )
+                            if not row:
+                                continue
+                            vol_note = "-" if vol_min is None else f"vol>={vol_min}@20"
+                            note = (
+                                f"ORB open={open_time} w={window_mins} {target_mode} rr={rr} "
+                                f"tod={start_h:02d}-{end_h:02d} ET {vol_note}"
+                            )
+                            row["note"] = note
+                            _record_milestone(cfg, row, note)
+                            rows.append(row)
+        if base_row:
+            rows.append(base_row)
+        _print_leaderboards(rows, title="D) ORB sweep (open-time + window)", top_n=int(args.top))
 
     def _sweep_regime() -> None:
         bars_sig = _bars_cached(signal_bar_size)
@@ -1769,6 +2075,70 @@ def main() -> None:
             rows.append(base_row)
         _print_leaderboards(rows, title="Tick gate sweep ($TICK width)", top_n=int(args.top))
 
+    def _sweep_frontier() -> None:
+        """Summarize the current milestones set as a multi-objective frontier."""
+        groups = milestones.get("groups", []) if isinstance(milestones, dict) else []
+        rows: list[dict] = []
+        for group in groups:
+            if not isinstance(group, dict):
+                continue
+            entries = group.get("entries") or []
+            if not entries or not isinstance(entries, list):
+                continue
+            entry = entries[0]
+            if not isinstance(entry, dict):
+                continue
+            strat = entry.get("strategy") or {}
+            metrics = entry.get("metrics") or {}
+            if not isinstance(strat, dict) or not isinstance(metrics, dict):
+                continue
+            if str(strat.get("instrument", "spot") or "spot").strip().lower() != "spot":
+                continue
+            if str(strat.get("signal_bar_size") or "").strip().lower() != str(signal_bar_size).strip().lower():
+                continue
+            if bool(strat.get("signal_use_rth")) != bool(use_rth):
+                continue
+            if str(entry.get("symbol") or "").strip().upper() != str(symbol).strip().upper():
+                continue
+            try:
+                trades = int(metrics.get("trades") or 0)
+                win = float(metrics.get("win_rate") or 0.0)
+                pnl = float(metrics.get("pnl") or 0.0)
+                dd = float(metrics.get("max_drawdown") or 0.0)
+                pnl_dd = metrics.get("pnl_over_dd")
+                pnl_over_dd = float(pnl_dd) if pnl_dd is not None else (pnl / dd if dd > 0 else None)
+            except (TypeError, ValueError):
+                continue
+            note = str(group.get("name") or "").strip() or "milestone"
+            rows.append(
+                {
+                    "trades": trades,
+                    "win_rate": win,
+                    "pnl": pnl,
+                    "dd": dd,
+                    "pnl_over_dd": pnl_over_dd,
+                    "note": note,
+                }
+            )
+
+        if not rows:
+            print("No matching spot milestones found for this bar_size/symbol.")
+            return
+
+        _print_leaderboards(rows, title="Milestones frontier (current presets)", top_n=int(args.top))
+
+        print("")
+        print("Frontier by win-rate constraint (best pnl):")
+        for thr in (0.55, 0.58, 0.60, 0.62, 0.65):
+            eligible = [r for r in rows if int(r.get("trades") or 0) >= int(run_min_trades) and float(r.get("win_rate") or 0.0) >= thr]
+            if not eligible:
+                continue
+            best = max(eligible, key=lambda r: float(r.get("pnl") or float("-inf")))
+            print(
+                f"- win>={thr:.2f}: pnl={best['pnl']:.1f} pnl/dd={(best['pnl_over_dd'] or 0):.2f} "
+                f"win={best['win_rate']*100:.1f}% tr={best['trades']} note={best.get('note')}"
+            )
+
     def _sweep_combo() -> None:
         """A constrained multi-axis sweep to find "corner" winners.
 
@@ -2158,18 +2528,24 @@ def main() -> None:
         _sweep_squeeze()
     if axis in ("all", "volume"):
         _sweep_volume()
+    if axis in ("all", "rv"):
+        _sweep_rv()
     if axis in ("all", "tod"):
         _sweep_tod()
     if axis == "tod_interaction":
         _sweep_tod_interaction()
     if axis == "weekday":
         _sweep_weekdays()
+    if axis == "exit_time":
+        _sweep_exit_time()
     if axis in ("all", "atr"):
         _sweep_atr_exits()
     if axis == "atr_fine":
         _sweep_atr_exits_fine()
     if axis == "atr_ultra":
         _sweep_atr_exits_ultra()
+    if axis == "r2_atr":
+        _sweep_r2_atr()
     if axis in ("all", "ptsl"):
         _sweep_ptsl()
     if axis in ("all", "hold"):
@@ -2204,6 +2580,8 @@ def main() -> None:
         _sweep_loosen()
     if axis in ("all", "tick"):
         _sweep_tick()
+    if axis == "frontier":
+        _sweep_frontier()
 
     if bool(args.write_milestones):
         eligible_new: list[dict] = []

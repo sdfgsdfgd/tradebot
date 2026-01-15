@@ -17,10 +17,12 @@ from ..decision_core import (
     EmaDecisionSnapshot,
     OrbDecisionEngine,
     SupertrendEngine,
+    _ts_to_et,
     apply_regime_gate,
     annualization_factor,
     cooldown_ok_by_index,
     flip_exit_hit,
+    parse_time_hhmm,
     signal_filters_ok,
 )
 from ..signals import ema_next, ema_periods as _ema_periods_shared
@@ -657,13 +659,15 @@ def _run_spot_backtest(
         if entry_signal == "ema"
         else None
     )
-    orb_engine = (
-        OrbDecisionEngine(
+    orb_engine = None
+    if entry_signal == "orb":
+        orb_open_time = parse_time_hhmm(getattr(cfg.strategy, "orb_open_time_et", None), default=time(9, 30))
+        if orb_open_time is None:
+            orb_open_time = time(9, 30)
+        orb_engine = OrbDecisionEngine(
             window_mins=int(getattr(cfg.strategy, "orb_window_mins", 15) or 15),
+            open_time_et=orb_open_time,
         )
-        if entry_signal == "orb"
-        else None
-    )
     regime_engine = (
         EmaDecisionEngine(
             ema_preset=str(cfg.strategy.regime_ema_preset),
@@ -743,6 +747,7 @@ def _run_spot_backtest(
     exit_mode = str(getattr(cfg.strategy, "spot_exit_mode", "pct") or "pct").strip().lower()
     if exit_mode not in ("pct", "atr"):
         exit_mode = "pct"
+    spot_exit_time = parse_time_hhmm(getattr(cfg.strategy, "spot_exit_time_et", None))
     exit_atr_engine = (
         SupertrendEngine(
             atr_period=int(getattr(cfg.strategy, "spot_atr_period", 14) or 14),
@@ -946,6 +951,11 @@ def _run_spot_backtest(
                 ):
                     should_close = True
                     reason = "flip"
+                elif spot_exit_time is not None:
+                    ts_et = _ts_to_et(bar.ts)
+                    if ts_et.time() >= spot_exit_time:
+                        should_close = True
+                        reason = "time"
                 elif cfg.strategy.spot_close_eod and is_last_bar:
                     should_close = True
                     reason = "eod"

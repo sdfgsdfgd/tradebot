@@ -291,7 +291,54 @@ For deeper “one axis at a time” exploration (still spot-only), run a single 
 python -m tradebot.backtest.evolve_spot --axis regime --cache-dir db
 ```
 
-Quick “current top 3” snapshots (generated 2026-01-14, post-intraday-timestamp-fix):
+### Sweep coverage (ranges tried so far)
+This is a **quick map of what the sweeps actually cover** (outer edges), so we can spot gaps and avoid re-running broad funnels.
+
+**Timing (signal layer)**
+- EMA preset (`--axis ema`): `2/4`, `3/7`, `4/9`, `5/10`, `8/21`, `9/21`
+- Entry semantics (`--axis entry_mode`): `ema_entry_mode ∈ {cross, trend}`, `entry_confirm_bars ∈ {0,1,2}`
+- Confirm-only (`--axis confirm`): `entry_confirm_bars ∈ {0,1,2,3}`
+
+**Permission / quality filters**
+- Time-of-day ET (`--axis tod`): RTH windows `(9–16, 10–15, 11–16)` and overnight micro-grid `start ∈ {16..20}`, `end ∈ {2..6}` (wraps)
+- TOD interaction (`--axis tod_interaction`): `start ∈ {17,18,19}`, `end ∈ {3,4,5}`, `skip_first_bars ∈ {0,1,2}`, `cooldown_bars ∈ {0,1,2}`
+- Weekdays (`--axis weekday`): several hand-picked sets (Mon–Fri, Tue–Thu, etc.)
+- EMA spread gate (`--axis spread`): `ema_spread_min_pct ∈ {None, 0.005, 0.01, 0.02, 0.03, 0.05, 0.10}`
+- EMA spread fine (`--axis spread_fine`): `ema_spread_min_pct ∈ {None, 0.0020..0.0080 step 0.0005}`
+- EMA slope gate (`--axis slope`): `ema_slope_min_pct ∈ {None, 0.005, 0.01, 0.02, 0.03, 0.05}`
+- Volume gate (`--axis volume`): `volume_ratio_min ∈ {None, 1.0, 1.1, 1.2, 1.5}`, `volume_ema_period ∈ {10,20,30}`
+- Realized-vol band gate (`--axis rv`): `rv_min ∈ {None, 0.25,0.30,0.35,0.40,0.45}`, `rv_max ∈ {None, 0.70,0.80,0.90,1.00}`
+- Cooldown (`--axis cooldown`): `cooldown_bars ∈ {0,1,2,3,4,6,8}`
+- Skip-open (`--axis skip_open`): `skip_first_bars ∈ {0,1,2,3,4,6}`
+- $TICK gate (“Raschke width”, `--axis tick`):
+  - `z_enter ∈ {0.8,1.0,1.2}`, `z_exit ∈ {0.4,0.5,0.6}`, `slope_lookback ∈ {3,5}`, `z_lookback ∈ {126,252}`
+  - `tick_neutral_policy ∈ {allow, block}`, `tick_direction_policy ∈ {both, wide_only}`
+  - Default symbol tries `TICK-AMEX` (fallback from `TICK-NYSE` if permissions/cache block it)
+
+**Bias / confirm (regime layers)**
+- Regime sweep (`--axis regime`): `regime_bar_size ∈ {4 hours, 1 day}`, `ST ATR ∈ {2,3,4,5,6,7,10,11,14,21}`, `mult ∈ {0.05..2.0 (curated list)}`, `src ∈ {close, hl2}`
+- Regime2 sweep (`--axis regime2`): `ST2 @ 4h`, same `ATR/mult/src` grid family as above
+- Regime2 EMA confirm (`--axis regime2_ema`): `EMA preset ∈ {3/7,4/9,5/10,8/21,9/21,21/50}`, `bar ∈ {4 hours, 1 day}`
+- Joint regime×regime2 (`--axis joint`): a tight interaction grid around `regime ST(10/14/21, mult 0.4–0.6)` × `regime2 (4h/1d) ST2(3..14, mult 0.2–0.5)`
+- Micro ST neighborhood (`--axis micro_st`): granular mult grid around the current post-fix champ neighborhood (4h ST + 4h ST2, close source)
+
+**Exits / position management**
+- Fixed % exits (`--axis ptsl`): `PT ∈ {0.005, 0.01, 0.015, 0.02}`, `SL ∈ {0.015, 0.02, 0.03}`
+- ATR exits coarse (`--axis atr`): `ATR period ∈ {7,10,14,21}`, `PTx ∈ {0.6,0.8,0.9,1.0,1.5,2.0}`, `SLx ∈ {1.0,1.5,2.0}`
+- ATR exits fine (`--axis atr_fine`): `ATR period ∈ {7,10,14,21}`, `PTx ∈ {0.8,0.9,1.0,1.1,1.2}`, `SLx ∈ {1.2..1.8 step 0.1}`
+- ATR exits ultra (`--axis atr_ultra`): `ATR period=7`, `PTx ∈ {1.05,1.08,1.10,1.12,1.15}`, `SLx ∈ {1.35..1.55 step 0.05}`
+- Regime2×ATR joint (`--axis r2_atr`): regime2 Supertrend coarse scan (`ATR ∈ {7,10,11,14,21}`, `mult ∈ {0.6,0.8,1.0,1.2,1.5}`, `src ∈ {hl2,close}`, `bar ∈ {4h,1d}`) → exit micro-grid (`ATR ∈ {14,21}`, `PTx ∈ {0.6..1.0}`, `SLx ∈ {1.2..2.2}`)
+- Flip-exit semantics (`--axis flip_exit`): `exit_on_signal_flip ∈ {on,off}`, `flip_exit_mode ∈ {entry,state,cross}`, `hold ∈ {0,2,4,6}`, `only_if_profit ∈ {0,1}`
+- Loosenings (`--axis loosen`): `max_open_trades ∈ {1,2,3,0}`, `spot_close_eod ∈ {0,1}`
+- Exit-time flatten (`--axis exit_time`): `spot_exit_time_et ∈ {None, 04:00, 09:30, 10:00, 11:00, 16:00, 17:00}`
+
+**ORB**
+- ORB (`--axis orb`, runs on 15m bars): `open_time_et ∈ {09:30, 18:00}`, `window_mins ∈ {15,30,60}`, `target_mode ∈ {rr, or_range}`, `rr ∈ {0.618,0.707,0.786,1.0,1.272,1.618,2.0}`, optional `vol>=1.2@20`, plus a session TOD filter.
+
+**Known gaps (we now target explicitly)**
+- Some interaction edges require **joint sweeps** rather than one-axis sweeps (e.g. `regime2 × ATR exits` with `PTx < 1.0`): this is the class of gap the combo funnel can miss, and is now covered by `--axis r2_atr`.
+
+Quick “current top 3” snapshots (generated 2026-01-15, post-intraday-timestamp-fix):
 
 - **#1 Best 30m (risk-adjusted; meets leaderboard thresholds):**
   - Signal (timing): `30 mins`, EMA `2/4` cross, `entry_confirm_bars=0`
@@ -322,6 +369,35 @@ Quick “current top 3” snapshots (generated 2026-01-14, post-intraday-timesta
   - Exits: `spot_exit_mode=atr`, `spot_atr_period=7`, `spot_pt_atr_mult=1.10`, `spot_sl_atr_mult=1.5`, `exit_on_signal_flip=true`, `flip_exit_min_hold_bars=4`
   - Loosenings: `max_entries_per_day=0`, `max_open_trades=2`, `spot_close_eod=false`
   - Stats: `trades=303`, `win=58.1%`, `pnl=+12730.0`, `dd=741.0`, `pnl/dd=17.18`
+
+Quick “max net PnL” snapshots (generated 2026-01-15, post-intraday-timestamp-fix):
+
+- **#1 Best 30m (max PnL):**
+  - Signal (timing): `30 mins`, EMA `2/4` cross, `entry_confirm_bars=0`
+  - Regime (bias): Supertrend on `4 hours`, `ATR=6`, `mult=1.0`, `src=hl2`
+  - Permission (time-of-day): `entry_start_hour_et=18`, `entry_end_hour_et=4` (wraps overnight)
+  - Regime2 (confirm): `off`
+  - Exits: `spot_exit_mode=atr`, `spot_atr_period=14`, `spot_pt_atr_mult=0.70`, `spot_sl_atr_mult=1.60`, `exit_on_signal_flip=true`, `flip_exit_min_hold_bars=4`
+  - Loosenings: `max_entries_per_day=0`, `max_open_trades=2`, `spot_close_eod=false`
+  - Stats: `trades=517`, `win=62.3%`, `pnl=+18722.5`, `dd=1527.0`, `pnl/dd=12.26`
+
+- **#2 Best 30m (max PnL, lower DD via regime2):**
+  - Signal (timing): `30 mins`, EMA `2/4` cross, `entry_confirm_bars=0`
+  - Regime (bias): Supertrend on `4 hours`, `ATR=6`, `mult=1.0`, `src=hl2`
+  - Permission (time-of-day): `entry_start_hour_et=18`, `entry_end_hour_et=4` (wraps overnight)
+  - Regime2 (confirm): Supertrend on `4 hours`, `ATR=14`, `mult=1.0`, `src=hl2`
+  - Exits: `spot_exit_mode=atr`, `spot_atr_period=14`, `spot_pt_atr_mult=0.70`, `spot_sl_atr_mult=1.60`, `exit_on_signal_flip=true`, `flip_exit_min_hold_bars=4`
+  - Loosenings: `max_entries_per_day=0`, `max_open_trades=2`, `spot_close_eod=false`
+  - Stats: `trades=495`, `win=62.2%`, `pnl=+18597.5`, `dd=1159.0`, `pnl/dd=16.05`
+
+- **#3 Best 30m (max PnL, alternative PT):**
+  - Signal (timing): `30 mins`, EMA `2/4` cross, `entry_confirm_bars=0`
+  - Regime (bias): Supertrend on `4 hours`, `ATR=6`, `mult=1.0`, `src=hl2`
+  - Permission (time-of-day): `entry_start_hour_et=18`, `entry_end_hour_et=4` (wraps overnight)
+  - Regime2 (confirm): `off`
+  - Exits: `spot_exit_mode=atr`, `spot_atr_period=14`, `spot_pt_atr_mult=0.75`, `spot_sl_atr_mult=1.60`, `exit_on_signal_flip=true`, `flip_exit_min_hold_bars=4`
+  - Loosenings: `max_entries_per_day=0`, `max_open_trades=2`, `spot_close_eod=false`
+  - Stats: `trades=517`, `win=61.1%`, `pnl=+18576.0`, `dd=1388.5`, `pnl/dd=13.38`
 
 Full presets: see `tradebot/backtest/spot_milestones.json` (top entries) for exact strategy payloads (these are loaded as presets in the TUI automatically).
 
