@@ -555,6 +555,9 @@ def main() -> None:
             "ema_perm_joint",
             "tick_perm_joint",
             "regime_atr",
+            "ema_regime",
+            "chop_joint",
+            "ema_atr",
             "ptsl",
             "hold",
             "orb",
@@ -1391,6 +1394,193 @@ def main() -> None:
         if base_row:
             rows.append(base_row)
         _print_leaderboards(rows, title="Tick × permission joint sweep", top_n=int(args.top))
+
+    def _sweep_ema_regime() -> None:
+        """Joint interaction hunt: direction (EMA preset) × regime1 (Supertrend bias)."""
+        bars_sig = _bars_cached(signal_bar_size)
+
+        base = _base_bundle(bar_size=signal_bar_size, filters=None)
+        base_row = _run_cfg(
+            cfg=base, bars=bars_sig, regime_bars=_regime_bars_for(base), regime2_bars=_regime2_bars_for(base)
+        )
+        if base_row:
+            base_row["note"] = "base"
+            _record_milestone(base, base_row, "base")
+
+        presets = ["2/4", "3/7", "4/9", "5/10", "8/21", "9/21", "21/50"]
+
+        # Keep this bounded but broad enough to catch the interaction pockets:
+        # - 4h: micro + macro ST params
+        # - 1d: smaller curated set (heavier and less likely, but still worth checking)
+        regimes: list[tuple[str, int, float, str]] = []
+
+        rbar = "4 hours"
+        atr_ps_4h = [2, 3, 4, 5, 6, 7, 10, 14, 21]
+        mults_4h = [0.2, 0.3, 0.4, 0.6, 0.8, 1.0, 1.2, 1.5]
+        for atr_p in atr_ps_4h:
+            for mult in mults_4h:
+                for src in ("hl2", "close"):
+                    regimes.append((rbar, int(atr_p), float(mult), str(src)))
+
+        rbar = "1 day"
+        atr_ps_1d = [7, 10, 14, 21]
+        mults_1d = [0.4, 0.6, 0.8, 1.0, 1.2]
+        for atr_p in atr_ps_1d:
+            for mult in mults_1d:
+                for src in ("hl2", "close"):
+                    regimes.append((rbar, int(atr_p), float(mult), str(src)))
+
+        rows: list[dict] = []
+        for preset in presets:
+            for rbar, atr_p, mult, src in regimes:
+                cfg = replace(
+                    base,
+                    strategy=replace(
+                        base.strategy,
+                        ema_preset=str(preset),
+                        entry_signal="ema",
+                        regime_mode="supertrend",
+                        regime_bar_size=str(rbar),
+                        supertrend_atr_period=int(atr_p),
+                        supertrend_multiplier=float(mult),
+                        supertrend_source=str(src),
+                    ),
+                )
+                row = _run_cfg(
+                    cfg=cfg,
+                    bars=bars_sig,
+                    regime_bars=_regime_bars_for(cfg),
+                    regime2_bars=_regime2_bars_for(cfg),
+                )
+                if not row:
+                    continue
+                note = f"ema={preset} | ST({atr_p},{mult:g},{src})@{rbar}"
+                row["note"] = note
+                _record_milestone(cfg, row, note)
+                rows.append(row)
+
+        if base_row:
+            rows.append(base_row)
+        _print_leaderboards(rows, title="EMA × regime joint sweep (direction × bias)", top_n=int(args.top))
+
+    def _sweep_chop_joint() -> None:
+        """Joint chop filter stack: slope × cooldown × skip-open (keeps everything else fixed)."""
+        bars_sig = _bars_cached(signal_bar_size)
+        base = _base_bundle(bar_size=signal_bar_size, filters=None)
+        base_row = _run_cfg(
+            cfg=base, bars=bars_sig, regime_bars=_regime_bars_for(base), regime2_bars=_regime2_bars_for(base)
+        )
+        if base_row:
+            base_row["note"] = "base"
+            _record_milestone(base, base_row, "base")
+
+        base_filters = base.strategy.filters
+        slope_vals = [None, 0.005, 0.01, 0.02, 0.03]
+        cooldown_vals = [0, 1, 2, 3, 4, 6]
+        skip_vals = [0, 1, 2, 3]
+
+        rows: list[dict] = []
+        for slope in slope_vals:
+            for cooldown in cooldown_vals:
+                for skip in skip_vals:
+                    overrides: dict[str, object] = {
+                        "ema_slope_min_pct": float(slope) if slope is not None else None,
+                        "cooldown_bars": int(cooldown),
+                        "skip_first_bars": int(skip),
+                    }
+                    f = _merge_filters(base_filters, overrides=overrides)
+                    cfg = replace(base, strategy=replace(base.strategy, filters=f))
+                    row = _run_cfg(
+                        cfg=cfg,
+                        bars=bars_sig,
+                        regime_bars=_regime_bars_for(cfg),
+                        regime2_bars=_regime2_bars_for(cfg),
+                    )
+                    if not row:
+                        continue
+                    slope_note = "-" if slope is None else f"slope>={float(slope):g}"
+                    note = f"{slope_note} | cooldown={cooldown} | skip={skip}"
+                    row["note"] = note
+                    _record_milestone(cfg, row, note)
+                    rows.append(row)
+
+        if base_row:
+            rows.append(base_row)
+        _print_leaderboards(rows, title="Chop joint sweep (slope × cooldown × skip-open)", top_n=int(args.top))
+
+    def _sweep_ema_atr() -> None:
+        """Joint interaction hunt: direction (EMA preset) × ATR exits (includes PTx < 1.0)."""
+        bars_sig = _bars_cached(signal_bar_size)
+        base = _base_bundle(bar_size=signal_bar_size, filters=None)
+        base_row = _run_cfg(
+            cfg=base, bars=bars_sig, regime_bars=_regime_bars_for(base), regime2_bars=_regime2_bars_for(base)
+        )
+        if base_row:
+            base_row["note"] = "base"
+            _record_milestone(base, base_row, "base")
+
+        presets = ["2/4", "3/7", "4/9", "5/10", "8/21", "9/21", "21/50"]
+
+        # Stage 1: shortlist EMA presets against the base bias/permissions.
+        best_by_ema: dict[str, dict] = {}
+        for preset in presets:
+            cfg = replace(base, strategy=replace(base.strategy, ema_preset=str(preset), entry_signal="ema"))
+            row = _run_cfg(
+                cfg=cfg,
+                bars=bars_sig,
+                regime_bars=_regime_bars_for(cfg),
+                regime2_bars=_regime2_bars_for(cfg),
+            )
+            if not row:
+                continue
+            best_by_ema[str(preset)] = {"row": row}
+
+        shortlisted = _shortlisted_keys(best_by_ema, top_pnl=5, top_pnl_dd=5)
+        if not shortlisted:
+            print("No eligible EMA presets (try lowering --min-trades).")
+            return
+        print("")
+        print(f"EMA×ATR: stage1 shortlisted ema={len(shortlisted)} (from {len(best_by_ema)})")
+
+        atr_periods = [10, 14, 21]
+        pt_mults = [0.6, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.0]
+        sl_mults = [1.2, 1.4, 1.5, 1.6, 1.8, 2.0]
+
+        rows: list[dict] = []
+        for preset in shortlisted:
+            for atr_p in atr_periods:
+                for pt_m in pt_mults:
+                    for sl_m in sl_mults:
+                        cfg = replace(
+                            base,
+                            strategy=replace(
+                                base.strategy,
+                                ema_preset=str(preset),
+                                entry_signal="ema",
+                                spot_exit_mode="atr",
+                                spot_atr_period=int(atr_p),
+                                spot_pt_atr_mult=float(pt_m),
+                                spot_sl_atr_mult=float(sl_m),
+                                spot_profit_target_pct=None,
+                                spot_stop_loss_pct=None,
+                            ),
+                        )
+                        row = _run_cfg(
+                            cfg=cfg,
+                            bars=bars_sig,
+                            regime_bars=_regime_bars_for(cfg),
+                            regime2_bars=_regime2_bars_for(cfg),
+                        )
+                        if not row:
+                            continue
+                        note = f"ema={preset} | ATR({atr_p}) PTx{pt_m:.2f} SLx{sl_m:.2f}"
+                        row["note"] = note
+                        _record_milestone(cfg, row, note)
+                        rows.append(row)
+
+        if base_row:
+            rows.append(base_row)
+        _print_leaderboards(rows, title="EMA × ATR joint sweep (direction × exits)", top_n=int(args.top))
 
     def _sweep_weekdays() -> None:
         """Gate exploration: which UTC weekdays contribute to the edge."""
@@ -3125,6 +3315,12 @@ def main() -> None:
         _sweep_ema_perm_joint()
     if axis == "tick_perm_joint":
         _sweep_tick_perm_joint()
+    if axis == "ema_regime":
+        _sweep_ema_regime()
+    if axis == "chop_joint":
+        _sweep_chop_joint()
+    if axis == "ema_atr":
+        _sweep_ema_atr()
     if axis == "weekday":
         _sweep_weekdays()
     if axis == "exit_time":
