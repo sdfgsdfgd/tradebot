@@ -558,9 +558,11 @@ def main() -> None:
             "ema_regime",
             "chop_joint",
             "ema_atr",
+            "tick_ema",
             "ptsl",
             "hold",
             "orb",
+            "orb_joint",
             "frontier",
             "regime",
             "regime2",
@@ -575,6 +577,7 @@ def main() -> None:
             "cooldown",
             "skip_open",
             "loosen",
+            "loosen_atr",
             "tick",
         ),
         help="Run one axis sweep (or all in sequence)",
@@ -1508,6 +1511,69 @@ def main() -> None:
             rows.append(base_row)
         _print_leaderboards(rows, title="Chop joint sweep (slope × cooldown × skip-open)", top_n=int(args.top))
 
+    def _sweep_tick_ema() -> None:
+        """Joint interaction hunt: Raschke $TICK (wide-only bias) × EMA preset."""
+        bars_sig = _bars_cached(signal_bar_size)
+        base = _base_bundle(bar_size=signal_bar_size, filters=None)
+        base_row = _run_cfg(
+            cfg=base, bars=bars_sig, regime_bars=_regime_bars_for(base), regime2_bars=_regime2_bars_for(base)
+        )
+        if base_row:
+            base_row["note"] = "base"
+            _record_milestone(base, base_row, "base")
+
+        presets = ["2/4", "3/7", "4/9", "5/10", "8/21", "9/21", "21/50"]
+        policies = ["allow", "block"]
+        z_enters = [0.8, 1.0, 1.2]
+        z_exits = [0.4, 0.5, 0.6]
+        slope_lbs = [3, 5]
+        lookbacks = [126, 252]
+
+        rows: list[dict] = []
+        for preset in presets:
+            for policy in policies:
+                for z_enter in z_enters:
+                    for z_exit in z_exits:
+                        for slope_lb in slope_lbs:
+                            for lookback in lookbacks:
+                                cfg = replace(
+                                    base,
+                                    strategy=replace(
+                                        base.strategy,
+                                        entry_signal="ema",
+                                        ema_preset=str(preset),
+                                        tick_gate_mode="raschke",
+                                        tick_gate_symbol="TICK-AMEX",
+                                        tick_gate_exchange="AMEX",
+                                        tick_neutral_policy=str(policy),
+                                        tick_direction_policy="wide_only",
+                                        tick_band_ma_period=10,
+                                        tick_width_z_lookback=int(lookback),
+                                        tick_width_z_enter=float(z_enter),
+                                        tick_width_z_exit=float(z_exit),
+                                        tick_width_slope_lookback=int(slope_lb),
+                                    ),
+                                )
+                                row = _run_cfg(
+                                    cfg=cfg,
+                                    bars=bars_sig,
+                                    regime_bars=_regime_bars_for(cfg),
+                                    regime2_bars=_regime2_bars_for(cfg),
+                                )
+                                if not row:
+                                    continue
+                                note = (
+                                    f"ema={preset} | tick=wide_only policy={policy} z_in={z_enter:g} "
+                                    f"z_out={z_exit:g} slope={slope_lb} lb={lookback}"
+                                )
+                                row["note"] = note
+                                _record_milestone(cfg, row, note)
+                                rows.append(row)
+
+        if base_row:
+            rows.append(base_row)
+        _print_leaderboards(rows, title="Tick × EMA joint sweep (Raschke wide-only bias)", top_n=int(args.top))
+
     def _sweep_ema_atr() -> None:
         """Joint interaction hunt: direction (EMA preset) × ATR exits (includes PTx < 1.0)."""
         bars_sig = _bars_cached(signal_bar_size)
@@ -2303,6 +2369,215 @@ def main() -> None:
             rows.append(base_row)
         _print_leaderboards(rows, title="D) ORB sweep (open-time + window)", top_n=int(args.top))
 
+    def _sweep_orb_joint() -> None:
+        """Joint ORB exploration: ORB params × (regime bias) × (optional tick bias).
+
+        Note: ORB uses its own stop/target derived from the opening range, so EMA-based
+        quality gates (spread/slope) aren't applicable here unless we compute EMA in
+        parallel. We stick to regime/tick/volume/TOD gates that remain well-defined.
+        """
+        bars_15m = _bars_cached("15 mins")
+
+        # Start from the selected base shape, but neutralize regime/tick so stage1 can
+        # shortlist ORB mechanics without hidden gating.
+        base = _base_bundle(bar_size="15 mins", filters=None)
+        base = replace(
+            base,
+            strategy=replace(
+                base.strategy,
+                entry_signal="orb",
+                ema_preset=None,
+                entry_confirm_bars=0,
+                regime_mode="ema",
+                regime_bar_size="15 mins",
+                regime_ema_preset=None,
+                regime2_mode="off",
+                regime2_bar_size=None,
+                tick_gate_mode="off",
+            ),
+        )
+        base_row = _run_cfg(
+            cfg=base,
+            bars=bars_15m,
+            regime_bars=_regime_bars_for(base),
+            regime2_bars=_regime2_bars_for(base),
+        )
+        if base_row:
+            base_row["note"] = "base (orb, no regime/tick)"
+            _record_milestone(base, base_row, str(base_row["note"]))
+
+        rr_vals = [0.618, 0.707, 0.786, 0.8, 1.0, 1.272, 1.618, 2.0]
+        vol_vals = [None, 1.2]
+        window_vals = [15, 30, 60]
+        sessions: list[tuple[str, int, int]] = [
+            ("09:30", 9, 16),  # RTH open
+            ("18:00", 18, 4),  # Globex open (overnight window wraps)
+        ]
+
+        # Stage 1: find the best ORB mechanics without regime/tick overlays.
+        best_by_orb: dict[tuple, dict] = {}
+        for open_time, start_h, end_h in sessions:
+            for window_mins in window_vals:
+                for target_mode in ("rr", "or_range"):
+                    for rr in rr_vals:
+                        for vol_min in vol_vals:
+                            f = _mk_filters(
+                                entry_start_hour_et=int(start_h),
+                                entry_end_hour_et=int(end_h),
+                                volume_ratio_min=vol_min,
+                                volume_ema_period=20 if vol_min is not None else None,
+                            )
+                            cfg = replace(
+                                base,
+                                strategy=replace(
+                                    base.strategy,
+                                    # Override filters so ORB isn't blocked by EMA-only gates.
+                                    filters=f,
+                                    orb_open_time_et=str(open_time),
+                                    orb_window_mins=int(window_mins),
+                                    orb_risk_reward=float(rr),
+                                    orb_target_mode=str(target_mode),
+                                ),
+                            )
+                            row = _run_cfg(
+                                cfg=cfg,
+                                bars=bars_15m,
+                                regime_bars=_regime_bars_for(cfg),
+                                regime2_bars=_regime2_bars_for(cfg),
+                            )
+                            if not row:
+                                continue
+                            orb_key = (str(open_time), int(window_mins), str(target_mode), float(rr), vol_min)
+                            best_by_orb[orb_key] = {"row": row}
+
+        shortlisted = _shortlisted_keys(best_by_orb, top_pnl=8, top_pnl_dd=8)
+        if not shortlisted:
+            print("No eligible ORB candidates (try lowering --min-trades).")
+            return
+        print("")
+        print(f"ORB×(regime/tick): stage1 shortlisted orb={len(shortlisted)} (from {len(best_by_orb)})")
+
+        # Stage 2: apply a small curated set of regime overlays + tick "wide-only" bias.
+        regime_variants: list[tuple[str, dict[str, object]]] = [
+            ("regime=off", {"regime_mode": "ema", "regime_bar_size": "15 mins", "regime_ema_preset": None}),
+        ]
+        for atr_p, mult, src in (
+            (3, 0.4, "hl2"),
+            (6, 0.6, "hl2"),
+            (7, 0.6, "hl2"),
+            (14, 0.6, "hl2"),
+            (21, 0.5, "close"),
+            (21, 0.6, "hl2"),
+        ):
+            regime_variants.append(
+                (
+                    f"ST({atr_p},{mult:g},{src})@4h",
+                    {
+                        "regime_mode": "supertrend",
+                        "regime_bar_size": "4 hours",
+                        "supertrend_atr_period": int(atr_p),
+                        "supertrend_multiplier": float(mult),
+                        "supertrend_source": str(src),
+                    },
+                )
+            )
+
+        tick_variants: list[tuple[str, dict[str, object]]] = [
+            ("tick=off", {"tick_gate_mode": "off"}),
+            (
+                "tick=wide_only allow (z=1.0/0.5 slope=3 lb=252)",
+                {
+                    "tick_gate_mode": "raschke",
+                    "tick_gate_symbol": "TICK-AMEX",
+                    "tick_gate_exchange": "AMEX",
+                    "tick_neutral_policy": "allow",
+                    "tick_direction_policy": "wide_only",
+                    "tick_band_ma_period": 10,
+                    "tick_width_z_lookback": 252,
+                    "tick_width_z_enter": 1.0,
+                    "tick_width_z_exit": 0.5,
+                    "tick_width_slope_lookback": 3,
+                },
+            ),
+            (
+                "tick=wide_only block (z=1.0/0.5 slope=3 lb=252)",
+                {
+                    "tick_gate_mode": "raschke",
+                    "tick_gate_symbol": "TICK-AMEX",
+                    "tick_gate_exchange": "AMEX",
+                    "tick_neutral_policy": "block",
+                    "tick_direction_policy": "wide_only",
+                    "tick_band_ma_period": 10,
+                    "tick_width_z_lookback": 252,
+                    "tick_width_z_enter": 1.0,
+                    "tick_width_z_exit": 0.5,
+                    "tick_width_slope_lookback": 3,
+                },
+            ),
+        ]
+
+        rows: list[dict] = []
+        for open_time, window_mins, target_mode, rr, vol_min in shortlisted:
+            start_h, end_h = 9, 16
+            if str(open_time) == "18:00":
+                start_h, end_h = 18, 4
+            f = _mk_filters(
+                entry_start_hour_et=int(start_h),
+                entry_end_hour_et=int(end_h),
+                volume_ratio_min=vol_min,
+                volume_ema_period=20 if vol_min is not None else None,
+            )
+
+            for regime_note, reg_over in regime_variants:
+                for tick_note, tick_over in tick_variants:
+                    cfg = replace(
+                        base,
+                        strategy=replace(
+                            base.strategy,
+                            filters=f,
+                            orb_open_time_et=str(open_time),
+                            orb_window_mins=int(window_mins),
+                            orb_risk_reward=float(rr),
+                            orb_target_mode=str(target_mode),
+                            regime_mode=str(reg_over.get("regime_mode") or "ema"),
+                            regime_bar_size=str(reg_over.get("regime_bar_size") or "15 mins"),
+                            regime_ema_preset=reg_over.get("regime_ema_preset"),
+                            supertrend_atr_period=int(reg_over.get("supertrend_atr_period") or 10),
+                            supertrend_multiplier=float(reg_over.get("supertrend_multiplier") or 3.0),
+                            supertrend_source=str(reg_over.get("supertrend_source") or "hl2"),
+                            tick_gate_mode=str(tick_over.get("tick_gate_mode") or "off"),
+                            tick_gate_symbol=str(tick_over.get("tick_gate_symbol") or "TICK-NYSE"),
+                            tick_gate_exchange=str(tick_over.get("tick_gate_exchange") or "NYSE"),
+                            tick_neutral_policy=str(tick_over.get("tick_neutral_policy") or "allow"),
+                            tick_direction_policy=str(tick_over.get("tick_direction_policy") or "both"),
+                            tick_band_ma_period=int(tick_over.get("tick_band_ma_period") or 10),
+                            tick_width_z_lookback=int(tick_over.get("tick_width_z_lookback") or 252),
+                            tick_width_z_enter=float(tick_over.get("tick_width_z_enter") or 1.0),
+                            tick_width_z_exit=float(tick_over.get("tick_width_z_exit") or 0.5),
+                            tick_width_slope_lookback=int(tick_over.get("tick_width_slope_lookback") or 3),
+                        ),
+                    )
+                    row = _run_cfg(
+                        cfg=cfg,
+                        bars=bars_15m,
+                        regime_bars=_regime_bars_for(cfg),
+                        regime2_bars=_regime2_bars_for(cfg),
+                    )
+                    if not row:
+                        continue
+                    vol_note = "-" if vol_min is None else f"vol>={vol_min}@20"
+                    note = (
+                        f"ORB open={open_time} w={window_mins} {target_mode} rr={rr} "
+                        f"tod={start_h:02d}-{end_h:02d} ET {vol_note} | {regime_note} | {tick_note}"
+                    )
+                    row["note"] = note
+                    _record_milestone(cfg, row, note)
+                    rows.append(row)
+
+        if base_row:
+            rows.append(base_row)
+        _print_leaderboards(rows, title="ORB joint sweep (ORB × regime × tick)", top_n=int(args.top))
+
     def _sweep_regime() -> None:
         bars_sig = _bars_cached(signal_bar_size)
         regime_bars_4h = _bars_cached("4 hours")
@@ -2728,6 +3003,64 @@ def main() -> None:
                 _record_milestone(cfg, row, note)
                 rows.append(row)
         _print_leaderboards(rows, title="Loosenings sweep (stacking + EOD exit)", top_n=int(args.top))
+
+    def _sweep_loosen_atr() -> None:
+        """Interaction hunt: stacking (max_open) × ATR exits (includes PTx < 1.0 pocket)."""
+        bars_sig = _bars_cached(signal_bar_size)
+        base = _base_bundle(bar_size=signal_bar_size, filters=None)
+        base_row = _run_cfg(
+            cfg=base, bars=bars_sig, regime_bars=_regime_bars_for(base), regime2_bars=_regime2_bars_for(base)
+        )
+        if base_row:
+            base_row["note"] = "base"
+            _record_milestone(base, base_row, "base")
+
+        # Keep the grid tight around the post-fix high-PnL neighborhood.
+        atr_periods = [10, 14, 21]
+        pt_mults = [0.6, 0.65, 0.7, 0.75, 0.8]
+        sl_mults = [1.2, 1.4, 1.6, 1.8, 2.0]
+        max_open_vals = [2, 3, 0]
+        close_eod_vals = [False, True]
+
+        rows: list[dict] = []
+        for max_open in max_open_vals:
+            for close_eod in close_eod_vals:
+                for atr_p in atr_periods:
+                    for pt_m in pt_mults:
+                        for sl_m in sl_mults:
+                            cfg = replace(
+                                base,
+                                strategy=replace(
+                                    base.strategy,
+                                    max_open_trades=int(max_open),
+                                    spot_close_eod=bool(close_eod),
+                                    spot_exit_mode="atr",
+                                    spot_atr_period=int(atr_p),
+                                    spot_pt_atr_mult=float(pt_m),
+                                    spot_sl_atr_mult=float(sl_m),
+                                    spot_profit_target_pct=None,
+                                    spot_stop_loss_pct=None,
+                                ),
+                            )
+                            row = _run_cfg(
+                                cfg=cfg,
+                                bars=bars_sig,
+                                regime_bars=_regime_bars_for(cfg),
+                                regime2_bars=_regime2_bars_for(cfg),
+                            )
+                            if not row:
+                                continue
+                            note = (
+                                f"max_open={max_open} close_eod={int(close_eod)} | "
+                                f"ATR({atr_p}) PTx{pt_m:.2f} SLx{sl_m:.2f}"
+                            )
+                            row["note"] = note
+                            _record_milestone(cfg, row, note)
+                            rows.append(row)
+
+        if base_row:
+            rows.append(base_row)
+        _print_leaderboards(rows, title="Loosen × ATR joint sweep (stacking × exits)", top_n=int(args.top))
 
     def _sweep_tick() -> None:
         """Permission layer: Raschke-style $TICK width gate (daily, RTH only)."""
@@ -3319,6 +3652,8 @@ def main() -> None:
         _sweep_ema_regime()
     if axis == "chop_joint":
         _sweep_chop_joint()
+    if axis == "tick_ema":
+        _sweep_tick_ema()
     if axis == "ema_atr":
         _sweep_ema_atr()
     if axis == "weekday":
@@ -3343,6 +3678,8 @@ def main() -> None:
         _sweep_hold()
     if axis in ("all", "orb"):
         _sweep_orb()
+    if axis == "orb_joint":
+        _sweep_orb_joint()
     if axis in ("all", "regime"):
         _sweep_regime()
     if axis in ("all", "regime2"):
@@ -3369,6 +3706,8 @@ def main() -> None:
         _sweep_skip_open()
     if axis in ("all", "loosen"):
         _sweep_loosen()
+    if axis == "loosen_atr":
+        _sweep_loosen_atr()
     if axis in ("all", "tick"):
         _sweep_tick()
     if axis == "frontier":
