@@ -715,6 +715,11 @@ def _run_spot_backtest(
     tick_neutral_policy = str(getattr(cfg.strategy, "tick_neutral_policy", "allow") or "allow").strip().lower()
     if tick_neutral_policy not in ("allow", "block"):
         tick_neutral_policy = "allow"
+    tick_direction_policy = str(
+        getattr(cfg.strategy, "tick_direction_policy", "both") or "both"
+    ).strip().lower()
+    if tick_direction_policy not in ("both", "wide_only"):
+        tick_direction_policy = "both"
 
     tick_ma_period = max(1, int(getattr(cfg.strategy, "tick_band_ma_period", 10) or 10))
     tick_z_lookback = max(5, int(getattr(cfg.strategy, "tick_width_z_lookback", 252) or 252))
@@ -911,7 +916,7 @@ def _run_spot_backtest(
                         if tick_state == "wide":
                             tick_dir = "up"
                         elif tick_state == "narrow":
-                            tick_dir = "down"
+                            tick_dir = "down" if tick_direction_policy == "both" else None
                         else:
                             tick_dir = None
                         tick_ready = True
@@ -958,7 +963,8 @@ def _run_spot_backtest(
         entry_signal_dir = signal.entry_dir if signal is not None else None
         if tick_mode != "off":
             if not tick_ready:
-                entry_signal_dir = None
+                if tick_neutral_policy == "block":
+                    entry_signal_dir = None
             elif tick_dir is None:
                 if tick_neutral_policy == "block":
                     entry_signal_dir = None

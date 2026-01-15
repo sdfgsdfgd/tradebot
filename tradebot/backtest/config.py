@@ -98,6 +98,7 @@ class StrategyConfig:
     tick_width_z_exit: float = 0.5
     tick_width_slope_lookback: int = 3
     tick_neutral_policy: str = "allow"  # "allow" | "block"
+    tick_direction_policy: str = "both"  # "both" | "wide_only"
 
 
 @dataclass(frozen=True)
@@ -245,6 +246,7 @@ def load_config(path: str | Path) -> ConfigBundle:
         tick_width_z_exit=_parse_positive_float(strategy_raw.get("tick_width_z_exit"), default=0.5),
         tick_width_slope_lookback=_parse_positive_int(strategy_raw.get("tick_width_slope_lookback"), default=3),
         tick_neutral_policy=_parse_tick_neutral_policy(strategy_raw.get("tick_neutral_policy")),
+        tick_direction_policy=_parse_tick_direction_policy(strategy_raw.get("tick_direction_policy")),
     )
 
     synthetic = SyntheticConfig(
@@ -520,6 +522,18 @@ def _parse_tick_neutral_policy(value) -> str:
         if cleaned in ("block", "deny", "none"):
             return "block"
     return "allow"
+
+
+def _parse_tick_direction_policy(value) -> str:
+    if value is None:
+        return "both"
+    if isinstance(value, str):
+        cleaned = value.strip().lower()
+        if cleaned in ("both", "two_sided", "twosided", "long_short", "longshort"):
+            return "both"
+        if cleaned in ("wide_only", "wideonly", "long_only", "longonly", "wide_long", "widelong"):
+            return "wide_only"
+    return "both"
 
 
 def _parse_positive_int(value, *, default: int) -> int:

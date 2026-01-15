@@ -15,6 +15,7 @@ from zoneinfo import ZoneInfo
 
 from .models import Bar
 from ..config import load_config
+from ..signals import parse_bar_size
 
 _FUTURE_EXCHANGES = {
     "MNQ": "CME",
@@ -91,7 +92,9 @@ class IBKRHistoricalData:
         contract, _ = self.resolve_contract(symbol, exchange)
         bars = self._fetch_bars(contract, start, end, bar_size, use_rth)
         normalized = _normalize_bars(bars, symbol=symbol, bar_size=bar_size, use_rth=use_rth)
-        _write_cache(cache_path, normalized)
+        # Cache raw IBKR timestamps (bar-start for intraday, midnight for daily). Normalization is
+        # applied on read so cached files remain stable across timestamp policy changes.
+        _write_cache(cache_path, bars)
         return normalized
 
     def load_cached_bars(
@@ -310,16 +313,44 @@ def _normalize_bars(bars: list[Bar], *, symbol: str, bar_size: str, use_rth: boo
     """Normalize bar timestamps so MTF alignment doesn't leak future information."""
     if not bars:
         return bars
-    if not str(bar_size).lower().startswith("1 day"):
-        return bars
+    label = str(bar_size or "").strip().lower()
+    if label.startswith("1 day"):
+        close_et = _daily_close_time_et(symbol=symbol, use_rth=use_rth)
+        out: list[Bar] = []
+        for bar in bars:
+            ts_et = datetime.combine(bar.ts.date(), close_et, tzinfo=_ET_ZONE)
+            ts_utc = ts_et.astimezone(timezone.utc).replace(tzinfo=None)
+            out.append(
+                Bar(
+                    ts=ts_utc,
+                    open=bar.open,
+                    high=bar.high,
+                    low=bar.low,
+                    close=bar.close,
+                    volume=bar.volume,
+                )
+            )
+        return out
 
-    close_et = _daily_close_time_et(symbol=symbol, use_rth=use_rth)
-    out: list[Bar] = []
-    for bar in bars:
-        ts_et = datetime.combine(bar.ts.date(), close_et, tzinfo=_ET_ZONE)
-        ts_utc = ts_et.astimezone(timezone.utc).replace(tzinfo=None)
-        out.append(Bar(ts=ts_utc, open=bar.open, high=bar.high, low=bar.low, close=bar.close, volume=bar.volume))
-    return out
+    bar_def = parse_bar_size(str(bar_size))
+    if bar_def is None:
+        return bars
+    dur = bar_def.duration
+    if dur <= timedelta(0):
+        return bars
+    # IBKR intraday bars are timestamped at the bar *start*. Shift them forward so ts represents
+    # the bar *close*, preventing within-bar and multi-timeframe lookahead leakage.
+    return [
+        Bar(
+            ts=bar.ts + dur,
+            open=bar.open,
+            high=bar.high,
+            low=bar.low,
+            close=bar.close,
+            volume=bar.volume,
+        )
+        for bar in bars
+    ]
 
 
 def _find_covering_cache_path(

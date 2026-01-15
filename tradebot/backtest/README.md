@@ -291,53 +291,62 @@ For deeper “one axis at a time” exploration (still spot-only), run a single 
 python -m tradebot.backtest.evolve_spot --axis regime --cache-dir db
 ```
 
-Quick “current #1” snapshots (generated 2026-01-11, post-fix; squeeze follow-up):
+Quick “current top 3” snapshots (generated 2026-01-14, post-intraday-timestamp-fix):
 
-- **New best 30m (risk-adjusted):**
+- **#1 Best 30m (risk-adjusted; meets leaderboard thresholds):**
   - Signal (timing): `30 mins`, EMA `2/4` cross, `entry_confirm_bars=0`
-  - Regime (bias): Supertrend on `4 hours`, `ATR=2`, `mult=0.05`, `src=close`
-  - Regime2 (confirm): Supertrend on `4 hours`, `ATR=3`, `mult=0.125`, `src=hl2`
-  - Exits: `spot_exit_mode=atr`, `spot_atr_period=14`, `spot_pt_atr_mult=1.0`, `spot_sl_atr_mult=1.5`, `exit_on_signal_flip=true`, `flip_exit_min_hold_bars=0`
-  - Loosenings: `max_entries_per_day=0`, `max_open_trades=1`, `spot_close_eod=true`
-  - Stats: `trades=1067`, `win=58.1%`, `pnl=+56377.0`, `dd=897.5`, `pnl/dd=62.82`
+  - Regime (bias): Supertrend on `4 hours`, `ATR=21`, `mult=0.5`, `src=close`
+  - Permission (quality): `ema_spread_min_pct=0.005`
+  - Permission (time-of-day): `entry_start_hour_et=18`, `entry_end_hour_et=4` (wraps overnight)
+  - Regime2 (confirm): Supertrend on `4 hours`, `ATR=5`, `mult=0.3`, `src=close`
+  - Exits: `spot_exit_mode=atr`, `spot_atr_period=7`, `spot_pt_atr_mult=1.12`, `spot_sl_atr_mult=1.5`, `exit_on_signal_flip=true`, `flip_exit_min_hold_bars=4`
+  - Loosenings: `max_entries_per_day=0`, `max_open_trades=2`, `spot_close_eod=false`
+  - Stats: `trades=303`, `win=58.1%`, `pnl=+13055.5`, `dd=741.0`, `pnl/dd=17.62`
 
-- **Prior best 30m (risk-adjusted):**
+- **#2 Best 30m (risk-adjusted):**
   - Signal (timing): `30 mins`, EMA `2/4` cross, `entry_confirm_bars=0`
-  - Regime (bias): Supertrend on `4 hours`, `ATR=2`, `mult=0.05`, `src=close`
-  - Regime2 (confirm): Supertrend on `4 hours`, `ATR=3`, `mult=0.25`, `src=close`
-  - Exits: `spot_exit_mode=atr`, `spot_atr_period=14`, `spot_pt_atr_mult=1.0`, `spot_sl_atr_mult=1.5`, `exit_on_signal_flip=true`, `flip_exit_min_hold_bars=0`
-  - Loosenings: `max_entries_per_day=0`, `max_open_trades=1`, `spot_close_eod=true`
-  - Stats: `trades=1155`, `win=55.84%`, `pnl=+54779.0`, `dd=899.0`, `pnl/dd=60.93`
+  - Regime (bias): Supertrend on `4 hours`, `ATR=21`, `mult=0.5`, `src=close`
+  - Permission (quality): `ema_spread_min_pct=0.005`
+  - Permission (time-of-day): `entry_start_hour_et=18`, `entry_end_hour_et=4` (wraps overnight)
+  - Regime2 (confirm): Supertrend on `4 hours`, `ATR=5`, `mult=0.3`, `src=close`
+  - Exits: `spot_exit_mode=atr`, `spot_atr_period=7`, `spot_pt_atr_mult=1.05`, `spot_sl_atr_mult=1.4`, `exit_on_signal_flip=true`, `flip_exit_min_hold_bars=4`
+  - Loosenings: `max_entries_per_day=0`, `max_open_trades=2`, `spot_close_eod=false`
+  - Stats: `trades=303`, `win=58.4%`, `pnl=+12496.5`, `dd=727.0`, `pnl/dd=17.19`
 
-- **New best 30m (max PnL):**
+- **#3 Best 30m (risk-adjusted):**
+  - Signal (timing): `30 mins`, EMA `2/4` cross, `entry_confirm_bars=0`
+  - Regime (bias): Supertrend on `4 hours`, `ATR=21`, `mult=0.5`, `src=close`
+  - Permission (quality): `ema_spread_min_pct=0.005`
+  - Permission (time-of-day): `entry_start_hour_et=18`, `entry_end_hour_et=4` (wraps overnight)
+  - Regime2 (confirm): Supertrend on `4 hours`, `ATR=5`, `mult=0.3`, `src=close`
+  - Exits: `spot_exit_mode=atr`, `spot_atr_period=7`, `spot_pt_atr_mult=1.10`, `spot_sl_atr_mult=1.5`, `exit_on_signal_flip=true`, `flip_exit_min_hold_bars=4`
+  - Loosenings: `max_entries_per_day=0`, `max_open_trades=2`, `spot_close_eod=false`
+  - Stats: `trades=303`, `win=58.1%`, `pnl=+12730.0`, `dd=741.0`, `pnl/dd=17.18`
+
+Full presets: see `tradebot/backtest/spot_milestones.json` (top entries) for exact strategy payloads (these are loaded as presets in the TUI automatically).
+
+Note: We fixed daily-bar timestamp normalization on 2026-01-11 to avoid lookahead leakage for `1 day` multi-timeframe gates. We fixed intraday bar timestamps on 2026-01-14 so bar timestamps represent bar *close* time (eliminates MTF lookahead for `4 hours`, `1 hour`, `30 mins`, etc.). Spot milestones were regenerated after this fix.
+
+### LEGACY / OUTDATED (pre-fix, for archaeology only)
+These are spot presets recorded **before** the 2026-01-14 intraday-bar timestamp normalization fix.
+
+They are preserved for archaeology in `tradebot/backtest/spot_milestones.legacy_pre_2026-01-14_intraday_ts_fix.json`, but should **not** be trusted for decision-making because they were affected by multi-timeframe lookahead leakage (notably `4 hours` regime gating on intraday signal bars).
+
+#### Prior 30m/1h “champions” (pre-2026-01-14 intraday ts fix; do not trust)
+- “New best 30m (risk-adjusted)” (recorded 2026-01-11): `trades=1067`, `win=58.1%`, `pnl=+56377.0`, `dd=897.5`, `pnl/dd=62.82`
+- “Prior best 30m (risk-adjusted)” (recorded 2026-01-11): `trades=1155`, `win=55.84%`, `pnl=+54779.0`, `dd=899.0`, `pnl/dd=60.93`
+- “New best 30m (max PnL)” (recorded 2026-01-11): `trades=1103`, `win=64.0%`, `pnl=+88550.5`, `dd=1928.0`, `pnl/dd=45.93`
   - Signal (timing): `30 mins`, EMA `2/4` cross, `entry_confirm_bars=0`
   - Regime (bias): Supertrend on `4 hours`, `ATR=3`, `mult=0.05`, `src=close`
   - Regime2 (confirm): Supertrend on `4 hours`, `ATR=7`, `mult=0.075`, `src=hl2`
   - Exits: `spot_exit_mode=pct`, `spot_profit_target_pct=0.01`, `spot_stop_loss_pct=0.03`, `exit_on_signal_flip=true`, `flip_exit_min_hold_bars=4`
   - Loosenings: `max_entries_per_day=0`, `max_open_trades=0`, `spot_close_eod=false`
   - Stats: `trades=1103`, `win=64.0%`, `pnl=+88550.5`, `dd=1928.0`, `pnl/dd=45.93`
+- “Prior best 30m (max PnL)” (recorded 2026-01-11): `trades=1155`, `win=62.8%`, `pnl=+86227.0`, `dd=1928.0`, `pnl/dd=44.72`
+- “Best 1h (risk-adjusted)” (recorded 2026-01-11): `trades=506`, `win=61.5%`, `pnl=+42961.5`, `dd=1371.0`, `pnl/dd=31.34`
 
-- **Prior best 30m (max PnL):**
-  - Signal (timing): `30 mins`, EMA `2/4` cross, `entry_confirm_bars=0`
-  - Regime (bias): Supertrend on `4 hours`, `ATR=3`, `mult=0.05`, `src=close`
-  - Regime2 (confirm): Supertrend on `4 hours`, `ATR=3`, `mult=0.25`, `src=close`
-  - Exits: `spot_exit_mode=pct`, `spot_profit_target_pct=0.01`, `spot_stop_loss_pct=0.03`, `exit_on_signal_flip=true`, `flip_exit_min_hold_bars=4`
-  - Loosenings: `max_entries_per_day=0`, `max_open_trades=0`, `spot_close_eod=false`
-  - Stats: `trades=1155`, `win=62.8%`, `pnl=+86227.0`, `dd=1928.0`, `pnl/dd=44.72`
+---
 
-- **Best 1h (risk-adjusted):**
-  - Signal (timing): `1 hour`, EMA `2/4` cross, `entry_confirm_bars=0`
-  - Regime (bias): Supertrend on `4 hours`, `ATR=11`, `mult=0.4`, `src=hl2`
-  - Regime2 (confirm): Supertrend on `4 hours`, `ATR=3`, `mult=0.25`, `src=close`
-  - Exits: `spot_exit_mode=atr`, `spot_atr_period=14`, `spot_pt_atr_mult=1.0`, `spot_sl_atr_mult=1.0`, `exit_on_signal_flip=true`, `flip_exit_min_hold_bars=4`
-  - Loosenings: `max_entries_per_day=0`, `max_open_trades=2`, `spot_close_eod=false`
-  - Stats: `trades=506`, `win=61.5%`, `pnl=+42961.5`, `dd=1371.0`, `pnl/dd=31.34`
-
-Full presets: see `tradebot/backtest/spot_milestones.json` (top entries) for exact strategy payloads.
-
-Note: We fixed daily-bar timestamp normalization on 2026-01-11 to avoid lookahead leakage for `1 day` multi-timeframe gates. The current spot leaderboard is generated post-fix.
-
-### LEGACY / OUTDATED (pre-fix, for archaeology only)
 These are milestone configs we recorded **before** the 2026-01-11 daily-bar timestamp normalization fix.
 
 They are preserved to document the evolutionary path, but should **not** be trusted for decision-making because they were affected by lookahead leakage in `1 day` regime gating.
