@@ -348,8 +348,9 @@ This is a **quick map of what the sweeps actually cover** (outer edges), so we c
 
 **Known gaps (we now target explicitly)**
 - Some interaction edges require **joint sweeps** rather than one-axis sweeps (e.g. `regime2 × ATR exits` with `PTx < 1.0`): this is the class of gap the combo funnel can miss, and is now covered by `--axis r2_atr`.
+- `--axis combo` is a bounded “smart exhaustive” funnel that now includes direction×regime scan + the low-PT ATR pocket + Raschke `$TICK` gate + RV band + exit-time + a few TOD windows. It is still a funnel (not the full universe), but it should no longer miss entire categories of interactions we care about.
 
-Quick “current top 3” snapshots (generated 2026-01-15, post-intraday-timestamp-fix):
+Quick “current top 3” snapshots (generated 2026-01-16, post-intraday-timestamp-fix):
 
 - **#1 Best 30m (risk-adjusted; meets leaderboard thresholds):**
   - Signal (timing): `30 mins`, EMA `2/4` cross, `entry_confirm_bars=0`
@@ -381,35 +382,35 @@ Quick “current top 3” snapshots (generated 2026-01-15, post-intraday-timesta
   - Loosenings: `max_entries_per_day=0`, `max_open_trades=2`, `spot_close_eod=false`
   - Stats: `trades=303`, `win=58.1%`, `pnl=+12730.0`, `dd=741.0`, `pnl/dd=17.18`
 
-Quick “max net PnL” snapshots (generated 2026-01-15, post-intraday-timestamp-fix):
+Quick “max net PnL” snapshots (generated 2026-01-16, post-intraday-timestamp-fix):
 
 - **#1 Best 30m (max PnL):**
   - Signal (timing): `30 mins`, EMA `2/4` cross, `entry_confirm_bars=0`
-  - Regime (bias): Supertrend on `4 hours`, `ATR=3`, `mult=0.4`, `src=hl2`
-  - Permission (quality): `ema_slope_min_pct=0.005`
+  - Regime (bias): Supertrend on `4 hours`, `ATR=14`, `mult=0.5`, `src=hl2`
+  - Permission (quality): `off`
   - Permission (time-of-day): `off`
   - Regime2 (confirm): `off`
   - Exits: `spot_exit_mode=atr`, `spot_atr_period=14`, `spot_pt_atr_mult=0.70`, `spot_sl_atr_mult=1.60`, `exit_on_signal_flip=true`, `flip_exit_min_hold_bars=4`
   - Loosenings: `max_entries_per_day=0`, `max_open_trades=2`, `spot_close_eod=false`
-  - Stats: `trades=1015`, `win=56.2%`, `pnl=+22443.0`, `dd=2792.0`, `pnl/dd=8.04`
+  - Stats: `trades=1029`, `win=57.0%`, `pnl=+24693.0`, `dd=2472.0`, `pnl/dd=9.99`
 
 - **#2 Best 30m (max PnL, spread-gated):**
   - Signal (timing): `30 mins`, EMA `2/4` cross, `entry_confirm_bars=0`
-  - Regime (bias): Supertrend on `4 hours`, `ATR=3`, `mult=0.4`, `src=hl2`
+  - Regime (bias): Supertrend on `4 hours`, `ATR=14`, `mult=0.5`, `src=hl2`
   - Permission (quality): `ema_spread_min_pct=0.003`
   - Regime2 (confirm): `off`
   - Exits: `spot_exit_mode=atr`, `spot_atr_period=14`, `spot_pt_atr_mult=0.70`, `spot_sl_atr_mult=1.60`, `exit_on_signal_flip=true`, `flip_exit_min_hold_bars=4`
   - Loosenings: `max_entries_per_day=0`, `max_open_trades=2`, `spot_close_eod=false`
-  - Stats: `trades=898`, `win=55.7%`, `pnl=+21070.0`, `dd=2229.0`, `pnl/dd=9.45`
+  - Stats: `trades=904`, `win=56.7%`, `pnl=+23377.0`, `dd=2360.0`, `pnl/dd=9.91`
 
-- **#3 Best 30m (max PnL, spread-gated):**
+- **#3 Best 30m (high PnL + better pnl/dd, spread-gated):**
   - Signal (timing): `30 mins`, EMA `2/4` cross, `entry_confirm_bars=0`
-  - Regime (bias): Supertrend on `4 hours`, `ATR=3`, `mult=0.4`, `src=hl2`
+  - Regime (bias): Supertrend on `4 hours`, `ATR=14`, `mult=0.5`, `src=hl2`
   - Permission (quality): `ema_spread_min_pct=0.005`
   - Regime2 (confirm): `off`
   - Exits: `spot_exit_mode=atr`, `spot_atr_period=14`, `spot_pt_atr_mult=0.70`, `spot_sl_atr_mult=1.60`, `exit_on_signal_flip=true`, `flip_exit_min_hold_bars=4`
   - Loosenings: `max_entries_per_day=0`, `max_open_trades=2`, `spot_close_eod=false`
-  - Stats: `trades=811`, `win=55.7%`, `pnl=+20729.0`, `dd=2070.5`, `pnl/dd=10.01`
+  - Stats: `trades=821`, `win=56.9%`, `pnl=+22486.5`, `dd=1867.5`, `pnl/dd=12.04`
 
 Full presets: see `tradebot/backtest/spot_milestones.json` (top entries) for exact strategy payloads (these are loaded as presets in the TUI automatically).
 
