@@ -3252,11 +3252,12 @@ def main() -> None:
 
         Keep this computationally bounded and reproducible. The intent is to combine
         the highest-leverage levers we’ve found so far:
+        - direction layer interactions (EMA preset + entry mode)
         - regime sensitivity (Supertrend timeframe + params)
-        - exits (pct vs ATR)
+        - exits (pct vs ATR), including the PT<1.0 ATR pocket
         - loosenings (stacking + EOD close)
         - optional regime2 confirm (small curated set)
-        - a small set of quality gates (volume/spread/cooldown/skip-open/confirm/TOD)
+        - a small set of quality gates (spread/slope/TOD/rv/exit-time/tick)
         """
         bars_sig = _bars_cached(signal_bar_size)
 
@@ -3279,42 +3280,82 @@ def main() -> None:
                 out.append((cfg, row, note))
             return out
 
-        # Stage 1: sweep regime sensitivity only (broad) and keep a small diverse shortlist.
+        # Stage 1: direction × regime sensitivity (bounded) and keep a small diverse shortlist.
         stage1: list[tuple[ConfigBundle, dict, str]] = []
         base = _base_bundle(bar_size=signal_bar_size, filters=None)
-        regime_bar_sizes = ["4 hours", "1 day"]
-        atr_periods = [2, 3, 4, 5, 6, 7, 10, 11, 14, 21]
-        multipliers = [0.05, 0.075, 0.1, 0.125, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0, 1.5, 2.0]
-        sources = ["close", "hl2"]
-        for rbar in regime_bar_sizes:
-            for atr_p in atr_periods:
-                for mult in multipliers:
-                    for src in sources:
-                        cfg = replace(
-                            base,
-                            strategy=replace(
-                                base.strategy,
-                                regime_mode="supertrend",
-                                regime_bar_size=rbar,
-                                supertrend_atr_period=int(atr_p),
-                                supertrend_multiplier=float(mult),
-                                supertrend_source=str(src),
-                                regime2_mode="off",
-                            ),
-                        )
-                        row = _run_cfg(
-                            cfg=cfg,
-                            bars=bars_sig,
-                            regime_bars=regime_bars_by_size[rbar],
-                            regime2_bars=None,
-                        )
-                        if not row:
-                            continue
-                        note = f"ST({atr_p},{mult},{src}) @{rbar}"
-                        row["note"] = note
-                        stage1.append((cfg, row, note))
+        # Ensure stage1 isn't silently gated by whatever the current milestone base uses.
+        base = replace(
+            base,
+            strategy=replace(
+                base.strategy,
+                filters=None,
+                tick_gate_mode="off",
+                spot_exit_time_et=None,
+            ),
+        )
 
-        shortlist = _ranked(stage1, top_pnl_dd=20, top_pnl=10)
+        direction_variants: list[tuple[str, str, int, str]] = []
+        base_preset = str(base.strategy.ema_preset or "").strip()
+        base_mode = str(base.strategy.ema_entry_mode or "trend").strip().lower()
+        base_confirm = int(base.strategy.entry_confirm_bars or 0)
+        if base_preset and base_mode in ("cross", "trend"):
+            direction_variants.append((base_preset, base_mode, base_confirm, f"ema={base_preset} {base_mode}"))
+
+        for preset, mode in (
+            ("2/4", "cross"),
+            ("3/7", "cross"),
+            ("3/7", "trend"),
+            ("4/9", "cross"),
+            ("5/10", "cross"),
+            ("9/21", "trend"),
+        ):
+            direction_variants.append((preset, mode, 0, f"ema={preset} {mode}"))
+
+        seen_dir: set[tuple[str, str, int]] = set()
+        direction_variants = [
+            v
+            for v in direction_variants
+            if (v[0], v[1], v[2]) not in seen_dir and not seen_dir.add((v[0], v[1], v[2]))
+        ]
+
+        regime_bar_sizes = ["4 hours", "1 day"]
+        atr_periods = [3, 7, 10, 14, 21]
+        multipliers = [0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0]
+        sources = ["close", "hl2"]
+        for ema_preset, entry_mode, confirm, dir_note in direction_variants:
+            for rbar in regime_bar_sizes:
+                for atr_p in atr_periods:
+                    for mult in multipliers:
+                        for src in sources:
+                            cfg = replace(
+                                base,
+                                strategy=replace(
+                                    base.strategy,
+                                    entry_signal="ema",
+                                    ema_preset=str(ema_preset),
+                                    ema_entry_mode=str(entry_mode),
+                                    entry_confirm_bars=int(confirm),
+                                    regime_mode="supertrend",
+                                    regime_bar_size=rbar,
+                                    supertrend_atr_period=int(atr_p),
+                                    supertrend_multiplier=float(mult),
+                                    supertrend_source=str(src),
+                                    regime2_mode="off",
+                                ),
+                            )
+                            row = _run_cfg(
+                                cfg=cfg,
+                                bars=bars_sig,
+                                regime_bars=regime_bars_by_size[rbar],
+                                regime2_bars=None,
+                            )
+                            if not row:
+                                continue
+                            note = f"{dir_note} c={confirm} | ST({atr_p},{mult},{src}) @{rbar}"
+                            row["note"] = note
+                            stage1.append((cfg, row, note))
+
+        shortlist = _ranked(stage1, top_pnl_dd=15, top_pnl=7)
         print("")
         print(f"Combo sweep: shortlist regimes={len(shortlist)} (from stage1={len(stage1)})")
 
@@ -3340,10 +3381,18 @@ def main() -> None:
                 )
             )
         for atr_p, pt_m, sl_m in (
+            # Risk-adjusted champ neighborhood.
             (7, 1.0, 1.0),
             (7, 1.0, 1.5),
-            (14, 1.0, 1.0),
-            (14, 1.0, 1.5),
+            (7, 1.12, 1.5),
+            # Net-PnL pocket (PTx<1.0).
+            (10, 0.80, 1.80),
+            (10, 0.90, 1.80),
+            (14, 0.70, 1.60),
+            (14, 0.75, 1.60),
+            (14, 0.80, 1.60),
+            (21, 0.65, 1.60),
+            (21, 0.70, 1.80),
         ):
             exit_variants.append(
                 (
@@ -3448,57 +3497,100 @@ def main() -> None:
         print(f"Combo sweep: stage2 tested={tested} kept={len(stage2)} (min_trades={run_min_trades})")
 
         # Stage 3: apply a small set of quality gates on the top stage2 candidates.
-        top_stage2 = _ranked(stage2, top_pnl_dd=20, top_pnl=10)
-        vol_variants = [(None, None, "-"), (1.2, 20, "vol>=1.2@20")]
-        spread_variants = [(None, "-"), (0.01, "spread>=0.01")]
-        cooldown_variants = [(0, "cooldown=0"), (4, "cooldown=4")]
-        skip_variants = [(0, "skip=0"), (1, "skip=1")]
-        confirm_variants = [(0, "confirm=0"), (1, "confirm=1")]
-        tod_variants = [
-            (None, None, "tod=base"),
-            (18, 3, "tod=18-03 ET"),
-            (18, 4, "tod=18-04 ET"),
+        top_stage2 = _ranked(stage2, top_pnl_dd=15, top_pnl=7)
+
+        tick_variants: list[tuple[dict, str]] = [
+            ({"tick_gate_mode": "off"}, "tick=off"),
+            (
+                {
+                    "tick_gate_mode": "raschke",
+                    "tick_gate_symbol": "TICK-AMEX",
+                    "tick_gate_exchange": "AMEX",
+                    "tick_neutral_policy": "block",
+                    "tick_direction_policy": "wide_only",
+                    "tick_band_ma_period": 10,
+                    "tick_width_z_lookback": 252,
+                    "tick_width_z_enter": 1.0,
+                    "tick_width_z_exit": 0.5,
+                    "tick_width_slope_lookback": 3,
+                },
+                "tick=raschke(wide_only block z=1.0/0.5 slope=3 lb=252)",
+            ),
+        ]
+
+        quality_variants: list[tuple[float | None, float | None, str]] = [
+            (None, None, "qual=off"),
+            (0.003, None, "spread>=0.003"),
+            (0.005, None, "spread>=0.005"),
+            (0.005, 0.01, "spread>=0.005 slope>=0.01"),
+        ]
+
+        rv_variants: list[tuple[float | None, float | None, str]] = [
+            (None, None, "rv=off"),
+            (0.25, 0.8, "rv=0.25..0.80"),
+        ]
+
+        exit_time_variants: list[tuple[str | None, str]] = [
+            (None, "exit_time=off"),
+            ("17:00", "exit_time=17:00 ET"),
+        ]
+
+        tod_variants: list[tuple[int | None, int | None, int, int, str]] = [
+            (None, None, 0, 0, "tod=any"),
+            (18, 4, 0, 0, "tod=18-04 ET"),
+            (18, 4, 1, 2, "tod=18-04 ET (skip=1 cd=2)"),
+            (10, 15, 0, 0, "tod=10-15 ET"),
         ]
 
         stage3: list[dict] = []
         for base_cfg, base_row, base_note in top_stage2:
-            for vratio, vema, vnote in vol_variants:
-                for spread, spread_note in spread_variants:
-                    for cooldown, cd_note in cooldown_variants:
-                        for skip, skip_note in skip_variants:
-                            for confirm, confirm_note in confirm_variants:
-                                for tod_s, tod_e, tod_note in tod_variants:
-                                    f = _mk_filters(
-                                        volume_ratio_min=vratio,
-                                        volume_ema_period=vema,
-                                        ema_spread_min_pct=spread,
-                                        cooldown_bars=int(cooldown),
-                                        skip_first_bars=int(skip),
-                                        entry_start_hour_et=tod_s,
-                                        entry_end_hour_et=tod_e,
-                                    )
-                                    cfg = replace(
-                                        base_cfg,
-                                        strategy=replace(
-                                            base_cfg.strategy,
-                                            filters=f,
-                                            entry_confirm_bars=int(confirm),
-                                        ),
-                                    )
-                                    row = _run_cfg(
-                                        cfg=cfg,
-                                        bars=bars_sig,
-                                        regime_bars=_regime_bars_for(cfg) or regime_bars_by_size[
-                                            str(cfg.strategy.regime_bar_size)
-                                        ],
-                                        regime2_bars=_regime2_bars_for(cfg),
-                                    )
-                                    if not row:
-                                        continue
-                                    note = f"{base_note} | {vnote} {spread_note} {cd_note} {skip_note} {confirm_note} {tod_note}"
-                                    row["note"] = note
-                                    _record_milestone(cfg, row, note)
-                                    stage3.append(row)
+            for tick_over, tick_note in tick_variants:
+                for spread_min, slope_min, qual_note in quality_variants:
+                    for rv_min, rv_max, rv_note in rv_variants:
+                        for exit_time, exit_time_note in exit_time_variants:
+                            for tod_s, tod_e, skip, cooldown, tod_note in tod_variants:
+                                f = _mk_filters(
+                                    rv_min=rv_min,
+                                    rv_max=rv_max,
+                                    ema_spread_min_pct=spread_min,
+                                    ema_slope_min_pct=slope_min,
+                                    cooldown_bars=int(cooldown),
+                                    skip_first_bars=int(skip),
+                                    entry_start_hour_et=tod_s,
+                                    entry_end_hour_et=tod_e,
+                                )
+                                cfg = replace(
+                                    base_cfg,
+                                    strategy=replace(
+                                        base_cfg.strategy,
+                                        filters=f,
+                                        spot_exit_time_et=exit_time,
+                                        tick_gate_mode=str(tick_over.get("tick_gate_mode") or "off"),
+                                        tick_gate_symbol=str(tick_over.get("tick_gate_symbol") or "TICK-NYSE"),
+                                        tick_gate_exchange=str(tick_over.get("tick_gate_exchange") or "NYSE"),
+                                        tick_neutral_policy=str(tick_over.get("tick_neutral_policy") or "allow"),
+                                        tick_direction_policy=str(tick_over.get("tick_direction_policy") or "both"),
+                                        tick_band_ma_period=int(tick_over.get("tick_band_ma_period") or 10),
+                                        tick_width_z_lookback=int(tick_over.get("tick_width_z_lookback") or 252),
+                                        tick_width_z_enter=float(tick_over.get("tick_width_z_enter") or 1.0),
+                                        tick_width_z_exit=float(tick_over.get("tick_width_z_exit") or 0.5),
+                                        tick_width_slope_lookback=int(tick_over.get("tick_width_slope_lookback") or 3),
+                                    ),
+                                )
+                                row = _run_cfg(
+                                    cfg=cfg,
+                                    bars=bars_sig,
+                                    regime_bars=_regime_bars_for(cfg) or regime_bars_by_size[
+                                        str(cfg.strategy.regime_bar_size)
+                                    ],
+                                    regime2_bars=_regime2_bars_for(cfg),
+                                )
+                                if not row:
+                                    continue
+                                note = f"{base_note} | {tick_note} | {qual_note} | {rv_note} | {exit_time_note} | {tod_note}"
+                                row["note"] = note
+                                _record_milestone(cfg, row, note)
+                                stage3.append(row)
 
         _print_leaderboards(stage3, title="Combo sweep (multi-axis, constrained)", top_n=int(args.top))
 
