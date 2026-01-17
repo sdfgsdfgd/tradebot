@@ -502,6 +502,11 @@ This improves synthetic pricing without requiring OPRA/CME bid/ask.
   - Explicit cost model: spread + slippage + fees/commissions (per side), parameterized per symbol (e.g. MNQ tick)
   - ET session/day boundaries: make `max_entries_per_day`, `spot_close_eod`, `bars_in_day` align with ET session logic
   - Sensitivity report: compare champ/top-10 deltas (pnl, pnl/dd, WR, trades) across realism settings
+- Realism pass (options backtest): quantify the impact of the synthetic market model and its simplifications
+  - Options backtests are synthetic (not real markets). Prices come from Black-Scholes/Black-76 on the underlying bar close + a synthetic IV surface, and fills use a synthetic bid/ask (“mid-edge”) around the model mid. See `tradebot/backtest/engine.py:1296` and `tradebot/backtest/synth.py:54`.
+  - No explicit commissions/fees anywhere (TODO: add a per-contract/per-order cost model).
+  - Open trades are marked at mid (not executable), and multi-leg combos get one net edge, not per-leg edges. See `tradebot/backtest/engine.py:1340` and `tradebot/backtest/synth.py:75`.
+    - This can materially change PnL + drawdown behavior vs legging / real combo markets.
 - Evolution sweeps (add one axis at a time)
   - Walk-forward selection (train earlier slice, test later slice)
   - Time-of-day gating (RTH windows, skip-open/lunch chop)
