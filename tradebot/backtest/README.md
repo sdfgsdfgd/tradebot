@@ -496,6 +496,12 @@ When `calibrate` is enabled (or `--calibrate` is passed), the engine will:
 This improves synthetic pricing without requiring OPRA/CME bid/ask.
 
 ## TODO
+- Realism pass (spot backtest): quantify how rankings change under more realistic execution/cost assumptions
+  - Next-bar execution: act after the bar close that generates the signal (entry/exit timing)
+  - Intrabar TP/SL: use bar high/low for hit detection with a deterministic tie-break (stop vs target ordering)
+  - Explicit cost model: spread + slippage + fees/commissions (per side), parameterized per symbol (e.g. MNQ tick)
+  - ET session/day boundaries: make `max_entries_per_day`, `spot_close_eod`, `bars_in_day` align with ET session logic
+  - Sensitivity report: compare champ/top-10 deltas (pnl, pnl/dd, WR, trades) across realism settings
 - Evolution sweeps (add one axis at a time)
   - Walk-forward selection (train earlier slice, test later slice)
   - Time-of-day gating (RTH windows, skip-open/lunch chop)
