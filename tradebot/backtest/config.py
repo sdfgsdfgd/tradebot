@@ -101,6 +101,13 @@ class StrategyConfig:
     tick_width_slope_lookback: int = 3
     tick_neutral_policy: str = "allow"  # "allow" | "block"
     tick_direction_policy: str = "both"  # "both" | "wide_only"
+    spot_entry_fill_mode: str = "close"  # "close" | "next_open"
+    spot_flip_exit_fill_mode: str = "close"  # "close" | "next_open"
+    spot_intrabar_exits: bool = False
+    spot_spread: float = 0.0  # price units, e.g. 0.01 for $0.01/share
+    spot_commission_per_share: float = 0.0
+    spot_mark_to_market: str = "close"  # "close" | "liquidation"
+    spot_drawdown_mode: str = "close"  # "close" | "intrabar"
 
 
 @dataclass(frozen=True)
@@ -251,6 +258,17 @@ def load_config(path: str | Path) -> ConfigBundle:
         tick_width_slope_lookback=_parse_positive_int(strategy_raw.get("tick_width_slope_lookback"), default=3),
         tick_neutral_policy=_parse_tick_neutral_policy(strategy_raw.get("tick_neutral_policy")),
         tick_direction_policy=_parse_tick_direction_policy(strategy_raw.get("tick_direction_policy")),
+        spot_entry_fill_mode=_parse_spot_fill_mode(strategy_raw.get("spot_entry_fill_mode"), default="close"),
+        spot_flip_exit_fill_mode=_parse_spot_fill_mode(
+            strategy_raw.get("spot_flip_exit_fill_mode"), default="close"
+        ),
+        spot_intrabar_exits=bool(strategy_raw.get("spot_intrabar_exits", False)),
+        spot_spread=_parse_non_negative_float(strategy_raw.get("spot_spread"), default=0.0),
+        spot_commission_per_share=_parse_non_negative_float(
+            strategy_raw.get("spot_commission_per_share"), default=0.0
+        ),
+        spot_mark_to_market=_parse_spot_mark_to_market(strategy_raw.get("spot_mark_to_market")),
+        spot_drawdown_mode=_parse_spot_drawdown_mode(strategy_raw.get("spot_drawdown_mode")),
     )
 
     synthetic = SyntheticConfig(
@@ -538,6 +556,54 @@ def _parse_tick_direction_policy(value) -> str:
         if cleaned in ("wide_only", "wideonly", "long_only", "longonly", "wide_long", "widelong"):
             return "wide_only"
     return "both"
+
+
+def _parse_spot_fill_mode(value, *, default: str) -> str:
+    if value is None:
+        return default
+    if isinstance(value, str):
+        cleaned = value.strip().lower()
+        if cleaned in ("close", "bar_close", "at_close"):
+            return "close"
+        if cleaned in ("next_open", "nextopen", "open", "next_bar_open", "nextbaropen"):
+            return "next_open"
+    return default
+
+
+def _parse_spot_mark_to_market(value) -> str:
+    if value is None:
+        return "close"
+    if isinstance(value, str):
+        cleaned = value.strip().lower()
+        if cleaned in ("close", "mid", "bar_close"):
+            return "close"
+        if cleaned in ("liquidation", "liq", "bidask", "bid_ask", "bid-ask"):
+            return "liquidation"
+    return "close"
+
+
+def _parse_spot_drawdown_mode(value) -> str:
+    if value is None:
+        return "close"
+    if isinstance(value, str):
+        cleaned = value.strip().lower()
+        if cleaned in ("close", "bar_close"):
+            return "close"
+        if cleaned in ("intrabar", "intra", "ohlc"):
+            return "intrabar"
+    return "close"
+
+
+def _parse_non_negative_float(value, *, default: float) -> float:
+    if value is None:
+        return float(default)
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"Expected float, got: {value!r}") from None
+    if parsed < 0:
+        raise ValueError(f"Expected non-negative float, got: {value!r}")
+    return parsed
 
 
 def _parse_positive_int(value, *, default: int) -> int:

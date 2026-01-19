@@ -426,6 +426,13 @@ def _apply_milestone_base(
         "spot_stop_loss_pct",
         "spot_exit_time_et",
         "spot_close_eod",
+        "spot_entry_fill_mode",
+        "spot_flip_exit_fill_mode",
+        "spot_intrabar_exits",
+        "spot_spread",
+        "spot_commission_per_share",
+        "spot_mark_to_market",
+        "spot_drawdown_mode",
         "exit_on_signal_flip",
         "flip_exit_mode",
         "flip_exit_min_hold_bars",
@@ -492,6 +499,29 @@ def main() -> None:
     )
     parser.add_argument("--max-open-trades", type=int, default=2)
     parser.add_argument("--close-eod", action="store_true", default=False)
+    parser.add_argument(
+        "--long-only",
+        action="store_true",
+        default=False,
+        help="Force spot to long-only (directional_spot = {'up': BUY 1}, no shorts).",
+    )
+    parser.add_argument(
+        "--realism",
+        action="store_true",
+        default=False,
+        help=(
+            "Enable spot realism v1: entry fills at next bar open, flip exits fill at next bar open, "
+            "intrabar PT/SL using OHLC, liquidation (bid/ask) marking, intrabar drawdown. "
+            "Defaults to spread=$0.01/share and commission=$0.00/share unless overridden."
+        ),
+    )
+    parser.add_argument("--spot-spread", type=float, default=None, help="Spot spread in price units (e.g. 0.01)")
+    parser.add_argument(
+        "--spot-commission",
+        type=float,
+        default=None,
+        help="Spot commission per share/contract (price units). (Backtest-only; embedded into fills.)",
+    )
     parser.add_argument("--min-trades", type=int, default=100)
     parser.add_argument("--top", type=int, default=15)
     parser.add_argument(
@@ -596,6 +626,10 @@ def main() -> None:
     signal_bar_size = str(args.bar_size).strip() or "1 hour"
     max_open_trades = int(args.max_open_trades)
     close_eod = bool(args.close_eod)
+    long_only = bool(args.long_only)
+    realism = bool(args.realism)
+    spot_spread = float(args.spot_spread) if args.spot_spread is not None else (0.01 if realism else 0.0)
+    spot_commission = float(args.spot_commission) if args.spot_commission is not None else 0.0
     run_min_trades = int(args.min_trades)
     if bool(args.write_milestones):
         run_min_trades = min(run_min_trades, int(args.milestone_min_trades))
@@ -887,6 +921,31 @@ def main() -> None:
                     regime2_supertrend_atr_period=2,
                     regime2_supertrend_multiplier=0.3,
                     regime2_supertrend_source="close",
+                ),
+            )
+
+        if long_only:
+            cfg = replace(
+                cfg,
+                strategy=replace(
+                    cfg.strategy,
+                    directional_spot={"up": SpotLegConfig(action="BUY", qty=1)},
+                ),
+            )
+
+        # Realism v1 overrides (backtest only).
+        if realism:
+            cfg = replace(
+                cfg,
+                strategy=replace(
+                    cfg.strategy,
+                    spot_entry_fill_mode="next_open",
+                    spot_flip_exit_fill_mode="next_open",
+                    spot_intrabar_exits=True,
+                    spot_spread=float(spot_spread),
+                    spot_commission_per_share=float(spot_commission),
+                    spot_mark_to_market="liquidation",
+                    spot_drawdown_mode="intrabar",
                 ),
             )
         return cfg
@@ -3776,7 +3835,8 @@ def main() -> None:
     axis = str(args.axis).strip().lower()
     print(
         f"{symbol} spot evolve sweep ({start.isoformat()} -> {end.isoformat()}, use_rth={use_rth}, "
-        f"bar_size={signal_bar_size}, offline={offline}, base={args.base}, axis={axis})"
+        f"bar_size={signal_bar_size}, offline={offline}, base={args.base}, axis={axis}, "
+        f"long_only={long_only} realism={realism} spread={spot_spread:g} comm={spot_commission:g})"
     )
 
     if axis in ("all", "ema"):

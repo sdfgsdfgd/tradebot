@@ -167,6 +167,21 @@ When `instrument="spot"`, the engine trades the underlying itself instead of syn
   - Example: `spot_profit_target_pct=0.02` = take profit at +2% move (sign-adjusted for shorts)
 - `spot_close_eod` (optional; default `false`)
   - If `true`, closes any open spot positions on the last bar of each day.
+- Spot backtest realism knobs (backtest-only; opt-in; default behavior remains unchanged):
+  - `spot_entry_fill_mode`: `"close"` or `"next_open"`
+    - `"next_open"` means we decide at bar close but fill at next bar open.
+  - `spot_flip_exit_fill_mode`: `"close"` or `"next_open"`
+    - `"next_open"` makes flip exits more realistic (no same-bar-close flip fills).
+  - `spot_intrabar_exits`: `true/false`
+    - When `true`, profit/stop are evaluated using OHLC (intrabar), not only bar close.
+    - If both PT and SL are hit in the same bar, we assume **worst-case** ordering (stop-first).
+  - `spot_spread`: spot bid/ask spread in **price units** (e.g., `0.01` for `$0.01/share`)
+    - Modeled as half-spread on entry and half-spread on exit.
+  - `spot_commission_per_share`: commission in **price units** (per share/contract); embedded into fills
+  - `spot_mark_to_market`: `"close"` or `"liquidation"`
+    - `"liquidation"` marks open positions at bid/ask (not mid).
+  - `spot_drawdown_mode`: `"close"` or `"intrabar"`
+    - `"intrabar"` approximates worst-in-bar equity for max drawdown.
 
 #### Multi-leg strategies
 You can replace the default spread params with explicit legs. If `legs` is present, it is used instead of `right/otm_pct/width_pct`.
@@ -277,6 +292,12 @@ Regenerate (offline, uses cached bars in `db/`):
 ```bash
 python -m tradebot.backtest.evolve_spot --offline --axis all --write-milestones --cache-dir db
 python -m tradebot.backtest.evolve_spot --offline --axis combo --write-milestones --merge-milestones --cache-dir db
+```
+
+Regenerate with realism v1 enabled (recommended before live trading):
+```bash
+python -m tradebot.backtest.evolve_spot --offline --axis all --realism --write-milestones --cache-dir db
+python -m tradebot.backtest.evolve_spot --offline --axis combo --realism --write-milestones --merge-milestones --cache-dir db
 ```
 
 Regenerate 30-minute spot champions (adds only a curated top set from that run, merges into existing milestones):
@@ -415,6 +436,42 @@ Quick “max net PnL” snapshots (generated 2026-01-16, post-intraday-timestamp
 ### Spot cross-asset sanity (TQQQ, 10y, RTH)
 These were found by running our spot combo sweep on `TQQQ` over `2016-01-01 → 2026-01-08` with `use_rth=true`.
 
+#### REALISM v1 kingmaker (post-costs, long-only)
+These are the current “go-live shaped” TQQQ presets found under **Realism v1**:
+- Long-only.
+- Entry fills at **next bar open** (no same-bar-close fills).
+- Intrabar PT/SL evaluated using OHLC (worst-case ordering when both hit in one bar).
+- Liquidation marking (bid/ask) for equity/DD + intrabar drawdown approximation.
+- Costs: `spot_spread=0.01` (=$0.01/share) and `spot_commission_per_share=0.0`.
+
+**Presets (already merged into `tradebot/backtest/spot_milestones.json` for the TUI):**
+
+- **K30-01 (30 mins):** `ema=4/9 cross`, `ST(21,1.0,hl2)@4h`, exits `ATR(21) PTx0.70 SLx1.80`, `hold=4`, `max_open=1 close_eod=1`
+  - 10y stats: `tr=674`, `win=63.1%`, `pnl=11.88`, `dd=3.70`, `pnl/dd=3.21`
+  - 1y slices:
+    - 2023→2024: `tr=54`, `win=68.5%`, `pnl=2.42`, `dd=0.67`, `pnl/dd=3.59`
+    - 2024→2025: `tr=69`, `win=69.6%`, `pnl=3.36`, `dd=2.26`, `pnl/dd=1.49`
+    - 2025→2026-01-19: `tr=80`, `win=66.2%`, `pnl=5.29`, `dd=1.94`, `pnl/dd=2.73`
+
+- **K30-02 (30 mins):** `ema=4/9 cross`, `ST(7,1.0,hl2)@4h`, exits `ATR(21) PTx0.70 SLx1.80`, `hold=4`, `max_open=1 close_eod=1`
+  - 10y stats: `tr=633`, `win=62.6%`, `pnl=11.80`, `dd=4.84`, `pnl/dd=2.43`
+  - 1y slices:
+    - 2023→2024: `tr=59`, `win=69.5%`, `pnl=2.54`, `dd=0.67`, `pnl/dd=3.77`
+    - 2024→2025: `tr=67`, `win=68.7%`, `pnl=3.32`, `dd=2.27`, `pnl/dd=1.46`
+    - 2025→2026-01-19: `tr=74`, `win=68.9%`, `pnl=6.87`, `dd=1.68`, `pnl/dd=4.09`
+
+- **K1H-02 (1 hour):** `ema=2/4 cross`, `ST(21,0.8,close)@4h + ST2(1d:7,0.4,close)`, exits `ATR(10) PTx0.80 SLx1.80`, `hold=4`, `max_open=2`
+  - 10y stats: `tr=733`, `win=64.9%`, `pnl=16.68`, `dd=6.22`, `pnl/dd=2.68`
+  - 1y slices:
+    - 2023→2024: `tr=69`, `win=66.7%`, `pnl=3.06`, `dd=2.45`, `pnl/dd=1.25`
+    - 2024→2025: `tr=83`, `win=66.3%`, `pnl=5.08`, `dd=4.46`, `pnl/dd=1.14`
+    - 2025→2026-01-19: `tr=92`, `win=68.5%`, `pnl=9.22`, `dd=4.49`, `pnl/dd=2.06`
+
+Repro notes:
+- Candidate pool generation: `python -m tradebot.backtest.evolve_spot --axis combo --realism --long-only ... --write-milestones --milestones-out tradebot/backtest/spot_milestones.tqqq_10y_<bar>_realism.json`
+- Stability scoring: `python -m tradebot.backtest.kingmaker --milestones tradebot/backtest/spot_milestones.tqqq_10y_<bar>_realism.json --max-open <N> --require-positive-pnl ...`
+
+#### LEGACY (pre-realism; optimistic)
 Note:
 - `max_open=0` means **unlimited stacking** (subject to `starting_cash` margin constraints); this can materially change results.
 - Spot PnL for equities is per-share (multiplier `1.0`), not per-contract `100`.
@@ -521,16 +578,16 @@ This improves synthetic pricing without requiring OPRA/CME bid/ask.
 
 ## TODO
 - Realism pass (spot backtest): quantify how rankings change under more realistic execution/cost assumptions
-  - Next-bar execution: act after the bar close that generates the signal (entry/exit timing)
-  - Intrabar TP/SL: use bar high/low for hit detection with a deterministic tie-break (stop vs target ordering)
-  - Risk model realism: track intrabar drawdown / MAE/MFE (not just close-to-close drawdown)
-  - Explicit cost model: spread + slippage + fees/commissions (per side), parameterized per symbol (e.g. MNQ tick)
-  - ET session/day boundaries: make `max_entries_per_day`, `spot_close_eod`, `bars_in_day` align with ET session logic
-  - Sensitivity report: compare champ/top-10 deltas (pnl, pnl/dd, WR, trades) across realism settings
+  - Next-bar execution (implemented): `spot_entry_fill_mode=next_open`, `spot_flip_exit_fill_mode=next_open`
+  - Intrabar TP/SL (implemented): `spot_intrabar_exits=true` with deterministic tie-break (stop-first)
+  - Risk model realism (partially implemented): `spot_drawdown_mode=intrabar` (worst-in-bar approximation; MAE/MFE still TODO)
+  - Explicit cost model (implemented for spot): `spot_spread`, `spot_commission_per_share` (spread/commission; slippage TODO)
+  - ET session/day boundaries (TODO): make `max_entries_per_day`, `spot_close_eod`, `bars_in_day` align with ET session logic
+  - Sensitivity report (TODO): compare champ/top-10 deltas (pnl, pnl/dd, WR, trades) across realism settings
 - Realism pass (options backtest): quantify the impact of the synthetic market model and its simplifications
-  - Options backtests are synthetic (not real markets). Prices come from Black-Scholes/Black-76 on the underlying bar close + a synthetic IV surface, and fills use a synthetic bid/ask (“mid-edge”) around the model mid. See `tradebot/backtest/engine.py:1296` and `tradebot/backtest/synth.py:54`.
+  - Options backtests are synthetic (not real markets). Prices come from Black-Scholes/Black-76 on the underlying bar close + a synthetic IV surface, and fills use a synthetic bid/ask (“mid-edge”) around the model mid. See `tradebot/backtest/engine.py:1657` and `tradebot/backtest/synth.py:54`.
   - No explicit commissions/fees anywhere (TODO: add a per-contract/per-order cost model).
-  - Open trades are marked at mid (not executable), and multi-leg combos get one net edge, not per-leg edges. See `tradebot/backtest/engine.py:1340` and `tradebot/backtest/synth.py:75`.
+  - Open trades are marked at mid (not executable), and multi-leg combos get one net edge, not per-leg edges. See `tradebot/backtest/engine.py:1668` and `tradebot/backtest/synth.py:75`.
     - This can materially change PnL + drawdown behavior vs legging / real combo markets.
 - Evolution sweeps (add one axis at a time)
   - Walk-forward selection (train earlier slice, test later slice)

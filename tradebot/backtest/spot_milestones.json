@@ -1,8 +1,693 @@
 {
   "name": "spot_milestones",
-  "generated_at": "2026-01-16T15:49:49.213420Z",
-  "notes": "Auto-generated via evolve_spot.py (post-fix). window=2025-01-08\u21922026-01-08, bar_size=30 mins, use_rth=False. thresholds: win>=0.55, trades>=200, pnl/dd>=8.00.",
+  "generated_at": "2026-01-19T21:18:31.821223Z",
+  "notes": "Composite spot milestones (mixed symbols/windows). Includes MNQ 12m (post-fix) presets plus TQQQ 10y (RTH) REALISM v1 kingmaker presets.",
   "groups": [
+    {
+      "name": "Spot (TQQQ) 10y (RTH) REALISM v1 Kingmaker K30-01 [30 mins] pnl/dd=3.21 pnl=11.9 win=63.1% tr=674",
+      "filters": null,
+      "entries": [
+        {
+          "symbol": "TQQQ",
+          "metrics": {
+            "pnl": 11.879744593296113,
+            "win_rate": 0.6305637982195845,
+            "trades": 674,
+            "max_drawdown": 3.7001335539243883,
+            "pnl_over_dd": 3.2106258923266084
+          },
+          "strategy": {
+            "name": "spot_evolve",
+            "instrument": "spot",
+            "symbol": "TQQQ",
+            "exchange": null,
+            "right": "PUT",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "max_entries_per_day": 0,
+            "max_open_trades": 1,
+            "dte": 0,
+            "otm_pct": 0.0,
+            "width_pct": 0.0,
+            "profit_target": 0.0,
+            "stop_loss": 0.0,
+            "exit_dte": 0,
+            "quantity": 1,
+            "stop_loss_basis": "max_loss",
+            "min_credit": null,
+            "ema_preset": "4/9",
+            "ema_entry_mode": "cross",
+            "entry_confirm_bars": 0,
+            "regime_ema_preset": null,
+            "regime_bar_size": "4 hours",
+            "ema_directional": false,
+            "exit_on_signal_flip": true,
+            "flip_exit_mode": "entry",
+            "flip_exit_min_hold_bars": 4,
+            "flip_exit_only_if_profit": false,
+            "direction_source": "ema",
+            "directional_legs": null,
+            "directional_spot": {
+              "up": {
+                "action": "BUY",
+                "qty": 1
+              }
+            },
+            "legs": null,
+            "spot_profit_target_pct": null,
+            "spot_stop_loss_pct": null,
+            "spot_close_eod": true,
+            "entry_signal": "ema",
+            "orb_window_mins": 15,
+            "orb_risk_reward": 2.0,
+            "orb_target_mode": "rr",
+            "orb_open_time_et": null,
+            "spot_exit_mode": "atr",
+            "spot_atr_period": 21,
+            "spot_pt_atr_mult": 0.7,
+            "spot_sl_atr_mult": 1.8,
+            "spot_exit_time_et": null,
+            "regime_mode": "supertrend",
+            "regime2_mode": "off",
+            "regime2_ema_preset": null,
+            "regime2_bar_size": null,
+            "regime2_supertrend_atr_period": 10,
+            "regime2_supertrend_multiplier": 3.0,
+            "regime2_supertrend_source": "hl2",
+            "supertrend_atr_period": 21,
+            "supertrend_multiplier": 1.0,
+            "supertrend_source": "hl2",
+            "tick_gate_mode": "off",
+            "tick_gate_symbol": "TICK-NYSE",
+            "tick_gate_exchange": "NYSE",
+            "tick_band_ma_period": 10,
+            "tick_width_z_lookback": 252,
+            "tick_width_z_enter": 1.0,
+            "tick_width_z_exit": 0.5,
+            "tick_width_slope_lookback": 3,
+            "tick_neutral_policy": "allow",
+            "tick_direction_policy": "both",
+            "spot_entry_fill_mode": "next_open",
+            "spot_flip_exit_fill_mode": "next_open",
+            "spot_intrabar_exits": true,
+            "spot_spread": 0.01,
+            "spot_commission_per_share": 0.0,
+            "spot_mark_to_market": "liquidation",
+            "spot_drawdown_mode": "intrabar",
+            "signal_bar_size": "30 mins",
+            "signal_use_rth": true,
+            "spot_sec_type": "STK",
+            "spot_exchange": "SMART"
+          }
+        }
+      ],
+      "_eval": {
+        "stability_min_pnl_dd": 1.485452990856716,
+        "stability_min_pnl": 2.419399168284583,
+        "windows": [
+          {
+            "start": "2023-01-01",
+            "end": "2024-01-01",
+            "trades": 54,
+            "win_rate": 0.6851851851851852,
+            "pnl": 2.419399168284583,
+            "dd": 0.6734577268507564,
+            "pnl_over_dd": 3.5925033923038514
+          },
+          {
+            "start": "2024-01-01",
+            "end": "2025-01-01",
+            "trades": 69,
+            "win_rate": 0.6956521739130435,
+            "pnl": 3.363008559964282,
+            "dd": 2.263961620235932,
+            "pnl_over_dd": 1.485452990856716
+          },
+          {
+            "start": "2025-01-01",
+            "end": "2026-01-19",
+            "trades": 80,
+            "win_rate": 0.6625,
+            "pnl": 5.29193377828037,
+            "dd": 1.9402512990054674,
+            "pnl_over_dd": 2.727447615158359
+          }
+        ]
+      }
+    },
+    {
+      "name": "Spot (TQQQ) 10y (RTH) REALISM v1 Kingmaker K30-02 [30 mins] pnl/dd=2.43 pnl=11.8 win=62.6% tr=633",
+      "filters": null,
+      "entries": [
+        {
+          "symbol": "TQQQ",
+          "metrics": {
+            "pnl": 11.79540060445894,
+            "win_rate": 0.6255924170616114,
+            "trades": 633,
+            "max_drawdown": 4.8442005481920205,
+            "pnl_over_dd": 2.434952989066748
+          },
+          "strategy": {
+            "name": "spot_evolve",
+            "instrument": "spot",
+            "symbol": "TQQQ",
+            "exchange": null,
+            "right": "PUT",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "max_entries_per_day": 0,
+            "max_open_trades": 1,
+            "dte": 0,
+            "otm_pct": 0.0,
+            "width_pct": 0.0,
+            "profit_target": 0.0,
+            "stop_loss": 0.0,
+            "exit_dte": 0,
+            "quantity": 1,
+            "stop_loss_basis": "max_loss",
+            "min_credit": null,
+            "ema_preset": "4/9",
+            "ema_entry_mode": "cross",
+            "entry_confirm_bars": 0,
+            "regime_ema_preset": null,
+            "regime_bar_size": "4 hours",
+            "ema_directional": false,
+            "exit_on_signal_flip": true,
+            "flip_exit_mode": "entry",
+            "flip_exit_min_hold_bars": 4,
+            "flip_exit_only_if_profit": false,
+            "direction_source": "ema",
+            "directional_legs": null,
+            "directional_spot": {
+              "up": {
+                "action": "BUY",
+                "qty": 1
+              }
+            },
+            "legs": null,
+            "spot_profit_target_pct": null,
+            "spot_stop_loss_pct": null,
+            "spot_close_eod": true,
+            "entry_signal": "ema",
+            "orb_window_mins": 15,
+            "orb_risk_reward": 2.0,
+            "orb_target_mode": "rr",
+            "orb_open_time_et": null,
+            "spot_exit_mode": "atr",
+            "spot_atr_period": 21,
+            "spot_pt_atr_mult": 0.7,
+            "spot_sl_atr_mult": 1.8,
+            "spot_exit_time_et": null,
+            "regime_mode": "supertrend",
+            "regime2_mode": "off",
+            "regime2_ema_preset": null,
+            "regime2_bar_size": null,
+            "regime2_supertrend_atr_period": 10,
+            "regime2_supertrend_multiplier": 3.0,
+            "regime2_supertrend_source": "hl2",
+            "supertrend_atr_period": 7,
+            "supertrend_multiplier": 1.0,
+            "supertrend_source": "hl2",
+            "tick_gate_mode": "off",
+            "tick_gate_symbol": "TICK-NYSE",
+            "tick_gate_exchange": "NYSE",
+            "tick_band_ma_period": 10,
+            "tick_width_z_lookback": 252,
+            "tick_width_z_enter": 1.0,
+            "tick_width_z_exit": 0.5,
+            "tick_width_slope_lookback": 3,
+            "tick_neutral_policy": "allow",
+            "tick_direction_policy": "both",
+            "spot_entry_fill_mode": "next_open",
+            "spot_flip_exit_fill_mode": "next_open",
+            "spot_intrabar_exits": true,
+            "spot_spread": 0.01,
+            "spot_commission_per_share": 0.0,
+            "spot_mark_to_market": "liquidation",
+            "spot_drawdown_mode": "intrabar",
+            "signal_bar_size": "30 mins",
+            "signal_use_rth": true,
+            "spot_sec_type": "STK",
+            "spot_exchange": "SMART"
+          }
+        }
+      ],
+      "_eval": {
+        "stability_min_pnl_dd": 1.4623630687616986,
+        "stability_min_pnl": 2.5373556127696038,
+        "windows": [
+          {
+            "start": "2023-01-01",
+            "end": "2024-01-01",
+            "trades": 59,
+            "win_rate": 0.6949152542372882,
+            "pnl": 2.5373556127696038,
+            "dd": 0.6734577268507564,
+            "pnl_over_dd": 3.767653872849397
+          },
+          {
+            "start": "2024-01-01",
+            "end": "2025-01-01",
+            "trades": 67,
+            "win_rate": 0.6865671641791045,
+            "pnl": 3.3187382960302827,
+            "dd": 2.2694352496473584,
+            "pnl_over_dd": 1.4623630687616986
+          },
+          {
+            "start": "2025-01-01",
+            "end": "2026-01-19",
+            "trades": 74,
+            "win_rate": 0.6891891891891891,
+            "pnl": 6.871534678851493,
+            "dd": 1.6784597954392666,
+            "pnl_over_dd": 4.093952501884715
+          }
+        ]
+      }
+    },
+    {
+      "name": "Spot (TQQQ) 10y (RTH) REALISM v1 Kingmaker K30-03 [30 mins] pnl/dd=2.87 pnl=6.2 win=62.7% tr=314",
+      "filters": null,
+      "entries": [
+        {
+          "symbol": "TQQQ",
+          "metrics": {
+            "pnl": 6.2408019414384714,
+            "win_rate": 0.6273885350318471,
+            "trades": 314,
+            "max_drawdown": 2.175462138155126,
+            "pnl_over_dd": 2.86872468703634
+          },
+          "strategy": {
+            "name": "spot_evolve",
+            "instrument": "spot",
+            "symbol": "TQQQ",
+            "exchange": null,
+            "right": "PUT",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "max_entries_per_day": 0,
+            "max_open_trades": 1,
+            "dte": 0,
+            "otm_pct": 0.0,
+            "width_pct": 0.0,
+            "profit_target": 0.0,
+            "stop_loss": 0.0,
+            "exit_dte": 0,
+            "quantity": 1,
+            "stop_loss_basis": "max_loss",
+            "min_credit": null,
+            "ema_preset": "4/9",
+            "ema_entry_mode": "cross",
+            "entry_confirm_bars": 0,
+            "regime_ema_preset": null,
+            "regime_bar_size": "4 hours",
+            "ema_directional": false,
+            "exit_on_signal_flip": true,
+            "flip_exit_mode": "entry",
+            "flip_exit_min_hold_bars": 4,
+            "flip_exit_only_if_profit": false,
+            "direction_source": "ema",
+            "directional_legs": null,
+            "directional_spot": {
+              "up": {
+                "action": "BUY",
+                "qty": 1
+              }
+            },
+            "legs": null,
+            "spot_profit_target_pct": null,
+            "spot_stop_loss_pct": null,
+            "spot_close_eod": true,
+            "entry_signal": "ema",
+            "orb_window_mins": 15,
+            "orb_risk_reward": 2.0,
+            "orb_target_mode": "rr",
+            "orb_open_time_et": null,
+            "spot_exit_mode": "atr",
+            "spot_atr_period": 21,
+            "spot_pt_atr_mult": 0.7,
+            "spot_sl_atr_mult": 1.8,
+            "spot_exit_time_et": null,
+            "regime_mode": "supertrend",
+            "regime2_mode": "supertrend",
+            "regime2_ema_preset": null,
+            "regime2_bar_size": "4 hours",
+            "regime2_supertrend_atr_period": 5,
+            "regime2_supertrend_multiplier": 0.2,
+            "regime2_supertrend_source": "close",
+            "supertrend_atr_period": 21,
+            "supertrend_multiplier": 1.0,
+            "supertrend_source": "hl2",
+            "tick_gate_mode": "off",
+            "tick_gate_symbol": "TICK-NYSE",
+            "tick_gate_exchange": "NYSE",
+            "tick_band_ma_period": 10,
+            "tick_width_z_lookback": 252,
+            "tick_width_z_enter": 1.0,
+            "tick_width_z_exit": 0.5,
+            "tick_width_slope_lookback": 3,
+            "tick_neutral_policy": "allow",
+            "tick_direction_policy": "both",
+            "spot_entry_fill_mode": "next_open",
+            "spot_flip_exit_fill_mode": "next_open",
+            "spot_intrabar_exits": true,
+            "spot_spread": 0.01,
+            "spot_commission_per_share": 0.0,
+            "spot_mark_to_market": "liquidation",
+            "spot_drawdown_mode": "intrabar",
+            "signal_bar_size": "30 mins",
+            "signal_use_rth": true,
+            "spot_sec_type": "STK",
+            "spot_exchange": "SMART"
+          }
+        }
+      ],
+      "_eval": {
+        "stability_min_pnl_dd": 1.4360747707722936,
+        "stability_min_pnl": 1.5421287530581296,
+        "windows": [
+          {
+            "start": "2023-01-01",
+            "end": "2024-01-01",
+            "trades": 28,
+            "win_rate": 0.7142857142857143,
+            "pnl": 1.5421287530581296,
+            "dd": 0.4761563357897103,
+            "pnl_over_dd": 3.2387025796905395
+          },
+          {
+            "start": "2024-01-01",
+            "end": "2025-01-01",
+            "trades": 27,
+            "win_rate": 0.7407407407407407,
+            "pnl": 1.795093463465367,
+            "dd": 1.25,
+            "pnl_over_dd": 1.4360747707722936
+          },
+          {
+            "start": "2025-01-01",
+            "end": "2026-01-19",
+            "trades": 39,
+            "win_rate": 0.6153846153846154,
+            "pnl": 2.8855805181735725,
+            "dd": 1.5,
+            "pnl_over_dd": 1.9237203454490484
+          }
+        ]
+      }
+    },
+    {
+      "name": "Spot (TQQQ) 10y (RTH) REALISM v1 Kingmaker K1H-01 [1 hour] pnl/dd=2.39 pnl=14.9 win=64.9% tr=727",
+      "filters": null,
+      "entries": [
+        {
+          "symbol": "TQQQ",
+          "metrics": {
+            "pnl": 14.883569211267902,
+            "win_rate": 0.6492434662998624,
+            "trades": 727,
+            "max_drawdown": 6.222733356204117,
+            "pnl_over_dd": 2.3918057161213344
+          },
+          "strategy": {
+            "name": "spot_evolve",
+            "instrument": "spot",
+            "symbol": "TQQQ",
+            "exchange": null,
+            "right": "PUT",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "max_entries_per_day": 0,
+            "max_open_trades": 2,
+            "dte": 0,
+            "otm_pct": 0.0,
+            "width_pct": 0.0,
+            "profit_target": 0.0,
+            "stop_loss": 0.0,
+            "exit_dte": 0,
+            "quantity": 1,
+            "stop_loss_basis": "max_loss",
+            "min_credit": null,
+            "ema_preset": "2/4",
+            "ema_entry_mode": "cross",
+            "entry_confirm_bars": 0,
+            "regime_ema_preset": null,
+            "regime_bar_size": "4 hours",
+            "ema_directional": false,
+            "exit_on_signal_flip": true,
+            "flip_exit_mode": "entry",
+            "flip_exit_min_hold_bars": 4,
+            "flip_exit_only_if_profit": false,
+            "direction_source": "ema",
+            "directional_legs": null,
+            "directional_spot": {
+              "up": {
+                "action": "BUY",
+                "qty": 1
+              }
+            },
+            "legs": null,
+            "spot_profit_target_pct": null,
+            "spot_stop_loss_pct": null,
+            "spot_close_eod": false,
+            "entry_signal": "ema",
+            "orb_window_mins": 15,
+            "orb_risk_reward": 2.0,
+            "orb_target_mode": "rr",
+            "orb_open_time_et": null,
+            "spot_exit_mode": "atr",
+            "spot_atr_period": 10,
+            "spot_pt_atr_mult": 0.8,
+            "spot_sl_atr_mult": 1.8,
+            "spot_exit_time_et": null,
+            "regime_mode": "supertrend",
+            "regime2_mode": "supertrend",
+            "regime2_ema_preset": null,
+            "regime2_bar_size": "1 day",
+            "regime2_supertrend_atr_period": 7,
+            "regime2_supertrend_multiplier": 0.4,
+            "regime2_supertrend_source": "close",
+            "supertrend_atr_period": 14,
+            "supertrend_multiplier": 0.8,
+            "supertrend_source": "close",
+            "tick_gate_mode": "off",
+            "tick_gate_symbol": "TICK-NYSE",
+            "tick_gate_exchange": "NYSE",
+            "tick_band_ma_period": 10,
+            "tick_width_z_lookback": 252,
+            "tick_width_z_enter": 1.0,
+            "tick_width_z_exit": 0.5,
+            "tick_width_slope_lookback": 3,
+            "tick_neutral_policy": "allow",
+            "tick_direction_policy": "both",
+            "spot_entry_fill_mode": "next_open",
+            "spot_flip_exit_fill_mode": "next_open",
+            "spot_intrabar_exits": true,
+            "spot_spread": 0.01,
+            "spot_commission_per_share": 0.0,
+            "spot_mark_to_market": "liquidation",
+            "spot_drawdown_mode": "intrabar",
+            "signal_bar_size": "1 hour",
+            "signal_use_rth": true,
+            "spot_sec_type": "STK",
+            "spot_exchange": "SMART"
+          }
+        }
+      ],
+      "_eval": {
+        "stability_min_pnl_dd": 1.2248990860216216,
+        "stability_min_pnl": 3.0599290032805566,
+        "windows": [
+          {
+            "start": "2023-01-01",
+            "end": "2024-01-01",
+            "trades": 69,
+            "win_rate": 0.6666666666666666,
+            "pnl": 3.0599290032805566,
+            "dd": 2.4499626823235303,
+            "pnl_over_dd": 1.2489696375205754
+          },
+          {
+            "start": "2024-01-01",
+            "end": "2025-01-01",
+            "trades": 83,
+            "win_rate": 0.6626506024096386,
+            "pnl": 5.093777959733,
+            "dd": 4.158528664003825,
+            "pnl_over_dd": 1.2248990860216216
+          },
+          {
+            "start": "2025-01-01",
+            "end": "2026-01-19",
+            "trades": 88,
+            "win_rate": 0.6704545454545454,
+            "pnl": 5.563028164357011,
+            "dd": 4.486862591278623,
+            "pnl_over_dd": 1.2398481235351833
+          }
+        ]
+      }
+    },
+    {
+      "name": "Spot (TQQQ) 10y (RTH) REALISM v1 Kingmaker K1H-02 [1 hour] pnl/dd=2.68 pnl=16.7 win=64.9% tr=733",
+      "filters": null,
+      "entries": [
+        {
+          "symbol": "TQQQ",
+          "metrics": {
+            "pnl": 16.67637482059073,
+            "win_rate": 0.6493860845839018,
+            "trades": 733,
+            "max_drawdown": 6.222733356204117,
+            "pnl_over_dd": 2.679911522155171
+          },
+          "strategy": {
+            "name": "spot_evolve",
+            "instrument": "spot",
+            "symbol": "TQQQ",
+            "exchange": null,
+            "right": "PUT",
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "max_entries_per_day": 0,
+            "max_open_trades": 2,
+            "dte": 0,
+            "otm_pct": 0.0,
+            "width_pct": 0.0,
+            "profit_target": 0.0,
+            "stop_loss": 0.0,
+            "exit_dte": 0,
+            "quantity": 1,
+            "stop_loss_basis": "max_loss",
+            "min_credit": null,
+            "ema_preset": "2/4",
+            "ema_entry_mode": "cross",
+            "entry_confirm_bars": 0,
+            "regime_ema_preset": null,
+            "regime_bar_size": "4 hours",
+            "ema_directional": false,
+            "exit_on_signal_flip": true,
+            "flip_exit_mode": "entry",
+            "flip_exit_min_hold_bars": 4,
+            "flip_exit_only_if_profit": false,
+            "direction_source": "ema",
+            "directional_legs": null,
+            "directional_spot": {
+              "up": {
+                "action": "BUY",
+                "qty": 1
+              }
+            },
+            "legs": null,
+            "spot_profit_target_pct": null,
+            "spot_stop_loss_pct": null,
+            "spot_close_eod": false,
+            "entry_signal": "ema",
+            "orb_window_mins": 15,
+            "orb_risk_reward": 2.0,
+            "orb_target_mode": "rr",
+            "orb_open_time_et": null,
+            "spot_exit_mode": "atr",
+            "spot_atr_period": 10,
+            "spot_pt_atr_mult": 0.8,
+            "spot_sl_atr_mult": 1.8,
+            "spot_exit_time_et": null,
+            "regime_mode": "supertrend",
+            "regime2_mode": "supertrend",
+            "regime2_ema_preset": null,
+            "regime2_bar_size": "1 day",
+            "regime2_supertrend_atr_period": 7,
+            "regime2_supertrend_multiplier": 0.4,
+            "regime2_supertrend_source": "close",
+            "supertrend_atr_period": 21,
+            "supertrend_multiplier": 0.8,
+            "supertrend_source": "close",
+            "tick_gate_mode": "off",
+            "tick_gate_symbol": "TICK-NYSE",
+            "tick_gate_exchange": "NYSE",
+            "tick_band_ma_period": 10,
+            "tick_width_z_lookback": 252,
+            "tick_width_z_enter": 1.0,
+            "tick_width_z_exit": 0.5,
+            "tick_width_slope_lookback": 3,
+            "tick_neutral_policy": "allow",
+            "tick_direction_policy": "both",
+            "spot_entry_fill_mode": "next_open",
+            "spot_flip_exit_fill_mode": "next_open",
+            "spot_intrabar_exits": true,
+            "spot_spread": 0.01,
+            "spot_commission_per_share": 0.0,
+            "spot_mark_to_market": "liquidation",
+            "spot_drawdown_mode": "intrabar",
+            "signal_bar_size": "1 hour",
+            "signal_use_rth": true,
+            "spot_sec_type": "STK",
+            "spot_exchange": "SMART"
+          }
+        }
+      ],
+      "_eval": {
+        "stability_min_pnl_dd": 1.1373707596427691,
+        "stability_min_pnl": 3.0599290032805566,
+        "windows": [
+          {
+            "start": "2023-01-01",
+            "end": "2024-01-01",
+            "trades": 69,
+            "win_rate": 0.6666666666666666,
+            "pnl": 3.0599290032805566,
+            "dd": 2.4499626823235303,
+            "pnl_over_dd": 1.2489696375205754
+          },
+          {
+            "start": "2024-01-01",
+            "end": "2025-01-01",
+            "trades": 83,
+            "win_rate": 0.6626506024096386,
+            "pnl": 5.0769553927130175,
+            "dd": 4.463764651649399,
+            "pnl_over_dd": 1.1373707596427691
+          },
+          {
+            "start": "2025-01-01",
+            "end": "2026-01-19",
+            "trades": 92,
+            "win_rate": 0.6847826086956522,
+            "pnl": 9.223043939581355,
+            "dd": 4.486862591278623,
+            "pnl_over_dd": 2.0555663900893077
+          }
+        ]
+      }
+    },
     {
       "name": "Spot (MNQ) 12m (post-fix) #01 pnl/dd=17.62 pnl=13056 win=58.1% tr=303 \u2014 ST(21,0.5,close)@4 hours + R2@4 hours [ATR(7) PTx1.12 SLx1.50]",
       "filters": {
@@ -47761,7 +48446,7 @@
       ]
     },
     {
-      "name": "Spot (TQQQ) 10y (RTH) #T1 pnl/dd=7.22 pnl=249 win=64.3% tr=12407 \u2014 ema=3/7 trend | ST(3,0.8,close)@4 hours [pct PT=0.005 SL=0.030 hold=4 max_open=0]",
+      "name": "LEGACY (pre-realism) Spot (TQQQ) 10y (RTH) #T1 pnl/dd=7.22 pnl=249 win=64.3% tr=12407 \u2014 ema=3/7 trend | ST(3,0.8,close)@4 hours [pct PT=0.005 SL=0.030 hold=4 max_open=0]",
       "filters": {
         "ema_spread_min_pct": 0.005,
         "ema_slope_min_pct": 0.01
@@ -47865,7 +48550,7 @@
       ]
     },
     {
-      "name": "Spot (TQQQ) 10y (RTH) #T2 pnl/dd=2.10 pnl=318 win=59.0% tr=14439 \u2014 ema=9/21 trend | ST(3,0.8,close)@4 hours [pct PT=0.015 SL=0.030 hold=0 max_open=0]",
+      "name": "LEGACY (pre-realism) Spot (TQQQ) 10y (RTH) #T2 pnl/dd=2.10 pnl=318 win=59.0% tr=14439 \u2014 ema=9/21 trend | ST(3,0.8,close)@4 hours [pct PT=0.015 SL=0.030 hold=0 max_open=0]",
       "filters": {
         "ema_spread_min_pct": 0.005
       },
@@ -47968,7 +48653,7 @@
       ]
     },
     {
-      "name": "Spot (TQQQ) 10y (RTH) #T3 pnl/dd=9.60 pnl=31 win=54.9% tr=1081 \u2014 ema=3/7 cross | ST(7,0.6,close)@4 hours + ST2(1d:7,0.4,close) [ATR(10) PTx0.9 SLx1.8 hold=4 max_open=1 close_eod=1]",
+      "name": "LEGACY (pre-realism) Spot (TQQQ) 10y (RTH) #T3 pnl/dd=9.60 pnl=31 win=54.9% tr=1081 \u2014 ema=3/7 cross | ST(7,0.6,close)@4 hours + ST2(1d:7,0.4,close) [ATR(10) PTx0.9 SLx1.8 hold=4 max_open=1 close_eod=1]",
       "filters": null,
       "entries": [
         {
@@ -48069,7 +48754,7 @@
       ]
     },
     {
-      "name": "Spot (TQQQ) 10y (RTH) #T4 pnl/dd=3.82 pnl=586 win=54.0% tr=26508 \u2014 ema=9/21 trend | ST(3,0.8,close)@4 hours [pct PT=0.015 SL=0.030 hold=4 max_open=0]",
+      "name": "LEGACY (pre-realism) Spot (TQQQ) 10y (RTH) #T4 pnl/dd=3.82 pnl=586 win=54.0% tr=26508 \u2014 ema=9/21 trend | ST(3,0.8,close)@4 hours [pct PT=0.015 SL=0.030 hold=4 max_open=0]",
       "filters": {
         "ema_spread_min_pct": 0.003
       },
