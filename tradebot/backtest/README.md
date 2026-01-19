@@ -412,6 +412,30 @@ Quick “max net PnL” snapshots (generated 2026-01-16, post-intraday-timestamp
   - Loosenings: `max_entries_per_day=0`, `max_open_trades=2`, `spot_close_eod=false`
   - Stats: `trades=821`, `win=56.9%`, `pnl=+22486.5`, `dd=1867.5`, `pnl/dd=12.04`
 
+### Spot cross-asset sanity (TQQQ, 10y, RTH)
+These were found by running our spot combo sweep on `TQQQ` over `2016-01-01 → 2026-01-08` with `use_rth=true`.
+
+Note:
+- `max_open=0` means **unlimited stacking** (subject to `starting_cash` margin constraints); this can materially change results.
+- Spot PnL for equities is per-share (multiplier `1.0`), not per-contract `100`.
+
+- 1 hour (combo sweep outcome, verified by direct backtest)
+  - Best pnl/dd family found (note: uses `max_open=0` = unlimited stacking):
+    - `tr=12407`, `win=64.25%`, `pnl=249.3`, `dd=34.5`, `pnl/dd=7.22`
+    - `ema=3/7 trend`, `ST(3,0.8,close)@4h`, exits `PT=0.005 SL=0.030`, `hold=4`, filters `spread>=0.005 slope>=0.01`
+  - High net-PnL family (also `max_open=0`):
+    - `tr=14439`, `win=59.05%`, `pnl=318.1`, `dd=151.4`, `pnl/dd=2.10`
+    - `ema=9/21 trend`, `ST(3,0.8,close)@4h`, exits `PT=0.015 SL=0.030`, `hold=0`, filter `spread>=0.005`
+
+- 30 mins (full combo sweep output captured)
+  - Full printout saved at `backtests/out/tqqq_10y_combo_30m.txt`.
+  - Top by pnl/dd (more “realistic-feeling” because it’s not unlimited stacking; it’s `max_open=1` and `close_eod=1`):
+    - `tr=1081`, `win=54.95%`, `pnl=31.3`, `dd=3.3`, `pnl/dd=9.60`
+    - `ema=3/7 cross`, `ST(7,0.6,close)@4h`, exits `ATR(10) PTx0.9 SLx1.8`, `hold=4`, `max_open=1 close_eod=1`, `ST2(1d:7,0.4,close)`
+  - Top by net pnl (again `max_open=0` = unlimited stacking):
+    - `tr=26508`, `win=53.96%`, `pnl=585.9`, `dd=153.5`, `pnl/dd=3.82`
+    - `ema=9/21 trend`, `ST(3,0.8,close)@4h`, exits `PT=0.015 SL=0.030`, `hold=4`, `max_open=0`
+
 Full presets: see `tradebot/backtest/spot_milestones.json` (top entries) for exact strategy payloads (these are loaded as presets in the TUI automatically).
 
 Note: We fixed daily-bar timestamp normalization on 2026-01-11 to avoid lookahead leakage for `1 day` multi-timeframe gates. We fixed intraday bar timestamps on 2026-01-14 so bar timestamps represent bar *close* time (eliminates MTF lookahead for `4 hours`, `1 hour`, `30 mins`, etc.). Spot milestones were regenerated after this fix.

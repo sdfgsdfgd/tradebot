@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import time as pytime
 from dataclasses import asdict, dataclass, replace
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
@@ -3322,6 +3323,11 @@ def main() -> None:
         atr_periods = [3, 7, 10, 14, 21]
         multipliers = [0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0]
         sources = ["close", "hl2"]
+        stage1_total = len(direction_variants) * len(regime_bar_sizes) * len(atr_periods) * len(multipliers) * len(sources)
+        stage1_tested = 0
+        report_every_stage1 = 200
+        stage1_t0 = pytime.perf_counter()
+        print(f"Combo sweep: stage1 total={stage1_total} (progress every {report_every_stage1})", flush=True)
         for ema_preset, entry_mode, confirm, dir_note in direction_variants:
             for rbar in regime_bar_sizes:
                 for atr_p in atr_periods:
@@ -3345,10 +3351,22 @@ def main() -> None:
                             )
                             row = _run_cfg(
                                 cfg=cfg,
-                                bars=bars_sig,
-                                regime_bars=regime_bars_by_size[rbar],
-                                regime2_bars=None,
-                            )
+                                    bars=bars_sig,
+                                    regime_bars=regime_bars_by_size[rbar],
+                                    regime2_bars=None,
+                                )
+                            stage1_tested += 1
+                            if stage1_tested % report_every_stage1 == 0:
+                                elapsed = pytime.perf_counter() - stage1_t0
+                                rate = (stage1_tested / elapsed) if elapsed > 0 else 0.0
+                                remaining = stage1_total - stage1_tested
+                                eta_sec = (remaining / rate) if rate > 0 else 0.0
+                                pct = (stage1_tested / stage1_total * 100.0) if stage1_total > 0 else 0.0
+                                print(
+                                    f"Combo sweep: stage1 {stage1_tested}/{stage1_total} ({pct:0.1f}%) "
+                                    f"kept={len(stage1)} elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
+                                    flush=True,
+                                )
                             if not row:
                                 continue
                             note = f"{dir_note} c={confirm} | ST({atr_p},{mult},{src}) @{rbar}"
@@ -3454,6 +3472,10 @@ def main() -> None:
 
         stage2: list[tuple[ConfigBundle, dict, str]] = []
         tested = 0
+        report_every = 200
+        t0 = pytime.perf_counter()
+        stage2_total = len(shortlist) * len(exit_variants) * len(hold_vals) * len(loosen_variants) * len(regime2_variants)
+        print(f"Combo sweep: stage2 total={stage2_total} (progress every {report_every})", flush=True)
         for base_cfg, _, base_note in shortlist:
             for exit_over, exit_note in exit_variants:
                 for hold in hold_vals:
@@ -3487,6 +3509,17 @@ def main() -> None:
                                 regime2_bars=_regime2_bars_for(cfg),
                             )
                             tested += 1
+                            if tested % report_every == 0:
+                                elapsed = pytime.perf_counter() - t0
+                                rate = (tested / elapsed) if elapsed > 0 else 0.0
+                                remaining = stage2_total - tested
+                                eta_sec = (remaining / rate) if rate > 0 else 0.0
+                                pct = (tested / stage2_total * 100.0) if stage2_total > 0 else 0.0
+                                print(
+                                    f"Combo sweep: stage2 {tested}/{stage2_total} ({pct:0.1f}%) "
+                                    f"kept={len(stage2)} elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
+                                    flush=True,
+                                )
                             if not row:
                                 continue
                             note = f"{base_note} | {exit_note} | hold={hold} | {loose_note} | {r2_note}"
@@ -3542,6 +3575,19 @@ def main() -> None:
             (10, 15, 0, 0, "tod=10-15 ET"),
         ]
 
+        stage3_total = (
+            len(top_stage2)
+            * len(tick_variants)
+            * len(quality_variants)
+            * len(rv_variants)
+            * len(exit_time_variants)
+            * len(tod_variants)
+        )
+        stage3_tested = 0
+        stage3_t0 = pytime.perf_counter()
+        report_every_stage3 = 200
+        print(f"Combo sweep: stage3 total={stage3_total} (progress every {report_every_stage3})", flush=True)
+
         stage3: list[dict] = []
         for base_cfg, base_row, base_note in top_stage2:
             for tick_over, tick_note in tick_variants:
@@ -3585,9 +3631,24 @@ def main() -> None:
                                     ],
                                     regime2_bars=_regime2_bars_for(cfg),
                                 )
+                                stage3_tested += 1
+                                if stage3_tested % report_every_stage3 == 0:
+                                    elapsed = pytime.perf_counter() - stage3_t0
+                                    rate = (stage3_tested / elapsed) if elapsed > 0 else 0.0
+                                    remaining = stage3_total - stage3_tested
+                                    eta_sec = (remaining / rate) if rate > 0 else 0.0
+                                    pct = (stage3_tested / stage3_total * 100.0) if stage3_total > 0 else 0.0
+                                    print(
+                                        f"Combo sweep: stage3 {stage3_tested}/{stage3_total} ({pct:0.1f}%) "
+                                        f"kept={len(stage3)} elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
+                                        flush=True,
+                                    )
                                 if not row:
                                     continue
-                                note = f"{base_note} | {tick_note} | {qual_note} | {rv_note} | {exit_time_note} | {tod_note}"
+                                note = (
+                                    f"{base_note} | {tick_note} | {qual_note} | {rv_note} | "
+                                    f"{exit_time_note} | {tod_note}"
+                                )
                                 row["note"] = note
                                 _record_milestone(cfg, row, note)
                                 stage3.append(row)
