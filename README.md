@@ -73,3 +73,18 @@ Details screen:
 - `[L]` = live data, `[D]` = delayed data.
 - If you don’t subscribe to real‑time market data, quotes may be delayed.
 - `Net Liq` is provided by IBKR; the `~` estimate just interpolates between IBKR updates.
+
+## Backtesting status
+Backtest docs live in `tradebot/backtest/README.md` (includes spot milestone regeneration commands and sweep coverage ranges).
+
+**Universe A — Spot strategy template coverage (current)**
+- Direction layer (EMA preset/mode/confirm) + interactions with regime/permission/exits.
+- Regime gates (bias + confirm) on multi-timeframe bars (e.g. 4h/1d Supertrend; optional regime2).
+- Exits (fixed % and ATR, including the PT<1.0 “net-PnL pocket”) + flip-exit / hold.
+- Permission gates (TOD, spread/slope, volume, RV band, cooldown/skip-open, weekdays, exit-time).
+- Extra gates explored: Raschke `$TICK` width gating, ORB (15m axis).
+
+**Universe B — Algo trading robustness (future work)**
+- Realism pass (execution + costs): next-bar execution, intrabar TP/SL, spread/slippage/fees, ET day/session boundaries.
+- Out-of-sample / walk-forward selection + multi-year regime diversity checks.
+- Risk realism: intrabar drawdown / MAE/MFE and margin/position constraints.
