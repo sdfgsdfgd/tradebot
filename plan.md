@@ -1,8 +1,8 @@
-# Kingmaker Hunt + Realism Pass (Spot / TQQQ)
+# Multi-window Hunt + Realism Pass (Spot / TQQQ)
 
 Status: **active** (started 2026-01-20)
 
-This file is a temporary, persisted task log + plan for making our spot backtests more realistic and then doing a “kingmaker” hunt for a **stable** strategy (TQQQ first) across:
+This file is a temporary, persisted task log + plan for making our spot backtests more realistic and then doing a multi-window stability hunt for a **stable** strategy (TQQQ first) across:
 - Full 10y window (currently: `2016-01-01 → 2026-01-08`, RTH)
 - Recent 1y slices (currently tested: `2023→2024`, `2024→2025`, `2025→2026-01-19` RTH)
 
@@ -54,7 +54,7 @@ Spot backtests previously did:
   - intrabar drawdown approximation (worst within bar, respecting stops)
   - position sizing + ROI/DD% reporting
 
-### 2) Kingmaker selection process (TQQQ)
+### 2) Multi-window selection process (TQQQ)
 - Run combo/focused sweeps under Realism v1.
 - Shortlist candidates by performance on the primary window.
 - Re-evaluate shortlisted candidates across multiple windows (10y + recent 1y slices).

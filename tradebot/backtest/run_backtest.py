@@ -3,7 +3,7 @@
 This keeps the workflow streamlined while preserving existing module CLIs:
 - `python -m tradebot.backtest --config ...` (single run)
 - `python -m tradebot.backtest evolve_spot ...` (sweeps)
-- `python -m tradebot.backtest kingmaker ...` (multi-window stability eval)
+- `python -m tradebot.backtest multitimeframe ...` (multi-window stability eval)
 """
 
 from __future__ import annotations
@@ -28,7 +28,7 @@ def _print_help() -> None:
     print("Usage:")
     print("  python -m tradebot.backtest --config <path> [--no-write] [--calibrate]")
     print("  python -m tradebot.backtest evolve_spot <args...>")
-    print("  python -m tradebot.backtest kingmaker <args...>")
+    print("  python -m tradebot.backtest multitimeframe <args...>")
     print("")
     print("Shortcuts:")
     print("  python -m tradebot.backtest run ...       # alias for --config runner")
@@ -67,11 +67,11 @@ def main() -> None:
             evolve_spot.main()
         return
 
-    if cmd in ("kingmaker",):
-        from . import kingmaker
+    if cmd in ("multitimeframe", "multiwindow", "kingmaker"):
+        from . import run_backtest_multitimeframe
 
         with _argv([sys.argv[0]] + rest):
-            kingmaker.main()
+            run_backtest_multitimeframe.main()
         return
 
     print(f"Unknown command: {cmd!r}")
@@ -81,4 +81,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

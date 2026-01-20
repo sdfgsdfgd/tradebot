@@ -447,7 +447,7 @@ Quick “max net PnL” snapshots (generated 2026-01-16, post-intraday-timestamp
 ### Spot cross-asset sanity (TQQQ, 10y, RTH)
 These were found by running our spot combo sweep on `TQQQ` over `2016-01-01 → 2026-01-08` with `use_rth=true`.
 
-#### REALISM v2 kingmaker (ROI-based, long-only)
+#### REALISM v2 multi-window stability (ROI-based, long-only)
 These are the current “go-live shaped” TQQQ presets found under **Realism v2**:
 - Long-only.
 - Entry fills at **next bar open** (no same-bar-close fills).
@@ -495,7 +495,7 @@ These are older “Realism v1” TQQQ presets (still useful for directionally te
 
 Repro notes:
 - Candidate pool generation: `python -m tradebot.backtest.evolve_spot --axis combo --realism2 --long-only ... --write-milestones --milestones-out tradebot/backtest/spot_milestones.tqqq_10y_<bar>_realism_v2.json`
-- Stability scoring: `python -m tradebot.backtest.kingmaker --milestones tradebot/backtest/spot_milestones.tqqq_10y_<bar>_realism_v2.json --max-open <N> --require-positive-pnl ...`
+- Stability scoring: `python -m tradebot.backtest multitimeframe --milestones tradebot/backtest/spot_milestones.tqqq_10y_<bar>_realism_v2.json --max-open <N> --require-positive-pnl ...`
 
 #### LEGACY (pre-realism; optimistic)
 Note:

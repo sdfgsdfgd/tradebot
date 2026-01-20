@@ -1,4 +1,4 @@
-"""Kingmaker evaluator: stability scoring across multiple windows (spot).
+"""Multi-window evaluator: stability scoring across multiple windows (spot).
 
 This is intentionally small and pragmatic:
 - Load candidates from a spot milestones JSON (e.g. combo sweep output)
@@ -266,7 +266,7 @@ def _strategy_key(strategy: dict, *, filters: dict | None) -> str:
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(prog="tradebot.backtest.kingmaker")
+    ap = argparse.ArgumentParser(prog="tradebot.backtest.multitimeframe")
     ap.add_argument("--milestones", required=True, help="Input spot milestones JSON to evaluate.")
     ap.add_argument("--symbol", default="TQQQ", help="Symbol to filter (default: TQQQ).")
     ap.add_argument("--bar-size", default="1 hour", help="Signal bar size filter (default: 1 hour).")
@@ -322,8 +322,8 @@ def main() -> None:
     )
     ap.add_argument(
         "--out",
-        default="backtests/out/kingmaker_top.json",
-        help="Output file for --write-top (default: backtests/out/kingmaker_top.json).",
+        default="backtests/out/multitimeframe_top.json",
+        help="Output file for --write-top (default: backtests/out/multitimeframe_top.json).",
     )
 
     args = ap.parse_args()
@@ -642,7 +642,7 @@ def main() -> None:
 
     out_rows = sorted(out_rows, key=_score_key, reverse=True)
     print("")
-    print(f"Kingmaker results: {len(out_rows)} candidates passed filters.")
+    print(f"Multiwindow results: {len(out_rows)} candidates passed filters.")
     print(f"- symbol={symbol} bar={args.bar_size} rth={use_rth} offline={offline}")
     print(f"- windows={', '.join([f'{a.isoformat()}→{b.isoformat()}' for a,b in windows])}")
     print(f"- min_trades={int(args.min_trades)} min_win={float(args.min_win):0.2f}")
@@ -699,7 +699,7 @@ def main() -> None:
                 }
             )
         out_payload = {
-            "name": "kingmaker_top",
+            "name": "multitimeframe_top",
             "generated_at": now,
             "source": str(milestones_path),
             "windows": [{"start": a.isoformat(), "end": b.isoformat()} for a, b in windows],
