@@ -99,7 +99,9 @@ See `backtest.sample.json`. Core fields:
 - `name` (currently `credit_spread`)
 - `instrument` (optional; `"options"` (default) or `"spot"`)
   - `"options"` runs the synthetic options engine (current default).
-  - `"spot"` runs a simple underlying/spot engine using the cached bar close as the trade price.
+  - `"spot"` runs an underlying/spot engine (equity/futures). Default fills are at bar close, but you can opt into
+    more realistic execution/cost/sizing via the `spot_*` realism knobs below (next-open fills, intrabar PT/SL,
+    spread/commission/slippage, ROI-based sizing).
 - `symbol` (e.g. `MNQ`, `SLV`)
 - `exchange` (optional; futures default to CME)
 - `right` (`PUT` or `CALL`)
@@ -178,10 +180,19 @@ When `instrument="spot"`, the engine trades the underlying itself instead of syn
   - `spot_spread`: spot bid/ask spread in **price units** (e.g., `0.01` for `$0.01/share`)
     - Modeled as half-spread on entry and half-spread on exit.
   - `spot_commission_per_share`: commission in **price units** (per share/contract); embedded into fills
+  - `spot_commission_min`: commission minimum **per order** (price units), embedded into fills
+  - `spot_slippage_per_share`: slippage per share (price units), embedded into fills
+    - Applied on entry/stop/flip exits (market-like fills). Profit-target fills currently assume no extra slippage.
   - `spot_mark_to_market`: `"close"` or `"liquidation"`
     - `"liquidation"` marks open positions at bid/ask (not mid).
   - `spot_drawdown_mode`: `"close"` or `"intrabar"`
     - `"intrabar"` approximates worst-in-bar equity for max drawdown.
+  - Position sizing (ROI-based; used by Realism v2):
+    - `spot_sizing_mode`: `"fixed"` (default) | `"notional_pct"` | `"risk_pct"`
+    - `spot_notional_pct`: fraction of equity to allocate per entry (`notional_pct` mode)
+    - `spot_risk_pct`: fraction of equity risked to stop per entry (`risk_pct` mode)
+    - `spot_max_notional_pct`: cap notional per entry as a fraction of equity
+    - `spot_min_qty`, `spot_max_qty`: share bounds (`spot_max_qty=0` means no cap)
 
 #### Multi-leg strategies
 You can replace the default spread params with explicit legs. If `legs` is present, it is used instead of `right/otm_pct/width_pct`.
@@ -436,15 +447,30 @@ Quick “max net PnL” snapshots (generated 2026-01-16, post-intraday-timestamp
 ### Spot cross-asset sanity (TQQQ, 10y, RTH)
 These were found by running our spot combo sweep on `TQQQ` over `2016-01-01 → 2026-01-08` with `use_rth=true`.
 
-#### REALISM v1 kingmaker (post-costs, long-only)
-These are the current “go-live shaped” TQQQ presets found under **Realism v1**:
+#### REALISM v2 kingmaker (ROI-based, long-only)
+These are the current “go-live shaped” TQQQ presets found under **Realism v2**:
 - Long-only.
 - Entry fills at **next bar open** (no same-bar-close fills).
 - Intrabar PT/SL evaluated using OHLC (worst-case ordering when both hit in one bar).
 - Liquidation marking (bid/ask) for equity/DD + intrabar drawdown approximation.
-- Costs: `spot_spread=0.01` (=$0.01/share) and `spot_commission_per_share=0.0`.
+- Costs (defaults used for these presets): `spot_spread=0.01` (=$0.01/share), `spot_commission_per_share=0.005` (min `$1.00`), no extra slippage.
+- Position sizing (ROI-based): `spot_sizing_mode=risk_pct`, `spot_risk_pct=0.01`, `spot_max_notional_pct=0.50`.
 
 **Presets (already merged into `tradebot/backtest/spot_milestones.json` for the TUI):**
+
+- **K30v2-01 (30 mins):** `ema=4/9 cross`, `ST(21,1.0,hl2)@4h + ST2(4h:5,0.2,close)`, exits `PT=0.015 SL=0.030`, `max_open=1 close_eod=1`, filters `rv=0.25..0.8 spread>=0.003`
+  - 10y stats: `tr=219`, `win=53.0%`, `pnl=+3976.2`, `roi=+3.98%`, `dd=7523.8`, `dd%=7.52%`, `roi/dd=0.53`
+
+- **K30v2-02 (30 mins):** same as K30v2-01 but `spread>=0.005`
+  - 10y stats: `tr=218`, `win=52.8%`, `pnl=+3668.7`, `roi=+3.67%`, `dd=7798.3`, `dd%=7.80%`, `roi/dd=0.47`
+
+- **K1Hv2-01 (1 hour):** `ema=4/9 cross`, `ST(3,0.3,hl2)@1d + ST2(1d:7,0.4,close)`, exits `ATR(7) PTx1.0 SLx1.0`, `max_open=1 close_eod=1`, filter `spread>=0.005`
+  - 10y stats: `tr=215`, `win=52.1%`, `pnl=+1850.8`, `roi=+1.85%`, `dd=8010.3`, `dd%=8.01%`, `roi/dd=0.23`
+
+#### LEGACY (realism v1; per-share PnL, no sizing)
+These are older “Realism v1” TQQQ presets (still useful for directionally testing signal logic, but not ROI-comparable):
+- They use next-open fills + intrabar PT/SL + spread, but **no sizing**, no per-order commission minimums, and no slippage.
+- Their `pnl` is effectively “per-share” (multiplier `1.0`) under a large starting cash pile, so ROI is not meaningful.
 
 - **K30-01 (30 mins):** `ema=4/9 cross`, `ST(21,1.0,hl2)@4h`, exits `ATR(21) PTx0.70 SLx1.80`, `hold=4`, `max_open=1 close_eod=1`
   - 10y stats: `tr=674`, `win=63.1%`, `pnl=11.88`, `dd=3.70`, `pnl/dd=3.21`
@@ -468,8 +494,8 @@ These are the current “go-live shaped” TQQQ presets found under **Realism v1
     - 2025→2026-01-19: `tr=92`, `win=68.5%`, `pnl=9.22`, `dd=4.49`, `pnl/dd=2.06`
 
 Repro notes:
-- Candidate pool generation: `python -m tradebot.backtest.evolve_spot --axis combo --realism --long-only ... --write-milestones --milestones-out tradebot/backtest/spot_milestones.tqqq_10y_<bar>_realism.json`
-- Stability scoring: `python -m tradebot.backtest.kingmaker --milestones tradebot/backtest/spot_milestones.tqqq_10y_<bar>_realism.json --max-open <N> --require-positive-pnl ...`
+- Candidate pool generation: `python -m tradebot.backtest.evolve_spot --axis combo --realism2 --long-only ... --write-milestones --milestones-out tradebot/backtest/spot_milestones.tqqq_10y_<bar>_realism_v2.json`
+- Stability scoring: `python -m tradebot.backtest.kingmaker --milestones tradebot/backtest/spot_milestones.tqqq_10y_<bar>_realism_v2.json --max-open <N> --require-positive-pnl ...`
 
 #### LEGACY (pre-realism; optimistic)
 Note:
@@ -577,17 +603,21 @@ When `calibrate` is enabled (or `--calibrate` is passed), the engine will:
 This improves synthetic pricing without requiring OPRA/CME bid/ask.
 
 ## TODO
-- Realism pass (spot backtest): quantify how rankings change under more realistic execution/cost assumptions
+- Realism pass (spot backtest): quantify how rankings change under more realistic execution/cost/sizing assumptions
   - Next-bar execution (implemented): `spot_entry_fill_mode=next_open`, `spot_flip_exit_fill_mode=next_open`
   - Intrabar TP/SL (implemented): `spot_intrabar_exits=true` with deterministic tie-break (stop-first)
+  - Stop gap handling (implemented in Realism v2): if bar opens through stop, fill at `bar.open` (worst-case)
   - Risk model realism (partially implemented): `spot_drawdown_mode=intrabar` (worst-in-bar approximation; MAE/MFE still TODO)
-  - Explicit cost model (implemented for spot): `spot_spread`, `spot_commission_per_share` (spread/commission; slippage TODO)
+  - Explicit cost model (implemented for spot): `spot_spread`, `spot_commission_per_share`, `spot_commission_min`, `spot_slippage_per_share`
+    - Slippage is a simple per-share add-on; TODO: calibrate a more realistic slippage model (and/or apply symmetric slippage on profit targets)
+  - Position sizing + ROI reporting (implemented in Realism v2): `spot_sizing_mode`, `spot_risk_pct`, `spot_notional_pct`, `spot_max_notional_pct`, `spot_min_qty`, `spot_max_qty`
+    - `roi = pnl / starting_cash`, `dd% = max_drawdown / starting_cash`
   - ET session/day boundaries (TODO): make `max_entries_per_day`, `spot_close_eod`, `bars_in_day` align with ET session logic
   - Sensitivity report (TODO): compare champ/top-10 deltas (pnl, pnl/dd, WR, trades) across realism settings
 - Realism pass (options backtest): quantify the impact of the synthetic market model and its simplifications
-  - Options backtests are synthetic (not real markets). Prices come from Black-Scholes/Black-76 on the underlying bar close + a synthetic IV surface, and fills use a synthetic bid/ask (“mid-edge”) around the model mid. See `tradebot/backtest/engine.py:1657` and `tradebot/backtest/synth.py:54`.
+  - Options backtests are synthetic (not real markets). Prices come from Black-Scholes/Black-76 on the underlying bar close + a synthetic IV surface, and fills use a synthetic bid/ask (“mid-edge”) around the model mid. See `tradebot/backtest/engine.py:1853` and `tradebot/backtest/synth.py:54`.
   - No explicit commissions/fees anywhere (TODO: add a per-contract/per-order cost model).
-  - Open trades are marked at mid (not executable), and multi-leg combos get one net edge, not per-leg edges. See `tradebot/backtest/engine.py:1668` and `tradebot/backtest/synth.py:75`.
+  - Open trades are marked at mid (not executable), and multi-leg combos get one net edge, not per-leg edges. See `tradebot/backtest/engine.py:1909` and `tradebot/backtest/synth.py:75`.
     - This can materially change PnL + drawdown behavior vs legging / real combo markets.
 - Evolution sweeps (add one axis at a time)
   - Walk-forward selection (train earlier slice, test later slice)

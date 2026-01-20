@@ -195,8 +195,24 @@ def _metrics_from_summary(summary) -> dict:
     dd = float(getattr(summary, "max_drawdown", 0.0) or 0.0)
     trades = int(getattr(summary, "trades", 0) or 0)
     win_rate = float(getattr(summary, "win_rate", 0.0) or 0.0)
+    roi = float(getattr(summary, "roi", 0.0) or 0.0)
+    dd_pct = float(getattr(summary, "max_drawdown_pct", 0.0) or 0.0)
     pnl_dd = pnl / dd if dd > 0 else (math.inf if pnl > 0 else -math.inf if pnl < 0 else 0.0)
-    return {"trades": trades, "win_rate": win_rate, "pnl": pnl, "dd": dd, "pnl_over_dd": pnl_dd}
+    roi_dd = (
+        roi / dd_pct
+        if dd_pct > 0
+        else (math.inf if roi > 0 else -math.inf if roi < 0 else 0.0)
+    )
+    return {
+        "trades": trades,
+        "win_rate": win_rate,
+        "pnl": pnl,
+        "dd": dd,
+        "pnl_over_dd": pnl_dd,
+        "roi": roi,
+        "dd_pct": dd_pct,
+        "roi_over_dd_pct": roi_dd,
+    }
 
 
 def _load_bars(
@@ -234,10 +250,10 @@ def _load_bars(
 
 def _score_key(item: dict) -> tuple:
     return (
-        float(item.get("stability_min_pnl_dd") or float("-inf")),
-        float(item.get("stability_min_pnl") or float("-inf")),
-        float(item.get("full_pnl_over_dd") or float("-inf")),
-        float(item.get("full_pnl") or float("-inf")),
+        float(item.get("stability_min_roi_dd") or item.get("stability_min_pnl_dd") or float("-inf")),
+        float(item.get("stability_min_roi") or item.get("stability_min_pnl") or float("-inf")),
+        float(item.get("full_roi_over_dd_pct") or item.get("full_pnl_over_dd") or float("-inf")),
+        float(item.get("full_roi") or item.get("full_pnl") or float("-inf")),
         float(item.get("full_win") or 0.0),
         int(item.get("full_trades") or 0),
     )
@@ -584,7 +600,16 @@ def main() -> None:
 
         min_pnl_dd = min(float(x["pnl_over_dd"]) for x in per_window)
         min_pnl = min(float(x["pnl"]) for x in per_window)
+        min_roi_dd = min(float(x.get("roi_over_dd_pct") or 0.0) for x in per_window)
+        min_roi = min(float(x.get("roi") or 0.0) for x in per_window)
         full_m = cand.get("metrics") or {}
+        full_roi = float(full_m.get("roi") or 0.0)
+        full_dd_pct = float(full_m.get("max_drawdown_pct") or 0.0)
+        full_roi_dd = (
+            (full_roi / full_dd_pct)
+            if full_dd_pct > 0
+            else (math.inf if full_roi > 0 else -math.inf if full_roi < 0 else 0.0)
+        )
         out_rows.append(
             {
                 "key": _strategy_key(strategy_payload, filters=filters_payload),
@@ -596,8 +621,13 @@ def main() -> None:
                 "full_pnl": float(full_m.get("pnl") or 0.0),
                 "full_dd": float(full_m.get("max_drawdown") or 0.0),
                 "full_pnl_over_dd": float(full_m.get("pnl_over_dd") or 0.0),
+                "full_roi": full_roi,
+                "full_dd_pct": full_dd_pct,
+                "full_roi_over_dd_pct": full_roi_dd,
                 "stability_min_pnl_dd": min_pnl_dd,
                 "stability_min_pnl": min_pnl,
+                "stability_min_roi_dd": min_roi_dd,
+                "stability_min_roi": min_roi,
                 "windows": per_window,
             }
         )
@@ -622,8 +652,10 @@ def main() -> None:
     for rank, item in enumerate(out_rows[:show], start=1):
         st = item["strategy"]
         print(
-            f"{rank:2d}. stability(min pnl/dd)={item['stability_min_pnl_dd']:.2f} "
-            f"full pnl/dd={item['full_pnl_over_dd']:.2f} pnl={item['full_pnl']:.1f} "
+            f"{rank:2d}. stability(min roi/dd)={item.get('stability_min_roi_dd', 0.0):.2f} "
+            f"full roi/dd={item.get('full_roi_over_dd_pct', 0.0):.2f} "
+            f"roi={item.get('full_roi', 0.0)*100:.1f}% dd%={item.get('full_dd_pct', 0.0)*100:.1f}% "
+            f"pnl={item['full_pnl']:.1f} "
             f"win={item['full_win']*100:.1f}% tr={item['full_trades']} "
             f"ema={st.get('ema_preset')} {st.get('ema_entry_mode')} "
             f"regime={st.get('regime_mode')} rbar={st.get('regime_bar_size')}"
@@ -641,20 +673,26 @@ def main() -> None:
             # Use the full-window metrics for the saved preset. (Stability details belong in README.)
             metrics = {
                 "pnl": float(item.get("full_pnl") or 0.0),
+                "roi": float(item.get("full_roi") or 0.0),
                 "win_rate": float(item.get("full_win") or 0.0),
                 "trades": int(item.get("full_trades") or 0),
                 "max_drawdown": float(item.get("full_dd") or 0.0),
+                "max_drawdown_pct": float(item.get("full_dd_pct") or 0.0),
                 "pnl_over_dd": float(item.get("full_pnl_over_dd") or 0.0),
+                "roi_over_dd_pct": float(item.get("full_roi_over_dd_pct") or 0.0),
             }
             groups_out.append(
                 {
-                    "name": f"Spot ({symbol}) KINGMAKER #{idx:02d} pnl/dd={metrics['pnl_over_dd']:.2f} "
-                    f"pnl={metrics['pnl']:.1f} win={metrics['win_rate']*100:.1f}% tr={metrics['trades']}",
+                    "name": f"Spot ({symbol}) KINGMAKER #{idx:02d} roi/dd={metrics['roi_over_dd_pct']:.2f} "
+                    f"roi={metrics['roi']*100:.1f}% dd%={metrics['max_drawdown_pct']*100:.1f}% "
+                    f"win={metrics['win_rate']*100:.1f}% tr={metrics['trades']} pnl={metrics['pnl']:.1f}",
                     "filters": filters_payload,
                     "entries": [{"symbol": symbol, "metrics": metrics, "strategy": strategy}],
                     "_eval": {
                         "stability_min_pnl_dd": float(item.get("stability_min_pnl_dd") or 0.0),
                         "stability_min_pnl": float(item.get("stability_min_pnl") or 0.0),
+                        "stability_min_roi_dd": float(item.get("stability_min_roi_dd") or 0.0),
+                        "stability_min_roi": float(item.get("stability_min_roi") or 0.0),
                         "windows": item.get("windows") or [],
                     },
                     "_key": key,

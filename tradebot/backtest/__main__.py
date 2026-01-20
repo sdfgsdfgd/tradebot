@@ -1,5 +1,5 @@
 """Module entrypoint for python -m tradebot.backtest."""
-from .cli import main
+from .run_backtest import main
 
 
 if __name__ == "__main__":

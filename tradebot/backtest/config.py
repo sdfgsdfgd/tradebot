@@ -106,8 +106,16 @@ class StrategyConfig:
     spot_intrabar_exits: bool = False
     spot_spread: float = 0.0  # price units, e.g. 0.01 for $0.01/share
     spot_commission_per_share: float = 0.0
+    spot_commission_min: float = 0.0  # absolute price units per order, e.g. 1.0 = $1.00 minimum
+    spot_slippage_per_share: float = 0.0  # price units per share
     spot_mark_to_market: str = "close"  # "close" | "liquidation"
     spot_drawdown_mode: str = "close"  # "close" | "intrabar"
+    spot_sizing_mode: str = "fixed"  # "fixed" | "notional_pct" | "risk_pct"
+    spot_notional_pct: float = 0.0  # fraction of equity to allocate per entry (notional_pct)
+    spot_risk_pct: float = 0.0  # fraction of equity risked to stop per entry (risk_pct)
+    spot_max_notional_pct: float = 1.0  # cap notional per entry as a fraction of equity
+    spot_min_qty: int = 1
+    spot_max_qty: int = 0  # 0 = no cap
 
 
 @dataclass(frozen=True)
@@ -267,8 +275,18 @@ def load_config(path: str | Path) -> ConfigBundle:
         spot_commission_per_share=_parse_non_negative_float(
             strategy_raw.get("spot_commission_per_share"), default=0.0
         ),
+        spot_commission_min=_parse_non_negative_float(strategy_raw.get("spot_commission_min"), default=0.0),
+        spot_slippage_per_share=_parse_non_negative_float(
+            strategy_raw.get("spot_slippage_per_share"), default=0.0
+        ),
         spot_mark_to_market=_parse_spot_mark_to_market(strategy_raw.get("spot_mark_to_market")),
         spot_drawdown_mode=_parse_spot_drawdown_mode(strategy_raw.get("spot_drawdown_mode")),
+        spot_sizing_mode=_parse_spot_sizing_mode(strategy_raw.get("spot_sizing_mode")),
+        spot_notional_pct=_parse_non_negative_float(strategy_raw.get("spot_notional_pct"), default=0.0),
+        spot_risk_pct=_parse_non_negative_float(strategy_raw.get("spot_risk_pct"), default=0.0),
+        spot_max_notional_pct=_parse_non_negative_float(strategy_raw.get("spot_max_notional_pct"), default=1.0),
+        spot_min_qty=_parse_positive_int(strategy_raw.get("spot_min_qty"), default=1),
+        spot_max_qty=_parse_non_negative_int(strategy_raw.get("spot_max_qty"), default=0),
     )
 
     synthetic = SyntheticConfig(
@@ -592,6 +610,20 @@ def _parse_spot_drawdown_mode(value) -> str:
         if cleaned in ("intrabar", "intra", "ohlc"):
             return "intrabar"
     return "close"
+
+
+def _parse_spot_sizing_mode(value) -> str:
+    if value is None:
+        return "fixed"
+    if isinstance(value, str):
+        cleaned = value.strip().lower()
+        if cleaned in ("fixed", "qty", "quantity", "shares"):
+            return "fixed"
+        if cleaned in ("notional_pct", "notional", "pct_notional", "equity_pct"):
+            return "notional_pct"
+        if cleaned in ("risk_pct", "risk", "risk_percent", "risk_per_trade"):
+            return "risk_pct"
+    return "fixed"
 
 
 def _parse_non_negative_float(value, *, default: float) -> float:

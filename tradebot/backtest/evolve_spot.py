@@ -326,11 +326,17 @@ def _print_top(rows: list[dict], *, title: str, top_n: int, sort_key) -> None:
     for idx, row in enumerate(rows_sorted[: max(1, int(top_n))], start=1):
         pnl = float(row.get("pnl") or 0.0)
         dd = float(row.get("dd") or 0.0)
+        roi = float(row.get("roi") or 0.0) * 100.0
+        dd_pct = float(row.get("dd_pct") or 0.0) * 100.0
         trades = int(row.get("trades") or 0)
         win = float(row.get("win_rate") or 0.0) * 100.0
         pnl_over_dd = float(row.get("pnl_over_dd") or 0.0)
         note = row.get("note") or ""
-        print(f"{idx:>2}. tr={trades:>4} win={win:>5.1f}% pnl={pnl:>10.1f} dd={dd:>8.1f} pnl/dd={pnl_over_dd:>6.2f} {note}")
+        print(
+            f"{idx:>2}. tr={trades:>4} win={win:>5.1f}% "
+            f"pnl={pnl:>10.1f} dd={dd:>8.1f} pnl/dd={pnl_over_dd:>6.2f} "
+            f"roi={roi:>6.2f}% dd%={dd_pct:>6.2f}% {note}"
+        )
 
 
 def _print_leaderboards(rows: list[dict], *, title: str, top_n: int) -> None:
@@ -352,6 +358,7 @@ def _milestone_entry_for(
     signal_bar_size: str,
     use_rth: bool,
     sort_by: str,
+    prefer_realism: bool = False,
 ) -> tuple[dict, dict | None, dict] | None:
     if not milestones:
         return None
@@ -377,6 +384,13 @@ def _milestone_entry_for(
             continue
         if bool(strategy.get("signal_use_rth")) != bool(use_rth):
             continue
+        if prefer_realism:
+            if str(strategy.get("spot_entry_fill_mode") or "").strip().lower() != "next_open":
+                continue
+            if not bool(strategy.get("spot_intrabar_exits")):
+                continue
+            if int(strategy.get("max_open_trades") or 0) == 0:
+                continue
         filters = group.get("filters")
         candidates.append((strategy, filters if isinstance(filters, dict) else None, metrics))
 
@@ -431,8 +445,16 @@ def _apply_milestone_base(
         "spot_intrabar_exits",
         "spot_spread",
         "spot_commission_per_share",
+        "spot_commission_min",
+        "spot_slippage_per_share",
         "spot_mark_to_market",
         "spot_drawdown_mode",
+        "spot_sizing_mode",
+        "spot_notional_pct",
+        "spot_risk_pct",
+        "spot_max_notional_pct",
+        "spot_min_qty",
+        "spot_max_qty",
         "exit_on_signal_flip",
         "flip_exit_mode",
         "flip_exit_min_hold_bars",
@@ -515,6 +537,16 @@ def main() -> None:
             "Defaults to spread=$0.01/share and commission=$0.00/share unless overridden."
         ),
     )
+    parser.add_argument(
+        "--realism2",
+        action="store_true",
+        default=False,
+        help=(
+            "Enable spot realism v2 (superset of v1): adds position sizing (ROI-based), "
+            "commission minimums, and stop gap handling. Defaults: spread=$0.01, "
+            "commission=$0.005/share (min $1.00), risk sizing=1% equity risk, max notional=50%."
+        ),
+    )
     parser.add_argument("--spot-spread", type=float, default=None, help="Spot spread in price units (e.g. 0.01)")
     parser.add_argument(
         "--spot-commission",
@@ -522,6 +554,39 @@ def main() -> None:
         default=None,
         help="Spot commission per share/contract (price units). (Backtest-only; embedded into fills.)",
     )
+    parser.add_argument(
+        "--spot-commission-min",
+        type=float,
+        default=None,
+        help="Spot commission minimum per order (price units), e.g. 1.0 for $1.00 min.",
+    )
+    parser.add_argument(
+        "--spot-slippage",
+        type=float,
+        default=None,
+        help="Spot slippage per share (price units). Applied on entry/stop/flip (market-like fills).",
+    )
+    parser.add_argument(
+        "--spot-sizing-mode",
+        default=None,
+        choices=("fixed", "notional_pct", "risk_pct"),
+        help="Spot sizing mode (v2): fixed qty, % notional, or % equity risk-to-stop.",
+    )
+    parser.add_argument("--spot-risk-pct", type=float, default=None, help="Risk per trade as fraction of equity (v2).")
+    parser.add_argument(
+        "--spot-notional-pct",
+        type=float,
+        default=None,
+        help="Notional allocation per trade as fraction of equity (v2).",
+    )
+    parser.add_argument(
+        "--spot-max-notional-pct",
+        type=float,
+        default=None,
+        help="Max notional per trade as fraction of equity (v2).",
+    )
+    parser.add_argument("--spot-min-qty", type=int, default=None, help="Min shares per trade (v2).")
+    parser.add_argument("--spot-max-qty", type=int, default=None, help="Max shares per trade, 0=none (v2).")
     parser.add_argument("--min-trades", type=int, default=100)
     parser.add_argument("--top", type=int, default=15)
     parser.add_argument(
@@ -627,9 +692,37 @@ def main() -> None:
     max_open_trades = int(args.max_open_trades)
     close_eod = bool(args.close_eod)
     long_only = bool(args.long_only)
-    realism = bool(args.realism)
+    realism2 = bool(args.realism2)
+    realism = bool(args.realism) or realism2
     spot_spread = float(args.spot_spread) if args.spot_spread is not None else (0.01 if realism else 0.0)
-    spot_commission = float(args.spot_commission) if args.spot_commission is not None else 0.0
+    spot_commission = (
+        float(args.spot_commission)
+        if args.spot_commission is not None
+        else (0.005 if realism2 else 0.0)
+    )
+    spot_commission_min = (
+        float(args.spot_commission_min)
+        if args.spot_commission_min is not None
+        else (1.0 if realism2 else 0.0)
+    )
+    spot_slippage = float(args.spot_slippage) if args.spot_slippage is not None else 0.0
+
+    sizing_mode = (
+        str(args.spot_sizing_mode).strip().lower()
+        if args.spot_sizing_mode is not None
+        else ("risk_pct" if realism2 else "fixed")
+    )
+    if sizing_mode not in ("fixed", "notional_pct", "risk_pct"):
+        sizing_mode = "fixed"
+    spot_risk_pct = float(args.spot_risk_pct) if args.spot_risk_pct is not None else (0.01 if realism2 else 0.0)
+    spot_notional_pct = (
+        float(args.spot_notional_pct) if args.spot_notional_pct is not None else 0.0
+    )
+    spot_max_notional_pct = (
+        float(args.spot_max_notional_pct) if args.spot_max_notional_pct is not None else (0.50 if realism2 else 1.0)
+    )
+    spot_min_qty = int(args.spot_min_qty) if args.spot_min_qty is not None else 1
+    spot_max_qty = int(args.spot_max_qty) if args.spot_max_qty is not None else 0
     run_min_trades = int(args.min_trades)
     if bool(args.write_milestones):
         run_min_trades = min(run_min_trades, int(args.milestone_min_trades))
@@ -859,11 +952,15 @@ def main() -> None:
             return None
         pnl = float(s.total_pnl or 0.0)
         dd = float(s.max_drawdown or 0.0)
+        roi = float(getattr(s, "roi", 0.0) or 0.0)
+        dd_pct = float(getattr(s, "max_drawdown_pct", 0.0) or 0.0)
         return {
             "trades": int(s.trades),
             "win_rate": float(s.win_rate),
             "pnl": pnl,
             "dd": dd,
+            "roi": roi,
+            "dd_pct": dd_pct,
             "pnl_over_dd": (pnl / dd) if dd > 0 else None,
         }
 
@@ -889,6 +986,7 @@ def main() -> None:
                 signal_bar_size=str(bar_size),
                 use_rth=use_rth,
                 sort_by=sort_by,
+                prefer_realism=realism,
             )
             if selected is not None:
                 base_strategy, base_filters, _ = selected
@@ -944,8 +1042,16 @@ def main() -> None:
                     spot_intrabar_exits=True,
                     spot_spread=float(spot_spread),
                     spot_commission_per_share=float(spot_commission),
+                    spot_commission_min=float(spot_commission_min),
+                    spot_slippage_per_share=float(spot_slippage),
                     spot_mark_to_market="liquidation",
                     spot_drawdown_mode="intrabar",
+                    spot_sizing_mode=str(sizing_mode),
+                    spot_notional_pct=float(spot_notional_pct),
+                    spot_risk_pct=float(spot_risk_pct),
+                    spot_max_notional_pct=float(spot_max_notional_pct),
+                    spot_min_qty=int(spot_min_qty),
+                    spot_max_qty=int(spot_max_qty),
                 ),
             )
         return cfg
@@ -3836,7 +3942,9 @@ def main() -> None:
     print(
         f"{symbol} spot evolve sweep ({start.isoformat()} -> {end.isoformat()}, use_rth={use_rth}, "
         f"bar_size={signal_bar_size}, offline={offline}, base={args.base}, axis={axis}, "
-        f"long_only={long_only} realism={realism} spread={spot_spread:g} comm={spot_commission:g})"
+        f"long_only={long_only} realism={'v2' if realism2 else ('v1' if realism else 'off')} "
+        f"spread={spot_spread:g} comm={spot_commission:g} comm_min={spot_commission_min:g} "
+        f"slip={spot_slippage:g} sizing={sizing_mode} risk={spot_risk_pct:g} max_notional={spot_max_notional_pct:g})"
     )
 
     if axis in ("all", "ema"):
@@ -3960,9 +4068,11 @@ def main() -> None:
                     "note": note,
                     "metrics": {
                         "pnl": float(row.get("pnl") or 0.0),
+                        "roi": float(row.get("roi") or 0.0),
                         "win_rate": float(row.get("win_rate") or 0.0),
                         "trades": int(row.get("trades") or 0),
                         "max_drawdown": float(row.get("dd") or 0.0),
+                        "max_drawdown_pct": float(row.get("dd_pct") or 0.0),
                         "pnl_over_dd": row.get("pnl_over_dd"),
                     },
                 }
@@ -4035,9 +4145,11 @@ def main() -> None:
                             "note": parsed_note,
                             "metrics": {
                                 "pnl": float(metrics.get("pnl") or 0.0),
+                                "roi": float(metrics.get("roi") or 0.0),
                                 "win_rate": float(metrics.get("win_rate") or 0.0),
                                 "trades": int(metrics.get("trades") or 0),
                                 "max_drawdown": float(metrics.get("max_drawdown") or 0.0),
+                                "max_drawdown_pct": float(metrics.get("max_drawdown_pct") or 0.0),
                                 "pnl_over_dd": metrics.get("pnl_over_dd"),
                             },
                         }

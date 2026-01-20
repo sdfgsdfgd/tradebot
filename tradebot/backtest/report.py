@@ -20,9 +20,11 @@ def print_summary(result: BacktestResult) -> None:
     print(f"Trades: {summary.trades}")
     print(f"Win rate: {summary.win_rate:.1%}")
     print(f"Total PnL: {summary.total_pnl:,.2f}")
+    print(f"ROI: {summary.roi:.2%}")
     print(f"Avg win: {summary.avg_win:,.2f}")
     print(f"Avg loss: {summary.avg_loss:,.2f}")
     print(f"Max drawdown: {summary.max_drawdown:,.2f}")
+    print(f"Max drawdown %: {summary.max_drawdown_pct:.2%}")
     print(f"Avg hold (hours): {summary.avg_hold_hours:.2f}")
 
 
@@ -74,9 +76,11 @@ def _write_summary(path: Path, result: BacktestResult) -> None:
         f"Trades: {summary.trades}",
         f"Win rate: {summary.win_rate:.1%}",
         f"Total PnL: {summary.total_pnl:,.2f}",
+        f"ROI: {summary.roi:.2%}",
         f"Avg win: {summary.avg_win:,.2f}",
         f"Avg loss: {summary.avg_loss:,.2f}",
         f"Max drawdown: {summary.max_drawdown:,.2f}",
+        f"Max drawdown %: {summary.max_drawdown_pct:.2%}",
         f"Avg hold (hours): {summary.avg_hold_hours:.2f}",
     ]
     path.write_text("\n".join(lines))

@@ -6,3 +6,4 @@ db/
 backtests/
 db/quotes/
 docs/todo/
+tradebot/backtest/spot_milestones.tqqq_*.json

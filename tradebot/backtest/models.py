@@ -84,7 +84,9 @@ class SummaryStats:
     losses: int
     win_rate: float
     total_pnl: float
+    roi: float
     avg_win: float
     avg_loss: float
     max_drawdown: float
+    max_drawdown_pct: float
     avg_hold_hours: float
