@@ -1272,3 +1272,34 @@ This improves synthetic pricing without requiring OPRA/CME bid/ask.
 - Historical rates source
 - Multi-strategy runs
 - Live broker adapter
+
+
+
+
+## MISC
+# Research on 2024 vs 2025 TQQQ volatility spikes, early detection analysis of weekly TR and gap patterns, before sharpening reg gates
+  Here’s the “wave” context (weekly medians):
+
+  2024 summer spike (non-crisis-like compared to 2025)
+
+  - 2024-07-29: TR_med 9.87%, neg_gaps 20%
+  - 2024-08-05: TR_med 9.70%, neg_gaps 40%
+  - Then it mean-reverts quickly.
+
+  So 2024 can print TR_med ~9–10, but it wasn’t “persistent negative-gap stress”.
+
+  2025 ramp + peak
+
+  - 2025-02-24: TR_med 6.10%, neg_gaps 40%  (the “velocity” week)
+  - 2025-03-03: TR_med 9.50%, neg_gaps 60%  (panic threshold week)
+  - 2025-03-10: TR_med 7.52%, neg_gaps 60%
+  - 2025-03-31: TR_med 8.70%, neg_gaps 100%
+  - 2025-04-07: TR_med 23.56%, neg_gaps 80% (the peak/reversal chaos)
+
+  That Apr 7 week is exactly your “ATR peaks during reversal” intuition — and you can also see why ATR14% is lagging: the TR and gaps explode first, then ATR catches up.
+
+  For comparison, COVID looks similar in “weekly TR shock” shape, just bigger:
+
+  - 2020-02-24: TR_med 13.08%, |gap|_med 7.54%
+  - 2020-03-09: TR_med 20.60%, |gap|_med 16.79%
+  - 2020-03-16: TR_med 24.54%, ATR14_med 24.93%
