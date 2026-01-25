@@ -61,6 +61,7 @@ class StrategyConfig:
     ema_directional: bool
     exit_on_signal_flip: bool
     flip_exit_mode: str
+    flip_exit_gate_mode: str
     flip_exit_min_hold_bars: int
     flip_exit_only_if_profit: bool
     direction_source: str
@@ -81,8 +82,14 @@ class StrategyConfig:
     spot_pt_atr_mult: float = 1.5
     spot_sl_atr_mult: float = 1.0
     spot_exit_time_et: str | None = None  # e.g. "09:30" (exit on/after this ET time)
+    spot_exec_bar_size: str | None = None  # e.g. "5 mins" (execution / exit simulation bars)
     regime_mode: str = "ema"
     regime2_mode: str = "off"  # "off" | "ema" | "supertrend"
+    # When regime2 is enabled, control which entry directions it gates:
+    # - "both" (default): gate both longs and shorts (current behavior)
+    # - "longs": apply regime2 gate only when signal.entry_dir == "up"
+    # - "shorts": apply regime2 gate only when signal.entry_dir == "down"
+    regime2_apply_to: str = "both"
     regime2_ema_preset: str | None = None
     regime2_bar_size: str | None = None
     regime2_supertrend_atr_period: int = 10
@@ -113,6 +120,7 @@ class StrategyConfig:
     spot_sizing_mode: str = "fixed"  # "fixed" | "notional_pct" | "risk_pct"
     spot_notional_pct: float = 0.0  # fraction of equity to allocate per entry (notional_pct)
     spot_risk_pct: float = 0.0  # fraction of equity risked to stop per entry (risk_pct)
+    spot_short_risk_mult: float = 1.0  # scales risk_pct sizing for short (SELL) entries
     spot_max_notional_pct: float = 1.0  # cap notional per entry as a fraction of equity
     spot_min_qty: int = 1
     spot_max_qty: int = 0  # 0 = no cap
@@ -157,6 +165,69 @@ class FiltersConfig:
     entry_end_hour_et: int | None = None
     volume_ema_period: int | None = None
     volume_ratio_min: float | None = None
+    # Optional directional override: when set, applies only when signal.entry_dir == "down".
+    # (Used to reduce short exposure while keeping long entries less gated.)
+    ema_spread_min_pct_down: float | None = None
+    # Volatility shock overlay (non-directional risk state).
+    #
+    # This is meant to upgrade the existing permission/bias layer during event shocks, rather than
+    # adding another directional gate.
+    #
+    # shock_gate_mode:
+    # - "off": ignore shock state
+    # - "detect": compute shock state (no entry gating)
+    # - "block": block new entries when shock is ON (still manage exits normally)
+    # - "block_longs": block new long entries when shock is ON
+    # - "block_shorts": block new short entries when shock is ON
+    # - "surf": during shock, only allow entries aligned with shock direction (smoothed returns)
+    shock_gate_mode: str = "off"
+    shock_detector: str = "atr_ratio"  # "atr_ratio" | "daily_atr_pct" | "daily_drawdown"
+    shock_atr_fast_period: int = 7
+    shock_atr_slow_period: int = 50
+    shock_on_ratio: float = 1.55
+    shock_off_ratio: float = 1.30
+    shock_min_atr_pct: float = 7.0
+    # Daily ATR% detector (when shock_detector="daily_atr_pct").
+    shock_daily_atr_period: int = 14
+    shock_daily_on_atr_pct: float = 13.0
+    shock_daily_off_atr_pct: float = 11.0
+    # Optional additional trigger to flip shock ON faster during sudden range expansion / gaps:
+    # TrueRange_so_far / prev_day_close * 100 >= shock_daily_on_tr_pct.
+    shock_daily_on_tr_pct: float | None = None
+    # Daily drawdown detector (when shock_detector="daily_drawdown").
+    #
+    # Computes drawdown vs the rolling peak close over the last N finalized sessions.
+    # Example: on_drawdown=-20 means trigger shock when close is >=20% below the rolling peak.
+    shock_drawdown_lookback_days: int = 20
+    shock_on_drawdown_pct: float = -20.0
+    shock_off_drawdown_pct: float = -10.0
+    shock_short_risk_mult_factor: float = 1.0  # scales spot_short_risk_mult when shock is ON
+    shock_long_risk_mult_factor: float = 1.0  # scales spot_risk_pct sizing for longs when shock dir is "up"
+    shock_long_risk_mult_factor_down: float = 1.0  # scales spot_risk_pct sizing for longs when shock dir is "down"
+    shock_stop_loss_pct_mult: float = 1.0  # scales spot_stop_loss_pct during shock (pct exit mode only)
+    shock_profit_target_pct_mult: float = 1.0  # scales spot_profit_target_pct during shock (pct exit mode only)
+    shock_direction_lookback: int = 2  # bars used for smoothed direction
+    shock_direction_source: str = "regime"  # "regime" | "signal"
+    # Optional: use shock direction as the *regime gate* direction while shock is ON.
+    # This lets the bias gate flip faster during deep drawdowns without changing the baseline regime config.
+    shock_regime_override_dir: bool = False
+    # Optional regime-gate supertrend overrides during/after shock.
+    #
+    # These do NOT change the base Supertrend configuration; they compute an additional Supertrend and
+    # swap the *regime gate* direction when the shock overlay is active.
+    #
+    # Intended use:
+    # - During shock: use a higher multiplier to avoid whipsaw regime flips.
+    # - During cooling (shock off but ATR% still elevated): optionally use a different multiplier.
+    shock_regime_supertrend_multiplier: float | None = None
+    shock_cooling_regime_supertrend_multiplier: float | None = None
+    shock_daily_cooling_atr_pct: float | None = None
+    # Optional ATR%-based risk scaling (vol targeting) using the shock detector's ATR%.
+    #
+    # When set, sizing is scaled by: mult = clamp(target_atr_pct / atr_pct, min_mult..1.0)
+    # This produces a smooth "shock → cooling → calm" size ramp without needing a new gate.
+    shock_risk_scale_target_atr_pct: float | None = None
+    shock_risk_scale_min_mult: float = 0.2
 
 
 @dataclass(frozen=True)
@@ -218,6 +289,7 @@ def load_config(path: str | Path) -> ConfigBundle:
         ema_directional=bool(strategy_raw.get("ema_directional", False)),
         exit_on_signal_flip=bool(strategy_raw.get("exit_on_signal_flip", False)),
         flip_exit_mode=_parse_flip_exit_mode(strategy_raw.get("flip_exit_mode")),
+        flip_exit_gate_mode=_parse_flip_exit_gate_mode(strategy_raw.get("flip_exit_gate_mode")),
         flip_exit_min_hold_bars=_parse_non_negative_int(
             strategy_raw.get("flip_exit_min_hold_bars"), default=0
         ),
@@ -240,8 +312,10 @@ def load_config(path: str | Path) -> ConfigBundle:
         spot_pt_atr_mult=_parse_positive_float(strategy_raw.get("spot_pt_atr_mult"), default=1.5),
         spot_sl_atr_mult=_parse_positive_float(strategy_raw.get("spot_sl_atr_mult"), default=1.0),
         spot_exit_time_et=strategy_raw.get("spot_exit_time_et"),
+        spot_exec_bar_size=_parse_bar_size(strategy_raw.get("spot_exec_bar_size")),
         regime_mode=_parse_regime_mode(strategy_raw.get("regime_mode")),
         regime2_mode=_parse_regime_gate_mode(strategy_raw.get("regime2_mode")),
+        regime2_apply_to=_parse_regime2_apply_to(strategy_raw.get("regime2_apply_to")),
         regime2_ema_preset=_parse_ema_preset(strategy_raw.get("regime2_ema_preset")),
         regime2_bar_size=_parse_bar_size(strategy_raw.get("regime2_bar_size")),
         regime2_supertrend_atr_period=_parse_positive_int(
@@ -284,6 +358,9 @@ def load_config(path: str | Path) -> ConfigBundle:
         spot_sizing_mode=_parse_spot_sizing_mode(strategy_raw.get("spot_sizing_mode")),
         spot_notional_pct=_parse_non_negative_float(strategy_raw.get("spot_notional_pct"), default=0.0),
         spot_risk_pct=_parse_non_negative_float(strategy_raw.get("spot_risk_pct"), default=0.0),
+        spot_short_risk_mult=_parse_non_negative_float(
+            strategy_raw.get("spot_short_risk_mult"), default=1.0
+        ),
         spot_max_notional_pct=_parse_non_negative_float(strategy_raw.get("spot_max_notional_pct"), default=1.0),
         spot_min_qty=_parse_positive_int(strategy_raw.get("spot_min_qty"), default=1),
         spot_max_qty=_parse_non_negative_int(strategy_raw.get("spot_max_qty"), default=0),
@@ -383,6 +460,27 @@ def _parse_flip_exit_mode(value) -> str:
     )
 
 
+def _parse_flip_exit_gate_mode(value) -> str:
+    if value is None:
+        return "off"
+    if isinstance(value, str):
+        cleaned = value.strip().lower()
+        if cleaned in ("off", "none", "disabled", "false", "0", "", "default"):
+            return "off"
+        if cleaned in ("regime", "bias"):
+            return "regime"
+        if cleaned in ("permission", "perm", "filters", "filter"):
+            return "permission"
+        if cleaned in ("regime_or_permission", "regime_or_perm", "bias_or_permission", "bias_or_perm"):
+            return "regime_or_permission"
+        if cleaned in ("regime_and_permission", "regime_and_perm", "bias_and_permission", "bias_and_perm"):
+            return "regime_and_permission"
+    raise ValueError(
+        f"Invalid flip_exit_gate_mode: {value!r} "
+        "(expected 'off', 'regime', 'permission', 'regime_or_permission', or 'regime_and_permission')"
+    )
+
+
 def _parse_direction_source(value) -> str:
     if value is None:
         return "ema"
@@ -462,10 +560,109 @@ def _parse_filters(raw) -> FiltersConfig | None:
         start_et = None
     if end_et is not None and not (0 <= int(end_et) <= 23):
         end_et = None
+
+    shock_gate_mode = raw.get("shock_gate_mode")
+    if shock_gate_mode is None:
+        shock_gate_mode = raw.get("shock_mode")
+    if isinstance(shock_gate_mode, bool):
+        shock_gate_mode = "block" if shock_gate_mode else "off"
+    shock_gate_mode = str(shock_gate_mode or "off").strip().lower()
+    if shock_gate_mode in ("", "0", "false", "none", "null"):
+        shock_gate_mode = "off"
+    if shock_gate_mode not in ("off", "detect", "block", "block_longs", "block_shorts", "surf"):
+        shock_gate_mode = "off"
+
+    shock_detector = str(raw.get("shock_detector") or "atr_ratio").strip().lower()
+    if shock_detector in ("daily", "daily_atr", "daily_atr_pct", "daily_atr14", "daily_atr%"):
+        shock_detector = "daily_atr_pct"
+    elif shock_detector in ("drawdown", "daily_drawdown", "daily-dd", "dd", "peak_dd", "peak_drawdown"):
+        shock_detector = "daily_drawdown"
+    elif shock_detector in ("atr_ratio", "ratio", "atr-ratio", "atr_ratio_pct", "atr_ratio%"):
+        shock_detector = "atr_ratio"
+    else:
+        shock_detector = "atr_ratio"
+
+    shock_fast = _i(raw.get("shock_atr_fast_period"))
+    if shock_fast is None or shock_fast <= 0:
+        shock_fast = 7
+    shock_slow = _i(raw.get("shock_atr_slow_period"))
+    if shock_slow is None or shock_slow <= 0:
+        shock_slow = 50
+    shock_on = _f(raw.get("shock_on_ratio"))
+    shock_off = _f(raw.get("shock_off_ratio"))
+    shock_min_atr = _f(raw.get("shock_min_atr_pct"))
+    shock_short_mult = _f(raw.get("shock_short_risk_mult_factor"))
+    if shock_short_mult is None or shock_short_mult < 0:
+        shock_short_mult = 1.0
+    shock_long_mult = _f(raw.get("shock_long_risk_mult_factor"))
+    if shock_long_mult is None or shock_long_mult < 0:
+        shock_long_mult = 1.0
+    shock_long_mult_down = _f(raw.get("shock_long_risk_mult_factor_down"))
+    if shock_long_mult_down is None or shock_long_mult_down < 0:
+        shock_long_mult_down = 1.0
+    shock_sl_mult = _f(raw.get("shock_stop_loss_pct_mult"))
+    if shock_sl_mult is None or shock_sl_mult <= 0:
+        shock_sl_mult = 1.0
+    shock_pt_mult = _f(raw.get("shock_profit_target_pct_mult"))
+    if shock_pt_mult is None or shock_pt_mult <= 0:
+        shock_pt_mult = 1.0
+
+    daily_atr_period = _i(raw.get("shock_daily_atr_period"))
+    if daily_atr_period is None or daily_atr_period <= 0:
+        daily_atr_period = 14
+    daily_on = _f(raw.get("shock_daily_on_atr_pct"))
+    daily_off = _f(raw.get("shock_daily_off_atr_pct"))
+    daily_tr_on = _f(raw.get("shock_daily_on_tr_pct"))
+    if daily_tr_on is not None and daily_tr_on <= 0:
+        daily_tr_on = None
+    if daily_on is None:
+        daily_on = 13.0
+    if daily_off is None:
+        daily_off = 11.0
+    if float(daily_off) > float(daily_on):
+        daily_off = float(daily_on)
+
+    dd_lb = _i(raw.get("shock_drawdown_lookback_days"))
+    if dd_lb is None or dd_lb <= 1:
+        dd_lb = 20
+    dd_on = _f(raw.get("shock_on_drawdown_pct"))
+    if dd_on is None:
+        dd_on = -20.0
+    dd_off = _f(raw.get("shock_off_drawdown_pct"))
+    if dd_off is None:
+        dd_off = -10.0
+    if float(dd_off) < float(dd_on):
+        dd_off = float(dd_on)
+    shock_dir_lb = _i(raw.get("shock_direction_lookback"))
+    if shock_dir_lb is None or shock_dir_lb <= 0:
+        shock_dir_lb = 2
+    shock_dir_source = str(raw.get("shock_direction_source") or "regime").strip().lower()
+    if shock_dir_source not in ("regime", "signal"):
+        shock_dir_source = "regime"
+    shock_regime_override_dir = bool(raw.get("shock_regime_override_dir"))
+
+    shock_regime_st_mult = _f(raw.get("shock_regime_supertrend_multiplier"))
+    if shock_regime_st_mult is not None and shock_regime_st_mult <= 0:
+        shock_regime_st_mult = None
+    shock_cool_st_mult = _f(raw.get("shock_cooling_regime_supertrend_multiplier"))
+    if shock_cool_st_mult is not None and shock_cool_st_mult <= 0:
+        shock_cool_st_mult = None
+    shock_daily_cool_atr = _f(raw.get("shock_daily_cooling_atr_pct"))
+    if shock_daily_cool_atr is not None and shock_daily_cool_atr <= 0:
+        shock_daily_cool_atr = None
+
+    shock_scale_target = _f(raw.get("shock_risk_scale_target_atr_pct"))
+    if shock_scale_target is not None and shock_scale_target <= 0:
+        shock_scale_target = None
+    shock_scale_min = _f(raw.get("shock_risk_scale_min_mult"))
+    if shock_scale_min is None:
+        shock_scale_min = 0.2
+    shock_scale_min = float(max(0.0, min(1.0, shock_scale_min)))
     return FiltersConfig(
         rv_min=_f(raw.get("rv_min")),
         rv_max=_f(raw.get("rv_max")),
         ema_spread_min_pct=_f(raw.get("ema_spread_min_pct")),
+        ema_spread_min_pct_down=_f(raw.get("ema_spread_min_pct_down")),
         ema_slope_min_pct=_f(raw.get("ema_slope_min_pct")),
         entry_start_hour=_i(raw.get("entry_start_hour")),
         entry_end_hour=_i(raw.get("entry_end_hour")),
@@ -475,6 +672,33 @@ def _parse_filters(raw) -> FiltersConfig | None:
         cooldown_bars=int(raw.get("cooldown_bars", 0) or 0),
         volume_ema_period=volume_period,
         volume_ratio_min=_f(raw.get("volume_ratio_min")),
+        shock_gate_mode=shock_gate_mode,
+        shock_detector=shock_detector,
+        shock_atr_fast_period=int(shock_fast),
+        shock_atr_slow_period=int(shock_slow),
+        shock_on_ratio=float(shock_on) if shock_on is not None else 1.55,
+        shock_off_ratio=float(shock_off) if shock_off is not None else 1.30,
+        shock_min_atr_pct=float(shock_min_atr) if shock_min_atr is not None else 7.0,
+        shock_daily_atr_period=int(daily_atr_period),
+        shock_daily_on_atr_pct=float(daily_on),
+        shock_daily_off_atr_pct=float(daily_off),
+        shock_daily_on_tr_pct=float(daily_tr_on) if daily_tr_on is not None else None,
+        shock_drawdown_lookback_days=int(dd_lb),
+        shock_on_drawdown_pct=float(dd_on),
+        shock_off_drawdown_pct=float(dd_off),
+        shock_short_risk_mult_factor=float(shock_short_mult),
+        shock_long_risk_mult_factor=float(shock_long_mult),
+        shock_long_risk_mult_factor_down=float(shock_long_mult_down),
+        shock_stop_loss_pct_mult=float(shock_sl_mult),
+        shock_profit_target_pct_mult=float(shock_pt_mult),
+        shock_direction_lookback=int(shock_dir_lb),
+        shock_direction_source=shock_dir_source,
+        shock_regime_override_dir=shock_regime_override_dir,
+        shock_regime_supertrend_multiplier=shock_regime_st_mult,
+        shock_cooling_regime_supertrend_multiplier=shock_cool_st_mult,
+        shock_daily_cooling_atr_pct=shock_daily_cool_atr,
+        shock_risk_scale_target_atr_pct=shock_scale_target,
+        shock_risk_scale_min_mult=shock_scale_min,
     )
 
 
@@ -538,6 +762,20 @@ def _parse_regime_gate_mode(value) -> str:
         if cleaned in ("supertrend", "st"):
             return "supertrend"
     return "off"
+
+
+def _parse_regime2_apply_to(value) -> str:
+    if value is None:
+        return "both"
+    if isinstance(value, str):
+        cleaned = value.strip().lower()
+        if cleaned in ("both", "all", "default", ""):
+            return "both"
+        if cleaned in ("long", "longs", "up", "buy"):
+            return "longs"
+        if cleaned in ("short", "shorts", "down", "sell"):
+            return "shorts"
+    return "both"
 
 
 def _parse_tick_gate_mode(value) -> str:

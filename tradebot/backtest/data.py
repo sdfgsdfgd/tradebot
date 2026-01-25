@@ -134,6 +134,16 @@ class IBKRHistoricalData:
     ) -> list[Bar]:
         self.connect()
         duration = _duration_for_bar_size(bar_size)
+        span_days = max(int((end - start).total_seconds() // 86400), 0)
+        wants_progress = span_days >= 14 or "min" in str(bar_size).lower()
+        contract_sym = str(getattr(contract, "symbol", "") or getattr(contract, "localSymbol", "") or "").strip() or "?"
+        if wants_progress:
+            tag = "RTH" if use_rth else "FULL"
+            print(
+                f"[IBKR] fetching {contract_sym} {bar_size} {tag} "
+                f"{start.date().isoformat()}→{end.date().isoformat()} (chunk={duration})",
+                flush=True,
+            )
         timeout_sec = 60.0
         raw_timeout = os.environ.get("TRADEBOT_IBKR_HIST_TIMEOUT_SEC")
         if raw_timeout:
@@ -181,7 +191,14 @@ class IBKRHistoricalData:
             return [bar for bar in bars if start <= bar.ts <= end]
         cursor = end
         collected: list[Bar] = []
+        req_idx = 0
         while cursor >= start:
+            req_idx += 1
+            if wants_progress:
+                print(
+                    f"[IBKR] reqHistoricalData #{req_idx} end={cursor.date().isoformat()} dur={duration} bar={bar_size}",
+                    flush=True,
+                )
             chunk = self._ib.reqHistoricalData(
                 contract,
                 endDateTime=cursor,
@@ -199,6 +216,11 @@ class IBKRHistoricalData:
             collected = bars + collected
             earliest = bars[0].ts
             cursor = earliest - timedelta(seconds=1)
+            if wants_progress:
+                print(
+                    f"[IBKR]  ↳ got {len(bars)} bars; earliest={earliest.date().isoformat()}",
+                    flush=True,
+                )
             if earliest <= start:
                 break
         return [bar for bar in collected if start <= bar.ts <= end]

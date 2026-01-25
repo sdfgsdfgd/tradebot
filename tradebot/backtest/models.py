@@ -53,6 +53,8 @@ class SpotTrade:
     qty: int
     entry_time: datetime
     entry_price: float
+    base_profit_target_pct: float | None = None
+    base_stop_loss_pct: float | None = None
     profit_target_pct: float | None = None
     stop_loss_pct: float | None = None
     profit_target_price: float | None = None

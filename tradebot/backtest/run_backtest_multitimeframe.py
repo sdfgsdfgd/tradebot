@@ -18,7 +18,7 @@ from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 
 from .config import BacktestConfig, ConfigBundle, FiltersConfig, LegConfig, SpotLegConfig, StrategyConfig, SyntheticConfig
-from .data import ContractMeta, IBKRHistoricalData
+from .data import ContractMeta, IBKRHistoricalData, _find_covering_cache_path
 from .engine import _run_spot_backtest, _spot_multiplier
 
 _WDAYS = {"MON": 0, "TUE": 1, "WED": 2, "THU": 3, "FRI": 4, "SAT": 5, "SUN": 6}
@@ -84,6 +84,97 @@ def _filters_from_payload(raw) -> FiltersConfig | None:
         return None
     if not isinstance(raw, dict):
         raise ValueError(f"filters must be an object, got: {raw!r}")
+    shock_detector = str(raw.get("shock_detector") or "atr_ratio").strip().lower()
+    if shock_detector in ("daily", "daily_atr", "daily_atr_pct", "daily_atr14", "daily_atr%"):
+        shock_detector = "daily_atr_pct"
+    elif shock_detector in ("drawdown", "daily_drawdown", "daily-dd", "dd", "peak_dd", "peak_drawdown"):
+        shock_detector = "daily_drawdown"
+    elif shock_detector in ("atr_ratio", "ratio", "atr-ratio", "atr_ratio_pct", "atr_ratio%"):
+        shock_detector = "atr_ratio"
+    else:
+        shock_detector = "atr_ratio"
+    shock_dir_source = str(raw.get("shock_direction_source") or "regime").strip().lower()
+    if shock_dir_source not in ("regime", "signal"):
+        shock_dir_source = "regime"
+    shock_long_mult_down = float(raw.get("shock_long_risk_mult_factor_down") or 1.0)
+    if shock_long_mult_down < 0:
+        shock_long_mult_down = 1.0
+    shock_sl_mult = float(raw.get("shock_stop_loss_pct_mult") or 1.0)
+    if shock_sl_mult <= 0:
+        shock_sl_mult = 1.0
+    shock_pt_mult = float(raw.get("shock_profit_target_pct_mult") or 1.0)
+    if shock_pt_mult <= 0:
+        shock_pt_mult = 1.0
+    daily_atr_period = int(raw.get("shock_daily_atr_period") or 14)
+    if daily_atr_period <= 0:
+        daily_atr_period = 14
+    daily_on = float(raw.get("shock_daily_on_atr_pct") or 13.0)
+    daily_off = float(raw.get("shock_daily_off_atr_pct") or 11.0)
+    daily_tr_on_raw = raw.get("shock_daily_on_tr_pct")
+    try:
+        daily_tr_on = float(daily_tr_on_raw) if daily_tr_on_raw is not None else None
+    except (TypeError, ValueError):
+        daily_tr_on = None
+    if daily_tr_on is not None and daily_tr_on <= 0:
+        daily_tr_on = None
+    if daily_off > daily_on:
+        daily_off = daily_on
+
+    try:
+        dd_lb = int(raw.get("shock_drawdown_lookback_days") or 20)
+    except (TypeError, ValueError):
+        dd_lb = 20
+    dd_lb = max(2, dd_lb)
+    try:
+        dd_on = float(raw.get("shock_on_drawdown_pct") or -20.0)
+    except (TypeError, ValueError):
+        dd_on = -20.0
+    try:
+        dd_off = float(raw.get("shock_off_drawdown_pct") or -10.0)
+    except (TypeError, ValueError):
+        dd_off = -10.0
+    # For a negative drawdown threshold, OFF should be >= ON (less negative).
+    if dd_off < dd_on:
+        dd_off = dd_on
+
+    shock_regime_st_mult = raw.get("shock_regime_supertrend_multiplier")
+    try:
+        shock_regime_st_mult_f = float(shock_regime_st_mult) if shock_regime_st_mult is not None else None
+    except (TypeError, ValueError):
+        shock_regime_st_mult_f = None
+    if shock_regime_st_mult_f is not None and shock_regime_st_mult_f <= 0:
+        shock_regime_st_mult_f = None
+
+    shock_cool_st_mult = raw.get("shock_cooling_regime_supertrend_multiplier")
+    try:
+        shock_cool_st_mult_f = float(shock_cool_st_mult) if shock_cool_st_mult is not None else None
+    except (TypeError, ValueError):
+        shock_cool_st_mult_f = None
+    if shock_cool_st_mult_f is not None and shock_cool_st_mult_f <= 0:
+        shock_cool_st_mult_f = None
+
+    shock_daily_cool = raw.get("shock_daily_cooling_atr_pct")
+    try:
+        shock_daily_cool_f = float(shock_daily_cool) if shock_daily_cool is not None else None
+    except (TypeError, ValueError):
+        shock_daily_cool_f = None
+    if shock_daily_cool_f is not None and shock_daily_cool_f <= 0:
+        shock_daily_cool_f = None
+
+    shock_scale_target = raw.get("shock_risk_scale_target_atr_pct")
+    try:
+        shock_scale_target_f = float(shock_scale_target) if shock_scale_target is not None else None
+    except (TypeError, ValueError):
+        shock_scale_target_f = None
+    if shock_scale_target_f is not None and shock_scale_target_f <= 0:
+        shock_scale_target_f = None
+
+    shock_scale_min = raw.get("shock_risk_scale_min_mult")
+    try:
+        shock_scale_min_f = float(shock_scale_min) if shock_scale_min is not None else 0.2
+    except (TypeError, ValueError):
+        shock_scale_min_f = 0.2
+    shock_scale_min_f = float(max(0.0, min(1.0, shock_scale_min_f)))
     return FiltersConfig(
         rv_min=(float(raw["rv_min"]) if raw.get("rv_min") is not None else None),
         rv_max=(float(raw["rv_max"]) if raw.get("rv_max") is not None else None),
@@ -101,6 +192,36 @@ def _filters_from_payload(raw) -> FiltersConfig | None:
         entry_end_hour_et=(int(raw["entry_end_hour_et"]) if raw.get("entry_end_hour_et") is not None else None),
         volume_ema_period=(int(raw["volume_ema_period"]) if raw.get("volume_ema_period") is not None else None),
         volume_ratio_min=(float(raw["volume_ratio_min"]) if raw.get("volume_ratio_min") is not None else None),
+        ema_spread_min_pct_down=(
+            float(raw["ema_spread_min_pct_down"]) if raw.get("ema_spread_min_pct_down") is not None else None
+        ),
+        shock_gate_mode=str(raw.get("shock_gate_mode") or raw.get("shock_mode") or "off"),
+        shock_detector=shock_detector,
+        shock_atr_fast_period=int(raw.get("shock_atr_fast_period") or 7),
+        shock_atr_slow_period=int(raw.get("shock_atr_slow_period") or 50),
+        shock_on_ratio=float(raw.get("shock_on_ratio") or 1.55),
+        shock_off_ratio=float(raw.get("shock_off_ratio") or 1.30),
+        shock_min_atr_pct=float(raw.get("shock_min_atr_pct") or 7.0),
+        shock_daily_atr_period=daily_atr_period,
+        shock_daily_on_atr_pct=daily_on,
+        shock_daily_off_atr_pct=daily_off,
+        shock_daily_on_tr_pct=daily_tr_on,
+        shock_drawdown_lookback_days=dd_lb,
+        shock_on_drawdown_pct=dd_on,
+        shock_off_drawdown_pct=dd_off,
+        shock_short_risk_mult_factor=float(raw.get("shock_short_risk_mult_factor") or 1.0),
+        shock_long_risk_mult_factor=float(raw.get("shock_long_risk_mult_factor") or 1.0),
+        shock_long_risk_mult_factor_down=shock_long_mult_down,
+        shock_stop_loss_pct_mult=shock_sl_mult,
+        shock_profit_target_pct_mult=shock_pt_mult,
+        shock_direction_lookback=int(raw.get("shock_direction_lookback") or 2),
+        shock_direction_source=shock_dir_source,
+        shock_regime_override_dir=bool(raw.get("shock_regime_override_dir")),
+        shock_regime_supertrend_multiplier=shock_regime_st_mult_f,
+        shock_cooling_regime_supertrend_multiplier=shock_cool_st_mult_f,
+        shock_daily_cooling_atr_pct=shock_daily_cool_f,
+        shock_risk_scale_target_atr_pct=shock_scale_target_f,
+        shock_risk_scale_min_mult=shock_scale_min_f,
     )
 
 
@@ -117,6 +238,7 @@ def _strategy_from_payload(strategy: dict, *, filters: FiltersConfig | None) -> 
     entry_days = _weekdays_from_payload(raw.get("entry_days") or [])
     raw["entry_days"] = entry_days
 
+    raw.setdefault("flip_exit_gate_mode", "off")
     raw["filters"] = filters
 
     # Normalize nested structures back into dataclasses.
@@ -246,6 +368,239 @@ def _load_bars(
         use_rth=use_rth,
         cache_dir=cache_dir,
     )
+
+
+def _expected_cache_path(
+    *,
+    cache_dir: Path,
+    symbol: str,
+    start_dt: datetime,
+    end_dt: datetime,
+    bar_size: str,
+    use_rth: bool,
+) -> Path:
+    tag = "rth" if use_rth else "full"
+    safe_bar = str(bar_size).replace(" ", "")
+    return cache_dir / symbol / f"{symbol}_{start_dt.date()}_{end_dt.date()}_{safe_bar}_{tag}.csv"
+
+
+def _die_empty_bars(
+    *,
+    kind: str,
+    cache_dir: Path,
+    symbol: str,
+    exchange: str | None,
+    start_dt: datetime,
+    end_dt: datetime,
+    bar_size: str,
+    use_rth: bool,
+    offline: bool,
+) -> None:
+    tag = "rth" if use_rth else "full"
+    expected = _expected_cache_path(
+        cache_dir=cache_dir,
+        symbol=str(symbol),
+        start_dt=start_dt,
+        end_dt=end_dt,
+        bar_size=str(bar_size),
+        use_rth=use_rth,
+    )
+    covering = _find_covering_cache_path(
+        cache_dir=cache_dir,
+        symbol=str(symbol),
+        start=start_dt,
+        end=end_dt,
+        bar_size=str(bar_size),
+        use_rth=bool(use_rth),
+    )
+    print("")
+    print(f"[ERROR] No bars returned ({kind}):")
+    print(f"- symbol={symbol} exchange={exchange or 'SMART'} bar={bar_size} {tag} offline={offline}")
+    print(f"- window={start_dt.date().isoformat()}→{end_dt.date().isoformat()}")
+    if expected.exists():
+        print(f"- expected_cache={expected} (exists)")
+    else:
+        print(f"- expected_cache={expected} (missing)")
+    if covering is not None and covering != expected:
+        print(f"- covering_cache={covering}")
+    if offline:
+        print("")
+        print("Fix:")
+        print("- Re-run once without --offline to fetch/populate the cache via IBKR.")
+        print("- If the cache file exists but is empty/corrupt, delete it and re-fetch.")
+    else:
+        print("")
+        print("Fix:")
+        print("- Verify IB Gateway / TWS is connected and you have market data permissions for this symbol/timeframe.")
+        print("- If IBKR returns empty due to pacing/subscription limits, retry or prefetch once then re-run with --offline.")
+    raise SystemExit(2)
+
+
+def _preflight_offline_cache_or_die(
+    *,
+    symbol: str,
+    candidates: list[dict],
+    windows: list[tuple[date, date]],
+    signal_bar_size: str,
+    use_rth: bool,
+    cache_dir: Path,
+) -> None:
+    missing: list[dict] = []
+    checked: set[tuple[str, str, str, str, bool]] = set()
+
+    def _require_cached(
+        *,
+        symbol: str,
+        start_dt: datetime,
+        end_dt: datetime,
+        bar_size: str,
+        use_rth: bool,
+    ) -> None:
+        key = (
+            str(symbol),
+            start_dt.date().isoformat(),
+            end_dt.date().isoformat(),
+            str(bar_size),
+            bool(use_rth),
+        )
+        if key in checked:
+            return
+        checked.add(key)
+        covering = _find_covering_cache_path(
+            cache_dir=cache_dir,
+            symbol=str(symbol),
+            start=start_dt,
+            end=end_dt,
+            bar_size=str(bar_size),
+            use_rth=bool(use_rth),
+        )
+        if covering is None:
+            missing.append(
+                {
+                    "symbol": str(symbol),
+                    "bar_size": str(bar_size),
+                    "start": start_dt.date().isoformat(),
+                    "end": end_dt.date().isoformat(),
+                    "use_rth": bool(use_rth),
+                    "expected": str(
+                        _expected_cache_path(
+                            cache_dir=cache_dir,
+                            symbol=str(symbol),
+                            start_dt=start_dt,
+                            end_dt=end_dt,
+                            bar_size=str(bar_size),
+                            use_rth=bool(use_rth),
+                        )
+                    ),
+                }
+            )
+
+    for wstart, wend in windows:
+        start_dt = datetime.combine(wstart, time(0, 0))
+        end_dt = datetime.combine(wend, time(23, 59))
+
+        # Always required for every candidate (signal bars).
+        _require_cached(
+            symbol=str(symbol),
+            start_dt=start_dt,
+            end_dt=end_dt,
+            bar_size=str(signal_bar_size),
+            use_rth=use_rth,
+        )
+
+        for cand in candidates:
+            strat = cand.get("strategy") or {}
+
+            # Multi-timeframe regime bars when regime is computed on a different bar size.
+            regime_mode = str(strat.get("regime_mode", "ema") or "ema").strip().lower()
+            regime_bar = str(strat.get("regime_bar_size") or "").strip() or str(signal_bar_size)
+            if regime_mode == "supertrend":
+                if str(regime_bar) != str(signal_bar_size):
+                    _require_cached(
+                        symbol=str(symbol),
+                        start_dt=start_dt,
+                        end_dt=end_dt,
+                        bar_size=regime_bar,
+                        use_rth=use_rth,
+                    )
+            else:
+                if strat.get("regime_ema_preset") and str(regime_bar) != str(signal_bar_size):
+                    _require_cached(
+                        symbol=str(symbol),
+                        start_dt=start_dt,
+                        end_dt=end_dt,
+                        bar_size=regime_bar,
+                        use_rth=use_rth,
+                    )
+
+            # Regime2 confirm bars (if enabled and on a different timeframe).
+            regime2_mode = str(strat.get("regime2_mode", "off") or "off").strip().lower()
+            if regime2_mode != "off":
+                regime2_bar = str(strat.get("regime2_bar_size") or "").strip() or str(signal_bar_size)
+                if str(regime2_bar) != str(signal_bar_size):
+                    _require_cached(
+                        symbol=str(symbol),
+                        start_dt=start_dt,
+                        end_dt=end_dt,
+                        bar_size=regime2_bar,
+                        use_rth=use_rth,
+                    )
+
+            # Multi-resolution execution bars (e.g. 5 mins) for spot_exec_bar_size.
+            exec_size = str(strat.get("spot_exec_bar_size") or "").strip()
+            if exec_size and str(exec_size) != str(signal_bar_size):
+                _require_cached(
+                    symbol=str(symbol),
+                    start_dt=start_dt,
+                    end_dt=end_dt,
+                    bar_size=exec_size,
+                    use_rth=use_rth,
+                )
+
+            # Tick gate warmup bars (1 day, RTH).
+            tick_mode = str(strat.get("tick_gate_mode", "off") or "off").strip().lower()
+            if tick_mode != "off":
+                try:
+                    z_lookback = int(strat.get("tick_width_z_lookback") or 252)
+                except (TypeError, ValueError):
+                    z_lookback = 252
+                try:
+                    ma_period = int(strat.get("tick_band_ma_period") or 10)
+                except (TypeError, ValueError):
+                    ma_period = 10
+                try:
+                    slope_lb = int(strat.get("tick_width_slope_lookback") or 3)
+                except (TypeError, ValueError):
+                    slope_lb = 3
+                tick_warm_days = max(60, z_lookback + ma_period + slope_lb + 5)
+                tick_start_dt = start_dt - timedelta(days=tick_warm_days)
+                tick_symbol = str(strat.get("tick_gate_symbol", "TICK-NYSE") or "TICK-NYSE").strip()
+                _require_cached(
+                    symbol=tick_symbol,
+                    start_dt=tick_start_dt,
+                    end_dt=end_dt,
+                    bar_size="1 day",
+                    use_rth=True,
+                )
+
+    if not missing:
+        return
+
+    print("")
+    print("[ERROR] --offline was requested, but required cached bars are missing:")
+    for item in missing[:25]:
+        tag = "rth" if item["use_rth"] else "full"
+        print(
+            f"- {item['symbol']} {item['bar_size']} {tag} {item['start']}→{item['end']} "
+            f"(expected: {item['expected']})"
+        )
+    if len(missing) > 25:
+        print(f"- … plus {len(missing) - 25} more missing caches")
+    print("")
+    print("Fix:")
+    print("- Re-run without --offline to fetch via IBKR (and populate db/ cache).")
+    print("- Or prefetch the missing bars explicitly before running with --offline.")
+    raise SystemExit(2)
 
 
 def _score_key(item: dict) -> tuple:
@@ -433,6 +788,24 @@ def main() -> None:
         bars_cache[key] = bars
         return bars
 
+    if not offline:
+        try:
+            data.connect()
+        except Exception as exc:
+            raise SystemExit(
+                "IBKR API connection failed. Start IB Gateway / TWS (or run with --offline after prefetching cached bars)."
+            ) from exc
+
+    if offline:
+        _preflight_offline_cache_or_die(
+            symbol=symbol,
+            candidates=candidates,
+            windows=windows,
+            signal_bar_size=str(args.bar_size),
+            use_rth=use_rth,
+            cache_dir=cache_dir,
+        )
+
     out_rows: list[dict] = []
     started = pytime.perf_counter()
     report_every = 10
@@ -452,7 +825,11 @@ def main() -> None:
                 continue
 
         sig_bar_size = str(strategy_payload.get("signal_bar_size") or args.bar_size)
-        sig_use_rth = bool(strategy_payload.get("signal_use_rth"))
+        sig_use_rth = (
+            use_rth
+            if strategy_payload.get("signal_use_rth") is None
+            else bool(strategy_payload.get("signal_use_rth"))
+        )
 
         per_window: list[dict] = []
         ok = True
@@ -479,8 +856,17 @@ def main() -> None:
                 offline=bundle.backtest.offline,
             )
             if not bars_sig:
-                ok = False
-                break
+                _die_empty_bars(
+                    kind="signal",
+                    cache_dir=cache_dir,
+                    symbol=bundle.strategy.symbol,
+                    exchange=bundle.strategy.exchange,
+                    start_dt=start_dt,
+                    end_dt=end_dt,
+                    bar_size=str(bundle.backtest.bar_size),
+                    use_rth=bundle.backtest.use_rth,
+                    offline=bundle.backtest.offline,
+                )
 
             is_future = bundle.strategy.symbol in ("MNQ", "MBT")
             if offline:
@@ -513,6 +899,18 @@ def main() -> None:
                         use_rth=bundle.backtest.use_rth,
                         offline=bundle.backtest.offline,
                     )
+                    if not regime_bars:
+                        _die_empty_bars(
+                            kind="regime",
+                            cache_dir=cache_dir,
+                            symbol=bundle.strategy.symbol,
+                            exchange=bundle.strategy.exchange,
+                            start_dt=start_dt,
+                            end_dt=end_dt,
+                            bar_size=str(bundle.strategy.regime_bar_size),
+                            use_rth=bundle.backtest.use_rth,
+                            offline=bundle.backtest.offline,
+                        )
             else:
                 if (
                     bundle.strategy.regime_ema_preset
@@ -528,6 +926,18 @@ def main() -> None:
                         use_rth=bundle.backtest.use_rth,
                         offline=bundle.backtest.offline,
                     )
+                    if not regime_bars:
+                        _die_empty_bars(
+                            kind="regime",
+                            cache_dir=cache_dir,
+                            symbol=bundle.strategy.symbol,
+                            exchange=bundle.strategy.exchange,
+                            start_dt=start_dt,
+                            end_dt=end_dt,
+                            bar_size=str(bundle.strategy.regime_bar_size),
+                            use_rth=bundle.backtest.use_rth,
+                            offline=bundle.backtest.offline,
+                        )
 
             regime2_bars = None
             if str(bundle.strategy.regime2_mode or "off").strip().lower() != "off":
@@ -542,6 +952,18 @@ def main() -> None:
                         use_rth=bundle.backtest.use_rth,
                         offline=bundle.backtest.offline,
                     )
+                    if not regime2_bars:
+                        _die_empty_bars(
+                            kind="regime2",
+                            cache_dir=cache_dir,
+                            symbol=bundle.strategy.symbol,
+                            exchange=bundle.strategy.exchange,
+                            start_dt=start_dt,
+                            end_dt=end_dt,
+                            bar_size=r2bar,
+                            use_rth=bundle.backtest.use_rth,
+                            offline=bundle.backtest.offline,
+                        )
 
             tick_bars = None
             tick_mode = str(getattr(bundle.strategy, "tick_gate_mode", "off") or "off").strip().lower()
@@ -571,6 +993,43 @@ def main() -> None:
                     use_rth=True,
                     offline=bundle.backtest.offline,
                 )
+                if not tick_bars:
+                    _die_empty_bars(
+                        kind="tick_gate",
+                        cache_dir=cache_dir,
+                        symbol=tick_symbol,
+                        exchange=tick_exchange,
+                        start_dt=tick_start_dt,
+                        end_dt=end_dt,
+                        bar_size="1 day",
+                        use_rth=True,
+                        offline=bundle.backtest.offline,
+                    )
+
+            exec_bars = None
+            exec_size = str(getattr(bundle.strategy, "spot_exec_bar_size", "") or "").strip()
+            if exec_size and str(exec_size) != str(bundle.backtest.bar_size):
+                exec_bars = _load_bars_cached(
+                    symbol=bundle.strategy.symbol,
+                    exchange=bundle.strategy.exchange,
+                    start_dt=start_dt,
+                    end_dt=end_dt,
+                    bar_size=exec_size,
+                    use_rth=bundle.backtest.use_rth,
+                    offline=bundle.backtest.offline,
+                )
+                if not exec_bars:
+                    _die_empty_bars(
+                        kind="exec",
+                        cache_dir=cache_dir,
+                        symbol=bundle.strategy.symbol,
+                        exchange=bundle.strategy.exchange,
+                        start_dt=start_dt,
+                        end_dt=end_dt,
+                        bar_size=exec_size,
+                        use_rth=bundle.backtest.use_rth,
+                        offline=bundle.backtest.offline,
+                    )
 
             result = _run_spot_backtest(
                 bundle,
@@ -579,6 +1038,7 @@ def main() -> None:
                 regime_bars=regime_bars,
                 regime2_bars=regime2_bars,
                 tick_bars=tick_bars,
+                exec_bars=exec_bars,
             )
             m = _metrics_from_summary(result.summary)
             if bool(args.require_positive_pnl) and float(m["pnl"]) <= 0:
@@ -595,47 +1055,48 @@ def main() -> None:
                 }
             )
 
-        if not ok or not per_window:
-            continue
-
-        min_pnl_dd = min(float(x["pnl_over_dd"]) for x in per_window)
-        min_pnl = min(float(x["pnl"]) for x in per_window)
-        min_roi_dd = min(float(x.get("roi_over_dd_pct") or 0.0) for x in per_window)
-        min_roi = min(float(x.get("roi") or 0.0) for x in per_window)
-        full_m = cand.get("metrics") or {}
-        full_roi = float(full_m.get("roi") or 0.0)
-        full_dd_pct = float(full_m.get("max_drawdown_pct") or 0.0)
-        full_roi_dd = (
-            (full_roi / full_dd_pct)
-            if full_dd_pct > 0
-            else (math.inf if full_roi > 0 else -math.inf if full_roi < 0 else 0.0)
-        )
-        out_rows.append(
-            {
-                "key": _strategy_key(strategy_payload, filters=filters_payload),
-                "strategy": strategy_payload,
-                "filters": filters_payload,
-                "seed_group_name": cand.get("group_name"),
-                "full_trades": int(full_m.get("trades") or 0),
-                "full_win": float(full_m.get("win_rate") or 0.0),
-                "full_pnl": float(full_m.get("pnl") or 0.0),
-                "full_dd": float(full_m.get("max_drawdown") or 0.0),
-                "full_pnl_over_dd": float(full_m.get("pnl_over_dd") or 0.0),
-                "full_roi": full_roi,
-                "full_dd_pct": full_dd_pct,
-                "full_roi_over_dd_pct": full_roi_dd,
-                "stability_min_pnl_dd": min_pnl_dd,
-                "stability_min_pnl": min_pnl,
-                "stability_min_roi_dd": min_roi_dd,
-                "stability_min_roi": min_roi,
-                "windows": per_window,
-            }
-        )
+        if ok and per_window:
+            min_pnl_dd = min(float(x["pnl_over_dd"]) for x in per_window)
+            min_pnl = min(float(x["pnl"]) for x in per_window)
+            min_roi_dd = min(float(x.get("roi_over_dd_pct") or 0.0) for x in per_window)
+            min_roi = min(float(x.get("roi") or 0.0) for x in per_window)
+            # "Full" metrics should reflect the evaluation window(s), not the seed metrics from the input milestones.
+            # We treat the first requested window as the "primary" window for display and tie-break sorting.
+            primary = per_window[0] if per_window else {}
+            full_trades = int(primary.get("trades") or 0)
+            full_win = float(primary.get("win_rate") or 0.0)
+            full_pnl = float(primary.get("pnl") or 0.0)
+            full_dd = float(primary.get("dd") or 0.0)
+            full_pnl_over_dd = float(primary.get("pnl_over_dd") or 0.0)
+            full_roi = float(primary.get("roi") or 0.0)
+            full_dd_pct = float(primary.get("dd_pct") or 0.0)
+            full_roi_dd = float(primary.get("roi_over_dd_pct") or 0.0)
+            out_rows.append(
+                {
+                    "key": _strategy_key(strategy_payload, filters=filters_payload),
+                    "strategy": strategy_payload,
+                    "filters": filters_payload,
+                    "seed_group_name": cand.get("group_name"),
+                    "full_trades": full_trades,
+                    "full_win": full_win,
+                    "full_pnl": full_pnl,
+                    "full_dd": full_dd,
+                    "full_pnl_over_dd": full_pnl_over_dd,
+                    "full_roi": full_roi,
+                    "full_dd_pct": full_dd_pct,
+                    "full_roi_over_dd_pct": full_roi_dd,
+                    "stability_min_pnl_dd": min_pnl_dd,
+                    "stability_min_pnl": min_pnl,
+                    "stability_min_roi_dd": min_roi_dd,
+                    "stability_min_roi": min_roi,
+                    "windows": per_window,
+                }
+            )
 
         if idx % report_every == 0:
             elapsed = pytime.perf_counter() - started
             rate = idx / elapsed if elapsed > 0 else 0.0
-            print(f"[{idx}/{len(candidates)}] evaluated… ({rate:0.2f} cands/s)", flush=True)
+            print(f"[{idx}/{len(candidates)}] evaluated… ({rate:0.2f} cands/s, kept={len(out_rows)})", flush=True)
 
     if not offline:
         data.disconnect()

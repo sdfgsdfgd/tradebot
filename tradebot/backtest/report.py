@@ -33,9 +33,11 @@ def _write_trades(path: Path, result: BacktestResult) -> None:
         writer = csv.writer(handle)
         writer.writerow(
             [
+                "type",
                 "symbol",
                 "entry_time",
                 "exit_time",
+                "qty",
                 "expiry",
                 "legs",
                 "entry_price",
@@ -44,15 +46,27 @@ def _write_trades(path: Path, result: BacktestResult) -> None:
             ]
         )
         for trade in result.trades:
-            legs = "; ".join(
-                f"{leg.action} {leg.right} {leg.strike:.2f} x{leg.qty}" for leg in trade.legs
-            )
+            is_spot = hasattr(trade, "qty") and not hasattr(trade, "legs")
+            legs = ""
+            expiry = ""
+            qty = ""
+            if is_spot:
+                qty = str(getattr(trade, "qty", ""))
+            else:
+                qty = ""
+                expiry = getattr(trade, "expiry", None)
+                expiry = expiry.isoformat() if expiry is not None else ""
+                legs = "; ".join(
+                    f"{leg.action} {leg.right} {leg.strike:.2f} x{leg.qty}" for leg in getattr(trade, "legs", [])
+                )
             writer.writerow(
                 [
+                    "spot" if is_spot else "option",
                     trade.symbol,
                     trade.entry_time.isoformat(),
                     trade.exit_time.isoformat() if trade.exit_time else "",
-                    trade.expiry.isoformat(),
+                    qty,
+                    expiry,
                     legs,
                     f"{trade.entry_price:.4f}",
                     f"{trade.exit_price:.4f}" if trade.exit_price is not None else "",

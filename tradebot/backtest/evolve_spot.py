@@ -26,13 +26,63 @@ from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 
 from .config import BacktestConfig, ConfigBundle, FiltersConfig, SpotLegConfig, StrategyConfig, SyntheticConfig
-from .data import ContractMeta, IBKRHistoricalData
+from .data import ContractMeta, IBKRHistoricalData, _find_covering_cache_path
 from .engine import _run_spot_backtest
+from ..signals import parse_bar_size
 
 
 def _parse_date(value: str) -> date:
     year_s, month_s, day_s = str(value).strip().split("-")
     return date(int(year_s), int(month_s), int(day_s))
+
+
+def _expected_cache_path(
+    *,
+    cache_dir: Path,
+    symbol: str,
+    start_dt: datetime,
+    end_dt: datetime,
+    bar_size: str,
+    use_rth: bool,
+) -> Path:
+    tag = "rth" if use_rth else "full"
+    safe_bar = str(bar_size).replace(" ", "")
+    return cache_dir / symbol / f"{symbol}_{start_dt.date()}_{end_dt.date()}_{safe_bar}_{tag}.csv"
+
+
+def _require_offline_cache_or_die(
+    *,
+    cache_dir: Path,
+    symbol: str,
+    start_dt: datetime,
+    end_dt: datetime,
+    bar_size: str,
+    use_rth: bool,
+) -> None:
+    covering = _find_covering_cache_path(
+        cache_dir=cache_dir,
+        symbol=str(symbol),
+        start=start_dt,
+        end=end_dt,
+        bar_size=str(bar_size),
+        use_rth=bool(use_rth),
+    )
+    if covering is not None:
+        return
+    expected = _expected_cache_path(
+        cache_dir=cache_dir,
+        symbol=str(symbol),
+        start_dt=start_dt,
+        end_dt=end_dt,
+        bar_size=str(bar_size),
+        use_rth=bool(use_rth),
+    )
+    tag = "rth" if use_rth else "full"
+    raise SystemExit(
+        f"--offline was requested, but cached bars are missing for {symbol} {bar_size} {tag} "
+        f"{start_dt.date().isoformat()}→{end_dt.date().isoformat()} (expected: {expected}). "
+        "Re-run without --offline to fetch via IBKR (or prefetch the cache first)."
+    )
 
 
 def _bundle_base(
@@ -101,6 +151,7 @@ def _bundle_base(
         ema_directional=False,
         exit_on_signal_flip=True,
         flip_exit_mode="entry",
+        flip_exit_gate_mode="off",
         flip_exit_min_hold_bars=int(flip_exit_min_hold_bars),
         flip_exit_only_if_profit=False,
         direction_source="ema",
@@ -145,6 +196,7 @@ def _mk_filters(
     rv_min: float | None = None,
     rv_max: float | None = None,
     ema_spread_min_pct: float | None = None,
+    ema_spread_min_pct_down: float | None = None,
     ema_slope_min_pct: float | None = None,
     cooldown_bars: int = 0,
     skip_first_bars: int = 0,
@@ -166,11 +218,13 @@ def _mk_filters(
         entry_end_hour_et=entry_end_hour_et,
         volume_ema_period=volume_ema_period,
         volume_ratio_min=volume_ratio_min,
+        ema_spread_min_pct_down=ema_spread_min_pct_down,
     )
     if (
         f.rv_min is None
         and f.rv_max is None
         and f.ema_spread_min_pct is None
+        and f.ema_spread_min_pct_down is None
         and f.ema_slope_min_pct is None
         and f.entry_start_hour is None
         and f.entry_end_hour is None
@@ -205,7 +259,14 @@ def _filters_payload(filters: FiltersConfig | None) -> dict | None:
         return None
     raw = asdict(filters)
     out: dict[str, object] = {}
-    for key in ("rv_min", "rv_max", "ema_spread_min_pct", "ema_slope_min_pct", "volume_ratio_min"):
+    for key in (
+        "rv_min",
+        "rv_max",
+        "ema_spread_min_pct",
+        "ema_spread_min_pct_down",
+        "ema_slope_min_pct",
+        "volume_ratio_min",
+    ):
         if raw.get(key) is not None:
             out[key] = raw[key]
     if raw.get("volume_ratio_min") is not None and raw.get("volume_ema_period") is not None:
@@ -484,6 +545,7 @@ def _apply_milestone_base(
 
     f = _mk_filters(
         ema_spread_min_pct=filters.get("ema_spread_min_pct"),
+        ema_spread_min_pct_down=filters.get("ema_spread_min_pct_down"),
         ema_slope_min_pct=filters.get("ema_slope_min_pct"),
         cooldown_bars=int(filters.get("cooldown_bars") or 0),
         skip_first_bars=int(filters.get("skip_first_bars") or 0),
@@ -504,6 +566,11 @@ def main() -> None:
         "--bar-size",
         default="1 hour",
         help="Signal bar size (e.g. '30 mins', '1 hour'). ORB axis uses 15m regardless.",
+    )
+    parser.add_argument(
+        "--spot-exec-bar-size",
+        default=None,
+        help="Optional execution bar size for spot simulation (e.g. '5 mins'). Signals still run on --bar-size.",
     )
     parser.add_argument("--use-rth", action="store_true", default=False)
     parser.add_argument("--cache-dir", default="db")
@@ -544,7 +611,7 @@ def main() -> None:
         help=(
             "Enable spot realism v2 (superset of v1): adds position sizing (ROI-based), "
             "commission minimums, and stop gap handling. Defaults: spread=$0.01, "
-            "commission=$0.005/share (min $1.00), risk sizing=1% equity risk, max notional=50%."
+            "commission=$0.005/share (min $1.00), risk sizing=1%% equity risk, max notional=50%%."
         ),
     )
     parser.add_argument("--spot-spread", type=float, default=None, help="Spot spread in price units (e.g. 0.01)")
@@ -570,7 +637,7 @@ def main() -> None:
         "--spot-sizing-mode",
         default=None,
         choices=("fixed", "notional_pct", "risk_pct"),
-        help="Spot sizing mode (v2): fixed qty, % notional, or % equity risk-to-stop.",
+        help="Spot sizing mode (v2): fixed qty, %% notional, or %% equity risk-to-stop.",
     )
     parser.add_argument("--spot-risk-pct", type=float, default=None, help="Risk per trade as fraction of equity (v2).")
     parser.add_argument(
@@ -669,6 +736,7 @@ def main() -> None:
             "confirm",
             "spread",
             "spread_fine",
+            "spread_down",
             "slope",
             "cooldown",
             "skip_open",
@@ -689,6 +757,9 @@ def main() -> None:
     start_dt = datetime.combine(start, time(0, 0))
     end_dt = datetime.combine(end, time(23, 59))
     signal_bar_size = str(args.bar_size).strip() or "1 hour"
+    spot_exec_bar_size = str(args.spot_exec_bar_size).strip() if args.spot_exec_bar_size else None
+    if spot_exec_bar_size and parse_bar_size(spot_exec_bar_size) is None:
+        raise SystemExit(f"Invalid --spot-exec-bar-size: {spot_exec_bar_size!r}")
     max_open_trades = int(args.max_open_trades)
     close_eod = bool(args.close_eod)
     long_only = bool(args.long_only)
@@ -727,6 +798,25 @@ def main() -> None:
     if bool(args.write_milestones):
         run_min_trades = min(run_min_trades, int(args.milestone_min_trades))
 
+    if offline:
+        _require_offline_cache_or_die(
+            cache_dir=cache_dir,
+            symbol=symbol,
+            start_dt=start_dt,
+            end_dt=end_dt,
+            bar_size=signal_bar_size,
+            use_rth=use_rth,
+        )
+        if spot_exec_bar_size and str(spot_exec_bar_size) != str(signal_bar_size):
+            _require_offline_cache_or_die(
+                cache_dir=cache_dir,
+                symbol=symbol,
+                start_dt=start_dt,
+                end_dt=end_dt,
+                bar_size=spot_exec_bar_size,
+                use_rth=use_rth,
+            )
+
     data = IBKRHistoricalData()
     if offline:
         is_future = symbol in ("MNQ", "MBT")
@@ -736,7 +826,12 @@ def main() -> None:
             multiplier = {"MNQ": 2.0, "MBT": 0.1}.get(symbol, 1.0)
         meta = ContractMeta(symbol=symbol, exchange=exchange, multiplier=multiplier, min_tick=0.01)
     else:
-        _, meta = data.resolve_contract(symbol, exchange=None)
+        try:
+            _, meta = data.resolve_contract(symbol, exchange=None)
+        except Exception as exc:
+            raise SystemExit(
+                "IBKR API connection failed. Start IB Gateway / TWS (or run with --offline after prefetching cached bars)."
+            ) from exc
 
     milestones = _load_spot_milestones()
 
@@ -765,6 +860,7 @@ def main() -> None:
             rv_min=merged.get("rv_min"),
             rv_max=merged.get("rv_max"),
             ema_spread_min_pct=merged.get("ema_spread_min_pct"),
+            ema_spread_min_pct_down=merged.get("ema_spread_min_pct_down"),
             ema_slope_min_pct=merged.get("ema_slope_min_pct"),
             cooldown_bars=int(merged.get("cooldown_bars") or 0),
             skip_first_bars=int(merged.get("skip_first_bars") or 0),
@@ -944,8 +1040,18 @@ def main() -> None:
         *, cfg: ConfigBundle, bars: list, regime_bars: list | None, regime2_bars: list | None
     ) -> dict | None:
         tick_bars = _tick_bars_for(cfg)
+        exec_bars = None
+        exec_size = str(getattr(cfg.strategy, "spot_exec_bar_size", "") or "").strip()
+        if exec_size and str(exec_size) != str(cfg.backtest.bar_size):
+            exec_bars = _bars_cached(exec_size)
         out = _run_spot_backtest(
-            cfg, bars, meta, regime_bars=regime_bars, regime2_bars=regime2_bars, tick_bars=tick_bars
+            cfg,
+            bars,
+            meta,
+            regime_bars=regime_bars,
+            regime2_bars=regime2_bars,
+            tick_bars=tick_bars,
+            exec_bars=exec_bars,
         )
         s = out.summary
         if int(s.trades) < int(run_min_trades):
@@ -977,6 +1083,8 @@ def main() -> None:
             max_open_trades=max_open_trades,
             spot_close_eod=close_eod,
         )
+        if spot_exec_bar_size:
+            cfg = replace(cfg, strategy=replace(cfg.strategy, spot_exec_bar_size=spot_exec_bar_size))
         base_name = str(args.base).strip().lower()
         if base_name in ("champion", "champion_pnl"):
             sort_by = "pnl" if base_name == "champion_pnl" else "pnl_dd"
@@ -1000,6 +1108,7 @@ def main() -> None:
                 merged.update(over_payload)
                 merged_filters = _mk_filters(
                     ema_spread_min_pct=merged.get("ema_spread_min_pct"),
+                    ema_spread_min_pct_down=merged.get("ema_spread_min_pct_down"),
                     ema_slope_min_pct=merged.get("ema_slope_min_pct"),
                     cooldown_bars=int(merged.get("cooldown_bars") or 0),
                     skip_first_bars=int(merged.get("skip_first_bars") or 0),
@@ -3094,6 +3203,25 @@ def main() -> None:
             rows.append(row)
         _print_leaderboards(rows, title="EMA spread fine sweep (quality gate)", top_n=int(args.top))
 
+    def _sweep_spread_down() -> None:
+        """Directional permission: sweep stricter EMA spread gate for down entries only."""
+        bars_sig = _bars_cached(signal_bar_size)
+        rows: list[dict] = []
+        spreads = [None, 0.003, 0.004, 0.005, 0.006, 0.007, 0.008, 0.010, 0.012, 0.015, 0.02, 0.03, 0.05]
+        for spread in spreads:
+            f = _mk_filters(ema_spread_min_pct_down=float(spread) if spread is not None else None)
+            cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
+            row = _run_cfg(
+                cfg=cfg, bars=bars_sig, regime_bars=_regime_bars_for(cfg), regime2_bars=_regime2_bars_for(cfg)
+            )
+            if not row:
+                continue
+            note = "-" if spread is None else f"spread_down>={float(spread):.4f}"
+            row["note"] = note
+            _record_milestone(cfg, row, note)
+            rows.append(row)
+        _print_leaderboards(rows, title="EMA spread DOWN sweep (directional permission)", top_n=int(args.top))
+
     def _sweep_slope() -> None:
         bars_sig = _bars_cached(signal_bar_size)
         rows: list[dict] = []
@@ -3472,7 +3600,9 @@ def main() -> None:
             ("3/7", "cross"),
             ("3/7", "trend"),
             ("4/9", "cross"),
+            ("4/9", "trend"),
             ("5/10", "cross"),
+            ("9/21", "cross"),
             ("9/21", "trend"),
         ):
             direction_variants.append((preset, mode, 0, f"ema={preset} {mode}"))
@@ -3488,7 +3618,24 @@ def main() -> None:
         atr_periods = [3, 7, 10, 14, 21]
         multipliers = [0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0]
         sources = ["close", "hl2"]
-        stage1_total = len(direction_variants) * len(regime_bar_sizes) * len(atr_periods) * len(multipliers) * len(sources)
+        stage1_exit_variants: list[tuple[dict, str]] = [
+            (
+                {"spot_exit_mode": "pct", "spot_profit_target_pct": 0.015, "spot_stop_loss_pct": 0.03},
+                "PT=0.015 SL=0.030",
+            ),
+            (
+                {"spot_exit_mode": "pct", "spot_profit_target_pct": None, "spot_stop_loss_pct": 0.03},
+                "PT=off SL=0.030",
+            ),
+        ]
+        stage1_total = (
+            len(direction_variants)
+            * len(regime_bar_sizes)
+            * len(atr_periods)
+            * len(multipliers)
+            * len(sources)
+            * len(stage1_exit_variants)
+        )
         stage1_tested = 0
         report_every_stage1 = 200
         stage1_t0 = pytime.perf_counter()
@@ -3498,45 +3645,49 @@ def main() -> None:
                 for atr_p in atr_periods:
                     for mult in multipliers:
                         for src in sources:
-                            cfg = replace(
-                                base,
-                                strategy=replace(
-                                    base.strategy,
-                                    entry_signal="ema",
-                                    ema_preset=str(ema_preset),
-                                    ema_entry_mode=str(entry_mode),
-                                    entry_confirm_bars=int(confirm),
-                                    regime_mode="supertrend",
-                                    regime_bar_size=rbar,
-                                    supertrend_atr_period=int(atr_p),
-                                    supertrend_multiplier=float(mult),
-                                    supertrend_source=str(src),
-                                    regime2_mode="off",
-                                ),
-                            )
-                            row = _run_cfg(
-                                cfg=cfg,
+                            for exit_over, exit_note in stage1_exit_variants:
+                                cfg = replace(
+                                    base,
+                                    strategy=replace(
+                                        base.strategy,
+                                        entry_signal="ema",
+                                        ema_preset=str(ema_preset),
+                                        ema_entry_mode=str(entry_mode),
+                                        entry_confirm_bars=int(confirm),
+                                        regime_mode="supertrend",
+                                        regime_bar_size=rbar,
+                                        supertrend_atr_period=int(atr_p),
+                                        supertrend_multiplier=float(mult),
+                                        supertrend_source=str(src),
+                                        regime2_mode="off",
+                                        spot_exit_mode=str(exit_over["spot_exit_mode"]),
+                                        spot_profit_target_pct=exit_over.get("spot_profit_target_pct"),
+                                        spot_stop_loss_pct=exit_over.get("spot_stop_loss_pct"),
+                                    ),
+                                )
+                                row = _run_cfg(
+                                    cfg=cfg,
                                     bars=bars_sig,
                                     regime_bars=regime_bars_by_size[rbar],
                                     regime2_bars=None,
                                 )
-                            stage1_tested += 1
-                            if stage1_tested % report_every_stage1 == 0:
-                                elapsed = pytime.perf_counter() - stage1_t0
-                                rate = (stage1_tested / elapsed) if elapsed > 0 else 0.0
-                                remaining = stage1_total - stage1_tested
-                                eta_sec = (remaining / rate) if rate > 0 else 0.0
-                                pct = (stage1_tested / stage1_total * 100.0) if stage1_total > 0 else 0.0
-                                print(
-                                    f"Combo sweep: stage1 {stage1_tested}/{stage1_total} ({pct:0.1f}%) "
-                                    f"kept={len(stage1)} elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
-                                    flush=True,
-                                )
-                            if not row:
-                                continue
-                            note = f"{dir_note} c={confirm} | ST({atr_p},{mult},{src}) @{rbar}"
-                            row["note"] = note
-                            stage1.append((cfg, row, note))
+                                stage1_tested += 1
+                                if stage1_tested % report_every_stage1 == 0:
+                                    elapsed = pytime.perf_counter() - stage1_t0
+                                    rate = (stage1_tested / elapsed) if elapsed > 0 else 0.0
+                                    remaining = stage1_total - stage1_tested
+                                    eta_sec = (remaining / rate) if rate > 0 else 0.0
+                                    pct = (stage1_tested / stage1_total * 100.0) if stage1_total > 0 else 0.0
+                                    print(
+                                        f"Combo sweep: stage1 {stage1_tested}/{stage1_total} ({pct:0.1f}%) "
+                                        f"kept={len(stage1)} elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
+                                        flush=True,
+                                    )
+                                if not row:
+                                    continue
+                                note = f"{dir_note} c={confirm} | ST({atr_p},{mult},{src}) @{rbar} | {exit_note}"
+                                row["note"] = note
+                                stage1.append((cfg, row, note))
 
         shortlist = _ranked(stage1, top_pnl_dd=15, top_pnl=7)
         print("")
@@ -3549,6 +3700,12 @@ def main() -> None:
             (0.005, 0.03),
             (0.01, 0.03),
             (0.015, 0.03),
+            # Higher RR pocket (PT > SL): helps when stop-first intrabar tie-break punishes low-RR setups.
+            (0.02, 0.015),
+            (0.03, 0.015),
+            # Bigger PT/SL pocket: trend systems often need a wider profit capture window.
+            (0.05, 0.03),
+            (0.08, 0.04),
         ):
             exit_variants.append(
                 (
@@ -3561,6 +3718,21 @@ def main() -> None:
                         "spot_sl_atr_mult": 1.0,
                     },
                     f"PT={pt:.3f} SL={sl:.3f}",
+                )
+            )
+        # Stop-only (no PT): "exit on next cross / regime flip" families.
+        for sl in (0.03, 0.05):
+            exit_variants.append(
+                (
+                    {
+                        "spot_exit_mode": "pct",
+                        "spot_profit_target_pct": None,
+                        "spot_stop_loss_pct": float(sl),
+                        "spot_atr_period": 14,
+                        "spot_pt_atr_mult": 1.5,
+                        "spot_sl_atr_mult": 1.0,
+                    },
+                    f"PT=off SL={sl:.3f}",
                 )
             )
         for atr_p, pt_m, sl_m in (
@@ -3576,6 +3748,9 @@ def main() -> None:
             (14, 0.80, 1.60),
             (21, 0.65, 1.60),
             (21, 0.70, 1.80),
+            # Higher RR pocket (PTx > SLx): try to counter stop-first intrabar ambiguity.
+            (14, 2.00, 1.00),
+            (21, 2.00, 1.00),
         ):
             exit_variants.append(
                 (
@@ -3594,8 +3769,8 @@ def main() -> None:
         # Keep this small; we already have a dedicated loosenings axis. Here we only try
         # a few representative "stacking vs risk trimming" variants.
         loosen_variants: list[tuple[int, bool, str]] = [
+            (1, False, "max_open=1 close_eod=0"),
             (2, False, "max_open=2 close_eod=0"),
-            (0, False, "max_open=0 close_eod=0"),
             (1, True, "max_open=1 close_eod=1"),
         ]
 
@@ -3716,11 +3891,23 @@ def main() -> None:
             ),
         ]
 
-        quality_variants: list[tuple[float | None, float | None, str]] = [
-            (None, None, "qual=off"),
-            (0.003, None, "spread>=0.003"),
-            (0.005, None, "spread>=0.005"),
-            (0.005, 0.01, "spread>=0.005 slope>=0.01"),
+        quality_variants: list[tuple[float | None, float | None, float | None, str]] = [
+            # (spread_min, spread_min_down, slope_min, note)
+            (None, None, None, "qual=off"),
+            (0.003, None, None, "spread>=0.003"),
+            (0.003, 0.006, None, "spread>=0.003 down>=0.006"),
+            (0.003, 0.008, None, "spread>=0.003 down>=0.008"),
+            (0.003, 0.010, None, "spread>=0.003 down>=0.010"),
+            (0.003, 0.015, None, "spread>=0.003 down>=0.015"),
+            (0.003, 0.030, None, "spread>=0.003 down>=0.030"),
+            (0.003, 0.050, None, "spread>=0.003 down>=0.050"),
+            (0.005, None, None, "spread>=0.005"),
+            (0.005, 0.010, None, "spread>=0.005 down>=0.010"),
+            (0.005, 0.012, None, "spread>=0.005 down>=0.012"),
+            (0.005, 0.015, None, "spread>=0.005 down>=0.015"),
+            (0.005, 0.030, None, "spread>=0.005 down>=0.030"),
+            (0.005, 0.050, None, "spread>=0.005 down>=0.050"),
+            (0.005, 0.010, 0.01, "spread>=0.005 down>=0.010 slope>=0.01"),
         ]
 
         rv_variants: list[tuple[float | None, float | None, str]] = [
@@ -3756,7 +3943,7 @@ def main() -> None:
         stage3: list[dict] = []
         for base_cfg, base_row, base_note in top_stage2:
             for tick_over, tick_note in tick_variants:
-                for spread_min, slope_min, qual_note in quality_variants:
+                for spread_min, spread_min_down, slope_min, qual_note in quality_variants:
                     for rv_min, rv_max, rv_note in rv_variants:
                         for exit_time, exit_time_note in exit_time_variants:
                             for tod_s, tod_e, skip, cooldown, tod_note in tod_variants:
@@ -3764,6 +3951,7 @@ def main() -> None:
                                     rv_min=rv_min,
                                     rv_max=rv_max,
                                     ema_spread_min_pct=spread_min,
+                                    ema_spread_min_pct_down=spread_min_down,
                                     ema_slope_min_pct=slope_min,
                                     cooldown_bars=int(cooldown),
                                     skip_first_bars=int(skip),
@@ -4019,6 +4207,8 @@ def main() -> None:
         _sweep_spread()
     if axis == "spread_fine":
         _sweep_spread_fine()
+    if axis == "spread_down":
+        _sweep_spread_down()
     if axis in ("all", "slope"):
         _sweep_slope()
     if axis in ("all", "cooldown"):

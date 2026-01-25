@@ -21,6 +21,9 @@ from textual.widgets import Header, Footer, DataTable, Static
 from .client import IBKRClient
 from .config import load_config
 from .decision_core import (
+    AtrRatioShockEngine,
+    DailyAtrPctShockEngine,
+    DailyDrawdownShockEngine,
     EmaDecisionEngine,
     EmaDecisionSnapshot,
     OrbDecisionEngine,
@@ -1443,6 +1446,8 @@ class _SignalSnapshot:
     volume: float | None = None
     volume_ema: float | None = None
     volume_ema_ready: bool = True
+    shock: bool | None = None
+    shock_dir: str | None = None
     atr: float | None = None
     or_high: float | None = None
     or_low: float | None = None
@@ -1546,7 +1551,7 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
             )
             self._strategy.setdefault("spot_sec_type", default_sec_type)
             self._strategy.setdefault("spot_exchange", "")
-            self._strategy.setdefault("spot_close_eod", True)
+            self._strategy.setdefault("spot_close_eod", False)
             if not isinstance(self._strategy.get("directional_spot"), dict):
                 self._strategy["directional_spot"] = {
                     "up": {"action": "BUY", "qty": 1},
@@ -1595,6 +1600,12 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
                 "enum",
                 "regime2_mode",
                 options=("off", "ema", "supertrend"),
+            ),
+            _BotConfigField(
+                "Regime2 apply to",
+                "enum",
+                "regime2_apply_to",
+                options=("both", "longs", "shorts"),
             ),
             _BotConfigField("Regime2 EMA preset", "text", "regime2_ema_preset"),
             _BotConfigField(
@@ -2277,7 +2288,7 @@ class BotScreen(Screen):
             strategy["signal_bar_size"] = str(self._payload.get("bar_size", "1 hour") if self._payload else "1 hour")
         if "signal_use_rth" not in strategy:
             strategy["signal_use_rth"] = bool(self._payload.get("use_rth", False) if self._payload else False)
-        strategy.setdefault("spot_close_eod", True)
+        strategy.setdefault("spot_close_eod", False)
         if "directional_spot" not in strategy:
             strategy["directional_spot"] = {"up": {"action": "BUY", "qty": 1}, "down": {"action": "SELL", "qty": 1}}
         filters = _filters_for_group(self._payload, preset.group) if self._payload else None
@@ -2721,19 +2732,21 @@ class BotScreen(Screen):
                 bar_size=self._signal_bar_size(instance),
                 cooldown_bars=cooldown_bars,
             )
-            if not signal_filters_ok(
-                instance.filters,
-                bar_ts=snap.bar_ts,
-                bars_in_day=snap.bars_in_day,
-                close=float(snap.close),
-                volume=snap.volume,
-                volume_ema=snap.volume_ema,
-                volume_ema_ready=snap.volume_ema_ready,
-                rv=snap.rv,
-                signal=snap.signal,
-                cooldown_ok=cooldown_ok,
-            ):
-                continue
+	            if not signal_filters_ok(
+	                instance.filters,
+	                bar_ts=snap.bar_ts,
+	                bars_in_day=snap.bars_in_day,
+	                close=float(snap.close),
+	                volume=snap.volume,
+	                volume_ema=snap.volume_ema,
+	                volume_ema_ready=snap.volume_ema_ready,
+	                rv=snap.rv,
+	                signal=snap.signal,
+	                cooldown_ok=cooldown_ok,
+	                shock=snap.shock,
+	                shock_dir=snap.shock_dir,
+	            ):
+	                continue
 
             instrument = self._strategy_instrument(instance.strategy)
             open_items: list[PortfolioItem] = []
@@ -3085,20 +3098,13 @@ class BotScreen(Screen):
             desired_debit += sign * float(leg_desired) * leg.ratio
 
         tick = tick or 0.01
-        if proposal.action == "BUY":
-            new_limit = float(desired_debit)
-            new_bid = float(debit_bid)
-            new_ask = float(debit_ask)
-            new_last = float(debit_mid)
-        else:
-            new_limit = float(-desired_debit)
-            new_bid = float(-debit_ask)
-            new_ask = float(-debit_bid)
-            new_last = float(-debit_mid)
-
-        if new_limit <= 0:
+        proposal.action = "BUY"
+        new_limit = _round_to_tick(float(desired_debit), tick)
+        if not new_limit:
             return False
-        new_limit = _round_to_tick(new_limit, tick)
+        new_bid = float(debit_bid)
+        new_ask = float(debit_ask)
+        new_last = float(debit_mid)
         changed = not math.isclose(
             new_limit, proposal.limit_price, rel_tol=0, abs_tol=tick / 2.0
         )
@@ -3346,6 +3352,114 @@ class BotScreen(Screen):
         last_signal = None
         volume_ema = None
         volume_count = 0
+        shock_engine = None
+        last_shock = None
+        shock_mode = None
+        if isinstance(filters, dict):
+            shock_mode = filters.get("shock_gate_mode")
+            if shock_mode is None:
+                shock_mode = filters.get("shock_mode")
+        if isinstance(shock_mode, bool):
+            shock_mode = "block" if shock_mode else "off"
+        shock_mode = str(shock_mode or "off").strip().lower()
+        if shock_mode in ("", "0", "false", "none", "null"):
+            shock_mode = "off"
+        if shock_mode not in ("off", "detect", "block", "block_longs", "block_shorts", "surf"):
+            shock_mode = "off"
+        if shock_mode != "off":
+            shock_detector = "atr_ratio"
+            if isinstance(filters, dict):
+                shock_detector = str(filters.get("shock_detector") or "atr_ratio").strip().lower()
+            if shock_detector in ("daily", "daily_atr", "daily_atr_pct", "daily_atr14", "daily_atr%"):
+                shock_detector = "daily_atr_pct"
+            if shock_detector in ("drawdown", "daily_drawdown", "daily-dd", "dd", "peak_dd", "peak_drawdown"):
+                shock_detector = "daily_drawdown"
+            if shock_detector not in ("atr_ratio", "daily_atr_pct", "daily_drawdown"):
+                shock_detector = "atr_ratio"
+
+            try:
+                atr_fast = int(filters.get("shock_atr_fast_period")) if isinstance(filters, dict) else 7
+            except (TypeError, ValueError):
+                atr_fast = 7
+            try:
+                atr_slow = int(filters.get("shock_atr_slow_period")) if isinstance(filters, dict) else 50
+            except (TypeError, ValueError):
+                atr_slow = 50
+            try:
+                on_ratio = float(filters.get("shock_on_ratio")) if isinstance(filters, dict) else 1.55
+            except (TypeError, ValueError):
+                on_ratio = 1.55
+            try:
+                off_ratio = float(filters.get("shock_off_ratio")) if isinstance(filters, dict) else 1.30
+            except (TypeError, ValueError):
+                off_ratio = 1.30
+            try:
+                min_atr_pct = float(filters.get("shock_min_atr_pct")) if isinstance(filters, dict) else 7.0
+            except (TypeError, ValueError):
+                min_atr_pct = 7.0
+            try:
+                dir_lb = int(filters.get("shock_direction_lookback")) if isinstance(filters, dict) else 2
+            except (TypeError, ValueError):
+                dir_lb = 2
+            if shock_detector == "daily_atr_pct":
+                try:
+                    daily_period = int(filters.get("shock_daily_atr_period")) if isinstance(filters, dict) else 14
+                except (TypeError, ValueError):
+                    daily_period = 14
+                try:
+                    daily_on = float(filters.get("shock_daily_on_atr_pct")) if isinstance(filters, dict) else 13.0
+                except (TypeError, ValueError):
+                    daily_on = 13.0
+                try:
+                    daily_off = float(filters.get("shock_daily_off_atr_pct")) if isinstance(filters, dict) else 11.0
+                except (TypeError, ValueError):
+                    daily_off = 11.0
+                try:
+                    daily_tr_on = float(filters.get("shock_daily_on_tr_pct")) if isinstance(filters, dict) else None
+                except (TypeError, ValueError):
+                    daily_tr_on = None
+                if daily_tr_on is not None and daily_tr_on <= 0:
+                    daily_tr_on = None
+                if daily_off > daily_on:
+                    daily_off = daily_on
+                shock_engine = DailyAtrPctShockEngine(
+                    atr_period=max(1, int(daily_period)),
+                    on_atr_pct=float(daily_on),
+                    off_atr_pct=float(daily_off),
+                    on_tr_pct=float(daily_tr_on) if daily_tr_on is not None else None,
+                    direction_lookback=max(1, int(dir_lb)),
+                )
+            elif shock_detector == "daily_drawdown":
+                try:
+                    dd_lb = int(filters.get("shock_drawdown_lookback_days")) if isinstance(filters, dict) else 20
+                except (TypeError, ValueError):
+                    dd_lb = 20
+                try:
+                    dd_on = float(filters.get("shock_on_drawdown_pct")) if isinstance(filters, dict) else -20.0
+                except (TypeError, ValueError):
+                    dd_on = -20.0
+                try:
+                    dd_off = float(filters.get("shock_off_drawdown_pct")) if isinstance(filters, dict) else -10.0
+                except (TypeError, ValueError):
+                    dd_off = -10.0
+                if dd_off < dd_on:
+                    dd_off = dd_on
+                shock_engine = DailyDrawdownShockEngine(
+                    lookback_days=max(2, int(dd_lb)),
+                    on_drawdown_pct=float(dd_on),
+                    off_drawdown_pct=float(dd_off),
+                    direction_lookback=max(1, int(dir_lb)),
+                )
+            else:
+                shock_engine = AtrRatioShockEngine(
+                    atr_fast_period=max(1, int(atr_fast)),
+                    atr_slow_period=max(1, int(atr_slow)),
+                    on_ratio=float(on_ratio),
+                    off_ratio=float(off_ratio),
+                    min_atr_pct=float(min_atr_pct),
+                    direction_lookback=max(1, int(dir_lb)),
+                    source=str(supertrend_source_raw or "hl2").strip().lower() or "hl2",
+                )
         supertrend_engine = None
         last_supertrend = None
         if regime_mode == "supertrend" and not use_mtf_regime:
@@ -3390,6 +3504,20 @@ class BotScreen(Screen):
                     low=float(bar.low),
                     close=float(bar.close),
                 )
+            if shock_engine is not None and not use_mtf_regime:
+                if isinstance(shock_engine, (DailyAtrPctShockEngine, DailyDrawdownShockEngine)):
+                    last_shock = shock_engine.update(
+                        day=bar.ts.date(),
+                        high=float(bar.high),
+                        low=float(bar.low),
+                        close=float(bar.close),
+                    )
+                else:
+                    last_shock = shock_engine.update(
+                        high=float(bar.high),
+                        low=float(bar.low),
+                        close=float(bar.close),
+                    )
             if exit_atr_engine is not None:
                 last_exit_atr = exit_atr_engine.update(
                     high=float(bar.high),
@@ -3425,9 +3553,13 @@ class BotScreen(Screen):
                     mult = 3.0
                 src = str(supertrend_source_raw or "hl2").strip().lower() or "hl2"
 
+                regime_duration = self._signal_duration_str(regime_bar_size)
+                if shock_engine is not None and "hour" in str(regime_bar_size).strip().lower():
+                    # Ensure we have enough history to compute the shock slow ATR (often 50+ bars on 4h).
+                    regime_duration = "1 M" if atr_slow <= 60 else "2 M"
                 regime_bars = await self._client.historical_bars_ohlcv(
                     contract,
-                    duration_str=self._signal_duration_str(regime_bar_size),
+                    duration_str=regime_duration,
                     bar_size=regime_bar_size,
                     use_rth=use_rth,
                     cache_ttl_sec=30.0,
@@ -3451,6 +3583,20 @@ class BotScreen(Screen):
                         low=float(bar.low),
                         close=float(bar.close),
                     )
+                    if shock_engine is not None:
+                        if isinstance(shock_engine, (DailyAtrPctShockEngine, DailyDrawdownShockEngine)):
+                            last_shock = shock_engine.update(
+                                day=bar.ts.date(),
+                                high=float(bar.high),
+                                low=float(bar.low),
+                                close=float(bar.close),
+                            )
+                        else:
+                            last_shock = shock_engine.update(
+                                high=float(bar.high),
+                                low=float(bar.low),
+                                close=float(bar.close),
+                            )
                 regime_ready = bool(last_regime and last_regime.ready)
                 regime_dir = last_regime.direction if last_regime is not None else None
             else:
@@ -3470,7 +3616,11 @@ class BotScreen(Screen):
 
             regime_bars = await self._client.historical_bars_ohlcv(
                 contract,
-                duration_str=self._signal_duration_str(regime_bar_size),
+                duration_str=(
+                    ("1 M" if atr_slow <= 60 else "2 M")
+                    if (shock_engine is not None and "hour" in str(regime_bar_size).strip().lower())
+                    else self._signal_duration_str(regime_bar_size)
+                ),
                 bar_size=regime_bar_size,
                 use_rth=use_rth,
                 cache_ttl_sec=30.0,
@@ -3504,6 +3654,20 @@ class BotScreen(Screen):
                 if float(bar.close) <= 0:
                     continue
                 last_regime = regime_engine.update(float(bar.close))
+                if shock_engine is not None:
+                    if isinstance(shock_engine, (DailyAtrPctShockEngine, DailyDrawdownShockEngine)):
+                        last_shock = shock_engine.update(
+                            day=bar.ts.date(),
+                            high=float(bar.high),
+                            low=float(bar.low),
+                            close=float(bar.close),
+                        )
+                    else:
+                        last_shock = shock_engine.update(
+                            high=float(bar.high),
+                            low=float(bar.low),
+                            close=float(bar.close),
+                        )
 
             regime_ready = bool(last_regime and last_regime.ema_ready)
             regime_dir = last_regime.state if last_regime is not None else None
@@ -3635,6 +3799,17 @@ class BotScreen(Screen):
             if last_signal is None:
                 return None
 
+        shock = bool(last_shock.shock) if (last_shock is not None and bool(last_shock.ready)) else None
+        shock_dir = (
+            str(last_shock.direction)
+            if (
+                last_shock is not None
+                and bool(last_shock.ready)
+                and bool(getattr(last_shock, "direction_ready", False))
+                and getattr(last_shock, "direction", None) in ("up", "down")
+            )
+            else None
+        )
         return _SignalSnapshot(
             bar_ts=last_ts,
             close=float(last_close),
@@ -3644,6 +3819,8 @@ class BotScreen(Screen):
             volume=float(last_volume) if last_volume is not None else None,
             volume_ema=float(volume_ema) if volume_ema is not None else None,
             volume_ema_ready=bool(volume_count >= volume_period) if volume_period else True,
+            shock=shock,
+            shock_dir=shock_dir,
             atr=(
                 float(last_exit_atr.atr)
                 if last_exit_atr is not None and bool(last_exit_atr.ready) and last_exit_atr.atr is not None
@@ -4042,9 +4219,6 @@ class BotScreen(Screen):
             raw_mode = "OPTIMISTIC"
         price_mode = raw_mode
 
-        def _invert(action: str) -> str:
-            return "SELL" if action == "BUY" else "BUY"
-
         def _leg_price(bid: float | None, ask: float | None, last: float | None, action: str) -> float | None:
             mid = _midpoint(bid, ask)
             if price_mode == "CROSS":
@@ -4145,37 +4319,37 @@ class BotScreen(Screen):
                 self._render_status()
                 return
 
-            # Multi-leg combo: represent as BUY (debit) or SELL (credit) with positive price.
-            order_action = "BUY" if debit_mid >= 0 else "SELL"
+            # Multi-leg combo: use IBKR's native encoding (can be negative for credits).
+            order_action = "BUY"
             order_bid = debit_bid
             order_ask = debit_ask
             order_last = debit_mid
-            order_limit = desired_debit
-            if order_action == "SELL":
-                order_bid = -debit_ask
-                order_ask = -debit_bid
-                order_last = -debit_mid
-                order_limit = -desired_debit
-            if order_limit <= 0:
-                self._status = "Quote: combo price not positive (cannot price)"
+            order_limit = _round_to_tick(float(desired_debit), tick)
+            if not order_limit:
+                self._status = "Quote: combo price is 0 (cannot price)"
                 self._render_status()
                 return
-
-            order_limit = _round_to_tick(float(order_limit), tick)
             combo_legs: list[ComboLeg] = []
-            for leg_order in leg_orders:
+            for leg_order, (_, _, _, ticker) in zip(leg_orders, leg_quotes):
                 con_id = int(getattr(leg_order.contract, "conId", 0) or 0)
                 if not con_id:
                     self._status = "Contract: missing conId for combo leg"
                     self._render_status()
                     return
-                leg_action = leg_order.action if order_action == "BUY" else _invert(leg_order.action)
+                leg_exchange = (
+                    getattr(getattr(ticker, "contract", None), "exchange", "") or ""
+                ).strip()
+                if not leg_exchange:
+                    leg_exchange = (getattr(leg_order.contract, "exchange", "") or "").strip()
+                if not leg_exchange:
+                    leg_sec_type = str(getattr(leg_order.contract, "secType", "") or "").strip()
+                    leg_exchange = "CME" if leg_sec_type == "FOP" else "SMART"
                 combo_legs.append(
                     ComboLeg(
                         conId=con_id,
                         ratio=leg_order.ratio,
-                        action=leg_action,
-                        exchange="SMART",
+                        action=leg_order.action,
+                        exchange=leg_exchange,
                     )
                 )
             bag = Bag(symbol=symbol, exchange="SMART", currency="USD", comboLegs=combo_legs)

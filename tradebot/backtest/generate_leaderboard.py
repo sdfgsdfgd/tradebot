@@ -500,6 +500,7 @@ def _run_combo(
         ema_directional=False,
         exit_on_signal_flip=bool(exit_on_signal_flip),
         flip_exit_mode="entry",
+        flip_exit_gate_mode="off",
         flip_exit_min_hold_bars=int(flip_exit_min_hold_bars),
         flip_exit_only_if_profit=bool(flip_exit_only_if_profit),
         direction_source="ema",

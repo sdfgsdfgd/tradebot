@@ -14,8 +14,9 @@ use the same entry/exit signal semantics.
 from __future__ import annotations
 
 import math
+from collections import deque
 from dataclasses import dataclass
-from datetime import datetime, time, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Iterable, Mapping
 from zoneinfo import ZoneInfo
 
@@ -542,6 +543,445 @@ class SupertrendEngine:
         )
 
 
+@dataclass(frozen=True)
+class AtrRatioShockSnapshot:
+    shock: bool
+    ready: bool
+    ratio: float | None = None
+    atr_fast_pct: float | None = None
+    atr_fast: float | None = None
+    atr_slow: float | None = None
+    direction: str | None = None  # "up" | "down"
+    direction_ready: bool = False
+
+
+class AtrRatioShockEngine:
+    """Fast/slow ATR ratio shock detector with hysteresis.
+
+    This is a *risk state* overlay, not a directional gate:
+    - It flags when volatility is in an abnormal regime.
+    - It can optionally provide a coarse direction (smoothed returns) to support "shock surfing"
+      policies, but it is not meant to replace the primary entry signal.
+    """
+
+    def __init__(
+        self,
+        *,
+        atr_fast_period: int = 7,
+        atr_slow_period: int = 50,
+        on_ratio: float = 1.55,
+        off_ratio: float = 1.30,
+        min_atr_pct: float = 7.0,
+        source: str = "hl2",
+        direction_lookback: int = 2,
+    ) -> None:
+        self._atr_fast = SupertrendEngine(
+            atr_period=int(atr_fast_period),
+            multiplier=1.0,
+            source=source,
+        )
+        self._atr_slow = SupertrendEngine(
+            atr_period=int(atr_slow_period),
+            multiplier=1.0,
+            source=source,
+        )
+        self._on_ratio = float(on_ratio)
+        self._off_ratio = float(off_ratio)
+        self._min_atr_pct = float(min_atr_pct)
+        self._shock = False
+        self._dir_lookback = max(1, int(direction_lookback))
+        self._dir_prev_close: float | None = None
+        self._ret_hist: deque[float] = deque(maxlen=self._dir_lookback)
+        self._direction: str | None = None
+        self._atr_ready = False
+        self._last_ratio: float | None = None
+        self._last_atr_fast_pct: float | None = None
+        self._last_atr_fast: float | None = None
+        self._last_atr_slow: float | None = None
+
+    def _update_direction(self, close: float) -> None:
+        prev_close = self._dir_prev_close
+        self._dir_prev_close = float(close)
+        if prev_close is not None and prev_close > 0 and close > 0:
+            self._ret_hist.append((float(close) / float(prev_close)) - 1.0)
+            if len(self._ret_hist) >= self._dir_lookback:
+                ret_sum = float(sum(self._ret_hist))
+                if ret_sum > 0:
+                    self._direction = "up"
+                elif ret_sum < 0:
+                    self._direction = "down"
+
+    def _snapshot(self) -> AtrRatioShockSnapshot:
+        direction = str(self._direction) if self._direction in ("up", "down") else None
+        direction_ready = bool(direction in ("up", "down") and len(self._ret_hist) >= self._dir_lookback)
+        if not bool(self._atr_ready):
+            return AtrRatioShockSnapshot(
+                shock=False,
+                ready=False,
+                ratio=None,
+                atr_fast_pct=None,
+                atr_fast=float(self._last_atr_fast) if self._last_atr_fast is not None else None,
+                atr_slow=float(self._last_atr_slow) if self._last_atr_slow is not None else None,
+                direction=direction,
+                direction_ready=direction_ready,
+            )
+        return AtrRatioShockSnapshot(
+            shock=bool(self._shock),
+            ready=True,
+            ratio=float(self._last_ratio) if self._last_ratio is not None else None,
+            atr_fast_pct=float(self._last_atr_fast_pct) if self._last_atr_fast_pct is not None else None,
+            atr_fast=float(self._last_atr_fast) if self._last_atr_fast is not None else None,
+            atr_slow=float(self._last_atr_slow) if self._last_atr_slow is not None else None,
+            direction=direction,
+            direction_ready=direction_ready,
+        )
+
+    def update(
+        self,
+        *,
+        high: float,
+        low: float,
+        close: float,
+        update_direction: bool = True,
+    ) -> AtrRatioShockSnapshot:
+        if bool(update_direction):
+            self._update_direction(float(close))
+
+        fast = self._atr_fast.update(high=high, low=low, close=close)
+        slow = self._atr_slow.update(high=high, low=low, close=close)
+        self._last_atr_fast = float(fast.atr) if fast.atr is not None else None
+        self._last_atr_slow = float(slow.atr) if slow.atr is not None else None
+
+        if not bool(fast.ready) or not bool(slow.ready) or fast.atr is None or slow.atr is None:
+            self._atr_ready = False
+            return self._snapshot()
+        if close <= 0:
+            self._atr_ready = False
+            return self._snapshot()
+
+        atr_fast = float(fast.atr)
+        atr_slow = float(slow.atr)
+        ratio = atr_fast / max(atr_slow, 1e-9)
+        atr_fast_pct = atr_fast / max(float(close), 1e-9) * 100.0
+        self._last_ratio = float(ratio)
+        self._last_atr_fast_pct = float(atr_fast_pct)
+        self._atr_ready = True
+
+        if not self._shock:
+            if ratio >= self._on_ratio and atr_fast_pct >= self._min_atr_pct:
+                self._shock = True
+        else:
+            if ratio <= self._off_ratio:
+                self._shock = False
+
+        return self._snapshot()
+
+    def update_direction(self, *, close: float) -> AtrRatioShockSnapshot:
+        self._update_direction(float(close))
+        return self._snapshot()
+
+
+@dataclass(frozen=True)
+class DailyAtrPctShockSnapshot:
+    shock: bool
+    ready: bool
+    atr_pct: float | None = None
+    atr: float | None = None
+    tr: float | None = None
+    direction: str | None = None  # "up" | "down"
+    direction_ready: bool = False
+
+
+class DailyAtrPctShockEngine:
+    """Daily ATR% shock detector with hysteresis.
+
+    - Computes daily TR and ATR using Wilder smoothing (updates once per session/day).
+    - Provides an intraday ATR estimate using TR-so-far for the current day and the last finalized ATR.
+    - Direction is derived from smoothed close-to-close returns (bar-to-bar), to support "shock surfing".
+    """
+
+    def __init__(
+        self,
+        *,
+        atr_period: int = 14,
+        on_atr_pct: float = 13.0,
+        off_atr_pct: float = 11.0,
+        on_tr_pct: float | None = None,
+        direction_lookback: int = 2,
+    ) -> None:
+        self._period = max(1, int(atr_period))
+        self._on = float(on_atr_pct)
+        self._off = float(off_atr_pct)
+        if self._off > self._on:
+            self._off = self._on
+
+        self._shock = False
+        self._prev_day_close: float | None = None
+        self._atr: float | None = None
+        self._tr_hist: deque[float] = deque(maxlen=self._period)
+        self._on_tr_pct = None
+        if on_tr_pct is not None:
+            try:
+                v = float(on_tr_pct)
+            except (TypeError, ValueError):
+                v = None
+            if v is not None and v > 0:
+                self._on_tr_pct = float(v)
+        # When an intraday TrueRange% trigger is enabled, we treat a TR%-exceedance as a
+        # "shock day" and keep shock ON for the remainder of that day (TR is monotonic within
+        # a session). This prevents immediate off-flicker when ATR% smoothing remains low.
+        self._tr_trigger_day: date | None = None
+
+        self._cur_day: date | None = None
+        self._cur_high: float | None = None
+        self._cur_low: float | None = None
+        self._cur_close: float | None = None
+
+        self._dir_lookback = max(1, int(direction_lookback))
+        self._dir_prev_close: float | None = None
+        self._ret_hist: deque[float] = deque(maxlen=self._dir_lookback)
+        self._direction: str | None = None
+
+    def _update_direction(self, close: float) -> None:
+        prev_close = self._dir_prev_close
+        self._dir_prev_close = float(close)
+        if prev_close is not None and prev_close > 0 and close > 0:
+            self._ret_hist.append((float(close) / float(prev_close)) - 1.0)
+            if len(self._ret_hist) >= self._dir_lookback:
+                ret_sum = float(sum(self._ret_hist))
+                if ret_sum > 0:
+                    self._direction = "up"
+                elif ret_sum < 0:
+                    self._direction = "down"
+
+    @staticmethod
+    def _true_range(high: float, low: float, prev_close: float | None) -> float:
+        h = float(high)
+        l = float(low)
+        if prev_close is None:
+            return max(0.0, h - l)
+        pc = float(prev_close)
+        return max(0.0, h - l, abs(h - pc), abs(l - pc))
+
+    def _finalize_day(self) -> None:
+        if self._cur_day is None:
+            return
+        if self._cur_high is None or self._cur_low is None or self._cur_close is None:
+            return
+        tr = self._true_range(self._cur_high, self._cur_low, self._prev_day_close)
+        self._tr_hist.append(float(tr))
+        if self._atr is None:
+            if len(self._tr_hist) >= self._period:
+                self._atr = float(sum(self._tr_hist) / float(self._period))
+        else:
+            self._atr = (float(self._atr) * float(self._period - 1) + float(tr)) / float(self._period)
+        self._prev_day_close = float(self._cur_close)
+
+    def _snapshot(
+        self,
+        *,
+        shock: bool,
+        ready: bool,
+        atr_pct: float | None,
+        atr: float | None,
+        tr: float | None,
+    ) -> DailyAtrPctShockSnapshot:
+        direction = str(self._direction) if self._direction in ("up", "down") else None
+        direction_ready = bool(direction in ("up", "down") and len(self._ret_hist) >= self._dir_lookback)
+        return DailyAtrPctShockSnapshot(
+            shock=bool(shock),
+            ready=bool(ready),
+            atr_pct=float(atr_pct) if atr_pct is not None else None,
+            atr=float(atr) if atr is not None else None,
+            tr=float(tr) if tr is not None else None,
+            direction=direction,
+            direction_ready=direction_ready,
+        )
+
+    def update(
+        self,
+        *,
+        day: date,
+        high: float,
+        low: float,
+        close: float,
+        update_direction: bool = True,
+    ) -> DailyAtrPctShockSnapshot:
+        if bool(update_direction):
+            self._update_direction(float(close))
+
+        if self._cur_day is None:
+            self._cur_day = day
+            self._cur_high = float(high)
+            self._cur_low = float(low)
+            self._cur_close = float(close)
+        elif day != self._cur_day:
+            self._finalize_day()
+            self._cur_day = day
+            self._cur_high = float(high)
+            self._cur_low = float(low)
+            self._cur_close = float(close)
+            self._tr_trigger_day = None
+        else:
+            self._cur_high = max(float(self._cur_high), float(high)) if self._cur_high is not None else float(high)
+            self._cur_low = min(float(self._cur_low), float(low)) if self._cur_low is not None else float(low)
+            self._cur_close = float(close)
+
+        if close <= 0 or self._cur_high is None or self._cur_low is None:
+            return self._snapshot(shock=False, ready=False, atr_pct=None, atr=self._atr, tr=None)
+
+        tr_so_far = self._true_range(float(self._cur_high), float(self._cur_low), self._prev_day_close)
+        if self._atr is None:
+            denom = float(len(self._tr_hist) + 1)
+            atr_est = (float(sum(self._tr_hist)) + float(tr_so_far)) / max(denom, 1.0)
+            ready = False
+        else:
+            atr_est = (float(self._atr) * float(self._period - 1) + float(tr_so_far)) / float(self._period)
+            ready = True
+
+        atr_pct = float(atr_est) / max(float(close), 1e-9) * 100.0
+
+        if bool(ready):
+            tr_pct = None
+            if self._on_tr_pct is not None and self._prev_day_close is not None and self._prev_day_close > 0:
+                tr_pct = float(tr_so_far) / float(self._prev_day_close) * 100.0
+                if tr_pct >= float(self._on_tr_pct):
+                    self._tr_trigger_day = day
+            if not self._shock:
+                if atr_pct >= self._on or (tr_pct is not None and tr_pct >= float(self._on_tr_pct)):
+                    self._shock = True
+            else:
+                # If TR%-triggered today, keep shock ON for the rest of the session.
+                if self._tr_trigger_day == day:
+                    pass
+                elif atr_pct <= self._off:
+                    self._shock = False
+
+        shock = bool(self._shock) if bool(ready) else False
+        return self._snapshot(shock=shock, ready=ready, atr_pct=atr_pct, atr=atr_est, tr=tr_so_far)
+
+
+@dataclass(frozen=True)
+class DailyDrawdownShockSnapshot:
+    shock: bool
+    ready: bool
+    drawdown_pct: float | None = None
+    peak_close: float | None = None
+    direction: str | None = None  # "up" | "down"
+    direction_ready: bool = False
+
+
+class DailyDrawdownShockEngine:
+    """Daily drawdown shock detector with hysteresis.
+
+    Tracks close vs a rolling peak close over the last N finalized sessions and triggers
+    shock when drawdown exceeds a threshold (e.g., <= -20%).
+    """
+
+    def __init__(
+        self,
+        *,
+        lookback_days: int = 20,
+        on_drawdown_pct: float = -20.0,
+        off_drawdown_pct: float = -10.0,
+        direction_lookback: int = 2,
+    ) -> None:
+        self._lookback = max(2, int(lookback_days))
+        self._on = float(on_drawdown_pct)
+        self._off = float(off_drawdown_pct)
+        if self._off < self._on:
+            self._off = self._on
+
+        self._shock = False
+        self._cur_day: date | None = None
+        self._cur_close: float | None = None
+        self._daily_closes: deque[float] = deque(maxlen=self._lookback)
+        self._rolling_peak: float | None = None
+
+        self._dir_lookback = max(1, int(direction_lookback))
+        self._dir_prev_close: float | None = None
+        self._ret_hist: deque[float] = deque(maxlen=self._dir_lookback)
+        self._direction: str | None = None
+
+    def _update_direction(self, close: float) -> None:
+        prev_close = self._dir_prev_close
+        self._dir_prev_close = float(close)
+        if prev_close is not None and prev_close > 0 and close > 0:
+            self._ret_hist.append((float(close) / float(prev_close)) - 1.0)
+            if len(self._ret_hist) >= self._dir_lookback:
+                ret_sum = float(sum(self._ret_hist))
+                if ret_sum > 0:
+                    self._direction = "up"
+                elif ret_sum < 0:
+                    self._direction = "down"
+
+    def _finalize_day(self) -> None:
+        if self._cur_close is None:
+            return
+        close = float(self._cur_close)
+        if close > 0:
+            self._daily_closes.append(close)
+            self._rolling_peak = max(self._daily_closes) if self._daily_closes else None
+
+    def _snapshot(
+        self,
+        *,
+        shock: bool,
+        ready: bool,
+        drawdown_pct: float | None,
+        peak_close: float | None,
+    ) -> DailyDrawdownShockSnapshot:
+        direction = str(self._direction) if self._direction in ("up", "down") else None
+        direction_ready = bool(direction in ("up", "down") and len(self._ret_hist) >= self._dir_lookback)
+        return DailyDrawdownShockSnapshot(
+            shock=bool(shock),
+            ready=bool(ready),
+            drawdown_pct=float(drawdown_pct) if drawdown_pct is not None else None,
+            peak_close=float(peak_close) if peak_close is not None else None,
+            direction=direction,
+            direction_ready=direction_ready,
+        )
+
+    def update(
+        self,
+        *,
+        day: date,
+        high: float,
+        low: float,
+        close: float,
+        update_direction: bool = True,
+    ) -> DailyDrawdownShockSnapshot:
+        if bool(update_direction):
+            self._update_direction(float(close))
+
+        if self._cur_day is None:
+            self._cur_day = day
+            self._cur_close = float(close)
+        elif day != self._cur_day:
+            self._finalize_day()
+            self._cur_day = day
+            self._cur_close = float(close)
+        else:
+            self._cur_close = float(close)
+
+        peak = self._rolling_peak
+        ready = bool(len(self._daily_closes) >= self._lookback and peak is not None and peak > 0 and close > 0)
+        if not ready:
+            return self._snapshot(shock=False, ready=False, drawdown_pct=None, peak_close=peak)
+
+        peak_eff = max(float(peak), float(close))
+        dd_pct = (float(close) / float(peak_eff) - 1.0) * 100.0
+
+        if not self._shock:
+            if dd_pct <= self._on:
+                self._shock = True
+        else:
+            if dd_pct >= self._off:
+                self._shock = False
+
+        return self._snapshot(shock=bool(self._shock), ready=True, drawdown_pct=dd_pct, peak_close=peak_eff)
+
+
 def apply_regime_gate(
     signal: EmaDecisionSnapshot | None,
     *,
@@ -613,6 +1053,8 @@ def signal_filters_ok(
     rv: float | None = None,
     signal: EmaDecisionSnapshot | None = None,
     cooldown_ok: bool = True,
+    shock: bool | None = None,
+    shock_dir: str | None = None,
 ) -> bool:
     if filters is None:
         return True
@@ -687,7 +1129,54 @@ def signal_filters_ok(
     if not bool(cooldown_ok):
         return False
 
+    shock_gate_mode = _get("shock_gate_mode")
+    if shock_gate_mode is None:
+        shock_gate_mode = _get("shock_mode")
+    if isinstance(shock_gate_mode, bool):
+        shock_gate_mode = "block" if shock_gate_mode else "off"
+    shock_mode = str(shock_gate_mode or "off").strip().lower()
+    if shock_mode in ("", "0", "false", "none", "null"):
+        shock_mode = "off"
+    if shock_mode not in ("off", "detect", "block", "block_longs", "block_shorts", "surf"):
+        shock_mode = "off"
+    if shock_mode == "block":
+        # Like other filters, if the derived feature isn't ready, we block rather than guessing.
+        if shock is None:
+            return False
+        if bool(shock):
+            return False
+    elif shock_mode in ("block_longs", "block_shorts"):
+        if shock is None:
+            return False
+        if bool(shock):
+            entry_dir = None
+            if signal is not None:
+                entry_dir = signal.entry_dir
+            if shock_mode == "block_longs" and entry_dir == "up":
+                return False
+            if shock_mode == "block_shorts" and entry_dir == "down":
+                return False
+    elif shock_mode == "surf":
+        # During a shock, only allow entries aligned with the shock direction.
+        if shock is None:
+            return False
+        if bool(shock):
+            entry_dir = None
+            if signal is not None:
+                entry_dir = signal.entry_dir
+            cleaned = str(shock_dir) if shock_dir in ("up", "down") else None
+            if cleaned is None or entry_dir not in ("up", "down"):
+                return False
+            if entry_dir != cleaned:
+                return False
+
     spread_min = _get("ema_spread_min_pct")
+    spread_min_down = _get("ema_spread_min_pct_down")
+    # Optional directional override: allow stricter gating for down entries without affecting long entries.
+    # This helps reduce short exposure on structurally up-trending instruments (e.g., TQQQ) while still
+    # keeping "both directions" enabled.
+    if signal is not None and signal.entry_dir == "down" and spread_min_down is not None:
+        spread_min = spread_min_down
     if spread_min is not None:
         try:
             spread_min_f = float(spread_min)
