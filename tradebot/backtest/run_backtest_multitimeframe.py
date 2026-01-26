@@ -175,6 +175,76 @@ def _filters_from_payload(raw) -> FiltersConfig | None:
     except (TypeError, ValueError):
         shock_scale_min_f = 0.2
     shock_scale_min_f = float(max(0.0, min(1.0, shock_scale_min_f)))
+
+    riskoff_tr5_med = raw.get("riskoff_tr5_med_pct")
+    try:
+        riskoff_tr5_med_f = float(riskoff_tr5_med) if riskoff_tr5_med is not None else None
+    except (TypeError, ValueError):
+        riskoff_tr5_med_f = None
+    if riskoff_tr5_med_f is not None and riskoff_tr5_med_f <= 0:
+        riskoff_tr5_med_f = None
+
+    riskoff_tr5_lb = raw.get("riskoff_tr5_lookback_days")
+    try:
+        riskoff_tr5_lb_i = int(riskoff_tr5_lb) if riskoff_tr5_lb is not None else 5
+    except (TypeError, ValueError):
+        riskoff_tr5_lb_i = 5
+    riskoff_tr5_lb_i = max(1, int(riskoff_tr5_lb_i))
+
+    riskoff_mode = raw.get("riskoff_mode")
+    if isinstance(riskoff_mode, str):
+        riskoff_mode_s = riskoff_mode.strip().lower()
+    else:
+        riskoff_mode_s = "hygiene"
+    if riskoff_mode_s not in ("hygiene", "directional"):
+        riskoff_mode_s = "hygiene"
+
+    riskoff_short_factor = raw.get("riskoff_short_risk_mult_factor")
+    try:
+        riskoff_short_factor_f = float(riskoff_short_factor) if riskoff_short_factor is not None else 1.0
+    except (TypeError, ValueError):
+        riskoff_short_factor_f = 1.0
+    if riskoff_short_factor_f < 0:
+        riskoff_short_factor_f = 1.0
+
+    riskoff_long_factor = raw.get("riskoff_long_risk_mult_factor")
+    try:
+        riskoff_long_factor_f = float(riskoff_long_factor) if riskoff_long_factor is not None else 1.0
+    except (TypeError, ValueError):
+        riskoff_long_factor_f = 1.0
+    if riskoff_long_factor_f < 0:
+        riskoff_long_factor_f = 1.0
+
+    riskpanic_tr5_med = raw.get("riskpanic_tr5_med_pct")
+    try:
+        riskpanic_tr5_med_f = float(riskpanic_tr5_med) if riskpanic_tr5_med is not None else None
+    except (TypeError, ValueError):
+        riskpanic_tr5_med_f = None
+    if riskpanic_tr5_med_f is not None and riskpanic_tr5_med_f <= 0:
+        riskpanic_tr5_med_f = None
+
+    riskpanic_neg_gap = raw.get("riskpanic_neg_gap_ratio_min")
+    try:
+        riskpanic_neg_gap_f = float(riskpanic_neg_gap) if riskpanic_neg_gap is not None else None
+    except (TypeError, ValueError):
+        riskpanic_neg_gap_f = None
+    if riskpanic_neg_gap_f is not None:
+        riskpanic_neg_gap_f = float(max(0.0, min(1.0, riskpanic_neg_gap_f)))
+
+    riskpanic_lb = raw.get("riskpanic_lookback_days")
+    try:
+        riskpanic_lb_i = int(riskpanic_lb) if riskpanic_lb is not None else 5
+    except (TypeError, ValueError):
+        riskpanic_lb_i = 5
+    riskpanic_lb_i = max(1, int(riskpanic_lb_i))
+
+    riskpanic_short_factor = raw.get("riskpanic_short_risk_mult_factor")
+    try:
+        riskpanic_short_factor_f = float(riskpanic_short_factor) if riskpanic_short_factor is not None else 1.0
+    except (TypeError, ValueError):
+        riskpanic_short_factor_f = 1.0
+    if riskpanic_short_factor_f < 0:
+        riskpanic_short_factor_f = 1.0
     return FiltersConfig(
         rv_min=(float(raw["rv_min"]) if raw.get("rv_min") is not None else None),
         rv_max=(float(raw["rv_max"]) if raw.get("rv_max") is not None else None),
@@ -222,6 +292,15 @@ def _filters_from_payload(raw) -> FiltersConfig | None:
         shock_daily_cooling_atr_pct=shock_daily_cool_f,
         shock_risk_scale_target_atr_pct=shock_scale_target_f,
         shock_risk_scale_min_mult=shock_scale_min_f,
+        riskoff_tr5_med_pct=riskoff_tr5_med_f,
+        riskoff_tr5_lookback_days=riskoff_tr5_lb_i,
+        riskoff_mode=str(riskoff_mode_s),
+        riskoff_short_risk_mult_factor=float(riskoff_short_factor_f),
+        riskoff_long_risk_mult_factor=float(riskoff_long_factor_f),
+        riskpanic_tr5_med_pct=riskpanic_tr5_med_f,
+        riskpanic_neg_gap_ratio_min=riskpanic_neg_gap_f,
+        riskpanic_lookback_days=riskpanic_lb_i,
+        riskpanic_short_risk_mult_factor=float(riskpanic_short_factor_f),
     )
 
 

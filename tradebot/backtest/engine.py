@@ -1025,6 +1025,9 @@ def _run_spot_backtest(
         shock: bool | None,
         shock_dir: str | None,
         shock_atr_pct: float | None,
+        riskoff: bool,
+        risk_dir: str | None,
+        riskpanic: bool,
         equity_ref: float,
         cash_ref: float,
     ) -> int:
@@ -1054,7 +1057,10 @@ def _run_spot_backtest(
             if stop_level is not None and spot_risk_pct > 0 and equity_ref > 0:
                 per_share_risk = abs(float(entry_price) - float(stop_level))
                 risk_dollars = float(equity_ref) * float(spot_risk_pct)
+
                 if action == "BUY":
+                    if bool(riskoff) and riskoff_mode == "directional" and risk_dir == "up":
+                        risk_dollars *= float(riskoff_long_factor)
                     if bool(shock) and shock_dir in ("up", "down"):
                         if shock_dir == "up":
                             shock_long_mult = (
@@ -1073,8 +1079,13 @@ def _run_spot_backtest(
                         if shock_long_mult == 0:
                             return 0
                         risk_dollars *= float(shock_long_mult)
+
                 if action == "SELL":
                     short_mult = float(spot_short_risk_mult)
+                    if bool(riskoff) and riskoff_mode == "directional" and risk_dir == "down":
+                        short_mult *= float(riskoff_short_factor)
+                    if bool(riskpanic) and risk_dir == "down":
+                        short_mult *= float(riskpanic_short_factor)
                     if bool(shock) and shock_dir == "down":
                         shock_short_mult = (
                             float(getattr(filters, "shock_short_risk_mult_factor", 1.0) or 1.0)
@@ -1123,8 +1134,104 @@ def _run_spot_backtest(
         return int(desired_qty) if action == "BUY" else -int(desired_qty)
 
     pending_entry_dir: str | None = None
+    pending_entry_set_date: date | None = None
     pending_exit_all = False
     pending_exit_reason = ""
+
+    riskoff_tr5_med_pct = None
+    riskoff_tr5_lookback = 5
+    riskoff_mode = "hygiene"
+    riskoff_short_factor = 1.0
+    riskoff_long_factor = 1.0
+    riskoff_tr_hist: deque[float] | None = None
+    riskpanic_tr5_med_pct = None
+    riskpanic_neg_gap_ratio_min: float | None = None
+    riskpanic_lookback = 5
+    riskpanic_short_factor = 1.0
+    riskpanic_tr_hist: deque[float] | None = None
+    riskpanic_neg_gap_hist: deque[int] | None = None
+    risk_prev_close: float | None = None
+    risk_day_open: float | None = None
+    risk_day_high: float | None = None
+    risk_day_low: float | None = None
+    riskoff_today = False
+    riskpanic_today = False
+    riskoff_end_hour_et: int | None = None
+    riskoff_end_hour: int | None = None
+    if filters is not None:
+        riskoff_mode_raw = getattr(filters, "riskoff_mode", None)
+        if isinstance(riskoff_mode_raw, str):
+            riskoff_mode = riskoff_mode_raw.strip().lower() or "hygiene"
+        if riskoff_mode not in ("hygiene", "directional"):
+            riskoff_mode = "hygiene"
+        try:
+            riskoff_short_factor = float(getattr(filters, "riskoff_short_risk_mult_factor", 1.0) or 1.0)
+        except (TypeError, ValueError):
+            riskoff_short_factor = 1.0
+        if riskoff_short_factor < 0:
+            riskoff_short_factor = 1.0
+        try:
+            riskoff_long_factor = float(getattr(filters, "riskoff_long_risk_mult_factor", 1.0) or 1.0)
+        except (TypeError, ValueError):
+            riskoff_long_factor = 1.0
+        if riskoff_long_factor < 0:
+            riskoff_long_factor = 1.0
+
+        try:
+            riskoff_tr5_med_pct = float(getattr(filters, "riskoff_tr5_med_pct", None))
+        except (TypeError, ValueError):
+            riskoff_tr5_med_pct = None
+        try:
+            riskoff_tr5_lookback = int(getattr(filters, "riskoff_tr5_lookback_days", 5) or 5)
+        except (TypeError, ValueError):
+            riskoff_tr5_lookback = 5
+        riskoff_tr5_lookback = max(1, riskoff_tr5_lookback)
+        if riskoff_tr5_med_pct is not None and float(riskoff_tr5_med_pct) > 0:
+            riskoff_tr_hist = deque(maxlen=int(riskoff_tr5_lookback))
+
+        try:
+            riskpanic_tr5_med_pct = float(getattr(filters, "riskpanic_tr5_med_pct", None))
+        except (TypeError, ValueError):
+            riskpanic_tr5_med_pct = None
+        try:
+            riskpanic_neg_gap_ratio_min = float(getattr(filters, "riskpanic_neg_gap_ratio_min", None))
+        except (TypeError, ValueError):
+            riskpanic_neg_gap_ratio_min = None
+        if riskpanic_neg_gap_ratio_min is not None:
+            riskpanic_neg_gap_ratio_min = float(max(0.0, min(1.0, riskpanic_neg_gap_ratio_min)))
+        try:
+            riskpanic_lookback = int(getattr(filters, "riskpanic_lookback_days", 5) or 5)
+        except (TypeError, ValueError):
+            riskpanic_lookback = 5
+        riskpanic_lookback = max(1, riskpanic_lookback)
+        try:
+            riskpanic_short_factor = float(getattr(filters, "riskpanic_short_risk_mult_factor", 1.0) or 1.0)
+        except (TypeError, ValueError):
+            riskpanic_short_factor = 1.0
+        if riskpanic_short_factor < 0:
+            riskpanic_short_factor = 1.0
+
+        if (
+            riskpanic_tr5_med_pct is not None
+            and float(riskpanic_tr5_med_pct) > 0
+            and riskpanic_neg_gap_ratio_min is not None
+        ):
+            riskpanic_tr_hist = deque(maxlen=int(riskpanic_lookback))
+            riskpanic_neg_gap_hist = deque(maxlen=int(riskpanic_lookback))
+
+        if riskoff_tr_hist is not None or riskpanic_tr_hist is not None:
+            raw_end_et = getattr(filters, "entry_end_hour_et", None)
+            raw_end = getattr(filters, "entry_end_hour", None)
+            if raw_end_et is not None:
+                try:
+                    riskoff_end_hour_et = int(raw_end_et)
+                except (TypeError, ValueError):
+                    riskoff_end_hour_et = None
+            elif raw_end is not None:
+                try:
+                    riskoff_end_hour = int(raw_end)
+                except (TypeError, ValueError):
+                    riskoff_end_hour = None
 
     volume_period = None
     if filters is not None and getattr(filters, "volume_ratio_min", None) is not None:
@@ -1152,6 +1259,31 @@ def _run_spot_backtest(
             bars_in_day = 0
             last_date = bar.ts.date()
             entries_today = 0
+            riskoff_today = False
+            if riskoff_tr_hist is not None and len(riskoff_tr_hist) >= int(riskoff_tr5_lookback):
+                tr_vals = sorted(riskoff_tr_hist)
+                riskoff_today = bool(tr_vals[len(tr_vals) // 2] >= float(riskoff_tr5_med_pct))
+            riskpanic_today = False
+            if (
+                riskpanic_tr_hist is not None
+                and riskpanic_neg_gap_hist is not None
+                and len(riskpanic_tr_hist) >= int(riskpanic_lookback)
+                and len(riskpanic_neg_gap_hist) >= int(riskpanic_lookback)
+                and riskpanic_tr5_med_pct is not None
+                and riskpanic_neg_gap_ratio_min is not None
+            ):
+                tr_vals = sorted(riskpanic_tr_hist)
+                tr_ok = bool(tr_vals[len(tr_vals) // 2] >= float(riskpanic_tr5_med_pct))
+                neg_ratio = float(sum(riskpanic_neg_gap_hist)) / float(len(riskpanic_neg_gap_hist))
+                riskpanic_today = bool(tr_ok and neg_ratio >= float(riskpanic_neg_gap_ratio_min))
+
+            if riskoff_tr_hist is not None or riskpanic_tr_hist is not None:
+                risk_day_open = float(bar.open)
+                risk_day_high = float(bar.high)
+                risk_day_low = float(bar.low)
+                if riskpanic_neg_gap_hist is not None and risk_prev_close is not None and float(risk_prev_close) > 0:
+                    gap_pct = (float(risk_day_open) - float(risk_prev_close)) / float(risk_prev_close)
+                    riskpanic_neg_gap_hist.append(1 if float(gap_pct) < 0 else 0)
         bars_in_day += 1
 
         # Realism v1: execute next-open fills (from prior bar close) before updating indicators
@@ -1178,11 +1310,43 @@ def _run_spot_backtest(
             pending_exit_reason = ""
 
         if pending_entry_dir is not None:
+            if riskoff_today and (riskoff_tr_hist is not None or riskpanic_tr_hist is not None):
+                shock_dir_now: str | None = None
+                if (
+                    shock_engine is not None
+                    and last_shock is not None
+                    and (
+                        shock_detector in ("daily_atr_pct", "daily_drawdown")
+                        or bool(getattr(last_shock, "ready", False))
+                    )
+                    and bool(getattr(last_shock, "direction_ready", False))
+                    and getattr(last_shock, "direction", None) in ("up", "down")
+                ):
+                    shock_dir_now = str(last_shock.direction)
+
+                cancel = False
+                if riskoff_mode == "directional" and shock_dir_now in ("up", "down"):
+                    if pending_entry_dir != shock_dir_now:
+                        cancel = True
+                else:
+                    if pending_entry_set_date is not None and pending_entry_set_date != bar.ts.date():
+                        cancel = True
+                    if riskoff_end_hour_et is not None:
+                        if int(_ts_to_et(bar.ts).hour) >= int(riskoff_end_hour_et):
+                            cancel = True
+                    elif riskoff_end_hour is not None:
+                        if int(bar.ts.hour) >= int(riskoff_end_hour):
+                            cancel = True
+                if cancel:
+                    pending_entry_dir = None
+                    pending_entry_set_date = None
+
             open_slots_ok = cfg.strategy.max_open_trades == 0 or len(open_trades) < cfg.strategy.max_open_trades
             entries_ok = cfg.strategy.max_entries_per_day == 0 or entries_today < cfg.strategy.max_entries_per_day
-            if open_slots_ok and entries_ok and (bar.ts.weekday() in cfg.strategy.entry_days):
+            if pending_entry_dir is not None and open_slots_ok and entries_ok and (bar.ts.weekday() in cfg.strategy.entry_days):
                 entry_dir = pending_entry_dir
                 pending_entry_dir = None
+                pending_entry_set_date = None
 
                 entry_leg = None
                 if needs_direction and cfg.strategy.directional_spot:
@@ -1308,6 +1472,9 @@ def _run_spot_backtest(
                             shock=shock_now,
                             shock_dir=shock_dir_now,
                             shock_atr_pct=shock_atr_pct_now,
+                            riskoff=bool(riskoff_today),
+                            risk_dir=shock_dir_now,
+                            riskpanic=bool(riskpanic_today),
                             equity_ref=float(equity_before),
                             cash_ref=float(cash),
                         )
@@ -1390,6 +1557,7 @@ def _run_spot_backtest(
                             last_entry_idx = idx
             else:
                 pending_entry_dir = None
+                pending_entry_set_date = None
 
         # Dynamic shock SL/PT: apply the shock multipliers to *open* trades using the shock
         # state from the prior bar. This avoids lookahead (we do not use the current bar's
@@ -1935,8 +2103,16 @@ def _run_spot_backtest(
                 if spot_entry_fill_mode == "next_open":
                     # Schedule at close, fill on next bar open (if any).
                     if next_bar is not None and pending_entry_dir is None:
-                        if exit_mode != "atr" or float(getattr(last_exit_atr, "atr", 0.0) or 0.0) > 0:
+                        schedule_ok = True
+                        if riskoff_today and riskoff_tr_hist is not None:
+                            if next_bar.ts.date() != bar.ts.date():
+                                schedule_ok = False
+                            elif riskoff_end_hour is not None:
+                                if int(next_bar.ts.hour) >= int(riskoff_end_hour):
+                                    schedule_ok = False
+                        if schedule_ok and (exit_mode != "atr" or float(getattr(last_exit_atr, "atr", 0.0) or 0.0) > 0):
                             pending_entry_dir = direction
+                            pending_entry_set_date = bar.ts.date()
                 else:
                     can_open = True
                     liquidation_close = _spot_liquidation(float(bar.close))
@@ -2113,6 +2289,23 @@ def _run_spot_backtest(
                             margin_used = margin_after
                             entries_today += 1
                             last_entry_idx = idx
+
+        if riskoff_tr_hist is not None or riskpanic_tr_hist is not None:
+            risk_day_high = float(bar.high) if risk_day_high is None else max(float(risk_day_high), float(bar.high))
+            risk_day_low = float(bar.low) if risk_day_low is None else min(float(risk_day_low), float(bar.low))
+            if is_last_bar:
+                if risk_prev_close is not None and float(risk_prev_close) > 0:
+                    day_tr = max(
+                        float(risk_day_high) - float(risk_day_low),
+                        abs(float(risk_day_high) - float(risk_prev_close)),
+                        abs(float(risk_day_low) - float(risk_prev_close)),
+                    )
+                    tr_pct = (float(day_tr) / float(risk_prev_close)) * 100.0
+                    if riskoff_tr_hist is not None:
+                        riskoff_tr_hist.append(float(tr_pct))
+                    if riskpanic_tr_hist is not None:
+                        riskpanic_tr_hist.append(float(tr_pct))
+                risk_prev_close = float(bar.close)
 
         liquidation = 0.0
         for trade in open_trades:
@@ -2436,6 +2629,9 @@ def _run_spot_backtest_multires(
         shock: bool | None,
         shock_dir: str | None,
         shock_atr_pct: float | None,
+        riskoff: bool,
+        risk_dir: str | None,
+        riskpanic: bool,
         equity_ref: float,
         cash_ref: float,
     ) -> int:
@@ -2466,6 +2662,8 @@ def _run_spot_backtest_multires(
                 per_share_risk = abs(float(entry_price) - float(stop_level))
                 risk_dollars = float(equity_ref) * float(spot_risk_pct)
                 if action == "BUY":
+                    if bool(riskoff) and riskoff_mode == "directional" and risk_dir == "up":
+                        risk_dollars *= float(riskoff_long_factor)
                     if bool(shock) and shock_dir in ("up", "down"):
                         if shock_dir == "up":
                             shock_long_mult = (
@@ -2486,6 +2684,10 @@ def _run_spot_backtest_multires(
                         risk_dollars *= float(shock_long_mult)
                 if action == "SELL":
                     short_mult = float(spot_short_risk_mult)
+                    if bool(riskoff) and riskoff_mode == "directional" and risk_dir == "down":
+                        short_mult *= float(riskoff_short_factor)
+                    if bool(riskpanic) and risk_dir == "down":
+                        short_mult *= float(riskpanic_short_factor)
                     if bool(shock) and shock_dir == "down":
                         shock_short_mult = (
                             float(getattr(filters, "shock_short_risk_mult_factor", 1.0) or 1.0)
@@ -2534,8 +2736,101 @@ def _run_spot_backtest_multires(
         return int(desired_qty) if action == "BUY" else -int(desired_qty)
 
     pending_entry_dir: str | None = None
+    pending_entry_set_date: date | None = None
     pending_exit_all = False
     pending_exit_reason = ""
+
+    riskoff_tr5_med_pct = None
+    riskoff_tr5_lookback = 5
+    riskoff_mode = "hygiene"
+    riskoff_short_factor = 1.0
+    riskoff_long_factor = 1.0
+    riskoff_tr_hist: deque[float] | None = None
+    riskpanic_tr5_med_pct = None
+    riskpanic_neg_gap_ratio_min: float | None = None
+    riskpanic_lookback = 5
+    riskpanic_short_factor = 1.0
+    riskpanic_tr_hist: deque[float] | None = None
+    riskpanic_neg_gap_hist: deque[int] | None = None
+    risk_prev_close: float | None = None
+    risk_day_open: float | None = None
+    risk_day_high: float | None = None
+    risk_day_low: float | None = None
+    riskoff_today = False
+    riskpanic_today = False
+    riskoff_end_hour: int | None = None
+    if filters is not None:
+        riskoff_mode_raw = getattr(filters, "riskoff_mode", None)
+        if isinstance(riskoff_mode_raw, str):
+            riskoff_mode = riskoff_mode_raw.strip().lower() or "hygiene"
+        if riskoff_mode not in ("hygiene", "directional"):
+            riskoff_mode = "hygiene"
+        try:
+            riskoff_short_factor = float(getattr(filters, "riskoff_short_risk_mult_factor", 1.0) or 1.0)
+        except (TypeError, ValueError):
+            riskoff_short_factor = 1.0
+        if riskoff_short_factor < 0:
+            riskoff_short_factor = 1.0
+        try:
+            riskoff_long_factor = float(getattr(filters, "riskoff_long_risk_mult_factor", 1.0) or 1.0)
+        except (TypeError, ValueError):
+            riskoff_long_factor = 1.0
+        if riskoff_long_factor < 0:
+            riskoff_long_factor = 1.0
+        try:
+            riskoff_tr5_med_pct = float(getattr(filters, "riskoff_tr5_med_pct", None))
+        except (TypeError, ValueError):
+            riskoff_tr5_med_pct = None
+        try:
+            riskoff_tr5_lookback = int(getattr(filters, "riskoff_tr5_lookback_days", 5) or 5)
+        except (TypeError, ValueError):
+            riskoff_tr5_lookback = 5
+        riskoff_tr5_lookback = max(1, riskoff_tr5_lookback)
+        if riskoff_tr5_med_pct is not None and float(riskoff_tr5_med_pct) > 0:
+            riskoff_tr_hist = deque(maxlen=int(riskoff_tr5_lookback))
+        try:
+            riskpanic_tr5_med_pct = float(getattr(filters, "riskpanic_tr5_med_pct", None))
+        except (TypeError, ValueError):
+            riskpanic_tr5_med_pct = None
+        try:
+            riskpanic_neg_gap_ratio_min = float(getattr(filters, "riskpanic_neg_gap_ratio_min", None))
+        except (TypeError, ValueError):
+            riskpanic_neg_gap_ratio_min = None
+        if riskpanic_neg_gap_ratio_min is not None:
+            riskpanic_neg_gap_ratio_min = float(max(0.0, min(1.0, riskpanic_neg_gap_ratio_min)))
+        try:
+            riskpanic_lookback = int(getattr(filters, "riskpanic_lookback_days", 5) or 5)
+        except (TypeError, ValueError):
+            riskpanic_lookback = 5
+        riskpanic_lookback = max(1, riskpanic_lookback)
+        try:
+            riskpanic_short_factor = float(getattr(filters, "riskpanic_short_risk_mult_factor", 1.0) or 1.0)
+        except (TypeError, ValueError):
+            riskpanic_short_factor = 1.0
+        if riskpanic_short_factor < 0:
+            riskpanic_short_factor = 1.0
+        if (
+            riskpanic_tr5_med_pct is not None
+            and float(riskpanic_tr5_med_pct) > 0
+            and riskpanic_neg_gap_ratio_min is not None
+        ):
+            riskpanic_tr_hist = deque(maxlen=int(riskpanic_lookback))
+            riskpanic_neg_gap_hist = deque(maxlen=int(riskpanic_lookback))
+
+        if riskoff_tr_hist is not None or riskpanic_tr_hist is not None:
+            raw_end_et = getattr(filters, "entry_end_hour_et", None)
+            raw_end = getattr(filters, "entry_end_hour", None)
+            if raw_end_et is not None:
+                try:
+                    # Cached bars are naive ET; use raw hour to avoid timezone-shift surprises.
+                    riskoff_end_hour = int(raw_end_et)
+                except (TypeError, ValueError):
+                    riskoff_end_hour = None
+            elif raw_end is not None:
+                try:
+                    riskoff_end_hour = int(raw_end)
+                except (TypeError, ValueError):
+                    riskoff_end_hour = None
 
     volume_period = None
     if filters is not None and getattr(filters, "volume_ratio_min", None) is not None:
@@ -2568,6 +2863,34 @@ def _run_spot_backtest_multires(
         if exec_last_date != bar.ts.date():
             exec_last_date = bar.ts.date()
             entries_today = 0
+            riskoff_today = False
+            if riskoff_tr_hist is not None and len(riskoff_tr_hist) >= int(riskoff_tr5_lookback):
+                tr_vals = sorted(riskoff_tr_hist)
+                riskoff_today = bool(tr_vals[len(tr_vals) // 2] >= float(riskoff_tr5_med_pct))
+            riskpanic_today = False
+            if (
+                riskpanic_tr_hist is not None
+                and riskpanic_neg_gap_hist is not None
+                and len(riskpanic_tr_hist) >= int(riskpanic_lookback)
+                and len(riskpanic_neg_gap_hist) >= int(riskpanic_lookback)
+                and riskpanic_tr5_med_pct is not None
+                and riskpanic_neg_gap_ratio_min is not None
+            ):
+                tr_vals = sorted(riskpanic_tr_hist)
+                tr_ok = bool(tr_vals[len(tr_vals) // 2] >= float(riskpanic_tr5_med_pct))
+                neg_ratio = float(sum(riskpanic_neg_gap_hist)) / float(len(riskpanic_neg_gap_hist))
+                riskpanic_today = bool(tr_ok and neg_ratio >= float(riskpanic_neg_gap_ratio_min))
+            if riskoff_tr_hist is not None or riskpanic_tr_hist is not None:
+                risk_day_open = float(bar.open)
+                risk_day_high = float(bar.high)
+                risk_day_low = float(bar.low)
+                if (
+                    riskpanic_neg_gap_hist is not None
+                    and risk_prev_close is not None
+                    and float(risk_prev_close) > 0
+                ):
+                    gap_pct = (float(risk_day_open) - float(risk_prev_close)) / float(risk_prev_close)
+                    riskpanic_neg_gap_hist.append(1 if float(gap_pct) < 0 else 0)
 
         # Execute next-open fills (from prior bar close) before processing this bar.
         if pending_exit_all and open_trades:
@@ -2591,11 +2914,39 @@ def _run_spot_backtest_multires(
             pending_exit_reason = ""
 
         if pending_entry_dir is not None:
+            if (riskoff_today or riskpanic_today) and (riskoff_tr_hist is not None or riskpanic_tr_hist is not None):
+                shock_dir_now: str | None = None
+                if (
+                    shock_engine is not None
+                    and last_shock is not None
+                    and (
+                        shock_detector in ("daily_atr_pct", "daily_drawdown")
+                        or bool(getattr(last_shock, "ready", False))
+                    )
+                    and bool(getattr(last_shock, "direction_ready", False))
+                    and getattr(last_shock, "direction", None) in ("up", "down")
+                ):
+                    shock_dir_now = str(last_shock.direction)
+                cancel = False
+                if riskoff_mode == "directional" and shock_dir_now in ("up", "down"):
+                    if pending_entry_dir != shock_dir_now:
+                        cancel = True
+                else:
+                    if pending_entry_set_date is not None and pending_entry_set_date != bar.ts.date():
+                        cancel = True
+                    if riskoff_end_hour is not None:
+                        if int(bar.ts.hour) >= int(riskoff_end_hour):
+                            cancel = True
+                if cancel:
+                    pending_entry_dir = None
+                    pending_entry_set_date = None
+
             open_slots_ok = cfg.strategy.max_open_trades == 0 or len(open_trades) < cfg.strategy.max_open_trades
             entries_ok = cfg.strategy.max_entries_per_day == 0 or entries_today < cfg.strategy.max_entries_per_day
-            if open_slots_ok and entries_ok and (bar.ts.weekday() in cfg.strategy.entry_days):
+            if pending_entry_dir is not None and open_slots_ok and entries_ok and (bar.ts.weekday() in cfg.strategy.entry_days):
                 entry_dir = pending_entry_dir
                 pending_entry_dir = None
+                pending_entry_set_date = None
 
                 entry_leg = None
                 if needs_direction and cfg.strategy.directional_spot:
@@ -2721,6 +3072,9 @@ def _run_spot_backtest_multires(
                             shock=shock_now,
                             shock_dir=shock_dir_now,
                             shock_atr_pct=shock_atr_pct_now,
+                            riskoff=bool(riskoff_today),
+                            risk_dir=shock_dir_now,
+                            riskpanic=bool(riskpanic_today),
                             equity_ref=float(equity_before),
                             cash_ref=float(cash),
                         )
@@ -3233,6 +3587,25 @@ def _run_spot_backtest_multires(
                     still_open.append(trade)
             open_trades = still_open
 
+        if riskoff_tr_hist is not None or riskpanic_tr_hist is not None:
+            risk_day_high = (
+                float(bar.high) if risk_day_high is None else max(float(risk_day_high), float(bar.high))
+            )
+            risk_day_low = float(bar.low) if risk_day_low is None else min(float(risk_day_low), float(bar.low))
+            if is_last_bar:
+                if risk_prev_close is not None and float(risk_prev_close) > 0:
+                    day_tr = max(
+                        float(risk_day_high) - float(risk_day_low),
+                        abs(float(risk_day_high) - float(risk_prev_close)),
+                        abs(float(risk_day_low) - float(risk_prev_close)),
+                    )
+                    tr_pct = (float(day_tr) / float(risk_prev_close)) * 100.0
+                    if riskoff_tr_hist is not None:
+                        riskoff_tr_hist.append(float(tr_pct))
+                    if riskpanic_tr_hist is not None:
+                        riskpanic_tr_hist.append(float(tr_pct))
+                risk_prev_close = float(bar.close)
+
         # Update equity after processing this execution bar.
         liquidation = 0.0
         for trade in open_trades:
@@ -3360,8 +3733,18 @@ def _run_spot_backtest_multires(
             if spot_leg is not None:
                 if spot_entry_fill_mode == "next_open":
                     if next_bar is not None and pending_entry_dir is None:
-                        if exit_mode != "atr" or float(getattr(last_exit_atr, "atr", 0.0) or 0.0) > 0:
+                        schedule_ok = True
+                        if riskoff_today and riskoff_tr_hist is not None:
+                            if next_bar.ts.date() != bar.ts.date():
+                                schedule_ok = False
+                            elif riskoff_end_hour is not None:
+                                if int(next_bar.ts.hour) >= int(riskoff_end_hour):
+                                    schedule_ok = False
+                        if schedule_ok and (
+                            exit_mode != "atr" or float(getattr(last_exit_atr, "atr", 0.0) or 0.0) > 0
+                        ):
                             pending_entry_dir = direction
+                            pending_entry_set_date = bar.ts.date()
                             last_entry_sig_idx = int(sig_idx)
                 else:
                     can_open = True

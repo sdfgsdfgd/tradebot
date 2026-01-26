@@ -228,6 +228,24 @@ class FiltersConfig:
     # This produces a smooth "shock → cooling → calm" size ramp without needing a new gate.
     shock_risk_scale_target_atr_pct: float | None = None
     shock_risk_scale_min_mult: float = 0.2
+    # Risk-off overlay (market-derived, non-directional).
+    #
+    # Designed as a rare “panic hygiene” switch that can be applied in the spot engine
+    # without changing the base EMA/regime/shock logic.
+    #
+    # Detector: rolling median of daily TR% over the last N completed sessions.
+    riskoff_tr5_med_pct: float | None = None
+    riskoff_tr5_lookback_days: int = 5
+    riskoff_mode: str = "hygiene"  # "hygiene" | "directional"
+    riskoff_short_risk_mult_factor: float = 1.0
+    riskoff_long_risk_mult_factor: float = 1.0
+    # Strict panic detector (rolling window; “weekly” proxy):
+    # - TR% rolling median above a threshold
+    # - plus a high share of negative gaps
+    riskpanic_tr5_med_pct: float | None = None
+    riskpanic_neg_gap_ratio_min: float | None = None  # 0..1
+    riskpanic_lookback_days: int = 5
+    riskpanic_short_risk_mult_factor: float = 1.0
 
 
 @dataclass(frozen=True)
@@ -658,6 +676,45 @@ def _parse_filters(raw) -> FiltersConfig | None:
     if shock_scale_min is None:
         shock_scale_min = 0.2
     shock_scale_min = float(max(0.0, min(1.0, shock_scale_min)))
+    riskoff_tr5_med = _f(raw.get("riskoff_tr5_med_pct"))
+    if riskoff_tr5_med is not None and riskoff_tr5_med <= 0:
+        riskoff_tr5_med = None
+    riskoff_tr5_lb = _i(raw.get("riskoff_tr5_lookback_days"))
+    if riskoff_tr5_lb is None or riskoff_tr5_lb <= 0:
+        riskoff_tr5_lb = 5
+
+    riskoff_mode = raw.get("riskoff_mode")
+    if isinstance(riskoff_mode, str):
+        riskoff_mode = riskoff_mode.strip().lower()
+    else:
+        riskoff_mode = "hygiene"
+    if riskoff_mode not in ("hygiene", "directional"):
+        riskoff_mode = "hygiene"
+    riskoff_short_factor = _f(raw.get("riskoff_short_risk_mult_factor"))
+    if riskoff_short_factor is None:
+        riskoff_short_factor = 1.0
+    if riskoff_short_factor < 0:
+        riskoff_short_factor = 1.0
+    riskoff_long_factor = _f(raw.get("riskoff_long_risk_mult_factor"))
+    if riskoff_long_factor is None:
+        riskoff_long_factor = 1.0
+    if riskoff_long_factor < 0:
+        riskoff_long_factor = 1.0
+
+    riskpanic_tr5_med = _f(raw.get("riskpanic_tr5_med_pct"))
+    if riskpanic_tr5_med is not None and riskpanic_tr5_med <= 0:
+        riskpanic_tr5_med = None
+    riskpanic_neg_gap = _f(raw.get("riskpanic_neg_gap_ratio_min"))
+    if riskpanic_neg_gap is not None:
+        riskpanic_neg_gap = float(max(0.0, min(1.0, riskpanic_neg_gap)))
+    riskpanic_lb = _i(raw.get("riskpanic_lookback_days"))
+    if riskpanic_lb is None or riskpanic_lb <= 0:
+        riskpanic_lb = 5
+    riskpanic_short_factor = _f(raw.get("riskpanic_short_risk_mult_factor"))
+    if riskpanic_short_factor is None:
+        riskpanic_short_factor = 1.0
+    if riskpanic_short_factor < 0:
+        riskpanic_short_factor = 1.0
     return FiltersConfig(
         rv_min=_f(raw.get("rv_min")),
         rv_max=_f(raw.get("rv_max")),
@@ -699,6 +756,15 @@ def _parse_filters(raw) -> FiltersConfig | None:
         shock_daily_cooling_atr_pct=shock_daily_cool_atr,
         shock_risk_scale_target_atr_pct=shock_scale_target,
         shock_risk_scale_min_mult=shock_scale_min,
+        riskoff_tr5_med_pct=riskoff_tr5_med,
+        riskoff_tr5_lookback_days=int(riskoff_tr5_lb),
+        riskoff_mode=str(riskoff_mode),
+        riskoff_short_risk_mult_factor=float(riskoff_short_factor),
+        riskoff_long_risk_mult_factor=float(riskoff_long_factor),
+        riskpanic_tr5_med_pct=riskpanic_tr5_med,
+        riskpanic_neg_gap_ratio_min=riskpanic_neg_gap,
+        riskpanic_lookback_days=int(riskpanic_lb),
+        riskpanic_short_risk_mult_factor=float(riskpanic_short_factor),
     )
 
 
