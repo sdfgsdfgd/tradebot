@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Protocol, TypeVar
 
-from .signals import parse_bar_size
+from ..signals import parse_bar_size
 
 
 class _BarTsLike(Protocol):
@@ -36,4 +36,3 @@ def trim_incomplete_last_bar(
     if getattr(last_ts, "tzinfo", None) is not None:
         last_ts = last_ts.replace(tzinfo=None)
     return bars[:-1] if (last_ts + bar_def.duration) > now else bars
-

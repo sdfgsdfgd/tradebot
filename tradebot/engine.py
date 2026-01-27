@@ -10,8 +10,7 @@ The goal is that both:
 - `tradebot/backtest/engine.py` (offline)
 use the same entry/exit signal semantics.
 
-This file was previously named `decision_core.py`. The old import path remains as a
-shim (`tradebot.decision_core`) for compatibility.
+This file was previously named `decision_core.py`.
 """
 
 from __future__ import annotations

@@ -44,4 +44,3 @@ def business_days_until(start: date, end: date) -> int:
         if cursor.weekday() < 5:
             days += 1
     return days
-

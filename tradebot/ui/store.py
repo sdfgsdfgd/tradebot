@@ -1,4 +1,7 @@
-"""In-memory snapshot of portfolio items for UI rendering."""
+"""In-memory snapshot of portfolio items for UI rendering.
+
+Kept under `tradebot.ui` because it is UI-only state, not shared engine logic.
+"""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
