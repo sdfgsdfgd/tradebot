@@ -2276,7 +2276,7 @@ class BotScreen(Screen):
         entry = preset.entry
         strategy = copy.deepcopy(entry.get("strategy", {}) or {})
         strategy.setdefault("instrument", "options")
-        strategy.setdefault("price_mode", "OPTIMISTIC")
+        strategy.setdefault("price_mode", "MID")
         strategy.setdefault("chase_proposals", True)
         strategy.setdefault("max_entries_per_day", 1)
         strategy.setdefault("exit_dte", 0)
@@ -3069,9 +3069,9 @@ class BotScreen(Screen):
                 self._proposals_table.cursor_coordinate = (max(row, 0), 0)
 
     async def _reprice_proposal(self, proposal: _BotProposal, instance: _BotInstance) -> bool:
-        raw_mode = str(instance.strategy.get("price_mode") or "OPTIMISTIC").strip().upper()
+        raw_mode = str(instance.strategy.get("price_mode") or "MID").strip().upper()
         if raw_mode not in ("OPTIMISTIC", "MID", "AGGRESSIVE", "CROSS"):
-            raw_mode = "OPTIMISTIC"
+            raw_mode = "MID"
         price_mode = raw_mode
 
         def _leg_price(
@@ -3895,9 +3895,9 @@ class BotScreen(Screen):
             instance.symbol or (self._payload.get("symbol", "SLV") if self._payload else "SLV")
         ).strip().upper()
 
-        raw_mode = str(strat.get("price_mode") or "OPTIMISTIC").strip().upper()
+        raw_mode = str(strat.get("price_mode") or "MID").strip().upper()
         if raw_mode not in ("OPTIMISTIC", "MID", "AGGRESSIVE", "CROSS"):
-            raw_mode = "OPTIMISTIC"
+            raw_mode = "MID"
         price_mode = raw_mode
 
         def _leg_price(bid: float | None, ask: float | None, last: float | None, action: str) -> float | None:
@@ -4618,7 +4618,7 @@ class BotScreen(Screen):
                 proposal.action,
                 proposal.quantity,
                 proposal.limit_price,
-                outside_rth=False,
+                outside_rth=proposal.order_contract.secType == "STK",
             )
             order_id = trade.order.orderId or trade.order.permId or 0
             proposal.status = "SENT"
