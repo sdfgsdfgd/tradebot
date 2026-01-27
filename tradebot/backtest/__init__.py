@@ -1,1 +1,1 @@
-"""Synthetic-options backtesting engine."""
+"""Backtest tooling (synthetic options + spot)."""

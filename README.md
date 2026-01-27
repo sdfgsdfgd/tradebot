@@ -37,7 +37,8 @@ Minimal IBKR TUI trading client & bot
 ## Architecture
 - `tradebot/config.py` — runtime config (host/port/client id/refresh interval).
 - `tradebot/client.py` — ib_insync wrapper (portfolio, market data, PnL, net liq cache).
-- `tradebot/ui.py` — Textual TUI + detail screen.
+- `tradebot/ui/app.py` — Textual TUI + detail screen.
+- `tradebot/engine.py` — core shared decision logic (UI/live + backtests).
 - `tradebot/store.py` — in‑memory portfolio snapshot.
 - `tradebot/main.py` — entrypoint.
 - `tradebot/gpt/` — reserved for future GPT workflows.

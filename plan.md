@@ -60,7 +60,8 @@ Goal:
   - **high ATR%** “shock”
   - **volume spikes**
   - **EMA spread contraction** (trend weakening / whipsaw zone)
-- Convert that into a new gate axis we can sweep (minimal, shared by live+backtest via `decision_core.py`).
+- Convert that into a new gate axis we can sweep (minimal, shared by live+backtest via `tradebot/engine.py`).
+  (core shared module is now `tradebot/engine.py`; `tradebot/decision_core.py` remains as a shim)
 
 Artifacts:
 - Loss clustering / drawdown context: `backtests/out/tqqq_exec5m_v11b_regime_adaptability.md`
@@ -160,7 +161,7 @@ Candidate axes (pick 1 first; more later if needed):
 
 - 2026-01-23: Implemented `regime2_apply_to` (optional; default `both`):
   - Allows regime2 to gate only `longs` or only `shorts` (for “permission layer” experiments).
-  - Code: `tradebot/backtest/config.py`, `tradebot/backtest/engine.py`, `tradebot/ui.py` (tests still pass).
+  - Code: `tradebot/backtest/config.py`, `tradebot/backtest/engine.py`, `tradebot/ui/app.py` (tests still pass).
 
 - 2026-01-23: v38 daily drawdown shock detector sweep:
   - `backtests/out/tqqq_exec5m_v38_daily_drawdown_shock_variants_30m.json` → `backtests/out/tqqq_exec5m_v38_daily_drawdown_shock_30m_10y2y1y_mintr100_top9.json`

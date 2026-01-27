@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Iterable
+
+# Re-export canonical EWMA volatility implementation (shared with UI + engine).
+from ..engine import ewma_vol
 
 
 @dataclass(frozen=True)
@@ -21,19 +23,6 @@ class Quote:
     mid: float
     bid: float
     ask: float
-
-
-def ewma_vol(returns: Iterable[float], lam: float) -> float:
-    variance = 0.0
-    weight = 1.0
-    total = 0.0
-    for r in returns:
-        variance = lam * variance + (1 - lam) * (r * r)
-        total += weight
-        weight *= lam
-    if total <= 0:
-        return 0.0
-    return math.sqrt(variance)
 
 
 def iv_atm(rv: float, dte_days: int, params: IVSurfaceParams) -> float:

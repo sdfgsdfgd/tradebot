@@ -317,7 +317,7 @@ def _parse_float(value) -> float | None:
 
 def _daily_close_time_et(*, symbol: str, use_rth: bool) -> time:
     sym = str(symbol or "").strip().upper()
-    # Our entire codebase treats tz-naive timestamps as UTC (see `_ts_to_et` in decision_core).
+    # Our entire codebase treats tz-naive timestamps as UTC (see `_ts_to_et` in engine).
     # So for daily bars, we:
     #   1) interpret the bar's date as an ET trade date,
     #   2) pick a session-close time in ET,

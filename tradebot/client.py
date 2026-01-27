@@ -27,6 +27,7 @@ from ib_insync import (
 
 from .config import IBKRConfig
 
+# region Constants
 _INDEX_CONTRACTS: dict[str, list[str]] = {
     "NQ": ["GLOBEX", "CME"],
     "ES": ["GLOBEX", "CME"],
@@ -39,8 +40,10 @@ _RTH_START = dtime(9, 30)
 _RTH_END = dtime(16, 0)
 _AFTER_END = dtime(20, 0)
 _OVERNIGHT_END = dtime(3, 50)
+# endregion
 
 
+# region Models
 @dataclass(frozen=True)
 class OhlcvBar:
     ts: datetime
@@ -49,8 +52,10 @@ class OhlcvBar:
     low: float
     close: float
     volume: float
+# endregion
 
 
+# region Session Helpers
 def _session_flags(now: datetime) -> tuple[bool, bool]:
     """Return (outside_rth, include_overnight) for US equity sessions."""
     current = now.time()
@@ -59,8 +64,10 @@ def _session_flags(now: datetime) -> tuple[bool, bool]:
     )
     include_overnight = current >= _AFTER_END or current < _OVERNIGHT_END
     return outside_rth, include_overnight
+# endregion
 
 
+# region Client
 class IBKRClient:
     def __init__(self, config: IBKRConfig) -> None:
         self._config = config
@@ -1213,8 +1220,10 @@ class IBKRClient:
             self._reconnect_requested = False
             if self._update_callback:
                 self._update_callback()
+# endregion
 
 
+# region Helpers
 def _pick_account_value(values: list[AccountValue]) -> AccountValue | None:
     for currency in ("BASE", "USD", "AUD"):
         for value in values:
@@ -1244,3 +1253,4 @@ def _normalize_order_contract(contract: Contract) -> Contract:
     if contract.secType in ("STK", "OPT", "FUT", "FOP"):
         normalized.exchange = "SMART"
     return normalized
+# endregion

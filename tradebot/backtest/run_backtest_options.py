@@ -1,4 +1,4 @@
-"""Generate a machine-readable leaderboard from offline sweeps.
+"""Options backtest tooling (leaderboard sweeps).
 
 This keeps bot presets and documentation reproducible without scraping markdown.
 """
@@ -11,9 +11,9 @@ from datetime import date, datetime, timezone
 from concurrent.futures import ProcessPoolExecutor
 from itertools import product
 from pathlib import Path
-import sys
 import time
 
+from .cli_utils import parse_date as _parse_date
 from .config import (
     BacktestConfig,
     ConfigBundle,
@@ -23,9 +23,11 @@ from .config import (
     SyntheticConfig,
 )
 from .engine import run_backtest
+from .sweeps import Progress, count_total_combos, fmt_duration, normalize_jobs, write_json
 
 
-def main() -> None:
+# region CLI
+def options_leaderboard_main() -> None:
     parser = argparse.ArgumentParser(description="Generate leaderboard JSON from offline sweeps")
     parser.add_argument("--symbol", default="SLV")
     parser.add_argument("--start", default="2025-07-02")
@@ -58,12 +60,7 @@ def main() -> None:
     start = _parse_date(args.start)
     end = _parse_date(args.end)
 
-    max_jobs = max(os.cpu_count() or 1, 1)
-    jobs = int(args.jobs)
-    if jobs <= 0:
-        jobs = max_jobs
-    else:
-        jobs = min(jobs, max_jobs)
+    jobs = normalize_jobs(int(args.jobs))
 
     interval_sec = float(args.progress_sec)
     interval_sec = interval_sec if interval_sec >= 0 else 120.0
@@ -260,13 +257,13 @@ def main() -> None:
         "groups": [],
     }
 
-    progress = _Progress(
-        total=_count_total_combos(grid) * len(groups),
+    progress = Progress(
+        total=count_total_combos(grid) * len(groups),
         interval_sec=interval_sec,
         groups=len(groups),
     )
     for group_idx, group in enumerate(groups, start=1):
-        progress.start_group(group_idx, group["name"], total=_count_total_combos(grid))
+        progress.start_group(group_idx, group["name"], total=count_total_combos(grid))
         entries = _run_group(
             symbol=args.symbol,
             backtest=base_backtest,
@@ -298,15 +295,16 @@ def main() -> None:
             pass
 
     out_path = Path(args.out)
-    out_path.parent.mkdir(parents=True, exist_ok=True)
-    out_path.write_text(json.dumps(payload, indent=2, sort_keys=True))
+    write_json(out_path, payload, sort_keys=True)
 
     elapsed = time.monotonic() - sweep_start
-    total = _count_total_combos(grid) * len(groups)
+    total = count_total_combos(grid) * len(groups)
     kept = sum(len(g.get("entries", [])) for g in payload.get("groups", []))
-    print(f"Done: {kept}/{total} kept | jobs={jobs} | elapsed {_fmt_duration(elapsed)}", flush=True)
+    print(f"Done: {kept}/{total} kept | jobs={jobs} | elapsed {fmt_duration(elapsed)}", flush=True)
+# endregion
 
 
+# region Group Runner
 def _group_spec(
     name: str,
     right: str,
@@ -331,16 +329,11 @@ def _run_group(
     synthetic: SyntheticConfig,
     grid: dict,
     group: dict,
-    progress: "_Progress",
+    progress: "Progress",
     top_n: int = 2000,
     jobs: int = 1,
 ) -> list[dict]:
-    max_jobs = max(os.cpu_count() or 1, 1)
-    jobs = int(jobs)
-    if jobs <= 0:
-        jobs = max_jobs
-    else:
-        jobs = min(jobs, max_jobs)
+    jobs = normalize_jobs(int(jobs))
     filters_cfg = _filters_cfg(group.get("filters"))
     min_trades = int(grid["min_trades"])
 
@@ -408,6 +401,10 @@ def _run_group(
     return results[:top_n]
 
 
+# endregion
+
+
+# region Combo Runner
 def _filters_cfg(raw: dict | None) -> FiltersConfig | None:
     if not raw:
         return None
@@ -567,6 +564,10 @@ def _run_combo(
     }
 
 
+# endregion
+
+
+# region Multiprocessing
 _WORKER_CTX: dict | None = None
 
 
@@ -601,105 +602,10 @@ def _run_combo_worker(combo: tuple[int, float, float, float, str, str, bool, int
     )
 
 
-def _parse_date(value: str) -> date:
-    year, month, day = value.split("-")
-    return date(int(year), int(month), int(day))
+# endregion
 
-
-def _count_total_combos(grid: dict) -> int:
-    base = (
-        len(grid["dte"])
-        * len(grid["moneyness_pct"])
-        * len(grid["profit_target"])
-        * len(grid["stop_loss"])
-        * len(grid["ema_preset"])
-        * len(grid["ema_entry_mode"])
-    )
-    per_base = 0
-    for flip in grid["exit_on_signal_flip"]:
-        per_base += (
-            len(grid["flip_exit_min_hold_bars"]) * len(grid["flip_exit_only_if_profit"])
-            if flip
-            else 1
-        )
-    return base * per_base
-
-
-class _Progress:
-    def __init__(self, *, total: int, interval_sec: float, groups: int) -> None:
-        self._total = max(int(total), 1)
-        self._interval_sec = float(interval_sec)
-        self._groups = int(groups)
-
-        self._done = 0
-        self._start = time.monotonic()
-        self._last_print = self._start
-
-        self._group_idx = 0
-        self._group_name = ""
-        self._group_total = 1
-        self._group_done = 0
-        self._last_line_len = 0
-
-    def start_group(self, group_idx: int, group_name: str, *, total: int) -> None:
-        self._group_idx = int(group_idx)
-        self._group_name = str(group_name)
-        self._group_total = max(int(total), 1)
-        self._group_done = 0
-        self._print(force=True, newline=True)
-
-    def finish_group(self) -> None:
-        self._print(force=True, newline=True)
-
-    def advance(self, n: int = 1) -> None:
-        self._done += int(n)
-        self._group_done += int(n)
-        if self._interval_sec <= 0:
-            return
-        now = time.monotonic()
-        if now - self._last_print >= self._interval_sec:
-            self._print(force=True, newline=False)
-            self._last_print = now
-
-    def _print(self, *, force: bool, newline: bool) -> None:
-        if not force:
-            return
-        elapsed = max(time.monotonic() - self._start, 1e-6)
-        rate = self._done / elapsed
-        remaining = self._total - self._done
-        eta = remaining / rate if rate > 0 else None
-
-        overall_pct = (self._done / self._total) * 100.0
-        group_pct = (self._group_done / self._group_total) * 100.0
-
-        eta_s = _fmt_duration(eta) if eta is not None else "--:--:--"
-        line = (
-            f"[{self._group_idx}/{self._groups}] {self._group_name} | "
-            f"group {group_pct:5.1f}% ({self._group_done}/{self._group_total}) | "
-            f"overall {overall_pct:5.1f}% ({self._done}/{self._total}) | "
-            f"{rate:5.2f} combos/s | ETA {eta_s}"
-        )
-
-        if sys.stdout.isatty() and not newline:
-            pad = max(0, self._last_line_len - len(line))
-            sys.stdout.write("\r" + line + (" " * pad))
-            sys.stdout.flush()
-            self._last_line_len = len(line)
-            return
-
-        end = "\n" if newline or not sys.stdout.isatty() else ""
-        print(line, end=end, flush=True)
-        self._last_line_len = 0
-
-
-def _fmt_duration(seconds: float | None) -> str:
-    if seconds is None or seconds < 0:
-        return "--:--:--"
-    seconds_int = int(seconds)
-    h, rem = divmod(seconds_int, 3600)
-    m, s = divmod(rem, 60)
-    return f"{h:02d}:{m:02d}:{s:02d}"
+main = options_leaderboard_main
 
 
 if __name__ == "__main__":
-    main()
+    options_leaderboard_main()

@@ -12,9 +12,9 @@ from ib_insync import IB, ContFuture, Option, FuturesOption, Stock, util
 
 from .config import ConfigBundle
 from ..config import load_config
-from ..decision_core import annualization_factor
+from ..engine import realized_vol_from_closes
 from .data import IBKRHistoricalData
-from .synth import IVSurfaceParams, black_76, black_scholes, ewma_vol, iv_atm, iv_for_strike
+from .synth import IVSurfaceParams, black_76, black_scholes, iv_atm, iv_for_strike
 
 
 @dataclass(frozen=True)
@@ -435,15 +435,15 @@ def _recent_realized_vol(cfg: ConfigBundle, symbol: str, exchange: str | None) -
         use_rth=cfg.backtest.use_rth,
         cache_dir=cfg.backtest.cache_dir,
     )
-    closes = [bar.close for bar in bars if bar.close]
-    returns = []
-    for idx in range(1, len(closes)):
-        if closes[idx - 1] > 0:
-            returns.append(math.log(closes[idx] / closes[idx - 1]))
-    if not returns:
-        return cfg.synthetic.iv_floor
-    rv = ewma_vol(returns[-cfg.synthetic.rv_lookback :], cfg.synthetic.rv_ewma_lambda)
-    return rv * math.sqrt(annualization_factor(cfg.backtest.bar_size, cfg.backtest.use_rth))
+    closes = [float(bar.close) for bar in bars if bar.close and float(bar.close) > 0]
+    rv = realized_vol_from_closes(
+        closes,
+        lookback=int(cfg.synthetic.rv_lookback),
+        lam=float(cfg.synthetic.rv_ewma_lambda),
+        bar_size=str(cfg.backtest.bar_size),
+        use_rth=bool(cfg.backtest.use_rth),
+    )
+    return float(cfg.synthetic.iv_floor) if rv is None else float(rv)
 
 
 def _has_record_today(bucket: CalibrationBucket, asof: str) -> bool:

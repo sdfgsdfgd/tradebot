@@ -2,12 +2,22 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
 from ..signals import parse_bar_size
+from .cli_utils import parse_date as _parse_date_impl
+from .knobs.models import (
+    BacktestConfig,
+    ConfigBundle,
+    FiltersConfig,
+    LegConfig,
+    SpotLegConfig,
+    StrategyConfig,
+    SyntheticConfig,
+)
 
+# region Constants
 _WEEKDAYS = {
     "MON": 0,
     "TUE": 1,
@@ -17,244 +27,10 @@ _WEEKDAYS = {
     "SAT": 5,
     "SUN": 6,
 }
+# endregion
 
 
-@dataclass(frozen=True)
-class BacktestConfig:
-    start: date
-    end: date
-    bar_size: str
-    use_rth: bool
-    starting_cash: float
-    risk_free_rate: float
-    cache_dir: Path
-    calibration_dir: Path
-    output_dir: Path
-    calibrate: bool
-    offline: bool
-
-
-@dataclass(frozen=True)
-class StrategyConfig:
-    name: str
-    instrument: str
-    symbol: str
-    exchange: str | None
-    right: str
-    entry_days: tuple[int, ...]
-    max_entries_per_day: int
-    max_open_trades: int
-    dte: int
-    otm_pct: float
-    width_pct: float
-    profit_target: float
-    stop_loss: float
-    exit_dte: int
-    quantity: int
-    stop_loss_basis: str
-    min_credit: float | None
-    ema_preset: str | None
-    ema_entry_mode: str
-    entry_confirm_bars: int
-    regime_ema_preset: str | None
-    regime_bar_size: str | None
-    ema_directional: bool
-    exit_on_signal_flip: bool
-    flip_exit_mode: str
-    flip_exit_gate_mode: str
-    flip_exit_min_hold_bars: int
-    flip_exit_only_if_profit: bool
-    direction_source: str
-    directional_legs: dict[str, tuple["LegConfig", ...]] | None
-    directional_spot: dict[str, "SpotLegConfig"] | None
-    legs: tuple["LegConfig", ...] | None
-    filters: "FiltersConfig" | None
-    spot_profit_target_pct: float | None
-    spot_stop_loss_pct: float | None
-    spot_close_eod: bool
-    entry_signal: str = "ema"
-    orb_window_mins: int = 15
-    orb_risk_reward: float = 2.0
-    orb_target_mode: str = "rr"  # "rr" | "or_range"
-    orb_open_time_et: str | None = None  # e.g. "09:30" (defaults to 09:30 ET)
-    spot_exit_mode: str = "pct"
-    spot_atr_period: int = 14
-    spot_pt_atr_mult: float = 1.5
-    spot_sl_atr_mult: float = 1.0
-    spot_exit_time_et: str | None = None  # e.g. "09:30" (exit on/after this ET time)
-    spot_exec_bar_size: str | None = None  # e.g. "5 mins" (execution / exit simulation bars)
-    regime_mode: str = "ema"
-    regime2_mode: str = "off"  # "off" | "ema" | "supertrend"
-    # When regime2 is enabled, control which entry directions it gates:
-    # - "both" (default): gate both longs and shorts (current behavior)
-    # - "longs": apply regime2 gate only when signal.entry_dir == "up"
-    # - "shorts": apply regime2 gate only when signal.entry_dir == "down"
-    regime2_apply_to: str = "both"
-    regime2_ema_preset: str | None = None
-    regime2_bar_size: str | None = None
-    regime2_supertrend_atr_period: int = 10
-    regime2_supertrend_multiplier: float = 3.0
-    regime2_supertrend_source: str = "hl2"
-    supertrend_atr_period: int = 10
-    supertrend_multiplier: float = 3.0
-    supertrend_source: str = "hl2"
-    tick_gate_mode: str = "off"  # "off" | "raschke"
-    tick_gate_symbol: str = "TICK-NYSE"
-    tick_gate_exchange: str = "NYSE"
-    tick_band_ma_period: int = 10
-    tick_width_z_lookback: int = 252
-    tick_width_z_enter: float = 1.0
-    tick_width_z_exit: float = 0.5
-    tick_width_slope_lookback: int = 3
-    tick_neutral_policy: str = "allow"  # "allow" | "block"
-    tick_direction_policy: str = "both"  # "both" | "wide_only"
-    spot_entry_fill_mode: str = "close"  # "close" | "next_open"
-    spot_flip_exit_fill_mode: str = "close"  # "close" | "next_open"
-    spot_intrabar_exits: bool = False
-    spot_spread: float = 0.0  # price units, e.g. 0.01 for $0.01/share
-    spot_commission_per_share: float = 0.0
-    spot_commission_min: float = 0.0  # absolute price units per order, e.g. 1.0 = $1.00 minimum
-    spot_slippage_per_share: float = 0.0  # price units per share
-    spot_mark_to_market: str = "close"  # "close" | "liquidation"
-    spot_drawdown_mode: str = "close"  # "close" | "intrabar"
-    spot_sizing_mode: str = "fixed"  # "fixed" | "notional_pct" | "risk_pct"
-    spot_notional_pct: float = 0.0  # fraction of equity to allocate per entry (notional_pct)
-    spot_risk_pct: float = 0.0  # fraction of equity risked to stop per entry (risk_pct)
-    spot_short_risk_mult: float = 1.0  # scales risk_pct sizing for short (SELL) entries
-    spot_max_notional_pct: float = 1.0  # cap notional per entry as a fraction of equity
-    spot_min_qty: int = 1
-    spot_max_qty: int = 0  # 0 = no cap
-
-
-@dataclass(frozen=True)
-class SyntheticConfig:
-    rv_lookback: int
-    rv_ewma_lambda: float
-    iv_risk_premium: float
-    iv_floor: float
-    term_slope: float
-    skew: float
-    min_spread_pct: float
-
-
-@dataclass(frozen=True)
-class LegConfig:
-    action: str
-    right: str
-    moneyness_pct: float
-    qty: int
-
-
-@dataclass(frozen=True)
-class SpotLegConfig:
-    action: str
-    qty: int
-
-
-@dataclass(frozen=True)
-class FiltersConfig:
-    rv_min: float | None
-    rv_max: float | None
-    ema_spread_min_pct: float | None
-    ema_slope_min_pct: float | None
-    entry_start_hour: int | None
-    entry_end_hour: int | None
-    skip_first_bars: int
-    cooldown_bars: int
-    entry_start_hour_et: int | None = None
-    entry_end_hour_et: int | None = None
-    volume_ema_period: int | None = None
-    volume_ratio_min: float | None = None
-    # Optional directional override: when set, applies only when signal.entry_dir == "down".
-    # (Used to reduce short exposure while keeping long entries less gated.)
-    ema_spread_min_pct_down: float | None = None
-    # Volatility shock overlay (non-directional risk state).
-    #
-    # This is meant to upgrade the existing permission/bias layer during event shocks, rather than
-    # adding another directional gate.
-    #
-    # shock_gate_mode:
-    # - "off": ignore shock state
-    # - "detect": compute shock state (no entry gating)
-    # - "block": block new entries when shock is ON (still manage exits normally)
-    # - "block_longs": block new long entries when shock is ON
-    # - "block_shorts": block new short entries when shock is ON
-    # - "surf": during shock, only allow entries aligned with shock direction (smoothed returns)
-    shock_gate_mode: str = "off"
-    shock_detector: str = "atr_ratio"  # "atr_ratio" | "daily_atr_pct" | "daily_drawdown"
-    shock_atr_fast_period: int = 7
-    shock_atr_slow_period: int = 50
-    shock_on_ratio: float = 1.55
-    shock_off_ratio: float = 1.30
-    shock_min_atr_pct: float = 7.0
-    # Daily ATR% detector (when shock_detector="daily_atr_pct").
-    shock_daily_atr_period: int = 14
-    shock_daily_on_atr_pct: float = 13.0
-    shock_daily_off_atr_pct: float = 11.0
-    # Optional additional trigger to flip shock ON faster during sudden range expansion / gaps:
-    # TrueRange_so_far / prev_day_close * 100 >= shock_daily_on_tr_pct.
-    shock_daily_on_tr_pct: float | None = None
-    # Daily drawdown detector (when shock_detector="daily_drawdown").
-    #
-    # Computes drawdown vs the rolling peak close over the last N finalized sessions.
-    # Example: on_drawdown=-20 means trigger shock when close is >=20% below the rolling peak.
-    shock_drawdown_lookback_days: int = 20
-    shock_on_drawdown_pct: float = -20.0
-    shock_off_drawdown_pct: float = -10.0
-    shock_short_risk_mult_factor: float = 1.0  # scales spot_short_risk_mult when shock is ON
-    shock_long_risk_mult_factor: float = 1.0  # scales spot_risk_pct sizing for longs when shock dir is "up"
-    shock_long_risk_mult_factor_down: float = 1.0  # scales spot_risk_pct sizing for longs when shock dir is "down"
-    shock_stop_loss_pct_mult: float = 1.0  # scales spot_stop_loss_pct during shock (pct exit mode only)
-    shock_profit_target_pct_mult: float = 1.0  # scales spot_profit_target_pct during shock (pct exit mode only)
-    shock_direction_lookback: int = 2  # bars used for smoothed direction
-    shock_direction_source: str = "regime"  # "regime" | "signal"
-    # Optional: use shock direction as the *regime gate* direction while shock is ON.
-    # This lets the bias gate flip faster during deep drawdowns without changing the baseline regime config.
-    shock_regime_override_dir: bool = False
-    # Optional regime-gate supertrend overrides during/after shock.
-    #
-    # These do NOT change the base Supertrend configuration; they compute an additional Supertrend and
-    # swap the *regime gate* direction when the shock overlay is active.
-    #
-    # Intended use:
-    # - During shock: use a higher multiplier to avoid whipsaw regime flips.
-    # - During cooling (shock off but ATR% still elevated): optionally use a different multiplier.
-    shock_regime_supertrend_multiplier: float | None = None
-    shock_cooling_regime_supertrend_multiplier: float | None = None
-    shock_daily_cooling_atr_pct: float | None = None
-    # Optional ATR%-based risk scaling (vol targeting) using the shock detector's ATR%.
-    #
-    # When set, sizing is scaled by: mult = clamp(target_atr_pct / atr_pct, min_mult..1.0)
-    # This produces a smooth "shock → cooling → calm" size ramp without needing a new gate.
-    shock_risk_scale_target_atr_pct: float | None = None
-    shock_risk_scale_min_mult: float = 0.2
-    # Risk-off overlay (market-derived, non-directional).
-    #
-    # Designed as a rare “panic hygiene” switch that can be applied in the spot engine
-    # without changing the base EMA/regime/shock logic.
-    #
-    # Detector: rolling median of daily TR% over the last N completed sessions.
-    riskoff_tr5_med_pct: float | None = None
-    riskoff_tr5_lookback_days: int = 5
-    riskoff_mode: str = "hygiene"  # "hygiene" | "directional"
-    riskoff_short_risk_mult_factor: float = 1.0
-    riskoff_long_risk_mult_factor: float = 1.0
-    # Strict panic detector (rolling window; “weekly” proxy):
-    # - TR% rolling median above a threshold
-    # - plus a high share of negative gaps
-    riskpanic_tr5_med_pct: float | None = None
-    riskpanic_neg_gap_ratio_min: float | None = None  # 0..1
-    riskpanic_lookback_days: int = 5
-    riskpanic_short_risk_mult_factor: float = 1.0
-
-
-@dataclass(frozen=True)
-class ConfigBundle:
-    backtest: BacktestConfig
-    strategy: StrategyConfig
-    synthetic: SyntheticConfig
-
-
+# region Public API
 def load_config(path: str | Path) -> ConfigBundle:
     raw = json.loads(Path(path).read_text())
     backtest_raw = raw.get("backtest", {})
@@ -397,11 +173,14 @@ def load_config(path: str | Path) -> ConfigBundle:
     return ConfigBundle(backtest=backtest, strategy=strategy, synthetic=synthetic)
 
 
+# endregion
+
+
+# region Basic Parsing
 def _parse_date(value: str | None) -> date:
     if not value:
         raise ValueError("Config requires start/end dates in YYYY-MM-DD format")
-    year, month, day = value.split("-")
-    return date(int(year), int(month), int(day))
+    return _parse_date_impl(value)
 
 
 def _parse_weekdays(days: list[str]) -> tuple[int, ...]:
@@ -560,6 +339,10 @@ def _parse_legs(raw) -> tuple[LegConfig, ...] | None:
     return tuple(legs)
 
 
+# endregion
+
+
+# region Filters Parsing
 def _parse_filters(raw) -> FiltersConfig | None:
     if raw is None:
         return None
@@ -595,6 +378,8 @@ def _parse_filters(raw) -> FiltersConfig | None:
         shock_detector = "daily_atr_pct"
     elif shock_detector in ("drawdown", "daily_drawdown", "daily-dd", "dd", "peak_dd", "peak_drawdown"):
         shock_detector = "daily_drawdown"
+    elif shock_detector in ("tr_ratio", "tr-ratio", "tr_ratio_pct", "tr_ratio%"):
+        shock_detector = "tr_ratio"
     elif shock_detector in ("atr_ratio", "ratio", "atr-ratio", "atr_ratio_pct", "atr_ratio%"):
         shock_detector = "atr_ratio"
     else:
@@ -768,6 +553,10 @@ def _parse_filters(raw) -> FiltersConfig | None:
     )
 
 
+# endregion
+
+
+# region Misc Normalizers
 def _parse_entry_signal(value) -> str:
     if value is None:
         return "ema"
@@ -1010,3 +799,6 @@ def _parse_directional_spot(raw) -> dict[str, SpotLegConfig] | None:
             raise ValueError(f"directional_spot.{key}.qty must be positive")
         parsed[key] = SpotLegConfig(action=action, qty=qty)
     return parsed or None
+
+
+# endregion

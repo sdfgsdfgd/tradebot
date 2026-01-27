@@ -1,6 +1,27 @@
-# Backtest Engine (Synthetic Options)
+# Backtest Engine (Synthetic Options + Spot)
 
-This package provides a minimal backtest runner that builds **synthetic option prices** from underlying bars and evaluates a single strategy per run. The code is structured to be reusable for a future live trading engine.
+This package provides a minimal backtest runner that supports:
+- **synthetic options** (builds synthetic option prices from underlying bars), and
+- **spot** (underlying-only strategies with realism knobs like intrabar exits / execution fills).
+
+Shared decision logic lives in `tradebot/engine.py` and `tradebot/spot_engine.py` so the UI/live runner can reuse the exact same semantics.
+
+## Spot (TQQQ) — CURRENT champ (v31) quick reproduce
+
+This is the canonical “champ smoke test” we use to ensure refactors do **not** change outcomes.
+
+```bash
+python -m tradebot.backtest spot_multitimeframe --milestones backtests/out/tqqq_exec5m_v31_champ_only_milestone.json \
+  --symbol TQQQ --bar-size "30 mins" --use-rth --offline --cache-dir db --top 1 --max-open 1 \
+  --require-positive-pnl --min-trades 100 \
+  --window 2016-01-01:2026-01-19 --window 2024-01-01:2026-01-19 --window 2025-01-01:2026-01-19 \
+  --write-top 1 --out /tmp/tqqq_exec5m_v31_smoke.json
+```
+
+Expected exact window metrics:
+- 10y: roi `0.679118927499993`, dd_pct `0.22044000150000195`, pnl `67911.8927499993`, trades `1079`
+- 2y:  roi `0.27009318549999645`, dd_pct `0.059405221999999924`, pnl `27009.318549999643`, trades `207`
+- 1y:  roi `0.13060562249999777`, dd_pct `0.04415167800000054`, pnl `13060.562249999777`, trades `109`
 
 ## Full config example (all parameters)
 ```json
@@ -72,6 +93,12 @@ python -m tradebot.backtest --config backtest.sample.json
 ```
 
 Use `--no-write` to skip CSV output. Add `--calibrate` to refresh the synthetic calibration using delayed LAST quotes.
+
+## Tools
+
+- Record option quote snapshots (JSONL) for calibration / sanity checks:
+  - `python -m tradebot.backtest.tools.record_quotes --symbol SLV --count 10 --interval 60`
+  - Output default: `db/quotes/<SYMBOL>/<YYYY-MM-DD>.jsonl`
 
 ## Cache layout
 Bars are cached under `db/` (configurable):
@@ -323,10 +350,16 @@ PnL is reported in **premium points * contract multiplier**.
 - When `max_entries_per_day=0` and `max_open_trades=0`, results reflect **stacking / pyramiding** subject to `starting_cash` and margin.
 
 Full leaderboard is in `tradebot/backtest/LEADERBOARD.md`.
-Machine-readable presets are in `tradebot/backtest/leaderboard.json` (regenerate with `python -m tradebot.backtest.generate_leaderboard`; spot milestones are appended by default).
+Machine-readable presets are in `tradebot/backtest/leaderboard.json` (regenerate with `python -m tradebot.backtest options_leaderboard`; spot milestones are appended by default).
 
 ## Spot leaderboard (MNQ, 12m)
-Spot presets are stored in `tradebot/backtest/spot_milestones.json` and are merged into the TUI presets list alongside the options leaderboard.
+Spot presets are stored in:
+- `tradebot/backtest/spot_champions.json` (curated CURRENT champs for UI/live), and
+- `tradebot/backtest/spot_milestones.json` (broader spot preset pool).
+
+Both are merged into the TUI presets list alongside the options leaderboard.
+
+Large historical milestone pools / variants live under `backtests/out/presets/` (they are not loaded by the UI).
 
 These spot presets are **12-month only** (no 6m snapshot entries) and are filtered for stability:
 - win rate `>= 55%`
@@ -336,26 +369,26 @@ These spot presets are **12-month only** (no 6m snapshot entries) and are filter
 
 Regenerate (offline, uses cached bars in `db/`):
 ```bash
-python -m tradebot.backtest.evolve_spot --offline --axis all --write-milestones --cache-dir db
-python -m tradebot.backtest.evolve_spot --offline --axis combo --write-milestones --merge-milestones --cache-dir db
+python -m tradebot.backtest spot --offline --axis all --write-milestones --cache-dir db
+python -m tradebot.backtest spot --offline --axis combo --write-milestones --merge-milestones --cache-dir db
 ```
 
 Regenerate with realism v1 enabled (recommended before live trading):
 ```bash
-python -m tradebot.backtest.evolve_spot --offline --axis all --realism --write-milestones --cache-dir db
-python -m tradebot.backtest.evolve_spot --offline --axis combo --realism --write-milestones --merge-milestones --cache-dir db
+python -m tradebot.backtest spot --offline --axis all --realism --write-milestones --cache-dir db
+python -m tradebot.backtest spot --offline --axis combo --realism --write-milestones --merge-milestones --cache-dir db
 ```
 
 Regenerate 30-minute spot champions (adds only a curated top set from that run, merges into existing milestones):
 ```bash
-python -m tradebot.backtest.evolve_spot --offline --bar-size "30 mins" --axis combo \
+python -m tradebot.backtest spot --offline --bar-size "30 mins" --axis combo \
   --write-milestones --merge-milestones --milestone-add-top-pnl-dd 25 --milestone-add-top-pnl 25 \
   --cache-dir db
 ```
 
 For deeper “one axis at a time” exploration (still spot-only), run a single axis:
 ```bash
-python -m tradebot.backtest.evolve_spot --axis regime --cache-dir db
+python -m tradebot.backtest spot --axis regime --cache-dir db
 ```
 
 ### Sweep coverage (ranges tried so far)
@@ -404,7 +437,7 @@ This is a **quick map of what the sweeps actually cover** (outer edges), so we c
 - ATR exits ultra (`--axis atr_ultra`): `ATR period=7`, `PTx ∈ {1.05,1.08,1.10,1.12,1.15}`, `SLx ∈ {1.35..1.55 step 0.05}`
 - EMA×ATR joint (`--axis ema_atr`): shortlist `ema_preset ∈ {2/4,3/7,4/9,5/10,8/21,9/21,21/50}` → exits `ATR period ∈ {10,14,21}`, `PTx ∈ {0.60,0.70,0.75,0.80,0.85,0.90,0.95,1.00}`, `SLx ∈ {1.20,1.40,1.50,1.60,1.80,2.00}` (covers the PT<1.0 pocket explicitly)
 - Regime2×ATR joint (`--axis r2_atr`): regime2 Supertrend coarse scan (`ATR ∈ {7,10,11,14,21}`, `mult ∈ {0.6,0.8,1.0,1.2,1.5}`, `src ∈ {hl2,close}`, `bar ∈ {4h,1d}`) → exit micro-grid (`ATR ∈ {14,21}`, `PTx ∈ {0.6..1.0}`, `SLx ∈ {1.2..2.2}`)
-- Regime2×TOD joint (`--axis r2_tod`): shortlist regime2 settings (`ST2 @ {4h,1d}`; see `evolve_spot.py`) → sweep TOD windows (RTH + overnight micro-grid)
+- Regime2×TOD joint (`--axis r2_tod`): shortlist regime2 settings (`ST2 @ {4h,1d}`; see `run_backtest_spot.py`) → sweep TOD windows (RTH + overnight micro-grid)
 - Flip-exit semantics (`--axis flip_exit`): `exit_on_signal_flip ∈ {on,off}`, `flip_exit_mode ∈ {entry,state,cross}`, `hold ∈ {0,2,4,6}`, `only_if_profit ∈ {0,1}`
 - Loosenings (`--axis loosen`): `max_open_trades ∈ {1,2,3,0}`, `spot_close_eod ∈ {0,1}`
 - Loosen×ATR joint (`--axis loosen_atr`): `max_open_trades ∈ {2,3,0}`, `spot_close_eod ∈ {0,1}` × exits `ATR period ∈ {10,14,21}`, `PTx ∈ {0.60..0.80 step 0.05}`, `SLx ∈ {1.20..2.00 step 0.20}`
@@ -515,105 +548,106 @@ Search log / reproducibility (kept as files so we don’t rerun blindly):
 
 Repro commands:
 ```bash
+# NOTE: prepend new evolution entries ABOVE the CURRENT block (0g5).
 # 0g5) CURRENT (v31): earlier daily ATR% shock-on threshold (beats v25 roi/dd in all 3 windows)
-python -m tradebot.backtest multitimeframe --milestones backtests/out/tqqq_exec5m_v31_shock_block_longs_variants_30m.json \
+python -m tradebot.backtest spot_multitimeframe --milestones backtests/out/tqqq_exec5m_v31_shock_block_longs_variants_30m.json \
   --symbol TQQQ --bar-size "30 mins" --use-rth --offline --cache-dir db --top 36 --max-open 1 \
   --require-positive-pnl --min-trades 100 \
   --window 2016-01-01:2026-01-19 --window 2024-01-01:2026-01-19 --window 2025-01-01:2026-01-19 \
   --write-top 36 --out backtests/out/tqqq_exec5m_v31_shock_block_longs_30m_10y2y1y_mintr100_top36.json
 
 # 0g4) Previous CURRENT (v25): daily ATR% shock overlay (beats v11b roi/dd in all 3 windows)
-python -m tradebot.backtest multitimeframe --milestones backtests/out/tqqq_exec5m_v25_daily_atr_dynamic_variants_30m.json \
+python -m tradebot.backtest spot_multitimeframe --milestones backtests/out/tqqq_exec5m_v25_daily_atr_dynamic_variants_30m.json \
   --symbol TQQQ --bar-size "30 mins" --use-rth --offline --cache-dir db --top 144 --max-open 1 \
   --require-positive-pnl --min-trades 100 \
   --window 2016-01-01:2026-01-19 --window 2024-01-01:2026-01-19 --window 2025-01-01:2026-01-19 \
   --write-top 80 --out backtests/out/tqqq_exec5m_v25_daily_atr_dynamic_30m_10y2y1y_mintr100_top80.json
 
 # 0g3) Near-miss (v14): micro-squeeze around v11b (ST mult × hold × slope; improved 10y/2y, 1y unchanged)
-python -m tradebot.backtest multitimeframe --milestones backtests/out/tqqq_exec5m_v14_micro_squeeze_variants_30m.json \
+python -m tradebot.backtest spot_multitimeframe --milestones backtests/out/tqqq_exec5m_v14_micro_squeeze_variants_30m.json \
   --symbol TQQQ --bar-size "30 mins" --use-rth --offline --cache-dir db --top 63 --max-open 1 \
   --require-positive-pnl --min-trades 100 \
   --window 2016-01-01:2026-01-19 --window 2024-01-01:2026-01-19 --window 2025-01-01:2026-01-19 \
   --write-top 80 --out backtests/out/tqqq_exec5m_v14_micro_squeeze_30m_10y2y1y_mintr100_top80.json
 
 # 0g2) Previous CURRENT (v11b): ST bias squeeze + hold
-python -m tradebot.backtest multitimeframe --milestones backtests/out/tqqq_exec5m_v11b_st_hold_neighborhood_variants_30m.json \
+python -m tradebot.backtest spot_multitimeframe --milestones backtests/out/tqqq_exec5m_v11b_st_hold_neighborhood_variants_30m.json \
   --symbol TQQQ --bar-size "30 mins" --use-rth --offline --cache-dir db --top 80 --max-open 1 \
   --require-positive-pnl --min-trades 100 \
   --window 2016-01-01:2026-01-19 --window 2024-01-01:2026-01-19 --window 2025-01-01:2026-01-19 \
   --write-top 80 --out backtests/out/tqqq_exec5m_v11b_st_hold_neighborhood_30m_10y2y1y_mintr100_top80.json
 
 # 0g1) v11a: PT/SL/hold pocket around v9c (mostly found that hold=2 helps)
-python -m tradebot.backtest multitimeframe --milestones backtests/out/tqqq_exec5m_v11a_pt_pocket_variants_30m.json \
+python -m tradebot.backtest spot_multitimeframe --milestones backtests/out/tqqq_exec5m_v11a_pt_pocket_variants_30m.json \
   --symbol TQQQ --bar-size "30 mins" --use-rth --offline --cache-dir db --top 54 --max-open 1 \
   --require-positive-pnl --min-trades 100 \
   --window 2016-01-01:2026-01-19 --window 2024-01-01:2026-01-19 --window 2025-01-01:2026-01-19 \
   --write-top 80 --out backtests/out/tqqq_exec5m_v11a_pt_pocket_30m_10y2y1y_mintr100_top80.json
 
 # 0i) Latest (v10e): high-activity (min_trades=150) flip-exit strictness sweep (PT=None)
-python -m tradebot.backtest multitimeframe --milestones backtests/out/tqqq_exec5m_v10e_flip_exit_strictness_variants_30m.json \
+python -m tradebot.backtest spot_multitimeframe --milestones backtests/out/tqqq_exec5m_v10e_flip_exit_strictness_variants_30m.json \
   --symbol TQQQ --bar-size "30 mins" --use-rth --offline --cache-dir db --top 96 --max-open 1 \
   --require-positive-pnl --min-trades 150 \
   --window 2016-01-01:2026-01-19 --window 2024-01-01:2026-01-19 --window 2025-01-01:2026-01-19 \
   --write-top 80 --out backtests/out/tqqq_exec5m_v10e_flip_exit_strictness_30m_10y2y1y_mintr150_top80.json
 
 # 0i2) Latest (v10i): bias neighborhood around the v10e top (ST ATR × mult × src)
-python -m tradebot.backtest multitimeframe --milestones backtests/out/tqqq_exec5m_v10i_st_neighborhood_variants_30m.json \
+python -m tradebot.backtest spot_multitimeframe --milestones backtests/out/tqqq_exec5m_v10i_st_neighborhood_variants_30m.json \
   --symbol TQQQ --bar-size "30 mins" --use-rth --offline --cache-dir db --top 40 --max-open 1 \
   --require-positive-pnl --min-trades 150 \
   --window 2016-01-01:2026-01-19 --window 2024-01-01:2026-01-19 --window 2025-01-01:2026-01-19 \
   --write-top 80 --out backtests/out/tqqq_exec5m_v10i_st_neighborhood_30m_10y2y1y_mintr150_top80.json
 
 # 0j) Exploratory (v10h): >=300 trades/1y feasibility on 1y-only (wide universe)
-python -m tradebot.backtest multitimeframe --milestones backtests/out/tqqq_exec5m_v8b_high_activity_rescue_variants_30m.json \
+python -m tradebot.backtest spot_multitimeframe --milestones backtests/out/tqqq_exec5m_v8b_high_activity_rescue_variants_30m.json \
   --symbol TQQQ --bar-size "30 mins" --use-rth --offline --cache-dir db --top 3888 --max-open 1 \
   --require-positive-pnl --min-trades 300 --window 2025-01-01:2026-01-19 \
   --write-top 300 --out backtests/out/tqqq_exec5m_v10h_v8b_universe_1y_mintr300_top300.json
 
 # 0k) Exploratory (v10h): multiwindow eval @ min_trades=300 (none passed)
-python -m tradebot.backtest multitimeframe --milestones backtests/out/tqqq_exec5m_v10h_v8b_universe_1y_mintr300_top300.json \
+python -m tradebot.backtest spot_multitimeframe --milestones backtests/out/tqqq_exec5m_v10h_v8b_universe_1y_mintr300_top300.json \
   --symbol TQQQ --bar-size "30 mins" --use-rth --offline --cache-dir db --top 300 --max-open 1 \
   --require-positive-pnl --min-trades 300 \
   --window 2016-01-01:2026-01-19 --window 2024-01-01:2026-01-19 --window 2025-01-01:2026-01-19 \
   --write-top 80 --out backtests/out/tqqq_exec5m_v10h_v8b_universe_30m_10y2y1y_mintr300_top80.json
 
 # 0g) Latest (v9c): high-slope permission gate squeeze (ema_slope_min_pct only)
-python -m tradebot.backtest multitimeframe --milestones backtests/out/tqqq_exec5m_v9c_high_slope_variants_30m.json \
+python -m tradebot.backtest spot_multitimeframe --milestones backtests/out/tqqq_exec5m_v9c_high_slope_variants_30m.json \
   --symbol TQQQ --bar-size "30 mins" --use-rth --offline --cache-dir db --top 13 --max-open 1 \
   --require-positive-pnl --min-trades 100 \
   --window 2016-01-01:2026-01-19 --window 2024-01-01:2026-01-19 --window 2025-01-01:2026-01-19 \
   --write-top 80 --out backtests/out/tqqq_exec5m_v9c_high_slope_30m_10y2y1y_mintr100_top80.json
 
 # 0f) Latest (v9b): exit accuracy sweep (gate × hold × exit_time; seeded from v9a)
-python -m tradebot.backtest multitimeframe --milestones backtests/out/tqqq_exec5m_v9b_exit_accuracy_variants_30m.json \
+python -m tradebot.backtest spot_multitimeframe --milestones backtests/out/tqqq_exec5m_v9b_exit_accuracy_variants_30m.json \
   --symbol TQQQ --bar-size "30 mins" --use-rth --offline --cache-dir db --top 27 --max-open 1 \
   --require-positive-pnl --min-trades 100 \
   --window 2016-01-01:2026-01-19 --window 2024-01-01:2026-01-19 --window 2025-01-01:2026-01-19 \
   --write-top 80 --out backtests/out/tqqq_exec5m_v9b_exit_accuracy_30m_10y2y1y_mintr100_top80.json
 
 # 0e) Latest (v9a): permission/short neighborhood squeeze (slope_min × short_spread_min × short_risk)
-python -m tradebot.backtest multitimeframe --milestones backtests/out/tqqq_exec5m_v9a_gate_shortrisk_micro_variants_30m.json \
+python -m tradebot.backtest spot_multitimeframe --milestones backtests/out/tqqq_exec5m_v9a_gate_shortrisk_micro_variants_30m.json \
   --symbol TQQQ --bar-size "30 mins" --use-rth --offline --cache-dir db --top 54 --max-open 1 \
   --require-positive-pnl --min-trades 100 \
   --window 2016-01-01:2026-01-19 --window 2024-01-01:2026-01-19 --window 2025-01-01:2026-01-19 \
   --write-top 80 --out backtests/out/tqqq_exec5m_v9a_gate_shortrisk_micro_30m_10y2y1y_mintr100_top80.json
 
 # 0d) Latest (v8c): permission micro sweep (small)
-python -m tradebot.backtest multitimeframe --milestones backtests/out/tqqq_exec5m_v8c_perm_micro_variants_30m.json \
+python -m tradebot.backtest spot_multitimeframe --milestones backtests/out/tqqq_exec5m_v8c_perm_micro_variants_30m.json \
   --symbol TQQQ --bar-size "30 mins" --use-rth --offline --cache-dir db --top 80 --max-open 1 \
   --require-positive-pnl --min-trades 100 \
   --window 2016-01-01:2026-01-19 --window 2024-01-01:2026-01-19 --window 2025-01-01:2026-01-19 \
   --write-top 80 --out backtests/out/tqqq_exec5m_v8c_perm_micro_30m_10y2y1y_mintr100_top80.json
 
 # 0c) Latest (v8a): bias neighborhood micro sweep (small)
-python -m tradebot.backtest multitimeframe --milestones backtests/out/tqqq_exec5m_v8a_bias_neighborhood_variants_30m.json \
+python -m tradebot.backtest spot_multitimeframe --milestones backtests/out/tqqq_exec5m_v8a_bias_neighborhood_variants_30m.json \
   --symbol TQQQ --bar-size "30 mins" --use-rth --offline --cache-dir db --top 54 --max-open 1 \
   --require-positive-pnl --min-trades 100 \
   --window 2016-01-01:2026-01-19 --window 2024-01-01:2026-01-19 --window 2025-01-01:2026-01-19 \
   --write-top 80 --out backtests/out/tqqq_exec5m_v8a_bias_neighborhood_30m_10y2y1y_mintr100_top80.json
 
 # 0b) Latest (v7c): flip-exit micro sweep (very small)
-python -m tradebot.backtest multitimeframe --milestones backtests/out/tqqq_exec5m_v7c_flip_exit_gate_variants_30m.json \
+python -m tradebot.backtest spot_multitimeframe --milestones backtests/out/tqqq_exec5m_v7c_flip_exit_gate_variants_30m.json \
   --symbol TQQQ --bar-size "30 mins" --use-rth --offline --cache-dir db --top 15 --max-open 1 \
   --require-positive-pnl --min-trades 100 \
   --window 2016-01-01:2026-01-19 --window 2024-01-01:2026-01-19 --window 2025-01-01:2026-01-19 \
@@ -621,13 +655,13 @@ python -m tradebot.backtest multitimeframe --milestones backtests/out/tqqq_exec5
 
 # (v8b, exploratory) High-activity rescue attempt:
 # Stage 1: 1y prefilter @ min_trades=200 (fast)
-python -m tradebot.backtest multitimeframe --milestones backtests/out/tqqq_exec5m_v8b_high_activity_rescue_variants_30m.json \
+python -m tradebot.backtest spot_multitimeframe --milestones backtests/out/tqqq_exec5m_v8b_high_activity_rescue_variants_30m.json \
   --symbol TQQQ --bar-size "30 mins" --use-rth --offline --cache-dir db --top 3888 --max-open 1 \
   --require-positive-pnl --min-trades 200 --window 2025-01-01:2026-01-19 \
   --write-top 600 --out backtests/out/tqqq_exec5m_v8b_high_activity_rescue_1y_mintr200_top600.json
 
 # Stage 2: 10y/2y/1y stability scoring on the 1y-shortlist
-python -m tradebot.backtest multitimeframe --milestones backtests/out/tqqq_exec5m_v8b_high_activity_rescue_1y_mintr200_top600.json \
+python -m tradebot.backtest spot_multitimeframe --milestones backtests/out/tqqq_exec5m_v8b_high_activity_rescue_1y_mintr200_top600.json \
   --symbol TQQQ --bar-size "30 mins" --use-rth --offline --cache-dir db --top 600 --max-open 1 \
   --require-positive-pnl --min-trades 200 \
   --window 2016-01-01:2026-01-19 --window 2024-01-01:2026-01-19 --window 2025-01-01:2026-01-19 \
@@ -636,32 +670,32 @@ python -m tradebot.backtest multitimeframe --milestones backtests/out/tqqq_exec5
 # 0) Latest (v6): activity/session filter sweep (small, no prefilter needed)
 #    - entry_start/end_hour_et ∈ {10,11,12} × {14,15}
 #    - skip_first_bars ∈ {0,1,2}, cooldown_bars ∈ {0,1,2,3}
-python -m tradebot.backtest multitimeframe --milestones backtests/out/tqqq_exec5m_v6_activity_filters_variants.json \
+python -m tradebot.backtest spot_multitimeframe --milestones backtests/out/tqqq_exec5m_v6_activity_filters_variants.json \
   --symbol TQQQ --bar-size "30 mins" --use-rth --offline --cache-dir db --top 80 --max-open 1 \
   --require-positive-pnl --min-trades 100 \
   --window 2016-01-01:2026-01-19 --window 2024-01-01:2026-01-19 --window 2025-01-01:2026-01-19 \
   --write-top 80 --out backtests/out/tqqq_exec5m_v6_activity_filters_10y2y1y_mintr100_top80.json
 
 # 1) Fast 2y prefilter (keeps the multiwindow run small)
-python -m tradebot.backtest multitimeframe --milestones backtests/out/tqqq_exec5m_evolve_v4_variants.json \
+python -m tradebot.backtest spot_multitimeframe --milestones backtests/out/tqqq_exec5m_evolve_v4_variants.json \
   --symbol TQQQ --bar-size "30 mins" --use-rth --offline --cache-dir db --top 3240 --max-open 1 \
   --require-positive-pnl --min-trades 200 --window 2024-01-01:2026-01-19 \
   --write-top 500 --out backtests/out/tqqq_exec5m_evolve_v4_2y_top500.json
 
 # 2) Multiwindow kingmaker scoring (10y + 2y + 1y)
-python -m tradebot.backtest multitimeframe --milestones backtests/out/tqqq_exec5m_evolve_v4_2y_top500.json \
+python -m tradebot.backtest spot_multitimeframe --milestones backtests/out/tqqq_exec5m_evolve_v4_2y_top500.json \
   --symbol TQQQ --bar-size "30 mins" --use-rth --offline --cache-dir db --top 500 --max-open 1 \
   --require-positive-pnl --min-trades 100 \
   --window 2016-01-01:2026-01-19 --window 2024-01-01:2026-01-19 --window 2025-01-01:2026-01-19 \
   --write-top 80 --out backtests/out/tqqq_exec5m_evolve_v4_10y2y1y_mintr100_champs_top80.json
 
 # (Optional, next iteration) Run the v5 fine neighborhood:
-python -m tradebot.backtest multitimeframe --milestones backtests/out/tqqq_exec5m_evolve_v5_fine_variants.json \
+python -m tradebot.backtest spot_multitimeframe --milestones backtests/out/tqqq_exec5m_evolve_v5_fine_variants.json \
   --symbol TQQQ --bar-size "30 mins" --use-rth --offline --cache-dir db --top 1512 --max-open 1 \
   --require-positive-pnl --min-trades 200 --window 2024-01-01:2026-01-19 \
   --write-top 300 --out backtests/out/tqqq_exec5m_evolve_v5_fine_2y_top300.json
 
-python -m tradebot.backtest multitimeframe --milestones backtests/out/tqqq_exec5m_evolve_v5_fine_2y_top300.json \
+python -m tradebot.backtest spot_multitimeframe --milestones backtests/out/tqqq_exec5m_evolve_v5_fine_2y_top300.json \
   --symbol TQQQ --bar-size "30 mins" --use-rth --offline --cache-dir db --top 300 --max-open 1 \
   --require-positive-pnl --min-trades 100 \
   --window 2016-01-01:2026-01-19 --window 2024-01-01:2026-01-19 --window 2025-01-01:2026-01-19 \
@@ -926,26 +960,26 @@ Additional exploration runs (recorded commands; 2026-01-21):
 Repro commands:
 ```bash
 # 2y discovery (generate candidate pools)
-python -m tradebot.backtest.evolve_spot --offline --cache-dir db --symbol TQQQ --use-rth \
+python -m tradebot.backtest spot --offline --cache-dir db --symbol TQQQ --use-rth \
   --start 2024-01-01 --end 2026-01-19 --bar-size "30 mins" --spot-exec-bar-size "5 mins" \
   --realism2 --base default --axis combo --max-open-trades 1 --min-trades 240 \
   --write-milestones --milestones-out backtests/out/tqqq_exec5m_combo_30m_2y_candidates_wr52.json \
   --milestone-min-win 0.52 --milestone-min-trades 240 --milestone-min-pnl-dd 0.0
 
-python -m tradebot.backtest.evolve_spot --offline --cache-dir db --symbol TQQQ --use-rth \
+python -m tradebot.backtest spot --offline --cache-dir db --symbol TQQQ --use-rth \
   --start 2024-01-01 --end 2026-01-19 --bar-size "1 hour" --spot-exec-bar-size "5 mins" \
   --realism2 --base default --axis combo --max-open-trades 1 --min-trades 200 \
   --write-milestones --milestones-out backtests/out/tqqq_exec5m_combo_1h_2y_candidates_wr52.json \
   --milestone-min-win 0.52 --milestone-min-trades 200 --milestone-min-pnl-dd 0.0
 
 # 2y/1y stability scoring (kingmaker = multi-window eval)
-python -m tradebot.backtest multitimeframe --milestones backtests/out/tqqq_exec5m_combo_30m_2y_candidates_wr52.json \
+python -m tradebot.backtest spot_multitimeframe --milestones backtests/out/tqqq_exec5m_combo_30m_2y_candidates_wr52.json \
   --symbol TQQQ --bar-size "30 mins" --use-rth --offline --cache-dir db --top 500 --max-open 1 \
   --require-positive-pnl --min-trades 120 --min-win 0.56 \
   --window 2024-01-01:2026-01-19 --window 2025-01-01:2026-01-19 \
   --write-top 400 --out backtests/out/tqqq_exec5m_combo_30m_wr56_2y1y_kingmaker_all.json
 
-python -m tradebot.backtest multitimeframe --milestones backtests/out/tqqq_exec5m_combo_1h_2y_candidates_wr52.json \
+python -m tradebot.backtest spot_multitimeframe --milestones backtests/out/tqqq_exec5m_combo_1h_2y_candidates_wr52.json \
   --symbol TQQQ --bar-size "1 hour" --use-rth --offline --cache-dir db --top 250 --max-open 1 \
   --require-positive-pnl --min-trades 120 --min-win 0.56 \
   --window 2024-01-01:2026-01-19 --window 2025-01-01:2026-01-19 \
@@ -1000,11 +1034,11 @@ Legacy note (2026-01-22): 10y-positive **two-way** exists (but still low-activit
   - 10y+2y+1y winners: `backtests/out/tqqq_seeded10y_exec5m_shortrisk_10y2y1y_top60.json`
   - Repro (offline):
     ```bash
-    python -m tradebot.backtest multitimeframe --milestones backtests/out/tqqq_seeded10y_exec5m_shortrisk_variants.json \
+    python -m tradebot.backtest spot_multitimeframe --milestones backtests/out/tqqq_seeded10y_exec5m_shortrisk_variants.json \
       --symbol TQQQ --bar-size "30 mins" --use-rth --offline --cache-dir db --top 300 --max-open 1 --require-positive-pnl \
       --window 2016-01-01:2026-01-19 --write-top 60 --out backtests/out/tqqq_seeded10y_exec5m_shortrisk_10y_only_top60.json
 
-    python -m tradebot.backtest multitimeframe --milestones backtests/out/tqqq_seeded10y_exec5m_shortrisk_10y_only_top60.json \
+    python -m tradebot.backtest spot_multitimeframe --milestones backtests/out/tqqq_seeded10y_exec5m_shortrisk_10y_only_top60.json \
       --symbol TQQQ --bar-size "30 mins" --use-rth --offline --cache-dir db --top 60 --max-open 1 --require-positive-pnl \
       --window 2016-01-01:2026-01-19 --window 2024-01-01:2026-01-19 --window 2025-01-01:2026-01-19 \
       --write-top 60 --out backtests/out/tqqq_seeded10y_exec5m_shortrisk_10y2y1y_top60.json
@@ -1134,8 +1168,8 @@ These are older “Realism v1” TQQQ presets (still useful for directionally te
     - 2025→2026-01-19: `tr=92`, `win=68.5%`, `pnl=9.22`, `dd=4.49`, `pnl/dd=2.06`
 
 Repro notes:
-- Candidate pool generation: `python -m tradebot.backtest.evolve_spot --axis combo --realism2 --long-only ... --write-milestones --milestones-out tradebot/backtest/spot_milestones.tqqq_10y_<bar>_realism_v2.json`
-- Stability scoring: `python -m tradebot.backtest multitimeframe --milestones tradebot/backtest/spot_milestones.tqqq_10y_<bar>_realism_v2.json --max-open <N> --require-positive-pnl ...`
+- Candidate pool generation: `python -m tradebot.backtest spot --axis combo --realism2 --long-only ... --write-milestones --milestones-out backtests/out/presets/spot_milestones.tqqq_10y_<bar>_realism_v2.json`
+- Stability scoring: `python -m tradebot.backtest spot_multitimeframe --milestones backtests/out/presets/spot_milestones.tqqq_10y_<bar>_realism_v2.json --max-open <N> --require-positive-pnl ...`
 
 #### LEGACY (pre-realism; optimistic)
 Note:
@@ -1166,7 +1200,7 @@ Note: We fixed daily-bar timestamp normalization on 2026-01-11 to avoid lookahea
 ### LEGACY / OUTDATED (pre-fix, for archaeology only)
 These are spot presets recorded **before** the 2026-01-14 intraday-bar timestamp normalization fix.
 
-They are preserved for archaeology in `tradebot/backtest/spot_milestones.legacy_pre_2026-01-14_intraday_ts_fix.json`, but should **not** be trusted for decision-making because they were affected by multi-timeframe lookahead leakage (notably `4 hours` regime gating on intraday signal bars).
+They are preserved for archaeology in `backtests/out/presets/spot_milestones.legacy_pre_2026-01-14_intraday_ts_fix.json`, but should **not** be trusted for decision-making because they were affected by multi-timeframe lookahead leakage (notably `4 hours` regime gating on intraday signal bars).
 
 #### Prior 30m/1h “champions” (pre-2026-01-14 intraday ts fix; do not trust)
 - “New best 30m (risk-adjusted)” (recorded 2026-01-11): `trades=1067`, `win=58.1%`, `pnl=+56377.0`, `dd=897.5`, `pnl/dd=62.82`

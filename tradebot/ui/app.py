@@ -18,34 +18,27 @@ from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
 from textual.widgets import Header, Footer, DataTable, Static
 
-from .client import IBKRClient
-from .config import load_config
-from .decision_core import (
-    AtrRatioShockEngine,
-    DailyAtrPctShockEngine,
-    DailyDrawdownShockEngine,
-    EmaDecisionEngine,
+from ..client import IBKRClient
+from ..config import load_config
+from ..date_utils import add_business_days, business_days_until
+from ..engine import (
     EmaDecisionSnapshot,
-    OrbDecisionEngine,
-    SupertrendEngine,
-    apply_regime_gate,
+    RiskOverlaySnapshot,
     cooldown_ok_by_time,
     flip_exit_hit,
     parse_time_hhmm,
-    realized_vol_from_closes,
     signal_filters_ok,
 )
-from .signals import (
+from ..signals import (
     direction_from_action_right,
-    ema_next,
-    ema_periods,
     ema_state_direction,
     flip_exit_mode,
     parse_bar_size,
 )
-from .store import PortfolioSnapshot
+from ..store import PortfolioSnapshot
 
 
+# region Formatting Helpers
 def _fmt_expiry(raw: str) -> str:
     if len(raw) == 8 and raw.isdigit():
         return f"{raw[:4]}-{raw[4:6]}-{raw[6:]}"
@@ -62,8 +55,10 @@ def _fmt_qty(value: float) -> str:
 
 def _fmt_money(value: float) -> str:
     return f"{value:,.2f}"
+# endregion
 
 
+# region Positions UI
 class PositionsApp(App):
     BINDINGS = [
         ("q", "quit", "Quit"),
@@ -1363,6 +1358,10 @@ def _trade_sort_key(trade: Trade) -> int:
     return int(order_id or perm_id or 0)
 
 
+# endregion
+
+
+# region Bot UI
 @dataclass(frozen=True)
 class _BotPreset:
     group: str
@@ -1448,6 +1447,8 @@ class _SignalSnapshot:
     volume_ema_ready: bool = True
     shock: bool | None = None
     shock_dir: str | None = None
+    shock_atr_pct: float | None = None
+    risk: RiskOverlaySnapshot | None = None
     atr: float | None = None
     or_high: float | None = None
     or_low: float | None = None
@@ -1959,12 +1960,10 @@ class BotScreen(Screen):
         super().__init__()
         self._client = client
         self._refresh_sec = max(refresh_sec, 0.25)
-        self._leaderboard_path = (
-            Path(__file__).resolve().parent / "backtest" / "leaderboard.json"
-        )
-        self._spot_milestones_path = (
-            Path(__file__).resolve().parent / "backtest" / "spot_milestones.json"
-        )
+        base = Path(__file__).resolve().parents[1]
+        self._leaderboard_path = base / "backtest" / "leaderboard.json"
+        self._spot_milestones_path = base / "backtest" / "spot_milestones.json"
+        self._spot_champions_path = base / "backtest" / "spot_champions.json"
         self._payload: dict | None = None
         self._presets: list[_BotPreset] = []
         self._preset_rows: list[_BotPreset | None] = []
@@ -2376,6 +2375,27 @@ class BotScreen(Screen):
             payload = {}
 
         try:
+            if self._spot_champions_path.exists():
+                champ_payload = json.loads(self._spot_champions_path.read_text())
+                if isinstance(champ_payload, dict):
+                    champ_groups = champ_payload.get("groups", [])
+                    if isinstance(champ_groups, list) and champ_groups:
+                        base_groups = payload.get("groups", [])
+                        if not isinstance(base_groups, list):
+                            base_groups = []
+                        merged = []
+                        seen = set()
+                        for group in list(champ_groups) + list(base_groups):
+                            if not isinstance(group, dict):
+                                continue
+                            name = str(group.get("name"))
+                            if name and name in seen:
+                                continue
+                            merged.append(group)
+                            if name:
+                                seen.add(name)
+                        payload["groups"] = merged
+
             if self._spot_milestones_path.exists():
                 spot_payload = json.loads(self._spot_milestones_path.read_text())
                 if isinstance(spot_payload, dict):
@@ -2692,6 +2712,7 @@ class BotScreen(Screen):
                 entry_mode_raw=instance.strategy.get("ema_entry_mode"),
                 entry_confirm_bars=instance.strategy.get("entry_confirm_bars", 0),
                 orb_window_mins_raw=instance.strategy.get("orb_window_mins"),
+                orb_open_time_et_raw=instance.strategy.get("orb_open_time_et"),
                 regime_ema_preset_raw=instance.strategy.get("regime_ema_preset"),
                 regime_bar_size_raw=instance.strategy.get("regime_bar_size"),
                 regime_mode_raw=instance.strategy.get("regime_mode"),
@@ -2732,21 +2753,21 @@ class BotScreen(Screen):
                 bar_size=self._signal_bar_size(instance),
                 cooldown_bars=cooldown_bars,
             )
-	            if not signal_filters_ok(
-	                instance.filters,
-	                bar_ts=snap.bar_ts,
-	                bars_in_day=snap.bars_in_day,
-	                close=float(snap.close),
-	                volume=snap.volume,
-	                volume_ema=snap.volume_ema,
-	                volume_ema_ready=snap.volume_ema_ready,
-	                rv=snap.rv,
-	                signal=snap.signal,
-	                cooldown_ok=cooldown_ok,
-	                shock=snap.shock,
-	                shock_dir=snap.shock_dir,
-	            ):
-	                continue
+            if not signal_filters_ok(
+                instance.filters,
+                bar_ts=snap.bar_ts,
+                bars_in_day=snap.bars_in_day,
+                close=float(snap.close),
+                volume=snap.volume,
+                volume_ema=snap.volume_ema,
+                volume_ema_ready=snap.volume_ema_ready,
+                rv=snap.rv,
+                signal=snap.signal,
+                cooldown_ok=cooldown_ok,
+                shock=snap.shock,
+                shock_dir=snap.shock_dir,
+            ):
+                continue
 
             instrument = self._strategy_instrument(instance.strategy)
             open_items: list[PortfolioItem] = []
@@ -2860,6 +2881,25 @@ class BotScreen(Screen):
                         )
                     except (TypeError, ValueError):
                         sl = None
+
+                    # Dynamic shock SL/PT: mirror backtest semantics for pct-based exits.
+                    if bool(snap.shock) and isinstance(instance.filters, dict):
+                        try:
+                            sl_mult = float(instance.filters.get("shock_stop_loss_pct_mult", 1.0) or 1.0)
+                        except (TypeError, ValueError):
+                            sl_mult = 1.0
+                        try:
+                            pt_mult = float(instance.filters.get("shock_profit_target_pct_mult", 1.0) or 1.0)
+                        except (TypeError, ValueError):
+                            pt_mult = 1.0
+                        if sl_mult <= 0:
+                            sl_mult = 1.0
+                        if pt_mult <= 0:
+                            pt_mult = 1.0
+                        if sl is not None and float(sl) > 0:
+                            sl = min(float(sl) * float(sl_mult), 0.99)
+                        if pt is not None and float(pt) > 0:
+                            pt = min(float(pt) * float(pt_mult), 0.99)
 
                     if move is not None and pt is not None and move >= pt:
                         self._queue_proposal(
@@ -3219,15 +3259,68 @@ class BotScreen(Screen):
             return bool(self._payload.get("use_rth", False))
         return False
 
-    def _signal_duration_str(self, bar_size: str) -> str:
+    def _signal_duration_str(self, bar_size: str, *, filters: dict | None = None) -> str:
         label = str(bar_size or "").strip().lower()
+
+        def _rank(duration: str) -> int:
+            order = ("1 W", "2 W", "1 M", "2 M", "3 M", "6 M", "1 Y", "2 Y")
+            cleaned = str(duration or "").strip()
+            try:
+                return order.index(cleaned)
+            except ValueError:
+                return 0
+
+        def _max_duration(a: str, b: str) -> str:
+            return a if _rank(a) >= _rank(b) else b
+
+        base = "2 W"
         if label.startswith(("5 mins", "15 mins", "30 mins")):
-            return "1 W"
-        if "hour" in label:
-            return "2 W"
-        if "day" in label:
-            return "1 Y"
-        return "2 W"
+            base = "1 W"
+        elif "hour" in label:
+            base = "2 W"
+        elif "day" in label:
+            base = "1 Y"
+
+        if not isinstance(filters, dict) or not filters:
+            return base
+
+        # Daily shock detectors need enough sessions to become ready; otherwise shock gating and
+        # shock-based overlays never engage (even if configured in filters).
+        from ..engine import normalize_shock_detector, normalize_shock_gate_mode
+
+        shock_mode = normalize_shock_gate_mode(filters)
+        if shock_mode == "off":
+            return base
+        detector = normalize_shock_detector(filters)
+        if detector not in ("daily_atr_pct", "daily_drawdown"):
+            return base
+
+        days_needed = None
+        if detector == "daily_atr_pct":
+            raw = filters.get("shock_daily_atr_period", 14)
+            try:
+                days_needed = int(raw or 14)
+            except (TypeError, ValueError):
+                days_needed = 14
+            days_needed = max(1, int(days_needed))
+        else:
+            raw = filters.get("shock_drawdown_lookback_days", 20)
+            try:
+                days_needed = int(raw or 20)
+            except (TypeError, ValueError):
+                days_needed = 20
+            days_needed = max(2, int(days_needed))
+
+        # Map required daily lookback into an IB duration string.
+        if days_needed <= 20:
+            needed = "2 M"
+        elif days_needed <= 45:
+            needed = "3 M"
+        elif days_needed <= 90:
+            needed = "6 M"
+        else:
+            needed = "1 Y"
+        return _max_duration(base, needed)
 
     async def _signal_snapshot_for_contract(
         self,
@@ -3238,6 +3331,7 @@ class BotScreen(Screen):
         use_rth: bool,
         entry_signal_raw: str | None = None,
         orb_window_mins_raw: int | None = None,
+        orb_open_time_et_raw: str | None = None,
         entry_mode_raw: str | None = None,
         entry_confirm_bars: int = 0,
         spot_exit_mode_raw: str | None = None,
@@ -3256,40 +3350,32 @@ class BotScreen(Screen):
         regime2_supertrend_source_raw: str | None = None,
         filters: dict | None = None,
     ) -> _SignalSnapshot | None:
+        from ..bar_utils import trim_incomplete_last_bar
+        from ..spot_engine import SpotSignalEvaluator
+
         entry_signal = str(entry_signal_raw or "ema").strip().lower()
         if entry_signal not in ("ema", "orb"):
             entry_signal = "ema"
-        slow_p = None
-        if entry_signal == "ema":
-            periods = ema_periods(ema_preset_raw)
-            if periods is None:
-                return None
-            _, slow_p = periods
 
         bars = await self._client.historical_bars_ohlcv(
             contract,
-            duration_str=self._signal_duration_str(bar_size),
+            duration_str=self._signal_duration_str(bar_size, filters=filters),
             bar_size=bar_size,
             use_rth=use_rth,
             cache_ttl_sec=30.0,
         )
         if not bars:
             return None
-
-        bar_def = parse_bar_size(bar_size)
-        if bar_def is not None and len(bars) >= 2:
-            now_ref = datetime.now(tz=timezone.utc).replace(tzinfo=None)
-            last_ts = bars[-1].ts
-            if last_ts + bar_def.duration > now_ref:
-                bars = bars[:-1]
-        if slow_p is not None and len(bars) < (slow_p + 1):
+        now_ref = datetime.now(tz=timezone.utc).replace(tzinfo=None)
+        bars = trim_incomplete_last_bar(bars, bar_size=bar_size, now_ref=now_ref)
+        if not bars:
             return None
 
         regime_mode = str(regime_mode_raw or "ema").strip().lower()
         if regime_mode not in ("ema", "supertrend"):
             regime_mode = "ema"
 
-        regime_preset = str(regime_ema_preset_raw or "").strip()
+        regime_preset = str(regime_ema_preset_raw or "").strip() or None
         regime_bar_size = str(regime_bar_size_raw or "").strip()
         if not regime_bar_size or regime_bar_size.lower() in ("same", "default"):
             regime_bar_size = str(bar_size)
@@ -3298,537 +3384,132 @@ class BotScreen(Screen):
         else:
             use_mtf_regime = bool(regime_preset) and (str(regime_bar_size) != str(bar_size))
 
-        volume_period: int | None = None
-        if isinstance(filters, dict) and filters.get("volume_ratio_min") is not None:
-            raw_period = filters.get("volume_ema_period")
-            try:
-                volume_period = int(raw_period) if raw_period is not None else 20
-            except (TypeError, ValueError):
-                volume_period = 20
-            volume_period = max(1, volume_period)
-
-        exit_mode = str(spot_exit_mode_raw or "pct").strip().lower()
-        if exit_mode not in ("pct", "atr"):
-            exit_mode = "pct"
-        exit_atr_engine = None
-        last_exit_atr = None
-        if exit_mode == "atr":
-            try:
-                atr_p = int(spot_atr_period_raw) if spot_atr_period_raw is not None else 14
-            except (TypeError, ValueError):
-                atr_p = 14
-            atr_p = max(1, atr_p)
-            exit_atr_engine = SupertrendEngine(atr_period=atr_p, multiplier=1.0, source="hl2")
-
-        ema_engine = None
-        orb_engine = None
-        if entry_signal == "ema":
-            try:
-                ema_engine = EmaDecisionEngine(
-                    ema_preset=str(ema_preset_raw),
-                    ema_entry_mode=entry_mode_raw,
-                    entry_confirm_bars=entry_confirm_bars,
-                    regime_ema_preset=(
-                        None if (use_mtf_regime or regime_mode == "supertrend") else regime_ema_preset_raw
-                    ),
-                )
-            except ValueError:
-                return None
-        else:
-            try:
-                window = int(orb_window_mins_raw) if orb_window_mins_raw is not None else 15
-            except (TypeError, ValueError):
-                window = 15
-            window = max(1, window)
-            orb_open_time = parse_time_hhmm(instance.strategy.get("orb_open_time_et"), default=time(9, 30))
-            if orb_open_time is None:
-                orb_open_time = time(9, 30)
-            orb_engine = OrbDecisionEngine(window_mins=window, open_time_et=orb_open_time)
-
-        last_ts = None
-        last_close = None
-        last_volume = None
-        closes: list[float] = []
-        last_signal = None
-        volume_ema = None
-        volume_count = 0
-        shock_engine = None
-        last_shock = None
-        shock_mode = None
-        if isinstance(filters, dict):
-            shock_mode = filters.get("shock_gate_mode")
-            if shock_mode is None:
-                shock_mode = filters.get("shock_mode")
-        if isinstance(shock_mode, bool):
-            shock_mode = "block" if shock_mode else "off"
-        shock_mode = str(shock_mode or "off").strip().lower()
-        if shock_mode in ("", "0", "false", "none", "null"):
-            shock_mode = "off"
-        if shock_mode not in ("off", "detect", "block", "block_longs", "block_shorts", "surf"):
-            shock_mode = "off"
-        if shock_mode != "off":
-            shock_detector = "atr_ratio"
-            if isinstance(filters, dict):
-                shock_detector = str(filters.get("shock_detector") or "atr_ratio").strip().lower()
-            if shock_detector in ("daily", "daily_atr", "daily_atr_pct", "daily_atr14", "daily_atr%"):
-                shock_detector = "daily_atr_pct"
-            if shock_detector in ("drawdown", "daily_drawdown", "daily-dd", "dd", "peak_dd", "peak_drawdown"):
-                shock_detector = "daily_drawdown"
-            if shock_detector not in ("atr_ratio", "daily_atr_pct", "daily_drawdown"):
-                shock_detector = "atr_ratio"
-
-            try:
-                atr_fast = int(filters.get("shock_atr_fast_period")) if isinstance(filters, dict) else 7
-            except (TypeError, ValueError):
-                atr_fast = 7
-            try:
-                atr_slow = int(filters.get("shock_atr_slow_period")) if isinstance(filters, dict) else 50
-            except (TypeError, ValueError):
-                atr_slow = 50
-            try:
-                on_ratio = float(filters.get("shock_on_ratio")) if isinstance(filters, dict) else 1.55
-            except (TypeError, ValueError):
-                on_ratio = 1.55
-            try:
-                off_ratio = float(filters.get("shock_off_ratio")) if isinstance(filters, dict) else 1.30
-            except (TypeError, ValueError):
-                off_ratio = 1.30
-            try:
-                min_atr_pct = float(filters.get("shock_min_atr_pct")) if isinstance(filters, dict) else 7.0
-            except (TypeError, ValueError):
-                min_atr_pct = 7.0
-            try:
-                dir_lb = int(filters.get("shock_direction_lookback")) if isinstance(filters, dict) else 2
-            except (TypeError, ValueError):
-                dir_lb = 2
-            if shock_detector == "daily_atr_pct":
-                try:
-                    daily_period = int(filters.get("shock_daily_atr_period")) if isinstance(filters, dict) else 14
-                except (TypeError, ValueError):
-                    daily_period = 14
-                try:
-                    daily_on = float(filters.get("shock_daily_on_atr_pct")) if isinstance(filters, dict) else 13.0
-                except (TypeError, ValueError):
-                    daily_on = 13.0
-                try:
-                    daily_off = float(filters.get("shock_daily_off_atr_pct")) if isinstance(filters, dict) else 11.0
-                except (TypeError, ValueError):
-                    daily_off = 11.0
-                try:
-                    daily_tr_on = float(filters.get("shock_daily_on_tr_pct")) if isinstance(filters, dict) else None
-                except (TypeError, ValueError):
-                    daily_tr_on = None
-                if daily_tr_on is not None and daily_tr_on <= 0:
-                    daily_tr_on = None
-                if daily_off > daily_on:
-                    daily_off = daily_on
-                shock_engine = DailyAtrPctShockEngine(
-                    atr_period=max(1, int(daily_period)),
-                    on_atr_pct=float(daily_on),
-                    off_atr_pct=float(daily_off),
-                    on_tr_pct=float(daily_tr_on) if daily_tr_on is not None else None,
-                    direction_lookback=max(1, int(dir_lb)),
-                )
-            elif shock_detector == "daily_drawdown":
-                try:
-                    dd_lb = int(filters.get("shock_drawdown_lookback_days")) if isinstance(filters, dict) else 20
-                except (TypeError, ValueError):
-                    dd_lb = 20
-                try:
-                    dd_on = float(filters.get("shock_on_drawdown_pct")) if isinstance(filters, dict) else -20.0
-                except (TypeError, ValueError):
-                    dd_on = -20.0
-                try:
-                    dd_off = float(filters.get("shock_off_drawdown_pct")) if isinstance(filters, dict) else -10.0
-                except (TypeError, ValueError):
-                    dd_off = -10.0
-                if dd_off < dd_on:
-                    dd_off = dd_on
-                shock_engine = DailyDrawdownShockEngine(
-                    lookback_days=max(2, int(dd_lb)),
-                    on_drawdown_pct=float(dd_on),
-                    off_drawdown_pct=float(dd_off),
-                    direction_lookback=max(1, int(dir_lb)),
-                )
-            else:
-                shock_engine = AtrRatioShockEngine(
-                    atr_fast_period=max(1, int(atr_fast)),
-                    atr_slow_period=max(1, int(atr_slow)),
-                    on_ratio=float(on_ratio),
-                    off_ratio=float(off_ratio),
-                    min_atr_pct=float(min_atr_pct),
-                    direction_lookback=max(1, int(dir_lb)),
-                    source=str(supertrend_source_raw or "hl2").strip().lower() or "hl2",
-                )
-        supertrend_engine = None
-        last_supertrend = None
-        if regime_mode == "supertrend" and not use_mtf_regime:
-            try:
-                atr_p = int(supertrend_atr_period_raw) if supertrend_atr_period_raw is not None else 10
-            except (TypeError, ValueError):
-                atr_p = 10
-            try:
-                mult = (
-                    float(supertrend_multiplier_raw)
-                    if supertrend_multiplier_raw is not None
-                    else 3.0
-                )
-            except (TypeError, ValueError):
-                mult = 3.0
-            src = str(supertrend_source_raw or "hl2").strip().lower() or "hl2"
-            supertrend_engine = SupertrendEngine(atr_period=atr_p, multiplier=mult, source=src)
-
-        for bar in bars:
-            close = float(bar.close)
-            if close <= 0:
-                continue
-            last_ts = bar.ts
-            last_close = close
-            last_volume = float(bar.volume)
-            closes.append(close)
-            if ema_engine is not None:
-                last_signal = ema_engine.update(close)
-            elif orb_engine is not None:
-                last_signal = orb_engine.update(
-                    ts=bar.ts,
-                    high=float(bar.high),
-                    low=float(bar.low),
-                    close=close,
-                )
-            if volume_period is not None:
-                volume_ema = ema_next(volume_ema, float(bar.volume), volume_period)
-                volume_count += 1
-            if supertrend_engine is not None:
-                last_supertrend = supertrend_engine.update(
-                    high=float(bar.high),
-                    low=float(bar.low),
-                    close=float(bar.close),
-                )
-            if shock_engine is not None and not use_mtf_regime:
-                if isinstance(shock_engine, (DailyAtrPctShockEngine, DailyDrawdownShockEngine)):
-                    last_shock = shock_engine.update(
-                        day=bar.ts.date(),
-                        high=float(bar.high),
-                        low=float(bar.low),
-                        close=float(bar.close),
-                    )
-                else:
-                    last_shock = shock_engine.update(
-                        high=float(bar.high),
-                        low=float(bar.low),
-                        close=float(bar.close),
-                    )
-            if exit_atr_engine is not None:
-                last_exit_atr = exit_atr_engine.update(
-                    high=float(bar.high),
-                    low=float(bar.low),
-                    close=float(bar.close),
-                )
-
-        if last_ts is None or last_close is None or last_signal is None or not last_signal.ema_ready:
-            return None
-
-        bars_in_day = sum(1 for bar in bars if bar.ts.date() == last_ts.date())
-        rv = realized_vol_from_closes(
-            closes,
-            lookback=60,
-            lam=0.94,
-            bar_size=bar_size,
-            use_rth=use_rth,
-        )
-
-        if regime_mode == "supertrend":
-            if use_mtf_regime:
-                try:
-                    atr_p = int(supertrend_atr_period_raw) if supertrend_atr_period_raw is not None else 10
-                except (TypeError, ValueError):
-                    atr_p = 10
-                try:
-                    mult = (
-                        float(supertrend_multiplier_raw)
-                        if supertrend_multiplier_raw is not None
-                        else 3.0
-                    )
-                except (TypeError, ValueError):
-                    mult = 3.0
-                src = str(supertrend_source_raw or "hl2").strip().lower() or "hl2"
-
-                regime_duration = self._signal_duration_str(regime_bar_size)
-                if shock_engine is not None and "hour" in str(regime_bar_size).strip().lower():
-                    # Ensure we have enough history to compute the shock slow ATR (often 50+ bars on 4h).
-                    regime_duration = "1 M" if atr_slow <= 60 else "2 M"
-                regime_bars = await self._client.historical_bars_ohlcv(
-                    contract,
-                    duration_str=regime_duration,
-                    bar_size=regime_bar_size,
-                    use_rth=use_rth,
-                    cache_ttl_sec=30.0,
-                )
-                if not regime_bars:
-                    return None
-                regime_def = parse_bar_size(regime_bar_size)
-                if regime_def is not None and len(regime_bars) >= 2:
-                    now_ref = datetime.now(tz=timezone.utc).replace(tzinfo=None)
-                    reg_last_ts = regime_bars[-1].ts
-                    if reg_last_ts + regime_def.duration > now_ref:
-                        regime_bars = regime_bars[:-1]
-
-                regime_engine = SupertrendEngine(atr_period=atr_p, multiplier=mult, source=src)
-                last_regime = None
-                for bar in regime_bars:
-                    if bar.ts > last_ts:
-                        break
-                    last_regime = regime_engine.update(
-                        high=float(bar.high),
-                        low=float(bar.low),
-                        close=float(bar.close),
-                    )
-                    if shock_engine is not None:
-                        if isinstance(shock_engine, (DailyAtrPctShockEngine, DailyDrawdownShockEngine)):
-                            last_shock = shock_engine.update(
-                                day=bar.ts.date(),
-                                high=float(bar.high),
-                                low=float(bar.low),
-                                close=float(bar.close),
-                            )
-                        else:
-                            last_shock = shock_engine.update(
-                                high=float(bar.high),
-                                low=float(bar.low),
-                                close=float(bar.close),
-                            )
-                regime_ready = bool(last_regime and last_regime.ready)
-                regime_dir = last_regime.direction if last_regime is not None else None
-            else:
-                regime_ready = bool(last_supertrend and last_supertrend.ready)
-                regime_dir = last_supertrend.direction if last_supertrend is not None else None
-
-            last_signal = apply_regime_gate(
-                last_signal,
-                regime_dir=regime_dir,
-                regime_ready=regime_ready,
-            )
-        elif use_mtf_regime:
-            regime_periods = ema_periods(regime_preset)
-            if regime_periods is None:
-                return None
-            _, regime_slow_p = regime_periods
-
+        regime_bars = None
+        if use_mtf_regime:
+            regime_duration = self._signal_duration_str(regime_bar_size, filters=filters)
+            if isinstance(filters, dict) and "hour" in str(regime_bar_size).strip().lower():
+                shock_gate_mode = str(filters.get("shock_gate_mode") or "off").strip().lower()
+                if shock_gate_mode in ("", "0", "false", "none", "null"):
+                    shock_gate_mode = "off"
+                if shock_gate_mode not in ("off", "detect", "block", "block_longs", "block_shorts", "surf"):
+                    shock_gate_mode = "off"
+                if shock_gate_mode != "off":
+                    try:
+                        atr_slow = int(filters.get("shock_atr_slow_period", 50))
+                    except (TypeError, ValueError):
+                        atr_slow = 50
+                    if atr_slow > 0:
+                        # Avoid shrinking the base duration (daily detectors may require longer).
+                        alt = "1 M" if atr_slow <= 60 else "2 M"
+                        order = ("1 W", "2 W", "1 M", "2 M", "3 M", "6 M", "1 Y", "2 Y")
+                        try:
+                            if order.index(str(alt)) > order.index(str(regime_duration)):
+                                regime_duration = alt
+                        except ValueError:
+                            pass
             regime_bars = await self._client.historical_bars_ohlcv(
                 contract,
-                duration_str=(
-                    ("1 M" if atr_slow <= 60 else "2 M")
-                    if (shock_engine is not None and "hour" in str(regime_bar_size).strip().lower())
-                    else self._signal_duration_str(regime_bar_size)
-                ),
+                duration_str=regime_duration,
                 bar_size=regime_bar_size,
                 use_rth=use_rth,
                 cache_ttl_sec=30.0,
             )
             if not regime_bars:
                 return None
-
-            regime_def = parse_bar_size(regime_bar_size)
-            if regime_def is not None and len(regime_bars) >= 2:
-                now_ref = datetime.now(tz=timezone.utc).replace(tzinfo=None)
-                reg_last_ts = regime_bars[-1].ts
-                if reg_last_ts + regime_def.duration > now_ref:
-                    regime_bars = regime_bars[:-1]
-            if len(regime_bars) < (regime_slow_p + 1):
-                return None
-
-            try:
-                regime_engine = EmaDecisionEngine(
-                    ema_preset=regime_preset,
-                    ema_entry_mode="trend",
-                    entry_confirm_bars=0,
-                    regime_ema_preset=None,
-                )
-            except ValueError:
-                return None
-
-            last_regime = None
-            for bar in regime_bars:
-                if bar.ts > last_ts:
-                    break
-                if float(bar.close) <= 0:
-                    continue
-                last_regime = regime_engine.update(float(bar.close))
-                if shock_engine is not None:
-                    if isinstance(shock_engine, (DailyAtrPctShockEngine, DailyDrawdownShockEngine)):
-                        last_shock = shock_engine.update(
-                            day=bar.ts.date(),
-                            high=float(bar.high),
-                            low=float(bar.low),
-                            close=float(bar.close),
-                        )
-                    else:
-                        last_shock = shock_engine.update(
-                            high=float(bar.high),
-                            low=float(bar.low),
-                            close=float(bar.close),
-                        )
-
-            regime_ready = bool(last_regime and last_regime.ema_ready)
-            regime_dir = last_regime.state if last_regime is not None else None
-            last_signal = apply_regime_gate(
-                last_signal,
-                regime_dir=regime_dir,
-                regime_ready=regime_ready,
+            regime_bars = trim_incomplete_last_bar(
+                regime_bars, bar_size=regime_bar_size, now_ref=now_ref
             )
-            if last_signal is None:
-                return None
 
         regime2_mode = str(regime2_mode_raw or "off").strip().lower()
         if regime2_mode not in ("off", "ema", "supertrend"):
             regime2_mode = "off"
-        if regime2_mode != "off":
-            regime2_bar_size = str(regime2_bar_size_raw or "").strip()
-            if not regime2_bar_size or regime2_bar_size.lower() in ("same", "default"):
-                regime2_bar_size = str(bar_size)
+        regime2_preset = str(regime2_ema_preset_raw or "").strip() or None
+        if regime2_mode == "ema" and not regime2_preset:
+            regime2_mode = "off"
+        regime2_bar_size = str(regime2_bar_size_raw or "").strip()
+        if not regime2_bar_size or regime2_bar_size.lower() in ("same", "default"):
+            regime2_bar_size = str(bar_size)
+        if regime2_mode == "supertrend":
             use_mtf_regime2 = str(regime2_bar_size) != str(bar_size)
+        else:
+            use_mtf_regime2 = bool(regime2_preset) and (str(regime2_bar_size) != str(bar_size))
 
-            regime2_ready = False
-            regime2_dir = None
-            if regime2_mode == "supertrend":
-                try:
-                    atr_p = (
-                        int(regime2_supertrend_atr_period_raw)
-                        if regime2_supertrend_atr_period_raw is not None
-                        else 10
-                    )
-                except (TypeError, ValueError):
-                    atr_p = 10
-                try:
-                    mult = (
-                        float(regime2_supertrend_multiplier_raw)
-                        if regime2_supertrend_multiplier_raw is not None
-                        else 3.0
-                    )
-                except (TypeError, ValueError):
-                    mult = 3.0
-                src = str(regime2_supertrend_source_raw or "hl2").strip().lower() or "hl2"
-
-                if use_mtf_regime2:
-                    regime2_bars = await self._client.historical_bars_ohlcv(
-                        contract,
-                        duration_str=self._signal_duration_str(regime2_bar_size),
-                        bar_size=regime2_bar_size,
-                        use_rth=use_rth,
-                        cache_ttl_sec=30.0,
-                    )
-                    if not regime2_bars:
-                        return None
-                    regime2_def = parse_bar_size(regime2_bar_size)
-                    if regime2_def is not None and len(regime2_bars) >= 2:
-                        now_ref = datetime.now(tz=timezone.utc).replace(tzinfo=None)
-                        reg_last_ts = regime2_bars[-1].ts
-                        if reg_last_ts + regime2_def.duration > now_ref:
-                            regime2_bars = regime2_bars[:-1]
-                else:
-                    regime2_bars = bars
-
-                regime2_engine = SupertrendEngine(atr_period=atr_p, multiplier=mult, source=src)
-                last_regime2 = None
-                for bar in regime2_bars:
-                    if bar.ts > last_ts:
-                        break
-                    last_regime2 = regime2_engine.update(
-                        high=float(bar.high),
-                        low=float(bar.low),
-                        close=float(bar.close),
-                    )
-                regime2_ready = bool(last_regime2 and last_regime2.ready)
-                regime2_dir = last_regime2.direction if last_regime2 is not None else None
-            else:
-                regime2_preset = str(regime2_ema_preset_raw or "").strip()
-                if not regime2_preset:
-                    return None
-                regime2_periods = ema_periods(regime2_preset)
-                if regime2_periods is None:
-                    return None
-                _, regime2_slow_p = regime2_periods
-
-                if use_mtf_regime2:
-                    regime2_bars = await self._client.historical_bars_ohlcv(
-                        contract,
-                        duration_str=self._signal_duration_str(regime2_bar_size),
-                        bar_size=regime2_bar_size,
-                        use_rth=use_rth,
-                        cache_ttl_sec=30.0,
-                    )
-                    if not regime2_bars:
-                        return None
-
-                    regime2_def = parse_bar_size(regime2_bar_size)
-                    if regime2_def is not None and len(regime2_bars) >= 2:
-                        now_ref = datetime.now(tz=timezone.utc).replace(tzinfo=None)
-                        reg_last_ts = regime2_bars[-1].ts
-                        if reg_last_ts + regime2_def.duration > now_ref:
-                            regime2_bars = regime2_bars[:-1]
-                else:
-                    regime2_bars = bars
-
-                if len(regime2_bars) < (regime2_slow_p + 1):
-                    return None
-                try:
-                    regime2_engine = EmaDecisionEngine(
-                        ema_preset=regime2_preset,
-                        ema_entry_mode="trend",
-                        entry_confirm_bars=0,
-                        regime_ema_preset=None,
-                    )
-                except ValueError:
-                    return None
-                last_regime2 = None
-                for bar in regime2_bars:
-                    if bar.ts > last_ts:
-                        break
-                    if float(bar.close) <= 0:
-                        continue
-                    last_regime2 = regime2_engine.update(float(bar.close))
-
-                regime2_ready = bool(last_regime2 and last_regime2.ema_ready)
-                regime2_dir = last_regime2.state if last_regime2 is not None else None
-
-            last_signal = apply_regime_gate(
-                last_signal,
-                regime_dir=regime2_dir,
-                regime_ready=regime2_ready,
+        regime2_bars = None
+        if regime2_mode != "off" and use_mtf_regime2:
+            regime2_bars = await self._client.historical_bars_ohlcv(
+                contract,
+                duration_str=self._signal_duration_str(regime2_bar_size, filters=filters),
+                bar_size=regime2_bar_size,
+                use_rth=use_rth,
+                cache_ttl_sec=30.0,
             )
-            if last_signal is None:
+            if not regime2_bars:
                 return None
-
-        shock = bool(last_shock.shock) if (last_shock is not None and bool(last_shock.ready)) else None
-        shock_dir = (
-            str(last_shock.direction)
-            if (
-                last_shock is not None
-                and bool(last_shock.ready)
-                and bool(getattr(last_shock, "direction_ready", False))
-                and getattr(last_shock, "direction", None) in ("up", "down")
+            regime2_bars = trim_incomplete_last_bar(
+                regime2_bars, bar_size=regime2_bar_size, now_ref=now_ref
             )
-            else None
-        )
+
+        strategy = {
+            "entry_signal": entry_signal,
+            "ema_preset": ema_preset_raw,
+            "ema_entry_mode": entry_mode_raw,
+            "entry_confirm_bars": entry_confirm_bars,
+            "orb_window_mins": orb_window_mins_raw,
+            "orb_open_time_et": orb_open_time_et_raw,
+            "spot_exit_mode": spot_exit_mode_raw,
+            "spot_atr_period": spot_atr_period_raw,
+            "regime_mode": regime_mode,
+            "regime_ema_preset": regime_preset,
+            "supertrend_atr_period": supertrend_atr_period_raw,
+            "supertrend_multiplier": supertrend_multiplier_raw,
+            "supertrend_source": supertrend_source_raw,
+            "regime2_mode": regime2_mode,
+            "regime2_ema_preset": regime2_preset,
+            "regime2_supertrend_atr_period": regime2_supertrend_atr_period_raw,
+            "regime2_supertrend_multiplier": regime2_supertrend_multiplier_raw,
+            "regime2_supertrend_source": regime2_supertrend_source_raw,
+        }
+
+        try:
+            evaluator = SpotSignalEvaluator(
+                strategy=strategy,
+                filters=filters,
+                bar_size=str(bar_size),
+                use_rth=bool(use_rth),
+                regime_bars=regime_bars,
+                regime2_bars=regime2_bars,
+            )
+        except ValueError:
+            return None
+
+        last_snap = None
+        for idx, bar in enumerate(bars):
+            next_bar = bars[idx + 1] if idx + 1 < len(bars) else None
+            is_last_bar = next_bar is None or next_bar.ts.date() != bar.ts.date()
+            evaluator.update_exec_bar(bar, is_last_bar=bool(is_last_bar))
+            snap = evaluator.update_signal_bar(bar)
+            if snap is not None:
+                last_snap = snap
+        if last_snap is None or not bool(last_snap.signal.ema_ready):
+            return None
+
         return _SignalSnapshot(
-            bar_ts=last_ts,
-            close=float(last_close),
-            signal=last_signal,
-            bars_in_day=int(bars_in_day),
-            rv=float(rv) if rv is not None else None,
-            volume=float(last_volume) if last_volume is not None else None,
-            volume_ema=float(volume_ema) if volume_ema is not None else None,
-            volume_ema_ready=bool(volume_count >= volume_period) if volume_period else True,
-            shock=shock,
-            shock_dir=shock_dir,
-            atr=(
-                float(last_exit_atr.atr)
-                if last_exit_atr is not None and bool(last_exit_atr.ready) and last_exit_atr.atr is not None
-                else None
-            ),
-            or_high=orb_engine.or_high if orb_engine is not None else None,
-            or_low=orb_engine.or_low if orb_engine is not None else None,
-            or_ready=bool(orb_engine and orb_engine.or_ready),
+            bar_ts=last_snap.bar_ts,
+            close=float(last_snap.close),
+            signal=last_snap.signal,
+            bars_in_day=int(last_snap.bars_in_day),
+            rv=float(last_snap.rv) if last_snap.rv is not None else None,
+            volume=float(last_snap.volume) if last_snap.volume is not None else None,
+            volume_ema=float(last_snap.volume_ema) if last_snap.volume_ema is not None else None,
+            volume_ema_ready=bool(last_snap.volume_ema_ready),
+            shock=last_snap.shock,
+            shock_dir=last_snap.shock_dir,
+            shock_atr_pct=float(last_snap.shock_atr_pct) if last_snap.shock_atr_pct is not None else None,
+            risk=last_snap.risk,
+            atr=float(last_snap.atr) if last_snap.atr is not None else None,
+            or_high=float(last_snap.or_high) if last_snap.or_high is not None else None,
+            or_low=float(last_snap.or_low) if last_snap.or_low is not None else None,
+            or_ready=bool(last_snap.or_ready),
         )
 
     def _reset_daily_counters_if_needed(self, instance: _BotInstance) -> None:
@@ -4001,7 +3682,7 @@ class BotScreen(Screen):
                 expiries.append(exp)
         if not expiries:
             return False
-        remaining = min(_business_days_until(today, exp) for exp in expiries)
+        remaining = min(business_days_until(today, exp) for exp in expiries)
         return remaining <= exit_dte
 
     def _open_direction_from_positions(self, items: list[PortfolioItem]) -> str | None:
@@ -4497,38 +4178,41 @@ class BotScreen(Screen):
             if exit_mode not in ("pct", "atr"):
                 exit_mode = "pct"
 
-            snap = None
-            if direction not in ("up", "down") or entry_signal == "orb" or exit_mode == "atr":
-                signal_contract = await self._signal_contract(instance, symbol)
-                snap = (
-                    await self._signal_snapshot_for_contract(
-                        contract=signal_contract,
-                        ema_preset_raw=str(strat.get("ema_preset")) if strat.get("ema_preset") else None,
-                        bar_size=self._signal_bar_size(instance),
-                        use_rth=self._signal_use_rth(instance),
-                        entry_signal_raw=entry_signal,
-                        orb_window_mins_raw=strat.get("orb_window_mins"),
-                        entry_mode_raw=strat.get("ema_entry_mode"),
-                        entry_confirm_bars=strat.get("entry_confirm_bars", 0),
-                        spot_exit_mode_raw=strat.get("spot_exit_mode"),
-                        spot_atr_period_raw=strat.get("spot_atr_period"),
-                        regime_ema_preset_raw=strat.get("regime_ema_preset"),
-                        regime_bar_size_raw=strat.get("regime_bar_size"),
-                        regime_mode_raw=strat.get("regime_mode"),
-                        supertrend_atr_period_raw=strat.get("supertrend_atr_period"),
-                        supertrend_multiplier_raw=strat.get("supertrend_multiplier"),
-                        supertrend_source_raw=strat.get("supertrend_source"),
-                        regime2_ema_preset_raw=strat.get("regime2_ema_preset"),
-                        regime2_bar_size_raw=strat.get("regime2_bar_size"),
-                        regime2_mode_raw=strat.get("regime2_mode"),
-                        regime2_supertrend_atr_period_raw=strat.get("regime2_supertrend_atr_period"),
-                        regime2_supertrend_multiplier_raw=strat.get("regime2_supertrend_multiplier"),
-                        regime2_supertrend_source_raw=strat.get("regime2_supertrend_source"),
-                        filters=instance.filters if isinstance(instance.filters, dict) else None,
-                    )
-                    if signal_contract is not None
-                    else None
+            signal_contract = await self._signal_contract(instance, symbol)
+            snap = (
+                await self._signal_snapshot_for_contract(
+                    contract=signal_contract,
+                    ema_preset_raw=str(strat.get("ema_preset")) if strat.get("ema_preset") else None,
+                    bar_size=self._signal_bar_size(instance),
+                    use_rth=self._signal_use_rth(instance),
+                    entry_signal_raw=entry_signal,
+                    orb_window_mins_raw=strat.get("orb_window_mins"),
+                    orb_open_time_et_raw=strat.get("orb_open_time_et"),
+                    entry_mode_raw=strat.get("ema_entry_mode"),
+                    entry_confirm_bars=strat.get("entry_confirm_bars", 0),
+                    spot_exit_mode_raw=strat.get("spot_exit_mode"),
+                    spot_atr_period_raw=strat.get("spot_atr_period"),
+                    regime_ema_preset_raw=strat.get("regime_ema_preset"),
+                    regime_bar_size_raw=strat.get("regime_bar_size"),
+                    regime_mode_raw=strat.get("regime_mode"),
+                    supertrend_atr_period_raw=strat.get("supertrend_atr_period"),
+                    supertrend_multiplier_raw=strat.get("supertrend_multiplier"),
+                    supertrend_source_raw=strat.get("supertrend_source"),
+                    regime2_ema_preset_raw=strat.get("regime2_ema_preset"),
+                    regime2_bar_size_raw=strat.get("regime2_bar_size"),
+                    regime2_mode_raw=strat.get("regime2_mode"),
+                    regime2_supertrend_atr_period_raw=strat.get("regime2_supertrend_atr_period"),
+                    regime2_supertrend_multiplier_raw=strat.get("regime2_supertrend_multiplier"),
+                    regime2_supertrend_source_raw=strat.get("regime2_supertrend_source"),
+                    filters=instance.filters if isinstance(instance.filters, dict) else None,
                 )
+                if signal_contract is not None
+                else None
+            )
+            if snap is None:
+                self._status = f"Signal: no snapshot for {symbol}"
+                self._render_status()
+                return
 
             if direction not in ("up", "down") and snap is not None:
                 direction = self._entry_direction_for_instance(instance, snap) or (
@@ -4639,6 +4323,79 @@ class BotScreen(Screen):
                 else:
                     instance.spot_profit_target_price = float(limit) - (pt_mult * atr)
                     instance.spot_stop_loss_price = float(limit) + (sl_mult * atr)
+
+            # Spot sizing: mirror backtest semantics (fixed / notional_pct / risk_pct), with optional
+            # shock/risk overlays applied via the filters snapshot.
+            from ..engine import spot_calc_signed_qty
+
+            filters = instance.filters if isinstance(instance.filters, dict) else None
+            stop_loss_pct = None
+            try:
+                stop_loss_pct = (
+                    float(strat.get("spot_stop_loss_pct"))
+                    if strat.get("spot_stop_loss_pct") is not None
+                    else None
+                )
+            except (TypeError, ValueError):
+                stop_loss_pct = None
+            if stop_loss_pct is not None and float(stop_loss_pct) <= 0:
+                stop_loss_pct = None
+
+            stop_price = instance.spot_stop_loss_price
+            if stop_price is not None:
+                try:
+                    stop_price = float(stop_price)
+                except (TypeError, ValueError):
+                    stop_price = None
+            if stop_price is not None and float(stop_price) <= 0:
+                stop_price = None
+
+            shock_now = bool(snap.shock) if snap.shock is not None else False
+            if shock_now and filters is not None:
+                try:
+                    sl_mult = float(filters.get("shock_stop_loss_pct_mult", 1.0) or 1.0)
+                except (TypeError, ValueError):
+                    sl_mult = 1.0
+                if sl_mult > 0 and stop_loss_pct is not None and float(stop_loss_pct) > 0:
+                    stop_loss_pct = min(float(stop_loss_pct) * float(sl_mult), 0.99)
+
+            net_liq_val, _currency, _updated = self._client.account_value("NetLiquidation")
+            buying_power_val, _bp_currency, _bp_updated = self._client.account_value("BuyingPower")
+            try:
+                equity_ref = float(net_liq_val) if net_liq_val is not None else 0.0
+            except (TypeError, ValueError):
+                equity_ref = 0.0
+            try:
+                cash_ref = float(buying_power_val) if buying_power_val is not None else None
+            except (TypeError, ValueError):
+                cash_ref = None
+
+            riskoff = bool(snap.risk.riskoff) if snap.risk is not None else False
+            riskpanic = bool(snap.risk.riskpanic) if snap.risk is not None else False
+
+            signed_qty = spot_calc_signed_qty(
+                strategy=strat,
+                filters=filters,
+                action=str(action),
+                lot=int(qty),
+                entry_price=float(limit),
+                stop_price=stop_price,
+                stop_loss_pct=stop_loss_pct,
+                shock=snap.shock,
+                shock_dir=snap.shock_dir,
+                shock_atr_pct=snap.shock_atr_pct,
+                riskoff=riskoff,
+                risk_dir=snap.shock_dir,
+                riskpanic=riskpanic,
+                equity_ref=float(equity_ref),
+                cash_ref=cash_ref,
+            )
+            if signed_qty == 0:
+                self._status = "Propose: spot sizing returned 0 qty"
+                self._render_status()
+                return
+            action = "BUY" if int(signed_qty) > 0 else "SELL"
+            qty = int(abs(int(signed_qty)))
 
             proposal = _BotProposal(
                 instance_id=instance.instance_id,
@@ -4961,6 +4718,10 @@ class BotScreen(Screen):
             self._proposal_rows.append(proposal)
 
 
+# endregion
+
+
+# region UI Helpers
 def _fmt_pct(value: float) -> str:
     return f"{value:.0f}%"
 
@@ -5181,7 +4942,7 @@ def _filters_for_group(payload: dict | None, group_name: str) -> dict | None:
 def _pick_chain_expiry(today: date, dte: int, expirations: list[str]) -> str | None:
     if not expirations:
         return None
-    target = _add_business_days(today, dte)
+    target = add_business_days(today, dte)
     parsed: list[tuple[date, str]] = []
     for exp in expirations:
         dt = _parse_chain_date(exp)
@@ -5200,28 +4961,6 @@ def _parse_chain_date(raw: str) -> date | None:
     if len(raw) != 8 or not raw.isdigit():
         return None
     return date(int(raw[:4]), int(raw[4:6]), int(raw[6:8]))
-
-
-def _add_business_days(anchor: date, days: int) -> date:
-    current = anchor
-    remaining = max(days, 0)
-    while remaining > 0:
-        current += timedelta(days=1)
-        if current.weekday() < 5:
-            remaining -= 1
-    return current
-
-
-def _business_days_until(start: date, end: date) -> int:
-    if end <= start:
-        return 0
-    days = 0
-    cursor = start
-    while cursor < end:
-        cursor += timedelta(days=1)
-        if cursor.weekday() < 5:
-            days += 1
-    return days
 
 
 def _contract_expiry_date(raw: object) -> date | None:
@@ -5826,3 +5565,6 @@ def _parse_int(value: str) -> int | None:
     except ValueError:
         return None
     return parsed if parsed > 0 else None
+
+
+# endregion
