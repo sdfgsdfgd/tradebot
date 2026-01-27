@@ -22,12 +22,14 @@ from .common import (
     _SECTION_ORDER,
     _SECTION_TYPES,
     _combined_value_pct,
+    _fmt_money,
     _cost_basis,
     _estimate_buying_power,
     _estimate_net_liq,
     _infer_multiplier,
     _market_session_label,
     _pct_change,
+    _pct_dual_text,
     _pnl_pct_text,
     _pnl_pct_value,
     _pnl_text,
@@ -754,4 +756,3 @@ class PositionsApp(App):
             target_row = min(max(row_index, 0), len(self._row_keys) - 1)
         target_col = min(max(column, 0), max(self._column_count - 1, 0))
         self._table.cursor_coordinate = (target_row, target_col)
-
