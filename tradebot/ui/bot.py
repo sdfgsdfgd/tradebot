@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import csv
 import json
 import math
+import threading
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
@@ -52,6 +54,25 @@ from .common import (
     _ticker_price,
     _trade_sort_key,
 )
+
+# region Bot Journal
+_BOT_JOURNAL_FIELDS = (
+    "ts_et",
+    "ts_utc",
+    "event",
+    "instance_id",
+    "group",
+    "symbol",
+    "instrument",
+    "action",
+    "qty",
+    "limit_price",
+    "order_id",
+    "status",
+    "reason",
+    "data_json",
+)
+# endregion
 
 # region Bot UI
 @dataclass(frozen=True)
@@ -125,6 +146,11 @@ class _BotProposal:
     status: str = "PROPOSED"
     order_id: int | None = None
     error: str | None = None
+    intent: str | None = None
+    direction: str | None = None
+    reason: str | None = None
+    signal_bar_ts: datetime | None = None
+    journal: dict | None = None
 
 
 @dataclass(frozen=True)
@@ -656,6 +682,7 @@ class BotScreen(Screen):
         self._leaderboard_path = base / "backtest" / "leaderboard.json"
         self._spot_milestones_path = base / "backtest" / "spot_milestones.json"
         self._spot_champions_path = base / "backtest" / "spot_champions.json"
+        self._group_eval_by_name: dict[str, dict] = {}
         self._payload: dict | None = None
         self._presets: list[_BotPreset] = []
         self._preset_rows: list[_BotPreset | None] = []
@@ -678,6 +705,8 @@ class BotScreen(Screen):
         self._refresh_lock = asyncio.Lock()
         self._scope_all = False
         self._last_chase_ts = 0.0
+        self._journal_lock = threading.Lock()
+        self._journal_path = self._init_journal_path()
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -711,6 +740,7 @@ class BotScreen(Screen):
         await self._refresh_positions()
         self._refresh_instances_table()
         self._refresh_proposals_table()
+        self._journal_write(event="BOOT", reason=None, data={"refresh_sec": self._refresh_sec})
         self._render_status()
         self._focus_panel("presets")
         self._refresh_task = self.set_interval(self._refresh_sec, self._on_refresh_tick)
@@ -721,6 +751,86 @@ class BotScreen(Screen):
         for con_id in list(self._tracked_conids):
             self._client.release_ticker(con_id)
         self._tracked_conids.clear()
+        self._journal_write(event="SHUTDOWN", reason=None, data=None)
+
+    # region Journal
+    def _init_journal_path(self) -> Path | None:
+        out_dir = Path(__file__).resolve().parent / "out"
+        try:
+            out_dir.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            return None
+        started_at = datetime.now(tz=ZoneInfo("America/New_York"))
+        return out_dir / f"bot_journal_{started_at:%Y%m%d_%H%M%S_ET}.csv"
+
+    def _journal_write(
+        self,
+        *,
+        event: str,
+        instance: _BotInstance | None = None,
+        proposal: _BotProposal | None = None,
+        reason: str | None,
+        data: dict | None,
+    ) -> None:
+        path = self._journal_path
+        if path is None:
+            return
+
+        try:
+            now_et = datetime.now(tz=ZoneInfo("America/New_York"))
+            now_utc = datetime.now(tz=timezone.utc)
+
+            row: dict[str, object] = {k: "" for k in _BOT_JOURNAL_FIELDS}
+            row["ts_et"] = now_et.isoformat()
+            row["ts_utc"] = now_utc.isoformat()
+            row["event"] = str(event or "")
+            row["reason"] = str(reason) if reason else ""
+
+            if instance is not None:
+                row["instance_id"] = str(int(instance.instance_id))
+                row["group"] = str(instance.group or "")
+                row["symbol"] = str(instance.symbol or "")
+                try:
+                    row["instrument"] = str(self._strategy_instrument(instance.strategy or {}))
+                except Exception:
+                    row["instrument"] = ""
+            if proposal is not None:
+                row["instance_id"] = str(int(proposal.instance_id))
+                row["action"] = str(proposal.action or "")
+                row["qty"] = str(int(proposal.quantity or 0))
+                row["limit_price"] = f"{float(proposal.limit_price):.6f}"
+                row["status"] = str(proposal.status or "")
+                row["order_id"] = str(int(proposal.order_id)) if proposal.order_id else ""
+
+            extra: dict[str, object] = {}
+            if instance is not None:
+                extra["strategy"] = instance.strategy
+                extra["filters"] = instance.filters
+            if proposal is not None:
+                extra["intent"] = proposal.intent
+                extra["direction"] = proposal.direction
+                extra["signal_bar_ts"] = proposal.signal_bar_ts.isoformat() if proposal.signal_bar_ts else None
+                extra["proposal_journal"] = proposal.journal
+                extra["error"] = proposal.error
+            if isinstance(data, dict) and data:
+                extra.update(data)
+            row["data_json"] = json.dumps(extra, sort_keys=True, default=str) if extra else ""
+
+            try:
+                is_new = (not path.exists()) or path.stat().st_size == 0
+            except Exception:
+                is_new = True
+            with self._journal_lock:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                with path.open("a", newline="") as handle:
+                    writer = csv.DictWriter(handle, fieldnames=_BOT_JOURNAL_FIELDS)
+                    if is_new:
+                        writer.writeheader()
+                    writer.writerow(row)
+        except Exception:
+            return
+
+    # endregion
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         # DataTable captures Enter and emits RowSelected; hook it so Enter arms/sends.
@@ -754,6 +864,7 @@ class BotScreen(Screen):
     def action_reload(self) -> None:
         self._load_leaderboard()
         self._status = "Reloaded leaderboard"
+        self._journal_write(event="RELOAD_LEADERBOARD", reason=None, data=None)
         self._render_status()
 
     def action_toggle_presets(self) -> None:
@@ -772,6 +883,11 @@ class BotScreen(Screen):
         self._refresh_proposals_table()
         self._refresh_positions_table()
         self._status = "Scope: ALL" if self._scope_all else "Scope: Instance"
+        self._journal_write(
+            event="SCOPE",
+            reason=None,
+            data={"scope": "ALL" if self._scope_all else "INSTANCE"},
+        )
         self._render_status()
         self.refresh(layout=True)
 
@@ -816,6 +932,12 @@ class BotScreen(Screen):
         instance.auto_trade = not instance.auto_trade
         self._refresh_instances_table()
         self._status = f"Instance {instance.instance_id}: auto trade {'ON' if instance.auto_trade else 'OFF'}"
+        self._journal_write(
+            event="AUTO_TOGGLE",
+            instance=instance,
+            reason=None,
+            data={"auto_trade": bool(instance.auto_trade)},
+        )
         self._render_status()
 
     def action_toggle_instance(self) -> None:
@@ -896,6 +1018,7 @@ class BotScreen(Screen):
         self._refresh_proposals_table()
         self._refresh_positions_table()
         self._status = f"Stopped instance {instance.instance_id}: paused + auto OFF + cleared proposals"
+        self._journal_write(event="STOP_INSTANCE", instance=instance, reason=None, data=None)
         self._render_status()
 
     def _kill_all(self) -> None:
@@ -907,6 +1030,7 @@ class BotScreen(Screen):
         self._refresh_proposals_table()
         self._refresh_positions_table()
         self._status = "KILL: paused all + auto OFF + cleared proposals"
+        self._journal_write(event="KILL_ALL", reason=None, data=None)
         self._render_status()
 
     def action_activate(self) -> None:
@@ -1009,6 +1133,12 @@ class BotScreen(Screen):
             self._instances_table.cursor_coordinate = (max(len(self._instances) - 1, 0), 0)
             self._focus_panel("instances")
             self._status = f"Created instance {instance.instance_id}"
+            self._journal_write(
+                event="INSTANCE_CREATED",
+                instance=instance,
+                reason=None,
+                data={"metrics": entry.get("metrics")},
+            )
             self._render_status()
 
         self.app.push_screen(
@@ -1037,6 +1167,7 @@ class BotScreen(Screen):
             instance.auto_trade = result.auto_trade
             self._refresh_instances_table()
             self._status = f"Updated instance {instance.instance_id}"
+            self._journal_write(event="INSTANCE_UPDATED", instance=instance, reason=None, data=None)
             self._render_status()
 
         self.app.push_screen(
@@ -1059,6 +1190,7 @@ class BotScreen(Screen):
             self._payload = None
             self._presets = []
             self._preset_rows = []
+            self._group_eval_by_name = {}
             self._presets_table.clear(columns=True)
             self._presets_table.add_columns("Error")
             self._presets_table.add_row(str(exc))
@@ -1117,6 +1249,14 @@ class BotScreen(Screen):
             pass
 
         self._payload = payload
+        self._group_eval_by_name = {}
+        for group in payload.get("groups", []):
+            if not isinstance(group, dict):
+                continue
+            name = str(group.get("name") or "")
+            eval_payload = group.get("_eval")
+            if name and isinstance(eval_payload, dict):
+                self._group_eval_by_name[name] = eval_payload
         self._rebuild_presets_table()
 
     def _rebuild_presets_table(self) -> None:
@@ -1137,6 +1277,7 @@ class BotScreen(Screen):
         payload = self._payload or {}
         for group in payload.get("groups", []):
             group_name = str(group.get("name", "?"))
+            display_group = _clean_group_label(group_name)
             visible_entries: list[dict] = []
             for entry in group.get("entries", []):
                 strat = entry.get("strategy", {})
@@ -1165,9 +1306,11 @@ class BotScreen(Screen):
             if not visible_entries:
                 continue
 
-            header = Text(group_name, style="bold")
-            self._preset_rows.append(None)
-            self._presets_table.add_row(header, "", "", "", "", "", "", "", "")
+            show_header = len(visible_entries) > 1
+            if show_header:
+                header = Text(display_group, style="bold")
+                self._preset_rows.append(None)
+                self._presets_table.add_row(header, "", "", "", "", "", "", "", "")
             for entry in visible_entries:
                 preset = _BotPreset(group=group_name, entry=entry)
                 self._presets.append(preset)
@@ -1184,14 +1327,19 @@ class BotScreen(Screen):
                 else:
                     legs_desc = _legs_label(strat.get("legs", []))
                 self._preset_rows.append(preset)
+                pnl_text = None
+                try:
+                    pnl_text = _pnl_text(float(metrics.get("pnl", 0.0)))
+                except (TypeError, ValueError):
+                    pnl_text = Text("")
                 self._presets_table.add_row(
-                    group_name,
+                    display_group,
                     legs_desc,
                     "-" if instrument == "spot" else str(dte),
                     "-" if instrument == "spot" else _fmt_pct(float(strat.get("profit_target", 0.0)) * 100.0),
                     "-" if instrument == "spot" else _fmt_pct(float(strat.get("stop_loss", 0.0)) * 100.0),
                     str(strat.get("ema_preset", "")),
-                    f"{float(metrics.get('pnl', 0.0)):.2f}",
+                    pnl_text,
                     _fmt_pct(float(metrics.get("win_rate", 0.0)) * 100.0),
                     str(int(metrics.get("trades", 0))),
                 )
@@ -2675,6 +2823,10 @@ class BotScreen(Screen):
                     bid=bid,
                     ask=ask,
                     last=last,
+                    intent=intent_clean,
+                    direction=direction,
+                    reason=intent_clean,
+                    signal_bar_ts=signal_bar_ts,
                 )
                 con_id = int(getattr(single.contract, "conId", 0) or 0)
                 if con_id:
@@ -2740,6 +2892,10 @@ class BotScreen(Screen):
                 bid=order_bid,
                 ask=order_ask,
                 last=order_last,
+                intent=intent_clean,
+                direction=direction,
+                reason=intent_clean,
+                signal_bar_ts=signal_bar_ts,
             )
             for leg_order in leg_orders:
                 con_id = int(getattr(leg_order.contract, "conId", 0) or 0)
@@ -2811,6 +2967,10 @@ class BotScreen(Screen):
                     bid=bid,
                     ask=ask,
                     last=last,
+                    intent=intent_clean,
+                    direction=direction,
+                    reason="exit",
+                    signal_bar_ts=signal_bar_ts,
                 )
                 if con_id:
                     instance.touched_conids.add(con_id)
@@ -3089,6 +3249,43 @@ class BotScreen(Screen):
             action = "BUY" if int(signed_qty) > 0 else "SELL"
             qty = int(abs(int(signed_qty)))
 
+            journal = {
+                "intent": intent_clean,
+                "direction": direction,
+                "bar_ts": snap.bar_ts.isoformat() if snap is not None else None,
+                "close": float(snap.close) if snap is not None else None,
+                "signal": {
+                    "state": getattr(getattr(snap, "signal", None), "state", None),
+                    "entry_dir": getattr(getattr(snap, "signal", None), "entry_dir", None),
+                    "regime_dir": getattr(getattr(snap, "signal", None), "regime_dir", None),
+                    "ema_ready": bool(getattr(getattr(snap, "signal", None), "ema_ready", False)),
+                },
+                "bars_in_day": int(snap.bars_in_day) if snap is not None else None,
+                "rv": float(snap.rv) if snap is not None and snap.rv is not None else None,
+                "volume": float(snap.volume) if snap is not None and snap.volume is not None else None,
+                "shock": bool(snap.shock) if snap is not None and snap.shock is not None else None,
+                "shock_dir": snap.shock_dir if snap is not None else None,
+                "shock_atr_pct": float(snap.shock_atr_pct)
+                if snap is not None and snap.shock_atr_pct is not None
+                else None,
+                "riskoff": bool(snap.risk.riskoff) if snap is not None and snap.risk is not None else None,
+                "riskpanic": bool(snap.risk.riskpanic) if snap is not None and snap.risk is not None else None,
+                "atr": float(snap.atr) if snap is not None and snap.atr is not None else None,
+                "or_high": float(snap.or_high) if snap is not None and snap.or_high is not None else None,
+                "or_low": float(snap.or_low) if snap is not None and snap.or_low is not None else None,
+                "or_ready": bool(snap.or_ready) if snap is not None else None,
+                "exit_mode": exit_mode,
+                "stop_loss_pct": float(stop_loss_pct) if stop_loss_pct is not None else None,
+                "stop_price": float(stop_price) if stop_price is not None else None,
+                "target_price": float(instance.spot_profit_target_price)
+                if instance.spot_profit_target_price is not None
+                else None,
+                "net_liq": float(equity_ref) if equity_ref is not None else None,
+                "buying_power": float(cash_ref) if cash_ref is not None else None,
+                "price_mode": price_mode,
+                "chase_proposals": bool(strat.get("chase_proposals", True)),
+            }
+
             proposal = _BotProposal(
                 instance_id=instance.instance_id,
                 preset=None,
@@ -3102,6 +3299,11 @@ class BotScreen(Screen):
                 bid=bid,
                 ask=ask,
                 last=last,
+                intent=intent_clean,
+                direction=direction,
+                reason="enter",
+                signal_bar_ts=snap.bar_ts if snap is not None else signal_bar_ts,
+                journal=journal,
             )
             if con_id:
                 instance.touched_conids.add(con_id)
@@ -3305,6 +3507,7 @@ class BotScreen(Screen):
 
     async def _send_order(self, proposal: _BotProposal) -> None:
         try:
+            self._journal_write(event="SENDING", proposal=proposal, reason=proposal.reason, data=None)
             trade = await self._client.place_limit_order(
                 proposal.order_contract,
                 proposal.action,
@@ -3316,10 +3519,12 @@ class BotScreen(Screen):
             proposal.status = "SENT"
             proposal.order_id = int(order_id or 0) or None
             self._status = f"Sent #{order_id} {proposal.action} {proposal.quantity} @ {proposal.limit_price:.2f}"
+            self._journal_write(event="SENT", proposal=proposal, reason=proposal.reason, data=None)
         except Exception as exc:
             proposal.status = "ERROR"
             proposal.error = str(exc)
             self._status = f"Send error: {exc}"
+            self._journal_write(event="SEND_ERROR", proposal=proposal, reason=proposal.reason, data={"exc": str(exc)})
         self._refresh_proposals_table()
         self._render_bot()
 
@@ -3362,6 +3567,43 @@ class BotScreen(Screen):
                 lines.append(Text(""))
                 lines.append(Text("Selected preset", style="bold"))
                 lines.extend(_preset_lines(selected))
+                eval_payload = self._group_eval_by_name.get(selected.group)
+                if isinstance(eval_payload, dict):
+                    windows = eval_payload.get("windows")
+                    if isinstance(windows, list) and windows:
+                        lines.append(Text(""))
+                        lines.append(Text("Multiwindow (stability)", style="bold"))
+                        for w in windows:
+                            if not isinstance(w, dict):
+                                continue
+                            start = str(w.get("start") or "").strip()
+                            end = str(w.get("end") or "").strip()
+                            label = f"{start}→{end}" if start and end else (start or end or "window")
+                            try:
+                                roi = float(w.get("roi", 0.0) or 0.0)
+                            except (TypeError, ValueError):
+                                roi = 0.0
+                            try:
+                                dd_pct = float(w.get("dd_pct", 0.0) or 0.0)
+                            except (TypeError, ValueError):
+                                dd_pct = 0.0
+                            try:
+                                pnl = float(w.get("pnl", 0.0) or 0.0)
+                            except (TypeError, ValueError):
+                                pnl = 0.0
+                            try:
+                                trades = int(w.get("trades", 0) or 0)
+                            except (TypeError, ValueError):
+                                trades = 0
+                            roi_text = Text(f"roi={roi*100:.1f}%", style="green" if roi > 0 else "")
+                            dd_text = Text(f"dd={dd_pct*100:.1f}%", style="red" if dd_pct > 0 else "")
+                            lines.append(
+                                Text(f"{label}  ", style="dim")
+                                + roi_text
+                                + Text("  ", style="dim")
+                                + dd_text
+                                + Text(f"  tr={trades}  pnl={pnl:,.1f}", style="dim")
+                            )
         elif self._active_panel == "instances":
             instance = self._selected_instance()
             if instance:
@@ -3393,6 +3635,8 @@ class BotScreen(Screen):
 
     def _add_proposal(self, proposal: _BotProposal) -> None:
         self._proposals.append(proposal)
+        instance = next((i for i in self._instances if i.instance_id == proposal.instance_id), None)
+        self._journal_write(event="PROPOSED", instance=instance, proposal=proposal, reason=proposal.reason, data=None)
         self._refresh_proposals_table()
         if self._active_panel == "proposals":
             self._proposals_table.cursor_coordinate = (max(len(self._proposal_rows) - 1, 0), 0)
@@ -3416,6 +3660,21 @@ class BotScreen(Screen):
 # region UI Helpers
 def _fmt_pct(value: float) -> str:
     return f"{value:.0f}%"
+
+
+def _clean_group_label(raw: str) -> str:
+    """Shorten leaderboard group names for table display.
+
+    Many generated groups include full metrics in the name. Keep the identifier part so the table
+    stays readable, and rely on the numeric columns + the Selected preset panel for details.
+    """
+    value = str(raw or "").strip()
+    if not value:
+        return value
+    for token in (" roi/dd=", " pnl/dd=", " roi=", " pnl="):
+        if token in value:
+            return value.split(token, 1)[0].strip()
+    return value
 
 
 def _legs_label(legs: list[dict]) -> str:
@@ -3769,4 +4028,3 @@ def _proposal_row(proposal: _BotProposal) -> tuple[str, str, str, str, str, str,
     if proposal.error and status == "ERROR":
         status = f"ERROR {proposal.error}"[:32]
     return (ts, inst, side, qty, local, limit, bid_ask, status)
-
