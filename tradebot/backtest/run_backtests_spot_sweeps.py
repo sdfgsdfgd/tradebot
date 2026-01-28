@@ -6640,6 +6640,8 @@ def main() -> None:
         rows: list[dict] = []
         tested_total = 0
         t0_all = pytime.perf_counter()
+        heartbeat_sec = 50.0
+        last_progress = float(t0_all)
 
         short_grid_base = [1.0, 0.2, 0.05, 0.02, 0.01, 0.0]
         perm_variants: list[tuple[dict[str, object], str]] = [
@@ -6861,10 +6863,12 @@ def main() -> None:
                     regime2_bars=_regime2_bars_for(cfg),
                 )
                 tested_total += 1
-                if tested_total % report_every == 0:
-                    elapsed = pytime.perf_counter() - t0_all
+                now = pytime.perf_counter()
+                if tested_total % report_every == 0 or (now - last_progress) >= heartbeat_sec:
+                    elapsed = now - t0_all
                     rate = tested_total / elapsed if elapsed > 0 else 0.0
                     print(f"champ_refine progress tested={tested_total} ({rate:0.2f} cfg/s)", flush=True)
+                    last_progress = float(now)
                 if not row:
                     continue
                 note = f"{seed_tag} | short_mult={mult:g}"
@@ -6940,10 +6944,12 @@ def main() -> None:
                                 regime2_bars=_regime2_bars_for(cfg),
                             )
                             tested_total += 1
-                            if tested_total % report_every == 0:
-                                elapsed = pytime.perf_counter() - t0_all
+                            now = pytime.perf_counter()
+                            if tested_total % report_every == 0 or (now - last_progress) >= heartbeat_sec:
+                                elapsed = now - t0_all
                                 rate = tested_total / elapsed if elapsed > 0 else 0.0
                                 print(f"champ_refine progress tested={tested_total} ({rate:0.2f} cfg/s)", flush=True)
+                                last_progress = float(now)
                             if not row:
                                 continue
                             note = f"{seed_tag} | ST({atr_p},{mult:g},{src}) short_mult={best_short_mult:g}"
@@ -7029,6 +7035,7 @@ def main() -> None:
                 total_3a += 2 * len(tod_variants) * len(perm_variants) * len(signed_slope_variants)
             tested_3a = 0
             t0_3a = pytime.perf_counter()
+            last_3a = float(t0_3a)
             print(f"  stage3a micro: total={total_3a}", flush=True)
             for base_cfg, exit_note in base_exit_variants:
                 seed_mode = str(getattr(base_cfg.strategy, "ema_entry_mode", "cross") or "cross").strip().lower()
@@ -7072,8 +7079,13 @@ def main() -> None:
                                 )
                                 tested_total += 1
                                 tested_3a += 1
-                                if tested_3a % report_every == 0 or tested_3a == total_3a:
-                                    elapsed = pytime.perf_counter() - t0_3a
+                                now = pytime.perf_counter()
+                                if (
+                                    tested_3a % report_every == 0
+                                    or tested_3a == total_3a
+                                    or (now - last_3a) >= heartbeat_sec
+                                ):
+                                    elapsed = now - t0_3a
                                     rate = tested_3a / elapsed if elapsed > 0 else 0.0
                                     remaining = total_3a - tested_3a
                                     eta_sec = remaining / rate if rate > 0 else 0.0
@@ -7082,6 +7094,7 @@ def main() -> None:
                                         f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
                                         flush=True,
                                     )
+                                    last_3a = float(now)
                                 if not row:
                                     continue
                                 note = (
@@ -7114,6 +7127,7 @@ def main() -> None:
             total_3b = len(shortlist) * len(shock_variants) * len(risk_variants)
             tested_3b = 0
             t0_3b = pytime.perf_counter()
+            last_3b = float(t0_3b)
             print(f"  stage3b shock+risk: shortlist={len(shortlist)} total={total_3b}", flush=True)
             for base_cfg, _, base_note in shortlist:
                 for shock_over, shock_note in shock_variants:
@@ -7131,8 +7145,9 @@ def main() -> None:
                         )
                         tested_total += 1
                         tested_3b += 1
-                        if tested_3b % report_every == 0 or tested_3b == total_3b:
-                            elapsed = pytime.perf_counter() - t0_3b
+                        now = pytime.perf_counter()
+                        if tested_3b % report_every == 0 or tested_3b == total_3b or (now - last_3b) >= heartbeat_sec:
+                            elapsed = now - t0_3b
                             rate = tested_3b / elapsed if elapsed > 0 else 0.0
                             remaining = total_3b - tested_3b
                             eta_sec = remaining / rate if rate > 0 else 0.0
@@ -7141,6 +7156,7 @@ def main() -> None:
                                 f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
                                 flush=True,
                             )
+                            last_3b = float(now)
                         if not row:
                             continue
                         note = f"{base_note} | {shock_note} | {risk_note}"
