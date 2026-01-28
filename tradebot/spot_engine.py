@@ -17,7 +17,8 @@ import math
 from collections import deque
 from dataclasses import dataclass
 from datetime import datetime, time
-from typing import Mapping, Protocol
+from collections.abc import Mapping
+from typing import Protocol
 
 from .engine import (
     EmaDecisionEngine,
@@ -102,6 +103,9 @@ class SpotSignalEvaluator:
         self._rv_lam = float(rv_ewma_lambda)
         self._returns: deque[float] = deque(maxlen=self._rv_lookback)
         self._prev_sig_close: float | None = None
+        self._rv_enabled = bool(
+            filters is not None and (_get(filters, "rv_min", None) is not None or _get(filters, "rv_max", None) is not None)
+        )
 
         self._sig_last_date = None
         self._sig_bars_in_day = 0
@@ -364,16 +368,18 @@ class SpotSignalEvaluator:
             self._sig_bars_in_day = 0
         self._sig_bars_in_day += 1
 
-        prev_close = self._prev_sig_close
-        self._prev_sig_close = float(close)
-        if prev_close is not None and float(prev_close) > 0 and float(close) > 0:
-            self._returns.append(math.log(float(close) / float(prev_close)))
-        rv = annualized_ewma_vol(
-            self._returns,
-            lam=float(self._rv_lam),
-            bar_size=self._bar_size,
-            use_rth=self._use_rth,
-        )
+        rv = None
+        if self._rv_enabled:
+            prev_close = self._prev_sig_close
+            self._prev_sig_close = float(close)
+            if prev_close is not None and float(prev_close) > 0 and float(close) > 0:
+                self._returns.append(math.log(float(close) / float(prev_close)))
+            rv = annualized_ewma_vol(
+                self._returns,
+                lam=float(self._rv_lam),
+                bar_size=self._bar_size,
+                use_rth=self._use_rth,
+            )
 
         if self._volume_period is not None:
             self._volume_ema = ema_next(self._volume_ema, float(bar.volume), int(self._volume_period))

@@ -26,6 +26,11 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
+import subprocess
+import sys
+import tempfile
+import threading
 import time as pytime
 from dataclasses import asdict, replace
 from datetime import date, datetime, time, timedelta
@@ -209,37 +214,27 @@ def _mk_filters(
     volume_ema_period: int | None = None,
     entry_start_hour_et: int | None = None,
     entry_end_hour_et: int | None = None,
+    overrides: dict[str, object] | None = None,
 ) -> FiltersConfig | None:
-    f = FiltersConfig(
-        rv_min=rv_min,
-        rv_max=rv_max,
-        ema_spread_min_pct=ema_spread_min_pct,
-        ema_slope_min_pct=ema_slope_min_pct,
-        entry_start_hour=None,
-        entry_end_hour=None,
-        skip_first_bars=int(skip_first_bars),
-        cooldown_bars=int(cooldown_bars),
-        entry_start_hour_et=entry_start_hour_et,
-        entry_end_hour_et=entry_end_hour_et,
-        volume_ema_period=volume_ema_period,
-        volume_ratio_min=volume_ratio_min,
-        ema_spread_min_pct_down=ema_spread_min_pct_down,
-    )
-    if (
-        f.rv_min is None
-        and f.rv_max is None
-        and f.ema_spread_min_pct is None
-        and f.ema_spread_min_pct_down is None
-        and f.ema_slope_min_pct is None
-        and f.entry_start_hour is None
-        and f.entry_end_hour is None
-        and f.entry_start_hour_et is None
-        and f.entry_end_hour_et is None
-        and f.skip_first_bars == 0
-        and f.cooldown_bars == 0
-        and f.volume_ratio_min is None
-        and f.volume_ema_period is None
-    ):
+    raw: dict[str, object] = {
+        "rv_min": rv_min,
+        "rv_max": rv_max,
+        "ema_spread_min_pct": ema_spread_min_pct,
+        "ema_spread_min_pct_down": ema_spread_min_pct_down,
+        "ema_slope_min_pct": ema_slope_min_pct,
+        "entry_start_hour": None,
+        "entry_end_hour": None,
+        "skip_first_bars": int(skip_first_bars),
+        "cooldown_bars": int(cooldown_bars),
+        "entry_start_hour_et": entry_start_hour_et,
+        "entry_end_hour_et": entry_end_hour_et,
+        "volume_ratio_min": volume_ratio_min,
+        "volume_ema_period": volume_ema_period,
+    }
+    if overrides:
+        raw.update(overrides)
+    f = _parse_filters(raw)
+    if _filters_payload(f) is None:
         return None
     return f
 
@@ -270,6 +265,8 @@ def _filters_payload(filters: FiltersConfig | None) -> dict | None:
         "ema_spread_min_pct",
         "ema_spread_min_pct_down",
         "ema_slope_min_pct",
+        "ema_slope_signed_min_pct_up",
+        "ema_slope_signed_min_pct_down",
         "volume_ratio_min",
     ):
         if raw.get(key) is not None:
@@ -286,6 +283,99 @@ def _filters_payload(filters: FiltersConfig | None) -> dict | None:
         out["skip_first_bars"] = int(raw["skip_first_bars"])
     if int(raw.get("cooldown_bars") or 0) > 0:
         out["cooldown_bars"] = int(raw["cooldown_bars"])
+    if raw.get("risk_entry_cutoff_hour_et") is not None:
+        out["risk_entry_cutoff_hour_et"] = int(raw["risk_entry_cutoff_hour_et"])
+
+    # Shock overlay (engine feature). Only include when enabled.
+    shock_gate_mode = str(raw.get("shock_gate_mode") or "off").strip().lower()
+    if shock_gate_mode in ("", "0", "false", "none", "null"):
+        shock_gate_mode = "off"
+    if shock_gate_mode not in ("off", "detect", "block", "block_longs", "block_shorts", "surf"):
+        shock_gate_mode = "off"
+    if shock_gate_mode != "off":
+        out["shock_gate_mode"] = shock_gate_mode
+        detector = str(raw.get("shock_detector") or "atr_ratio").strip().lower()
+        if detector in ("daily", "daily_atr", "daily_atr_pct", "daily_atr14", "daily_atr%"):
+            detector = "daily_atr_pct"
+        elif detector in ("drawdown", "daily_drawdown", "daily-dd", "dd", "peak_dd", "peak_drawdown"):
+            detector = "daily_drawdown"
+        elif detector in ("tr_ratio", "tr-ratio", "tr_ratio_pct", "tr_ratio%"):
+            detector = "tr_ratio"
+        elif detector in ("atr_ratio", "ratio", "atr-ratio", "atr_ratio_pct", "atr_ratio%"):
+            detector = "atr_ratio"
+        else:
+            detector = "atr_ratio"
+        out["shock_detector"] = detector
+
+        out["shock_direction_source"] = str(raw.get("shock_direction_source") or "regime").strip().lower()
+        out["shock_direction_lookback"] = int(raw.get("shock_direction_lookback") or 2)
+        if bool(raw.get("shock_regime_override_dir")):
+            out["shock_regime_override_dir"] = True
+        for key in (
+            "shock_regime_supertrend_multiplier",
+            "shock_cooling_regime_supertrend_multiplier",
+            "shock_daily_cooling_atr_pct",
+            "shock_risk_scale_target_atr_pct",
+        ):
+            if raw.get(key) is not None:
+                out[key] = raw[key]
+        if raw.get("shock_risk_scale_target_atr_pct") is not None:
+            out["shock_risk_scale_min_mult"] = float(raw.get("shock_risk_scale_min_mult") or 0.2)
+        for key in (
+            "shock_short_risk_mult_factor",
+            "shock_long_risk_mult_factor",
+            "shock_long_risk_mult_factor_down",
+            "shock_stop_loss_pct_mult",
+            "shock_profit_target_pct_mult",
+        ):
+            if raw.get(key) is not None:
+                out[key] = raw[key]
+
+        if detector == "daily_atr_pct":
+            out["shock_daily_atr_period"] = int(raw.get("shock_daily_atr_period") or 14)
+            out["shock_daily_on_atr_pct"] = float(raw.get("shock_daily_on_atr_pct") or 0.0)
+            out["shock_daily_off_atr_pct"] = float(raw.get("shock_daily_off_atr_pct") or 0.0)
+            if raw.get("shock_daily_on_tr_pct") is not None:
+                out["shock_daily_on_tr_pct"] = float(raw.get("shock_daily_on_tr_pct") or 0.0)
+        elif detector == "daily_drawdown":
+            out["shock_drawdown_lookback_days"] = int(raw.get("shock_drawdown_lookback_days") or 20)
+            out["shock_on_drawdown_pct"] = float(raw.get("shock_on_drawdown_pct") or 0.0)
+            out["shock_off_drawdown_pct"] = float(raw.get("shock_off_drawdown_pct") or 0.0)
+        else:
+            # "atr_ratio" and "tr_ratio" share this main ratio knob family (TR uses these as fallback too).
+            out["shock_atr_fast_period"] = int(raw.get("shock_atr_fast_period") or 7)
+            out["shock_atr_slow_period"] = int(raw.get("shock_atr_slow_period") or 50)
+            out["shock_on_ratio"] = float(raw.get("shock_on_ratio") or 0.0)
+            out["shock_off_ratio"] = float(raw.get("shock_off_ratio") or 0.0)
+            out["shock_min_atr_pct"] = float(raw.get("shock_min_atr_pct") or 0.0)
+
+    # TR% risk overlays (engine feature). Include only when enabled.
+    overlay_any = False
+    if raw.get("riskoff_tr5_med_pct") is not None:
+        out["riskoff_tr5_med_pct"] = float(raw.get("riskoff_tr5_med_pct") or 0.0)
+        out["riskoff_tr5_lookback_days"] = int(raw.get("riskoff_tr5_lookback_days") or 5)
+        out["riskoff_short_risk_mult_factor"] = float(raw.get("riskoff_short_risk_mult_factor") or 1.0)
+        out["riskoff_long_risk_mult_factor"] = float(raw.get("riskoff_long_risk_mult_factor") or 1.0)
+        overlay_any = True
+
+    if raw.get("riskpanic_tr5_med_pct") is not None and raw.get("riskpanic_neg_gap_ratio_min") is not None:
+        out["riskpanic_tr5_med_pct"] = float(raw.get("riskpanic_tr5_med_pct") or 0.0)
+        out["riskpanic_neg_gap_ratio_min"] = float(raw.get("riskpanic_neg_gap_ratio_min") or 0.0)
+        out["riskpanic_lookback_days"] = int(raw.get("riskpanic_lookback_days") or 5)
+        out["riskpanic_short_risk_mult_factor"] = float(raw.get("riskpanic_short_risk_mult_factor") or 1.0)
+        overlay_any = True
+
+    if raw.get("riskpop_tr5_med_pct") is not None and raw.get("riskpop_pos_gap_ratio_min") is not None:
+        out["riskpop_tr5_med_pct"] = float(raw.get("riskpop_tr5_med_pct") or 0.0)
+        out["riskpop_pos_gap_ratio_min"] = float(raw.get("riskpop_pos_gap_ratio_min") or 0.0)
+        out["riskpop_lookback_days"] = int(raw.get("riskpop_lookback_days") or 5)
+        out["riskpop_long_risk_mult_factor"] = float(raw.get("riskpop_long_risk_mult_factor") or 1.0)
+        out["riskpop_short_risk_mult_factor"] = float(raw.get("riskpop_short_risk_mult_factor") or 1.0)
+        overlay_any = True
+
+    if overlay_any:
+        out["riskoff_mode"] = str(raw.get("riskoff_mode") or "hygiene").strip().lower()
+
     return out or None
 
 
@@ -518,6 +608,7 @@ def _apply_milestone_base(
         "spot_sizing_mode",
         "spot_notional_pct",
         "spot_risk_pct",
+        "spot_short_risk_mult",
         "spot_max_notional_pct",
         "spot_min_qty",
         "spot_max_qty",
@@ -548,17 +639,9 @@ def _apply_milestone_base(
     if not filters:
         return replace(out, strategy=replace(out.strategy, filters=None))
 
-    f = _mk_filters(
-        ema_spread_min_pct=filters.get("ema_spread_min_pct"),
-        ema_spread_min_pct_down=filters.get("ema_spread_min_pct_down"),
-        ema_slope_min_pct=filters.get("ema_slope_min_pct"),
-        cooldown_bars=int(filters.get("cooldown_bars") or 0),
-        skip_first_bars=int(filters.get("skip_first_bars") or 0),
-        volume_ratio_min=filters.get("volume_ratio_min"),
-        volume_ema_period=filters.get("volume_ema_period"),
-        entry_start_hour_et=filters.get("entry_start_hour_et"),
-        entry_end_hour_et=filters.get("entry_end_hour_et"),
-    )
+    f = _parse_filters(filters)
+    if _filters_payload(f) is None:
+        f = None
     return replace(out, strategy=replace(out.strategy, filters=f))
 # endregion
 
@@ -586,6 +669,15 @@ def main() -> None:
         action="store_true",
         default=False,
         help="Use cached bars only (no IBKR calls). Requires cache to be present.",
+    )
+    parser.add_argument(
+        "--jobs",
+        type=int,
+        default=None,
+        help=(
+            "Parallelism for combo_full (spawns per-axis worker processes) and gate_matrix stage2 sharding. "
+            "Default: auto (CPU count). Use --offline."
+        ),
     )
     parser.add_argument(
         "--base",
@@ -702,13 +794,28 @@ def main() -> None:
         ),
     )
     parser.add_argument(
+        "--seed-milestones",
+        default=None,
+        help=(
+            "Optional milestones JSON used as a seed pool for seeded refine sweeps "
+            "(e.g. --axis champ_refine)."
+        ),
+    )
+    parser.add_argument(
+        "--seed-top",
+        type=int,
+        default=20,
+        help="How many seeds to take from --seed-milestones (after filtering).",
+    )
+    parser.add_argument(
         "--axis",
         default="all",
         choices=(
             "all",
             "ema",
             "entry_mode",
-            "combo",
+            "combo_fast",
+            "combo_full",
             "squeeze",
             "volume",
             "rv",
@@ -731,6 +838,7 @@ def main() -> None:
             "tick_ema",
             "ptsl",
             "hold",
+            "spot_short_risk_mult",
             "orb",
             "orb_joint",
             "frontier",
@@ -745,15 +853,53 @@ def main() -> None:
             "spread_fine",
             "spread_down",
             "slope",
+            "slope_signed",
             "cooldown",
             "skip_open",
+            "shock",
+            "risk_overlays",
             "loosen",
             "loosen_atr",
             "tick",
+            "gate_matrix",
+            "champ_refine",
         ),
         help="Run one axis sweep (or all in sequence)",
     )
+    # Internal flags (used by combo_full/gate_matrix parallel sharding).
+    parser.add_argument("--gate-matrix-stage2", default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--gate-matrix-worker", type=int, default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--gate-matrix-workers", type=int, default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--gate-matrix-out", default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--gate-matrix-run-min-trades", type=int, default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--combo-fast-stage1", default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--combo-fast-stage2", default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--combo-fast-stage3", default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--combo-fast-worker", type=int, default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--combo-fast-workers", type=int, default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--combo-fast-out", default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--combo-fast-run-min-trades", type=int, default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--risk-overlays-worker", type=int, default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--risk-overlays-workers", type=int, default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--risk-overlays-out", default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--risk-overlays-run-min-trades", type=int, default=None, help=argparse.SUPPRESS)
     args = parser.parse_args()
+
+    def _default_jobs() -> int:
+        detected = os.cpu_count()
+        if detected is None:
+            return 1
+        try:
+            detected_i = int(detected)
+        except (TypeError, ValueError):
+            return 1
+        return max(1, detected_i)
+
+    try:
+        jobs = int(args.jobs) if args.jobs is not None else _default_jobs()
+    except (TypeError, ValueError):
+        jobs = _default_jobs()
+    jobs = max(1, int(jobs))
 
     symbol = str(args.symbol).strip().upper()
     start = _parse_date(args.start)
@@ -802,6 +948,21 @@ def main() -> None:
     spot_min_qty = int(args.spot_min_qty) if args.spot_min_qty is not None else 1
     spot_max_qty = int(args.spot_max_qty) if args.spot_max_qty is not None else 0
     run_min_trades = int(args.min_trades)
+    if args.gate_matrix_run_min_trades is not None:
+        try:
+            run_min_trades = int(args.gate_matrix_run_min_trades)
+        except (TypeError, ValueError):
+            run_min_trades = int(args.min_trades)
+    if args.combo_fast_run_min_trades is not None:
+        try:
+            run_min_trades = int(args.combo_fast_run_min_trades)
+        except (TypeError, ValueError):
+            run_min_trades = int(args.min_trades)
+    if args.risk_overlays_run_min_trades is not None:
+        try:
+            run_min_trades = int(args.risk_overlays_run_min_trades)
+        except (TypeError, ValueError):
+            run_min_trades = int(args.min_trades)
     if bool(args.write_milestones):
         run_min_trades = min(run_min_trades, int(args.milestone_min_trades))
 
@@ -842,10 +1003,12 @@ def main() -> None:
 
     milestones = _load_spot_milestones()
 
+    run_calls_total = 0
+
     def _merge_filters(base_filters: FiltersConfig | None, *, overrides: dict[str, object]) -> FiltersConfig | None:
         """Merge base filters with overrides, where `None` deletes a key.
 
-        Used to build joint permission sweeps without being constrained by the combo funnel.
+        Used to build joint permission sweeps without being constrained by the combo_fast funnel.
         """
         merged: dict[str, object] = dict(_filters_payload(base_filters) or {})
         for key, val in overrides.items():
@@ -858,24 +1021,26 @@ def main() -> None:
         if ("entry_start_hour_et" in merged) ^ ("entry_end_hour_et" in merged):
             merged.pop("entry_start_hour_et", None)
             merged.pop("entry_end_hour_et", None)
+        if ("entry_start_hour" in merged) ^ ("entry_end_hour" in merged):
+            merged.pop("entry_start_hour", None)
+            merged.pop("entry_end_hour", None)
 
         # Volume gate requires both knobs.
         if merged.get("volume_ratio_min") is None:
             merged.pop("volume_ema_period", None)
 
-        return _mk_filters(
-            rv_min=merged.get("rv_min"),
-            rv_max=merged.get("rv_max"),
-            ema_spread_min_pct=merged.get("ema_spread_min_pct"),
-            ema_spread_min_pct_down=merged.get("ema_spread_min_pct_down"),
-            ema_slope_min_pct=merged.get("ema_slope_min_pct"),
-            cooldown_bars=int(merged.get("cooldown_bars") or 0),
-            skip_first_bars=int(merged.get("skip_first_bars") or 0),
-            volume_ratio_min=merged.get("volume_ratio_min"),
-            volume_ema_period=merged.get("volume_ema_period"),
-            entry_start_hour_et=merged.get("entry_start_hour_et"),
-            entry_end_hour_et=merged.get("entry_end_hour_et"),
-        )
+        # Riskpanic overlay requires both knobs.
+        if ("riskpanic_tr5_med_pct" in merged) ^ ("riskpanic_neg_gap_ratio_min" in merged):
+            merged.pop("riskpanic_tr5_med_pct", None)
+            merged.pop("riskpanic_neg_gap_ratio_min", None)
+
+        # Riskpop overlay requires both knobs.
+        if ("riskpop_tr5_med_pct" in merged) ^ ("riskpop_pos_gap_ratio_min" in merged):
+            merged.pop("riskpop_tr5_med_pct", None)
+            merged.pop("riskpop_pos_gap_ratio_min", None)
+
+        f = _parse_filters(merged)
+        return f if _filters_payload(f) is not None else None
 
     def _shortlisted_keys(best_by_key: dict, *, top_pnl: int = 8, top_pnl_dd: int = 8) -> list:
         by_pnl = sorted(best_by_key.items(), key=lambda t: _score_row_pnl(t[1]["row"]), reverse=True)[: int(top_pnl)]
@@ -1046,6 +1211,8 @@ def main() -> None:
     def _run_cfg(
         *, cfg: ConfigBundle, bars: list, regime_bars: list | None, regime2_bars: list | None
     ) -> dict | None:
+        nonlocal run_calls_total
+        run_calls_total += 1
         tick_bars = _tick_bars_for(cfg)
         exec_bars = None
         exec_size = str(getattr(cfg.strategy, "spot_exec_bar_size", "") or "").strip()
@@ -1113,17 +1280,9 @@ def main() -> None:
                 over_payload = _filters_payload(filters) or {}
                 merged = dict(base_payload)
                 merged.update(over_payload)
-                merged_filters = _mk_filters(
-                    ema_spread_min_pct=merged.get("ema_spread_min_pct"),
-                    ema_spread_min_pct_down=merged.get("ema_spread_min_pct_down"),
-                    ema_slope_min_pct=merged.get("ema_slope_min_pct"),
-                    cooldown_bars=int(merged.get("cooldown_bars") or 0),
-                    skip_first_bars=int(merged.get("skip_first_bars") or 0),
-                    volume_ratio_min=merged.get("volume_ratio_min"),
-                    volume_ema_period=merged.get("volume_ema_period"),
-                    entry_start_hour_et=merged.get("entry_start_hour_et"),
-                    entry_end_hour_et=merged.get("entry_end_hour_et"),
-                )
+                merged_filters = _parse_filters(merged)
+                if _filters_payload(merged_filters) is None:
+                    merged_filters = None
                 cfg = replace(cfg, strategy=replace(cfg.strategy, filters=merged_filters))
         elif base_name == "dual_regime":
             cfg = replace(
@@ -1173,6 +1332,7 @@ def main() -> None:
         return cfg
 
     milestone_rows: list[tuple[ConfigBundle, dict, str]] = []
+    milestones_written = False
 
     def _record_milestone(cfg: ConfigBundle, row: dict, note: str) -> None:
         if not bool(args.write_milestones):
@@ -1418,9 +1578,25 @@ def main() -> None:
                 vol_variants.append((f"vol>={ratio}@{ema_p}", {"volume_ratio_min": float(ratio), "volume_ema_period": int(ema_p)}))
 
         rows: list[dict] = []
+        tested = 0
+        total = len(tod_windows) * len(spread_variants) * len(vol_variants)
+        t0 = pytime.perf_counter()
+        report_every = 200
         for _, _, tod_note, tod_over in tod_windows:
             for spread_note, spread_over in spread_variants:
                 for vol_note, vol_over in vol_variants:
+                    tested += 1
+                    if tested % report_every == 0 or tested == total:
+                        elapsed = pytime.perf_counter() - t0
+                        rate = (tested / elapsed) if elapsed > 0 else 0.0
+                        remaining = total - tested
+                        eta_sec = (remaining / rate) if rate > 0 else 0.0
+                        pct = (tested / total * 100.0) if total > 0 else 0.0
+                        print(
+                            f"perm_joint progress {tested}/{total} ({pct:0.1f}%) kept={len(rows)} "
+                            f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
+                            flush=True,
+                        )
                     overrides: dict[str, object] = {}
                     overrides.update(tod_over)
                     overrides.update(spread_over)
@@ -1633,11 +1809,27 @@ def main() -> None:
         ]
 
         rows: list[dict] = []
+        tested = 0
+        total = len(shortlisted) * len(tod_variants) * len(spread_variants) * len(vol_variants)
+        t0 = pytime.perf_counter()
+        report_every = 200
         for tick_key in shortlisted:
             dir_policy, policy, z_enter, z_exit, slope_lb, lookback = tick_key
             for tod_note, tod_over in tod_variants:
                 for spread_note, spread_over in spread_variants:
                     for vol_note, vol_over in vol_variants:
+                        tested += 1
+                        if tested % report_every == 0 or tested == total:
+                            elapsed = pytime.perf_counter() - t0
+                            rate = (tested / elapsed) if elapsed > 0 else 0.0
+                            remaining = total - tested
+                            eta_sec = (remaining / rate) if rate > 0 else 0.0
+                            pct = (tested / total * 100.0) if total > 0 else 0.0
+                            print(
+                                f"tick_perm_joint stage2 {tested}/{total} ({pct:0.1f}%) kept={len(rows)} "
+                                f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
+                                flush=True,
+                            )
                         overrides: dict[str, object] = {}
                         overrides.update(tod_over)
                         overrides.update(spread_over)
@@ -2585,6 +2777,34 @@ def main() -> None:
             rows.append(row)
         _print_leaderboards(rows, title="Flip-exit min hold sweep", top_n=int(args.top))
 
+    def _sweep_spot_short_risk_mult() -> None:
+        """Sweep the short sizing multiplier (only affects spot_sizing_mode=risk_pct)."""
+        bars_sig = _bars_cached(signal_bar_size)
+        base = _base_bundle(bar_size=signal_bar_size, filters=None)
+        base_row = _run_cfg(
+            cfg=base, bars=bars_sig, regime_bars=_regime_bars_for(base), regime2_bars=_regime2_bars_for(base)
+        )
+        if base_row:
+            base_row["note"] = "base"
+            _record_milestone(base, base_row, "base")
+
+        vals = [1.0, 0.8, 0.6, 0.4, 0.3, 0.25, 0.2, 0.15, 0.1, 0.05, 0.02, 0.01, 0.0]
+        rows: list[dict] = []
+        for mult in vals:
+            cfg = replace(base, strategy=replace(base.strategy, spot_short_risk_mult=float(mult)))
+            row = _run_cfg(
+                cfg=cfg, bars=bars_sig, regime_bars=_regime_bars_for(cfg), regime2_bars=_regime2_bars_for(cfg)
+            )
+            if not row:
+                continue
+            note = f"spot_short_risk_mult={mult:g}"
+            row["note"] = note
+            _record_milestone(cfg, row, note)
+            rows.append(row)
+        if base_row:
+            rows.append(base_row)
+        _print_leaderboards(rows, title="Spot short risk multiplier sweep", top_n=int(args.top))
+
     def _sweep_orb() -> None:
         bars_15m = _bars_cached("15 mins")
         base = _base_bundle(bar_size="15 mins", filters=None)
@@ -2874,10 +3094,26 @@ def main() -> None:
         atr_periods = [2, 3, 4, 5, 6, 7, 10, 11, 14, 21]
         multipliers = [0.05, 0.075, 0.1, 0.125, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0, 1.5, 2.0]
         sources = ["close", "hl2"]
+        tested = 0
+        total = len(regime_bar_sizes) * len(atr_periods) * len(multipliers) * len(sources)
+        t0 = pytime.perf_counter()
+        report_every = 100
         for rbar in regime_bar_sizes:
             for atr_p in atr_periods:
                 for mult in multipliers:
                     for src in sources:
+                        tested += 1
+                        if tested % report_every == 0 or tested == total:
+                            elapsed = pytime.perf_counter() - t0
+                            rate = (tested / elapsed) if elapsed > 0 else 0.0
+                            remaining = total - tested
+                            eta_sec = (remaining / rate) if rate > 0 else 0.0
+                            pct = (tested / total * 100.0) if total > 0 else 0.0
+                            print(
+                                f"regime progress {tested}/{total} ({pct:0.1f}%) kept={len(rows)} "
+                                f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
+                                flush=True,
+                            )
                         cfg = _base_bundle(bar_size=signal_bar_size, filters=None)
                         cfg = replace(
                             cfg,
@@ -2922,9 +3158,25 @@ def main() -> None:
         atr_periods = [2, 3, 4, 5, 6, 7, 10, 11, 14, 21]
         multipliers = [0.05, 0.075, 0.1, 0.125, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0, 1.5, 2.0]
         sources = ["close", "hl2"]
+        tested = 0
+        total = len(atr_periods) * len(multipliers) * len(sources)
+        t0 = pytime.perf_counter()
+        report_every = 100
         for atr_p in atr_periods:
             for mult in multipliers:
                 for src in sources:
+                    tested += 1
+                    if tested % report_every == 0 or tested == total:
+                        elapsed = pytime.perf_counter() - t0
+                        rate = (tested / elapsed) if elapsed > 0 else 0.0
+                        remaining = total - tested
+                        eta_sec = (remaining / rate) if rate > 0 else 0.0
+                        pct = (tested / total * 100.0) if total > 0 else 0.0
+                        print(
+                            f"regime2 progress {tested}/{total} ({pct:0.1f}%) kept={len(rows)} "
+                            f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
+                            flush=True,
+                        )
                     cfg = replace(
                         base,
                         strategy=replace(
@@ -3003,7 +3255,7 @@ def main() -> None:
             base_row["note"] = "base"
             _record_milestone(base, base_row, "base")
 
-        # Keep this tight and focused; the point is to cover interaction edges that the combo funnel can miss.
+        # Keep this tight and focused; the point is to cover interaction edges that the combo_fast funnel can miss.
         regime_bar_sizes = ["4 hours"]
         regime_atr_periods = [10, 14, 21]
         regime_multipliers = [0.4, 0.5, 0.6]
@@ -3246,6 +3498,42 @@ def main() -> None:
             rows.append(row)
         _print_leaderboards(rows, title="EMA slope sweep (quality gate)", top_n=int(args.top))
 
+    def _sweep_slope_signed() -> None:
+        """Directional slope gate: require EMA fast slope to be positive/negative by direction."""
+        bars_sig = _bars_cached(signal_bar_size)
+        rows: list[dict] = []
+
+        thr_vals = [None, 0.003, 0.005, 0.01, 0.02, 0.03, 0.05]
+        variants: list[tuple[float | None, float | None, str]] = [(None, None, "signed_slope=off")]
+        for up_thr in thr_vals:
+            if up_thr is None:
+                continue
+            variants.append((float(up_thr), None, f"slope_up>={up_thr:g}"))
+        for down_thr in thr_vals:
+            if down_thr is None:
+                continue
+            variants.append((None, float(down_thr), f"slope_down>={down_thr:g}"))
+        for both_thr in (0.005, 0.01, 0.02, 0.03):
+            variants.append((float(both_thr), float(both_thr), f"slope_signed>={both_thr:g} (both)"))
+
+        for up_thr, down_thr, note in variants:
+            f = _mk_filters(
+                overrides={
+                    "ema_slope_signed_min_pct_up": up_thr,
+                    "ema_slope_signed_min_pct_down": down_thr,
+                }
+            )
+            cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
+            row = _run_cfg(
+                cfg=cfg, bars=bars_sig, regime_bars=_regime_bars_for(cfg), regime2_bars=_regime2_bars_for(cfg)
+            )
+            if not row:
+                continue
+            row["note"] = note
+            _record_milestone(cfg, row, note)
+            rows.append(row)
+        _print_leaderboards(rows, title="EMA signed-slope sweep (directional permission)", top_n=int(args.top))
+
     def _sweep_cooldown() -> None:
         bars_sig = _bars_cached(signal_bar_size)
         rows: list[dict] = []
@@ -3279,6 +3567,676 @@ def main() -> None:
             _record_milestone(cfg, row, note)
             rows.append(row)
         _print_leaderboards(rows, title="Skip-open sweep (quality gate)", top_n=int(args.top))
+
+    def _sweep_shock() -> None:
+        """Shock overlay sweep (detectors, modes, and a few core threshold grids)."""
+        bars_sig = _bars_cached(signal_bar_size)
+        base = _base_bundle(bar_size=signal_bar_size, filters=None)
+        base_row = _run_cfg(
+            cfg=base, bars=bars_sig, regime_bars=_regime_bars_for(base), regime2_bars=_regime2_bars_for(base)
+        )
+        if base_row:
+            base_row["note"] = "base"
+            _record_milestone(base, base_row, "base")
+
+        modes = ["detect", "block", "block_longs", "block_shorts", "surf"]
+        dir_variants = [("regime", 2, "dir=regime@2"), ("signal", 1, "dir=signal@1")]
+        sl_mults = [1.0, 0.75]
+        pt_mults = [1.0, 0.75]
+        short_risk_factors = [1.0, 0.5]
+
+        ratio_presets: list[tuple[str, dict[str, object], str]] = []
+        for detector in ("atr_ratio", "tr_ratio"):
+            for fast, slow, on, off, min_pct in (
+                (5, 30, 1.35, 1.20, 6.0),
+                (7, 50, 1.55, 1.30, 7.0),
+                (10, 80, 1.45, 1.25, 7.0),
+                (14, 120, 1.35, 1.20, 9.0),
+                (7, 30, 1.70, 1.40, 7.0),
+            ):
+                ratio_presets.append(
+                    (
+                        detector,
+                        {
+                            "shock_atr_fast_period": int(fast),
+                            "shock_atr_slow_period": int(slow),
+                            "shock_on_ratio": float(on),
+                            "shock_off_ratio": float(off),
+                            "shock_min_atr_pct": float(min_pct),
+                        },
+                        f"{detector} fast={fast} slow={slow} on={on:g} off={off:g} min={min_pct:g}",
+                    )
+                )
+
+        daily_atr_presets: list[tuple[str, dict[str, object], str]] = []
+        for period, on_atr, off_atr, tr_on in (
+            (14, 13.0, 11.0, None),
+            (14, 13.5, 13.0, None),
+            (14, 14.0, 13.0, None),
+            (14, 14.0, 13.0, 9.0),
+            (10, 13.0, 11.0, 9.0),
+            (21, 14.0, 13.0, 10.0),
+        ):
+            daily_atr_presets.append(
+                (
+                    "daily_atr_pct",
+                    {
+                        "shock_daily_atr_period": int(period),
+                        "shock_daily_on_atr_pct": float(on_atr),
+                        "shock_daily_off_atr_pct": float(off_atr),
+                        "shock_daily_on_tr_pct": float(tr_on) if tr_on is not None else None,
+                    },
+                    f"daily_atr_pct p={period} on={on_atr:g} off={off_atr:g} tr_on={tr_on if tr_on is not None else '-'}",
+                )
+            )
+
+        drawdown_presets: list[tuple[str, dict[str, object], str]] = []
+        for lb, dd_on, dd_off in (
+            (10, -15.0, -8.0),
+            (20, -20.0, -10.0),
+            (20, -25.0, -15.0),
+            (30, -25.0, -15.0),
+            (60, -30.0, -20.0),
+        ):
+            drawdown_presets.append(
+                (
+                    "daily_drawdown",
+                    {
+                        "shock_drawdown_lookback_days": int(lb),
+                        "shock_on_drawdown_pct": float(dd_on),
+                        "shock_off_drawdown_pct": float(dd_off),
+                    },
+                    f"daily_drawdown lb={lb} on={dd_on:g} off={dd_off:g}",
+                )
+            )
+
+        presets = ratio_presets + daily_atr_presets + drawdown_presets
+        rows: list[dict] = []
+        tested = 0
+        total = len(modes) * len(dir_variants) * len(sl_mults) * len(pt_mults) * len(short_risk_factors) * len(presets)
+        t0 = pytime.perf_counter()
+        report_every = 50
+        for detector, params, det_note in presets:
+            for mode in modes:
+                for dir_src, dir_lb, dir_note in dir_variants:
+                    for sl_mult in sl_mults:
+                        for pt_mult in pt_mults:
+                            for short_factor in short_risk_factors:
+                                tested += 1
+                                if tested % report_every == 0 or tested == total:
+                                    elapsed = pytime.perf_counter() - t0
+                                    rate = (tested / elapsed) if elapsed > 0 else 0.0
+                                    remaining = total - tested
+                                    eta_sec = (remaining / rate) if rate > 0 else 0.0
+                                    pct = (tested / total * 100.0) if total > 0 else 0.0
+                                    print(
+                                        f"shock progress {tested}/{total} ({pct:0.1f}%) kept={len(rows)} "
+                                        f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
+                                        flush=True,
+                                    )
+
+                                overrides = {
+                                    "shock_gate_mode": str(mode),
+                                    "shock_detector": str(detector),
+                                    "shock_direction_source": str(dir_src),
+                                    "shock_direction_lookback": int(dir_lb),
+                                    "shock_stop_loss_pct_mult": float(sl_mult),
+                                    "shock_profit_target_pct_mult": float(pt_mult),
+                                    "shock_short_risk_mult_factor": float(short_factor),
+                                }
+                                overrides.update(params)
+                                f = _mk_filters(overrides=overrides)
+                                cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
+                                row = _run_cfg(
+                                    cfg=cfg,
+                                    bars=bars_sig,
+                                    regime_bars=_regime_bars_for(cfg),
+                                    regime2_bars=_regime2_bars_for(cfg),
+                                )
+                                if not row:
+                                    continue
+                                note = (
+                                    f"shock={mode} {det_note} | {dir_note} | "
+                                    f"sl_mult={sl_mult:g} pt_mult={pt_mult:g} short_factor={short_factor:g}"
+                                )
+                                row["note"] = note
+                                _record_milestone(cfg, row, note)
+                                rows.append(row)
+
+        if base_row:
+            rows.append(base_row)
+        _print_leaderboards(rows, title="Shock sweep (modes × detectors × thresholds)", top_n=int(args.top))
+
+    def _sweep_risk_overlays() -> None:
+        """Risk-off / risk-panic TR% overlays (TR5 median + neg-gap ratio)."""
+        nonlocal run_calls_total
+        bars_sig = _bars_cached(signal_bar_size)
+
+        # Risk-off: TR% median above threshold (no gap condition).
+        riskoff_trs = [6.0, 7.0, 8.0, 9.0, 10.0, 12.0]
+        riskoff_lbs = [3, 5, 7, 10]
+        riskoff_modes = ["hygiene", "directional"]
+        # Optional late-day cutoff (ET hour). When set, this only matters on risk-off days.
+        riskoff_cutoffs_et = [None, 15, 16]
+        riskoff_total = len(riskoff_trs) * len(riskoff_lbs) * len(riskoff_modes) * len(riskoff_cutoffs_et)
+
+        # Risk-panic: TR% median + negative gap ratio.
+        panic_trs = [8.0, 9.0, 10.0, 12.0]
+        neg_ratios = [0.5, 0.6, 0.8]
+        panic_lbs = [5, 10]
+        panic_short_factors = [1.0, 0.5, 0.2, 0.0]
+        panic_cutoffs_et = [None, 15, 16]
+        panic_total = (
+            len(panic_trs) * len(neg_ratios) * len(panic_lbs) * len(panic_short_factors) * len(panic_cutoffs_et)
+        )
+
+        # Risk-pop: TR% median + positive gap ratio.
+        pop_trs = [7.0, 8.0, 9.0, 10.0, 12.0]
+        pos_ratios = [0.5, 0.6, 0.8]
+        pop_lbs = [5, 10]
+        pop_long_factors = [0.6, 0.8, 1.0, 1.2, 1.5]
+        pop_short_factors = [1.0, 0.5, 0.2, 0.0]
+        pop_cutoffs_et = [None, 15]
+        pop_modes = ["hygiene", "directional"]
+
+        pop_total = (
+            len(pop_trs)
+            * len(pos_ratios)
+            * len(pop_lbs)
+            * len(pop_long_factors)
+            * len(pop_short_factors)
+            * len(pop_cutoffs_et)
+            * len(pop_modes)
+        )
+        total = riskoff_total + panic_total + pop_total
+
+        if args.risk_overlays_worker is not None:
+            if not offline:
+                raise SystemExit("risk_overlays worker mode requires --offline (avoid parallel IBKR sessions).")
+            out_path_raw = str(args.risk_overlays_out or "").strip()
+            if not out_path_raw:
+                raise SystemExit("--risk-overlays-out is required for risk_overlays worker mode.")
+            out_path = Path(out_path_raw)
+
+            try:
+                worker_id = int(args.risk_overlays_worker) if args.risk_overlays_worker is not None else 0
+            except (TypeError, ValueError):
+                worker_id = 0
+            try:
+                workers = int(args.risk_overlays_workers) if args.risk_overlays_workers is not None else 1
+            except (TypeError, ValueError):
+                workers = 1
+            workers = max(1, int(workers))
+            worker_id = max(0, int(worker_id))
+            if worker_id >= workers:
+                raise SystemExit(
+                    f"Invalid risk_overlays worker shard: worker={worker_id} workers={workers} (worker must be < workers)."
+                )
+
+            local_total = (total // workers) + (1 if worker_id < (total % workers) else 0)
+            tested = 0
+            combo_idx = 0
+            report_every = 50
+            t0 = pytime.perf_counter()
+            records: list[dict] = []
+
+            def _progress(label: str) -> None:
+                elapsed = pytime.perf_counter() - t0
+                rate = (tested / elapsed) if elapsed > 0 else 0.0
+                remaining = local_total - tested
+                eta_sec = (remaining / rate) if rate > 0 else 0.0
+                pct = (tested / local_total * 100.0) if local_total > 0 else 0.0
+                print(
+                    f"risk_overlays worker {worker_id+1}/{workers} {label} "
+                    f"{tested}/{local_total} ({pct:0.1f}%) kept={len(records)} "
+                    f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
+                    flush=True,
+                )
+
+            for tr_med in riskoff_trs:
+                for lb in riskoff_lbs:
+                    for mode in riskoff_modes:
+                        for cutoff in riskoff_cutoffs_et:
+                            assigned = (combo_idx % workers) == worker_id
+                            combo_idx += 1
+                            if not assigned:
+                                continue
+                            tested += 1
+                            if tested % report_every == 0 or tested == local_total:
+                                _progress("riskoff")
+
+                            overrides = {
+                                "riskoff_tr5_med_pct": float(tr_med),
+                                "riskoff_tr5_lookback_days": int(lb),
+                                "riskoff_mode": str(mode),
+                                "risk_entry_cutoff_hour_et": int(cutoff) if cutoff is not None else None,
+                                "riskpanic_tr5_med_pct": None,
+                                "riskpanic_neg_gap_ratio_min": None,
+                            }
+                            f = _mk_filters(overrides=overrides)
+                            cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
+                            row = _run_cfg(
+                                cfg=cfg,
+                                bars=bars_sig,
+                                regime_bars=_regime_bars_for(cfg),
+                                regime2_bars=_regime2_bars_for(cfg),
+                            )
+                            if not row:
+                                continue
+                            cut_note = "-" if cutoff is None else f"cutoff<{cutoff:02d} ET"
+                            note = f"riskoff TRmed{lb}>={tr_med:g} mode={mode} {cut_note}"
+                            records.append({"overrides": overrides, "note": note, "row": row})
+
+            for tr_med in panic_trs:
+                for neg_ratio in neg_ratios:
+                    for lb in panic_lbs:
+                        for short_factor in panic_short_factors:
+                            for cutoff in panic_cutoffs_et:
+                                assigned = (combo_idx % workers) == worker_id
+                                combo_idx += 1
+                                if not assigned:
+                                    continue
+                                tested += 1
+                                if tested % report_every == 0 or tested == local_total:
+                                    _progress("riskpanic")
+
+                                overrides = {
+                                    "riskoff_tr5_med_pct": None,
+                                    "riskpanic_tr5_med_pct": float(tr_med),
+                                    "riskpanic_neg_gap_ratio_min": float(neg_ratio),
+                                    "riskpanic_lookback_days": int(lb),
+                                    "riskpanic_short_risk_mult_factor": float(short_factor),
+                                    "risk_entry_cutoff_hour_et": int(cutoff) if cutoff is not None else None,
+                                }
+                                f = _mk_filters(overrides=overrides)
+                                cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
+                                row = _run_cfg(
+                                    cfg=cfg,
+                                    bars=bars_sig,
+                                    regime_bars=_regime_bars_for(cfg),
+                                    regime2_bars=_regime2_bars_for(cfg),
+                                )
+                                if not row:
+                                    continue
+                                cut_note = "-" if cutoff is None else f"cutoff<{cutoff:02d} ET"
+                                note = (
+                                    f"riskpanic TRmed{lb}>={tr_med:g} neg_gap>={neg_ratio:g} "
+                                    f"short_factor={short_factor:g} {cut_note}"
+                                )
+                                records.append({"overrides": overrides, "note": note, "row": row})
+
+            for tr_med in pop_trs:
+                for pos_ratio in pos_ratios:
+                    for lb in pop_lbs:
+                        for long_factor in pop_long_factors:
+                            for short_factor in pop_short_factors:
+                                for cutoff in pop_cutoffs_et:
+                                    for mode in pop_modes:
+                                        assigned = (combo_idx % workers) == worker_id
+                                        combo_idx += 1
+                                        if not assigned:
+                                            continue
+                                        tested += 1
+                                        if tested % report_every == 0 or tested == local_total:
+                                            _progress("riskpop")
+
+                                        overrides = {
+                                            "riskoff_tr5_med_pct": None,
+                                            "riskpanic_tr5_med_pct": None,
+                                            "riskpanic_neg_gap_ratio_min": None,
+                                            "riskpop_tr5_med_pct": float(tr_med),
+                                            "riskpop_pos_gap_ratio_min": float(pos_ratio),
+                                            "riskpop_lookback_days": int(lb),
+                                            "riskpop_long_risk_mult_factor": float(long_factor),
+                                            "riskpop_short_risk_mult_factor": float(short_factor),
+                                            "risk_entry_cutoff_hour_et": int(cutoff) if cutoff is not None else None,
+                                            "riskoff_mode": str(mode),
+                                        }
+                                        f = _mk_filters(overrides=overrides)
+                                        cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
+                                        row = _run_cfg(
+                                            cfg=cfg,
+                                            bars=bars_sig,
+                                            regime_bars=_regime_bars_for(cfg),
+                                            regime2_bars=_regime2_bars_for(cfg),
+                                        )
+                                        if not row:
+                                            continue
+                                        cut_note = "-" if cutoff is None else f"cutoff<{cutoff:02d} ET"
+                                        note = (
+                                            f"riskpop TRmed{lb}>={tr_med:g} pos_gap>={pos_ratio:g} mode={mode} "
+                                            f"long_factor={long_factor:g} short_factor={short_factor:g} {cut_note}"
+                                        )
+                                        records.append({"overrides": overrides, "note": note, "row": row})
+
+            if combo_idx != total:
+                raise SystemExit(f"risk_overlays worker internal error: combos={combo_idx} expected={total}")
+
+            out_payload = {"tested": tested, "kept": len(records), "records": records}
+            write_json(out_path, out_payload, sort_keys=False)
+            print(f"risk_overlays worker done tested={tested} kept={len(records)} out={out_path}", flush=True)
+            return
+
+        base = _base_bundle(bar_size=signal_bar_size, filters=None)
+        base_row = _run_cfg(
+            cfg=base, bars=bars_sig, regime_bars=_regime_bars_for(base), regime2_bars=_regime2_bars_for(base)
+        )
+        if base_row:
+            base_row["note"] = "base"
+            _record_milestone(base, base_row, "base")
+
+        rows: list[dict] = []
+
+        tested_total = 0
+        if jobs > 1 and total > 0:
+            if not offline:
+                raise SystemExit("--jobs>1 for risk_overlays requires --offline (avoid parallel IBKR sessions).")
+
+            def _strip_flag(argv: list[str], flag: str) -> list[str]:
+                return [arg for arg in argv if arg != flag]
+
+            def _strip_flag_with_value(argv: list[str], flag: str) -> list[str]:
+                out: list[str] = []
+                idx = 0
+                while idx < len(argv):
+                    arg = argv[idx]
+                    if arg == flag:
+                        idx += 2
+                        continue
+                    if arg.startswith(flag + "="):
+                        idx += 1
+                        continue
+                    out.append(arg)
+                    idx += 1
+                return out
+
+            base_cli = list(sys.argv[1:])
+            base_cli = _strip_flag_with_value(base_cli, "--axis")
+            base_cli = _strip_flag_with_value(base_cli, "--jobs")
+            base_cli = _strip_flag(base_cli, "--write-milestones")
+            base_cli = _strip_flag(base_cli, "--merge-milestones")
+            base_cli = _strip_flag_with_value(base_cli, "--milestones-out")
+            base_cli = _strip_flag_with_value(base_cli, "--risk-overlays-worker")
+            base_cli = _strip_flag_with_value(base_cli, "--risk-overlays-workers")
+            base_cli = _strip_flag_with_value(base_cli, "--risk-overlays-out")
+            base_cli = _strip_flag_with_value(base_cli, "--risk-overlays-run-min-trades")
+
+            jobs_eff = min(int(jobs), int(_default_jobs()), int(total)) if total > 0 else 1
+            print(f"risk_overlays parallel: workers={jobs_eff} total={total}", flush=True)
+
+            def _pump(prefix: str, stream) -> None:
+                for line in iter(stream.readline, ""):
+                    print(f"[{prefix}] {line.rstrip()}", flush=True)
+
+            failures: list[tuple[int, int]] = []
+            start_times: dict[int, float] = {}
+
+            with tempfile.TemporaryDirectory(prefix="tradebot_risk_overlays_") as tmpdir:
+                tmp_root = Path(tmpdir)
+                running: list[tuple[int, subprocess.Popen, threading.Thread, Path]] = []
+                out_paths: dict[int, Path] = {}
+
+                for worker_id in range(jobs_eff):
+                    out_path = tmp_root / f"risk_overlays_out_{worker_id}.json"
+                    out_paths[worker_id] = out_path
+                    cmd = [
+                        sys.executable,
+                        "-u",
+                        "-m",
+                        "tradebot.backtest",
+                        "spot",
+                        *base_cli,
+                        "--axis",
+                        "risk_overlays",
+                        "--jobs",
+                        "1",
+                        "--risk-overlays-worker",
+                        str(worker_id),
+                        "--risk-overlays-workers",
+                        str(jobs_eff),
+                        "--risk-overlays-out",
+                        str(out_path),
+                        "--risk-overlays-run-min-trades",
+                        str(int(run_min_trades)),
+                    ]
+                    proc = subprocess.Popen(
+                        cmd,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
+                        text=True,
+                        bufsize=1,
+                    )
+                    if proc.stdout is None:
+                        raise RuntimeError("Failed to capture risk_overlays worker stdout.")
+                    t = threading.Thread(target=_pump, args=(f"ro:{worker_id}", proc.stdout), daemon=True)
+                    t.start()
+                    start_times[worker_id] = pytime.perf_counter()
+                    running.append((worker_id, proc, t, out_path))
+
+                while running and not failures:
+                    finished_idx = None
+                    for idx, (worker_id, proc, t, out_path) in enumerate(running):
+                        rc = proc.poll()
+                        if rc is None:
+                            continue
+                        finished_idx = idx
+                        elapsed = pytime.perf_counter() - float(start_times.get(worker_id) or pytime.perf_counter())
+                        print(f"DONE  ro:{worker_id} exit={rc} elapsed={elapsed:0.1f}s", flush=True)
+                        try:
+                            proc.wait(timeout=1.0)
+                        except subprocess.TimeoutExpired:
+                            proc.kill()
+                            proc.wait(timeout=5.0)
+                        try:
+                            t.join(timeout=1.0)
+                        except Exception:
+                            pass
+                        if rc != 0:
+                            failures.append((int(worker_id), int(rc)))
+                        running.pop(idx)
+                        break
+
+                    if failures:
+                        for worker_id, proc, t, out_path in running:
+                            try:
+                                proc.terminate()
+                            except Exception:
+                                pass
+                        for worker_id, proc, t, out_path in running:
+                            try:
+                                proc.wait(timeout=5.0)
+                            except subprocess.TimeoutExpired:
+                                try:
+                                    proc.kill()
+                                except Exception:
+                                    pass
+                        break
+
+                    if finished_idx is None:
+                        pytime.sleep(0.05)
+
+                if failures:
+                    wid, rc = failures[0]
+                    raise SystemExit(f"risk_overlays worker failed: ro:{wid} (exit={rc})")
+
+                for worker_id in range(jobs_eff):
+                    out_path = out_paths.get(worker_id)
+                    if out_path is None or not out_path.exists():
+                        raise SystemExit(f"Missing risk_overlays output: ro:{worker_id} ({out_path})")
+                    try:
+                        payload = json.loads(out_path.read_text())
+                    except json.JSONDecodeError as exc:
+                        raise SystemExit(f"Invalid risk_overlays output JSON: ro:{worker_id} ({out_path})") from exc
+                    if not isinstance(payload, dict):
+                        continue
+                    tested_total += int(payload.get("tested") or 0)
+                    for rec in payload.get("records") or []:
+                        if not isinstance(rec, dict):
+                            continue
+                        overrides = rec.get("overrides")
+                        note = rec.get("note")
+                        row = rec.get("row")
+                        if not isinstance(overrides, dict) or not isinstance(note, str) or not isinstance(row, dict):
+                            continue
+                        row = dict(row)
+                        f = _mk_filters(overrides=overrides)
+                        cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
+                        row["note"] = note
+                        _record_milestone(cfg, row, note)
+                        rows.append(row)
+
+                run_calls_total += int(tested_total)
+        else:
+            tested = 0
+            t0 = pytime.perf_counter()
+            report_every = 50
+            for tr_med in riskoff_trs:
+                for lb in riskoff_lbs:
+                    for mode in riskoff_modes:
+                        for cutoff in riskoff_cutoffs_et:
+                            tested += 1
+                            if tested % report_every == 0 or tested == riskoff_total:
+                                elapsed = pytime.perf_counter() - t0
+                                rate = (tested / elapsed) if elapsed > 0 else 0.0
+                                remaining = riskoff_total - tested
+                                eta_sec = (remaining / rate) if rate > 0 else 0.0
+                                pct = (tested / riskoff_total * 100.0) if riskoff_total > 0 else 0.0
+                                print(
+                                    f"riskoff progress {tested}/{riskoff_total} ({pct:0.1f}%) kept={len(rows)} "
+                                    f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
+                                    flush=True,
+                                )
+
+                            f = _mk_filters(
+                                overrides={
+                                    "riskoff_tr5_med_pct": float(tr_med),
+                                    "riskoff_tr5_lookback_days": int(lb),
+                                    "riskoff_mode": str(mode),
+                                    "risk_entry_cutoff_hour_et": int(cutoff) if cutoff is not None else None,
+                                    "riskpanic_tr5_med_pct": None,
+                                    "riskpanic_neg_gap_ratio_min": None,
+                                }
+                            )
+                            cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
+                            row = _run_cfg(
+                                cfg=cfg,
+                                bars=bars_sig,
+                                regime_bars=_regime_bars_for(cfg),
+                                regime2_bars=_regime2_bars_for(cfg),
+                            )
+                            if not row:
+                                continue
+                            cut_note = "-" if cutoff is None else f"cutoff<{cutoff:02d} ET"
+                            note = f"riskoff TRmed{lb}>={tr_med:g} mode={mode} {cut_note}"
+                            row["note"] = note
+                            _record_milestone(cfg, row, note)
+                            rows.append(row)
+
+            tested = 0
+            t0 = pytime.perf_counter()
+            for tr_med in panic_trs:
+                for neg_ratio in neg_ratios:
+                    for lb in panic_lbs:
+                        for short_factor in panic_short_factors:
+                            for cutoff in panic_cutoffs_et:
+                                tested += 1
+                                if tested % report_every == 0 or tested == panic_total:
+                                    elapsed = pytime.perf_counter() - t0
+                                    rate = (tested / elapsed) if elapsed > 0 else 0.0
+                                    remaining = panic_total - tested
+                                    eta_sec = (remaining / rate) if rate > 0 else 0.0
+                                    pct = (tested / panic_total * 100.0) if panic_total > 0 else 0.0
+                                    print(
+                                        f"riskpanic progress {tested}/{panic_total} ({pct:0.1f}%) kept={len(rows)} "
+                                        f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
+                                        flush=True,
+                                    )
+
+                                f = _mk_filters(
+                                    overrides={
+                                        "riskoff_tr5_med_pct": None,
+                                        "riskpanic_tr5_med_pct": float(tr_med),
+                                        "riskpanic_neg_gap_ratio_min": float(neg_ratio),
+                                        "riskpanic_lookback_days": int(lb),
+                                        "riskpanic_short_risk_mult_factor": float(short_factor),
+                                        "risk_entry_cutoff_hour_et": int(cutoff) if cutoff is not None else None,
+                                    }
+                                )
+                                cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
+                                row = _run_cfg(
+                                    cfg=cfg,
+                                    bars=bars_sig,
+                                    regime_bars=_regime_bars_for(cfg),
+                                    regime2_bars=_regime2_bars_for(cfg),
+                                )
+                                if not row:
+                                    continue
+                                cut_note = "-" if cutoff is None else f"cutoff<{cutoff:02d} ET"
+                                note = (
+                                    f"riskpanic TRmed{lb}>={tr_med:g} neg_gap>={neg_ratio:g} "
+                                    f"short_factor={short_factor:g} {cut_note}"
+                                )
+                                row["note"] = note
+                                _record_milestone(cfg, row, note)
+                                rows.append(row)
+
+            tested = 0
+            t0 = pytime.perf_counter()
+            for tr_med in pop_trs:
+                for pos_ratio in pos_ratios:
+                    for lb in pop_lbs:
+                        for long_factor in pop_long_factors:
+                            for short_factor in pop_short_factors:
+                                for cutoff in pop_cutoffs_et:
+                                    for mode in pop_modes:
+                                        tested += 1
+                                        if tested % report_every == 0 or tested == pop_total:
+                                            elapsed = pytime.perf_counter() - t0
+                                            rate = (tested / elapsed) if elapsed > 0 else 0.0
+                                            remaining = pop_total - tested
+                                            eta_sec = (remaining / rate) if rate > 0 else 0.0
+                                            pct = (tested / pop_total * 100.0) if pop_total > 0 else 0.0
+                                            print(
+                                                f"riskpop progress {tested}/{pop_total} ({pct:0.1f}%) kept={len(rows)} "
+                                                f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
+                                                flush=True,
+                                            )
+
+                                        f = _mk_filters(
+                                            overrides={
+                                                "riskoff_tr5_med_pct": None,
+                                                "riskpanic_tr5_med_pct": None,
+                                                "riskpanic_neg_gap_ratio_min": None,
+                                                "riskpop_tr5_med_pct": float(tr_med),
+                                                "riskpop_pos_gap_ratio_min": float(pos_ratio),
+                                                "riskpop_lookback_days": int(lb),
+                                                "riskpop_long_risk_mult_factor": float(long_factor),
+                                                "riskpop_short_risk_mult_factor": float(short_factor),
+                                                "risk_entry_cutoff_hour_et": int(cutoff) if cutoff is not None else None,
+                                                "riskoff_mode": str(mode),
+                                            }
+                                        )
+                                        cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
+                                        row = _run_cfg(
+                                            cfg=cfg,
+                                            bars=bars_sig,
+                                            regime_bars=_regime_bars_for(cfg),
+                                            regime2_bars=_regime2_bars_for(cfg),
+                                        )
+                                        if not row:
+                                            continue
+                                        cut_note = "-" if cutoff is None else f"cutoff<{cutoff:02d} ET"
+                                        note = (
+                                            f"riskpop TRmed{lb}>={tr_med:g} pos_gap>={pos_ratio:g} mode={mode} "
+                                            f"long_factor={long_factor:g} short_factor={short_factor:g} {cut_note}"
+                                        )
+                                        row["note"] = note
+                                        _record_milestone(cfg, row, note)
+                                        rows.append(row)
+
+        if base_row:
+            rows.append(base_row)
+        _print_leaderboards(rows, title="TR% risk overlay sweep (riskoff + riskpanic + riskpop)", top_n=int(args.top))
 
     def _sweep_loosen() -> None:
         bars_sig = _bars_cached(signal_bar_size)
@@ -3548,8 +4506,8 @@ def main() -> None:
                 f"win={best['win_rate']*100:.1f}% tr={best['trades']} note={best.get('note')}"
             )
 
-    def _sweep_combo() -> None:
-        """A constrained multi-axis sweep to find "corner" winners.
+    def _sweep_combo_fast() -> None:
+        """A constrained multi-axis sweep to find "corner" winners (fast bounded funnel).
 
         Keep this computationally bounded and reproducible. The intent is to combine
         the highest-leverage levers we’ve found so far:
@@ -3560,6 +4518,7 @@ def main() -> None:
         - optional regime2 confirm (small curated set)
         - a small set of quality gates (spread/slope/TOD/rv/exit-time/tick)
         """
+        nonlocal run_calls_total
         bars_sig = _bars_cached(signal_bar_size)
 
         regime_bars_4h = _bars_cached("4 hours")
@@ -3568,139 +4527,7 @@ def main() -> None:
 
         regime_bars_by_size = {"4 hours": regime_bars_4h, "1 day": regime_bars_1d}
 
-        def _ranked(items: list[tuple[ConfigBundle, dict, str]], *, top_pnl_dd: int, top_pnl: int) -> list:
-            by_dd = sorted(items, key=lambda t: _score_row_pnl_dd(t[1]), reverse=True)[: int(top_pnl_dd)]
-            by_pnl = sorted(items, key=lambda t: _score_row_pnl(t[1]), reverse=True)[: int(top_pnl)]
-            seen: set[str] = set()
-            out: list[tuple[ConfigBundle, dict, str]] = []
-            for cfg, row, note in by_dd + by_pnl:
-                key = _milestone_key(cfg)
-                if key in seen:
-                    continue
-                seen.add(key)
-                out.append((cfg, row, note))
-            return out
-
-        # Stage 1: direction × regime sensitivity (bounded) and keep a small diverse shortlist.
-        stage1: list[tuple[ConfigBundle, dict, str]] = []
-        base = _base_bundle(bar_size=signal_bar_size, filters=None)
-        # Ensure stage1 isn't silently gated by whatever the current milestone base uses.
-        base = replace(
-            base,
-            strategy=replace(
-                base.strategy,
-                filters=None,
-                tick_gate_mode="off",
-                spot_exit_time_et=None,
-            ),
-        )
-
-        direction_variants: list[tuple[str, str, int, str]] = []
-        base_preset = str(base.strategy.ema_preset or "").strip()
-        base_mode = str(base.strategy.ema_entry_mode or "trend").strip().lower()
-        base_confirm = int(base.strategy.entry_confirm_bars or 0)
-        if base_preset and base_mode in ("cross", "trend"):
-            direction_variants.append((base_preset, base_mode, base_confirm, f"ema={base_preset} {base_mode}"))
-
-        for preset, mode in (
-            ("2/4", "cross"),
-            ("3/7", "cross"),
-            ("3/7", "trend"),
-            ("4/9", "cross"),
-            ("4/9", "trend"),
-            ("5/10", "cross"),
-            ("9/21", "cross"),
-            ("9/21", "trend"),
-        ):
-            direction_variants.append((preset, mode, 0, f"ema={preset} {mode}"))
-
-        seen_dir: set[tuple[str, str, int]] = set()
-        direction_variants = [
-            v
-            for v in direction_variants
-            if (v[0], v[1], v[2]) not in seen_dir and not seen_dir.add((v[0], v[1], v[2]))
-        ]
-
-        regime_bar_sizes = ["4 hours", "1 day"]
-        atr_periods = [3, 7, 10, 14, 21]
-        multipliers = [0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0]
-        sources = ["close", "hl2"]
-        stage1_exit_variants: list[tuple[dict, str]] = [
-            (
-                {"spot_exit_mode": "pct", "spot_profit_target_pct": 0.015, "spot_stop_loss_pct": 0.03},
-                "PT=0.015 SL=0.030",
-            ),
-            (
-                {"spot_exit_mode": "pct", "spot_profit_target_pct": None, "spot_stop_loss_pct": 0.03},
-                "PT=off SL=0.030",
-            ),
-        ]
-        stage1_total = (
-            len(direction_variants)
-            * len(regime_bar_sizes)
-            * len(atr_periods)
-            * len(multipliers)
-            * len(sources)
-            * len(stage1_exit_variants)
-        )
-        stage1_tested = 0
-        report_every_stage1 = 200
-        stage1_t0 = pytime.perf_counter()
-        print(f"Combo sweep: stage1 total={stage1_total} (progress every {report_every_stage1})", flush=True)
-        for ema_preset, entry_mode, confirm, dir_note in direction_variants:
-            for rbar in regime_bar_sizes:
-                for atr_p in atr_periods:
-                    for mult in multipliers:
-                        for src in sources:
-                            for exit_over, exit_note in stage1_exit_variants:
-                                cfg = replace(
-                                    base,
-                                    strategy=replace(
-                                        base.strategy,
-                                        entry_signal="ema",
-                                        ema_preset=str(ema_preset),
-                                        ema_entry_mode=str(entry_mode),
-                                        entry_confirm_bars=int(confirm),
-                                        regime_mode="supertrend",
-                                        regime_bar_size=rbar,
-                                        supertrend_atr_period=int(atr_p),
-                                        supertrend_multiplier=float(mult),
-                                        supertrend_source=str(src),
-                                        regime2_mode="off",
-                                        spot_exit_mode=str(exit_over["spot_exit_mode"]),
-                                        spot_profit_target_pct=exit_over.get("spot_profit_target_pct"),
-                                        spot_stop_loss_pct=exit_over.get("spot_stop_loss_pct"),
-                                    ),
-                                )
-                                row = _run_cfg(
-                                    cfg=cfg,
-                                    bars=bars_sig,
-                                    regime_bars=regime_bars_by_size[rbar],
-                                    regime2_bars=None,
-                                )
-                                stage1_tested += 1
-                                if stage1_tested % report_every_stage1 == 0:
-                                    elapsed = pytime.perf_counter() - stage1_t0
-                                    rate = (stage1_tested / elapsed) if elapsed > 0 else 0.0
-                                    remaining = stage1_total - stage1_tested
-                                    eta_sec = (remaining / rate) if rate > 0 else 0.0
-                                    pct = (stage1_tested / stage1_total * 100.0) if stage1_total > 0 else 0.0
-                                    print(
-                                        f"Combo sweep: stage1 {stage1_tested}/{stage1_total} ({pct:0.1f}%) "
-                                        f"kept={len(stage1)} elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
-                                        flush=True,
-                                    )
-                                if not row:
-                                    continue
-                                note = f"{dir_note} c={confirm} | ST({atr_p},{mult},{src}) @{rbar} | {exit_note}"
-                                row["note"] = note
-                                stage1.append((cfg, row, note))
-
-        shortlist = _ranked(stage1, top_pnl_dd=15, top_pnl=7)
-        print("")
-        print(f"Combo sweep: shortlist regimes={len(shortlist)} (from stage1={len(stage1)})")
-
-        # Stage 2: for each shortlisted regime, sweep exits + loosenings, and (optionally) a small regime2 set.
+        # Stage 2 variants are constant and are also used by the stage2 worker/sharding mode.
         exit_variants: list[tuple[dict, str]] = []
         for pt, sl in (
             (0.005, 0.02),
@@ -3817,68 +4644,175 @@ def main() -> None:
             ),
         ]
 
-        stage2: list[tuple[ConfigBundle, dict, str]] = []
-        tested = 0
-        report_every = 200
-        t0 = pytime.perf_counter()
-        stage2_total = len(shortlist) * len(exit_variants) * len(hold_vals) * len(loosen_variants) * len(regime2_variants)
-        print(f"Combo sweep: stage2 total={stage2_total} (progress every {report_every})", flush=True)
-        for base_cfg, _, base_note in shortlist:
-            for exit_over, exit_note in exit_variants:
-                for hold in hold_vals:
-                    for max_open, close_eod, loose_note in loosen_variants:
-                        for r2_over, r2_note in regime2_variants:
-                            strat = base_cfg.strategy
-                            cfg = replace(
-                                base_cfg,
-                                strategy=replace(
-                                    strat,
-                                    spot_exit_mode=str(exit_over["spot_exit_mode"]),
-                                    spot_profit_target_pct=exit_over["spot_profit_target_pct"],
-                                    spot_stop_loss_pct=exit_over["spot_stop_loss_pct"],
-                                    spot_atr_period=int(exit_over["spot_atr_period"]),
-                                    spot_pt_atr_mult=float(exit_over["spot_pt_atr_mult"]),
-                                    spot_sl_atr_mult=float(exit_over["spot_sl_atr_mult"]),
-                                    flip_exit_min_hold_bars=int(hold),
-                                    max_open_trades=int(max_open),
-                                    spot_close_eod=bool(close_eod),
-                                    regime2_mode=str(r2_over.get("regime2_mode") or "off"),
-                                    regime2_bar_size=r2_over.get("regime2_bar_size"),
-                                    regime2_supertrend_atr_period=int(r2_over.get("regime2_supertrend_atr_period") or 10),
-                                    regime2_supertrend_multiplier=float(r2_over.get("regime2_supertrend_multiplier") or 3.0),
-                                    regime2_supertrend_source=str(r2_over.get("regime2_supertrend_source") or "hl2"),
-                                ),
-                            )
-                            row = _run_cfg(
-                                cfg=cfg,
-                                bars=bars_sig,
-                                regime_bars=_regime_bars_for(cfg) or regime_bars_by_size[str(cfg.strategy.regime_bar_size)],
-                                regime2_bars=_regime2_bars_for(cfg),
-                            )
-                            tested += 1
-                            if tested % report_every == 0:
-                                elapsed = pytime.perf_counter() - t0
-                                rate = (tested / elapsed) if elapsed > 0 else 0.0
-                                remaining = stage2_total - tested
-                                eta_sec = (remaining / rate) if rate > 0 else 0.0
-                                pct = (tested / stage2_total * 100.0) if stage2_total > 0 else 0.0
-                                print(
-                                    f"Combo sweep: stage2 {tested}/{stage2_total} ({pct:0.1f}%) "
-                                    f"kept={len(stage2)} elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
-                                    flush=True,
+        def _mk_stage2_cfg(
+            base_cfg: ConfigBundle,
+            base_note: str,
+            *,
+            exit_over: dict,
+            exit_note: str,
+            hold: int,
+            max_open: int,
+            close_eod: bool,
+            loose_note: str,
+            r2_over: dict,
+            r2_note: str,
+        ) -> tuple[ConfigBundle, str]:
+            strat = base_cfg.strategy
+            cfg = replace(
+                base_cfg,
+                strategy=replace(
+                    strat,
+                    spot_exit_mode=str(exit_over["spot_exit_mode"]),
+                    spot_profit_target_pct=exit_over["spot_profit_target_pct"],
+                    spot_stop_loss_pct=exit_over["spot_stop_loss_pct"],
+                    spot_atr_period=int(exit_over["spot_atr_period"]),
+                    spot_pt_atr_mult=float(exit_over["spot_pt_atr_mult"]),
+                    spot_sl_atr_mult=float(exit_over["spot_sl_atr_mult"]),
+                    flip_exit_min_hold_bars=int(hold),
+                    max_open_trades=int(max_open),
+                    spot_close_eod=bool(close_eod),
+                    regime2_mode=str(r2_over.get("regime2_mode") or "off"),
+                    regime2_bar_size=r2_over.get("regime2_bar_size"),
+                    regime2_supertrend_atr_period=int(r2_over.get("regime2_supertrend_atr_period") or 10),
+                    regime2_supertrend_multiplier=float(r2_over.get("regime2_supertrend_multiplier") or 3.0),
+                    regime2_supertrend_source=str(r2_over.get("regime2_supertrend_source") or "hl2"),
+                ),
+            )
+            note = f"{base_note} | {exit_note} | hold={hold} | {loose_note} | {r2_note}"
+            return cfg, note
+
+        if args.combo_fast_stage2:
+            if not offline:
+                raise SystemExit("combo_fast stage2 worker mode requires --offline (avoid parallel IBKR sessions).")
+            payload_path = Path(str(args.combo_fast_stage2))
+            out_path_raw = str(args.combo_fast_out or "").strip()
+            if not out_path_raw:
+                raise SystemExit("--combo-fast-out is required for combo_fast stage2 worker mode.")
+            out_path = Path(out_path_raw)
+
+            try:
+                worker_id = int(args.combo_fast_worker) if args.combo_fast_worker is not None else 0
+            except (TypeError, ValueError):
+                worker_id = 0
+            try:
+                workers = int(args.combo_fast_workers) if args.combo_fast_workers is not None else 1
+            except (TypeError, ValueError):
+                workers = 1
+            workers = max(1, int(workers))
+            worker_id = max(0, int(worker_id))
+            if worker_id >= workers:
+                raise SystemExit(
+                    f"Invalid combo_fast worker shard: worker={worker_id} workers={workers} (worker must be < workers)."
+                )
+
+            try:
+                payload = json.loads(payload_path.read_text())
+            except json.JSONDecodeError as exc:
+                raise SystemExit(f"Invalid combo_fast stage2 payload JSON: {payload_path}") from exc
+            raw_shortlist = payload.get("shortlist") if isinstance(payload, dict) else None
+            if not isinstance(raw_shortlist, list):
+                raise SystemExit(f"combo_fast stage2 payload missing 'shortlist' list: {payload_path}")
+
+            shortlist_local: list[tuple[ConfigBundle, str]] = []
+            for item in raw_shortlist:
+                if not isinstance(item, dict):
+                    continue
+                strat_payload = item.get("strategy") or {}
+                filters_payload = item.get("filters")
+                base_note = str(item.get("base_note") or "")
+                if not isinstance(strat_payload, dict):
+                    continue
+                try:
+                    filters_obj = _filters_from_payload(filters_payload)
+                    strategy_obj = _strategy_from_payload(strat_payload, filters=filters_obj)
+                except Exception:
+                    continue
+                base_cfg = _mk_bundle(
+                    strategy=strategy_obj,
+                    start=start,
+                    end=end,
+                    bar_size=signal_bar_size,
+                    use_rth=use_rth,
+                    cache_dir=cache_dir,
+                    offline=offline,
+                )
+                shortlist_local.append((base_cfg, base_note))
+
+            stage2_total = (
+                len(shortlist_local)
+                * len(exit_variants)
+                * len(hold_vals)
+                * len(loosen_variants)
+                * len(regime2_variants)
+            )
+            local_total = (stage2_total // workers) + (1 if worker_id < (stage2_total % workers) else 0)
+            tested = 0
+            combo_idx = 0
+            report_every = 100
+            t0 = pytime.perf_counter()
+            records: list[dict] = []
+            for base_idx, (base_cfg, base_note) in enumerate(shortlist_local):
+                for exit_idx, (exit_over, exit_note) in enumerate(exit_variants):
+                    for hold in hold_vals:
+                        for loosen_idx, (max_open, close_eod, loose_note) in enumerate(loosen_variants):
+                            for r2_idx, (r2_over, r2_note) in enumerate(regime2_variants):
+                                assigned = (combo_idx % workers) == worker_id
+                                combo_idx += 1
+                                if not assigned:
+                                    continue
+                                tested += 1
+                                if tested % report_every == 0 or tested == local_total:
+                                    elapsed = pytime.perf_counter() - t0
+                                    rate = (tested / elapsed) if elapsed > 0 else 0.0
+                                    remaining = local_total - tested
+                                    eta_sec = (remaining / rate) if rate > 0 else 0.0
+                                    pct = (tested / local_total * 100.0) if local_total > 0 else 0.0
+                                    print(
+                                        f"combo_fast stage2 worker {worker_id+1}/{workers} "
+                                        f"{tested}/{local_total} ({pct:0.1f}%) kept={len(records)} "
+                                        f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
+                                        flush=True,
+                                    )
+                                cfg, _ = _mk_stage2_cfg(
+                                    base_cfg,
+                                    base_note,
+                                    exit_over=exit_over,
+                                    exit_note=exit_note,
+                                    hold=int(hold),
+                                    max_open=int(max_open),
+                                    close_eod=bool(close_eod),
+                                    loose_note=loose_note,
+                                    r2_over=r2_over,
+                                    r2_note=r2_note,
                                 )
-                            if not row:
-                                continue
-                            note = f"{base_note} | {exit_note} | hold={hold} | {loose_note} | {r2_note}"
-                            row["note"] = note
-                            _record_milestone(cfg, row, note)
-                            stage2.append((cfg, row, note))
+                                row = _run_cfg(
+                                    cfg=cfg,
+                                    bars=bars_sig,
+                                    regime_bars=_regime_bars_for(cfg) or regime_bars_by_size[str(cfg.strategy.regime_bar_size)],
+                                    regime2_bars=_regime2_bars_for(cfg),
+                                )
+                                if not row:
+                                    continue
+                                records.append(
+                                    {
+                                        "base_idx": base_idx,
+                                        "exit_idx": exit_idx,
+                                        "hold": int(hold),
+                                        "loosen_idx": loosen_idx,
+                                        "r2_idx": r2_idx,
+                                        "row": row,
+                                    }
+                                )
 
-        print(f"Combo sweep: stage2 tested={tested} kept={len(stage2)} (min_trades={run_min_trades})")
+            if combo_idx != stage2_total:
+                raise SystemExit(f"combo_fast stage2 worker internal error: combos={combo_idx} expected={stage2_total}")
 
-        # Stage 3: apply a small set of quality gates on the top stage2 candidates.
-        top_stage2 = _ranked(stage2, top_pnl_dd=15, top_pnl=7)
+            out_payload = {"tested": tested, "kept": len(records), "records": records}
+            write_json(out_path, out_payload, sort_keys=False)
+            print(f"combo_fast stage2 worker done tested={tested} kept={len(records)} out={out_path}", flush=True)
+            return
 
+        # Stage 3 variants are constant and are also used by the stage3 worker/sharding mode.
         tick_variants: list[tuple[dict, str]] = [
             ({"tick_gate_mode": "off"}, "tick=off"),
             (
@@ -3934,6 +4868,862 @@ def main() -> None:
             (10, 15, 0, 0, "tod=10-15 ET"),
         ]
 
+        if args.combo_fast_stage3:
+            if not offline:
+                raise SystemExit("combo_fast stage3 worker mode requires --offline (avoid parallel IBKR sessions).")
+            payload_path = Path(str(args.combo_fast_stage3))
+            out_path_raw = str(args.combo_fast_out or "").strip()
+            if not out_path_raw:
+                raise SystemExit("--combo-fast-out is required for combo_fast stage3 worker mode.")
+            out_path = Path(out_path_raw)
+
+            try:
+                worker_id = int(args.combo_fast_worker) if args.combo_fast_worker is not None else 0
+            except (TypeError, ValueError):
+                worker_id = 0
+            try:
+                workers = int(args.combo_fast_workers) if args.combo_fast_workers is not None else 1
+            except (TypeError, ValueError):
+                workers = 1
+            workers = max(1, int(workers))
+            worker_id = max(0, int(worker_id))
+            if worker_id >= workers:
+                raise SystemExit(
+                    f"Invalid combo_fast worker shard: worker={worker_id} workers={workers} (worker must be < workers)."
+                )
+
+            try:
+                payload = json.loads(payload_path.read_text())
+            except json.JSONDecodeError as exc:
+                raise SystemExit(f"Invalid combo_fast stage3 payload JSON: {payload_path}") from exc
+            raw_bases = payload.get("bases") if isinstance(payload, dict) else None
+            if not isinstance(raw_bases, list):
+                raise SystemExit(f"combo_fast stage3 payload missing 'bases' list: {payload_path}")
+
+            bases_local: list[tuple[ConfigBundle, str]] = []
+            for item in raw_bases:
+                if not isinstance(item, dict):
+                    continue
+                strat_payload = item.get("strategy") or {}
+                filters_payload = item.get("filters")
+                base_note = str(item.get("base_note") or "")
+                if not isinstance(strat_payload, dict):
+                    continue
+                try:
+                    filters_obj = _filters_from_payload(filters_payload)
+                    strategy_obj = _strategy_from_payload(strat_payload, filters=filters_obj)
+                except Exception:
+                    continue
+                base_cfg = _mk_bundle(
+                    strategy=strategy_obj,
+                    start=start,
+                    end=end,
+                    bar_size=signal_bar_size,
+                    use_rth=use_rth,
+                    cache_dir=cache_dir,
+                    offline=offline,
+                )
+                bases_local.append((base_cfg, base_note))
+
+            stage3_total = (
+                len(bases_local)
+                * len(tick_variants)
+                * len(quality_variants)
+                * len(rv_variants)
+                * len(exit_time_variants)
+                * len(tod_variants)
+            )
+            local_total = (stage3_total // workers) + (1 if worker_id < (stage3_total % workers) else 0)
+            tested = 0
+            combo_idx = 0
+            report_every = 200
+            t0 = pytime.perf_counter()
+            records: list[dict] = []
+            for base_idx, (base_cfg, _base_note) in enumerate(bases_local):
+                for tick_idx, (tick_over, _tick_note) in enumerate(tick_variants):
+                    for qual_idx, (spread_min, spread_min_down, slope_min, _qual_note) in enumerate(quality_variants):
+                        for rv_idx, (rv_min, rv_max, _rv_note) in enumerate(rv_variants):
+                            for exit_time_idx, (exit_time, _exit_time_note) in enumerate(exit_time_variants):
+                                for tod_idx, (tod_s, tod_e, skip, cooldown, _tod_note) in enumerate(tod_variants):
+                                    assigned = (combo_idx % workers) == worker_id
+                                    combo_idx += 1
+                                    if not assigned:
+                                        continue
+                                    tested += 1
+                                    if tested % report_every == 0 or tested == local_total:
+                                        elapsed = pytime.perf_counter() - t0
+                                        rate = (tested / elapsed) if elapsed > 0 else 0.0
+                                        remaining = local_total - tested
+                                        eta_sec = (remaining / rate) if rate > 0 else 0.0
+                                        pct = (tested / local_total * 100.0) if local_total > 0 else 0.0
+                                        print(
+                                            f"combo_fast stage3 worker {worker_id+1}/{workers} "
+                                            f"{tested}/{local_total} ({pct:0.1f}%) kept={len(records)} "
+                                            f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
+                                            flush=True,
+                                        )
+
+                                    f = _mk_filters(
+                                        rv_min=rv_min,
+                                        rv_max=rv_max,
+                                        ema_spread_min_pct=spread_min,
+                                        ema_spread_min_pct_down=spread_min_down,
+                                        ema_slope_min_pct=slope_min,
+                                        cooldown_bars=int(cooldown),
+                                        skip_first_bars=int(skip),
+                                        entry_start_hour_et=tod_s,
+                                        entry_end_hour_et=tod_e,
+                                    )
+                                    cfg = replace(
+                                        base_cfg,
+                                        strategy=replace(
+                                            base_cfg.strategy,
+                                            filters=f,
+                                            spot_exit_time_et=exit_time,
+                                            tick_gate_mode=str(tick_over.get("tick_gate_mode") or "off"),
+                                            tick_gate_symbol=str(tick_over.get("tick_gate_symbol") or "TICK-NYSE"),
+                                            tick_gate_exchange=str(tick_over.get("tick_gate_exchange") or "NYSE"),
+                                            tick_neutral_policy=str(tick_over.get("tick_neutral_policy") or "allow"),
+                                            tick_direction_policy=str(tick_over.get("tick_direction_policy") or "both"),
+                                            tick_band_ma_period=int(tick_over.get("tick_band_ma_period") or 10),
+                                            tick_width_z_lookback=int(tick_over.get("tick_width_z_lookback") or 252),
+                                            tick_width_z_enter=float(tick_over.get("tick_width_z_enter") or 1.0),
+                                            tick_width_z_exit=float(tick_over.get("tick_width_z_exit") or 0.5),
+                                            tick_width_slope_lookback=int(tick_over.get("tick_width_slope_lookback") or 3),
+                                        ),
+                                    )
+                                    row = _run_cfg(
+                                        cfg=cfg,
+                                        bars=bars_sig,
+                                        regime_bars=_regime_bars_for(cfg)
+                                        or regime_bars_by_size[str(cfg.strategy.regime_bar_size)],
+                                        regime2_bars=_regime2_bars_for(cfg),
+                                    )
+                                    if not row:
+                                        continue
+                                    records.append(
+                                        {
+                                            "base_idx": base_idx,
+                                            "tick_idx": tick_idx,
+                                            "qual_idx": qual_idx,
+                                            "rv_idx": rv_idx,
+                                            "exit_time_idx": exit_time_idx,
+                                            "tod_idx": tod_idx,
+                                            "row": row,
+                                        }
+                                    )
+
+            if combo_idx != stage3_total:
+                raise SystemExit(f"combo_fast stage3 worker internal error: combos={combo_idx} expected={stage3_total}")
+
+            out_payload = {"tested": tested, "kept": len(records), "records": records}
+            write_json(out_path, out_payload, sort_keys=False)
+            print(f"combo_fast stage3 worker done tested={tested} kept={len(records)} out={out_path}", flush=True)
+            return
+
+        def _ranked(items: list[tuple[ConfigBundle, dict, str]], *, top_pnl_dd: int, top_pnl: int) -> list:
+            by_dd = sorted(items, key=lambda t: _score_row_pnl_dd(t[1]), reverse=True)[: int(top_pnl_dd)]
+            by_pnl = sorted(items, key=lambda t: _score_row_pnl(t[1]), reverse=True)[: int(top_pnl)]
+            seen: set[str] = set()
+            out: list[tuple[ConfigBundle, dict, str]] = []
+            for cfg, row, note in by_dd + by_pnl:
+                key = _milestone_key(cfg)
+                if key in seen:
+                    continue
+                seen.add(key)
+                out.append((cfg, row, note))
+            return out
+
+        # Stage 1: direction × regime sensitivity (bounded) and keep a small diverse shortlist.
+        stage1: list[tuple[ConfigBundle, dict, str]] = []
+        base = _base_bundle(bar_size=signal_bar_size, filters=None)
+        # Ensure stage1 isn't silently gated by whatever the current milestone base uses.
+        base = replace(
+            base,
+            strategy=replace(
+                base.strategy,
+                filters=None,
+                tick_gate_mode="off",
+                spot_exit_time_et=None,
+            ),
+        )
+
+        direction_variants: list[tuple[str, str, int, str]] = []
+        base_preset = str(base.strategy.ema_preset or "").strip()
+        base_mode = str(base.strategy.ema_entry_mode or "trend").strip().lower()
+        base_confirm = int(base.strategy.entry_confirm_bars or 0)
+        if base_preset and base_mode in ("cross", "trend"):
+            direction_variants.append((base_preset, base_mode, base_confirm, f"ema={base_preset} {base_mode}"))
+
+        for preset, mode in (
+            ("2/4", "cross"),
+            ("3/7", "cross"),
+            ("3/7", "trend"),
+            ("4/9", "cross"),
+            ("4/9", "trend"),
+            ("5/10", "cross"),
+            ("9/21", "cross"),
+            ("9/21", "trend"),
+        ):
+            direction_variants.append((preset, mode, 0, f"ema={preset} {mode}"))
+
+        seen_dir: set[tuple[str, str, int]] = set()
+        direction_variants = [
+            v
+            for v in direction_variants
+            if (v[0], v[1], v[2]) not in seen_dir and not seen_dir.add((v[0], v[1], v[2]))
+        ]
+
+        regime_bar_sizes = ["4 hours", "1 day"]
+        atr_periods = [3, 7, 10, 14, 21]
+        multipliers = [0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0]
+        sources = ["close", "hl2"]
+        stage1_exit_variants: list[tuple[dict, str]] = [
+            (
+                {"spot_exit_mode": "pct", "spot_profit_target_pct": 0.015, "spot_stop_loss_pct": 0.03},
+                "PT=0.015 SL=0.030",
+            ),
+            (
+                {"spot_exit_mode": "pct", "spot_profit_target_pct": None, "spot_stop_loss_pct": 0.03},
+                "PT=off SL=0.030",
+            ),
+        ]
+        stage1_total = (
+            len(direction_variants)
+            * len(regime_bar_sizes)
+            * len(atr_periods)
+            * len(multipliers)
+            * len(sources)
+            * len(stage1_exit_variants)
+        )
+        if args.combo_fast_stage1:
+            if not offline:
+                raise SystemExit("combo_fast stage1 worker mode requires --offline (avoid parallel IBKR sessions).")
+            out_path_raw = str(args.combo_fast_out or "").strip()
+            if not out_path_raw:
+                raise SystemExit("--combo-fast-out is required for combo_fast stage1 worker mode.")
+            out_path = Path(out_path_raw)
+
+            try:
+                worker_id = int(args.combo_fast_worker) if args.combo_fast_worker is not None else 0
+            except (TypeError, ValueError):
+                worker_id = 0
+            try:
+                workers = int(args.combo_fast_workers) if args.combo_fast_workers is not None else 1
+            except (TypeError, ValueError):
+                workers = 1
+            workers = max(1, int(workers))
+            worker_id = max(0, int(worker_id))
+            if worker_id >= workers:
+                raise SystemExit(
+                    f"Invalid combo_fast worker shard: worker={worker_id} workers={workers} (worker must be < workers)."
+                )
+
+            local_total = (stage1_total // workers) + (1 if worker_id < (stage1_total % workers) else 0)
+            tested = 0
+            combo_idx = 0
+            report_every = 200
+            t0 = pytime.perf_counter()
+            records: list[dict] = []
+            for dir_idx, (ema_preset, entry_mode, confirm, dir_note) in enumerate(direction_variants):
+                for rbar_idx, rbar in enumerate(regime_bar_sizes):
+                    for atr_idx, atr_p in enumerate(atr_periods):
+                        for mult_idx, mult in enumerate(multipliers):
+                            for src_idx, src in enumerate(sources):
+                                for exit_idx, (exit_over, exit_note) in enumerate(stage1_exit_variants):
+                                    assigned = (combo_idx % workers) == worker_id
+                                    combo_idx += 1
+                                    if not assigned:
+                                        continue
+                                    tested += 1
+                                    if tested % report_every == 0 or tested == local_total:
+                                        elapsed = pytime.perf_counter() - t0
+                                        rate = (tested / elapsed) if elapsed > 0 else 0.0
+                                        remaining = local_total - tested
+                                        eta_sec = (remaining / rate) if rate > 0 else 0.0
+                                        pct = (tested / local_total * 100.0) if local_total > 0 else 0.0
+                                        print(
+                                            f"combo_fast stage1 worker {worker_id+1}/{workers} "
+                                            f"{tested}/{local_total} ({pct:0.1f}%) kept={len(records)} "
+                                            f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
+                                            flush=True,
+                                        )
+
+                                    cfg = replace(
+                                        base,
+                                        strategy=replace(
+                                            base.strategy,
+                                            entry_signal="ema",
+                                            ema_preset=str(ema_preset),
+                                            ema_entry_mode=str(entry_mode),
+                                            entry_confirm_bars=int(confirm),
+                                            regime_mode="supertrend",
+                                            regime_bar_size=rbar,
+                                            supertrend_atr_period=int(atr_p),
+                                            supertrend_multiplier=float(mult),
+                                            supertrend_source=str(src),
+                                            regime2_mode="off",
+                                            spot_exit_mode=str(exit_over["spot_exit_mode"]),
+                                            spot_profit_target_pct=exit_over.get("spot_profit_target_pct"),
+                                            spot_stop_loss_pct=exit_over.get("spot_stop_loss_pct"),
+                                        ),
+                                    )
+                                    row = _run_cfg(
+                                        cfg=cfg,
+                                        bars=bars_sig,
+                                        regime_bars=regime_bars_by_size[rbar],
+                                        regime2_bars=None,
+                                    )
+                                    if not row:
+                                        continue
+                                    records.append(
+                                        {
+                                            "dir_idx": dir_idx,
+                                            "rbar_idx": rbar_idx,
+                                            "atr_idx": atr_idx,
+                                            "mult_idx": mult_idx,
+                                            "src_idx": src_idx,
+                                            "exit_idx": exit_idx,
+                                            "row": row,
+                                        }
+                                    )
+
+            if combo_idx != stage1_total:
+                raise SystemExit(f"combo_fast stage1 worker internal error: combos={combo_idx} expected={stage1_total}")
+
+            out_payload = {"tested": tested, "kept": len(records), "records": records}
+            write_json(out_path, out_payload, sort_keys=False)
+            print(f"combo_fast stage1 worker done tested={tested} kept={len(records)} out={out_path}", flush=True)
+            return
+
+        stage1_tested = 0
+        report_every_stage1 = 200
+        stage1_t0 = pytime.perf_counter()
+        print(f"combo_fast sweep: stage1 total={stage1_total} (progress every {report_every_stage1})", flush=True)
+        if jobs > 1 and stage1_total > 0:
+            if not offline:
+                raise SystemExit("--jobs>1 for combo_fast requires --offline (avoid parallel IBKR sessions).")
+
+            def _strip_flag(argv: list[str], flag: str) -> list[str]:
+                return [arg for arg in argv if arg != flag]
+
+            def _strip_flag_with_value(argv: list[str], flag: str) -> list[str]:
+                out: list[str] = []
+                idx = 0
+                while idx < len(argv):
+                    arg = argv[idx]
+                    if arg == flag:
+                        idx += 2
+                        continue
+                    if arg.startswith(flag + "="):
+                        idx += 1
+                        continue
+                    out.append(arg)
+                    idx += 1
+                return out
+
+            base_cli = list(sys.argv[1:])
+            base_cli = _strip_flag_with_value(base_cli, "--axis")
+            base_cli = _strip_flag_with_value(base_cli, "--jobs")
+            base_cli = _strip_flag(base_cli, "--write-milestones")
+            base_cli = _strip_flag(base_cli, "--merge-milestones")
+            base_cli = _strip_flag_with_value(base_cli, "--milestones-out")
+            base_cli = _strip_flag_with_value(base_cli, "--combo-fast-stage1")
+            base_cli = _strip_flag_with_value(base_cli, "--combo-fast-stage2")
+            base_cli = _strip_flag_with_value(base_cli, "--combo-fast-stage3")
+            base_cli = _strip_flag_with_value(base_cli, "--combo-fast-worker")
+            base_cli = _strip_flag_with_value(base_cli, "--combo-fast-workers")
+            base_cli = _strip_flag_with_value(base_cli, "--combo-fast-out")
+            base_cli = _strip_flag_with_value(base_cli, "--combo-fast-run-min-trades")
+
+            jobs_eff = min(int(jobs), int(_default_jobs()), int(stage1_total)) if stage1_total > 0 else 1
+            print(f"combo_fast stage1 parallel: workers={jobs_eff} total={stage1_total}", flush=True)
+
+            def _pump(prefix: str, stream) -> None:
+                for line in iter(stream.readline, ""):
+                    print(f"[{prefix}] {line.rstrip()}", flush=True)
+
+            failures: list[tuple[int, int]] = []
+            start_times: dict[int, float] = {}
+
+            with tempfile.TemporaryDirectory(prefix="tradebot_combo_fast1_") as tmpdir:
+                tmp_root = Path(tmpdir)
+                running: list[tuple[int, subprocess.Popen, threading.Thread, Path]] = []
+                out_paths: dict[int, Path] = {}
+
+                for worker_id in range(jobs_eff):
+                    out_path = tmp_root / f"stage1_out_{worker_id}.json"
+                    out_paths[worker_id] = out_path
+                    cmd = [
+                        sys.executable,
+                        "-u",
+                        "-m",
+                        "tradebot.backtest",
+                        "spot",
+                        *base_cli,
+                        "--axis",
+                        "combo_fast",
+                        "--jobs",
+                        "1",
+                        "--combo-fast-stage1",
+                        "1",
+                        "--combo-fast-worker",
+                        str(worker_id),
+                        "--combo-fast-workers",
+                        str(jobs_eff),
+                        "--combo-fast-out",
+                        str(out_path),
+                        "--combo-fast-run-min-trades",
+                        str(int(run_min_trades)),
+                    ]
+                    proc = subprocess.Popen(
+                        cmd,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
+                        text=True,
+                        bufsize=1,
+                    )
+                    if proc.stdout is None:
+                        raise RuntimeError("Failed to capture combo_fast stage1 worker stdout.")
+                    t = threading.Thread(target=_pump, args=(f"cf1:{worker_id}", proc.stdout), daemon=True)
+                    t.start()
+                    start_times[worker_id] = pytime.perf_counter()
+                    running.append((worker_id, proc, t, out_path))
+
+                while running and not failures:
+                    finished_idx = None
+                    for idx, (worker_id, proc, t, out_path) in enumerate(running):
+                        rc = proc.poll()
+                        if rc is None:
+                            continue
+                        finished_idx = idx
+                        elapsed = pytime.perf_counter() - float(start_times.get(worker_id) or pytime.perf_counter())
+                        print(f"DONE  cf1:{worker_id} exit={rc} elapsed={elapsed:0.1f}s", flush=True)
+                        try:
+                            proc.wait(timeout=1.0)
+                        except subprocess.TimeoutExpired:
+                            proc.kill()
+                            proc.wait(timeout=5.0)
+                        try:
+                            t.join(timeout=1.0)
+                        except Exception:
+                            pass
+                        if rc != 0:
+                            failures.append((int(worker_id), int(rc)))
+                        running.pop(idx)
+                        break
+
+                    if failures:
+                        for worker_id, proc, t, out_path in running:
+                            try:
+                                proc.terminate()
+                            except Exception:
+                                pass
+                        for worker_id, proc, t, out_path in running:
+                            try:
+                                proc.wait(timeout=5.0)
+                            except subprocess.TimeoutExpired:
+                                try:
+                                    proc.kill()
+                                except Exception:
+                                    pass
+                        break
+
+                    if finished_idx is None:
+                        pytime.sleep(0.05)
+
+                if failures:
+                    wid, rc = failures[0]
+                    raise SystemExit(f"combo_fast stage1 worker failed: cf1:{wid} (exit={rc})")
+
+                tested_total = 0
+                for worker_id in range(jobs_eff):
+                    out_path = out_paths.get(worker_id)
+                    if out_path is None or not out_path.exists():
+                        raise SystemExit(f"Missing combo_fast stage1 output: cf1:{worker_id} ({out_path})")
+                    try:
+                        payload = json.loads(out_path.read_text())
+                    except json.JSONDecodeError as exc:
+                        raise SystemExit(f"Invalid combo_fast stage1 output JSON: cf1:{worker_id} ({out_path})") from exc
+                    if not isinstance(payload, dict):
+                        continue
+                    tested_total += int(payload.get("tested") or 0)
+                    for rec in payload.get("records") or []:
+                        if not isinstance(rec, dict):
+                            continue
+                        try:
+                            dir_idx = int(rec.get("dir_idx"))
+                            rbar_idx = int(rec.get("rbar_idx"))
+                            atr_idx = int(rec.get("atr_idx"))
+                            mult_idx = int(rec.get("mult_idx"))
+                            src_idx = int(rec.get("src_idx"))
+                            exit_idx = int(rec.get("exit_idx"))
+                        except (TypeError, ValueError):
+                            continue
+                        if dir_idx < 0 or dir_idx >= len(direction_variants):
+                            raise SystemExit(f"combo_fast stage1 merge: invalid dir_idx={dir_idx}")
+                        if rbar_idx < 0 or rbar_idx >= len(regime_bar_sizes):
+                            raise SystemExit(f"combo_fast stage1 merge: invalid rbar_idx={rbar_idx}")
+                        if atr_idx < 0 or atr_idx >= len(atr_periods):
+                            raise SystemExit(f"combo_fast stage1 merge: invalid atr_idx={atr_idx}")
+                        if mult_idx < 0 or mult_idx >= len(multipliers):
+                            raise SystemExit(f"combo_fast stage1 merge: invalid mult_idx={mult_idx}")
+                        if src_idx < 0 or src_idx >= len(sources):
+                            raise SystemExit(f"combo_fast stage1 merge: invalid src_idx={src_idx}")
+                        if exit_idx < 0 or exit_idx >= len(stage1_exit_variants):
+                            raise SystemExit(f"combo_fast stage1 merge: invalid exit_idx={exit_idx}")
+
+                        ema_preset, entry_mode, confirm, dir_note = direction_variants[dir_idx]
+                        rbar = regime_bar_sizes[rbar_idx]
+                        atr_p = atr_periods[atr_idx]
+                        mult = multipliers[mult_idx]
+                        src = sources[src_idx]
+                        exit_over, exit_note = stage1_exit_variants[exit_idx]
+
+                        cfg = replace(
+                            base,
+                            strategy=replace(
+                                base.strategy,
+                                entry_signal="ema",
+                                ema_preset=str(ema_preset),
+                                ema_entry_mode=str(entry_mode),
+                                entry_confirm_bars=int(confirm),
+                                regime_mode="supertrend",
+                                regime_bar_size=rbar,
+                                supertrend_atr_period=int(atr_p),
+                                supertrend_multiplier=float(mult),
+                                supertrend_source=str(src),
+                                regime2_mode="off",
+                                spot_exit_mode=str(exit_over["spot_exit_mode"]),
+                                spot_profit_target_pct=exit_over.get("spot_profit_target_pct"),
+                                spot_stop_loss_pct=exit_over.get("spot_stop_loss_pct"),
+                            ),
+                        )
+                        row = rec.get("row")
+                        if not isinstance(row, dict):
+                            continue
+                        row = dict(row)
+                        note = f"{dir_note} c={confirm} | ST({atr_p},{mult},{src}) @{rbar} | {exit_note}"
+                        row["note"] = note
+                        stage1.append((cfg, row, note))
+
+                stage1_tested = int(tested_total)
+                run_calls_total += int(tested_total)
+        else:
+            for ema_preset, entry_mode, confirm, dir_note in direction_variants:
+                for rbar in regime_bar_sizes:
+                    for atr_p in atr_periods:
+                        for mult in multipliers:
+                            for src in sources:
+                                for exit_over, exit_note in stage1_exit_variants:
+                                    cfg = replace(
+                                        base,
+                                        strategy=replace(
+                                            base.strategy,
+                                            entry_signal="ema",
+                                            ema_preset=str(ema_preset),
+                                            ema_entry_mode=str(entry_mode),
+                                            entry_confirm_bars=int(confirm),
+                                            regime_mode="supertrend",
+                                            regime_bar_size=rbar,
+                                            supertrend_atr_period=int(atr_p),
+                                            supertrend_multiplier=float(mult),
+                                            supertrend_source=str(src),
+                                            regime2_mode="off",
+                                            spot_exit_mode=str(exit_over["spot_exit_mode"]),
+                                            spot_profit_target_pct=exit_over.get("spot_profit_target_pct"),
+                                            spot_stop_loss_pct=exit_over.get("spot_stop_loss_pct"),
+                                        ),
+                                    )
+                                    row = _run_cfg(
+                                        cfg=cfg,
+                                        bars=bars_sig,
+                                        regime_bars=regime_bars_by_size[rbar],
+                                        regime2_bars=None,
+                                    )
+                                    stage1_tested += 1
+                                    if stage1_tested % report_every_stage1 == 0:
+                                        elapsed = pytime.perf_counter() - stage1_t0
+                                        rate = (stage1_tested / elapsed) if elapsed > 0 else 0.0
+                                        remaining = stage1_total - stage1_tested
+                                        eta_sec = (remaining / rate) if rate > 0 else 0.0
+                                        pct = (stage1_tested / stage1_total * 100.0) if stage1_total > 0 else 0.0
+                                        print(
+                                            f"combo_fast sweep: stage1 {stage1_tested}/{stage1_total} ({pct:0.1f}%) "
+                                            f"kept={len(stage1)} elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
+                                            flush=True,
+                                        )
+                                    if not row:
+                                        continue
+                                    note = f"{dir_note} c={confirm} | ST({atr_p},{mult},{src}) @{rbar} | {exit_note}"
+                                    row["note"] = note
+                                    stage1.append((cfg, row, note))
+
+        shortlist = _ranked(stage1, top_pnl_dd=15, top_pnl=7)
+        print("")
+        print(f"combo_fast sweep: shortlist regimes={len(shortlist)} (from stage1={len(stage1)})")
+
+        # Stage 2: for each shortlisted regime, sweep exits + loosenings, and (optionally) a small regime2 set.
+        stage2: list[tuple[ConfigBundle, dict, str]] = []
+        report_every = 200
+        t0 = pytime.perf_counter()
+        stage2_total = len(shortlist) * len(exit_variants) * len(hold_vals) * len(loosen_variants) * len(regime2_variants)
+        print(f"combo_fast sweep: stage2 total={stage2_total} (progress every {report_every})", flush=True)
+        tested = 0
+        if jobs > 1:
+            if not offline:
+                raise SystemExit("--jobs>1 for combo_fast requires --offline (avoid parallel IBKR sessions).")
+
+            def _strip_flag(argv: list[str], flag: str) -> list[str]:
+                return [arg for arg in argv if arg != flag]
+
+            def _strip_flag_with_value(argv: list[str], flag: str) -> list[str]:
+                out: list[str] = []
+                idx = 0
+                while idx < len(argv):
+                    arg = argv[idx]
+                    if arg == flag:
+                        idx += 2
+                        continue
+                    if arg.startswith(flag + "="):
+                        idx += 1
+                        continue
+                    out.append(arg)
+                    idx += 1
+                return out
+
+            base_cli = list(sys.argv[1:])
+            base_cli = _strip_flag_with_value(base_cli, "--axis")
+            base_cli = _strip_flag_with_value(base_cli, "--jobs")
+            base_cli = _strip_flag(base_cli, "--write-milestones")
+            base_cli = _strip_flag(base_cli, "--merge-milestones")
+            base_cli = _strip_flag_with_value(base_cli, "--milestones-out")
+            base_cli = _strip_flag_with_value(base_cli, "--combo-fast-stage1")
+            base_cli = _strip_flag_with_value(base_cli, "--combo-fast-stage2")
+            base_cli = _strip_flag_with_value(base_cli, "--combo-fast-stage3")
+            base_cli = _strip_flag_with_value(base_cli, "--combo-fast-worker")
+            base_cli = _strip_flag_with_value(base_cli, "--combo-fast-workers")
+            base_cli = _strip_flag_with_value(base_cli, "--combo-fast-out")
+            base_cli = _strip_flag_with_value(base_cli, "--combo-fast-run-min-trades")
+
+            jobs_eff = min(int(jobs), int(_default_jobs()), int(stage2_total)) if stage2_total > 0 else 1
+            print(f"combo_fast stage2 parallel: workers={jobs_eff} total={stage2_total}", flush=True)
+
+            def _pump(prefix: str, stream) -> None:
+                for line in iter(stream.readline, ""):
+                    print(f"[{prefix}] {line.rstrip()}", flush=True)
+
+            failures: list[tuple[int, int]] = []
+            start_times: dict[int, float] = {}
+
+            with tempfile.TemporaryDirectory(prefix="tradebot_combo_fast_") as tmpdir:
+                tmp_root = Path(tmpdir)
+                payload_path = tmp_root / "stage2_payload.json"
+                shortlist_payload: list[dict] = []
+                for base_cfg, _, base_note in shortlist:
+                    shortlist_payload.append(
+                        {
+                            "strategy": _spot_strategy_payload(base_cfg, meta=meta),
+                            "filters": _filters_payload(base_cfg.strategy.filters),
+                            "base_note": str(base_note),
+                        }
+                    )
+                write_json(payload_path, {"shortlist": shortlist_payload}, sort_keys=False)
+
+                running: list[tuple[int, subprocess.Popen, threading.Thread, Path]] = []
+                out_paths: dict[int, Path] = {}
+
+                for worker_id in range(jobs_eff):
+                    out_path = tmp_root / f"stage2_out_{worker_id}.json"
+                    out_paths[worker_id] = out_path
+                    cmd = [
+                        sys.executable,
+                        "-u",
+                        "-m",
+                        "tradebot.backtest",
+                        "spot",
+                        *base_cli,
+                        "--axis",
+                        "combo_fast",
+                        "--jobs",
+                        "1",
+                        "--combo-fast-stage2",
+                        str(payload_path),
+                        "--combo-fast-worker",
+                        str(worker_id),
+                        "--combo-fast-workers",
+                        str(jobs_eff),
+                        "--combo-fast-out",
+                        str(out_path),
+                        "--combo-fast-run-min-trades",
+                        str(int(run_min_trades)),
+                    ]
+                    proc = subprocess.Popen(
+                        cmd,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
+                        text=True,
+                        bufsize=1,
+                    )
+                    if proc.stdout is None:
+                        raise RuntimeError("Failed to capture combo_fast stage2 worker stdout.")
+                    t = threading.Thread(target=_pump, args=(f"cf2:{worker_id}", proc.stdout), daemon=True)
+                    t.start()
+                    start_times[worker_id] = pytime.perf_counter()
+                    running.append((worker_id, proc, t, out_path))
+
+                while running and not failures:
+                    finished_idx = None
+                    for idx, (worker_id, proc, t, out_path) in enumerate(running):
+                        rc = proc.poll()
+                        if rc is None:
+                            continue
+                        finished_idx = idx
+                        elapsed = pytime.perf_counter() - float(start_times.get(worker_id) or pytime.perf_counter())
+                        print(f"DONE  cf2:{worker_id} exit={rc} elapsed={elapsed:0.1f}s", flush=True)
+                        try:
+                            proc.wait(timeout=1.0)
+                        except subprocess.TimeoutExpired:
+                            proc.kill()
+                            proc.wait(timeout=5.0)
+                        try:
+                            t.join(timeout=1.0)
+                        except Exception:
+                            pass
+                        if rc != 0:
+                            failures.append((int(worker_id), int(rc)))
+                        running.pop(idx)
+                        break
+
+                    if failures:
+                        for worker_id, proc, t, out_path in running:
+                            try:
+                                proc.terminate()
+                            except Exception:
+                                pass
+                        for worker_id, proc, t, out_path in running:
+                            try:
+                                proc.wait(timeout=5.0)
+                            except Exception:
+                                try:
+                                    proc.kill()
+                                except Exception:
+                                    pass
+                        break
+
+                    if finished_idx is None:
+                        pytime.sleep(0.05)
+
+                if failures:
+                    wid, rc = failures[0]
+                    raise SystemExit(f"combo_fast stage2 worker failed: cf2:{wid} (exit={rc})")
+
+                tested_total = 0
+                for worker_id in range(jobs_eff):
+                    out_path = out_paths.get(worker_id)
+                    if out_path is None or not out_path.exists():
+                        raise SystemExit(f"Missing combo_fast stage2 output: cf2:{worker_id} ({out_path})")
+                    try:
+                        payload = json.loads(out_path.read_text())
+                    except json.JSONDecodeError as exc:
+                        raise SystemExit(f"Invalid combo_fast stage2 output JSON: cf2:{worker_id} ({out_path})") from exc
+                    if not isinstance(payload, dict):
+                        continue
+                    tested_total += int(payload.get("tested") or 0)
+                    for rec in payload.get("records") or []:
+                        if not isinstance(rec, dict):
+                            continue
+                        try:
+                            base_idx = int(rec.get("base_idx"))
+                            exit_idx = int(rec.get("exit_idx"))
+                            loosen_idx = int(rec.get("loosen_idx"))
+                            r2_idx = int(rec.get("r2_idx"))
+                            hold = int(rec.get("hold"))
+                        except (TypeError, ValueError):
+                            continue
+                        if base_idx < 0 or base_idx >= len(shortlist):
+                            raise SystemExit(f"combo_fast stage2 merge: invalid base_idx={base_idx}")
+                        if exit_idx < 0 or exit_idx >= len(exit_variants):
+                            raise SystemExit(f"combo_fast stage2 merge: invalid exit_idx={exit_idx}")
+                        if loosen_idx < 0 or loosen_idx >= len(loosen_variants):
+                            raise SystemExit(f"combo_fast stage2 merge: invalid loosen_idx={loosen_idx}")
+                        if r2_idx < 0 or r2_idx >= len(regime2_variants):
+                            raise SystemExit(f"combo_fast stage2 merge: invalid r2_idx={r2_idx}")
+
+                        base_cfg, _, base_note = shortlist[base_idx]
+                        exit_over, exit_note = exit_variants[exit_idx]
+                        max_open, close_eod, loose_note = loosen_variants[loosen_idx]
+                        r2_over, r2_note = regime2_variants[r2_idx]
+                        cfg, note = _mk_stage2_cfg(
+                            base_cfg,
+                            base_note,
+                            exit_over=exit_over,
+                            exit_note=exit_note,
+                            hold=int(hold),
+                            max_open=int(max_open),
+                            close_eod=bool(close_eod),
+                            loose_note=loose_note,
+                            r2_over=r2_over,
+                            r2_note=r2_note,
+                        )
+                        row = rec.get("row")
+                        if not isinstance(row, dict):
+                            continue
+                        row = dict(row)
+                        row["note"] = note
+                        _record_milestone(cfg, row, note)
+                        stage2.append((cfg, row, note))
+
+                tested = int(tested_total)
+                run_calls_total += int(tested_total)
+        else:
+            for base_cfg, _, base_note in shortlist:
+                for exit_over, exit_note in exit_variants:
+                    for hold in hold_vals:
+                        for max_open, close_eod, loose_note in loosen_variants:
+                            for r2_over, r2_note in regime2_variants:
+                                cfg, note = _mk_stage2_cfg(
+                                    base_cfg,
+                                    base_note,
+                                    exit_over=exit_over,
+                                    exit_note=exit_note,
+                                    hold=int(hold),
+                                    max_open=int(max_open),
+                                    close_eod=bool(close_eod),
+                                    loose_note=loose_note,
+                                    r2_over=r2_over,
+                                    r2_note=r2_note,
+                                )
+                                row = _run_cfg(
+                                    cfg=cfg,
+                                    bars=bars_sig,
+                                    regime_bars=_regime_bars_for(cfg)
+                                    or regime_bars_by_size[str(cfg.strategy.regime_bar_size)],
+                                    regime2_bars=_regime2_bars_for(cfg),
+                                )
+                                tested += 1
+                                if tested % report_every == 0:
+                                    elapsed = pytime.perf_counter() - t0
+                                    rate = (tested / elapsed) if elapsed > 0 else 0.0
+                                    remaining = stage2_total - tested
+                                    eta_sec = (remaining / rate) if rate > 0 else 0.0
+                                    pct = (tested / stage2_total * 100.0) if stage2_total > 0 else 0.0
+                                    print(
+                                        f"combo_fast sweep: stage2 {tested}/{stage2_total} ({pct:0.1f}%) "
+                                        f"kept={len(stage2)} elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
+                                        flush=True,
+                                    )
+                                if not row:
+                                    continue
+                                row["note"] = note
+                                _record_milestone(cfg, row, note)
+                                stage2.append((cfg, row, note))
+
+        print(f"combo_fast sweep: stage2 tested={tested} kept={len(stage2)} (min_trades={run_min_trades})")
+
+        # Stage 3: apply a small set of quality gates on the top stage2 candidates.
+        top_stage2 = _ranked(stage2, top_pnl_dd=15, top_pnl=7)
+
         stage3_total = (
             len(top_stage2)
             * len(tick_variants)
@@ -3945,75 +5735,2104 @@ def main() -> None:
         stage3_tested = 0
         stage3_t0 = pytime.perf_counter()
         report_every_stage3 = 200
-        print(f"Combo sweep: stage3 total={stage3_total} (progress every {report_every_stage3})", flush=True)
+        print(f"combo_fast sweep: stage3 total={stage3_total} (progress every {report_every_stage3})", flush=True)
 
         stage3: list[dict] = []
-        for base_cfg, base_row, base_note in top_stage2:
-            for tick_over, tick_note in tick_variants:
-                for spread_min, spread_min_down, slope_min, qual_note in quality_variants:
-                    for rv_min, rv_max, rv_note in rv_variants:
-                        for exit_time, exit_time_note in exit_time_variants:
-                            for tod_s, tod_e, skip, cooldown, tod_note in tod_variants:
-                                f = _mk_filters(
-                                    rv_min=rv_min,
-                                    rv_max=rv_max,
-                                    ema_spread_min_pct=spread_min,
-                                    ema_spread_min_pct_down=spread_min_down,
-                                    ema_slope_min_pct=slope_min,
-                                    cooldown_bars=int(cooldown),
-                                    skip_first_bars=int(skip),
-                                    entry_start_hour_et=tod_s,
-                                    entry_end_hour_et=tod_e,
+        if jobs > 1 and stage3_total > 0:
+            if not offline:
+                raise SystemExit("--jobs>1 for combo_fast requires --offline (avoid parallel IBKR sessions).")
+
+            def _strip_flag(argv: list[str], flag: str) -> list[str]:
+                return [arg for arg in argv if arg != flag]
+
+            def _strip_flag_with_value(argv: list[str], flag: str) -> list[str]:
+                out: list[str] = []
+                idx = 0
+                while idx < len(argv):
+                    arg = argv[idx]
+                    if arg == flag:
+                        idx += 2
+                        continue
+                    if arg.startswith(flag + "="):
+                        idx += 1
+                        continue
+                    out.append(arg)
+                    idx += 1
+                return out
+
+            base_cli = list(sys.argv[1:])
+            base_cli = _strip_flag_with_value(base_cli, "--axis")
+            base_cli = _strip_flag_with_value(base_cli, "--jobs")
+            base_cli = _strip_flag(base_cli, "--write-milestones")
+            base_cli = _strip_flag(base_cli, "--merge-milestones")
+            base_cli = _strip_flag_with_value(base_cli, "--milestones-out")
+            base_cli = _strip_flag_with_value(base_cli, "--combo-fast-stage1")
+            base_cli = _strip_flag_with_value(base_cli, "--combo-fast-stage2")
+            base_cli = _strip_flag_with_value(base_cli, "--combo-fast-stage3")
+            base_cli = _strip_flag_with_value(base_cli, "--combo-fast-worker")
+            base_cli = _strip_flag_with_value(base_cli, "--combo-fast-workers")
+            base_cli = _strip_flag_with_value(base_cli, "--combo-fast-out")
+            base_cli = _strip_flag_with_value(base_cli, "--combo-fast-run-min-trades")
+
+            jobs_eff = min(int(jobs), int(_default_jobs()), int(stage3_total)) if stage3_total > 0 else 1
+            print(f"combo_fast stage3 parallel: workers={jobs_eff} total={stage3_total}", flush=True)
+
+            def _pump(prefix: str, stream) -> None:
+                for line in iter(stream.readline, ""):
+                    print(f"[{prefix}] {line.rstrip()}", flush=True)
+
+            failures: list[tuple[int, int]] = []
+            start_times: dict[int, float] = {}
+
+            with tempfile.TemporaryDirectory(prefix="tradebot_combo_fast3_") as tmpdir:
+                tmp_root = Path(tmpdir)
+                payload_path = tmp_root / "stage3_payload.json"
+                bases_payload: list[dict] = []
+                for base_cfg, _, base_note in top_stage2:
+                    bases_payload.append(
+                        {
+                            "strategy": _spot_strategy_payload(base_cfg, meta=meta),
+                            "filters": _filters_payload(base_cfg.strategy.filters),
+                            "base_note": str(base_note),
+                        }
+                    )
+                write_json(payload_path, {"bases": bases_payload}, sort_keys=False)
+
+                running: list[tuple[int, subprocess.Popen, threading.Thread, Path]] = []
+                out_paths: dict[int, Path] = {}
+
+                for worker_id in range(jobs_eff):
+                    out_path = tmp_root / f"stage3_out_{worker_id}.json"
+                    out_paths[worker_id] = out_path
+                    cmd = [
+                        sys.executable,
+                        "-u",
+                        "-m",
+                        "tradebot.backtest",
+                        "spot",
+                        *base_cli,
+                        "--axis",
+                        "combo_fast",
+                        "--jobs",
+                        "1",
+                        "--combo-fast-stage3",
+                        str(payload_path),
+                        "--combo-fast-worker",
+                        str(worker_id),
+                        "--combo-fast-workers",
+                        str(jobs_eff),
+                        "--combo-fast-out",
+                        str(out_path),
+                        "--combo-fast-run-min-trades",
+                        str(int(run_min_trades)),
+                    ]
+                    proc = subprocess.Popen(
+                        cmd,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
+                        text=True,
+                        bufsize=1,
+                    )
+                    if proc.stdout is None:
+                        raise RuntimeError("Failed to capture combo_fast stage3 worker stdout.")
+                    t = threading.Thread(target=_pump, args=(f"cf3:{worker_id}", proc.stdout), daemon=True)
+                    t.start()
+                    start_times[worker_id] = pytime.perf_counter()
+                    running.append((worker_id, proc, t, out_path))
+
+                while running and not failures:
+                    finished_idx = None
+                    for idx, (worker_id, proc, t, out_path) in enumerate(running):
+                        rc = proc.poll()
+                        if rc is None:
+                            continue
+                        finished_idx = idx
+                        elapsed = pytime.perf_counter() - float(start_times.get(worker_id) or pytime.perf_counter())
+                        print(f"DONE  cf3:{worker_id} exit={rc} elapsed={elapsed:0.1f}s", flush=True)
+                        try:
+                            proc.wait(timeout=1.0)
+                        except subprocess.TimeoutExpired:
+                            proc.kill()
+                            proc.wait(timeout=5.0)
+                        try:
+                            t.join(timeout=1.0)
+                        except Exception:
+                            pass
+                        if rc != 0:
+                            failures.append((int(worker_id), int(rc)))
+                        running.pop(idx)
+                        break
+
+                    if failures:
+                        for worker_id, proc, t, out_path in running:
+                            try:
+                                proc.terminate()
+                            except Exception:
+                                pass
+                        for worker_id, proc, t, out_path in running:
+                            try:
+                                proc.wait(timeout=5.0)
+                            except subprocess.TimeoutExpired:
+                                try:
+                                    proc.kill()
+                                except Exception:
+                                    pass
+                        break
+
+                    if finished_idx is None:
+                        pytime.sleep(0.05)
+
+                if failures:
+                    wid, rc = failures[0]
+                    raise SystemExit(f"combo_fast stage3 worker failed: cf3:{wid} (exit={rc})")
+
+                tested_total = 0
+                for worker_id in range(jobs_eff):
+                    out_path = out_paths.get(worker_id)
+                    if out_path is None or not out_path.exists():
+                        raise SystemExit(f"Missing combo_fast stage3 output: cf3:{worker_id} ({out_path})")
+                    try:
+                        payload = json.loads(out_path.read_text())
+                    except json.JSONDecodeError as exc:
+                        raise SystemExit(f"Invalid combo_fast stage3 output JSON: cf3:{worker_id} ({out_path})") from exc
+                    if not isinstance(payload, dict):
+                        continue
+                    tested_total += int(payload.get("tested") or 0)
+                    for rec in payload.get("records") or []:
+                        if not isinstance(rec, dict):
+                            continue
+                        try:
+                            base_idx = int(rec.get("base_idx"))
+                            tick_idx = int(rec.get("tick_idx"))
+                            qual_idx = int(rec.get("qual_idx"))
+                            rv_idx = int(rec.get("rv_idx"))
+                            exit_time_idx = int(rec.get("exit_time_idx"))
+                            tod_idx = int(rec.get("tod_idx"))
+                        except (TypeError, ValueError):
+                            continue
+                        if base_idx < 0 or base_idx >= len(top_stage2):
+                            raise SystemExit(f"combo_fast stage3 merge: invalid base_idx={base_idx}")
+                        if tick_idx < 0 or tick_idx >= len(tick_variants):
+                            raise SystemExit(f"combo_fast stage3 merge: invalid tick_idx={tick_idx}")
+                        if qual_idx < 0 or qual_idx >= len(quality_variants):
+                            raise SystemExit(f"combo_fast stage3 merge: invalid qual_idx={qual_idx}")
+                        if rv_idx < 0 or rv_idx >= len(rv_variants):
+                            raise SystemExit(f"combo_fast stage3 merge: invalid rv_idx={rv_idx}")
+                        if exit_time_idx < 0 or exit_time_idx >= len(exit_time_variants):
+                            raise SystemExit(f"combo_fast stage3 merge: invalid exit_time_idx={exit_time_idx}")
+                        if tod_idx < 0 or tod_idx >= len(tod_variants):
+                            raise SystemExit(f"combo_fast stage3 merge: invalid tod_idx={tod_idx}")
+
+                        base_cfg, _, base_note = top_stage2[base_idx]
+                        tick_over, tick_note = tick_variants[tick_idx]
+                        spread_min, spread_min_down, slope_min, qual_note = quality_variants[qual_idx]
+                        rv_min, rv_max, rv_note = rv_variants[rv_idx]
+                        exit_time, exit_time_note = exit_time_variants[exit_time_idx]
+                        tod_s, tod_e, skip, cooldown, tod_note = tod_variants[tod_idx]
+
+                        f = _mk_filters(
+                            rv_min=rv_min,
+                            rv_max=rv_max,
+                            ema_spread_min_pct=spread_min,
+                            ema_spread_min_pct_down=spread_min_down,
+                            ema_slope_min_pct=slope_min,
+                            cooldown_bars=int(cooldown),
+                            skip_first_bars=int(skip),
+                            entry_start_hour_et=tod_s,
+                            entry_end_hour_et=tod_e,
+                        )
+                        cfg = replace(
+                            base_cfg,
+                            strategy=replace(
+                                base_cfg.strategy,
+                                filters=f,
+                                spot_exit_time_et=exit_time,
+                                tick_gate_mode=str(tick_over.get("tick_gate_mode") or "off"),
+                                tick_gate_symbol=str(tick_over.get("tick_gate_symbol") or "TICK-NYSE"),
+                                tick_gate_exchange=str(tick_over.get("tick_gate_exchange") or "NYSE"),
+                                tick_neutral_policy=str(tick_over.get("tick_neutral_policy") or "allow"),
+                                tick_direction_policy=str(tick_over.get("tick_direction_policy") or "both"),
+                                tick_band_ma_period=int(tick_over.get("tick_band_ma_period") or 10),
+                                tick_width_z_lookback=int(tick_over.get("tick_width_z_lookback") or 252),
+                                tick_width_z_enter=float(tick_over.get("tick_width_z_enter") or 1.0),
+                                tick_width_z_exit=float(tick_over.get("tick_width_z_exit") or 0.5),
+                                tick_width_slope_lookback=int(tick_over.get("tick_width_slope_lookback") or 3),
+                            ),
+                        )
+
+                        row = rec.get("row")
+                        if not isinstance(row, dict):
+                            continue
+                        row = dict(row)
+                        note = (
+                            f"{base_note} | {tick_note} | {qual_note} | {rv_note} | {exit_time_note} | {tod_note}"
+                        )
+                        row["note"] = note
+                        _record_milestone(cfg, row, note)
+                        stage3.append(row)
+
+                stage3_tested = int(tested_total)
+                run_calls_total += int(tested_total)
+        else:
+            for base_cfg, base_row, base_note in top_stage2:
+                for tick_over, tick_note in tick_variants:
+                    for spread_min, spread_min_down, slope_min, qual_note in quality_variants:
+                        for rv_min, rv_max, rv_note in rv_variants:
+                            for exit_time, exit_time_note in exit_time_variants:
+                                for tod_s, tod_e, skip, cooldown, tod_note in tod_variants:
+                                    f = _mk_filters(
+                                        rv_min=rv_min,
+                                        rv_max=rv_max,
+                                        ema_spread_min_pct=spread_min,
+                                        ema_spread_min_pct_down=spread_min_down,
+                                        ema_slope_min_pct=slope_min,
+                                        cooldown_bars=int(cooldown),
+                                        skip_first_bars=int(skip),
+                                        entry_start_hour_et=tod_s,
+                                        entry_end_hour_et=tod_e,
+                                    )
+                                    cfg = replace(
+                                        base_cfg,
+                                        strategy=replace(
+                                            base_cfg.strategy,
+                                            filters=f,
+                                            spot_exit_time_et=exit_time,
+                                            tick_gate_mode=str(tick_over.get("tick_gate_mode") or "off"),
+                                            tick_gate_symbol=str(tick_over.get("tick_gate_symbol") or "TICK-NYSE"),
+                                            tick_gate_exchange=str(tick_over.get("tick_gate_exchange") or "NYSE"),
+                                            tick_neutral_policy=str(tick_over.get("tick_neutral_policy") or "allow"),
+                                            tick_direction_policy=str(tick_over.get("tick_direction_policy") or "both"),
+                                            tick_band_ma_period=int(tick_over.get("tick_band_ma_period") or 10),
+                                            tick_width_z_lookback=int(tick_over.get("tick_width_z_lookback") or 252),
+                                            tick_width_z_enter=float(tick_over.get("tick_width_z_enter") or 1.0),
+                                            tick_width_z_exit=float(tick_over.get("tick_width_z_exit") or 0.5),
+                                            tick_width_slope_lookback=int(tick_over.get("tick_width_slope_lookback") or 3),
+                                        ),
+                                    )
+                                    row = _run_cfg(
+                                        cfg=cfg,
+                                        bars=bars_sig,
+                                        regime_bars=_regime_bars_for(cfg)
+                                        or regime_bars_by_size[str(cfg.strategy.regime_bar_size)],
+                                        regime2_bars=_regime2_bars_for(cfg),
+                                    )
+                                    stage3_tested += 1
+                                    if stage3_tested % report_every_stage3 == 0:
+                                        elapsed = pytime.perf_counter() - stage3_t0
+                                        rate = (stage3_tested / elapsed) if elapsed > 0 else 0.0
+                                        remaining = stage3_total - stage3_tested
+                                        eta_sec = (remaining / rate) if rate > 0 else 0.0
+                                        pct = (stage3_tested / stage3_total * 100.0) if stage3_total > 0 else 0.0
+                                        print(
+                                            f"combo_fast sweep: stage3 {stage3_tested}/{stage3_total} ({pct:0.1f}%) "
+                                            f"kept={len(stage3)} elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
+                                            flush=True,
+                                        )
+                                    if not row:
+                                        continue
+                                    note = (
+                                        f"{base_note} | {tick_note} | {qual_note} | {rv_note} | "
+                                        f"{exit_time_note} | {tod_note}"
+                                    )
+                                    row["note"] = note
+                                    _record_milestone(cfg, row, note)
+                                    stage3.append(row)
+
+        _print_leaderboards(stage3, title="combo_fast sweep (multi-axis, constrained)", top_n=int(args.top))
+
+    def _sweep_combo_full() -> None:
+        """An extremely comprehensive run that executes the full spot sweep suite.
+
+        This intentionally leans toward "do everything we can" rather than a single funnel:
+        it runs the one-axis sweeps, the named joint sweeps, and then the bounded
+        `combo_fast` funnel. Use this when you want coverage, not turnaround time.
+        """
+        nonlocal milestones_written
+        if offline:
+            # ORB sweeps always use 15m bars; preflight early so we fail fast rather than hours in.
+            _require_offline_cache_or_die(
+                cache_dir=cache_dir,
+                symbol=symbol,
+                start_dt=start_dt,
+                end_dt=end_dt,
+                bar_size="15 mins",
+                use_rth=use_rth,
+            )
+            # Tick sweeps use daily $TICK bars (RTH only). Allow either AMEX or NYSE cache.
+            tick_warm_start = start_dt - timedelta(days=400)
+            tick_ok = False
+            for tick_sym in ("TICK-AMEX", "TICK-NYSE"):
+                try:
+                    _require_offline_cache_or_die(
+                        cache_dir=cache_dir,
+                        symbol=tick_sym,
+                        start_dt=tick_warm_start,
+                        end_dt=end_dt,
+                        bar_size="1 day",
+                        use_rth=True,
+                    )
+                    tick_ok = True
+                    break
+                except SystemExit:
+                    continue
+            if not tick_ok:
+                raise SystemExit(
+                    "combo_full requires cached daily $TICK bars when running with --offline "
+                    "(expected under db/TICK-AMEX or db/TICK-NYSE). Run once without --offline to fetch, "
+                    "or skip tick-based sweeps by running --axis combo_fast instead."
+                )
+
+        print("")
+        print("=== combo_full: running full sweep suite (very slow) ===")
+        print("")
+
+        if jobs > 1:
+            if not offline:
+                raise SystemExit("--jobs>1 for combo_full requires --offline (avoid parallel IBKR sessions).")
+
+            # Keep the same ordering as the sequential combo_full path.
+            axes = [
+                "ema",
+                "entry_mode",
+                "confirm",
+                "weekday",
+                "tod",
+                "volume",
+                "rv",
+                "spread",
+                "spread_fine",
+                "spread_down",
+                "slope",
+                "slope_signed",
+                "cooldown",
+                "skip_open",
+                "shock",
+                "risk_overlays",
+                "ptsl",
+                "exit_time",
+                "hold",
+                "spot_short_risk_mult",
+                "flip_exit",
+                "loosen",
+                "loosen_atr",
+                "atr",
+                "atr_fine",
+                "atr_ultra",
+                "regime",
+                "regime2",
+                "regime2_ema",
+                "joint",
+                "micro_st",
+                "orb",
+                "orb_joint",
+                "tod_interaction",
+                "perm_joint",
+                "ema_perm_joint",
+                "tick_perm_joint",
+                "chop_joint",
+                "tick_ema",
+                "ema_regime",
+                "ema_atr",
+                "regime_atr",
+                "r2_atr",
+                "r2_tod",
+                "tick",
+                "gate_matrix",
+                "squeeze",
+                "combo_fast",
+                "frontier",
+            ]
+
+            def _strip_flag(argv: list[str], flag: str) -> list[str]:
+                return [arg for arg in argv if arg != flag]
+
+            def _strip_flag_with_value(argv: list[str], flag: str) -> list[str]:
+                out: list[str] = []
+                idx = 0
+                while idx < len(argv):
+                    arg = argv[idx]
+                    if arg == flag:
+                        idx += 2
+                        continue
+                    if arg.startswith(flag + "="):
+                        idx += 1
+                        continue
+                    out.append(arg)
+                    idx += 1
+                return out
+
+            base_cli = list(sys.argv[1:])
+            base_cli = _strip_flag_with_value(base_cli, "--axis")
+            base_cli = _strip_flag_with_value(base_cli, "--jobs")
+            base_cli = _strip_flag_with_value(base_cli, "--milestones-out")
+            base_cli = _strip_flag(base_cli, "--merge-milestones")
+
+            jobs_eff = min(int(jobs), len(axes))
+            print(f"combo_full parallel: jobs={jobs_eff} axes={len(axes)}", flush=True)
+
+            def _pump(prefix: str, stream) -> None:
+                for line in iter(stream.readline, ""):
+                    print(f"[{prefix}] {line.rstrip()}", flush=True)
+
+            failures: list[tuple[str, int]] = []
+            milestone_paths: dict[str, Path] = {}
+            start_times: dict[str, float] = {}
+
+            with tempfile.TemporaryDirectory(prefix="tradebot_combo_full_") as tmpdir:
+                tmp_root = Path(tmpdir)
+                pending = list(axes)
+                running: list[tuple[str, subprocess.Popen, threading.Thread]] = []
+
+                def _spawn(axis_name: str) -> None:
+                    axis_jobs = "1"
+                    if str(axis_name) in ("gate_matrix", "combo_fast", "risk_overlays"):
+                        axis_jobs = str(min(int(jobs), int(_default_jobs())))
+                    cmd = [
+                        sys.executable,
+                        "-u",
+                        "-m",
+                        "tradebot.backtest",
+                        "spot",
+                        *base_cli,
+                        "--axis",
+                        str(axis_name),
+                        "--jobs",
+                        str(axis_jobs),
+                    ]
+                    if bool(args.write_milestones):
+                        out_path = tmp_root / f"milestones_{axis_name}.json"
+                        milestone_paths[axis_name] = out_path
+                        cmd += ["--milestones-out", str(out_path)]
+                    proc = subprocess.Popen(
+                        cmd,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
+                        text=True,
+                        bufsize=1,
+                    )
+                    if proc.stdout is None:
+                        raise RuntimeError("Failed to capture worker stdout.")
+                    t = threading.Thread(target=_pump, args=(axis_name, proc.stdout), daemon=True)
+                    t.start()
+                    start_times[axis_name] = pytime.perf_counter()
+                    running.append((axis_name, proc, t))
+
+                while pending or running:
+                    while pending and len(running) < jobs_eff and not failures:
+                        axis_name = pending.pop(0)
+                        print(f"START {axis_name}", flush=True)
+                        _spawn(axis_name)
+
+                    finished_idx = None
+                    for idx, (axis_name, proc, t) in enumerate(running):
+                        rc = proc.poll()
+                        if rc is None:
+                            continue
+                        finished_idx = idx
+                        elapsed = pytime.perf_counter() - float(start_times.get(axis_name) or pytime.perf_counter())
+                        print(f"DONE  {axis_name} exit={rc} elapsed={elapsed:0.1f}s", flush=True)
+                        try:
+                            proc.wait(timeout=1.0)
+                        except subprocess.TimeoutExpired:
+                            proc.kill()
+                            proc.wait(timeout=5.0)
+                        try:
+                            t.join(timeout=1.0)
+                        except Exception:
+                            pass
+                        if rc != 0:
+                            failures.append((axis_name, int(rc)))
+                        running.pop(idx)
+                        break
+
+                    if failures:
+                        for axis_name, proc, t in running:
+                            try:
+                                proc.terminate()
+                            except Exception:
+                                pass
+                        for axis_name, proc, t in running:
+                            try:
+                                proc.wait(timeout=5.0)
+                            except Exception:
+                                try:
+                                    proc.kill()
+                                except Exception:
+                                    pass
+                        break
+
+                    if finished_idx is None:
+                        pytime.sleep(0.05)
+
+                if failures:
+                    axis_name, rc = failures[0]
+                    raise SystemExit(f"combo_full parallel axis failed: {axis_name} (exit={rc})")
+
+                if bool(args.write_milestones):
+                    eligible_new: list[dict] = []
+                    for axis_name in axes:
+                        path = milestone_paths.get(axis_name)
+                        if path is None or not path.exists():
+                            continue
+                        payload = json.loads(path.read_text())
+                        if not isinstance(payload, dict):
+                            continue
+                        for group in payload.get("groups") or []:
+                            if not isinstance(group, dict):
+                                continue
+                            filters = group.get("filters")
+                            raw_name = str(group.get("name") or "")
+                            parsed_note = None
+                            if raw_name.endswith("]") and "[" in raw_name:
+                                try:
+                                    parsed_note = raw_name[raw_name.rfind("[") + 1 : -1].strip() or None
+                                except Exception:
+                                    parsed_note = None
+                            for entry in group.get("entries") or []:
+                                if not isinstance(entry, dict):
+                                    continue
+                                strat = entry.get("strategy") or {}
+                                metrics = entry.get("metrics") or {}
+                                if not isinstance(strat, dict) or not isinstance(metrics, dict):
+                                    continue
+                                key_obj = dict(strat)
+                                key_obj["filters"] = filters
+                                eligible_new.append(
+                                    {
+                                        "key": json.dumps(key_obj, sort_keys=True, default=str),
+                                        "strategy": strat,
+                                        "filters": filters,
+                                        "note": parsed_note,
+                                        "metrics": {
+                                            "pnl": float(metrics.get("pnl") or 0.0),
+                                            "roi": float(metrics.get("roi") or 0.0),
+                                            "win_rate": float(metrics.get("win_rate") or 0.0),
+                                            "trades": int(metrics.get("trades") or 0),
+                                            "max_drawdown": float(metrics.get("max_drawdown") or 0.0),
+                                            "max_drawdown_pct": float(metrics.get("max_drawdown_pct") or 0.0),
+                                            "pnl_over_dd": metrics.get("pnl_over_dd"),
+                                        },
+                                    }
                                 )
+
+                    out_path = Path(args.milestones_out)
+                    eligible: list[dict] = []
+
+                    def _sort_key(item: dict) -> tuple:
+                        m = item.get("metrics") or {}
+                        return (
+                            float(m.get("pnl_over_dd") or float("-inf")),
+                            float(m.get("pnl") or 0.0),
+                            float(m.get("win_rate") or 0.0),
+                            int(m.get("trades") or 0),
+                        )
+
+                    def _sort_key_pnl(item: dict) -> tuple:
+                        m = item.get("metrics") or {}
+                        return (
+                            float(m.get("pnl") or float("-inf")),
+                            float(m.get("pnl_over_dd") or 0.0),
+                            float(m.get("win_rate") or 0.0),
+                            int(m.get("trades") or 0),
+                        )
+
+                    add_top_dd = max(0, int(args.milestone_add_top_pnl_dd or 0))
+                    add_top_pnl = max(0, int(args.milestone_add_top_pnl or 0))
+                    if bool(args.merge_milestones) and (add_top_dd > 0 or add_top_pnl > 0):
+                        by_dd = sorted(eligible_new, key=_sort_key, reverse=True)[:add_top_dd] if add_top_dd > 0 else []
+                        by_pnl = (
+                            sorted(eligible_new, key=_sort_key_pnl, reverse=True)[:add_top_pnl]
+                            if add_top_pnl > 0
+                            else []
+                        )
+                        seen_new: set[str] = set()
+                        limited_new: list[dict] = []
+                        for item in by_dd + by_pnl:
+                            key = str(item.get("key") or "")
+                            if not key or key in seen_new:
+                                continue
+                            seen_new.add(key)
+                            limited_new.append(item)
+                        eligible.extend(limited_new)
+                    else:
+                        eligible.extend(eligible_new)
+
+                    if bool(args.merge_milestones) and out_path.exists():
+                        try:
+                            existing = json.loads(out_path.read_text())
+                        except json.JSONDecodeError:
+                            existing = {}
+                        for group in existing.get("groups") or []:
+                            filters = group.get("filters")
+                            raw_name = str(group.get("name") or "")
+                            parsed_note = None
+                            if raw_name.endswith("]") and "[" in raw_name:
+                                try:
+                                    parsed_note = raw_name[raw_name.rfind("[") + 1 : -1].strip() or None
+                                except Exception:
+                                    parsed_note = None
+                            for entry in group.get("entries") or []:
+                                strat = entry.get("strategy") or {}
+                                metrics = entry.get("metrics") or {}
+                                key_obj = dict(strat)
+                                key_obj["filters"] = filters
+                                eligible.append(
+                                    {
+                                        "key": json.dumps(key_obj, sort_keys=True, default=str),
+                                        "strategy": strat,
+                                        "filters": filters,
+                                        "note": parsed_note,
+                                        "metrics": {
+                                            "pnl": float(metrics.get("pnl") or 0.0),
+                                            "roi": float(metrics.get("roi") or 0.0),
+                                            "win_rate": float(metrics.get("win_rate") or 0.0),
+                                            "trades": int(metrics.get("trades") or 0),
+                                            "max_drawdown": float(metrics.get("max_drawdown") or 0.0),
+                                            "max_drawdown_pct": float(metrics.get("max_drawdown_pct") or 0.0),
+                                            "pnl_over_dd": metrics.get("pnl_over_dd"),
+                                        },
+                                    }
+                                )
+
+                    best_by_key: dict[str, dict] = {}
+                    for item in eligible:
+                        key = str(item.get("key") or "")
+                        if not key:
+                            continue
+                        current = best_by_key.get(key)
+                        if current is None or _sort_key(item) > _sort_key(current):
+                            best_by_key[key] = item
+
+                    unique = sorted(best_by_key.values(), key=_sort_key, reverse=True)
+                    groups: list[dict] = []
+                    for idx, item in enumerate(unique, start=1):
+                        metrics = item["metrics"]
+                        entry = {"symbol": symbol, "metrics": metrics, "strategy": item["strategy"]}
+                        groups.append(
+                            {
+                                "name": _milestone_group_name_from_strategy(
+                                    rank=idx,
+                                    strategy=item["strategy"],
+                                    metrics=metrics,
+                                    note=str(item.get("note") or "").strip(),
+                                ),
+                                "filters": item["filters"],
+                                "entries": [entry],
+                            }
+                        )
+
+                    payload = {
+                        "name": "spot_milestones",
+                        "generated_at": utc_now_iso_z(),
+                        "notes": (
+                            f"Auto-generated via evolve_spot.py (post-fix). "
+                            f"window={start.isoformat()}→{end.isoformat()}, bar_size={signal_bar_size}, use_rth={use_rth}. "
+                            f"thresholds: win>={float(args.milestone_min_win):.2f}, trades>={int(args.milestone_min_trades)}, "
+                            f"pnl/dd>={float(args.milestone_min_pnl_dd):.2f}."
+                        ),
+                        "groups": groups,
+                    }
+                    write_json(out_path, payload, sort_keys=False)
+                    milestones_written = True
+                    print(f"Wrote {out_path} ({len(groups)} eligible presets).", flush=True)
+
+            return
+
+        def _run_axis(label: str, fn, *, total: int | None = None) -> None:
+            before_kept = len(milestone_rows)
+            before_calls = int(run_calls_total)
+            t0 = pytime.perf_counter()
+            total_label = str(int(total)) if total is not None else "?"
+            print(f"START {label} total={total_label}", flush=True)
+            fn()
+            elapsed = pytime.perf_counter() - t0
+            tested = int(run_calls_total) - int(before_calls)
+            kept = len(milestone_rows) - before_kept
+            print(f"DONE  {label} tested={tested} kept={kept} elapsed={elapsed:0.1f}s", flush=True)
+            print("", flush=True)
+
+        # Signal / timing layer
+        _run_axis("ema", _sweep_ema)
+        _run_axis("entry_mode", _sweep_entry_mode)
+        _run_axis("confirm", _sweep_confirm)
+        _run_axis("weekday", _sweep_weekdays)
+
+        # Permission / quality gates (single-axis)
+        _run_axis("tod", _sweep_tod)
+        _run_axis("volume", _sweep_volume)
+        _run_axis("rv", _sweep_rv)
+        _run_axis("spread", _sweep_spread)
+        _run_axis("spread_fine", _sweep_spread_fine)
+        _run_axis("spread_down", _sweep_spread_down)
+        _run_axis("slope", _sweep_slope)
+        _run_axis("slope_signed", _sweep_slope_signed)
+        _run_axis("cooldown", _sweep_cooldown)
+        _run_axis("skip_open", _sweep_skip_open)
+        _run_axis("shock", _sweep_shock)
+        _run_axis("risk_overlays", _sweep_risk_overlays)
+
+        # Exits / management (single-axis)
+        _run_axis("ptsl", _sweep_ptsl)
+        _run_axis("exit_time", _sweep_exit_time)
+        _run_axis("hold", _sweep_hold)
+        _run_axis("spot_short_risk_mult", _sweep_spot_short_risk_mult)
+        _run_axis("flip_exit", _sweep_flip_exit)
+        _run_axis("loosen", _sweep_loosen)
+        _run_axis("loosen_atr", _sweep_loosen_atr)
+        _run_axis("atr", _sweep_atr_exits)
+        _run_axis("atr_fine", _sweep_atr_exits_fine)
+        _run_axis("atr_ultra", _sweep_atr_exits_ultra)
+
+        # Bias / regimes (single-axis)
+        _run_axis("regime", _sweep_regime)
+        _run_axis("regime2", _sweep_regime2)
+        _run_axis("regime2_ema", _sweep_regime2_ema)
+        _run_axis("joint", _sweep_joint)
+        _run_axis("micro_st", _sweep_micro_st)
+
+        # ORB family
+        _run_axis("orb", _sweep_orb)
+        _run_axis("orb_joint", _sweep_orb_joint)
+
+        # Joint sweeps (interaction hunts)
+        _run_axis("tod_interaction", _sweep_tod_interaction)
+        _run_axis("perm_joint", _sweep_perm_joint)
+        _run_axis("ema_perm_joint", _sweep_ema_perm_joint)
+        _run_axis("tick_perm_joint", _sweep_tick_perm_joint)
+        _run_axis("chop_joint", _sweep_chop_joint)
+        _run_axis("tick_ema", _sweep_tick_ema)
+        _run_axis("ema_regime", _sweep_ema_regime)
+        _run_axis("ema_atr", _sweep_ema_atr)
+        _run_axis("regime_atr", _sweep_regime_atr)
+        _run_axis("r2_atr", _sweep_r2_atr)
+        _run_axis("r2_tod", _sweep_r2_tod)
+
+        # Standalone tick gate sweep
+        _run_axis("tick", _sweep_tick)
+
+        # Multi-axis funnels (bounded but high leverage)
+        _run_axis("gate_matrix", _sweep_gate_matrix)
+        _run_axis("squeeze", _sweep_squeeze)
+        _run_axis("combo_fast", _sweep_combo_fast)
+        _run_axis("frontier", _sweep_frontier)
+
+    def _sweep_champ_refine() -> None:
+        """Seeded, champ-focused refinement around a top-K candidate pool.
+
+        Intent:
+        - Avoid the full `combo_full` suite when you already have a promising pool.
+        - Run only the high-leverage "champ discovery" levers we've learned:
+          short asymmetry (`spot_short_risk_mult`), TOD/permission micro, signed slope,
+          and a small shock + TR overlay pocket.
+
+        This is intentionally bounded and should finish in a reasonable overnight window.
+        """
+        if not args.seed_milestones:
+            raise SystemExit("--axis champ_refine requires --seed-milestones <milestones.json>")
+        seed_path = Path(str(args.seed_milestones))
+        if not seed_path.exists():
+            raise SystemExit(f"--seed-milestones file not found: {seed_path}")
+
+        payload = json.loads(seed_path.read_text())
+        if not isinstance(payload, dict):
+            raise SystemExit(f"Invalid seed milestones payload: {seed_path}")
+
+        raw_groups = payload.get("groups") or []
+        if not isinstance(raw_groups, list):
+            raise SystemExit(f"Invalid seed milestones groups: {seed_path}")
+
+        # Extract seed candidates matching this run's symbol/bar/rth.
+        candidates: list[dict] = []
+        for group in raw_groups:
+            if not isinstance(group, dict):
+                continue
+            entries = group.get("entries") or []
+            if not isinstance(entries, list) or not entries:
+                continue
+            entry = entries[0]
+            if not isinstance(entry, dict):
+                continue
+            strat = entry.get("strategy") or {}
+            metrics = entry.get("metrics") or {}
+            if not isinstance(strat, dict) or not isinstance(metrics, dict):
+                continue
+            if str(strat.get("instrument", "spot") or "spot").strip().lower() != "spot":
+                continue
+            if str(entry.get("symbol") or strat.get("symbol") or "").strip().upper() != str(symbol).strip().upper():
+                continue
+            if str(strat.get("signal_bar_size") or "").strip().lower() != str(signal_bar_size).strip().lower():
+                continue
+            if bool(strat.get("signal_use_rth")) != bool(use_rth):
+                continue
+            candidates.append(
+                {
+                    "group_name": str(group.get("name") or ""),
+                    "strategy": strat,
+                    "filters": group.get("filters") if isinstance(group.get("filters"), dict) else None,
+                    "metrics": metrics,
+                }
+            )
+
+        if not candidates:
+            print(f"No matching seed candidates found in {seed_path} for {symbol} {signal_bar_size} rth={use_rth}.")
+            return
+
+        def _seed_key(item: dict) -> str:
+            st = item.get("strategy") or {}
+            flt = item.get("filters")
+            raw = {"strategy": st, "filters": flt}
+            return json.dumps(raw, sort_keys=True, default=str)
+
+        def _family_key(item: dict) -> tuple:
+            st = item.get("strategy") or {}
+            return (
+                str(st.get("ema_preset") or ""),
+                str(st.get("ema_entry_mode") or ""),
+                str(st.get("regime_mode") or ""),
+                str(st.get("regime_bar_size") or ""),
+                str(st.get("spot_exit_mode") or ""),
+            )
+
+        # Prefer diversity: keep the best seed per "family", then take the top-K families.
+        best_per_family: dict[tuple, dict] = {}
+        for item in candidates:
+            fam = _family_key(item)
+            prev = best_per_family.get(fam)
+            if prev is None or _score_row_pnl_dd(item["metrics"]) > _score_row_pnl_dd(prev["metrics"]):
+                best_per_family[fam] = item
+
+        family_winners = sorted(best_per_family.values(), key=lambda x: _score_row_pnl_dd(x["metrics"]), reverse=True)
+
+        # Add a few "outlier" seeds (high pnl / high ROI / high win) even if they share families.
+        by_pnl = sorted(candidates, key=lambda x: _score_row_pnl(x["metrics"]), reverse=True)
+        by_roi = sorted(candidates, key=lambda x: float((x.get("metrics") or {}).get("roi") or 0.0), reverse=True)
+        by_win = sorted(candidates, key=lambda x: float((x.get("metrics") or {}).get("win_rate") or 0.0), reverse=True)
+
+        seed_top = max(1, int(args.seed_top or 0))
+        seed_pool: list[dict] = []
+        for src in (
+            family_winners[:seed_top],
+            by_pnl[: max(5, seed_top // 4)],
+            by_roi[: max(5, seed_top // 4)],
+            by_win[: max(5, seed_top // 4)],
+        ):
+            for item in src:
+                seed_pool.append(item)
+
+        seen_seed: set[str] = set()
+        seeds: list[dict] = []
+        for item in seed_pool:
+            key = _seed_key(item)
+            if key in seen_seed:
+                continue
+            seen_seed.add(key)
+            seeds.append(item)
+            if len(seeds) >= seed_top:
+                break
+
+        print("")
+        print("=== champ_refine: seeded refinement (bounded) ===")
+        print(f"- seeds_in_file={len(candidates)} families={len(best_per_family)} selected={len(seeds)} seed_top={seed_top}")
+        print(f"- seed_path={seed_path}")
+        print("")
+
+        bars_sig = _bars_cached(signal_bar_size)
+        rows: list[dict] = []
+        tested_total = 0
+        t0_all = pytime.perf_counter()
+
+        short_grid_base = [1.0, 0.2, 0.05, 0.02, 0.01, 0.0]
+        perm_variants: list[tuple[dict[str, object], str]] = [
+            ({}, "perm=seed"),
+            ({"ema_spread_min_pct": 0.003, "ema_slope_min_pct": 0.03, "ema_spread_min_pct_down": 0.05}, "perm=champ"),
+            ({"ema_spread_min_pct": 0.0025, "ema_slope_min_pct": 0.03, "ema_spread_min_pct_down": 0.05}, "perm=champ spread=0.0025"),
+            ({"ema_spread_min_pct": 0.004, "ema_slope_min_pct": 0.03, "ema_spread_min_pct_down": 0.05}, "perm=champ spread=0.0040"),
+            ({"ema_spread_min_pct": 0.003, "ema_slope_min_pct": 0.02, "ema_spread_min_pct_down": 0.05}, "perm=champ slope=0.02"),
+            ({"ema_spread_min_pct": 0.003, "ema_slope_min_pct": 0.04, "ema_spread_min_pct_down": 0.05}, "perm=champ slope=0.04"),
+            ({"ema_spread_min_pct": 0.003, "ema_slope_min_pct": 0.03, "ema_spread_min_pct_down": 0.04}, "perm=champ down=0.04"),
+            ({"ema_spread_min_pct": 0.003, "ema_slope_min_pct": 0.03, "ema_spread_min_pct_down": 0.06}, "perm=champ down=0.06"),
+        ]
+        signed_slope_variants: list[tuple[dict[str, object], str]] = [
+            ({}, "sslope=off"),
+            (
+                {"ema_slope_signed_min_pct_up": 0.003, "ema_slope_signed_min_pct_down": 0.003},
+                "sslope=0.003/0.003",
+            ),
+            (
+                {"ema_slope_signed_min_pct_up": 0.005, "ema_slope_signed_min_pct_down": 0.005},
+                "sslope=0.005/0.005",
+            ),
+        ]
+        tod_variants: list[tuple[int | None, int | None, int, int, str]] = [
+            (None, None, 0, 0, "tod=seed"),
+            (10, 15, 0, 0, "tod=10-15"),
+            (10, 15, 1, 2, "tod=10-15 (skip=1 cd=2)"),
+            (9, 16, 0, 0, "tod=09-16"),
+        ]
+
+        # Shock pocket (includes the v25/v31 daily ATR% family + a few TR-ratio variants).
+        shock_variants: list[tuple[dict[str, object], str]] = [
+            ({"shock_gate_mode": "off"}, "shock=off"),
+        ]
+        for on_atr, off_atr in ((13.0, 12.5), (13.5, 13.0), (14.0, 13.5)):
+            for sl_mult in (0.75, 1.0):
+                shock_variants.append(
+                    (
+                        {
+                            "shock_gate_mode": "surf",
+                            "shock_detector": "daily_atr_pct",
+                            "shock_daily_atr_period": 14,
+                            "shock_daily_on_atr_pct": float(on_atr),
+                            "shock_daily_off_atr_pct": float(off_atr),
+                            "shock_direction_source": "signal",
+                            "shock_direction_lookback": 1,
+                            "shock_stop_loss_pct_mult": float(sl_mult),
+                        },
+                        f"shock=surf daily_atr on={on_atr:g} off={off_atr:g} sl_mult={sl_mult:g}",
+                    )
+                )
+        for on_tr in (9.0, 11.0):
+            shock_variants.append(
+                (
+                    {
+                        "shock_gate_mode": "surf",
+                        "shock_detector": "daily_atr_pct",
+                        "shock_daily_atr_period": 14,
+                        "shock_daily_on_atr_pct": 13.5,
+                        "shock_daily_off_atr_pct": 13.0,
+                        "shock_daily_on_tr_pct": float(on_tr),
+                        "shock_direction_source": "signal",
+                        "shock_direction_lookback": 1,
+                        "shock_stop_loss_pct_mult": 0.75,
+                    },
+                    f"shock=surf daily_atr on=13.5 off=13.0 on_tr>={on_tr:g} sl_mult=0.75",
+                )
+            )
+        shock_variants.append(
+            (
+                {
+                    "shock_gate_mode": "block_longs",
+                    "shock_detector": "daily_atr_pct",
+                    "shock_daily_atr_period": 14,
+                    "shock_daily_on_atr_pct": 13.5,
+                    "shock_daily_off_atr_pct": 13.0,
+                    "shock_direction_source": "signal",
+                    "shock_direction_lookback": 1,
+                    "shock_stop_loss_pct_mult": 0.75,
+                },
+                "shock=block_longs daily_atr on=13.5 off=13.0 sl_mult=0.75",
+            )
+        )
+        for on_ratio, off_ratio in ((1.35, 1.25), (1.45, 1.30), (1.55, 1.30)):
+            shock_variants.append(
+                (
+                    {
+                        "shock_gate_mode": "surf",
+                        "shock_detector": "tr_ratio",
+                        "shock_atr_fast_period": 7,
+                        "shock_atr_slow_period": 50,
+                        "shock_on_ratio": float(on_ratio),
+                        "shock_off_ratio": float(off_ratio),
+                        "shock_min_atr_pct": 7.0,
+                        "shock_direction_source": "signal",
+                        "shock_direction_lookback": 1,
+                        "shock_stop_loss_pct_mult": 0.75,
+                    },
+                    f"shock=surf tr_ratio on={on_ratio:g} off={off_ratio:g} min_atr=7 sl_mult=0.75",
+                )
+            )
+
+        # TR/gap overlays pocket (panic = defensive, pop = aggressive).
+        def _risk_off_overrides() -> dict[str, object]:
+            return {
+                "risk_entry_cutoff_hour_et": None,
+                "riskoff_tr5_med_pct": None,
+                "riskpanic_tr5_med_pct": None,
+                "riskpanic_neg_gap_ratio_min": None,
+                "riskpop_tr5_med_pct": None,
+                "riskpop_pos_gap_ratio_min": None,
+            }
+
+        risk_variants: list[tuple[dict[str, object], str]] = [
+            (_risk_off_overrides(), "risk=off"),
+            (
+                {
+                    **_risk_off_overrides(),
+                    "riskpanic_tr5_med_pct": 9.0,
+                    "riskpanic_neg_gap_ratio_min": 0.6,
+                    "riskpanic_lookback_days": 5,
+                    "riskpanic_short_risk_mult_factor": 0.5,
+                    "risk_entry_cutoff_hour_et": 15,
+                },
+                "riskpanic TRmed5>=9 gap>=0.6 short=0.5 cutoff<15",
+            ),
+            (
+                {
+                    **_risk_off_overrides(),
+                    "riskpanic_tr5_med_pct": 9.0,
+                    "riskpanic_neg_gap_ratio_min": 0.6,
+                    "riskpanic_lookback_days": 5,
+                    "riskpanic_short_risk_mult_factor": 0.0,
+                    "risk_entry_cutoff_hour_et": 15,
+                },
+                "riskpanic TRmed5>=9 gap>=0.6 short=0 cutoff<15",
+            ),
+            (
+                {
+                    **_risk_off_overrides(),
+                    "riskpop_tr5_med_pct": 9.0,
+                    "riskpop_pos_gap_ratio_min": 0.6,
+                    "riskpop_lookback_days": 5,
+                    "riskpop_long_risk_mult_factor": 1.2,
+                    "riskpop_short_risk_mult_factor": 0.0,
+                    "risk_entry_cutoff_hour_et": 15,
+                },
+                "riskpop TRmed5>=9 gap+=0.6 long=1.2 short=0 cutoff<15",
+            ),
+        ]
+
+        def _merge_filters(base_filters: FiltersConfig | None, overrides: dict[str, object]) -> FiltersConfig | None:
+            base_payload = _filters_payload(base_filters) or {}
+            merged = dict(base_payload)
+            merged.update(overrides)
+            out = _parse_filters(merged)
+            if _filters_payload(out) is None:
+                return None
+            return out
+
+        report_every = 200
+
+        for seed_idx, seed in enumerate(seeds, start=1):
+            seed_metrics = seed.get("metrics") or {}
+            try:
+                seed_pnl_dd = float(seed_metrics.get("pnl_over_dd") or 0.0)
+            except (TypeError, ValueError):
+                seed_pnl_dd = 0.0
+            try:
+                seed_pnl = float(seed_metrics.get("pnl") or 0.0)
+            except (TypeError, ValueError):
+                seed_pnl = 0.0
+            seed_name = str(seed.get("group_name") or "").strip() or f"seed_{seed_idx:02d}"
+            st = seed.get("strategy") or {}
+            seed_tag = (
+                f"seed#{seed_idx:02d} "
+                f"ema={st.get('ema_preset')} {st.get('ema_entry_mode')} "
+                f"regime={st.get('regime_mode')}@{st.get('regime_bar_size')} "
+                f"exit={st.get('spot_exit_mode')}"
+            )
+            print(f"champ_refine seed {seed_idx}/{len(seeds)}: pnl/dd={seed_pnl_dd:.2f} pnl={seed_pnl:.0f} {seed_tag}")
+
+            base = _base_bundle(bar_size=signal_bar_size, filters=None)
+            cfg_seed = _apply_milestone_base(base, strategy=seed["strategy"], filters=seed.get("filters"))
+
+            base_row = _run_cfg(
+                cfg=cfg_seed,
+                bars=bars_sig,
+                regime_bars=_regime_bars_for(cfg_seed),
+                regime2_bars=_regime2_bars_for(cfg_seed),
+            )
+            if base_row:
+                note = f"{seed_tag} | base"
+                base_row["note"] = note
+                _record_milestone(cfg_seed, base_row, note)
+                rows.append(base_row)
+
+            # Stage 1: short asymmetry scan (find a good multiplier pocket for this seed).
+            seed_short = float(getattr(cfg_seed.strategy, "spot_short_risk_mult", 1.0) or 1.0)
+            short_grid = [seed_short, *short_grid_base]
+            short_vals: list[float] = []
+            for v in short_grid:
+                try:
+                    f = float(v)
+                except (TypeError, ValueError):
+                    continue
+                if f < 0.0:
+                    continue
+                if f not in short_vals:
+                    short_vals.append(f)
+
+            stage1: list[tuple[float, ConfigBundle, dict]] = []
+            for mult in short_vals:
+                cfg = replace(cfg_seed, strategy=replace(cfg_seed.strategy, spot_short_risk_mult=float(mult)))
+                row = _run_cfg(
+                    cfg=cfg,
+                    bars=bars_sig,
+                    regime_bars=_regime_bars_for(cfg),
+                    regime2_bars=_regime2_bars_for(cfg),
+                )
+                tested_total += 1
+                if tested_total % report_every == 0:
+                    elapsed = pytime.perf_counter() - t0_all
+                    rate = tested_total / elapsed if elapsed > 0 else 0.0
+                    print(f"champ_refine progress tested={tested_total} ({rate:0.2f} cfg/s)", flush=True)
+                if not row:
+                    continue
+                note = f"{seed_tag} | short_mult={mult:g}"
+                row["note"] = note
+                _record_milestone(cfg, row, note)
+                rows.append(row)
+                stage1.append((float(mult), cfg, row))
+
+            if not stage1:
+                continue
+
+            stage1_sorted = sorted(stage1, key=lambda t: _score_row_pnl_dd(t[2]), reverse=True)
+            top_short_mults: list[float] = []
+            for mult, _, _ in stage1_sorted:
+                if mult not in top_short_mults:
+                    top_short_mults.append(mult)
+                if len(top_short_mults) >= 2:
+                    break
+            if 0.01 not in top_short_mults:
+                top_short_mults.append(0.01)
+            top_short_mults = top_short_mults[:3]
+
+            best_short_mult = top_short_mults[0]
+
+            # Stage 2: micro bias neighborhood (Supertrend only), evaluated using the best short-mult from stage1.
+            base_for_regime = replace(cfg_seed, strategy=replace(cfg_seed.strategy, spot_short_risk_mult=best_short_mult))
+            regime_variants: list[ConfigBundle] = [base_for_regime]
+            if str(getattr(base_for_regime.strategy, "regime_mode", "") or "").strip().lower() == "supertrend":
+                try:
+                    seed_atr = int(getattr(base_for_regime.strategy, "supertrend_atr_period", 10) or 10)
+                except (TypeError, ValueError):
+                    seed_atr = 10
+                try:
+                    seed_mult = float(getattr(base_for_regime.strategy, "supertrend_multiplier", 3.0) or 3.0)
+                except (TypeError, ValueError):
+                    seed_mult = 3.0
+                seed_src = str(getattr(base_for_regime.strategy, "supertrend_source", "hl2") or "hl2").strip().lower()
+
+                atr_vals = []
+                for v in (seed_atr, 7, 10, 14):
+                    if v not in atr_vals:
+                        atr_vals.append(v)
+                mult_vals: list[float] = []
+                for v in (seed_mult - 0.05, seed_mult, seed_mult + 0.05, 0.45, 0.50, 0.55, 0.60):
+                    if v <= 0:
+                        continue
+                    fv = float(v)
+                    if fv not in mult_vals:
+                        mult_vals.append(fv)
+                src_vals: list[str] = []
+                for v in (seed_src, "hl2", "close"):
+                    sv = str(v).strip().lower()
+                    if sv and sv not in src_vals:
+                        src_vals.append(sv)
+
+                stage2: list[tuple[ConfigBundle, dict]] = []
+                for atr_p in atr_vals[:3]:
+                    for mult in mult_vals[:4]:
+                        for src in src_vals[:2]:
+                            cfg = replace(
+                                base_for_regime,
+                                strategy=replace(
+                                    base_for_regime.strategy,
+                                    supertrend_atr_period=int(atr_p),
+                                    supertrend_multiplier=float(mult),
+                                    supertrend_source=str(src),
+                                ),
+                            )
+                            row = _run_cfg(
+                                cfg=cfg,
+                                bars=bars_sig,
+                                regime_bars=_regime_bars_for(cfg),
+                                regime2_bars=_regime2_bars_for(cfg),
+                            )
+                            tested_total += 1
+                            if tested_total % report_every == 0:
+                                elapsed = pytime.perf_counter() - t0_all
+                                rate = tested_total / elapsed if elapsed > 0 else 0.0
+                                print(f"champ_refine progress tested={tested_total} ({rate:0.2f} cfg/s)", flush=True)
+                            if not row:
+                                continue
+                            note = f"{seed_tag} | ST({atr_p},{mult:g},{src}) short_mult={best_short_mult:g}"
+                            row["note"] = note
+                            _record_milestone(cfg, row, note)
+                            rows.append(row)
+                            stage2.append((cfg, row))
+                if stage2:
+                    stage2_sorted = sorted(stage2, key=lambda t: _score_row_pnl_dd(t[1]), reverse=True)[:2]
+                    regime_variants = [t[0] for t in stage2_sorted]
+
+            # Expand the shortlist: top regimes × top short mults.
+            base_variants: list[ConfigBundle] = []
+            for r_cfg in regime_variants[:2]:
+                for mult in top_short_mults:
+                    base_variants.append(replace(r_cfg, strategy=replace(r_cfg.strategy, spot_short_risk_mult=float(mult))))
+
+            # Stage 3A: lightweight micro over exit semantics + TOD/permission/signed-slope.
+            #
+            # The CURRENT champ family unlocked on:
+            # - stop-only exits + reversal exits
+            # - flip exits gated to profit-only
+            # so we include a tiny exit pocket here (still bounded).
+            base_exit_variants: list[tuple[ConfigBundle, str]] = []
+            for base_cfg in base_variants:
+                seen_exit: set[str] = set()
+
+                def _add_exit(cfg: ConfigBundle, note: str) -> None:
+                    key = _milestone_key(cfg)
+                    if key in seen_exit:
+                        return
+                    seen_exit.add(key)
+                    base_exit_variants.append((cfg, note))
+
+                _add_exit(base_cfg, "exit=seed")
+                _add_exit(
+                    replace(base_cfg, strategy=replace(base_cfg.strategy, flip_exit_min_hold_bars=2)),
+                    "exit=seed hold=2",
+                )
+                # Champ-style stop-only + reversal exit (works even if the seed used ATR exits).
+                _add_exit(
+                    replace(
+                        base_cfg,
+                        strategy=replace(
+                            base_cfg.strategy,
+                            spot_exit_mode="pct",
+                            spot_profit_target_pct=None,
+                            spot_stop_loss_pct=0.04,
+                            exit_on_signal_flip=True,
+                            flip_exit_mode="entry",
+                            flip_exit_only_if_profit=True,
+                            flip_exit_min_hold_bars=2,
+                            flip_exit_gate_mode="off",
+                        ),
+                    ),
+                    "exit=stop0.04 flipprofit hold=2",
+                )
+                _add_exit(
+                    replace(
+                        base_cfg,
+                        strategy=replace(
+                            base_cfg.strategy,
+                            spot_exit_mode="pct",
+                            spot_profit_target_pct=None,
+                            spot_stop_loss_pct=0.03,
+                            exit_on_signal_flip=True,
+                            flip_exit_mode="entry",
+                            flip_exit_only_if_profit=True,
+                            flip_exit_min_hold_bars=2,
+                            flip_exit_gate_mode="off",
+                        ),
+                    ),
+                    "exit=stop0.03 flipprofit hold=2",
+                )
+
+            stage3a: list[tuple[ConfigBundle, dict, str]] = []
+            total_3a = 0
+            for base_cfg, _exit_note in base_exit_variants:
+                seed_mode = str(getattr(base_cfg.strategy, "ema_entry_mode", "cross") or "cross").strip().lower()
+                if seed_mode not in ("cross", "trend"):
+                    seed_mode = "cross"
+                other_mode = "trend" if seed_mode == "cross" else "cross"
+                total_3a += 2 * len(tod_variants) * len(perm_variants) * len(signed_slope_variants)
+            tested_3a = 0
+            t0_3a = pytime.perf_counter()
+            print(f"  stage3a micro: total={total_3a}", flush=True)
+            for base_cfg, exit_note in base_exit_variants:
+                seed_mode = str(getattr(base_cfg.strategy, "ema_entry_mode", "cross") or "cross").strip().lower()
+                if seed_mode not in ("cross", "trend"):
+                    seed_mode = "cross"
+                try:
+                    seed_confirm = int(getattr(base_cfg.strategy, "entry_confirm_bars", 0) or 0)
+                except (TypeError, ValueError):
+                    seed_confirm = 0
+                other_mode = "trend" if seed_mode == "cross" else "cross"
+                entry_variants = [
+                    (seed_mode, seed_confirm, f"entry=seed({seed_mode} c={seed_confirm})"),
+                    (other_mode, 0, f"entry={other_mode} c=0"),
+                ]
+                for tod_s, tod_e, skip, cooldown, tod_note in tod_variants:
+                    for perm_over, perm_note in perm_variants:
+                        for ss_over, ss_note in signed_slope_variants:
+                            for entry_mode, entry_confirm, entry_note in entry_variants:
+                                over: dict[str, object] = {}
+                                over.update(perm_over)
+                                over.update(ss_over)
+                                over["skip_first_bars"] = int(skip)
+                                over["cooldown_bars"] = int(cooldown)
+                                over["entry_start_hour_et"] = tod_s
+                                over["entry_end_hour_et"] = tod_e
+                                f = _merge_filters(base_cfg.strategy.filters, over)
                                 cfg = replace(
                                     base_cfg,
                                     strategy=replace(
                                         base_cfg.strategy,
                                         filters=f,
-                                        spot_exit_time_et=exit_time,
-                                        tick_gate_mode=str(tick_over.get("tick_gate_mode") or "off"),
-                                        tick_gate_symbol=str(tick_over.get("tick_gate_symbol") or "TICK-NYSE"),
-                                        tick_gate_exchange=str(tick_over.get("tick_gate_exchange") or "NYSE"),
-                                        tick_neutral_policy=str(tick_over.get("tick_neutral_policy") or "allow"),
-                                        tick_direction_policy=str(tick_over.get("tick_direction_policy") or "both"),
-                                        tick_band_ma_period=int(tick_over.get("tick_band_ma_period") or 10),
-                                        tick_width_z_lookback=int(tick_over.get("tick_width_z_lookback") or 252),
-                                        tick_width_z_enter=float(tick_over.get("tick_width_z_enter") or 1.0),
-                                        tick_width_z_exit=float(tick_over.get("tick_width_z_exit") or 0.5),
-                                        tick_width_slope_lookback=int(tick_over.get("tick_width_slope_lookback") or 3),
+                                        ema_entry_mode=str(entry_mode),
+                                        entry_confirm_bars=int(entry_confirm),
                                     ),
                                 )
                                 row = _run_cfg(
                                     cfg=cfg,
                                     bars=bars_sig,
-                                    regime_bars=_regime_bars_for(cfg) or regime_bars_by_size[
-                                        str(cfg.strategy.regime_bar_size)
-                                    ],
+                                    regime_bars=_regime_bars_for(cfg),
                                     regime2_bars=_regime2_bars_for(cfg),
                                 )
-                                stage3_tested += 1
-                                if stage3_tested % report_every_stage3 == 0:
-                                    elapsed = pytime.perf_counter() - stage3_t0
-                                    rate = (stage3_tested / elapsed) if elapsed > 0 else 0.0
-                                    remaining = stage3_total - stage3_tested
-                                    eta_sec = (remaining / rate) if rate > 0 else 0.0
-                                    pct = (stage3_tested / stage3_total * 100.0) if stage3_total > 0 else 0.0
+                                tested_total += 1
+                                tested_3a += 1
+                                if tested_3a % report_every == 0 or tested_3a == total_3a:
+                                    elapsed = pytime.perf_counter() - t0_3a
+                                    rate = tested_3a / elapsed if elapsed > 0 else 0.0
+                                    remaining = total_3a - tested_3a
+                                    eta_sec = remaining / rate if rate > 0 else 0.0
                                     print(
-                                        f"Combo sweep: stage3 {stage3_tested}/{stage3_total} ({pct:0.1f}%) "
-                                        f"kept={len(stage3)} elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
+                                        f"  stage3a {tested_3a}/{total_3a} kept={len(stage3a)} "
+                                        f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
                                         flush=True,
                                     )
                                 if not row:
                                     continue
                                 note = (
-                                    f"{base_note} | {tick_note} | {qual_note} | {rv_note} | "
-                                    f"{exit_time_note} | {tod_note}"
+                                    f"{seed_tag} | short_mult={getattr(cfg.strategy,'spot_short_risk_mult', 1.0):g} | "
+                                    f"{exit_note} | {entry_note} | {tod_note} | {perm_note} | {ss_note}"
                                 )
                                 row["note"] = note
                                 _record_milestone(cfg, row, note)
-                                stage3.append(row)
+                                rows.append(row)
+                                stage3a.append((cfg, row, note))
 
-        _print_leaderboards(stage3, title="Combo sweep (multi-axis, constrained)", top_n=int(args.top))
+            if not stage3a:
+                continue
+
+            # Shortlist: take a few best-by-stability and best-by-pnl, deduped.
+            by_dd = sorted(stage3a, key=lambda t: _score_row_pnl_dd(t[1]), reverse=True)[:6]
+            by_pnl = sorted(stage3a, key=lambda t: _score_row_pnl(t[1]), reverse=True)[:4]
+            shortlist: list[tuple[ConfigBundle, dict, str]] = []
+            seen_cfg: set[str] = set()
+            for cfg, row, note in by_dd + by_pnl:
+                key = _milestone_key(cfg)
+                if key in seen_cfg:
+                    continue
+                seen_cfg.add(key)
+                shortlist.append((cfg, row, note))
+                if len(shortlist) >= 8:
+                    break
+
+            # Stage 3B: apply shock + TR-overlay pockets to the shortlist.
+            total_3b = len(shortlist) * len(shock_variants) * len(risk_variants)
+            tested_3b = 0
+            t0_3b = pytime.perf_counter()
+            print(f"  stage3b shock+risk: shortlist={len(shortlist)} total={total_3b}", flush=True)
+            for base_cfg, _, base_note in shortlist:
+                for shock_over, shock_note in shock_variants:
+                    for risk_over, risk_note in risk_variants:
+                        over: dict[str, object] = {}
+                        over.update(shock_over)
+                        over.update(risk_over)
+                        f = _merge_filters(base_cfg.strategy.filters, over)
+                        cfg = replace(base_cfg, strategy=replace(base_cfg.strategy, filters=f))
+                        row = _run_cfg(
+                            cfg=cfg,
+                            bars=bars_sig,
+                            regime_bars=_regime_bars_for(cfg),
+                            regime2_bars=_regime2_bars_for(cfg),
+                        )
+                        tested_total += 1
+                        tested_3b += 1
+                        if tested_3b % report_every == 0 or tested_3b == total_3b:
+                            elapsed = pytime.perf_counter() - t0_3b
+                            rate = tested_3b / elapsed if elapsed > 0 else 0.0
+                            remaining = total_3b - tested_3b
+                            eta_sec = remaining / rate if rate > 0 else 0.0
+                            print(
+                                f"  stage3b {tested_3b}/{total_3b} kept={len(rows)} "
+                                f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
+                                flush=True,
+                            )
+                        if not row:
+                            continue
+                        note = f"{base_note} | {shock_note} | {risk_note}"
+                        row["note"] = note
+                        _record_milestone(cfg, row, note)
+                        rows.append(row)
+
+        print("")
+        _print_leaderboards(rows, title="champ_refine (seeded, bounded)", top_n=int(args.top))
+
+    def _sweep_gate_matrix() -> None:
+        """Bounded cross-product of major gates (overnight-capable exhaustive discovery)."""
+        nonlocal run_calls_total
+        perm_pack = {
+            "ema_spread_min_pct": 0.003,
+            "ema_slope_min_pct": 0.01,
+            "ema_spread_min_pct_down": 0.03,
+            "ema_slope_signed_min_pct_down": 0.005,
+            "rv_min": 0.15,
+            "rv_max": 1.0,
+            "volume_ratio_min": 1.2,
+            "volume_ema_period": 20,
+        }
+
+        tick_pack = {
+            "tick_gate_mode": "raschke",
+            "tick_gate_symbol": "TICK-AMEX",
+            "tick_gate_exchange": "AMEX",
+            "tick_neutral_policy": "allow",
+            "tick_direction_policy": "both",
+            "tick_band_ma_period": 10,
+            "tick_width_z_lookback": 252,
+            "tick_width_z_enter": 1.0,
+            "tick_width_z_exit": 0.5,
+            "tick_width_slope_lookback": 3,
+        }
+
+        shock_pack = {
+            "shock_gate_mode": "surf",
+            "shock_detector": "daily_atr_pct",
+            "shock_daily_atr_period": 14,
+            "shock_daily_on_atr_pct": 13.5,
+            "shock_daily_off_atr_pct": 13.0,
+            "shock_daily_on_tr_pct": 9.0,
+            "shock_direction_source": "signal",
+            "shock_direction_lookback": 1,
+            "shock_stop_loss_pct_mult": 0.75,
+        }
+
+        riskoff_pack = {
+            "riskoff_tr5_med_pct": 9.0,
+            "riskoff_tr5_lookback_days": 5,
+            "riskoff_mode": "hygiene",
+            "risk_entry_cutoff_hour_et": 15,
+        }
+        riskpanic_pack = {
+            "riskpanic_tr5_med_pct": 9.0,
+            "riskpanic_neg_gap_ratio_min": 0.6,
+            "riskpanic_lookback_days": 5,
+            "riskpanic_short_risk_mult_factor": 0.5,
+            "risk_entry_cutoff_hour_et": 15,
+        }
+        riskpop_pack = {
+            "riskpop_tr5_med_pct": 9.0,
+            "riskpop_pos_gap_ratio_min": 0.6,
+            "riskpop_lookback_days": 5,
+            "riskpop_long_risk_mult_factor": 1.2,
+            "riskpop_short_risk_mult_factor": 0.5,
+            "risk_entry_cutoff_hour_et": 15,
+        }
+
+        regime2_pack = {
+            "regime2_mode": "supertrend",
+            "regime2_bar_size": "4 hours",
+            "regime2_supertrend_atr_period": 2,
+            "regime2_supertrend_multiplier": 0.3,
+            "regime2_supertrend_source": "close",
+        }
+
+        short_mults = [1.0, 0.2, 0.05, 0.02, 0.01, 0.0]
+
+        def _mk_stage2_cfg(
+            seed_cfg: ConfigBundle,
+            seed_note: str,
+            family: str,
+            *,
+            perm_on: bool,
+            tick_on: bool,
+            shock_on: bool,
+            riskoff_on: bool,
+            riskpanic_on: bool,
+            riskpop_on: bool,
+            regime2_on: bool,
+            short_mult: float,
+        ) -> tuple[ConfigBundle, str]:
+            filt_over: dict[str, object] = {}
+            if perm_on:
+                filt_over.update(perm_pack)
+            if shock_on:
+                filt_over.update(shock_pack)
+            if riskoff_on:
+                filt_over.update(riskoff_pack)
+            if riskpanic_on:
+                filt_over.update(riskpanic_pack)
+            if riskpop_on:
+                filt_over.update(riskpop_pack)
+            f = _mk_filters(overrides=filt_over) if filt_over else None
+
+            strat = seed_cfg.strategy
+            strat = replace(
+                strat,
+                filters=f,
+                spot_short_risk_mult=float(short_mult),
+                tick_gate_mode="off" if not tick_on else str(tick_pack["tick_gate_mode"]),
+                tick_gate_symbol=str(tick_pack["tick_gate_symbol"]),
+                tick_gate_exchange=str(tick_pack["tick_gate_exchange"]),
+                tick_neutral_policy=str(tick_pack["tick_neutral_policy"]),
+                tick_direction_policy=str(tick_pack["tick_direction_policy"]),
+                tick_band_ma_period=int(tick_pack["tick_band_ma_period"]),
+                tick_width_z_lookback=int(tick_pack["tick_width_z_lookback"]),
+                tick_width_z_enter=float(tick_pack["tick_width_z_enter"]),
+                tick_width_z_exit=float(tick_pack["tick_width_z_exit"]),
+                tick_width_slope_lookback=int(tick_pack["tick_width_slope_lookback"]),
+            )
+            if not regime2_on:
+                strat = replace(strat, regime2_mode="off", regime2_bar_size=None)
+            else:
+                strat = replace(
+                    strat,
+                    regime2_mode=str(regime2_pack["regime2_mode"]),
+                    regime2_bar_size=str(regime2_pack["regime2_bar_size"]),
+                    regime2_supertrend_atr_period=int(regime2_pack["regime2_supertrend_atr_period"]),
+                    regime2_supertrend_multiplier=float(regime2_pack["regime2_supertrend_multiplier"]),
+                    regime2_supertrend_source=str(regime2_pack["regime2_supertrend_source"]),
+                )
+
+            cfg = replace(seed_cfg, strategy=strat)
+            note = (
+                f"{seed_note} | gates="
+                f"perm={int(perm_on)} tick={int(tick_on)} shock={int(shock_on)} "
+                f"riskoff={int(riskoff_on)} riskpanic={int(riskpanic_on)} riskpop={int(riskpop_on)} "
+                f"r2={int(regime2_on)} short_mult={short_mult:g} family={family}"
+            )
+            return cfg, note
+
+        if args.gate_matrix_stage2:
+            payload_path = Path(str(args.gate_matrix_stage2))
+            out_path_raw = str(args.gate_matrix_out or "").strip()
+            if not out_path_raw:
+                raise SystemExit("--gate-matrix-out is required for gate_matrix stage2 worker mode.")
+            out_path = Path(out_path_raw)
+
+            try:
+                worker_id = int(args.gate_matrix_worker) if args.gate_matrix_worker is not None else 0
+            except (TypeError, ValueError):
+                worker_id = 0
+            try:
+                workers = int(args.gate_matrix_workers) if args.gate_matrix_workers is not None else 1
+            except (TypeError, ValueError):
+                workers = 1
+            workers = max(1, int(workers))
+            worker_id = max(0, int(worker_id))
+            if worker_id >= workers:
+                raise SystemExit(
+                    f"Invalid gate_matrix worker shard: worker={worker_id} workers={workers} (worker must be < workers)."
+                )
+
+            try:
+                payload = json.loads(payload_path.read_text())
+            except json.JSONDecodeError as exc:
+                raise SystemExit(f"Invalid gate_matrix stage2 payload JSON: {payload_path}") from exc
+            raw_seeds = payload.get("seeds") if isinstance(payload, dict) else None
+            if not isinstance(raw_seeds, list):
+                raise SystemExit(f"gate_matrix stage2 payload missing 'seeds' list: {payload_path}")
+
+            seeds_local: list[tuple[ConfigBundle, str, str]] = []
+            for item in raw_seeds:
+                if not isinstance(item, dict):
+                    continue
+                strat_payload = item.get("strategy") or {}
+                filters_payload = item.get("filters")
+                seed_note = str(item.get("seed_note") or "")
+                family = str(item.get("family") or "")
+                if not isinstance(strat_payload, dict):
+                    continue
+                try:
+                    filters_obj = _filters_from_payload(filters_payload)
+                    strategy_obj = _strategy_from_payload(strat_payload, filters=filters_obj)
+                except Exception:
+                    continue
+                seed_cfg = _mk_bundle(
+                    strategy=strategy_obj,
+                    start=start,
+                    end=end,
+                    bar_size=signal_bar_size,
+                    use_rth=use_rth,
+                    cache_dir=cache_dir,
+                    offline=offline,
+                )
+                seeds_local.append((seed_cfg, seed_note, family))
+
+            bars_sig = _bars_cached(signal_bar_size)
+            total = len(seeds_local) * 2 * 2 * 2 * 2 * 2 * 2 * 2 * len(short_mults)
+            local_total = (total // workers) + (1 if worker_id < (total % workers) else 0)
+            tested = 0
+            combo_idx = 0
+            report_every = 100
+            t0 = pytime.perf_counter()
+            records: list[dict] = []
+            for seed_idx, (seed_cfg, seed_note, family) in enumerate(seeds_local):
+                for perm_on in (False, True):
+                    for tick_on in (False, True):
+                        for shock_on in (False, True):
+                            for riskoff_on in (False, True):
+                                for riskpanic_on in (False, True):
+                                    for riskpop_on in (False, True):
+                                        for regime2_on in (False, True):
+                                            for short_mult in short_mults:
+                                                assigned = (combo_idx % workers) == worker_id
+                                                combo_idx += 1
+                                                if not assigned:
+                                                    continue
+                                                tested += 1
+                                                if tested % report_every == 0 or tested == local_total:
+                                                    elapsed = pytime.perf_counter() - t0
+                                                    rate = (tested / elapsed) if elapsed > 0 else 0.0
+                                                    remaining = local_total - tested
+                                                    eta_sec = (remaining / rate) if rate > 0 else 0.0
+                                                    pct = (tested / local_total * 100.0) if local_total > 0 else 0.0
+                                                    print(
+                                                        f"gate_matrix stage2 worker {worker_id+1}/{workers} "
+                                                        f"{tested}/{local_total} ({pct:0.1f}%) kept={len(records)} "
+                                                        f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
+                                                        flush=True,
+                                                    )
+
+                                                cfg, _ = _mk_stage2_cfg(
+                                                    seed_cfg,
+                                                    seed_note,
+                                                    family,
+                                                    perm_on=perm_on,
+                                                    tick_on=tick_on,
+                                                    shock_on=shock_on,
+                                                    riskoff_on=riskoff_on,
+                                                    riskpanic_on=riskpanic_on,
+                                                    riskpop_on=riskpop_on,
+                                                    regime2_on=regime2_on,
+                                                    short_mult=float(short_mult),
+                                                )
+                                                row = _run_cfg(
+                                                    cfg=cfg,
+                                                    bars=bars_sig,
+                                                    regime_bars=_regime_bars_for(cfg),
+                                                    regime2_bars=_regime2_bars_for(cfg),
+                                                )
+                                                if not row:
+                                                    continue
+                                                records.append(
+                                                    {
+                                                        "seed_idx": seed_idx,
+                                                        "perm_on": bool(perm_on),
+                                                        "tick_on": bool(tick_on),
+                                                        "shock_on": bool(shock_on),
+                                                        "riskoff_on": bool(riskoff_on),
+                                                        "riskpanic_on": bool(riskpanic_on),
+                                                        "riskpop_on": bool(riskpop_on),
+                                                        "regime2_on": bool(regime2_on),
+                                                        "short_mult": float(short_mult),
+                                                        "row": row,
+                                                    }
+                                                )
+
+            if combo_idx != total:
+                raise SystemExit(f"gate_matrix stage2 worker internal error: combos={combo_idx} expected={total}")
+
+            out_payload = {"tested": tested, "kept": len(records), "records": records}
+            write_json(out_path, out_payload, sort_keys=False)
+            print(f"gate_matrix stage2 worker done tested={tested} kept={len(records)} out={out_path}", flush=True)
+            return
+
+        bars_sig = _bars_cached(signal_bar_size)
+
+        # Stage 1: seed scan (direction × bias × exit family), with gates OFF.
+        base = _base_bundle(bar_size=signal_bar_size, filters=None)
+        base = replace(
+            base,
+            strategy=replace(
+                base.strategy,
+                filters=None,
+                tick_gate_mode="off",
+                regime2_mode="off",
+                regime2_bar_size=None,
+                spot_exit_time_et=None,
+            ),
+        )
+
+        direction_variants: list[tuple[str, str, int, str]] = []
+        base_preset = str(base.strategy.ema_preset or "").strip()
+        base_mode = str(base.strategy.ema_entry_mode or "trend").strip().lower()
+        base_confirm = int(base.strategy.entry_confirm_bars or 0)
+        if base_preset and base_mode in ("cross", "trend"):
+            direction_variants.append((base_preset, base_mode, base_confirm, f"ema={base_preset} {base_mode}"))
+        for preset, mode in (
+            ("2/4", "cross"),
+            ("3/7", "cross"),
+            ("3/7", "trend"),
+            ("4/9", "cross"),
+            ("4/9", "trend"),
+            ("5/10", "trend"),
+            ("8/21", "trend"),
+        ):
+            if base_preset and str(base_preset) == str(preset) and str(base_mode) == str(mode):
+                continue
+            direction_variants.append((str(preset), str(mode), 0, f"ema={preset} {mode}"))
+
+        regimes: list[tuple[str, int, float, str, str]] = []
+        for rbar, atr_p, mult, src in (
+            ("4 hours", 2, 0.3, "close"),
+            ("4 hours", 5, 0.4, "hl2"),
+            ("4 hours", 10, 0.8, "hl2"),
+            ("4 hours", 14, 1.0, "hl2"),
+            ("1 day", 10, 1.0, "hl2"),
+            ("1 day", 14, 1.5, "hl2"),
+        ):
+            regimes.append((str(rbar), int(atr_p), float(mult), str(src), f"ST({atr_p},{mult:g},{src})@{rbar}"))
+
+        exit_variants: list[tuple[str, dict[str, object]]] = [
+            (
+                "pct",
+                {"spot_exit_mode": "pct", "spot_profit_target_pct": 0.01, "spot_stop_loss_pct": 0.03},
+            ),
+            (
+                "pct",
+                {"spot_exit_mode": "pct", "spot_profit_target_pct": 0.015, "spot_stop_loss_pct": 0.04},
+            ),
+            (
+                "pct_stop",
+                {"spot_exit_mode": "pct", "spot_profit_target_pct": None, "spot_stop_loss_pct": 0.03},
+            ),
+            (
+                "atr",
+                {
+                    "spot_exit_mode": "atr",
+                    "spot_atr_period": 14,
+                    "spot_pt_atr_mult": 0.9,
+                    "spot_sl_atr_mult": 1.5,
+                    "spot_profit_target_pct": None,
+                    "spot_stop_loss_pct": None,
+                },
+            ),
+            (
+                "atr",
+                {
+                    "spot_exit_mode": "atr",
+                    "spot_atr_period": 14,
+                    "spot_pt_atr_mult": 0.75,
+                    "spot_sl_atr_mult": 1.8,
+                    "spot_profit_target_pct": None,
+                    "spot_stop_loss_pct": None,
+                },
+            ),
+        ]
+
+        stage1: list[tuple[ConfigBundle, dict, str, str]] = []
+        tested = 0
+        total = len(direction_variants) * len(regimes) * len(exit_variants)
+        t0 = pytime.perf_counter()
+        report_every = 50
+        for preset, mode, confirm, dir_note in direction_variants:
+            for rbar, atr_p, mult, src, reg_note in regimes:
+                for exit_family, exit_over in exit_variants:
+                    tested += 1
+                    if tested % report_every == 0 or tested == total:
+                        elapsed = pytime.perf_counter() - t0
+                        rate = (tested / elapsed) if elapsed > 0 else 0.0
+                        remaining = total - tested
+                        eta_sec = (remaining / rate) if rate > 0 else 0.0
+                        pct = (tested / total * 100.0) if total > 0 else 0.0
+                        print(
+                            f"gate_matrix stage1 {tested}/{total} ({pct:0.1f}%) kept={len(stage1)} "
+                            f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
+                            flush=True,
+                        )
+
+                    cfg = replace(
+                        base,
+                        strategy=replace(
+                            base.strategy,
+                            ema_preset=str(preset),
+                            ema_entry_mode=str(mode),
+                            entry_confirm_bars=int(confirm),
+                            filters=None,
+                            tick_gate_mode="off",
+                            regime2_mode="off",
+                            regime2_bar_size=None,
+                            regime_mode="supertrend",
+                            regime_bar_size=str(rbar),
+                            supertrend_atr_period=int(atr_p),
+                            supertrend_multiplier=float(mult),
+                            supertrend_source=str(src),
+                            **exit_over,
+                        ),
+                    )
+                    row = _run_cfg(
+                        cfg=cfg,
+                        bars=bars_sig,
+                        regime_bars=_regime_bars_for(cfg),
+                        regime2_bars=None,
+                    )
+                    if not row:
+                        continue
+                    note = f"{dir_note} | {reg_note} | exit={exit_family}"
+                    row["note"] = note
+                    _record_milestone(cfg, row, note)
+                    stage1.append((cfg, row, note, str(exit_family)))
+
+        if not stage1:
+            print("Gate-matrix: no stage1 seeds eligible (try lowering --min-trades).")
+            return
+
+        def _ranked(items: list[tuple[ConfigBundle, dict, str, str]], *, top_pnl_dd: int, top_pnl: int) -> list:
+            by_dd = sorted(items, key=lambda t: _score_row_pnl_dd(t[1]), reverse=True)[: int(top_pnl_dd)]
+            by_pnl = sorted(items, key=lambda t: _score_row_pnl(t[1]), reverse=True)[: int(top_pnl)]
+            seen: set[str] = set()
+            out: list[tuple[ConfigBundle, dict, str, str]] = []
+            for cfg, row, note, family in by_dd + by_pnl:
+                key = _milestone_key(cfg)
+                if key in seen:
+                    continue
+                seen.add(key)
+                out.append((cfg, row, note, family))
+            return out
+
+        families = sorted({t[3] for t in stage1})
+        seeds: list[tuple[ConfigBundle, dict, str, str]] = []
+        for fam in families:
+            seeds.extend(_ranked([t for t in stage1 if t[3] == fam], top_pnl_dd=3, top_pnl=2))
+        # Keep this bounded.
+        max_seeds = 8
+        seeds = seeds[:max_seeds]
+        print("")
+        print(f"Gate-matrix: stage1 candidates={len(stage1)} seeds={len(seeds)} families={families}")
+
+        # Stage 2: gate cross-product around the shortlist.
+        rows: list[dict] = []
+        total = len(seeds) * 2 * 2 * 2 * 2 * 2 * 2 * 2 * len(short_mults)
+        if jobs > 1:
+            if not offline:
+                raise SystemExit("--jobs>1 for gate_matrix requires --offline (avoid parallel IBKR sessions).")
+
+            def _strip_flag(argv: list[str], flag: str) -> list[str]:
+                return [arg for arg in argv if arg != flag]
+
+            def _strip_flag_with_value(argv: list[str], flag: str) -> list[str]:
+                out: list[str] = []
+                idx = 0
+                while idx < len(argv):
+                    arg = argv[idx]
+                    if arg == flag:
+                        idx += 2
+                        continue
+                    if arg.startswith(flag + "="):
+                        idx += 1
+                        continue
+                    out.append(arg)
+                    idx += 1
+                return out
+
+            base_cli = list(sys.argv[1:])
+            base_cli = _strip_flag_with_value(base_cli, "--axis")
+            base_cli = _strip_flag_with_value(base_cli, "--jobs")
+            base_cli = _strip_flag(base_cli, "--write-milestones")
+            base_cli = _strip_flag(base_cli, "--merge-milestones")
+            base_cli = _strip_flag_with_value(base_cli, "--milestones-out")
+            base_cli = _strip_flag_with_value(base_cli, "--gate-matrix-stage2")
+            base_cli = _strip_flag_with_value(base_cli, "--gate-matrix-worker")
+            base_cli = _strip_flag_with_value(base_cli, "--gate-matrix-workers")
+            base_cli = _strip_flag_with_value(base_cli, "--gate-matrix-out")
+            base_cli = _strip_flag_with_value(base_cli, "--gate-matrix-run-min-trades")
+
+            jobs_eff = min(int(jobs), int(_default_jobs()), int(total)) if total > 0 else 1
+            print(f"gate_matrix stage2 parallel: workers={jobs_eff} total={total}", flush=True)
+
+            def _pump(prefix: str, stream) -> None:
+                for line in iter(stream.readline, ""):
+                    print(f"[{prefix}] {line.rstrip()}", flush=True)
+
+            failures: list[tuple[int, int]] = []
+            start_times: dict[int, float] = {}
+
+            with tempfile.TemporaryDirectory(prefix="tradebot_gate_matrix_") as tmpdir:
+                tmp_root = Path(tmpdir)
+                payload_path = tmp_root / "stage2_payload.json"
+                seeds_payload: list[dict] = []
+                for seed_cfg, _, seed_note, family in seeds:
+                    seeds_payload.append(
+                        {
+                            "strategy": _spot_strategy_payload(seed_cfg, meta=meta),
+                            "filters": _filters_payload(seed_cfg.strategy.filters),
+                            "seed_note": str(seed_note),
+                            "family": str(family),
+                        }
+                    )
+                write_json(payload_path, {"seeds": seeds_payload}, sort_keys=False)
+
+                running: list[tuple[int, subprocess.Popen, threading.Thread, Path]] = []
+                out_paths: dict[int, Path] = {}
+
+                for worker_id in range(jobs_eff):
+                    out_path = tmp_root / f"stage2_out_{worker_id}.json"
+                    out_paths[worker_id] = out_path
+                    cmd = [
+                        sys.executable,
+                        "-u",
+                        "-m",
+                        "tradebot.backtest",
+                        "spot",
+                        *base_cli,
+                        "--axis",
+                        "gate_matrix",
+                        "--jobs",
+                        "1",
+                        "--gate-matrix-stage2",
+                        str(payload_path),
+                        "--gate-matrix-worker",
+                        str(worker_id),
+                        "--gate-matrix-workers",
+                        str(jobs_eff),
+                        "--gate-matrix-out",
+                        str(out_path),
+                        "--gate-matrix-run-min-trades",
+                        str(int(run_min_trades)),
+                    ]
+                    proc = subprocess.Popen(
+                        cmd,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
+                        text=True,
+                        bufsize=1,
+                    )
+                    if proc.stdout is None:
+                        raise RuntimeError("Failed to capture gate_matrix worker stdout.")
+                    t = threading.Thread(target=_pump, args=(f"gm2:{worker_id}", proc.stdout), daemon=True)
+                    t.start()
+                    start_times[worker_id] = pytime.perf_counter()
+                    running.append((worker_id, proc, t, out_path))
+
+                while running and not failures:
+                    finished_idx = None
+                    for idx, (worker_id, proc, t, out_path) in enumerate(running):
+                        rc = proc.poll()
+                        if rc is None:
+                            continue
+                        finished_idx = idx
+                        elapsed = pytime.perf_counter() - float(start_times.get(worker_id) or pytime.perf_counter())
+                        print(f"DONE  gm2:{worker_id} exit={rc} elapsed={elapsed:0.1f}s", flush=True)
+                        try:
+                            proc.wait(timeout=1.0)
+                        except subprocess.TimeoutExpired:
+                            proc.kill()
+                            proc.wait(timeout=5.0)
+                        try:
+                            t.join(timeout=1.0)
+                        except Exception:
+                            pass
+                        if rc != 0:
+                            failures.append((int(worker_id), int(rc)))
+                        running.pop(idx)
+                        break
+
+                    if failures:
+                        for worker_id, proc, t, out_path in running:
+                            try:
+                                proc.terminate()
+                            except Exception:
+                                pass
+                        for worker_id, proc, t, out_path in running:
+                            try:
+                                proc.wait(timeout=5.0)
+                            except Exception:
+                                try:
+                                    proc.kill()
+                                except Exception:
+                                    pass
+                        break
+
+                    if finished_idx is None:
+                        pytime.sleep(0.05)
+
+                if failures:
+                    wid, rc = failures[0]
+                    raise SystemExit(f"gate_matrix stage2 worker failed: gm2:{wid} (exit={rc})")
+
+                tested_total = 0
+                for worker_id in range(jobs_eff):
+                    out_path = out_paths.get(worker_id)
+                    if out_path is None or not out_path.exists():
+                        raise SystemExit(f"Missing gate_matrix stage2 output: gm2:{worker_id} ({out_path})")
+                    try:
+                        payload = json.loads(out_path.read_text())
+                    except json.JSONDecodeError as exc:
+                        raise SystemExit(f"Invalid gate_matrix stage2 output JSON: gm2:{worker_id} ({out_path})") from exc
+                    if not isinstance(payload, dict):
+                        continue
+                    tested_total += int(payload.get("tested") or 0)
+                    for rec in payload.get("records") or []:
+                        if not isinstance(rec, dict):
+                            continue
+                        seed_idx_raw = rec.get("seed_idx")
+                        if seed_idx_raw is None:
+                            continue
+                        try:
+                            seed_idx = int(seed_idx_raw)
+                        except (TypeError, ValueError):
+                            continue
+                        if seed_idx < 0 or seed_idx >= len(seeds):
+                            continue
+                        base_seed_cfg, _, seed_note, family = seeds[seed_idx]
+                        cfg, note = _mk_stage2_cfg(
+                            base_seed_cfg,
+                            str(seed_note),
+                            str(family),
+                            perm_on=bool(rec.get("perm_on")),
+                            tick_on=bool(rec.get("tick_on")),
+                            shock_on=bool(rec.get("shock_on")),
+                            riskoff_on=bool(rec.get("riskoff_on")),
+                            riskpanic_on=bool(rec.get("riskpanic_on")),
+                            riskpop_on=bool(rec.get("riskpop_on")),
+                            regime2_on=bool(rec.get("regime2_on")),
+                            short_mult=float(rec.get("short_mult") or 0.0),
+                        )
+                        row = rec.get("row")
+                        if not isinstance(row, dict):
+                            continue
+                        row = dict(row)
+                        row["note"] = note
+                        _record_milestone(cfg, row, note)
+                        rows.append(row)
+
+                run_calls_total += int(tested_total)
+        else:
+            tested = 0
+            t0 = pytime.perf_counter()
+            report_every = 200
+            for seed_cfg, _, seed_note, family in seeds:
+                for perm_on in (False, True):
+                    for tick_on in (False, True):
+                        for shock_on in (False, True):
+                            for riskoff_on in (False, True):
+                                for riskpanic_on in (False, True):
+                                    for riskpop_on in (False, True):
+                                        for regime2_on in (False, True):
+                                            for short_mult in short_mults:
+                                                tested += 1
+                                                if tested % report_every == 0 or tested == total:
+                                                    elapsed = pytime.perf_counter() - t0
+                                                    rate = (tested / elapsed) if elapsed > 0 else 0.0
+                                                    remaining = total - tested
+                                                    eta_sec = (remaining / rate) if rate > 0 else 0.0
+                                                    pct = (tested / total * 100.0) if total > 0 else 0.0
+                                                    print(
+                                                        f"gate_matrix stage2 {tested}/{total} ({pct:0.1f}%) kept={len(rows)} "
+                                                        f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
+                                                        flush=True,
+                                                    )
+
+                                                cfg, note = _mk_stage2_cfg(
+                                                    seed_cfg,
+                                                    seed_note,
+                                                    family,
+                                                    perm_on=perm_on,
+                                                    tick_on=tick_on,
+                                                    shock_on=shock_on,
+                                                    riskoff_on=riskoff_on,
+                                                    riskpanic_on=riskpanic_on,
+                                                    riskpop_on=riskpop_on,
+                                                    regime2_on=regime2_on,
+                                                    short_mult=float(short_mult),
+                                                )
+                                                row = _run_cfg(
+                                                    cfg=cfg,
+                                                    bars=bars_sig,
+                                                    regime_bars=_regime_bars_for(cfg),
+                                                    regime2_bars=_regime2_bars_for(cfg),
+                                                )
+                                                if not row:
+                                                    continue
+                                                row["note"] = note
+                                                _record_milestone(cfg, row, note)
+                                                rows.append(row)
+
+        _print_leaderboards(rows, title="Gate-matrix sweep (bounded cross-product)", top_n=int(args.top))
 
     def _sweep_squeeze() -> None:
         """Squeeze a few high-leverage axes from the current champion baseline.
@@ -4137,6 +7956,7 @@ def main() -> None:
     print(
         f"{symbol} spot evolve sweep ({start.isoformat()} -> {end.isoformat()}, use_rth={use_rth}, "
         f"bar_size={signal_bar_size}, offline={offline}, base={args.base}, axis={axis}, "
+        f"jobs={jobs}, "
         f"long_only={long_only} realism={'v2' if realism2 else ('v1' if realism else 'off')} "
         f"spread={spot_spread:g} comm={spot_commission:g} comm_min={spot_commission_min:g} "
         f"slip={spot_slippage:g} sizing={sizing_mode} risk={spot_risk_pct:g} max_notional={spot_max_notional_pct:g})"
@@ -4146,8 +7966,10 @@ def main() -> None:
         _sweep_ema()
     if axis == "entry_mode":
         _sweep_entry_mode()
-    if axis == "combo":
-        _sweep_combo()
+    if axis == "combo_fast":
+        _sweep_combo_fast()
+    if axis == "combo_full":
+        _sweep_combo_full()
     if axis == "squeeze":
         _sweep_squeeze()
     if axis in ("all", "volume"):
@@ -4218,20 +8040,32 @@ def main() -> None:
         _sweep_spread_down()
     if axis in ("all", "slope"):
         _sweep_slope()
+    if axis in ("all", "slope_signed"):
+        _sweep_slope_signed()
     if axis in ("all", "cooldown"):
         _sweep_cooldown()
     if axis in ("all", "skip_open"):
         _sweep_skip_open()
+    if axis in ("all", "shock"):
+        _sweep_shock()
+    if axis in ("all", "risk_overlays"):
+        _sweep_risk_overlays()
     if axis in ("all", "loosen"):
         _sweep_loosen()
     if axis == "loosen_atr":
         _sweep_loosen_atr()
     if axis in ("all", "tick"):
         _sweep_tick()
+    if axis in ("all", "spot_short_risk_mult"):
+        _sweep_spot_short_risk_mult()
+    if axis == "gate_matrix":
+        _sweep_gate_matrix()
+    if axis == "champ_refine":
+        _sweep_champ_refine()
     if axis == "frontier":
         _sweep_frontier()
 
-    if bool(args.write_milestones):
+    if bool(args.write_milestones) and not bool(milestones_written):
         eligible_new: list[dict] = []
         for cfg, row, note in milestone_rows:
             try:

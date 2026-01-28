@@ -67,6 +67,8 @@ class FiltersConfig:
     volume_ema_period: int | None = None
     volume_ratio_min: float | None = None
     ema_spread_min_pct_down: float | None = None
+    ema_slope_signed_min_pct_up: float | None = None
+    ema_slope_signed_min_pct_down: float | None = None
     shock_gate_mode: str = "off"
     shock_detector: str = "atr_ratio"  # "atr_ratio" | "tr_ratio" | "daily_atr_pct" | "daily_drawdown"
     shock_atr_fast_period: int = 7
@@ -94,6 +96,7 @@ class FiltersConfig:
     shock_daily_cooling_atr_pct: float | None = None
     shock_risk_scale_target_atr_pct: float | None = None
     shock_risk_scale_min_mult: float = 0.2
+    risk_entry_cutoff_hour_et: int | None = None
     riskoff_tr5_med_pct: float | None = None
     riskoff_tr5_lookback_days: int = 5
     riskoff_mode: str = "hygiene"  # "hygiene" | "directional"
@@ -103,6 +106,11 @@ class FiltersConfig:
     riskpanic_neg_gap_ratio_min: float | None = None
     riskpanic_lookback_days: int = 5
     riskpanic_short_risk_mult_factor: float = 1.0
+    riskpop_tr5_med_pct: float | None = None
+    riskpop_pos_gap_ratio_min: float | None = None
+    riskpop_lookback_days: int = 5
+    riskpop_long_risk_mult_factor: float = 1.0
+    riskpop_short_risk_mult_factor: float = 1.0
 
 
 @dataclass(frozen=True)
@@ -198,4 +206,3 @@ class ConfigBundle:
     backtest: BacktestConfig
     strategy: StrategyConfig
     synthetic: SyntheticConfig
-

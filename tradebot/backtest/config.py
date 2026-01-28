@@ -362,6 +362,17 @@ def _parse_filters(raw) -> FiltersConfig | None:
     if end_et is not None and not (0 <= int(end_et) <= 23):
         end_et = None
 
+    slope_signed_up = _f(raw.get("ema_slope_signed_min_pct_up"))
+    if slope_signed_up is not None and slope_signed_up <= 0:
+        slope_signed_up = None
+    slope_signed_down = _f(raw.get("ema_slope_signed_min_pct_down"))
+    if slope_signed_down is not None and slope_signed_down <= 0:
+        slope_signed_down = None
+
+    risk_cutoff_et = _i(raw.get("risk_entry_cutoff_hour_et"))
+    if risk_cutoff_et is not None and not (0 <= int(risk_cutoff_et) <= 23):
+        risk_cutoff_et = None
+
     shock_gate_mode = raw.get("shock_gate_mode")
     if shock_gate_mode is None:
         shock_gate_mode = raw.get("shock_mode")
@@ -500,12 +511,34 @@ def _parse_filters(raw) -> FiltersConfig | None:
         riskpanic_short_factor = 1.0
     if riskpanic_short_factor < 0:
         riskpanic_short_factor = 1.0
+
+    riskpop_tr5_med = _f(raw.get("riskpop_tr5_med_pct"))
+    if riskpop_tr5_med is not None and riskpop_tr5_med <= 0:
+        riskpop_tr5_med = None
+    riskpop_pos_gap = _f(raw.get("riskpop_pos_gap_ratio_min"))
+    if riskpop_pos_gap is not None:
+        riskpop_pos_gap = float(max(0.0, min(1.0, riskpop_pos_gap)))
+    riskpop_lb = _i(raw.get("riskpop_lookback_days"))
+    if riskpop_lb is None or riskpop_lb <= 0:
+        riskpop_lb = 5
+    riskpop_long_factor = _f(raw.get("riskpop_long_risk_mult_factor"))
+    if riskpop_long_factor is None:
+        riskpop_long_factor = 1.0
+    if riskpop_long_factor < 0:
+        riskpop_long_factor = 1.0
+    riskpop_short_factor = _f(raw.get("riskpop_short_risk_mult_factor"))
+    if riskpop_short_factor is None:
+        riskpop_short_factor = 1.0
+    if riskpop_short_factor < 0:
+        riskpop_short_factor = 1.0
     return FiltersConfig(
         rv_min=_f(raw.get("rv_min")),
         rv_max=_f(raw.get("rv_max")),
         ema_spread_min_pct=_f(raw.get("ema_spread_min_pct")),
         ema_spread_min_pct_down=_f(raw.get("ema_spread_min_pct_down")),
         ema_slope_min_pct=_f(raw.get("ema_slope_min_pct")),
+        ema_slope_signed_min_pct_up=slope_signed_up,
+        ema_slope_signed_min_pct_down=slope_signed_down,
         entry_start_hour=_i(raw.get("entry_start_hour")),
         entry_end_hour=_i(raw.get("entry_end_hour")),
         entry_start_hour_et=start_et,
@@ -541,6 +574,7 @@ def _parse_filters(raw) -> FiltersConfig | None:
         shock_daily_cooling_atr_pct=shock_daily_cool_atr,
         shock_risk_scale_target_atr_pct=shock_scale_target,
         shock_risk_scale_min_mult=shock_scale_min,
+        risk_entry_cutoff_hour_et=risk_cutoff_et,
         riskoff_tr5_med_pct=riskoff_tr5_med,
         riskoff_tr5_lookback_days=int(riskoff_tr5_lb),
         riskoff_mode=str(riskoff_mode),
@@ -550,6 +584,11 @@ def _parse_filters(raw) -> FiltersConfig | None:
         riskpanic_neg_gap_ratio_min=riskpanic_neg_gap,
         riskpanic_lookback_days=int(riskpanic_lb),
         riskpanic_short_risk_mult_factor=float(riskpanic_short_factor),
+        riskpop_tr5_med_pct=riskpop_tr5_med,
+        riskpop_pos_gap_ratio_min=riskpop_pos_gap,
+        riskpop_lookback_days=int(riskpop_lb),
+        riskpop_long_risk_mult_factor=float(riskpop_long_factor),
+        riskpop_short_risk_mult_factor=float(riskpop_short_factor),
     )
 
 

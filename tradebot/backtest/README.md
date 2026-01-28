@@ -370,18 +370,18 @@ These spot presets are **12-month only** (no 6m snapshot entries) and are filter
 Regenerate (offline, uses cached bars in `db/`):
 ```bash
 python -m tradebot.backtest spot --offline --axis all --write-milestones --cache-dir db
-python -m tradebot.backtest spot --offline --axis combo --write-milestones --merge-milestones --cache-dir db
+python -m tradebot.backtest spot --offline --axis combo_fast --write-milestones --merge-milestones --cache-dir db
 ```
 
 Regenerate with realism v1 enabled (recommended before live trading):
 ```bash
 python -m tradebot.backtest spot --offline --axis all --realism --write-milestones --cache-dir db
-python -m tradebot.backtest spot --offline --axis combo --realism --write-milestones --merge-milestones --cache-dir db
+python -m tradebot.backtest spot --offline --axis combo_fast --realism --write-milestones --merge-milestones --cache-dir db
 ```
 
 Regenerate 30-minute spot champions (adds only a curated top set from that run, merges into existing milestones):
 ```bash
-python -m tradebot.backtest spot --offline --bar-size "30 mins" --axis combo \
+python -m tradebot.backtest spot --offline --bar-size "30 mins" --axis combo_fast \
   --write-milestones --merge-milestones --milestone-add-top-pnl-dd 25 --milestone-add-top-pnl 25 \
   --cache-dir db
 ```
@@ -412,6 +412,7 @@ This is a **quick map of what the sweeps actually cover** (outer edges), so we c
 - EMA spread fine (`--axis spread_fine`): `ema_spread_min_pct ∈ {None, 0.0020..0.0080 step 0.0005}`
 - EMA spread DOWN gate (`--axis spread_down`): `ema_spread_min_pct_down ∈ {None, 0.003, 0.004, 0.005, 0.006, 0.007, 0.008, 0.010, 0.012, 0.015, 0.02, 0.03, 0.05}` (applies only when `signal.entry_dir=down`)
 - EMA slope gate (`--axis slope`): `ema_slope_min_pct ∈ {None, 0.005, 0.01, 0.02, 0.03, 0.05}`
+- EMA signed-slope gate (`--axis slope_signed`): `ema_slope_signed_min_pct_up/down ∈ {None, 0.003..0.05 (curated)}` (directional: “steep up” vs “steep down”)
 - Volume gate (`--axis volume`): `volume_ratio_min ∈ {None, 1.0, 1.1, 1.2, 1.5}`, `volume_ema_period ∈ {10,20,30}`
 - Realized-vol band gate (`--axis rv`): `rv_min ∈ {None, 0.25,0.30,0.35,0.40,0.45}`, `rv_max ∈ {None, 0.70,0.80,0.90,1.00}`
 - Cooldown (`--axis cooldown`): `cooldown_bars ∈ {0,1,2,3,4,6,8}`
@@ -420,6 +421,8 @@ This is a **quick map of what the sweeps actually cover** (outer edges), so we c
   - `z_enter ∈ {0.8,1.0,1.2}`, `z_exit ∈ {0.4,0.5,0.6}`, `slope_lookback ∈ {3,5}`, `z_lookback ∈ {126,252}`
   - `tick_neutral_policy ∈ {allow, block}`, `tick_direction_policy ∈ {both, wide_only}`
   - Default symbol tries `TICK-AMEX` (fallback from `TICK-NYSE` if permissions/cache block it)
+- Shock overlay (`--axis shock`): `shock_gate_mode ∈ {detect, block, block_longs, block_shorts, surf}` × `shock_detector ∈ {atr_ratio, tr_ratio, daily_atr_pct, daily_drawdown}` plus curated threshold presets (includes `shock_daily_on_tr_pct` for “TR early trigger”), with small grids for `shock_stop_loss_pct_mult`, `shock_profit_target_pct_mult`, and `shock_short_risk_mult_factor`
+- TR% risk overlays (`--axis risk_overlays`): risk-off `riskoff_tr5_med_pct`; risk-panic `riskpanic_tr5_med_pct + riskpanic_neg_gap_ratio_min` with `riskpanic_short_risk_mult_factor ∈ {1.0,0.5,0.2,0.0}`; risk-pop `riskpop_tr5_med_pct + riskpop_pos_gap_ratio_min` with `riskpop_long_risk_mult_factor ∈ {0.6,0.8,1.0,1.2,1.5}` and `riskpop_short_risk_mult_factor ∈ {1.0,0.5,0.2,0.0}` (includes optional `risk_entry_cutoff_hour_et`)
 
 **Bias / confirm (regime layers)**
 - Regime sweep (`--axis regime`): `regime_bar_size ∈ {4 hours, 1 day}`, `ST ATR ∈ {2,3,4,5,6,7,10,11,14,21}`, `mult ∈ {0.05..2.0 (curated list)}`, `src ∈ {close, hl2}`
@@ -442,14 +445,18 @@ This is a **quick map of what the sweeps actually cover** (outer edges), so we c
 - Loosenings (`--axis loosen`): `max_open_trades ∈ {1,2,3,0}`, `spot_close_eod ∈ {0,1}`
 - Loosen×ATR joint (`--axis loosen_atr`): `max_open_trades ∈ {2,3,0}`, `spot_close_eod ∈ {0,1}` × exits `ATR period ∈ {10,14,21}`, `PTx ∈ {0.60..0.80 step 0.05}`, `SLx ∈ {1.20..2.00 step 0.20}`
 - Exit-time flatten (`--axis exit_time`): `spot_exit_time_et ∈ {None, 04:00, 09:30, 10:00, 11:00, 16:00, 17:00}`
+- Short sizing multiplier (`--axis spot_short_risk_mult`): `spot_short_risk_mult ∈ {1.0,0.8,0.6,0.4,0.3,0.25,0.2,0.15,0.1,0.05,0.02,0.01,0.0}` (only affects `spot_sizing_mode=risk_pct`)
 
 **ORB**
 - ORB (`--axis orb`, runs on 15m bars): `open_time_et ∈ {09:30, 18:00}`, `window_mins ∈ {15,30,60}`, `target_mode ∈ {rr, or_range}`, `rr ∈ {0.618,0.707,0.786,1.0,1.272,1.618,2.0}`, optional `vol>=1.2@20`, plus a session TOD filter.
 - ORB joint (`--axis orb_joint`, runs on 15m bars): stage-1 shortlist of ORB params → apply `regime ∈ {off, ST @ 4h (small curated set)}` × `tick ∈ {off, wide_only allow/block (z=1.0/0.5 slope=3 lb=252)}`
 
 **Known gaps (we now target explicitly)**
-- Some interaction edges require **joint sweeps** rather than one-axis sweeps (e.g. `regime2 × ATR exits` with `PTx < 1.0`): this is the class of gap the combo funnel can miss, and is now covered by `--axis r2_atr`.
-- `--axis combo` is a bounded “smart exhaustive” funnel that now includes direction×regime scan + the low-PT ATR pocket + Raschke `$TICK` gate + RV band + exit-time + a few TOD windows. It is still a funnel (not the full universe), but it should no longer miss entire categories of interactions we care about.
+- Some interaction edges require **joint sweeps** rather than one-axis sweeps (e.g. `regime2 × ATR exits` with `PTx < 1.0`): this is the class of gap the combo_fast funnel can miss, and is now covered by `--axis r2_atr`.
+- `--axis combo_fast` is a bounded “smart exhaustive” funnel that includes direction×regime scan + the low-PT ATR pocket + Raschke `$TICK` gate + RV band + exit-time + a few TOD windows.
+- `--axis gate_matrix` is a bounded cross-product around a seed shortlist: `{perm,tick,shock,riskoff,riskpanic,riskpop,regime2} on/off` × `spot_short_risk_mult` (intended to finish overnight).
+- `--axis champ_refine` is a seeded “last-mile” funnel: load top-K seeds from `--seed-milestones`, then run a bounded refinement around each seed (short asymmetry tail + **exit semantics micro** (stop-only + flip-profit gating) + TOD/permission micro + signed-slope + shock/risk pockets).
+- `--axis combo_full` runs the full sweep suite (single-axis + joint sweeps + combo_fast + gate cross-product). It is intentionally **very slow** and is meant for overnight discovery runs. Tip: with `--offline`, you can use `--jobs N` (defaults to CPU count) to parallelize per-axis sweeps and cut wall-clock time.
 
 ### Spot champions (TQQQ only)
 
@@ -950,10 +957,10 @@ Full ranked list:
   - `backtests/out/tqqq_exec5m_regime2_confirm_sumpnl_kingmaker_all.json` (raw eval output; top=41)
 
 Additional exploration runs (recorded commands; 2026-01-21):
-- Combo discovery candidates (2y window, relaxed `win>=52%` for broader coverage):
+- combo_fast discovery candidates (2y window, relaxed `win>=52%` for broader coverage):
   - `backtests/out/tqqq_exec5m_combo_30m_2y_candidates_wr52.json` (30m signals + 5m exec; 447 eligible on 2y)
   - `backtests/out/tqqq_exec5m_combo_1h_2y_candidates_wr52.json` (1h signals + 5m exec; 168 eligible on 2y)
-- Combo stability winners on the 2y+1y windows (these tend to prefer `spot_close_eod=true`):
+- combo_fast stability winners on the 2y+1y windows (these tend to prefer `spot_close_eod=true`):
   - `backtests/out/tqqq_exec5m_combo_30m_wr56_2y1y_kingmaker_all.json` (267 passed `pnl>0`, `win>=56%`, `tr>=120` in both windows)
   - `backtests/out/tqqq_exec5m_combo_1h_wr56_2y1y_kingmaker_all.json` (83 passed `pnl>0`, `win>=56%`, `tr>=120` in both windows)
 
@@ -962,13 +969,13 @@ Repro commands:
 # 2y discovery (generate candidate pools)
 python -m tradebot.backtest spot --offline --cache-dir db --symbol TQQQ --use-rth \
   --start 2024-01-01 --end 2026-01-19 --bar-size "30 mins" --spot-exec-bar-size "5 mins" \
-  --realism2 --base default --axis combo --max-open-trades 1 --min-trades 240 \
+  --realism2 --base default --axis combo_fast --max-open-trades 1 --min-trades 240 \
   --write-milestones --milestones-out backtests/out/tqqq_exec5m_combo_30m_2y_candidates_wr52.json \
   --milestone-min-win 0.52 --milestone-min-trades 240 --milestone-min-pnl-dd 0.0
 
 python -m tradebot.backtest spot --offline --cache-dir db --symbol TQQQ --use-rth \
   --start 2024-01-01 --end 2026-01-19 --bar-size "1 hour" --spot-exec-bar-size "5 mins" \
-  --realism2 --base default --axis combo --max-open-trades 1 --min-trades 200 \
+  --realism2 --base default --axis combo_fast --max-open-trades 1 --min-trades 200 \
   --write-milestones --milestones-out backtests/out/tqqq_exec5m_combo_1h_2y_candidates_wr52.json \
   --milestone-min-win 0.52 --milestone-min-trades 200 --milestone-min-pnl-dd 0.0
 
@@ -1000,7 +1007,7 @@ Result (with the same “go-live shaped” Realism v2 settings used above):
 - Broad 2y-discovery sweeps (30m+5m exec and 1h+5m exec) found **0** 10y-positive candidates among the families that satisfy `win>=56%` and the activity constraints on the 2y window.
   - 30m family: `backtests/out/tqqq_exec5m_combo_30m_any_positive10y.json` (empty)
   - 1h family: `backtests/out/tqqq_exec5m_combo_1h_any_positive10y.json` (empty)
-- Re-running the combo discovery with a **relaxed win-rate floor** (`win>=52%` on the 2y window) still finds **0** strategies that are simultaneously:
+- Re-running the combo_fast discovery with a **relaxed win-rate floor** (`win>=52%` on the 2y window) still finds **0** strategies that are simultaneously:
   - positive PnL on **10y + 2y + 1y** and
   - active enough (`>=120 trades`) and
   - `max_open_trades<=1`
@@ -1009,7 +1016,7 @@ Result (with the same “go-live shaped” Realism v2 settings used above):
   - Even **10y-only positivity** is absent inside the 2y-discovered 30m candidate pool: `backtests/out/tqqq_exec5m_combo_30m_wr52_10y_only_kingmaker_top20.json` (empty)
 
 Important caveat (why this doesn’t prove “no 10y-positive strategy exists”):
-- `--axis combo` is a bounded funnel: it shortlists regimes by **2y performance** and then expands exits/gates around that shortlist.
+- `--axis combo_fast` is a bounded funnel: it shortlists regimes by **2y performance** and then expands exits/gates around that shortlist.
   This means a 10y-positive corner could still exist outside the 2y-shortlist neighborhood.
 
 Counterexample sanity check (exec=5m can still be positive on 10y):
@@ -1119,7 +1126,7 @@ Quick “max net PnL” snapshots (generated 2026-01-16, post-intraday-timestamp
   - Stats: `trades=821`, `win=56.9%`, `pnl=+22486.5`, `dd=1867.5`, `pnl/dd=12.04`
 
 ### LEGACY: Spot cross-asset sanity (TQQQ, 10y, RTH; pre-exec=5m) (reclassified 2026-01-21)
-These were found by running our spot combo sweep on `TQQQ` over `2016-01-01 → 2026-01-08` with `use_rth=true`.
+These were found by running our spot combo_fast sweep on `TQQQ` over `2016-01-01 → 2026-01-08` with `use_rth=true`.
 
 #### LEGACY (Realism v2 multi-window stability; ROI-based, long-only; pre-exec=5m)
 These were the “go-live shaped” TQQQ presets found under **Realism v2** before we added `spot_exec_bar_size=5 mins`:
@@ -1168,7 +1175,7 @@ These are older “Realism v1” TQQQ presets (still useful for directionally te
     - 2025→2026-01-19: `tr=92`, `win=68.5%`, `pnl=9.22`, `dd=4.49`, `pnl/dd=2.06`
 
 Repro notes:
-- Candidate pool generation: `python -m tradebot.backtest spot --axis combo --realism2 --long-only ... --write-milestones --milestones-out backtests/out/presets/spot_milestones.tqqq_10y_<bar>_realism_v2.json`
+- Candidate pool generation: `python -m tradebot.backtest spot --axis combo_fast --realism2 --long-only ... --write-milestones --milestones-out backtests/out/presets/spot_milestones.tqqq_10y_<bar>_realism_v2.json`
 - Stability scoring: `python -m tradebot.backtest spot_multitimeframe --milestones backtests/out/presets/spot_milestones.tqqq_10y_<bar>_realism_v2.json --max-open <N> --require-positive-pnl ...`
 
 #### LEGACY (pre-realism; optimistic)
@@ -1176,7 +1183,7 @@ Note:
 - `max_open=0` means **unlimited stacking** (subject to `starting_cash` margin constraints); this can materially change results.
 - Spot PnL for equities is per-share (multiplier `1.0`), not per-contract `100`.
 
-- 1 hour (combo sweep outcome, verified by direct backtest)
+- 1 hour (combo_fast sweep outcome, verified by direct backtest)
   - Best pnl/dd family found (note: uses `max_open=0` = unlimited stacking):
     - `tr=12407`, `win=64.25%`, `pnl=249.3`, `dd=34.5`, `pnl/dd=7.22`
     - `ema=3/7 trend`, `ST(3,0.8,close)@4h`, exits `PT=0.005 SL=0.030`, `hold=4`, filters `spread>=0.005 slope>=0.01`
@@ -1184,8 +1191,8 @@ Note:
     - `tr=14439`, `win=59.05%`, `pnl=318.1`, `dd=151.4`, `pnl/dd=2.10`
     - `ema=9/21 trend`, `ST(3,0.8,close)@4h`, exits `PT=0.015 SL=0.030`, `hold=0`, filter `spread>=0.005`
 
-- 30 mins (full combo sweep output captured)
-  - Full printout saved at `backtests/out/tqqq_10y_combo_30m.txt`.
+- 30 mins (combo_fast sweep output captured)
+  - Full printout saved at `backtests/out/tqqq_10y_combo_fast_30m.txt`.
   - Top by pnl/dd (more “realistic-feeling” because it’s not unlimited stacking; it’s `max_open=1` and `close_eod=1`):
     - `tr=1081`, `win=54.95%`, `pnl=31.3`, `dd=3.3`, `pnl/dd=9.60`
     - `ema=3/7 cross`, `ST(7,0.6,close)@4h`, exits `ATR(10) PTx0.9 SLx1.8`, `hold=4`, `max_open=1 close_eod=1`, `ST2(1d:7,0.4,close)`

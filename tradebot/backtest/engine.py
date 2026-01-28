@@ -879,6 +879,7 @@ def _run_spot_backtest_exec_loop(
         riskoff: bool,
         risk_dir: str | None,
         riskpanic: bool,
+        riskpop: bool,
         equity_ref: float,
         cash_ref: float,
     ) -> int:
@@ -910,7 +911,13 @@ def _run_spot_backtest_exec_loop(
                 risk_dollars = float(equity_ref) * float(spot_risk_pct)
                 if action == "BUY":
                     if bool(riskoff) and riskoff_mode == "directional" and risk_dir == "up":
+                        if float(riskoff_long_factor) == 0:
+                            return 0
                         risk_dollars *= float(riskoff_long_factor)
+                    if bool(riskpop):
+                        if float(riskpop_long_factor) == 0:
+                            return 0
+                        risk_dollars *= float(riskpop_long_factor)
                     if bool(shock) and shock_dir in ("up", "down"):
                         if shock_dir == "up":
                             shock_long_mult = (
@@ -933,8 +940,10 @@ def _run_spot_backtest_exec_loop(
                     short_mult = float(spot_short_risk_mult)
                     if bool(riskoff) and riskoff_mode == "directional" and risk_dir == "down":
                         short_mult *= float(riskoff_short_factor)
-                    if bool(riskpanic) and risk_dir == "down":
+                    if bool(riskpanic):
                         short_mult *= float(riskpanic_short_factor)
+                    if bool(riskpop):
+                        short_mult *= float(riskpop_short_factor)
                     if bool(shock) and shock_dir == "down":
                         shock_short_mult = (
                             float(getattr(filters, "shock_short_risk_mult_factor", 1.0) or 1.0)
@@ -944,6 +953,8 @@ def _run_spot_backtest_exec_loop(
                         if shock_short_mult < 0:
                             shock_short_mult = 1.0
                         short_mult *= float(shock_short_mult)
+                    if short_mult <= 0:
+                        return 0
                     risk_dollars *= float(short_mult)
 
                 if (
@@ -987,25 +998,43 @@ def _run_spot_backtest_exec_loop(
     pending_exit_all = False
     pending_exit_reason = ""
 
-    riskoff_mode, riskoff_long_factor, riskoff_short_factor, riskpanic_short_factor = risk_overlay_policy_from_filters(filters)
+    (
+        riskoff_mode,
+        riskoff_long_factor,
+        riskoff_short_factor,
+        riskpanic_short_factor,
+        riskpop_long_factor,
+        riskpop_short_factor,
+    ) = risk_overlay_policy_from_filters(filters)
     risk_overlay_enabled = bool(evaluator.risk_overlay_enabled)
     riskoff_today = False
     riskpanic_today = False
+    riskpop_today = False
     riskoff_end_hour: int | None = None
     if risk_overlay_enabled and filters is not None:
-        raw_end_et = getattr(filters, "entry_end_hour_et", None)
-        raw_end = getattr(filters, "entry_end_hour", None)
-        if raw_end_et is not None:
+        raw_cutoff_et = getattr(filters, "risk_entry_cutoff_hour_et", None)
+        if raw_cutoff_et is not None:
             try:
                 # Cached bars are naive ET; use raw hour to avoid timezone-shift surprises.
-                riskoff_end_hour = int(raw_end_et)
+                riskoff_end_hour = int(raw_cutoff_et)
             except (TypeError, ValueError):
                 riskoff_end_hour = None
-        elif raw_end is not None:
-            try:
-                riskoff_end_hour = int(raw_end)
-            except (TypeError, ValueError):
-                riskoff_end_hour = None
+        else:
+            # Legacy fallback: allow using entry_end_hour_* as a cutoff only if a TOD window isn't set.
+            raw_start_et = getattr(filters, "entry_start_hour_et", None)
+            raw_end_et = getattr(filters, "entry_end_hour_et", None)
+            raw_start = getattr(filters, "entry_start_hour", None)
+            raw_end = getattr(filters, "entry_end_hour", None)
+            if raw_start_et is None and raw_end_et is not None:
+                try:
+                    riskoff_end_hour = int(raw_end_et)
+                except (TypeError, ValueError):
+                    riskoff_end_hour = None
+            elif raw_start is None and raw_end is not None:
+                try:
+                    riskoff_end_hour = int(raw_end)
+                except (TypeError, ValueError):
+                    riskoff_end_hour = None
     last_entry_sig_idx: int | None = None
 
     exec_last_date = None
@@ -1028,9 +1057,11 @@ def _run_spot_backtest_exec_loop(
         if evaluator.last_risk is not None:
             riskoff_today = bool(evaluator.last_risk.riskoff)
             riskpanic_today = bool(evaluator.last_risk.riskpanic)
+            riskpop_today = bool(getattr(evaluator.last_risk, "riskpop", False))
         else:
             riskoff_today = False
             riskpanic_today = False
+            riskpop_today = False
 
         # Execute next-open fills (from prior bar close) before processing this bar.
         if pending_exit_all and open_trades:
@@ -1054,7 +1085,7 @@ def _run_spot_backtest_exec_loop(
             pending_exit_reason = ""
 
         if pending_entry_dir is not None:
-            if (riskoff_today or riskpanic_today) and risk_overlay_enabled:
+            if (riskoff_today or riskpanic_today or riskpop_today) and risk_overlay_enabled:
                 shock_dir_now: str | None = shock_dir_prev_now
                 cancel = False
                 if riskoff_mode == "directional" and shock_dir_now in ("up", "down"):
@@ -1188,6 +1219,7 @@ def _run_spot_backtest_exec_loop(
                             riskoff=bool(riskoff_today),
                             risk_dir=shock_dir_now,
                             riskpanic=bool(riskpanic_today),
+                            riskpop=bool(riskpop_today),
                             equity_ref=float(equity_before),
                             cash_ref=float(cash),
                         )
@@ -1688,6 +1720,7 @@ def _run_spot_backtest_exec_loop(
                             riskoff=bool(riskoff_today),
                             risk_dir=shock_dir,
                             riskpanic=bool(riskpanic_today),
+                            riskpop=bool(riskpop_today),
                             equity_ref=float(equity_before),
                             cash_ref=float(cash),
                         )

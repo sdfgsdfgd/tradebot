@@ -19,7 +19,9 @@ import math
 from collections import deque
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
-from typing import TYPE_CHECKING, Iterable, Mapping
+from functools import lru_cache
+from collections.abc import Mapping
+from typing import TYPE_CHECKING, Iterable
 from zoneinfo import ZoneInfo
 
 from .signals import (
@@ -269,7 +271,15 @@ def permission_gate_status(
         spread_min = spread_min_down
     slope_min = _filters_get(filters, "ema_slope_min_pct")
 
-    active = spread_min is not None or slope_min is not None
+    slope_signed_up = _filters_get(filters, "ema_slope_signed_min_pct_up") if entry_dir == "up" else None
+    slope_signed_down = _filters_get(filters, "ema_slope_signed_min_pct_down") if entry_dir == "down" else None
+
+    active = (
+        spread_min is not None
+        or slope_min is not None
+        or slope_signed_up is not None
+        or slope_signed_down is not None
+    )
     if not bool(active):
         return False, True
 
@@ -298,6 +308,32 @@ def permission_gate_status(
             if slope < slope_min_f:
                 return True, False
 
+    if slope_signed_up is not None:
+        try:
+            slope_signed_min = float(slope_signed_up)
+        except (TypeError, ValueError):
+            slope_signed_min = None
+        if slope_signed_min is not None and slope_signed_min > 0:
+            if signal.prev_ema_fast is None:
+                return True, False
+            denom = max(float(close), 1e-9)
+            signed = (float(signal.ema_fast) - float(signal.prev_ema_fast)) / denom * 100.0
+            if signed < float(slope_signed_min):
+                return True, False
+
+    if slope_signed_down is not None:
+        try:
+            slope_signed_min = float(slope_signed_down)
+        except (TypeError, ValueError):
+            slope_signed_min = None
+        if slope_signed_min is not None and slope_signed_min > 0:
+            if signal.prev_ema_fast is None:
+                return True, False
+            denom = max(float(close), 1e-9)
+            signed = (float(signal.ema_fast) - float(signal.prev_ema_fast)) / denom * 100.0
+            if signed > -float(slope_signed_min):
+                return True, False
+
     return True, True
 
 
@@ -305,6 +341,7 @@ def permission_gate_status(
 
 
 # region Volatility Helpers
+@lru_cache(maxsize=None)
 def annualization_factor(bar_size: str, use_rth: bool) -> float:
     label = str(bar_size or "").strip().lower()
     if "day" in label:
@@ -520,6 +557,7 @@ def spot_calc_signed_qty(
     riskoff: bool,
     risk_dir: str | None,
     riskpanic: bool,
+    riskpop: bool,
     equity_ref: float,
     cash_ref: float | None,
 ) -> int:
@@ -575,13 +613,24 @@ def spot_calc_signed_qty(
             per_share_risk = abs(float(entry_price) - float(stop_level))
             risk_dollars = float(equity_ref) * float(spot_risk_pct)
 
-            riskoff_mode, riskoff_long_factor, riskoff_short_factor, riskpanic_short_factor = (
-                risk_overlay_policy_from_filters(filters)
-            )
+            (
+                riskoff_mode,
+                riskoff_long_factor,
+                riskoff_short_factor,
+                riskpanic_short_factor,
+                riskpop_long_factor,
+                riskpop_short_factor,
+            ) = risk_overlay_policy_from_filters(filters)
 
             if raw_action == "BUY":
                 if bool(riskoff) and riskoff_mode == "directional" and str(risk_dir) == "up":
+                    if float(riskoff_long_factor) == 0:
+                        return 0
                     risk_dollars *= float(riskoff_long_factor)
+                if bool(riskpop):
+                    if float(riskpop_long_factor) == 0:
+                        return 0
+                    risk_dollars *= float(riskpop_long_factor)
                 if bool(shock) and shock_dir in ("up", "down"):
                     if shock_dir == "up":
                         shock_long_mult = float(_filters_get(filters, "shock_long_risk_mult_factor") or 1.0)
@@ -596,13 +645,17 @@ def spot_calc_signed_qty(
                 short_mult = float(spot_short_risk_mult)
                 if bool(riskoff) and riskoff_mode == "directional" and str(risk_dir) == "down":
                     short_mult *= float(riskoff_short_factor)
-                if bool(riskpanic) and str(risk_dir) == "down":
+                if bool(riskpanic):
                     short_mult *= float(riskpanic_short_factor)
+                if bool(riskpop):
+                    short_mult *= float(riskpop_short_factor)
                 if bool(shock) and str(shock_dir) == "down":
                     shock_short_mult = float(_filters_get(filters, "shock_short_risk_mult_factor") or 1.0)
                     if shock_short_mult < 0:
                         shock_short_mult = 1.0
                     short_mult *= float(shock_short_mult)
+                if short_mult <= 0:
+                    return 0
                 risk_dollars *= float(short_mult)
 
             target_atr = _filters_get(filters, "shock_risk_scale_target_atr_pct")
@@ -1723,8 +1776,10 @@ class DailyDrawdownShockEngine:
 class RiskOverlaySnapshot:
     riskoff: bool
     riskpanic: bool
+    riskpop: bool = False
     tr_median_pct: float | None = None
     neg_gap_ratio: float | None = None
+    pos_gap_ratio: float | None = None
 
 
 class TrPctRiskOverlayEngine:
@@ -1743,6 +1798,9 @@ class TrPctRiskOverlayEngine:
         riskpanic_tr_med_pct: float | None,
         riskpanic_neg_gap_ratio_min: float | None,
         riskpanic_lookback_days: int,
+        riskpop_tr_med_pct: float | None,
+        riskpop_pos_gap_ratio_min: float | None,
+        riskpop_lookback_days: int,
     ) -> None:
         self._riskoff_tr_med_pct = float(riskoff_tr_med_pct) if riskoff_tr_med_pct is not None else None
         self._riskoff_lookback = max(1, int(riskoff_lookback_days))
@@ -1753,6 +1811,13 @@ class TrPctRiskOverlayEngine:
         if self._riskpanic_neg_gap_ratio_min is not None:
             self._riskpanic_neg_gap_ratio_min = float(max(0.0, min(1.0, self._riskpanic_neg_gap_ratio_min)))
         self._riskpanic_lookback = max(1, int(riskpanic_lookback_days))
+        self._riskpop_tr_med_pct = float(riskpop_tr_med_pct) if riskpop_tr_med_pct is not None else None
+        self._riskpop_pos_gap_ratio_min = (
+            float(riskpop_pos_gap_ratio_min) if riskpop_pos_gap_ratio_min is not None else None
+        )
+        if self._riskpop_pos_gap_ratio_min is not None:
+            self._riskpop_pos_gap_ratio_min = float(max(0.0, min(1.0, self._riskpop_pos_gap_ratio_min)))
+        self._riskpop_lookback = max(1, int(riskpop_lookback_days))
 
         self._riskoff_tr_hist: deque[float] | None = (
             deque(maxlen=self._riskoff_lookback)
@@ -1768,6 +1833,15 @@ class TrPctRiskOverlayEngine:
         ):
             self._riskpanic_tr_hist = deque(maxlen=self._riskpanic_lookback)
             self._riskpanic_neg_gap_hist = deque(maxlen=self._riskpanic_lookback)
+        self._riskpop_tr_hist: deque[float] | None = None
+        self._riskpop_pos_gap_hist: deque[int] | None = None
+        if (
+            self._riskpop_tr_med_pct is not None
+            and self._riskpop_tr_med_pct > 0
+            and self._riskpop_pos_gap_ratio_min is not None
+        ):
+            self._riskpop_tr_hist = deque(maxlen=self._riskpop_lookback)
+            self._riskpop_pos_gap_hist = deque(maxlen=self._riskpop_lookback)
 
         self._prev_close: float | None = None
         self._cur_day: date | None = None
@@ -1777,8 +1851,10 @@ class TrPctRiskOverlayEngine:
 
         self._riskoff_today = False
         self._riskpanic_today = False
+        self._riskpop_today = False
         self._tr_median_pct: float | None = None
         self._neg_gap_ratio: float | None = None
+        self._pos_gap_ratio: float | None = None
 
     @staticmethod
     def _day_true_range(high: float, low: float, prev_close: float) -> float:
@@ -1791,14 +1867,17 @@ class TrPctRiskOverlayEngine:
     def _compute_today_flags(self) -> None:
         self._tr_median_pct = None
         self._neg_gap_ratio = None
+        self._pos_gap_ratio = None
 
         self._riskoff_today = False
+        tr_med_off: float | None = None
         if self._riskoff_tr_hist is not None and len(self._riskoff_tr_hist) >= self._riskoff_lookback:
             tr_vals = sorted(self._riskoff_tr_hist)
-            self._tr_median_pct = float(tr_vals[len(tr_vals) // 2])
-            self._riskoff_today = bool(self._tr_median_pct >= float(self._riskoff_tr_med_pct))
+            tr_med_off = float(tr_vals[len(tr_vals) // 2])
+            self._riskoff_today = bool(tr_med_off >= float(self._riskoff_tr_med_pct))
 
         self._riskpanic_today = False
+        tr_med_panic: float | None = None
         if (
             self._riskpanic_tr_hist is not None
             and self._riskpanic_neg_gap_hist is not None
@@ -1808,12 +1887,33 @@ class TrPctRiskOverlayEngine:
             and len(self._riskpanic_neg_gap_hist) >= self._riskpanic_lookback
         ):
             tr_vals = sorted(self._riskpanic_tr_hist)
-            tr_med = float(tr_vals[len(tr_vals) // 2])
+            tr_med_panic = float(tr_vals[len(tr_vals) // 2])
             neg_ratio = float(sum(self._riskpanic_neg_gap_hist)) / float(len(self._riskpanic_neg_gap_hist))
             self._neg_gap_ratio = float(neg_ratio)
             self._riskpanic_today = bool(
-                tr_med >= float(self._riskpanic_tr_med_pct) and neg_ratio >= float(self._riskpanic_neg_gap_ratio_min)
+                tr_med_panic >= float(self._riskpanic_tr_med_pct) and neg_ratio >= float(self._riskpanic_neg_gap_ratio_min)
             )
+
+        self._riskpop_today = False
+        tr_med_pop: float | None = None
+        if (
+            self._riskpop_tr_hist is not None
+            and self._riskpop_pos_gap_hist is not None
+            and self._riskpop_tr_med_pct is not None
+            and self._riskpop_pos_gap_ratio_min is not None
+            and len(self._riskpop_tr_hist) >= self._riskpop_lookback
+            and len(self._riskpop_pos_gap_hist) >= self._riskpop_lookback
+        ):
+            tr_vals = sorted(self._riskpop_tr_hist)
+            tr_med_pop = float(tr_vals[len(tr_vals) // 2])
+            pos_ratio = float(sum(self._riskpop_pos_gap_hist)) / float(len(self._riskpop_pos_gap_hist))
+            self._pos_gap_ratio = float(pos_ratio)
+            self._riskpop_today = bool(
+                tr_med_pop >= float(self._riskpop_tr_med_pct) and pos_ratio >= float(self._riskpop_pos_gap_ratio_min)
+            )
+
+        # Expose a single TR-median value for observability. Prefer the stricter overlays.
+        self._tr_median_pct = tr_med_panic if tr_med_panic is not None else (tr_med_pop if tr_med_pop is not None else tr_med_off)
 
     def update(
         self,
@@ -1825,8 +1925,8 @@ class TrPctRiskOverlayEngine:
         close: float,
         is_last_bar: bool,
     ) -> RiskOverlaySnapshot:
-        if self._riskoff_tr_hist is None and self._riskpanic_tr_hist is None:
-            return RiskOverlaySnapshot(riskoff=False, riskpanic=False)
+        if self._riskoff_tr_hist is None and self._riskpanic_tr_hist is None and self._riskpop_tr_hist is None:
+            return RiskOverlaySnapshot(riskoff=False, riskpanic=False, riskpop=False)
 
         day = ts.date()
         if self._cur_day != day:
@@ -1846,6 +1946,15 @@ class TrPctRiskOverlayEngine:
             ):
                 gap_pct = (float(self._day_open) - float(self._prev_close)) / float(self._prev_close)
                 self._riskpanic_neg_gap_hist.append(1 if float(gap_pct) < 0 else 0)
+                if self._riskpop_pos_gap_hist is not None:
+                    self._riskpop_pos_gap_hist.append(1 if float(gap_pct) > 0 else 0)
+            elif (
+                self._riskpop_pos_gap_hist is not None
+                and self._prev_close is not None
+                and float(self._prev_close) > 0
+            ):
+                gap_pct = (float(self._day_open) - float(self._prev_close)) / float(self._prev_close)
+                self._riskpop_pos_gap_hist.append(1 if float(gap_pct) > 0 else 0)
 
         if self._day_high is not None:
             self._day_high = max(float(self._day_high), float(high))
@@ -1865,13 +1974,17 @@ class TrPctRiskOverlayEngine:
                     self._riskoff_tr_hist.append(float(tr_pct))
                 if self._riskpanic_tr_hist is not None:
                     self._riskpanic_tr_hist.append(float(tr_pct))
+                if self._riskpop_tr_hist is not None:
+                    self._riskpop_tr_hist.append(float(tr_pct))
             self._prev_close = float(close)
 
         return RiskOverlaySnapshot(
             riskoff=bool(self._riskoff_today),
             riskpanic=bool(self._riskpanic_today),
+            riskpop=bool(self._riskpop_today),
             tr_median_pct=float(self._tr_median_pct) if self._tr_median_pct is not None else None,
             neg_gap_ratio=float(self._neg_gap_ratio) if self._neg_gap_ratio is not None else None,
+            pos_gap_ratio=float(self._pos_gap_ratio) if self._pos_gap_ratio is not None else None,
         )
 
 
@@ -1908,7 +2021,29 @@ def build_tr_pct_risk_overlay_engine(
 
     riskpanic_lb = _parse_int(_filters_get(filters, "riskpanic_lookback_days"), default=5, min_value=1)
 
-    enabled = bool(riskoff_tr_med is not None) or bool(riskpanic_tr_med is not None and riskpanic_gap_ratio is not None)
+    raw_pop = _filters_get(filters, "riskpop_tr5_med_pct")
+    try:
+        riskpop_tr_med = float(raw_pop) if raw_pop is not None else None
+    except (TypeError, ValueError):
+        riskpop_tr_med = None
+    if riskpop_tr_med is not None and riskpop_tr_med <= 0:
+        riskpop_tr_med = None
+
+    raw_pos = _filters_get(filters, "riskpop_pos_gap_ratio_min")
+    try:
+        riskpop_pos_gap_ratio = float(raw_pos) if raw_pos is not None else None
+    except (TypeError, ValueError):
+        riskpop_pos_gap_ratio = None
+    if riskpop_pos_gap_ratio is not None:
+        riskpop_pos_gap_ratio = float(max(0.0, min(1.0, riskpop_pos_gap_ratio)))
+
+    riskpop_lb = _parse_int(_filters_get(filters, "riskpop_lookback_days"), default=5, min_value=1)
+
+    enabled = (
+        bool(riskoff_tr_med is not None)
+        or bool(riskpanic_tr_med is not None and riskpanic_gap_ratio is not None)
+        or bool(riskpop_tr_med is not None and riskpop_pos_gap_ratio is not None)
+    )
     if not enabled:
         return None
 
@@ -1918,11 +2053,16 @@ def build_tr_pct_risk_overlay_engine(
         riskpanic_tr_med_pct=riskpanic_tr_med,
         riskpanic_neg_gap_ratio_min=riskpanic_gap_ratio,
         riskpanic_lookback_days=int(riskpanic_lb),
+        riskpop_tr_med_pct=riskpop_tr_med,
+        riskpop_pos_gap_ratio_min=riskpop_pos_gap_ratio,
+        riskpop_lookback_days=int(riskpop_lb),
     )
 
 
-def risk_overlay_policy_from_filters(filters: Mapping[str, object] | object | None) -> tuple[str, float, float, float]:
-    """Return (riskoff_mode, riskoff_long_factor, riskoff_short_factor, riskpanic_short_factor)."""
+def risk_overlay_policy_from_filters(
+    filters: Mapping[str, object] | object | None,
+) -> tuple[str, float, float, float, float, float]:
+    """Return (riskoff_mode, riskoff_long_factor, riskoff_short_factor, riskpanic_short_factor, riskpop_long_factor, riskpop_short_factor)."""
     mode = str(_filters_get(filters, "riskoff_mode") or "hygiene").strip().lower()
     if mode not in ("hygiene", "directional"):
         mode = "hygiene"
@@ -1937,7 +2077,21 @@ def risk_overlay_policy_from_filters(filters: Mapping[str, object] | object | No
     if riskpanic_short < 0:
         riskpanic_short = 1.0
 
-    return str(mode), float(riskoff_long), float(riskoff_short), float(riskpanic_short)
+    riskpop_long = _parse_float(_filters_get(filters, "riskpop_long_risk_mult_factor"), default=1.0)
+    if riskpop_long < 0:
+        riskpop_long = 1.0
+    riskpop_short = _parse_float(_filters_get(filters, "riskpop_short_risk_mult_factor"), default=1.0)
+    if riskpop_short < 0:
+        riskpop_short = 1.0
+
+    return (
+        str(mode),
+        float(riskoff_long),
+        float(riskoff_short),
+        float(riskpanic_short),
+        float(riskpop_long),
+        float(riskpop_short),
+    )
 
 
 # endregion
