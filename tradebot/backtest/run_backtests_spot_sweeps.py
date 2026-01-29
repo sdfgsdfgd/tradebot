@@ -675,8 +675,8 @@ def main() -> None:
         type=int,
         default=None,
         help=(
-            "Parallelism for combo_full (spawns per-axis worker processes) and gate_matrix stage2 sharding. "
-            "Default: auto (CPU count). Use --offline."
+            "Parallelism for --axis all/combo_full (spawns per-axis worker processes), plus internal sharding for "
+            "risk_overlays and gate_matrix stage2. 0/omitted = auto (CPU count). Use --offline."
         ),
     )
     parser.add_argument(
@@ -883,6 +883,12 @@ def main() -> None:
     parser.add_argument("--risk-overlays-workers", type=int, default=None, help=argparse.SUPPRESS)
     parser.add_argument("--risk-overlays-out", default=None, help=argparse.SUPPRESS)
     parser.add_argument("--risk-overlays-run-min-trades", type=int, default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--champ-refine-stage3a", default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--champ-refine-stage3b", default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--champ-refine-worker", type=int, default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--champ-refine-workers", type=int, default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--champ-refine-out", default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--champ-refine-run-min-trades", type=int, default=None, help=argparse.SUPPRESS)
     args = parser.parse_args()
 
     def _default_jobs() -> int:
@@ -896,9 +902,11 @@ def main() -> None:
         return max(1, detected_i)
 
     try:
-        jobs = int(args.jobs) if args.jobs is not None else _default_jobs()
+        jobs_raw = int(args.jobs) if args.jobs is not None else 0
     except (TypeError, ValueError):
-        jobs = _default_jobs()
+        jobs_raw = 0
+    detected_jobs = _default_jobs()
+    jobs = detected_jobs if int(jobs_raw) <= 0 else min(int(jobs_raw), int(detected_jobs))
     jobs = max(1, int(jobs))
 
     symbol = str(args.symbol).strip().upper()
@@ -961,6 +969,11 @@ def main() -> None:
     if args.risk_overlays_run_min_trades is not None:
         try:
             run_min_trades = int(args.risk_overlays_run_min_trades)
+        except (TypeError, ValueError):
+            run_min_trades = int(args.min_trades)
+    if args.champ_refine_run_min_trades is not None:
+        try:
+            run_min_trades = int(args.champ_refine_run_min_trades)
         except (TypeError, ValueError):
             run_min_trades = int(args.min_trades)
     if bool(args.write_milestones):
@@ -6804,6 +6817,269 @@ def main() -> None:
 
         report_every = 200
 
+        if args.champ_refine_stage3a:
+            if not offline:
+                raise SystemExit("champ_refine stage3a worker mode requires --offline (avoid parallel IBKR sessions).")
+            payload_path = Path(str(args.champ_refine_stage3a))
+            out_path_raw = str(args.champ_refine_out or "").strip()
+            if not out_path_raw:
+                raise SystemExit("--champ-refine-out is required for champ_refine stage3a worker mode.")
+            out_path = Path(out_path_raw)
+
+            try:
+                worker_id = int(args.champ_refine_worker) if args.champ_refine_worker is not None else 0
+            except (TypeError, ValueError):
+                worker_id = 0
+            try:
+                workers = int(args.champ_refine_workers) if args.champ_refine_workers is not None else 1
+            except (TypeError, ValueError):
+                workers = 1
+            workers = max(1, int(workers))
+            worker_id = max(0, int(worker_id))
+            if worker_id >= workers:
+                raise SystemExit(
+                    f"Invalid champ_refine stage3a worker shard: worker={worker_id} workers={workers} (worker must be < workers)."
+                )
+
+            try:
+                payload = json.loads(payload_path.read_text())
+            except json.JSONDecodeError as exc:
+                raise SystemExit(f"Invalid champ_refine stage3a payload JSON: {payload_path}") from exc
+            raw_base = payload.get("base_exit_variants") if isinstance(payload, dict) else None
+            if not isinstance(raw_base, list):
+                raise SystemExit(f"champ_refine stage3a payload missing 'base_exit_variants' list: {payload_path}")
+            seed_tag = str(payload.get("seed_tag") or "seed") if isinstance(payload, dict) else "seed"
+
+            base_exit_local: list[tuple[ConfigBundle, str]] = []
+            for item in raw_base:
+                if not isinstance(item, dict):
+                    continue
+                strat_payload = item.get("strategy") or {}
+                filters_payload = item.get("filters")
+                exit_note = str(item.get("exit_note") or "")
+                if not isinstance(strat_payload, dict):
+                    continue
+                try:
+                    filters_obj = _filters_from_payload(filters_payload)
+                    strategy_obj = _strategy_from_payload(strat_payload, filters=filters_obj)
+                except Exception:
+                    continue
+                cfg = _mk_bundle(
+                    strategy=strategy_obj,
+                    start=start,
+                    end=end,
+                    bar_size=signal_bar_size,
+                    use_rth=use_rth,
+                    cache_dir=cache_dir,
+                    offline=offline,
+                )
+                base_exit_local.append((cfg, exit_note))
+
+            stage3a_total = (
+                len(base_exit_local) * 2 * len(tod_variants) * len(perm_variants) * len(signed_slope_variants)
+            )
+            local_total = (stage3a_total // workers) + (1 if worker_id < (stage3a_total % workers) else 0)
+            tested = 0
+            combo_idx = 0
+            t0 = pytime.perf_counter()
+            records: list[dict] = []
+            for base_idx, (base_cfg, exit_note) in enumerate(base_exit_local):
+                seed_mode = str(getattr(base_cfg.strategy, "ema_entry_mode", "cross") or "cross").strip().lower()
+                if seed_mode not in ("cross", "trend"):
+                    seed_mode = "cross"
+                try:
+                    seed_confirm = int(getattr(base_cfg.strategy, "entry_confirm_bars", 0) or 0)
+                except (TypeError, ValueError):
+                    seed_confirm = 0
+                other_mode = "trend" if seed_mode == "cross" else "cross"
+                entry_variants = [
+                    (seed_mode, seed_confirm, f"entry=seed({seed_mode} c={seed_confirm})"),
+                    (other_mode, 0, f"entry={other_mode} c=0"),
+                ]
+                for tod_idx, (tod_s, tod_e, skip, cooldown, tod_note) in enumerate(tod_variants):
+                    for perm_idx, (perm_over, perm_note) in enumerate(perm_variants):
+                        for ss_idx, (ss_over, ss_note) in enumerate(signed_slope_variants):
+                            for entry_idx, (entry_mode, entry_confirm, entry_note) in enumerate(entry_variants):
+                                assigned = (combo_idx % workers) == worker_id
+                                combo_idx += 1
+                                if not assigned:
+                                    continue
+                                tested += 1
+                                if tested % report_every == 0 or tested == local_total:
+                                    elapsed = pytime.perf_counter() - t0
+                                    rate = (tested / elapsed) if elapsed > 0 else 0.0
+                                    remaining = local_total - tested
+                                    eta_sec = (remaining / rate) if rate > 0 else 0.0
+                                    pct = (tested / local_total * 100.0) if local_total > 0 else 0.0
+                                    print(
+                                        f"champ_refine stage3a worker {worker_id+1}/{workers} {seed_tag} "
+                                        f"{tested}/{local_total} ({pct:0.1f}%) kept={len(records)} "
+                                        f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
+                                        flush=True,
+                                    )
+                                over: dict[str, object] = {}
+                                over.update(perm_over)
+                                over.update(ss_over)
+                                over["skip_first_bars"] = int(skip)
+                                over["cooldown_bars"] = int(cooldown)
+                                over["entry_start_hour_et"] = tod_s
+                                over["entry_end_hour_et"] = tod_e
+                                f = _merge_filters(base_cfg.strategy.filters, over)
+                                cfg = replace(
+                                    base_cfg,
+                                    strategy=replace(
+                                        base_cfg.strategy,
+                                        filters=f,
+                                        ema_entry_mode=str(entry_mode),
+                                        entry_confirm_bars=int(entry_confirm),
+                                    ),
+                                )
+                                row = _run_cfg(
+                                    cfg=cfg,
+                                    bars=bars_sig,
+                                    regime_bars=_regime_bars_for(cfg),
+                                    regime2_bars=_regime2_bars_for(cfg),
+                                )
+                                if not row:
+                                    continue
+                                records.append(
+                                    {
+                                        "base_idx": base_idx,
+                                        "tod_idx": tod_idx,
+                                        "perm_idx": perm_idx,
+                                        "ss_idx": ss_idx,
+                                        "entry_idx": entry_idx,
+                                        "exit_note": exit_note,
+                                        "row": row,
+                                    }
+                                )
+
+            if combo_idx != stage3a_total:
+                raise SystemExit(
+                    f"champ_refine stage3a worker internal error: combos={combo_idx} expected={stage3a_total}"
+                )
+
+            out_payload = {"tested": tested, "kept": len(records), "records": records}
+            write_json(out_path, out_payload, sort_keys=False)
+            print(f"champ_refine stage3a worker done tested={tested} kept={len(records)} out={out_path}", flush=True)
+            return
+
+        if args.champ_refine_stage3b:
+            if not offline:
+                raise SystemExit("champ_refine stage3b worker mode requires --offline (avoid parallel IBKR sessions).")
+            payload_path = Path(str(args.champ_refine_stage3b))
+            out_path_raw = str(args.champ_refine_out or "").strip()
+            if not out_path_raw:
+                raise SystemExit("--champ-refine-out is required for champ_refine stage3b worker mode.")
+            out_path = Path(out_path_raw)
+
+            try:
+                worker_id = int(args.champ_refine_worker) if args.champ_refine_worker is not None else 0
+            except (TypeError, ValueError):
+                worker_id = 0
+            try:
+                workers = int(args.champ_refine_workers) if args.champ_refine_workers is not None else 1
+            except (TypeError, ValueError):
+                workers = 1
+            workers = max(1, int(workers))
+            worker_id = max(0, int(worker_id))
+            if worker_id >= workers:
+                raise SystemExit(
+                    f"Invalid champ_refine stage3b worker shard: worker={worker_id} workers={workers} (worker must be < workers)."
+                )
+
+            try:
+                payload = json.loads(payload_path.read_text())
+            except json.JSONDecodeError as exc:
+                raise SystemExit(f"Invalid champ_refine stage3b payload JSON: {payload_path}") from exc
+            raw_shortlist = payload.get("shortlist") if isinstance(payload, dict) else None
+            if not isinstance(raw_shortlist, list):
+                raise SystemExit(f"champ_refine stage3b payload missing 'shortlist' list: {payload_path}")
+            seed_tag = str(payload.get("seed_tag") or "seed") if isinstance(payload, dict) else "seed"
+
+            shortlist_local: list[tuple[ConfigBundle, str]] = []
+            for item in raw_shortlist:
+                if not isinstance(item, dict):
+                    continue
+                strat_payload = item.get("strategy") or {}
+                filters_payload = item.get("filters")
+                base_note = str(item.get("base_note") or "")
+                if not isinstance(strat_payload, dict):
+                    continue
+                try:
+                    filters_obj = _filters_from_payload(filters_payload)
+                    strategy_obj = _strategy_from_payload(strat_payload, filters=filters_obj)
+                except Exception:
+                    continue
+                cfg = _mk_bundle(
+                    strategy=strategy_obj,
+                    start=start,
+                    end=end,
+                    bar_size=signal_bar_size,
+                    use_rth=use_rth,
+                    cache_dir=cache_dir,
+                    offline=offline,
+                )
+                shortlist_local.append((cfg, base_note))
+
+            stage3b_total = len(shortlist_local) * len(shock_variants) * len(risk_variants)
+            local_total = (stage3b_total // workers) + (1 if worker_id < (stage3b_total % workers) else 0)
+            tested = 0
+            combo_idx = 0
+            t0 = pytime.perf_counter()
+            records: list[dict] = []
+            for base_idx, (base_cfg, _base_note) in enumerate(shortlist_local):
+                for shock_idx, (shock_over, _shock_note) in enumerate(shock_variants):
+                    for risk_idx, (risk_over, _risk_note) in enumerate(risk_variants):
+                        assigned = (combo_idx % workers) == worker_id
+                        combo_idx += 1
+                        if not assigned:
+                            continue
+                        tested += 1
+                        if tested % report_every == 0 or tested == local_total:
+                            elapsed = pytime.perf_counter() - t0
+                            rate = (tested / elapsed) if elapsed > 0 else 0.0
+                            remaining = local_total - tested
+                            eta_sec = (remaining / rate) if rate > 0 else 0.0
+                            pct = (tested / local_total * 100.0) if local_total > 0 else 0.0
+                            print(
+                                f"champ_refine stage3b worker {worker_id+1}/{workers} {seed_tag} "
+                                f"{tested}/{local_total} ({pct:0.1f}%) kept={len(records)} "
+                                f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
+                                flush=True,
+                            )
+                        over: dict[str, object] = {}
+                        over.update(shock_over)
+                        over.update(risk_over)
+                        f = _merge_filters(base_cfg.strategy.filters, over)
+                        cfg = replace(base_cfg, strategy=replace(base_cfg.strategy, filters=f))
+                        row = _run_cfg(
+                            cfg=cfg,
+                            bars=bars_sig,
+                            regime_bars=_regime_bars_for(cfg),
+                            regime2_bars=_regime2_bars_for(cfg),
+                        )
+                        if not row:
+                            continue
+                        records.append(
+                            {
+                                "base_idx": base_idx,
+                                "shock_idx": shock_idx,
+                                "risk_idx": risk_idx,
+                                "row": row,
+                            }
+                        )
+
+            if combo_idx != stage3b_total:
+                raise SystemExit(
+                    f"champ_refine stage3b worker internal error: combos={combo_idx} expected={stage3b_total}"
+                )
+
+            out_payload = {"tested": tested, "kept": len(records), "records": records}
+            write_json(out_path, out_payload, sort_keys=False)
+            print(f"champ_refine stage3b worker done tested={tested} kept={len(records)} out={out_path}", flush=True)
+            return
+
         for seed_idx, seed in enumerate(seeds, start=1):
             seed_metrics = seed.get("metrics") or {}
             try:
@@ -7033,78 +7309,318 @@ def main() -> None:
                     seed_mode = "cross"
                 other_mode = "trend" if seed_mode == "cross" else "cross"
                 total_3a += 2 * len(tod_variants) * len(perm_variants) * len(signed_slope_variants)
-            tested_3a = 0
-            t0_3a = pytime.perf_counter()
-            last_3a = float(t0_3a)
             print(f"  stage3a micro: total={total_3a}", flush=True)
-            for base_cfg, exit_note in base_exit_variants:
-                seed_mode = str(getattr(base_cfg.strategy, "ema_entry_mode", "cross") or "cross").strip().lower()
-                if seed_mode not in ("cross", "trend"):
-                    seed_mode = "cross"
-                try:
-                    seed_confirm = int(getattr(base_cfg.strategy, "entry_confirm_bars", 0) or 0)
-                except (TypeError, ValueError):
-                    seed_confirm = 0
-                other_mode = "trend" if seed_mode == "cross" else "cross"
-                entry_variants = [
-                    (seed_mode, seed_confirm, f"entry=seed({seed_mode} c={seed_confirm})"),
-                    (other_mode, 0, f"entry={other_mode} c=0"),
-                ]
-                for tod_s, tod_e, skip, cooldown, tod_note in tod_variants:
-                    for perm_over, perm_note in perm_variants:
-                        for ss_over, ss_note in signed_slope_variants:
-                            for entry_mode, entry_confirm, entry_note in entry_variants:
-                                over: dict[str, object] = {}
-                                over.update(perm_over)
-                                over.update(ss_over)
-                                over["skip_first_bars"] = int(skip)
-                                over["cooldown_bars"] = int(cooldown)
-                                over["entry_start_hour_et"] = tod_s
-                                over["entry_end_hour_et"] = tod_e
-                                f = _merge_filters(base_cfg.strategy.filters, over)
-                                cfg = replace(
-                                    base_cfg,
-                                    strategy=replace(
-                                        base_cfg.strategy,
-                                        filters=f,
-                                        ema_entry_mode=str(entry_mode),
-                                        entry_confirm_bars=int(entry_confirm),
-                                    ),
-                                )
-                                row = _run_cfg(
-                                    cfg=cfg,
-                                    bars=bars_sig,
-                                    regime_bars=_regime_bars_for(cfg),
-                                    regime2_bars=_regime2_bars_for(cfg),
-                                )
-                                tested_total += 1
-                                tested_3a += 1
-                                now = pytime.perf_counter()
-                                if (
-                                    tested_3a % report_every == 0
-                                    or tested_3a == total_3a
-                                    or (now - last_3a) >= heartbeat_sec
-                                ):
-                                    elapsed = now - t0_3a
-                                    rate = tested_3a / elapsed if elapsed > 0 else 0.0
-                                    remaining = total_3a - tested_3a
-                                    eta_sec = remaining / rate if rate > 0 else 0.0
-                                    print(
-                                        f"  stage3a {tested_3a}/{total_3a} kept={len(stage3a)} "
-                                        f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
-                                        flush=True,
+            if jobs > 1:
+                if not offline:
+                    raise SystemExit("--jobs>1 for champ_refine requires --offline (avoid parallel IBKR sessions).")
+
+                def _strip_flag(argv: list[str], flag: str) -> list[str]:
+                    return [arg for arg in argv if arg != flag]
+
+                def _strip_flag_with_value(argv: list[str], flag: str) -> list[str]:
+                    out: list[str] = []
+                    idx = 0
+                    while idx < len(argv):
+                        arg = argv[idx]
+                        if arg == flag:
+                            idx += 2
+                            continue
+                        if arg.startswith(flag + "="):
+                            idx += 1
+                            continue
+                        out.append(arg)
+                        idx += 1
+                    return out
+
+                base_cli = list(sys.argv[1:])
+                base_cli = _strip_flag_with_value(base_cli, "--axis")
+                base_cli = _strip_flag_with_value(base_cli, "--jobs")
+                base_cli = _strip_flag(base_cli, "--write-milestones")
+                base_cli = _strip_flag(base_cli, "--merge-milestones")
+                base_cli = _strip_flag_with_value(base_cli, "--milestones-out")
+                base_cli = _strip_flag_with_value(base_cli, "--champ-refine-stage3a")
+                base_cli = _strip_flag_with_value(base_cli, "--champ-refine-stage3b")
+                base_cli = _strip_flag_with_value(base_cli, "--champ-refine-worker")
+                base_cli = _strip_flag_with_value(base_cli, "--champ-refine-workers")
+                base_cli = _strip_flag_with_value(base_cli, "--champ-refine-out")
+                base_cli = _strip_flag_with_value(base_cli, "--champ-refine-run-min-trades")
+
+                jobs_eff = min(int(jobs), int(_default_jobs()), int(total_3a)) if total_3a > 0 else 1
+                print(f"  stage3a parallel: workers={jobs_eff} total={total_3a}", flush=True)
+
+                def _pump(prefix: str, stream) -> None:
+                    for line in iter(stream.readline, ""):
+                        print(f"[{prefix}] {line.rstrip()}", flush=True)
+
+                failures: list[tuple[int, int]] = []
+                start_times: dict[int, float] = {}
+
+                with tempfile.TemporaryDirectory(prefix="tradebot_champ_refine_3a_") as tmpdir:
+                    tmp_root = Path(tmpdir)
+                    payload_path = tmp_root / "stage3a_payload.json"
+                    base_payload: list[dict] = []
+                    for base_cfg, exit_note in base_exit_variants:
+                        base_payload.append(
+                            {
+                                "strategy": _spot_strategy_payload(base_cfg, meta=meta),
+                                "filters": _filters_payload(base_cfg.strategy.filters),
+                                "exit_note": str(exit_note),
+                            }
+                        )
+                    write_json(payload_path, {"seed_tag": seed_tag, "base_exit_variants": base_payload}, sort_keys=False)
+
+                    running: list[tuple[int, subprocess.Popen, threading.Thread, Path]] = []
+                    out_paths: dict[int, Path] = {}
+
+                    for worker_id in range(jobs_eff):
+                        out_path = tmp_root / f"stage3a_out_{worker_id}.json"
+                        out_paths[worker_id] = out_path
+                        cmd = [
+                            sys.executable,
+                            "-u",
+                            "-m",
+                            "tradebot.backtest",
+                            "spot",
+                            *base_cli,
+                            "--axis",
+                            "champ_refine",
+                            "--jobs",
+                            "1",
+                            "--champ-refine-stage3a",
+                            str(payload_path),
+                            "--champ-refine-worker",
+                            str(worker_id),
+                            "--champ-refine-workers",
+                            str(jobs_eff),
+                            "--champ-refine-out",
+                            str(out_path),
+                            "--champ-refine-run-min-trades",
+                            str(int(run_min_trades)),
+                        ]
+                        proc = subprocess.Popen(
+                            cmd,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT,
+                            text=True,
+                            bufsize=1,
+                        )
+                        if proc.stdout is None:
+                            raise RuntimeError("Failed to capture champ_refine stage3a worker stdout.")
+                        t = threading.Thread(target=_pump, args=(f"cr3a:{worker_id}", proc.stdout), daemon=True)
+                        t.start()
+                        start_times[worker_id] = pytime.perf_counter()
+                        running.append((worker_id, proc, t, out_path))
+
+                    while running and not failures:
+                        finished_idx = None
+                        for idx, (worker_id, proc, t, out_path) in enumerate(running):
+                            rc = proc.poll()
+                            if rc is None:
+                                continue
+                            finished_idx = idx
+                            elapsed = pytime.perf_counter() - float(
+                                start_times.get(worker_id) or pytime.perf_counter()
+                            )
+                            print(f"DONE  cr3a:{worker_id} exit={rc} elapsed={elapsed:0.1f}s", flush=True)
+                            try:
+                                proc.wait(timeout=1.0)
+                            except subprocess.TimeoutExpired:
+                                proc.kill()
+                                proc.wait(timeout=5.0)
+                            try:
+                                t.join(timeout=1.0)
+                            except Exception:
+                                pass
+                            if rc != 0:
+                                failures.append((int(worker_id), int(rc)))
+                            running.pop(idx)
+                            break
+
+                        if failures:
+                            for worker_id, proc, t, out_path in running:
+                                try:
+                                    proc.terminate()
+                                except Exception:
+                                    pass
+                            for worker_id, proc, t, out_path in running:
+                                try:
+                                    proc.wait(timeout=5.0)
+                                except subprocess.TimeoutExpired:
+                                    try:
+                                        proc.kill()
+                                    except Exception:
+                                        pass
+                            break
+
+                        if finished_idx is None:
+                            pytime.sleep(0.05)
+
+                    if failures:
+                        wid, rc = failures[0]
+                        raise SystemExit(f"champ_refine stage3a worker failed: cr3a:{wid} (exit={rc})")
+
+                    tested_total_3a = 0
+                    for worker_id in range(jobs_eff):
+                        out_path = out_paths.get(worker_id)
+                        if out_path is None or not out_path.exists():
+                            raise SystemExit(f"Missing champ_refine stage3a output: cr3a:{worker_id} ({out_path})")
+                        try:
+                            payload = json.loads(out_path.read_text())
+                        except json.JSONDecodeError as exc:
+                            raise SystemExit(
+                                f"Invalid champ_refine stage3a output JSON: cr3a:{worker_id} ({out_path})"
+                            ) from exc
+                        if not isinstance(payload, dict):
+                            continue
+                        tested_total_3a += int(payload.get("tested") or 0)
+                        for rec in payload.get("records") or []:
+                            if not isinstance(rec, dict):
+                                continue
+                            try:
+                                base_idx = int(rec.get("base_idx"))
+                                tod_idx = int(rec.get("tod_idx"))
+                                perm_idx = int(rec.get("perm_idx"))
+                                ss_idx = int(rec.get("ss_idx"))
+                                entry_idx = int(rec.get("entry_idx"))
+                            except (TypeError, ValueError):
+                                continue
+                            if base_idx < 0 or base_idx >= len(base_exit_variants):
+                                raise SystemExit(f"champ_refine stage3a merge: invalid base_idx={base_idx}")
+                            if tod_idx < 0 or tod_idx >= len(tod_variants):
+                                raise SystemExit(f"champ_refine stage3a merge: invalid tod_idx={tod_idx}")
+                            if perm_idx < 0 or perm_idx >= len(perm_variants):
+                                raise SystemExit(f"champ_refine stage3a merge: invalid perm_idx={perm_idx}")
+                            if ss_idx < 0 or ss_idx >= len(signed_slope_variants):
+                                raise SystemExit(f"champ_refine stage3a merge: invalid ss_idx={ss_idx}")
+                            row = rec.get("row")
+                            if not isinstance(row, dict):
+                                continue
+
+                            base_cfg, exit_note = base_exit_variants[base_idx]
+                            tod_s, tod_e, skip, cooldown, tod_note = tod_variants[tod_idx]
+                            perm_over, perm_note = perm_variants[perm_idx]
+                            ss_over, ss_note = signed_slope_variants[ss_idx]
+
+                            seed_mode = (
+                                str(getattr(base_cfg.strategy, "ema_entry_mode", "cross") or "cross")
+                                .strip()
+                                .lower()
+                            )
+                            if seed_mode not in ("cross", "trend"):
+                                seed_mode = "cross"
+                            try:
+                                seed_confirm = int(getattr(base_cfg.strategy, "entry_confirm_bars", 0) or 0)
+                            except (TypeError, ValueError):
+                                seed_confirm = 0
+                            other_mode = "trend" if seed_mode == "cross" else "cross"
+                            entry_variants = [
+                                (seed_mode, seed_confirm, f"entry=seed({seed_mode} c={seed_confirm})"),
+                                (other_mode, 0, f"entry={other_mode} c=0"),
+                            ]
+                            if entry_idx < 0 or entry_idx >= len(entry_variants):
+                                raise SystemExit(f"champ_refine stage3a merge: invalid entry_idx={entry_idx}")
+                            entry_mode, entry_confirm, entry_note = entry_variants[entry_idx]
+
+                            over: dict[str, object] = {}
+                            over.update(perm_over)
+                            over.update(ss_over)
+                            over["skip_first_bars"] = int(skip)
+                            over["cooldown_bars"] = int(cooldown)
+                            over["entry_start_hour_et"] = tod_s
+                            over["entry_end_hour_et"] = tod_e
+                            f = _merge_filters(base_cfg.strategy.filters, over)
+                            cfg = replace(
+                                base_cfg,
+                                strategy=replace(
+                                    base_cfg.strategy,
+                                    filters=f,
+                                    ema_entry_mode=str(entry_mode),
+                                    entry_confirm_bars=int(entry_confirm),
+                                ),
+                            )
+                            note = (
+                                f"{seed_tag} | short_mult={getattr(cfg.strategy,'spot_short_risk_mult', 1.0):g} | "
+                                f"{exit_note} | {entry_note} | {tod_note} | {perm_note} | {ss_note}"
+                            )
+                            row = dict(row)
+                            row["note"] = note
+                            _record_milestone(cfg, row, note)
+                            rows.append(row)
+                            stage3a.append((cfg, row, note))
+
+                    tested_total += int(tested_total_3a)
+            else:
+                tested_3a = 0
+                t0_3a = pytime.perf_counter()
+                last_3a = float(t0_3a)
+                for base_cfg, exit_note in base_exit_variants:
+                    seed_mode = str(getattr(base_cfg.strategy, "ema_entry_mode", "cross") or "cross").strip().lower()
+                    if seed_mode not in ("cross", "trend"):
+                        seed_mode = "cross"
+                    try:
+                        seed_confirm = int(getattr(base_cfg.strategy, "entry_confirm_bars", 0) or 0)
+                    except (TypeError, ValueError):
+                        seed_confirm = 0
+                    other_mode = "trend" if seed_mode == "cross" else "cross"
+                    entry_variants = [
+                        (seed_mode, seed_confirm, f"entry=seed({seed_mode} c={seed_confirm})"),
+                        (other_mode, 0, f"entry={other_mode} c=0"),
+                    ]
+                    for tod_s, tod_e, skip, cooldown, tod_note in tod_variants:
+                        for perm_over, perm_note in perm_variants:
+                            for ss_over, ss_note in signed_slope_variants:
+                                for entry_mode, entry_confirm, entry_note in entry_variants:
+                                    over: dict[str, object] = {}
+                                    over.update(perm_over)
+                                    over.update(ss_over)
+                                    over["skip_first_bars"] = int(skip)
+                                    over["cooldown_bars"] = int(cooldown)
+                                    over["entry_start_hour_et"] = tod_s
+                                    over["entry_end_hour_et"] = tod_e
+                                    f = _merge_filters(base_cfg.strategy.filters, over)
+                                    cfg = replace(
+                                        base_cfg,
+                                        strategy=replace(
+                                            base_cfg.strategy,
+                                            filters=f,
+                                            ema_entry_mode=str(entry_mode),
+                                            entry_confirm_bars=int(entry_confirm),
+                                        ),
                                     )
-                                    last_3a = float(now)
-                                if not row:
-                                    continue
-                                note = (
-                                    f"{seed_tag} | short_mult={getattr(cfg.strategy,'spot_short_risk_mult', 1.0):g} | "
-                                    f"{exit_note} | {entry_note} | {tod_note} | {perm_note} | {ss_note}"
-                                )
-                                row["note"] = note
-                                _record_milestone(cfg, row, note)
-                                rows.append(row)
-                                stage3a.append((cfg, row, note))
+                                    row = _run_cfg(
+                                        cfg=cfg,
+                                        bars=bars_sig,
+                                        regime_bars=_regime_bars_for(cfg),
+                                        regime2_bars=_regime2_bars_for(cfg),
+                                    )
+                                    tested_total += 1
+                                    tested_3a += 1
+                                    now = pytime.perf_counter()
+                                    if (
+                                        tested_3a % report_every == 0
+                                        or tested_3a == total_3a
+                                        or (now - last_3a) >= heartbeat_sec
+                                    ):
+                                        elapsed = now - t0_3a
+                                        rate = tested_3a / elapsed if elapsed > 0 else 0.0
+                                        remaining = total_3a - tested_3a
+                                        eta_sec = remaining / rate if rate > 0 else 0.0
+                                        print(
+                                            f"  stage3a {tested_3a}/{total_3a} kept={len(stage3a)} "
+                                            f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
+                                            flush=True,
+                                        )
+                                        last_3a = float(now)
+                                    if not row:
+                                        continue
+                                    note = (
+                                        f"{seed_tag} | short_mult={getattr(cfg.strategy,'spot_short_risk_mult', 1.0):g} | "
+                                        f"{exit_note} | {entry_note} | {tod_note} | {perm_note} | {ss_note}"
+                                    )
+                                    row["note"] = note
+                                    _record_milestone(cfg, row, note)
+                                    rows.append(row)
+                                    stage3a.append((cfg, row, note))
 
             if not stage3a:
                 continue
@@ -7125,44 +7641,246 @@ def main() -> None:
 
             # Stage 3B: apply shock + TR-overlay pockets to the shortlist.
             total_3b = len(shortlist) * len(shock_variants) * len(risk_variants)
-            tested_3b = 0
-            t0_3b = pytime.perf_counter()
-            last_3b = float(t0_3b)
             print(f"  stage3b shock+risk: shortlist={len(shortlist)} total={total_3b}", flush=True)
-            for base_cfg, _, base_note in shortlist:
-                for shock_over, shock_note in shock_variants:
-                    for risk_over, risk_note in risk_variants:
-                        over: dict[str, object] = {}
-                        over.update(shock_over)
-                        over.update(risk_over)
-                        f = _merge_filters(base_cfg.strategy.filters, over)
-                        cfg = replace(base_cfg, strategy=replace(base_cfg.strategy, filters=f))
-                        row = _run_cfg(
-                            cfg=cfg,
-                            bars=bars_sig,
-                            regime_bars=_regime_bars_for(cfg),
-                            regime2_bars=_regime2_bars_for(cfg),
-                        )
-                        tested_total += 1
-                        tested_3b += 1
-                        now = pytime.perf_counter()
-                        if tested_3b % report_every == 0 or tested_3b == total_3b or (now - last_3b) >= heartbeat_sec:
-                            elapsed = now - t0_3b
-                            rate = tested_3b / elapsed if elapsed > 0 else 0.0
-                            remaining = total_3b - tested_3b
-                            eta_sec = remaining / rate if rate > 0 else 0.0
-                            print(
-                                f"  stage3b {tested_3b}/{total_3b} kept={len(rows)} "
-                                f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
-                                flush=True,
-                            )
-                            last_3b = float(now)
-                        if not row:
+            if jobs > 1:
+                if not offline:
+                    raise SystemExit("--jobs>1 for champ_refine requires --offline (avoid parallel IBKR sessions).")
+
+                def _strip_flag(argv: list[str], flag: str) -> list[str]:
+                    return [arg for arg in argv if arg != flag]
+
+                def _strip_flag_with_value(argv: list[str], flag: str) -> list[str]:
+                    out: list[str] = []
+                    idx = 0
+                    while idx < len(argv):
+                        arg = argv[idx]
+                        if arg == flag:
+                            idx += 2
                             continue
-                        note = f"{base_note} | {shock_note} | {risk_note}"
-                        row["note"] = note
-                        _record_milestone(cfg, row, note)
-                        rows.append(row)
+                        if arg.startswith(flag + "="):
+                            idx += 1
+                            continue
+                        out.append(arg)
+                        idx += 1
+                    return out
+
+                base_cli = list(sys.argv[1:])
+                base_cli = _strip_flag_with_value(base_cli, "--axis")
+                base_cli = _strip_flag_with_value(base_cli, "--jobs")
+                base_cli = _strip_flag(base_cli, "--write-milestones")
+                base_cli = _strip_flag(base_cli, "--merge-milestones")
+                base_cli = _strip_flag_with_value(base_cli, "--milestones-out")
+                base_cli = _strip_flag_with_value(base_cli, "--champ-refine-stage3a")
+                base_cli = _strip_flag_with_value(base_cli, "--champ-refine-stage3b")
+                base_cli = _strip_flag_with_value(base_cli, "--champ-refine-worker")
+                base_cli = _strip_flag_with_value(base_cli, "--champ-refine-workers")
+                base_cli = _strip_flag_with_value(base_cli, "--champ-refine-out")
+                base_cli = _strip_flag_with_value(base_cli, "--champ-refine-run-min-trades")
+
+                jobs_eff = min(int(jobs), int(_default_jobs()), int(total_3b)) if total_3b > 0 else 1
+                print(f"  stage3b parallel: workers={jobs_eff} total={total_3b}", flush=True)
+
+                def _pump(prefix: str, stream) -> None:
+                    for line in iter(stream.readline, ""):
+                        print(f"[{prefix}] {line.rstrip()}", flush=True)
+
+                failures: list[tuple[int, int]] = []
+                start_times: dict[int, float] = {}
+
+                with tempfile.TemporaryDirectory(prefix="tradebot_champ_refine_3b_") as tmpdir:
+                    tmp_root = Path(tmpdir)
+                    payload_path = tmp_root / "stage3b_payload.json"
+                    shortlist_payload: list[dict] = []
+                    for base_cfg, _, base_note in shortlist:
+                        shortlist_payload.append(
+                            {
+                                "strategy": _spot_strategy_payload(base_cfg, meta=meta),
+                                "filters": _filters_payload(base_cfg.strategy.filters),
+                                "base_note": str(base_note),
+                            }
+                        )
+                    write_json(payload_path, {"seed_tag": seed_tag, "shortlist": shortlist_payload}, sort_keys=False)
+
+                    running: list[tuple[int, subprocess.Popen, threading.Thread, Path]] = []
+                    out_paths: dict[int, Path] = {}
+
+                    for worker_id in range(jobs_eff):
+                        out_path = tmp_root / f"stage3b_out_{worker_id}.json"
+                        out_paths[worker_id] = out_path
+                        cmd = [
+                            sys.executable,
+                            "-u",
+                            "-m",
+                            "tradebot.backtest",
+                            "spot",
+                            *base_cli,
+                            "--axis",
+                            "champ_refine",
+                            "--jobs",
+                            "1",
+                            "--champ-refine-stage3b",
+                            str(payload_path),
+                            "--champ-refine-worker",
+                            str(worker_id),
+                            "--champ-refine-workers",
+                            str(jobs_eff),
+                            "--champ-refine-out",
+                            str(out_path),
+                            "--champ-refine-run-min-trades",
+                            str(int(run_min_trades)),
+                        ]
+                        proc = subprocess.Popen(
+                            cmd,
+                            stdout=subprocess.PIPE,
+                            stderr=subprocess.STDOUT,
+                            text=True,
+                            bufsize=1,
+                        )
+                        if proc.stdout is None:
+                            raise RuntimeError("Failed to capture champ_refine stage3b worker stdout.")
+                        t = threading.Thread(target=_pump, args=(f"cr3b:{worker_id}", proc.stdout), daemon=True)
+                        t.start()
+                        start_times[worker_id] = pytime.perf_counter()
+                        running.append((worker_id, proc, t, out_path))
+
+                    while running and not failures:
+                        finished_idx = None
+                        for idx, (worker_id, proc, t, out_path) in enumerate(running):
+                            rc = proc.poll()
+                            if rc is None:
+                                continue
+                            finished_idx = idx
+                            elapsed = pytime.perf_counter() - float(
+                                start_times.get(worker_id) or pytime.perf_counter()
+                            )
+                            print(f"DONE  cr3b:{worker_id} exit={rc} elapsed={elapsed:0.1f}s", flush=True)
+                            try:
+                                proc.wait(timeout=1.0)
+                            except subprocess.TimeoutExpired:
+                                proc.kill()
+                                proc.wait(timeout=5.0)
+                            try:
+                                t.join(timeout=1.0)
+                            except Exception:
+                                pass
+                            if rc != 0:
+                                failures.append((int(worker_id), int(rc)))
+                            running.pop(idx)
+                            break
+
+                        if failures:
+                            for worker_id, proc, t, out_path in running:
+                                try:
+                                    proc.terminate()
+                                except Exception:
+                                    pass
+                            for worker_id, proc, t, out_path in running:
+                                try:
+                                    proc.wait(timeout=5.0)
+                                except subprocess.TimeoutExpired:
+                                    try:
+                                        proc.kill()
+                                    except Exception:
+                                        pass
+                            break
+
+                        if finished_idx is None:
+                            pytime.sleep(0.05)
+
+                    if failures:
+                        wid, rc = failures[0]
+                        raise SystemExit(f"champ_refine stage3b worker failed: cr3b:{wid} (exit={rc})")
+
+                    tested_total_3b = 0
+                    for worker_id in range(jobs_eff):
+                        out_path = out_paths.get(worker_id)
+                        if out_path is None or not out_path.exists():
+                            raise SystemExit(f"Missing champ_refine stage3b output: cr3b:{worker_id} ({out_path})")
+                        try:
+                            payload = json.loads(out_path.read_text())
+                        except json.JSONDecodeError as exc:
+                            raise SystemExit(
+                                f"Invalid champ_refine stage3b output JSON: cr3b:{worker_id} ({out_path})"
+                            ) from exc
+                        if not isinstance(payload, dict):
+                            continue
+                        tested_total_3b += int(payload.get("tested") or 0)
+                        for rec in payload.get("records") or []:
+                            if not isinstance(rec, dict):
+                                continue
+                            try:
+                                base_idx = int(rec.get("base_idx"))
+                                shock_idx = int(rec.get("shock_idx"))
+                                risk_idx = int(rec.get("risk_idx"))
+                            except (TypeError, ValueError):
+                                continue
+                            if base_idx < 0 or base_idx >= len(shortlist):
+                                raise SystemExit(f"champ_refine stage3b merge: invalid base_idx={base_idx}")
+                            if shock_idx < 0 or shock_idx >= len(shock_variants):
+                                raise SystemExit(f"champ_refine stage3b merge: invalid shock_idx={shock_idx}")
+                            if risk_idx < 0 or risk_idx >= len(risk_variants):
+                                raise SystemExit(f"champ_refine stage3b merge: invalid risk_idx={risk_idx}")
+                            row = rec.get("row")
+                            if not isinstance(row, dict):
+                                continue
+
+                            base_cfg, _, base_note = shortlist[base_idx]
+                            shock_over, shock_note = shock_variants[shock_idx]
+                            risk_over, risk_note = risk_variants[risk_idx]
+                            over: dict[str, object] = {}
+                            over.update(shock_over)
+                            over.update(risk_over)
+                            f = _merge_filters(base_cfg.strategy.filters, over)
+                            cfg = replace(base_cfg, strategy=replace(base_cfg.strategy, filters=f))
+                            note = f"{base_note} | {shock_note} | {risk_note}"
+                            row = dict(row)
+                            row["note"] = note
+                            _record_milestone(cfg, row, note)
+                            rows.append(row)
+
+                    tested_total += int(tested_total_3b)
+            else:
+                tested_3b = 0
+                t0_3b = pytime.perf_counter()
+                last_3b = float(t0_3b)
+                for base_cfg, _, base_note in shortlist:
+                    for shock_over, shock_note in shock_variants:
+                        for risk_over, risk_note in risk_variants:
+                            over: dict[str, object] = {}
+                            over.update(shock_over)
+                            over.update(risk_over)
+                            f = _merge_filters(base_cfg.strategy.filters, over)
+                            cfg = replace(base_cfg, strategy=replace(base_cfg.strategy, filters=f))
+                            row = _run_cfg(
+                                cfg=cfg,
+                                bars=bars_sig,
+                                regime_bars=_regime_bars_for(cfg),
+                                regime2_bars=_regime2_bars_for(cfg),
+                            )
+                            tested_total += 1
+                            tested_3b += 1
+                            now = pytime.perf_counter()
+                            if (
+                                tested_3b % report_every == 0
+                                or tested_3b == total_3b
+                                or (now - last_3b) >= heartbeat_sec
+                            ):
+                                elapsed = now - t0_3b
+                                rate = tested_3b / elapsed if elapsed > 0 else 0.0
+                                remaining = total_3b - tested_3b
+                                eta_sec = remaining / rate if rate > 0 else 0.0
+                                print(
+                                    f"  stage3b {tested_3b}/{total_3b} kept={len(rows)} "
+                                    f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
+                                    flush=True,
+                                )
+                                last_3b = float(now)
+                            if not row:
+                                continue
+                            note = f"{base_note} | {shock_note} | {risk_note}"
+                            row["note"] = note
+                            _record_milestone(cfg, row, note)
+                            rows.append(row)
 
         print("")
         _print_leaderboards(rows, title="champ_refine (seeded, bounded)", top_n=int(args.top))
@@ -7978,6 +8696,328 @@ def main() -> None:
         f"slip={spot_slippage:g} sizing={sizing_mode} risk={spot_risk_pct:g} max_notional={spot_max_notional_pct:g})"
     )
 
+    if axis == "all" and jobs > 1:
+        if not offline:
+            raise SystemExit("--jobs>1 for --axis all requires --offline (avoid parallel IBKR sessions).")
+
+        axes = [
+            "ema",
+            "volume",
+            "rv",
+            "tod",
+            "atr",
+            "ptsl",
+            "hold",
+            "orb",
+            "regime",
+            "regime2",
+            "joint",
+            "flip_exit",
+            "confirm",
+            "spread",
+            "slope",
+            "slope_signed",
+            "cooldown",
+            "skip_open",
+            "shock",
+            "risk_overlays",
+            "loosen",
+            "tick",
+            "spot_short_risk_mult",
+        ]
+
+        def _strip_flag(argv: list[str], flag: str) -> list[str]:
+            return [arg for arg in argv if arg != flag]
+
+        def _strip_flag_with_value(argv: list[str], flag: str) -> list[str]:
+            out: list[str] = []
+            idx = 0
+            while idx < len(argv):
+                arg = argv[idx]
+                if arg == flag:
+                    idx += 2
+                    continue
+                if arg.startswith(flag + "="):
+                    idx += 1
+                    continue
+                out.append(arg)
+                idx += 1
+            return out
+
+        base_cli = list(sys.argv[1:])
+        base_cli = _strip_flag_with_value(base_cli, "--axis")
+        base_cli = _strip_flag_with_value(base_cli, "--jobs")
+        base_cli = _strip_flag_with_value(base_cli, "--milestones-out")
+        base_cli = _strip_flag(base_cli, "--merge-milestones")
+
+        jobs_eff = min(int(jobs), len(axes))
+        print(f"axis=all parallel: jobs={jobs_eff} axes={len(axes)}", flush=True)
+
+        def _pump(prefix: str, stream) -> None:
+            for line in iter(stream.readline, ""):
+                print(f"[{prefix}] {line.rstrip()}", flush=True)
+
+        failures: list[tuple[str, int]] = []
+        milestone_paths: dict[str, Path] = {}
+        start_times: dict[str, float] = {}
+
+        with tempfile.TemporaryDirectory(prefix="tradebot_axis_all_") as tmpdir:
+            tmp_root = Path(tmpdir)
+            pending = list(axes)
+            running: list[tuple[str, subprocess.Popen, threading.Thread]] = []
+
+            def _spawn(axis_name: str) -> None:
+                axis_jobs = "1"
+                if str(axis_name) == "risk_overlays":
+                    axis_jobs = str(min(int(jobs), int(_default_jobs())))
+                cmd = [
+                    sys.executable,
+                    "-u",
+                    "-m",
+                    "tradebot.backtest",
+                    "spot",
+                    *base_cli,
+                    "--axis",
+                    str(axis_name),
+                    "--jobs",
+                    str(axis_jobs),
+                ]
+                if bool(args.write_milestones):
+                    out_path = tmp_root / f"milestones_{axis_name}.json"
+                    milestone_paths[axis_name] = out_path
+                    cmd += ["--milestones-out", str(out_path)]
+                proc = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1,
+                )
+                if proc.stdout is None:
+                    raise RuntimeError("Failed to capture axis worker stdout.")
+                t = threading.Thread(target=_pump, args=(axis_name, proc.stdout), daemon=True)
+                t.start()
+                start_times[axis_name] = pytime.perf_counter()
+                running.append((axis_name, proc, t))
+
+            while pending or running:
+                while pending and len(running) < jobs_eff and not failures:
+                    axis_name = pending.pop(0)
+                    print(f"START {axis_name}", flush=True)
+                    _spawn(axis_name)
+
+                finished_idx = None
+                for idx, (axis_name, proc, t) in enumerate(running):
+                    rc = proc.poll()
+                    if rc is None:
+                        continue
+                    finished_idx = idx
+                    elapsed = pytime.perf_counter() - float(start_times.get(axis_name) or pytime.perf_counter())
+                    print(f"DONE  {axis_name} exit={rc} elapsed={elapsed:0.1f}s", flush=True)
+                    try:
+                        proc.wait(timeout=1.0)
+                    except subprocess.TimeoutExpired:
+                        proc.kill()
+                        proc.wait(timeout=5.0)
+                    try:
+                        t.join(timeout=1.0)
+                    except Exception:
+                        pass
+                    if rc != 0:
+                        failures.append((axis_name, int(rc)))
+                    running.pop(idx)
+                    break
+
+                if failures:
+                    for axis_name, proc, t in running:
+                        try:
+                            proc.terminate()
+                        except Exception:
+                            pass
+                    for axis_name, proc, t in running:
+                        try:
+                            proc.wait(timeout=5.0)
+                        except Exception:
+                            try:
+                                proc.kill()
+                            except Exception:
+                                pass
+                    break
+
+                if finished_idx is None:
+                    pytime.sleep(0.05)
+
+            if failures:
+                axis_name, rc = failures[0]
+                raise SystemExit(f"axis=all parallel axis failed: {axis_name} (exit={rc})")
+
+            if bool(args.write_milestones):
+                eligible_new: list[dict] = []
+                for axis_name in axes:
+                    path = milestone_paths.get(axis_name)
+                    if path is None or not path.exists():
+                        continue
+                    payload = json.loads(path.read_text())
+                    if not isinstance(payload, dict):
+                        continue
+                    for group in payload.get("groups") or []:
+                        if not isinstance(group, dict):
+                            continue
+                        filters = group.get("filters")
+                        raw_name = str(group.get("name") or "")
+                        parsed_note = None
+                        if raw_name.endswith("]") and "[" in raw_name:
+                            try:
+                                parsed_note = raw_name[raw_name.rfind("[") + 1 : -1].strip() or None
+                            except Exception:
+                                parsed_note = None
+                        for entry in group.get("entries") or []:
+                            if not isinstance(entry, dict):
+                                continue
+                            strat = entry.get("strategy") or {}
+                            metrics = entry.get("metrics") or {}
+                            if not isinstance(strat, dict) or not isinstance(metrics, dict):
+                                continue
+                            key_obj = dict(strat)
+                            key_obj["filters"] = filters
+                            eligible_new.append(
+                                {
+                                    "key": json.dumps(key_obj, sort_keys=True, default=str),
+                                    "strategy": strat,
+                                    "filters": filters,
+                                    "note": parsed_note,
+                                    "metrics": {
+                                        "pnl": float(metrics.get("pnl") or 0.0),
+                                        "roi": float(metrics.get("roi") or 0.0),
+                                        "win_rate": float(metrics.get("win_rate") or 0.0),
+                                        "trades": int(metrics.get("trades") or 0),
+                                        "max_drawdown": float(metrics.get("max_drawdown") or 0.0),
+                                        "max_drawdown_pct": float(metrics.get("max_drawdown_pct") or 0.0),
+                                        "pnl_over_dd": metrics.get("pnl_over_dd"),
+                                    },
+                                }
+                            )
+
+                out_path = Path(args.milestones_out)
+                eligible: list[dict] = []
+
+                def _sort_key(item: dict) -> tuple:
+                    m = item.get("metrics") or {}
+                    return (
+                        float(m.get("pnl_over_dd") or float("-inf")),
+                        float(m.get("pnl") or 0.0),
+                        float(m.get("win_rate") or 0.0),
+                        int(m.get("trades") or 0),
+                    )
+
+                def _sort_key_pnl(item: dict) -> tuple:
+                    m = item.get("metrics") or {}
+                    return (
+                        float(m.get("pnl") or float("-inf")),
+                        float(m.get("pnl_over_dd") or 0.0),
+                        float(m.get("win_rate") or 0.0),
+                        int(m.get("trades") or 0),
+                    )
+
+                add_top_dd = max(0, int(args.milestone_add_top_pnl_dd or 0))
+                add_top_pnl = max(0, int(args.milestone_add_top_pnl or 0))
+                if bool(args.merge_milestones) and (add_top_dd > 0 or add_top_pnl > 0):
+                    by_dd = sorted(eligible_new, key=_sort_key, reverse=True)[:add_top_dd] if add_top_dd > 0 else []
+                    by_pnl = (
+                        sorted(eligible_new, key=_sort_key_pnl, reverse=True)[:add_top_pnl] if add_top_pnl > 0 else []
+                    )
+                    seen_new: set[str] = set()
+                    limited_new: list[dict] = []
+                    for item in by_dd + by_pnl:
+                        key = str(item.get("key") or "")
+                        if not key or key in seen_new:
+                            continue
+                        seen_new.add(key)
+                        limited_new.append(item)
+                    eligible.extend(limited_new)
+                else:
+                    eligible.extend(eligible_new)
+
+                if bool(args.merge_milestones) and out_path.exists():
+                    try:
+                        existing = json.loads(out_path.read_text())
+                    except json.JSONDecodeError:
+                        existing = {}
+                    for group in existing.get("groups") or []:
+                        filters = group.get("filters")
+                        raw_name = str(group.get("name") or "")
+                        parsed_note = None
+                        if raw_name.endswith("]") and "[" in raw_name:
+                            try:
+                                parsed_note = raw_name[raw_name.rfind("[") + 1 : -1].strip() or None
+                            except Exception:
+                                parsed_note = None
+                        for entry in group.get("entries") or []:
+                            strat = entry.get("strategy") or {}
+                            metrics = entry.get("metrics") or {}
+                            key_obj = dict(strat)
+                            key_obj["filters"] = filters
+                            eligible.append(
+                                {
+                                    "key": json.dumps(key_obj, sort_keys=True, default=str),
+                                    "strategy": strat,
+                                    "filters": filters,
+                                    "note": parsed_note,
+                                    "metrics": {
+                                        "pnl": float(metrics.get("pnl") or 0.0),
+                                        "roi": float(metrics.get("roi") or 0.0),
+                                        "win_rate": float(metrics.get("win_rate") or 0.0),
+                                        "trades": int(metrics.get("trades") or 0),
+                                        "max_drawdown": float(metrics.get("max_drawdown") or 0.0),
+                                        "max_drawdown_pct": float(metrics.get("max_drawdown_pct") or 0.0),
+                                        "pnl_over_dd": metrics.get("pnl_over_dd"),
+                                    },
+                                }
+                            )
+
+                best_by_key: dict[str, dict] = {}
+                for item in eligible:
+                    key = str(item.get("key") or "")
+                    if not key:
+                        continue
+                    current = best_by_key.get(key)
+                    if current is None or _sort_key(item) > _sort_key(current):
+                        best_by_key[key] = item
+
+                unique = sorted(best_by_key.values(), key=_sort_key, reverse=True)
+                groups: list[dict] = []
+                for idx, item in enumerate(unique, start=1):
+                    metrics = item["metrics"]
+                    entry = {"symbol": symbol, "metrics": metrics, "strategy": item["strategy"]}
+                    groups.append(
+                        {
+                            "name": _milestone_group_name_from_strategy(
+                                rank=idx,
+                                strategy=item["strategy"],
+                                metrics=metrics,
+                                note=str(item.get("note") or "").strip(),
+                            ),
+                            "filters": item["filters"],
+                            "entries": [entry],
+                        }
+                    )
+
+                payload = {
+                    "name": "spot_milestones",
+                    "generated_at": utc_now_iso_z(),
+                    "notes": (
+                        f"Auto-generated via evolve_spot.py (post-fix). "
+                        f"window={start.isoformat()}→{end.isoformat()}, bar_size={signal_bar_size}, use_rth={use_rth}. "
+                        f"thresholds: win>={float(args.milestone_min_win):.2f}, trades>={int(args.milestone_min_trades)}, "
+                        f"pnl/dd>={float(args.milestone_min_pnl_dd):.2f}."
+                    ),
+                    "groups": groups,
+                }
+                write_json(out_path, payload, sort_keys=False)
+                print(f"Wrote {out_path} ({len(groups)} eligible presets).", flush=True)
+
+        return
+
     if axis in ("all", "ema"):
         _sweep_ema()
     if axis == "entry_mode":
@@ -8706,6 +9746,7 @@ def spot_multitimeframe_main() -> None:
     ap.add_argument("--use-rth", action="store_true", help="Filter to RTH-only strategies.")
     ap.add_argument("--offline", action="store_true", help="Use cached bars only (no IBKR fetch).")
     ap.add_argument("--cache-dir", default="db", help="Bars cache dir (default: db).")
+    ap.add_argument("--jobs", type=int, default=0, help="Worker processes (0 = auto). Requires --offline for >1.")
     ap.add_argument("--top", type=int, default=200, help="How many candidates to evaluate (after sorting).")
     ap.add_argument("--min-trades", type=int, default=200, help="Min trades per window.")
     ap.add_argument("--min-win", type=float, default=0.0, help="Min win rate per window (0..1).")
@@ -8758,8 +9799,29 @@ def spot_multitimeframe_main() -> None:
         default="backtests/out/multitimeframe_top.json",
         help="Output file for --write-top (default: backtests/out/multitimeframe_top.json).",
     )
+    # Internal flags (used by parallel worker sharding).
+    ap.add_argument("--multitimeframe-worker", type=int, default=None, help=argparse.SUPPRESS)
+    ap.add_argument("--multitimeframe-workers", type=int, default=None, help=argparse.SUPPRESS)
+    ap.add_argument("--multitimeframe-out", default=None, help=argparse.SUPPRESS)
 
     args = ap.parse_args()
+
+    def _default_jobs() -> int:
+        detected = os.cpu_count()
+        if detected is None:
+            return 1
+        try:
+            detected_i = int(detected)
+        except (TypeError, ValueError):
+            return 1
+        return max(1, detected_i)
+
+    try:
+        jobs = int(args.jobs) if args.jobs is not None else 0
+    except (TypeError, ValueError):
+        jobs = 0
+    jobs_eff = _default_jobs() if jobs <= 0 else min(int(jobs), _default_jobs())
+    jobs_eff = max(1, int(jobs_eff))
 
     milestones_path = Path(args.milestones)
     payload = json.loads(milestones_path.read_text())
@@ -8813,6 +9875,7 @@ def spot_multitimeframe_main() -> None:
         )
 
     candidates = sorted(candidates, key=_sort_key_seed, reverse=True)[: max(1, int(args.top))]
+    jobs_eff = max(1, min(int(jobs_eff), len(candidates)))
 
     windows: list[tuple[date, date]] = []
     for raw in args.window or []:
@@ -8826,6 +9889,595 @@ def spot_multitimeframe_main() -> None:
 
     cache_dir = Path(args.cache_dir)
     offline = bool(args.offline)
+
+    def _strip_flag(argv: list[str], flag: str) -> list[str]:
+        return [arg for arg in argv if arg != flag]
+
+    def _strip_flag_with_value(argv: list[str], flag: str) -> list[str]:
+        out: list[str] = []
+        idx = 0
+        while idx < len(argv):
+            arg = argv[idx]
+            if arg == flag:
+                idx += 2
+                continue
+            if arg.startswith(flag + "="):
+                idx += 1
+                continue
+            out.append(arg)
+            idx += 1
+        return out
+
+    if args.multitimeframe_worker is not None:
+        if not offline:
+            raise SystemExit("multitimeframe worker mode requires --offline (avoid parallel IBKR sessions).")
+        out_path_raw = str(args.multitimeframe_out or "").strip()
+        if not out_path_raw:
+            raise SystemExit("--multitimeframe-out is required for multitimeframe worker mode.")
+        out_path = Path(out_path_raw)
+
+        try:
+            worker_id = int(args.multitimeframe_worker) if args.multitimeframe_worker is not None else 0
+        except (TypeError, ValueError):
+            worker_id = 0
+        try:
+            workers = int(args.multitimeframe_workers) if args.multitimeframe_workers is not None else 1
+        except (TypeError, ValueError):
+            workers = 1
+        workers = max(1, int(workers))
+        worker_id = max(0, int(worker_id))
+        if worker_id >= workers:
+            raise SystemExit(
+                f"Invalid multitimeframe worker shard: worker={worker_id} workers={workers} (worker must be < workers)."
+            )
+
+        _preflight_offline_cache_or_die(
+            symbol=symbol,
+            candidates=candidates,
+            windows=windows,
+            signal_bar_size=str(args.bar_size),
+            use_rth=use_rth,
+            cache_dir=cache_dir,
+        )
+
+        data = IBKRHistoricalData()
+        bars_cache: dict[tuple[str, str | None, str, str, str, bool, bool], list] = {}
+
+        def _load_bars_cached(
+            *,
+            symbol: str,
+            exchange: str | None,
+            start_dt: datetime,
+            end_dt: datetime,
+            bar_size: str,
+            use_rth: bool,
+            offline: bool,
+        ) -> list:
+            key = (
+                str(symbol),
+                str(exchange) if exchange is not None else None,
+                start_dt.isoformat(),
+                end_dt.isoformat(),
+                str(bar_size),
+                bool(use_rth),
+                bool(offline),
+            )
+            cached = bars_cache.get(key)
+            if cached is not None:
+                return cached
+            bars = _load_bars(
+                data,
+                symbol=symbol,
+                exchange=exchange,
+                start_dt=start_dt,
+                end_dt=end_dt,
+                bar_size=bar_size,
+                use_rth=use_rth,
+                cache_dir=cache_dir,
+                offline=offline,
+            )
+            bars_cache[key] = bars
+            return bars
+
+        out_rows: list[dict] = []
+        tested = 0
+        started = pytime.perf_counter()
+        report_every = 10
+
+        for idx, cand in enumerate(candidates, start=1):
+            assigned = ((idx - 1) % workers) == worker_id
+            if not assigned:
+                continue
+            tested += 1
+
+            filters_payload = cand.get("filters")
+            filters = _filters_from_payload(filters_payload)
+            strategy_payload = cand["strategy"]
+            strat_cfg = _strategy_from_payload(strategy_payload, filters=filters)
+            if bool(args.require_close_eod) and not bool(getattr(strat_cfg, "spot_close_eod", False)):
+                continue
+            if args.max_open is not None:
+                max_open = int(getattr(strat_cfg, "max_open_trades", 0) or 0)
+                if max_open == 0 and not bool(args.allow_unlimited_stacking):
+                    continue
+                if max_open != 0 and max_open > int(args.max_open):
+                    continue
+
+            sig_bar_size = str(strategy_payload.get("signal_bar_size") or args.bar_size)
+            sig_use_rth = (
+                use_rth
+                if strategy_payload.get("signal_use_rth") is None
+                else bool(strategy_payload.get("signal_use_rth"))
+            )
+
+            per_window: list[dict] = []
+            ok = True
+            for wstart, wend in windows:
+                bundle = _mk_bundle(
+                    strategy=strat_cfg,
+                    start=wstart,
+                    end=wend,
+                    bar_size=sig_bar_size,
+                    use_rth=sig_use_rth,
+                    cache_dir=cache_dir,
+                    offline=offline,
+                )
+
+                start_dt = datetime.combine(bundle.backtest.start, time(0, 0))
+                end_dt = datetime.combine(bundle.backtest.end, time(23, 59))
+                bars_sig = _load_bars_cached(
+                    symbol=bundle.strategy.symbol,
+                    exchange=bundle.strategy.exchange,
+                    start_dt=start_dt,
+                    end_dt=end_dt,
+                    bar_size=bundle.backtest.bar_size,
+                    use_rth=bundle.backtest.use_rth,
+                    offline=bundle.backtest.offline,
+                )
+                if not bars_sig:
+                    _die_empty_bars(
+                        kind="signal",
+                        cache_dir=cache_dir,
+                        symbol=bundle.strategy.symbol,
+                        exchange=bundle.strategy.exchange,
+                        start_dt=start_dt,
+                        end_dt=end_dt,
+                        bar_size=str(bundle.backtest.bar_size),
+                        use_rth=bundle.backtest.use_rth,
+                        offline=bundle.backtest.offline,
+                    )
+
+                is_future = bundle.strategy.symbol in ("MNQ", "MBT")
+                exchange = "CME" if is_future else "SMART"
+                meta = ContractMeta(
+                    symbol=bundle.strategy.symbol,
+                    exchange=exchange,
+                    multiplier=_spot_multiplier(bundle.strategy.symbol, is_future),
+                    min_tick=0.01,
+                )
+
+                # Load multi-timeframe regime/regime2 bars only when needed.
+                regime_bars = None
+                if str(bundle.strategy.regime_mode).strip().lower() == "supertrend":
+                    if bundle.strategy.regime_bar_size and str(bundle.strategy.regime_bar_size) != str(bundle.backtest.bar_size):
+                        regime_bars = _load_bars_cached(
+                            symbol=bundle.strategy.symbol,
+                            exchange=bundle.strategy.exchange,
+                            start_dt=start_dt,
+                            end_dt=end_dt,
+                            bar_size=str(bundle.strategy.regime_bar_size),
+                            use_rth=bundle.backtest.use_rth,
+                            offline=bundle.backtest.offline,
+                        )
+                        if not regime_bars:
+                            _die_empty_bars(
+                                kind="regime",
+                                cache_dir=cache_dir,
+                                symbol=bundle.strategy.symbol,
+                                exchange=bundle.strategy.exchange,
+                                start_dt=start_dt,
+                                end_dt=end_dt,
+                                bar_size=str(bundle.strategy.regime_bar_size),
+                                use_rth=bundle.backtest.use_rth,
+                                offline=bundle.backtest.offline,
+                            )
+                else:
+                    if (
+                        bundle.strategy.regime_ema_preset
+                        and bundle.strategy.regime_bar_size
+                        and str(bundle.strategy.regime_bar_size) != str(bundle.backtest.bar_size)
+                    ):
+                        regime_bars = _load_bars_cached(
+                            symbol=bundle.strategy.symbol,
+                            exchange=bundle.strategy.exchange,
+                            start_dt=start_dt,
+                            end_dt=end_dt,
+                            bar_size=str(bundle.strategy.regime_bar_size),
+                            use_rth=bundle.backtest.use_rth,
+                            offline=bundle.backtest.offline,
+                        )
+                        if not regime_bars:
+                            _die_empty_bars(
+                                kind="regime",
+                                cache_dir=cache_dir,
+                                symbol=bundle.strategy.symbol,
+                                exchange=bundle.strategy.exchange,
+                                start_dt=start_dt,
+                                end_dt=end_dt,
+                                bar_size=str(bundle.strategy.regime_bar_size),
+                                use_rth=bundle.backtest.use_rth,
+                                offline=bundle.backtest.offline,
+                            )
+
+                regime2_bars = None
+                if str(getattr(bundle.strategy, "regime2_mode", "off") or "off").strip().lower() != "off":
+                    rb2 = str(getattr(bundle.strategy, "regime2_bar_size", "") or "").strip() or str(bundle.backtest.bar_size)
+                    if str(rb2) != str(bundle.backtest.bar_size):
+                        regime2_bars = _load_bars_cached(
+                            symbol=bundle.strategy.symbol,
+                            exchange=bundle.strategy.exchange,
+                            start_dt=start_dt,
+                            end_dt=end_dt,
+                            bar_size=rb2,
+                            use_rth=bundle.backtest.use_rth,
+                            offline=bundle.backtest.offline,
+                        )
+                        if not regime2_bars:
+                            _die_empty_bars(
+                                kind="regime2",
+                                cache_dir=cache_dir,
+                                symbol=bundle.strategy.symbol,
+                                exchange=bundle.strategy.exchange,
+                                start_dt=start_dt,
+                                end_dt=end_dt,
+                                bar_size=rb2,
+                                use_rth=bundle.backtest.use_rth,
+                                offline=bundle.backtest.offline,
+                            )
+
+                tick_bars = None
+                tick_mode = str(getattr(bundle.strategy, "tick_gate_mode", "off") or "off").strip().lower()
+                if tick_mode != "off":
+                    try:
+                        z_lookback = int(getattr(bundle.strategy, "tick_width_z_lookback", 252) or 252)
+                    except (TypeError, ValueError):
+                        z_lookback = 252
+                    try:
+                        ma_period = int(getattr(bundle.strategy, "tick_band_ma_period", 10) or 10)
+                    except (TypeError, ValueError):
+                        ma_period = 10
+                    try:
+                        slope_lb = int(getattr(bundle.strategy, "tick_width_slope_lookback", 3) or 3)
+                    except (TypeError, ValueError):
+                        slope_lb = 3
+                    tick_warm_days = max(60, z_lookback + ma_period + slope_lb + 5)
+                    tick_start_dt = start_dt - timedelta(days=tick_warm_days)
+                    tick_symbol = str(getattr(bundle.strategy, "tick_gate_symbol", "TICK-NYSE") or "TICK-NYSE").strip()
+                    tick_exchange = str(getattr(bundle.strategy, "tick_gate_exchange", "NYSE") or "NYSE").strip()
+                    tick_bars = _load_bars_cached(
+                        symbol=tick_symbol,
+                        exchange=tick_exchange,
+                        start_dt=tick_start_dt,
+                        end_dt=end_dt,
+                        bar_size="1 day",
+                        use_rth=True,
+                        offline=bundle.backtest.offline,
+                    )
+                    if not tick_bars:
+                        _die_empty_bars(
+                            kind="tick_gate",
+                            cache_dir=cache_dir,
+                            symbol=tick_symbol,
+                            exchange=tick_exchange,
+                            start_dt=tick_start_dt,
+                            end_dt=end_dt,
+                            bar_size="1 day",
+                            use_rth=True,
+                            offline=bundle.backtest.offline,
+                        )
+
+                exec_bars = None
+                exec_size = str(getattr(bundle.strategy, "spot_exec_bar_size", "") or "").strip()
+                if exec_size and str(exec_size) != str(bundle.backtest.bar_size):
+                    exec_bars = _load_bars_cached(
+                        symbol=bundle.strategy.symbol,
+                        exchange=bundle.strategy.exchange,
+                        start_dt=start_dt,
+                        end_dt=end_dt,
+                        bar_size=exec_size,
+                        use_rth=bundle.backtest.use_rth,
+                        offline=bundle.backtest.offline,
+                    )
+                    if not exec_bars:
+                        _die_empty_bars(
+                            kind="exec",
+                            cache_dir=cache_dir,
+                            symbol=bundle.strategy.symbol,
+                            exchange=bundle.strategy.exchange,
+                            start_dt=start_dt,
+                            end_dt=end_dt,
+                            bar_size=exec_size,
+                            use_rth=bundle.backtest.use_rth,
+                            offline=bundle.backtest.offline,
+                        )
+
+                run = _run_spot_backtest(
+                    bundle,
+                    bars_sig,
+                    meta,
+                    regime_bars=regime_bars,
+                    regime2_bars=regime2_bars,
+                    tick_bars=tick_bars,
+                    exec_bars=exec_bars,
+                )
+                if not run.summary:
+                    ok = False
+                    break
+
+                m = _metrics_from_summary(run.summary)
+                if bool(args.require_positive_pnl) and float(m["pnl"]) <= 0:
+                    ok = False
+                    break
+                if m["trades"] < int(args.min_trades) or m["win_rate"] < float(args.min_win):
+                    ok = False
+                    break
+                per_window.append(
+                    {
+                        "start": wstart.isoformat(),
+                        "end": wend.isoformat(),
+                        **m,
+                    }
+                )
+
+            if ok and per_window:
+                min_pnl_dd = min(float(x["pnl_over_dd"]) for x in per_window)
+                min_pnl = min(float(x["pnl"]) for x in per_window)
+                min_roi_dd = min(float(x.get("roi_over_dd_pct") or 0.0) for x in per_window)
+                min_roi = min(float(x.get("roi") or 0.0) for x in per_window)
+                primary = per_window[0] if per_window else {}
+                full_trades = int(primary.get("trades") or 0)
+                full_win = float(primary.get("win_rate") or 0.0)
+                full_pnl = float(primary.get("pnl") or 0.0)
+                full_dd = float(primary.get("dd") or 0.0)
+                full_pnl_over_dd = float(primary.get("pnl_over_dd") or 0.0)
+                full_roi = float(primary.get("roi") or 0.0)
+                full_dd_pct = float(primary.get("dd_pct") or 0.0)
+                full_roi_dd = float(primary.get("roi_over_dd_pct") or 0.0)
+                out_rows.append(
+                    {
+                        "key": _strategy_key(strategy_payload, filters=filters_payload),
+                        "strategy": strategy_payload,
+                        "filters": filters_payload,
+                        "seed_group_name": cand.get("group_name"),
+                        "full_trades": full_trades,
+                        "full_win": full_win,
+                        "full_pnl": full_pnl,
+                        "full_dd": full_dd,
+                        "full_pnl_over_dd": full_pnl_over_dd,
+                        "full_roi": full_roi,
+                        "full_dd_pct": full_dd_pct,
+                        "full_roi_over_dd_pct": full_roi_dd,
+                        "stability_min_pnl_dd": min_pnl_dd,
+                        "stability_min_pnl": min_pnl,
+                        "stability_min_roi_dd": min_roi_dd,
+                        "stability_min_roi": min_roi,
+                        "windows": per_window,
+                    }
+                )
+
+            if tested % report_every == 0:
+                elapsed = pytime.perf_counter() - started
+                rate = tested / elapsed if elapsed > 0 else 0.0
+                print(
+                    f"multitimeframe worker {worker_id+1}/{workers} tested={tested} kept={len(out_rows)} "
+                    f"({rate:0.2f} cands/s)",
+                    flush=True,
+                )
+
+        out_payload = {"tested": tested, "kept": len(out_rows), "rows": out_rows}
+        write_json(out_path, out_payload, sort_keys=False)
+        print(f"multitimeframe worker done tested={tested} kept={len(out_rows)} out={out_path}", flush=True)
+        return
+
+    if jobs_eff > 1:
+        if not offline:
+            raise SystemExit("--jobs>1 for multitimeframe requires --offline (avoid parallel IBKR sessions).")
+
+        _preflight_offline_cache_or_die(
+            symbol=symbol,
+            candidates=candidates,
+            windows=windows,
+            signal_bar_size=str(args.bar_size),
+            use_rth=use_rth,
+            cache_dir=cache_dir,
+        )
+
+        base_cli = list(sys.argv[1:])
+        base_cli = _strip_flag_with_value(base_cli, "--jobs")
+        base_cli = _strip_flag_with_value(base_cli, "--multitimeframe-worker")
+        base_cli = _strip_flag_with_value(base_cli, "--multitimeframe-workers")
+        base_cli = _strip_flag_with_value(base_cli, "--multitimeframe-out")
+
+        print(f"multitimeframe parallel: workers={jobs_eff} candidates={len(candidates)}", flush=True)
+
+        def _pump(prefix: str, stream) -> None:
+            for line in iter(stream.readline, ""):
+                print(f"[{prefix}] {line.rstrip()}", flush=True)
+
+        failures: list[tuple[int, int]] = []
+        start_times: dict[int, float] = {}
+
+        with tempfile.TemporaryDirectory(prefix="tradebot_multitimeframe_") as tmpdir:
+            tmp_root = Path(tmpdir)
+            running: list[tuple[int, subprocess.Popen, threading.Thread, Path]] = []
+            out_paths: dict[int, Path] = {}
+
+            for worker_id in range(jobs_eff):
+                out_path = tmp_root / f"multitimeframe_out_{worker_id}.json"
+                out_paths[worker_id] = out_path
+                cmd = [
+                    sys.executable,
+                    "-u",
+                    "-m",
+                    "tradebot.backtest",
+                    "spot_multitimeframe",
+                    *base_cli,
+                    "--jobs",
+                    "1",
+                    "--multitimeframe-worker",
+                    str(worker_id),
+                    "--multitimeframe-workers",
+                    str(jobs_eff),
+                    "--multitimeframe-out",
+                    str(out_path),
+                ]
+                proc = subprocess.Popen(
+                    cmd,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.STDOUT,
+                    text=True,
+                    bufsize=1,
+                )
+                if proc.stdout is None:
+                    raise RuntimeError("Failed to capture multitimeframe worker stdout.")
+                t = threading.Thread(target=_pump, args=(f"mt:{worker_id}", proc.stdout), daemon=True)
+                t.start()
+                start_times[worker_id] = pytime.perf_counter()
+                running.append((worker_id, proc, t, out_path))
+
+            while running and not failures:
+                finished_idx = None
+                for idx, (worker_id, proc, t, out_path) in enumerate(running):
+                    rc = proc.poll()
+                    if rc is None:
+                        continue
+                    finished_idx = idx
+                    elapsed = pytime.perf_counter() - float(start_times.get(worker_id) or pytime.perf_counter())
+                    print(f"DONE  mt:{worker_id} exit={rc} elapsed={elapsed:0.1f}s", flush=True)
+                    try:
+                        proc.wait(timeout=1.0)
+                    except subprocess.TimeoutExpired:
+                        proc.kill()
+                        proc.wait(timeout=5.0)
+                    try:
+                        t.join(timeout=1.0)
+                    except Exception:
+                        pass
+                    if rc != 0:
+                        failures.append((int(worker_id), int(rc)))
+                    running.pop(idx)
+                    break
+
+                if failures:
+                    for worker_id, proc, t, out_path in running:
+                        try:
+                            proc.terminate()
+                        except Exception:
+                            pass
+                    for worker_id, proc, t, out_path in running:
+                        try:
+                            proc.wait(timeout=5.0)
+                        except subprocess.TimeoutExpired:
+                            try:
+                                proc.kill()
+                            except Exception:
+                                pass
+                    break
+
+                if finished_idx is None:
+                    pytime.sleep(0.05)
+
+            if failures:
+                wid, rc = failures[0]
+                raise SystemExit(f"multitimeframe worker failed: mt:{wid} (exit={rc})")
+
+            tested_total = 0
+            out_rows: list[dict] = []
+            for worker_id in range(jobs_eff):
+                out_path = out_paths.get(worker_id)
+                if out_path is None or not out_path.exists():
+                    raise SystemExit(f"Missing multitimeframe output: mt:{worker_id} ({out_path})")
+                try:
+                    payload = json.loads(out_path.read_text())
+                except json.JSONDecodeError as exc:
+                    raise SystemExit(f"Invalid multitimeframe output JSON: mt:{worker_id} ({out_path})") from exc
+                if not isinstance(payload, dict):
+                    continue
+                tested_total += int(payload.get("tested") or 0)
+                for row in payload.get("rows") or []:
+                    if isinstance(row, dict):
+                        out_rows.append(row)
+
+            out_rows = sorted(out_rows, key=_score_key, reverse=True)
+            print("")
+            print(f"Multiwindow results: {len(out_rows)} candidates passed filters.")
+            print(f"- symbol={symbol} bar={args.bar_size} rth={use_rth} offline={offline}")
+            print(f"- windows={', '.join([f'{a.isoformat()}→{b.isoformat()}' for a,b in windows])}")
+            print(f"- min_trades={int(args.min_trades)} min_win={float(args.min_win):0.2f}")
+            print(f"- workers={jobs_eff} tested_total={tested_total}")
+            print("")
+
+            show = min(20, len(out_rows))
+            for rank, item in enumerate(out_rows[:show], start=1):
+                st = item["strategy"]
+                print(
+                    f"{rank:2d}. stability(min roi/dd)={item.get('stability_min_roi_dd', 0.0):.2f} "
+                    f"full roi/dd={item.get('full_roi_over_dd_pct', 0.0):.2f} "
+                    f"roi={item.get('full_roi', 0.0)*100:.1f}% dd%={item.get('full_dd_pct', 0.0)*100:.1f}% "
+                    f"pnl={item['full_pnl']:.1f} "
+                    f"win={item['full_win']*100:.1f}% tr={item['full_trades']} "
+                    f"ema={st.get('ema_preset')} {st.get('ema_entry_mode')} "
+                    f"regime={st.get('regime_mode')} rbar={st.get('regime_bar_size')}"
+                )
+
+            if int(args.write_top or 0) > 0:
+                top_k = max(1, int(args.write_top))
+                now = utc_now_iso_z()
+                groups_out: list[dict] = []
+                for idx, item in enumerate(out_rows[:top_k], start=1):
+                    m = item.get("metrics") or {}
+                    strategy = item["strategy"]
+                    filters_payload = item.get("filters")
+                    key = _strategy_key(strategy, filters=filters_payload)
+                    metrics = {
+                        "pnl": float(item.get("full_pnl") or 0.0),
+                        "roi": float(item.get("full_roi") or 0.0),
+                        "win_rate": float(item.get("full_win") or 0.0),
+                        "trades": int(item.get("full_trades") or 0),
+                        "max_drawdown": float(item.get("full_dd") or 0.0),
+                        "max_drawdown_pct": float(item.get("full_dd_pct") or 0.0),
+                        "pnl_over_dd": float(item.get("full_pnl_over_dd") or 0.0),
+                        "roi_over_dd_pct": float(item.get("full_roi_over_dd_pct") or 0.0),
+                    }
+                    groups_out.append(
+                        {
+                            "name": f"Spot ({symbol}) KINGMAKER #{idx:02d} roi/dd={metrics['roi_over_dd_pct']:.2f} "
+                            f"roi={metrics['roi']*100:.1f}% dd%={metrics['max_drawdown_pct']*100:.1f}% "
+                            f"win={metrics['win_rate']*100:.1f}% tr={metrics['trades']} pnl={metrics['pnl']:.1f}",
+                            "filters": filters_payload,
+                            "entries": [{"symbol": symbol, "metrics": metrics, "strategy": strategy}],
+                            "_eval": {
+                                "stability_min_pnl_dd": float(item.get("stability_min_pnl_dd") or 0.0),
+                                "stability_min_pnl": float(item.get("stability_min_pnl") or 0.0),
+                                "stability_min_roi_dd": float(item.get("stability_min_roi_dd") or 0.0),
+                                "stability_min_roi": float(item.get("stability_min_roi") or 0.0),
+                                "windows": item.get("windows") or [],
+                            },
+                            "_key": key,
+                        }
+                    )
+                out_payload = {
+                    "name": "multitimeframe_top",
+                    "generated_at": now,
+                    "source": str(milestones_path),
+                    "windows": [{"start": a.isoformat(), "end": b.isoformat()} for a, b in windows],
+                    "groups": groups_out,
+                }
+                out_path = Path(args.out)
+                write_json(out_path, out_payload, sort_keys=False)
+                print(f"\nWrote {out_path} (top={top_k}).")
+
+        return
 
     data = IBKRHistoricalData()
     bars_cache: dict[tuple[str, str | None, str, str, str, bool, bool], list] = {}
