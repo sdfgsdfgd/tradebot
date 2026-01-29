@@ -555,13 +555,19 @@ class SpotSignalEvaluator:
             and self._shock_detector in ("daily_atr_pct", "daily_drawdown")
             and self._shock_dir_source == "signal"
         ):
-            self._last_shock = self._shock_engine.update(
-                day=bar.ts.date(),
-                high=float(bar.high),
-                low=float(bar.low),
-                close=float(bar.close),
-                update_direction=True,
-            )
+            # Daily shock engines are already advanced by exec bars (for intraday high/low/close),
+            # but the *direction* can optionally be driven by signal-bar closes. Avoid a redundant
+            # full daily update here.
+            if hasattr(self._shock_engine, "update_direction"):
+                self._last_shock = self._shock_engine.update_direction(close=float(bar.close))
+            else:
+                self._last_shock = self._shock_engine.update(
+                    day=bar.ts.date(),
+                    high=float(bar.high),
+                    low=float(bar.low),
+                    close=float(bar.close),
+                    update_direction=True,
+                )
 
         # Secondary regime2 gating.
         if self._supertrend2_engine is not None:

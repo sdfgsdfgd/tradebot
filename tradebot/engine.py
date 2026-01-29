@@ -1527,6 +1527,11 @@ class DailyAtrPctShockEngine:
         self._dir_prev_close: float | None = None
         self._ret_hist: deque[float] = deque(maxlen=self._dir_lookback)
         self._direction: str | None = None
+        # Cached last-computed values so `update_direction()` can avoid recomputing ATR/TR state.
+        self._last_ready = False
+        self._last_atr_pct: float | None = None
+        self._last_atr: float | None = None
+        self._last_tr: float | None = None
 
     def _update_direction(self, close: float) -> None:
         prev_close = self._dir_prev_close
@@ -1614,6 +1619,10 @@ class DailyAtrPctShockEngine:
             self._cur_close = float(close)
 
         if close <= 0 or self._cur_high is None or self._cur_low is None:
+            self._last_ready = False
+            self._last_atr_pct = None
+            self._last_atr = float(self._atr) if self._atr is not None else None
+            self._last_tr = None
             return self._snapshot(shock=False, ready=False, atr_pct=None, atr=self._atr, tr=None)
 
         tr_so_far = self._true_range(float(self._cur_high), float(self._cur_low), self._prev_day_close)
@@ -1626,6 +1635,10 @@ class DailyAtrPctShockEngine:
             ready = True
 
         atr_pct = float(atr_est) / max(float(close), 1e-9) * 100.0
+        self._last_ready = bool(ready)
+        self._last_atr_pct = float(atr_pct)
+        self._last_atr = float(atr_est)
+        self._last_tr = float(tr_so_far)
 
         if bool(ready):
             tr_pct = None
@@ -1645,6 +1658,23 @@ class DailyAtrPctShockEngine:
 
         shock = bool(self._shock) if bool(ready) else False
         return self._snapshot(shock=shock, ready=ready, atr_pct=atr_pct, atr=atr_est, tr=tr_so_far)
+
+    def update_direction(self, *, close: float) -> DailyAtrPctShockSnapshot:
+        """Update direction-only state (used when shock_direction_source='signal').
+
+        The daily shock engines are often updated by execution bars for intraday TR/ATR%,
+        but direction can be driven by signal-bar closes. This helper avoids duplicating
+        the heavy daily update path just to refresh direction.
+        """
+        self._update_direction(float(close))
+        shock = bool(self._shock) if bool(self._last_ready) else False
+        return self._snapshot(
+            shock=shock,
+            ready=bool(self._last_ready),
+            atr_pct=self._last_atr_pct,
+            atr=self._last_atr,
+            tr=self._last_tr,
+        )
 
 
 @dataclass(frozen=True)
@@ -1688,6 +1718,9 @@ class DailyDrawdownShockEngine:
         self._dir_prev_close: float | None = None
         self._ret_hist: deque[float] = deque(maxlen=self._dir_lookback)
         self._direction: str | None = None
+        self._last_ready = False
+        self._last_drawdown_pct: float | None = None
+        self._last_peak_close: float | None = None
 
     def _update_direction(self, close: float) -> None:
         prev_close = self._dir_prev_close
@@ -1753,10 +1786,16 @@ class DailyDrawdownShockEngine:
         peak = self._rolling_peak
         ready = bool(len(self._daily_closes) >= self._lookback and peak is not None and peak > 0 and close > 0)
         if not ready:
+            self._last_ready = False
+            self._last_drawdown_pct = None
+            self._last_peak_close = float(peak) if peak is not None else None
             return self._snapshot(shock=False, ready=False, drawdown_pct=None, peak_close=peak)
 
         peak_eff = max(float(peak), float(close))
         dd_pct = (float(close) / float(peak_eff) - 1.0) * 100.0
+        self._last_ready = True
+        self._last_drawdown_pct = float(dd_pct)
+        self._last_peak_close = float(peak_eff)
 
         if not self._shock:
             if dd_pct <= self._on:
@@ -1766,6 +1805,17 @@ class DailyDrawdownShockEngine:
                 self._shock = False
 
         return self._snapshot(shock=bool(self._shock), ready=True, drawdown_pct=dd_pct, peak_close=peak_eff)
+
+    def update_direction(self, *, close: float) -> DailyDrawdownShockSnapshot:
+        """Update direction-only state (used when shock_direction_source='signal')."""
+        self._update_direction(float(close))
+        shock = bool(self._shock) if bool(self._last_ready) else False
+        return self._snapshot(
+            shock=shock,
+            ready=bool(self._last_ready),
+            drawdown_pct=self._last_drawdown_pct,
+            peak_close=self._last_peak_close if self._last_peak_close is not None else self._rolling_peak,
+        )
 
 
 # endregion

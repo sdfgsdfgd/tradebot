@@ -52,7 +52,7 @@ from .config import (
     _parse_filters,
 )
 from .data import ContractMeta, IBKRHistoricalData, _find_covering_cache_path
-from .engine import _run_spot_backtest, _spot_multiplier
+from .engine import _run_spot_backtest, _run_spot_backtest_summary, _spot_multiplier
 from .sweeps import utc_now_iso_z, write_json
 from ..signals import parse_bar_size
 
@@ -863,6 +863,7 @@ def main() -> None:
             "tick",
             "gate_matrix",
             "champ_refine",
+            "st37_refine",
         ),
         help="Run one axis sweep (or all in sequence)",
     )
@@ -889,6 +890,12 @@ def main() -> None:
     parser.add_argument("--champ-refine-workers", type=int, default=None, help=argparse.SUPPRESS)
     parser.add_argument("--champ-refine-out", default=None, help=argparse.SUPPRESS)
     parser.add_argument("--champ-refine-run-min-trades", type=int, default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--st37-refine-stage1", default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--st37-refine-stage2", default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--st37-refine-worker", type=int, default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--st37-refine-workers", type=int, default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--st37-refine-out", default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--st37-refine-run-min-trades", type=int, default=None, help=argparse.SUPPRESS)
     args = parser.parse_args()
 
     def _default_jobs() -> int:
@@ -974,6 +981,11 @@ def main() -> None:
     if args.champ_refine_run_min_trades is not None:
         try:
             run_min_trades = int(args.champ_refine_run_min_trades)
+        except (TypeError, ValueError):
+            run_min_trades = int(args.min_trades)
+    if args.st37_refine_run_min_trades is not None:
+        try:
+            run_min_trades = int(args.st37_refine_run_min_trades)
         except (TypeError, ValueError):
             run_min_trades = int(args.min_trades)
     if bool(args.write_milestones):
@@ -1231,7 +1243,7 @@ def main() -> None:
         exec_size = str(getattr(cfg.strategy, "spot_exec_bar_size", "") or "").strip()
         if exec_size and str(exec_size) != str(cfg.backtest.bar_size):
             exec_bars = _bars_cached(exec_size)
-        out = _run_spot_backtest(
+        s = _run_spot_backtest_summary(
             cfg,
             bars,
             meta,
@@ -1240,7 +1252,6 @@ def main() -> None:
             tick_bars=tick_bars,
             exec_bars=exec_bars,
         )
-        s = out.summary
         if int(s.trades) < int(run_min_trades):
             return None
         pnl = float(s.total_pnl or 0.0)
@@ -6657,16 +6668,31 @@ def main() -> None:
         last_progress = float(t0_all)
 
         short_grid_base = [1.0, 0.2, 0.05, 0.02, 0.01, 0.0]
-        perm_variants: list[tuple[dict[str, object], str]] = [
-            ({}, "perm=seed"),
-            ({"ema_spread_min_pct": 0.003, "ema_slope_min_pct": 0.03, "ema_spread_min_pct_down": 0.05}, "perm=champ"),
-            ({"ema_spread_min_pct": 0.0025, "ema_slope_min_pct": 0.03, "ema_spread_min_pct_down": 0.05}, "perm=champ spread=0.0025"),
-            ({"ema_spread_min_pct": 0.004, "ema_slope_min_pct": 0.03, "ema_spread_min_pct_down": 0.05}, "perm=champ spread=0.0040"),
-            ({"ema_spread_min_pct": 0.003, "ema_slope_min_pct": 0.02, "ema_spread_min_pct_down": 0.05}, "perm=champ slope=0.02"),
-            ({"ema_spread_min_pct": 0.003, "ema_slope_min_pct": 0.04, "ema_spread_min_pct_down": 0.05}, "perm=champ slope=0.04"),
-            ({"ema_spread_min_pct": 0.003, "ema_slope_min_pct": 0.03, "ema_spread_min_pct_down": 0.04}, "perm=champ down=0.04"),
-            ({"ema_spread_min_pct": 0.003, "ema_slope_min_pct": 0.03, "ema_spread_min_pct_down": 0.06}, "perm=champ down=0.06"),
-        ]
+
+        # Joint permission micro grid (cross-product) around the CURRENT champ.
+        #
+        # This covers interaction edges that "one-axis-at-a-time" sweeps can miss, and it
+        # explicitly includes the tiny-delta winners we already observed:
+        # - ema_spread_min_pct=0.0025 (better 10y+2y)
+        # - ema_slope_min_pct=0.02 (better 10y+1y)
+        # - ema_spread_min_pct_down=0.06 (better 10y+2y but slightly hurts 1y)
+        perm_variants: list[tuple[dict[str, object], str]] = [({}, "perm=seed")]
+        spread_vals = [0.0025, 0.003, 0.004]
+        slope_vals = [0.02, 0.03, 0.04]
+        down_vals = [0.04, 0.05, 0.06]
+        for spread in spread_vals:
+            for slope in slope_vals:
+                for down in down_vals:
+                    perm_variants.append(
+                        (
+                            {
+                                "ema_spread_min_pct": float(spread),
+                                "ema_slope_min_pct": float(slope),
+                                "ema_spread_min_pct_down": float(down),
+                            },
+                            f"perm spread={spread:g} slope={slope:g} down={down:g}",
+                        )
+                    )
         signed_slope_variants: list[tuple[dict[str, object], str]] = [
             ({}, "sslope=off"),
             (
@@ -6677,19 +6703,24 @@ def main() -> None:
                 {"ema_slope_signed_min_pct_up": 0.005, "ema_slope_signed_min_pct_down": 0.005},
                 "sslope=0.005/0.005",
             ),
+            (
+                {"ema_slope_signed_min_pct_up": 0.003, "ema_slope_signed_min_pct_down": 0.006},
+                "sslope=0.003/0.006",
+            ),
         ]
         tod_variants: list[tuple[int | None, int | None, int, int, str]] = [
             (None, None, 0, 0, "tod=seed"),
             (10, 15, 0, 0, "tod=10-15"),
             (10, 15, 1, 2, "tod=10-15 (skip=1 cd=2)"),
             (9, 16, 0, 0, "tod=09-16"),
+            (10, 16, 0, 0, "tod=10-16"),
         ]
 
         # Shock pocket (includes the v25/v31 daily ATR% family + a few TR-ratio variants).
         shock_variants: list[tuple[dict[str, object], str]] = [
             ({"shock_gate_mode": "off"}, "shock=off"),
         ]
-        for on_atr, off_atr in ((13.0, 12.5), (13.5, 13.0), (14.0, 13.5)):
+        for on_atr, off_atr in ((12.5, 12.0), (13.0, 12.5), (13.5, 13.0), (14.0, 13.5), (14.5, 14.0)):
             for sl_mult in (0.75, 1.0):
                 shock_variants.append(
                     (
@@ -6706,7 +6737,7 @@ def main() -> None:
                         f"shock=surf daily_atr on={on_atr:g} off={off_atr:g} sl_mult={sl_mult:g}",
                     )
                 )
-        for on_tr in (9.0, 11.0):
+        for on_tr in (9.0, 11.0, 14.0):
             shock_variants.append(
                 (
                     {
@@ -6738,6 +6769,20 @@ def main() -> None:
                 "shock=block_longs daily_atr on=13.5 off=13.0 sl_mult=0.75",
             )
         )
+        shock_variants.append(
+            (
+                {
+                    "shock_gate_mode": "block",
+                    "shock_detector": "daily_atr_pct",
+                    "shock_daily_atr_period": 14,
+                    "shock_daily_on_atr_pct": 13.5,
+                    "shock_daily_off_atr_pct": 13.0,
+                    "shock_direction_source": "signal",
+                    "shock_direction_lookback": 1,
+                },
+                "shock=block daily_atr on=13.5 off=13.0",
+            )
+        )
         for on_ratio, off_ratio in ((1.35, 1.25), (1.45, 1.30), (1.55, 1.30)):
             shock_variants.append(
                 (
@@ -6756,6 +6801,39 @@ def main() -> None:
                     f"shock=surf tr_ratio on={on_ratio:g} off={off_ratio:g} min_atr=7 sl_mult=0.75",
                 )
             )
+        for on_ratio, off_ratio in ((1.35, 1.25), (1.45, 1.30), (1.55, 1.30)):
+            shock_variants.append(
+                (
+                    {
+                        "shock_gate_mode": "surf",
+                        "shock_detector": "atr_ratio",
+                        "shock_atr_fast_period": 7,
+                        "shock_atr_slow_period": 50,
+                        "shock_on_ratio": float(on_ratio),
+                        "shock_off_ratio": float(off_ratio),
+                        "shock_min_atr_pct": 7.0,
+                        "shock_direction_source": "signal",
+                        "shock_direction_lookback": 1,
+                        "shock_stop_loss_pct_mult": 0.75,
+                    },
+                    f"shock=surf atr_ratio on={on_ratio:g} off={off_ratio:g} min_atr=7 sl_mult=0.75",
+                )
+            )
+        shock_variants.append(
+            (
+                {
+                    "shock_gate_mode": "surf",
+                    "shock_detector": "daily_atr_pct",
+                    "shock_daily_atr_period": 14,
+                    "shock_daily_on_atr_pct": 13.5,
+                    "shock_daily_off_atr_pct": 13.0,
+                    "shock_direction_source": "regime",
+                    "shock_direction_lookback": 2,
+                    "shock_stop_loss_pct_mult": 0.75,
+                },
+                "shock=surf daily_atr dir=regime lb=2 on=13.5 off=13.0 sl_mult=0.75",
+            )
+        )
 
         # TR/gap overlays pocket (panic = defensive, pop = aggressive).
         def _risk_off_overrides() -> dict[str, object]:
@@ -6770,6 +6848,30 @@ def main() -> None:
 
         risk_variants: list[tuple[dict[str, object], str]] = [
             (_risk_off_overrides(), "risk=off"),
+            (
+                {
+                    **_risk_off_overrides(),
+                    "riskoff_tr5_med_pct": 9.0,
+                    "riskoff_lookback_days": 5,
+                    "riskoff_mode": "hygiene",
+                    "riskoff_long_risk_mult_factor": 0.7,
+                    "riskoff_short_risk_mult_factor": 0.7,
+                    "risk_entry_cutoff_hour_et": 15,
+                },
+                "riskoff TRmed5>=9 both=0.7 cutoff<15",
+            ),
+            (
+                {
+                    **_risk_off_overrides(),
+                    "riskoff_tr5_med_pct": 10.0,
+                    "riskoff_lookback_days": 5,
+                    "riskoff_mode": "hygiene",
+                    "riskoff_long_risk_mult_factor": 0.5,
+                    "riskoff_short_risk_mult_factor": 0.5,
+                    "risk_entry_cutoff_hour_et": 15,
+                },
+                "riskoff TRmed5>=10 both=0.5 cutoff<15",
+            ),
             (
                 {
                     **_risk_off_overrides(),
@@ -6795,6 +6897,17 @@ def main() -> None:
             (
                 {
                     **_risk_off_overrides(),
+                    "riskpanic_tr5_med_pct": 10.0,
+                    "riskpanic_neg_gap_ratio_min": 0.7,
+                    "riskpanic_lookback_days": 5,
+                    "riskpanic_short_risk_mult_factor": 0.5,
+                    "risk_entry_cutoff_hour_et": 15,
+                },
+                "riskpanic TRmed5>=10 gap>=0.7 short=0.5 cutoff<15",
+            ),
+            (
+                {
+                    **_risk_off_overrides(),
                     "riskpop_tr5_med_pct": 9.0,
                     "riskpop_pos_gap_ratio_min": 0.6,
                     "riskpop_lookback_days": 5,
@@ -6803,6 +6916,30 @@ def main() -> None:
                     "risk_entry_cutoff_hour_et": 15,
                 },
                 "riskpop TRmed5>=9 gap+=0.6 long=1.2 short=0 cutoff<15",
+            ),
+            (
+                {
+                    **_risk_off_overrides(),
+                    "riskpop_tr5_med_pct": 9.0,
+                    "riskpop_pos_gap_ratio_min": 0.6,
+                    "riskpop_lookback_days": 5,
+                    "riskpop_long_risk_mult_factor": 1.5,
+                    "riskpop_short_risk_mult_factor": 0.0,
+                    "risk_entry_cutoff_hour_et": 15,
+                },
+                "riskpop TRmed5>=9 gap+=0.6 long=1.5 short=0 cutoff<15",
+            ),
+            (
+                {
+                    **_risk_off_overrides(),
+                    "riskpop_tr5_med_pct": 10.0,
+                    "riskpop_pos_gap_ratio_min": 0.7,
+                    "riskpop_lookback_days": 5,
+                    "riskpop_long_risk_mult_factor": 1.5,
+                    "riskpop_short_risk_mult_factor": 0.0,
+                    "risk_entry_cutoff_hour_et": 15,
+                },
+                "riskpop TRmed5>=10 gap+=0.7 long=1.5 short=0 cutoff<15",
             ),
         ]
 
@@ -6882,6 +7019,7 @@ def main() -> None:
             tested = 0
             combo_idx = 0
             t0 = pytime.perf_counter()
+            last = float(t0)
             records: list[dict] = []
             for base_idx, (base_cfg, exit_note) in enumerate(base_exit_local):
                 seed_mode = str(getattr(base_cfg.strategy, "ema_entry_mode", "cross") or "cross").strip().lower()
@@ -6905,8 +7043,13 @@ def main() -> None:
                                 if not assigned:
                                     continue
                                 tested += 1
-                                if tested % report_every == 0 or tested == local_total:
-                                    elapsed = pytime.perf_counter() - t0
+                                now = pytime.perf_counter()
+                                if (
+                                    tested % report_every == 0
+                                    or tested == local_total
+                                    or (now - last) >= heartbeat_sec
+                                ):
+                                    elapsed = now - t0
                                     rate = (tested / elapsed) if elapsed > 0 else 0.0
                                     remaining = local_total - tested
                                     eta_sec = (remaining / rate) if rate > 0 else 0.0
@@ -6917,6 +7060,7 @@ def main() -> None:
                                         f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
                                         flush=True,
                                     )
+                                    last = float(now)
                                 over: dict[str, object] = {}
                                 over.update(perm_over)
                                 over.update(ss_over)
@@ -7027,6 +7171,7 @@ def main() -> None:
             tested = 0
             combo_idx = 0
             t0 = pytime.perf_counter()
+            last = float(t0)
             records: list[dict] = []
             for base_idx, (base_cfg, _base_note) in enumerate(shortlist_local):
                 for shock_idx, (shock_over, _shock_note) in enumerate(shock_variants):
@@ -7036,8 +7181,9 @@ def main() -> None:
                         if not assigned:
                             continue
                         tested += 1
-                        if tested % report_every == 0 or tested == local_total:
-                            elapsed = pytime.perf_counter() - t0
+                        now = pytime.perf_counter()
+                        if tested % report_every == 0 or tested == local_total or (now - last) >= heartbeat_sec:
+                            elapsed = now - t0
                             rate = (tested / elapsed) if elapsed > 0 else 0.0
                             remaining = local_total - tested
                             eta_sec = (remaining / rate) if rate > 0 else 0.0
@@ -7048,6 +7194,7 @@ def main() -> None:
                                 f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
                                 flush=True,
                             )
+                            last = float(now)
                         over: dict[str, object] = {}
                         over.update(shock_over)
                         over.update(risk_over)
@@ -7265,7 +7412,48 @@ def main() -> None:
                     replace(base_cfg, strategy=replace(base_cfg.strategy, flip_exit_min_hold_bars=2)),
                     "exit=seed hold=2",
                 )
+
                 # Champ-style stop-only + reversal exit (works even if the seed used ATR exits).
+                for sl in (0.03, 0.04, 0.045):
+                    _add_exit(
+                        replace(
+                            base_cfg,
+                            strategy=replace(
+                                base_cfg.strategy,
+                                spot_exit_mode="pct",
+                                spot_profit_target_pct=None,
+                                spot_stop_loss_pct=float(sl),
+                                exit_on_signal_flip=True,
+                                flip_exit_mode="entry",
+                                flip_exit_only_if_profit=True,
+                                flip_exit_min_hold_bars=2,
+                                flip_exit_gate_mode="off",
+                            ),
+                        ),
+                        f"exit=stop{sl:g} flipprofit hold=2",
+                    )
+
+                # Explicit "exit on the next flip" (no profit gate). Useful for reducing
+                # long-hold drawdowns / improving stability.
+                _add_exit(
+                    replace(
+                        base_cfg,
+                        strategy=replace(
+                            base_cfg.strategy,
+                            spot_exit_mode="pct",
+                            spot_profit_target_pct=None,
+                            spot_stop_loss_pct=0.04,
+                            exit_on_signal_flip=True,
+                            flip_exit_mode="cross",
+                            flip_exit_only_if_profit=False,
+                            flip_exit_min_hold_bars=0,
+                            flip_exit_gate_mode="off",
+                        ),
+                    ),
+                    "exit=stop0.04 flipany cross hold=0",
+                )
+
+                # "Exit accuracy" gate (re-test in the modern shock/risk context).
                 _add_exit(
                     replace(
                         base_cfg,
@@ -7278,28 +7466,37 @@ def main() -> None:
                             flip_exit_mode="entry",
                             flip_exit_only_if_profit=True,
                             flip_exit_min_hold_bars=2,
-                            flip_exit_gate_mode="off",
+                            flip_exit_gate_mode="regime_or_permission",
                         ),
                     ),
-                    "exit=stop0.04 flipprofit hold=2",
+                    "exit=stop0.04 flipprofit hold=2 gate=reg_or_perm",
                 )
-                _add_exit(
-                    replace(
-                        base_cfg,
-                        strategy=replace(
-                            base_cfg.strategy,
-                            spot_exit_mode="pct",
-                            spot_profit_target_pct=None,
-                            spot_stop_loss_pct=0.03,
-                            exit_on_signal_flip=True,
-                            flip_exit_mode="entry",
-                            flip_exit_only_if_profit=True,
-                            flip_exit_min_hold_bars=2,
-                            flip_exit_gate_mode="off",
-                        ),
-                    ),
-                    "exit=stop0.03 flipprofit hold=2",
-                )
+
+                # Trend confirm micro (very small): sometimes improves stability by reducing noise.
+                if str(getattr(base_cfg.strategy, "ema_entry_mode", "") or "").strip().lower() == "trend":
+                    try:
+                        seed_confirm = int(getattr(base_cfg.strategy, "entry_confirm_bars", 0) or 0)
+                    except (TypeError, ValueError):
+                        seed_confirm = 0
+                    if seed_confirm == 0:
+                        _add_exit(
+                            replace(
+                                base_cfg,
+                                strategy=replace(
+                                    base_cfg.strategy,
+                                    entry_confirm_bars=1,
+                                    spot_exit_mode="pct",
+                                    spot_profit_target_pct=None,
+                                    spot_stop_loss_pct=0.04,
+                                    exit_on_signal_flip=True,
+                                    flip_exit_mode="entry",
+                                    flip_exit_only_if_profit=True,
+                                    flip_exit_min_hold_bars=2,
+                                    flip_exit_gate_mode="off",
+                                ),
+                            ),
+                            "exit=stop0.04 flipprofit hold=2 confirm=1",
+                        )
 
             stage3a: list[tuple[ConfigBundle, dict, str]] = []
             total_3a = 0
@@ -7625,18 +7822,20 @@ def main() -> None:
             if not stage3a:
                 continue
 
-            # Shortlist: take a few best-by-stability and best-by-pnl, deduped.
+            # Shortlist: keep diversity (pnl/dd + pnl + roi + win), deduped.
             by_dd = sorted(stage3a, key=lambda t: _score_row_pnl_dd(t[1]), reverse=True)[:6]
             by_pnl = sorted(stage3a, key=lambda t: _score_row_pnl(t[1]), reverse=True)[:4]
+            by_roi = sorted(stage3a, key=lambda t: float((t[1] or {}).get("roi") or 0.0), reverse=True)[:3]
+            by_win = sorted(stage3a, key=lambda t: float((t[1] or {}).get("win_rate") or 0.0), reverse=True)[:3]
             shortlist: list[tuple[ConfigBundle, dict, str]] = []
             seen_cfg: set[str] = set()
-            for cfg, row, note in by_dd + by_pnl:
+            for cfg, row, note in by_dd + by_pnl + by_roi + by_win:
                 key = _milestone_key(cfg)
                 if key in seen_cfg:
                     continue
                 seen_cfg.add(key)
                 shortlist.append((cfg, row, note))
-                if len(shortlist) >= 8:
+                if len(shortlist) >= 10:
                     break
 
             # Stage 3B: apply shock + TR-overlay pockets to the shortlist.
@@ -7884,6 +8083,1514 @@ def main() -> None:
 
         print("")
         _print_leaderboards(rows, title="champ_refine (seeded, bounded)", top_n=int(args.top))
+
+    def _sweep_st37_refine() -> None:
+        """Refine the 3/7 trend + SuperTrend(4h) cluster (seeded) with v31-style gates + overlays.
+
+        High-level goal:
+        - Take the strong 3/7 trend + ST(4h) winners (which can have monster 2y roi/dd),
+          then sweep the missing v31-style "permission" gates (spread/slope), TOD windows,
+          and (separately) tighten the riskpanic + shock pockets.
+        - Finally, sweep a small exit/flip semantics pocket anchored on the current v31 exit style.
+
+        Intended usage:
+        - seed with a kingmaker output (spot_multitimeframe --write-top) or another milestones file
+          that contains the 3/7 ST4h family you want to explore.
+        """
+        if not args.seed_milestones:
+            raise SystemExit("--axis st37_refine requires --seed-milestones <milestones.json>")
+        seed_path = Path(str(args.seed_milestones))
+        if not seed_path.exists():
+            raise SystemExit(f"--seed-milestones file not found: {seed_path}")
+
+        payload = json.loads(seed_path.read_text())
+        if not isinstance(payload, dict):
+            raise SystemExit(f"Invalid seed milestones payload: {seed_path}")
+        raw_groups = payload.get("groups") or []
+        if not isinstance(raw_groups, list):
+            raise SystemExit(f"Invalid seed milestones groups: {seed_path}")
+
+        candidates: list[dict] = []
+        for group in raw_groups:
+            if not isinstance(group, dict):
+                continue
+            entries = group.get("entries") or []
+            if not isinstance(entries, list) or not entries:
+                continue
+            entry = entries[0]
+            if not isinstance(entry, dict):
+                continue
+            strat = entry.get("strategy") or {}
+            metrics = entry.get("metrics") or {}
+            if not isinstance(strat, dict) or not isinstance(metrics, dict):
+                continue
+            if str(strat.get("instrument", "spot") or "spot").strip().lower() != "spot":
+                continue
+            if str(entry.get("symbol") or strat.get("symbol") or "").strip().upper() != str(symbol).strip().upper():
+                continue
+            if str(strat.get("signal_bar_size") or "").strip().lower() != str(signal_bar_size).strip().lower():
+                continue
+            if bool(strat.get("signal_use_rth")) != bool(use_rth):
+                continue
+
+            # Lock to the 3/7 trend + ST(4h) neighborhood by default.
+            if str(strat.get("ema_preset") or "").strip() != "3/7":
+                continue
+            if str(strat.get("ema_entry_mode") or "").strip().lower() != "trend":
+                continue
+            if str(strat.get("regime_mode") or "").strip().lower() != "supertrend":
+                continue
+            if str(strat.get("regime_bar_size") or "").strip().lower() != "4 hours":
+                continue
+            try:
+                st_atr = int(strat.get("supertrend_atr_period") or 0)
+            except (TypeError, ValueError):
+                st_atr = 0
+            try:
+                st_mult = float(strat.get("supertrend_multiplier") or 0.0)
+            except (TypeError, ValueError):
+                st_mult = 0.0
+            st_src = str(strat.get("supertrend_source") or "").strip().lower()
+            if st_atr not in (7,):
+                continue
+            if abs(st_mult - 0.5) > 1e-9:
+                continue
+            if st_src != "hl2":
+                continue
+
+            ev = group.get("_eval") if isinstance(group.get("_eval"), dict) else {}
+            candidates.append(
+                {
+                    "group_name": str(group.get("name") or ""),
+                    "strategy": strat,
+                    "filters": group.get("filters") if isinstance(group.get("filters"), dict) else None,
+                    "metrics": metrics,
+                    "eval": ev,
+                }
+            )
+
+        if not candidates:
+            print(f"No matching 3/7 trend + ST(4h) seeds found in {seed_path} for {symbol} {signal_bar_size} rth={use_rth}.")
+            return
+
+        def _seed_key(item: dict) -> str:
+            st = item.get("strategy") or {}
+            flt = item.get("filters")
+            raw = {"strategy": st, "filters": flt}
+            return json.dumps(raw, sort_keys=True, default=str)
+
+        def _seed_score(item: dict) -> tuple:
+            # Prefer stability-ranked inputs (kingmaker output), but fall back to pnl/dd.
+            ev = item.get("eval") or {}
+            try:
+                stab = float(ev.get("stability_min_roi_dd") or 0.0)
+            except (TypeError, ValueError):
+                stab = 0.0
+            m = item.get("metrics") or {}
+            try:
+                roi_dd = float(m.get("roi_over_dd_pct") or 0.0)
+            except (TypeError, ValueError):
+                roi_dd = 0.0
+            return (
+                stab,
+                roi_dd,
+                float(m.get("pnl_over_dd") or 0.0),
+                float(m.get("roi") or 0.0),
+                float(m.get("pnl") or 0.0),
+            )
+
+        seed_top = max(1, int(args.seed_top or 0))
+        cand_sorted = sorted(candidates, key=_seed_score, reverse=True)
+        seen: set[str] = set()
+        seeds: list[dict] = []
+        for item in cand_sorted:
+            key = _seed_key(item)
+            if key in seen:
+                continue
+            seen.add(key)
+            seeds.append(item)
+            if len(seeds) >= seed_top:
+                break
+
+        print("")
+        print("=== st37_refine: 3/7 trend + ST(4h) refinement (seeded) ===")
+        print(f"- seeds_in_file={len(candidates)} selected={len(seeds)} seed_top={seed_top}")
+        print(f"- seed_path={seed_path}")
+        print("")
+
+        # Inspect the current v31-like kingmaker champ exit semantics (for anchoring stage3).
+        v31_exit = None
+        try:
+            champ_path = Path(__file__).resolve().parent / "spot_champions.json"
+            if champ_path.exists():
+                champs = json.loads(champ_path.read_text())
+                for g in champs.get("groups") or []:
+                    if not isinstance(g, dict):
+                        continue
+                    entries = g.get("entries") or []
+                    if not entries:
+                        continue
+                    entry = entries[0]
+                    if not isinstance(entry, dict):
+                        continue
+                    st = entry.get("strategy") or {}
+                    if not isinstance(st, dict):
+                        continue
+                    if str(entry.get("symbol") or "").strip().upper() != str(symbol).strip().upper():
+                        continue
+                    if str(st.get("signal_bar_size") or "").strip().lower() != str(signal_bar_size).strip().lower():
+                        continue
+                    if bool(st.get("signal_use_rth")) != bool(use_rth):
+                        continue
+                    v31_exit = {
+                        "spot_exit_mode": st.get("spot_exit_mode"),
+                        "spot_profit_target_pct": st.get("spot_profit_target_pct"),
+                        "spot_stop_loss_pct": st.get("spot_stop_loss_pct"),
+                        "spot_atr_period": st.get("spot_atr_period"),
+                        "spot_pt_atr_mult": st.get("spot_pt_atr_mult"),
+                        "spot_sl_atr_mult": st.get("spot_sl_atr_mult"),
+                        "spot_exit_time_et": st.get("spot_exit_time_et"),
+                        "exit_on_signal_flip": st.get("exit_on_signal_flip"),
+                        "flip_exit_mode": st.get("flip_exit_mode"),
+                        "flip_exit_only_if_profit": st.get("flip_exit_only_if_profit"),
+                        "flip_exit_min_hold_bars": st.get("flip_exit_min_hold_bars"),
+                        "flip_exit_gate_mode": st.get("flip_exit_gate_mode"),
+                    }
+                    break
+        except Exception:
+            v31_exit = None
+
+        if v31_exit:
+            print("v31 (kingmaker champ) exit semantics (as stored in spot_champions.json):")
+            for k, v in v31_exit.items():
+                print(f"- {k}={v!r}")
+            print("")
+
+        bars_sig = _bars_cached(signal_bar_size)
+        heartbeat_sec = 50.0
+
+        # Stage2 worker mode must early-exit before stage1 runs; this is invoked by the stage2
+        # sharded runner when --jobs>1.
+        if args.st37_refine_stage2:
+            if not offline:
+                raise SystemExit("st37_refine stage2 worker mode requires --offline (avoid parallel IBKR sessions).")
+            payload_path = Path(str(args.st37_refine_stage2))
+            out_path_raw = str(args.st37_refine_out or "").strip()
+            if not out_path_raw:
+                raise SystemExit("--st37-refine-out is required for st37_refine stage2 worker mode.")
+            out_path = Path(out_path_raw)
+
+            try:
+                worker_id = int(args.st37_refine_worker) if args.st37_refine_worker is not None else 0
+            except (TypeError, ValueError):
+                worker_id = 0
+            try:
+                workers = int(args.st37_refine_workers) if args.st37_refine_workers is not None else 1
+            except (TypeError, ValueError):
+                workers = 1
+            workers = max(1, int(workers))
+            worker_id = max(0, int(worker_id))
+            if worker_id >= workers:
+                raise SystemExit(
+                    f"Invalid st37_refine stage2 worker shard: worker={worker_id} workers={workers} (worker must be < workers)."
+                )
+
+            try:
+                payload = json.loads(payload_path.read_text())
+            except json.JSONDecodeError as exc:
+                raise SystemExit(f"Invalid st37_refine stage2 payload JSON: {payload_path}") from exc
+
+            raw_shortlist = payload.get("shortlist") if isinstance(payload, dict) else None
+            if not isinstance(raw_shortlist, list):
+                raise SystemExit(f"st37_refine stage2 payload missing 'shortlist' list: {payload_path}")
+
+            def _parse_variants(raw: object, *, name: str) -> list[tuple[dict[str, object], str]]:
+                if not isinstance(raw, list):
+                    raise SystemExit(f"st37_refine stage2 payload missing '{name}' list: {payload_path}")
+                out: list[tuple[dict[str, object], str]] = []
+                for item in raw:
+                    if not isinstance(item, dict):
+                        continue
+                    over = item.get("overrides")
+                    note = item.get("note")
+                    if not isinstance(over, dict):
+                        continue
+                    out.append((over, str(note or "")))
+                if not out:
+                    raise SystemExit(f"st37_refine stage2 payload '{name}' empty/invalid: {payload_path}")
+                return out
+
+            risk_variants_local = _parse_variants(payload.get("risk_variants") if isinstance(payload, dict) else None, name="risk_variants")
+            shock_variants_local = _parse_variants(payload.get("shock_variants") if isinstance(payload, dict) else None, name="shock_variants")
+
+            shortlist_local: list[tuple[ConfigBundle, str]] = []
+            for item in raw_shortlist:
+                if not isinstance(item, dict):
+                    continue
+                if not isinstance(item.get("strategy"), dict):
+                    continue
+                flt = item.get("filters")
+                if flt is not None and not isinstance(flt, dict):
+                    flt = None
+                seed_tag = str(item.get("seed_tag") or "seed")
+                base_note = str(item.get("base_note") or "")
+                base = _base_bundle(bar_size=signal_bar_size, filters=None)
+                cfg_seed = _apply_milestone_base(base, strategy=item["strategy"], filters=flt)
+                shortlist_local.append((cfg_seed, f"{seed_tag} | {base_note}"))
+
+            def _mk_stage2_cfg_local(base_cfg: ConfigBundle, *, risk_over: dict[str, object], shock_over: dict[str, object]) -> ConfigBundle:
+                over: dict[str, object] = {}
+                over.update(risk_over)
+                over.update(shock_over)
+                f = _merge_filters(base_cfg.strategy.filters, overrides=over)
+                return replace(base_cfg, strategy=replace(base_cfg.strategy, filters=f))
+
+            stage2_total = len(shortlist_local) * len(risk_variants_local) * len(shock_variants_local)
+            local_total = (stage2_total // workers) + (1 if worker_id < (stage2_total % workers) else 0)
+            tested = 0
+            combo_idx = 0
+            report_every = 200
+            t0 = pytime.perf_counter()
+            last = float(t0)
+            records: list[dict] = []
+            for base_idx, (base_cfg, base_note) in enumerate(shortlist_local):
+                for risk_idx, (risk_over, risk_note) in enumerate(risk_variants_local):
+                    for shock_idx, (shock_over, shock_note) in enumerate(shock_variants_local):
+                        assigned = (combo_idx % workers) == worker_id
+                        combo_idx += 1
+                        if not assigned:
+                            continue
+                        tested += 1
+                        now = pytime.perf_counter()
+                        if tested % report_every == 0 or tested == local_total or (now - last) >= heartbeat_sec:
+                            elapsed = now - t0
+                            rate = (tested / elapsed) if elapsed > 0 else 0.0
+                            remaining = local_total - tested
+                            eta_sec = (remaining / rate) if rate > 0 else 0.0
+                            pct = (tested / local_total * 100.0) if local_total > 0 else 0.0
+                            print(
+                                f"st37_refine stage2 worker {worker_id+1}/{workers} "
+                                f"{tested}/{local_total} ({pct:0.1f}%) kept={len(records)} "
+                                f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
+                                flush=True,
+                            )
+                            last = float(now)
+                        cfg = _mk_stage2_cfg_local(base_cfg, risk_over=risk_over, shock_over=shock_over)
+                        row = _run_cfg(
+                            cfg=cfg,
+                            bars=bars_sig,
+                            regime_bars=_regime_bars_for(cfg),
+                            regime2_bars=_regime2_bars_for(cfg),
+                        )
+                        if not row:
+                            continue
+                        records.append({"base_idx": base_idx, "risk_idx": risk_idx, "shock_idx": shock_idx, "row": row})
+
+            if combo_idx != stage2_total:
+                raise SystemExit(f"st37_refine stage2 worker internal error: combos={combo_idx} expected={stage2_total}")
+
+            out_payload = {"tested": tested, "kept": len(records), "records": records}
+            write_json(out_path, out_payload, sort_keys=False)
+            print(f"st37_refine stage2 worker done tested={tested} kept={len(records)} out={out_path}", flush=True)
+            return
+
+        # Stage 1: sweep v31-style permission gates + TOD window + (SL, short_mult).
+        perm_spread_vals = [None, 0.0025, 0.0030, 0.0035, 0.0040]
+        perm_spread_down_vals = [None, 0.04, 0.05, 0.06]
+        perm_slope_vals = [None, 0.02, 0.03, 0.04]
+        signed_slope_variants: list[tuple[dict[str, object], str]] = [
+            ({}, "signed=off"),
+            ({"ema_slope_signed_min_pct_down": 0.005}, "signed_down>=0.005"),
+            ({"ema_slope_signed_min_pct_up": 0.005, "ema_slope_signed_min_pct_down": 0.005}, "signed_both>=0.005"),
+        ]
+        perm_variants: list[tuple[dict[str, object], str]] = []
+        for spread in perm_spread_vals:
+            for spread_down in perm_spread_down_vals:
+                for slope in perm_slope_vals:
+                    for signed_over, signed_note in signed_slope_variants:
+                        if spread is None and spread_down is None and slope is None and not signed_over:
+                            perm_variants.append(({}, "perm=off"))
+                            continue
+                        over: dict[str, object] = {
+                            "ema_spread_min_pct": spread,
+                            "ema_spread_min_pct_down": spread_down,
+                            "ema_slope_min_pct": slope,
+                        }
+                        over.update(signed_over)
+                        perm_variants.append((over, f"perm spread={spread} down={spread_down} slope={slope} {signed_note}"))
+
+        tod_variants: list[tuple[int | None, int | None, str]] = [
+            (9, 15, "tod=09-15"),
+            (9, 16, "tod=09-16"),
+            (10, 15, "tod=10-15"),
+            (10, 16, "tod=10-16"),
+        ]
+
+        sl_vals = (0.03, 0.04)
+        short_mult_vals = (0.01, 0.02, 0.05, 0.1, 0.2, 0.3)
+
+        def _mk_seed_cfg(seed: dict) -> tuple[ConfigBundle, str]:
+            base = _base_bundle(bar_size=signal_bar_size, filters=None)
+            cfg_seed = _apply_milestone_base(base, strategy=seed["strategy"], filters=seed.get("filters"))
+            seed_tag = str(seed.get("group_name") or "").strip() or "seed"
+            return cfg_seed, seed_tag
+
+        def _mk_stage1_cfg(
+            cfg_seed: ConfigBundle,
+            seed_tag: str,
+            *,
+            perm_over: dict[str, object],
+            perm_note: str,
+            tod_s: int | None,
+            tod_e: int | None,
+            tod_note: str,
+            sl_pct: float,
+            short_mult: float,
+        ) -> tuple[ConfigBundle, str]:
+            cfg = replace(
+                cfg_seed,
+                strategy=replace(cfg_seed.strategy, spot_stop_loss_pct=float(sl_pct), spot_short_risk_mult=float(short_mult)),
+            )
+            over: dict[str, object] = {}
+            over.update(perm_over)
+            over["entry_start_hour_et"] = tod_s
+            over["entry_end_hour_et"] = tod_e
+            f = _merge_filters(cfg_seed.strategy.filters, overrides=over)
+            cfg = replace(cfg, strategy=replace(cfg.strategy, filters=f))
+            note = f"st37 {seed_tag} | {perm_note} | {tod_note} | SL={sl_pct:g} short={short_mult:g}"
+            return cfg, note
+
+        if args.st37_refine_stage1:
+            if not offline:
+                raise SystemExit("st37_refine stage1 worker mode requires --offline (avoid parallel IBKR sessions).")
+            payload_path = Path(str(args.st37_refine_stage1))
+            out_path_raw = str(args.st37_refine_out or "").strip()
+            if not out_path_raw:
+                raise SystemExit("--st37-refine-out is required for st37_refine stage1 worker mode.")
+            out_path = Path(out_path_raw)
+
+            try:
+                worker_id = int(args.st37_refine_worker) if args.st37_refine_worker is not None else 0
+            except (TypeError, ValueError):
+                worker_id = 0
+            try:
+                workers = int(args.st37_refine_workers) if args.st37_refine_workers is not None else 1
+            except (TypeError, ValueError):
+                workers = 1
+            workers = max(1, int(workers))
+            worker_id = max(0, int(worker_id))
+            if worker_id >= workers:
+                raise SystemExit(
+                    f"Invalid st37_refine stage1 worker shard: worker={worker_id} workers={workers} (worker must be < workers)."
+                )
+
+            try:
+                payload = json.loads(payload_path.read_text())
+            except json.JSONDecodeError as exc:
+                raise SystemExit(f"Invalid st37_refine stage1 payload JSON: {payload_path}") from exc
+            raw_seeds = payload.get("seeds") if isinstance(payload, dict) else None
+            if not isinstance(raw_seeds, list):
+                raise SystemExit(f"st37_refine stage1 payload missing 'seeds' list: {payload_path}")
+
+            seeds_local: list[dict] = []
+            for item in raw_seeds:
+                if not isinstance(item, dict):
+                    continue
+                if not isinstance(item.get("strategy"), dict):
+                    continue
+                flt = item.get("filters")
+                if flt is not None and not isinstance(flt, dict):
+                    flt = None
+                seeds_local.append({"strategy": item["strategy"], "filters": flt, "group_name": str(item.get("group_name") or "")})
+
+            stage1_total = (
+                len(seeds_local)
+                * len(perm_variants)
+                * len(tod_variants)
+                * len(sl_vals)
+                * len(short_mult_vals)
+            )
+            local_total = (stage1_total // workers) + (1 if worker_id < (stage1_total % workers) else 0)
+            tested = 0
+            combo_idx = 0
+            report_every = 200
+            t0 = pytime.perf_counter()
+            last = float(t0)
+            records: list[dict] = []
+            for seed_idx, seed in enumerate(seeds_local):
+                cfg_seed, seed_tag = _mk_seed_cfg(seed)
+                for perm_idx, (perm_over, perm_note) in enumerate(perm_variants):
+                    for tod_idx, (tod_s, tod_e, tod_note) in enumerate(tod_variants):
+                        for sl_idx, sl_pct in enumerate(sl_vals):
+                            for short_idx, short_mult in enumerate(short_mult_vals):
+                                assigned = (combo_idx % workers) == worker_id
+                                combo_idx += 1
+                                if not assigned:
+                                    continue
+                                tested += 1
+                                now = pytime.perf_counter()
+                                if (
+                                    tested % report_every == 0
+                                    or tested == local_total
+                                    or (now - last) >= heartbeat_sec
+                                ):
+                                    elapsed = now - t0
+                                    rate = (tested / elapsed) if elapsed > 0 else 0.0
+                                    remaining = local_total - tested
+                                    eta_sec = (remaining / rate) if rate > 0 else 0.0
+                                    pct = (tested / local_total * 100.0) if local_total > 0 else 0.0
+                                    print(
+                                        f"st37_refine stage1 worker {worker_id+1}/{workers} "
+                                        f"{tested}/{local_total} ({pct:0.1f}%) kept={len(records)} "
+                                        f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
+                                        flush=True,
+                                    )
+                                    last = float(now)
+                                cfg, _note = _mk_stage1_cfg(
+                                    cfg_seed,
+                                    seed_tag,
+                                    perm_over=perm_over,
+                                    perm_note=perm_note,
+                                    tod_s=tod_s,
+                                    tod_e=tod_e,
+                                    tod_note=tod_note,
+                                    sl_pct=float(sl_pct),
+                                    short_mult=float(short_mult),
+                                )
+                                row = _run_cfg(
+                                    cfg=cfg,
+                                    bars=bars_sig,
+                                    regime_bars=_regime_bars_for(cfg),
+                                    regime2_bars=_regime2_bars_for(cfg),
+                                )
+                                if not row:
+                                    continue
+                                records.append(
+                                    {
+                                        "seed_idx": seed_idx,
+                                        "perm_idx": perm_idx,
+                                        "tod_idx": tod_idx,
+                                        "sl_idx": sl_idx,
+                                        "short_idx": short_idx,
+                                        "row": row,
+                                    }
+                                )
+
+            if combo_idx != stage1_total:
+                raise SystemExit(f"st37_refine stage1 worker internal error: combos={combo_idx} expected={stage1_total}")
+
+            out_payload = {"tested": tested, "kept": len(records), "records": records}
+            write_json(out_path, out_payload, sort_keys=False)
+            print(f"st37_refine stage1 worker done tested={tested} kept={len(records)} out={out_path}", flush=True)
+            return
+
+        stage1_rows: list[tuple[ConfigBundle, dict, str]] = []
+        stage1_total = len(seeds) * len(perm_variants) * len(tod_variants) * len(sl_vals) * len(short_mult_vals)
+        print(f"st37_refine: stage1 total={stage1_total} (perm×tod×sl×short)", flush=True)
+        tested_1 = 0
+        t0_1 = pytime.perf_counter()
+        report_every = 200
+        last_1 = float(t0_1)
+        if jobs > 1:
+            if not offline:
+                raise SystemExit("--jobs>1 for st37_refine requires --offline (avoid parallel IBKR sessions).")
+
+            def _strip_flag(argv: list[str], flag: str) -> list[str]:
+                return [arg for arg in argv if arg != flag]
+
+            def _strip_flag_with_value(argv: list[str], flag: str) -> list[str]:
+                out: list[str] = []
+                idx = 0
+                while idx < len(argv):
+                    arg = argv[idx]
+                    if arg == flag:
+                        idx += 2
+                        continue
+                    if arg.startswith(flag + "="):
+                        idx += 1
+                        continue
+                    out.append(arg)
+                    idx += 1
+                return out
+
+            base_cli = list(sys.argv[1:])
+            base_cli = _strip_flag_with_value(base_cli, "--axis")
+            base_cli = _strip_flag_with_value(base_cli, "--jobs")
+            base_cli = _strip_flag(base_cli, "--write-milestones")
+            base_cli = _strip_flag(base_cli, "--merge-milestones")
+            base_cli = _strip_flag_with_value(base_cli, "--milestones-out")
+            base_cli = _strip_flag_with_value(base_cli, "--st37-refine-stage1")
+            base_cli = _strip_flag_with_value(base_cli, "--st37-refine-stage2")
+            base_cli = _strip_flag_with_value(base_cli, "--st37-refine-worker")
+            base_cli = _strip_flag_with_value(base_cli, "--st37-refine-workers")
+            base_cli = _strip_flag_with_value(base_cli, "--st37-refine-out")
+            base_cli = _strip_flag_with_value(base_cli, "--st37-refine-run-min-trades")
+
+            jobs_eff = min(int(jobs), int(_default_jobs()), int(stage1_total)) if stage1_total > 0 else 1
+            print(f"st37_refine stage1 parallel: workers={jobs_eff} total={stage1_total}", flush=True)
+
+            def _pump(prefix: str, stream) -> None:
+                for line in iter(stream.readline, ""):
+                    print(f"[{prefix}] {line.rstrip()}", flush=True)
+
+            failures: list[tuple[int, int]] = []
+            start_times: dict[int, float] = {}
+
+            with tempfile.TemporaryDirectory(prefix="tradebot_st37_refine_1_") as tmpdir:
+                tmp_root = Path(tmpdir)
+                payload_path = tmp_root / "stage1_payload.json"
+                seeds_payload: list[dict] = []
+                for s in seeds:
+                    seeds_payload.append(
+                        {"group_name": str(s.get("group_name") or ""), "strategy": s["strategy"], "filters": s.get("filters")}
+                    )
+                write_json(payload_path, {"seeds": seeds_payload}, sort_keys=False)
+
+                running: list[tuple[int, subprocess.Popen, threading.Thread, Path]] = []
+                out_paths: dict[int, Path] = {}
+
+                for worker_id in range(jobs_eff):
+                    out_path = tmp_root / f"stage1_out_{worker_id}.json"
+                    out_paths[worker_id] = out_path
+                    cmd = [
+                        sys.executable,
+                        "-u",
+                        "-m",
+                        "tradebot.backtest",
+                        "spot",
+                        *base_cli,
+                        "--axis",
+                        "st37_refine",
+                        "--jobs",
+                        "1",
+                        "--st37-refine-stage1",
+                        str(payload_path),
+                        "--st37-refine-worker",
+                        str(worker_id),
+                        "--st37-refine-workers",
+                        str(jobs_eff),
+                        "--st37-refine-out",
+                        str(out_path),
+                        "--st37-refine-run-min-trades",
+                        str(int(run_min_trades)),
+                    ]
+                    proc = subprocess.Popen(
+                        cmd,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
+                        text=True,
+                        bufsize=1,
+                    )
+                    if proc.stdout is None:
+                        raise RuntimeError("Failed to capture st37_refine stage1 worker stdout.")
+                    t = threading.Thread(target=_pump, args=(f"st37:1:{worker_id}", proc.stdout), daemon=True)
+                    t.start()
+                    start_times[worker_id] = pytime.perf_counter()
+                    running.append((worker_id, proc, t, out_path))
+
+                while running and not failures:
+                    finished_idx = None
+                    for idx, (worker_id, proc, t, out_path) in enumerate(running):
+                        rc = proc.poll()
+                        if rc is None:
+                            continue
+                        finished_idx = idx
+                        elapsed = pytime.perf_counter() - float(start_times.get(worker_id) or pytime.perf_counter())
+                        print(f"DONE  st37:1:{worker_id} exit={rc} elapsed={elapsed:0.1f}s", flush=True)
+                        try:
+                            proc.wait(timeout=1.0)
+                        except subprocess.TimeoutExpired:
+                            proc.kill()
+                            proc.wait(timeout=5.0)
+                        try:
+                            t.join(timeout=1.0)
+                        except Exception:
+                            pass
+                        if rc != 0:
+                            failures.append((int(worker_id), int(rc)))
+                        running.pop(idx)
+                        break
+
+                    if failures:
+                        for worker_id, proc, t, out_path in running:
+                            try:
+                                proc.terminate()
+                            except Exception:
+                                pass
+                        for worker_id, proc, t, out_path in running:
+                            try:
+                                proc.wait(timeout=5.0)
+                            except subprocess.TimeoutExpired:
+                                try:
+                                    proc.kill()
+                                except Exception:
+                                    pass
+                        break
+
+                    if finished_idx is None:
+                        pytime.sleep(0.05)
+
+                if failures:
+                    wid, rc = failures[0]
+                    raise SystemExit(f"st37_refine stage1 worker failed: st37:1:{wid} (exit={rc})")
+
+                # Rebuild seeds once (for config reconstruction).
+                seed_cfgs: list[tuple[ConfigBundle, str]] = []
+                for s in seeds_payload:
+                    cfg_seed, seed_tag = _mk_seed_cfg(s)
+                    seed_cfgs.append((cfg_seed, seed_tag))
+
+                tested_total = 0
+                for worker_id in range(jobs_eff):
+                    out_path = out_paths.get(worker_id)
+                    if out_path is None or not out_path.exists():
+                        raise SystemExit(f"Missing st37_refine stage1 output: st37:1:{worker_id} ({out_path})")
+                    try:
+                        payload = json.loads(out_path.read_text())
+                    except json.JSONDecodeError as exc:
+                        raise SystemExit(
+                            f"Invalid st37_refine stage1 output JSON: st37:1:{worker_id} ({out_path})"
+                        ) from exc
+                    if not isinstance(payload, dict):
+                        continue
+                    tested_total += int(payload.get("tested") or 0)
+                    for rec in payload.get("records") or []:
+                        if not isinstance(rec, dict):
+                            continue
+                        try:
+                            seed_idx = int(rec.get("seed_idx"))
+                            perm_idx = int(rec.get("perm_idx"))
+                            tod_idx = int(rec.get("tod_idx"))
+                            sl_idx = int(rec.get("sl_idx"))
+                            short_idx = int(rec.get("short_idx"))
+                        except (TypeError, ValueError):
+                            continue
+                        if seed_idx < 0 or seed_idx >= len(seed_cfgs):
+                            raise SystemExit(f"st37_refine stage1 merge: invalid seed_idx={seed_idx}")
+                        if perm_idx < 0 or perm_idx >= len(perm_variants):
+                            raise SystemExit(f"st37_refine stage1 merge: invalid perm_idx={perm_idx}")
+                        if tod_idx < 0 or tod_idx >= len(tod_variants):
+                            raise SystemExit(f"st37_refine stage1 merge: invalid tod_idx={tod_idx}")
+                        if sl_idx < 0 or sl_idx >= len(sl_vals):
+                            raise SystemExit(f"st37_refine stage1 merge: invalid sl_idx={sl_idx}")
+                        if short_idx < 0 or short_idx >= len(short_mult_vals):
+                            raise SystemExit(f"st37_refine stage1 merge: invalid short_idx={short_idx}")
+
+                        row = rec.get("row")
+                        if not isinstance(row, dict):
+                            continue
+                        cfg_seed, seed_tag = seed_cfgs[seed_idx]
+                        perm_over, perm_note = perm_variants[perm_idx]
+                        tod_s, tod_e, tod_note = tod_variants[tod_idx]
+                        sl_pct = float(sl_vals[sl_idx])
+                        short_mult = float(short_mult_vals[short_idx])
+                        cfg, note = _mk_stage1_cfg(
+                            cfg_seed,
+                            seed_tag,
+                            perm_over=perm_over,
+                            perm_note=perm_note,
+                            tod_s=tod_s,
+                            tod_e=tod_e,
+                            tod_note=tod_note,
+                            sl_pct=sl_pct,
+                            short_mult=short_mult,
+                        )
+                        row = dict(row)
+                        row["note"] = note
+                        _record_milestone(cfg, row, note)
+                        stage1_rows.append((cfg, row, note))
+
+                tested_1 = int(tested_total)
+        else:
+            for seed in seeds:
+                cfg_seed, seed_tag = _mk_seed_cfg(seed)
+                for perm_over, perm_note in perm_variants:
+                    for tod_s, tod_e, tod_note in tod_variants:
+                        for sl_pct in sl_vals:
+                            for short_mult in short_mult_vals:
+                                cfg, note = _mk_stage1_cfg(
+                                    cfg_seed,
+                                    seed_tag,
+                                    perm_over=perm_over,
+                                    perm_note=perm_note,
+                                    tod_s=tod_s,
+                                    tod_e=tod_e,
+                                    tod_note=tod_note,
+                                    sl_pct=float(sl_pct),
+                                    short_mult=float(short_mult),
+                                )
+                                row = _run_cfg(
+                                    cfg=cfg,
+                                    bars=bars_sig,
+                                    regime_bars=_regime_bars_for(cfg),
+                                    regime2_bars=_regime2_bars_for(cfg),
+                                )
+                                tested_1 += 1
+                                now = pytime.perf_counter()
+                                if (
+                                    tested_1 % report_every == 0
+                                    or tested_1 == stage1_total
+                                    or (now - last_1) >= heartbeat_sec
+                                ):
+                                    elapsed = now - t0_1
+                                    rate = (tested_1 / elapsed) if elapsed > 0 else 0.0
+                                    remaining = stage1_total - tested_1
+                                    eta_sec = (remaining / rate) if rate > 0 else 0.0
+                                    pct = (tested_1 / stage1_total * 100.0) if stage1_total > 0 else 0.0
+                                    print(
+                                        f"st37_refine stage1 {tested_1}/{stage1_total} ({pct:0.1f}%) "
+                                        f"kept={len(stage1_rows)} elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
+                                        flush=True,
+                                    )
+                                    last_1 = float(now)
+                                if not row:
+                                    continue
+                                row["note"] = note
+                                _record_milestone(cfg, row, note)
+                                stage1_rows.append((cfg, row, note))
+
+        print(f"st37_refine: stage1 kept={len(stage1_rows)} tested={tested_1}", flush=True)
+        if not stage1_rows:
+            return
+
+        def _roi_dd(row: dict) -> float:
+            try:
+                roi = float(row.get("roi") or 0.0)
+            except (TypeError, ValueError):
+                roi = 0.0
+            try:
+                dd_pct = float(row.get("dd_pct") or 0.0)
+            except (TypeError, ValueError):
+                dd_pct = 0.0
+            if dd_pct <= 0:
+                return float("-inf") if roi <= 0 else float("inf")
+            return roi / dd_pct
+
+        stage1_sorted = sorted(stage1_rows, key=lambda t: (_roi_dd(t[1]), float(t[1].get("pnl_over_dd") or 0.0)), reverse=True)
+        seen_cfg: set[str] = set()
+        stage1_shortlist: list[tuple[ConfigBundle, dict, str]] = []
+        for cfg, row, note in stage1_sorted:
+            key = _milestone_key(cfg)
+            if key in seen_cfg:
+                continue
+            seen_cfg.add(key)
+            stage1_shortlist.append((cfg, row, note))
+            if len(stage1_shortlist) >= 30:
+                break
+
+        print(f"st37_refine: stage1 shortlist={len(stage1_shortlist)}", flush=True)
+
+        # Stage 2: risk overlays + shock pocket sweeps around the shortlisted configs.
+        #
+        # Goal: aggressively explore the TR-median + gap-ratio overlays (riskpanic + riskpop),
+        # plus plain TR-median hygiene overlays (riskoff), with the full aggressive/defensive
+        # sizing ends included (notably riskpop_short_factor=0.0 to hard-block shorts).
+        risk_off = {
+            "risk_entry_cutoff_hour_et": None,
+            "riskoff_tr5_med_pct": None,
+            "riskpanic_tr5_med_pct": None,
+            "riskpanic_neg_gap_ratio_min": None,
+            "riskpop_tr5_med_pct": None,
+            "riskpop_pos_gap_ratio_min": None,
+            "riskoff_mode": None,
+            "riskoff_tr5_lookback_days": None,
+            "riskoff_short_risk_mult_factor": None,
+            "riskoff_long_risk_mult_factor": None,
+            "riskpanic_lookback_days": None,
+            "riskpanic_short_risk_mult_factor": None,
+            "riskpop_lookback_days": None,
+            "riskpop_long_risk_mult_factor": None,
+            "riskpop_short_risk_mult_factor": None,
+        }
+        risk_variants: list[tuple[dict[str, object], str]] = [(risk_off, "risk=off")]
+
+        panic_base = {
+            **risk_off,
+            "risk_entry_cutoff_hour_et": 15,
+            "riskpanic_tr5_med_pct": 9.0,
+            "riskpanic_neg_gap_ratio_min": 0.6,
+            "riskpanic_lookback_days": 5,
+            "riskpanic_short_risk_mult_factor": 0.5,
+            "riskoff_mode": "hygiene",
+        }
+        risk_variants.append((panic_base, "riskpanic base (TRmed>=9 gap>=0.6 short=0.5 cutoff<15)"))
+        for v in (1.0, 0.5, 0.2, 0.0):
+            risk_variants.append(({**panic_base, "riskpanic_short_risk_mult_factor": float(v)}, f"riskpanic short={v:g}"))
+        for tr in (8.0, 9.0, 10.0, 11.0):
+            risk_variants.append(({**panic_base, "riskpanic_tr5_med_pct": float(tr)}, f"riskpanic TRmed>={tr:g}"))
+        for ratio in (0.5, 0.6, 0.7):
+            risk_variants.append(({**panic_base, "riskpanic_neg_gap_ratio_min": float(ratio)}, f"riskpanic gap>={ratio:g}"))
+        for lb in (3, 5, 7):
+            risk_variants.append(({**panic_base, "riskpanic_lookback_days": int(lb)}, f"riskpanic lookback={lb}d"))
+        for cutoff in (None, 15, 16):
+            risk_variants.append(
+                ({**panic_base, "risk_entry_cutoff_hour_et": int(cutoff) if cutoff is not None else None}, f"riskpanic cutoff<{cutoff or '-'}")
+            )
+        for mode in ("hygiene", "directional"):
+            risk_variants.append(({**panic_base, "riskoff_mode": str(mode)}, f"riskpanic mode={mode}"))
+
+        riskoff_base = {
+            **risk_off,
+            "risk_entry_cutoff_hour_et": 15,
+            "riskoff_tr5_med_pct": 9.0,
+            "riskoff_tr5_lookback_days": 5,
+            "riskoff_mode": "directional",
+            "riskoff_long_risk_mult_factor": 0.8,
+            "riskoff_short_risk_mult_factor": 0.5,
+        }
+        risk_variants.append((riskoff_base, "riskoff base (TRmed>=9 long=0.8 short=0.5 cutoff<15)"))
+        for tr in (8.0, 9.0, 10.0, 11.0):
+            risk_variants.append(({**riskoff_base, "riskoff_tr5_med_pct": float(tr)}, f"riskoff TRmed>={tr:g}"))
+        for lb in (3, 5, 7):
+            risk_variants.append(({**riskoff_base, "riskoff_tr5_lookback_days": int(lb)}, f"riskoff lookback={lb}d"))
+        for long_f in (0.6, 0.8, 1.0):
+            risk_variants.append(({**riskoff_base, "riskoff_long_risk_mult_factor": float(long_f)}, f"riskoff long={long_f:g}"))
+        for short_f in (1.0, 0.5, 0.2, 0.0):
+            risk_variants.append(({**riskoff_base, "riskoff_short_risk_mult_factor": float(short_f)}, f"riskoff short={short_f:g}"))
+        for cutoff in (None, 15, 16):
+            risk_variants.append(
+                ({**riskoff_base, "risk_entry_cutoff_hour_et": int(cutoff) if cutoff is not None else None}, f"riskoff cutoff<{cutoff or '-'}")
+            )
+        for mode in ("hygiene", "directional"):
+            risk_variants.append(({**riskoff_base, "riskoff_mode": str(mode)}, f"riskoff mode={mode}"))
+
+        pop_base = {
+            **risk_off,
+            "risk_entry_cutoff_hour_et": 15,
+            "riskpop_tr5_med_pct": 9.0,
+            "riskpop_pos_gap_ratio_min": 0.6,
+            "riskpop_lookback_days": 5,
+            "riskpop_long_risk_mult_factor": 1.2,
+            "riskpop_short_risk_mult_factor": 0.5,
+            "riskoff_mode": "hygiene",
+        }
+        risk_variants.append((pop_base, "riskpop base (TRmed>=9 gap>=0.6 long=1.2 short=0.5 cutoff<15)"))
+        for tr in (8.0, 9.0, 10.0, 11.0):
+            risk_variants.append(({**pop_base, "riskpop_tr5_med_pct": float(tr)}, f"riskpop TRmed>={tr:g}"))
+        for ratio in (0.5, 0.6, 0.7):
+            risk_variants.append(({**pop_base, "riskpop_pos_gap_ratio_min": float(ratio)}, f"riskpop gap>={ratio:g}"))
+        for lb in (3, 5, 7):
+            risk_variants.append(({**pop_base, "riskpop_lookback_days": int(lb)}, f"riskpop lookback={lb}d"))
+        # Defensive (2A): reduce long risk when pop is on.
+        for long_f in (0.6, 0.8, 1.0, 1.2, 1.5):
+            risk_variants.append(
+                ({**pop_base, "riskpop_long_risk_mult_factor": float(long_f), "riskpop_short_risk_mult_factor": 1.0}, f"riskpop long={long_f:g} short=1.0")
+            )
+        # Aggressive (2B): block shorts in pop regimes.
+        for short_f in (1.0, 0.5, 0.2, 0.0):
+            risk_variants.append(
+                ({**pop_base, "riskpop_long_risk_mult_factor": 1.2, "riskpop_short_risk_mult_factor": float(short_f)}, f"riskpop long=1.2 short={short_f:g}")
+            )
+        risk_variants.append(
+            ({**pop_base, "riskpop_long_risk_mult_factor": 1.5, "riskpop_short_risk_mult_factor": 0.0}, "riskpop long=1.5 short=0.0")
+        )
+        for cutoff in (None, 15, 16):
+            risk_variants.append(
+                ({**pop_base, "risk_entry_cutoff_hour_et": int(cutoff) if cutoff is not None else None}, f"riskpop cutoff<{cutoff or '-'}")
+            )
+        for mode in ("hygiene", "directional"):
+            risk_variants.append(({**pop_base, "riskoff_mode": str(mode)}, f"riskpop mode={mode}"))
+
+        # Mixed overlays (small set; keep bounded).
+        risk_variants.append(
+            (
+                {
+                    **risk_off,
+                    **panic_base,
+                    "riskoff_tr5_med_pct": riskoff_base.get("riskoff_tr5_med_pct"),
+                    "riskoff_tr5_lookback_days": riskoff_base.get("riskoff_tr5_lookback_days"),
+                    "riskoff_mode": riskoff_base.get("riskoff_mode"),
+                    "riskoff_long_risk_mult_factor": riskoff_base.get("riskoff_long_risk_mult_factor"),
+                    "riskoff_short_risk_mult_factor": riskoff_base.get("riskoff_short_risk_mult_factor"),
+                },
+                "riskoff+panic base",
+            )
+        )
+        risk_variants.append(
+            (
+                {
+                    **risk_off,
+                    **pop_base,
+                    "riskoff_tr5_med_pct": riskoff_base.get("riskoff_tr5_med_pct"),
+                    "riskoff_tr5_lookback_days": riskoff_base.get("riskoff_tr5_lookback_days"),
+                    "riskoff_mode": riskoff_base.get("riskoff_mode"),
+                    "riskoff_long_risk_mult_factor": riskoff_base.get("riskoff_long_risk_mult_factor"),
+                    "riskoff_short_risk_mult_factor": riskoff_base.get("riskoff_short_risk_mult_factor"),
+                },
+                "riskoff+pop base",
+            )
+        )
+
+        shock_variants: list[tuple[dict[str, object], str]] = [
+            ({}, "shock=off"),
+        ]
+        # v31-style daily ATR% surf pocket (+ optional TR-trigger).
+        for on_atr, off_atr in ((13.5, 13.0), (14.0, 13.5), (14.5, 14.0)):
+            base = {
+                "shock_gate_mode": "surf",
+                "shock_detector": "daily_atr_pct",
+                "shock_daily_atr_period": 14,
+                "shock_daily_on_atr_pct": float(on_atr),
+                "shock_daily_off_atr_pct": float(off_atr),
+                "shock_direction_source": "signal",
+                "shock_direction_lookback": 1,
+                "shock_stop_loss_pct_mult": 0.75,
+            }
+            shock_variants.append((base, f"shock=surf daily_atr on={on_atr:g} off={off_atr:g}"))
+            for tr_on in (9.0, 10.0, 11.0):
+                shock_variants.append(
+                    (
+                        {**base, "shock_daily_on_tr_pct": float(tr_on)},
+                        f"shock=surf daily_atr on={on_atr:g} off={off_atr:g} tr_on={tr_on:g}",
+                    )
+                )
+
+        # ATR-ratio pocket.
+        for on_ratio, off_ratio in ((1.35, 1.25), (1.45, 1.30), (1.55, 1.30)):
+            shock_variants.append(
+                (
+                    {
+                        "shock_gate_mode": "surf",
+                        "shock_detector": "atr_ratio",
+                        "shock_atr_fast_period": 7,
+                        "shock_atr_slow_period": 50,
+                        "shock_on_ratio": float(on_ratio),
+                        "shock_off_ratio": float(off_ratio),
+                        "shock_min_atr_pct": 7.0,
+                        "shock_direction_source": "signal",
+                        "shock_direction_lookback": 1,
+                        "shock_stop_loss_pct_mult": 0.75,
+                    },
+                    f"shock=surf atr_ratio on={on_ratio:g} off={off_ratio:g}",
+                )
+            )
+
+        # TR-ratio pocket (often substitutes for daily ATR gating).
+        for on_ratio, off_ratio in ((1.35, 1.25), (1.45, 1.30), (1.55, 1.30)):
+            shock_variants.append(
+                (
+                    {
+                        "shock_gate_mode": "surf",
+                        "shock_detector": "tr_ratio",
+                        "shock_atr_fast_period": 7,
+                        "shock_atr_slow_period": 50,
+                        "shock_on_ratio": float(on_ratio),
+                        "shock_off_ratio": float(off_ratio),
+                        "shock_min_atr_pct": 7.0,
+                        "shock_direction_source": "signal",
+                        "shock_direction_lookback": 1,
+                        "shock_stop_loss_pct_mult": 0.75,
+                    },
+                    f"shock=surf tr_ratio on={on_ratio:g} off={off_ratio:g}",
+                )
+            )
+
+        # Daily drawdown pocket (more "crash aware" than ATR%).
+        for lb, on_dd, off_dd in (
+            (20, -15.0, -10.0),
+            (20, -20.0, -10.0),
+            (30, -20.0, -15.0),
+        ):
+            shock_variants.append(
+                (
+                    {
+                        "shock_gate_mode": "surf",
+                        "shock_detector": "daily_drawdown",
+                        "shock_drawdown_lookback_days": int(lb),
+                        "shock_on_drawdown_pct": float(on_dd),
+                        "shock_off_drawdown_pct": float(off_dd),
+                        "shock_direction_source": "signal",
+                        "shock_direction_lookback": 1,
+                        "shock_stop_loss_pct_mult": 0.75,
+                    },
+                    f"shock=surf daily_dd lb={lb} on={on_dd:g} off={off_dd:g}",
+                )
+            )
+
+        def _mk_stage2_cfg(base_cfg: ConfigBundle, *, risk_over: dict[str, object], shock_over: dict[str, object]) -> ConfigBundle:
+            over: dict[str, object] = {}
+            over.update(risk_over)
+            over.update(shock_over)
+            f = _merge_filters(base_cfg.strategy.filters, overrides=over)
+            return replace(base_cfg, strategy=replace(base_cfg.strategy, filters=f))
+
+        # st37_refine stage2 worker mode is handled at the top of this sweep (before stage1).
+
+        stage2_rows: list[tuple[ConfigBundle, dict, str]] = []
+        stage2_total = len(stage1_shortlist) * len(risk_variants) * len(shock_variants)
+        print(f"st37_refine: stage2 total={stage2_total} (risk×shock)", flush=True)
+        tested_2 = 0
+        t0_2 = pytime.perf_counter()
+        last_2 = float(t0_2)
+        if jobs > 1:
+            if not offline:
+                raise SystemExit("--jobs>1 for st37_refine requires --offline (avoid parallel IBKR sessions).")
+
+            def _strip_flag(argv: list[str], flag: str) -> list[str]:
+                return [arg for arg in argv if arg != flag]
+
+            def _strip_flag_with_value(argv: list[str], flag: str) -> list[str]:
+                out: list[str] = []
+                idx = 0
+                while idx < len(argv):
+                    arg = argv[idx]
+                    if arg == flag:
+                        idx += 2
+                        continue
+                    if arg.startswith(flag + "="):
+                        idx += 1
+                        continue
+                    out.append(arg)
+                    idx += 1
+                return out
+
+            base_cli = list(sys.argv[1:])
+            base_cli = _strip_flag_with_value(base_cli, "--axis")
+            base_cli = _strip_flag_with_value(base_cli, "--jobs")
+            base_cli = _strip_flag(base_cli, "--write-milestones")
+            base_cli = _strip_flag(base_cli, "--merge-milestones")
+            base_cli = _strip_flag_with_value(base_cli, "--milestones-out")
+            base_cli = _strip_flag_with_value(base_cli, "--st37-refine-stage1")
+            base_cli = _strip_flag_with_value(base_cli, "--st37-refine-stage2")
+            base_cli = _strip_flag_with_value(base_cli, "--st37-refine-worker")
+            base_cli = _strip_flag_with_value(base_cli, "--st37-refine-workers")
+            base_cli = _strip_flag_with_value(base_cli, "--st37-refine-out")
+            base_cli = _strip_flag_with_value(base_cli, "--st37-refine-run-min-trades")
+
+            jobs_eff = min(int(jobs), int(_default_jobs()), int(stage2_total)) if stage2_total > 0 else 1
+            print(f"st37_refine stage2 parallel: workers={jobs_eff} total={stage2_total}", flush=True)
+
+            def _pump(prefix: str, stream) -> None:
+                for line in iter(stream.readline, ""):
+                    print(f"[{prefix}] {line.rstrip()}", flush=True)
+
+            failures: list[tuple[int, int]] = []
+            start_times: dict[int, float] = {}
+
+            with tempfile.TemporaryDirectory(prefix="tradebot_st37_refine_2_") as tmpdir:
+                tmp_root = Path(tmpdir)
+                payload_path = tmp_root / "stage2_payload.json"
+                shortlist_payload: list[dict] = []
+                for cfg, _row, note in stage1_shortlist:
+                    shortlist_payload.append(
+                        {
+                            "seed_tag": str(note.split("|", 1)[0]).strip(),
+                            "base_note": str(note),
+                            "strategy": _spot_strategy_payload(cfg, meta=meta),
+                            "filters": _filters_payload(cfg.strategy.filters),
+                        }
+                    )
+                risk_payload: list[dict] = []
+                for risk_over, risk_note in risk_variants:
+                    risk_payload.append({"overrides": risk_over, "note": risk_note})
+                shock_payload: list[dict] = []
+                for shock_over, shock_note in shock_variants:
+                    shock_payload.append({"overrides": shock_over, "note": shock_note})
+                write_json(
+                    payload_path,
+                    {"shortlist": shortlist_payload, "risk_variants": risk_payload, "shock_variants": shock_payload},
+                    sort_keys=False,
+                )
+
+                running: list[tuple[int, subprocess.Popen, threading.Thread, Path]] = []
+                out_paths: dict[int, Path] = {}
+
+                for worker_id in range(jobs_eff):
+                    out_path = tmp_root / f"stage2_out_{worker_id}.json"
+                    out_paths[worker_id] = out_path
+                    cmd = [
+                        sys.executable,
+                        "-u",
+                        "-m",
+                        "tradebot.backtest",
+                        "spot",
+                        *base_cli,
+                        "--axis",
+                        "st37_refine",
+                        "--jobs",
+                        "1",
+                        "--st37-refine-stage2",
+                        str(payload_path),
+                        "--st37-refine-worker",
+                        str(worker_id),
+                        "--st37-refine-workers",
+                        str(jobs_eff),
+                        "--st37-refine-out",
+                        str(out_path),
+                        "--st37-refine-run-min-trades",
+                        str(int(run_min_trades)),
+                    ]
+                    proc = subprocess.Popen(
+                        cmd,
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.STDOUT,
+                        text=True,
+                        bufsize=1,
+                    )
+                    if proc.stdout is None:
+                        raise RuntimeError("Failed to capture st37_refine stage2 worker stdout.")
+                    t = threading.Thread(target=_pump, args=(f"st37:2:{worker_id}", proc.stdout), daemon=True)
+                    t.start()
+                    start_times[worker_id] = pytime.perf_counter()
+                    running.append((worker_id, proc, t, out_path))
+
+                while running and not failures:
+                    finished_idx = None
+                    for idx, (worker_id, proc, t, out_path) in enumerate(running):
+                        rc = proc.poll()
+                        if rc is None:
+                            continue
+                        finished_idx = idx
+                        elapsed = pytime.perf_counter() - float(start_times.get(worker_id) or pytime.perf_counter())
+                        print(f"DONE  st37:2:{worker_id} exit={rc} elapsed={elapsed:0.1f}s", flush=True)
+                        try:
+                            proc.wait(timeout=1.0)
+                        except subprocess.TimeoutExpired:
+                            proc.kill()
+                            proc.wait(timeout=5.0)
+                        try:
+                            t.join(timeout=1.0)
+                        except Exception:
+                            pass
+                        if rc != 0:
+                            failures.append((int(worker_id), int(rc)))
+                        running.pop(idx)
+                        break
+
+                    if failures:
+                        for worker_id, proc, t, out_path in running:
+                            try:
+                                proc.terminate()
+                            except Exception:
+                                pass
+                        for worker_id, proc, t, out_path in running:
+                            try:
+                                proc.wait(timeout=5.0)
+                            except subprocess.TimeoutExpired:
+                                try:
+                                    proc.kill()
+                                except Exception:
+                                    pass
+                        break
+
+                    if finished_idx is None:
+                        pytime.sleep(0.05)
+
+                if failures:
+                    wid, rc = failures[0]
+                    raise SystemExit(f"st37_refine stage2 worker failed: st37:2:{wid} (exit={rc})")
+
+                # Rebuild shortlist base cfgs for config reconstruction.
+                base_cfgs: list[tuple[ConfigBundle, str]] = []
+                for item in shortlist_payload:
+                    base = _base_bundle(bar_size=signal_bar_size, filters=None)
+                    cfg_seed = _apply_milestone_base(base, strategy=item["strategy"], filters=item.get("filters"))
+                    base_cfgs.append((cfg_seed, str(item.get("base_note") or "")))
+
+                tested_total = 0
+                for worker_id in range(jobs_eff):
+                    out_path = out_paths.get(worker_id)
+                    if out_path is None or not out_path.exists():
+                        raise SystemExit(f"Missing st37_refine stage2 output: st37:2:{worker_id} ({out_path})")
+                    try:
+                        payload = json.loads(out_path.read_text())
+                    except json.JSONDecodeError as exc:
+                        raise SystemExit(
+                            f"Invalid st37_refine stage2 output JSON: st37:2:{worker_id} ({out_path})"
+                        ) from exc
+                    if not isinstance(payload, dict):
+                        continue
+                    tested_total += int(payload.get("tested") or 0)
+                    for rec in payload.get("records") or []:
+                        if not isinstance(rec, dict):
+                            continue
+                        try:
+                            base_idx = int(rec.get("base_idx"))
+                            risk_idx = int(rec.get("risk_idx"))
+                            shock_idx = int(rec.get("shock_idx"))
+                        except (TypeError, ValueError):
+                            continue
+                        if base_idx < 0 or base_idx >= len(base_cfgs):
+                            raise SystemExit(f"st37_refine stage2 merge: invalid base_idx={base_idx}")
+                        if risk_idx < 0 or risk_idx >= len(risk_variants):
+                            raise SystemExit(f"st37_refine stage2 merge: invalid risk_idx={risk_idx}")
+                        if shock_idx < 0 or shock_idx >= len(shock_variants):
+                            raise SystemExit(f"st37_refine stage2 merge: invalid shock_idx={shock_idx}")
+                        row = rec.get("row")
+                        if not isinstance(row, dict):
+                            continue
+
+                        base_cfg, base_note = base_cfgs[base_idx]
+                        risk_over, risk_note = risk_variants[risk_idx]
+                        shock_over, shock_note = shock_variants[shock_idx]
+                        cfg = _mk_stage2_cfg(base_cfg, risk_over=risk_over, shock_over=shock_over)
+                        note = f"{base_note} | {risk_note} | {shock_note}"
+                        row = dict(row)
+                        row["note"] = note
+                        _record_milestone(cfg, row, note)
+                        stage2_rows.append((cfg, row, note))
+
+                tested_2 = int(tested_total)
+        else:
+            for base_cfg, _row, base_note in stage1_shortlist:
+                for risk_over, risk_note in risk_variants:
+                    for shock_over, shock_note in shock_variants:
+                        cfg = _mk_stage2_cfg(base_cfg, risk_over=risk_over, shock_over=shock_over)
+                        row = _run_cfg(
+                            cfg=cfg,
+                            bars=bars_sig,
+                            regime_bars=_regime_bars_for(cfg),
+                            regime2_bars=_regime2_bars_for(cfg),
+                        )
+                        tested_2 += 1
+                        now = pytime.perf_counter()
+                        if (
+                            tested_2 % report_every == 0
+                            or tested_2 == stage2_total
+                            or (now - last_2) >= heartbeat_sec
+                        ):
+                            elapsed = now - t0_2
+                            rate = (tested_2 / elapsed) if elapsed > 0 else 0.0
+                            remaining = stage2_total - tested_2
+                            eta_sec = (remaining / rate) if rate > 0 else 0.0
+                            pct = (tested_2 / stage2_total * 100.0) if stage2_total > 0 else 0.0
+                            print(
+                                f"st37_refine stage2 {tested_2}/{stage2_total} ({pct:0.1f}%) "
+                                f"kept={len(stage2_rows)} elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
+                                flush=True,
+                            )
+                            last_2 = float(now)
+                        if not row:
+                            continue
+                        note = f"{base_note} | {risk_note} | {shock_note}"
+                        row["note"] = note
+                        _record_milestone(cfg, row, note)
+                        stage2_rows.append((cfg, row, note))
+
+        print(f"st37_refine: stage2 kept={len(stage2_rows)} tested={tested_2}", flush=True)
+        if not stage2_rows:
+            return
+
+        stage2_sorted = sorted(stage2_rows, key=lambda t: (_roi_dd(t[1]), float(t[1].get("pnl_over_dd") or 0.0)), reverse=True)
+        stage2_shortlist: list[tuple[ConfigBundle, dict, str]] = []
+        seen_cfg = set()
+        for cfg, row, note in stage2_sorted:
+            key = _milestone_key(cfg)
+            if key in seen_cfg:
+                continue
+            seen_cfg.add(key)
+            stage2_shortlist.append((cfg, row, note))
+            if len(stage2_shortlist) >= 25:
+                break
+
+        print(f"st37_refine: stage2 shortlist={len(stage2_shortlist)} (for exit sweep)", flush=True)
+
+        # Stage 3: exit semantics pocket (anchored on v31, plus a small ATR-exit family).
+        v31_exit_mode = "pct"
+        v31_pt = None
+        v31_sl = 0.04
+        v31_atr_p = 14
+        v31_ptx = 1.5
+        v31_slx = 1.0
+        v31_exit_time = None
+        v31_exit_on_flip = True
+        v31_flip_mode = "entry"
+        v31_only_profit = True
+        v31_hold = 2
+        v31_gate_mode = "off"
+        if v31_exit:
+            try:
+                v31_exit_mode = str(v31_exit.get("spot_exit_mode") or "pct").strip().lower()
+            except Exception:
+                v31_exit_mode = "pct"
+            if v31_exit_mode not in ("pct", "atr"):
+                v31_exit_mode = "pct"
+            v31_pt = v31_exit.get("spot_profit_target_pct")
+            try:
+                v31_sl = float(v31_exit.get("spot_stop_loss_pct") or v31_sl)
+            except (TypeError, ValueError):
+                pass
+            try:
+                v31_atr_p = int(v31_exit.get("spot_atr_period") or v31_atr_p)
+            except (TypeError, ValueError):
+                pass
+            try:
+                v31_ptx = float(v31_exit.get("spot_pt_atr_mult") or v31_ptx)
+            except (TypeError, ValueError):
+                pass
+            try:
+                v31_slx = float(v31_exit.get("spot_sl_atr_mult") or v31_slx)
+            except (TypeError, ValueError):
+                pass
+            v31_exit_time = v31_exit.get("spot_exit_time_et")
+            v31_exit_on_flip = bool(v31_exit.get("exit_on_signal_flip")) if "exit_on_signal_flip" in v31_exit else True
+            v31_flip_mode = str(v31_exit.get("flip_exit_mode") or v31_flip_mode)
+            v31_only_profit = (
+                bool(v31_exit.get("flip_exit_only_if_profit"))
+                if "flip_exit_only_if_profit" in v31_exit
+                else v31_only_profit
+            )
+            try:
+                v31_hold = int(v31_exit.get("flip_exit_min_hold_bars") or v31_hold)
+            except (TypeError, ValueError):
+                pass
+            v31_gate_mode = str(v31_exit.get("flip_exit_gate_mode") or v31_gate_mode)
+
+        sl_sweep = sorted({max(0.01, v31_sl - 0.01), v31_sl, v31_sl + 0.01})
+        hold_sweep = sorted({max(0, int(v31_hold) - 1), int(v31_hold), int(v31_hold) + 1})
+        exit_variants: list[tuple[dict[str, object], str]] = []
+        exit_variants.append(
+            (
+                {
+                    "spot_exit_mode": v31_exit_mode,
+                    "spot_profit_target_pct": v31_pt,
+                    "spot_stop_loss_pct": v31_sl,
+                    "spot_atr_period": v31_atr_p,
+                    "spot_pt_atr_mult": v31_ptx,
+                    "spot_sl_atr_mult": v31_slx,
+                    "spot_exit_time_et": v31_exit_time,
+                    "exit_on_signal_flip": v31_exit_on_flip,
+                    "flip_exit_mode": v31_flip_mode,
+                    "flip_exit_only_if_profit": v31_only_profit,
+                    "flip_exit_min_hold_bars": v31_hold,
+                    "flip_exit_gate_mode": v31_gate_mode,
+                },
+                f"exit=v31 {v31_exit_mode} stop{v31_sl:g} flip={int(v31_exit_on_flip)} "
+                f"mode={v31_flip_mode} only_profit={int(v31_only_profit)} hold={v31_hold}",
+            )
+        )
+        for sl in sl_sweep:
+            if abs(float(sl) - float(v31_sl)) < 1e-9:
+                continue
+            exit_variants.append(
+                (
+                    {
+                        "spot_exit_mode": "pct",
+                        "spot_profit_target_pct": None,
+                        "spot_stop_loss_pct": float(sl),
+                        "exit_on_signal_flip": v31_exit_on_flip,
+                        "flip_exit_mode": v31_flip_mode,
+                        "flip_exit_only_if_profit": v31_only_profit,
+                        "flip_exit_min_hold_bars": int(v31_hold),
+                        "flip_exit_gate_mode": v31_gate_mode,
+                    },
+                    f"exit=pct stop{sl:g} mode={v31_flip_mode} only_profit={int(v31_only_profit)} hold={v31_hold}",
+                )
+            )
+        for hold in hold_sweep:
+            if int(hold) == int(v31_hold):
+                continue
+            exit_variants.append(
+                (
+                    {
+                        "spot_exit_mode": "pct",
+                        "spot_profit_target_pct": None,
+                        "spot_stop_loss_pct": float(v31_sl),
+                        "exit_on_signal_flip": v31_exit_on_flip,
+                        "flip_exit_mode": v31_flip_mode,
+                        "flip_exit_only_if_profit": v31_only_profit,
+                        "flip_exit_min_hold_bars": int(hold),
+                        "flip_exit_gate_mode": v31_gate_mode,
+                    },
+                    f"exit=pct stop{v31_sl:g} mode={v31_flip_mode} only_profit={int(v31_only_profit)} hold={hold}",
+                )
+            )
+        # ATR exit pocket (no pct PT/SL; uses ATR multipliers). Keeps flip-exit on to limit long holds.
+        for atr_p, pt_m, sl_m in (
+            (10, 0.90, 1.80),
+            (14, 0.75, 1.60),
+            (14, 0.80, 1.60),
+            (21, 0.70, 1.80),
+        ):
+            exit_variants.append(
+                (
+                    {
+                        "spot_exit_mode": "atr",
+                        "spot_profit_target_pct": None,
+                        "spot_stop_loss_pct": None,
+                        "spot_atr_period": int(atr_p),
+                        "spot_pt_atr_mult": float(pt_m),
+                        "spot_sl_atr_mult": float(sl_m),
+                        "exit_on_signal_flip": True,
+                        "flip_exit_mode": "entry",
+                        "flip_exit_only_if_profit": True,
+                        "flip_exit_min_hold_bars": 2,
+                    },
+                    f"exit=ATR({atr_p}) PTx{pt_m:g} SLx{sl_m:g} flipprofit hold=2",
+                )
+            )
+
+        stage3_rows: list[tuple[ConfigBundle, dict, str]] = []
+        stage3_total = len(stage2_shortlist) * len(exit_variants)
+        tested_3 = 0
+        t0_3 = pytime.perf_counter()
+        last_3 = float(t0_3)
+        print(f"st37_refine: stage3 total={stage3_total} (exit pocket)", flush=True)
+        for base_cfg, _row, base_note in stage2_shortlist:
+            for exit_over, exit_note in exit_variants:
+                cfg = replace(
+                    base_cfg,
+                    strategy=replace(
+                        base_cfg.strategy,
+                        spot_exit_mode=str(exit_over.get("spot_exit_mode") or base_cfg.strategy.spot_exit_mode),
+                        spot_profit_target_pct=exit_over.get("spot_profit_target_pct"),
+                        spot_stop_loss_pct=exit_over.get("spot_stop_loss_pct"),
+                        spot_atr_period=int(exit_over.get("spot_atr_period") or getattr(base_cfg.strategy, "spot_atr_period", 14)),
+                        spot_pt_atr_mult=float(exit_over.get("spot_pt_atr_mult") or getattr(base_cfg.strategy, "spot_pt_atr_mult", 1.5)),
+                        spot_sl_atr_mult=float(exit_over.get("spot_sl_atr_mult") or getattr(base_cfg.strategy, "spot_sl_atr_mult", 1.0)),
+                        spot_exit_time_et=(
+                            exit_over.get("spot_exit_time_et")
+                            if "spot_exit_time_et" in exit_over
+                            else getattr(base_cfg.strategy, "spot_exit_time_et", None)
+                        ),
+                        exit_on_signal_flip=bool(exit_over.get("exit_on_signal_flip") if "exit_on_signal_flip" in exit_over else getattr(base_cfg.strategy, "exit_on_signal_flip", True)),
+                        flip_exit_mode=str(exit_over.get("flip_exit_mode") or getattr(base_cfg.strategy, "flip_exit_mode", "entry")),
+                        flip_exit_only_if_profit=bool(exit_over.get("flip_exit_only_if_profit") if "flip_exit_only_if_profit" in exit_over else getattr(base_cfg.strategy, "flip_exit_only_if_profit", False)),
+                        flip_exit_min_hold_bars=int(exit_over.get("flip_exit_min_hold_bars") or getattr(base_cfg.strategy, "flip_exit_min_hold_bars", 2)),
+                        flip_exit_gate_mode=str(exit_over.get("flip_exit_gate_mode") or getattr(base_cfg.strategy, "flip_exit_gate_mode", "off")),
+                    ),
+                )
+                row = _run_cfg(
+                    cfg=cfg,
+                    bars=bars_sig,
+                    regime_bars=_regime_bars_for(cfg),
+                    regime2_bars=_regime2_bars_for(cfg),
+                )
+                tested_3 += 1
+                now = pytime.perf_counter()
+                if tested_3 % report_every == 0 or tested_3 == stage3_total or (now - last_3) >= heartbeat_sec:
+                    elapsed = now - t0_3
+                    rate = (tested_3 / elapsed) if elapsed > 0 else 0.0
+                    remaining = stage3_total - tested_3
+                    eta_sec = (remaining / rate) if rate > 0 else 0.0
+                    pct = (tested_3 / stage3_total * 100.0) if stage3_total > 0 else 0.0
+                    print(
+                        f"st37_refine stage3 {tested_3}/{stage3_total} ({pct:0.1f}%) "
+                        f"kept={len(stage3_rows)} elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
+                        flush=True,
+                    )
+                    last_3 = float(now)
+                if not row:
+                    continue
+                note = f"{base_note} | {exit_note}"
+                row["note"] = note
+                _record_milestone(cfg, row, note)
+                stage3_rows.append((cfg, row, note))
+
+        print(f"st37_refine: stage3 kept={len(stage3_rows)} tested={tested_3}", flush=True)
+        final_rows = stage3_rows or stage2_rows or stage1_rows
+        rows_only = [r for _, r, _ in final_rows]
+
+        def _score_roi_dd(row: dict) -> tuple:
+            return (
+                _roi_dd(row),
+                float(row.get("pnl") or 0.0),
+                float(row.get("win_rate") or 0.0),
+                int(row.get("trades") or 0),
+            )
+
+        _print_top(rows_only, title="st37_refine — Top by roi/dd%", top_n=int(args.top), sort_key=_score_roi_dd)
+        _print_leaderboards(rows_only, title="st37_refine", top_n=int(args.top))
 
     def _sweep_gate_matrix() -> None:
         """Bounded cross-product of major gates (overnight-capable exhaustive discovery)."""
@@ -9118,6 +10825,8 @@ def main() -> None:
         _sweep_gate_matrix()
     if axis == "champ_refine":
         _sweep_champ_refine()
+    if axis == "st37_refine":
+        _sweep_st37_refine()
     if axis == "frontier":
         _sweep_frontier()
 
