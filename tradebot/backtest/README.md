@@ -6,22 +6,22 @@ This package provides a minimal backtest runner that supports:
 
 Shared decision logic lives in `tradebot/engine.py` and `tradebot/spot_engine.py` so the UI/live runner can reuse the exact same semantics.
 
-## Spot (TQQQ) — CURRENT champ (v31) quick reproduce
+## Spot (TQQQ) — CURRENT champ (v32) quick reproduce
 
 This is the canonical “champ smoke test” we use to ensure refactors do **not** change outcomes.
 
 ```bash
-python -m tradebot.backtest spot_multitimeframe --milestones backtests/out/tqqq_exec5m_v31_champ_only_milestone.json \
+python -m tradebot.backtest spot_multitimeframe --milestones backtests/out/tqqq_exec5m_v32_champ_only_milestone.json \
   --symbol TQQQ --bar-size "30 mins" --use-rth --offline --cache-dir db --top 1 --max-open 1 \
   --require-positive-pnl --min-trades 100 \
   --window 2016-01-01:2026-01-19 --window 2024-01-01:2026-01-19 --window 2025-01-01:2026-01-19 \
-  --write-top 1 --out /tmp/tqqq_exec5m_v31_smoke.json
+  --write-top 1 --out /tmp/tqqq_exec5m_v32_smoke.json
 ```
 
 Expected exact window metrics:
-- 10y: roi `0.679118927499993`, dd_pct `0.22044000150000195`, pnl `67911.8927499993`, trades `1079`
-- 2y:  roi `0.27009318549999645`, dd_pct `0.059405221999999924`, pnl `27009.318549999643`, trades `207`
-- 1y:  roi `0.13060562249999777`, dd_pct `0.04415167800000054`, pnl `13060.562249999777`, trades `109`
+- 10y: roi `0.6019736603124943`, dd_pct `0.1625309351250014`, pnl `60197.36603124943`, trades `1042`
+- 2y:  roi `0.2954266321249968`, dd_pct `0.048272590999999955`, pnl `29542.66321249968`, trades `204`
+- 1y:  roi `0.13274883837499818`, dd_pct `0.041766553499999866`, pnl `13274.883837499818`, trades `106`
 
 ## Full config example (all parameters)
 ```json
@@ -460,7 +460,7 @@ This is a **quick map of what the sweeps actually cover** (outer edges), so we c
 
 ### Spot champions (TQQQ only)
 
-#### CURRENT (exec=5m, RTH; 10y/2y/1y; >=100 trades/1y; PnL/roi-dd first) (generated 2026-01-23)
+#### CURRENT (v32) (exec=5m, RTH; 10y/2y/1y; >=100 trades/1y; stability-first) (promoted 2026-01-30)
 These are the current **TQQQ-only** spot champions under the “multi-resolution” execution model (post-`spot_exec_bar_size=5 mins`) that are:
 - Positive PnL in **all 3** windows: **10y + 2y + 1y**
 - Active enough for ops (operationalized as `>=100 trades` in the last 1y window)
@@ -476,17 +476,21 @@ Execution model:
 - Execution + intrabar stop + flip exits simulated on `5 mins` bars (RTH) via `spot_exec_bar_size=5 mins`
 
 Winning family (what changed vs the legacy high-WR pocket):
-- **Stop-only + reversal exit:** `spot_profit_target_pct=None` + `spot_stop_loss_pct≈4%` + `exit_on_signal_flip=true` (exit on reversal, not on a fixed PT).
+- **Stop-only + reversal exit:** `spot_profit_target_pct=None` + `spot_stop_loss_pct≈4.0–4.5%` + `exit_on_signal_flip=true` (exit on reversal, not on a fixed PT).
 - **Don’t flip-exit at a loss:** `flip_exit_only_if_profit=true` + a small debounce (`flip_exit_min_hold_bars≈2..6`) to avoid immediate whipsaws.
 - **Permission gates actually matter:** `ema_spread_min_pct≈0.003` + `ema_slope_min_pct≈0.014..0.035` improves the worst-window `roi/dd` notably.
-- **Asymmetric shorts:** keep two-way behavior, but reduce short risk (`spot_short_risk_mult≈0.01..0.02`) plus stricter short gating (`ema_spread_min_pct_down≈0.04..0.06`).
-- **Session/TOD activity filter:** limiting entries to a mid-day window (best found: `10–15 ET`) improved worst-window `roi/dd` while preserving activity.
+- **Asymmetric shorts:** keep two-way behavior, but reduce short risk (`spot_short_risk_mult≈0.01..0.02`) plus short gating (`ema_spread_min_pct_down≈0.04..0.06`).
+- **Session/TOD activity filter:** limiting entries to an RTH window (CURRENT best: `9–16 ET`) improved worst-window `roi/dd` while preserving activity.
 - **Shock overlay (new):** a daily ATR% shock detector with hysteresis + `"surf"` mode improved stability across all 3 windows without changing the base signal/regime family.
 
 Top set:
-- `backtests/out/tqqq_exec5m_v31_shock_block_longs_30m_10y2y1y_mintr100_top36.json`
+- CURRENT (v32): `backtests/out/tqqq_exec5m_v32_dethrone_30m_10y2y1y_mintr100_top100.json`
+- Previous CURRENT (v31): `backtests/out/tqqq_exec5m_v31_shock_block_longs_30m_10y2y1y_mintr100_top36.json`
 
 Search log / reproducibility (kept as files so we don’t rerun blindly):
+- v32 dethrone (seeded from v31; `--axis champ_refine` joint micro grid):
+  - `backtests/out/tqqq_exec5m_v32_dethrone_variants_30m.json` → `backtests/out/tqqq_exec5m_v32_dethrone_30m_10y2y1y_mintr100_top100.json`
+  - Winning deltas vs v31: TOD `9–16` ET (was `10–15`), `ema_spread_min_pct_down=0.04` (was `0.05`), `spot_stop_loss_pct=0.045` (was `0.04`).
 - Exit semantics joint sweep (EMA preset + PT/SL + flip-exit variants):
   - `backtests/out/tqqq_exec5m_exit_joint_30m_variants.json` → `backtests/out/tqqq_exec5m_exit_joint_30m_2y_top400.json` → `backtests/out/tqqq_exec5m_exit_joint_30m_10y2y1y_mintr100_champs_top80.json`
 - Permission joint sweep (spread/slope + flip gate):
@@ -531,7 +535,11 @@ Search log / reproducibility (kept as files so we don’t rerun blindly):
   - `backtests/out/tqqq_exec5m_v25_daily_atr_dynamic_variants_30m.json` → `backtests/out/tqqq_exec5m_v25_daily_atr_dynamic_30m_10y2y1y_mintr100_top80.json`
 - v31 shock threshold squeeze (beats v25 roi/dd in all 3 windows):
   - `backtests/out/tqqq_exec5m_v31_shock_block_longs_variants_30m.json` → `backtests/out/tqqq_exec5m_v31_shock_block_longs_30m_10y2y1y_mintr100_top36.json`
-- (Exploratory, not promoted) shock + regime investigations (summary; none beat v31 stability):
+- v32 v31-seeded champ_refine joint micro grid (beats v31 roi/dd in all 3 windows):
+  - `backtests/out/tqqq_exec5m_v32_dethrone_variants_30m.json` → `backtests/out/tqqq_exec5m_v32_dethrone_30m_10y2y1y_mintr100_top100.json`
+  - Key diffs vs v31: TOD `9–16` ET (was `10–15`), `ema_spread_min_pct_down=0.04` (was `0.05`), `spot_stop_loss_pct=0.045` (was `0.04`).
+  - Stress slices vs v31 (not part of kingmaker filter): better in Feb→Apr 2025 and 2022; worse in Feb→Apr 2020 crash.
+- (Exploratory, not promoted) shock + regime investigations (summary; none beat the CURRENT champ stability):
   - Shock overlay variants tried (modes: `detect|block|block_longs|surf`; direction source: `regime|signal`):
     - `daily_atr_pct`: `on_atr_pct ∈ {13.5,14.0,14.5}`, `off_atr_pct ∈ {12.5,13.0}`, `sl_mult ∈ {0.75,1.0,1.25}`
     - optional TR%-trigger (sticky day): `on_tr_pct ∈ {9.0,9.5,10.0,11.0,12.0,14.0,16.0}`
@@ -555,8 +563,15 @@ Search log / reproducibility (kept as files so we don’t rerun blindly):
 
 Repro commands:
 ```bash
-# NOTE: prepend new evolution entries ABOVE the CURRENT block (0g5).
-# 0g5) CURRENT (v31): earlier daily ATR% shock-on threshold (beats v25 roi/dd in all 3 windows)
+# NOTE: prepend new evolution entries ABOVE the CURRENT block (0g6).
+# 0g6) CURRENT (v32): v31-seeded champ_refine joint micro grid (beats v31 roi/dd in all 3 windows)
+python -m tradebot.backtest spot_multitimeframe --milestones backtests/out/tqqq_exec5m_v32_dethrone_variants_30m.json \
+  --symbol TQQQ --bar-size "30 mins" --use-rth --offline --cache-dir db --top 100 --max-open 1 \
+  --require-positive-pnl --min-trades 100 \
+  --window 2016-01-01:2026-01-19 --window 2024-01-01:2026-01-19 --window 2025-01-01:2026-01-19 \
+  --write-top 100 --out backtests/out/tqqq_exec5m_v32_dethrone_30m_10y2y1y_mintr100_top100.json
+
+# 0g5) Previous CURRENT (v31): earlier daily ATR% shock-on threshold (beats v25 roi/dd in all 3 windows)
 python -m tradebot.backtest spot_multitimeframe --milestones backtests/out/tqqq_exec5m_v31_shock_block_longs_variants_30m.json \
   --symbol TQQQ --bar-size "30 mins" --use-rth --offline --cache-dir db --top 36 --max-open 1 \
   --require-positive-pnl --min-trades 100 \
