@@ -52,9 +52,32 @@ from .config import (
     _parse_filters,
 )
 from .data import ContractMeta, IBKRHistoricalData, _find_covering_cache_path
-from .engine import _run_spot_backtest, _run_spot_backtest_summary, _spot_multiplier
+from .engine import _run_spot_backtest_summary, _spot_multiplier
 from .sweeps import utc_now_iso_z, write_json
 from ..signals import parse_bar_size
+
+
+# NOTE (worker orchestration): many axes in this file spawn sharded subprocess workers via CLI args
+# and need to strip/override flags from `sys.argv[1:]`. Keep the helpers centralized so new axes
+# can reuse them without copy/paste.
+def _strip_flag(argv: list[str], flag: str) -> list[str]:
+    return [arg for arg in argv if arg != flag]
+
+
+def _strip_flag_with_value(argv: list[str], flag: str) -> list[str]:
+    out: list[str] = []
+    idx = 0
+    while idx < len(argv):
+        arg = argv[idx]
+        if arg == flag:
+            idx += 2
+            continue
+        if arg.startswith(flag + "="):
+            idx += 1
+            continue
+        out.append(arg)
+        idx += 1
+    return out
 
 
 # region Cache Helpers
@@ -837,6 +860,7 @@ def main() -> None:
             "ema_atr",
             "tick_ema",
             "ptsl",
+            "hf_scalp",
             "hold",
             "spot_short_risk_mult",
             "orb",
@@ -2785,6 +2809,454 @@ def main() -> None:
                 rows.append(row)
         _print_leaderboards(rows, title="PT/SL sweep (fixed pct exits)", top_n=int(args.top))
 
+    def _sweep_hf_scalp() -> None:
+        """High-frequency spot axis (stacked stop+flip + cadence knobs + stability overlays).
+
+        Designed to discover "many trades/day" shapes under realism2 without requiring a seeded champion.
+
+        Stage 1: stacked stop-loss + flip-profit (fast-runner-friendly baseline).
+        Stage 2: sweep cadence knobs around the best stage-1 candidates (TOD, cooldown, skip-open, confirm).
+        Stage 3: apply a small set of TQQQ v34-inspired stability overlays (shock/permission/regime interactions).
+        Stage 4: expand slower knobs (max_open_trades, spot_close_eod) on a tiny shortlist.
+        """
+        bars_sig = _bars_cached(signal_bar_size)
+
+        def _shortlist(
+            items: list[tuple[ConfigBundle, dict, str]],
+            *,
+            top_pnl_dd: int,
+            top_pnl: int,
+            top_trades: int = 0,
+        ) -> list[tuple[ConfigBundle, dict, str]]:
+            by_dd = sorted(items, key=lambda t: _score_row_pnl_dd(t[1]), reverse=True)[: int(top_pnl_dd)]
+            by_pnl = sorted(items, key=lambda t: _score_row_pnl(t[1]), reverse=True)[: int(top_pnl)]
+            by_trades = (
+                sorted(
+                    items,
+                    key=lambda t: (
+                        int(t[1].get("trades") or 0),
+                        float(t[1].get("pnl_over_dd") or float("-inf")),
+                        float(t[1].get("pnl") or float("-inf")),
+                    ),
+                    reverse=True,
+                )[: int(top_trades)]
+                if int(top_trades) > 0
+                else []
+            )
+            seen: set[str] = set()
+            out: list[tuple[ConfigBundle, dict, str]] = []
+            for cfg, row, note in by_dd + by_pnl + by_trades:
+                key = _milestone_key(cfg)
+                if key in seen:
+                    continue
+                seen.add(key)
+                out.append((cfg, row, note))
+            return out
+
+        def _print_top_trades(rows: list[dict], *, title: str, top_n: int) -> None:
+            ranked = sorted(rows, key=lambda r: int(r.get("trades") or 0), reverse=True)[: max(0, int(top_n))]
+            if not ranked:
+                return
+            print("")
+            print(f"{title} — Top by trades")
+            print("-" * max(18, len(title) + 15))
+            for idx, r in enumerate(ranked, 1):
+                trades = int(r.get("trades") or 0)
+                win = float(r.get("win_rate") or 0.0) * 100.0
+                pnl = float(r.get("pnl") or 0.0)
+                dd = float(r.get("dd") or 0.0)
+                pnl_dd = r.get("pnl_over_dd")
+                pnl_dd_s = f"{float(pnl_dd):6.2f}" if pnl_dd is not None else "  None"
+                roi = float(r.get("roi") or 0.0) * 100.0
+                dd_pct = float(r.get("dd_pct") or 0.0) * 100.0
+                note = str(r.get("note") or "")
+                print(
+                    f"{idx:2d}. tr={trades:4d} win={win:5.1f}% pnl={pnl:9.1f} dd={dd:8.1f} pnl/dd={pnl_dd_s} "
+                    f"roi={roi:6.2f}% dd%={dd_pct:6.2f}% {note}"
+                )
+
+        # Stage 1: stacked stop-loss + flip-profit baseline (keep it fast-runner-friendly).
+        #
+        # Note: v1 used very tight stops (sub-0.6%), which produced many 1y winners but was negative over 10y for
+        # every candidate. v2 widens the stop grid + EMA presets to reduce whipsaw and improve decade stability.
+        ema_presets = ["3/7", "4/9", "5/13", "8/21", "9/21", "21/50"]
+        stop_only_vals = [0.0060, 0.0080, 0.0100, 0.0120, 0.0150, 0.0200]
+        flip_hold_vals = [0, 2, 4]
+        # Keep stages 1-3 on the fast summary runner path (max_open_trades=1, close_eod=False),
+        # then expand the slow knobs on a tiny shortlist at the end.
+        stage_fast_max_open = 1
+        stage_fast_close_eod = False
+        expand_max_open_vals = [1, 2, 3, 5]
+        expand_close_eod_vals = [False, True]
+
+        base = _base_bundle(bar_size=signal_bar_size, filters=None)
+        base = replace(
+            base,
+            strategy=replace(
+                base.strategy,
+                ema_entry_mode="trend",
+                exit_on_signal_flip=False,
+                flip_exit_only_if_profit=True,
+                flip_exit_min_hold_bars=0,
+            ),
+        )
+
+        stage1: list[tuple[ConfigBundle, dict, str]] = []
+        rows: list[dict] = []
+
+        # Stage 1 session baseline: wide RTH window, no cooldown/skip, no confirm.
+        # Keep a small permission grid; permission gating is a proven stabilizer in this codebase.
+        perm_variants_stage1: list[tuple[dict[str, object], str]] = [
+            ({}, "perm=off"),
+            ({"ema_spread_min_pct": 0.003, "ema_slope_min_pct": 0.03, "ema_spread_min_pct_down": 0.04}, "perm=v34"),
+        ]
+
+        regime_variants_stage1: list[tuple[dict[str, object], str]] = [
+            (
+                {"regime_mode": "ema", "regime_ema_preset": None, "regime_bar_size": str(signal_bar_size)},
+                "regime=off",
+            ),
+            (
+                {
+                    "regime_mode": "supertrend",
+                    "regime_bar_size": "4 hours",
+                    "supertrend_atr_period": 7,
+                    "supertrend_multiplier": 0.5,
+                    "supertrend_source": "hl2",
+                },
+                "regime=ST(7,0.5,hl2)@4h",
+            ),
+            (
+                {
+                    "regime_mode": "supertrend",
+                    "regime_bar_size": "1 day",
+                    "supertrend_atr_period": 14,
+                    "supertrend_multiplier": 0.6,
+                    "supertrend_source": "hl2",
+                },
+                "regime=ST(14,0.6,hl2)@1d",
+            ),
+        ]
+        for ema_preset in ema_presets:
+            for regime_patch, regime_note in regime_variants_stage1:
+                for perm_patch, perm_note in perm_variants_stage1:
+                    f = _mk_filters(
+                        entry_start_hour_et=9,
+                        entry_end_hour_et=16,
+                        cooldown_bars=0,
+                        skip_first_bars=0,
+                        overrides=perm_patch,
+                    )
+                    for sl in stop_only_vals:
+                        for hold in flip_hold_vals:
+                            cfg = replace(
+                                base,
+                                strategy=replace(
+                                    base.strategy,
+                                    ema_preset=str(ema_preset),
+                                    entry_confirm_bars=0,
+                                    spot_exit_mode="pct",
+                                    spot_profit_target_pct=None,
+                                    spot_stop_loss_pct=float(sl),
+                                    exit_on_signal_flip=True,
+                                    flip_exit_only_if_profit=True,
+                                    flip_exit_min_hold_bars=int(hold),
+                                    flip_exit_gate_mode="off",
+                                    max_open_trades=int(stage_fast_max_open),
+                                    spot_close_eod=bool(stage_fast_close_eod),
+                                    spot_short_risk_mult=0.01,
+                                    filters=f,
+                                    **regime_patch,
+                                ),
+                            )
+                            row = _run_cfg(
+                                cfg=cfg,
+                                bars=bars_sig,
+                                regime_bars=_regime_bars_for(cfg),
+                                regime2_bars=None,
+                            )
+                            if not row:
+                                continue
+                            note = (
+                                f"stacked stop+flip | EMA={ema_preset} confirm=0 | {regime_note} | {perm_note} | "
+                                f"tod=9-16 ET skip=0 cd=0 close_eod={int(stage_fast_close_eod)} | "
+                                f"SL={sl:.4f} hold={hold} max_open={stage_fast_max_open}"
+                            )
+                            row["note"] = note
+                            _record_milestone(cfg, row, note)
+                            stage1.append((cfg, row, note))
+                            rows.append(row)
+
+        _print_leaderboards(rows, title="HF scalper: stage1 (stacked stop+flip)", top_n=int(args.top))
+        _print_top_trades(rows, title="HF scalper: stage1 (stacked stop+flip)", top_n=int(args.top))
+
+        if not stage1:
+            print("HF scalper: stage1 produced 0 results; nothing to refine.", flush=True)
+            return
+
+        # Stage 2: sweep cadence knobs around the best stage1 candidates.
+        target_trades = max(0, int(args.milestone_min_trades or 0))
+        stage1_hi = [t for t in stage1 if int(t[1].get("trades") or 0) >= int(target_trades)] if target_trades else []
+        shortlist_pool = stage1_hi if stage1_hi else stage1
+        shortlisted = _shortlist(shortlist_pool, top_pnl_dd=10, top_pnl=10, top_trades=10)
+        print("")
+        print(f"HF scalper: stage2 seeds={len(shortlisted)} (pool={len(shortlist_pool)} target_trades={target_trades})", flush=True)
+
+        confirm_vals = [0, 1]
+        tod_variants = [(9, 16, "tod=9-16 ET"), (10, 15, "tod=10-15 ET"), (11, 16, "tod=11-16 ET")]
+        cooldown_vals = [0, 2]
+        skip_open_vals = [0, 1, 2]
+        close_eod_vals = [False]
+
+        stage2: list[tuple[ConfigBundle, dict, str]] = []
+        rows2: list[dict] = []
+        for seed_cfg, _, seed_note in shortlisted:
+            for confirm in confirm_vals:
+                for entry_s, entry_e, tod_note in tod_variants:
+                    for cooldown in cooldown_vals:
+                        for skip_open in skip_open_vals:
+                            for close_eod in close_eod_vals:
+                                base_payload = _filters_payload(seed_cfg.strategy.filters) or {}
+                                raw = dict(base_payload)
+                                raw["entry_start_hour_et"] = int(entry_s)
+                                raw["entry_end_hour_et"] = int(entry_e)
+                                raw["cooldown_bars"] = int(cooldown)
+                                raw["skip_first_bars"] = int(skip_open)
+                                f = _parse_filters(raw)
+                                if _filters_payload(f) is None:
+                                    f = None
+                                cfg = replace(
+                                    seed_cfg,
+                                    strategy=replace(
+                                        seed_cfg.strategy,
+                                        entry_confirm_bars=int(confirm),
+                                        spot_close_eod=bool(close_eod),
+                                        filters=f,
+                                    ),
+                                )
+                                row = _run_cfg(
+                                    cfg=cfg,
+                                    bars=bars_sig,
+                                    regime_bars=_regime_bars_for(cfg),
+                                    regime2_bars=None,
+                                )
+                                if not row:
+                                    continue
+                                note = (
+                                    f"{seed_note} | {tod_note} skip={skip_open} cd={cooldown} "
+                                    f"close_eod={int(close_eod)} confirm={confirm}"
+                                )
+                                row["note"] = note
+                                _record_milestone(cfg, row, note)
+                                stage2.append((cfg, row, note))
+                                rows2.append(row)
+
+        _print_leaderboards(rows2, title="HF scalper: stage2 (cadence knobs)", top_n=int(args.top))
+        _print_top_trades(rows2, title="HF scalper: stage2 (cadence knobs)", top_n=int(args.top))
+
+        if not stage2:
+            print("HF scalper: stage2 produced 0 results; skipping overlays.", flush=True)
+            return
+
+        # Stage 3: apply a small overlay grid (v34-inspired) to the best stage2 candidates.
+        stage2_hi = [t for t in stage2 if int(t[1].get("trades") or 0) >= int(target_trades)] if target_trades else []
+        overlay_pool = stage2_hi if stage2_hi else stage2
+        shortlisted2 = _shortlist(overlay_pool, top_pnl_dd=8, top_pnl=8, top_trades=8)
+        print("")
+        print(f"HF scalper: stage3 seeds={len(shortlisted2)} (pool={len(overlay_pool)})", flush=True)
+
+        # Overlays:
+        # - Regime: off vs 4h supertrend (v34-like)
+        regime_variants: list[tuple[dict[str, object], str]] = [
+            (
+                {
+                    "regime_mode": "ema",
+                    "regime_ema_preset": None,
+                    "regime_bar_size": str(signal_bar_size),
+                },
+                "regime=off",
+            ),
+            (
+                {
+                    "regime_mode": "supertrend",
+                    "regime_bar_size": "4 hours",
+                    "supertrend_atr_period": 7,
+                    "supertrend_multiplier": 0.5,
+                    "supertrend_source": "hl2",
+                },
+                "regime=ST(7,0.5,hl2)@4h",
+            ),
+            (
+                {
+                    "regime_mode": "supertrend",
+                    "regime_bar_size": "1 day",
+                    "supertrend_atr_period": 14,
+                    "supertrend_multiplier": 0.6,
+                    "supertrend_source": "hl2",
+                },
+                "regime=ST(14,0.6,hl2)@1d",
+            ),
+        ]
+
+        # - Permission: off vs v34-like thresholds (kept small; SLV needs its own calibration later).
+        perm_variants: list[tuple[dict[str, object] | None, str]] = [
+            (None, "perm=seed"),
+            (
+                {"ema_spread_min_pct": None, "ema_slope_min_pct": None, "ema_spread_min_pct_down": None},
+                "perm=off",
+            ),
+            ({"ema_spread_min_pct": 0.003, "ema_slope_min_pct": 0.03, "ema_spread_min_pct_down": 0.04}, "perm=v34"),
+        ]
+
+        # - Shock: off vs detect(tr_ratio) with SLV-scaled min_atr_pct and a couple ratio thresholds.
+        shock_variants: list[tuple[dict[str, object] | None, str]] = [
+            (None, "shock=seed"),
+            ({"shock_gate_mode": "off"}, "shock=off"),
+            (
+                {
+                    "shock_gate_mode": "block",
+                    "shock_detector": "daily_atr_pct",
+                    "shock_daily_atr_period": 14,
+                    "shock_daily_on_atr_pct": 4.5,
+                    "shock_daily_off_atr_pct": 4.0,
+                    "shock_direction_source": "signal",
+                    "shock_direction_lookback": 1,
+                },
+                "shock=block daily_atr% 4.5/4.0",
+            ),
+            (
+                {
+                    "shock_gate_mode": "detect",
+                    "shock_detector": "tr_ratio",
+                    "shock_direction_source": "signal",
+                    "shock_direction_lookback": 1,
+                    "shock_atr_fast_period": 3,
+                    "shock_atr_slow_period": 21,
+                    "shock_on_ratio": 1.30,
+                    "shock_off_ratio": 1.20,
+                    "shock_min_atr_pct": 1.5,
+                    "shock_risk_scale_target_atr_pct": 3.5,
+                    "shock_risk_scale_min_mult": 0.2,
+                    "shock_stop_loss_pct_mult": 1.0,
+                    "shock_profit_target_pct_mult": 1.0,
+                },
+                "shock=detect tr_ratio(3/21) 1.30/1.20 min_atr%=1.5",
+            ),
+        ]
+
+        # - Short sizing asymmetry: mimic v34's "shorts can be toxic" behavior.
+        short_mult_vals = [1.0, 0.2, 0.01, 0.0]
+
+        flip_variants: list[tuple[dict[str, object], str]] = [
+            ({"exit_on_signal_flip": False}, "flip=off"),
+            (
+                {
+                    "exit_on_signal_flip": True,
+                    "flip_exit_only_if_profit": True,
+                    "flip_exit_min_hold_bars": 2,
+                    "flip_exit_gate_mode": "off",
+                },
+                "flip=profit hold=2",
+            ),
+        ]
+
+        stage3: list[tuple[ConfigBundle, dict, str]] = []
+        rows3: list[dict] = []
+        for seed_cfg, _, seed_note in shortlisted2:
+            seed_filters = seed_cfg.strategy.filters
+            entry_s = getattr(seed_filters, "entry_start_hour_et", None) if seed_filters is not None else None
+            entry_e = getattr(seed_filters, "entry_end_hour_et", None) if seed_filters is not None else None
+            cooldown = int(getattr(seed_filters, "cooldown_bars", 0) or 0) if seed_filters is not None else 0
+            skip_open = int(getattr(seed_filters, "skip_first_bars", 0) or 0) if seed_filters is not None else 0
+
+            for regime_patch, regime_note in regime_variants:
+                for perm_patch, perm_note in perm_variants:
+                    for shock_patch, shock_note in shock_variants:
+                        base_payload = _filters_payload(seed_cfg.strategy.filters) or {}
+                        raw = dict(base_payload)
+                        if entry_s is not None and entry_e is not None:
+                            raw["entry_start_hour_et"] = int(entry_s)
+                            raw["entry_end_hour_et"] = int(entry_e)
+                        raw["cooldown_bars"] = int(cooldown)
+                        raw["skip_first_bars"] = int(skip_open)
+                        if perm_patch is not None:
+                            raw.update(perm_patch)
+                        if shock_patch is not None:
+                            raw.update(shock_patch)
+                        f2 = _parse_filters(raw)
+                        if _filters_payload(f2) is None:
+                            f2 = None
+
+                        for short_mult in short_mult_vals:
+                            for flip_patch, flip_note in flip_variants:
+                                cfg = seed_cfg
+                                cfg = replace(
+                                    cfg,
+                                    strategy=replace(
+                                        cfg.strategy,
+                                        filters=f2,
+                                        spot_short_risk_mult=float(short_mult),
+                                        **regime_patch,
+                                        **flip_patch,
+                                    ),
+                                )
+                                row = _run_cfg(
+                                    cfg=cfg,
+                                    bars=bars_sig,
+                                    regime_bars=_regime_bars_for(cfg),
+                                    regime2_bars=None,
+                                )
+                                if not row:
+                                    continue
+                                note = (
+                                    f"{seed_note} | {regime_note} | {perm_note} | {shock_note} | "
+                                    f"short_mult={short_mult:g} | {flip_note}"
+                                )
+                                row["note"] = note
+                                _record_milestone(cfg, row, note)
+                                stage3.append((cfg, row, note))
+                                rows3.append(row)
+
+        _print_leaderboards(rows3, title="HF scalper: stage3 (v34-inspired overlays)", top_n=int(args.top))
+        _print_top_trades(rows3, title="HF scalper: stage3 (v34-inspired overlays)", top_n=int(args.top))
+
+        # Stage 4: expand the slow knobs (max_open_trades / close_eod) on a tiny shortlist.
+        if not stage3:
+            return
+        stage3_hi = [t for t in stage3 if int(t[1].get("trades") or 0) >= int(target_trades)] if target_trades else []
+        expand_pool = stage3_hi if stage3_hi else stage3
+        shortlisted3 = _shortlist(expand_pool, top_pnl_dd=6, top_pnl=6, top_trades=6)
+        print("")
+        print(f"HF scalper: expand seeds={len(shortlisted3)} (pool={len(expand_pool)})", flush=True)
+
+        rows4: list[dict] = []
+        for seed_cfg, _, seed_note in shortlisted3:
+            for max_open in expand_max_open_vals:
+                for close_eod in expand_close_eod_vals:
+                    cfg = replace(
+                        seed_cfg,
+                        strategy=replace(
+                            seed_cfg.strategy,
+                            max_open_trades=int(max_open),
+                            spot_close_eod=bool(close_eod),
+                        ),
+                    )
+                    row = _run_cfg(
+                        cfg=cfg,
+                        bars=bars_sig,
+                        regime_bars=_regime_bars_for(cfg),
+                        regime2_bars=None,
+                    )
+                    if not row:
+                        continue
+                    note = f"{seed_note} | expand close_eod={int(close_eod)} max_open={max_open}"
+                    row["note"] = note
+                    _record_milestone(cfg, row, note)
+                    rows4.append(row)
+
+        _print_leaderboards(rows4, title="HF scalper: expansion (close_eod/max_open)", top_n=int(args.top))
+        _print_top_trades(rows4, title="HF scalper: expansion (close_eod/max_open)", top_n=int(args.top))
+
     def _sweep_hold() -> None:
         bars_sig = _bars_cached(signal_bar_size)
         rows: list[dict] = []
@@ -3956,24 +4428,6 @@ def main() -> None:
         if jobs > 1 and total > 0:
             if not offline:
                 raise SystemExit("--jobs>1 for risk_overlays requires --offline (avoid parallel IBKR sessions).")
-
-            def _strip_flag(argv: list[str], flag: str) -> list[str]:
-                return [arg for arg in argv if arg != flag]
-
-            def _strip_flag_with_value(argv: list[str], flag: str) -> list[str]:
-                out: list[str] = []
-                idx = 0
-                while idx < len(argv):
-                    arg = argv[idx]
-                    if arg == flag:
-                        idx += 2
-                        continue
-                    if arg.startswith(flag + "="):
-                        idx += 1
-                        continue
-                    out.append(arg)
-                    idx += 1
-                return out
 
             base_cli = list(sys.argv[1:])
             base_cli = _strip_flag_with_value(base_cli, "--axis")
@@ -5229,24 +5683,6 @@ def main() -> None:
             if not offline:
                 raise SystemExit("--jobs>1 for combo_fast requires --offline (avoid parallel IBKR sessions).")
 
-            def _strip_flag(argv: list[str], flag: str) -> list[str]:
-                return [arg for arg in argv if arg != flag]
-
-            def _strip_flag_with_value(argv: list[str], flag: str) -> list[str]:
-                out: list[str] = []
-                idx = 0
-                while idx < len(argv):
-                    arg = argv[idx]
-                    if arg == flag:
-                        idx += 2
-                        continue
-                    if arg.startswith(flag + "="):
-                        idx += 1
-                        continue
-                    out.append(arg)
-                    idx += 1
-                return out
-
             base_cli = list(sys.argv[1:])
             base_cli = _strip_flag_with_value(base_cli, "--axis")
             base_cli = _strip_flag_with_value(base_cli, "--jobs")
@@ -5499,24 +5935,6 @@ def main() -> None:
             if not offline:
                 raise SystemExit("--jobs>1 for combo_fast requires --offline (avoid parallel IBKR sessions).")
 
-            def _strip_flag(argv: list[str], flag: str) -> list[str]:
-                return [arg for arg in argv if arg != flag]
-
-            def _strip_flag_with_value(argv: list[str], flag: str) -> list[str]:
-                out: list[str] = []
-                idx = 0
-                while idx < len(argv):
-                    arg = argv[idx]
-                    if arg == flag:
-                        idx += 2
-                        continue
-                    if arg.startswith(flag + "="):
-                        idx += 1
-                        continue
-                    out.append(arg)
-                    idx += 1
-                return out
-
             base_cli = list(sys.argv[1:])
             base_cli = _strip_flag_with_value(base_cli, "--axis")
             base_cli = _strip_flag_with_value(base_cli, "--jobs")
@@ -5766,24 +6184,6 @@ def main() -> None:
         if jobs > 1 and stage3_total > 0:
             if not offline:
                 raise SystemExit("--jobs>1 for combo_fast requires --offline (avoid parallel IBKR sessions).")
-
-            def _strip_flag(argv: list[str], flag: str) -> list[str]:
-                return [arg for arg in argv if arg != flag]
-
-            def _strip_flag_with_value(argv: list[str], flag: str) -> list[str]:
-                out: list[str] = []
-                idx = 0
-                while idx < len(argv):
-                    arg = argv[idx]
-                    if arg == flag:
-                        idx += 2
-                        continue
-                    if arg.startswith(flag + "="):
-                        idx += 1
-                        continue
-                    out.append(arg)
-                    idx += 1
-                return out
 
             base_cli = list(sys.argv[1:])
             base_cli = _strip_flag_with_value(base_cli, "--axis")
@@ -6167,24 +6567,6 @@ def main() -> None:
                 "combo_fast",
                 "frontier",
             ]
-
-            def _strip_flag(argv: list[str], flag: str) -> list[str]:
-                return [arg for arg in argv if arg != flag]
-
-            def _strip_flag_with_value(argv: list[str], flag: str) -> list[str]:
-                out: list[str] = []
-                idx = 0
-                while idx < len(argv):
-                    arg = argv[idx]
-                    if arg == flag:
-                        idx += 2
-                        continue
-                    if arg.startswith(flag + "="):
-                        idx += 1
-                        continue
-                    out.append(arg)
-                    idx += 1
-                return out
 
             base_cli = list(sys.argv[1:])
             base_cli = _strip_flag_with_value(base_cli, "--axis")
@@ -6669,6 +7051,7 @@ def main() -> None:
         last_progress = float(t0_all)
 
         short_grid_base = [1.0, 0.2, 0.05, 0.02, 0.01, 0.0]
+        is_slv = str(symbol).strip().upper() == "SLV"
 
         # Joint permission micro grid (cross-product) around the CURRENT champ.
         #
@@ -6678,67 +7061,184 @@ def main() -> None:
         # - ema_slope_min_pct=0.02 (better 10y+1y)
         # - ema_spread_min_pct_down=0.06 (better 10y+2y but slightly hurts 1y)
         perm_variants: list[tuple[dict[str, object], str]] = [({}, "perm=seed")]
-        spread_vals = [0.0025, 0.003, 0.004]
-        slope_vals = [0.02, 0.03, 0.04]
-        down_vals = [0.04, 0.05, 0.06]
-        for spread in spread_vals:
-            for slope in slope_vals:
-                for down in down_vals:
-                    perm_variants.append(
-                        (
-                            {
-                                "ema_spread_min_pct": float(spread),
-                                "ema_slope_min_pct": float(slope),
-                                "ema_spread_min_pct_down": float(down),
-                            },
-                            f"perm spread={spread:g} slope={slope:g} down={down:g}",
-                        )
+        if is_slv:
+            # Keep stage3a bounded for 10y runs (speed), but still probe a few distinct permission regimes.
+            for spread, slope, down, note in (
+                (0.0015, 0.01, 0.02, "perm=loose (0.0015/0.01/0.02)"),
+                (0.0015, 0.03, 0.02, "perm=loose_slope (0.0015/0.03/0.02)"),
+                (0.0030, 0.03, 0.04, "perm=mid (0.003/0.03/0.04)"),
+                (0.0060, 0.03, 0.08, "perm=spready (0.006/0.03/0.08)"),
+                (0.0030, 0.06, 0.08, "perm=tight_slope (0.003/0.06/0.08)"),
+                (0.0060, 0.06, 0.08, "perm=tight (0.006/0.06/0.08)"),
+            ):
+                perm_variants.append(
+                    (
+                        {
+                            "ema_spread_min_pct": float(spread),
+                            "ema_slope_min_pct": float(slope),
+                            "ema_spread_min_pct_down": float(down),
+                        },
+                        str(note),
                     )
-        signed_slope_variants: list[tuple[dict[str, object], str]] = [
-            ({}, "sslope=off"),
-            (
-                {"ema_slope_signed_min_pct_up": 0.003, "ema_slope_signed_min_pct_down": 0.003},
-                "sslope=0.003/0.003",
-            ),
-            (
-                {"ema_slope_signed_min_pct_up": 0.005, "ema_slope_signed_min_pct_down": 0.005},
-                "sslope=0.005/0.005",
-            ),
-            (
-                {"ema_slope_signed_min_pct_up": 0.003, "ema_slope_signed_min_pct_down": 0.006},
-                "sslope=0.003/0.006",
-            ),
-        ]
-        tod_variants: list[tuple[int | None, int | None, int, int, str]] = [
-            (None, None, 0, 0, "tod=seed"),
-            (10, 15, 0, 0, "tod=10-15"),
-            (10, 15, 1, 2, "tod=10-15 (skip=1 cd=2)"),
-            (9, 16, 0, 0, "tod=09-16"),
-            (10, 16, 0, 0, "tod=10-16"),
-        ]
+                )
+        else:
+            spread_vals = [0.0025, 0.003, 0.004]
+            slope_vals = [0.02, 0.03, 0.04]
+            down_vals = [0.04, 0.05, 0.06]
+            for spread in spread_vals:
+                for slope in slope_vals:
+                    for down in down_vals:
+                        perm_variants.append(
+                            (
+                                {
+                                    "ema_spread_min_pct": float(spread),
+                                    "ema_slope_min_pct": float(slope),
+                                    "ema_spread_min_pct_down": float(down),
+                                },
+                                f"perm spread={spread:g} slope={slope:g} down={down:g}",
+                            )
+                        )
+        signed_slope_variants: list[tuple[dict[str, object], str]] = (
+            [
+                ({}, "sslope=off"),
+            ]
+            if is_slv
+            else [
+                ({}, "sslope=off"),
+                (
+                    {"ema_slope_signed_min_pct_up": 0.003, "ema_slope_signed_min_pct_down": 0.003},
+                    "sslope=0.003/0.003",
+                ),
+                (
+                    {"ema_slope_signed_min_pct_up": 0.005, "ema_slope_signed_min_pct_down": 0.005},
+                    "sslope=0.005/0.005",
+                ),
+                (
+                    {"ema_slope_signed_min_pct_up": 0.003, "ema_slope_signed_min_pct_down": 0.006},
+                    "sslope=0.003/0.006",
+                ),
+            ]
+        )
+        tod_variants: list[tuple[int | None, int | None, int, int, str]] = (
+            [
+                (None, None, 0, 0, "tod=seed"),
+                (9, 16, 0, 0, "tod=09-16"),
+                (10, 15, 1, 2, "tod=10-15 (skip=1 cd=2)"),
+            ]
+            if is_slv
+            else [
+                (None, None, 0, 0, "tod=seed"),
+                (10, 15, 0, 0, "tod=10-15"),
+                (10, 15, 1, 2, "tod=10-15 (skip=1 cd=2)"),
+                (9, 16, 0, 0, "tod=09-16"),
+                (10, 16, 0, 0, "tod=10-16"),
+            ]
+        )
 
         # Shock pocket (includes the v25/v31 daily ATR% family + a few TR-ratio variants).
         shock_variants: list[tuple[dict[str, object], str]] = [
             ({"shock_gate_mode": "off"}, "shock=off"),
         ]
-        for on_atr, off_atr in ((12.5, 12.0), (13.0, 12.5), (13.5, 13.0), (14.0, 13.5), (14.5, 14.0)):
-            for sl_mult in (0.75, 1.0):
+        if not is_slv:
+            for on_atr, off_atr in ((12.5, 12.0), (13.0, 12.5), (13.5, 13.0), (14.0, 13.5), (14.5, 14.0)):
+                for sl_mult in (0.75, 1.0):
+                    shock_variants.append(
+                        (
+                            {
+                                "shock_gate_mode": "surf",
+                                "shock_detector": "daily_atr_pct",
+                                "shock_daily_atr_period": 14,
+                                "shock_daily_on_atr_pct": float(on_atr),
+                                "shock_daily_off_atr_pct": float(off_atr),
+                                "shock_direction_source": "signal",
+                                "shock_direction_lookback": 1,
+                                "shock_stop_loss_pct_mult": float(sl_mult),
+                            },
+                            f"shock=surf daily_atr on={on_atr:g} off={off_atr:g} sl_mult={sl_mult:g}",
+                        )
+                    )
+            for on_tr in (9.0, 11.0, 14.0):
                 shock_variants.append(
                     (
                         {
                             "shock_gate_mode": "surf",
                             "shock_detector": "daily_atr_pct",
                             "shock_daily_atr_period": 14,
-                            "shock_daily_on_atr_pct": float(on_atr),
-                            "shock_daily_off_atr_pct": float(off_atr),
+                            "shock_daily_on_atr_pct": 13.5,
+                            "shock_daily_off_atr_pct": 13.0,
+                            "shock_daily_on_tr_pct": float(on_tr),
                             "shock_direction_source": "signal",
                             "shock_direction_lookback": 1,
-                            "shock_stop_loss_pct_mult": float(sl_mult),
+                            "shock_stop_loss_pct_mult": 0.75,
                         },
-                        f"shock=surf daily_atr on={on_atr:g} off={off_atr:g} sl_mult={sl_mult:g}",
+                        f"shock=surf daily_atr on=13.5 off=13.0 on_tr>={on_tr:g} sl_mult=0.75",
                     )
                 )
-        for on_tr in (9.0, 11.0, 14.0):
+            shock_variants.append(
+                (
+                    {
+                        "shock_gate_mode": "block_longs",
+                        "shock_detector": "daily_atr_pct",
+                        "shock_daily_atr_period": 14,
+                        "shock_daily_on_atr_pct": 13.5,
+                        "shock_daily_off_atr_pct": 13.0,
+                        "shock_direction_source": "signal",
+                        "shock_direction_lookback": 1,
+                        "shock_stop_loss_pct_mult": 0.75,
+                    },
+                    "shock=block_longs daily_atr on=13.5 off=13.0 sl_mult=0.75",
+                )
+            )
+            shock_variants.append(
+                (
+                    {
+                        "shock_gate_mode": "block",
+                        "shock_detector": "daily_atr_pct",
+                        "shock_daily_atr_period": 14,
+                        "shock_daily_on_atr_pct": 13.5,
+                        "shock_daily_off_atr_pct": 13.0,
+                        "shock_direction_source": "signal",
+                        "shock_direction_lookback": 1,
+                    },
+                    "shock=block daily_atr on=13.5 off=13.0",
+                )
+            )
+            for on_ratio, off_ratio in ((1.35, 1.25), (1.45, 1.30), (1.55, 1.30)):
+                shock_variants.append(
+                    (
+                        {
+                            "shock_gate_mode": "surf",
+                            "shock_detector": "tr_ratio",
+                            "shock_atr_fast_period": 7,
+                            "shock_atr_slow_period": 50,
+                            "shock_on_ratio": float(on_ratio),
+                            "shock_off_ratio": float(off_ratio),
+                            "shock_min_atr_pct": 7.0,
+                            "shock_direction_source": "signal",
+                            "shock_direction_lookback": 1,
+                            "shock_stop_loss_pct_mult": 0.75,
+                        },
+                        f"shock=surf tr_ratio on={on_ratio:g} off={off_ratio:g} min_atr=7 sl_mult=0.75",
+                    )
+                )
+            for on_ratio, off_ratio in ((1.35, 1.25), (1.45, 1.30), (1.55, 1.30)):
+                shock_variants.append(
+                    (
+                        {
+                            "shock_gate_mode": "surf",
+                            "shock_detector": "atr_ratio",
+                            "shock_atr_fast_period": 7,
+                            "shock_atr_slow_period": 50,
+                            "shock_on_ratio": float(on_ratio),
+                            "shock_off_ratio": float(off_ratio),
+                            "shock_min_atr_pct": 7.0,
+                            "shock_direction_source": "signal",
+                            "shock_direction_lookback": 1,
+                            "shock_stop_loss_pct_mult": 0.75,
+                        },
+                        f"shock=surf atr_ratio on={on_ratio:g} off={off_ratio:g} min_atr=7 sl_mult=0.75",
+                    )
+                )
             shock_variants.append(
                 (
                     {
@@ -6747,94 +7247,99 @@ def main() -> None:
                         "shock_daily_atr_period": 14,
                         "shock_daily_on_atr_pct": 13.5,
                         "shock_daily_off_atr_pct": 13.0,
-                        "shock_daily_on_tr_pct": float(on_tr),
-                        "shock_direction_source": "signal",
-                        "shock_direction_lookback": 1,
+                        "shock_direction_source": "regime",
+                        "shock_direction_lookback": 2,
                         "shock_stop_loss_pct_mult": 0.75,
                     },
-                    f"shock=surf daily_atr on=13.5 off=13.0 on_tr>={on_tr:g} sl_mult=0.75",
+                    "shock=surf daily_atr dir=regime lb=2 on=13.5 off=13.0 sl_mult=0.75",
                 )
             )
-        shock_variants.append(
-            (
-                {
-                    "shock_gate_mode": "block_longs",
-                    "shock_detector": "daily_atr_pct",
-                    "shock_daily_atr_period": 14,
-                    "shock_daily_on_atr_pct": 13.5,
-                    "shock_daily_off_atr_pct": 13.0,
-                    "shock_direction_source": "signal",
-                    "shock_direction_lookback": 1,
-                    "shock_stop_loss_pct_mult": 0.75,
-                },
-                "shock=block_longs daily_atr on=13.5 off=13.0 sl_mult=0.75",
-            )
-        )
-        shock_variants.append(
-            (
-                {
-                    "shock_gate_mode": "block",
-                    "shock_detector": "daily_atr_pct",
-                    "shock_daily_atr_period": 14,
-                    "shock_daily_on_atr_pct": 13.5,
-                    "shock_daily_off_atr_pct": 13.0,
-                    "shock_direction_source": "signal",
-                    "shock_direction_lookback": 1,
-                },
-                "shock=block daily_atr on=13.5 off=13.0",
-            )
-        )
-        for on_ratio, off_ratio in ((1.35, 1.25), (1.45, 1.30), (1.55, 1.30)):
+        else:
+            # SLV: daily ATR% and TR-ratio operate on a much smaller scale; explore a wider-but-still-bounded pocket.
+            for on_atr, off_atr in ((4.0, 3.5), (4.5, 4.0), (5.0, 4.5), (6.0, 5.0)):
+                for sl_mult in (0.75, 1.0):
+                    shock_variants.append(
+                        (
+                            {
+                                "shock_gate_mode": "surf",
+                                "shock_detector": "daily_atr_pct",
+                                "shock_daily_atr_period": 14,
+                                "shock_daily_on_atr_pct": float(on_atr),
+                                "shock_daily_off_atr_pct": float(off_atr),
+                                "shock_direction_source": "signal",
+                                "shock_direction_lookback": 1,
+                                "shock_stop_loss_pct_mult": float(sl_mult),
+                            },
+                            f"shock=surf daily_atr on={on_atr:g} off={off_atr:g} sl_mult={sl_mult:g}",
+                        )
+                    )
             shock_variants.append(
                 (
                     {
-                        "shock_gate_mode": "surf",
+                        "shock_gate_mode": "block",
+                        "shock_detector": "daily_atr_pct",
+                        "shock_daily_atr_period": 14,
+                        "shock_daily_on_atr_pct": 5.0,
+                        "shock_daily_off_atr_pct": 4.5,
+                        "shock_direction_source": "signal",
+                        "shock_direction_lookback": 1,
+                    },
+                    "shock=block daily_atr on=5.0 off=4.5",
+                )
+            )
+            for on_tr in (5.0, 6.0, 7.0):
+                shock_variants.append(
+                    (
+                        {
+                            "shock_gate_mode": "surf",
+                            "shock_detector": "daily_atr_pct",
+                            "shock_daily_atr_period": 14,
+                            "shock_daily_on_atr_pct": 4.5,
+                            "shock_daily_off_atr_pct": 4.0,
+                            "shock_daily_on_tr_pct": float(on_tr),
+                            "shock_direction_source": "signal",
+                            "shock_direction_lookback": 1,
+                            "shock_stop_loss_pct_mult": 0.75,
+                        },
+                        f"shock=surf daily_atr on=4.5 off=4.0 on_tr>={on_tr:g} sl_mult=0.75",
+                    )
+                )
+            shock_variants.append(
+                (
+                    {
+                        "shock_gate_mode": "detect",
+                        "shock_detector": "tr_ratio",
+                        "shock_atr_fast_period": 3,
+                        "shock_atr_slow_period": 21,
+                        "shock_on_ratio": 1.30,
+                        "shock_off_ratio": 1.20,
+                        "shock_min_atr_pct": 1.0,
+                        "shock_direction_source": "signal",
+                        "shock_direction_lookback": 1,
+                        "shock_risk_scale_target_atr_pct": 3.5,
+                        "shock_risk_scale_min_mult": 0.2,
+                    },
+                    "shock=detect tr_ratio(3/21) 1.30/1.20 min_atr%=1.0 scale@3.5->0.2",
+                )
+            )
+            shock_variants.append(
+                (
+                    {
+                        "shock_gate_mode": "detect",
                         "shock_detector": "tr_ratio",
                         "shock_atr_fast_period": 7,
                         "shock_atr_slow_period": 50,
-                        "shock_on_ratio": float(on_ratio),
-                        "shock_off_ratio": float(off_ratio),
-                        "shock_min_atr_pct": 7.0,
-                        "shock_direction_source": "signal",
-                        "shock_direction_lookback": 1,
-                        "shock_stop_loss_pct_mult": 0.75,
+                        "shock_on_ratio": 1.45,
+                        "shock_off_ratio": 1.30,
+                        "shock_min_atr_pct": 1.5,
+                        "shock_direction_source": "regime",
+                        "shock_direction_lookback": 2,
+                        "shock_risk_scale_target_atr_pct": 4.0,
+                        "shock_risk_scale_min_mult": 0.2,
                     },
-                    f"shock=surf tr_ratio on={on_ratio:g} off={off_ratio:g} min_atr=7 sl_mult=0.75",
+                    "shock=detect tr_ratio(7/50) 1.45/1.30 min_atr%=1.5 dir=regime lb=2 scale@4.0->0.2",
                 )
             )
-        for on_ratio, off_ratio in ((1.35, 1.25), (1.45, 1.30), (1.55, 1.30)):
-            shock_variants.append(
-                (
-                    {
-                        "shock_gate_mode": "surf",
-                        "shock_detector": "atr_ratio",
-                        "shock_atr_fast_period": 7,
-                        "shock_atr_slow_period": 50,
-                        "shock_on_ratio": float(on_ratio),
-                        "shock_off_ratio": float(off_ratio),
-                        "shock_min_atr_pct": 7.0,
-                        "shock_direction_source": "signal",
-                        "shock_direction_lookback": 1,
-                        "shock_stop_loss_pct_mult": 0.75,
-                    },
-                    f"shock=surf atr_ratio on={on_ratio:g} off={off_ratio:g} min_atr=7 sl_mult=0.75",
-                )
-            )
-        shock_variants.append(
-            (
-                {
-                    "shock_gate_mode": "surf",
-                    "shock_detector": "daily_atr_pct",
-                    "shock_daily_atr_period": 14,
-                    "shock_daily_on_atr_pct": 13.5,
-                    "shock_daily_off_atr_pct": 13.0,
-                    "shock_direction_source": "regime",
-                    "shock_direction_lookback": 2,
-                    "shock_stop_loss_pct_mult": 0.75,
-                },
-                "shock=surf daily_atr dir=regime lb=2 on=13.5 off=13.0 sl_mult=0.75",
-            )
-        )
 
         # TR/gap overlays pocket (panic = defensive, pop = aggressive).
         def _risk_off_overrides() -> dict[str, object]:
@@ -6847,102 +7352,200 @@ def main() -> None:
                 "riskpop_pos_gap_ratio_min": None,
             }
 
-        risk_variants: list[tuple[dict[str, object], str]] = [
-            (_risk_off_overrides(), "risk=off"),
-            (
-                {
-                    **_risk_off_overrides(),
-                    "riskoff_tr5_med_pct": 9.0,
-                    "riskoff_lookback_days": 5,
-                    "riskoff_mode": "hygiene",
-                    "riskoff_long_risk_mult_factor": 0.7,
-                    "riskoff_short_risk_mult_factor": 0.7,
-                    "risk_entry_cutoff_hour_et": 15,
-                },
-                "riskoff TRmed5>=9 both=0.7 cutoff<15",
-            ),
-            (
-                {
-                    **_risk_off_overrides(),
-                    "riskoff_tr5_med_pct": 10.0,
-                    "riskoff_lookback_days": 5,
-                    "riskoff_mode": "hygiene",
-                    "riskoff_long_risk_mult_factor": 0.5,
-                    "riskoff_short_risk_mult_factor": 0.5,
-                    "risk_entry_cutoff_hour_et": 15,
-                },
-                "riskoff TRmed5>=10 both=0.5 cutoff<15",
-            ),
-            (
-                {
-                    **_risk_off_overrides(),
-                    "riskpanic_tr5_med_pct": 9.0,
-                    "riskpanic_neg_gap_ratio_min": 0.6,
-                    "riskpanic_lookback_days": 5,
-                    "riskpanic_short_risk_mult_factor": 0.5,
-                    "risk_entry_cutoff_hour_et": 15,
-                },
-                "riskpanic TRmed5>=9 gap>=0.6 short=0.5 cutoff<15",
-            ),
-            (
-                {
-                    **_risk_off_overrides(),
-                    "riskpanic_tr5_med_pct": 9.0,
-                    "riskpanic_neg_gap_ratio_min": 0.6,
-                    "riskpanic_lookback_days": 5,
-                    "riskpanic_short_risk_mult_factor": 0.0,
-                    "risk_entry_cutoff_hour_et": 15,
-                },
-                "riskpanic TRmed5>=9 gap>=0.6 short=0 cutoff<15",
-            ),
-            (
-                {
-                    **_risk_off_overrides(),
-                    "riskpanic_tr5_med_pct": 10.0,
-                    "riskpanic_neg_gap_ratio_min": 0.7,
-                    "riskpanic_lookback_days": 5,
-                    "riskpanic_short_risk_mult_factor": 0.5,
-                    "risk_entry_cutoff_hour_et": 15,
-                },
-                "riskpanic TRmed5>=10 gap>=0.7 short=0.5 cutoff<15",
-            ),
-            (
-                {
-                    **_risk_off_overrides(),
-                    "riskpop_tr5_med_pct": 9.0,
-                    "riskpop_pos_gap_ratio_min": 0.6,
-                    "riskpop_lookback_days": 5,
-                    "riskpop_long_risk_mult_factor": 1.2,
-                    "riskpop_short_risk_mult_factor": 0.0,
-                    "risk_entry_cutoff_hour_et": 15,
-                },
-                "riskpop TRmed5>=9 gap+=0.6 long=1.2 short=0 cutoff<15",
-            ),
-            (
-                {
-                    **_risk_off_overrides(),
-                    "riskpop_tr5_med_pct": 9.0,
-                    "riskpop_pos_gap_ratio_min": 0.6,
-                    "riskpop_lookback_days": 5,
-                    "riskpop_long_risk_mult_factor": 1.5,
-                    "riskpop_short_risk_mult_factor": 0.0,
-                    "risk_entry_cutoff_hour_et": 15,
-                },
-                "riskpop TRmed5>=9 gap+=0.6 long=1.5 short=0 cutoff<15",
-            ),
-            (
-                {
-                    **_risk_off_overrides(),
-                    "riskpop_tr5_med_pct": 10.0,
-                    "riskpop_pos_gap_ratio_min": 0.7,
-                    "riskpop_lookback_days": 5,
-                    "riskpop_long_risk_mult_factor": 1.5,
-                    "riskpop_short_risk_mult_factor": 0.0,
-                    "risk_entry_cutoff_hour_et": 15,
-                },
-                "riskpop TRmed5>=10 gap+=0.7 long=1.5 short=0 cutoff<15",
-            ),
-        ]
+        if not is_slv:
+            risk_variants: list[tuple[dict[str, object], str]] = [
+                (_risk_off_overrides(), "risk=off"),
+                (
+                    {
+                        **_risk_off_overrides(),
+                        "riskoff_tr5_med_pct": 9.0,
+                        "riskoff_lookback_days": 5,
+                        "riskoff_mode": "hygiene",
+                        "riskoff_long_risk_mult_factor": 0.7,
+                        "riskoff_short_risk_mult_factor": 0.7,
+                        "risk_entry_cutoff_hour_et": 15,
+                    },
+                    "riskoff TRmed5>=9 both=0.7 cutoff<15",
+                ),
+                (
+                    {
+                        **_risk_off_overrides(),
+                        "riskoff_tr5_med_pct": 10.0,
+                        "riskoff_lookback_days": 5,
+                        "riskoff_mode": "hygiene",
+                        "riskoff_long_risk_mult_factor": 0.5,
+                        "riskoff_short_risk_mult_factor": 0.5,
+                        "risk_entry_cutoff_hour_et": 15,
+                    },
+                    "riskoff TRmed5>=10 both=0.5 cutoff<15",
+                ),
+                (
+                    {
+                        **_risk_off_overrides(),
+                        "riskpanic_tr5_med_pct": 9.0,
+                        "riskpanic_neg_gap_ratio_min": 0.6,
+                        "riskpanic_lookback_days": 5,
+                        "riskpanic_short_risk_mult_factor": 0.5,
+                        "risk_entry_cutoff_hour_et": 15,
+                    },
+                    "riskpanic TRmed5>=9 gap>=0.6 short=0.5 cutoff<15",
+                ),
+                (
+                    {
+                        **_risk_off_overrides(),
+                        "riskpanic_tr5_med_pct": 9.0,
+                        "riskpanic_neg_gap_ratio_min": 0.6,
+                        "riskpanic_lookback_days": 5,
+                        "riskpanic_short_risk_mult_factor": 0.0,
+                        "risk_entry_cutoff_hour_et": 15,
+                    },
+                    "riskpanic TRmed5>=9 gap>=0.6 short=0 cutoff<15",
+                ),
+                (
+                    {
+                        **_risk_off_overrides(),
+                        "riskpanic_tr5_med_pct": 10.0,
+                        "riskpanic_neg_gap_ratio_min": 0.7,
+                        "riskpanic_lookback_days": 5,
+                        "riskpanic_short_risk_mult_factor": 0.5,
+                        "risk_entry_cutoff_hour_et": 15,
+                    },
+                    "riskpanic TRmed5>=10 gap>=0.7 short=0.5 cutoff<15",
+                ),
+                (
+                    {
+                        **_risk_off_overrides(),
+                        "riskpop_tr5_med_pct": 9.0,
+                        "riskpop_pos_gap_ratio_min": 0.6,
+                        "riskpop_lookback_days": 5,
+                        "riskpop_long_risk_mult_factor": 1.2,
+                        "riskpop_short_risk_mult_factor": 0.0,
+                        "risk_entry_cutoff_hour_et": 15,
+                    },
+                    "riskpop TRmed5>=9 gap+=0.6 long=1.2 short=0 cutoff<15",
+                ),
+                (
+                    {
+                        **_risk_off_overrides(),
+                        "riskpop_tr5_med_pct": 9.0,
+                        "riskpop_pos_gap_ratio_min": 0.6,
+                        "riskpop_lookback_days": 5,
+                        "riskpop_long_risk_mult_factor": 1.5,
+                        "riskpop_short_risk_mult_factor": 0.0,
+                        "risk_entry_cutoff_hour_et": 15,
+                    },
+                    "riskpop TRmed5>=9 gap+=0.6 long=1.5 short=0 cutoff<15",
+                ),
+                (
+                    {
+                        **_risk_off_overrides(),
+                        "riskpop_tr5_med_pct": 10.0,
+                        "riskpop_pos_gap_ratio_min": 0.7,
+                        "riskpop_lookback_days": 5,
+                        "riskpop_long_risk_mult_factor": 1.5,
+                        "riskpop_short_risk_mult_factor": 0.0,
+                        "risk_entry_cutoff_hour_et": 15,
+                    },
+                    "riskpop TRmed5>=10 gap+=0.7 long=1.5 short=0 cutoff<15",
+                ),
+            ]
+        else:
+            risk_variants = [
+                (_risk_off_overrides(), "risk=off"),
+                (
+                    {
+                        **_risk_off_overrides(),
+                        "riskoff_tr5_med_pct": 3.0,
+                        "riskoff_lookback_days": 5,
+                        "riskoff_mode": "hygiene",
+                        "riskoff_long_risk_mult_factor": 0.7,
+                        "riskoff_short_risk_mult_factor": 0.7,
+                        "risk_entry_cutoff_hour_et": 15,
+                    },
+                    "riskoff TRmed5>=3 both=0.7 cutoff<15",
+                ),
+                (
+                    {
+                        **_risk_off_overrides(),
+                        "riskoff_tr5_med_pct": 3.5,
+                        "riskoff_lookback_days": 5,
+                        "riskoff_mode": "hygiene",
+                        "riskoff_long_risk_mult_factor": 0.5,
+                        "riskoff_short_risk_mult_factor": 0.5,
+                        "risk_entry_cutoff_hour_et": 15,
+                    },
+                    "riskoff TRmed5>=3.5 both=0.5 cutoff<15",
+                ),
+                (
+                    {
+                        **_risk_off_overrides(),
+                        "riskpanic_tr5_med_pct": 3.0,
+                        "riskpanic_neg_gap_ratio_min": 0.6,
+                        "riskpanic_lookback_days": 5,
+                        "riskpanic_short_risk_mult_factor": 0.5,
+                        "risk_entry_cutoff_hour_et": 15,
+                    },
+                    "riskpanic TRmed5>=3 gap>=0.6 short=0.5 cutoff<15",
+                ),
+                (
+                    {
+                        **_risk_off_overrides(),
+                        "riskpanic_tr5_med_pct": 3.0,
+                        "riskpanic_neg_gap_ratio_min": 0.6,
+                        "riskpanic_lookback_days": 5,
+                        "riskpanic_short_risk_mult_factor": 0.0,
+                        "risk_entry_cutoff_hour_et": 15,
+                    },
+                    "riskpanic TRmed5>=3 gap>=0.6 short=0 cutoff<15",
+                ),
+                (
+                    {
+                        **_risk_off_overrides(),
+                        "riskpanic_tr5_med_pct": 3.5,
+                        "riskpanic_neg_gap_ratio_min": 0.7,
+                        "riskpanic_lookback_days": 5,
+                        "riskpanic_short_risk_mult_factor": 0.5,
+                        "risk_entry_cutoff_hour_et": 15,
+                    },
+                    "riskpanic TRmed5>=3.5 gap>=0.7 short=0.5 cutoff<15",
+                ),
+                (
+                    {
+                        **_risk_off_overrides(),
+                        "riskpop_tr5_med_pct": 3.0,
+                        "riskpop_pos_gap_ratio_min": 0.6,
+                        "riskpop_lookback_days": 5,
+                        "riskpop_long_risk_mult_factor": 1.2,
+                        "riskpop_short_risk_mult_factor": 0.0,
+                        "risk_entry_cutoff_hour_et": 15,
+                    },
+                    "riskpop TRmed5>=3 gap+=0.6 long=1.2 short=0 cutoff<15",
+                ),
+                (
+                    {
+                        **_risk_off_overrides(),
+                        "riskpop_tr5_med_pct": 3.0,
+                        "riskpop_pos_gap_ratio_min": 0.6,
+                        "riskpop_lookback_days": 5,
+                        "riskpop_long_risk_mult_factor": 1.5,
+                        "riskpop_short_risk_mult_factor": 0.0,
+                        "risk_entry_cutoff_hour_et": 15,
+                    },
+                    "riskpop TRmed5>=3 gap+=0.6 long=1.5 short=0 cutoff<15",
+                ),
+                (
+                    {
+                        **_risk_off_overrides(),
+                        "riskpop_tr5_med_pct": 3.5,
+                        "riskpop_pos_gap_ratio_min": 0.7,
+                        "riskpop_lookback_days": 5,
+                        "riskpop_long_risk_mult_factor": 1.5,
+                        "riskpop_short_risk_mult_factor": 0.0,
+                        "risk_entry_cutoff_hour_et": 15,
+                    },
+                    "riskpop TRmed5>=3.5 gap+=0.7 long=1.5 short=0 cutoff<15",
+                ),
+            ]
 
         def _merge_filters(base_filters: FiltersConfig | None, overrides: dict[str, object]) -> FiltersConfig | None:
             base_payload = _filters_payload(base_filters) or {}
@@ -7415,7 +8018,8 @@ def main() -> None:
                 )
 
                 # Champ-style stop-only + reversal exit (works even if the seed used ATR exits).
-                for sl in (0.03, 0.04, 0.045):
+                sl_vals = (0.03, 0.04, 0.045) if not is_slv else (0.008, 0.010, 0.012, 0.015, 0.020)
+                for sl in sl_vals:
                     _add_exit(
                         replace(
                             base_cfg,
@@ -7436,6 +8040,7 @@ def main() -> None:
 
                 # Explicit "exit on the next flip" (no profit gate). Useful for reducing
                 # long-hold drawdowns / improving stability.
+                sl_flip_any = 0.04 if not is_slv else 0.012
                 _add_exit(
                     replace(
                         base_cfg,
@@ -7443,7 +8048,7 @@ def main() -> None:
                             base_cfg.strategy,
                             spot_exit_mode="pct",
                             spot_profit_target_pct=None,
-                            spot_stop_loss_pct=0.04,
+                            spot_stop_loss_pct=float(sl_flip_any),
                             exit_on_signal_flip=True,
                             flip_exit_mode="cross",
                             flip_exit_only_if_profit=False,
@@ -7451,10 +8056,11 @@ def main() -> None:
                             flip_exit_gate_mode="off",
                         ),
                     ),
-                    "exit=stop0.04 flipany cross hold=0",
+                    f"exit=stop{sl_flip_any:g} flipany cross hold=0",
                 )
 
                 # "Exit accuracy" gate (re-test in the modern shock/risk context).
+                sl_accuracy = 0.04 if not is_slv else 0.012
                 _add_exit(
                     replace(
                         base_cfg,
@@ -7462,7 +8068,7 @@ def main() -> None:
                             base_cfg.strategy,
                             spot_exit_mode="pct",
                             spot_profit_target_pct=None,
-                            spot_stop_loss_pct=0.04,
+                            spot_stop_loss_pct=float(sl_accuracy),
                             exit_on_signal_flip=True,
                             flip_exit_mode="entry",
                             flip_exit_only_if_profit=True,
@@ -7470,7 +8076,7 @@ def main() -> None:
                             flip_exit_gate_mode="regime_or_permission",
                         ),
                     ),
-                    "exit=stop0.04 flipprofit hold=2 gate=reg_or_perm",
+                    f"exit=stop{sl_accuracy:g} flipprofit hold=2 gate=reg_or_perm",
                 )
 
                 # Trend confirm micro (very small): sometimes improves stability by reducing noise.
@@ -7480,6 +8086,7 @@ def main() -> None:
                     except (TypeError, ValueError):
                         seed_confirm = 0
                     if seed_confirm == 0:
+                        sl_confirm = 0.04 if not is_slv else 0.012
                         _add_exit(
                             replace(
                                 base_cfg,
@@ -7488,7 +8095,7 @@ def main() -> None:
                                     entry_confirm_bars=1,
                                     spot_exit_mode="pct",
                                     spot_profit_target_pct=None,
-                                    spot_stop_loss_pct=0.04,
+                                    spot_stop_loss_pct=float(sl_confirm),
                                     exit_on_signal_flip=True,
                                     flip_exit_mode="entry",
                                     flip_exit_only_if_profit=True,
@@ -7496,7 +8103,7 @@ def main() -> None:
                                     flip_exit_gate_mode="off",
                                 ),
                             ),
-                            "exit=stop0.04 flipprofit hold=2 confirm=1",
+                            f"exit=stop{sl_confirm:g} flipprofit hold=2 confirm=1",
                         )
 
             stage3a: list[tuple[ConfigBundle, dict, str]] = []
@@ -7511,24 +8118,6 @@ def main() -> None:
             if jobs > 1:
                 if not offline:
                     raise SystemExit("--jobs>1 for champ_refine requires --offline (avoid parallel IBKR sessions).")
-
-                def _strip_flag(argv: list[str], flag: str) -> list[str]:
-                    return [arg for arg in argv if arg != flag]
-
-                def _strip_flag_with_value(argv: list[str], flag: str) -> list[str]:
-                    out: list[str] = []
-                    idx = 0
-                    while idx < len(argv):
-                        arg = argv[idx]
-                        if arg == flag:
-                            idx += 2
-                            continue
-                        if arg.startswith(flag + "="):
-                            idx += 1
-                            continue
-                        out.append(arg)
-                        idx += 1
-                    return out
 
                 base_cli = list(sys.argv[1:])
                 base_cli = _strip_flag_with_value(base_cli, "--axis")
@@ -7845,24 +8434,6 @@ def main() -> None:
             if jobs > 1:
                 if not offline:
                     raise SystemExit("--jobs>1 for champ_refine requires --offline (avoid parallel IBKR sessions).")
-
-                def _strip_flag(argv: list[str], flag: str) -> list[str]:
-                    return [arg for arg in argv if arg != flag]
-
-                def _strip_flag_with_value(argv: list[str], flag: str) -> list[str]:
-                    out: list[str] = []
-                    idx = 0
-                    while idx < len(argv):
-                        arg = argv[idx]
-                        if arg == flag:
-                            idx += 2
-                            continue
-                        if arg.startswith(flag + "="):
-                            idx += 1
-                            continue
-                        out.append(arg)
-                        idx += 1
-                    return out
 
                 base_cli = list(sys.argv[1:])
                 base_cli = _strip_flag_with_value(base_cli, "--axis")
@@ -8836,24 +9407,6 @@ def main() -> None:
             if not offline:
                 raise SystemExit("--jobs>1 for st37_refine requires --offline (avoid parallel IBKR sessions).")
 
-            def _strip_flag(argv: list[str], flag: str) -> list[str]:
-                return [arg for arg in argv if arg != flag]
-
-            def _strip_flag_with_value(argv: list[str], flag: str) -> list[str]:
-                out: list[str] = []
-                idx = 0
-                while idx < len(argv):
-                    arg = argv[idx]
-                    if arg == flag:
-                        idx += 2
-                        continue
-                    if arg.startswith(flag + "="):
-                        idx += 1
-                        continue
-                    out.append(arg)
-                    idx += 1
-                return out
-
             base_cli = list(sys.argv[1:])
             base_cli = _strip_flag_with_value(base_cli, "--axis")
             base_cli = _strip_flag_with_value(base_cli, "--jobs")
@@ -9366,24 +9919,6 @@ def main() -> None:
         if jobs > 1:
             if not offline:
                 raise SystemExit("--jobs>1 for st37_refine requires --offline (avoid parallel IBKR sessions).")
-
-            def _strip_flag(argv: list[str], flag: str) -> list[str]:
-                return [arg for arg in argv if arg != flag]
-
-            def _strip_flag_with_value(argv: list[str], flag: str) -> list[str]:
-                out: list[str] = []
-                idx = 0
-                while idx < len(argv):
-                    arg = argv[idx]
-                    if arg == flag:
-                        idx += 2
-                        continue
-                    if arg.startswith(flag + "="):
-                        idx += 1
-                        continue
-                    out.append(arg)
-                    idx += 1
-                return out
 
             base_cli = list(sys.argv[1:])
             base_cli = _strip_flag_with_value(base_cli, "--axis")
@@ -10273,24 +10808,6 @@ def main() -> None:
             if not offline:
                 raise SystemExit("--jobs>1 for gate_matrix requires --offline (avoid parallel IBKR sessions).")
 
-            def _strip_flag(argv: list[str], flag: str) -> list[str]:
-                return [arg for arg in argv if arg != flag]
-
-            def _strip_flag_with_value(argv: list[str], flag: str) -> list[str]:
-                out: list[str] = []
-                idx = 0
-                while idx < len(argv):
-                    arg = argv[idx]
-                    if arg == flag:
-                        idx += 2
-                        continue
-                    if arg.startswith(flag + "="):
-                        idx += 1
-                        continue
-                    out.append(arg)
-                    idx += 1
-                return out
-
             base_cli = list(sys.argv[1:])
             base_cli = _strip_flag_with_value(base_cli, "--axis")
             base_cli = _strip_flag_with_value(base_cli, "--jobs")
@@ -10674,24 +11191,6 @@ def main() -> None:
             "spot_short_risk_mult",
         ]
 
-        def _strip_flag(argv: list[str], flag: str) -> list[str]:
-            return [arg for arg in argv if arg != flag]
-
-        def _strip_flag_with_value(argv: list[str], flag: str) -> list[str]:
-            out: list[str] = []
-            idx = 0
-            while idx < len(argv):
-                arg = argv[idx]
-                if arg == flag:
-                    idx += 2
-                    continue
-                if arg.startswith(flag + "="):
-                    idx += 1
-                    continue
-                out.append(arg)
-                idx += 1
-            return out
-
         base_cli = list(sys.argv[1:])
         base_cli = _strip_flag_with_value(base_cli, "--axis")
         base_cli = _strip_flag_with_value(base_cli, "--jobs")
@@ -11016,6 +11515,8 @@ def main() -> None:
         _sweep_regime_atr()
     if axis in ("all", "ptsl"):
         _sweep_ptsl()
+    if axis == "hf_scalp":
+        _sweep_hf_scalp()
     if axis in ("all", "hold"):
         _sweep_hold()
     if axis in ("all", "orb"):
@@ -11842,24 +12343,6 @@ def spot_multitimeframe_main() -> None:
     cache_dir = Path(args.cache_dir)
     offline = bool(args.offline)
 
-    def _strip_flag(argv: list[str], flag: str) -> list[str]:
-        return [arg for arg in argv if arg != flag]
-
-    def _strip_flag_with_value(argv: list[str], flag: str) -> list[str]:
-        out: list[str] = []
-        idx = 0
-        while idx < len(argv):
-            arg = argv[idx]
-            if arg == flag:
-                idx += 2
-                continue
-            if arg.startswith(flag + "="):
-                idx += 1
-                continue
-            out.append(arg)
-            idx += 1
-        return out
-
     if args.multitimeframe_worker is not None:
         if not offline:
             raise SystemExit("multitimeframe worker mode requires --offline (avoid parallel IBKR sessions).")
@@ -12153,7 +12636,7 @@ def spot_multitimeframe_main() -> None:
                             offline=bundle.backtest.offline,
                         )
 
-                run = _run_spot_backtest(
+                summary = _run_spot_backtest_summary(
                     bundle,
                     bars_sig,
                     meta,
@@ -12162,11 +12645,7 @@ def spot_multitimeframe_main() -> None:
                     tick_bars=tick_bars,
                     exec_bars=exec_bars,
                 )
-                if not run.summary:
-                    ok = False
-                    break
-
-                m = _metrics_from_summary(run.summary)
+                m = _metrics_from_summary(summary)
                 if bool(args.require_positive_pnl) and float(m["pnl"]) <= 0:
                     ok = False
                     break
@@ -12713,7 +13192,7 @@ def spot_multitimeframe_main() -> None:
                         offline=bundle.backtest.offline,
                     )
 
-            result = _run_spot_backtest(
+            summary = _run_spot_backtest_summary(
                 bundle,
                 bars_sig,
                 meta,
@@ -12722,7 +13201,7 @@ def spot_multitimeframe_main() -> None:
                 tick_bars=tick_bars,
                 exec_bars=exec_bars,
             )
-            m = _metrics_from_summary(result.summary)
+            m = _metrics_from_summary(summary)
             if bool(args.require_positive_pnl) and float(m["pnl"]) <= 0:
                 ok = False
                 break

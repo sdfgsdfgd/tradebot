@@ -113,6 +113,8 @@ _SPOT_STOP_TREE_CACHE: dict[tuple[int, int, float, float, str, str], object] = {
 _SPOT_PROFIT_TREE_CACHE: dict[tuple[int, int, float, float, str, str], object] = {}
 _SPOT_SIGNAL_SERIES_CACHE: dict[tuple[object, ...], object] = {}
 _SPOT_FLIP_TREE_CACHE: dict[tuple[object, ...], object] = {}
+_SPOT_RV_SERIES_CACHE: dict[tuple[int, int, float, str, bool], object] = {}
+_SPOT_VOLUME_EMA_SERIES_CACHE: dict[tuple[int, int], object] = {}
 
 
 class _SpotShockSeries(NamedTuple):
@@ -429,6 +431,71 @@ class _MaxFirstGtTree:
 class _SpotSignalSeries(NamedTuple):
     signal_by_sig_idx: list[EmaDecisionSnapshot | None]
     bars_in_day_by_sig_idx: list[int]
+
+
+class _SpotRvSeries(NamedTuple):
+    rv_by_sig_idx: list[float | None]
+
+
+class _SpotVolumeEmaSeries(NamedTuple):
+    volume_ema_by_sig_idx: list[float | None]
+    volume_ema_ready_by_sig_idx: list[bool]
+
+
+def _spot_rv_series(
+    *,
+    signal_bars: list[Bar],
+    rv_lookback: int,
+    rv_ewma_lambda: float,
+    bar_size: str,
+    use_rth: bool,
+) -> _SpotRvSeries:
+    key = (id(signal_bars), int(rv_lookback), float(rv_ewma_lambda), str(bar_size), bool(use_rth))
+    cached = _SPOT_RV_SERIES_CACHE.get(key)
+    if cached is not None:
+        return cached  # type: ignore[return-value]
+
+    lb = max(1, int(rv_lookback))
+    lam = float(rv_ewma_lambda)
+    returns: deque[float] = deque(maxlen=lb)
+    prev_close: float | None = None
+    rv_by_sig_idx: list[float | None] = [None] * len(signal_bars)
+    for i, bar in enumerate(signal_bars):
+        close = float(bar.close)
+        if close <= 0:
+            continue
+        if prev_close is not None and float(prev_close) > 0 and close > 0:
+            returns.append(math.log(close / float(prev_close)))
+        prev_close = float(close)
+        rv = annualized_ewma_vol(returns, lam=lam, bar_size=str(bar_size), use_rth=bool(use_rth))
+        rv_by_sig_idx[i] = float(rv) if rv is not None else None
+
+    out = _SpotRvSeries(rv_by_sig_idx=rv_by_sig_idx)
+    _SPOT_RV_SERIES_CACHE[key] = out
+    return out
+
+
+def _spot_volume_ema_series(*, signal_bars: list[Bar], period: int) -> _SpotVolumeEmaSeries:
+    p = max(1, int(period))
+    key = (id(signal_bars), int(p))
+    cached = _SPOT_VOLUME_EMA_SERIES_CACHE.get(key)
+    if cached is not None:
+        return cached  # type: ignore[return-value]
+
+    ema: float | None = None
+    count = 0
+    ema_by_sig_idx: list[float | None] = [None] * len(signal_bars)
+    ready_by_sig_idx: list[bool] = [False] * len(signal_bars)
+    for i, bar in enumerate(signal_bars):
+        vol = float(bar.volume) if bar.volume is not None else 0.0
+        ema = ema_next(ema, float(vol), int(p))
+        count += 1
+        ema_by_sig_idx[i] = float(ema) if ema is not None else None
+        ready_by_sig_idx[i] = bool(count >= int(p))
+
+    out = _SpotVolumeEmaSeries(volume_ema_by_sig_idx=ema_by_sig_idx, volume_ema_ready_by_sig_idx=ready_by_sig_idx)
+    _SPOT_VOLUME_EMA_SERIES_CACHE[key] = out
+    return out
 
 
 def _spot_signal_series(
@@ -3045,6 +3112,25 @@ def _run_spot_backtest_exec_loop_summary_fast(
 
     signal_ts = [b.ts for b in signal_bars]
 
+    rv_series: _SpotRvSeries | None = None
+    if filters is not None and (getattr(filters, "rv_min", None) is not None or getattr(filters, "rv_max", None) is not None):
+        rv_series = _spot_rv_series(
+            signal_bars=signal_bars,
+            rv_lookback=int(cfg.synthetic.rv_lookback),
+            rv_ewma_lambda=float(cfg.synthetic.rv_ewma_lambda),
+            bar_size=str(cfg.backtest.bar_size),
+            use_rth=bool(cfg.backtest.use_rth),
+        )
+
+    volume_series: _SpotVolumeEmaSeries | None = None
+    if filters is not None and getattr(filters, "volume_ratio_min", None) is not None:
+        raw_period = getattr(filters, "volume_ema_period", None)
+        try:
+            vol_period = int(raw_period) if raw_period is not None else 20
+        except (TypeError, ValueError):
+            vol_period = 20
+        volume_series = _spot_volume_ema_series(signal_bars=signal_bars, period=int(vol_period))
+
     def _risk_flags(day: date) -> tuple[bool, bool, bool]:
         if not risk_overlay_enabled:
             return False, False, False
@@ -3178,15 +3264,20 @@ def _run_spot_backtest_exec_loop_summary_fast(
                 )
                 shock_now = shock_series.shock_by_sig_idx[sig_idx]
                 shock_dir_now = shock_series.shock_dir_by_sig_idx[sig_idx]
+                rv_now = rv_series.rv_by_sig_idx[sig_idx] if rv_series is not None else None
+                volume_ema_now = volume_series.volume_ema_by_sig_idx[sig_idx] if volume_series is not None else None
+                volume_ema_ready_now = (
+                    volume_series.volume_ema_ready_by_sig_idx[sig_idx] if volume_series is not None else True
+                )
                 filters_ok = signal_filters_ok(
                     filters,
                     bar_ts=signal_bars[sig_idx].ts,
                     bars_in_day=int(signal_series.bars_in_day_by_sig_idx[sig_idx]),
                     close=float(signal_bars[sig_idx].close),
                     volume=float(signal_bars[sig_idx].volume),
-                    volume_ema=None,
-                    volume_ema_ready=True,
-                    rv=None,
+                    volume_ema=volume_ema_now,
+                    volume_ema_ready=bool(volume_ema_ready_now),
+                    rv=rv_now,
                     signal=sig,
                     cooldown_ok=bool(cooldown_ok),
                     shock=shock_now,
@@ -3528,15 +3619,20 @@ def _run_spot_backtest_exec_loop_summary_fast(
                         )
                         shock_now = shock_series.shock_by_sig_idx[sig_idx]
                         shock_dir_now = shock_series.shock_dir_by_sig_idx[sig_idx]
+                        rv_now = rv_series.rv_by_sig_idx[sig_idx] if rv_series is not None else None
+                        volume_ema_now = volume_series.volume_ema_by_sig_idx[sig_idx] if volume_series is not None else None
+                        volume_ema_ready_now = (
+                            volume_series.volume_ema_ready_by_sig_idx[sig_idx] if volume_series is not None else True
+                        )
                         filters_ok = signal_filters_ok(
                             filters,
                             bar_ts=signal_bars[sig_idx].ts,
                             bars_in_day=int(signal_series.bars_in_day_by_sig_idx[sig_idx]),
                             close=float(signal_bars[sig_idx].close),
                             volume=float(signal_bars[sig_idx].volume),
-                            volume_ema=None,
-                            volume_ema_ready=True,
-                            rv=None,
+                            volume_ema=volume_ema_now,
+                            volume_ema_ready=bool(volume_ema_ready_now),
+                            rv=rv_now,
                             signal=sig,
                             cooldown_ok=bool(cooldown_ok),
                             shock=shock_now,
@@ -3730,14 +3826,6 @@ def _run_spot_backtest_exec_loop_summary(
         )
         and str(getattr(cfg.strategy, "direction_source", "ema") or "ema").strip().lower() == "ema"
         and int(getattr(cfg.strategy, "max_open_trades", 1) or 0) == 1
-        and (
-            cfg.strategy.filters is None
-            or (
-                getattr(cfg.strategy.filters, "rv_min", None) is None
-                and getattr(cfg.strategy.filters, "rv_max", None) is None
-                and getattr(cfg.strategy.filters, "volume_ratio_min", None) is None
-            )
-        )
         and tick_bars is None
         and bool(signal_bars)
         and bool(exec_bars)
