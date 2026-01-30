@@ -81,6 +81,13 @@ class _BotPreset:
     entry: dict
 
 
+@dataclass(frozen=True)
+class _PresetHeader:
+    node_id: str
+    depth: int
+    label: str
+
+
 @dataclass
 class _BotInstance:
     instance_id: int
@@ -665,7 +672,7 @@ class BotScreen(Screen):
         ("down", "cursor_down", "Down"),
         ("enter", "activate", "Select"),
         ("a", "toggle_auto_trade", "Auto"),
-        ("space", "toggle_instance", "Run"),
+        ("space", "context_space", "Run/Toggle"),
         ("s", "stop_bot", "Stop"),
         ("d", "delete_instance", "Del"),
         ("p", "propose", "Propose"),
@@ -685,10 +692,14 @@ class BotScreen(Screen):
         self._group_eval_by_name: dict[str, dict] = {}
         self._payload: dict | None = None
         self._presets: list[_BotPreset] = []
-        self._preset_rows: list[_BotPreset | None] = []
+        self._preset_rows: list[_BotPreset | _PresetHeader] = []
+        self._preset_expanded: set[str] = set()
+        self._preset_expand_initialized = False
+        self._preset_known_contracts: set[str] = set()
+        self._spot_champ_version: str | None = None
         self._presets_visible = True
         self._filter_dte: int | None = None
-        self._filter_min_win_rate: float | None = 0.5
+        self._filter_min_win_rate: float | None = None
         self._instances: list[_BotInstance] = []
         self._instance_rows: list[_BotInstance] = []
         self._next_instance_id = 1
@@ -914,7 +925,6 @@ class BotScreen(Screen):
         self._active_panel = panel
         if panel == "presets":
             self._presets_table.focus()
-            self._skip_preset_headers(1)
         elif panel == "instances":
             self._instances_table.focus()
         elif panel == "proposals":
@@ -950,6 +960,12 @@ class BotScreen(Screen):
         self._refresh_instances_table()
         self._status = f"Instance {instance.instance_id}: {instance.state}"
         self._render_status()
+
+    def action_context_space(self) -> None:
+        if self._active_panel == "presets":
+            self.action_activate()
+            return
+        self.action_toggle_instance()
 
     def action_delete_instance(self) -> None:
         instance = self._selected_instance()
@@ -1035,12 +1051,15 @@ class BotScreen(Screen):
 
     def action_activate(self) -> None:
         if self._active_panel == "presets":
-            preset = self._selected_preset()
-            if not preset:
+            row = self._selected_preset_row()
+            if row is None:
                 self._status = "Preset: none selected"
                 self._render_status()
                 return
-            self._open_config_for_preset(preset)
+            if isinstance(row, _PresetHeader):
+                self._toggle_preset_node(row.node_id)
+                return
+            self._open_config_for_preset(row)
             return
         if self._active_panel == "instances":
             instance = self._selected_instance()
@@ -1065,6 +1084,10 @@ class BotScreen(Screen):
         self._queue_proposal(instance, intent="enter", direction=None, signal_bar_ts=None)
 
     def _selected_preset(self) -> _BotPreset | None:
+        row = self._selected_preset_row()
+        return row if isinstance(row, _BotPreset) else None
+
+    def _selected_preset_row(self) -> _BotPreset | _PresetHeader | None:
         row = self._presets_table.cursor_coordinate.row
         if row < 0 or row >= len(self._preset_rows):
             return None
@@ -1184,73 +1207,95 @@ class BotScreen(Screen):
         )
 
     def _load_leaderboard(self) -> None:
+        payload: dict = {}
         try:
             payload = json.loads(self._leaderboard_path.read_text())
         except Exception as exc:
-            self._payload = None
-            self._presets = []
-            self._preset_rows = []
-            self._group_eval_by_name = {}
-            self._presets_table.clear(columns=True)
-            self._presets_table.add_columns("Error")
-            self._presets_table.add_row(str(exc))
-            return
+            self._status = f"Leaderboard load failed: {exc}"
+            payload = {}
         if not isinstance(payload, dict):
             payload = {}
 
-        try:
-            if self._spot_champions_path.exists():
+        groups: list[dict] = []
+        base_groups = payload.get("groups", [])
+        if isinstance(base_groups, list):
+            for group in base_groups:
+                if not isinstance(group, dict):
+                    continue
+                group["_source"] = "options_leaderboard"
+                groups.append(group)
+
+        self._spot_champ_version = None
+        if self._spot_champions_path.exists():
+            try:
                 champ_payload = json.loads(self._spot_champions_path.read_text())
-                if isinstance(champ_payload, dict):
-                    champ_groups = champ_payload.get("groups", [])
-                    if isinstance(champ_groups, list) and champ_groups:
-                        base_groups = payload.get("groups", [])
-                        if not isinstance(base_groups, list):
-                            base_groups = []
-                        merged = []
-                        seen = set()
-                        for group in list(champ_groups) + list(base_groups):
-                            if not isinstance(group, dict):
-                                continue
-                            name = str(group.get("name"))
-                            if name and name in seen:
-                                continue
-                            merged.append(group)
-                            if name:
-                                seen.add(name)
-                        payload["groups"] = merged
+            except Exception:
+                champ_payload = None
+            if isinstance(champ_payload, dict):
+                source = str(champ_payload.get("source") or "").strip()
+                if source:
+                    token = source.split("v", 1)[1] if "v" in source else ""
+                    v = "".join(ch for ch in token if ch.isdigit())
+                    self._spot_champ_version = v or None
 
-            if self._spot_milestones_path.exists():
+                champ_groups = champ_payload.get("groups", [])
+                if isinstance(champ_groups, list) and champ_groups:
+                    ranked: list[tuple[float, dict]] = []
+                    for group in champ_groups:
+                        if not isinstance(group, dict):
+                            continue
+                        entries = group.get("entries") if isinstance(group.get("entries"), list) else []
+                        entry = entries[0] if entries else None
+                        if not isinstance(entry, dict):
+                            continue
+                        metrics = entry.get("metrics", {})
+                        try:
+                            score = float(metrics.get("pnl_over_dd"))
+                        except (TypeError, ValueError):
+                            score = float("-inf")
+                        ranked.append((score, group))
+                    ranked.sort(key=lambda pair: pair[0], reverse=True)
+                    for _, group in ranked[:10]:
+                        group["_source"] = "spot_champions"
+                        groups.append(group)
+
+        if self._spot_milestones_path.exists():
+            try:
                 spot_payload = json.loads(self._spot_milestones_path.read_text())
-                if isinstance(spot_payload, dict):
-                    spot_groups = spot_payload.get("groups", [])
-                    if isinstance(spot_groups, list) and spot_groups:
-                        base_groups = payload.get("groups", [])
-                        if not isinstance(base_groups, list):
-                            base_groups = []
-                        merged = list(base_groups)
-                        seen = {
-                            str(group.get("name"))
-                            for group in merged
-                            if isinstance(group, dict) and group.get("name") is not None
-                        }
-                        for group in spot_groups:
-                            if not isinstance(group, dict):
-                                continue
-                            name = str(group.get("name"))
-                            if name and name in seen:
-                                continue
-                            merged.append(group)
-                            if name:
-                                seen.add(name)
-                        payload["groups"] = merged
-        except Exception:
-            # Keep the main leaderboard usable even if the milestones file is malformed.
-            pass
+            except Exception:
+                spot_payload = None
+            if isinstance(spot_payload, dict):
+                spot_groups = spot_payload.get("groups", [])
+                if isinstance(spot_groups, list) and spot_groups:
+                    for group in spot_groups:
+                        if not isinstance(group, dict):
+                            continue
+                        group["_source"] = "spot_milestones"
+                        groups.append(group)
 
+        slv_dir = Path(__file__).resolve().parents[2] / "backtests" / "slv"
+        if slv_dir.exists() and slv_dir.is_dir():
+            for path in sorted(slv_dir.glob("*.json")):
+                try:
+                    slv_payload = json.loads(path.read_text())
+                except Exception:
+                    continue
+                if not isinstance(slv_payload, dict):
+                    continue
+                slv_groups = slv_payload.get("groups", [])
+                if not isinstance(slv_groups, list) or not slv_groups:
+                    continue
+                source = f"slv_research:{path.name}"
+                for group in slv_groups:
+                    if not isinstance(group, dict):
+                        continue
+                    group["_source"] = source
+                    groups.append(group)
+
+        payload["groups"] = groups
         self._payload = payload
         self._group_eval_by_name = {}
-        for group in payload.get("groups", []):
+        for group in groups:
             if not isinstance(group, dict):
                 continue
             name = str(group.get("name") or "")
@@ -1263,86 +1308,385 @@ class BotScreen(Screen):
         self._presets = []
         self._preset_rows = []
         self._presets_table.clear(columns=True)
-        self._presets_table.add_columns(
-            "Group",
-            "Legs",
-            "DTE",
-            "PT",
-            "SL",
-            "EMA",
-            "PnL",
-            "Win",
-            "Tr",
-        )
+        self._presets_table.add_column("Preset")
+        self._presets_table.add_column("Legs", width=18)
+        self._presets_table.add_column("TF/DTE", width=8)
+        self._presets_table.add_column("TP", width=7)
+        self._presets_table.add_column("SL", width=7)
+        self._presets_table.add_column("EMA", width=6)
+        self._presets_table.add_column("PnL", width=12)
+        self._presets_table.add_column("DD", width=12)
+        self._presets_table.add_column("P/DD", width=6)
+        self._presets_table.add_column("Win/Tr", width=9)
+
         payload = self._payload or {}
-        for group in payload.get("groups", []):
-            group_name = str(group.get("name", "?"))
-            display_group = _clean_group_label(group_name)
-            visible_entries: list[dict] = []
-            for entry in group.get("entries", []):
-                strat = entry.get("strategy", {})
-                metrics = entry.get("metrics", {})
-                instrument = str(strat.get("instrument", "options") or "options").strip().lower()
-                if instrument not in ("options", "spot"):
+        groups = payload.get("groups", [])
+        if not isinstance(groups, list) or not groups:
+            self._move_cursor_to_first_preset()
+            self._render_status()
+            self._presets_table.refresh(repaint=True)
+            return
+
+        def _get_symbol(group_name: str, entry: dict, strat: dict) -> str:
+            raw = entry.get("symbol") or strat.get("symbol") or payload.get("symbol") or ""
+            cleaned = str(raw or "").strip().upper()
+            if cleaned:
+                return cleaned
+            text = str(group_name or "")
+            if "(" in text and ")" in text:
+                inside = text.split("(", 1)[1].split(")", 1)[0].strip()
+                if inside and inside.replace("-", "").isalnum():
+                    return inside.upper()
+            return "UNKNOWN"
+
+        def _get_dd(metrics: dict) -> float | None:
+            for key in ("max_drawdown", "dd"):
+                if metrics.get(key) is None:
                     continue
-                legs = strat.get("legs", [])
-                if instrument == "options":
-                    if not isinstance(legs, list) or not legs:
-                        continue
                 try:
-                    dte = int(strat.get("dte", 0))
+                    dd = float(metrics.get(key))
                 except (TypeError, ValueError):
-                    dte = 0
-                if self._filter_dte is not None and dte != self._filter_dte:
                     continue
+                if dd >= 0:
+                    return dd
+            return None
+
+        def _score(metrics: dict) -> float:
+            try:
+                value = float(metrics.get("pnl_over_dd"))
+            except (TypeError, ValueError):
+                value = float("nan")
+            if math.isfinite(value):
+                return value
+            try:
+                pnl = float(metrics.get("pnl") or 0.0)
+            except (TypeError, ValueError):
+                pnl = 0.0
+            dd = _get_dd(metrics)
+            return pnl / dd if dd and dd > 0 else float("-inf")
+
+        def _fmt_pnl(value: float | None) -> Text:
+            return _pnl_text(value)
+
+        def _fmt_dd(value: float | None) -> Text:
+            if value is None:
+                return Text("")
+            return Text(f"{value:,.2f}", style="red")
+
+        def _fmt_ratio(value: float | None) -> str:
+            if value is None:
+                return ""
+            try:
+                return f"{float(value):.2f}"
+            except (TypeError, ValueError):
+                return ""
+
+        def _spot_tp_sl(strat: dict) -> tuple[str, str]:
+            exit_mode = str(strat.get("spot_exit_mode") or "pct").strip().lower()
+            if exit_mode == "atr":
+                pt = strat.get("spot_pt_atr_mult")
+                sl = strat.get("spot_sl_atr_mult")
+                pt_s = "-"
+                sl_s = "-"
+                if pt is not None:
+                    try:
+                        pt_s = f"x{float(pt):.2f}"
+                    except (TypeError, ValueError):
+                        pt_s = "-"
+                if sl is not None:
+                    try:
+                        sl_s = f"x{float(sl):.2f}"
+                    except (TypeError, ValueError):
+                        sl_s = "-"
+                return pt_s, sl_s
+            pt = strat.get("spot_profit_target_pct")
+            sl = strat.get("spot_stop_loss_pct")
+            pt_s = "-"
+            sl_s = "-"
+            if pt is not None:
+                try:
+                    pt_s = _fmt_pct(float(pt) * 100.0)
+                except (TypeError, ValueError):
+                    pt_s = "-"
+            if sl is not None:
+                try:
+                    sl_s = _fmt_pct(float(sl) * 100.0)
+                except (TypeError, ValueError):
+                    sl_s = "-"
+            return pt_s, sl_s
+
+        def _options_tp_sl(strat: dict) -> tuple[str, str]:
+            try:
+                pt = float(strat.get("profit_target", 0.0)) * 100.0
+            except (TypeError, ValueError):
+                pt = 0.0
+            try:
+                sl = float(strat.get("stop_loss", 0.0)) * 100.0
+            except (TypeError, ValueError):
+                sl = 0.0
+            return _fmt_pct(pt), _fmt_pct(sl)
+
+        def _short_preset_name(*, group_name: str, symbol: str, instrument: str, source: str) -> str:
+            base = _clean_group_label(group_name)
+            if instrument == "spot" and symbol and f"Spot ({symbol})" in base:
+                base = base.split(f"Spot ({symbol})", 1)[1].strip()
+                while base[:1] in ("-", "—", ":", "|"):
+                    base = base[1:].strip()
+            if source == "spot_champions" and self._spot_champ_version:
+                base = f"v{self._spot_champ_version} {base}".strip()
+            return base or group_name
+
+        contracts: dict[str, dict] = {}
+        for group in groups:
+            if not isinstance(group, dict):
+                continue
+            group_name = str(group.get("name") or "")
+            source = str(group.get("_source") or "").strip() or "unknown"
+            entries = group.get("entries", [])
+            if not isinstance(entries, list) or not entries:
+                continue
+            for entry_idx, entry in enumerate(entries):
+                if not isinstance(entry, dict):
+                    continue
+                strat = entry.get("strategy", {}) if isinstance(entry.get("strategy"), dict) else {}
+                metrics = entry.get("metrics", {}) if isinstance(entry.get("metrics"), dict) else {}
+                instrument = self._strategy_instrument(strat)
+
+                legs = strat.get("legs", [])
+                if instrument == "options" and (not isinstance(legs, list) or not legs):
+                    continue
+
                 try:
                     win = float(metrics.get("win_rate", 0.0))
                 except (TypeError, ValueError):
                     win = 0.0
                 if self._filter_min_win_rate is not None and win < self._filter_min_win_rate:
                     continue
-                visible_entries.append(entry)
 
-            if not visible_entries:
-                continue
-
-            show_header = len(visible_entries) > 1
-            if show_header:
-                header = Text(display_group, style="bold")
-                self._preset_rows.append(None)
-                self._presets_table.add_row(header, "", "", "", "", "", "", "", "")
-            for entry in visible_entries:
-                preset = _BotPreset(group=group_name, entry=entry)
-                self._presets.append(preset)
-                metrics = entry.get("metrics", {})
-                strat = entry.get("strategy", {})
-                instrument = str(strat.get("instrument", "options") or "options").strip().lower()
                 try:
                     dte = int(strat.get("dte", 0))
                 except (TypeError, ValueError):
                     dte = 0
+                if instrument == "options" and self._filter_dte is not None and dte != self._filter_dte:
+                    continue
+
+                symbol = _get_symbol(group_name, entry, strat)
+
+                signal_bar = str(strat.get("signal_bar_size") or "").strip()
+                if not signal_bar and instrument == "options":
+                    signal_bar = str(payload.get("bar_size") or "").strip()
+                tf = signal_bar or "?"
+
+                preset = _BotPreset(group=group_name, entry=entry)
+                name = _short_preset_name(group_name=group_name, symbol=symbol, instrument=instrument, source=source)
+                row_id = f"preset:{source}:{group_name}:{entry_idx}"
+
+                item = {
+                    "row_id": row_id,
+                    "preset": preset,
+                    "name": name,
+                    "symbol": symbol,
+                    "instrument": instrument,
+                    "source": source,
+                    "tf": tf,
+                    "dte": dte,
+                    "metrics": metrics,
+                    "strategy": strat,
+                    "score": _score(metrics),
+                }
+                bucket = contracts.setdefault(symbol, {"spot": {}, "options": {}})
                 if instrument == "spot":
-                    sec_type = str(strat.get("spot_sec_type") or "").strip().upper()
-                    legs_desc = "SPOT-FUT" if sec_type == "FUT" else "SPOT"
+                    bucket["spot"].setdefault(tf, []).append(item)
                 else:
-                    legs_desc = _legs_label(strat.get("legs", []))
-                self._preset_rows.append(preset)
-                pnl_text = None
+                    bucket["options"].setdefault(dte, []).append(item)
+
+        symbols = sorted(contracts.keys(), key=lambda sym: (0 if sym == "TQQQ" else 1, sym))
+        if not self._preset_expand_initialized:
+            self._preset_expanded = {f"contract:{sym}" for sym in symbols}
+            self._preset_expanded |= {f"contract:{sym}|spot" for sym in symbols}
+            self._preset_expand_initialized = True
+            self._preset_known_contracts = set(symbols)
+        else:
+            for sym in symbols:
+                if sym not in self._preset_known_contracts:
+                    self._preset_expanded.add(f"contract:{sym}")
+                    self._preset_expanded.add(f"contract:{sym}|spot")
+            self._preset_known_contracts.update(symbols)
+
+        def _best(items: list[dict]) -> dict | None:
+            return max(items, key=lambda it: float(it.get("score", float("-inf")))) if items else None
+
+        def _add_leaf(item: dict, *, depth: int) -> None:
+            preset = item["preset"]
+            strat = item["strategy"]
+            metrics = item["metrics"]
+            instrument = item["instrument"]
+
+            if instrument == "spot":
+                sec_type = str(strat.get("spot_sec_type") or "").strip().upper()
+                legs_desc = "SPOT-FUT" if sec_type == "FUT" else "SPOT"
+                tf_dte = str(item["tf"])
+                tp_s, sl_s = _spot_tp_sl(strat)
+            else:
+                legs_desc = _legs_label(strat.get("legs", []))
+                tf_dte = str(int(item["dte"]))
+                tp_s, sl_s = _options_tp_sl(strat)
+
+            legs_desc = legs_desc[:18]
+            ema = str(strat.get("ema_preset", ""))[:6]
+
+            pnl = None
+            try:
+                pnl = float(metrics.get("pnl")) if metrics.get("pnl") is not None else None
+            except (TypeError, ValueError):
+                pnl = None
+            dd = _get_dd(metrics)
+            p_dd = None
+            try:
+                p_dd = float(metrics.get("pnl_over_dd")) if metrics.get("pnl_over_dd") is not None else None
+            except (TypeError, ValueError):
+                p_dd = None
+            if p_dd is None and pnl is not None and dd and dd > 0:
+                p_dd = pnl / dd
+
+            try:
+                trades = int(metrics.get("trades", 0) or 0)
+            except (TypeError, ValueError):
+                trades = 0
+            try:
+                win_rate = float(metrics.get("win_rate", 0.0) or 0.0)
+            except (TypeError, ValueError):
+                win_rate = 0.0
+            win_tr = f"{int(win_rate * 100):d}%/{trades}"
+
+            label = f"{'  ' * depth}{item['name']}".rstrip()
+            self._presets.append(preset)
+            self._preset_rows.append(preset)
+            self._presets_table.add_row(
+                label,
+                legs_desc,
+                tf_dte,
+                tp_s,
+                sl_s,
+                ema,
+                _fmt_pnl(pnl),
+                _fmt_dd(dd),
+                _fmt_ratio(p_dd),
+                win_tr,
+                key=item["row_id"],
+            )
+
+        def _add_header(node_id: str, *, depth: int, label: str, best: dict | None) -> bool:
+            expanded = node_id in self._preset_expanded
+            caret = "▾" if expanded else "▸"
+            left = f"{'  ' * depth}{caret} {label}".rstrip()
+            legs_cell = ""
+            tf_dte = ""
+            tp_s = ""
+            sl_s = ""
+            ema = ""
+            pnl = None
+            dd = None
+            p_dd = None
+            win_tr = ""
+
+            if best is not None:
+                legs_cell = f"best: {best['name']}"[:18]
+                strat = best["strategy"]
+                instrument = best["instrument"]
+                if instrument == "spot":
+                    tf_dte = str(best["tf"])
+                    tp_s, sl_s = _spot_tp_sl(strat)
+                else:
+                    tf_dte = str(int(best["dte"]))
+                    tp_s, sl_s = _options_tp_sl(strat)
+                ema = str(strat.get("ema_preset", ""))[:6]
+                metrics = best["metrics"]
                 try:
-                    pnl_text = _pnl_text(float(metrics.get("pnl", 0.0)))
+                    pnl = float(metrics.get("pnl")) if metrics.get("pnl") is not None else None
                 except (TypeError, ValueError):
-                    pnl_text = Text("")
-                self._presets_table.add_row(
-                    display_group,
-                    legs_desc,
-                    "-" if instrument == "spot" else str(dte),
-                    "-" if instrument == "spot" else _fmt_pct(float(strat.get("profit_target", 0.0)) * 100.0),
-                    "-" if instrument == "spot" else _fmt_pct(float(strat.get("stop_loss", 0.0)) * 100.0),
-                    str(strat.get("ema_preset", "")),
-                    pnl_text,
-                    _fmt_pct(float(metrics.get("win_rate", 0.0)) * 100.0),
-                    str(int(metrics.get("trades", 0))),
-                )
+                    pnl = None
+                dd = _get_dd(metrics)
+                try:
+                    p_dd = float(metrics.get("pnl_over_dd")) if metrics.get("pnl_over_dd") is not None else None
+                except (TypeError, ValueError):
+                    p_dd = None
+                if p_dd is None and pnl is not None and dd and dd > 0:
+                    p_dd = pnl / dd
+                try:
+                    trades = int(metrics.get("trades", 0) or 0)
+                except (TypeError, ValueError):
+                    trades = 0
+                try:
+                    win_rate = float(metrics.get("win_rate", 0.0) or 0.0)
+                except (TypeError, ValueError):
+                    win_rate = 0.0
+                win_tr = f"{int(win_rate * 100):d}%/{trades}"
+
+            self._preset_rows.append(_PresetHeader(node_id=node_id, depth=depth, label=label))
+            self._presets_table.add_row(
+                Text(left, style="bold"),
+                Text(legs_cell, style="dim") if legs_cell else Text(""),
+                tf_dte,
+                tp_s,
+                sl_s,
+                ema,
+                _fmt_pnl(pnl),
+                _fmt_dd(dd),
+                _fmt_ratio(p_dd),
+                win_tr,
+                key=node_id,
+            )
+            return expanded
+
+        for symbol in symbols:
+            bucket = contracts[symbol]
+            all_items: list[dict] = []
+            for tf_items in bucket["spot"].values():
+                all_items.extend(tf_items)
+            for dte_items in bucket["options"].values():
+                all_items.extend(dte_items)
+
+            contract_node = f"contract:{symbol}"
+            contract_expanded = _add_header(contract_node, depth=0, label=symbol, best=_best(all_items))
+            if not contract_expanded:
+                continue
+
+            spot_node = f"{contract_node}|spot"
+            spot_items = [it for tf_items in bucket["spot"].values() for it in tf_items]
+            spot_expanded = _add_header(spot_node, depth=1, label=f"{symbol} - Spot", best=_best(spot_items))
+            if spot_expanded:
+                for tf in sorted(bucket["spot"].keys()):
+                    tf_items = bucket["spot"][tf]
+                    tf_node = f"{spot_node}|tf:{tf}"
+                    tf_expanded = _add_header(tf_node, depth=2, label=str(tf), best=_best(tf_items))
+                    if tf_expanded:
+                        ordered = sorted(
+                            tf_items,
+                            key=lambda it: (
+                                0 if it["source"] == "spot_champions" else 1,
+                                -float(it.get("score", float("-inf"))),
+                                it["name"],
+                            ),
+                        )
+                        for item in ordered:
+                            _add_leaf(item, depth=3)
+
+            opt_node = f"{contract_node}|options"
+            opt_items = [it for items in bucket["options"].values() for it in items]
+            opt_expanded = _add_header(opt_node, depth=1, label=f"{symbol} - Options", best=_best(opt_items))
+            if opt_expanded:
+                for dte in sorted(bucket["options"].keys()):
+                    dte_items = bucket["options"][dte]
+                    dte_node = f"{opt_node}|dte:{dte}"
+                    dte_expanded = _add_header(dte_node, depth=2, label=f"DTE {dte}", best=_best(dte_items))
+                    if dte_expanded:
+                        ordered = sorted(
+                            dte_items,
+                            key=lambda it: (-float(it.get("score", float("-inf"))), it["name"]),
+                        )
+                        for item in ordered:
+                            _add_leaf(item, depth=3)
 
         self._move_cursor_to_first_preset()
         self._render_status()
@@ -1351,26 +1695,22 @@ class BotScreen(Screen):
     def _move_cursor_to_first_preset(self) -> None:
         if not self._preset_rows:
             return
-        for idx, preset in enumerate(self._preset_rows):
-            if preset is not None:
-                self._presets_table.cursor_coordinate = (idx, 0)
-                return
+        self._presets_table.cursor_coordinate = (0, 0)
 
-    def _skip_preset_headers(self, direction: int) -> None:
-        if self._active_panel != "presets":
+    def _toggle_preset_node(self, node_id: str) -> None:
+        if not node_id:
             return
-        if not self._preset_rows:
-            return
-        row = self._presets_table.cursor_coordinate.row
-        row = max(0, min(row, len(self._preset_rows) - 1))
-        if self._preset_rows[row] is not None:
-            return
-        scan = row
-        while 0 <= scan < len(self._preset_rows) and self._preset_rows[scan] is None:
-            scan += direction
-        if 0 <= scan < len(self._preset_rows) and self._preset_rows[scan] is not None:
-            self._presets_table.cursor_coordinate = (scan, 0)
-            return
+        if node_id in self._preset_expanded:
+            self._preset_expanded.remove(node_id)
+        else:
+            self._preset_expanded.add(node_id)
+        self._rebuild_presets_table()
+        try:
+            row = self._presets_table.get_row_index(node_id)
+        except Exception:
+            row = None
+        if row is not None and self._presets_table.is_valid_row_index(row):
+            self._presets_table.cursor_coordinate = (row, 0)
 
     def _setup_tables(self) -> None:
         self._instances_table.clear(columns=True)
@@ -1397,10 +1737,8 @@ class BotScreen(Screen):
         if self._active_panel == "presets":
             if direction > 0:
                 self._presets_table.action_cursor_down()
-                self._skip_preset_headers(1)
             else:
                 self._presets_table.action_cursor_up()
-                self._skip_preset_headers(-1)
         elif self._active_panel == "instances":
             if direction > 0:
                 self._instances_table.action_cursor_down()
@@ -3541,7 +3879,7 @@ class BotScreen(Screen):
 
         lines.append(
             Text(
-                "Enter=Config/Send  Ctrl+A=Presets  f=FilterDTE  w=FilterWin  v=Scope  Tab/h/l=Focus  p=Propose  a=Auto  Space=Run  s=Stop  S=Kill  d=Del  X=Send",
+                "Enter=Config/Send  Ctrl+A=Presets  f=FilterDTE  w=FilterWin  v=Scope  Tab/h/l=Focus  p=Propose  a=Auto  Space=Run/Toggle  s=Stop  S=Kill  d=Del  X=Send",
                 style="dim",
             )
         )
@@ -3591,6 +3929,17 @@ class BotScreen(Screen):
                                 pnl = float(w.get("pnl", 0.0) or 0.0)
                             except (TypeError, ValueError):
                                 pnl = 0.0
+                            pnl_mo: float | None = None
+                            if start and end:
+                                try:
+                                    start_d = date.fromisoformat(start)
+                                    end_d = date.fromisoformat(end)
+                                except ValueError:
+                                    start_d = None
+                                    end_d = None
+                                if start_d and end_d and end_d > start_d:
+                                    months = max((end_d - start_d).days / 30.0, 1.0)
+                                    pnl_mo = pnl / months
                             try:
                                 trades = int(w.get("trades", 0) or 0)
                             except (TypeError, ValueError):
@@ -3602,7 +3951,11 @@ class BotScreen(Screen):
                                 + roi_text
                                 + Text("  ", style="dim")
                                 + dd_text
-                                + Text(f"  tr={trades}  pnl={pnl:,.1f}", style="dim")
+                                + Text(
+                                    f"  tr={trades}  pnl={pnl:,.1f}"
+                                    + (f"  pnl/mo={pnl_mo:,.0f}" if pnl_mo is not None else ""),
+                                    style="dim",
+                                )
                             )
         elif self._active_panel == "instances":
             instance = self._selected_instance()
