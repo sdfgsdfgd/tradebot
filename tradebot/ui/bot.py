@@ -7,6 +7,7 @@ import copy
 import csv
 import json
 import math
+import re
 import threading
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta, timezone
@@ -1234,9 +1235,8 @@ class BotScreen(Screen):
             if isinstance(champ_payload, dict):
                 source = str(champ_payload.get("source") or "").strip()
                 if source:
-                    token = source.split("v", 1)[1] if "v" in source else ""
-                    v = "".join(ch for ch in token if ch.isdigit())
-                    self._spot_champ_version = v or None
+                    match = re.search(r"v(\\d+)", source)
+                    self._spot_champ_version = match.group(1) if match else None
 
                 champ_groups = champ_payload.get("groups", [])
                 if isinstance(champ_groups, list) and champ_groups:
