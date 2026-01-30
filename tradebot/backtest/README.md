@@ -6,22 +6,22 @@ This package provides a minimal backtest runner that supports:
 
 Shared decision logic lives in `tradebot/engine.py` and `tradebot/spot_engine.py` so the UI/live runner can reuse the exact same semantics.
 
-## Spot (TQQQ) — CURRENT champ (v32) quick reproduce
+## Spot (TQQQ) — CURRENT champ (v34) quick reproduce
 
 This is the canonical “champ smoke test” we use to ensure refactors do **not** change outcomes.
 
 ```bash
-python -m tradebot.backtest spot_multitimeframe --milestones backtests/out/tqqq_exec5m_v32_champ_only_milestone.json \
+python -m tradebot.backtest spot_multitimeframe --milestones backtests/out/tqqq_exec5m_v34_champ_only_milestone.json \
   --symbol TQQQ --bar-size "30 mins" --use-rth --offline --cache-dir db --top 1 --max-open 1 \
   --require-positive-pnl --min-trades 100 \
   --window 2016-01-01:2026-01-19 --window 2024-01-01:2026-01-19 --window 2025-01-01:2026-01-19 \
-  --write-top 1 --out /tmp/tqqq_exec5m_v32_smoke.json
+  --write-top 1 --out /tmp/tqqq_exec5m_v34_smoke.json
 ```
 
 Expected exact window metrics:
-- 10y: roi `0.6019736603124943`, dd_pct `0.1625309351250014`, pnl `60197.36603124943`, trades `1042`
-- 2y:  roi `0.2954266321249968`, dd_pct `0.048272590999999955`, pnl `29542.66321249968`, trades `204`
-- 1y:  roi `0.13274883837499818`, dd_pct `0.041766553499999866`, pnl `13274.883837499818`, trades `106`
+- 10y: roi `0.6038486539374943`, dd_pct `0.17072433918750088`, pnl `60384.86539374943`, trades `1054`
+- 2y:  roi `0.2972119843749967`, dd_pct `0.045420233000000296`, pnl `29721.19843749967`, trades `205`
+- 1y:  roi `0.13781497912499804`, dd_pct `0.03944176150000014`, pnl `13781.497912499804`, trades `107`
 
 ## Full config example (all parameters)
 ```json
@@ -460,7 +460,7 @@ This is a **quick map of what the sweeps actually cover** (outer edges), so we c
 
 ### Spot champions (TQQQ only)
 
-#### CURRENT (v32) (exec=5m, RTH; 10y/2y/1y; >=100 trades/1y; stability-first) (promoted 2026-01-30)
+#### CURRENT (v34) (exec=5m, RTH; 10y/2y/1y; >=100 trades/1y; stability-first) (promoted 2026-01-30)
 These are the current **TQQQ-only** spot champions under the “multi-resolution” execution model (post-`spot_exec_bar_size=5 mins`) that are:
 - Positive PnL in **all 3** windows: **10y + 2y + 1y**
 - Active enough for ops (operationalized as `>=100 trades` in the last 1y window)
@@ -481,13 +481,21 @@ Winning family (what changed vs the legacy high-WR pocket):
 - **Permission gates actually matter:** `ema_spread_min_pct≈0.003` + `ema_slope_min_pct≈0.014..0.035` improves the worst-window `roi/dd` notably.
 - **Asymmetric shorts:** keep two-way behavior, but reduce short risk (`spot_short_risk_mult≈0.01..0.02`) plus short gating (`ema_spread_min_pct_down≈0.04..0.06`).
 - **Session/TOD activity filter:** limiting entries to an RTH window (CURRENT best: `9–16 ET`) improved worst-window `roi/dd` while preserving activity.
-- **Shock overlay (new):** a daily ATR% shock detector with hysteresis + `"surf"` mode improved stability across all 3 windows without changing the base signal/regime family.
+- **Shock overlay (CURRENT):** TR-ratio (“vol velocity”) shock detector + `"detect"` mode + risk scaling (plus a more sensitive TR-ratio 3/21 on/off=1.30/1.20, minTR%=5) improved worst-window stability without changing the base signal/regime family.
 
 Top set:
-- CURRENT (v32): `backtests/out/tqqq_exec5m_v32_dethrone_30m_10y2y1y_mintr100_top100.json`
+- CURRENT (v34): `backtests/out/tqqq_exec5m_v34_shock_alpha_refine_wide_30m_10y2y1y_mintr100_top100.json`
+- Previous CURRENT (v33): `backtests/out/tqqq_exec5m_v33_shock_alpha_refine_30m_10y2y1y_mintr100_top100.json`
+- Previous CURRENT (v32): `backtests/out/tqqq_exec5m_v32_dethrone_30m_10y2y1y_mintr100_top100.json`
 - Previous CURRENT (v31): `backtests/out/tqqq_exec5m_v31_shock_block_longs_30m_10y2y1y_mintr100_top36.json`
 
 Search log / reproducibility (kept as files so we don’t rerun blindly):
+- v34 shock_alpha_refine_wide (seeded from v33; `--axis shock_alpha_refine` widened TR-ratio grid + full kingmaker prefilter):
+  - `backtests/out/tqqq_exec5m_v34_shock_alpha_refine_wide_variants_30m.json` → `backtests/out/tqqq_exec5m_v34_shock_alpha_refine_wide_30m_10y2y1y_mintr100_top100.json`
+  - Key diffs vs v33: TR-ratio `3/21` with `on/off=1.30/1.20`, `minTR%=5` (triggers earlier in crash ramps); stability floor `~3.49` (vs v33 `~3.21`).
+- v33 shock_alpha_refine (seeded from v32; `--axis shock_alpha_refine` shock monetization micro grid):
+  - `backtests/out/tqqq_exec5m_v33_shock_alpha_refine_variants_30m.json` → `backtests/out/tqqq_exec5m_v33_shock_alpha_refine_30m_10y2y1y_mintr100_top100.json`
+  - Key diffs vs v32: `shock_gate_mode=detect`, `shock_detector=tr_ratio`, `shock_atr_fast/slow=5/50`, `shock_on/off_ratio=1.45/1.30`, `shock_min_atr_pct=7`, risk scaling (`target_atr_pct=12`, `min_mult=0.2`).
 - v32 dethrone (seeded from v31; `--axis champ_refine` joint micro grid):
   - `backtests/out/tqqq_exec5m_v32_dethrone_variants_30m.json` → `backtests/out/tqqq_exec5m_v32_dethrone_30m_10y2y1y_mintr100_top100.json`
   - Winning deltas vs v31: TOD `9–16` ET (was `10–15`), `ema_spread_min_pct_down=0.04` (was `0.05`), `spot_stop_loss_pct=0.045` (was `0.04`).
@@ -538,6 +546,12 @@ Search log / reproducibility (kept as files so we don’t rerun blindly):
 - v32 v31-seeded champ_refine joint micro grid (beats v31 roi/dd in all 3 windows):
   - `backtests/out/tqqq_exec5m_v32_dethrone_variants_30m.json` → `backtests/out/tqqq_exec5m_v32_dethrone_30m_10y2y1y_mintr100_top100.json`
   - Key diffs vs v31: TOD `9–16` ET (was `10–15`), `ema_spread_min_pct_down=0.04` (was `0.05`), `spot_stop_loss_pct=0.045` (was `0.04`).
+- v33 shock_alpha_refine (beats v32 roi/dd in all 3 windows):
+  - `backtests/out/tqqq_exec5m_v33_shock_alpha_refine_variants_30m.json` → `backtests/out/tqqq_exec5m_v33_shock_alpha_refine_30m_10y2y1y_mintr100_top100.json`
+  - Key diffs vs v32: TR-ratio shock detection (`detect` mode) + risk scaling (`target_atr_pct=12`, `min_mult=0.2`).
+- v34 shock_alpha_refine_wide (beats v33 roi/dd in all 3 windows):
+  - `backtests/out/tqqq_exec5m_v34_shock_alpha_refine_wide_variants_30m.json` → `backtests/out/tqqq_exec5m_v34_shock_alpha_refine_wide_30m_10y2y1y_mintr100_top100.json`
+  - Key diffs vs v33: more sensitive TR-ratio shock (`3/21`, `on/off=1.30/1.20`, `minTR%=5`).
   - Stress slices vs v31 (not part of kingmaker filter): better in Feb→Apr 2025 and 2022; worse in Feb→Apr 2020 crash.
 - (Exploratory, not promoted) shock + regime investigations (summary; none beat the CURRENT champ stability):
   - Shock overlay variants tried (modes: `detect|block|block_longs|surf`; direction source: `regime|signal`):
@@ -564,7 +578,21 @@ Search log / reproducibility (kept as files so we don’t rerun blindly):
 Repro commands:
 ```bash
 # NOTE: prepend new evolution entries ABOVE the CURRENT block (0g6).
-# 0g6) CURRENT (v32): v31-seeded champ_refine joint micro grid (beats v31 roi/dd in all 3 windows)
+# 0g8) CURRENT (v34): v33-seeded shock_alpha_refine_wide joint micro grid (beats v33 roi/dd in all 3 windows)
+python -m tradebot.backtest spot_multitimeframe --milestones backtests/out/tqqq_exec5m_v34_shock_alpha_refine_wide_variants_30m.json \
+  --symbol TQQQ --bar-size "30 mins" --use-rth --offline --cache-dir db --top 100 --max-open 1 \
+  --require-positive-pnl --min-trades 100 \
+  --window 2016-01-01:2026-01-19 --window 2024-01-01:2026-01-19 --window 2025-01-01:2026-01-19 \
+  --write-top 100 --out backtests/out/tqqq_exec5m_v34_shock_alpha_refine_wide_30m_10y2y1y_mintr100_top100.json
+
+# 0g7) Previous CURRENT (v33): v32-seeded shock_alpha_refine joint micro grid (beats v32 roi/dd in all 3 windows)
+python -m tradebot.backtest spot_multitimeframe --milestones backtests/out/tqqq_exec5m_v33_shock_alpha_refine_variants_30m.json \
+  --symbol TQQQ --bar-size "30 mins" --use-rth --offline --cache-dir db --top 100 --max-open 1 \
+  --require-positive-pnl --min-trades 100 \
+  --window 2016-01-01:2026-01-19 --window 2024-01-01:2026-01-19 --window 2025-01-01:2026-01-19 \
+  --write-top 100 --out backtests/out/tqqq_exec5m_v33_shock_alpha_refine_30m_10y2y1y_mintr100_top100.json
+
+# 0g6) Previous CURRENT (v32): v31-seeded champ_refine joint micro grid (beats v31 roi/dd in all 3 windows)
 python -m tradebot.backtest spot_multitimeframe --milestones backtests/out/tqqq_exec5m_v32_dethrone_variants_30m.json \
   --symbol TQQQ --bar-size "30 mins" --use-rth --offline --cache-dir db --top 100 --max-open 1 \
   --require-positive-pnl --min-trades 100 \

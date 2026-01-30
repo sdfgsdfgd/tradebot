@@ -864,6 +864,7 @@ def main() -> None:
             "gate_matrix",
             "champ_refine",
             "st37_refine",
+            "shock_alpha_refine",
         ),
         help="Run one axis sweep (or all in sequence)",
     )
@@ -8084,6 +8085,246 @@ def main() -> None:
         print("")
         _print_leaderboards(rows, title="champ_refine (seeded, bounded)", top_n=int(args.top))
 
+    def _sweep_shock_alpha_refine() -> None:
+        """Seeded shock monetization micro grid (down-shock alpha, bounded).
+
+        Goal: explore "stronger shock detection + monetization" without changing the base signal family,
+        by sweeping:
+        - earlier detectors (daily ATR% + optional TR%-trigger; TR-ratio "velocity"),
+        - down-shock asymmetry (scale shorts up; scale longs down/zero),
+        - risk scaling under extreme ATR% (so we don't nuke stability).
+        """
+        nonlocal run_calls_total
+
+        if args.seed_milestones is None:
+            seed_path = Path("backtests/out/tqqq_exec5m_v34_champ_only_milestone.json")
+        else:
+            seed_path = Path(str(args.seed_milestones))
+        if not seed_path.exists():
+            raise SystemExit(f"--axis shock_alpha_refine requires --seed-milestones (missing {seed_path})")
+
+        payload = json.loads(seed_path.read_text())
+        if not isinstance(payload, dict):
+            raise SystemExit(f"Invalid seed milestones payload: {seed_path}")
+
+        raw_groups = payload.get("groups") or []
+        if not isinstance(raw_groups, list):
+            raise SystemExit(f"Invalid seed milestones groups: {seed_path}")
+
+        candidates: list[dict] = []
+        for group in raw_groups:
+            if not isinstance(group, dict):
+                continue
+            entries = group.get("entries") or []
+            if not isinstance(entries, list) or not entries:
+                continue
+            entry = entries[0]
+            if not isinstance(entry, dict):
+                continue
+            strat = entry.get("strategy") or {}
+            metrics = entry.get("metrics") or {}
+            if not isinstance(strat, dict) or not isinstance(metrics, dict):
+                continue
+            if str(strat.get("instrument", "spot") or "spot").strip().lower() != "spot":
+                continue
+            if str(entry.get("symbol") or strat.get("symbol") or "").strip().upper() != str(symbol).strip().upper():
+                continue
+            if str(strat.get("signal_bar_size") or "").strip().lower() != str(signal_bar_size).strip().lower():
+                continue
+            if bool(strat.get("signal_use_rth")) != bool(use_rth):
+                continue
+            candidates.append(
+                {
+                    "group_name": str(group.get("name") or ""),
+                    "strategy": strat,
+                    "filters": group.get("filters") if isinstance(group.get("filters"), dict) else None,
+                    "metrics": metrics,
+                }
+            )
+
+        if not candidates:
+            print(f"No matching seed candidates found in {seed_path} for {symbol} {signal_bar_size} rth={use_rth}.")
+            return
+
+        def _sort_key(item: dict) -> tuple:
+            m = item.get("metrics") or {}
+            return (
+                float(m.get("pnl_over_dd") or float("-inf")),
+                float(m.get("pnl") or float("-inf")),
+                float(m.get("win_rate") or 0.0),
+                int(m.get("trades") or 0),
+            )
+
+        seed_top = max(1, int(args.seed_top or 0))
+        seeds = sorted(candidates, key=_sort_key, reverse=True)[:seed_top]
+
+        print("")
+        print("=== shock_alpha_refine: seeded shock monetization micro grid ===")
+        print(f"- seeds_in_file={len(candidates)} selected={len(seeds)} seed_top={seed_top}")
+        print(f"- seed_path={seed_path}")
+        print("")
+
+        bars_sig = _bars_cached(signal_bar_size)
+        rows: list[dict] = []
+        tested_total = 0
+        t0 = pytime.perf_counter()
+        report_every = 100
+
+        def _merge_filters(base_filters: FiltersConfig | None, overrides: dict[str, object]) -> FiltersConfig | None:
+            base_payload = _filters_payload(base_filters) or {}
+            merged = dict(base_payload)
+            merged.update(overrides)
+            out = _parse_filters(merged)
+            if _filters_payload(out) is None:
+                return None
+            return out
+
+        gate_modes = ["detect", "surf", "block_longs"]
+        regime_override_dirs = [False, True]
+
+        # "Monetize down-shocks" knobs (only active when shock=True and direction=down).
+        short_risk_factors = [1.0, 2.0, 5.0, 12.0]
+        long_down_factors = [1.0, 0.7, 0.4, 0.0]
+
+        # When ATR% explodes, clamp the risk-dollars (prevents over-leverage in the worst regime).
+        risk_scale_variants: list[tuple[float | None, float | None, str]] = [
+            (None, None, "risk_scale=off"),
+            (12.0, 0.2, "risk_scale=atr12 min=0.2"),
+            (12.0, 0.3, "risk_scale=atr12 min=0.3"),
+            (14.0, 0.2, "risk_scale=atr14 min=0.2"),
+        ]
+
+        detector_variants: list[tuple[dict[str, object], str]] = []
+        # Daily ATR% family (v25/v31/v32 core), plus TR%-triggered early ON.
+        for on_atr, off_atr in ((13.5, 13.0), (14.0, 13.5)):
+            for on_tr in (None, 11.0, 14.0):
+                over: dict[str, object] = {
+                    "shock_detector": "daily_atr_pct",
+                    "shock_daily_atr_period": 14,
+                    "shock_daily_on_atr_pct": float(on_atr),
+                    "shock_daily_off_atr_pct": float(off_atr),
+                }
+                note = f"det=daily_atr on={on_atr:g} off={off_atr:g}"
+                if on_tr is not None:
+                    over["shock_daily_on_tr_pct"] = float(on_tr)
+                    note += f" tr>={on_tr:g}"
+                detector_variants.append((over, note))
+
+        # TR-ratio shock (vol acceleration / velocity).
+        # We include more-sensitive variants intended to trigger earlier in crash ramps.
+        for fast, slow, on_ratio, off_ratio, min_tr in (
+            # Baseline (v34 champ)
+            (3, 21, 1.30, 1.20, 5.0),
+            # Baseline (v33 champ)
+            (5, 50, 1.45, 1.30, 7.0),
+            # Moderate: lower on-ratio (still fairly strict minTR%)
+            (5, 50, 1.35, 1.25, 7.0),
+            # Moderate: allow slightly lower baseline TR%
+            (5, 50, 1.35, 1.25, 5.0),
+            (5, 21, 1.35, 1.25, 5.0),
+            (3, 21, 1.35, 1.25, 5.0),
+            # Aggressive: very early "vol velocity" triggers
+            (5, 50, 1.30, 1.20, 5.0),
+            (5, 21, 1.30, 1.20, 5.0),
+        ):
+            detector_variants.append(
+                (
+                    {
+                        "shock_detector": "tr_ratio",
+                        "shock_atr_fast_period": int(fast),
+                        "shock_atr_slow_period": int(slow),
+                        "shock_on_ratio": float(on_ratio),
+                        "shock_off_ratio": float(off_ratio),
+                        "shock_min_atr_pct": float(min_tr),
+                    },
+                    f"det=tr_ratio {fast}/{slow} on={on_ratio:g} off={off_ratio:g} minTR%={min_tr:g}",
+                )
+            )
+
+        total = (
+            len(seeds)
+            * len(gate_modes)
+            * len(detector_variants)
+            * len(regime_override_dirs)
+            * len(short_risk_factors)
+            * len(long_down_factors)
+            * len(risk_scale_variants)
+        )
+
+        for seed_i, item in enumerate(seeds, start=1):
+            try:
+                filters_obj = _filters_from_payload(item.get("filters"))
+                strategy_obj = _strategy_from_payload(item.get("strategy") or {}, filters=filters_obj)
+            except Exception:
+                continue
+
+            cfg_seed = _mk_bundle(
+                strategy=strategy_obj,
+                start=start,
+                end=end,
+                bar_size=signal_bar_size,
+                use_rth=use_rth,
+                cache_dir=cache_dir,
+                offline=offline,
+            )
+
+            seed_note = str(item.get("group_name") or f"seed#{seed_i:02d}")
+            for gate_mode in gate_modes:
+                for det_over, det_note in detector_variants:
+                    for override_dir in regime_override_dirs:
+                        for short_factor in short_risk_factors:
+                            for long_down in long_down_factors:
+                                for target_atr, min_mult, scale_note in risk_scale_variants:
+                                    tested_total += 1
+                                    if tested_total % report_every == 0 or tested_total == total:
+                                        elapsed = pytime.perf_counter() - t0
+                                        rate = (tested_total / elapsed) if elapsed > 0 else 0.0
+                                        remaining = total - tested_total
+                                        eta_sec = (remaining / rate) if rate > 0 else 0.0
+                                        pct = (tested_total / total * 100.0) if total > 0 else 0.0
+                                        print(
+                                            f"shock_alpha_refine {tested_total}/{total} ({pct:0.1f}%) kept={len(rows)} "
+                                            f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
+                                            flush=True,
+                                        )
+
+                                    f_over: dict[str, object] = {
+                                        "shock_gate_mode": str(gate_mode),
+                                        "shock_direction_source": "signal",
+                                        "shock_direction_lookback": 1,
+                                        "shock_regime_override_dir": bool(override_dir),
+                                        "shock_short_risk_mult_factor": float(short_factor),
+                                        "shock_long_risk_mult_factor_down": float(long_down),
+                                    }
+                                    if target_atr is None:
+                                        f_over["shock_risk_scale_target_atr_pct"] = None
+                                    else:
+                                        f_over["shock_risk_scale_target_atr_pct"] = float(target_atr)
+                                        if min_mult is not None:
+                                            f_over["shock_risk_scale_min_mult"] = float(min_mult)
+                                    f_over.update(det_over)
+
+                                    f_obj = _merge_filters(cfg_seed.strategy.filters, f_over)
+                                    cfg = replace(cfg_seed, strategy=replace(cfg_seed.strategy, filters=f_obj))
+                                    row = _run_cfg(
+                                        cfg=cfg,
+                                        bars=bars_sig,
+                                        regime_bars=_regime_bars_for(cfg),
+                                        regime2_bars=_regime2_bars_for(cfg),
+                                    )
+                                    if not row:
+                                        continue
+                                    note = (
+                                        f"{seed_note} | gate={gate_mode} {det_note} | "
+                                        f"override_dir={int(override_dir)} | "
+                                        f"short_factor={short_factor:g} long_down={long_down:g} | {scale_note}"
+                                    )
+                                    row["note"] = note
+                                    _record_milestone(cfg, row, note)
+                                    rows.append(row)
+
+        _print_leaderboards(rows, title="shock_alpha_refine (seeded shock alpha micro)", top_n=int(args.top))
+
     def _sweep_st37_refine() -> None:
         """Refine the 3/7 trend + SuperTrend(4h) cluster (seeded) with v31-style gates + overlays.
 
@@ -10827,6 +11068,8 @@ def main() -> None:
         _sweep_champ_refine()
     if axis == "st37_refine":
         _sweep_st37_refine()
+    if axis == "shock_alpha_refine":
+        _sweep_shock_alpha_refine()
     if axis == "frontier":
         _sweep_frontier()
 
