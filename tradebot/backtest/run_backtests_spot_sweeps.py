@@ -7121,9 +7121,8 @@ def main() -> None:
         )
         tod_variants: list[tuple[int | None, int | None, int, int, str]] = (
             [
-                (None, None, 0, 0, "tod=seed"),
+                # SLV v4+ focus: lock cadence to full RTH, no skip/cooldown.
                 (9, 16, 0, 0, "tod=09-16"),
-                (10, 15, 1, 2, "tod=10-15 (skip=1 cd=2)"),
             ]
             if is_slv
             else [
@@ -7256,7 +7255,7 @@ def main() -> None:
             )
         else:
             # SLV: daily ATR% and TR-ratio operate on a much smaller scale; explore a wider-but-still-bounded pocket.
-            for on_atr, off_atr in ((4.0, 3.5), (4.5, 4.0), (5.0, 4.5), (6.0, 5.0)):
+            for on_atr, off_atr in ((3.0, 2.5), (3.5, 3.0), (4.0, 3.5), (4.5, 4.0), (5.0, 4.5), (6.0, 5.0)):
                 for sl_mult in (0.75, 1.0):
                     shock_variants.append(
                         (
@@ -7273,21 +7272,7 @@ def main() -> None:
                             f"shock=surf daily_atr on={on_atr:g} off={off_atr:g} sl_mult={sl_mult:g}",
                         )
                     )
-            shock_variants.append(
-                (
-                    {
-                        "shock_gate_mode": "block",
-                        "shock_detector": "daily_atr_pct",
-                        "shock_daily_atr_period": 14,
-                        "shock_daily_on_atr_pct": 5.0,
-                        "shock_daily_off_atr_pct": 4.5,
-                        "shock_direction_source": "signal",
-                        "shock_direction_lookback": 1,
-                    },
-                    "shock=block daily_atr on=5.0 off=4.5",
-                )
-            )
-            for on_tr in (5.0, 6.0, 7.0):
+            for on_tr in (4.0, 5.0, 6.0):
                 shock_variants.append(
                     (
                         {
@@ -7304,42 +7289,82 @@ def main() -> None:
                         f"shock=surf daily_atr on=4.5 off=4.0 on_tr>={on_tr:g} sl_mult=0.75",
                     )
                 )
-            shock_variants.append(
-                (
-                    {
-                        "shock_gate_mode": "detect",
-                        "shock_detector": "tr_ratio",
-                        "shock_atr_fast_period": 3,
-                        "shock_atr_slow_period": 21,
-                        "shock_on_ratio": 1.30,
-                        "shock_off_ratio": 1.20,
-                        "shock_min_atr_pct": 1.0,
-                        "shock_direction_source": "signal",
-                        "shock_direction_lookback": 1,
-                        "shock_risk_scale_target_atr_pct": 3.5,
-                        "shock_risk_scale_min_mult": 0.2,
-                    },
-                    "shock=detect tr_ratio(3/21) 1.30/1.20 min_atr%=1.0 scale@3.5->0.2",
+            # v4: shock/risk scaling pocket (not trade blocking). Keep cadence high, focus on decade DD%.
+            # - Use `detect` mode so the shock engine runs (enables ATR%-based sizing scale),
+            #   without turning into a hard gate like `block`.
+            for det, fast_p, slow_p, on_r, off_r, min_atr, dir_src, dir_lb, target_atr, min_mult, down_mult in (
+                ("tr_ratio", 3, 21, 1.25, 1.15, 0.8, "signal", 1, 3.0, 0.10, 0.60),
+                ("tr_ratio", 3, 21, 1.30, 1.20, 1.0, "signal", 1, 3.5, 0.20, 0.70),
+                ("tr_ratio", 5, 30, 1.25, 1.15, 1.0, "signal", 2, 3.5, 0.20, 0.60),
+                ("tr_ratio", 7, 50, 1.35, 1.25, 1.2, "regime", 2, 4.0, 0.20, 0.60),
+                ("tr_ratio", 7, 50, 1.45, 1.30, 1.5, "regime", 2, 4.0, 0.20, 0.50),
+                ("atr_ratio", 3, 21, 1.25, 1.15, 0.8, "signal", 1, 3.0, 0.10, 0.60),
+                ("atr_ratio", 7, 50, 1.35, 1.25, 1.2, "regime", 2, 4.0, 0.20, 0.60),
+            ):
+                shock_variants.append(
+                    (
+                        {
+                            "shock_gate_mode": "detect",
+                            "shock_detector": str(det),
+                            "shock_atr_fast_period": int(fast_p),
+                            "shock_atr_slow_period": int(slow_p),
+                            "shock_on_ratio": float(on_r),
+                            "shock_off_ratio": float(off_r),
+                            "shock_min_atr_pct": float(min_atr),
+                            "shock_direction_source": str(dir_src),
+                            "shock_direction_lookback": int(dir_lb),
+                            "shock_risk_scale_target_atr_pct": float(target_atr),
+                            "shock_risk_scale_min_mult": float(min_mult),
+                            "shock_long_risk_mult_factor_down": float(down_mult),
+                        },
+                        f"shock=detect {det}({fast_p}/{slow_p}) {on_r:g}/{off_r:g} min_atr%={min_atr:g} "
+                        f"dir={dir_src} lb={dir_lb} scale@{target_atr:g}->{min_mult:g} down={down_mult:g}",
+                    )
                 )
-            )
-            shock_variants.append(
-                (
-                    {
-                        "shock_gate_mode": "detect",
-                        "shock_detector": "tr_ratio",
-                        "shock_atr_fast_period": 7,
-                        "shock_atr_slow_period": 50,
-                        "shock_on_ratio": 1.45,
-                        "shock_off_ratio": 1.30,
-                        "shock_min_atr_pct": 1.5,
-                        "shock_direction_source": "regime",
-                        "shock_direction_lookback": 2,
-                        "shock_risk_scale_target_atr_pct": 4.0,
-                        "shock_risk_scale_min_mult": 0.2,
-                    },
-                    "shock=detect tr_ratio(7/50) 1.45/1.30 min_atr%=1.5 dir=regime lb=2 scale@4.0->0.2",
+
+            for on_atr, off_atr, target_atr, min_mult, down_mult in (
+                (4.0, 3.5, 3.0, 0.20, 0.70),
+                (4.0, 3.5, 3.0, 0.10, 0.60),
+                (4.5, 4.0, 3.5, 0.20, 0.60),
+                (5.0, 4.5, 4.0, 0.20, 0.60),
+            ):
+                shock_variants.append(
+                    (
+                        {
+                            "shock_gate_mode": "detect",
+                            "shock_detector": "daily_atr_pct",
+                            "shock_daily_atr_period": 14,
+                            "shock_daily_on_atr_pct": float(on_atr),
+                            "shock_daily_off_atr_pct": float(off_atr),
+                            "shock_direction_source": "signal",
+                            "shock_direction_lookback": 1,
+                            "shock_risk_scale_target_atr_pct": float(target_atr),
+                            "shock_risk_scale_min_mult": float(min_mult),
+                            "shock_long_risk_mult_factor_down": float(down_mult),
+                        },
+                        f"shock=detect daily_atr on={on_atr:g} off={off_atr:g} scale@{target_atr:g}->{min_mult:g} down={down_mult:g}",
+                    )
                 )
-            )
+
+            for dd_lb, dd_on, dd_off, down_mult in (
+                (40, -10.0, -6.0, 0.60),
+                (20, -7.0, -4.0, 0.70),
+            ):
+                shock_variants.append(
+                    (
+                        {
+                            "shock_gate_mode": "detect",
+                            "shock_detector": "daily_drawdown",
+                            "shock_drawdown_lookback_days": int(dd_lb),
+                            "shock_on_drawdown_pct": float(dd_on),
+                            "shock_off_drawdown_pct": float(dd_off),
+                            "shock_direction_source": "signal",
+                            "shock_direction_lookback": 2,
+                            "shock_long_risk_mult_factor_down": float(down_mult),
+                        },
+                        f"shock=detect dd lb={dd_lb} on={dd_on:g}% off={dd_off:g}% down={down_mult:g}",
+                    )
+                )
 
         # TR/gap overlays pocket (panic = defensive, pop = aggressive).
         def _risk_off_overrides() -> dict[str, object]:
@@ -7450,101 +7475,9 @@ def main() -> None:
                 ),
             ]
         else:
+            # SLV v4+ focus: avoid risk overlays that cancel entries (keep cadence high).
             risk_variants = [
                 (_risk_off_overrides(), "risk=off"),
-                (
-                    {
-                        **_risk_off_overrides(),
-                        "riskoff_tr5_med_pct": 3.0,
-                        "riskoff_lookback_days": 5,
-                        "riskoff_mode": "hygiene",
-                        "riskoff_long_risk_mult_factor": 0.7,
-                        "riskoff_short_risk_mult_factor": 0.7,
-                        "risk_entry_cutoff_hour_et": 15,
-                    },
-                    "riskoff TRmed5>=3 both=0.7 cutoff<15",
-                ),
-                (
-                    {
-                        **_risk_off_overrides(),
-                        "riskoff_tr5_med_pct": 3.5,
-                        "riskoff_lookback_days": 5,
-                        "riskoff_mode": "hygiene",
-                        "riskoff_long_risk_mult_factor": 0.5,
-                        "riskoff_short_risk_mult_factor": 0.5,
-                        "risk_entry_cutoff_hour_et": 15,
-                    },
-                    "riskoff TRmed5>=3.5 both=0.5 cutoff<15",
-                ),
-                (
-                    {
-                        **_risk_off_overrides(),
-                        "riskpanic_tr5_med_pct": 3.0,
-                        "riskpanic_neg_gap_ratio_min": 0.6,
-                        "riskpanic_lookback_days": 5,
-                        "riskpanic_short_risk_mult_factor": 0.5,
-                        "risk_entry_cutoff_hour_et": 15,
-                    },
-                    "riskpanic TRmed5>=3 gap>=0.6 short=0.5 cutoff<15",
-                ),
-                (
-                    {
-                        **_risk_off_overrides(),
-                        "riskpanic_tr5_med_pct": 3.0,
-                        "riskpanic_neg_gap_ratio_min": 0.6,
-                        "riskpanic_lookback_days": 5,
-                        "riskpanic_short_risk_mult_factor": 0.0,
-                        "risk_entry_cutoff_hour_et": 15,
-                    },
-                    "riskpanic TRmed5>=3 gap>=0.6 short=0 cutoff<15",
-                ),
-                (
-                    {
-                        **_risk_off_overrides(),
-                        "riskpanic_tr5_med_pct": 3.5,
-                        "riskpanic_neg_gap_ratio_min": 0.7,
-                        "riskpanic_lookback_days": 5,
-                        "riskpanic_short_risk_mult_factor": 0.5,
-                        "risk_entry_cutoff_hour_et": 15,
-                    },
-                    "riskpanic TRmed5>=3.5 gap>=0.7 short=0.5 cutoff<15",
-                ),
-                (
-                    {
-                        **_risk_off_overrides(),
-                        "riskpop_tr5_med_pct": 3.0,
-                        "riskpop_pos_gap_ratio_min": 0.6,
-                        "riskpop_lookback_days": 5,
-                        "riskpop_long_risk_mult_factor": 1.2,
-                        "riskpop_short_risk_mult_factor": 0.0,
-                        "risk_entry_cutoff_hour_et": 15,
-                    },
-                    "riskpop TRmed5>=3 gap+=0.6 long=1.2 short=0 cutoff<15",
-                ),
-                (
-                    {
-                        **_risk_off_overrides(),
-                        "riskpop_tr5_med_pct": 3.0,
-                        "riskpop_pos_gap_ratio_min": 0.6,
-                        "riskpop_lookback_days": 5,
-                        "riskpop_long_risk_mult_factor": 1.5,
-                        "riskpop_short_risk_mult_factor": 0.0,
-                        "risk_entry_cutoff_hour_et": 15,
-                    },
-                    "riskpop TRmed5>=3 gap+=0.6 long=1.5 short=0 cutoff<15",
-                ),
-                (
-                    {
-                        **_risk_off_overrides(),
-                        "riskpop_tr5_med_pct": 3.5,
-                        "riskpop_pos_gap_ratio_min": 0.7,
-                        "riskpop_lookback_days": 5,
-                        "riskpop_long_risk_mult_factor": 1.5,
-                        "riskpop_short_risk_mult_factor": 0.0,
-                        "risk_entry_cutoff_hour_et": 15,
-                    },
-                    "riskpop TRmed5>=3.5 gap+=0.7 long=1.5 short=0 cutoff<15",
-                ),
             ]
 
         def _merge_filters(base_filters: FiltersConfig | None, overrides: dict[str, object]) -> FiltersConfig | None:
@@ -7935,11 +7868,17 @@ def main() -> None:
                 seed_src = str(getattr(base_for_regime.strategy, "supertrend_source", "hl2") or "hl2").strip().lower()
 
                 atr_vals = []
-                for v in (seed_atr, 7, 10, 14):
+                atr_candidates = (seed_atr, 7, 10, 14) if not is_slv else (seed_atr, 5, 7, 10, 14)
+                for v in atr_candidates:
                     if v not in atr_vals:
                         atr_vals.append(v)
                 mult_vals: list[float] = []
-                for v in (seed_mult - 0.05, seed_mult, seed_mult + 0.05, 0.45, 0.50, 0.55, 0.60):
+                mult_candidates = (
+                    (seed_mult - 0.05, seed_mult, seed_mult + 0.05, 0.45, 0.50, 0.55, 0.60)
+                    if not is_slv
+                    else (seed_mult - 0.05, seed_mult, seed_mult + 0.05, seed_mult + 0.10)
+                )
+                for v in mult_candidates:
                     if v <= 0:
                         continue
                     fv = float(v)
@@ -7952,7 +7891,8 @@ def main() -> None:
                         src_vals.append(sv)
 
                 stage2: list[tuple[ConfigBundle, dict]] = []
-                for atr_p in atr_vals[:3]:
+                atr_pick = atr_vals[:4] if is_slv else atr_vals[:3]
+                for atr_p in atr_pick:
                     for mult in mult_vals[:4]:
                         for src in src_vals[:2]:
                             cfg = replace(
@@ -7992,7 +7932,22 @@ def main() -> None:
             base_variants: list[ConfigBundle] = []
             for r_cfg in regime_variants[:2]:
                 for mult in top_short_mults:
-                    base_variants.append(replace(r_cfg, strategy=replace(r_cfg.strategy, spot_short_risk_mult=float(mult))))
+                    # SLV v4+ focus: keep high cadence by locking stacking (max_open=5).
+                    if is_slv:
+                        base_variants.append(
+                            replace(
+                                r_cfg,
+                                strategy=replace(
+                                    r_cfg.strategy,
+                                    spot_short_risk_mult=float(mult),
+                                    max_open_trades=5,
+                                ),
+                            )
+                        )
+                    else:
+                        base_variants.append(
+                            replace(r_cfg, strategy=replace(r_cfg.strategy, spot_short_risk_mult=float(mult)))
+                        )
 
             # Stage 3A: lightweight micro over exit semantics + TOD/permission/signed-slope.
             #
@@ -8012,6 +7967,11 @@ def main() -> None:
                     base_exit_variants.append((cfg, note))
 
                 _add_exit(base_cfg, "exit=seed")
+                if is_slv:
+                    _add_exit(
+                        replace(base_cfg, strategy=replace(base_cfg.strategy, spot_close_eod=True)),
+                        "exit=seed close_eod=1",
+                    )
                 _add_exit(
                     replace(base_cfg, strategy=replace(base_cfg.strategy, flip_exit_min_hold_bars=2)),
                     "exit=seed hold=2",
@@ -8019,24 +7979,45 @@ def main() -> None:
 
                 # Champ-style stop-only + reversal exit (works even if the seed used ATR exits).
                 sl_vals = (0.03, 0.04, 0.045) if not is_slv else (0.008, 0.010, 0.012, 0.015, 0.020)
+                hold_vals = (2,) if not is_slv else (0, 2, 4)
                 for sl in sl_vals:
-                    _add_exit(
-                        replace(
-                            base_cfg,
-                            strategy=replace(
-                                base_cfg.strategy,
-                                spot_exit_mode="pct",
-                                spot_profit_target_pct=None,
-                                spot_stop_loss_pct=float(sl),
-                                exit_on_signal_flip=True,
-                                flip_exit_mode="entry",
-                                flip_exit_only_if_profit=True,
-                                flip_exit_min_hold_bars=2,
-                                flip_exit_gate_mode="off",
+                    for hold in hold_vals:
+                        _add_exit(
+                            replace(
+                                base_cfg,
+                                strategy=replace(
+                                    base_cfg.strategy,
+                                    spot_exit_mode="pct",
+                                    spot_profit_target_pct=None,
+                                    spot_stop_loss_pct=float(sl),
+                                    exit_on_signal_flip=True,
+                                    flip_exit_mode="entry",
+                                    flip_exit_only_if_profit=True,
+                                    flip_exit_min_hold_bars=int(hold),
+                                    flip_exit_gate_mode="off",
+                                ),
                             ),
-                        ),
-                        f"exit=stop{sl:g} flipprofit hold=2",
-                    )
+                            f"exit=stop{sl:g} flipprofit hold={hold}",
+                        )
+                        if is_slv and float(sl) == 0.010 and hold in (0, 2):
+                            _add_exit(
+                                replace(
+                                    base_cfg,
+                                    strategy=replace(
+                                        base_cfg.strategy,
+                                        spot_exit_mode="pct",
+                                        spot_profit_target_pct=None,
+                                        spot_stop_loss_pct=float(sl),
+                                        exit_on_signal_flip=True,
+                                        flip_exit_mode="entry",
+                                        flip_exit_only_if_profit=True,
+                                        flip_exit_min_hold_bars=int(hold),
+                                        flip_exit_gate_mode="off",
+                                        spot_close_eod=True,
+                                    ),
+                                ),
+                                f"exit=stop{sl:g} flipprofit hold={hold} close_eod=1",
+                            )
 
                 # Explicit "exit on the next flip" (no profit gate). Useful for reducing
                 # long-hold drawdowns / improving stability.

@@ -1,0 +1,20 @@
+{
+  "name": "multitimeframe_top",
+  "generated_at": "2026-01-30T10:31:36.190698Z",
+  "source": "backtests/slv/slv_exec5m_v1_hf_scalp_15m_1y_milestones.json",
+  "windows": [
+    {
+      "start": "2016-01-08",
+      "end": "2026-01-08"
+    },
+    {
+      "start": "2024-01-08",
+      "end": "2026-01-08"
+    },
+    {
+      "start": "2025-01-08",
+      "end": "2026-01-08"
+    }
+  ],
+  "groups": []
+}

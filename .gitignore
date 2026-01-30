@@ -3,7 +3,10 @@ __pycache__/
 .DS_Store
 .idea/
 db/
-backtests/
+# Backtest outputs are generally large/noisy, but we track SLV research.
+backtests/*
+!backtests/slv/
+!backtests/slv/**
 db/quotes/
 docs/todo/
 tradebot/backtest/spot_milestones.tqqq_*.json
