@@ -690,6 +690,7 @@ class BotScreen(Screen):
         self._leaderboard_path = base / "backtest" / "leaderboard.json"
         self._spot_milestones_path = base / "backtest" / "spot_milestones.json"
         self._spot_champions_path = base / "backtest" / "spot_champions.json"
+        self._backtest_readme_path = base / "backtest" / "README.md"
         self._group_eval_by_name: dict[str, dict] = {}
         self._payload: dict | None = None
         self._presets: list[_BotPreset] = []
@@ -1208,92 +1209,129 @@ class BotScreen(Screen):
         )
 
     def _load_leaderboard(self) -> None:
-        payload: dict = {}
-        try:
-            payload = json.loads(self._leaderboard_path.read_text())
-        except Exception as exc:
-            self._status = f"Leaderboard load failed: {exc}"
-            payload = {}
-        if not isinstance(payload, dict):
-            payload = {}
+        """Load CURRENT champion presets (README-driven).
 
-        groups: list[dict] = []
-        base_groups = payload.get("groups", [])
-        if isinstance(base_groups, list):
-            for group in base_groups:
+        Bot Hub presets are intentionally limited to promoted CURRENT champions documented in:
+        - `tradebot/backtest/README.md` (TQQQ spot champ)
+        - `backtests/slv/README.md` (SLV spot champ)
+        """
+
+        repo_root = Path(__file__).resolve().parents[2]
+
+        def _read_text(path: Path) -> str | None:
+            try:
+                return path.read_text()
+            except Exception:
+                return None
+
+        def _resolve_existing_json(rel_path: str) -> Path | None:
+            candidate = repo_root / rel_path
+            return candidate if candidate.exists() else None
+
+        def _pick_group(payload: dict) -> dict | None:
+            groups = payload.get("groups", [])
+            if not isinstance(groups, list) or not groups:
+                return None
+            for group in groups:
                 if not isinstance(group, dict):
                     continue
-                group["_source"] = "options_leaderboard"
+                name = str(group.get("name") or "")
+                if "KINGMAKER #01" in name:
+                    return group
+            first = groups[0]
+            return first if isinstance(first, dict) else None
+
+        def _load_champion_group(*, symbol: str, version: str, path: Path) -> dict | None:
+            try:
+                payload = json.loads(path.read_text())
+            except Exception:
+                return None
+            if not isinstance(payload, dict):
+                return None
+            group = _pick_group(payload)
+            if not isinstance(group, dict):
+                return None
+            group = dict(group)
+            group["_source"] = f"champion:{symbol}:v{version}"
+
+            name = str(group.get("name") or "")
+            spot_tag = f"Spot ({symbol})"
+            if spot_tag in name:
+                group["name"] = name.replace(spot_tag, f"{spot_tag} v{version}", 1)
+            return group
+
+        groups: list[dict] = []
+        self._spot_champ_version = None
+
+        # TQQQ CURRENT (from tradebot/backtest/README.md)
+        backtest_readme = _read_text(self._backtest_readme_path)
+        tqqq_ver: str | None = None
+        tqqq_path: Path | None = None
+        if backtest_readme:
+            bullet = re.search(
+                r"^- CURRENT \(v(?P<ver>\d+)\): `(?P<path>backtests/out/[^`]+\.json)`",
+                backtest_readme,
+                flags=re.MULTILINE,
+            )
+            if bullet:
+                tqqq_ver = bullet.group("ver")
+                tqqq_path = _resolve_existing_json(bullet.group("path"))
+
+            if tqqq_ver is None:
+                head = re.search(r"^#### CURRENT \(v(?P<ver>\d+)\)", backtest_readme, flags=re.MULTILINE)
+                if head:
+                    tqqq_ver = head.group("ver")
+                    tail = backtest_readme[head.end() :]
+                    next_head = re.search(r"^####\\s+", tail, flags=re.MULTILINE)
+                    section = tail[: next_head.start()] if next_head else tail
+                    match = re.search(r"`(?P<path>backtests/out/[^`]+\\.json)`", section)
+                    if match:
+                        tqqq_path = _resolve_existing_json(match.group("path"))
+
+            if tqqq_ver and tqqq_path is None:
+                out_dir = repo_root / "backtests" / "out"
+                if out_dir.exists():
+                    candidates = sorted(out_dir.glob(f"tqqq_exec5m_v{tqqq_ver}_*top*.json"))
+                    if candidates:
+                        tqqq_path = candidates[0]
+
+        if tqqq_ver and tqqq_path:
+            group = _load_champion_group(symbol="TQQQ", version=tqqq_ver, path=tqqq_path)
+            if group is not None:
+                self._spot_champ_version = tqqq_ver
                 groups.append(group)
 
-        self._spot_champ_version = None
-        if self._spot_champions_path.exists():
-            try:
-                champ_payload = json.loads(self._spot_champions_path.read_text())
-            except Exception:
-                champ_payload = None
-            if isinstance(champ_payload, dict):
-                source = str(champ_payload.get("source") or "").strip()
-                if source:
-                    match = re.search(r"v(\\d+)", source)
-                    self._spot_champ_version = match.group(1) if match else None
+        # SLV CURRENT (from backtests/slv/README.md)
+        slv_readme_path = repo_root / "backtests" / "slv" / "README.md"
+        slv_readme = _read_text(slv_readme_path)
+        slv_ver: str | None = None
+        slv_path: Path | None = None
+        if slv_readme:
+            head = re.search(r"^### CURRENT \(v(?P<ver>\d+)\)", slv_readme, flags=re.MULTILINE)
+            if head:
+                slv_ver = head.group("ver")
+                tail = slv_readme[head.end() :]
+                next_head = re.search(r"^###\\s+", tail, flags=re.MULTILINE)
+                section = tail[: next_head.start()] if next_head else tail
+                match = re.search(r"`(?P<path>backtests/slv/[^`]+\\.json)`", section)
+                if match:
+                    slv_path = _resolve_existing_json(match.group("path"))
 
-                champ_groups = champ_payload.get("groups", [])
-                if isinstance(champ_groups, list) and champ_groups:
-                    ranked: list[tuple[float, dict]] = []
-                    for group in champ_groups:
-                        if not isinstance(group, dict):
-                            continue
-                        entries = group.get("entries") if isinstance(group.get("entries"), list) else []
-                        entry = entries[0] if entries else None
-                        if not isinstance(entry, dict):
-                            continue
-                        metrics = entry.get("metrics", {})
-                        try:
-                            score = float(metrics.get("pnl_over_dd"))
-                        except (TypeError, ValueError):
-                            score = float("-inf")
-                        ranked.append((score, group))
-                    ranked.sort(key=lambda pair: pair[0], reverse=True)
-                    for _, group in ranked[:10]:
-                        group["_source"] = "spot_champions"
-                        groups.append(group)
+            if slv_ver and slv_path is None:
+                slv_dir = repo_root / "backtests" / "slv"
+                candidates = sorted(slv_dir.glob(f"slv_exec5m_v{slv_ver}_*top*.json"))
+                if candidates:
+                    slv_path = candidates[0]
 
-        if self._spot_milestones_path.exists():
-            try:
-                spot_payload = json.loads(self._spot_milestones_path.read_text())
-            except Exception:
-                spot_payload = None
-            if isinstance(spot_payload, dict):
-                spot_groups = spot_payload.get("groups", [])
-                if isinstance(spot_groups, list) and spot_groups:
-                    for group in spot_groups:
-                        if not isinstance(group, dict):
-                            continue
-                        group["_source"] = "spot_milestones"
-                        groups.append(group)
+        if slv_ver and slv_path:
+            group = _load_champion_group(symbol="SLV", version=slv_ver, path=slv_path)
+            if group is not None:
+                groups.append(group)
 
-        slv_dir = Path(__file__).resolve().parents[2] / "backtests" / "slv"
-        if slv_dir.exists() and slv_dir.is_dir():
-            for path in sorted(slv_dir.glob("*.json")):
-                try:
-                    slv_payload = json.loads(path.read_text())
-                except Exception:
-                    continue
-                if not isinstance(slv_payload, dict):
-                    continue
-                slv_groups = slv_payload.get("groups", [])
-                if not isinstance(slv_groups, list) or not slv_groups:
-                    continue
-                source = f"slv_research:{path.name}"
-                for group in slv_groups:
-                    if not isinstance(group, dict):
-                        continue
-                    group["_source"] = source
-                    groups.append(group)
+        if not groups:
+            self._status = "No CURRENT champions found. Check README paths."
 
-        payload["groups"] = groups
-        self._payload = payload
+        self._payload = {"groups": groups}
         self._group_eval_by_name = {}
         for group in groups:
             if not isinstance(group, dict):
@@ -1309,15 +1347,14 @@ class BotScreen(Screen):
         self._preset_rows = []
         self._presets_table.clear(columns=True)
         self._presets_table.add_column("Preset")
-        self._presets_table.add_column("Legs", width=18)
-        self._presets_table.add_column("TF/DTE", width=8)
+        self._presets_table.add_column("Legs", width=10)
+        self._presets_table.add_column("TF/Exec", width=10)
         self._presets_table.add_column("TP", width=7)
         self._presets_table.add_column("SL", width=7)
         self._presets_table.add_column("EMA", width=6)
-        self._presets_table.add_column("PnL", width=12)
-        self._presets_table.add_column("DD", width=12)
-        self._presets_table.add_column("P/DD", width=6)
-        self._presets_table.add_column("Win/Tr", width=9)
+        self._presets_table.add_column("P/DD 10|2|1", width=14)
+        self._presets_table.add_column("PnL 10|2|1", width=18)
+        self._presets_table.add_column("DD 10|2|1", width=18)
 
         payload = self._payload or {}
         groups = payload.get("groups", [])
@@ -1365,21 +1402,107 @@ class BotScreen(Screen):
             dd = _get_dd(metrics)
             return pnl / dd if dd and dd > 0 else float("-inf")
 
-        def _fmt_pnl(value: float | None) -> Text:
-            return _pnl_text(value)
+        def _compact_bar_size(raw: str) -> str:
+            text = str(raw or "").strip()
+            if not text:
+                return "?"
+            parts = text.split()
+            if len(parts) >= 2 and parts[0].isdigit():
+                num = parts[0]
+                unit = parts[1].lower()
+                if unit.startswith("min"):
+                    return f"{num}m"
+                if unit.startswith("hour"):
+                    return f"{num}h"
+                if unit.startswith("day"):
+                    return f"{num}d"
+            return (
+                text.replace(" mins", "m")
+                .replace(" min", "m")
+                .replace(" hours", "h")
+                .replace(" hour", "h")
+                .replace(" days", "d")
+                .replace(" day", "d")
+            )
 
-        def _fmt_dd(value: float | None) -> Text:
+        def _fmt_money_compact(value: float | None) -> str:
             if value is None:
-                return Text("")
-            return Text(f"{value:,.2f}", style="red")
+                return "-"
+            try:
+                parsed = float(value)
+            except (TypeError, ValueError):
+                return "-"
+            sign = "-" if parsed < 0 else ""
+            parsed = abs(parsed)
+            if parsed >= 1_000_000:
+                return f"{sign}{parsed / 1_000_000:.1f}M"
+            if parsed >= 10_000:
+                return f"{sign}{parsed / 1_000:.1f}k"
+            return f"{sign}{parsed:,.0f}"
 
-        def _fmt_ratio(value: float | None) -> str:
+        def _fmt_ratio_compact(value: float | None) -> str:
             if value is None:
-                return ""
+                return "-"
             try:
                 return f"{float(value):.2f}"
             except (TypeError, ValueError):
-                return ""
+                return "-"
+
+        def _eval_windows(group_name: str) -> list[dict]:
+            eval_payload = self._group_eval_by_name.get(group_name)
+            if not isinstance(eval_payload, dict):
+                return []
+            windows = eval_payload.get("windows")
+            if not isinstance(windows, list) or not windows:
+                return []
+            cleaned = [w for w in windows if isinstance(w, dict)]
+            cleaned.sort(key=lambda w: str(w.get("start") or ""))
+            return cleaned
+
+        def _window_triplets(group_name: str, metrics: dict) -> tuple[str, Text, Text]:
+            windows = _eval_windows(group_name)
+            pnls: list[float | None] = []
+            dds: list[float | None] = []
+            ratios: list[float | None] = []
+
+            def _as_float(value) -> float | None:
+                if value is None:
+                    return None
+                try:
+                    return float(value)
+                except (TypeError, ValueError):
+                    return None
+
+            if windows:
+                for w in windows:
+                    pnl = _as_float(w.get("pnl"))
+                    dd = _as_float(w.get("dd"))
+                    if dd is None:
+                        dd = _as_float(w.get("max_drawdown"))
+                    ratio = _as_float(w.get("pnl_over_dd"))
+                    if ratio is None and pnl is not None and dd is not None and dd > 0:
+                        ratio = pnl / dd
+                    pnls.append(pnl)
+                    dds.append(dd)
+                    ratios.append(ratio)
+            else:
+                pnl = _as_float(metrics.get("pnl"))
+                dd = _get_dd(metrics)
+                ratio = _as_float(metrics.get("pnl_over_dd"))
+                if ratio is None and pnl is not None and dd is not None and dd > 0:
+                    ratio = pnl / dd
+                pnls = [pnl]
+                dds = [dd]
+                ratios = [ratio]
+
+            ratio_s = "/".join(_fmt_ratio_compact(v) for v in ratios)
+            pnl_s = "/".join(_fmt_money_compact(v) for v in pnls)
+            dd_s = "/".join(_fmt_money_compact(v) for v in dds)
+
+            pnl_style = "green" if any(v is not None for v in pnls) and all((v or 0) >= 0 for v in pnls) else ""
+            pnl_cell = Text(pnl_s, style=pnl_style) if pnl_s else Text("")
+            dd_cell = Text(dd_s, style="red") if dd_s else Text("")
+            return ratio_s, pnl_cell, dd_cell
 
         def _spot_tp_sl(strat: dict) -> tuple[str, str]:
             exit_mode = str(strat.get("spot_exit_mode") or "pct").strip().lower()
@@ -1432,8 +1555,6 @@ class BotScreen(Screen):
                 base = base.split(f"Spot ({symbol})", 1)[1].strip()
                 while base[:1] in ("-", "—", ":", "|"):
                     base = base[1:].strip()
-            if source == "spot_champions" and self._spot_champ_version:
-                base = f"v{self._spot_champ_version} {base}".strip()
             return base or group_name
 
         contracts: dict[str, dict] = {}
@@ -1525,39 +1646,21 @@ class BotScreen(Screen):
             if instrument == "spot":
                 sec_type = str(strat.get("spot_sec_type") or "").strip().upper()
                 legs_desc = "SPOT-FUT" if sec_type == "FUT" else "SPOT"
-                tf_dte = str(item["tf"])
+                exec_bar = str(strat.get("spot_exec_bar_size") or "").strip()
+                if exec_bar:
+                    tf_dte = f"{_compact_bar_size(item['tf'])}→{_compact_bar_size(exec_bar)}"
+                else:
+                    tf_dte = _compact_bar_size(item["tf"])
                 tp_s, sl_s = _spot_tp_sl(strat)
             else:
                 legs_desc = _legs_label(strat.get("legs", []))
                 tf_dte = str(int(item["dte"]))
                 tp_s, sl_s = _options_tp_sl(strat)
 
-            legs_desc = legs_desc[:18]
+            legs_desc = legs_desc[:10]
             ema = str(strat.get("ema_preset", ""))[:6]
 
-            pnl = None
-            try:
-                pnl = float(metrics.get("pnl")) if metrics.get("pnl") is not None else None
-            except (TypeError, ValueError):
-                pnl = None
-            dd = _get_dd(metrics)
-            p_dd = None
-            try:
-                p_dd = float(metrics.get("pnl_over_dd")) if metrics.get("pnl_over_dd") is not None else None
-            except (TypeError, ValueError):
-                p_dd = None
-            if p_dd is None and pnl is not None and dd and dd > 0:
-                p_dd = pnl / dd
-
-            try:
-                trades = int(metrics.get("trades", 0) or 0)
-            except (TypeError, ValueError):
-                trades = 0
-            try:
-                win_rate = float(metrics.get("win_rate", 0.0) or 0.0)
-            except (TypeError, ValueError):
-                win_rate = 0.0
-            win_tr = f"{int(win_rate * 100):d}%/{trades}"
+            ratio_s, pnl_trip, dd_trip = _window_triplets(preset.group, metrics)
 
             label = f"{'  ' * depth}{item['name']}".rstrip()
             self._presets.append(preset)
@@ -1569,10 +1672,9 @@ class BotScreen(Screen):
                 tp_s,
                 sl_s,
                 ema,
-                _fmt_pnl(pnl),
-                _fmt_dd(dd),
-                _fmt_ratio(p_dd),
-                win_tr,
+                ratio_s,
+                pnl_trip,
+                dd_trip,
                 key=item["row_id"],
             )
 
@@ -1585,43 +1687,27 @@ class BotScreen(Screen):
             tp_s = ""
             sl_s = ""
             ema = ""
-            pnl = None
-            dd = None
-            p_dd = None
-            win_tr = ""
+            ratio_s = ""
+            pnl_trip = Text("")
+            dd_trip = Text("")
 
             if best is not None:
-                legs_cell = f"best: {best['name']}"[:18]
+                legs_cell = f"best: {best['name']}"[:10]
                 strat = best["strategy"]
                 instrument = best["instrument"]
                 if instrument == "spot":
-                    tf_dte = str(best["tf"])
+                    exec_bar = str(strat.get("spot_exec_bar_size") or "").strip()
+                    if exec_bar:
+                        tf_dte = f"{_compact_bar_size(best['tf'])}→{_compact_bar_size(exec_bar)}"
+                    else:
+                        tf_dte = _compact_bar_size(best["tf"])
                     tp_s, sl_s = _spot_tp_sl(strat)
                 else:
                     tf_dte = str(int(best["dte"]))
                     tp_s, sl_s = _options_tp_sl(strat)
                 ema = str(strat.get("ema_preset", ""))[:6]
                 metrics = best["metrics"]
-                try:
-                    pnl = float(metrics.get("pnl")) if metrics.get("pnl") is not None else None
-                except (TypeError, ValueError):
-                    pnl = None
-                dd = _get_dd(metrics)
-                try:
-                    p_dd = float(metrics.get("pnl_over_dd")) if metrics.get("pnl_over_dd") is not None else None
-                except (TypeError, ValueError):
-                    p_dd = None
-                if p_dd is None and pnl is not None and dd and dd > 0:
-                    p_dd = pnl / dd
-                try:
-                    trades = int(metrics.get("trades", 0) or 0)
-                except (TypeError, ValueError):
-                    trades = 0
-                try:
-                    win_rate = float(metrics.get("win_rate", 0.0) or 0.0)
-                except (TypeError, ValueError):
-                    win_rate = 0.0
-                win_tr = f"{int(win_rate * 100):d}%/{trades}"
+                ratio_s, pnl_trip, dd_trip = _window_triplets(best["preset"].group, metrics)
 
             self._preset_rows.append(_PresetHeader(node_id=node_id, depth=depth, label=label))
             self._presets_table.add_row(
@@ -1631,10 +1717,9 @@ class BotScreen(Screen):
                 tp_s,
                 sl_s,
                 ema,
-                _fmt_pnl(pnl),
-                _fmt_dd(dd),
-                _fmt_ratio(p_dd),
-                win_tr,
+                ratio_s,
+                pnl_trip,
+                dd_trip,
                 key=node_id,
             )
             return expanded
@@ -1656,37 +1741,41 @@ class BotScreen(Screen):
             spot_items = [it for tf_items in bucket["spot"].values() for it in tf_items]
             spot_expanded = _add_header(spot_node, depth=1, label=f"{symbol} - Spot", best=_best(spot_items))
             if spot_expanded:
-                for tf in sorted(bucket["spot"].keys()):
-                    tf_items = bucket["spot"][tf]
-                    tf_node = f"{spot_node}|tf:{tf}"
-                    tf_expanded = _add_header(tf_node, depth=2, label=str(tf), best=_best(tf_items))
-                    if tf_expanded:
-                        ordered = sorted(
-                            tf_items,
-                            key=lambda it: (
-                                0 if it["source"] == "spot_champions" else 1,
-                                -float(it.get("score", float("-inf"))),
-                                it["name"],
-                            ),
-                        )
-                        for item in ordered:
-                            _add_leaf(item, depth=3)
+                spot_tfs = sorted(bucket["spot"].keys())
+                if len(spot_tfs) == 1:
+                    tf_items = bucket["spot"][spot_tfs[0]]
+                    ordered = sorted(tf_items, key=lambda it: (-float(it.get("score", float("-inf"))), it["name"]))
+                    for item in ordered:
+                        _add_leaf(item, depth=2)
+                else:
+                    for tf in spot_tfs:
+                        tf_items = bucket["spot"][tf]
+                        tf_node = f"{spot_node}|tf:{tf}"
+                        tf_expanded = _add_header(tf_node, depth=2, label=str(tf), best=_best(tf_items))
+                        if tf_expanded:
+                            ordered = sorted(
+                                tf_items,
+                                key=lambda it: (-float(it.get("score", float("-inf"))), it["name"]),
+                            )
+                            for item in ordered:
+                                _add_leaf(item, depth=3)
 
             opt_node = f"{contract_node}|options"
             opt_items = [it for items in bucket["options"].values() for it in items]
-            opt_expanded = _add_header(opt_node, depth=1, label=f"{symbol} - Options", best=_best(opt_items))
-            if opt_expanded:
-                for dte in sorted(bucket["options"].keys()):
-                    dte_items = bucket["options"][dte]
-                    dte_node = f"{opt_node}|dte:{dte}"
-                    dte_expanded = _add_header(dte_node, depth=2, label=f"DTE {dte}", best=_best(dte_items))
-                    if dte_expanded:
-                        ordered = sorted(
-                            dte_items,
-                            key=lambda it: (-float(it.get("score", float("-inf"))), it["name"]),
-                        )
-                        for item in ordered:
-                            _add_leaf(item, depth=3)
+            if opt_items:
+                opt_expanded = _add_header(opt_node, depth=1, label=f"{symbol} - Options", best=_best(opt_items))
+                if opt_expanded:
+                    for dte in sorted(bucket["options"].keys()):
+                        dte_items = bucket["options"][dte]
+                        dte_node = f"{opt_node}|dte:{dte}"
+                        dte_expanded = _add_header(dte_node, depth=2, label=f"DTE {dte}", best=_best(dte_items))
+                        if dte_expanded:
+                            ordered = sorted(
+                                dte_items,
+                                key=lambda it: (-float(it.get("score", float("-inf"))), it["name"]),
+                            )
+                            for item in ordered:
+                                _add_leaf(item, depth=3)
 
         self._move_cursor_to_first_preset()
         self._render_status()
