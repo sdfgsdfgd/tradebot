@@ -1,4 +1,4 @@
-"""Bot hub screen (presets + proposals + auto-trade)."""
+"""Bot hub screen (presets + orders + auto-trade)."""
 
 from __future__ import annotations
 
@@ -39,13 +39,13 @@ from ..signals import (
 )
 from .common import (
     _SECTION_TYPES,
+    _fmt_quote,
     _market_session_label,
     _midpoint,
     _optimistic_price,
     _aggressive_price,
     _parse_float,
     _parse_int,
-    _portfolio_row,
     _portfolio_sort_key,
     _pnl_text,
     _quote_status_line,
@@ -97,9 +97,8 @@ class _BotInstance:
     strategy: dict
     filters: dict | None
     metrics: dict | None = None
-    auto_trade: bool = False
     state: str = "RUNNING"
-    last_propose_date: date | None = None
+    last_order_date: date | None = None
     open_direction: str | None = None
     last_entry_bar_ts: datetime | None = None
     last_exit_bar_ts: datetime | None = None
@@ -109,6 +108,9 @@ class _BotInstance:
     spot_profit_target_price: float | None = None
     spot_stop_loss_price: float | None = None
     touched_conids: set[int] = field(default_factory=set)
+    last_signal_fingerprint: tuple | None = None
+    last_cross_bar_ts: datetime | None = None
+    last_gate_status: str | None = None
 
 
 @dataclass(frozen=True)
@@ -119,7 +121,6 @@ class _BotConfigResult:
     symbol: str
     strategy: dict
     filters: dict | None
-    auto_trade: bool
 
 
 @dataclass(frozen=True)
@@ -138,7 +139,7 @@ class _BotLegOrder:
 
 
 @dataclass
-class _BotProposal:
+class _BotOrder:
     instance_id: int
     preset: _BotPreset | None
     underlying: Contract
@@ -151,8 +152,9 @@ class _BotProposal:
     bid: float | None = None
     ask: float | None = None
     last: float | None = None
-    status: str = "PROPOSED"
+    status: str = "STAGED"
     order_id: int | None = None
+    trade: Trade | None = None
     error: str | None = None
     intent: str | None = None
     direction: str | None = None
@@ -205,7 +207,6 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
         symbol: str,
         strategy: dict,
         filters: dict | None,
-        auto_trade: bool,
     ) -> None:
         super().__init__()
         self._mode = mode
@@ -214,7 +215,6 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
         self._symbol = symbol
         self._strategy = copy.deepcopy(strategy)
         self._filters = copy.deepcopy(filters) if filters else None
-        self._auto_trade = bool(auto_trade)
 
         self._fields: list[_BotConfigField] = []
         self._editing: _BotConfigField | None = None
@@ -287,13 +287,12 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
 
         self._fields = [
             _BotConfigField("Symbol", "text", "symbol"),
-            _BotConfigField("Auto trade", "bool", "auto_trade"),
             _BotConfigField("Instrument", "enum", "instrument", options=("options", "spot")),
             _BotConfigField(
                 "Signal bar size",
                 "enum",
                 "signal_bar_size",
-                options=("1 hour", "4 hours", "30 mins", "15 mins", "5 mins", "1 day"),
+                options=("1 min", "2 mins", "5 mins", "15 mins", "30 mins", "1 hour", "4 hours", "1 day"),
             ),
             _BotConfigField("Signal use RTH", "bool", "signal_use_rth"),
             _BotConfigField("Entry days", "text", "entry_days"),
@@ -312,7 +311,7 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
                 "Regime bar size",
                 "enum",
                 "regime_bar_size",
-                options=("", "1 hour", "4 hours", "30 mins", "15 mins", "5 mins", "1 day"),
+                options=("", "1 min", "2 mins", "5 mins", "15 mins", "30 mins", "1 hour", "4 hours", "1 day"),
             ),
             _BotConfigField("Supertrend ATR period", "int", "supertrend_atr_period"),
             _BotConfigField("Supertrend multiplier", "float", "supertrend_multiplier"),
@@ -339,7 +338,7 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
                 "Regime2 bar size",
                 "enum",
                 "regime2_bar_size",
-                options=("", "1 hour", "4 hours", "30 mins", "15 mins", "5 mins", "1 day"),
+                options=("", "1 min", "2 mins", "5 mins", "15 mins", "30 mins", "1 hour", "4 hours", "1 day"),
             ),
             _BotConfigField("Regime2 Supertrend ATR period", "int", "regime2_supertrend_atr_period"),
             _BotConfigField("Regime2 Supertrend multiplier", "float", "regime2_supertrend_multiplier"),
@@ -373,6 +372,12 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
                     _BotConfigField("Spot SL ATR mult", "float", "spot_sl_atr_mult"),
                     _BotConfigField("Spot PT %", "float", "spot_profit_target_pct"),
                     _BotConfigField("Spot SL %", "float", "spot_stop_loss_pct"),
+                    _BotConfigField(
+                        "Price mode",
+                        "enum",
+                        "price_mode",
+                        options=("OPTIMISTIC", "MID", "AGGRESSIVE", "CROSS"),
+                    ),
                     _BotConfigField("Spot up action", "enum", "directional_spot.up.action", options=("", "BUY")),
                     _BotConfigField("Spot up qty", "int", "directional_spot.up.qty"),
                     _BotConfigField("Spot down action", "enum", "directional_spot.down.action", options=("", "SELL")),
@@ -394,7 +399,6 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
                     "price_mode",
                     options=("OPTIMISTIC", "MID", "AGGRESSIVE", "CROSS"),
                 ),
-                _BotConfigField("Chase proposals", "bool", "chase_proposals"),
             ]
         )
 
@@ -455,8 +459,6 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
         return self._fields[row]
 
     def _get_value(self, field: _BotConfigField) -> object:
-        if field.path == "auto_trade":
-            return self._auto_trade
         if field.path == "symbol":
             return self._symbol
         if field.path.startswith("filters."):
@@ -466,9 +468,6 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
         return _get_path(self._strategy, field.path)
 
     def _set_value(self, field: _BotConfigField, value: object) -> None:
-        if field.path == "auto_trade":
-            self._auto_trade = bool(value)
-            return
         if field.path == "symbol":
             self._symbol = str(value or "").strip().upper()
             return
@@ -649,7 +648,6 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
             symbol=self._symbol,
             strategy=self._strategy,
             filters=self._filters,
-            auto_trade=self._auto_trade,
         )
         self.dismiss(result)
 
@@ -672,11 +670,10 @@ class BotScreen(Screen):
         ("up", "cursor_up", "Up"),
         ("down", "cursor_down", "Down"),
         ("enter", "activate", "Select"),
-        ("a", "toggle_auto_trade", "Auto"),
         ("space", "context_space", "Run/Toggle"),
         ("s", "stop_bot", "Stop"),
         ("d", "delete_instance", "Del"),
-        ("p", "propose", "Propose"),
+        ("c", "cancel_order", "Cancel"),
         ("f", "cycle_dte_filter", "Filter"),
         ("w", "cycle_win_filter", "Win"),
         ("r", "reload", "Reload"),
@@ -705,14 +702,16 @@ class BotScreen(Screen):
         self._instances: list[_BotInstance] = []
         self._instance_rows: list[_BotInstance] = []
         self._next_instance_id = 1
-        self._proposals: list[_BotProposal] = []
-        self._proposal_rows: list[_BotProposal] = []
+        self._orders: list[_BotOrder] = []
+        self._order_rows: list[_BotOrder] = []
         self._positions: list[PortfolioItem] = []
-        self._position_rows: list[PortfolioItem] = []
+        self._log_events: list[dict] = []
+        self._log_rows: list[dict] = []
         self._status: str | None = None
         self._refresh_task = None
-        self._proposal_task: asyncio.Task | None = None
+        self._order_task: asyncio.Task | None = None
         self._send_task: asyncio.Task | None = None
+        self._cancel_task: asyncio.Task | None = None
         self._tracked_conids: set[int] = set()
         self._active_panel = "presets"
         self._refresh_lock = asyncio.Lock()
@@ -727,8 +726,8 @@ class BotScreen(Screen):
             Static("", id="bot-status"),
             DataTable(id="bot-presets", zebra_stripes=True),
             DataTable(id="bot-instances", zebra_stripes=True),
-            DataTable(id="bot-proposals", zebra_stripes=True),
-            DataTable(id="bot-positions", zebra_stripes=True),
+            DataTable(id="bot-orders", zebra_stripes=True),
+            DataTable(id="bot-logs", zebra_stripes=True),
             id="bot-body",
         )
         yield Footer()
@@ -736,23 +735,24 @@ class BotScreen(Screen):
     async def on_mount(self) -> None:
         self._presets_table = self.query_one("#bot-presets", DataTable)
         self._status_panel = self.query_one("#bot-status", Static)
-        self._proposals_table = self.query_one("#bot-proposals", DataTable)
+        self._orders_table = self.query_one("#bot-orders", DataTable)
         self._instances_table = self.query_one("#bot-instances", DataTable)
-        self._positions_table = self.query_one("#bot-positions", DataTable)
+        self._logs_table = self.query_one("#bot-logs", DataTable)
         self._presets_table.border_title = "Presets"
         self._instances_table.border_title = "Instances"
-        self._proposals_table.border_title = "Orders / Proposals"
-        self._positions_table.border_title = "Bot Positions"
+        self._orders_table.border_title = "Orders / Positions"
+        self._logs_table.border_title = "Logs"
         self._presets_table.cursor_type = "row"
-        self._proposals_table.cursor_type = "row"
+        self._orders_table.cursor_type = "row"
         self._instances_table.cursor_type = "row"
-        self._positions_table.cursor_type = "row"
+        self._logs_table.cursor_type = "row"
         self._setup_tables()
         self._load_leaderboard()
         self._presets_table.display = self._presets_visible
         await self._refresh_positions()
         self._refresh_instances_table()
-        self._refresh_proposals_table()
+        self._refresh_orders_table()
+        self._refresh_logs_table()
         self._journal_write(event="BOOT", reason=None, data={"refresh_sec": self._refresh_sec})
         self._render_status()
         self._focus_panel("presets")
@@ -781,54 +781,111 @@ class BotScreen(Screen):
         *,
         event: str,
         instance: _BotInstance | None = None,
-        proposal: _BotProposal | None = None,
+        order: _BotOrder | None = None,
         reason: str | None,
         data: dict | None,
     ) -> None:
+        now_et = datetime.now(tz=ZoneInfo("America/New_York"))
+        now_utc = datetime.now(tz=timezone.utc)
+
+        row: dict[str, object] = {k: "" for k in _BOT_JOURNAL_FIELDS}
+        row["ts_et"] = now_et.isoformat()
+        row["ts_utc"] = now_utc.isoformat()
+        row["event"] = str(event or "")
+        row["reason"] = str(reason) if reason else ""
+
+        if instance is not None:
+            row["instance_id"] = str(int(instance.instance_id))
+            row["group"] = str(instance.group or "")
+            row["symbol"] = str(instance.symbol or "")
+            try:
+                row["instrument"] = str(self._strategy_instrument(instance.strategy or {}))
+            except Exception:
+                row["instrument"] = ""
+        if order is not None:
+            row["instance_id"] = str(int(order.instance_id))
+            row["action"] = str(order.action or "")
+            row["qty"] = str(int(order.quantity or 0))
+            row["limit_price"] = f"{float(order.limit_price):.6f}"
+            row["status"] = str(order.status or "")
+            row["order_id"] = str(int(order.order_id)) if order.order_id else ""
+
+        extra: dict[str, object] = {}
+        if instance is not None:
+            extra["strategy"] = instance.strategy
+            extra["filters"] = instance.filters
+        if order is not None:
+            extra["intent"] = order.intent
+            extra["direction"] = order.direction
+            extra["signal_bar_ts"] = order.signal_bar_ts.isoformat() if order.signal_bar_ts else None
+            extra["order_journal"] = order.journal
+            extra["error"] = order.error
+        if isinstance(data, dict) and data:
+            extra.update(data)
+        row["data_json"] = json.dumps(extra, sort_keys=True, default=str) if extra else ""
+
+        # In-app log tail (independent of CSV path availability).
+        try:
+            detail = data if isinstance(data, dict) else {}
+            msg = ""
+            if event == "SIGNAL" and isinstance(detail.get("signal"), dict):
+                sig = detail.get("signal") or {}
+                state = str(sig.get("state") or "")
+                entry_dir = str(sig.get("entry_dir") or "")
+                regime_dir = str(sig.get("regime_dir") or "")
+                cross_up = bool(sig.get("cross_up"))
+                cross_down = bool(sig.get("cross_down"))
+                parts = [f"state={state}", f"entry={entry_dir}"]
+                if cross_up:
+                    parts.append("cross=up")
+                elif cross_down:
+                    parts.append("cross=down")
+                if regime_dir:
+                    parts.append(f"regime={regime_dir}")
+                msg = " ".join(p for p in parts if p and not p.endswith("="))
+            elif event == "CROSS":
+                close = detail.get("close")
+                try:
+                    close_f = float(close) if close is not None else None
+                except (TypeError, ValueError):
+                    close_f = None
+                if close_f is not None:
+                    msg = f"close={close_f:.2f}"
+            elif event == "GATE":
+                parts: list[str] = []
+                if detail.get("direction") in ("up", "down"):
+                    parts.append(f"dir={detail.get('direction')}")
+                mode = detail.get("mode")
+                if mode:
+                    parts.append(f"mode={mode}")
+                why = detail.get("reason")
+                if why and isinstance(why, str) and why:
+                    parts.append(f"why={why}")
+                msg = " ".join(parts)
+            elif event.startswith("ORDER") or event in ("SENDING", "SENT", "CANCEL_SENT", "CANCEL_ERROR"):
+                msg = str(extra.get("error") or "")
+
+            self._log_events.append(
+                {
+                    "ts_et": now_et,
+                    "event": str(event or ""),
+                    "reason": str(reason or ""),
+                    "instance_id": str(row.get("instance_id") or ""),
+                    "symbol": str(row.get("symbol") or ""),
+                    "msg": msg,
+                }
+            )
+            if len(self._log_events) > 500:
+                self._log_events = self._log_events[-500:]
+            if hasattr(self, "_logs_table"):
+                self._refresh_logs_table()
+        except Exception:
+            pass
+
         path = self._journal_path
         if path is None:
             return
-
         try:
-            now_et = datetime.now(tz=ZoneInfo("America/New_York"))
-            now_utc = datetime.now(tz=timezone.utc)
-
-            row: dict[str, object] = {k: "" for k in _BOT_JOURNAL_FIELDS}
-            row["ts_et"] = now_et.isoformat()
-            row["ts_utc"] = now_utc.isoformat()
-            row["event"] = str(event or "")
-            row["reason"] = str(reason) if reason else ""
-
-            if instance is not None:
-                row["instance_id"] = str(int(instance.instance_id))
-                row["group"] = str(instance.group or "")
-                row["symbol"] = str(instance.symbol or "")
-                try:
-                    row["instrument"] = str(self._strategy_instrument(instance.strategy or {}))
-                except Exception:
-                    row["instrument"] = ""
-            if proposal is not None:
-                row["instance_id"] = str(int(proposal.instance_id))
-                row["action"] = str(proposal.action or "")
-                row["qty"] = str(int(proposal.quantity or 0))
-                row["limit_price"] = f"{float(proposal.limit_price):.6f}"
-                row["status"] = str(proposal.status or "")
-                row["order_id"] = str(int(proposal.order_id)) if proposal.order_id else ""
-
-            extra: dict[str, object] = {}
-            if instance is not None:
-                extra["strategy"] = instance.strategy
-                extra["filters"] = instance.filters
-            if proposal is not None:
-                extra["intent"] = proposal.intent
-                extra["direction"] = proposal.direction
-                extra["signal_bar_ts"] = proposal.signal_bar_ts.isoformat() if proposal.signal_bar_ts else None
-                extra["proposal_journal"] = proposal.journal
-                extra["error"] = proposal.error
-            if isinstance(data, dict) and data:
-                extra.update(data)
-            row["data_json"] = json.dumps(extra, sort_keys=True, default=str) if extra else ""
-
             try:
                 is_new = (not path.exists()) or path.stat().st_size == 0
             except Exception:
@@ -852,15 +909,15 @@ class BotScreen(Screen):
             self._active_panel = "presets"
         elif table_id == "bot-instances":
             self._active_panel = "instances"
-        elif table_id == "bot-proposals":
-            self._active_panel = "proposals"
-        elif table_id == "bot-positions":
-            self._active_panel = "positions"
+        elif table_id == "bot-orders":
+            self._active_panel = "orders"
+        elif table_id == "bot-logs":
+            self._active_panel = "logs"
         self.action_activate()
 
     def on_key(self, event: events.Key) -> None:
         if event.character == "X":
-            self._submit_selected_proposal()
+            self._submit_selected_order()
             event.stop()
             return
         if event.character == "S":
@@ -893,8 +950,8 @@ class BotScreen(Screen):
 
     def action_toggle_scope(self) -> None:
         self._scope_all = not self._scope_all
-        self._refresh_proposals_table()
-        self._refresh_positions_table()
+        self._refresh_orders_table()
+        self._refresh_logs_table()
         self._status = "Scope: ALL" if self._scope_all else "Scope: Instance"
         self._journal_write(
             event="SCOPE",
@@ -914,7 +971,7 @@ class BotScreen(Screen):
         self._cycle_focus(1)
 
     def _cycle_focus(self, direction: int) -> None:
-        panels = ["presets", "instances", "proposals", "positions"]
+        panels = ["presets", "instances", "orders", "logs"]
         if not self._presets_visible:
             panels.remove("presets")
         try:
@@ -929,27 +986,10 @@ class BotScreen(Screen):
             self._presets_table.focus()
         elif panel == "instances":
             self._instances_table.focus()
-        elif panel == "proposals":
-            self._proposals_table.focus()
+        elif panel == "orders":
+            self._orders_table.focus()
         else:
-            self._positions_table.focus()
-        self._render_status()
-
-    def action_toggle_auto_trade(self) -> None:
-        instance = self._selected_instance()
-        if not instance:
-            self._status = "Auto: select an instance"
-            self._render_status()
-            return
-        instance.auto_trade = not instance.auto_trade
-        self._refresh_instances_table()
-        self._status = f"Instance {instance.instance_id}: auto trade {'ON' if instance.auto_trade else 'OFF'}"
-        self._journal_write(
-            event="AUTO_TOGGLE",
-            instance=instance,
-            reason=None,
-            data={"auto_trade": bool(instance.auto_trade)},
-        )
+            self._logs_table.focus()
         self._render_status()
 
     def action_toggle_instance(self) -> None:
@@ -976,9 +1016,9 @@ class BotScreen(Screen):
             self._render_status()
             return
         self._instances = [i for i in self._instances if i.instance_id != instance.instance_id]
-        self._proposals = [p for p in self._proposals if p.instance_id != instance.instance_id]
+        self._orders = [o for o in self._orders if o.instance_id != instance.instance_id]
         self._refresh_instances_table()
-        self._refresh_proposals_table()
+        self._refresh_orders_table()
         self._status = f"Deleted instance {instance.instance_id}"
         self._render_status()
 
@@ -1030,24 +1070,20 @@ class BotScreen(Screen):
             self._render_status()
             return
         instance.state = "PAUSED"
-        instance.auto_trade = False
-        self._proposals = [p for p in self._proposals if p.instance_id != instance.instance_id]
+        self._orders = [o for o in self._orders if o.instance_id != instance.instance_id]
         self._refresh_instances_table()
-        self._refresh_proposals_table()
-        self._refresh_positions_table()
-        self._status = f"Stopped instance {instance.instance_id}: paused + auto OFF + cleared proposals"
+        self._refresh_orders_table()
+        self._status = f"Stopped instance {instance.instance_id}: paused + cleared orders"
         self._journal_write(event="STOP_INSTANCE", instance=instance, reason=None, data=None)
         self._render_status()
 
     def _kill_all(self) -> None:
         for instance in self._instances:
             instance.state = "PAUSED"
-            instance.auto_trade = False
-        self._proposals.clear()
+        self._orders.clear()
         self._refresh_instances_table()
-        self._refresh_proposals_table()
-        self._refresh_positions_table()
-        self._status = "KILL: paused all + auto OFF + cleared proposals"
+        self._refresh_orders_table()
+        self._status = "KILL: paused all + cleared orders"
         self._journal_write(event="KILL_ALL", reason=None, data=None)
         self._render_status()
 
@@ -1071,19 +1107,72 @@ class BotScreen(Screen):
                 return
             self._open_config_for_instance(instance)
             return
-        if self._active_panel == "proposals":
-            self._submit_selected_proposal()
+        if self._active_panel == "orders":
+            self._submit_selected_order()
             return
-        self._status = "Positions: no action"
+        self._status = "Logs: no action"
         self._render_status()
 
-    def action_propose(self) -> None:
-        instance = self._selected_instance()
-        if not instance:
-            self._status = "Propose: select an instance"
-            self._render_status()
+    def action_cancel_order(self) -> None:
+        if self._active_panel != "orders":
+            self._status = "Cancel: focus Orders"
+            self._render_bot()
             return
-        self._queue_proposal(instance, intent="enter", direction=None, signal_bar_ts=None)
+        order = self._selected_order()
+        if not order:
+            self._status = "Cancel: no order selected"
+            self._render_bot()
+            return
+        if order.status == "STAGED":
+            self._orders = [o for o in self._orders if o is not order]
+            self._journal_write(event="ORDER_DROPPED", order=order, reason="staged", data=None)
+            self._refresh_orders_table()
+            self._status = "Cancelled staged order"
+            self._render_bot()
+            return
+        if order.status != "WORKING":
+            self._status = f"Cancel: not working ({order.status})"
+            self._render_bot()
+            return
+        if self._cancel_task and not self._cancel_task.done():
+            self._status = "Cancel: busy"
+            self._render_bot()
+            return
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            self._status = "Cancel: no loop"
+            self._render_bot()
+            return
+        self._cancel_task = loop.create_task(self._cancel_working_order(order))
+
+    async def _cancel_working_order(self, order: _BotOrder) -> None:
+        if order.status != "WORKING":
+            return
+        trade = order.trade
+        if trade is None:
+            order.error = "Cancel error: missing IB trade handle"
+            self._status = "Cancel error: missing IB trade handle"
+            self._journal_write(event="CANCEL_ERROR", order=order, reason=None, data={"exc": "missing trade"})
+            self._refresh_orders_table()
+            self._render_bot()
+            return
+        order.status = "CANCELING"
+        self._journal_write(event="CANCEL_REQUEST", order=order, reason=None, data=None)
+        self._refresh_orders_table()
+        self._status = f"Canceling #{order.order_id or 0}..."
+        self._render_bot()
+        try:
+            await self._client.cancel_trade(trade)
+            self._journal_write(event="CANCEL_SENT", order=order, reason=None, data=None)
+            self._status = f"Cancel sent #{order.order_id or 0}"
+        except Exception as exc:
+            order.status = "WORKING"
+            order.error = f"Cancel error: {exc}"
+            self._status = f"Cancel error: {exc}"
+            self._journal_write(event="CANCEL_ERROR", order=order, reason=None, data={"exc": str(exc)})
+        self._refresh_orders_table()
+        self._render_bot()
 
     def _selected_preset(self) -> _BotPreset | None:
         row = self._selected_preset_row()
@@ -1101,11 +1190,11 @@ class BotScreen(Screen):
             return None
         return self._instance_rows[row]
 
-    def _selected_proposal(self) -> _BotProposal | None:
-        row = self._proposals_table.cursor_coordinate.row
-        if row < 0 or row >= len(self._proposal_rows):
+    def _selected_order(self) -> _BotOrder | None:
+        row = self._orders_table.cursor_coordinate.row
+        if row < 0 or row >= len(self._order_rows):
             return None
-        return self._proposal_rows[row]
+        return self._order_rows[row]
 
     def _scope_instance_id(self) -> int | None:
         if self._scope_all:
@@ -1118,7 +1207,6 @@ class BotScreen(Screen):
         strategy = copy.deepcopy(entry.get("strategy", {}) or {})
         strategy.setdefault("instrument", "options")
         strategy.setdefault("price_mode", "MID")
-        strategy.setdefault("chase_proposals", True)
         strategy.setdefault("max_entries_per_day", 1)
         strategy.setdefault("exit_dte", 0)
         strategy.setdefault("stop_loss_basis", "max_loss")
@@ -1150,7 +1238,6 @@ class BotScreen(Screen):
                 strategy=result.strategy,
                 filters=result.filters,
                 metrics=entry.get("metrics"),
-                auto_trade=result.auto_trade,
             )
             self._next_instance_id += 1
             self._instances.append(instance)
@@ -1174,7 +1261,6 @@ class BotScreen(Screen):
                 symbol=symbol,
                 strategy=strategy,
                 filters=filters,
-                auto_trade=False,
             ),
             _on_done,
         )
@@ -1189,7 +1275,6 @@ class BotScreen(Screen):
             instance.symbol = result.symbol
             instance.strategy = result.strategy
             instance.filters = result.filters
-            instance.auto_trade = result.auto_trade
             self._refresh_instances_table()
             self._status = f"Updated instance {instance.instance_id}"
             self._journal_write(event="INSTANCE_UPDATED", instance=instance, reason=None, data=None)
@@ -1203,7 +1288,6 @@ class BotScreen(Screen):
                 symbol=instance.symbol,
                 strategy=instance.strategy,
                 filters=instance.filters,
-                auto_trade=instance.auto_trade,
             ),
             _on_done,
         )
@@ -1328,8 +1412,46 @@ class BotScreen(Screen):
             if group is not None:
                 groups.append(group)
 
-        if not groups:
+        has_champions = bool(groups)
+        if not has_champions:
             self._status = "No CURRENT champions found. Check README paths."
+
+        # Debug / test preset (fast EMA crosses) to validate logging + auto-order behavior.
+        groups.append(
+            {
+                "name": "Spot (SLV) DEBUG FAST 1m EMA 1/2",
+                "_source": "debug:slv_fast_1m",
+                "entries": [
+                    {
+                        "symbol": "SLV",
+                        "metrics": {"pnl": 0.0, "win_rate": 0.0, "trades": 0},
+                        "strategy": {
+                            "instrument": "spot",
+                            "symbol": "SLV",
+                            "signal_bar_size": "1 min",
+                            "signal_use_rth": False,
+                            "entry_signal": "ema",
+                            "ema_preset": "1/2",
+                            "ema_entry_mode": "cross",
+                            "entry_confirm_bars": 0,
+                            "entry_days": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
+                            "max_entries_per_day": 500,
+                            "exit_on_signal_flip": True,
+                            "flip_exit_min_hold_bars": 0,
+                            "flip_exit_only_if_profit": False,
+                            "spot_exit_mode": "pct",
+                            "spot_profit_target_pct": 0.002,
+                            "spot_stop_loss_pct": 0.002,
+                            "price_mode": "MID",
+                            "directional_spot": {
+                                "up": {"action": "BUY", "qty": 1},
+                                "down": {"action": "SELL", "qty": 1},
+                            },
+                        },
+                    }
+                ],
+            }
+        )
 
         self._payload = {"groups": groups}
         self._group_eval_by_name = {}
@@ -1803,24 +1925,13 @@ class BotScreen(Screen):
 
     def _setup_tables(self) -> None:
         self._instances_table.clear(columns=True)
-        self._instances_table.add_columns("ID", "Strategy", "Legs", "DTE", "Auto", "State", "BT PnL")
+        self._instances_table.add_columns("ID", "Strategy", "Legs", "DTE", "State", "BT PnL")
 
-        self._proposals_table.clear(columns=True)
-        self._proposals_table.add_columns("When", "Inst", "Side", "Qty", "Contract", "Lmt", "B/A", "Status")
+        self._orders_table.clear(columns=True)
+        self._orders_table.add_columns("When", "Inst", "Side", "Qty", "Contract", "Lmt", "B/A", "Status")
 
-        self._positions_table.clear(columns=True)
-        self._positions_table.add_columns(
-            "Symbol",
-            "Expiry",
-            "Right",
-            "Strike",
-            "Qty",
-            "AvgCost",
-            "Px 24-72",
-            "Unreal",
-            "Realized",
-            "U 24-72",
-        )
+        self._logs_table.clear(columns=True)
+        self._logs_table.add_columns("When", "Inst", "Sym", "Event", "Reason", "Msg")
 
     def _cursor_move(self, direction: int) -> None:
         if self._active_panel == "presets":
@@ -1833,19 +1944,19 @@ class BotScreen(Screen):
                 self._instances_table.action_cursor_down()
             else:
                 self._instances_table.action_cursor_up()
-        elif self._active_panel == "proposals":
+        elif self._active_panel == "orders":
             if direction > 0:
-                self._proposals_table.action_cursor_down()
+                self._orders_table.action_cursor_down()
             else:
-                self._proposals_table.action_cursor_up()
+                self._orders_table.action_cursor_up()
         else:
             if direction > 0:
-                self._positions_table.action_cursor_down()
+                self._logs_table.action_cursor_down()
             else:
-                self._positions_table.action_cursor_up()
+                self._logs_table.action_cursor_up()
         if self._active_panel == "instances" and not self._scope_all:
-            self._refresh_proposals_table()
-            self._refresh_positions_table()
+            self._refresh_orders_table()
+            self._refresh_logs_table()
         self._render_status()
 
     def _refresh_instances_table(self) -> None:
@@ -1865,7 +1976,6 @@ class BotScreen(Screen):
             else:
                 legs_desc = _legs_label(instance.strategy.get("legs", []))
                 dte = instance.strategy.get("dte", "")
-            auto = "ON" if instance.auto_trade else "OFF"
             bt_pnl = ""
             if instance.metrics:
                 try:
@@ -1877,7 +1987,6 @@ class BotScreen(Screen):
                 instance.group[:24],
                 legs_desc[:24],
                 str(dte),
-                auto,
                 instance.state,
                 bt_pnl,
             )
@@ -1892,8 +2001,8 @@ class BotScreen(Screen):
             self._instances_table.cursor_coordinate = (0, 0)
 
         if not self._scope_all:
-            self._refresh_proposals_table()
-            self._refresh_positions_table()
+            self._refresh_orders_table()
+            self._refresh_logs_table()
 
     async def _refresh_positions(self) -> None:
         try:
@@ -1903,27 +2012,45 @@ class BotScreen(Screen):
             return
         self._positions = [item for item in items if item.contract.secType in _SECTION_TYPES]
         self._positions.sort(key=_portfolio_sort_key, reverse=True)
-        self._refresh_positions_table()
+        self._refresh_orders_table()
 
-    def _refresh_positions_table(self) -> None:
-        self._positions_table.clear()
-        self._position_rows = []
+    def _refresh_logs_table(self) -> None:
+        prev_count = len(self._log_rows)
+        prev_row = self._logs_table.cursor_coordinate.row
+        was_at_end = prev_count > 0 and prev_row >= (prev_count - 1)
+
+        self._logs_table.clear()
+        self._log_rows = []
+
+        active_ids = {str(int(i.instance_id)) for i in self._instances}
         scope = self._scope_instance_id()
-        if scope is None and not self._scope_all:
-            return
-        if self._scope_all:
-            con_ids = set().union(*(i.touched_conids for i in self._instances))
-        else:
-            instance = next((i for i in self._instances if i.instance_id == scope), None)
-            con_ids = set(instance.touched_conids) if instance else set()
-        if not con_ids:
-            return
-        for item in self._positions:
-            con_id = int(getattr(item.contract, "conId", 0) or 0)
-            if con_id not in con_ids:
+        tail = self._log_events[-200:]
+        for entry in tail:
+            if not isinstance(entry, dict):
                 continue
-            self._positions_table.add_row(*_portfolio_row(item, Text(""), Text("")))
-            self._position_rows.append(item)
+            inst_id = str(entry.get("instance_id") or "")
+            if inst_id and inst_id not in active_ids:
+                continue
+            if scope is not None and not self._scope_all and inst_id and inst_id != str(int(scope)):
+                continue
+            ts = entry.get("ts_et")
+            when = ts.astimezone().strftime("%H:%M:%S") if isinstance(ts, datetime) else ""
+            self._logs_table.add_row(
+                when,
+                inst_id,
+                str(entry.get("symbol") or ""),
+                str(entry.get("event") or ""),
+                str(entry.get("reason") or ""),
+                str(entry.get("msg") or "")[:64],
+            )
+            self._log_rows.append(entry)
+
+        if not self._log_rows:
+            return
+        if self._active_panel != "logs" or was_at_end:
+            self._logs_table.cursor_coordinate = (len(self._log_rows) - 1, 0)
+        elif 0 <= prev_row < len(self._log_rows):
+            self._logs_table.cursor_coordinate = (prev_row, 0)
 
     def _render_status(self) -> None:
         self._render_bot()
@@ -1933,26 +2060,36 @@ class BotScreen(Screen):
             return
         async with self._refresh_lock:
             await self._refresh_positions()
-            await self._auto_propose_tick()
-            await self._chase_proposals_tick()
+            await self._auto_order_tick()
+            await self._chase_orders_tick()
             self._auto_send_tick()
             self._render_status()
 
-    async def _auto_propose_tick(self) -> None:
-        if self._proposal_task and not self._proposal_task.done():
+    async def _auto_order_tick(self) -> None:
+        if self._order_task and not self._order_task.done():
             return
         now_et = datetime.now(tz=ZoneInfo("America/New_York"))
 
         for instance in self._instances:
             if instance.state != "RUNNING":
                 continue
-            if not self._can_propose_now(instance):
+
+            def _gate(status: str, data: dict | None = None) -> None:
+                if instance.last_gate_status == status:
+                    return
+                instance.last_gate_status = status
+                self._journal_write(event="GATE", instance=instance, reason=status, data=data)
+
+            if not self._can_order_now(instance):
+                _gate("BLOCKED_WEEKDAY_NOW", {"now_weekday": int(now_et.weekday())})
                 continue
 
             pending = any(
-                p.status == "PROPOSED" and p.instance_id == instance.instance_id for p in self._proposals
+                o.status in ("STAGED", "WORKING", "CANCELING") and o.instance_id == instance.instance_id
+                for o in self._orders
             )
             if pending:
+                _gate("PENDING_ORDER", None)
                 continue
 
             symbol = str(
@@ -1964,10 +2101,14 @@ class BotScreen(Screen):
                 entry_signal = "ema"
             ema_preset = instance.strategy.get("ema_preset")
             if entry_signal == "ema" and not ema_preset:
-                continue
+                raise RuntimeError(
+                    "FATAL: missing required strategy field `ema_preset` "
+                    f"(instance_id={instance.instance_id} group={instance.group!r} symbol={symbol!r})"
+                )
 
             signal_contract = await self._signal_contract(instance, symbol)
             if signal_contract is None:
+                _gate("NO_SIGNAL_CONTRACT", {"symbol": symbol})
                 continue
 
             snap = await self._signal_snapshot_for_contract(
@@ -1997,7 +2138,92 @@ class BotScreen(Screen):
                 spot_atr_period_raw=instance.strategy.get("spot_atr_period"),
             )
             if snap is None:
+                _gate(
+                    "NO_SIGNAL_SNAPSHOT",
+                    {
+                        "symbol": symbol,
+                        "bar_size": self._signal_bar_size(instance),
+                        "use_rth": bool(self._signal_use_rth(instance)),
+                    },
+                )
                 continue
+
+            risk = snap.risk
+            signal_fingerprint = (
+                str(snap.signal.state or ""),
+                str(snap.signal.entry_dir or ""),
+                str(snap.signal.regime_dir or ""),
+                bool(snap.signal.regime_ready),
+                bool(snap.or_ready),
+                float(snap.or_high) if snap.or_high is not None else None,
+                float(snap.or_low) if snap.or_low is not None else None,
+                bool(snap.shock) if snap.shock is not None else None,
+                str(snap.shock_dir or ""),
+                bool(getattr(risk, "riskoff", False)) if risk is not None else None,
+                bool(getattr(risk, "riskpanic", False)) if risk is not None else None,
+                bool(getattr(risk, "riskpop", False)) if risk is not None else None,
+            )
+            if instance.last_signal_fingerprint != signal_fingerprint:
+                instance.last_signal_fingerprint = signal_fingerprint
+                self._journal_write(
+                    event="SIGNAL",
+                    instance=instance,
+                    order=None,
+                    reason=None,
+                    data={
+                        "symbol": symbol,
+                        "bar_ts": snap.bar_ts.isoformat(),
+                        "close": float(snap.close),
+                        "signal": {
+                            "state": snap.signal.state,
+                            "entry_dir": snap.signal.entry_dir,
+                            "cross_up": bool(snap.signal.cross_up),
+                            "cross_down": bool(snap.signal.cross_down),
+                            "ema_ready": bool(snap.signal.ema_ready),
+                            "regime_dir": snap.signal.regime_dir,
+                            "regime_ready": bool(snap.signal.regime_ready),
+                        },
+                        "orb": {
+                            "ready": bool(snap.or_ready),
+                            "high": float(snap.or_high) if snap.or_high is not None else None,
+                            "low": float(snap.or_low) if snap.or_low is not None else None,
+                        },
+                        "shock": {
+                            "shock": snap.shock,
+                            "dir": snap.shock_dir,
+                            "atr_pct": float(snap.shock_atr_pct)
+                            if snap.shock_atr_pct is not None
+                            else None,
+                        },
+                        "risk": {
+                            "riskoff": bool(getattr(risk, "riskoff", False)) if risk is not None else None,
+                            "riskpanic": bool(getattr(risk, "riskpanic", False)) if risk is not None else None,
+                            "riskpop": bool(getattr(risk, "riskpop", False)) if risk is not None else None,
+                        },
+                        "rv": float(snap.rv) if snap.rv is not None else None,
+                        "volume": float(snap.volume) if snap.volume is not None else None,
+                        "volume_ema": float(snap.volume_ema) if snap.volume_ema is not None else None,
+                        "volume_ema_ready": bool(snap.volume_ema_ready),
+                    },
+                )
+
+            if (
+                bool(snap.signal.cross_up) or bool(snap.signal.cross_down)
+            ) and instance.last_cross_bar_ts != snap.bar_ts:
+                instance.last_cross_bar_ts = snap.bar_ts
+                self._journal_write(
+                    event="CROSS",
+                    instance=instance,
+                    order=None,
+                    reason="up" if bool(snap.signal.cross_up) else "down",
+                    data={
+                        "symbol": symbol,
+                        "bar_ts": snap.bar_ts.isoformat(),
+                        "close": float(snap.close),
+                        "state": snap.signal.state,
+                        "entry_dir": snap.signal.entry_dir,
+                    },
+                )
 
             entry_days = instance.strategy.get("entry_days", [])
             if entry_days:
@@ -2005,6 +2231,13 @@ class BotScreen(Screen):
             else:
                 allowed_days = {0, 1, 2, 3, 4}
             if snap.bar_ts.weekday() not in allowed_days:
+                _gate(
+                    "BLOCKED_ENTRY_DAY",
+                    {
+                        "signal_weekday": int(snap.bar_ts.weekday()),
+                        "allowed_days": sorted(int(d) for d in allowed_days),
+                    },
+                )
                 continue
 
             cooldown_bars = 0
@@ -2034,6 +2267,21 @@ class BotScreen(Screen):
                 shock=snap.shock,
                 shock_dir=snap.shock_dir,
             ):
+                _gate(
+                    "BLOCKED_FILTERS",
+                    {
+                        "symbol": symbol,
+                        "bar_ts": snap.bar_ts.isoformat(),
+                        "cooldown_ok": bool(cooldown_ok),
+                        "rv": float(snap.rv) if snap.rv is not None else None,
+                        "volume": float(snap.volume) if snap.volume is not None else None,
+                        "volume_ema": float(snap.volume_ema) if snap.volume_ema is not None else None,
+                        "volume_ema_ready": bool(snap.volume_ema_ready),
+                        "shock": snap.shock,
+                        "shock_dir": snap.shock_dir,
+                        "entry_dir": snap.signal.entry_dir,
+                    },
+                )
                 continue
 
             instrument = self._strategy_instrument(instance.strategy)
@@ -2063,7 +2311,16 @@ class BotScreen(Screen):
 
             if open_items:
                 if instance.last_exit_bar_ts is not None and instance.last_exit_bar_ts == snap.bar_ts:
+                    _gate(
+                        "BLOCKED_EXIT_SAME_BAR",
+                        {
+                            "bar_ts": snap.bar_ts.isoformat(),
+                            "direction": open_dir,
+                            "items": len(open_items),
+                        },
+                    )
                     continue
+                _gate("HOLDING", {"direction": open_dir, "items": len(open_items)})
 
                 if instrument == "spot":
                     open_item = open_items[0]
@@ -2097,12 +2354,13 @@ class BotScreen(Screen):
                                     target = None
                                 if target is not None and target > 0:
                                     if (pos > 0 and mp >= target) or (pos < 0 and mp <= target):
-                                        self._queue_proposal(
+                                        self._queue_order(
                                             instance,
                                             intent="exit",
                                             direction=open_dir,
                                             signal_bar_ts=snap.bar_ts,
                                         )
+                                        _gate("TRIGGER_EXIT", {"mode": "spot", "reason": "profit_target"})
                                         break
                             if stop_price is not None:
                                 try:
@@ -2111,12 +2369,13 @@ class BotScreen(Screen):
                                     stop = None
                                 if stop is not None and stop > 0:
                                     if (pos > 0 and mp <= stop) or (pos < 0 and mp >= stop):
-                                        self._queue_proposal(
+                                        self._queue_order(
                                             instance,
                                             intent="exit",
                                             direction=open_dir,
                                             signal_bar_ts=snap.bar_ts,
                                         )
+                                        _gate("TRIGGER_EXIT", {"mode": "spot", "reason": "stop_loss"})
                                         break
                     move = None
                     if (
@@ -2169,36 +2428,41 @@ class BotScreen(Screen):
                             pt = min(float(pt) * float(pt_mult), 0.99)
 
                     if move is not None and pt is not None and move >= pt:
-                        self._queue_proposal(
+                        self._queue_order(
                             instance, intent="exit", direction=open_dir, signal_bar_ts=snap.bar_ts
                         )
+                        _gate("TRIGGER_EXIT", {"mode": "spot", "reason": "profit_target_pct"})
                         break
                     if move is not None and sl is not None and move <= -sl:
-                        self._queue_proposal(
+                        self._queue_order(
                             instance, intent="exit", direction=open_dir, signal_bar_ts=snap.bar_ts
                         )
+                        _gate("TRIGGER_EXIT", {"mode": "spot", "reason": "stop_loss_pct"})
                         break
 
                     exit_time = parse_time_hhmm(instance.strategy.get("spot_exit_time_et"))
                     if exit_time is not None and now_et.time() >= exit_time:
-                        self._queue_proposal(
+                        self._queue_order(
                             instance, intent="exit", direction=open_dir, signal_bar_ts=snap.bar_ts
                         )
+                        _gate("TRIGGER_EXIT", {"mode": "spot", "reason": "exit_time"})
                         break
 
                     if bool(instance.strategy.get("spot_close_eod")) and (
                         now_et.hour > 15 or now_et.hour == 15 and now_et.minute >= 55
                     ):
-                        self._queue_proposal(
+                        self._queue_order(
                             instance, intent="exit", direction=open_dir, signal_bar_ts=snap.bar_ts
                         )
+                        _gate("TRIGGER_EXIT", {"mode": "spot", "reason": "close_eod"})
                         break
 
                 if instrument != "spot":
                     if self._should_exit_on_dte(instance, open_items, now_et.date()):
-                        self._queue_proposal(
+                        self._queue_order(
                             instance, intent="exit", direction=open_dir, signal_bar_ts=snap.bar_ts
                         )
+                        _gate("TRIGGER_EXIT", {"mode": "options", "reason": "dte"})
                         break
 
                     entry_value, current_value = self._options_position_values(open_items)
@@ -2210,12 +2474,13 @@ class BotScreen(Screen):
                             profit_target = 0.0
                         if profit_target > 0 and abs(entry_value) > 0:
                             if profit >= abs(entry_value) * profit_target:
-                                self._queue_proposal(
+                                self._queue_order(
                                     instance,
                                     intent="exit",
                                     direction=open_dir,
                                     signal_bar_ts=snap.bar_ts,
                                 )
+                                _gate("TRIGGER_EXIT", {"mode": "options", "reason": "profit_target"})
                                 break
 
                         try:
@@ -2228,42 +2493,48 @@ class BotScreen(Screen):
                             if basis == "credit":
                                 if entry_value >= 0:
                                     if current_value >= entry_value * (1.0 + stop_loss):
-                                        self._queue_proposal(
+                                        self._queue_order(
                                             instance,
                                             intent="exit",
                                             direction=open_dir,
                                             signal_bar_ts=snap.bar_ts,
                                         )
+                                        _gate("TRIGGER_EXIT", {"mode": "options", "reason": "stop_loss_credit"})
                                         break
                                 elif loss >= abs(entry_value) * stop_loss:
-                                    self._queue_proposal(
+                                    self._queue_order(
                                         instance,
                                         intent="exit",
                                         direction=open_dir,
                                         signal_bar_ts=snap.bar_ts,
                                     )
+                                    _gate("TRIGGER_EXIT", {"mode": "options", "reason": "stop_loss_credit"})
                                     break
                             else:
                                 max_loss = self._options_max_loss_estimate(open_items, spot=float(snap.close))
                                 if max_loss is None or max_loss <= 0:
                                     max_loss = abs(entry_value)
                                 if max_loss and loss >= float(max_loss) * stop_loss:
-                                    self._queue_proposal(
+                                    self._queue_order(
                                         instance,
                                         intent="exit",
                                         direction=open_dir,
                                         signal_bar_ts=snap.bar_ts,
                                     )
+                                    _gate("TRIGGER_EXIT", {"mode": "options", "reason": "stop_loss_max_loss"})
                                     break
 
                 if self._should_exit_on_flip(instance, snap, open_dir, open_items):
-                    self._queue_proposal(instance, intent="exit", direction=open_dir, signal_bar_ts=snap.bar_ts)
+                    self._queue_order(instance, intent="exit", direction=open_dir, signal_bar_ts=snap.bar_ts)
+                    _gate("TRIGGER_EXIT", {"mode": instrument, "reason": "flip"})
                     break
                 continue
 
             if not self._entry_limit_ok(instance):
+                _gate("BLOCKED_ENTRY_LIMIT", {"entries_today": int(instance.entries_today)})
                 continue
             if instance.last_entry_bar_ts is not None and instance.last_entry_bar_ts == snap.bar_ts:
+                _gate("BLOCKED_ENTRY_SAME_BAR", {"bar_ts": snap.bar_ts.isoformat()})
                 continue
 
             instrument = self._strategy_instrument(instance.strategy)
@@ -2272,70 +2543,128 @@ class BotScreen(Screen):
                 if exit_mode == "atr":
                     atr = float(snap.atr or 0.0) if snap.atr is not None else 0.0
                     if atr <= 0:
+                        _gate("BLOCKED_ATR_NOT_READY", {"atr": float(atr)})
                         continue
 
             direction = self._entry_direction_for_instance(instance, snap)
             if direction is None:
+                _gate("WAITING_SIGNAL", {"bar_ts": snap.bar_ts.isoformat()})
                 continue
             if direction not in self._allowed_entry_directions(instance):
+                _gate("BLOCKED_DIRECTION", {"direction": direction})
                 continue
 
-            self._queue_proposal(
+            self._queue_order(
                 instance,
                 intent="enter",
                 direction=direction,
                 signal_bar_ts=snap.bar_ts,
             )
+            _gate("TRIGGER_ENTRY", {"direction": direction})
             break
 
     def _auto_send_tick(self) -> None:
         if self._send_task and not self._send_task.done():
             return
-        proposal = next((p for p in self._proposals if p.status == "PROPOSED"), None)
-        if proposal is None:
+        order = next((o for o in self._orders if o.status == "STAGED"), None)
+        if order is None:
             return
-        instance = next((i for i in self._instances if i.instance_id == proposal.instance_id), None)
-        if not instance or not instance.auto_trade:
+        instance = next((i for i in self._instances if i.instance_id == order.instance_id), None)
+        if not instance:
             return
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
-            self._status = "Auto: no loop"
+            self._status = "Send: no loop"
             return
-        self._send_task = loop.create_task(self._send_order(proposal))
+        self._send_task = loop.create_task(self._send_order(order))
 
-    async def _chase_proposals_tick(self) -> None:
+    async def _chase_orders_tick(self) -> None:
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
             return
         now = loop.time()
-        if now - self._last_chase_ts < 0.5:
+        if now - self._last_chase_ts < 5.0:
             return
         self._last_chase_ts = now
 
         updated = False
-        for proposal in self._proposals:
-            if proposal.status != "PROPOSED":
+        for order in self._orders:
+            if order.status not in ("STAGED", "WORKING", "CANCELING"):
                 continue
             instance = next(
-                (i for i in self._instances if i.instance_id == proposal.instance_id), None
+                (i for i in self._instances if i.instance_id == order.instance_id), None
             )
             if not instance:
                 continue
-            if instance.strategy.get("chase_proposals") is False:
-                continue
-            changed = await self._reprice_proposal(proposal, instance)
-            updated = updated or changed
-        if updated:
-            self._refresh_proposals_table()
-            if self._active_panel == "proposals" and self._proposal_rows:
-                row = min(
-                    self._proposals_table.cursor_coordinate.row, len(self._proposal_rows) - 1
-                )
-                self._proposals_table.cursor_coordinate = (max(row, 0), 0)
+            changed = False
+            if order.status != "CANCELING":
+                changed = await self._reprice_order(order, instance)
+                updated = updated or changed
 
-    async def _reprice_proposal(self, proposal: _BotProposal, instance: _BotInstance) -> bool:
+            if order.status not in ("WORKING", "CANCELING"):
+                continue
+            trade = order.trade
+            if trade is None:
+                order.status = "ERROR"
+                order.error = "Missing IB trade handle for WORKING order"
+                updated = True
+                continue
+
+            is_done = False
+            try:
+                is_done = bool(trade.isDone())
+            except Exception:
+                is_done = False
+            status_raw = str(getattr(getattr(trade, "orderStatus", None), "status", "") or "")
+            status = status_raw.strip()
+            if status in ("Filled", "Cancelled", "ApiCancelled", "Inactive"):
+                is_done = True
+
+            if is_done:
+                prev_status = order.status
+                if status == "Filled":
+                    order.status = "FILLED"
+                    done_event = "ORDER_FILLED"
+                elif status in ("Cancelled", "ApiCancelled"):
+                    order.status = "CANCELLED"
+                    done_event = "ORDER_CANCELLED"
+                else:
+                    order.status = status.upper() if status else "DONE"
+                    done_event = "ORDER_DONE"
+                if prev_status in ("WORKING", "CANCELING") and order.status != prev_status:
+                    self._journal_write(
+                        event=done_event,
+                        order=order,
+                        reason=None,
+                        data={"ib_status": status_raw},
+                    )
+                updated = True
+                continue
+
+            if order.status != "WORKING":
+                continue
+            if not changed:
+                continue
+
+            # TODO: after 60s of chasing MID, switch to AGGRESSIVE.
+            try:
+                order.trade = await self._client.modify_limit_order(trade, float(order.limit_price))
+                updated = True
+            except Exception as exc:
+                order.error = f"Chase error: {exc}"
+                self._status = f"Chase error #{order.order_id or 0}: {exc}"
+                updated = True
+        if updated:
+            self._refresh_orders_table()
+            if self._active_panel == "orders" and self._order_rows:
+                row = min(
+                    self._orders_table.cursor_coordinate.row, len(self._order_rows) - 1
+                )
+                self._orders_table.cursor_coordinate = (max(row, 0), 0)
+
+    async def _reprice_order(self, order: _BotOrder, instance: _BotInstance) -> bool:
         raw_mode = str(instance.strategy.get("price_mode") or "MID").strip().upper()
         if raw_mode not in ("OPTIMISTIC", "MID", "AGGRESSIVE", "CROSS"):
             raw_mode = "MID"
@@ -2355,26 +2684,26 @@ class BotScreen(Screen):
                 return _aggressive_price(bid, ask, mid, action) or mid or last
             return mid or last
 
-        legs = proposal.legs or []
+        legs = order.legs or []
         if not legs:
             return False
 
-        if len(legs) == 1 and proposal.order_contract.secType != "BAG":
+        if len(legs) == 1 and order.order_contract.secType != "BAG":
             leg = legs[0]
             ticker = await self._client.ensure_ticker(leg.contract)
             bid = _safe_num(getattr(ticker, "bid", None))
             ask = _safe_num(getattr(ticker, "ask", None))
             last = _safe_num(getattr(ticker, "last", None))
-            limit = _leg_price(bid, ask, last, proposal.action)
+            limit = _leg_price(bid, ask, last, order.action)
             if limit is None:
                 return False
             tick = _tick_size(leg.contract, ticker, limit) or 0.01
             limit = _round_to_tick(float(limit), tick)
-            changed = not math.isclose(limit, proposal.limit_price, rel_tol=0, abs_tol=tick / 2.0)
-            proposal.limit_price = float(limit)
-            proposal.bid = bid
-            proposal.ask = ask
-            proposal.last = last
+            changed = not math.isclose(limit, order.limit_price, rel_tol=0, abs_tol=tick / 2.0)
+            order.limit_price = float(limit)
+            order.bid = bid
+            order.ask = ask
+            order.last = last
             return changed
 
         debit_mid = 0.0
@@ -2405,7 +2734,7 @@ class BotScreen(Screen):
             desired_debit += sign * float(leg_desired) * leg.ratio
 
         tick = tick or 0.01
-        proposal.action = "BUY"
+        order.action = "BUY"
         new_limit = _round_to_tick(float(desired_debit), tick)
         if not new_limit:
             return False
@@ -2413,15 +2742,15 @@ class BotScreen(Screen):
         new_ask = float(debit_ask)
         new_last = float(debit_mid)
         changed = not math.isclose(
-            new_limit, proposal.limit_price, rel_tol=0, abs_tol=tick / 2.0
+            new_limit, order.limit_price, rel_tol=0, abs_tol=tick / 2.0
         )
-        proposal.limit_price = float(new_limit)
-        proposal.bid = new_bid
-        proposal.ask = new_ask
-        proposal.last = new_last
+        order.limit_price = float(new_limit)
+        order.bid = new_bid
+        order.ask = new_ask
+        order.last = new_last
         return changed
 
-    def _queue_proposal(
+    def _queue_order(
         self,
         instance: _BotInstance,
         *,
@@ -2429,22 +2758,22 @@ class BotScreen(Screen):
         direction: str | None,
         signal_bar_ts: datetime | None,
     ) -> None:
-        if self._proposal_task and not self._proposal_task.done():
-            self._status = "Propose: busy"
+        if self._order_task and not self._order_task.done():
+            self._status = "Order: busy"
             self._render_status()
             return
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
-            self._status = "Propose: no loop"
+            self._status = "Order: no loop"
             self._render_status()
             return
-        action = "Exiting" if intent == "exit" else "Proposing"
+        action = "Exiting" if intent == "exit" else "Creating order"
         dir_note = f" ({direction})" if direction else ""
         self._status = f"{action} for instance {instance.instance_id}{dir_note}..."
         self._render_status()
-        self._proposal_task = loop.create_task(
-            self._propose_for_instance(
+        self._order_task = loop.create_task(
+            self._create_order_for_instance(
                 instance,
                 intent=str(intent),
                 direction=direction,
@@ -2452,12 +2781,12 @@ class BotScreen(Screen):
             )
         )
 
-    def _can_propose_now(self, instance: _BotInstance) -> bool:
+    def _can_order_now(self, instance: _BotInstance) -> bool:
         entry_days = instance.strategy.get("entry_days", [])
         if entry_days:
             allowed = {_weekday_num(day) for day in entry_days}
         else:
-            allowed = {0, 1, 2, 3, 4}
+            allowed = {0, 1, 2, 3, 4, 5, 6}
         now = datetime.now(tz=ZoneInfo("America/New_York"))
         if now.weekday() not in allowed:
             return False
@@ -2530,7 +2859,7 @@ class BotScreen(Screen):
         label = str(bar_size or "").strip().lower()
 
         def _rank(duration: str) -> int:
-            order = ("1 W", "2 W", "1 M", "2 M", "3 M", "6 M", "1 Y", "2 Y")
+            order = ("1 D", "2 D", "1 W", "2 W", "1 M", "2 M", "3 M", "6 M", "1 Y", "2 Y")
             cleaned = str(duration or "").strip()
             try:
                 return order.index(cleaned)
@@ -2541,7 +2870,9 @@ class BotScreen(Screen):
             return a if _rank(a) >= _rank(b) else b
 
         base = "2 W"
-        if label.startswith(("5 mins", "15 mins", "30 mins")):
+        if label.startswith(("1 min", "2 mins")):
+            base = "2 D"
+        elif label.startswith(("5 mins", "15 mins", "30 mins")):
             base = "1 W"
         elif "hour" in label:
             base = "2 W"
@@ -2737,17 +3068,14 @@ class BotScreen(Screen):
             "regime2_supertrend_source": regime2_supertrend_source_raw,
         }
 
-        try:
-            evaluator = SpotSignalEvaluator(
-                strategy=strategy,
-                filters=filters,
-                bar_size=str(bar_size),
-                use_rth=bool(use_rth),
-                regime_bars=regime_bars,
-                regime2_bars=regime2_bars,
-            )
-        except ValueError:
-            return None
+        evaluator = SpotSignalEvaluator(
+            strategy=strategy,
+            filters=filters,
+            bar_size=str(bar_size),
+            use_rth=bool(use_rth),
+            regime_bars=regime_bars,
+            regime2_bars=regime2_bars,
+        )
 
         last_snap = None
         for idx, bar in enumerate(bars):
@@ -3146,7 +3474,7 @@ class BotScreen(Screen):
                 self._tracked_conids.discard(con_id)
         return best_strike
 
-    async def _propose_for_instance(
+    async def _create_order_for_instance(
         self,
         instance: _BotInstance,
         *,
@@ -3161,6 +3489,16 @@ class BotScreen(Screen):
         symbol = str(
             instance.symbol or (self._payload.get("symbol", "SLV") if self._payload else "SLV")
         ).strip().upper()
+
+        entry_signal = str(strat.get("entry_signal") or "ema").strip().lower()
+        if entry_signal not in ("ema", "orb"):
+            entry_signal = "ema"
+        ema_preset = str(strat.get("ema_preset") or "").strip()
+        if entry_signal == "ema" and not ema_preset:
+            raise RuntimeError(
+                "FATAL: missing required strategy field `ema_preset` "
+                f"(instance_id={instance.instance_id} group={instance.group!r} symbol={symbol!r})"
+            )
 
         raw_mode = str(strat.get("price_mode") or "MID").strip().upper()
         if raw_mode not in ("OPTIMISTIC", "MID", "AGGRESSIVE", "CROSS"):
@@ -3190,7 +3528,7 @@ class BotScreen(Screen):
             leg_quotes: list[tuple[float | None, float | None, float | None, Ticker]],
         ) -> None:
             if not leg_orders:
-                self._status = "Propose: no legs configured"
+                self._status = "Order: no legs configured"
                 self._render_status()
                 return
 
@@ -3237,7 +3575,7 @@ class BotScreen(Screen):
                     self._render_status()
                     return
                 limit = _round_to_tick(float(limit), tick)
-                proposal = _BotProposal(
+                order = _BotOrder(
                     instance_id=instance.instance_id,
                     preset=None,
                     underlying=underlying,
@@ -3258,8 +3596,8 @@ class BotScreen(Screen):
                 con_id = int(getattr(single.contract, "conId", 0) or 0)
                 if con_id:
                     instance.touched_conids.add(con_id)
-                self._add_proposal(proposal)
-                self._status = f"Proposed {single.action} {single.ratio} {symbol} @ {limit:.2f}"
+                self._add_order(order)
+                self._status = f"Created order {single.action} {single.ratio} {symbol} @ {limit:.2f}"
                 if intent_clean == "enter":
                     if direction in ("up", "down"):
                         instance.open_direction = str(direction)
@@ -3306,7 +3644,7 @@ class BotScreen(Screen):
                 )
             bag = Bag(symbol=symbol, exchange="SMART", currency="USD", comboLegs=combo_legs)
 
-            proposal = _BotProposal(
+            order = _BotOrder(
                 instance_id=instance.instance_id,
                 preset=None,
                 underlying=underlying,
@@ -3328,9 +3666,9 @@ class BotScreen(Screen):
                 con_id = int(getattr(leg_order.contract, "conId", 0) or 0)
                 if con_id:
                     instance.touched_conids.add(con_id)
-            self._add_proposal(proposal)
+            self._add_order(order)
             self._status = (
-                f"Proposed {order_action} BAG {symbol} @ {order_limit:.2f} ({len(leg_orders)} legs)"
+                f"Created order {order_action} BAG {symbol} @ {order_limit:.2f} ({len(leg_orders)} legs)"
             )
             if intent_clean == "enter":
                 if direction in ("up", "down"):
@@ -3381,7 +3719,7 @@ class BotScreen(Screen):
                     return
                 tick = _tick_size(contract, ticker, limit) or 0.01
                 limit = _round_to_tick(float(limit), tick)
-                proposal = _BotProposal(
+                order = _BotOrder(
                     instance_id=instance.instance_id,
                     preset=None,
                     underlying=contract,
@@ -3401,10 +3739,10 @@ class BotScreen(Screen):
                 )
                 if con_id:
                     instance.touched_conids.add(con_id)
-                self._add_proposal(proposal)
+                self._add_order(order)
                 if signal_bar_ts is not None:
                     instance.last_exit_bar_ts = signal_bar_ts
-                self._status = f"Proposed EXIT {action} {qty} {symbol} @ {limit:.2f}"
+                self._status = f"Created order EXIT {action} {qty} {symbol} @ {limit:.2f}"
                 self._render_status()
                 return
 
@@ -3508,7 +3846,7 @@ class BotScreen(Screen):
                     chosen = {"action": "SELL", "qty": 1}
             action = str(chosen.get("action", "")).strip().upper()
             if action not in ("BUY", "SELL"):
-                self._status = f"Propose: invalid spot action for {direction}"
+                self._status = f"Order: invalid spot action for {direction}"
                 self._render_status()
                 return
             try:
@@ -3571,7 +3909,7 @@ class BotScreen(Screen):
                                 (direction == "up" and float(target) <= float(limit))
                                 or (direction == "down" and float(target) >= float(limit))
                             ):
-                                self._status = "Propose: ORB target already hit (skip)"
+                                self._status = "Order: ORB target already hit (skip)"
                                 self._render_status()
                                 return
                             instance.spot_profit_target_price = float(target)
@@ -3585,7 +3923,7 @@ class BotScreen(Screen):
             elif exit_mode == "atr":
                 atr = float(snap.atr) if snap is not None and snap.atr is not None else 0.0
                 if atr <= 0:
-                    self._status = "Propose: ATR not ready (spot_exit_mode=atr)"
+                    self._status = "Order: ATR not ready (spot_exit_mode=atr)"
                     self._render_status()
                     return
                 try:
@@ -3670,7 +4008,7 @@ class BotScreen(Screen):
                 cash_ref=cash_ref,
             )
             if signed_qty == 0:
-                self._status = "Propose: spot sizing returned 0 qty"
+                self._status = "Order: spot sizing returned 0 qty"
                 self._render_status()
                 return
             action = "BUY" if int(signed_qty) > 0 else "SELL"
@@ -3710,10 +4048,10 @@ class BotScreen(Screen):
                 "net_liq": float(equity_ref) if equity_ref is not None else None,
                 "buying_power": float(cash_ref) if cash_ref is not None else None,
                 "price_mode": price_mode,
-                "chase_proposals": bool(strat.get("chase_proposals", True)),
+                "chase_orders": bool(strat.get("chase_orders", True)),
             }
 
-            proposal = _BotProposal(
+            order = _BotOrder(
                 instance_id=instance.instance_id,
                 preset=None,
                 underlying=contract,
@@ -3738,8 +4076,8 @@ class BotScreen(Screen):
             if signal_bar_ts is not None:
                 instance.last_entry_bar_ts = signal_bar_ts
             _bump_entry_counters()
-            self._add_proposal(proposal)
-            self._status = f"Proposed {action} {qty} {symbol} @ {limit:.2f} ({direction})"
+            self._add_order(order)
+            self._status = f"Created order {action} {qty} {symbol} @ {limit:.2f} ({direction})"
             self._render_status()
             return
 
@@ -3793,7 +4131,7 @@ class BotScreen(Screen):
             legs_raw = raw if isinstance(raw, list) else []
 
         if not isinstance(legs_raw, list) or not legs_raw:
-            self._status = "Propose: no legs configured"
+            self._status = "Order: no legs configured"
             self._render_status()
             return
 
@@ -3832,13 +4170,13 @@ class BotScreen(Screen):
         leg_specs: list[tuple[str, str, int, float, float | None]] = []
         for leg_raw in legs_raw:
             if not isinstance(leg_raw, dict):
-                self._status = "Propose: invalid leg config"
+                self._status = "Order: invalid leg config"
                 self._render_status()
                 return
             action = str(leg_raw.get("action", "")).upper()
             right = str(leg_raw.get("right", "")).upper()
             if action not in ("BUY", "SELL") or right not in ("PUT", "CALL"):
-                self._status = "Propose: invalid leg config"
+                self._status = "Order: invalid leg config"
                 self._render_status()
                 return
             try:
@@ -3909,17 +4247,17 @@ class BotScreen(Screen):
 
         _finalize_leg_orders(underlying=underlying, leg_orders=leg_orders, leg_quotes=leg_quotes)
 
-    def _submit_proposal(self) -> None:
-        self._submit_selected_proposal()
+    def _submit_order(self) -> None:
+        self._submit_selected_order()
 
-    def _submit_selected_proposal(self) -> None:
-        proposal = self._selected_proposal()
-        if not proposal:
-            self._status = "Send: no proposal selected"
+    def _submit_selected_order(self) -> None:
+        order = self._selected_order()
+        if not order:
+            self._status = "Send: no order selected"
             self._render_bot()
             return
-        if proposal.status != "PROPOSED":
-            self._status = f"Send: already {proposal.status}"
+        if order.status != "STAGED":
+            self._status = f"Send: already {order.status}"
             self._render_bot()
             return
         try:
@@ -3930,29 +4268,30 @@ class BotScreen(Screen):
             return
         self._status = "Sending order..."
         self._render_bot()
-        self._send_task = loop.create_task(self._send_order(proposal))
+        self._send_task = loop.create_task(self._send_order(order))
 
-    async def _send_order(self, proposal: _BotProposal) -> None:
+    async def _send_order(self, order: _BotOrder) -> None:
         try:
-            self._journal_write(event="SENDING", proposal=proposal, reason=proposal.reason, data=None)
+            self._journal_write(event="SENDING", order=order, reason=order.reason, data=None)
             trade = await self._client.place_limit_order(
-                proposal.order_contract,
-                proposal.action,
-                proposal.quantity,
-                proposal.limit_price,
-                outside_rth=proposal.order_contract.secType == "STK",
+                order.order_contract,
+                order.action,
+                order.quantity,
+                order.limit_price,
+                outside_rth=order.order_contract.secType == "STK",
             )
             order_id = trade.order.orderId or trade.order.permId or 0
-            proposal.status = "SENT"
-            proposal.order_id = int(order_id or 0) or None
-            self._status = f"Sent #{order_id} {proposal.action} {proposal.quantity} @ {proposal.limit_price:.2f}"
-            self._journal_write(event="SENT", proposal=proposal, reason=proposal.reason, data=None)
+            order.status = "WORKING"
+            order.order_id = int(order_id or 0) or None
+            order.trade = trade
+            self._status = f"Sent #{order_id} {order.action} {order.quantity} @ {order.limit_price:.2f}"
+            self._journal_write(event="SENT", order=order, reason=order.reason, data=None)
         except Exception as exc:
-            proposal.status = "ERROR"
-            proposal.error = str(exc)
+            order.status = "ERROR"
+            order.error = str(exc)
             self._status = f"Send error: {exc}"
-            self._journal_write(event="SEND_ERROR", proposal=proposal, reason=proposal.reason, data={"exc": str(exc)})
-        self._refresh_proposals_table()
+            self._journal_write(event="SEND_ERROR", order=order, reason=order.reason, data={"exc": str(exc)})
+        self._refresh_orders_table()
         self._render_bot()
 
     def _render_bot(self) -> None:
@@ -3968,7 +4307,7 @@ class BotScreen(Screen):
 
         lines.append(
             Text(
-                "Enter=Config/Send  Ctrl+A=Presets  f=FilterDTE  w=FilterWin  v=Scope  Tab/h/l=Focus  p=Propose  a=Auto  Space=Run/Toggle  s=Stop  S=Kill  d=Del  X=Send",
+                "Enter=Config/Send  Ctrl+A=Presets  f=FilterDTE  w=FilterWin  v=Scope  Tab/h/l=Focus  c=Cancel  Space=Run/Toggle  s=Stop  S=Kill  d=Del  X=Send",
                 style="dim",
             )
         )
@@ -3983,7 +4322,7 @@ class BotScreen(Screen):
             Text(
                 f"Focus: {self._active_panel}  Presets: {'ON' if self._presets_visible else 'OFF'}  "
                 f"Scope: {'ALL' if self._scope_all else 'Instance'}  "
-                f"Instances: {len(self._instances)}  Proposals: {len(self._proposal_rows)}",
+                f"Instances: {len(self._instances)}  Orders: {len(self._order_rows)}",
                 style="dim",
             )
         )
@@ -4057,17 +4396,16 @@ class BotScreen(Screen):
                 else:
                     legs_desc = _legs_label(instance.strategy.get("legs", []))
                     dte = instance.strategy.get("dte", "?")
-                auto = "ON" if instance.auto_trade else "OFF"
                 lines.append(Text(""))
                 lines.append(Text(f"Selected instance #{instance.instance_id}", style="bold"))
                 lines.append(Text(f"{instance.group}  DTE={dte}  Legs={legs_desc}", style="dim"))
-                lines.append(Text(f"State={instance.state}  Auto trade={auto}", style="dim"))
-        elif self._active_panel == "proposals":
-            proposal = self._selected_proposal()
-            if proposal:
+                lines.append(Text(f"State={instance.state}", style="dim"))
+        elif self._active_panel == "orders":
+            order = self._selected_order()
+            if order:
                 lines.append(Text(""))
-                lines.append(Text(f"Selected proposal (inst {proposal.instance_id})", style="bold"))
-                lines.extend(_proposal_lines(proposal))
+                lines.append(Text(f"Selected order (inst {order.instance_id})", style="bold"))
+                lines.extend(_order_lines(order))
 
         if self._status:
             lines.append(Text(""))
@@ -4075,25 +4413,43 @@ class BotScreen(Screen):
 
         self._status_panel.update(Text("\n").join(lines))
 
-    def _add_proposal(self, proposal: _BotProposal) -> None:
-        self._proposals.append(proposal)
-        instance = next((i for i in self._instances if i.instance_id == proposal.instance_id), None)
-        self._journal_write(event="PROPOSED", instance=instance, proposal=proposal, reason=proposal.reason, data=None)
-        self._refresh_proposals_table()
-        if self._active_panel == "proposals":
-            self._proposals_table.cursor_coordinate = (max(len(self._proposal_rows) - 1, 0), 0)
+    def _add_order(self, order: _BotOrder) -> None:
+        self._orders.append(order)
+        instance = next((i for i in self._instances if i.instance_id == order.instance_id), None)
+        self._journal_write(event="ORDER_STAGED", instance=instance, order=order, reason=order.reason, data=None)
+        self._refresh_orders_table()
+        if self._active_panel == "orders":
+            self._orders_table.cursor_coordinate = (max(len(self._order_rows) - 1, 0), 0)
 
-    def _refresh_proposals_table(self) -> None:
-        self._proposals_table.clear()
-        self._proposal_rows = []
+    def _refresh_orders_table(self) -> None:
+        self._orders_table.clear()
+        self._order_rows = []
         scope = self._scope_instance_id()
         if scope is None and not self._scope_all:
             return
-        for proposal in self._proposals:
-            if scope is not None and proposal.instance_id != scope:
+        for order in self._orders:
+            if scope is not None and order.instance_id != scope:
                 continue
-            self._proposals_table.add_row(*_proposal_row(proposal))
-            self._proposal_rows.append(proposal)
+            self._orders_table.add_row(*_order_row(order))
+            self._order_rows.append(order)
+
+        # Unify positions into the Orders table (so the bottom pane can be Logs).
+        if self._scope_all:
+            con_ids = set().union(*(i.touched_conids for i in self._instances))
+        else:
+            instance = next((i for i in self._instances if i.instance_id == scope), None)
+            con_ids = set(instance.touched_conids) if instance else set()
+        if not con_ids:
+            return
+        self._orders_table.add_row("", "", "", "", Text("POSITIONS", style="bold"), "", "", "")
+        for item in self._positions:
+            try:
+                con_id = int(getattr(item.contract, "conId", 0) or 0)
+            except (TypeError, ValueError):
+                con_id = 0
+            if con_id not in con_ids:
+                continue
+            self._orders_table.add_row(*_position_as_order_row(item, scope=scope))
 
 
 # endregion
@@ -4250,10 +4606,10 @@ def _preset_lines(preset: _BotPreset) -> list[Text]:
     return lines
 
 
-def _proposal_lines(proposal: _BotProposal) -> list[Text]:
-    legs = proposal.legs or []
+def _order_lines(order: _BotOrder) -> list[Text]:
+    legs = order.legs or []
     legs_line: str | None = None
-    if len(legs) == 1 and proposal.order_contract.secType != "BAG":
+    if len(legs) == 1 and order.order_contract.secType != "BAG":
         contract = legs[0].contract
         local = getattr(contract, "localSymbol", "") or getattr(contract, "symbol", "")
         sec_type = getattr(contract, "secType", "") or ""
@@ -4268,8 +4624,8 @@ def _proposal_lines(proposal: _BotProposal) -> list[Text]:
             strike = getattr(contract, "strike", None)
             header = f"{local} {expiry}{right} {strike}"
     else:
-        symbol = getattr(proposal.order_contract, "symbol", "") or getattr(
-            proposal.underlying, "symbol", ""
+        symbol = getattr(order.order_contract, "symbol", "") or getattr(
+            order.underlying, "symbol", ""
         )
         header = f"{symbol} BAG ({len(legs)} legs)"
         legs_desc: list[str] = []
@@ -4283,12 +4639,12 @@ def _proposal_lines(proposal: _BotProposal) -> list[Text]:
     parts: list[Text] = [Text(header, style="dim")]
     if legs_line:
         parts.append(Text(f"Legs: {legs_line}", style="dim"))
-    parts.append(Text(f"Side: {proposal.action}  Qty: {proposal.quantity}", style="dim"))
-    parts.append(Text(f"Limit: {_fmt_quote(proposal.limit_price)}", style="dim"))
+    parts.append(Text(f"Side: {order.action}  Qty: {order.quantity}", style="dim"))
+    parts.append(Text(f"Limit: {_fmt_quote(order.limit_price)}", style="dim"))
     parts.append(
         Text(
-            f"Bid: {_fmt_quote(proposal.bid)}  Ask: {_fmt_quote(proposal.ask)}  "
-            f"Last: {_fmt_quote(proposal.last)}",
+            f"Bid: {_fmt_quote(order.bid)}  Ask: {_fmt_quote(order.ask)}  "
+            f"Last: {_fmt_quote(order.last)}",
             style="dim",
         )
     )
@@ -4447,26 +4803,88 @@ def _set_path(root: object, path: str, value: object) -> None:
         return
 
 
-def _proposal_row(proposal: _BotProposal) -> tuple[str, str, str, str, str, str, str, str]:
-    ts = proposal.created_at.astimezone().strftime("%H:%M:%S")
-    inst = str(proposal.instance_id)
-    contract = proposal.order_contract
-    if contract.secType == "BAG" or len(proposal.legs) > 1:
-        symbol = getattr(contract, "symbol", "") or getattr(proposal.underlying, "symbol", "") or "?"
-        local = f"{symbol} BAG {len(proposal.legs)}L"
+def _order_row(order: _BotOrder) -> tuple[str, str, str, str, str, str, str, str]:
+    ts = order.created_at.astimezone().strftime("%H:%M:%S")
+    inst = str(order.instance_id)
+    contract = order.order_contract
+    if contract.secType == "BAG" or len(order.legs) > 1:
+        symbol = getattr(contract, "symbol", "") or getattr(order.underlying, "symbol", "") or "?"
+        local = f"{symbol} BAG {len(order.legs)}L"
     else:
-        leg_contract = proposal.legs[0].contract if proposal.legs else contract
+        leg_contract = order.legs[0].contract if order.legs else contract
         local = getattr(leg_contract, "localSymbol", "") or getattr(leg_contract, "symbol", "") or "?"
     local = str(local)[:12]
-    side = proposal.action[:1]
-    qty = str(int(proposal.quantity))
-    limit = _fmt_quote(proposal.limit_price)
-    bid = _fmt_quote(proposal.bid)
-    ask = _fmt_quote(proposal.ask)
+    side = order.action[:1]
+    qty = str(int(order.quantity))
+    limit = _fmt_quote(order.limit_price)
+    bid = _fmt_quote(order.bid)
+    ask = _fmt_quote(order.ask)
     bid_ask = f"{bid}/{ask}"
-    status = proposal.status
-    if proposal.order_id:
-        status = f"{status} #{proposal.order_id}"
-    if proposal.error and status == "ERROR":
-        status = f"ERROR {proposal.error}"[:32]
+    status = order.status
+    if order.order_id:
+        status = f"{status} #{order.order_id}"
+    if order.error and order.status == "ERROR":
+        status = f"ERROR {order.error}"[:32]
+    elif order.error and order.status == "WORKING":
+        status = f"{status} !{order.error}"[:32]
     return (ts, inst, side, qty, local, limit, bid_ask, status)
+
+
+def _position_as_order_row(item: PortfolioItem, *, scope: int | None) -> tuple[str, str, str, str, str, str, str, str]:
+    contract = getattr(item, "contract", None)
+    sec_type = str(getattr(contract, "secType", "") or "") if contract is not None else ""
+    symbol = str(getattr(contract, "symbol", "") or "") if contract is not None else ""
+
+    local = ""
+    if contract is not None:
+        if sec_type == "STK":
+            local = symbol
+        elif sec_type == "FUT":
+            local = str(getattr(contract, "localSymbol", "") or symbol or "?")
+        elif sec_type in ("OPT", "FOP"):
+            expiry = str(getattr(contract, "lastTradeDateOrContractMonth", "") or "")
+            right = str(getattr(contract, "right", "") or "")
+            strike = getattr(contract, "strike", None)
+            strike_s = ""
+            if strike is not None:
+                try:
+                    strike_s = f"{float(strike):.1f}"
+                except (TypeError, ValueError):
+                    strike_s = ""
+            local = f"{symbol} {expiry}{right[:1]} {strike_s}".strip()
+        else:
+            local = str(getattr(contract, "localSymbol", "") or symbol or "?")
+    local = str(local or "?")[:12]
+
+    try:
+        pos = float(getattr(item, "position", 0.0) or 0.0)
+    except (TypeError, ValueError):
+        pos = 0.0
+    side = "L" if pos > 0 else "S" if pos < 0 else ""
+    abs_pos = abs(pos)
+    qty = f"{abs_pos:.2f}"
+    if abs_pos.is_integer():
+        qty = str(int(abs_pos))
+
+    avg = _safe_num(getattr(item, "averageCost", None))
+    mkt = _safe_num(getattr(item, "marketPrice", None))
+    unreal = _safe_num(getattr(item, "unrealizedPNL", None))
+    realized = _safe_num(getattr(item, "realizedPNL", None))
+
+    status_parts: list[str] = []
+    if unreal is not None:
+        status_parts.append(f"u={unreal:+.0f}")
+    if realized is not None and realized:
+        status_parts.append(f"r={realized:+.0f}")
+    status = " ".join(status_parts)[:32]
+
+    return (
+        "POS",
+        str(int(scope)) if scope is not None else "",
+        side,
+        qty,
+        local,
+        _fmt_quote(avg),
+        _fmt_quote(mkt),
+        status,
+    )

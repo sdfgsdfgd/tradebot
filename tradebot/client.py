@@ -333,7 +333,7 @@ class IBKRClient:
     ) -> Trade:
         await self.connect()
         order_contract = contract
-        order = LimitOrder(action, quantity, limit_price, tif="DAY")
+        order = LimitOrder(action, quantity, limit_price, tif="GTC")
         if contract.secType == "STK":
             allow_outside = outside_rth
             outside_session, include_overnight = _session_flags(
@@ -346,6 +346,15 @@ class IBKRClient:
                 order.outsideRth = True
         order_contract = _normalize_order_contract(order_contract)
         return self._ib.placeOrder(order_contract, order)
+
+    async def modify_limit_order(self, trade: Trade, limit_price: float) -> Trade:
+        """Modify an existing LIMIT order's price in place."""
+        await self.connect()
+        order = trade.order
+        if not hasattr(order, "lmtPrice"):
+            raise ValueError("modify_limit_order: trade has no lmtPrice")
+        order.lmtPrice = float(limit_price)
+        return self._ib.placeOrder(trade.contract, order)
 
     def open_trades_for_conids(self, con_ids: Iterable[int]) -> list[Trade]:
         if not self._ib.isConnected():

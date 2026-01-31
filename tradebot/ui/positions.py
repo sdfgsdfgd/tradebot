@@ -19,18 +19,23 @@ from .common import (
     _aggressive_price,
     _append_digit,
     _default_order_qty,
+    _fmt_expiry,
+    _fmt_money,
+    _fmt_qty,
     _fmt_quote,
     _market_data_label,
     _mark_price,
     _midpoint,
     _optimistic_price,
     _parse_float,
+    _parse_int,
     _round_to_tick,
     _safe_num,
     _tick_decimals,
     _tick_size,
     _trade_sort_key,
     _quote_status_line,
+    _ticker_close,
     _ticker_price,
 )
 
@@ -73,6 +78,7 @@ class PositionDetailScreen(Screen):
         self._orders_scroll = 0
         self._orders_rows: list[Trade] = []
         self._refresh_task = None
+        self._chase_tasks: set[asyncio.Task] = set()
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -94,6 +100,8 @@ class PositionDetailScreen(Screen):
     async def on_unmount(self) -> None:
         if self._refresh_task:
             self._refresh_task.stop()
+        for task in list(self._chase_tasks):
+            task.cancel()
         con_id = int(self._item.contract.conId or 0)
         if con_id:
             self._client.release_ticker(con_id)
@@ -534,6 +542,7 @@ class PositionDetailScreen(Screen):
             self._exec_status = "Exec: price n/a"
             self._render_details()
             return
+        mode = self._exec_rows[self._exec_selected]
         outside_rth = contract.secType == "STK"
         self._exec_status = f"Sending {action} {qty} @ {price:.2f}"
         try:
@@ -542,16 +551,24 @@ class PositionDetailScreen(Screen):
             self._exec_status = "Exec: no loop"
             self._render_details()
             return
-        loop.create_task(self._place_order(action, qty, price, outside_rth))
+        loop.create_task(self._place_order(action, qty, price, outside_rth, mode))
 
     async def _place_order(
-        self, action: str, qty: int, price: float, outside_rth: bool
+        self, action: str, qty: int, price: float, outside_rth: bool, mode: str
     ) -> None:
         try:
-            await self._client.place_limit_order(
+            trade = await self._client.place_limit_order(
                 self._item.contract, action, qty, price, outside_rth
             )
             self._exec_status = f"Sent {action} {qty} @ {price:.2f}"
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
+            if loop is not None:
+                task = loop.create_task(self._chase_until_filled(trade, action, mode))
+                self._chase_tasks.add(task)
+                task.add_done_callback(lambda t: self._chase_tasks.discard(t))
         except Exception as exc:
             self._exec_status = f"Exec error: {exc}"
         self._render_details()
@@ -578,4 +595,51 @@ class PositionDetailScreen(Screen):
             return _round_to_tick(value, tick) if value is not None else None
         return fallback
 
+    def _exec_price_for_mode(self, mode: str, action: str) -> float | None:
+        selected = mode if mode in ("mid", "optimistic", "aggressive", "custom") else "mid"
+        if selected == "custom":
+            return None
+        bid = _safe_num(self._ticker.bid) if self._ticker else None
+        ask = _safe_num(self._ticker.ask) if self._ticker else None
+        last = _safe_num(self._ticker.last) if self._ticker else None
+        mark = _mark_price(self._item)
+        tick = _tick_size(self._item.contract, self._ticker, last or mark)
+        mid = _round_to_tick(_midpoint(bid, ask), tick)
+        fallback = _round_to_tick(last or mark, tick)
+        if selected == "mid":
+            return mid or fallback
+        if selected == "optimistic":
+            value = _optimistic_price(bid, ask, mid, action)
+            return _round_to_tick(value, tick) or fallback
+        if selected == "aggressive":
+            value = _aggressive_price(bid, ask, mid, action)
+            return _round_to_tick(value, tick) or fallback
+        return fallback
 
+    async def _chase_until_filled(self, trade: Trade, action: str, mode: str) -> None:
+        # TODO: after 60s of chasing MID, switch to AGGRESSIVE.
+        started = asyncio.get_running_loop().time()
+        while True:
+            try:
+                if trade.isDone():
+                    return
+            except Exception:
+                pass
+            status_raw = str(getattr(getattr(trade, "orderStatus", None), "status", "") or "").strip()
+            if status_raw in ("Filled", "Cancelled", "ApiCancelled", "Inactive"):
+                return
+
+            elapsed = asyncio.get_running_loop().time() - started
+            _ = elapsed  # used for TODO escalation policy later
+
+            price = self._exec_price_for_mode(mode, action)
+            if price is not None:
+                try:
+                    trade = await self._client.modify_limit_order(trade, float(price))
+                    order_id = trade.order.orderId or trade.order.permId or 0
+                    self._exec_status = f"Chasing #{order_id} @ {price:.2f}"
+                except Exception as exc:
+                    self._exec_status = f"Chase error: {exc}"
+                self._render_details()
+
+            await asyncio.sleep(5.0)

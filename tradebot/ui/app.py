@@ -117,13 +117,13 @@ class PositionsApp(App):
         border: solid #003054;
     }
 
-    #bot-proposals {
+    #bot-orders {
         height: 1fr;
         padding: 0 1;
         border: solid #003054;
     }
 
-    #bot-positions {
+    #bot-logs {
         height: 1fr;
         padding: 0 1;
         border: solid #003054;
