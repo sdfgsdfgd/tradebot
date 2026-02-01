@@ -39,7 +39,10 @@ from ..signals import (
 )
 from .common import (
     _SECTION_TYPES,
+    _EXEC_LADDER_TIMEOUT_SEC,
+    _exec_ladder_mode,
     _fmt_quote,
+    _limit_price_for_mode,
     _market_session_label,
     _midpoint,
     _optimistic_price,
@@ -161,6 +164,8 @@ class _BotOrder:
     reason: str | None = None
     signal_bar_ts: datetime | None = None
     journal: dict | None = None
+    sent_at: float | None = None  # asyncio loop time (monotonic)
+    exec_mode: str | None = None  # OPTIMISTIC/MID/AGGRESSIVE/CROSS
 
 
 @dataclass(frozen=True)
@@ -372,12 +377,6 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
                     _BotConfigField("Spot SL ATR mult", "float", "spot_sl_atr_mult"),
                     _BotConfigField("Spot PT %", "float", "spot_profit_target_pct"),
                     _BotConfigField("Spot SL %", "float", "spot_stop_loss_pct"),
-                    _BotConfigField(
-                        "Price mode",
-                        "enum",
-                        "price_mode",
-                        options=("OPTIMISTIC", "MID", "AGGRESSIVE", "CROSS"),
-                    ),
                     _BotConfigField("Spot up action", "enum", "directional_spot.up.action", options=("", "BUY")),
                     _BotConfigField("Spot up qty", "int", "directional_spot.up.qty"),
                     _BotConfigField("Spot down action", "enum", "directional_spot.down.action", options=("", "SELL")),
@@ -393,12 +392,6 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
                 _BotConfigField("Stop loss (SL)", "float", "stop_loss"),
                 _BotConfigField("Exit DTE", "int", "exit_dte"),
                 _BotConfigField("Stop loss basis", "enum", "stop_loss_basis", options=("max_loss", "credit")),
-                _BotConfigField(
-                    "Price mode",
-                    "enum",
-                    "price_mode",
-                    options=("OPTIMISTIC", "MID", "AGGRESSIVE", "CROSS"),
-                ),
             ]
         )
 
@@ -820,6 +813,7 @@ class BotScreen(Screen):
             extra["signal_bar_ts"] = order.signal_bar_ts.isoformat() if order.signal_bar_ts else None
             extra["order_journal"] = order.journal
             extra["error"] = order.error
+            extra["exec_mode"] = order.exec_mode
         if isinstance(data, dict) and data:
             extra.update(data)
         row["data_json"] = json.dumps(extra, sort_keys=True, default=str) if extra else ""
@@ -1206,7 +1200,6 @@ class BotScreen(Screen):
         entry = preset.entry
         strategy = copy.deepcopy(entry.get("strategy", {}) or {})
         strategy.setdefault("instrument", "options")
-        strategy.setdefault("price_mode", "MID")
         strategy.setdefault("max_entries_per_day", 1)
         strategy.setdefault("exit_dte", 0)
         strategy.setdefault("stop_loss_basis", "max_loss")
@@ -1442,7 +1435,6 @@ class BotScreen(Screen):
                             "spot_exit_mode": "pct",
                             "spot_profit_target_pct": 0.002,
                             "spot_stop_loss_pct": 0.002,
-                            "price_mode": "MID",
                             "directional_spot": {
                                 "up": {"action": "BUY", "qty": 1},
                                 "down": {"action": "SELL", "qty": 1},
@@ -2598,13 +2590,11 @@ class BotScreen(Screen):
             )
             if not instance:
                 continue
-            changed = False
-            if order.status != "CANCELING":
-                changed = await self._reprice_order(order, instance)
+            if order.status == "STAGED":
+                changed = await self._reprice_order(order, mode="OPTIMISTIC")
                 updated = updated or changed
-
-            if order.status not in ("WORKING", "CANCELING"):
                 continue
+
             trade = order.trade
             if trade is None:
                 order.status = "ERROR"
@@ -2634,21 +2624,70 @@ class BotScreen(Screen):
                     order.status = status.upper() if status else "DONE"
                     done_event = "ORDER_DONE"
                 if prev_status in ("WORKING", "CANCELING") and order.status != prev_status:
+                    done_data: dict[str, object] = {"ib_status": status_raw}
+                    if order.exec_mode:
+                        done_data["exec_mode_last"] = str(order.exec_mode)
+                    if order.sent_at is not None:
+                        elapsed = now - float(order.sent_at)
+                        done_data["exec_elapsed_sec"] = float(elapsed)
+                        mode_now = _exec_ladder_mode(elapsed)
+                        done_data["exec_mode_now"] = str(mode_now) if mode_now is not None else "TIMEOUT"
                     self._journal_write(
                         event=done_event,
                         order=order,
                         reason=None,
-                        data={"ib_status": status_raw},
+                        data=done_data,
                     )
                 updated = True
                 continue
 
             if order.status != "WORKING":
                 continue
+
+            if order.sent_at is None:
+                order.sent_at = float(now)
+            elapsed = now - float(order.sent_at)
+            mode = _exec_ladder_mode(elapsed)
+            if mode is None:
+                # Timed out: cancel and give up.
+                try:
+                    order.status = "CANCELING"
+                    order.error = f"Timeout after {int(elapsed)}s"
+                    self._journal_write(
+                        event="ORDER_TIMEOUT_CANCEL",
+                        order=order,
+                        reason="timeout",
+                        data={
+                            "elapsed_sec": float(elapsed),
+                            "timeout_sec": float(_EXEC_LADDER_TIMEOUT_SEC),
+                        },
+                    )
+                    await self._client.cancel_trade(trade)
+                    self._journal_write(
+                        event="CANCEL_SENT",
+                        order=order,
+                        reason="timeout",
+                        data={"elapsed_sec": float(elapsed)},
+                    )
+                    self._status = f"Timeout cancel sent #{order.order_id or 0}"
+                except Exception as exc:
+                    order.status = "WORKING"
+                    order.error = f"Timeout cancel error: {exc}"
+                    self._status = f"Timeout cancel error #{order.order_id or 0}: {exc}"
+                    self._journal_write(
+                        event="CANCEL_ERROR",
+                        order=order,
+                        reason="timeout",
+                        data={"elapsed_sec": float(elapsed), "exc": str(exc)},
+                    )
+                updated = True
+                continue
+
+            changed = await self._reprice_order(order, mode=mode)
+            updated = updated or changed
             if not changed:
                 continue
 
-            # TODO: after 60s of chasing MID, switch to AGGRESSIVE.
             try:
                 order.trade = await self._client.modify_limit_order(trade, float(order.limit_price))
                 updated = True
@@ -2664,29 +2703,13 @@ class BotScreen(Screen):
                 )
                 self._orders_table.cursor_coordinate = (max(row, 0), 0)
 
-    async def _reprice_order(self, order: _BotOrder, instance: _BotInstance) -> bool:
-        raw_mode = str(instance.strategy.get("price_mode") or "MID").strip().upper()
-        if raw_mode not in ("OPTIMISTIC", "MID", "AGGRESSIVE", "CROSS"):
-            raw_mode = "MID"
-        price_mode = raw_mode
-
-        def _leg_price(
-            bid: float | None, ask: float | None, last: float | None, action: str
-        ) -> float | None:
-            mid = _midpoint(bid, ask)
-            if price_mode == "CROSS":
-                return ask if action == "BUY" else bid
-            if price_mode == "MID":
-                return mid or last
-            if price_mode == "OPTIMISTIC":
-                return _optimistic_price(bid, ask, mid, action) or mid or last
-            if price_mode == "AGGRESSIVE":
-                return _aggressive_price(bid, ask, mid, action) or mid or last
-            return mid or last
-
+    async def _reprice_order(self, order: _BotOrder, *, mode: str) -> bool:
+        prev_mode = order.exec_mode
+        order.exec_mode = str(mode or "").strip().upper() or None
+        mode_changed = order.exec_mode != prev_mode
         legs = order.legs or []
         if not legs:
-            return False
+            return mode_changed
 
         if len(legs) == 1 and order.order_contract.secType != "BAG":
             leg = legs[0]
@@ -2694,7 +2717,7 @@ class BotScreen(Screen):
             bid = _safe_num(getattr(ticker, "bid", None))
             ask = _safe_num(getattr(ticker, "ask", None))
             last = _safe_num(getattr(ticker, "last", None))
-            limit = _leg_price(bid, ask, last, order.action)
+            limit = _limit_price_for_mode(bid, ask, last, action=leg.action, mode=mode)
             if limit is None:
                 return False
             tick = _tick_size(leg.contract, ticker, limit) or 0.01
@@ -2704,7 +2727,7 @@ class BotScreen(Screen):
             order.bid = bid
             order.ask = ask
             order.last = last
-            return changed
+            return changed or mode_changed
 
         debit_mid = 0.0
         debit_bid = 0.0
@@ -2722,7 +2745,7 @@ class BotScreen(Screen):
                 return False
             leg_bid = bid or mid or last
             leg_ask = ask or mid or last
-            leg_desired = _leg_price(bid, ask, last, leg.action)
+            leg_desired = _limit_price_for_mode(bid, ask, last, action=leg.action, mode=mode)
             if leg_bid is None or leg_ask is None or leg_desired is None:
                 return False
             leg_tick = _tick_size(leg.contract, ticker, leg_desired)
@@ -2748,7 +2771,7 @@ class BotScreen(Screen):
         order.bid = new_bid
         order.ask = new_ask
         order.last = new_last
-        return changed
+        return changed or mode_changed
 
     def _queue_order(
         self,
@@ -3500,22 +3523,14 @@ class BotScreen(Screen):
                 f"(instance_id={instance.instance_id} group={instance.group!r} symbol={symbol!r})"
             )
 
-        raw_mode = str(strat.get("price_mode") or "MID").strip().upper()
-        if raw_mode not in ("OPTIMISTIC", "MID", "AGGRESSIVE", "CROSS"):
-            raw_mode = "MID"
-        price_mode = raw_mode
+        # All live execution uses the shared "execution ladder" (optimistic → mid → aggressive → cross).
+        # Orders always start at the optimistic phase; the chase loop handles escalation.
+        mode = "OPTIMISTIC"
 
-        def _leg_price(bid: float | None, ask: float | None, last: float | None, action: str) -> float | None:
-            mid = _midpoint(bid, ask)
-            if price_mode == "CROSS":
-                return ask if action == "BUY" else bid
-            if price_mode == "MID":
-                return mid or last
-            if price_mode == "OPTIMISTIC":
-                return _optimistic_price(bid, ask, mid, action) or mid or last
-            if price_mode == "AGGRESSIVE":
-                return _aggressive_price(bid, ask, mid, action) or mid or last
-            return mid or last
+        def _leg_price(
+            bid: float | None, ask: float | None, last: float | None, action: str
+        ) -> float | None:
+            return _limit_price_for_mode(bid, ask, last, action=action, mode=mode)
 
         def _bump_entry_counters() -> None:
             self._reset_daily_counters_if_needed(instance)
@@ -3592,6 +3607,7 @@ class BotScreen(Screen):
                     direction=direction,
                     reason=intent_clean,
                     signal_bar_ts=signal_bar_ts,
+                    exec_mode=mode,
                 )
                 con_id = int(getattr(single.contract, "conId", 0) or 0)
                 if con_id:
@@ -3661,6 +3677,7 @@ class BotScreen(Screen):
                 direction=direction,
                 reason=intent_clean,
                 signal_bar_ts=signal_bar_ts,
+                exec_mode=mode,
             )
             for leg_order in leg_orders:
                 con_id = int(getattr(leg_order.contract, "conId", 0) or 0)
@@ -3736,6 +3753,7 @@ class BotScreen(Screen):
                     direction=direction,
                     reason="exit",
                     signal_bar_ts=signal_bar_ts,
+                    exec_mode=mode,
                 )
                 if con_id:
                     instance.touched_conids.add(con_id)
@@ -4047,7 +4065,8 @@ class BotScreen(Screen):
                 else None,
                 "net_liq": float(equity_ref) if equity_ref is not None else None,
                 "buying_power": float(cash_ref) if cash_ref is not None else None,
-                "price_mode": price_mode,
+                "exec_policy": "LADDER",
+                "exec_mode": "OPTIMISTIC",
                 "chase_orders": bool(strat.get("chase_orders", True)),
             }
 
@@ -4069,6 +4088,7 @@ class BotScreen(Screen):
                 reason="enter",
                 signal_bar_ts=snap.bar_ts if snap is not None else signal_bar_ts,
                 journal=journal,
+                exec_mode=mode,
             )
             if con_id:
                 instance.touched_conids.add(con_id)
@@ -4272,6 +4292,10 @@ class BotScreen(Screen):
 
     async def _send_order(self, order: _BotOrder) -> None:
         try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
+        try:
             self._journal_write(event="SENDING", order=order, reason=order.reason, data=None)
             trade = await self._client.place_limit_order(
                 order.order_contract,
@@ -4284,6 +4308,7 @@ class BotScreen(Screen):
             order.status = "WORKING"
             order.order_id = int(order_id or 0) or None
             order.trade = trade
+            order.sent_at = loop.time() if loop is not None else None
             self._status = f"Sent #{order_id} {order.action} {order.quantity} @ {order.limit_price:.2f}"
             self._journal_write(event="SENT", order=order, reason=order.reason, data=None)
         except Exception as exc:
@@ -4821,6 +4846,8 @@ def _order_row(order: _BotOrder) -> tuple[str, str, str, str, str, str, str, str
     ask = _fmt_quote(order.ask)
     bid_ask = f"{bid}/{ask}"
     status = order.status
+    if order.exec_mode and order.status in ("STAGED", "WORKING", "CANCELING"):
+        status = f"{status} {order.exec_mode}"
     if order.order_id:
         status = f"{status} #{order.order_id}"
     if order.error and order.status == "ERROR":

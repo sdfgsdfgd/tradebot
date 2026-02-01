@@ -533,9 +533,91 @@ def _optimistic_price(
 def _aggressive_price(
     bid: float | None, ask: float | None, mid: float | None, action: str
 ) -> float | None:
+    # "Aggressive" is between midpoint and "cross" (ask for BUY, bid for SELL).
     if action == "BUY":
-        return ask or mid or bid
-    return bid or mid or ask
+        if ask is None:
+            return mid or bid
+        if mid is None:
+            return ask
+        return (mid + ask) / 2.0
+    if bid is None:
+        return mid or ask
+    if mid is None:
+        return bid
+    return (mid + bid) / 2.0
+
+
+def _cross_price(bid: float | None, ask: float | None, action: str) -> float | None:
+    if action == "BUY":
+        return ask
+    return bid
+
+
+_EXEC_LADDER_OPTIMISTIC_SEC = 30.0
+_EXEC_LADDER_MID_SEC = 30.0
+_EXEC_LADDER_AGGRESSIVE_SEC = 30.0
+_EXEC_LADDER_CROSS_SEC = 5 * 60.0
+_EXEC_LADDER_TIMEOUT_SEC = (
+    _EXEC_LADDER_OPTIMISTIC_SEC
+    + _EXEC_LADDER_MID_SEC
+    + _EXEC_LADDER_AGGRESSIVE_SEC
+    + _EXEC_LADDER_CROSS_SEC
+)
+
+
+def _exec_ladder_mode(elapsed_sec: float) -> str | None:
+    """Return current execution ladder phase for an order.
+
+    Phases:
+      OPTIMISTIC (30s) -> MID (30s) -> AGGRESSIVE (30s) -> CROSS (5m) -> timeout.
+    """
+    try:
+        t = float(elapsed_sec)
+    except (TypeError, ValueError):
+        t = 0.0
+    if t < 0:
+        t = 0.0
+
+    if t < _EXEC_LADDER_OPTIMISTIC_SEC:
+        return "OPTIMISTIC"
+    t -= _EXEC_LADDER_OPTIMISTIC_SEC
+
+    if t < _EXEC_LADDER_MID_SEC:
+        return "MID"
+    t -= _EXEC_LADDER_MID_SEC
+
+    if t < _EXEC_LADDER_AGGRESSIVE_SEC:
+        return "AGGRESSIVE"
+    t -= _EXEC_LADDER_AGGRESSIVE_SEC
+
+    if t < _EXEC_LADDER_CROSS_SEC:
+        return "CROSS"
+    return None
+
+
+def _limit_price_for_mode(
+    bid: float | None,
+    ask: float | None,
+    last: float | None,
+    *,
+    action: str,
+    mode: str,
+) -> float | None:
+    mid = _midpoint(bid, ask)
+    cleaned = str(mode or "").strip().upper()
+    if cleaned == "CROSS":
+        value = _cross_price(bid, ask, action)
+    elif cleaned == "MID":
+        value = mid
+    elif cleaned == "OPTIMISTIC":
+        value = _optimistic_price(bid, ask, mid, action)
+    elif cleaned == "AGGRESSIVE":
+        value = _aggressive_price(bid, ask, mid, action)
+    else:
+        value = mid
+    if value is None:
+        value = mid if mid is not None else last
+    return value
 
 
 def _append_digit(value: str, char: str, allow_decimal: bool) -> str:

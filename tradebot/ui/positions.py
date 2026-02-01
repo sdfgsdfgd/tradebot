@@ -19,15 +19,17 @@ from .common import (
     _aggressive_price,
     _append_digit,
     _default_order_qty,
+    _EXEC_LADDER_TIMEOUT_SEC,
+    _exec_ladder_mode,
     _fmt_expiry,
     _fmt_money,
     _fmt_qty,
     _fmt_quote,
+    _limit_price_for_mode,
     _market_data_label,
     _mark_price,
     _midpoint,
     _optimistic_price,
-    _parse_float,
     _parse_int,
     _round_to_tick,
     _safe_num,
@@ -67,9 +69,8 @@ class PositionDetailScreen(Screen):
         self._underlying_ticker: Ticker | None = None
         self._underlying_con_id: int | None = None
         self._underlying_label: str | None = None
-        self._exec_rows = ["mid", "optimistic", "aggressive", "custom", "qty"]
+        self._exec_rows = ["ladder", "qty"]
         self._exec_selected = 0
-        self._exec_custom_input = ""
         self._exec_qty_input = ""
         self._exec_qty = _default_order_qty(item)
         self._exec_status: str | None = None
@@ -151,13 +152,10 @@ class PositionDetailScreen(Screen):
             self._render_details()
             return
         selected = self._exec_rows[self._exec_selected]
-        if self._active_panel != "exec" or selected not in ("custom", "qty"):
+        if self._active_panel != "exec" or selected != "qty":
             self.app.pop_screen()
             return
-        if selected == "custom":
-            self._adjust_custom_price(-1)
-        else:
-            self._adjust_qty(-1)
+        self._adjust_qty(-1)
         self._render_details()
 
     def action_exec_right(self) -> None:
@@ -165,9 +163,7 @@ class PositionDetailScreen(Screen):
             self._render_details()
             return
         selected = self._exec_rows[self._exec_selected]
-        if selected == "custom":
-            self._adjust_custom_price(1)
-        elif selected == "qty":
+        if selected == "qty":
             self._adjust_qty(1)
         else:
             self._active_panel = "orders"
@@ -177,14 +173,14 @@ class PositionDetailScreen(Screen):
         if self._active_panel == "orders":
             self._active_panel = "exec"
         else:
-            self._exec_selected = self._exec_rows.index("custom")
+            self._exec_selected = self._exec_rows.index("qty")
         self._render_details()
 
     def action_exec_jump_right(self) -> None:
         if self._active_panel == "orders":
             self._render_details()
             return
-        self._exec_selected = self._exec_rows.index("mid")
+        self._exec_selected = self._exec_rows.index("ladder")
         self._render_details()
 
     def action_cancel_order(self) -> None:
@@ -352,48 +348,68 @@ class PositionDetailScreen(Screen):
         ask = _safe_num(self._ticker.ask) if self._ticker else None
         last = _safe_num(self._ticker.last) if self._ticker else None
         mark = _mark_price(self._item)
-        tick = _tick_size(contract, self._ticker, last or mark)
-        mid = _round_to_tick(_midpoint(bid, ask), tick)
-        optimistic_buy = _round_to_tick(_optimistic_price(bid, ask, mid, "BUY"), tick)
-        optimistic_sell = _round_to_tick(_optimistic_price(bid, ask, mid, "SELL"), tick)
-        aggressive_buy = _round_to_tick(_aggressive_price(bid, ask, mid, "BUY"), tick)
-        aggressive_sell = _round_to_tick(_aggressive_price(bid, ask, mid, "SELL"), tick)
-        custom = _parse_float(self._exec_custom_input)
-        if custom is not None:
-            custom = _round_to_tick(custom, tick)
+        last_ref = last or mark
+        tick = _tick_size(contract, self._ticker, last_ref)
+        mid_raw = _midpoint(bid, ask)
+        fallback = _round_to_tick(last_ref, tick)
+        mid = _round_to_tick(mid_raw, tick) or fallback
+        optimistic_buy = _round_to_tick(_optimistic_price(bid, ask, mid_raw, "BUY"), tick) or mid
+        optimistic_sell = _round_to_tick(_optimistic_price(bid, ask, mid_raw, "SELL"), tick) or mid
+        aggressive_buy = _round_to_tick(_aggressive_price(bid, ask, mid_raw, "BUY"), tick) or mid
+        aggressive_sell = _round_to_tick(_aggressive_price(bid, ask, mid_raw, "SELL"), tick) or mid
+        cross_buy = _round_to_tick(ask, tick) if ask is not None else None
+        cross_sell = _round_to_tick(bid, tick) if bid is not None else None
         qty = self._exec_qty
         lines: list[Text] = []
         lines.append(Text(""))
-        lines.append(Text("Execution", style="bold"))
+        lines.append(Text("Execution Ladder", style="bold"))
         lines.append(Text(f"Tick: {tick:.{_tick_decimals(tick)}f}", style="dim"))
         lines.append(Text("B=Buy  S=Sell", style="dim"))
+        lines.append(
+            Text(
+                "Plan: OPT 30s → MID 30s → AGG 30s → CROSS 5m → cancel",
+                style="dim",
+            )
+        )
         if self._exec_status:
             lines.append(Text(self._exec_status, style="yellow"))
         rows = [
-            ("mid", "Mid"),
             (
-                "optimistic",
-                f"Optimistic (B/S): {_fmt_quote(optimistic_buy)} / {_fmt_quote(optimistic_sell)}",
+                "ladder",
+                "Ladder (auto reprices OPT→MID→AGG→CROSS; gives up after timeout)",
             ),
             (
-                "aggressive",
-                f"Aggressive (B/S): {_fmt_quote(aggressive_buy)} / {_fmt_quote(aggressive_sell)}",
+                "qty",
+                f"Qty: {qty}",
             ),
-            ("custom", f"Custom: {_fmt_quote(custom)}"),
-            ("qty", f"Qty: {qty}"),
         ]
+        price_lines = [
+            Text(""),
+            Text("Prices", style="bold"),
+            Text(f"MID: {_fmt_quote(mid)}", style="orange1"),
+            Text(
+                f"OPT (B/S): {_fmt_quote(optimistic_buy)} / {_fmt_quote(optimistic_sell)}",
+                style="dim",
+            ),
+            Text(
+                f"AGG (B/S): {_fmt_quote(aggressive_buy)} / {_fmt_quote(aggressive_sell)}",
+                style="dim",
+            ),
+            Text(
+                f"CROSS (B/S): {_fmt_quote(cross_buy)} / {_fmt_quote(cross_sell)}",
+                style="dim",
+            ),
+        ]
+        lines.extend(price_lines)
+
+        lines.append(Text(""))
         for idx, (key, label) in enumerate(rows):
             style = (
                 "bold on #2b2b2b"
                 if self._active_panel == "exec" and idx == self._exec_selected
                 else ""
             )
-            if key == "mid":
-                lines.append(Text(""))
-                line = Text("Mid: ")
-                line.append(_fmt_quote(mid), style="orange1")
-            else:
-                line = Text(label)
+            line = Text(label)
             if style:
                 line.stylize(style)
             lines.append(line)
@@ -485,41 +501,24 @@ class PositionDetailScreen(Screen):
         self._render_details()
 
     def _handle_digit(self, char: str) -> None:
-        selected = self._exec_rows[self._exec_selected]
-        if selected == "qty":
-            self._exec_qty_input = _append_digit(self._exec_qty_input, char, allow_decimal=False)
-            parsed = _parse_int(self._exec_qty_input)
-            if parsed:
-                self._exec_qty = parsed
-        else:
-            if selected != "custom":
-                self._exec_selected = self._exec_rows.index("custom")
-            self._exec_custom_input = _append_digit(self._exec_custom_input, char, allow_decimal=True)
+        if char not in "0123456789":
+            return
+        if self._exec_rows[self._exec_selected] != "qty":
+            self._exec_selected = self._exec_rows.index("qty")
+        self._exec_qty_input = _append_digit(self._exec_qty_input, char, allow_decimal=False)
+        parsed = _parse_int(self._exec_qty_input)
+        if parsed:
+            self._exec_qty = parsed
         self._render_details()
 
     def _handle_backspace(self) -> None:
-        selected = self._exec_rows[self._exec_selected]
-        if selected == "qty":
-            self._exec_qty_input = self._exec_qty_input[:-1]
-            parsed = _parse_int(self._exec_qty_input)
-            if parsed:
-                self._exec_qty = parsed
-        else:
-            self._exec_custom_input = self._exec_custom_input[:-1]
+        if self._exec_rows[self._exec_selected] != "qty":
+            self._exec_selected = self._exec_rows.index("qty")
+        self._exec_qty_input = self._exec_qty_input[:-1]
+        parsed = _parse_int(self._exec_qty_input)
+        if parsed:
+            self._exec_qty = parsed
         self._render_details()
-
-    def _adjust_custom_price(self, direction: int) -> None:
-        tick = _tick_size(self._item.contract, self._ticker, _mark_price(self._item))
-        current = _parse_float(self._exec_custom_input)
-        if current is None:
-            bid = _safe_num(self._ticker.bid) if self._ticker else None
-            ask = _safe_num(self._ticker.ask) if self._ticker else None
-            mid = _midpoint(bid, ask)
-            current = _round_to_tick(mid, tick) or 0.0
-        adjusted = _round_to_tick(current + (tick * direction), tick)
-        if adjusted is None:
-            return
-        self._exec_custom_input = f"{adjusted:.{_tick_decimals(tick)}f}"
 
     def _adjust_qty(self, direction: int) -> None:
         next_qty = max(1, int(self._exec_qty) + direction)
@@ -537,12 +536,11 @@ class PositionDetailScreen(Screen):
             self._exec_status = "Exec: invalid qty"
             self._render_details()
             return
-        price = self._selected_exec_price(action)
+        price = self._initial_exec_price(action)
         if price is None:
             self._exec_status = "Exec: price n/a"
             self._render_details()
             return
-        mode = self._exec_rows[self._exec_selected]
         outside_rth = contract.secType == "STK"
         self._exec_status = f"Sending {action} {qty} @ {price:.2f}"
         try:
@@ -551,11 +549,9 @@ class PositionDetailScreen(Screen):
             self._exec_status = "Exec: no loop"
             self._render_details()
             return
-        loop.create_task(self._place_order(action, qty, price, outside_rth, mode))
+        loop.create_task(self._place_order(action, qty, price, outside_rth))
 
-    async def _place_order(
-        self, action: str, qty: int, price: float, outside_rth: bool, mode: str
-    ) -> None:
+    async def _place_order(self, action: str, qty: int, price: float, outside_rth: bool) -> None:
         try:
             trade = await self._client.place_limit_order(
                 self._item.contract, action, qty, price, outside_rth
@@ -566,58 +562,42 @@ class PositionDetailScreen(Screen):
             except RuntimeError:
                 loop = None
             if loop is not None:
-                task = loop.create_task(self._chase_until_filled(trade, action, mode))
+                task = loop.create_task(self._chase_until_filled(trade, action))
                 self._chase_tasks.add(task)
                 task.add_done_callback(lambda t: self._chase_tasks.discard(t))
         except Exception as exc:
             self._exec_status = f"Exec error: {exc}"
         self._render_details()
 
-    def _selected_exec_price(self, action: str) -> float | None:
+    def _initial_exec_price(self, action: str) -> float | None:
         bid = _safe_num(self._ticker.bid) if self._ticker else None
         ask = _safe_num(self._ticker.ask) if self._ticker else None
         last = _safe_num(self._ticker.last) if self._ticker else None
         mark = _mark_price(self._item)
-        tick = _tick_size(self._item.contract, self._ticker, last or mark)
-        mid = _round_to_tick(_midpoint(bid, ask), tick)
-        fallback = _round_to_tick(last or mark, tick)
-        selected = self._exec_rows[self._exec_selected]
-        if selected == "mid":
-            return mid or fallback
-        if selected == "optimistic":
-            value = _optimistic_price(bid, ask, mid, action)
-            return _round_to_tick(value, tick) or fallback
-        if selected == "aggressive":
-            value = _aggressive_price(bid, ask, mid, action)
-            return _round_to_tick(value, tick) or fallback
-        if selected == "custom":
-            value = _parse_float(self._exec_custom_input)
-            return _round_to_tick(value, tick) if value is not None else None
-        return fallback
+        last_ref = last or mark
+        tick = _tick_size(self._item.contract, self._ticker, last_ref)
+        value = (
+            _limit_price_for_mode(bid, ask, last_ref, action=action, mode="OPTIMISTIC")
+            if last_ref is not None or (bid is not None and ask is not None)
+            else None
+        )
+        if value is None:
+            return _round_to_tick(last_ref, tick) if last_ref is not None else None
+        return _round_to_tick(float(value), tick)
 
     def _exec_price_for_mode(self, mode: str, action: str) -> float | None:
-        selected = mode if mode in ("mid", "optimistic", "aggressive", "custom") else "mid"
-        if selected == "custom":
-            return None
         bid = _safe_num(self._ticker.bid) if self._ticker else None
         ask = _safe_num(self._ticker.ask) if self._ticker else None
         last = _safe_num(self._ticker.last) if self._ticker else None
         mark = _mark_price(self._item)
-        tick = _tick_size(self._item.contract, self._ticker, last or mark)
-        mid = _round_to_tick(_midpoint(bid, ask), tick)
-        fallback = _round_to_tick(last or mark, tick)
-        if selected == "mid":
-            return mid or fallback
-        if selected == "optimistic":
-            value = _optimistic_price(bid, ask, mid, action)
-            return _round_to_tick(value, tick) or fallback
-        if selected == "aggressive":
-            value = _aggressive_price(bid, ask, mid, action)
-            return _round_to_tick(value, tick) or fallback
-        return fallback
+        last_ref = last or mark
+        tick = _tick_size(self._item.contract, self._ticker, last_ref)
+        value = _limit_price_for_mode(bid, ask, last_ref, action=action, mode=mode)
+        if value is None:
+            return _round_to_tick(last_ref, tick) if last_ref is not None else None
+        return _round_to_tick(float(value), tick)
 
-    async def _chase_until_filled(self, trade: Trade, action: str, mode: str) -> None:
-        # TODO: after 60s of chasing MID, switch to AGGRESSIVE.
+    async def _chase_until_filled(self, trade: Trade, action: str) -> None:
         started = asyncio.get_running_loop().time()
         while True:
             try:
@@ -630,14 +610,25 @@ class PositionDetailScreen(Screen):
                 return
 
             elapsed = asyncio.get_running_loop().time() - started
-            _ = elapsed  # used for TODO escalation policy later
+            mode_now = _exec_ladder_mode(elapsed)
+            if mode_now is None:
+                try:
+                    await self._client.cancel_trade(trade)
+                    order_id = trade.order.orderId or trade.order.permId or 0
+                    self._exec_status = (
+                        f"Timeout cancel sent #{order_id} (> {_EXEC_LADDER_TIMEOUT_SEC:.0f}s)"
+                    )
+                except Exception as exc:
+                    self._exec_status = f"Timeout cancel error: {exc}"
+                self._render_details()
+                return
 
-            price = self._exec_price_for_mode(mode, action)
+            price = self._exec_price_for_mode(str(mode_now), action)
             if price is not None:
                 try:
                     trade = await self._client.modify_limit_order(trade, float(price))
                     order_id = trade.order.orderId or trade.order.permId or 0
-                    self._exec_status = f"Chasing #{order_id} @ {price:.2f}"
+                    self._exec_status = f"Chasing #{order_id} [{mode_now}] @ {price:.2f}"
                 except Exception as exc:
                     self._exec_status = f"Chase error: {exc}"
                 self._render_details()
