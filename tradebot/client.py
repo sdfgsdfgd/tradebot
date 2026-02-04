@@ -91,6 +91,7 @@ class IBKRClient:
         self._proxy_probe_task: asyncio.Task | None = None
         self._proxy_contract_force_delayed: set[int] = set()
         self._detail_tickers: dict[int, tuple[IB, Ticker]] = {}
+        self._ticker_owners: dict[int, set[str]] = {}
         self._historical_bar_cache: dict[
             tuple[str, int, str, str, bool, str], tuple[list[tuple[datetime, float]], float]
         ] = {}
@@ -194,6 +195,7 @@ class IBKRClient:
         self._proxy_probe_task = None
         self._proxy_contract_force_delayed = set()
         self._detail_tickers = {}
+        self._ticker_owners = {}
         self._pnl = None
         self._pnl_account = None
         self._account_value_cache = {}
@@ -270,7 +272,7 @@ class IBKRClient:
         _ib, ticker = entry
         return ticker
 
-    async def ensure_ticker(self, contract: Contract) -> Ticker:
+    async def ensure_ticker(self, contract: Contract, *, owner: str = "default") -> Ticker:
         use_proxy = contract.secType in ("STK", "OPT")
         if use_proxy:
             await self.connect_proxy()
@@ -306,6 +308,8 @@ class IBKRClient:
                     req_contract.exchange = "SMART"
         cached = self._detail_tickers.get(con_id) if con_id else None
         if cached:
+            if con_id:
+                self._ticker_owners.setdefault(con_id, set()).add(owner)
             cached_ib, cached_ticker = cached
             desired_exchange = getattr(req_contract, "exchange", "") or ""
             current_exchange = getattr(cached_ticker.contract, "exchange", "") or ""
@@ -321,6 +325,7 @@ class IBKRClient:
         ticker = ib.reqMktData(req_contract)
         if con_id:
             self._detail_tickers[con_id] = (ib, ticker)
+            self._ticker_owners.setdefault(con_id, set()).add(owner)
         return ticker
 
     async def place_limit_order(
@@ -755,7 +760,16 @@ class IBKRClient:
             self._front_future_cache[key] = (resolved, time.monotonic())
             return resolved
 
-    def release_ticker(self, con_id: int) -> None:
+    def release_ticker(self, con_id: int, *, owner: str = "default") -> None:
+        if not con_id:
+            return
+        owners = self._ticker_owners.get(con_id)
+        if owners is not None:
+            owners.discard(owner)
+            if owners:
+                return
+            self._ticker_owners.pop(con_id, None)
+
         entry = self._detail_tickers.pop(con_id, None)
         if entry:
             ib, ticker = entry

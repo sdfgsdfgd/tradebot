@@ -93,7 +93,7 @@ class PositionDetailScreen(Screen):
     async def on_mount(self) -> None:
         self._detail_left = self.query_one("#detail-left", Static)
         self._detail_right = self.query_one("#detail-right", Static)
-        self._ticker = await self._client.ensure_ticker(self._item.contract)
+        self._ticker = await self._client.ensure_ticker(self._item.contract, owner="details")
         await self._load_underlying()
         self._refresh_task = self.set_interval(self._refresh_sec, self._render_details)
         self._render_details()
@@ -105,9 +105,9 @@ class PositionDetailScreen(Screen):
             task.cancel()
         con_id = int(self._item.contract.conId or 0)
         if con_id:
-            self._client.release_ticker(con_id)
+            self._client.release_ticker(con_id, owner="details")
         if self._underlying_con_id:
-            self._client.release_ticker(self._underlying_con_id)
+            self._client.release_ticker(self._underlying_con_id, owner="details")
 
     def on_key(self, event: events.Key) -> None:
         if event.key == "backspace":
@@ -204,10 +204,10 @@ class PositionDetailScreen(Screen):
     async def action_refresh_ticker(self) -> None:
         con_id = int(self._item.contract.conId or 0)
         if con_id:
-            self._client.release_ticker(con_id)
-        self._ticker = await self._client.ensure_ticker(self._item.contract)
+            self._client.release_ticker(con_id, owner="details")
+        self._ticker = await self._client.ensure_ticker(self._item.contract, owner="details")
         if self._underlying_con_id:
-            self._client.release_ticker(self._underlying_con_id)
+            self._client.release_ticker(self._underlying_con_id, owner="details")
             self._underlying_con_id = None
             self._underlying_ticker = None
             self._underlying_label = None
@@ -222,7 +222,7 @@ class PositionDetailScreen(Screen):
         underlying = await self._client.resolve_underlying_contract(contract)
         if not underlying:
             return
-        self._underlying_ticker = await self._client.ensure_ticker(underlying)
+        self._underlying_ticker = await self._client.ensure_ticker(underlying, owner="details")
         con_id = int(getattr(underlying, "conId", 0) or 0)
         if con_id:
             self._underlying_con_id = con_id

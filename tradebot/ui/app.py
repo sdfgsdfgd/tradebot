@@ -571,7 +571,7 @@ class PositionsApp(App):
 
     async def _load_ticker(self, con_id: int, contract: Contract) -> None:
         try:
-            await self._client.ensure_ticker(contract)
+            await self._client.ensure_ticker(contract, owner="positions")
             self._ticker_con_ids.add(con_id)
         except Exception:
             return

@@ -755,7 +755,7 @@ class BotScreen(Screen):
         if self._refresh_task:
             self._refresh_task.stop()
         for con_id in list(self._tracked_conids):
-            self._client.release_ticker(con_id)
+            self._client.release_ticker(con_id, owner="bot")
         self._tracked_conids.clear()
         self._journal_write(event="SHUTDOWN", reason=None, data=None)
 
@@ -1461,7 +1461,7 @@ class BotScreen(Screen):
         self._preset_rows = []
         self._presets_table.clear(columns=True)
         self._presets_table.add_column("Preset")
-        self._presets_table.add_column("Legs", width=10)
+        self._presets_table.add_column("Hours", width=10)
         self._presets_table.add_column("TF/Exec", width=10)
         self._presets_table.add_column("TP", width=7)
         self._presets_table.add_column("SL", width=7)
@@ -1751,6 +1751,72 @@ class BotScreen(Screen):
         def _best(items: list[dict]) -> dict | None:
             return max(items, key=lambda it: float(it.get("score", float("-inf")))) if items else None
 
+        def _best_version(best: dict | None) -> str | None:
+            if best is None:
+                return None
+            raw = str(best.get("name") or "")
+            match = re.search(r"\bv(?P<ver>\d+)\b", raw, flags=re.IGNORECASE)
+            if match:
+                return f"v{match.group('ver')}"
+            preset = best.get("preset")
+            group_name = getattr(preset, "group", "")
+            match = re.search(r"\bv(?P<ver>\d+)\b", str(group_name or ""), flags=re.IGNORECASE)
+            return f"v{match.group('ver')}" if match else None
+
+        def _label_with_version(label: str, best: dict | None) -> str:
+            ver = _best_version(best)
+            if not ver:
+                return label
+            if re.search(rf"\\b{re.escape(ver)}\\b", label):
+                return label
+            return f"{label} {ver}"
+
+        def _hours_label(*, strat: dict, filters: dict | None) -> str:
+            use_rth_raw = strat.get("signal_use_rth")
+            use_rth = None if use_rth_raw is None else bool(use_rth_raw)
+
+            start = end = None
+            if isinstance(filters, dict):
+                raw_start_et = filters.get("entry_start_hour_et")
+                raw_end_et = filters.get("entry_end_hour_et")
+                if raw_start_et is not None and raw_end_et is not None:
+                    try:
+                        start = int(raw_start_et)
+                        end = int(raw_end_et)
+                    except (TypeError, ValueError):
+                        start = None
+                        end = None
+                else:
+                    raw_start = filters.get("entry_start_hour")
+                    raw_end = filters.get("entry_end_hour")
+                    if raw_start is not None and raw_end is not None:
+                        try:
+                            start = int(raw_start)
+                            end = int(raw_end)
+                        except (TypeError, ValueError):
+                            start = None
+                            end = None
+
+            cutoff = None
+            if isinstance(filters, dict) and filters.get("risk_entry_cutoff_hour_et") is not None:
+                try:
+                    cutoff = int(filters.get("risk_entry_cutoff_hour_et"))
+                except (TypeError, ValueError):
+                    cutoff = None
+
+            if start is not None and end is not None:
+                prefix = "R" if use_rth is True else ("F" if use_rth is False else "")
+                label = f"{prefix}{start}-{end}"
+                if cutoff is not None:
+                    label = f"{label}c{cutoff}"
+                return label
+
+            if use_rth is True:
+                return "RTH"
+            if use_rth is False:
+                return "24/5"
+            return "-"
+
         def _add_leaf(item: dict, *, depth: int) -> None:
             preset = item["preset"]
             strat = item["strategy"]
@@ -1758,8 +1824,6 @@ class BotScreen(Screen):
             instrument = item["instrument"]
 
             if instrument == "spot":
-                sec_type = str(strat.get("spot_sec_type") or "").strip().upper()
-                legs_desc = "SPOT-FUT" if sec_type == "FUT" else "SPOT"
                 exec_bar = str(strat.get("spot_exec_bar_size") or "").strip()
                 if exec_bar:
                     tf_dte = f"{_compact_bar_size(item['tf'])}→{_compact_bar_size(exec_bar)}"
@@ -1767,11 +1831,11 @@ class BotScreen(Screen):
                     tf_dte = _compact_bar_size(item["tf"])
                 tp_s, sl_s = _spot_tp_sl(strat)
             else:
-                legs_desc = _legs_label(strat.get("legs", []))
                 tf_dte = str(int(item["dte"]))
                 tp_s, sl_s = _options_tp_sl(strat)
 
-            legs_desc = legs_desc[:10]
+            filters = _filters_for_group(payload, preset.group) if self._payload else None
+            hours_s = _hours_label(strat=strat, filters=filters)[:10]
             ema = str(strat.get("ema_preset", ""))[:6]
 
             ratio_s, pnl_trip, dd_trip = _window_triplets(preset.group, metrics)
@@ -1781,7 +1845,7 @@ class BotScreen(Screen):
             self._preset_rows.append(preset)
             self._presets_table.add_row(
                 label,
-                legs_desc,
+                hours_s,
                 tf_dte,
                 tp_s,
                 sl_s,
@@ -1806,7 +1870,8 @@ class BotScreen(Screen):
             dd_trip = Text("")
 
             if best is not None:
-                legs_cell = f"best: {best['name']}"[:10]
+                filters = _filters_for_group(payload, best["preset"].group) if self._payload else None
+                legs_cell = _hours_label(strat=best["strategy"], filters=filters)[:10]
                 strat = best["strategy"]
                 instrument = best["instrument"]
                 if instrument == "spot":
@@ -1847,13 +1912,25 @@ class BotScreen(Screen):
                 all_items.extend(dte_items)
 
             contract_node = f"contract:{symbol}"
-            contract_expanded = _add_header(contract_node, depth=0, label=symbol, best=_best(all_items))
+            contract_best = _best(all_items)
+            contract_expanded = _add_header(
+                contract_node,
+                depth=0,
+                label=_label_with_version(symbol, contract_best),
+                best=contract_best,
+            )
             if not contract_expanded:
                 continue
 
             spot_node = f"{contract_node}|spot"
             spot_items = [it for tf_items in bucket["spot"].values() for it in tf_items]
-            spot_expanded = _add_header(spot_node, depth=1, label=f"{symbol} - Spot", best=_best(spot_items))
+            spot_best = _best(spot_items)
+            spot_expanded = _add_header(
+                spot_node,
+                depth=1,
+                label=_label_with_version(f"{symbol} - Spot", spot_best),
+                best=spot_best,
+            )
             if spot_expanded:
                 spot_tfs = sorted(bucket["spot"].keys())
                 if len(spot_tfs) == 1:
@@ -2323,7 +2400,7 @@ class BotScreen(Screen):
                     avg_cost = _safe_num(getattr(open_item, "averageCost", None))
                     market_price = _safe_num(getattr(open_item, "marketPrice", None))
                     if market_price is None:
-                        ticker = await self._client.ensure_ticker(open_item.contract)
+                        ticker = await self._client.ensure_ticker(open_item.contract, owner="bot")
                         market_price = _ticker_price(ticker)
 
                     target_price = instance.spot_profit_target_price
@@ -2713,7 +2790,7 @@ class BotScreen(Screen):
 
         if len(legs) == 1 and order.order_contract.secType != "BAG":
             leg = legs[0]
-            ticker = await self._client.ensure_ticker(leg.contract)
+            ticker = await self._client.ensure_ticker(leg.contract, owner="bot")
             bid = _safe_num(getattr(ticker, "bid", None))
             ask = _safe_num(getattr(ticker, "ask", None))
             last = _safe_num(getattr(ticker, "last", None))
@@ -2735,7 +2812,7 @@ class BotScreen(Screen):
         desired_debit = 0.0
         tick = None
         for leg in legs:
-            ticker = await self._client.ensure_ticker(leg.contract)
+            ticker = await self._client.ensure_ticker(leg.contract, owner="bot")
             bid = _safe_num(getattr(ticker, "bid", None))
             ask = _safe_num(getattr(ticker, "ask", None))
             last = _safe_num(getattr(ticker, "last", None))
@@ -3464,7 +3541,7 @@ class BotScreen(Screen):
             con_id = int(getattr(contract, "conId", 0) or 0)
             if con_id:
                 self._tracked_conids.add(con_id)
-            ticker = await self._client.ensure_ticker(contract)
+            ticker = await self._client.ensure_ticker(contract, owner="bot")
             delta = None
             for _ in range(6):
                 for attr in ("modelGreeks", "bidGreeks", "askGreeks", "lastGreeks"):
@@ -3493,7 +3570,7 @@ class BotScreen(Screen):
                 continue
             con_id = int(getattr(contract, "conId", 0) or 0)
             if con_id:
-                self._client.release_ticker(con_id)
+                self._client.release_ticker(con_id, owner="bot")
                 self._tracked_conids.discard(con_id)
         return best_strike
 
@@ -3725,7 +3802,7 @@ class BotScreen(Screen):
                 con_id = int(getattr(contract, "conId", 0) or 0)
                 if con_id:
                     self._tracked_conids.add(con_id)
-                ticker = await self._client.ensure_ticker(contract)
+                ticker = await self._client.ensure_ticker(contract, owner="bot")
                 bid = _safe_num(getattr(ticker, "bid", None))
                 ask = _safe_num(getattr(ticker, "ask", None))
                 last = _safe_num(getattr(ticker, "last", None))
@@ -3791,7 +3868,7 @@ class BotScreen(Screen):
                 con_id = int(getattr(contract, "conId", 0) or 0)
                 if con_id:
                     self._tracked_conids.add(con_id)
-                ticker = await self._client.ensure_ticker(contract)
+                ticker = await self._client.ensure_ticker(contract, owner="bot")
                 bid = _safe_num(getattr(ticker, "bid", None))
                 ask = _safe_num(getattr(ticker, "ask", None))
                 last = _safe_num(getattr(ticker, "last", None))
@@ -3882,7 +3959,7 @@ class BotScreen(Screen):
             con_id = int(getattr(contract, "conId", 0) or 0)
             if con_id:
                 self._tracked_conids.add(con_id)
-            ticker = await self._client.ensure_ticker(contract)
+            ticker = await self._client.ensure_ticker(contract, owner="bot")
             bid = _safe_num(getattr(ticker, "bid", None))
             ask = _safe_num(getattr(ticker, "ask", None))
             last = _safe_num(getattr(ticker, "last", None))
@@ -4167,7 +4244,7 @@ class BotScreen(Screen):
             self._render_status()
             return
         underlying, chain = chain_info
-        underlying_ticker = await self._client.ensure_ticker(underlying)
+        underlying_ticker = await self._client.ensure_ticker(underlying, owner="bot")
         under_con_id = int(getattr(underlying, "conId", 0) or 0)
         if under_con_id:
             self._tracked_conids.add(under_con_id)
@@ -4258,7 +4335,7 @@ class BotScreen(Screen):
             con_id = int(getattr(contract, "conId", 0) or 0)
             if con_id:
                 self._tracked_conids.add(con_id)
-            ticker = await self._client.ensure_ticker(contract)
+            ticker = await self._client.ensure_ticker(contract, owner="bot")
             bid = _safe_num(getattr(ticker, "bid", None))
             ask = _safe_num(getattr(ticker, "ask", None))
             last = _safe_num(getattr(ticker, "last", None))
