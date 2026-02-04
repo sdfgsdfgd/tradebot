@@ -6,22 +6,22 @@ This package provides a minimal backtest runner that supports:
 
 Shared decision logic lives in `tradebot/engine.py` and `tradebot/spot_engine.py` so the UI/live runner can reuse the exact same semantics.
 
-## Spot (TQQQ) — CURRENT champ (v34) quick reproduce
+## Spot (TQQQ) — CURRENT champ (v35) quick reproduce
 
 This is the canonical “champ smoke test” we use to ensure refactors do **not** change outcomes.
 
 ```bash
-python -m tradebot.backtest spot_multitimeframe --milestones backtests/out/tqqq_exec5m_v34_champ_only_milestone.json \
+python -m tradebot.backtest spot_multitimeframe --milestones backtests/out/tqqq_exec5m_v35_champ_only_milestone.json \
   --symbol TQQQ --bar-size "30 mins" --use-rth --offline --cache-dir db --top 1 --max-open 1 \
   --require-positive-pnl --min-trades 100 \
   --window 2016-01-01:2026-01-19 --window 2024-01-01:2026-01-19 --window 2025-01-01:2026-01-19 \
-  --write-top 1 --out /tmp/tqqq_exec5m_v34_smoke.json
+  --write-top 1 --out /tmp/tqqq_exec5m_v35_smoke.json
 ```
 
 Expected exact window metrics:
-- 10y: roi `0.6038486539374943`, dd_pct `0.17072433918750088`, pnl `60384.86539374943`, trades `1054`
-- 2y:  roi `0.2972119843749967`, dd_pct `0.045420233000000296`, pnl `29721.19843749967`, trades `205`
-- 1y:  roi `0.13781497912499804`, dd_pct `0.03944176150000014`, pnl `13781.497912499804`, trades `107`
+- 10y: roi `0.6665266561874932`, dd_pct `0.16580349112500087`, pnl `66652.66561874932`, trades `1054`
+- 2y:  roi `0.30726314593749665`, dd_pct `0.044948664000000575`, pnl `30726.314593749663`, trades `206`
+- 1y:  roi `0.14861503749999794`, dd_pct `0.03867808150000026`, pnl `14861.503749999792`, trades `107`
 
 ## Full config example (all parameters)
 ```json
@@ -103,9 +103,10 @@ Use `--no-write` to skip CSV output. Add `--calibrate` to refresh the synthetic 
 ## Cache layout
 Bars are cached under `db/` (configurable):
 ```
-db/<SYMBOL>/<SYMBOL>_<start>_<end>_<bar>_<rth|full>.csv
+db/<SYMBOL>/<SYMBOL>_<start>_<end>_<bar>_<rth|full24>.csv
 ```
 This cache is designed to be shared later with the live trading engine.
+Legacy note: older caches used `_full.csv`; the loader still recognizes them for backwards compatibility.
 
 ## Config (JSON)
 See `backtest.sample.json`. Core fields:
@@ -367,16 +368,16 @@ These spot presets are **12-month only** (no 6m snapshot entries) and are filter
 - pnl/dd `>= 8`
 - sorted by pnl/dd (desc)
 
-Regenerate (offline, uses cached bars in `db/`):
+Regenerate (offline, uses cached bars in `db/`; realism is default):
 ```bash
 python -m tradebot.backtest spot --offline --axis all --write-milestones --cache-dir db
 python -m tradebot.backtest spot --offline --axis combo_fast --write-milestones --merge-milestones --cache-dir db
 ```
 
-Regenerate with realism v1 enabled (recommended before live trading):
+LEGACY / debugging: disable realism (optimistic fills; not recommended for decision-making):
 ```bash
-python -m tradebot.backtest spot --offline --axis all --realism --write-milestones --cache-dir db
-python -m tradebot.backtest spot --offline --axis combo_fast --realism --write-milestones --merge-milestones --cache-dir db
+python -m tradebot.backtest spot --offline --axis all --no-realism2 --write-milestones --cache-dir db
+python -m tradebot.backtest spot --offline --axis combo_fast --no-realism2 --write-milestones --merge-milestones --cache-dir db
 ```
 
 Regenerate 30-minute spot champions (adds only a curated top set from that run, merges into existing milestones):
@@ -422,7 +423,10 @@ This is a **quick map of what the sweeps actually cover** (outer edges), so we c
   - `tick_neutral_policy ∈ {allow, block}`, `tick_direction_policy ∈ {both, wide_only}`
   - Default symbol tries `TICK-AMEX` (fallback from `TICK-NYSE` if permissions/cache block it)
 - Shock overlay (`--axis shock`): `shock_gate_mode ∈ {detect, block, block_longs, block_shorts, surf}` × `shock_detector ∈ {atr_ratio, tr_ratio, daily_atr_pct, daily_drawdown}` plus curated threshold presets (includes `shock_daily_on_tr_pct` for “TR early trigger”), with small grids for `shock_stop_loss_pct_mult`, `shock_profit_target_pct_mult`, and `shock_short_risk_mult_factor`
-- TR% risk overlays (`--axis risk_overlays`): risk-off `riskoff_tr5_med_pct`; risk-panic `riskpanic_tr5_med_pct + riskpanic_neg_gap_ratio_min` with `riskpanic_short_risk_mult_factor ∈ {1.0,0.5,0.2,0.0}`; risk-pop `riskpop_tr5_med_pct + riskpop_pos_gap_ratio_min` with `riskpop_long_risk_mult_factor ∈ {0.6,0.8,1.0,1.2,1.5}` and `riskpop_short_risk_mult_factor ∈ {1.0,0.5,0.2,0.0}` (includes optional `risk_entry_cutoff_hour_et`)
+- TR% risk overlays (`--axis risk_overlays`): risk-off `riskoff_tr5_med_pct`; risk-panic `riskpanic_tr5_med_pct + riskpanic_neg_gap_ratio_min` with `riskpanic_short_risk_mult_factor ∈ {1.0,0.5,0.2,0.0}`; risk-pop `riskpop_tr5_med_pct + riskpop_pos_gap_ratio_min` with `riskpop_long_risk_mult_factor ∈ {0.6,0.8,1.0,1.2,1.5}` and `riskpop_short_risk_mult_factor ∈ {1.0,0.5,0.2,0.0}`
+  - Optional “gap magnitude” tightening: `riskpanic_neg_gap_abs_pct_min`, `riskpop_pos_gap_abs_pct_min` (only count gaps with `|gap|>=threshold` toward the gap ratio).
+  - Optional “pre-shock ramp” detector: `riskpanic_tr5_med_delta_min_pct`/`riskpanic_tr5_med_delta_lookback_days` (and riskpop equivalents), requiring TR-median to be accelerating, not just high.
+  - Includes optional `risk_entry_cutoff_hour_et`.
 
 **Bias / confirm (regime layers)**
 - Regime sweep (`--axis regime`): `regime_bar_size ∈ {4 hours, 1 day}`, `ST ATR ∈ {2,3,4,5,6,7,10,11,14,21}`, `mult ∈ {0.05..2.0 (curated list)}`, `src ∈ {close, hl2}`
@@ -460,7 +464,7 @@ This is a **quick map of what the sweeps actually cover** (outer edges), so we c
 
 ### Spot champions (TQQQ only)
 
-#### CURRENT (v34) (exec=5m, RTH; 10y/2y/1y; >=100 trades/1y; stability-first) (promoted 2026-01-30)
+#### CURRENT (v36) (exec=5m, RTH; 10y/2y/1y; >=100 trades/1y; stability-first) (promoted 2026-02-04)
 These are the current **TQQQ-only** spot champions under the “multi-resolution” execution model (post-`spot_exec_bar_size=5 mins`) that are:
 - Positive PnL in **all 3** windows: **10y + 2y + 1y**
 - Active enough for ops (operationalized as `>=100 trades` in the last 1y window)
@@ -481,15 +485,24 @@ Winning family (what changed vs the legacy high-WR pocket):
 - **Permission gates actually matter:** `ema_spread_min_pct≈0.003` + `ema_slope_min_pct≈0.014..0.035` improves the worst-window `roi/dd` notably.
 - **Asymmetric shorts:** keep two-way behavior, but reduce short risk (`spot_short_risk_mult≈0.01..0.02`) plus short gating (`ema_spread_min_pct_down≈0.04..0.06`).
 - **Session/TOD activity filter:** limiting entries to an RTH window (CURRENT best: `9–16 ET`) improved worst-window `roi/dd` while preserving activity.
-- **Shock overlay (CURRENT):** TR-ratio (“vol velocity”) shock detector + `"detect"` mode + risk scaling (plus a more sensitive TR-ratio 3/21 on/off=1.30/1.20, minTR%=5) improved worst-window stability without changing the base signal/regime family.
+- **Shock overlay (CURRENT):** TR-ratio (“vol velocity”) shock detector + `"detect"` mode + risk scaling (CURRENT best: fast/slow `3/50`, on/off `1.30/1.20`, minTR% `4`) improved worst-window stability without changing the base signal/regime family.
+- **Pre-shock risk overlay (CURRENT):** riskpanic “ramp” gating (TR5 median high **and accelerating**, plus neg-gap ratio) plus late-day cutoff: `riskpanic_tr5_med_pct=9`, `riskpanic_tr5_med_delta_min_pct=0.75@1d`, `riskpanic_neg_gap_ratio_min=0.6@5d`, `riskpanic_short_risk_mult_factor=1.0`, `risk_entry_cutoff_hour_et=15`, `riskoff_mode=hygiene`.
 
 Top set:
-- CURRENT (v34): `backtests/out/tqqq_exec5m_v34_shock_alpha_refine_wide_30m_10y2y1y_mintr100_top100.json`
+- CURRENT (v36): `backtests/out/tqqq_exec5m_v36_shock_velocity_refine_wide_30m_10y2y1y_mintr100_top200_2026-02-04_221540.json`
+- Previous CURRENT (v35): `backtests/out/tqqq_exec5m_v35_shock_velocity_refine_30m_10y2y1y_mintr100_top200_2026-02-04_192754.json`
+- Previous CURRENT (v34): `backtests/out/tqqq_exec5m_v34_shock_alpha_refine_wide_30m_10y2y1y_mintr100_top100.json`
 - Previous CURRENT (v33): `backtests/out/tqqq_exec5m_v33_shock_alpha_refine_30m_10y2y1y_mintr100_top100.json`
 - Previous CURRENT (v32): `backtests/out/tqqq_exec5m_v32_dethrone_30m_10y2y1y_mintr100_top100.json`
 - Previous CURRENT (v31): `backtests/out/tqqq_exec5m_v31_shock_block_longs_30m_10y2y1y_mintr100_top36.json`
 
 Search log / reproducibility (kept as files so we don’t rerun blindly):
+- v36 shock_velocity_refine_wide (seeded from v35; `--axis shock_velocity_refine_wide` widened TR-ratio grid + riskpanic ramp micro; full kingmaker prefilter):
+  - `backtests/out/tqqq_exec5m_v36_shock_velocity_refine_wide_variants_30m_2y_2026-02-04_221340.json` → `backtests/out/tqqq_exec5m_v36_shock_velocity_refine_wide_30m_10y2y1y_mintr100_top200_2026-02-04_221540.json`
+  - Key diffs vs v35: TR-ratio `3/50` with `on/off=1.30/1.20` (more sensitive, earlier ramp), plus riskpanic ramp loosening (`delta>=0.75@1d` and `riskpanic_short_risk_mult_factor=1.0`); stability floor `~4.01` (vs v35 `~3.84`), and it improves roi/dd in all three windows (10y/2y/1y).
+- v35 shock_velocity_refine (seeded from v34; `--axis shock_velocity_refine` joint TR-ratio detector grid × riskpanic “pre-shock ramp” overlay; full kingmaker prefilter):
+  - `backtests/out/tqqq_exec5m_v35_shock_velocity_refine_variants_30m_2y_2026-02-04_192649.json` → `backtests/out/tqqq_exec5m_v35_shock_velocity_refine_30m_10y2y1y_mintr100_top200_2026-02-04_192754.json`
+  - Key diffs vs v34: TR-ratio `5/50` with `on/off=1.40/1.30`, `minTR%=4`, plus riskpanic ramp gating (`tr5_med>=9`, `neg_gap_ratio>=0.6@5d`, `delta>=1.0@1d`, `short_factor=0.5`, cutoff `15 ET`); stability floor `~3.84` (vs v34 `~3.49`).
 - v34 shock_alpha_refine_wide (seeded from v33; `--axis shock_alpha_refine` widened TR-ratio grid + full kingmaker prefilter):
   - `backtests/out/tqqq_exec5m_v34_shock_alpha_refine_wide_variants_30m.json` → `backtests/out/tqqq_exec5m_v34_shock_alpha_refine_wide_30m_10y2y1y_mintr100_top100.json`
   - Key diffs vs v33: TR-ratio `3/21` with `on/off=1.30/1.20`, `minTR%=5` (triggers earlier in crash ramps); stability floor `~3.49` (vs v33 `~3.21`).
@@ -549,6 +562,9 @@ Search log / reproducibility (kept as files so we don’t rerun blindly):
 - v33 shock_alpha_refine (beats v32 roi/dd in all 3 windows):
   - `backtests/out/tqqq_exec5m_v33_shock_alpha_refine_variants_30m.json` → `backtests/out/tqqq_exec5m_v33_shock_alpha_refine_30m_10y2y1y_mintr100_top100.json`
   - Key diffs vs v32: TR-ratio shock detection (`detect` mode) + risk scaling (`target_atr_pct=12`, `min_mult=0.2`).
+- v35 shock_velocity_refine (beats v34 roi/dd in all 3 windows):
+  - `backtests/out/tqqq_exec5m_v35_shock_velocity_refine_variants_30m_2y_2026-02-04_192649.json` → `backtests/out/tqqq_exec5m_v35_shock_velocity_refine_30m_10y2y1y_mintr100_top200_2026-02-04_192754.json`
+  - Key diffs vs v34: widened TR-ratio shock (`5/50`, `on/off=1.40/1.30`, `minTR%=4`) + riskpanic ramp gating (`tr5_med>=9`, `neg_gap_ratio>=0.6@5d`, `delta>=1.0@1d`, `short_factor=0.5`, cutoff `15 ET`).
 - v34 shock_alpha_refine_wide (beats v33 roi/dd in all 3 windows):
   - `backtests/out/tqqq_exec5m_v34_shock_alpha_refine_wide_variants_30m.json` → `backtests/out/tqqq_exec5m_v34_shock_alpha_refine_wide_30m_10y2y1y_mintr100_top100.json`
   - Key diffs vs v33: more sensitive TR-ratio shock (`3/21`, `on/off=1.30/1.20`, `minTR%=5`).
@@ -577,7 +593,21 @@ Search log / reproducibility (kept as files so we don’t rerun blindly):
 
 Repro commands:
 ```bash
-# NOTE: prepend new evolution entries ABOVE the CURRENT block (0g6).
+# NOTE: prepend new evolution entries ABOVE the CURRENT block (0g10).
+# 0g10) CURRENT (v36): v35-seeded shock_velocity_refine_wide joint micro grid (beats v35 roi/dd in all 3 windows)
+python -m tradebot.backtest spot_multitimeframe --milestones backtests/out/tqqq_exec5m_v36_shock_velocity_refine_wide_variants_30m_2y_2026-02-04_221340.json \
+  --symbol TQQQ --bar-size "30 mins" --use-rth --offline --cache-dir db --jobs 12 --top 7000 --max-open 1 \
+  --require-positive-pnl --min-trades 100 \
+  --window 2016-01-01:2026-01-19 --window 2024-01-01:2026-01-19 --window 2025-01-01:2026-01-19 \
+  --write-top 200 --out backtests/out/tqqq_exec5m_v36_shock_velocity_refine_wide_30m_10y2y1y_mintr100_top200_2026-02-04_221540.json
+
+# 0g9) Previous CURRENT (v35): v34-seeded shock_velocity_refine joint micro grid (beats v34 roi/dd in all 3 windows)
+python -m tradebot.backtest spot_multitimeframe --milestones backtests/out/tqqq_exec5m_v35_shock_velocity_refine_variants_30m_2y_2026-02-04_192649.json \
+  --symbol TQQQ --bar-size "30 mins" --use-rth --offline --cache-dir db --jobs 12 --top 5000 --max-open 1 \
+  --require-positive-pnl --min-trades 100 \
+  --window 2016-01-01:2026-01-19 --window 2024-01-01:2026-01-19 --window 2025-01-01:2026-01-19 \
+  --write-top 200 --out backtests/out/tqqq_exec5m_v35_shock_velocity_refine_30m_10y2y1y_mintr100_top200_2026-02-04_192754.json
+
 # 0g8) CURRENT (v34): v33-seeded shock_alpha_refine_wide joint micro grid (beats v33 roi/dd in all 3 windows)
 python -m tradebot.backtest spot_multitimeframe --milestones backtests/out/tqqq_exec5m_v34_shock_alpha_refine_wide_variants_30m.json \
   --symbol TQQQ --bar-size "30 mins" --use-rth --offline --cache-dir db --top 100 --max-open 1 \
@@ -1012,13 +1042,13 @@ Repro commands:
 # 2y discovery (generate candidate pools)
 python -m tradebot.backtest spot --offline --cache-dir db --symbol TQQQ --use-rth \
   --start 2024-01-01 --end 2026-01-19 --bar-size "30 mins" --spot-exec-bar-size "5 mins" \
-  --realism2 --base default --axis combo_fast --max-open-trades 1 --min-trades 240 \
+  --base default --axis combo_fast --max-open-trades 1 --min-trades 240 \
   --write-milestones --milestones-out backtests/out/tqqq_exec5m_combo_30m_2y_candidates_wr52.json \
   --milestone-min-win 0.52 --milestone-min-trades 240 --milestone-min-pnl-dd 0.0
 
 python -m tradebot.backtest spot --offline --cache-dir db --symbol TQQQ --use-rth \
   --start 2024-01-01 --end 2026-01-19 --bar-size "1 hour" --spot-exec-bar-size "5 mins" \
-  --realism2 --base default --axis combo_fast --max-open-trades 1 --min-trades 200 \
+  --base default --axis combo_fast --max-open-trades 1 --min-trades 200 \
   --write-milestones --milestones-out backtests/out/tqqq_exec5m_combo_1h_2y_candidates_wr52.json \
   --milestone-min-win 0.52 --milestone-min-trades 200 --milestone-min-pnl-dd 0.0
 
@@ -1191,8 +1221,8 @@ These were the “go-live shaped” TQQQ presets found under **Realism v2** befo
 - **K1Hv2-01 (1 hour):** `ema=4/9 cross`, `ST(3,0.3,hl2)@1d + ST2(1d:7,0.4,close)`, exits `ATR(7) PTx1.0 SLx1.0`, `max_open=1 close_eod=1`, filter `spread>=0.005`
   - 10y stats: `tr=215`, `win=52.1%`, `pnl=+1850.8`, `roi=+1.85%`, `dd=8010.3`, `dd%=8.01%`, `roi/dd=0.23`
 
-#### LEGACY (realism v1; per-share PnL, no sizing)
-These are older “Realism v1” TQQQ presets (still useful for directionally testing signal logic, but not ROI-comparable):
+#### LEGACY (pre-v2; per-share PnL, no sizing)
+These are older pre-v2 TQQQ presets (still useful for directionally testing signal logic, but not ROI-comparable):
 - They use next-open fills + intrabar PT/SL + spread, but **no sizing**, no per-order commission minimums, and no slippage.
 - Their `pnl` is effectively “per-share” (multiplier `1.0`) under a large starting cash pile, so ROI is not meaningful.
 
@@ -1218,7 +1248,7 @@ These are older “Realism v1” TQQQ presets (still useful for directionally te
     - 2025→2026-01-19: `tr=92`, `win=68.5%`, `pnl=9.22`, `dd=4.49`, `pnl/dd=2.06`
 
 Repro notes:
-- Candidate pool generation: `python -m tradebot.backtest spot --axis combo_fast --realism2 --long-only ... --write-milestones --milestones-out backtests/out/presets/spot_milestones.tqqq_10y_<bar>_realism_v2.json`
+- Candidate pool generation: `python -m tradebot.backtest spot --axis combo_fast --long-only ... --write-milestones --milestones-out backtests/out/presets/spot_milestones.tqqq_10y_<bar>_realism_v2.json`
 - Stability scoring: `python -m tradebot.backtest spot_multitimeframe --milestones backtests/out/presets/spot_milestones.tqqq_10y_<bar>_realism_v2.json --max-open <N> --require-positive-pnl ...`
 
 #### LEGACY (pre-realism; optimistic)

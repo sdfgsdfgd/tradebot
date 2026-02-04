@@ -104,11 +104,17 @@ class FiltersConfig:
     riskoff_long_risk_mult_factor: float = 1.0
     riskpanic_tr5_med_pct: float | None = None
     riskpanic_neg_gap_ratio_min: float | None = None
+    riskpanic_neg_gap_abs_pct_min: float | None = None
     riskpanic_lookback_days: int = 5
+    riskpanic_tr5_med_delta_min_pct: float | None = None
+    riskpanic_tr5_med_delta_lookback_days: int = 1
     riskpanic_short_risk_mult_factor: float = 1.0
     riskpop_tr5_med_pct: float | None = None
     riskpop_pos_gap_ratio_min: float | None = None
+    riskpop_pos_gap_abs_pct_min: float | None = None
     riskpop_lookback_days: int = 5
+    riskpop_tr5_med_delta_min_pct: float | None = None
+    riskpop_tr5_med_delta_lookback_days: int = 1
     riskpop_long_risk_mult_factor: float = 1.0
     riskpop_short_risk_mult_factor: float = 1.0
 

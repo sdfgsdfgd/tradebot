@@ -692,10 +692,16 @@ def _spot_risk_overlay_flags_by_day(exec_bars: list[Bar], filters: object | None
         getattr(filters, "riskoff_tr5_lookback_days", None),
         getattr(filters, "riskpanic_tr5_med_pct", None),
         getattr(filters, "riskpanic_neg_gap_ratio_min", None),
+        getattr(filters, "riskpanic_neg_gap_abs_pct_min", None),
         getattr(filters, "riskpanic_lookback_days", None),
+        getattr(filters, "riskpanic_tr5_med_delta_min_pct", None),
+        getattr(filters, "riskpanic_tr5_med_delta_lookback_days", None),
         getattr(filters, "riskpop_tr5_med_pct", None),
         getattr(filters, "riskpop_pos_gap_ratio_min", None),
+        getattr(filters, "riskpop_pos_gap_abs_pct_min", None),
         getattr(filters, "riskpop_lookback_days", None),
+        getattr(filters, "riskpop_tr5_med_delta_min_pct", None),
+        getattr(filters, "riskpop_tr5_med_delta_lookback_days", None),
     )
     cache_key = (id(exec_bars), risk_key)
     cached = _SPOT_RISK_OVERLAY_DAY_CACHE.get(cache_key)

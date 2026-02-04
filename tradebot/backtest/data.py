@@ -28,6 +28,9 @@ _INDEX_EXCHANGES = {
 
 _ET_ZONE = ZoneInfo("America/New_York")
 
+_OVERNIGHT_START_ET = time(20, 0)
+_PREMARKET_START_ET = time(4, 0)
+
 
 @dataclass(frozen=True)
 class ContractMeta:
@@ -89,8 +92,50 @@ class IBKRHistoricalData:
             cached = _read_cache(cache_path)
             if cached:
                 return _normalize_bars(cached, symbol=symbol, bar_size=bar_size, use_rth=use_rth)
+
         contract, _ = self.resolve_contract(symbol, exchange)
-        bars = self._fetch_bars(contract, start, end, bar_size, use_rth)
+
+        def _is_intraday() -> bool:
+            bar_def = parse_bar_size(str(bar_size))
+            if bar_def is None:
+                return "day" not in str(bar_size).lower()
+            return bar_def.duration < timedelta(days=1)
+
+        def _ts_to_et(ts: datetime) -> datetime:
+            # Throughout this codebase we treat tz-naive timestamps as UTC.
+            if getattr(ts, "tzinfo", None) is None:
+                return ts.replace(tzinfo=timezone.utc).astimezone(_ET_ZONE)
+            return ts.astimezone(_ET_ZONE)
+
+        def _is_overnight_bar(ts: datetime) -> bool:
+            t = _ts_to_et(ts).timetz().replace(tzinfo=None)
+            return (t >= _OVERNIGHT_START_ET) or (t < _PREMARKET_START_ET)
+
+        def _merge_full24(*, smart: list[Bar], overnight: list[Bar]) -> list[Bar]:
+            by_ts: dict[datetime, Bar] = {}
+            for bar in smart:
+                by_ts[bar.ts] = bar
+            for bar in overnight:
+                # Prefer OVERNIGHT for bars that are in the overnight band; otherwise keep SMART.
+                if _is_overnight_bar(bar.ts) or bar.ts not in by_ts:
+                    by_ts[bar.ts] = bar
+            merged = [by_ts[k] for k in sorted(by_ts.keys())]
+            return [b for b in merged if start <= b.ts <= end]
+
+        # Full24: for stocks, IBKR's SMART (useRTH=0) does not include the OVERNIGHT session.
+        # Stitch SMART + OVERNIGHT into a single 24/5 bar stream when use_rth=False.
+        if (
+            not bool(use_rth)
+            and str(getattr(contract, "secType", "") or "") == "STK"
+            and _is_intraday()
+        ):
+            bars_smart = self._fetch_bars(contract, start, end, bar_size, use_rth=False)
+            contract_overnight, _ = self.resolve_contract(symbol, exchange="OVERNIGHT")
+            bars_overnight = self._fetch_bars(contract_overnight, start, end, bar_size, use_rth=False)
+            bars = _merge_full24(smart=bars_smart, overnight=bars_overnight)
+        else:
+            bars = self._fetch_bars(contract, start, end, bar_size, use_rth)
+
         normalized = _normalize_bars(bars, symbol=symbol, bar_size=bar_size, use_rth=use_rth)
         # Cache raw IBKR timestamps (bar-start for intraday, midnight for daily). Normalization is
         # applied on read so cached files remain stable across timestamp policy changes.
@@ -241,7 +286,9 @@ def _duration_for_bar_size(bar_size: str) -> str:
 
 
 def _cache_path(cache_dir: Path, symbol: str, start: datetime, end: datetime, bar: str, use_rth: bool) -> Path:
-    tag = "rth" if use_rth else "full"
+    # Naming: `rth` for RTH-only. For non-RTH we prefer `full24` (explicitly meaning 24/5 for STK,
+    # and "extended/full session" for everything else).
+    tag = "rth" if use_rth else "full24"
     safe_bar = bar.replace(" ", "")
     return cache_dir / symbol / f"{symbol}_{start.date()}_{end.date()}_{safe_bar}_{tag}.csv"
 
@@ -388,34 +435,36 @@ def _find_covering_cache_path(
     if not folder.exists():
         return None
 
-    tag = "rth" if use_rth else "full"
     safe_bar = str(bar_size).replace(" ", "")
     prefix = f"{symbol}_"
-    suffix = f"_{safe_bar}_{tag}.csv"
-    # Example: MNQ_2025-01-08_2026-01-08_1hour_full.csv
-    pattern = re.compile(
-        rf"^{re.escape(symbol)}_(\d{{4}}-\d{{2}}-\d{{2}})_(\d{{4}}-\d{{2}}-\d{{2}})_{re.escape(safe_bar)}_{tag}\.csv$"
-    )
+    tags = ["rth"] if use_rth else ["full24", "full"]
 
     start_d = start.date()
     end_d = end.date()
-    candidates: list[tuple[int, Path]] = []
-    for path in folder.iterdir():
-        name = path.name
-        if not name.startswith(prefix) or not name.endswith(suffix):
-            continue
-        m = pattern.match(name)
-        if not m:
-            continue
-        try:
-            file_start = date.fromisoformat(m.group(1))
-            file_end = date.fromisoformat(m.group(2))
-        except ValueError:
-            continue
-        if file_start <= start_d and file_end >= end_d:
-            span_days = (file_end - file_start).days
-            candidates.append((span_days, path))
-    if not candidates:
-        return None
-    candidates.sort(key=lambda t: t[0])
-    return candidates[0][1]
+    for tag in tags:
+        suffix = f"_{safe_bar}_{tag}.csv"
+        pattern = re.compile(
+            rf"^{re.escape(symbol)}_(\d{{4}}-\d{{2}}-\d{{2}})_(\d{{4}}-\d{{2}}-\d{{2}})_{re.escape(safe_bar)}_{tag}\.csv$"
+        )
+
+        candidates: list[tuple[int, Path]] = []
+        for path in folder.iterdir():
+            name = path.name
+            if not name.startswith(prefix) or not name.endswith(suffix):
+                continue
+            m = pattern.match(name)
+            if not m:
+                continue
+            try:
+                file_start = date.fromisoformat(m.group(1))
+                file_end = date.fromisoformat(m.group(2))
+            except ValueError:
+                continue
+            if file_start <= start_d and file_end >= end_d:
+                span_days = (file_end - file_start).days
+                candidates.append((span_days, path))
+        if candidates:
+            candidates.sort(key=lambda t: t[0])
+            return candidates[0][1]
+
+    return None

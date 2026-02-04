@@ -73,7 +73,9 @@ def load_config(path: str | Path) -> ConfigBundle:
         quantity=int(strategy_raw.get("quantity", 1)),
         stop_loss_basis=strategy_raw.get("stop_loss_basis", "max_loss"),
         min_credit=(
-            float(strategy_raw["min_credit"]) if "min_credit" in strategy_raw else None
+            float(strategy_raw["min_credit"])
+            if strategy_raw.get("min_credit") is not None
+            else None
         ),
         ema_preset=_parse_ema_preset(strategy_raw.get("ema_preset")),
         ema_entry_mode=_parse_ema_entry_mode(strategy_raw.get("ema_entry_mode")),
@@ -503,9 +505,18 @@ def _parse_filters(raw) -> FiltersConfig | None:
     riskpanic_neg_gap = _f(raw.get("riskpanic_neg_gap_ratio_min"))
     if riskpanic_neg_gap is not None:
         riskpanic_neg_gap = float(max(0.0, min(1.0, riskpanic_neg_gap)))
+    riskpanic_neg_gap_abs = _f(raw.get("riskpanic_neg_gap_abs_pct_min"))
+    if riskpanic_neg_gap_abs is not None:
+        riskpanic_neg_gap_abs = float(max(0.0, min(1.0, riskpanic_neg_gap_abs)))
+        if riskpanic_neg_gap_abs <= 0:
+            riskpanic_neg_gap_abs = None
     riskpanic_lb = _i(raw.get("riskpanic_lookback_days"))
     if riskpanic_lb is None or riskpanic_lb <= 0:
         riskpanic_lb = 5
+    riskpanic_tr5_delta_min = _f(raw.get("riskpanic_tr5_med_delta_min_pct"))
+    riskpanic_tr5_delta_lb = _i(raw.get("riskpanic_tr5_med_delta_lookback_days"))
+    if riskpanic_tr5_delta_lb is None or riskpanic_tr5_delta_lb <= 0:
+        riskpanic_tr5_delta_lb = 1
     riskpanic_short_factor = _f(raw.get("riskpanic_short_risk_mult_factor"))
     if riskpanic_short_factor is None:
         riskpanic_short_factor = 1.0
@@ -518,9 +529,18 @@ def _parse_filters(raw) -> FiltersConfig | None:
     riskpop_pos_gap = _f(raw.get("riskpop_pos_gap_ratio_min"))
     if riskpop_pos_gap is not None:
         riskpop_pos_gap = float(max(0.0, min(1.0, riskpop_pos_gap)))
+    riskpop_pos_gap_abs = _f(raw.get("riskpop_pos_gap_abs_pct_min"))
+    if riskpop_pos_gap_abs is not None:
+        riskpop_pos_gap_abs = float(max(0.0, min(1.0, riskpop_pos_gap_abs)))
+        if riskpop_pos_gap_abs <= 0:
+            riskpop_pos_gap_abs = None
     riskpop_lb = _i(raw.get("riskpop_lookback_days"))
     if riskpop_lb is None or riskpop_lb <= 0:
         riskpop_lb = 5
+    riskpop_tr5_delta_min = _f(raw.get("riskpop_tr5_med_delta_min_pct"))
+    riskpop_tr5_delta_lb = _i(raw.get("riskpop_tr5_med_delta_lookback_days"))
+    if riskpop_tr5_delta_lb is None or riskpop_tr5_delta_lb <= 0:
+        riskpop_tr5_delta_lb = 1
     riskpop_long_factor = _f(raw.get("riskpop_long_risk_mult_factor"))
     if riskpop_long_factor is None:
         riskpop_long_factor = 1.0
@@ -582,11 +602,17 @@ def _parse_filters(raw) -> FiltersConfig | None:
         riskoff_long_risk_mult_factor=float(riskoff_long_factor),
         riskpanic_tr5_med_pct=riskpanic_tr5_med,
         riskpanic_neg_gap_ratio_min=riskpanic_neg_gap,
+        riskpanic_neg_gap_abs_pct_min=riskpanic_neg_gap_abs,
         riskpanic_lookback_days=int(riskpanic_lb),
+        riskpanic_tr5_med_delta_min_pct=riskpanic_tr5_delta_min,
+        riskpanic_tr5_med_delta_lookback_days=int(riskpanic_tr5_delta_lb),
         riskpanic_short_risk_mult_factor=float(riskpanic_short_factor),
         riskpop_tr5_med_pct=riskpop_tr5_med,
         riskpop_pos_gap_ratio_min=riskpop_pos_gap,
+        riskpop_pos_gap_abs_pct_min=riskpop_pos_gap_abs,
         riskpop_lookback_days=int(riskpop_lb),
+        riskpop_tr5_med_delta_min_pct=riskpop_tr5_delta_min,
+        riskpop_tr5_med_delta_lookback_days=int(riskpop_tr5_delta_lb),
         riskpop_long_risk_mult_factor=float(riskpop_long_factor),
         riskpop_short_risk_mult_factor=float(riskpop_short_factor),
     )

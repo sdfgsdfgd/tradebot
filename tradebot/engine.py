@@ -1828,6 +1828,7 @@ class RiskOverlaySnapshot:
     riskpanic: bool
     riskpop: bool = False
     tr_median_pct: float | None = None
+    tr_median_delta_pct: float | None = None
     neg_gap_ratio: float | None = None
     pos_gap_ratio: float | None = None
 
@@ -1847,10 +1848,16 @@ class TrPctRiskOverlayEngine:
         riskoff_lookback_days: int,
         riskpanic_tr_med_pct: float | None,
         riskpanic_neg_gap_ratio_min: float | None,
+        riskpanic_neg_gap_abs_pct_min: float | None,
         riskpanic_lookback_days: int,
+        riskpanic_tr_med_delta_min_pct: float | None,
+        riskpanic_tr_med_delta_lookback_days: int,
         riskpop_tr_med_pct: float | None,
         riskpop_pos_gap_ratio_min: float | None,
+        riskpop_pos_gap_abs_pct_min: float | None,
         riskpop_lookback_days: int,
+        riskpop_tr_med_delta_min_pct: float | None,
+        riskpop_tr_med_delta_lookback_days: int,
     ) -> None:
         self._riskoff_tr_med_pct = float(riskoff_tr_med_pct) if riskoff_tr_med_pct is not None else None
         self._riskoff_lookback = max(1, int(riskoff_lookback_days))
@@ -1860,14 +1867,36 @@ class TrPctRiskOverlayEngine:
         )
         if self._riskpanic_neg_gap_ratio_min is not None:
             self._riskpanic_neg_gap_ratio_min = float(max(0.0, min(1.0, self._riskpanic_neg_gap_ratio_min)))
+        self._riskpanic_neg_gap_abs_pct_min = (
+            float(riskpanic_neg_gap_abs_pct_min) if riskpanic_neg_gap_abs_pct_min is not None else None
+        )
+        if self._riskpanic_neg_gap_abs_pct_min is not None:
+            self._riskpanic_neg_gap_abs_pct_min = float(max(0.0, min(1.0, self._riskpanic_neg_gap_abs_pct_min)))
+            if self._riskpanic_neg_gap_abs_pct_min <= 0:
+                self._riskpanic_neg_gap_abs_pct_min = None
         self._riskpanic_lookback = max(1, int(riskpanic_lookback_days))
+        self._riskpanic_tr_med_delta_min_pct = (
+            float(riskpanic_tr_med_delta_min_pct) if riskpanic_tr_med_delta_min_pct is not None else None
+        )
+        self._riskpanic_tr_med_delta_lookback = max(1, int(riskpanic_tr_med_delta_lookback_days))
         self._riskpop_tr_med_pct = float(riskpop_tr_med_pct) if riskpop_tr_med_pct is not None else None
         self._riskpop_pos_gap_ratio_min = (
             float(riskpop_pos_gap_ratio_min) if riskpop_pos_gap_ratio_min is not None else None
         )
         if self._riskpop_pos_gap_ratio_min is not None:
             self._riskpop_pos_gap_ratio_min = float(max(0.0, min(1.0, self._riskpop_pos_gap_ratio_min)))
+        self._riskpop_pos_gap_abs_pct_min = (
+            float(riskpop_pos_gap_abs_pct_min) if riskpop_pos_gap_abs_pct_min is not None else None
+        )
+        if self._riskpop_pos_gap_abs_pct_min is not None:
+            self._riskpop_pos_gap_abs_pct_min = float(max(0.0, min(1.0, self._riskpop_pos_gap_abs_pct_min)))
+            if self._riskpop_pos_gap_abs_pct_min <= 0:
+                self._riskpop_pos_gap_abs_pct_min = None
         self._riskpop_lookback = max(1, int(riskpop_lookback_days))
+        self._riskpop_tr_med_delta_min_pct = (
+            float(riskpop_tr_med_delta_min_pct) if riskpop_tr_med_delta_min_pct is not None else None
+        )
+        self._riskpop_tr_med_delta_lookback = max(1, int(riskpop_tr_med_delta_lookback_days))
 
         self._riskoff_tr_hist: deque[float] | None = (
             deque(maxlen=self._riskoff_lookback)
@@ -1883,6 +1912,11 @@ class TrPctRiskOverlayEngine:
         ):
             self._riskpanic_tr_hist = deque(maxlen=self._riskpanic_lookback)
             self._riskpanic_neg_gap_hist = deque(maxlen=self._riskpanic_lookback)
+        self._riskpanic_tr_med_hist: deque[float] | None = (
+            deque(maxlen=max(2, int(self._riskpanic_tr_med_delta_lookback) + 1))
+            if self._riskpanic_tr_med_delta_min_pct is not None
+            else None
+        )
         self._riskpop_tr_hist: deque[float] | None = None
         self._riskpop_pos_gap_hist: deque[int] | None = None
         if (
@@ -1892,6 +1926,11 @@ class TrPctRiskOverlayEngine:
         ):
             self._riskpop_tr_hist = deque(maxlen=self._riskpop_lookback)
             self._riskpop_pos_gap_hist = deque(maxlen=self._riskpop_lookback)
+        self._riskpop_tr_med_hist: deque[float] | None = (
+            deque(maxlen=max(2, int(self._riskpop_tr_med_delta_lookback) + 1))
+            if self._riskpop_tr_med_delta_min_pct is not None
+            else None
+        )
 
         self._prev_close: float | None = None
         self._cur_day: date | None = None
@@ -1903,6 +1942,7 @@ class TrPctRiskOverlayEngine:
         self._riskpanic_today = False
         self._riskpop_today = False
         self._tr_median_pct: float | None = None
+        self._tr_median_delta_pct: float | None = None
         self._neg_gap_ratio: float | None = None
         self._pos_gap_ratio: float | None = None
 
@@ -1916,6 +1956,7 @@ class TrPctRiskOverlayEngine:
 
     def _compute_today_flags(self) -> None:
         self._tr_median_pct = None
+        self._tr_median_delta_pct = None
         self._neg_gap_ratio = None
         self._pos_gap_ratio = None
 
@@ -1928,6 +1969,7 @@ class TrPctRiskOverlayEngine:
 
         self._riskpanic_today = False
         tr_med_panic: float | None = None
+        tr_delta_panic: float | None = None
         if (
             self._riskpanic_tr_hist is not None
             and self._riskpanic_neg_gap_hist is not None
@@ -1938,14 +1980,21 @@ class TrPctRiskOverlayEngine:
         ):
             tr_vals = sorted(self._riskpanic_tr_hist)
             tr_med_panic = float(tr_vals[len(tr_vals) // 2])
+            if self._riskpanic_tr_med_hist is not None:
+                if len(self._riskpanic_tr_med_hist) >= int(self._riskpanic_tr_med_delta_lookback):
+                    prev = list(self._riskpanic_tr_med_hist)[-int(self._riskpanic_tr_med_delta_lookback)]
+                    tr_delta_panic = float(tr_med_panic) - float(prev)
+                self._riskpanic_tr_med_hist.append(float(tr_med_panic))
             neg_ratio = float(sum(self._riskpanic_neg_gap_hist)) / float(len(self._riskpanic_neg_gap_hist))
             self._neg_gap_ratio = float(neg_ratio)
-            self._riskpanic_today = bool(
-                tr_med_panic >= float(self._riskpanic_tr_med_pct) and neg_ratio >= float(self._riskpanic_neg_gap_ratio_min)
-            )
+            ok = bool(tr_med_panic >= float(self._riskpanic_tr_med_pct) and neg_ratio >= float(self._riskpanic_neg_gap_ratio_min))
+            if ok and self._riskpanic_tr_med_delta_min_pct is not None:
+                ok = bool(tr_delta_panic is not None and tr_delta_panic >= float(self._riskpanic_tr_med_delta_min_pct))
+            self._riskpanic_today = bool(ok)
 
         self._riskpop_today = False
         tr_med_pop: float | None = None
+        tr_delta_pop: float | None = None
         if (
             self._riskpop_tr_hist is not None
             and self._riskpop_pos_gap_hist is not None
@@ -1956,14 +2005,28 @@ class TrPctRiskOverlayEngine:
         ):
             tr_vals = sorted(self._riskpop_tr_hist)
             tr_med_pop = float(tr_vals[len(tr_vals) // 2])
+            if self._riskpop_tr_med_hist is not None:
+                if len(self._riskpop_tr_med_hist) >= int(self._riskpop_tr_med_delta_lookback):
+                    prev = list(self._riskpop_tr_med_hist)[-int(self._riskpop_tr_med_delta_lookback)]
+                    tr_delta_pop = float(tr_med_pop) - float(prev)
+                self._riskpop_tr_med_hist.append(float(tr_med_pop))
             pos_ratio = float(sum(self._riskpop_pos_gap_hist)) / float(len(self._riskpop_pos_gap_hist))
             self._pos_gap_ratio = float(pos_ratio)
-            self._riskpop_today = bool(
-                tr_med_pop >= float(self._riskpop_tr_med_pct) and pos_ratio >= float(self._riskpop_pos_gap_ratio_min)
-            )
+            ok = bool(tr_med_pop >= float(self._riskpop_tr_med_pct) and pos_ratio >= float(self._riskpop_pos_gap_ratio_min))
+            if ok and self._riskpop_tr_med_delta_min_pct is not None:
+                ok = bool(tr_delta_pop is not None and tr_delta_pop >= float(self._riskpop_tr_med_delta_min_pct))
+            self._riskpop_today = bool(ok)
 
         # Expose a single TR-median value for observability. Prefer the stricter overlays.
-        self._tr_median_pct = tr_med_panic if tr_med_panic is not None else (tr_med_pop if tr_med_pop is not None else tr_med_off)
+        if tr_med_panic is not None:
+            self._tr_median_pct = float(tr_med_panic)
+            self._tr_median_delta_pct = float(tr_delta_panic) if tr_delta_panic is not None else None
+        elif tr_med_pop is not None:
+            self._tr_median_pct = float(tr_med_pop)
+            self._tr_median_delta_pct = float(tr_delta_pop) if tr_delta_pop is not None else None
+        else:
+            self._tr_median_pct = tr_med_off
+            self._tr_median_delta_pct = None
 
     def update(
         self,
@@ -1995,16 +2058,25 @@ class TrPctRiskOverlayEngine:
                 and float(self._prev_close) > 0
             ):
                 gap_pct = (float(self._day_open) - float(self._prev_close)) / float(self._prev_close)
-                self._riskpanic_neg_gap_hist.append(1 if float(gap_pct) < 0 else 0)
+                neg_ok = bool(float(gap_pct) < 0)
+                if self._riskpanic_neg_gap_abs_pct_min is not None:
+                    neg_ok = bool(float(gap_pct) <= -float(self._riskpanic_neg_gap_abs_pct_min))
+                self._riskpanic_neg_gap_hist.append(1 if neg_ok else 0)
                 if self._riskpop_pos_gap_hist is not None:
-                    self._riskpop_pos_gap_hist.append(1 if float(gap_pct) > 0 else 0)
+                    pos_ok = bool(float(gap_pct) > 0)
+                    if self._riskpop_pos_gap_abs_pct_min is not None:
+                        pos_ok = bool(float(gap_pct) >= float(self._riskpop_pos_gap_abs_pct_min))
+                    self._riskpop_pos_gap_hist.append(1 if pos_ok else 0)
             elif (
                 self._riskpop_pos_gap_hist is not None
                 and self._prev_close is not None
                 and float(self._prev_close) > 0
             ):
                 gap_pct = (float(self._day_open) - float(self._prev_close)) / float(self._prev_close)
-                self._riskpop_pos_gap_hist.append(1 if float(gap_pct) > 0 else 0)
+                pos_ok = bool(float(gap_pct) > 0)
+                if self._riskpop_pos_gap_abs_pct_min is not None:
+                    pos_ok = bool(float(gap_pct) >= float(self._riskpop_pos_gap_abs_pct_min))
+                self._riskpop_pos_gap_hist.append(1 if pos_ok else 0)
 
         if self._day_high is not None:
             self._day_high = max(float(self._day_high), float(high))
@@ -2033,6 +2105,7 @@ class TrPctRiskOverlayEngine:
             riskpanic=bool(self._riskpanic_today),
             riskpop=bool(self._riskpop_today),
             tr_median_pct=float(self._tr_median_pct) if self._tr_median_pct is not None else None,
+            tr_median_delta_pct=float(self._tr_median_delta_pct) if self._tr_median_delta_pct is not None else None,
             neg_gap_ratio=float(self._neg_gap_ratio) if self._neg_gap_ratio is not None else None,
             pos_gap_ratio=float(self._pos_gap_ratio) if self._pos_gap_ratio is not None else None,
         )
@@ -2069,7 +2142,28 @@ def build_tr_pct_risk_overlay_engine(
     if riskpanic_gap_ratio is not None:
         riskpanic_gap_ratio = float(max(0.0, min(1.0, riskpanic_gap_ratio)))
 
+    raw_gap_abs = _filters_get(filters, "riskpanic_neg_gap_abs_pct_min")
+    try:
+        riskpanic_gap_abs = float(raw_gap_abs) if raw_gap_abs is not None else None
+    except (TypeError, ValueError):
+        riskpanic_gap_abs = None
+    if riskpanic_gap_abs is not None:
+        riskpanic_gap_abs = float(max(0.0, min(1.0, riskpanic_gap_abs)))
+        if riskpanic_gap_abs <= 0:
+            riskpanic_gap_abs = None
+
     riskpanic_lb = _parse_int(_filters_get(filters, "riskpanic_lookback_days"), default=5, min_value=1)
+
+    raw_panic_delta = _filters_get(filters, "riskpanic_tr5_med_delta_min_pct")
+    try:
+        riskpanic_tr_delta_min = float(raw_panic_delta) if raw_panic_delta is not None else None
+    except (TypeError, ValueError):
+        riskpanic_tr_delta_min = None
+    riskpanic_tr_delta_lb = _parse_int(
+        _filters_get(filters, "riskpanic_tr5_med_delta_lookback_days"),
+        default=1,
+        min_value=1,
+    )
 
     raw_pop = _filters_get(filters, "riskpop_tr5_med_pct")
     try:
@@ -2087,7 +2181,28 @@ def build_tr_pct_risk_overlay_engine(
     if riskpop_pos_gap_ratio is not None:
         riskpop_pos_gap_ratio = float(max(0.0, min(1.0, riskpop_pos_gap_ratio)))
 
+    raw_pos_abs = _filters_get(filters, "riskpop_pos_gap_abs_pct_min")
+    try:
+        riskpop_pos_gap_abs = float(raw_pos_abs) if raw_pos_abs is not None else None
+    except (TypeError, ValueError):
+        riskpop_pos_gap_abs = None
+    if riskpop_pos_gap_abs is not None:
+        riskpop_pos_gap_abs = float(max(0.0, min(1.0, riskpop_pos_gap_abs)))
+        if riskpop_pos_gap_abs <= 0:
+            riskpop_pos_gap_abs = None
+
     riskpop_lb = _parse_int(_filters_get(filters, "riskpop_lookback_days"), default=5, min_value=1)
+
+    raw_pop_delta = _filters_get(filters, "riskpop_tr5_med_delta_min_pct")
+    try:
+        riskpop_tr_delta_min = float(raw_pop_delta) if raw_pop_delta is not None else None
+    except (TypeError, ValueError):
+        riskpop_tr_delta_min = None
+    riskpop_tr_delta_lb = _parse_int(
+        _filters_get(filters, "riskpop_tr5_med_delta_lookback_days"),
+        default=1,
+        min_value=1,
+    )
 
     enabled = (
         bool(riskoff_tr_med is not None)
@@ -2102,10 +2217,16 @@ def build_tr_pct_risk_overlay_engine(
         riskoff_lookback_days=int(riskoff_lb),
         riskpanic_tr_med_pct=riskpanic_tr_med,
         riskpanic_neg_gap_ratio_min=riskpanic_gap_ratio,
+        riskpanic_neg_gap_abs_pct_min=riskpanic_gap_abs,
         riskpanic_lookback_days=int(riskpanic_lb),
+        riskpanic_tr_med_delta_min_pct=riskpanic_tr_delta_min,
+        riskpanic_tr_med_delta_lookback_days=int(riskpanic_tr_delta_lb),
         riskpop_tr_med_pct=riskpop_tr_med,
         riskpop_pos_gap_ratio_min=riskpop_pos_gap_ratio,
+        riskpop_pos_gap_abs_pct_min=riskpop_pos_gap_abs,
         riskpop_lookback_days=int(riskpop_lb),
+        riskpop_tr_med_delta_min_pct=riskpop_tr_delta_min,
+        riskpop_tr_med_delta_lookback_days=int(riskpop_tr_delta_lb),
     )
 
 
