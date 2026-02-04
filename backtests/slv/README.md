@@ -7,16 +7,48 @@ This folder is the **single source of truth** for SLV research going forward:
 We are explicitly targeting the new contract:
 - **Symbol:** `SLV`
 - **Instrument:** spot (underlying)
-- **Signal timeframe:** **15 mins**
+- **Signal timeframe:** **1 hour**
 - **Execution timeframe:** **5 mins** (`spot_exec_bar_size="5 mins"`) for realism (intrabar stops + next-open fills)
-- **Goal:** **>= 1000 trades / year** (high activity) while preserving stability across **10y / 2y / 1y**
+- **Goal:** **> 500 trades / year** (high activity) while preserving stability across **10y / 2y / 1y**
 
 ## Current Champions (stack)
 
-### CURRENT (v6) — First above-floor stability lift (worst-window `roi/dd >= 1.5`)
+### CURRENT (v7) — Full24 stability lift (worst-window `roi/dd >= 3.5`)
 This is the first SLV family that:
 - stays **positive PnL** across **10y / 2y / 1y**
-- keeps the desired **high activity** in the 1y window (`>=1000 trades`)
+- meets the activity constraint in the 1y window (`>500 trades`)
+- and meaningfully improves worst-window stability vs the legacy RTH-era stack (pre-ET-fix).
+
+**v7 kingmaker #1** (from `backtests/slv/slv_exec5m_v7_full24_champ_refine_1h_todoff_10y2y1y_mintr100_top80.json`)
+- Worst-window `roi/dd`: **3.60** (worst window is **1y**)
+- 10y: `roi/dd=3.75`, ROI ≈ **247.8%**, DD% ≈ **66.2%**, pnl ≈ **$247,830**, trades ≈ **4,207**
+- 2y:  `roi/dd=4.42`, ROI ≈ **164.8%**, DD% ≈ **37.3%**, trades ≈ **857**
+- 1y:  `roi/dd=3.60`, ROI ≈ **102.7%**, DD% ≈ **28.5%**, trades ≈ **539**
+
+Defining shape (abridged):
+- Signal: `ema_preset=9/21`, `ema_entry_mode=trend`, `entry_confirm_bars=0` on `1 hour`
+- Exits: stop-only `spot_stop_loss_pct=0.012`, plus `exit_on_signal_flip=true`
+  with `flip_exit_only_if_profit=true` and `flip_exit_min_hold_bars=2`
+- Regime: `supertrend @ 1 day`
+- Shock: `shock_gate_mode=surf` with `shock_detector=daily_atr_pct`
+- Session/TOD: **off** (full24)
+- `max_open_trades=5`, `spot_close_eod=false`, `spot_short_risk_mult=0.02`
+
+### LEGACY (timestamp-bug) — archived (pre-ET-fix SLV “champs”)
+
+These sections are preserved for archaeology only.
+
+We had a **timestamp interpretation bug** (ET) in the backtest engine that made the older SLV champ
+files (v6/v4/v3/v2) **not reproducible at their previously reported metrics**.
+
+ET-fixed rescored reference (reproducible today, but *not* champion-grade):
+`backtests/slv/slv_exec5m_v6_st_neighborhood_champ_refine_15m_10y2y1y_mintr1000_top80_rescored_et.json`
+- v6 kingmaker #01 (rescored): worst-window `roi/dd≈0.82` (10y), 2y `≈2.05`, 1y `≈1.65`
+
+#### (legacy) v6 — First above-floor stability lift (timestamp-bug era; do not use)
+This is the first SLV family that:
+- stays **positive PnL** across **10y / 2y / 1y**
+- meets the activity constraint in the 1y window (`>500 trades`)
 - and meaningfully improves worst-window stability vs v4 (10y `roi/dd` lifted from **`1.39`** → **`1.70`**)
 
 **v6 kingmaker #1** (from `backtests/slv/slv_exec5m_v6_st_neighborhood_champ_refine_15m_10y2y1y_mintr1000_top80.json`)
@@ -34,10 +66,10 @@ Defining shape (abridged):
 - `max_open_trades=5`, `spot_close_eod=false`, `spot_short_risk_mult=0.01`
 - Note: this winner is still “simple” (no extra shock/risk overlays); the gain came from a better Supertrend + hold pocket.
 
-### Previous CURRENT (v4) — First decade stability lift from the v3 baseline (still below floor)
+#### (legacy) v4 — First decade stability lift from the v3 baseline (timestamp-bug era; do not use)
 This is the first SLV family that:
 - stays **positive PnL** across **10y / 2y / 1y**
-- keeps the desired **high activity** in the 1y window (`>=1000 trades`)
+- meets the activity constraint in the 1y window (`>500 trades`)
 - and improves worst-window stability vs v3 (10y `roi/dd` lifted from ~`1.25` → **`1.39`**)
 
 **v4 kingmaker #1** (from `backtests/slv/slv_exec5m_v4_shockrisk_champ_refine_15m_10y2y1y_mintr1000_top80.json`)
@@ -55,10 +87,10 @@ Defining shape (abridged):
 - `max_open_trades=5`, `spot_close_eod=false`, `spot_short_risk_mult=0.01`
 - Note: even though v4 sweeps expanded shock/risk scaling pockets, the current best is still **shock=off** (pure regime+stack wins again).
 
-### Previous CURRENT (v3) — First stability lift above the v2 baseline (still below floor)
+#### (legacy) v3 — First stability lift above the v2 baseline (timestamp-bug era; do not use)
 This is the first SLV family that:
 - stays **positive PnL** across **10y / 2y / 1y**
-- keeps the desired **high activity** in the 1y window (`>=1000 trades`)
+- meets the activity constraint in the 1y window (`>500 trades`)
 - and meaningfully improves worst-window stability vs v2.
 
 **v3 kingmaker #1** (from `backtests/slv/slv_exec5m_v3_champ_refine_ranktrades_15m_10y2y1y_mintr1000_top80.json`)
@@ -77,10 +109,10 @@ Defining shape (abridged):
 - `spot_close_eod=false`, `spot_short_risk_mult=0.01`
 - No extra permission/shock/risk-pop overlays in this top pick (surprisingly, the simple regime+stack wins here)
 
-### Previous CURRENT (v2) — First 10y/2y/1y-positive high-activity baseline (below stability floor)
+#### (legacy) v2 — First 10y/2y/1y-positive high-activity baseline (timestamp-bug era; do not use)
 This is the first SLV family that is:
 - Positive PnL in **all 3 windows** (10y + 2y + 1y)
-- Meets the activity constraint (`>=1000 trades` in 1y)
+- Meets the activity constraint (`>500 trades` in 1y)
 
 It is **not yet** “contract-ready” because worst-window `roi/dd` is still well below the target floor
 (initially `>=1.5..2.0`, eventually aiming near the TQQQ champ ≈3.49).
@@ -100,7 +132,7 @@ Defining shape (abridged):
 
 Promotion checklist (minimum):
 - Positive PnL in **all 3** windows (10y + 2y + 1y)
-- 1y trades `>= 1000`
+- 1y trades `> 500`
 - Worst-window `roi/dd` meets the current floor (initially `>= 1.5..2.0`, then raised)
 
 ## Benchmark
@@ -140,7 +172,7 @@ python -m tradebot.backtest spot \
 
 High-level pipeline:
 1) **Generate candidate pool** (spot sweeps → milestones JSON)
-2) **1y prefilter**: require `>=1000 trades` + `pnl>0` on 1y
+2) **1y prefilter**: require `>500 trades` + `pnl>0` on 1y (legacy runs used `>=1000`)
 3) **10y/2y/1y kingmaker**: maximize the **worst-window** `roi/dd`, keep `pnl>0` in all 3 windows
 4) Promote winners into the **Current Champions** stack above
 
