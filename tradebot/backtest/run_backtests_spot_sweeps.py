@@ -372,6 +372,7 @@ _COMBO_FULL_AXIS_SCHEMA_BASE: tuple[tuple[str, str, bool], ...] = tuple(
     (name, str(_COMBO_FULL_PARALLEL_PROFILE_BY_AXIS.get(name, "single")), True) for name in _COMBO_FULL_PLAN
 )
 _COMBO_FULL_AXIS_SCHEMA_SEEDED: tuple[tuple[str, str, bool], ...] = (
+    ("champ_refine", "single", True),
     ("overlay_family", "single", True),
     ("st37_refine", "single", True),
 )
@@ -3103,6 +3104,107 @@ def main() -> None:
         write_json(out_path, out_payload, sort_keys=False)
         print(f"{stage_label} worker done tested={tested} kept={len(records)} out={out_path}", flush=True)
 
+    def _decode_payload_schema_cfg_row(
+        rec: dict,
+        *,
+        default_note: str,
+        context: dict | None = None,
+    ) -> tuple[ConfigBundle, dict, str] | None:
+        decoded = _decode_cfg_payload(rec, note_key="note", default_note=str(default_note))
+        if decoded is None:
+            return None
+        cfg, note = decoded
+        row = rec.get("row")
+        if not isinstance(row, dict):
+            return None
+        row_out = dict(row)
+        row_out["note"] = note
+        return cfg, row_out, str(note)
+
+    def _decode_payload_schema_gate_matrix_stage2(
+        rec: dict,
+        *,
+        default_note: str,
+        context: dict | None = None,
+    ) -> tuple[ConfigBundle, dict, str] | None:
+        del default_note
+        if not isinstance(context, dict):
+            return None
+        seeds = context.get("seeds")
+        mk_stage2_cfg = context.get("mk_stage2_cfg")
+        if not isinstance(seeds, list) or not callable(mk_stage2_cfg):
+            return None
+        seed_idx_raw = rec.get("seed_idx")
+        if seed_idx_raw is None:
+            return None
+        try:
+            seed_idx = int(seed_idx_raw)
+        except (TypeError, ValueError):
+            return None
+        if seed_idx < 0 or seed_idx >= len(seeds):
+            return None
+        base_seed_cfg, _seed_row, seed_note, family = seeds[seed_idx]
+        cfg, note = mk_stage2_cfg(
+            base_seed_cfg,
+            str(seed_note),
+            str(family),
+            perm_on=bool(rec.get("perm_on")),
+            tick_on=bool(rec.get("tick_on")),
+            shock_on=bool(rec.get("shock_on")),
+            riskoff_on=bool(rec.get("riskoff_on")),
+            riskpanic_on=bool(rec.get("riskpanic_on")),
+            riskpop_on=bool(rec.get("riskpop_on")),
+            regime2_on=bool(rec.get("regime2_on")),
+            short_mult=float(rec.get("short_mult") or 0.0),
+        )
+        row = rec.get("row")
+        if not isinstance(row, dict):
+            return None
+        row_out = dict(row)
+        row_out["note"] = note
+        return cfg, row_out, str(note)
+
+    _STAGE_PAYLOAD_SCHEMA_REGISTRY: dict[str, dict[str, object]] = {
+        "cfg_rows": {
+            "records_key": "records",
+            "tested_key": "tested",
+            "decode": _decode_payload_schema_cfg_row,
+        },
+        "gate_matrix_stage2_rows": {
+            "records_key": "records",
+            "tested_key": "tested",
+            "decode": _decode_payload_schema_gate_matrix_stage2,
+        },
+    }
+
+    def _collect_stage_payloads_by_schema(
+        *,
+        payloads: dict[int, dict],
+        schema_name: str,
+        default_note: str = "",
+        context: dict | None = None,
+        on_item=None,
+    ) -> int:
+        schema = _STAGE_PAYLOAD_SCHEMA_REGISTRY.get(str(schema_name))
+        if not isinstance(schema, dict):
+            raise SystemExit(f"Unknown payload schema: {schema_name!r}")
+        records_key = str(schema.get("records_key") or "records")
+        tested_key = str(schema.get("tested_key") or "tested")
+        decode = schema.get("decode")
+        if not callable(decode):
+            raise SystemExit(f"Invalid payload schema decode handler: {schema_name!r}")
+
+        def _decode_record(rec: dict):
+            return decode(rec, default_note=str(default_note), context=context)
+
+        return _collect_parallel_payload_records(
+            payloads=payloads,
+            records_key=records_key,
+            tested_key=tested_key,
+            decode_record=_decode_record,
+            on_record=on_item,
+        )
+
     def _collect_stage_rows_from_payloads(
         *,
         payloads: dict[int, dict],
@@ -3112,33 +3214,22 @@ def main() -> None:
     ) -> int:
         seen_keys: set[str] | None = set() if bool(dedupe_by_milestone_key) else None
 
-        def _decode_record(rec: dict) -> tuple[ConfigBundle, dict, str] | None:
-            decoded = _decode_cfg_payload(rec, note_key="note", default_note=str(default_note))
-            if decoded is None:
-                return None
-            cfg, note = decoded
+        def _on_item(item: tuple[ConfigBundle, dict, str] | None) -> None:
+            if item is None:
+                return
+            cfg, row, note = item
             if seen_keys is not None:
                 cfg_key = _milestone_key(cfg)
                 if cfg_key in seen_keys:
-                    return None
+                    return
                 seen_keys.add(cfg_key)
-            row = rec.get("row")
-            if not isinstance(row, dict):
-                return None
-            row_out = dict(row)
-            row_out["note"] = note
-            return cfg, row_out, str(note)
-
-        def _on_record(item: tuple[ConfigBundle, dict, str]) -> None:
-            cfg, row, note = item
             on_row(cfg, row, note)
 
-        return _collect_parallel_payload_records(
+        return _collect_stage_payloads_by_schema(
             payloads=payloads,
-            records_key="records",
-            tested_key="tested",
-            decode_record=_decode_record,
-            on_record=_on_record,
+            schema_name="cfg_rows",
+            default_note=str(default_note),
+            on_item=_on_item,
         )
 
     def _run_stage_serial(
@@ -6219,52 +6310,11 @@ def main() -> None:
             pop_total = 0
         total = riskoff_total + panic_total + pop_total
 
-        if args.risk_overlays_worker is not None:
-            if not offline:
-                raise SystemExit("risk_overlays worker mode requires --offline (avoid parallel IBKR sessions).")
-            out_path_raw = str(args.risk_overlays_out or "").strip()
-            if not out_path_raw:
-                raise SystemExit("--risk-overlays-out is required for risk_overlays worker mode.")
-            out_path = Path(out_path_raw)
-
-            worker_id, workers = _parse_worker_shard(
-                args.risk_overlays_worker,
-                args.risk_overlays_workers,
-                label="risk_overlays",
-            )
-
-            local_total = (total // workers) + (1 if worker_id < (total % workers) else 0)
-            tested = 0
-            combo_idx = 0
-            report_every = 50
-            t0 = pytime.perf_counter()
-            records: list[dict] = []
-
-            def _progress(label: str) -> None:
-                elapsed = pytime.perf_counter() - t0
-                rate = (tested / elapsed) if elapsed > 0 else 0.0
-                remaining = local_total - tested
-                eta_sec = (remaining / rate) if rate > 0 else 0.0
-                pct = (tested / local_total * 100.0) if local_total > 0 else 0.0
-                print(
-                    f"risk_overlays worker {worker_id+1}/{workers} {label} "
-                    f"{tested}/{local_total} ({pct:0.1f}%) kept={len(records)} "
-                    f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
-                    flush=True,
-                )
-
+        def _iter_risk_overlay_specs():
             for tr_med in riskoff_trs:
                 for lb in riskoff_lbs:
                     for mode in riskoff_modes:
                         for cutoff in riskoff_cutoffs_et:
-                            assigned = (combo_idx % workers) == worker_id
-                            combo_idx += 1
-                            if not assigned:
-                                continue
-                            tested += 1
-                            if tested % report_every == 0 or tested == local_total:
-                                _progress("riskoff")
-
                             overrides = {
                                 "riskoff_tr5_med_pct": float(tr_med),
                                 "riskoff_tr5_lookback_days": int(lb),
@@ -6273,14 +6323,9 @@ def main() -> None:
                                 "riskpanic_tr5_med_pct": None,
                                 "riskpanic_neg_gap_ratio_min": None,
                             }
-                            f = _mk_filters(overrides=overrides)
-                            cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
-                            row = _run_cfg(cfg=cfg)
-                            if not row:
-                                continue
                             cut_note = "-" if cutoff is None else f"cutoff<{cutoff:02d} ET"
                             note = f"riskoff TRmed{lb}>={tr_med:g} mode={mode} {cut_note}"
-                            records.append({"overrides": overrides, "note": note, "row": row})
+                            yield overrides, note, None
 
             for tr_med in panic_trs:
                 for neg_ratio in neg_ratios:
@@ -6290,14 +6335,6 @@ def main() -> None:
                                 for cutoff in panic_cutoffs_et:
                                     for abs_gap in panic_neg_gap_abs_pcts:
                                         for tr_delta_min, tr_delta_lb, tr_delta_note in panic_tr_delta_variants:
-                                            assigned = (combo_idx % workers) == worker_id
-                                            combo_idx += 1
-                                            if not assigned:
-                                                continue
-                                            tested += 1
-                                            if tested % report_every == 0 or tested == local_total:
-                                                _progress("riskpanic")
-
                                             overrides = {
                                                 "riskoff_tr5_med_pct": None,
                                                 "riskpanic_tr5_med_pct": float(tr_med),
@@ -6315,18 +6352,12 @@ def main() -> None:
                                             }
                                             if long_factor is not None:
                                                 overrides["riskpanic_long_risk_mult_factor"] = float(long_factor)
-                                            # v39-style: pre-panic continuous scaling (requires TR-velocity gate + long shrink).
                                             if (
                                                 long_factor is not None
                                                 and float(long_factor) < 1.0
                                                 and tr_delta_min is not None
                                             ):
                                                 overrides["riskpanic_long_scale_mode"] = "linear"
-                                            f = _mk_filters(overrides=overrides)
-                                            cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
-                                            row = _run_cfg(cfg=cfg)
-                                            if not row:
-                                                continue
                                             cut_note = "-" if cutoff is None else f"cutoff<{cutoff:02d} ET"
                                             gap_note = "-" if abs_gap is None else f"|gap|>={abs_gap*100:0.0f}%"
                                             long_note = "" if long_factor is None else f" long_factor={long_factor:g}"
@@ -6337,7 +6368,7 @@ def main() -> None:
                                                 f"riskpanic TRmed{lb}>={tr_med:g} neg_gap>={neg_ratio:g} {gap_note} "
                                                 f"{tr_delta_note}{scale_note} short_factor={short_factor:g}{long_note} {cut_note}"
                                             )
-                                            records.append({"overrides": overrides, "note": note, "row": row})
+                                            yield overrides, note, None
 
             if not skip_pop:
                 for tr_med in pop_trs:
@@ -6349,14 +6380,6 @@ def main() -> None:
                                         for mode in pop_modes:
                                             for abs_gap in pop_pos_gap_abs_pcts:
                                                 for tr_delta_min, tr_delta_lb, tr_delta_note in pop_tr_delta_variants:
-                                                    assigned = (combo_idx % workers) == worker_id
-                                                    combo_idx += 1
-                                                    if not assigned:
-                                                        continue
-                                                    tested += 1
-                                                    if tested % report_every == 0 or tested == local_total:
-                                                        _progress("riskpop")
-
                                                     overrides = {
                                                         "riskoff_tr5_med_pct": None,
                                                         "riskpanic_tr5_med_pct": None,
@@ -6378,28 +6401,36 @@ def main() -> None:
                                                         ),
                                                         "riskoff_mode": str(mode),
                                                     }
-                                                    f = _mk_filters(overrides=overrides)
-                                                    cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
-                                                    row = _run_cfg(cfg=cfg)
-                                                    if not row:
-                                                        continue
                                                     cut_note = "-" if cutoff is None else f"cutoff<{cutoff:02d} ET"
-                                                    gap_note = (
-                                                        "-" if abs_gap is None else f"|gap|>={abs_gap*100:0.0f}%"
-                                                    )
+                                                    gap_note = "-" if abs_gap is None else f"|gap|>={abs_gap*100:0.0f}%"
                                                     note = (
                                                         f"riskpop TRmed{lb}>={tr_med:g} pos_gap>={pos_ratio:g} {gap_note} "
                                                         f"{tr_delta_note} mode={mode} long_factor={long_factor:g} "
                                                         f"short_factor={short_factor:g} {cut_note}"
                                                     )
-                                                    records.append({"overrides": overrides, "note": note, "row": row})
+                                                    yield overrides, note, None
 
-            if combo_idx != total:
-                raise SystemExit(f"risk_overlays worker internal error: combos={combo_idx} expected={total}")
+        def _iter_risk_overlay_plan():
+            for overrides, note, meta_item in _iter_risk_overlay_specs():
+                f = _mk_filters(overrides=overrides)
+                cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
+                yield cfg, note, meta_item
 
-            out_payload = {"tested": tested, "kept": len(records), "records": records}
-            write_json(out_path, out_payload, sort_keys=False)
-            print(f"risk_overlays worker done tested={tested} kept={len(records)} out={out_path}", flush=True)
+        if args.risk_overlays_worker is not None:
+            plan_all = list(_iter_risk_overlay_plan())
+            if len(plan_all) != int(total):
+                raise SystemExit(f"risk_overlays worker internal error: combos={len(plan_all)} expected={total}")
+            _run_sharded_stage_worker(
+                stage_label="risk_overlays",
+                worker_raw=args.risk_overlays_worker,
+                workers_raw=args.risk_overlays_workers,
+                out_path_raw=str(args.risk_overlays_out or ""),
+                out_flag_name="risk-overlays-out",
+                plan_all=plan_all,
+                bars=bars_sig,
+                report_every=50,
+                heartbeat_sec=50.0,
+            )
             return
 
         base = _base_bundle(bar_size=signal_bar_size, filters=None)
@@ -6439,201 +6470,28 @@ def main() -> None:
                 invalid_label="risk_overlays",
             )
 
-            def _decode_risk_overlay_record(rec: dict) -> tuple[ConfigBundle, dict, str] | None:
-                overrides = rec.get("overrides")
-                note = rec.get("note")
-                row = rec.get("row")
-                if not isinstance(overrides, dict) or not isinstance(note, str) or not isinstance(row, dict):
-                    return None
-                row_out = dict(row)
-                f = _mk_filters(overrides=overrides)
-                cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
-                row_out["note"] = str(note)
-                return cfg, row_out, str(note)
-
-            def _on_risk_overlay_record(item: tuple[ConfigBundle, dict, str]) -> None:
-                cfg, row, note = item
+            def _on_parallel_row(cfg: ConfigBundle, row: dict, note: str) -> None:
                 _record_milestone(cfg, row, note)
                 rows.append(row)
 
-            tested_total = _collect_parallel_payload_records(
+            tested_total = _collect_stage_rows_from_payloads(
                 payloads=payloads,
-                decode_record=_decode_risk_overlay_record,
-                on_record=_on_risk_overlay_record,
+                default_note="risk_overlays",
+                on_row=_on_parallel_row,
+                dedupe_by_milestone_key=False,
             )
 
             run_calls_total += int(tested_total)
         else:
-            tested = 0
-            t0 = pytime.perf_counter()
-            report_every = 50
-            for tr_med in riskoff_trs:
-                for lb in riskoff_lbs:
-                    for mode in riskoff_modes:
-                        for cutoff in riskoff_cutoffs_et:
-                            tested += 1
-                            if tested % report_every == 0 or tested == riskoff_total:
-                                elapsed = pytime.perf_counter() - t0
-                                rate = (tested / elapsed) if elapsed > 0 else 0.0
-                                remaining = riskoff_total - tested
-                                eta_sec = (remaining / rate) if rate > 0 else 0.0
-                                pct = (tested / riskoff_total * 100.0) if riskoff_total > 0 else 0.0
-                                print(
-                                    f"riskoff progress {tested}/{riskoff_total} ({pct:0.1f}%) kept={len(rows)} "
-                                    f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
-                                    flush=True,
-                                )
-
-                            f = _mk_filters(
-                                overrides={
-                                    "riskoff_tr5_med_pct": float(tr_med),
-                                    "riskoff_tr5_lookback_days": int(lb),
-                                    "riskoff_mode": str(mode),
-                                    "risk_entry_cutoff_hour_et": int(cutoff) if cutoff is not None else None,
-                                    "riskpanic_tr5_med_pct": None,
-                                    "riskpanic_neg_gap_ratio_min": None,
-                                }
-                            )
-                            cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
-                            row = _run_cfg(cfg=cfg)
-                            if not row:
-                                continue
-                            cut_note = "-" if cutoff is None else f"cutoff<{cutoff:02d} ET"
-                            note = f"riskoff TRmed{lb}>={tr_med:g} mode={mode} {cut_note}"
-                            row["note"] = note
-                            _record_milestone(cfg, row, note)
-                            rows.append(row)
-
-            tested = 0
-            t0 = pytime.perf_counter()
-            for tr_med in panic_trs:
-                for neg_ratio in neg_ratios:
-                    for lb in panic_lbs:
-                        for long_factor in panic_long_factors:
-                            for short_factor in panic_short_factors:
-                                for cutoff in panic_cutoffs_et:
-                                    for abs_gap in panic_neg_gap_abs_pcts:
-                                        for tr_delta_min, tr_delta_lb, tr_delta_note in panic_tr_delta_variants:
-                                            tested += 1
-                                            if tested % report_every == 0 or tested == panic_total:
-                                                elapsed = pytime.perf_counter() - t0
-                                                rate = (tested / elapsed) if elapsed > 0 else 0.0
-                                                remaining = panic_total - tested
-                                                eta_sec = (remaining / rate) if rate > 0 else 0.0
-                                                pct = (tested / panic_total * 100.0) if panic_total > 0 else 0.0
-                                                print(
-                                                    f"riskpanic progress {tested}/{panic_total} ({pct:0.1f}%) kept={len(rows)} "
-                                                    f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
-                                                    flush=True,
-                                                )
-
-                                            overrides = {
-                                                "riskoff_tr5_med_pct": None,
-                                                "riskpanic_tr5_med_pct": float(tr_med),
-                                                "riskpanic_neg_gap_ratio_min": float(neg_ratio),
-                                                "riskpanic_neg_gap_abs_pct_min": (
-                                                    float(abs_gap) if abs_gap is not None else None
-                                                ),
-                                                "riskpanic_lookback_days": int(lb),
-                                                "riskpanic_tr5_med_delta_min_pct": (
-                                                    float(tr_delta_min) if tr_delta_min is not None else None
-                                                ),
-                                                "riskpanic_tr5_med_delta_lookback_days": int(tr_delta_lb),
-                                                "riskpanic_short_risk_mult_factor": float(short_factor),
-                                                "risk_entry_cutoff_hour_et": int(cutoff) if cutoff is not None else None,
-                                            }
-                                            if long_factor is not None:
-                                                overrides["riskpanic_long_risk_mult_factor"] = float(long_factor)
-                                            # v39-style: pre-panic continuous scaling (requires TR-velocity gate + long shrink).
-                                            if (
-                                                long_factor is not None
-                                                and float(long_factor) < 1.0
-                                                and tr_delta_min is not None
-                                            ):
-                                                overrides["riskpanic_long_scale_mode"] = "linear"
-                                            f = _mk_filters(overrides=overrides)
-                                            cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
-                                            row = _run_cfg(cfg=cfg)
-                                            if not row:
-                                                continue
-                                            cut_note = "-" if cutoff is None else f"cutoff<{cutoff:02d} ET"
-                                            gap_note = "-" if abs_gap is None else f"|gap|>={abs_gap*100:0.0f}%"
-                                            long_note = "" if long_factor is None else f" long_factor={long_factor:g}"
-                                            scale_note = ""
-                                            if overrides.get("riskpanic_long_scale_mode") == "linear":
-                                                scale_note = " scale=lin"
-                                            note = (
-                                                f"riskpanic TRmed{lb}>={tr_med:g} neg_gap>={neg_ratio:g} {gap_note} "
-                                                f"{tr_delta_note}{scale_note} short_factor={short_factor:g}{long_note} {cut_note}"
-                                            )
-                                            row["note"] = note
-                                            _record_milestone(cfg, row, note)
-                                            rows.append(row)
-
-            if not skip_pop:
-                tested = 0
-                t0 = pytime.perf_counter()
-                for tr_med in pop_trs:
-                    for pos_ratio in pos_ratios:
-                        for lb in pop_lbs:
-                            for long_factor in pop_long_factors:
-                                for short_factor in pop_short_factors:
-                                    for cutoff in pop_cutoffs_et:
-                                        for mode in pop_modes:
-                                            for abs_gap in pop_pos_gap_abs_pcts:
-                                                for tr_delta_min, tr_delta_lb, tr_delta_note in pop_tr_delta_variants:
-                                                    tested += 1
-                                                    if tested % report_every == 0 or tested == pop_total:
-                                                        elapsed = pytime.perf_counter() - t0
-                                                        rate = (tested / elapsed) if elapsed > 0 else 0.0
-                                                        remaining = pop_total - tested
-                                                        eta_sec = (remaining / rate) if rate > 0 else 0.0
-                                                        pct = (tested / pop_total * 100.0) if pop_total > 0 else 0.0
-                                                        print(
-                                                            f"riskpop progress {tested}/{pop_total} ({pct:0.1f}%) kept={len(rows)} "
-                                                            f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
-                                                            flush=True,
-                                                        )
-
-                                                    f = _mk_filters(
-                                                        overrides={
-                                                            "riskoff_tr5_med_pct": None,
-                                                            "riskpanic_tr5_med_pct": None,
-                                                            "riskpanic_neg_gap_ratio_min": None,
-                                                            "riskpop_tr5_med_pct": float(tr_med),
-                                                            "riskpop_pos_gap_ratio_min": float(pos_ratio),
-                                                            "riskpop_pos_gap_abs_pct_min": (
-                                                                float(abs_gap) if abs_gap is not None else None
-                                                            ),
-                                                            "riskpop_lookback_days": int(lb),
-                                                            "riskpop_tr5_med_delta_min_pct": (
-                                                                float(tr_delta_min) if tr_delta_min is not None else None
-                                                            ),
-                                                            "riskpop_tr5_med_delta_lookback_days": int(tr_delta_lb),
-                                                            "riskpop_long_risk_mult_factor": float(long_factor),
-                                                            "riskpop_short_risk_mult_factor": float(short_factor),
-                                                            "risk_entry_cutoff_hour_et": (
-                                                                int(cutoff) if cutoff is not None else None
-                                                            ),
-                                                            "riskoff_mode": str(mode),
-                                                        }
-                                                    )
-                                                    cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
-                                                    row = _run_cfg(cfg=cfg)
-                                                    if not row:
-                                                        continue
-                                                    cut_note = "-" if cutoff is None else f"cutoff<{cutoff:02d} ET"
-                                                    gap_note = (
-                                                        "-" if abs_gap is None else f"|gap|>={abs_gap*100:0.0f}%"
-                                                    )
-                                                    note = (
-                                                        f"riskpop TRmed{lb}>={tr_med:g} pos_gap>={pos_ratio:g} {gap_note} "
-                                                        f"{tr_delta_note} mode={mode} long_factor={long_factor:g} "
-                                                        f"short_factor={short_factor:g} {cut_note}"
-                                                    )
-                                                    row["note"] = note
-                                                    _record_milestone(cfg, row, note)
-                                                    rows.append(row)
+            _tested_serial, rows_serial = _run_stage_serial(
+                stage_label="risk_overlays",
+                plan=_iter_risk_overlay_plan(),
+                bars=bars_sig,
+                total=total,
+                report_every=50,
+                heartbeat_sec=50.0,
+            )
+            rows.extend(row for _cfg, row, _note in rows_serial)
 
         if base_row:
             rows.append(base_row)
@@ -7704,7 +7562,10 @@ def main() -> None:
             if seed_path.exists():
                 axis_plan.extend(_COMBO_FULL_AXIS_SCHEMA_SEEDED)
             else:
-                print(f"SKIP overlay_family/st37_refine: --seed-milestones not found ({seed_path})", flush=True)
+                print(
+                    f"SKIP champ_refine/overlay_family/st37_refine: --seed-milestones not found ({seed_path})",
+                    flush=True,
+                )
         axes = tuple(axis_name for axis_name, _profile, _emit in axis_plan)
         axis_profile_by_name = {axis_name: str(profile) for axis_name, profile, _emit in axis_plan}
         milestone_axes = tuple(axis_name for axis_name, _profile, emit in axis_plan if bool(emit))
@@ -10820,46 +10681,18 @@ def main() -> None:
                 invalid_label="gate_matrix stage2",
             )
 
-            def _decode_gate_matrix_stage2_record(rec: dict) -> tuple[ConfigBundle, dict, str] | None:
-                seed_idx_raw = rec.get("seed_idx")
-                if seed_idx_raw is None:
-                    return None
-                try:
-                    seed_idx = int(seed_idx_raw)
-                except (TypeError, ValueError):
-                    return None
-                if seed_idx < 0 or seed_idx >= len(seeds):
-                    return None
-                base_seed_cfg, _, seed_note, family = seeds[seed_idx]
-                cfg, note = _mk_stage2_cfg(
-                    base_seed_cfg,
-                    str(seed_note),
-                    str(family),
-                    perm_on=bool(rec.get("perm_on")),
-                    tick_on=bool(rec.get("tick_on")),
-                    shock_on=bool(rec.get("shock_on")),
-                    riskoff_on=bool(rec.get("riskoff_on")),
-                    riskpanic_on=bool(rec.get("riskpanic_on")),
-                    riskpop_on=bool(rec.get("riskpop_on")),
-                    regime2_on=bool(rec.get("regime2_on")),
-                    short_mult=float(rec.get("short_mult") or 0.0),
-                )
-                row = rec.get("row")
-                if not isinstance(row, dict):
-                    return None
-                row_out = dict(row)
-                row_out["note"] = note
-                return cfg, row_out, str(note)
-
-            def _on_gate_matrix_stage2_record(item: tuple[ConfigBundle, dict, str]) -> None:
+            def _on_gate_matrix_stage2_record(item: tuple[ConfigBundle, dict, str] | None) -> None:
+                if item is None:
+                    return
                 cfg, row, note = item
                 _record_milestone(cfg, row, note)
                 rows.append(row)
 
-            tested_total = _collect_parallel_payload_records(
+            tested_total = _collect_stage_payloads_by_schema(
                 payloads=payloads,
-                decode_record=_decode_gate_matrix_stage2_record,
-                on_record=_on_gate_matrix_stage2_record,
+                schema_name="gate_matrix_stage2_rows",
+                context={"seeds": seeds, "mk_stage2_cfg": _mk_stage2_cfg},
+                on_item=_on_gate_matrix_stage2_record,
             )
 
             run_calls_total += int(tested_total)
