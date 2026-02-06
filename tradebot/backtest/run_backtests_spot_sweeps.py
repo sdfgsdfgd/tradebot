@@ -363,19 +363,41 @@ _AXIS_SPECS: tuple[tuple[str, bool, bool], ...] = (
 _AXIS_ALL_PLAN = tuple(name for name, in_all, _in_combo in _AXIS_SPECS if bool(in_all))
 _COMBO_FULL_PLAN = tuple(name for name, _in_all, in_combo in _AXIS_SPECS if bool(in_combo))
 _AXIS_CHOICES = tuple(name for name, _in_all, _in_combo in _AXIS_SPECS)
-_COMBO_FULL_PARALLEL_PROFILE_BY_AXIS = {
-    "risk_overlays": "scaled",
-    "combo_fast": "scaled",
-    "gate_matrix": "scaled",
+_AXIS_PLAN_BY_MODE: dict[str, tuple[str, ...]] = {
+    "axis_all": _AXIS_ALL_PLAN,
+    "combo_full": _COMBO_FULL_PLAN,
 }
-_COMBO_FULL_AXIS_SCHEMA_BASE: tuple[tuple[str, str, bool], ...] = tuple(
-    (name, str(_COMBO_FULL_PARALLEL_PROFILE_BY_AXIS.get(name, "single")), True) for name in _COMBO_FULL_PLAN
+_AXIS_PARALLEL_PROFILE_BY_MODE: dict[str, dict[str, str]] = {
+    "axis_all": {
+        "risk_overlays": "scaled",
+    },
+    "combo_full": {
+        "risk_overlays": "scaled",
+        "combo_fast": "scaled",
+        "gate_matrix": "scaled",
+    },
+}
+_COMBO_FULL_SEEDED_AXES: tuple[str, ...] = (
+    "champ_refine",
+    "overlay_family",
+    "st37_refine",
 )
-_COMBO_FULL_AXIS_SCHEMA_SEEDED: tuple[tuple[str, str, bool], ...] = (
-    ("champ_refine", "single", True),
-    ("overlay_family", "single", True),
-    ("st37_refine", "single", True),
-)
+
+
+def _axis_mode_plan(
+    *,
+    mode: str,
+    include_seeded: bool = False,
+) -> tuple[tuple[str, str, bool], ...]:
+    mode_key = str(mode).strip().lower()
+    axes_base = _AXIS_PLAN_BY_MODE.get(mode_key)
+    if axes_base is None:
+        raise ValueError(f"Unknown axis mode: {mode!r}")
+    axes = list(axes_base)
+    if mode_key == "combo_full" and bool(include_seeded):
+        axes.extend(_COMBO_FULL_SEEDED_AXES)
+    profile_map = _AXIS_PARALLEL_PROFILE_BY_MODE.get(mode_key, {})
+    return tuple((axis_name, str(profile_map.get(axis_name, "single")), True) for axis_name in axes)
 _ATR_EXIT_PROFILE_REGISTRY: dict[str, dict[str, object]] = {
     "atr": {
         "atr_periods": (7, 10, 14, 21),
@@ -3061,6 +3083,88 @@ def main() -> None:
         note = str(payload.get(note_key) or "").strip() or str(default_note)
         return cfg, note
 
+    def _load_worker_stage_payload(
+        *,
+        schema_name: str,
+        payload_path: Path,
+    ) -> dict[str, object]:
+        try:
+            payload = json.loads(payload_path.read_text())
+        except json.JSONDecodeError as exc:
+            raise SystemExit(f"Invalid {schema_name} payload JSON: {payload_path}") from exc
+        if not isinstance(payload, dict):
+            raise SystemExit(f"Invalid {schema_name} payload: expected object ({payload_path})")
+
+        def _require_list(key: str) -> list:
+            raw = payload.get(key)
+            if not isinstance(raw, list):
+                raise SystemExit(f"{schema_name} payload missing '{key}' list: {payload_path}")
+            return raw
+
+        def _decode_cfg_list(*, key: str, note_key: str, seed_prefix: bool = False) -> list[tuple[ConfigBundle, str]]:
+            out: list[tuple[ConfigBundle, str]] = []
+            for item in _require_list(key):
+                decoded = _decode_cfg_payload(item, note_key=note_key)
+                if decoded is None:
+                    continue
+                cfg_obj, note = decoded
+                if bool(seed_prefix):
+                    seed_tag = str(item.get("seed_tag") or "seed") if isinstance(item, dict) else "seed"
+                    note = f"{seed_tag} | {note}"
+                out.append((cfg_obj, str(note)))
+            return out
+
+        def _decode_overrides_list(*, key: str) -> list[tuple[dict[str, object], str]]:
+            out: list[tuple[dict[str, object], str]] = []
+            for item in _require_list(key):
+                if not isinstance(item, dict):
+                    continue
+                over = item.get("overrides")
+                if not isinstance(over, dict):
+                    continue
+                out.append((over, str(item.get("note") or "")))
+            if not out:
+                raise SystemExit(f"{schema_name} payload '{key}' empty/invalid: {payload_path}")
+            return out
+
+        name = str(schema_name).strip().lower()
+        if name == "champ_refine_stage3a":
+            return {
+                "seed_tag": str(payload.get("seed_tag") or "seed"),
+                "cfg_pairs": _decode_cfg_list(key="base_exit_variants", note_key="exit_note"),
+            }
+        if name == "champ_refine_stage3b":
+            return {
+                "seed_tag": str(payload.get("seed_tag") or "seed"),
+                "cfg_pairs": _decode_cfg_list(key="shortlist", note_key="base_note"),
+            }
+        if name == "st37_refine_stage1":
+            seeds_local: list[dict] = []
+            for item in _require_list("seeds"):
+                if not isinstance(item, dict):
+                    continue
+                strategy = item.get("strategy")
+                if not isinstance(strategy, dict):
+                    continue
+                filters_payload = item.get("filters")
+                if filters_payload is not None and not isinstance(filters_payload, dict):
+                    filters_payload = None
+                seeds_local.append(
+                    {
+                        "strategy": strategy,
+                        "filters": filters_payload,
+                        "group_name": str(item.get("group_name") or ""),
+                    }
+                )
+            return {"seeds": seeds_local}
+        if name == "st37_refine_stage2":
+            return {
+                "cfg_pairs": _decode_cfg_list(key="shortlist", note_key="base_note", seed_prefix=True),
+                "risk_variants": _decode_overrides_list(key="risk_variants"),
+                "shock_variants": _decode_overrides_list(key="shock_variants"),
+            }
+        raise SystemExit(f"Unknown worker payload schema: {schema_name!r}")
+
     def _worker_records_from_kept(kept: list[tuple[ConfigBundle, dict, str, dict | None]]) -> list[dict]:
         records: list[dict] = []
         for cfg, row, note, _meta in kept:
@@ -3252,6 +3356,49 @@ def main() -> None:
             record_milestones=bool(record_milestones),
         )
         return int(tested), _rows_from_kept(kept)
+
+    def _run_stage_cfg_rows(
+        *,
+        stage_label: str,
+        total: int,
+        jobs_req: int,
+        bars: list,
+        report_every: int,
+        on_row,
+        serial_plan=None,
+        serial_plan_builder=None,
+        heartbeat_sec: float = 0.0,
+        parallel_payloads_builder=None,
+        parallel_default_note: str = "",
+        parallel_dedupe_by_milestone_key: bool = True,
+        record_milestones: bool = True,
+    ) -> int:
+        def _on_row_local(cfg: ConfigBundle, row: dict, note: str) -> None:
+            if bool(record_milestones):
+                _record_milestone(cfg, row, note)
+            on_row(cfg, row, note)
+
+        if int(jobs_req) > 1 and int(total) > 0 and callable(parallel_payloads_builder):
+            payloads = parallel_payloads_builder()
+            return _collect_stage_rows_from_payloads(
+                payloads=payloads,
+                default_note=str(parallel_default_note or stage_label),
+                on_row=_on_row_local,
+                dedupe_by_milestone_key=bool(parallel_dedupe_by_milestone_key),
+            )
+        serial_plan_eff = serial_plan_builder() if callable(serial_plan_builder) else serial_plan
+        tested, serial_rows = _run_stage_serial(
+            stage_label=str(stage_label),
+            plan=serial_plan_eff,
+            bars=bars,
+            total=int(total),
+            report_every=int(report_every),
+            heartbeat_sec=float(heartbeat_sec),
+            record_milestones=bool(record_milestones),
+        )
+        for cfg, row, note in serial_rows:
+            on_row(cfg, row, note)
+        return int(tested)
 
     def _stage_parallel_base_cli(*, flags_with_values: tuple[str, ...]) -> list[str]:
         return _strip_flags(
@@ -4593,15 +4740,7 @@ def main() -> None:
             if current is None or _score_row_pnl(row) > _score_row_pnl(current["row"]):
                 best_by_r2[r2_key] = {"row": row, "note": note}
 
-        ranked_by_pnl = sorted(best_by_r2.items(), key=lambda t: _score_row_pnl(t[1]["row"]), reverse=True)[:8]
-        ranked_by_dd = sorted(best_by_r2.items(), key=lambda t: _score_row_pnl_dd(t[1]["row"]), reverse=True)[:8]
-        shortlisted_keys = []
-        seen: set[tuple] = set()
-        for r2_key, _ in ranked_by_pnl + ranked_by_dd:
-            if r2_key in seen:
-                continue
-            seen.add(r2_key)
-            shortlisted_keys.append(r2_key)
+        shortlisted_keys = _ranked_keys_by_row_scores(best_by_r2, top_pnl=8, top_pnl_dd=8)
 
         print("")
         print(f"R2×ATR: stage1 shortlisted r2={len(shortlisted_keys)} (from {len(best_by_r2)})")
@@ -7555,12 +7694,12 @@ def main() -> None:
         print("=== combo_full: running full sweep suite (very slow) ===")
         print("")
 
-        axis_plan = list(_COMBO_FULL_AXIS_SCHEMA_BASE)
+        axis_plan = list(_axis_mode_plan(mode="combo_full", include_seeded=False))
         seed_path_raw = str(getattr(args, "seed_milestones", "") or "").strip()
         if seed_path_raw:
             seed_path = Path(seed_path_raw)
             if seed_path.exists():
-                axis_plan.extend(_COMBO_FULL_AXIS_SCHEMA_SEEDED)
+                axis_plan = list(_axis_mode_plan(mode="combo_full", include_seeded=True))
             else:
                 print(
                     f"SKIP champ_refine/overlay_family/st37_refine: --seed-milestones not found ({seed_path})",
@@ -7857,22 +7996,16 @@ def main() -> None:
 
         if args.champ_refine_stage3a:
             payload_path = Path(str(args.champ_refine_stage3a))
-
-            try:
-                payload = json.loads(payload_path.read_text())
-            except json.JSONDecodeError as exc:
-                raise SystemExit(f"Invalid champ_refine stage3a payload JSON: {payload_path}") from exc
-            raw_base = payload.get("base_exit_variants") if isinstance(payload, dict) else None
-            if not isinstance(raw_base, list):
-                raise SystemExit(f"champ_refine stage3a payload missing 'base_exit_variants' list: {payload_path}")
-            seed_tag = str(payload.get("seed_tag") or "seed") if isinstance(payload, dict) else "seed"
-
-            base_exit_local: list[tuple[ConfigBundle, str]] = []
-            for item in raw_base:
-                decoded = _decode_cfg_payload(item, note_key="exit_note")
-                if decoded is None:
-                    continue
-                base_exit_local.append(decoded)
+            payload_decoded = _load_worker_stage_payload(
+                schema_name="champ_refine_stage3a",
+                payload_path=payload_path,
+            )
+            seed_tag = str(payload_decoded.get("seed_tag") or "seed")
+            base_exit_local = [
+                (cfg, note)
+                for cfg, note in (payload_decoded.get("cfg_pairs") or [])
+                if isinstance(note, str)
+            ]
 
             stage3a_plan_all = _build_stage3a_plan(base_exit_local, seed_tag_local=seed_tag)
             stage3a_total = len(stage3a_plan_all)
@@ -7896,22 +8029,15 @@ def main() -> None:
 
         if args.champ_refine_stage3b:
             payload_path = Path(str(args.champ_refine_stage3b))
-
-            try:
-                payload = json.loads(payload_path.read_text())
-            except json.JSONDecodeError as exc:
-                raise SystemExit(f"Invalid champ_refine stage3b payload JSON: {payload_path}") from exc
-            raw_shortlist = payload.get("shortlist") if isinstance(payload, dict) else None
-            if not isinstance(raw_shortlist, list):
-                raise SystemExit(f"champ_refine stage3b payload missing 'shortlist' list: {payload_path}")
-            seed_tag = str(payload.get("seed_tag") or "seed") if isinstance(payload, dict) else "seed"
-
-            shortlist_local: list[tuple[ConfigBundle, str]] = []
-            for item in raw_shortlist:
-                decoded = _decode_cfg_payload(item, note_key="base_note")
-                if decoded is None:
-                    continue
-                shortlist_local.append(decoded)
+            payload_decoded = _load_worker_stage_payload(
+                schema_name="champ_refine_stage3b",
+                payload_path=payload_path,
+            )
+            shortlist_local = [
+                (cfg, note)
+                for cfg, note in (payload_decoded.get("cfg_pairs") or [])
+                if isinstance(note, str)
+            ]
 
             stage3b_plan_all = _build_stage3b_plan(shortlist_local)
             stage3b_total = len(stage3b_plan_all)
@@ -8242,24 +8368,34 @@ def main() -> None:
                         )
 
             stage3a: list[tuple[ConfigBundle, dict, str]] = []
-            total_3a = 0
-            for base_cfg, _exit_note in base_exit_variants:
-                seed_mode = str(getattr(base_cfg.strategy, "ema_entry_mode", "cross") or "cross").strip().lower()
-                if seed_mode not in ("cross", "trend"):
-                    seed_mode = "cross"
-                other_mode = "trend" if seed_mode == "cross" else "cross"
-                total_3a += 2 * len(tod_variants) * len(perm_variants) * len(signed_slope_variants)
+            total_3a = len(base_exit_variants) * 2 * len(tod_variants) * len(perm_variants) * len(signed_slope_variants)
             print(f"  stage3a micro: total={total_3a}", flush=True)
-            if jobs > 1:
-                base_payload: list[dict] = []
-                for base_cfg, exit_note in base_exit_variants:
-                    base_payload.append(_encode_cfg_payload(base_cfg, note=exit_note, note_key="exit_note"))
-                payloads = _run_parallel_stage_with_payload(
+
+            def _on_stage3a_row(cfg: ConfigBundle, row: dict, note: str) -> None:
+                rows.append(row)
+                stage3a.append((cfg, row, note))
+
+            tested_total += _run_stage_cfg_rows(
+                stage_label="  stage3a",
+                total=total_3a,
+                jobs_req=int(jobs),
+                serial_plan_builder=lambda: _build_stage3a_plan(base_exit_variants, seed_tag_local=seed_tag),
+                bars=bars_sig,
+                report_every=report_every,
+                heartbeat_sec=heartbeat_sec,
+                on_row=_on_stage3a_row,
+                parallel_payloads_builder=lambda: _run_parallel_stage_with_payload(
                     axis_name="champ_refine",
                     stage_label="  stage3a",
                     total=total_3a,
                     jobs=int(jobs),
-                    payload={"seed_tag": seed_tag, "base_exit_variants": base_payload},
+                    payload={
+                        "seed_tag": seed_tag,
+                        "base_exit_variants": [
+                            _encode_cfg_payload(base_cfg, note=exit_note, note_key="exit_note")
+                            for base_cfg, exit_note in base_exit_variants
+                        ],
+                    },
                     payload_filename="stage3a_payload.json",
                     temp_prefix="tradebot_champ_refine_3a_",
                     worker_tmp_prefix="tradebot_champ_refine_3a_run_",
@@ -8283,39 +8419,11 @@ def main() -> None:
                     failure_label="champ_refine stage3a worker",
                     missing_label="champ_refine stage3a",
                     invalid_label="champ_refine stage3a",
-                )
-
-                def _on_stage3a_row(cfg: ConfigBundle, row: dict, note: str) -> None:
-                    note_eff = str(note).strip() or (
-                        f"{seed_tag} | short_mult={getattr(cfg.strategy, 'spot_short_risk_mult', 1.0):g} | stage3a"
-                    )
-                    row["note"] = note_eff
-                    _record_milestone(cfg, row, note_eff)
-                    rows.append(row)
-                    stage3a.append((cfg, row, note_eff))
-
-                tested_total_3a = _collect_stage_rows_from_payloads(
-                    payloads=payloads,
-                    default_note="stage3a",
-                    on_row=_on_stage3a_row,
-                    dedupe_by_milestone_key=True,
-                )
-
-                tested_total += int(tested_total_3a)
-            else:
-                stage3a_plan = _build_stage3a_plan(base_exit_variants, seed_tag_local=seed_tag)
-                tested_3a, stage3a_rows = _run_stage_serial(
-                    stage_label="  stage3a",
-                    plan=stage3a_plan,
-                    bars=bars_sig,
-                    total=total_3a,
-                    report_every=report_every,
-                    heartbeat_sec=heartbeat_sec,
-                )
-                tested_total += int(tested_3a)
-                for cfg, row, note in stage3a_rows:
-                    rows.append(row)
-                    stage3a.append((cfg, row, note))
+                ),
+                parallel_default_note="stage3a",
+                parallel_dedupe_by_milestone_key=True,
+                record_milestones=True,
+            )
 
             if not stage3a:
                 continue
@@ -8329,16 +8437,31 @@ def main() -> None:
             # Stage 3B: apply shock + TR-overlay pockets to the shortlist.
             total_3b = len(shortlist) * len(shock_variants) * len(risk_variants)
             print(f"  stage3b shock+risk: shortlist={len(shortlist)} total={total_3b}", flush=True)
-            if jobs > 1:
-                shortlist_payload: list[dict] = []
-                for base_cfg, _row, base_note in shortlist:
-                    shortlist_payload.append(_encode_cfg_payload(base_cfg, note=base_note, note_key="base_note"))
-                payloads = _run_parallel_stage_with_payload(
+
+            def _on_stage3b_row(_cfg: ConfigBundle, row: dict, _note: str) -> None:
+                rows.append(row)
+
+            tested_total += _run_stage_cfg_rows(
+                stage_label="  stage3b",
+                total=total_3b,
+                jobs_req=int(jobs),
+                serial_plan_builder=lambda: _build_stage3b_plan([(cfg, note) for cfg, _row, note in shortlist]),
+                bars=bars_sig,
+                report_every=report_every,
+                heartbeat_sec=heartbeat_sec,
+                on_row=_on_stage3b_row,
+                parallel_payloads_builder=lambda: _run_parallel_stage_with_payload(
                     axis_name="champ_refine",
                     stage_label="  stage3b",
                     total=total_3b,
                     jobs=int(jobs),
-                    payload={"seed_tag": seed_tag, "shortlist": shortlist_payload},
+                    payload={
+                        "seed_tag": seed_tag,
+                        "shortlist": [
+                            _encode_cfg_payload(base_cfg, note=base_note, note_key="base_note")
+                            for base_cfg, _row, base_note in shortlist
+                        ],
+                    },
                     payload_filename="stage3b_payload.json",
                     temp_prefix="tradebot_champ_refine_3b_",
                     worker_tmp_prefix="tradebot_champ_refine_3b_run_",
@@ -8362,34 +8485,11 @@ def main() -> None:
                     failure_label="champ_refine stage3b worker",
                     missing_label="champ_refine stage3b",
                     invalid_label="champ_refine stage3b",
-                )
-
-                def _on_stage3b_row(cfg: ConfigBundle, row: dict, note: str) -> None:
-                    _record_milestone(cfg, row, note)
-                    rows.append(row)
-
-                tested_total_3b = _collect_stage_rows_from_payloads(
-                    payloads=payloads,
-                    default_note="stage3b",
-                    on_row=_on_stage3b_row,
-                    dedupe_by_milestone_key=True,
-                )
-
-                tested_total += int(tested_total_3b)
-            else:
-                shortlist_pairs = [(cfg, note) for cfg, _row, note in shortlist]
-                stage3b_plan = _build_stage3b_plan(shortlist_pairs)
-                tested_3b, stage3b_rows = _run_stage_serial(
-                    stage_label="  stage3b",
-                    plan=stage3b_plan,
-                    bars=bars_sig,
-                    total=total_3b,
-                    report_every=report_every,
-                    heartbeat_sec=heartbeat_sec,
-                )
-                tested_total += int(tested_3b)
-                for _cfg, row, _note in stage3b_rows:
-                    rows.append(row)
+                ),
+                parallel_default_note="stage3b",
+                parallel_dedupe_by_milestone_key=True,
+                record_milestones=True,
+            )
 
         print("")
         _print_leaderboards(rows, title="champ_refine (seeded, bounded)", top_n=int(args.top))
@@ -9653,55 +9753,29 @@ def main() -> None:
                         )
             return plan
 
-        def _parse_stage2_variants_payload(raw: object, *, name: str, payload_path: Path) -> list[tuple[dict[str, object], str]]:
-            if not isinstance(raw, list):
-                raise SystemExit(f"st37_refine stage2 payload missing '{name}' list: {payload_path}")
-            out: list[tuple[dict[str, object], str]] = []
-            for item in raw:
-                if not isinstance(item, dict):
-                    continue
-                over = item.get("overrides")
-                note = item.get("note")
-                if not isinstance(over, dict):
-                    continue
-                out.append((over, str(note or "")))
-            if not out:
-                raise SystemExit(f"st37_refine stage2 payload '{name}' empty/invalid: {payload_path}")
-            return out
-
         # Stage2 worker mode must early-exit before stage1 runs; this is invoked by the stage2
         # sharded runner when --jobs>1.
         if args.st37_refine_stage2:
             payload_path = Path(str(args.st37_refine_stage2))
-
-            try:
-                payload = json.loads(payload_path.read_text())
-            except json.JSONDecodeError as exc:
-                raise SystemExit(f"Invalid st37_refine stage2 payload JSON: {payload_path}") from exc
-
-            raw_shortlist = payload.get("shortlist") if isinstance(payload, dict) else None
-            if not isinstance(raw_shortlist, list):
-                raise SystemExit(f"st37_refine stage2 payload missing 'shortlist' list: {payload_path}")
-
-            risk_variants_local = _parse_stage2_variants_payload(
-                payload.get("risk_variants") if isinstance(payload, dict) else None,
-                name="risk_variants",
+            payload_decoded = _load_worker_stage_payload(
+                schema_name="st37_refine_stage2",
                 payload_path=payload_path,
             )
-            shock_variants_local = _parse_stage2_variants_payload(
-                payload.get("shock_variants") if isinstance(payload, dict) else None,
-                name="shock_variants",
-                payload_path=payload_path,
-            )
-
-            shortlist_local: list[tuple[ConfigBundle, str]] = []
-            for item in raw_shortlist:
-                decoded = _decode_cfg_payload(item, note_key="base_note")
-                if decoded is None:
-                    continue
-                seed_tag = str(item.get("seed_tag") or "seed")
-                cfg_seed, base_note = decoded
-                shortlist_local.append((cfg_seed, f"{seed_tag} | {base_note}"))
+            shortlist_local = [
+                (cfg, note)
+                for cfg, note in (payload_decoded.get("cfg_pairs") or [])
+                if isinstance(note, str)
+            ]
+            risk_variants_local = [
+                (over, note)
+                for over, note in (payload_decoded.get("risk_variants") or [])
+                if isinstance(over, dict)
+            ]
+            shock_variants_local = [
+                (over, note)
+                for over, note in (payload_decoded.get("shock_variants") or [])
+                if isinstance(over, dict)
+            ]
 
             stage2_plan_all = _build_stage2_plan(
                 shortlist_local,
@@ -9823,25 +9897,11 @@ def main() -> None:
 
         if args.st37_refine_stage1:
             payload_path = Path(str(args.st37_refine_stage1))
-
-            try:
-                payload = json.loads(payload_path.read_text())
-            except json.JSONDecodeError as exc:
-                raise SystemExit(f"Invalid st37_refine stage1 payload JSON: {payload_path}") from exc
-            raw_seeds = payload.get("seeds") if isinstance(payload, dict) else None
-            if not isinstance(raw_seeds, list):
-                raise SystemExit(f"st37_refine stage1 payload missing 'seeds' list: {payload_path}")
-
-            seeds_local: list[dict] = []
-            for item in raw_seeds:
-                if not isinstance(item, dict):
-                    continue
-                if not isinstance(item.get("strategy"), dict):
-                    continue
-                flt = item.get("filters")
-                if flt is not None and not isinstance(flt, dict):
-                    flt = None
-                seeds_local.append({"strategy": item["strategy"], "filters": flt, "group_name": str(item.get("group_name") or "")})
+            payload_decoded = _load_worker_stage_payload(
+                schema_name="st37_refine_stage1",
+                payload_path=payload_path,
+            )
+            seeds_local = list(payload_decoded.get("seeds") or [])
 
             stage1_plan_all = _build_stage1_plan(seeds_local)
             _run_sharded_stage_worker(
@@ -9860,18 +9920,35 @@ def main() -> None:
         stage1_rows: list[tuple[ConfigBundle, dict, str]] = []
         stage1_total = len(seeds) * len(perm_variants) * len(tod_variants) * len(sl_vals) * len(short_mult_vals)
         print(f"st37_refine: stage1 total={stage1_total} (perm×tod×sl×short)", flush=True)
-        tested_1 = 0
         report_every = 200
-        if jobs > 1:
-            seeds_payload: list[dict] = []
-            for s in seeds:
-                seeds_payload.append({"group_name": str(s.get("group_name") or ""), "strategy": s["strategy"], "filters": s.get("filters")})
-            payloads = _run_parallel_stage_with_payload(
+
+        def _on_stage1_row(cfg: ConfigBundle, row: dict, note: str) -> None:
+            stage1_rows.append((cfg, row, note))
+
+        tested_1 = _run_stage_cfg_rows(
+            stage_label="st37_refine stage1",
+            total=stage1_total,
+            jobs_req=int(jobs),
+            serial_plan_builder=lambda: _build_stage1_plan(seeds),
+            bars=bars_sig,
+            report_every=report_every,
+            heartbeat_sec=heartbeat_sec,
+            on_row=_on_stage1_row,
+            parallel_payloads_builder=lambda: _run_parallel_stage_with_payload(
                 axis_name="st37_refine",
                 stage_label="st37_refine stage1",
                 total=stage1_total,
                 jobs=int(jobs),
-                payload={"seeds": seeds_payload},
+                payload={
+                    "seeds": [
+                        {
+                            "group_name": str(s.get("group_name") or ""),
+                            "strategy": s["strategy"],
+                            "filters": s.get("filters"),
+                        }
+                        for s in seeds
+                    ],
+                },
                 payload_filename="stage1_payload.json",
                 temp_prefix="tradebot_st37_refine_1_",
                 worker_tmp_prefix="tradebot_st37_refine_stage1_",
@@ -9895,31 +9972,11 @@ def main() -> None:
                 failure_label="st37_refine stage1 worker",
                 missing_label="st37_refine stage1",
                 invalid_label="st37_refine stage1",
-            )
-
-            def _on_stage1_row(cfg: ConfigBundle, row: dict, note: str) -> None:
-                _record_milestone(cfg, row, note)
-                stage1_rows.append((cfg, row, note))
-
-            tested_total = _collect_stage_rows_from_payloads(
-                payloads=payloads,
-                default_note="st37 stage1",
-                on_row=_on_stage1_row,
-                dedupe_by_milestone_key=True,
-            )
-
-            tested_1 = int(tested_total)
-        else:
-            stage1_plan = _build_stage1_plan(seeds)
-            tested_1, stage1_rows_new = _run_stage_serial(
-                stage_label="st37_refine stage1",
-                plan=stage1_plan,
-                bars=bars_sig,
-                total=stage1_total,
-                report_every=report_every,
-                heartbeat_sec=heartbeat_sec,
-            )
-            stage1_rows.extend(stage1_rows_new)
+            ),
+            parallel_default_note="st37 stage1",
+            parallel_dedupe_by_milestone_key=True,
+            record_milestones=True,
+        )
 
         print(f"st37_refine: stage1 kept={len(stage1_rows)} tested={tested_1}", flush=True)
         if not stage1_rows:
@@ -9951,30 +10008,39 @@ def main() -> None:
         )
         stage2_total = len(stage2_plan)
         print(f"st37_refine: stage2 total={stage2_total} (risk×shock)", flush=True)
-        tested_2 = 0
-        if jobs > 1:
-            shortlist_payload: list[dict] = []
-            for cfg, _row, note in stage1_shortlist:
-                shortlist_payload.append(
-                    _encode_cfg_payload(
-                        cfg,
-                        note=note,
-                        note_key="base_note",
-                        extra={"seed_tag": str(note.split("|", 1)[0]).strip()},
-                    )
-                )
-            risk_payload: list[dict] = []
-            for risk_over, risk_note in risk_variants:
-                risk_payload.append({"overrides": risk_over, "note": risk_note})
-            shock_payload: list[dict] = []
-            for shock_over, shock_note in shock_variants:
-                shock_payload.append({"overrides": shock_over, "note": shock_note})
-            payloads = _run_parallel_stage_with_payload(
+
+        def _on_stage2_row(cfg: ConfigBundle, row: dict, note: str) -> None:
+            stage2_rows.append((cfg, row, note))
+
+        tested_2 = _run_stage_cfg_rows(
+            stage_label="st37_refine stage2",
+            total=stage2_total,
+            jobs_req=int(jobs),
+            serial_plan=stage2_plan,
+            bars=bars_sig,
+            report_every=report_every,
+            heartbeat_sec=heartbeat_sec,
+            on_row=_on_stage2_row,
+            parallel_payloads_builder=lambda: _run_parallel_stage_with_payload(
                 axis_name="st37_refine",
                 stage_label="st37_refine stage2",
                 total=stage2_total,
                 jobs=int(jobs),
-                payload={"shortlist": shortlist_payload, "risk_variants": risk_payload, "shock_variants": shock_payload},
+                payload={
+                    "shortlist": [
+                        _encode_cfg_payload(
+                            cfg,
+                            note=note,
+                            note_key="base_note",
+                            extra={"seed_tag": str(note.split("|", 1)[0]).strip()},
+                        )
+                        for cfg, _row, note in stage1_shortlist
+                    ],
+                    "risk_variants": [{"overrides": risk_over, "note": risk_note} for risk_over, risk_note in risk_variants],
+                    "shock_variants": [
+                        {"overrides": shock_over, "note": shock_note} for shock_over, shock_note in shock_variants
+                    ],
+                },
                 payload_filename="stage2_payload.json",
                 temp_prefix="tradebot_st37_refine_2_",
                 worker_tmp_prefix="tradebot_st37_refine_stage2_",
@@ -9998,30 +10064,11 @@ def main() -> None:
                 failure_label="st37_refine stage2 worker",
                 missing_label="st37_refine stage2",
                 invalid_label="st37_refine stage2",
-            )
-
-            def _on_stage2_row(cfg: ConfigBundle, row: dict, note: str) -> None:
-                _record_milestone(cfg, row, note)
-                stage2_rows.append((cfg, row, note))
-
-            tested_total = _collect_stage_rows_from_payloads(
-                payloads=payloads,
-                default_note="st37 stage2",
-                on_row=_on_stage2_row,
-                dedupe_by_milestone_key=True,
-            )
-
-            tested_2 = int(tested_total)
-        else:
-            tested_2, stage2_rows_new = _run_stage_serial(
-                stage_label="st37_refine stage2",
-                plan=stage2_plan,
-                bars=bars_sig,
-                total=stage2_total,
-                report_every=report_every,
-                heartbeat_sec=heartbeat_sec,
-            )
-            stage2_rows.extend(stage2_rows_new)
+            ),
+            parallel_default_note="st37 stage2",
+            parallel_dedupe_by_milestone_key=True,
+            record_milestones=True,
+        )
 
         print(f"st37_refine: stage2 kept={len(stage2_rows)} tested={tested_2}", flush=True)
         if not stage2_rows:
@@ -10851,13 +10898,15 @@ def main() -> None:
     )
 
     if axis == "all" and jobs > 1:
-        axes = tuple(_AXIS_ALL_PLAN)
+        axis_plan = _axis_mode_plan(mode="axis_all", include_seeded=False)
+        axes = tuple(axis_name for axis_name, _profile, _emit in axis_plan)
+        axis_profile_by_name = {axis_name: str(profile) for axis_name, profile, _emit in axis_plan}
         milestone_payloads = _run_parallel_axis_stage(
             label="axis=all parallel",
             axes=axes,
             jobs_req=int(jobs),
             axis_jobs_resolver=lambda axis_name: min(int(jobs), int(_default_jobs()))
-            if str(axis_name) == "risk_overlays"
+            if axis_profile_by_name.get(str(axis_name), "single") == "scaled"
             else 1,
             tmp_prefix="tradebot_axis_all_",
             offline_error="--jobs>1 for --axis all requires --offline (avoid parallel IBKR sessions).",
