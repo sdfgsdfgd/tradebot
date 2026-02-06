@@ -449,6 +449,27 @@ _SPREAD_PROFILE_REGISTRY: dict[str, dict[str, object]] = {
         "decimals": 4,
     },
 }
+_SHOCK_THROTTLE_TR_RATIO_PROFILE: dict[str, tuple] = {
+    "periods": ((2, 50), (3, 50), (5, 50), (3, 21)),
+    "targets": (0.25, 0.35, 0.45, 0.55, 0.7, 0.9, 1.1),
+    "min_mults": (0.05, 0.1, 0.2),
+    "apply_tos": ("cap", "both"),
+}
+_SHOCK_THROTTLE_DRAWDOWN_PROFILE: dict[str, tuple] = {
+    "lookbacks": (10, 20, 40),
+    "targets": (3.0, 4.0, 6.0, 8.0, 10.0, 12.0, 15.0),
+    "min_mults": (0.05, 0.1, 0.2, 0.3),
+    "apply_tos": ("cap", "both"),
+}
+_RISKPANIC_MICRO_PROFILE: dict[str, tuple] = {
+    "cutoffs_et": (None, 15),
+    "panic_tr_meds": (2.75, 3.0, 3.25),
+    "neg_gap_ratios": (0.5, 0.6),
+    "neg_gap_abs_pcts": (None, 0.005),
+    "tr_delta_mins": (None, 0.25, 0.5, 0.75),
+    "long_factors": (1.0, 0.4, 0.0),
+    "scale_modes": (None, "linear"),
+}
 _RUN_CFG_CACHE_ENGINE_VERSION = "spot_summary_v1"
 _MULTIWINDOW_CACHE_ENGINE_VERSION = "spot_multiwindow_v1"
 
@@ -881,6 +902,47 @@ def _collect_parallel_payload_records(
             if callable(on_record):
                 on_record(rec_obj)
     return int(tested_total)
+
+
+def _progress_snapshot(
+    *,
+    tested: int,
+    total: int | None,
+    started_at: float,
+) -> tuple[float, float, float, float, float]:
+    elapsed = max(0.0, float(pytime.perf_counter()) - float(started_at))
+    rate = (float(tested) / elapsed) if elapsed > 0 else 0.0
+    total_i = int(total) if total is not None else 0
+    remaining = max(0, int(total_i) - int(tested)) if total is not None else 0
+    eta_sec = (float(remaining) / rate) if rate > 0 else 0.0
+    pct = ((float(tested) / float(total_i)) * 100.0) if total is not None and total_i > 0 else 0.0
+    return elapsed, rate, float(remaining), float(eta_sec), float(pct)
+
+
+def _progress_line(
+    *,
+    label: str,
+    tested: int,
+    total: int | None,
+    kept: int,
+    started_at: float,
+    rate_unit: str = "s",
+) -> str:
+    elapsed, rate, _remaining, eta_sec, pct = _progress_snapshot(
+        tested=int(tested),
+        total=(int(total) if total is not None else None),
+        started_at=float(started_at),
+    )
+    total_i = int(total) if total is not None else 0
+    if total is not None and total_i > 0:
+        return (
+            f"{label} {int(tested)}/{total_i} ({pct:0.1f}%) kept={int(kept)} "
+            f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m rate={rate:0.2f}/{rate_unit}"
+        )
+    return (
+        f"{label} tested={int(tested)} kept={int(kept)} "
+        f"elapsed={elapsed:0.1f}s rate={rate:0.2f}/{rate_unit}"
+    )
 
 
 def _run_axis_subprocess_plan(
@@ -3097,23 +3159,17 @@ def main() -> None:
                 hit_total = total_i is not None and tested == int(total_i)
                 hit_heartbeat = float(heartbeat_sec) > 0 and (now - last) >= float(heartbeat_sec)
                 if hit_report_every or hit_total or hit_heartbeat:
-                    elapsed = now - t0
-                    rate = (tested / elapsed) if elapsed > 0 else 0.0
-                    if total_i is not None and total_i > 0:
-                        remaining = total_i - tested
-                        eta_sec = (remaining / rate) if rate > 0 else 0.0
-                        pct = (tested / total_i) * 100.0
-                        print(
-                            f"{progress_label} {tested}/{total_i} ({pct:0.1f}%) kept={len(kept)} "
-                            f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
-                            flush=True,
-                        )
-                    else:
-                        print(
-                            f"{progress_label} tested={tested} kept={len(kept)} rate={rate:0.2f}/s "
-                            f"elapsed={elapsed:0.1f}s",
-                            flush=True,
-                        )
+                    print(
+                        _progress_line(
+                            label=str(progress_label),
+                            tested=int(tested),
+                            total=total_i,
+                            kept=len(kept),
+                            started_at=t0,
+                            rate_unit="s",
+                        ),
+                        flush=True,
+                    )
                     last = float(now)
 
             row = _run_cfg(cfg=cfg, bars=bars)
@@ -3767,17 +3823,15 @@ def main() -> None:
                 continue
             yield from build_variants(cfg_seed, seed_note, item)
 
-    def _run_seeded_micro_grid(
+    def _run_cfg_pairs_grid(
         *,
         axis_tag: str,
-        seeds: list[dict],
+        cfg_pairs: list[tuple[ConfigBundle, str]],
         rows: list[dict],
-        build_variants,
-        total: int | None = None,
         report_every: int = 0,
         heartbeat_sec: float = 0.0,
-        include_base_note: str | None = None,
     ) -> int:
+        nonlocal run_calls_total
         if args.seeded_micro_stage:
             payload_path = Path(str(args.seeded_micro_stage))
             payload_decoded = _load_worker_stage_payload(
@@ -3787,7 +3841,7 @@ def main() -> None:
             payload_axis = str(payload_decoded.get("axis_tag") or "").strip().lower()
             if payload_axis and payload_axis != str(axis_tag).strip().lower():
                 raise SystemExit(
-                    f"seeded_micro worker payload axis mismatch: expected {axis_tag} got {payload_axis} ({payload_path})"
+                    f"cfg_pairs worker payload axis mismatch: expected {axis_tag} got {payload_axis} ({payload_path})"
                 )
             plan_all = [
                 (cfg, note, None)
@@ -3807,25 +3861,13 @@ def main() -> None:
             )
             return -1
 
-        plan_all = list(
-            _iter_seed_micro_plan(
-                seeds=seeds,
-                include_base_note=include_base_note,
-                build_variants=build_variants,
-            )
-        )
+        plan_all = [(cfg, str(note), None) for cfg, note in cfg_pairs]
         total_eff = len(plan_all)
-        if total is not None and int(total) != int(total_eff):
-            print(
-                f"{axis_tag}: normalized total={total_eff} (declared={int(total)})",
-                flush=True,
-            )
-        bars_sig = _bars_cached(signal_bar_size)
         tested_total = _run_stage_cfg_rows(
             stage_label=str(axis_tag),
             total=int(total_eff),
             jobs_req=int(jobs),
-            bars=bars_sig,
+            bars=_bars_cached(signal_bar_size),
             report_every=max(1, int(report_every)),
             heartbeat_sec=float(heartbeat_sec),
             on_row=lambda _cfg, row, _note: rows.append(row),
@@ -3839,11 +3881,11 @@ def main() -> None:
                     "axis_tag": str(axis_tag),
                     "cfgs": [_encode_cfg_payload(cfg, note=note) for cfg, note, _meta in plan_all],
                 },
-                payload_filename="seeded_micro_payload.json",
-                temp_prefix=f"tradebot_{str(axis_tag)}_seeded_",
-                worker_tmp_prefix=f"tradebot_{str(axis_tag)}_seeded_worker_",
-                worker_tag=f"sm:{str(axis_tag)}",
-                out_prefix="seeded_micro_out",
+                payload_filename="cfg_pairs_payload.json",
+                temp_prefix=f"tradebot_{str(axis_tag)}_cfgpairs_",
+                worker_tmp_prefix=f"tradebot_{str(axis_tag)}_cfgpairs_worker_",
+                worker_tag=f"cfgpairs:{str(axis_tag)}",
+                out_prefix="cfg_pairs_out",
                 stage_flag="--seeded-micro-stage",
                 worker_flag="--seeded-micro-worker",
                 workers_flag="--seeded-micro-workers",
@@ -3865,6 +3907,42 @@ def main() -> None:
             parallel_default_note=str(axis_tag),
             parallel_dedupe_by_milestone_key=True,
             record_milestones=True,
+        )
+        if jobs > 1 and int(tested_total) > 0:
+            run_calls_total += int(tested_total)
+        return int(tested_total)
+
+    def _run_seeded_micro_grid(
+        *,
+        axis_tag: str,
+        seeds: list[dict],
+        rows: list[dict],
+        build_variants,
+        total: int | None = None,
+        report_every: int = 0,
+        heartbeat_sec: float = 0.0,
+        include_base_note: str | None = None,
+    ) -> int:
+        plan_all = list(
+            _iter_seed_micro_plan(
+                seeds=seeds,
+                include_base_note=include_base_note,
+                build_variants=build_variants,
+            )
+        )
+        total_eff = len(plan_all)
+        if total is not None and int(total) != int(total_eff):
+            print(
+                f"{axis_tag}: normalized total={total_eff} (declared={int(total)})",
+                flush=True,
+            )
+        cfg_pairs = [(cfg, str(note)) for cfg, note, _meta in plan_all]
+        tested_total = _run_cfg_pairs_grid(
+            axis_tag=str(axis_tag),
+            cfg_pairs=cfg_pairs,
+            rows=rows,
+            report_every=max(1, int(report_every)),
+            heartbeat_sec=float(heartbeat_sec),
         )
         return int(tested_total)
 
@@ -4762,7 +4840,7 @@ def main() -> None:
         profile = _ATR_EXIT_PROFILE_REGISTRY.get(str(profile_name))
         if not isinstance(profile, dict):
             raise SystemExit(f"Unknown ATR sweep profile: {profile_name!r}")
-        bars_sig = _bars_cached(signal_bar_size)
+        axis_tag = str(profile_name).strip().lower()
         base = _base_bundle(bar_size=signal_bar_size, filters=None)
         atr_periods = tuple(profile.get("atr_periods") or ())
         pt_mults = tuple(profile.get("pt_mults") or ())
@@ -4770,6 +4848,7 @@ def main() -> None:
         decimals_raw = profile.get("decimals")
         decimals = int(decimals_raw) if isinstance(decimals_raw, int) else None
         rows: list[dict] = []
+        cfg_pairs: list[tuple[ConfigBundle, str]] = []
         for atr_p in atr_periods:
             for pt_m in pt_mults:
                 for sl_m in sl_mults:
@@ -4785,17 +4864,21 @@ def main() -> None:
                             spot_stop_loss_pct=None,
                         ),
                     )
-                    row = _run_cfg(cfg=cfg, bars=bars_sig)
-                    if not row:
-                        continue
                     note = (
                         f"ATR({int(atr_p)}) "
                         f"PTx{_fmt_sweep_float(float(pt_m), decimals)} "
                         f"SLx{_fmt_sweep_float(float(sl_m), decimals)}"
                     )
-                    row["note"] = note
-                    _record_milestone(cfg, row, note)
-                    rows.append(row)
+                    cfg_pairs.append((cfg, note))
+        tested_total = _run_cfg_pairs_grid(
+            axis_tag=str(axis_tag),
+            cfg_pairs=cfg_pairs,
+            rows=rows,
+            report_every=50,
+            heartbeat_sec=10.0,
+        )
+        if int(tested_total) < 0:
+            return
         _print_leaderboards(rows, title=str(profile.get("title") or "ATR exits sweep"), top_n=int(args.top))
 
     def _sweep_atr_exits() -> None:
@@ -6262,25 +6345,30 @@ def main() -> None:
         profile = _SPREAD_PROFILE_REGISTRY.get(str(profile_name))
         if not isinstance(profile, dict):
             raise SystemExit(f"Unknown spread sweep profile: {profile_name!r}")
-        bars_sig = _bars_cached(signal_bar_size)
+        axis_tag = str(profile_name).strip().lower()
         field_name = str(profile.get("field") or "")
         note_prefix = str(profile.get("note_prefix") or "spread")
         decimals_raw = profile.get("decimals")
         decimals = int(decimals_raw) if isinstance(decimals_raw, int) else None
         values = tuple(profile.get("values") or ())
         rows: list[dict] = []
+        cfg_pairs: list[tuple[ConfigBundle, str]] = []
         for raw in values:
             spread_val = float(raw) if raw is not None else None
             overrides: dict[str, object] = {field_name: spread_val}
             f = _mk_filters(overrides=overrides)
             cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
-            row = _run_cfg(cfg=cfg, bars=bars_sig)
-            if not row:
-                continue
             note = "-" if spread_val is None else f"{note_prefix}>={_fmt_sweep_float(spread_val, decimals)}"
-            row["note"] = note
-            _record_milestone(cfg, row, note)
-            rows.append(row)
+            cfg_pairs.append((cfg, note))
+        tested_total = _run_cfg_pairs_grid(
+            axis_tag=str(axis_tag),
+            cfg_pairs=cfg_pairs,
+            rows=rows,
+            report_every=20,
+            heartbeat_sec=8.0,
+        )
+        if int(tested_total) < 0:
+            return
         _print_leaderboards(rows, title=str(profile.get("title") or "EMA spread sweep"), top_n=int(args.top))
 
     def _sweep_spread() -> None:
@@ -8228,9 +8316,17 @@ def main() -> None:
                 tested_total += 1
                 now = pytime.perf_counter()
                 if tested_total % report_every == 0 or (now - last_progress) >= heartbeat_sec:
-                    elapsed = now - t0_all
-                    rate = tested_total / elapsed if elapsed > 0 else 0.0
-                    print(f"champ_refine progress tested={tested_total} ({rate:0.2f} cfg/s)", flush=True)
+                    print(
+                        _progress_line(
+                            label="champ_refine progress",
+                            tested=int(tested_total),
+                            total=None,
+                            kept=len(rows),
+                            started_at=t0_all,
+                            rate_unit="cfg/s",
+                        ),
+                        flush=True,
+                    )
                     last_progress = float(now)
                 if not row:
                     continue
@@ -8311,9 +8407,17 @@ def main() -> None:
                             tested_total += 1
                             now = pytime.perf_counter()
                             if tested_total % report_every == 0 or (now - last_progress) >= heartbeat_sec:
-                                elapsed = now - t0_all
-                                rate = tested_total / elapsed if elapsed > 0 else 0.0
-                                print(f"champ_refine progress tested={tested_total} ({rate:0.2f} cfg/s)", flush=True)
+                                print(
+                                    _progress_line(
+                                        label="champ_refine progress",
+                                        tested=int(tested_total),
+                                        total=None,
+                                        kept=len(rows),
+                                        started_at=t0_all,
+                                        rate_unit="cfg/s",
+                                    ),
+                                    flush=True,
+                                )
                                 last_progress = float(now)
                             if not row:
                                 continue
@@ -9331,12 +9435,13 @@ def main() -> None:
 
         rows: list[dict] = []
 
-        scale_periods: tuple[tuple[int, int], ...] = ((2, 50), (3, 50), (5, 50), (3, 21))
+        profile = _SHOCK_THROTTLE_TR_RATIO_PROFILE
+        scale_periods: tuple[tuple[int, int], ...] = tuple(profile.get("periods") or ())
         # Telemetry (SLV 1h FULL24 tr_fast_pct): p75≈0.71%, p85≈0.90%, p92≈1.14% (1y window).
         # Include a few aggressive "surprise" targets to actually touch cap-bound trades.
-        targets: tuple[float, ...] = (0.25, 0.35, 0.45, 0.55, 0.7, 0.9, 1.1)
-        min_mults: tuple[float, ...] = (0.05, 0.1, 0.2)
-        apply_tos: tuple[str, ...] = ("cap", "both")
+        targets: tuple[float, ...] = tuple(profile.get("targets") or ())
+        min_mults: tuple[float, ...] = tuple(profile.get("min_mults") or ())
+        apply_tos: tuple[str, ...] = tuple(profile.get("apply_tos") or ())
 
         report_every = 50
         total = len(seeds) * len(scale_periods) * len(targets) * len(min_mults) * len(apply_tos)
@@ -9413,12 +9518,13 @@ def main() -> None:
 
         rows: list[dict] = []
 
-        lookbacks: tuple[int, ...] = (10, 20, 40)
+        profile = _SHOCK_THROTTLE_DRAWDOWN_PROFILE
+        lookbacks: tuple[int, ...] = tuple(profile.get("lookbacks") or ())
         # SLV 1y FULL24 stop-entries drawdown magnitude (20d peak):
         # p50≈1.17%, p75≈3.12%, p90≈9.70%, p95≈10.59%, max≈12.30%.
-        targets: tuple[float, ...] = (3.0, 4.0, 6.0, 8.0, 10.0, 12.0, 15.0)
-        min_mults: tuple[float, ...] = (0.05, 0.1, 0.2, 0.3)
-        apply_tos: tuple[str, ...] = ("cap", "both")
+        targets: tuple[float, ...] = tuple(profile.get("targets") or ())
+        min_mults: tuple[float, ...] = tuple(profile.get("min_mults") or ())
+        apply_tos: tuple[str, ...] = tuple(profile.get("apply_tos") or ())
 
         report_every = 50
         total = len(seeds) * len(lookbacks) * len(targets) * len(min_mults) * len(apply_tos)
@@ -9499,13 +9605,14 @@ def main() -> None:
 
         rows: list[dict] = []
 
-        cutoffs_et: tuple[int | None, ...] = (None, 15)
-        panic_tr_meds: tuple[float, ...] = (2.75, 3.0, 3.25)
-        neg_gap_ratios: tuple[float, ...] = (0.5, 0.6)
-        neg_gap_abs_pcts: tuple[float | None, ...] = (None, 0.005)
-        tr_delta_mins: tuple[float | None, ...] = (None, 0.25, 0.5, 0.75)
-        long_factors: tuple[float, ...] = (1.0, 0.4, 0.0)
-        scale_modes: tuple[str | None, ...] = (None, "linear")
+        profile = _RISKPANIC_MICRO_PROFILE
+        cutoffs_et: tuple[int | None, ...] = tuple(profile.get("cutoffs_et") or ())
+        panic_tr_meds: tuple[float, ...] = tuple(profile.get("panic_tr_meds") or ())
+        neg_gap_ratios: tuple[float, ...] = tuple(profile.get("neg_gap_ratios") or ())
+        neg_gap_abs_pcts: tuple[float | None, ...] = tuple(profile.get("neg_gap_abs_pcts") or ())
+        tr_delta_mins: tuple[float | None, ...] = tuple(profile.get("tr_delta_mins") or ())
+        long_factors: tuple[float, ...] = tuple(profile.get("long_factors") or ())
+        scale_modes: tuple[str | None, ...] = tuple(profile.get("scale_modes") or ())
 
         report_every = 50
         total = (
@@ -12100,23 +12207,19 @@ def spot_multitimeframe_main() -> None:
 
             if tested % report_every != 0:
                 continue
-            elapsed = pytime.perf_counter() - started
-            rate = tested / elapsed if elapsed > 0 else 0.0
-            remaining = max(0, int(worker_total) - int(tested))
-            eta_sec = (remaining / rate) if rate > 0 else 0.0
-            pct = ((tested / worker_total) * 100.0) if worker_total > 0 else 0.0
-            if progress_mode == "worker":
-                print(
-                    f"multitimeframe worker {worker_id+1}/{workers} {tested}/{worker_total} ({pct:0.1f}%) "
-                    f"kept={len(out_rows)} elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m ({rate:0.2f} cands/s)",
-                    flush=True,
-                )
-            else:
-                print(
-                    f"multitimeframe serial {tested}/{worker_total} ({pct:0.1f}%) kept={len(out_rows)} "
-                    f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m ({rate:0.2f} cands/s)",
-                    flush=True,
-                )
+            line = _progress_line(
+                label=(
+                    f"multitimeframe worker {worker_id+1}/{workers}"
+                    if progress_mode == "worker"
+                    else "multitimeframe serial"
+                ),
+                tested=int(tested),
+                total=int(worker_total),
+                kept=len(out_rows),
+                started_at=started,
+                rate_unit="cands/s",
+            )
+            print(line, flush=True)
         return tested, out_rows
 
     def _emit_multitimeframe_results(*, out_rows: list[dict], tested_total: int | None = None, workers: int | None = None) -> None:
