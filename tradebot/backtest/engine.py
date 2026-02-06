@@ -3326,90 +3326,56 @@ def _run_spot_backtest_exec_loop_summary_fast(
         ):
             return False
 
-        leg = None
-        if needs_direction and strat.directional_spot is not None:
-            leg = strat.directional_spot.get(pending_dir)
-        elif pending_dir == "up":
-            leg = SpotLegConfig(action="BUY", qty=1)
-        if leg is None:
+        entry_leg = _spot_entry_leg_for_direction(
+            strategy=strat,
+            entry_dir=pending_dir,
+            needs_direction=needs_direction,
+        )
+        if entry_leg is None:
             return False
-
-        action = str(getattr(leg, "action", "BUY") or "BUY").strip().upper()
-        if action not in ("BUY", "SELL"):
-            action = "BUY"
-        side = "buy" if action == "BUY" else "sell"
-        lot = max(1, int(getattr(leg, "qty", 1) or 1))
-        base_signed_qty = lot * int(strat.quantity)
-        if action != "BUY":
-            base_signed_qty = -base_signed_qty
 
         bar = exec_bars[entry_exec_idx]
-        entry_ref = float(bar.open)
-        entry_price_est = _spot_exec_price(
-            entry_ref,
-            side=side,
-            qty=base_signed_qty,
-            spread=spot_spread,
-            commission_per_share=spot_commission,
-            commission_min=spot_commission_min,
-            slippage_per_share=spot_slippage,
-        )
-
         shock_prev_on, shock_dir_prev_now, shock_atr_pct_prev_now = _shock_prev(entry_exec_idx)
-        stop_pct_eff = _effective_pct(float(base_stop_pct), shock_stop_mult, shock_prev_on)
-
         riskoff_fill, riskpanic_fill, riskpop_fill = _risk_flags(bar.ts.date())
-        signed_qty = spot_calc_signed_qty(
-            strategy=strat,
+        opened = _spot_try_open_entry(
+            cfg=cfg,
+            meta=meta,
+            entry_signal="ema",
+            entry_dir=pending_dir,
+            entry_leg=entry_leg,
+            entry_time=bar.ts,
+            entry_ref_price=float(bar.open),
+            mark_ref_price=float(bar.open),
+            atr_value=None,
+            exit_mode="pct",
+            orb_engine=None,
             filters=filters,
-            action=action,
-            lot=lot,
-            entry_price=float(entry_price_est),
-            stop_price=None,
-            stop_loss_pct=stop_pct_eff,
-            shock=bool(shock_prev_on),
-            shock_dir=shock_dir_prev_now,
-            shock_atr_pct=shock_atr_pct_prev_now,
-            riskoff=bool(riskoff_fill),
-            risk_dir=shock_dir_prev_now,
-            riskpanic=bool(riskpanic_fill),
-            riskpop=bool(riskpop_fill),
-            risk=risk_by_day.get(bar.ts.date()),
-            equity_ref=float(cash),
-            cash_ref=float(cash),
-        )
-        if int(signed_qty) == 0:
-            return False
-
-        entry_price = _spot_exec_price(
-            entry_ref,
-            side=side,
-            qty=int(signed_qty),
-            spread=spot_spread,
-            commission_per_share=spot_commission,
-            commission_min=spot_commission_min,
-            slippage_per_share=spot_slippage,
-        )
-
-        ok, cash_after, _margin_after, margin_required = _spot_entry_accounting(
+            shock_now=bool(shock_prev_on),
+            shock_dir_now=shock_dir_prev_now,
+            shock_atr_pct_now=shock_atr_pct_prev_now,
+            riskoff_today=bool(riskoff_fill),
+            riskpanic_today=bool(riskpanic_fill),
+            riskpop_today=bool(riskpop_fill),
+            risk_snapshot=risk_by_day.get(bar.ts.date()),
             cash=float(cash),
             margin_used=0.0,
-            signed_qty=int(signed_qty),
-            entry_price=float(entry_price),
-            mark_ref_price=float(entry_ref),
             liquidation_value=0.0,
             spread=float(spot_spread),
+            commission_per_share=float(spot_commission),
+            commission_min=float(spot_commission_min),
+            slippage_per_share=float(spot_slippage),
             mark_to_market=str(spot_mark_to_market),
-            multiplier=float(meta.multiplier),
         )
-        if not ok:
+        if opened is None:
             return False
 
-        open_qty = int(signed_qty)
+        candidate, cash_after, margin_after = opened
+
+        open_qty = int(candidate.qty)
         open_entry_exec_idx = int(entry_exec_idx)
         open_entry_time = bar.ts
-        open_entry_price = float(entry_price)
-        open_margin_required = float(margin_required)
+        open_entry_price = float(candidate.entry_price)
+        open_margin_required = float(margin_after)
         cash = float(cash_after)
         entries_today += 1
         return True

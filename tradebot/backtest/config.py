@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
+from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
@@ -31,6 +32,23 @@ _WEEKDAYS = {
 # endregion
 
 
+_MISSING = object()
+
+
+@dataclass(frozen=True)
+class _FieldSpec:
+    parser: Callable[[object], object]
+    default: object = _MISSING
+
+
+def _field(parser: Callable[[object], object], default: object = _MISSING) -> _FieldSpec:
+    return _FieldSpec(parser=parser, default=default)
+
+
+def _identity(value):
+    return value
+
+
 # region Public API
 def load_config(path: str | Path) -> ConfigBundle:
     raw = json.loads(Path(path).read_text())
@@ -53,27 +71,34 @@ def load_config(path: str | Path) -> ConfigBundle:
 
 def _parse_from_schema(
     raw: dict,
-    schema: dict[str, Callable[[dict], object]],
+    schema: dict[str, Callable[[dict], object] | _FieldSpec],
 ) -> dict[str, object]:
     out: dict[str, object] = {}
     for field, parser in schema.items():
-        out[field] = parser(raw)
+        if isinstance(parser, _FieldSpec):
+            if parser.default is _MISSING:
+                value = raw.get(field)
+            else:
+                value = raw.get(field, parser.default)
+            out[field] = parser.parser(value)
+        else:
+            out[field] = parser(raw)
     return out
 
 
-def _backtest_schema() -> dict[str, Callable[[dict], object]]:
+def _backtest_schema() -> dict[str, _FieldSpec]:
     return {
-        "start": lambda raw: _parse_date(raw.get("start")),
-        "end": lambda raw: _parse_date(raw.get("end")),
-        "bar_size": lambda raw: raw.get("bar_size", "1 hour"),
-        "use_rth": lambda raw: bool(raw.get("use_rth", False)),
-        "starting_cash": lambda raw: float(raw.get("starting_cash", 100_000.0)),
-        "risk_free_rate": lambda raw: float(raw.get("risk_free_rate", 0.02)),
-        "cache_dir": lambda raw: Path(raw.get("cache_dir", "db")),
-        "calibration_dir": lambda raw: Path(raw.get("calibration_dir", "db/calibration")),
-        "output_dir": lambda raw: Path(raw.get("output_dir", "backtests/out")),
-        "calibrate": lambda raw: bool(raw.get("calibrate", False)),
-        "offline": lambda raw: bool(raw.get("offline", False)),
+        "start": _field(_parse_date),
+        "end": _field(_parse_date),
+        "bar_size": _field(_identity, "1 hour"),
+        "use_rth": _field(bool, False),
+        "starting_cash": _field(float, 100_000.0),
+        "risk_free_rate": _field(float, 0.02),
+        "cache_dir": _field(Path, "db"),
+        "calibration_dir": _field(Path, "db/calibration"),
+        "output_dir": _field(Path, "backtests/out"),
+        "calibrate": _field(bool, False),
+        "offline": _field(bool, False),
     }
 
 
@@ -176,15 +201,15 @@ def _strategy_schema() -> dict[str, Callable[[dict], object]]:
     }
 
 
-def _synthetic_schema() -> dict[str, Callable[[dict], object]]:
+def _synthetic_schema() -> dict[str, _FieldSpec]:
     return {
-        "rv_lookback": lambda raw: int(raw.get("rv_lookback", 60)),
-        "rv_ewma_lambda": lambda raw: float(raw.get("rv_ewma_lambda", 0.94)),
-        "iv_risk_premium": lambda raw: float(raw.get("iv_risk_premium", 1.2)),
-        "iv_floor": lambda raw: float(raw.get("iv_floor", 0.05)),
-        "term_slope": lambda raw: float(raw.get("term_slope", 0.02)),
-        "skew": lambda raw: float(raw.get("skew", -0.25)),
-        "min_spread_pct": lambda raw: float(raw.get("min_spread_pct", 0.1)),
+        "rv_lookback": _field(int, 60),
+        "rv_ewma_lambda": _field(float, 0.94),
+        "iv_risk_premium": _field(float, 1.2),
+        "iv_floor": _field(float, 0.05),
+        "term_slope": _field(float, 0.02),
+        "skew": _field(float, -0.25),
+        "min_spread_pct": _field(float, 0.1),
     }
 
 

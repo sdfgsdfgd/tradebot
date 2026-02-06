@@ -351,6 +351,7 @@ _COMBO_FULL_PLAN = (
     "joint",
     "micro_st",
     "orb",
+    "hf_scalp",
     "orb_joint",
     "tod_interaction",
     "perm_joint",
@@ -1119,6 +1120,137 @@ def _print_leaderboards(rows: list[dict], *, title: str, top_n: int) -> None:
     _print_top(rows, title=f"{title} — Top by pnl", top_n=top_n, sort_key=_score_row_pnl)
 
 
+def _seed_groups_from_path(seed_path: Path) -> list[dict]:
+    try:
+        payload = json.loads(seed_path.read_text())
+    except json.JSONDecodeError as exc:
+        raise SystemExit(f"Invalid seed milestones payload: {seed_path}") from exc
+    if not isinstance(payload, dict):
+        raise SystemExit(f"Invalid seed milestones payload: {seed_path}")
+    raw_groups = payload.get("groups") or []
+    if not isinstance(raw_groups, list):
+        raise SystemExit(f"Invalid seed milestones groups: {seed_path}")
+    return raw_groups
+
+
+def _seed_sort_key_default(item: dict) -> tuple:
+    m = item.get("metrics") or {}
+    return (
+        float(m.get("pnl_over_dd") or float("-inf")),
+        float(m.get("pnl") or float("-inf")),
+        float(m.get("win_rate") or 0.0),
+        int(m.get("trades") or 0),
+    )
+
+
+def _seed_candidates_for_context(
+    *,
+    raw_groups: list[dict],
+    symbol: str,
+    signal_bar_size: str,
+    use_rth: bool,
+    min_trades: int = 0,
+    predicate: Callable[[dict, dict, dict, dict], bool] | None = None,
+) -> list[dict]:
+    out: list[dict] = []
+    symbol_norm = str(symbol).strip().upper()
+    bar_norm = str(signal_bar_size).strip().lower()
+    for group in raw_groups:
+        if not isinstance(group, dict):
+            continue
+        entries = group.get("entries") or []
+        if not isinstance(entries, list) or not entries:
+            continue
+        entry = entries[0]
+        if not isinstance(entry, dict):
+            continue
+        strat = entry.get("strategy") or {}
+        metrics = entry.get("metrics") or {}
+        if not isinstance(strat, dict) or not isinstance(metrics, dict):
+            continue
+        if str(strat.get("instrument", "spot") or "spot").strip().lower() != "spot":
+            continue
+        if str(entry.get("symbol") or strat.get("symbol") or "").strip().upper() != symbol_norm:
+            continue
+        if str(strat.get("signal_bar_size") or "").strip().lower() != bar_norm:
+            continue
+        if bool(strat.get("signal_use_rth")) != bool(use_rth):
+            continue
+        if int(min_trades) > 0:
+            try:
+                trades = int(metrics.get("trades") or 0)
+            except (TypeError, ValueError):
+                trades = 0
+            if int(trades) < int(min_trades):
+                continue
+        if predicate is not None and not bool(predicate(group, entry, strat, metrics)):
+            continue
+        candidate = {
+            "group_name": str(group.get("name") or ""),
+            "strategy": strat,
+            "filters": group.get("filters") if isinstance(group.get("filters"), dict) else None,
+            "metrics": metrics,
+        }
+        eval_payload = group.get("_eval")
+        if isinstance(eval_payload, dict):
+            candidate["eval"] = dict(eval_payload)
+        out.append(candidate)
+    return out
+
+
+def _resolve_seed_milestones_path(
+    *,
+    seed_milestones: str | None,
+    axis_tag: str,
+    default_path: str | None = None,
+) -> Path:
+    if seed_milestones:
+        seed_path = Path(str(seed_milestones))
+    elif default_path:
+        seed_path = Path(str(default_path))
+    else:
+        raise SystemExit(f"--axis {axis_tag} requires --seed-milestones <milestones.json>")
+    if not seed_path.exists():
+        raise SystemExit(f"--axis {axis_tag} requires --seed-milestones (missing {seed_path})")
+    return seed_path
+
+
+def _load_seed_candidates(
+    *,
+    seed_milestones: str | None,
+    axis_tag: str,
+    symbol: str,
+    signal_bar_size: str,
+    use_rth: bool,
+    default_path: str | None = None,
+    min_trades: int = 0,
+    predicate: Callable[[dict, dict, dict, dict], bool] | None = None,
+) -> tuple[Path, list[dict]]:
+    seed_path = _resolve_seed_milestones_path(
+        seed_milestones=seed_milestones,
+        axis_tag=axis_tag,
+        default_path=default_path,
+    )
+    candidates = _seed_candidates_for_context(
+        raw_groups=_seed_groups_from_path(seed_path),
+        symbol=symbol,
+        signal_bar_size=signal_bar_size,
+        use_rth=use_rth,
+        min_trades=int(min_trades),
+        predicate=predicate,
+    )
+    return seed_path, candidates
+
+
+def _seed_top_candidates(
+    candidates: list[dict],
+    *,
+    seed_top: int,
+    sort_key: Callable[[dict], tuple] = _seed_sort_key_default,
+) -> list[dict]:
+    return sorted(candidates, key=sort_key, reverse=True)[: max(1, int(seed_top))]
+
+
 def _load_spot_milestones() -> dict | None:
     path = Path(__file__).resolve().parent / "spot_milestones.json"
     if not path.exists():
@@ -1712,7 +1844,7 @@ def main() -> None:
 
     run_calls_total = 0
 
-    def _merge_filters(base_filters: FiltersConfig | None, *, overrides: dict[str, object]) -> FiltersConfig | None:
+    def _merge_filters(base_filters: FiltersConfig | None, overrides: dict[str, object]) -> FiltersConfig | None:
         """Merge base filters with overrides, where `None` deletes a key.
 
         Used to build joint permission sweeps without being constrained by the combo_fast funnel.
@@ -6938,6 +7070,7 @@ def main() -> None:
             "joint": _sweep_joint,
             "micro_st": _sweep_micro_st,
             "orb": _sweep_orb,
+            "hf_scalp": _sweep_hf_scalp,
             "orb_joint": _sweep_orb_joint,
             "tod_interaction": _sweep_tod_interaction,
             "perm_joint": _sweep_perm_joint,
@@ -6961,6 +7094,14 @@ def main() -> None:
             if fn is not None:
                 _run_axis(str(axis_name), fn)
 
+        seed_path_raw = str(getattr(args, "seed_milestones", "") or "").strip()
+        if seed_path_raw:
+            seed_path = Path(seed_path_raw)
+            if seed_path.exists():
+                _run_axis("st37_refine", _sweep_st37_refine)
+            else:
+                print(f"SKIP st37_refine: --seed-milestones not found ({seed_path})", flush=True)
+
     def _sweep_champ_refine() -> None:
         """Seeded, champ-focused refinement around a top-K candidate pool.
 
@@ -6972,57 +7113,14 @@ def main() -> None:
 
         This is intentionally bounded and should finish in a reasonable overnight window.
         """
-        if not args.seed_milestones:
-            raise SystemExit("--axis champ_refine requires --seed-milestones <milestones.json>")
-        seed_path = Path(str(args.seed_milestones))
-        if not seed_path.exists():
-            raise SystemExit(f"--seed-milestones file not found: {seed_path}")
-
-        payload = json.loads(seed_path.read_text())
-        if not isinstance(payload, dict):
-            raise SystemExit(f"Invalid seed milestones payload: {seed_path}")
-
-        raw_groups = payload.get("groups") or []
-        if not isinstance(raw_groups, list):
-            raise SystemExit(f"Invalid seed milestones groups: {seed_path}")
-
-        # Extract seed candidates matching this run's symbol/bar/rth.
-        candidates: list[dict] = []
-        for group in raw_groups:
-            if not isinstance(group, dict):
-                continue
-            entries = group.get("entries") or []
-            if not isinstance(entries, list) or not entries:
-                continue
-            entry = entries[0]
-            if not isinstance(entry, dict):
-                continue
-            strat = entry.get("strategy") or {}
-            metrics = entry.get("metrics") or {}
-            if not isinstance(strat, dict) or not isinstance(metrics, dict):
-                continue
-            if str(strat.get("instrument", "spot") or "spot").strip().lower() != "spot":
-                continue
-            if str(entry.get("symbol") or strat.get("symbol") or "").strip().upper() != str(symbol).strip().upper():
-                continue
-            if str(strat.get("signal_bar_size") or "").strip().lower() != str(signal_bar_size).strip().lower():
-                continue
-            if bool(strat.get("signal_use_rth")) != bool(use_rth):
-                continue
-            try:
-                seed_trades = int(metrics.get("trades") or 0)
-            except (TypeError, ValueError):
-                seed_trades = 0
-            if int(seed_trades) < int(run_min_trades):
-                continue
-            candidates.append(
-                {
-                    "group_name": str(group.get("name") or ""),
-                    "strategy": strat,
-                    "filters": group.get("filters") if isinstance(group.get("filters"), dict) else None,
-                    "metrics": metrics,
-                }
-            )
+        seed_path, candidates = _load_seed_candidates(
+            seed_milestones=args.seed_milestones,
+            axis_tag="champ_refine",
+            symbol=symbol,
+            signal_bar_size=signal_bar_size,
+            use_rth=use_rth,
+            min_trades=int(run_min_trades),
+        )
 
         if not candidates:
             print(f"No matching seed candidates found in {seed_path} for {symbol} {signal_bar_size} rth={use_rth}.")
@@ -7530,15 +7628,6 @@ def main() -> None:
             risk_variants = [
                 (_risk_off_overrides(), "risk=off"),
             ]
-
-        def _merge_filters(base_filters: FiltersConfig | None, overrides: dict[str, object]) -> FiltersConfig | None:
-            base_payload = _filters_payload(base_filters) or {}
-            merged = dict(base_payload)
-            merged.update(overrides)
-            out = _parse_filters(merged)
-            if _filters_payload(out) is None:
-                return None
-            return out
 
         def _cfg_from_payload(strategy_payload, filters_payload) -> ConfigBundle | None:
             if not isinstance(strategy_payload, dict):
@@ -8381,67 +8470,21 @@ def main() -> None:
         """
         nonlocal run_calls_total
 
-        if args.seed_milestones is None:
-            seed_path = Path("backtests/out/tqqq_exec5m_v34_champ_only_milestone.json")
-        else:
-            seed_path = Path(str(args.seed_milestones))
-        if not seed_path.exists():
-            raise SystemExit(f"--axis shock_alpha_refine requires --seed-milestones (missing {seed_path})")
-
-        payload = json.loads(seed_path.read_text())
-        if not isinstance(payload, dict):
-            raise SystemExit(f"Invalid seed milestones payload: {seed_path}")
-
-        raw_groups = payload.get("groups") or []
-        if not isinstance(raw_groups, list):
-            raise SystemExit(f"Invalid seed milestones groups: {seed_path}")
-
-        candidates: list[dict] = []
-        for group in raw_groups:
-            if not isinstance(group, dict):
-                continue
-            entries = group.get("entries") or []
-            if not isinstance(entries, list) or not entries:
-                continue
-            entry = entries[0]
-            if not isinstance(entry, dict):
-                continue
-            strat = entry.get("strategy") or {}
-            metrics = entry.get("metrics") or {}
-            if not isinstance(strat, dict) or not isinstance(metrics, dict):
-                continue
-            if str(strat.get("instrument", "spot") or "spot").strip().lower() != "spot":
-                continue
-            if str(entry.get("symbol") or strat.get("symbol") or "").strip().upper() != str(symbol).strip().upper():
-                continue
-            if str(strat.get("signal_bar_size") or "").strip().lower() != str(signal_bar_size).strip().lower():
-                continue
-            if bool(strat.get("signal_use_rth")) != bool(use_rth):
-                continue
-            candidates.append(
-                {
-                    "group_name": str(group.get("name") or ""),
-                    "strategy": strat,
-                    "filters": group.get("filters") if isinstance(group.get("filters"), dict) else None,
-                    "metrics": metrics,
-                }
-            )
+        seed_path, candidates = _load_seed_candidates(
+            seed_milestones=args.seed_milestones,
+            axis_tag="shock_alpha_refine",
+            symbol=symbol,
+            signal_bar_size=signal_bar_size,
+            use_rth=use_rth,
+            default_path="backtests/out/tqqq_exec5m_v34_champ_only_milestone.json",
+        )
 
         if not candidates:
             print(f"No matching seed candidates found in {seed_path} for {symbol} {signal_bar_size} rth={use_rth}.")
             return
 
-        def _sort_key(item: dict) -> tuple:
-            m = item.get("metrics") or {}
-            return (
-                float(m.get("pnl_over_dd") or float("-inf")),
-                float(m.get("pnl") or float("-inf")),
-                float(m.get("win_rate") or 0.0),
-                int(m.get("trades") or 0),
-            )
-
         seed_top = max(1, int(args.seed_top or 0))
-        seeds = sorted(candidates, key=_sort_key, reverse=True)[:seed_top]
+        seeds = _seed_top_candidates(candidates, seed_top=seed_top)
 
         print("")
         print("=== shock_alpha_refine: seeded shock monetization micro grid ===")
@@ -8454,15 +8497,6 @@ def main() -> None:
         tested_total = 0
         t0 = pytime.perf_counter()
         report_every = 100
-
-        def _merge_filters(base_filters: FiltersConfig | None, overrides: dict[str, object]) -> FiltersConfig | None:
-            base_payload = _filters_payload(base_filters) or {}
-            merged = dict(base_payload)
-            merged.update(overrides)
-            out = _parse_filters(merged)
-            if _filters_payload(out) is None:
-                return None
-            return out
 
         gate_modes = ["detect", "surf", "block_longs"]
         regime_override_dirs = [False, True]
@@ -8620,66 +8654,21 @@ def main() -> None:
 
         axis_tag = "shock_velocity_refine_wide" if wide else "shock_velocity_refine"
 
-        if args.seed_milestones is None:
-            seed_path = Path("backtests/out/tqqq_exec5m_v37_champ_only_milestone.json")
-        else:
-            seed_path = Path(str(args.seed_milestones))
-        if not seed_path.exists():
-            raise SystemExit(f"--axis {axis_tag} requires --seed-milestones (missing {seed_path})")
-
-        payload = json.loads(seed_path.read_text())
-        if not isinstance(payload, dict):
-            raise SystemExit(f"Invalid seed milestones payload: {seed_path}")
-        raw_groups = payload.get("groups") or []
-        if not isinstance(raw_groups, list):
-            raise SystemExit(f"Invalid seed milestones groups: {seed_path}")
-
-        candidates: list[dict] = []
-        for group in raw_groups:
-            if not isinstance(group, dict):
-                continue
-            entries = group.get("entries") or []
-            if not isinstance(entries, list) or not entries:
-                continue
-            entry = entries[0]
-            if not isinstance(entry, dict):
-                continue
-            strat = entry.get("strategy") or {}
-            metrics = entry.get("metrics") or {}
-            if not isinstance(strat, dict) or not isinstance(metrics, dict):
-                continue
-            if str(strat.get("instrument", "spot") or "spot").strip().lower() != "spot":
-                continue
-            if str(entry.get("symbol") or strat.get("symbol") or "").strip().upper() != str(symbol).strip().upper():
-                continue
-            if str(strat.get("signal_bar_size") or "").strip().lower() != str(signal_bar_size).strip().lower():
-                continue
-            if bool(strat.get("signal_use_rth")) != bool(use_rth):
-                continue
-            candidates.append(
-                {
-                    "group_name": str(group.get("name") or ""),
-                    "strategy": strat,
-                    "filters": group.get("filters") if isinstance(group.get("filters"), dict) else None,
-                    "metrics": metrics,
-                }
-            )
+        seed_path, candidates = _load_seed_candidates(
+            seed_milestones=args.seed_milestones,
+            axis_tag=axis_tag,
+            symbol=symbol,
+            signal_bar_size=signal_bar_size,
+            use_rth=use_rth,
+            default_path="backtests/out/tqqq_exec5m_v37_champ_only_milestone.json",
+        )
 
         if not candidates:
             print(f"No matching seed candidates found in {seed_path} for {symbol} {signal_bar_size} rth={use_rth}.")
             return
 
-        def _sort_key(item: dict) -> tuple:
-            m = item.get("metrics") or {}
-            return (
-                float(m.get("pnl_over_dd") or float("-inf")),
-                float(m.get("pnl") or float("-inf")),
-                float(m.get("win_rate") or 0.0),
-                int(m.get("trades") or 0),
-            )
-
         seed_top = max(1, int(args.seed_top or 0))
-        seeds = sorted(candidates, key=_sort_key, reverse=True)[:seed_top]
+        seeds = _seed_top_candidates(candidates, seed_top=seed_top)
 
         print("")
         print(f"=== {axis_tag}: seeded TR-ratio × TR-velocity overlays ===")
@@ -8692,15 +8681,6 @@ def main() -> None:
         tested_total = 0
         t0 = pytime.perf_counter()
         report_every = 100
-
-        def _merge_filters(base_filters: FiltersConfig | None, overrides: dict[str, object]) -> FiltersConfig | None:
-            base_payload = _filters_payload(base_filters) or {}
-            merged = dict(base_payload)
-            merged.update(overrides)
-            out = _parse_filters(merged)
-            if _filters_payload(out) is None:
-                return None
-            return out
 
         shock_variants: list[tuple[dict[str, object], str]] = []
         shock_fast_slow = ((3, 21), (5, 21), (5, 50))
@@ -9103,66 +9083,21 @@ def main() -> None:
 
         axis_tag = "shock_throttle_refine"
 
-        if args.seed_milestones is None:
-            seed_path = Path("backtests/out/tqqq_exec5m_v37_champ_only_milestone.json")
-        else:
-            seed_path = Path(str(args.seed_milestones))
-        if not seed_path.exists():
-            raise SystemExit(f"--axis {axis_tag} requires --seed-milestones (missing {seed_path})")
-
-        payload = json.loads(seed_path.read_text())
-        if not isinstance(payload, dict):
-            raise SystemExit(f"Invalid seed milestones payload: {seed_path}")
-        raw_groups = payload.get("groups") or []
-        if not isinstance(raw_groups, list):
-            raise SystemExit(f"Invalid seed milestones groups: {seed_path}")
-
-        candidates: list[dict] = []
-        for group in raw_groups:
-            if not isinstance(group, dict):
-                continue
-            entries = group.get("entries") or []
-            if not isinstance(entries, list) or not entries:
-                continue
-            entry = entries[0]
-            if not isinstance(entry, dict):
-                continue
-            strat = entry.get("strategy") or {}
-            metrics = entry.get("metrics") or {}
-            if not isinstance(strat, dict) or not isinstance(metrics, dict):
-                continue
-            if str(strat.get("instrument", "spot") or "spot").strip().lower() != "spot":
-                continue
-            if str(entry.get("symbol") or strat.get("symbol") or "").strip().upper() != str(symbol).strip().upper():
-                continue
-            if str(strat.get("signal_bar_size") or "").strip().lower() != str(signal_bar_size).strip().lower():
-                continue
-            if bool(strat.get("signal_use_rth")) != bool(use_rth):
-                continue
-            candidates.append(
-                {
-                    "group_name": str(group.get("name") or ""),
-                    "strategy": strat,
-                    "filters": group.get("filters") if isinstance(group.get("filters"), dict) else None,
-                    "metrics": metrics,
-                }
-            )
+        seed_path, candidates = _load_seed_candidates(
+            seed_milestones=args.seed_milestones,
+            axis_tag=axis_tag,
+            symbol=symbol,
+            signal_bar_size=signal_bar_size,
+            use_rth=use_rth,
+            default_path="backtests/out/tqqq_exec5m_v37_champ_only_milestone.json",
+        )
 
         if not candidates:
             print(f"No matching seed candidates found in {seed_path} for {symbol} {signal_bar_size} rth={use_rth}.")
             return
 
-        def _sort_key(item: dict) -> tuple:
-            m = item.get("metrics") or {}
-            return (
-                float(m.get("pnl_over_dd") or float("-inf")),
-                float(m.get("pnl") or float("-inf")),
-                float(m.get("win_rate") or 0.0),
-                int(m.get("trades") or 0),
-            )
-
         seed_top = max(1, int(args.seed_top or 0))
-        seeds = sorted(candidates, key=_sort_key, reverse=True)[:seed_top]
+        seeds = _seed_top_candidates(candidates, seed_top=seed_top)
 
         print("")
         print(f"=== {axis_tag}: seeded shock scaling target × min-mult pocket ===")
@@ -9174,15 +9109,6 @@ def main() -> None:
         rows: list[dict] = []
         t0 = pytime.perf_counter()
         report_every = 50
-
-        def _merge_filters(base_filters: FiltersConfig | None, overrides: dict[str, object]) -> FiltersConfig | None:
-            base_payload = _filters_payload(base_filters) or {}
-            merged = dict(base_payload)
-            merged.update(overrides)
-            out = _parse_filters(merged)
-            if _filters_payload(out) is None:
-                return None
-            return out
 
         def _shock_mode(filters: FiltersConfig | None) -> str:
             if filters is None:
@@ -9445,65 +9371,20 @@ def main() -> None:
 
         axis_tag = "shock_throttle_tr_ratio"
 
-        if args.seed_milestones is None:
-            raise SystemExit(f"--axis {axis_tag} requires --seed-milestones <milestones.json>")
-        seed_path = Path(str(args.seed_milestones))
-        if not seed_path.exists():
-            raise SystemExit(f"--axis {axis_tag} requires --seed-milestones (missing {seed_path})")
-
-        payload = json.loads(seed_path.read_text())
-        if not isinstance(payload, dict):
-            raise SystemExit(f"Invalid seed milestones payload: {seed_path}")
-        raw_groups = payload.get("groups") or []
-        if not isinstance(raw_groups, list):
-            raise SystemExit(f"Invalid seed milestones groups: {seed_path}")
-
-        candidates: list[dict] = []
-        for group in raw_groups:
-            if not isinstance(group, dict):
-                continue
-            entries = group.get("entries") or []
-            if not isinstance(entries, list) or not entries:
-                continue
-            entry = entries[0]
-            if not isinstance(entry, dict):
-                continue
-            strat = entry.get("strategy") or {}
-            metrics = entry.get("metrics") or {}
-            if not isinstance(strat, dict) or not isinstance(metrics, dict):
-                continue
-            if str(strat.get("instrument", "spot") or "spot").strip().lower() != "spot":
-                continue
-            if str(entry.get("symbol") or strat.get("symbol") or "").strip().upper() != str(symbol).strip().upper():
-                continue
-            if str(strat.get("signal_bar_size") or "").strip().lower() != str(signal_bar_size).strip().lower():
-                continue
-            if bool(strat.get("signal_use_rth")) != bool(use_rth):
-                continue
-            candidates.append(
-                {
-                    "group_name": str(group.get("name") or ""),
-                    "strategy": strat,
-                    "filters": group.get("filters") if isinstance(group.get("filters"), dict) else None,
-                    "metrics": metrics,
-                }
-            )
+        seed_path, candidates = _load_seed_candidates(
+            seed_milestones=args.seed_milestones,
+            axis_tag=axis_tag,
+            symbol=symbol,
+            signal_bar_size=signal_bar_size,
+            use_rth=use_rth,
+        )
 
         if not candidates:
             print(f"No matching seed candidates found in {seed_path} for {symbol} {signal_bar_size} rth={use_rth}.")
             return
 
-        def _sort_key(item: dict) -> tuple:
-            m = item.get("metrics") or {}
-            return (
-                float(m.get("pnl_over_dd") or float("-inf")),
-                float(m.get("pnl") or float("-inf")),
-                float(m.get("win_rate") or 0.0),
-                int(m.get("trades") or 0),
-            )
-
         seed_top = max(1, int(args.seed_top or 0))
-        seeds = sorted(candidates, key=_sort_key, reverse=True)[:seed_top]
+        seeds = _seed_top_candidates(candidates, seed_top=seed_top)
 
         print("")
         print(f"=== {axis_tag}: seeded TR-ratio throttle micro-grid ===")
@@ -9513,15 +9394,6 @@ def main() -> None:
 
         bars_sig = _bars_cached(signal_bar_size)
         rows: list[dict] = []
-
-        def _merge_filters(base_filters: FiltersConfig | None, overrides: dict[str, object]) -> FiltersConfig | None:
-            base_payload = _filters_payload(base_filters) or {}
-            merged = dict(base_payload)
-            merged.update(overrides)
-            out = _parse_filters(merged)
-            if _filters_payload(out) is None:
-                return None
-            return out
 
         scale_periods: tuple[tuple[int, int], ...] = ((2, 50), (3, 50), (5, 50), (3, 21))
         # Telemetry (SLV 1h FULL24 tr_fast_pct): p75≈0.71%, p85≈0.90%, p92≈1.14% (1y window).
@@ -9616,65 +9488,20 @@ def main() -> None:
 
         axis_tag = "shock_throttle_drawdown"
 
-        if args.seed_milestones is None:
-            raise SystemExit(f"--axis {axis_tag} requires --seed-milestones <milestones.json>")
-        seed_path = Path(str(args.seed_milestones))
-        if not seed_path.exists():
-            raise SystemExit(f"--axis {axis_tag} requires --seed-milestones (missing {seed_path})")
-
-        payload = json.loads(seed_path.read_text())
-        if not isinstance(payload, dict):
-            raise SystemExit(f"Invalid seed milestones payload: {seed_path}")
-        raw_groups = payload.get("groups") or []
-        if not isinstance(raw_groups, list):
-            raise SystemExit(f"Invalid seed milestones groups: {seed_path}")
-
-        candidates: list[dict] = []
-        for group in raw_groups:
-            if not isinstance(group, dict):
-                continue
-            entries = group.get("entries") or []
-            if not isinstance(entries, list) or not entries:
-                continue
-            entry = entries[0]
-            if not isinstance(entry, dict):
-                continue
-            strat = entry.get("strategy") or {}
-            metrics = entry.get("metrics") or {}
-            if not isinstance(strat, dict) or not isinstance(metrics, dict):
-                continue
-            if str(strat.get("instrument", "spot") or "spot").strip().lower() != "spot":
-                continue
-            if str(entry.get("symbol") or strat.get("symbol") or "").strip().upper() != str(symbol).strip().upper():
-                continue
-            if str(strat.get("signal_bar_size") or "").strip().lower() != str(signal_bar_size).strip().lower():
-                continue
-            if bool(strat.get("signal_use_rth")) != bool(use_rth):
-                continue
-            candidates.append(
-                {
-                    "group_name": str(group.get("name") or ""),
-                    "strategy": strat,
-                    "filters": group.get("filters") if isinstance(group.get("filters"), dict) else None,
-                    "metrics": metrics,
-                }
-            )
+        seed_path, candidates = _load_seed_candidates(
+            seed_milestones=args.seed_milestones,
+            axis_tag=axis_tag,
+            symbol=symbol,
+            signal_bar_size=signal_bar_size,
+            use_rth=use_rth,
+        )
 
         if not candidates:
             print(f"No matching seed candidates found in {seed_path} for {symbol} {signal_bar_size} rth={use_rth}.")
             return
 
-        def _sort_key(item: dict) -> tuple:
-            m = item.get("metrics") or {}
-            return (
-                float(m.get("pnl_over_dd") or float("-inf")),
-                float(m.get("pnl") or float("-inf")),
-                float(m.get("win_rate") or 0.0),
-                int(m.get("trades") or 0),
-            )
-
         seed_top = max(1, int(args.seed_top or 0))
-        seeds = sorted(candidates, key=_sort_key, reverse=True)[:seed_top]
+        seeds = _seed_top_candidates(candidates, seed_top=seed_top)
 
         print("")
         print(f"=== {axis_tag}: seeded daily_drawdown throttle micro-grid ===")
@@ -9684,15 +9511,6 @@ def main() -> None:
 
         bars_sig = _bars_cached(signal_bar_size)
         rows: list[dict] = []
-
-        def _merge_filters(base_filters: FiltersConfig | None, overrides: dict[str, object]) -> FiltersConfig | None:
-            base_payload = _filters_payload(base_filters) or {}
-            merged = dict(base_payload)
-            merged.update(overrides)
-            out = _parse_filters(merged)
-            if _filters_payload(out) is None:
-                return None
-            return out
 
         lookbacks: tuple[int, ...] = (10, 20, 40)
         # SLV 1y FULL24 stop-entries drawdown magnitude (20d peak):
@@ -9791,65 +9609,20 @@ def main() -> None:
 
         axis_tag = "riskpanic_micro"
 
-        if args.seed_milestones is None:
-            raise SystemExit(f"--axis {axis_tag} requires --seed-milestones <milestones.json>")
-        seed_path = Path(str(args.seed_milestones))
-        if not seed_path.exists():
-            raise SystemExit(f"--axis {axis_tag} requires --seed-milestones (missing {seed_path})")
-
-        payload = json.loads(seed_path.read_text())
-        if not isinstance(payload, dict):
-            raise SystemExit(f"Invalid seed milestones payload: {seed_path}")
-        raw_groups = payload.get("groups") or []
-        if not isinstance(raw_groups, list):
-            raise SystemExit(f"Invalid seed milestones groups: {seed_path}")
-
-        candidates: list[dict] = []
-        for group in raw_groups:
-            if not isinstance(group, dict):
-                continue
-            entries = group.get("entries") or []
-            if not isinstance(entries, list) or not entries:
-                continue
-            entry = entries[0]
-            if not isinstance(entry, dict):
-                continue
-            strat = entry.get("strategy") or {}
-            metrics = entry.get("metrics") or {}
-            if not isinstance(strat, dict) or not isinstance(metrics, dict):
-                continue
-            if str(strat.get("instrument", "spot") or "spot").strip().lower() != "spot":
-                continue
-            if str(entry.get("symbol") or strat.get("symbol") or "").strip().upper() != str(symbol).strip().upper():
-                continue
-            if str(strat.get("signal_bar_size") or "").strip().lower() != str(signal_bar_size).strip().lower():
-                continue
-            if bool(strat.get("signal_use_rth")) != bool(use_rth):
-                continue
-            candidates.append(
-                {
-                    "group_name": str(group.get("name") or ""),
-                    "strategy": strat,
-                    "filters": group.get("filters") if isinstance(group.get("filters"), dict) else None,
-                    "metrics": metrics,
-                }
-            )
+        seed_path, candidates = _load_seed_candidates(
+            seed_milestones=args.seed_milestones,
+            axis_tag=axis_tag,
+            symbol=symbol,
+            signal_bar_size=signal_bar_size,
+            use_rth=use_rth,
+        )
 
         if not candidates:
             print(f"No matching seed candidates found in {seed_path} for {symbol} {signal_bar_size} rth={use_rth}.")
             return
 
-        def _sort_key(item: dict) -> tuple:
-            m = item.get("metrics") or {}
-            return (
-                float(m.get("pnl_over_dd") or float("-inf")),
-                float(m.get("pnl") or float("-inf")),
-                float(m.get("win_rate") or 0.0),
-                int(m.get("trades") or 0),
-            )
-
         seed_top = max(1, int(args.seed_top or 0))
-        seeds = sorted(candidates, key=_sort_key, reverse=True)[:seed_top]
+        seeds = _seed_top_candidates(candidates, seed_top=seed_top)
 
         print("")
         print(f"=== {axis_tag}: seeded riskpanic micro-grid ===")
@@ -9859,15 +9632,6 @@ def main() -> None:
 
         bars_sig = _bars_cached(signal_bar_size)
         rows: list[dict] = []
-
-        def _merge_filters(base_filters: FiltersConfig | None, overrides: dict[str, object]) -> FiltersConfig | None:
-            base_payload = _filters_payload(base_filters) or {}
-            merged = dict(base_payload)
-            merged.update(overrides)
-            out = _parse_filters(merged)
-            if _filters_payload(out) is None:
-                return None
-            return out
 
         cutoffs_et: tuple[int | None, ...] = (None, 15)
         panic_tr_meds: tuple[float, ...] = (2.75, 3.0, 3.25)
@@ -9975,49 +9739,13 @@ def main() -> None:
 
         axis_tag = "exit_pivot"
 
-        if args.seed_milestones is None:
-            raise SystemExit(f"--axis {axis_tag} requires --seed-milestones <milestones.json>")
-        seed_path = Path(str(args.seed_milestones))
-        if not seed_path.exists():
-            raise SystemExit(f"--axis {axis_tag} requires --seed-milestones (missing {seed_path})")
-
-        payload = json.loads(seed_path.read_text())
-        if not isinstance(payload, dict):
-            raise SystemExit(f"Invalid seed milestones payload: {seed_path}")
-        raw_groups = payload.get("groups") or []
-        if not isinstance(raw_groups, list):
-            raise SystemExit(f"Invalid seed milestones groups: {seed_path}")
-
-        candidates: list[dict] = []
-        for group in raw_groups:
-            if not isinstance(group, dict):
-                continue
-            entries = group.get("entries") or []
-            if not isinstance(entries, list) or not entries:
-                continue
-            entry = entries[0]
-            if not isinstance(entry, dict):
-                continue
-            strat = entry.get("strategy") or {}
-            metrics = entry.get("metrics") or {}
-            if not isinstance(strat, dict) or not isinstance(metrics, dict):
-                continue
-            if str(strat.get("instrument", "spot") or "spot").strip().lower() != "spot":
-                continue
-            if str(entry.get("symbol") or strat.get("symbol") or "").strip().upper() != str(symbol).strip().upper():
-                continue
-            if str(strat.get("signal_bar_size") or "").strip().lower() != str(signal_bar_size).strip().lower():
-                continue
-            if bool(strat.get("signal_use_rth")) != bool(use_rth):
-                continue
-            candidates.append(
-                {
-                    "group_name": str(group.get("name") or ""),
-                    "strategy": strat,
-                    "filters": group.get("filters") if isinstance(group.get("filters"), dict) else None,
-                    "metrics": metrics,
-                }
-            )
+        seed_path, candidates = _load_seed_candidates(
+            seed_milestones=args.seed_milestones,
+            axis_tag=axis_tag,
+            symbol=symbol,
+            signal_bar_size=signal_bar_size,
+            use_rth=use_rth,
+        )
 
         if not candidates:
             print(f"No matching seed candidates found in {seed_path} for {symbol} {signal_bar_size} rth={use_rth}.")
@@ -10163,51 +9891,22 @@ def main() -> None:
         - seed with a kingmaker output (spot_multitimeframe --write-top) or another milestones file
           that contains the 3/7 ST4h family you want to explore.
         """
-        if not args.seed_milestones:
-            raise SystemExit("--axis st37_refine requires --seed-milestones <milestones.json>")
-        seed_path = Path(str(args.seed_milestones))
-        if not seed_path.exists():
-            raise SystemExit(f"--seed-milestones file not found: {seed_path}")
+        seed_path = _resolve_seed_milestones_path(
+            seed_milestones=args.seed_milestones,
+            axis_tag="st37_refine",
+        )
+        raw_groups = _seed_groups_from_path(seed_path)
 
-        payload = json.loads(seed_path.read_text())
-        if not isinstance(payload, dict):
-            raise SystemExit(f"Invalid seed milestones payload: {seed_path}")
-        raw_groups = payload.get("groups") or []
-        if not isinstance(raw_groups, list):
-            raise SystemExit(f"Invalid seed milestones groups: {seed_path}")
-
-        candidates: list[dict] = []
-        for group in raw_groups:
-            if not isinstance(group, dict):
-                continue
-            entries = group.get("entries") or []
-            if not isinstance(entries, list) or not entries:
-                continue
-            entry = entries[0]
-            if not isinstance(entry, dict):
-                continue
-            strat = entry.get("strategy") or {}
-            metrics = entry.get("metrics") or {}
-            if not isinstance(strat, dict) or not isinstance(metrics, dict):
-                continue
-            if str(strat.get("instrument", "spot") or "spot").strip().lower() != "spot":
-                continue
-            if str(entry.get("symbol") or strat.get("symbol") or "").strip().upper() != str(symbol).strip().upper():
-                continue
-            if str(strat.get("signal_bar_size") or "").strip().lower() != str(signal_bar_size).strip().lower():
-                continue
-            if bool(strat.get("signal_use_rth")) != bool(use_rth):
-                continue
-
+        def _st37_seed_predicate(_group: dict, _entry: dict, strat: dict, _metrics: dict) -> bool:
             # Lock to the 3/7 trend + ST(4h) neighborhood by default.
             if str(strat.get("ema_preset") or "").strip() != "3/7":
-                continue
+                return False
             if str(strat.get("ema_entry_mode") or "").strip().lower() != "trend":
-                continue
+                return False
             if str(strat.get("regime_mode") or "").strip().lower() != "supertrend":
-                continue
+                return False
             if str(strat.get("regime_bar_size") or "").strip().lower() != "4 hours":
-                continue
+                return False
             try:
                 st_atr = int(strat.get("supertrend_atr_period") or 0)
             except (TypeError, ValueError):
@@ -10217,23 +9916,15 @@ def main() -> None:
             except (TypeError, ValueError):
                 st_mult = 0.0
             st_src = str(strat.get("supertrend_source") or "").strip().lower()
-            if st_atr not in (7,):
-                continue
-            if abs(st_mult - 0.5) > 1e-9:
-                continue
-            if st_src != "hl2":
-                continue
+            return st_atr == 7 and abs(st_mult - 0.5) <= 1e-9 and st_src == "hl2"
 
-            ev = group.get("_eval") if isinstance(group.get("_eval"), dict) else {}
-            candidates.append(
-                {
-                    "group_name": str(group.get("name") or ""),
-                    "strategy": strat,
-                    "filters": group.get("filters") if isinstance(group.get("filters"), dict) else None,
-                    "metrics": metrics,
-                    "eval": ev,
-                }
-            )
+        candidates = _seed_candidates_for_context(
+            raw_groups=raw_groups,
+            symbol=symbol,
+            signal_bar_size=signal_bar_size,
+            use_rth=use_rth,
+            predicate=_st37_seed_predicate,
+        )
 
         if not candidates:
             print(f"No matching 3/7 trend + ST(4h) seeds found in {seed_path} for {symbol} {signal_bar_size} rth={use_rth}.")
