@@ -2021,6 +2021,44 @@ def _spot_exec_exit_and_account(
     return float(exit_price), float(next_cash), float(next_margin)
 
 
+def _spot_exec_exit_common(
+    *,
+    qty: int,
+    margin_required: float,
+    exit_ref_price: float,
+    exit_time: datetime,
+    reason: str,
+    cash: float,
+    margin_used: float,
+    spread: float,
+    commission_per_share: float,
+    commission_min: float,
+    slippage_per_share: float,
+    multiplier: float,
+    apply_slippage: bool | None = None,
+    trade: SpotTrade | None = None,
+    trades: list[SpotTrade] | None = None,
+) -> tuple[float, float, float]:
+    apply_slippage_eff = (str(reason) != "profit") if apply_slippage is None else bool(apply_slippage)
+    return _spot_exec_exit_and_account(
+        qty=int(qty),
+        exit_ref_price=float(exit_ref_price),
+        exit_time=exit_time,
+        reason=str(reason),
+        cash=float(cash),
+        margin_used=float(margin_used),
+        margin_required=float(margin_required),
+        spread=float(spread),
+        commission_per_share=float(commission_per_share),
+        commission_min=float(commission_min),
+        slippage_per_share=float(slippage_per_share),
+        multiplier=float(multiplier),
+        apply_slippage=bool(apply_slippage_eff),
+        trade=trade,
+        trades=trades,
+    )
+
+
 def _spot_entry_accounting(
     *,
     cash: float,
@@ -2079,6 +2117,46 @@ def _spot_next_open_entry_allowed(
         if atr_value is None or float(atr_value) <= 0.0:
             return False
     return True
+
+
+def _spot_entry_capacity_ok(
+    *,
+    max_open_trades: int,
+    open_count: int,
+    max_entries_per_day: int,
+    entries_today: int,
+    weekday: int,
+    entry_days: tuple[int, ...] | list[int],
+) -> bool:
+    open_slots_ok = int(max_open_trades) == 0 or int(open_count) < int(max_open_trades)
+    entries_ok = int(max_entries_per_day) == 0 or int(entries_today) < int(max_entries_per_day)
+    return bool(open_slots_ok and entries_ok and int(weekday) in entry_days)
+
+
+def _spot_pending_entry_should_cancel(
+    *,
+    pending_dir: str,
+    pending_set_date: date | None,
+    exec_ts: datetime,
+    risk_overlay_enabled: bool,
+    riskoff_today: bool,
+    riskpanic_today: bool,
+    riskpop_today: bool,
+    riskoff_mode: str,
+    shock_dir_now: str | None,
+    riskoff_end_hour: int | None,
+) -> bool:
+    if not bool(risk_overlay_enabled):
+        return False
+    if not (bool(riskoff_today) or bool(riskpanic_today) or bool(riskpop_today)):
+        return False
+    if str(riskoff_mode) == "directional" and shock_dir_now in ("up", "down"):
+        return str(pending_dir) != str(shock_dir_now)
+    if pending_set_date is not None and pending_set_date != exec_ts.date():
+        return True
+    if riskoff_end_hour is not None and int(exec_ts.hour) >= int(riskoff_end_hour):
+        return True
+    return False
 
 
 def _spot_try_open_entry(
@@ -2286,6 +2364,60 @@ def _spot_try_open_entry(
     )
     candidate.margin_required = float(margin_required)
     return candidate, float(cash_after), float(margin_after)
+
+
+def _spot_apply_opened_trade(
+    *,
+    opened: tuple[SpotTrade, float, float],
+    open_trades: list[SpotTrade],
+) -> tuple[float, float]:
+    candidate, cash_after, margin_after = opened
+    open_trades.append(candidate)
+    return float(cash_after), float(margin_after)
+
+
+def _spot_opened_trade_summary_state(
+    *,
+    opened: tuple[SpotTrade, float, float],
+    entry_exec_idx: int,
+) -> tuple[int, int, datetime, float, float, float]:
+    candidate, cash_after, margin_after = opened
+    return (
+        int(candidate.qty),
+        int(entry_exec_idx),
+        candidate.entry_time,
+        float(candidate.entry_price),
+        float(margin_after),
+        float(cash_after),
+    )
+
+
+def _summary_apply_closed_trade(
+    *,
+    pnl: float,
+    entry_time: datetime,
+    exit_time: datetime,
+    trades: int,
+    wins: int,
+    losses: int,
+    total_pnl: float,
+    win_sum: float,
+    loss_sum: float,
+    hold_sum: float,
+    hold_n: int,
+) -> tuple[int, int, int, float, float, float, float, int]:
+    pnl_f = float(pnl)
+    total_pnl += pnl_f
+    trades += 1
+    if pnl_f >= 0:
+        wins += 1
+        win_sum += pnl_f
+    else:
+        losses += 1
+        loss_sum += pnl_f
+    hold_sum += (exit_time - entry_time).total_seconds() / 3600.0
+    hold_n += 1
+    return int(trades), int(wins), int(losses), float(total_pnl), float(win_sum), float(loss_sum), float(hold_sum), int(hold_n)
 
 
 def _run_spot_backtest(
@@ -2532,6 +2664,32 @@ def _run_spot_backtest_exec_loop(
             multiplier=meta.multiplier,
         )
 
+    def _exec_trade_exit(
+        trade: SpotTrade,
+        *,
+        exit_ref_price: float,
+        exit_time: datetime,
+        reason: str,
+        apply_slippage: bool | None = None,
+    ) -> tuple[float, float, float]:
+        return _spot_exec_exit_common(
+            qty=int(trade.qty),
+            margin_required=float(trade.margin_required),
+            exit_ref_price=float(exit_ref_price),
+            exit_time=exit_time,
+            reason=str(reason),
+            cash=float(cash),
+            margin_used=float(margin_used),
+            spread=float(spot_spread),
+            commission_per_share=float(spot_commission),
+            commission_min=float(spot_commission_min),
+            slippage_per_share=float(spot_slippage),
+            multiplier=float(meta.multiplier),
+            apply_slippage=apply_slippage,
+            trade=trade,
+            trades=trades,
+        )
+
     pending_entry_dir: str | None = None
     pending_entry_set_date: date | None = None
     pending_exit_all = False
@@ -2583,47 +2741,42 @@ def _run_spot_backtest_exec_loop(
         if pending_exit_all and open_trades:
             exit_ref = float(bar.open)
             for trade in list(open_trades):
-                _exit_price, cash, margin_used = _spot_exec_exit_and_account(
-                    qty=trade.qty,
+                _exit_price, cash, margin_used = _exec_trade_exit(
+                    trade,
                     exit_ref_price=exit_ref,
                     exit_time=bar.ts,
                     reason=pending_exit_reason or "flip",
-                    cash=float(cash),
-                    margin_used=float(margin_used),
-                    margin_required=float(trade.margin_required),
-                    spread=float(spot_spread),
-                    commission_per_share=float(spot_commission),
-                    commission_min=float(spot_commission_min),
-                    slippage_per_share=float(spot_slippage),
-                    multiplier=float(meta.multiplier),
                     apply_slippage=True,
-                    trade=trade,
-                    trades=trades,
                 )
             open_trades = []
             pending_exit_all = False
             pending_exit_reason = ""
 
         if pending_entry_dir is not None:
-            if (riskoff_today or riskpanic_today or riskpop_today) and risk_overlay_enabled:
-                shock_dir_now: str | None = shock_dir_prev_now
-                cancel = False
-                if riskoff_mode == "directional" and shock_dir_now in ("up", "down"):
-                    if pending_entry_dir != shock_dir_now:
-                        cancel = True
-                else:
-                    if pending_entry_set_date is not None and pending_entry_set_date != bar.ts.date():
-                        cancel = True
-                    if riskoff_end_hour is not None:
-                        if int(bar.ts.hour) >= int(riskoff_end_hour):
-                            cancel = True
-                if cancel:
-                    pending_entry_dir = None
-                    pending_entry_set_date = None
+            if _spot_pending_entry_should_cancel(
+                pending_dir=str(pending_entry_dir),
+                pending_set_date=pending_entry_set_date,
+                exec_ts=bar.ts,
+                risk_overlay_enabled=bool(risk_overlay_enabled),
+                riskoff_today=bool(riskoff_today),
+                riskpanic_today=bool(riskpanic_today),
+                riskpop_today=bool(riskpop_today),
+                riskoff_mode=str(riskoff_mode),
+                shock_dir_now=shock_dir_prev_now,
+                riskoff_end_hour=riskoff_end_hour,
+            ):
+                pending_entry_dir = None
+                pending_entry_set_date = None
 
-            open_slots_ok = cfg.strategy.max_open_trades == 0 or len(open_trades) < cfg.strategy.max_open_trades
-            entries_ok = cfg.strategy.max_entries_per_day == 0 or entries_today < cfg.strategy.max_entries_per_day
-            if pending_entry_dir is not None and open_slots_ok and entries_ok and (bar.ts.weekday() in cfg.strategy.entry_days):
+            can_fill_pending = _spot_entry_capacity_ok(
+                max_open_trades=int(cfg.strategy.max_open_trades),
+                open_count=len(open_trades),
+                max_entries_per_day=int(cfg.strategy.max_entries_per_day),
+                entries_today=int(entries_today),
+                weekday=int(bar.ts.weekday()),
+                entry_days=cfg.strategy.entry_days,
+            )
+            if pending_entry_dir is not None and can_fill_pending:
                 entry_dir = pending_entry_dir
                 pending_entry_dir = None
                 pending_entry_set_date = None
@@ -2666,10 +2819,7 @@ def _run_spot_backtest_exec_loop(
                         mark_to_market=str(spot_mark_to_market),
                     )
                     if opened is not None:
-                        candidate, cash_after, margin_after = opened
-                        open_trades.append(candidate)
-                        cash = float(cash_after)
-                        margin_used = float(margin_after)
+                        cash, margin_used = _spot_apply_opened_trade(opened=opened, open_trades=open_trades)
                         entries_today += 1
             else:
                 pending_entry_dir = None
@@ -2882,22 +3032,12 @@ def _run_spot_backtest_exec_loop(
                     exit_ref = float(bar.close)
 
                 if should_close and exit_ref is not None:
-                    _exit_price, cash, margin_used = _spot_exec_exit_and_account(
-                        qty=trade.qty,
+                    _exit_price, cash, margin_used = _exec_trade_exit(
+                        trade,
                         exit_ref_price=float(exit_ref),
                         exit_time=bar.ts,
                         reason=reason,
-                        cash=float(cash),
-                        margin_used=float(margin_used),
-                        margin_required=float(trade.margin_required),
-                        spread=float(spot_spread),
-                        commission_per_share=float(spot_commission),
-                        commission_min=float(spot_commission_min),
-                        slippage_per_share=float(spot_slippage),
-                        multiplier=float(meta.multiplier),
                         apply_slippage=(reason != "profit"),
-                        trade=trade,
-                        trades=trades,
                     )
                 else:
                     still_open.append(trade)
@@ -2966,12 +3106,16 @@ def _run_spot_backtest_exec_loop(
         effective_open = 0 if (pending_exit_all and spot_flip_exit_fill_mode == "next_open") else len(open_trades)
         if pending_entry_dir is not None:
             effective_open += 1
-        open_slots_ok = cfg.strategy.max_open_trades == 0 or effective_open < cfg.strategy.max_open_trades
-        entries_ok = cfg.strategy.max_entries_per_day == 0 or entries_today < cfg.strategy.max_entries_per_day
+        can_schedule_entry = _spot_entry_capacity_ok(
+            max_open_trades=int(cfg.strategy.max_open_trades),
+            open_count=int(effective_open),
+            max_entries_per_day=int(cfg.strategy.max_entries_per_day),
+            entries_today=int(entries_today),
+            weekday=int(sig_bar.ts.weekday()),
+            entry_days=cfg.strategy.entry_days,
+        )
         if (
-            open_slots_ok
-            and entries_ok
-            and (sig_bar.ts.weekday() in cfg.strategy.entry_days)
+            can_schedule_entry
             and entry_ok
             and filters_ok
         ):
@@ -3026,10 +3170,7 @@ def _run_spot_backtest_exec_loop(
                         mark_to_market=str(spot_mark_to_market),
                     )
                     if opened is not None:
-                        candidate, cash_after, margin_after = opened
-                        open_trades.append(candidate)
-                        cash = float(cash_after)
-                        margin_used = float(margin_after)
+                        cash, margin_used = _spot_apply_opened_trade(opened=opened, open_trades=open_trades)
                         entries_today += 1
                         last_entry_sig_idx = int(sig_idx)
 
@@ -3038,22 +3179,12 @@ def _run_spot_backtest_exec_loop(
     if open_trades:
         last_bar = exec_bars[-1]
         for trade in open_trades:
-            _exit_price, cash, margin_used = _spot_exec_exit_and_account(
-                qty=trade.qty,
+            _exit_price, cash, margin_used = _exec_trade_exit(
+                trade,
                 exit_ref_price=float(last_bar.close),
                 exit_time=last_bar.ts,
                 reason="end",
-                cash=float(cash),
-                margin_used=float(margin_used),
-                margin_required=float(trade.margin_required),
-                spread=float(spot_spread),
-                commission_per_share=float(spot_commission),
-                commission_min=float(spot_commission_min),
-                slippage_per_share=float(spot_slippage),
-                multiplier=float(meta.multiplier),
                 apply_slippage=True,
-                trade=trade,
-                trades=trades,
             )
 
     summary = _summarize_from_trades_and_max_dd(
@@ -3092,8 +3223,11 @@ def _run_spot_backtest_exec_loop_summary_fast(
 
     spot_entry_fill_mode = str(getattr(strat, "spot_entry_fill_mode", "close") or "close").strip().lower()
     spot_flip_exit_fill_mode = str(getattr(strat, "spot_flip_exit_fill_mode", "close") or "close").strip().lower()
-    if spot_entry_fill_mode != "next_open" or spot_flip_exit_fill_mode != "next_open":
-        raise ValueError("fast summary runner requires next_open fills for entry + flip exits")
+    exit_on_signal_flip = bool(getattr(strat, "exit_on_signal_flip", False))
+    if spot_entry_fill_mode != "next_open":
+        raise ValueError("fast summary runner requires spot_entry_fill_mode='next_open'")
+    if exit_on_signal_flip and spot_flip_exit_fill_mode != "next_open":
+        raise ValueError("fast summary runner requires spot_flip_exit_fill_mode='next_open' when flip exits are enabled")
 
     spot_spread = max(0.0, float(getattr(strat, "spot_spread", 0.0) or 0.0))
     spot_commission = max(0.0, float(getattr(strat, "spot_commission_per_share", 0.0) or 0.0))
@@ -3185,12 +3319,12 @@ def _run_spot_backtest_exec_loop_summary_fast(
     flip_long_tree, flip_short_tree = _spot_flip_trees(
         signal_bars=signal_bars,
         signal_series=signal_series,
-        exit_on_signal_flip=bool(getattr(strat, "exit_on_signal_flip", False)),
+        exit_on_signal_flip=bool(exit_on_signal_flip),
         flip_exit_mode=str(getattr(strat, "flip_exit_mode", "entry") or "entry"),
         ema_entry_mode=str(getattr(strat, "ema_entry_mode", "trend") or "trend"),
         only_if_profit=bool(getattr(strat, "flip_exit_only_if_profit", False)),
     )
-    if bool(getattr(strat, "exit_on_signal_flip", False)) and bool(getattr(strat, "flip_exit_only_if_profit", False)):
+    if bool(exit_on_signal_flip) and bool(getattr(strat, "flip_exit_only_if_profit", False)):
         if flip_long_tree is None or flip_short_tree is None:
             raise ValueError("fast summary runner requires flip trees when flip_exit_only_if_profit is enabled")
 
@@ -3257,23 +3391,22 @@ def _run_spot_backtest_exec_loop_summary_fast(
         exec_idx: int,
     ) -> bool:
         """Return True if a next-open entry should be canceled at execution time."""
-        if not risk_overlay_enabled:
-            return False
-
-        day = exec_bars[exec_idx].ts.date()
+        ts = exec_bars[exec_idx].ts
+        day = ts.date()
         riskoff_today, riskpanic_today, riskpop_today = _risk_flags(day)
-        if not (riskoff_today or riskpanic_today or riskpop_today):
-            return False
-
         _shock_on, shock_dir_now, _shock_atr = _shock_prev(exec_idx)
-        if riskoff_mode == "directional" and shock_dir_now in ("up", "down"):
-            return pending_dir != shock_dir_now
-
-        if pending_set_date is not None and pending_set_date != day:
-            return True
-        if riskoff_end_hour is not None and int(exec_bars[exec_idx].ts.hour) >= int(riskoff_end_hour):
-            return True
-        return False
+        return _spot_pending_entry_should_cancel(
+            pending_dir=str(pending_dir),
+            pending_set_date=pending_set_date,
+            exec_ts=ts,
+            risk_overlay_enabled=bool(risk_overlay_enabled),
+            riskoff_today=bool(riskoff_today),
+            riskpanic_today=bool(riskpanic_today),
+            riskpop_today=bool(riskpop_today),
+            riskoff_mode=str(riskoff_mode),
+            shock_dir_now=shock_dir_now,
+            riskoff_end_hour=riskoff_end_hour,
+        )
 
     cash = float(cfg.backtest.starting_cash)
     peak_equity = float(cash)
@@ -3307,6 +3440,30 @@ def _run_spot_backtest_exec_loop_summary_fast(
             entries_today_date = d
             entries_today = 0
 
+    def _apply_opened_entry_state(*, opened: SpotTrade, entry_exec_idx: int) -> None:
+        nonlocal cash, open_qty, open_entry_exec_idx, open_entry_time, open_entry_price, open_margin_required
+        nonlocal entries_today
+        (
+            open_qty,
+            open_entry_exec_idx,
+            open_entry_time,
+            open_entry_price,
+            open_margin_required,
+            cash,
+        ) = _spot_opened_trade_summary_state(
+            opened=opened,
+            entry_exec_idx=int(entry_exec_idx),
+        )
+        entries_today += 1
+
+    def _clear_open_entry_state() -> None:
+        nonlocal open_qty, open_entry_exec_idx, open_entry_time, open_entry_price, open_margin_required
+        open_qty = 0
+        open_entry_exec_idx = -1
+        open_entry_time = None
+        open_entry_price = 0.0
+        open_margin_required = 0.0
+
     def _try_open_entry_from_signal(*, sig_idx: int, sig_exec_idx: int, entry_exec_idx: int) -> bool:
         nonlocal cash, open_qty, open_entry_exec_idx, open_entry_time, open_entry_price, open_margin_required
         nonlocal entries_today, last_entry_sig_idx
@@ -3314,8 +3471,6 @@ def _run_spot_backtest_exec_loop_summary_fast(
             return False
 
         _set_day_for_exec_idx(sig_exec_idx)
-        if max_entries_per_day and entries_today >= max_entries_per_day:
-            return False
 
         sig = signal_series.signal_by_sig_idx[sig_idx]
         entry_dir = sig.entry_dir if sig is not None else None
@@ -3356,7 +3511,14 @@ def _run_spot_backtest_exec_loop_summary_fast(
         )
         if not bool(filters_ok):
             return False
-        if int(signal_bars[sig_idx].ts.weekday()) not in strat.entry_days:
+        if not _spot_entry_capacity_ok(
+            max_open_trades=int(strat.max_open_trades),
+            open_count=0,
+            max_entries_per_day=int(max_entries_per_day),
+            entries_today=int(entries_today),
+            weekday=int(signal_bars[sig_idx].ts.weekday()),
+            entry_days=strat.entry_days,
+        ):
             return False
 
         riskoff_today, _riskpanic_today, _riskpop_today = _risk_flags(exec_bars[sig_exec_idx].ts.date())
@@ -3375,7 +3537,14 @@ def _run_spot_backtest_exec_loop_summary_fast(
         pending_dir = str(entry_dir)
 
         _set_day_for_exec_idx(entry_exec_idx)
-        if max_entries_per_day and entries_today >= max_entries_per_day:
+        if not _spot_entry_capacity_ok(
+            max_open_trades=int(strat.max_open_trades),
+            open_count=0,
+            max_entries_per_day=int(max_entries_per_day),
+            entries_today=int(entries_today),
+            weekday=int(exec_bars[entry_exec_idx].ts.weekday()),
+            entry_days=strat.entry_days,
+        ):
             return False
         if _maybe_cancel_pending_entry(
             pending_dir=pending_dir,
@@ -3427,15 +3596,7 @@ def _run_spot_backtest_exec_loop_summary_fast(
         if opened is None:
             return False
 
-        candidate, cash_after, margin_after = opened
-
-        open_qty = int(candidate.qty)
-        open_entry_exec_idx = int(entry_exec_idx)
-        open_entry_time = bar.ts
-        open_entry_price = float(candidate.entry_price)
-        open_margin_required = float(margin_after)
-        cash = float(cash_after)
-        entries_today += 1
+        _apply_opened_entry_state(opened=opened, entry_exec_idx=int(entry_exec_idx))
         return True
 
     while True:
@@ -3487,7 +3648,7 @@ def _run_spot_backtest_exec_loop_summary_fast(
         flip_sig_idx = None
         flip_exec_idx = None
         if (
-            bool(getattr(strat, "exit_on_signal_flip", False))
+            bool(exit_on_signal_flip)
             and strat.direction_source == "ema"
             and bool(getattr(strat, "flip_exit_only_if_profit", False))
         ):
@@ -3608,14 +3769,14 @@ def _run_spot_backtest_exec_loop_summary_fast(
                 _r, exit_ref = hit
                 # `spot_intrabar_exit` can only return stop/profit; keep our chosen reason (stop precedence already handled).
 
-        exit_price, cash, _ = _spot_exec_exit_and_account(
+        exit_price, cash, _ = _spot_exec_exit_common(
             qty=int(open_qty),
+            margin_required=float(open_margin_required),
             exit_ref_price=float(exit_ref),
             exit_time=exit_time,
             reason=exit_reason,
             cash=float(cash),
             margin_used=float(open_margin_required),
-            margin_required=float(open_margin_required),
             spread=float(spot_spread),
             commission_per_share=float(spot_commission),
             commission_min=float(spot_commission_min),
@@ -3625,16 +3786,28 @@ def _run_spot_backtest_exec_loop_summary_fast(
         )
 
         pnl = (float(exit_price) - float(open_entry_price)) * float(open_qty) * meta.multiplier
-        total_pnl += float(pnl)
-        trades += 1
-        if pnl >= 0:
-            wins += 1
-            win_sum += float(pnl)
-        else:
-            losses += 1
-            loss_sum += float(pnl)
-        hold_sum += (exit_time - open_entry_time).total_seconds() / 3600.0
-        hold_n += 1
+        (
+            trades,
+            wins,
+            losses,
+            total_pnl,
+            win_sum,
+            loss_sum,
+            hold_sum,
+            hold_n,
+        ) = _summary_apply_closed_trade(
+            pnl=float(pnl),
+            entry_time=open_entry_time,
+            exit_time=exit_time,
+            trades=int(trades),
+            wins=int(wins),
+            losses=int(losses),
+            total_pnl=float(total_pnl),
+            win_sum=float(win_sum),
+            loss_sum=float(loss_sum),
+            hold_sum=float(hold_sum),
+            hold_n=int(hold_n),
+        )
 
         if debug_trades is not None:
             debug_trades.append(
@@ -3650,11 +3823,7 @@ def _run_spot_backtest_exec_loop_summary_fast(
                 }
             )
 
-        open_qty = 0
-        open_entry_exec_idx = -1
-        open_entry_time = None
-        open_entry_price = 0.0
-        open_margin_required = 0.0
+        _clear_open_entry_state()
 
         # Flip exits can optionally schedule a same-open entry; attempt it here.
         opened_same_bar = False
@@ -3724,10 +3893,14 @@ def _can_use_fast_summary_path(
     strat = cfg.strategy
     stop_loss_pct = getattr(strat, "spot_stop_loss_pct", None)
     stop_ok = stop_loss_pct is not None and float(stop_loss_pct or 0.0) > 0.0
+    entry_fill_mode = str(getattr(strat, "spot_entry_fill_mode", "close") or "close").strip().lower()
+    flip_fill_mode = str(getattr(strat, "spot_flip_exit_fill_mode", "close") or "close").strip().lower()
+    exit_on_signal_flip = bool(getattr(strat, "exit_on_signal_flip", False))
+    flip_fill_ok = (not bool(exit_on_signal_flip)) or (flip_fill_mode == "next_open")
     return (
         str(getattr(strat, "entry_signal", "ema") or "ema").strip().lower() == "ema"
-        and str(getattr(strat, "spot_entry_fill_mode", "close") or "close").strip().lower() == "next_open"
-        and str(getattr(strat, "spot_flip_exit_fill_mode", "close") or "close").strip().lower() == "next_open"
+        and entry_fill_mode == "next_open"
+        and bool(flip_fill_ok)
         and bool(getattr(strat, "spot_intrabar_exits", False))
         and str(getattr(strat, "spot_drawdown_mode", "close") or "close").strip().lower() == "intrabar"
         and str(getattr(strat, "spot_exit_mode", "pct") or "pct").strip().lower() == "pct"
@@ -3737,12 +3910,12 @@ def _can_use_fast_summary_path(
         and str(getattr(strat, "tick_gate_mode", "off") or "off").strip().lower() == "off"
         and str(getattr(strat, "flip_exit_gate_mode", "off") or "off").strip().lower() == "off"
         and (
-            (not bool(getattr(strat, "exit_on_signal_flip", False)))
+            (not bool(exit_on_signal_flip))
             or bool(getattr(strat, "flip_exit_only_if_profit", False))
         )
         and str(getattr(strat, "direction_source", "ema") or "ema").strip().lower() == "ema"
         and int(getattr(strat, "max_open_trades", 1) or 0) == 1
-        and tick_bars is None
+        and not bool(tick_bars)
         and bool(signal_bars)
         and bool(exec_bars)
     )

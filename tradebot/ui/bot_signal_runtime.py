@@ -272,14 +272,17 @@ class BotSignalRuntimeMixin:
 
         gate("HOLDING", {"direction": open_dir, "items": len(open_items)})
 
-        def _trigger_exit(reason: str, *, mode: str = instrument) -> bool:
+        def _trigger_exit(reason: str, *, mode: str = instrument, calc: dict | None = None) -> bool:
             self._queue_order(
                 instance,
                 intent="exit",
                 direction=open_dir,
                 signal_bar_ts=snap.bar_ts,
             )
-            gate("TRIGGER_EXIT", {"mode": mode, "reason": reason})
+            payload = {"mode": mode, "reason": reason}
+            if calc:
+                payload["calc"] = calc
+            gate("TRIGGER_EXIT", payload)
             return True
 
         if instrument == "spot":
@@ -289,10 +292,84 @@ class BotSignalRuntimeMixin:
             except (TypeError, ValueError):
                 pos = 0.0
             avg_cost = _safe_num(getattr(open_item, "averageCost", None))
-            market_price = _safe_num(getattr(open_item, "marketPrice", None))
-            if market_price is None:
-                ticker = await self._client.ensure_ticker(open_item.contract, owner="bot")
-                market_price = _ticker_price(ticker)
+            portfolio_market_price = _safe_num(getattr(open_item, "marketPrice", None))
+            ticker = await self._client.ensure_ticker(open_item.contract, owner="bot")
+            bid = _safe_num(getattr(ticker, "bid", None))
+            ask = _safe_num(getattr(ticker, "ask", None))
+            last = _safe_num(getattr(ticker, "last", None))
+            mid = None
+            if bid is not None and ask is not None and bid > 0 and ask > 0 and bid <= ask:
+                mid = (bid + ask) / 2.0
+            ticker_market_price = _ticker_price(ticker)
+
+            quote_mid_last = mid if mid is not None else last
+            quote_liq = quote_mid_last
+            quote_liq_source = "mid" if mid is not None else "last" if last is not None else None
+            if pos > 0 and bid is not None:
+                quote_liq = bid
+                quote_liq_source = "bid"
+            elif pos < 0 and ask is not None:
+                quote_liq = ask
+                quote_liq_source = "ask"
+
+            mark_to_market = str(instance.strategy.get("spot_mark_to_market", "liquidation") or "liquidation")
+            mark_to_market = mark_to_market.strip().lower()
+            if mark_to_market not in ("close", "liquidation"):
+                mark_to_market = "liquidation"
+
+            if mark_to_market == "liquidation":
+                quote_market_price = quote_liq
+                quote_market_source = quote_liq_source
+            else:
+                quote_market_price = quote_mid_last
+                quote_market_source = "mid" if mid is not None else "last" if last is not None else None
+
+            market_price = quote_market_price if quote_market_price is not None else portfolio_market_price
+            market_price_source = quote_market_source if quote_market_price is not None else (
+                "portfolio" if portfolio_market_price is not None else None
+            )
+
+            def _session_label() -> str:
+                h = int(now_et.hour)
+                m = int(now_et.minute)
+                if (h, m) >= (9, 30) and (h, m) < (16, 0):
+                    return "RTH"
+                if (h, m) >= (4, 0) and (h, m) < (9, 30):
+                    return "PRE"
+                if (h, m) >= (16, 0) and (h, m) < (20, 0):
+                    return "AFTER"
+                return "OVERNIGHT"
+
+            def _spot_calc(
+                *,
+                move: float | None = None,
+                threshold: float | None = None,
+                target: float | None = None,
+                stop: float | None = None,
+                pt: float | None = None,
+                sl: float | None = None,
+            ) -> dict:
+                return {
+                    "session": _session_label(),
+                    "pos": float(pos),
+                    "avg_cost": float(avg_cost) if avg_cost is not None else None,
+                    "bid": float(bid) if bid is not None else None,
+                    "ask": float(ask) if ask is not None else None,
+                    "last": float(last) if last is not None else None,
+                    "mid": float(mid) if mid is not None else None,
+                    "ticker_market_price": float(ticker_market_price) if ticker_market_price is not None else None,
+                    "portfolio_market_price": float(portfolio_market_price) if portfolio_market_price is not None else None,
+                    "market_price_used": float(market_price) if market_price is not None else None,
+                    "market_price_source": market_price_source,
+                    "mark_to_market": mark_to_market,
+                    "target_price": float(target) if target is not None else None,
+                    "stop_price": float(stop) if stop is not None else None,
+                    "profit_target_pct": float(pt) if pt is not None else None,
+                    "stop_loss_pct": float(sl) if sl is not None else None,
+                    "threshold": float(threshold) if threshold is not None else None,
+                    "move": float(move) if move is not None else None,
+                    "contract_exchange": str(getattr(getattr(open_item, "contract", None), "exchange", "") or ""),
+                }
 
             target_price = instance.spot_profit_target_price
             stop_price = instance.spot_stop_loss_price
@@ -314,7 +391,11 @@ class BotSignalRuntimeMixin:
                             target = None
                         if target is not None and target > 0:
                             if (pos > 0 and mp >= target) or (pos < 0 and mp <= target):
-                                return _trigger_exit("profit_target", mode="spot")
+                                return _trigger_exit(
+                                    "profit_target",
+                                    mode="spot",
+                                    calc=_spot_calc(target=target),
+                                )
                     if stop_price is not None:
                         try:
                             stop = float(stop_price)
@@ -322,7 +403,11 @@ class BotSignalRuntimeMixin:
                             stop = None
                         if stop is not None and stop > 0:
                             if (pos > 0 and mp <= stop) or (pos < 0 and mp >= stop):
-                                return _trigger_exit("stop_loss", mode="spot")
+                                return _trigger_exit(
+                                    "stop_loss",
+                                    mode="spot",
+                                    calc=_spot_calc(stop=stop),
+                                )
 
             move = None
             if (
@@ -375,9 +460,17 @@ class BotSignalRuntimeMixin:
                     pt = min(float(pt) * float(pt_mult), 0.99)
 
             if move is not None and pt is not None and move >= pt:
-                return _trigger_exit("profit_target_pct", mode="spot")
+                return _trigger_exit(
+                    "profit_target_pct",
+                    mode="spot",
+                    calc=_spot_calc(move=move, threshold=float(pt), pt=pt, sl=sl),
+                )
             if move is not None and sl is not None and move <= -sl:
-                return _trigger_exit("stop_loss_pct", mode="spot")
+                return _trigger_exit(
+                    "stop_loss_pct",
+                    mode="spot",
+                    calc=_spot_calc(move=move, threshold=-float(sl), pt=pt, sl=sl),
+                )
 
             exit_time = parse_time_hhmm(instance.strategy.get("spot_exit_time_et"))
             if exit_time is not None and now_et.time() >= exit_time:

@@ -24,9 +24,11 @@ this file directly.
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import math
 import os
+import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -293,83 +295,133 @@ def _mk_filters(
 
 
 _WDAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
-_AXIS_ALL_PLAN = (
-    "ema",
-    "volume",
-    "rv",
-    "tod",
-    "atr",
-    "ptsl",
-    "hold",
-    "orb",
-    "regime",
-    "regime2",
-    "joint",
-    "flip_exit",
-    "confirm",
-    "spread",
-    "slope",
-    "slope_signed",
-    "cooldown",
-    "skip_open",
-    "shock",
-    "risk_overlays",
-    "loosen",
-    "tick",
-    "spot_short_risk_mult",
+_AXIS_SPECS: tuple[tuple[str, bool, bool], ...] = (
+    # (axis_name, include_in_axis_all, include_in_combo_full)
+    ("ema", True, True),
+    ("entry_mode", False, True),
+    ("combo_fast", False, True),
+    ("combo_full", False, False),
+    ("squeeze", False, True),
+    ("volume", True, True),
+    ("rv", True, True),
+    ("tod", True, True),
+    ("tod_interaction", False, True),
+    ("perm_joint", False, True),
+    ("weekday", False, True),
+    ("exit_time", False, True),
+    ("atr", True, True),
+    ("atr_fine", False, True),
+    ("atr_ultra", False, True),
+    ("r2_atr", False, True),
+    ("r2_tod", False, True),
+    ("ema_perm_joint", False, True),
+    ("tick_perm_joint", False, True),
+    ("regime_atr", False, True),
+    ("ema_regime", False, True),
+    ("chop_joint", False, True),
+    ("ema_atr", False, True),
+    ("tick_ema", False, True),
+    ("ptsl", True, True),
+    ("hf_scalp", False, True),
+    ("hold", True, True),
+    ("spot_short_risk_mult", True, True),
+    ("orb", True, True),
+    ("orb_joint", False, True),
+    ("frontier", False, True),
+    ("regime", True, True),
+    ("regime2", True, True),
+    ("regime2_ema", False, True),
+    ("joint", True, True),
+    ("micro_st", False, True),
+    ("flip_exit", True, True),
+    ("confirm", True, True),
+    ("spread", True, True),
+    ("spread_fine", False, True),
+    ("spread_down", False, True),
+    ("slope", True, True),
+    ("slope_signed", True, True),
+    ("cooldown", True, True),
+    ("skip_open", True, True),
+    ("shock", True, True),
+    ("risk_overlays", True, True),
+    ("loosen", True, True),
+    ("loosen_atr", False, True),
+    ("tick", True, True),
+    ("gate_matrix", False, True),
+    ("champ_refine", False, False),
+    ("st37_refine", False, False),
+    ("shock_alpha_refine", False, False),
+    ("shock_velocity_refine", False, False),
+    ("shock_velocity_refine_wide", False, False),
+    ("shock_throttle_refine", False, False),
+    ("shock_throttle_tr_ratio", False, False),
+    ("shock_throttle_drawdown", False, False),
+    ("riskpanic_micro", False, False),
+    ("overlay_family", False, False),
+    ("exit_pivot", False, False),
 )
-_COMBO_FULL_PLAN = (
-    "ema",
-    "entry_mode",
-    "confirm",
-    "weekday",
-    "tod",
-    "volume",
-    "rv",
-    "spread",
-    "spread_fine",
-    "spread_down",
-    "slope",
-    "slope_signed",
-    "cooldown",
-    "skip_open",
-    "shock",
-    "risk_overlays",
-    "ptsl",
-    "exit_time",
-    "hold",
-    "spot_short_risk_mult",
-    "flip_exit",
-    "loosen",
-    "loosen_atr",
-    "atr",
-    "atr_fine",
-    "atr_ultra",
-    "regime",
-    "regime2",
-    "regime2_ema",
-    "joint",
-    "micro_st",
-    "orb",
-    "hf_scalp",
-    "orb_joint",
-    "tod_interaction",
-    "perm_joint",
-    "ema_perm_joint",
-    "tick_perm_joint",
-    "chop_joint",
-    "tick_ema",
-    "ema_regime",
-    "ema_atr",
-    "regime_atr",
-    "r2_atr",
-    "r2_tod",
-    "tick",
-    "gate_matrix",
-    "squeeze",
-    "combo_fast",
-    "frontier",
+_AXIS_ALL_PLAN = tuple(name for name, in_all, _in_combo in _AXIS_SPECS if bool(in_all))
+_COMBO_FULL_PLAN = tuple(name for name, _in_all, in_combo in _AXIS_SPECS if bool(in_combo))
+_AXIS_CHOICES = tuple(name for name, _in_all, _in_combo in _AXIS_SPECS)
+_COMBO_FULL_PARALLEL_PROFILE_BY_AXIS = {
+    "risk_overlays": "scaled",
+    "combo_fast": "scaled",
+    "gate_matrix": "scaled",
+}
+_COMBO_FULL_AXIS_SCHEMA_BASE: tuple[tuple[str, str, bool], ...] = tuple(
+    (name, str(_COMBO_FULL_PARALLEL_PROFILE_BY_AXIS.get(name, "single")), True) for name in _COMBO_FULL_PLAN
 )
+_COMBO_FULL_AXIS_SCHEMA_SEEDED: tuple[tuple[str, str, bool], ...] = (
+    ("overlay_family", "single", True),
+    ("st37_refine", "single", True),
+)
+_ATR_EXIT_PROFILE_REGISTRY: dict[str, dict[str, object]] = {
+    "atr": {
+        "atr_periods": (7, 10, 14, 21),
+        "pt_mults": (0.6, 0.8, 0.9, 1.0, 1.5, 2.0),
+        "sl_mults": (1.0, 1.5, 2.0),
+        "title": "C) ATR exits sweep (1h timing + 1d Supertrend)",
+        "decimals": None,
+    },
+    "atr_fine": {
+        "atr_periods": (7, 10, 14, 21),
+        "pt_mults": (0.8, 0.9, 1.0, 1.1, 1.2),
+        "sl_mults": (1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8),
+        "title": "ATR exits fine sweep (PT/SL multipliers)",
+        "decimals": 2,
+    },
+    "atr_ultra": {
+        "atr_periods": (7,),
+        "pt_mults": (1.05, 1.08, 1.10, 1.12, 1.15),
+        "sl_mults": (1.35, 1.40, 1.45, 1.50, 1.55),
+        "title": "ATR exits ultra-fine sweep (PT/SL micro-grid)",
+        "decimals": 2,
+    },
+}
+_SPREAD_PROFILE_REGISTRY: dict[str, dict[str, object]] = {
+    "spread": {
+        "field": "ema_spread_min_pct",
+        "values": (None, 0.005, 0.01, 0.02, 0.03, 0.05, 0.1),
+        "note_prefix": "spread",
+        "title": "EMA spread sweep (quality gate)",
+        "decimals": None,
+    },
+    "spread_fine": {
+        "field": "ema_spread_min_pct",
+        "values": (None, 0.002, 0.0025, 0.003, 0.0035, 0.004, 0.0045, 0.005, 0.0055, 0.006, 0.0065, 0.007, 0.0075, 0.008),
+        "note_prefix": "spread",
+        "title": "EMA spread fine sweep (quality gate)",
+        "decimals": 4,
+    },
+    "spread_down": {
+        "field": "ema_spread_min_pct_down",
+        "values": (None, 0.003, 0.004, 0.005, 0.006, 0.007, 0.008, 0.010, 0.012, 0.015, 0.02, 0.03, 0.05),
+        "note_prefix": "spread_down",
+        "title": "EMA spread DOWN sweep (directional permission)",
+        "decimals": 4,
+    },
+}
+_RUN_CFG_CACHE_ENGINE_VERSION = "spot_summary_v1"
 
 
 def _strategy_fingerprint(
@@ -725,6 +777,69 @@ def _run_parallel_json_worker_plan(
             if isinstance(payload, dict):
                 payloads[int(worker_id)] = payload
     return payloads
+
+
+def _run_parallel_stage_kernel(
+    *,
+    stage_label: str,
+    jobs: int,
+    total: int,
+    default_jobs: int,
+    offline: bool,
+    offline_error: str,
+    tmp_prefix: str,
+    worker_tag: str,
+    out_prefix: str,
+    build_cmd,
+    capture_error: str,
+    failure_label: str,
+    missing_label: str,
+    invalid_label: str,
+) -> tuple[int, dict[int, dict]]:
+    if not bool(offline):
+        raise SystemExit(str(offline_error))
+    jobs_eff = min(int(jobs), int(default_jobs), int(total)) if int(total) > 0 else 1
+    jobs_eff = max(1, int(jobs_eff))
+    print(f"{stage_label} parallel: workers={jobs_eff} total={int(total)}", flush=True)
+    payloads = _run_parallel_json_worker_plan(
+        jobs_eff=int(jobs_eff),
+        tmp_prefix=str(tmp_prefix),
+        worker_tag=str(worker_tag),
+        out_prefix=str(out_prefix),
+        build_cmd=build_cmd,
+        capture_error=str(capture_error),
+        failure_label=str(failure_label),
+        missing_label=str(missing_label),
+        invalid_label=str(invalid_label),
+    )
+    return int(jobs_eff), payloads
+
+
+def _collect_parallel_payload_records(
+    *,
+    payloads: dict[int, dict],
+    records_key: str = "records",
+    tested_key: str = "tested",
+    decode_record=None,
+    on_record=None,
+) -> int:
+    tested_total = 0
+    for payload in payloads.values():
+        if not isinstance(payload, dict):
+            continue
+        tested_total += int(payload.get(tested_key) or 0)
+        records = payload.get(records_key) or []
+        if not isinstance(records, list):
+            continue
+        for rec in records:
+            if not isinstance(rec, dict):
+                continue
+            rec_obj = decode_record(rec) if callable(decode_record) else rec
+            if rec_obj is None:
+                continue
+            if callable(on_record):
+                on_record(rec_obj)
+    return int(tested_total)
 
 
 def _run_axis_subprocess_plan(
@@ -1094,6 +1209,582 @@ def _score_row_pnl(row: dict) -> tuple:
     )
 
 
+def _score_row_roi(row: dict) -> float:
+    return float(row.get("roi") or 0.0)
+
+
+def _score_row_win_rate(row: dict) -> float:
+    return float(row.get("win_rate") or 0.0)
+
+
+def _score_row_roi_dd(row: dict) -> float:
+    roi = float(row.get("roi") or 0.0)
+    dd_pct = float(row.get("dd_pct") or 0.0)
+    if dd_pct <= 0.0:
+        return float("-inf") if roi <= 0.0 else float("inf")
+    return float(roi / dd_pct)
+
+
+def _rank_cfg_rows(
+    items: list[tuple[object, dict, str]],
+    *,
+    scorers: list[tuple[object, int]],
+    limit: int | None = None,
+    key_fn=None,
+) -> list[tuple[object, dict, str]]:
+    ranked: list[tuple[object, dict, str]] = []
+    for score_fn, top_n in scorers:
+        n = int(top_n)
+        if n <= 0:
+            continue
+        ranked.extend(sorted(items, key=lambda t, fn=score_fn: fn(t[1]), reverse=True)[:n])
+    seen: set[str] = set()
+    out: list[tuple[object, dict, str]] = []
+    max_items = None if limit is None else max(0, int(limit))
+    for cfg, row, note in ranked:
+        if callable(key_fn):
+            key = key_fn(cfg, row, note)
+        else:
+            if not isinstance(cfg, ConfigBundle):
+                continue
+            key = _milestone_key(cfg)
+        try:
+            already_seen = key in seen
+        except TypeError:
+            key = json.dumps(key, sort_keys=True, default=str)
+            already_seen = key in seen
+        if already_seen:
+            continue
+        seen.add(key)
+        out.append((cfg, row, note))
+        if max_items is not None and len(out) >= max_items:
+            break
+    return out
+
+
+def _rank_cfg_rows_with_meta(
+    items: list[tuple[ConfigBundle, dict, str, object]],
+    *,
+    scorers: list[tuple[object, int]],
+    limit: int | None = None,
+) -> list[tuple[ConfigBundle, dict, str, object]]:
+    ranked_core = _rank_cfg_rows(
+        [(cfg, row, note) for cfg, row, note, _meta in items],
+        scorers=scorers,
+        limit=limit,
+    )
+    meta_by_key: dict[str, object] = {}
+    for cfg, _row, _note, meta in items:
+        key = _milestone_key(cfg)
+        if key not in meta_by_key:
+            meta_by_key[key] = meta
+    out: list[tuple[ConfigBundle, dict, str, object]] = []
+    for cfg, row, note in ranked_core:
+        out.append((cfg, row, note, meta_by_key.get(_milestone_key(cfg))))
+    return out
+
+
+def _risk_overlay_off_template(*, extended: bool = False) -> dict[str, object]:
+    out: dict[str, object] = {
+        "risk_entry_cutoff_hour_et": None,
+        "riskoff_tr5_med_pct": None,
+        "riskpanic_tr5_med_pct": None,
+        "riskpanic_neg_gap_ratio_min": None,
+        "riskpop_tr5_med_pct": None,
+        "riskpop_pos_gap_ratio_min": None,
+    }
+    if bool(extended):
+        out.update(
+            {
+                "riskoff_mode": None,
+                "riskoff_tr5_lookback_days": None,
+                "riskoff_short_risk_mult_factor": None,
+                "riskoff_long_risk_mult_factor": None,
+                "riskpanic_lookback_days": None,
+                "riskpanic_short_risk_mult_factor": None,
+                "riskpop_lookback_days": None,
+                "riskpop_long_risk_mult_factor": None,
+                "riskpop_short_risk_mult_factor": None,
+            }
+        )
+    return out
+
+
+def _build_champ_refine_risk_variants(*, is_slv: bool) -> list[tuple[dict[str, object], str]]:
+    risk_off = _risk_overlay_off_template()
+    if bool(is_slv):
+        return [(dict(risk_off), "risk=off")]
+    registry: list[tuple[dict[str, object], str]] = [
+        (
+            {
+                "riskoff_tr5_med_pct": 9.0,
+                "riskoff_lookback_days": 5,
+                "riskoff_mode": "hygiene",
+                "riskoff_long_risk_mult_factor": 0.7,
+                "riskoff_short_risk_mult_factor": 0.7,
+                "risk_entry_cutoff_hour_et": 15,
+            },
+            "riskoff TRmed5>=9 both=0.7 cutoff<15",
+        ),
+        (
+            {
+                "riskoff_tr5_med_pct": 10.0,
+                "riskoff_lookback_days": 5,
+                "riskoff_mode": "hygiene",
+                "riskoff_long_risk_mult_factor": 0.5,
+                "riskoff_short_risk_mult_factor": 0.5,
+                "risk_entry_cutoff_hour_et": 15,
+            },
+            "riskoff TRmed5>=10 both=0.5 cutoff<15",
+        ),
+        (
+            {
+                "riskpanic_tr5_med_pct": 9.0,
+                "riskpanic_neg_gap_ratio_min": 0.6,
+                "riskpanic_lookback_days": 5,
+                "riskpanic_short_risk_mult_factor": 0.5,
+                "risk_entry_cutoff_hour_et": 15,
+            },
+            "riskpanic TRmed5>=9 gap>=0.6 short=0.5 cutoff<15",
+        ),
+        (
+            {
+                "riskpanic_tr5_med_pct": 9.0,
+                "riskpanic_neg_gap_ratio_min": 0.6,
+                "riskpanic_lookback_days": 5,
+                "riskpanic_short_risk_mult_factor": 0.0,
+                "risk_entry_cutoff_hour_et": 15,
+            },
+            "riskpanic TRmed5>=9 gap>=0.6 short=0 cutoff<15",
+        ),
+        (
+            {
+                "riskpanic_tr5_med_pct": 10.0,
+                "riskpanic_neg_gap_ratio_min": 0.7,
+                "riskpanic_lookback_days": 5,
+                "riskpanic_short_risk_mult_factor": 0.5,
+                "risk_entry_cutoff_hour_et": 15,
+            },
+            "riskpanic TRmed5>=10 gap>=0.7 short=0.5 cutoff<15",
+        ),
+        (
+            {
+                "riskpop_tr5_med_pct": 9.0,
+                "riskpop_pos_gap_ratio_min": 0.6,
+                "riskpop_lookback_days": 5,
+                "riskpop_long_risk_mult_factor": 1.2,
+                "riskpop_short_risk_mult_factor": 0.0,
+                "risk_entry_cutoff_hour_et": 15,
+            },
+            "riskpop TRmed5>=9 gap+=0.6 long=1.2 short=0 cutoff<15",
+        ),
+        (
+            {
+                "riskpop_tr5_med_pct": 9.0,
+                "riskpop_pos_gap_ratio_min": 0.6,
+                "riskpop_lookback_days": 5,
+                "riskpop_long_risk_mult_factor": 1.5,
+                "riskpop_short_risk_mult_factor": 0.0,
+                "risk_entry_cutoff_hour_et": 15,
+            },
+            "riskpop TRmed5>=9 gap+=0.6 long=1.5 short=0 cutoff<15",
+        ),
+        (
+            {
+                "riskpop_tr5_med_pct": 10.0,
+                "riskpop_pos_gap_ratio_min": 0.7,
+                "riskpop_lookback_days": 5,
+                "riskpop_long_risk_mult_factor": 1.5,
+                "riskpop_short_risk_mult_factor": 0.0,
+                "risk_entry_cutoff_hour_et": 15,
+            },
+            "riskpop TRmed5>=10 gap+=0.7 long=1.5 short=0 cutoff<15",
+        ),
+    ]
+    out: list[tuple[dict[str, object], str]] = [(dict(risk_off), "risk=off")]
+    for over, note in registry:
+        payload = dict(risk_off)
+        payload.update(over)
+        out.append((payload, str(note)))
+    return out
+
+
+def _build_champ_refine_shock_variants(*, is_slv: bool) -> list[tuple[dict[str, object], str]]:
+    out: list[tuple[dict[str, object], str]] = [({"shock_gate_mode": "off"}, "shock=off")]
+    if not bool(is_slv):
+        for on_atr, off_atr in ((12.5, 12.0), (13.0, 12.5), (13.5, 13.0), (14.0, 13.5), (14.5, 14.0)):
+            for sl_mult in (0.75, 1.0):
+                out.append(
+                    (
+                        {
+                            "shock_gate_mode": "surf",
+                            "shock_detector": "daily_atr_pct",
+                            "shock_daily_atr_period": 14,
+                            "shock_daily_on_atr_pct": float(on_atr),
+                            "shock_daily_off_atr_pct": float(off_atr),
+                            "shock_direction_source": "signal",
+                            "shock_direction_lookback": 1,
+                            "shock_stop_loss_pct_mult": float(sl_mult),
+                        },
+                        f"shock=surf daily_atr on={on_atr:g} off={off_atr:g} sl_mult={sl_mult:g}",
+                    )
+                )
+        for on_tr in (9.0, 11.0, 14.0):
+            out.append(
+                (
+                    {
+                        "shock_gate_mode": "surf",
+                        "shock_detector": "daily_atr_pct",
+                        "shock_daily_atr_period": 14,
+                        "shock_daily_on_atr_pct": 13.5,
+                        "shock_daily_off_atr_pct": 13.0,
+                        "shock_daily_on_tr_pct": float(on_tr),
+                        "shock_direction_source": "signal",
+                        "shock_direction_lookback": 1,
+                        "shock_stop_loss_pct_mult": 0.75,
+                    },
+                    f"shock=surf daily_atr on=13.5 off=13.0 on_tr>={on_tr:g} sl_mult=0.75",
+                )
+            )
+        out.extend(
+            [
+                (
+                    {
+                        "shock_gate_mode": "block_longs",
+                        "shock_detector": "daily_atr_pct",
+                        "shock_daily_atr_period": 14,
+                        "shock_daily_on_atr_pct": 13.5,
+                        "shock_daily_off_atr_pct": 13.0,
+                        "shock_direction_source": "signal",
+                        "shock_direction_lookback": 1,
+                        "shock_stop_loss_pct_mult": 0.75,
+                    },
+                    "shock=block_longs daily_atr on=13.5 off=13.0 sl_mult=0.75",
+                ),
+                (
+                    {
+                        "shock_gate_mode": "block",
+                        "shock_detector": "daily_atr_pct",
+                        "shock_daily_atr_period": 14,
+                        "shock_daily_on_atr_pct": 13.5,
+                        "shock_daily_off_atr_pct": 13.0,
+                        "shock_direction_source": "signal",
+                        "shock_direction_lookback": 1,
+                    },
+                    "shock=block daily_atr on=13.5 off=13.0",
+                ),
+            ]
+        )
+        for detector in ("tr_ratio", "atr_ratio"):
+            for on_ratio, off_ratio in ((1.35, 1.25), (1.45, 1.30), (1.55, 1.30)):
+                out.append(
+                    (
+                        {
+                            "shock_gate_mode": "surf",
+                            "shock_detector": str(detector),
+                            "shock_atr_fast_period": 7,
+                            "shock_atr_slow_period": 50,
+                            "shock_on_ratio": float(on_ratio),
+                            "shock_off_ratio": float(off_ratio),
+                            "shock_min_atr_pct": 7.0,
+                            "shock_direction_source": "signal",
+                            "shock_direction_lookback": 1,
+                            "shock_stop_loss_pct_mult": 0.75,
+                        },
+                        f"shock=surf {detector} on={on_ratio:g} off={off_ratio:g} min_atr=7 sl_mult=0.75",
+                    )
+                )
+        out.append(
+            (
+                {
+                    "shock_gate_mode": "surf",
+                    "shock_detector": "daily_atr_pct",
+                    "shock_daily_atr_period": 14,
+                    "shock_daily_on_atr_pct": 13.5,
+                    "shock_daily_off_atr_pct": 13.0,
+                    "shock_direction_source": "regime",
+                    "shock_direction_lookback": 2,
+                    "shock_stop_loss_pct_mult": 0.75,
+                },
+                "shock=surf daily_atr dir=regime lb=2 on=13.5 off=13.0 sl_mult=0.75",
+            )
+        )
+        return out
+
+    for on_atr, off_atr in ((3.0, 2.5), (3.5, 3.0), (4.0, 3.5), (4.5, 4.0), (5.0, 4.5), (6.0, 5.0)):
+        for sl_mult in (0.75, 1.0):
+            out.append(
+                (
+                    {
+                        "shock_gate_mode": "surf",
+                        "shock_detector": "daily_atr_pct",
+                        "shock_daily_atr_period": 14,
+                        "shock_daily_on_atr_pct": float(on_atr),
+                        "shock_daily_off_atr_pct": float(off_atr),
+                        "shock_direction_source": "signal",
+                        "shock_direction_lookback": 1,
+                        "shock_stop_loss_pct_mult": float(sl_mult),
+                    },
+                    f"shock=surf daily_atr on={on_atr:g} off={off_atr:g} sl_mult={sl_mult:g}",
+                )
+            )
+    for on_tr in (4.0, 5.0, 6.0):
+        out.append(
+            (
+                {
+                    "shock_gate_mode": "surf",
+                    "shock_detector": "daily_atr_pct",
+                    "shock_daily_atr_period": 14,
+                    "shock_daily_on_atr_pct": 4.5,
+                    "shock_daily_off_atr_pct": 4.0,
+                    "shock_daily_on_tr_pct": float(on_tr),
+                    "shock_direction_source": "signal",
+                    "shock_direction_lookback": 1,
+                    "shock_stop_loss_pct_mult": 0.75,
+                },
+                f"shock=surf daily_atr on=4.5 off=4.0 on_tr>={on_tr:g} sl_mult=0.75",
+            )
+        )
+    for det, fast_p, slow_p, on_r, off_r, min_atr, dir_src, dir_lb, target_atr, min_mult, down_mult in (
+        ("tr_ratio", 3, 21, 1.25, 1.15, 0.8, "signal", 1, 3.0, 0.10, 0.60),
+        ("tr_ratio", 3, 21, 1.30, 1.20, 1.0, "signal", 1, 3.5, 0.20, 0.70),
+        ("tr_ratio", 5, 30, 1.25, 1.15, 1.0, "signal", 2, 3.5, 0.20, 0.60),
+        ("tr_ratio", 7, 50, 1.35, 1.25, 1.2, "regime", 2, 4.0, 0.20, 0.60),
+        ("tr_ratio", 7, 50, 1.45, 1.30, 1.5, "regime", 2, 4.0, 0.20, 0.50),
+        ("atr_ratio", 3, 21, 1.25, 1.15, 0.8, "signal", 1, 3.0, 0.10, 0.60),
+        ("atr_ratio", 7, 50, 1.35, 1.25, 1.2, "regime", 2, 4.0, 0.20, 0.60),
+    ):
+        out.append(
+            (
+                {
+                    "shock_gate_mode": "detect",
+                    "shock_detector": str(det),
+                    "shock_atr_fast_period": int(fast_p),
+                    "shock_atr_slow_period": int(slow_p),
+                    "shock_on_ratio": float(on_r),
+                    "shock_off_ratio": float(off_r),
+                    "shock_min_atr_pct": float(min_atr),
+                    "shock_direction_source": str(dir_src),
+                    "shock_direction_lookback": int(dir_lb),
+                    "shock_risk_scale_target_atr_pct": float(target_atr),
+                    "shock_risk_scale_min_mult": float(min_mult),
+                    "shock_long_risk_mult_factor_down": float(down_mult),
+                },
+                f"shock=detect {det}({fast_p}/{slow_p}) {on_r:g}/{off_r:g} min_atr%={min_atr:g} "
+                f"dir={dir_src} lb={dir_lb} scale@{target_atr:g}->{min_mult:g} down={down_mult:g}",
+            )
+        )
+    for on_atr, off_atr, target_atr, min_mult, down_mult in (
+        (4.0, 3.5, 3.0, 0.20, 0.70),
+        (4.0, 3.5, 3.0, 0.10, 0.60),
+        (4.5, 4.0, 3.5, 0.20, 0.60),
+        (5.0, 4.5, 4.0, 0.20, 0.60),
+    ):
+        out.append(
+            (
+                {
+                    "shock_gate_mode": "detect",
+                    "shock_detector": "daily_atr_pct",
+                    "shock_daily_atr_period": 14,
+                    "shock_daily_on_atr_pct": float(on_atr),
+                    "shock_daily_off_atr_pct": float(off_atr),
+                    "shock_direction_source": "signal",
+                    "shock_direction_lookback": 1,
+                    "shock_risk_scale_target_atr_pct": float(target_atr),
+                    "shock_risk_scale_min_mult": float(min_mult),
+                    "shock_long_risk_mult_factor_down": float(down_mult),
+                },
+                f"shock=detect daily_atr on={on_atr:g} off={off_atr:g} scale@{target_atr:g}->{min_mult:g} down={down_mult:g}",
+            )
+        )
+    for dd_lb, dd_on, dd_off, down_mult in (
+        (40, -10.0, -6.0, 0.60),
+        (20, -7.0, -4.0, 0.70),
+    ):
+        out.append(
+            (
+                {
+                    "shock_gate_mode": "detect",
+                    "shock_detector": "daily_drawdown",
+                    "shock_drawdown_lookback_days": int(dd_lb),
+                    "shock_on_drawdown_pct": float(dd_on),
+                    "shock_off_drawdown_pct": float(dd_off),
+                    "shock_direction_source": "signal",
+                    "shock_direction_lookback": 2,
+                    "shock_long_risk_mult_factor_down": float(down_mult),
+                },
+                f"shock=detect dd lb={dd_lb} on={dd_on:g}% off={dd_off:g}% down={down_mult:g}",
+            )
+        )
+    return out
+
+
+def _build_st37_refine_risk_variants() -> list[tuple[dict[str, object], str]]:
+    risk_off = _risk_overlay_off_template(extended=True)
+    out: list[tuple[dict[str, object], str]] = [(dict(risk_off), "risk=off")]
+
+    panic_base = {
+        **risk_off,
+        "risk_entry_cutoff_hour_et": 15,
+        "riskpanic_tr5_med_pct": 9.0,
+        "riskpanic_neg_gap_ratio_min": 0.6,
+        "riskpanic_lookback_days": 5,
+        "riskpanic_short_risk_mult_factor": 0.5,
+        "riskoff_mode": "hygiene",
+    }
+    out.append((panic_base, "riskpanic base (TRmed>=9 gap>=0.6 short=0.5 cutoff<15)"))
+    for v in (1.0, 0.5, 0.2, 0.0):
+        out.append(({**panic_base, "riskpanic_short_risk_mult_factor": float(v)}, f"riskpanic short={v:g}"))
+    for tr in (8.0, 9.0, 10.0, 11.0):
+        out.append(({**panic_base, "riskpanic_tr5_med_pct": float(tr)}, f"riskpanic TRmed>={tr:g}"))
+    for ratio in (0.5, 0.6, 0.7):
+        out.append(({**panic_base, "riskpanic_neg_gap_ratio_min": float(ratio)}, f"riskpanic gap>={ratio:g}"))
+    for lb in (3, 5, 7):
+        out.append(({**panic_base, "riskpanic_lookback_days": int(lb)}, f"riskpanic lookback={lb}d"))
+    for cutoff in (None, 15, 16):
+        out.append(({**panic_base, "risk_entry_cutoff_hour_et": int(cutoff) if cutoff is not None else None}, f"riskpanic cutoff<{cutoff or '-'}"))
+    for mode in ("hygiene", "directional"):
+        out.append(({**panic_base, "riskoff_mode": str(mode)}, f"riskpanic mode={mode}"))
+
+    riskoff_base = {
+        **risk_off,
+        "risk_entry_cutoff_hour_et": 15,
+        "riskoff_tr5_med_pct": 9.0,
+        "riskoff_tr5_lookback_days": 5,
+        "riskoff_mode": "directional",
+        "riskoff_long_risk_mult_factor": 0.8,
+        "riskoff_short_risk_mult_factor": 0.5,
+    }
+    out.append((riskoff_base, "riskoff base (TRmed>=9 long=0.8 short=0.5 cutoff<15)"))
+    for tr in (8.0, 9.0, 10.0, 11.0):
+        out.append(({**riskoff_base, "riskoff_tr5_med_pct": float(tr)}, f"riskoff TRmed>={tr:g}"))
+    for lb in (3, 5, 7):
+        out.append(({**riskoff_base, "riskoff_tr5_lookback_days": int(lb)}, f"riskoff lookback={lb}d"))
+    for long_f in (0.6, 0.8, 1.0):
+        out.append(({**riskoff_base, "riskoff_long_risk_mult_factor": float(long_f)}, f"riskoff long={long_f:g}"))
+    for short_f in (1.0, 0.5, 0.2, 0.0):
+        out.append(({**riskoff_base, "riskoff_short_risk_mult_factor": float(short_f)}, f"riskoff short={short_f:g}"))
+    for cutoff in (None, 15, 16):
+        out.append(({**riskoff_base, "risk_entry_cutoff_hour_et": int(cutoff) if cutoff is not None else None}, f"riskoff cutoff<{cutoff or '-'}"))
+    for mode in ("hygiene", "directional"):
+        out.append(({**riskoff_base, "riskoff_mode": str(mode)}, f"riskoff mode={mode}"))
+
+    pop_base = {
+        **risk_off,
+        "risk_entry_cutoff_hour_et": 15,
+        "riskpop_tr5_med_pct": 9.0,
+        "riskpop_pos_gap_ratio_min": 0.6,
+        "riskpop_lookback_days": 5,
+        "riskpop_long_risk_mult_factor": 1.2,
+        "riskpop_short_risk_mult_factor": 0.5,
+        "riskoff_mode": "hygiene",
+    }
+    out.append((pop_base, "riskpop base (TRmed>=9 gap>=0.6 long=1.2 short=0.5 cutoff<15)"))
+    for tr in (8.0, 9.0, 10.0, 11.0):
+        out.append(({**pop_base, "riskpop_tr5_med_pct": float(tr)}, f"riskpop TRmed>={tr:g}"))
+    for ratio in (0.5, 0.6, 0.7):
+        out.append(({**pop_base, "riskpop_pos_gap_ratio_min": float(ratio)}, f"riskpop gap>={ratio:g}"))
+    for lb in (3, 5, 7):
+        out.append(({**pop_base, "riskpop_lookback_days": int(lb)}, f"riskpop lookback={lb}d"))
+    for long_f in (0.6, 0.8, 1.0, 1.2, 1.5):
+        out.append(({**pop_base, "riskpop_long_risk_mult_factor": float(long_f), "riskpop_short_risk_mult_factor": 1.0}, f"riskpop long={long_f:g} short=1.0"))
+    for short_f in (1.0, 0.5, 0.2, 0.0):
+        out.append(({**pop_base, "riskpop_long_risk_mult_factor": 1.2, "riskpop_short_risk_mult_factor": float(short_f)}, f"riskpop long=1.2 short={short_f:g}"))
+    out.append(({**pop_base, "riskpop_long_risk_mult_factor": 1.5, "riskpop_short_risk_mult_factor": 0.0}, "riskpop long=1.5 short=0.0"))
+    for cutoff in (None, 15, 16):
+        out.append(({**pop_base, "risk_entry_cutoff_hour_et": int(cutoff) if cutoff is not None else None}, f"riskpop cutoff<{cutoff or '-'}"))
+    for mode in ("hygiene", "directional"):
+        out.append(({**pop_base, "riskoff_mode": str(mode)}, f"riskpop mode={mode}"))
+
+    out.append(
+        (
+            {
+                **risk_off,
+                **panic_base,
+                "riskoff_tr5_med_pct": riskoff_base.get("riskoff_tr5_med_pct"),
+                "riskoff_tr5_lookback_days": riskoff_base.get("riskoff_tr5_lookback_days"),
+                "riskoff_mode": riskoff_base.get("riskoff_mode"),
+                "riskoff_long_risk_mult_factor": riskoff_base.get("riskoff_long_risk_mult_factor"),
+                "riskoff_short_risk_mult_factor": riskoff_base.get("riskoff_short_risk_mult_factor"),
+            },
+            "riskoff+panic base",
+        )
+    )
+    out.append(
+        (
+            {
+                **risk_off,
+                **pop_base,
+                "riskoff_tr5_med_pct": riskoff_base.get("riskoff_tr5_med_pct"),
+                "riskoff_tr5_lookback_days": riskoff_base.get("riskoff_tr5_lookback_days"),
+                "riskoff_mode": riskoff_base.get("riskoff_mode"),
+                "riskoff_long_risk_mult_factor": riskoff_base.get("riskoff_long_risk_mult_factor"),
+                "riskoff_short_risk_mult_factor": riskoff_base.get("riskoff_short_risk_mult_factor"),
+            },
+            "riskoff+pop base",
+        )
+    )
+    return out
+
+
+def _build_st37_refine_shock_variants() -> list[tuple[dict[str, object], str]]:
+    out: list[tuple[dict[str, object], str]] = [({}, "shock=off")]
+    for on_atr, off_atr in ((13.5, 13.0), (14.0, 13.5), (14.5, 14.0)):
+        base = {
+            "shock_gate_mode": "surf",
+            "shock_detector": "daily_atr_pct",
+            "shock_daily_atr_period": 14,
+            "shock_daily_on_atr_pct": float(on_atr),
+            "shock_daily_off_atr_pct": float(off_atr),
+            "shock_direction_source": "signal",
+            "shock_direction_lookback": 1,
+            "shock_stop_loss_pct_mult": 0.75,
+        }
+        out.append((base, f"shock=surf daily_atr on={on_atr:g} off={off_atr:g}"))
+        for tr_on in (9.0, 10.0, 11.0):
+            out.append(({**base, "shock_daily_on_tr_pct": float(tr_on)}, f"shock=surf daily_atr on={on_atr:g} off={off_atr:g} tr_on={tr_on:g}"))
+    for detector in ("atr_ratio", "tr_ratio"):
+        for on_ratio, off_ratio in ((1.35, 1.25), (1.45, 1.30), (1.55, 1.30)):
+            out.append(
+                (
+                    {
+                        "shock_gate_mode": "surf",
+                        "shock_detector": str(detector),
+                        "shock_atr_fast_period": 7,
+                        "shock_atr_slow_period": 50,
+                        "shock_on_ratio": float(on_ratio),
+                        "shock_off_ratio": float(off_ratio),
+                        "shock_min_atr_pct": 7.0,
+                        "shock_direction_source": "signal",
+                        "shock_direction_lookback": 1,
+                        "shock_stop_loss_pct_mult": 0.75,
+                    },
+                    f"shock=surf {detector} on={on_ratio:g} off={off_ratio:g}",
+                )
+            )
+    for lb, on_dd, off_dd in (
+        (20, -15.0, -10.0),
+        (20, -20.0, -10.0),
+        (30, -20.0, -15.0),
+    ):
+        out.append(
+            (
+                {
+                    "shock_gate_mode": "surf",
+                    "shock_detector": "daily_drawdown",
+                    "shock_drawdown_lookback_days": int(lb),
+                    "shock_on_drawdown_pct": float(on_dd),
+                    "shock_off_drawdown_pct": float(off_dd),
+                    "shock_direction_source": "signal",
+                    "shock_direction_lookback": 1,
+                    "shock_stop_loss_pct_mult": 0.75,
+                },
+                f"shock=surf daily_dd lb={lb} on={on_dd:g} off={off_dd:g}",
+            )
+        )
+    return out
+
+
 def _print_top(rows: list[dict], *, title: str, top_n: int, sort_key) -> None:
     print("")
     print(title)
@@ -1141,6 +1832,86 @@ def _seed_sort_key_default(item: dict) -> tuple:
         float(m.get("win_rate") or 0.0),
         int(m.get("trades") or 0),
     )
+
+
+_SEED_SCORE_REGISTRY: dict[str, object] = {
+    "pnl_dd": lambda item: _score_row_pnl_dd(item.get("metrics") or {}),
+    "pnl": lambda item: _score_row_pnl(item.get("metrics") or {}),
+    "roi": lambda item: float((item.get("metrics") or {}).get("roi") or 0.0),
+    "win": lambda item: float((item.get("metrics") or {}).get("win_rate") or 0.0),
+    "trades": lambda item: (
+        int((item.get("metrics") or {}).get("trades") or 0),
+        float((item.get("metrics") or {}).get("pnl") or float("-inf")),
+        float((item.get("metrics") or {}).get("pnl_over_dd") or float("-inf")),
+    ),
+    "roi_dd": lambda item: float((item.get("metrics") or {}).get("roi_over_dd_pct") or 0.0),
+    "stability_roi_dd": lambda item: (
+        float((item.get("eval") or {}).get("stability_min_roi_dd") or 0.0),
+        float((item.get("metrics") or {}).get("roi_over_dd_pct") or 0.0),
+        float((item.get("metrics") or {}).get("pnl_over_dd") or 0.0),
+        float((item.get("metrics") or {}).get("roi") or 0.0),
+        float((item.get("metrics") or {}).get("pnl") or 0.0),
+    ),
+}
+
+
+def _seed_candidate_key(item: dict) -> str:
+    raw = {
+        "strategy": item.get("strategy") if isinstance(item.get("strategy"), dict) else {},
+        "filters": item.get("filters") if isinstance(item.get("filters"), dict) else None,
+    }
+    return json.dumps(raw, sort_keys=True, default=str)
+
+
+def _seed_rank_slice(
+    candidates: list[dict],
+    *,
+    scorer: str,
+    top_n: int,
+) -> list[dict]:
+    score_fn = _SEED_SCORE_REGISTRY.get(str(scorer))
+    n = max(0, int(top_n))
+    if n <= 0 or not callable(score_fn):
+        return []
+    return sorted(candidates, key=lambda item, fn=score_fn: fn(item), reverse=True)[:n]
+
+
+def _seed_dedupe_candidates(
+    candidates: list[dict],
+    *,
+    limit: int | None = None,
+    key_fn=_seed_candidate_key,
+) -> list[dict]:
+    out: list[dict] = []
+    seen: set[str] = set()
+    max_items = None if limit is None else max(0, int(limit))
+    for item in candidates:
+        key = str(key_fn(item))
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(item)
+        if max_items is not None and len(out) >= max_items:
+            break
+    return out
+
+
+def _seed_best_by_family(
+    candidates: list[dict],
+    *,
+    family_key_fn,
+    scorer: str = "pnl_dd",
+) -> list[dict]:
+    score_fn = _SEED_SCORE_REGISTRY.get(str(scorer))
+    if not callable(score_fn):
+        return []
+    best_by_family: dict[object, dict] = {}
+    for item in candidates:
+        fam = family_key_fn(item)
+        prev = best_by_family.get(fam)
+        if prev is None or score_fn(item) > score_fn(prev):
+            best_by_family[fam] = item
+    return sorted(best_by_family.values(), key=lambda item, fn=score_fn: fn(item), reverse=True)
 
 
 def _seed_candidates_for_context(
@@ -1562,71 +2333,17 @@ def main() -> None:
     parser.add_argument(
         "--axis",
         default="all",
-        choices=(
-            "all",
-            "ema",
-            "entry_mode",
-            "combo_fast",
-            "combo_full",
-            "squeeze",
-            "volume",
-            "rv",
-            "tod",
-            "tod_interaction",
-            "perm_joint",
-            "weekday",
-            "exit_time",
-            "atr",
-            "atr_fine",
-            "atr_ultra",
-            "r2_atr",
-            "r2_tod",
-            "ema_perm_joint",
-            "tick_perm_joint",
-            "regime_atr",
-            "ema_regime",
-            "chop_joint",
-            "ema_atr",
-            "tick_ema",
-            "ptsl",
-            "hf_scalp",
-            "hold",
-            "spot_short_risk_mult",
-            "orb",
-            "orb_joint",
-            "frontier",
-            "regime",
-            "regime2",
-            "regime2_ema",
-            "joint",
-            "micro_st",
-            "flip_exit",
-            "confirm",
-            "spread",
-            "spread_fine",
-            "spread_down",
-            "slope",
-            "slope_signed",
-            "cooldown",
-            "skip_open",
-            "shock",
-            "risk_overlays",
-            "loosen",
-            "loosen_atr",
-            "tick",
-            "gate_matrix",
-            "champ_refine",
-            "st37_refine",
-            "shock_alpha_refine",
-            "shock_velocity_refine",
-            "shock_velocity_refine_wide",
-            "shock_throttle_refine",
-            "shock_throttle_tr_ratio",
-            "shock_throttle_drawdown",
-            "riskpanic_micro",
-            "exit_pivot",
-        ),
+        choices=("all", *_AXIS_CHOICES),
         help="Run one axis sweep (or all in sequence)",
+    )
+    parser.add_argument(
+        "--overlay-family-kind",
+        default="all",
+        choices=("all", "shock_throttle_refine", "shock_throttle_tr_ratio", "shock_throttle_drawdown", "riskpanic_micro"),
+        help=(
+            "Used by --axis overlay_family. "
+            "'all' runs all seeded overlay families; otherwise runs only the selected family."
+        ),
     )
     parser.add_argument(
         "--risk-overlays-riskoff-trs",
@@ -1843,6 +2560,89 @@ def main() -> None:
                         milestones = seed_payload
 
     run_calls_total = 0
+    run_cfg_cache: dict[tuple, dict | None] = {}
+    run_cfg_cache_hits = 0
+    run_cfg_fingerprint_hits = 0
+    run_cfg_persistent_hits = 0
+    run_cfg_persistent_writes = 0
+    run_cfg_fingerprint_cache: dict[str, tuple[tuple[tuple[int, object | None, object | None], tuple[int, object | None, object | None], tuple[int, object | None, object | None]], dict | None]] = {}
+    _RUN_CFG_CACHE_MISS = object()
+    run_cfg_persistent_path = cache_dir / "spot_sweeps_run_cfg_cache.sqlite3"
+    run_cfg_persistent_conn: sqlite3.Connection | None = None
+    run_cfg_persistent_enabled = True
+    run_cfg_persistent_lock = threading.Lock()
+
+    def _run_cfg_persistent_conn() -> sqlite3.Connection | None:
+        nonlocal run_cfg_persistent_conn, run_cfg_persistent_enabled
+        if not bool(run_cfg_persistent_enabled):
+            return None
+        if run_cfg_persistent_conn is not None:
+            return run_cfg_persistent_conn
+        try:
+            conn = sqlite3.connect(
+                str(run_cfg_persistent_path),
+                timeout=15.0,
+                isolation_level=None,
+            )
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA synchronous=NORMAL")
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS run_cfg_cache ("
+                "cache_key TEXT PRIMARY KEY, "
+                "payload_json TEXT NOT NULL, "
+                "updated_at REAL NOT NULL)"
+            )
+            run_cfg_persistent_conn = conn
+            return conn
+        except Exception:
+            run_cfg_persistent_enabled = False
+            run_cfg_persistent_conn = None
+            return None
+
+    def _run_cfg_persistent_key(*, cfg_key: str, ctx_sig: tuple) -> str:
+        raw = {
+            "version": str(_RUN_CFG_CACHE_ENGINE_VERSION),
+            "cfg_key": str(cfg_key),
+            "ctx_sig": ctx_sig,
+            "run_min_trades": int(run_min_trades),
+        }
+        return hashlib.sha1(json.dumps(raw, sort_keys=True, default=str).encode("utf-8")).hexdigest()
+
+    def _run_cfg_persistent_get(*, cache_key: str) -> dict | None | object:
+        conn = _run_cfg_persistent_conn()
+        if conn is None:
+            return _RUN_CFG_CACHE_MISS
+        try:
+            with run_cfg_persistent_lock:
+                row = conn.execute(
+                    "SELECT payload_json FROM run_cfg_cache WHERE cache_key=?",
+                    (str(cache_key),),
+                ).fetchone()
+        except Exception:
+            return _RUN_CFG_CACHE_MISS
+        if row is None:
+            return _RUN_CFG_CACHE_MISS
+        try:
+            payload = json.loads(str(row[0]))
+        except Exception:
+            return _RUN_CFG_CACHE_MISS
+        if payload is None:
+            return None
+        return dict(payload) if isinstance(payload, dict) else _RUN_CFG_CACHE_MISS
+
+    def _run_cfg_persistent_set(*, cache_key: str, payload: dict | None) -> None:
+        conn = _run_cfg_persistent_conn()
+        if conn is None:
+            return
+        try:
+            payload_json = json.dumps(payload, sort_keys=True, default=str)
+            with run_cfg_persistent_lock:
+                conn.execute(
+                    "INSERT OR REPLACE INTO run_cfg_cache(cache_key, payload_json, updated_at) VALUES(?,?,?)",
+                    (str(cache_key), payload_json, float(pytime.time())),
+                )
+        except Exception:
+            return
 
     def _merge_filters(base_filters: FiltersConfig | None, overrides: dict[str, object]) -> FiltersConfig | None:
         """Merge base filters with overrides, where `None` deletes a key.
@@ -1881,19 +2681,17 @@ def main() -> None:
         f = _parse_filters(merged)
         return f if _filters_payload(f) is not None else None
 
-    def _shortlisted_keys(best_by_key: dict, *, top_pnl: int = 8, top_pnl_dd: int = 8) -> list:
-        by_pnl = sorted(best_by_key.items(), key=lambda t: _score_row_pnl(t[1]["row"]), reverse=True)[: int(top_pnl)]
-        by_dd = sorted(best_by_key.items(), key=lambda t: _score_row_pnl_dd(t[1]["row"]), reverse=True)[
-            : int(top_pnl_dd)
-        ]
-        out = []
-        seen = set()
-        for key, _ in by_pnl + by_dd:
-            if key in seen:
-                continue
-            seen.add(key)
-            out.append(key)
-        return out
+    def _ranked_keys_by_row_scores(best_by_key: dict, *, top_pnl: int = 8, top_pnl_dd: int = 8) -> list:
+        ranked = _rank_cfg_rows(
+            [
+                (key, rec["row"], "")
+                for key, rec in best_by_key.items()
+                if isinstance(rec, dict) and isinstance(rec.get("row"), dict)
+            ],
+            scorers=[(_score_row_pnl, int(top_pnl)), (_score_row_pnl_dd, int(top_pnl_dd))],
+            key_fn=lambda key, _row, _note: key,
+        )
+        return [key for key, _row, _note in ranked]
 
     def _bars(bar_size: str) -> list:
         if offline:
@@ -2059,10 +2857,21 @@ def main() -> None:
         regime2_eff = _regime2_bars_for(cfg) if regime2_bars is None else regime2_bars
         return bars_eff, regime_eff, regime2_eff
 
+    def _bars_signature(series: list | None) -> tuple[int, object | None, object | None]:
+        if not series:
+            return (0, None, None)
+        first = series[0]
+        last = series[-1]
+        return (
+            len(series),
+            getattr(first, "ts", None),
+            getattr(last, "ts", None),
+        )
+
     def _run_cfg(
         *, cfg: ConfigBundle, bars: list | None = None, regime_bars: list | None = None, regime2_bars: list | None = None
     ) -> dict | None:
-        nonlocal run_calls_total
+        nonlocal run_calls_total, run_cfg_cache_hits, run_cfg_fingerprint_hits, run_cfg_persistent_hits, run_cfg_persistent_writes
         run_calls_total += 1
         bars_eff, regime_eff, regime2_eff = _context_bars_for_cfg(
             cfg=cfg,
@@ -2070,6 +2879,36 @@ def main() -> None:
             regime_bars=regime_bars,
             regime2_bars=regime2_bars,
         )
+        cfg_key = _milestone_key(cfg)
+        bars_sig = _bars_signature(bars_eff)
+        regime_sig = _bars_signature(regime_eff)
+        regime2_sig = _bars_signature(regime2_eff)
+        ctx_sig = (bars_sig, regime_sig, regime2_sig)
+        fp_cached = run_cfg_fingerprint_cache.get(cfg_key)
+        if fp_cached is not None and fp_cached[0] == ctx_sig:
+            run_cfg_cache_hits += 1
+            run_cfg_fingerprint_hits += 1
+            fp_row = fp_cached[1]
+            return dict(fp_row) if isinstance(fp_row, dict) else None
+        cache_key = (
+            cfg_key,
+            bars_sig,
+            regime_sig,
+            regime2_sig,
+        )
+        persistent_key = _run_cfg_persistent_key(cfg_key=cfg_key, ctx_sig=ctx_sig)
+        cached = run_cfg_cache.get(cache_key, _RUN_CFG_CACHE_MISS)
+        if cached is not _RUN_CFG_CACHE_MISS:
+            run_cfg_cache_hits += 1
+            run_cfg_fingerprint_cache[cfg_key] = (ctx_sig, cached if isinstance(cached, dict) else None)
+            return dict(cached) if isinstance(cached, dict) else None
+        persisted = _run_cfg_persistent_get(cache_key=str(persistent_key))
+        if persisted is not _RUN_CFG_CACHE_MISS:
+            run_cfg_cache_hits += 1
+            run_cfg_persistent_hits += 1
+            run_cfg_cache[cache_key] = persisted if isinstance(persisted, dict) else None
+            run_cfg_fingerprint_cache[cfg_key] = (ctx_sig, persisted if isinstance(persisted, dict) else None)
+            return dict(persisted) if isinstance(persisted, dict) else None
         tick_bars = _tick_bars_for(cfg)
         exec_bars = None
         exec_size = str(getattr(cfg.strategy, "spot_exec_bar_size", "") or "").strip()
@@ -2085,12 +2924,16 @@ def main() -> None:
             exec_bars=exec_bars,
         )
         if int(s.trades) < int(run_min_trades):
+            run_cfg_cache[cache_key] = None
+            run_cfg_fingerprint_cache[cfg_key] = (ctx_sig, None)
+            _run_cfg_persistent_set(cache_key=str(persistent_key), payload=None)
+            run_cfg_persistent_writes += 1
             return None
         pnl = float(s.total_pnl or 0.0)
         dd = float(s.max_drawdown or 0.0)
         roi = float(getattr(s, "roi", 0.0) or 0.0)
         dd_pct = float(getattr(s, "max_drawdown_pct", 0.0) or 0.0)
-        return {
+        out = {
             "trades": int(s.trades),
             "win_rate": float(s.win_rate),
             "pnl": pnl,
@@ -2099,6 +2942,11 @@ def main() -> None:
             "dd_pct": dd_pct,
             "pnl_over_dd": (pnl / dd) if dd > 0 else None,
         }
+        run_cfg_cache[cache_key] = out
+        run_cfg_fingerprint_cache[cfg_key] = (ctx_sig, out)
+        _run_cfg_persistent_set(cache_key=str(persistent_key), payload=out)
+        run_cfg_persistent_writes += 1
+        return dict(out)
 
     def _run_sweep(
         *,
@@ -2157,6 +3005,376 @@ def main() -> None:
 
         return tested, kept
 
+    def _cfg_from_strategy_filters_payload(strategy_payload, filters_payload) -> ConfigBundle | None:
+        if not isinstance(strategy_payload, dict):
+            return None
+        try:
+            filters_obj = _filters_from_payload(filters_payload if isinstance(filters_payload, dict) else None)
+            strategy_obj = _strategy_from_payload(strategy_payload, filters=filters_obj)
+        except Exception:
+            return None
+        return _mk_bundle(
+            strategy=strategy_obj,
+            start=start,
+            end=end,
+            bar_size=signal_bar_size,
+            use_rth=use_rth,
+            cache_dir=cache_dir,
+            offline=offline,
+        )
+
+    def _rows_from_kept(kept: list[tuple[ConfigBundle, dict, str, dict | None]]) -> list[tuple[ConfigBundle, dict, str]]:
+        out: list[tuple[ConfigBundle, dict, str]] = []
+        for cfg, row, note, _meta in kept:
+            out.append((cfg, row, note))
+        return out
+
+    def _encode_cfg_payload(
+        cfg: ConfigBundle,
+        *,
+        note: str | None = None,
+        note_key: str = "note",
+        extra: dict | None = None,
+    ) -> dict:
+        payload = {
+            "strategy": _spot_strategy_payload(cfg, meta=meta),
+            "filters": _filters_payload(cfg.strategy.filters),
+        }
+        if note is not None:
+            payload[str(note_key)] = str(note)
+        if isinstance(extra, dict):
+            payload.update(extra)
+        return payload
+
+    def _decode_cfg_payload(
+        payload: object,
+        *,
+        note_key: str = "note",
+        default_note: str = "",
+    ) -> tuple[ConfigBundle, str] | None:
+        if not isinstance(payload, dict):
+            return None
+        cfg = _cfg_from_strategy_filters_payload(payload.get("strategy"), payload.get("filters"))
+        if cfg is None:
+            return None
+        note = str(payload.get(note_key) or "").strip() or str(default_note)
+        return cfg, note
+
+    def _worker_records_from_kept(kept: list[tuple[ConfigBundle, dict, str, dict | None]]) -> list[dict]:
+        records: list[dict] = []
+        for cfg, row, note, _meta in kept:
+            records.append(_encode_cfg_payload(cfg, note=note, extra={"row": row}))
+        return records
+
+    def _run_sharded_stage_worker(
+        *,
+        stage_label: str,
+        worker_raw,
+        workers_raw,
+        out_path_raw: str,
+        out_flag_name: str,
+        plan_all,
+        bars: list,
+        report_every: int,
+        heartbeat_sec: float = 0.0,
+    ) -> None:
+        if not offline:
+            raise SystemExit(f"{stage_label} worker mode requires --offline (avoid parallel IBKR sessions).")
+        out_path_str = str(out_path_raw or "").strip()
+        if not out_path_str:
+            raise SystemExit(f"--{out_flag_name} is required for {stage_label} worker mode.")
+        out_path = Path(out_path_str)
+
+        worker_id, workers = _parse_worker_shard(worker_raw, workers_raw, label=str(stage_label))
+        total = len(plan_all)
+        local_total = (total // workers) + (1 if worker_id < (total % workers) else 0)
+        shard_plan = (item for combo_idx, item in enumerate(plan_all) if (combo_idx % int(workers)) == int(worker_id))
+        tested, kept = _run_sweep(
+            plan=shard_plan,
+            bars=bars,
+            total=local_total,
+            progress_label=f"{stage_label} worker {worker_id+1}/{workers}",
+            report_every=int(report_every),
+            heartbeat_sec=float(heartbeat_sec),
+            record_milestones=False,
+        )
+        records = _worker_records_from_kept(kept)
+        out_payload = {"tested": int(tested), "kept": len(records), "records": records}
+        write_json(out_path, out_payload, sort_keys=False)
+        print(f"{stage_label} worker done tested={tested} kept={len(records)} out={out_path}", flush=True)
+
+    def _collect_stage_rows_from_payloads(
+        *,
+        payloads: dict[int, dict],
+        default_note: str,
+        on_row,
+        dedupe_by_milestone_key: bool = False,
+    ) -> int:
+        seen_keys: set[str] | None = set() if bool(dedupe_by_milestone_key) else None
+
+        def _decode_record(rec: dict) -> tuple[ConfigBundle, dict, str] | None:
+            decoded = _decode_cfg_payload(rec, note_key="note", default_note=str(default_note))
+            if decoded is None:
+                return None
+            cfg, note = decoded
+            if seen_keys is not None:
+                cfg_key = _milestone_key(cfg)
+                if cfg_key in seen_keys:
+                    return None
+                seen_keys.add(cfg_key)
+            row = rec.get("row")
+            if not isinstance(row, dict):
+                return None
+            row_out = dict(row)
+            row_out["note"] = note
+            return cfg, row_out, str(note)
+
+        def _on_record(item: tuple[ConfigBundle, dict, str]) -> None:
+            cfg, row, note = item
+            on_row(cfg, row, note)
+
+        return _collect_parallel_payload_records(
+            payloads=payloads,
+            records_key="records",
+            tested_key="tested",
+            decode_record=_decode_record,
+            on_record=_on_record,
+        )
+
+    def _run_stage_serial(
+        *,
+        stage_label: str,
+        plan,
+        bars: list,
+        total: int,
+        report_every: int,
+        heartbeat_sec: float = 0.0,
+        record_milestones: bool = True,
+    ) -> tuple[int, list[tuple[ConfigBundle, dict, str]]]:
+        tested, kept = _run_sweep(
+            plan=plan,
+            bars=bars,
+            total=total,
+            progress_label=str(stage_label),
+            report_every=int(report_every),
+            heartbeat_sec=float(heartbeat_sec),
+            record_milestones=bool(record_milestones),
+        )
+        return int(tested), _rows_from_kept(kept)
+
+    def _stage_parallel_base_cli(*, flags_with_values: tuple[str, ...]) -> list[str]:
+        return _strip_flags(
+            list(sys.argv[1:]),
+            flags=("--write-milestones", "--merge-milestones"),
+            flags_with_values=("--axis", "--jobs", "--milestones-out", *flags_with_values),
+        )
+
+    def _run_parallel_stage_with_payload(
+        *,
+        axis_name: str,
+        stage_label: str,
+        total: int,
+        jobs: int,
+        payload: dict,
+        payload_filename: str,
+        temp_prefix: str,
+        worker_tmp_prefix: str,
+        worker_tag: str,
+        out_prefix: str,
+        stage_flag: str,
+        worker_flag: str,
+        workers_flag: str,
+        out_flag: str,
+        strip_flags_with_values: tuple[str, ...],
+        run_min_trades_flag: str | None,
+        run_min_trades: int | None,
+        capture_error: str,
+        failure_label: str,
+        missing_label: str,
+        invalid_label: str,
+    ) -> dict[int, dict]:
+        base_cli = _stage_parallel_base_cli(flags_with_values=strip_flags_with_values)
+        with tempfile.TemporaryDirectory(prefix=temp_prefix) as tmpdir:
+            payload_path = Path(tmpdir) / str(payload_filename)
+            write_json(payload_path, payload, sort_keys=False)
+            _jobs_eff, payloads = _run_parallel_stage_kernel(
+                stage_label=str(stage_label),
+                jobs=int(jobs),
+                total=int(total),
+                default_jobs=int(_default_jobs()),
+                offline=bool(offline),
+                offline_error=f"--jobs>1 for {axis_name} requires --offline (avoid parallel IBKR sessions).",
+                tmp_prefix=str(worker_tmp_prefix),
+                worker_tag=str(worker_tag),
+                out_prefix=str(out_prefix),
+                build_cmd=lambda worker_id, workers_n, out_path: [
+                    sys.executable,
+                    "-u",
+                    "-m",
+                    "tradebot.backtest",
+                    "spot",
+                    *base_cli,
+                    "--axis",
+                    str(axis_name),
+                    "--jobs",
+                    "1",
+                    str(stage_flag),
+                    str(payload_path),
+                    str(worker_flag),
+                    str(worker_id),
+                    str(workers_flag),
+                    str(workers_n),
+                    str(out_flag),
+                    str(out_path),
+                    *(
+                        [str(run_min_trades_flag), str(int(run_min_trades))]
+                        if (run_min_trades_flag and run_min_trades is not None)
+                        else []
+                    ),
+                ],
+                capture_error=str(capture_error),
+                failure_label=str(failure_label),
+                missing_label=str(missing_label),
+                invalid_label=str(invalid_label),
+            )
+            return payloads
+
+    def _run_parallel_stage(
+        *,
+        axis_name: str | None,
+        stage_label: str,
+        total: int,
+        jobs: int,
+        worker_tmp_prefix: str,
+        worker_tag: str,
+        out_prefix: str,
+        worker_flag: str,
+        workers_flag: str,
+        out_flag: str,
+        strip_flags_with_values: tuple[str, ...],
+        capture_error: str,
+        failure_label: str,
+        missing_label: str,
+        invalid_label: str,
+        run_min_trades_flag: str | None = None,
+        run_min_trades: int | None = None,
+        stage_flag: str | None = None,
+        stage_value: str | None = None,
+        stage_args: tuple[str, ...] = (),
+        entrypoint: tuple[str, ...] = ("-m", "tradebot.backtest", "spot"),
+    ) -> dict[int, dict]:
+        base_cli = _stage_parallel_base_cli(flags_with_values=strip_flags_with_values)
+        _jobs_eff, payloads = _run_parallel_stage_kernel(
+            stage_label=str(stage_label),
+            jobs=int(jobs),
+            total=int(total),
+            default_jobs=int(_default_jobs()),
+            offline=bool(offline),
+            offline_error=f"--jobs>1 for {axis_name or stage_label} requires --offline (avoid parallel IBKR sessions).",
+            tmp_prefix=str(worker_tmp_prefix),
+            worker_tag=str(worker_tag),
+            out_prefix=str(out_prefix),
+            build_cmd=lambda worker_id, workers_n, out_path: [
+                sys.executable,
+                "-u",
+                *[str(p) for p in entrypoint],
+                *base_cli,
+                *(["--axis", str(axis_name)] if axis_name else []),
+                "--jobs",
+                "1",
+                *(
+                    [str(stage_flag), str(stage_value)]
+                    if (stage_flag and stage_value is not None)
+                    else ([str(stage_flag)] if stage_flag else [])
+                ),
+                *[str(arg) for arg in stage_args],
+                str(worker_flag),
+                str(worker_id),
+                str(workers_flag),
+                str(workers_n),
+                str(out_flag),
+                str(out_path),
+                *(
+                    [str(run_min_trades_flag), str(int(run_min_trades))]
+                    if (run_min_trades_flag and run_min_trades is not None)
+                    else []
+                ),
+            ],
+            capture_error=str(capture_error),
+            failure_label=str(failure_label),
+            missing_label=str(missing_label),
+            invalid_label=str(invalid_label),
+        )
+        return payloads
+
+    def _collect_axis_milestone_items(
+        *,
+        milestone_payloads: dict[str, dict],
+        milestone_axes: tuple[str, ...],
+    ) -> list[dict]:
+        eligible_new: list[dict] = []
+        for axis_name in milestone_axes:
+            payload = milestone_payloads.get(axis_name)
+            if isinstance(payload, dict):
+                eligible_new.extend(_collect_milestone_items_from_payload(payload, symbol=symbol))
+        return eligible_new
+
+    def _merge_axis_parallel_milestones(
+        *,
+        milestone_payloads: dict[str, dict],
+        milestone_axes: tuple[str, ...],
+    ) -> int | None:
+        if not bool(args.write_milestones):
+            return None
+        eligible_new = _collect_axis_milestone_items(
+            milestone_payloads=milestone_payloads,
+            milestone_axes=milestone_axes,
+        )
+        out_path = Path(args.milestones_out)
+        total = _merge_and_write_milestones(
+            out_path=out_path,
+            eligible_new=eligible_new,
+            merge_existing=bool(args.merge_milestones),
+            add_top_pnl_dd=int(args.milestone_add_top_pnl_dd or 0),
+            add_top_pnl=int(args.milestone_add_top_pnl or 0),
+            symbol=symbol,
+            start=start,
+            end=end,
+            signal_bar_size=signal_bar_size,
+            use_rth=use_rth,
+            milestone_min_win=float(args.milestone_min_win),
+            milestone_min_trades=int(args.milestone_min_trades),
+            milestone_min_pnl_dd=float(args.milestone_min_pnl_dd),
+        )
+        print(f"Wrote {out_path} ({total} eligible presets).", flush=True)
+        return int(total)
+
+    def _run_parallel_axis_stage(
+        *,
+        label: str,
+        axes: tuple[str, ...],
+        jobs_req: int,
+        axis_jobs_resolver,
+        tmp_prefix: str,
+        offline_error: str,
+    ) -> dict[str, dict]:
+        if not offline:
+            raise SystemExit(str(offline_error))
+        base_cli = _strip_flags(
+            list(sys.argv[1:]),
+            flags=("--merge-milestones",),
+            flags_with_values=("--axis", "--jobs", "--milestones-out"),
+        )
+        return _run_axis_subprocess_plan(
+            label=str(label),
+            axes=axes,
+            jobs=int(jobs_req),
+            base_cli=base_cli,
+            axis_jobs_resolver=axis_jobs_resolver,
+            write_milestones=bool(args.write_milestones),
+            tmp_prefix=str(tmp_prefix),
+        )
+
     def _iter_seed_bundles(seeds: list[dict]):
         for seed_i, item in enumerate(seeds, start=1):
             try:
@@ -2175,20 +3393,45 @@ def main() -> None:
             )
             yield seed_i, item, cfg_seed, str(item.get("group_name") or f"seed#{seed_i:02d}")
 
-    def _emit_seed_base_row(
+    def _iter_seed_micro_plan(
         *,
-        cfg_seed: ConfigBundle,
-        seed_note: str,
+        seeds: list[dict],
+        include_base_note: str | None = None,
+        build_variants=None,
+    ):
+        for _seed_i, item, cfg_seed, seed_note in _iter_seed_bundles(seeds):
+            if include_base_note:
+                yield cfg_seed, f"{seed_note} | {include_base_note}", None
+            if build_variants is None:
+                continue
+            yield from build_variants(cfg_seed, seed_note, item)
+
+    def _run_seeded_micro_grid(
+        *,
+        axis_tag: str,
+        seeds: list[dict],
         rows: list[dict],
-        base_note: str = "base",
-    ) -> None:
-        base_row = _run_cfg(cfg=cfg_seed)
-        if not base_row:
-            return
-        note = f"{seed_note} | {base_note}"
-        base_row["note"] = note
-        _record_milestone(cfg_seed, base_row, note)
-        rows.append(base_row)
+        build_variants,
+        total: int | None = None,
+        report_every: int = 0,
+        heartbeat_sec: float = 0.0,
+        include_base_note: str | None = None,
+    ) -> int:
+        seed_count = sum(1 for _ in _iter_seed_bundles(seeds)) if include_base_note else 0
+        total_eff = (int(total) + int(seed_count)) if total is not None else None
+        tested, kept = _run_sweep(
+            plan=_iter_seed_micro_plan(
+                seeds=seeds,
+                include_base_note=include_base_note,
+                build_variants=build_variants,
+            ),
+            total=total_eff,
+            progress_label=str(axis_tag),
+            report_every=int(report_every),
+            heartbeat_sec=float(heartbeat_sec),
+        )
+        rows.extend(row for _, row, _, _meta in kept)
+        return int(tested)
 
     def _base_bundle(*, bar_size: str, filters: FiltersConfig | None) -> ConfigBundle:
         cfg = _bundle_base(
@@ -2285,11 +3528,14 @@ def main() -> None:
             return
         milestone_rows.append((cfg, row, str(note)))
 
+    # Populated once after sweep functions are declared; used by axis dispatchers.
+    axis_registry: dict[str, object] = {}
+
     def _sweep_volume() -> None:
         bars_sig = _bars_cached(signal_bar_size)
         base = _base_bundle(bar_size=signal_bar_size, filters=None)
         base_row = _run_cfg(
-            cfg=base, bars=bars_sig, regime_bars=_regime_bars_for(base), regime2_bars=_regime2_bars_for(base)
+            cfg=base, bars=bars_sig
         )
         if base_row:
             base_row["note"] = "base"
@@ -2307,7 +3553,7 @@ def main() -> None:
                 f = _mk_filters(volume_ratio_min=ratio_min, volume_ema_period=ema_p)
                 cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
                 row = _run_cfg(
-                    cfg=cfg, bars=bars_sig, regime_bars=_regime_bars_for(cfg), regime2_bars=_regime2_bars_for(cfg)
+                    cfg=cfg, bars=bars_sig
                 )
                 if not row:
                     continue
@@ -2322,7 +3568,7 @@ def main() -> None:
         bars_sig = _bars_cached(signal_bar_size)
         base = _base_bundle(bar_size=signal_bar_size, filters=None)
         base_row = _run_cfg(
-            cfg=base, bars=bars_sig, regime_bars=_regime_bars_for(base), regime2_bars=_regime2_bars_for(base)
+            cfg=base, bars=bars_sig
         )
         if base_row:
             base_row["note"] = "base"
@@ -2356,7 +3602,7 @@ def main() -> None:
             cfg = _base_bundle(bar_size=signal_bar_size, filters=None)
             cfg = replace(cfg, strategy=replace(cfg.strategy, ema_preset=str(preset)))
             row = _run_cfg(
-                cfg=cfg, bars=bars_sig, regime_bars=_regime_bars_for(cfg), regime2_bars=_regime2_bars_for(cfg)
+                cfg=cfg, bars=bars_sig
             )
             if not row:
                 continue
@@ -2371,7 +3617,7 @@ def main() -> None:
         bars_sig = _bars_cached(signal_bar_size)
         base = _base_bundle(bar_size=signal_bar_size, filters=None)
         base_row = _run_cfg(
-            cfg=base, bars=bars_sig, regime_bars=_regime_bars_for(base), regime2_bars=_regime2_bars_for(base)
+            cfg=base, bars=bars_sig
         )
         if base_row:
             base_row["note"] = "base"
@@ -2417,7 +3663,7 @@ def main() -> None:
             f = _mk_filters(entry_start_hour_et=start_h, entry_end_hour_et=end_h)
             cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
             row = _run_cfg(
-                cfg=cfg, bars=bars_sig, regime_bars=_regime_bars_for(cfg), regime2_bars=_regime2_bars_for(cfg)
+                cfg=cfg, bars=bars_sig
             )
             if not row:
                 continue
@@ -2431,7 +3677,7 @@ def main() -> None:
         bars_sig = _bars_cached(signal_bar_size)
         base = _base_bundle(bar_size=signal_bar_size, filters=None)
         base_row = _run_cfg(
-            cfg=base, bars=bars_sig, regime_bars=_regime_bars_for(base), regime2_bars=_regime2_bars_for(base)
+            cfg=base, bars=bars_sig
         )
         if base_row:
             base_row["note"] = "base"
@@ -2469,7 +3715,7 @@ def main() -> None:
         bars_sig = _bars_cached(signal_bar_size)
         base = _base_bundle(bar_size=signal_bar_size, filters=None)
         base_row = _run_cfg(
-            cfg=base, bars=bars_sig, regime_bars=_regime_bars_for(base), regime2_bars=_regime2_bars_for(base)
+            cfg=base, bars=bars_sig
         )
         if base_row:
             base_row["note"] = "base"
@@ -2550,7 +3796,7 @@ def main() -> None:
         bars_sig = _bars_cached(signal_bar_size)
         base = _base_bundle(bar_size=signal_bar_size, filters=None)
         base_row = _run_cfg(
-            cfg=base, bars=bars_sig, regime_bars=_regime_bars_for(base), regime2_bars=_regime2_bars_for(base)
+            cfg=base, bars=bars_sig
         )
         if base_row:
             base_row["note"] = "base"
@@ -2568,7 +3814,7 @@ def main() -> None:
                 continue
             best_by_ema[str(preset)] = {"row": row}
 
-        shortlisted = _shortlisted_keys(best_by_ema, top_pnl=5, top_pnl_dd=5)
+        shortlisted = _ranked_keys_by_row_scores(best_by_ema, top_pnl=5, top_pnl_dd=5)
         if not shortlisted:
             print("No eligible EMA presets (try lowering --min-trades).")
             return
@@ -2636,7 +3882,7 @@ def main() -> None:
         bars_sig = _bars_cached(signal_bar_size)
         base = _base_bundle(bar_size=signal_bar_size, filters=None)
         base_row = _run_cfg(
-            cfg=base, bars=bars_sig, regime_bars=_regime_bars_for(base), regime2_bars=_regime2_bars_for(base)
+            cfg=base, bars=bars_sig
         )
         if base_row:
             base_row["note"] = "base"
@@ -2689,7 +3935,7 @@ def main() -> None:
                                 if current is None or _score_row_pnl(row) > _score_row_pnl(current["row"]):
                                     best_by_tick[tick_key] = {"row": row}
 
-        shortlisted = _shortlisted_keys(best_by_tick, top_pnl=8, top_pnl_dd=8)
+        shortlisted = _ranked_keys_by_row_scores(best_by_tick, top_pnl=8, top_pnl_dd=8)
         if not shortlisted:
             print("No eligible tick candidates (check $TICK cache/permissions, or lower --min-trades).")
             return
@@ -2784,7 +4030,7 @@ def main() -> None:
 
         base = _base_bundle(bar_size=signal_bar_size, filters=None)
         base_row = _run_cfg(
-            cfg=base, bars=bars_sig, regime_bars=_regime_bars_for(base), regime2_bars=_regime2_bars_for(base)
+            cfg=base, bars=bars_sig
         )
         if base_row:
             base_row["note"] = "base"
@@ -2846,7 +4092,7 @@ def main() -> None:
         bars_sig = _bars_cached(signal_bar_size)
         base = _base_bundle(bar_size=signal_bar_size, filters=None)
         base_row = _run_cfg(
-            cfg=base, bars=bars_sig, regime_bars=_regime_bars_for(base), regime2_bars=_regime2_bars_for(base)
+            cfg=base, bars=bars_sig
         )
         if base_row:
             base_row["note"] = "base"
@@ -2886,7 +4132,7 @@ def main() -> None:
         bars_sig = _bars_cached(signal_bar_size)
         base = _base_bundle(bar_size=signal_bar_size, filters=None)
         base_row = _run_cfg(
-            cfg=base, bars=bars_sig, regime_bars=_regime_bars_for(base), regime2_bars=_regime2_bars_for(base)
+            cfg=base, bars=bars_sig
         )
         if base_row:
             base_row["note"] = "base"
@@ -2944,7 +4190,7 @@ def main() -> None:
         bars_sig = _bars_cached(signal_bar_size)
         base = _base_bundle(bar_size=signal_bar_size, filters=None)
         base_row = _run_cfg(
-            cfg=base, bars=bars_sig, regime_bars=_regime_bars_for(base), regime2_bars=_regime2_bars_for(base)
+            cfg=base, bars=bars_sig
         )
         if base_row:
             base_row["note"] = "base"
@@ -2961,7 +4207,7 @@ def main() -> None:
                 continue
             best_by_ema[str(preset)] = {"row": row}
 
-        shortlisted = _shortlisted_keys(best_by_ema, top_pnl=5, top_pnl_dd=5)
+        shortlisted = _ranked_keys_by_row_scores(best_by_ema, top_pnl=5, top_pnl_dd=5)
         if not shortlisted:
             print("No eligible EMA presets (try lowering --min-trades).")
             return
@@ -3008,7 +4254,7 @@ def main() -> None:
         bars_sig = _bars_cached(signal_bar_size)
         base = _base_bundle(bar_size=signal_bar_size, filters=None)
         base_row = _run_cfg(
-            cfg=base, bars=bars_sig, regime_bars=_regime_bars_for(base), regime2_bars=_regime2_bars_for(base)
+            cfg=base, bars=bars_sig
         )
         if base_row:
             base_row["note"] = "base"
@@ -3043,7 +4289,7 @@ def main() -> None:
         bars_sig = _bars_cached(signal_bar_size)
         base = _base_bundle(bar_size=signal_bar_size, filters=None)
         base_row = _run_cfg(
-            cfg=base, bars=bars_sig, regime_bars=_regime_bars_for(base), regime2_bars=_regime2_bars_for(base)
+            cfg=base, bars=bars_sig
         )
         if base_row:
             base_row["note"] = "base"
@@ -3072,21 +4318,30 @@ def main() -> None:
             rows.append(base_row)
         _print_leaderboards(rows, title="Exit-time sweep (ET flatten)", top_n=int(args.top))
 
-    def _sweep_atr_exits() -> None:
+    def _fmt_sweep_float(value: float, decimals: int | None) -> str:
+        if decimals is None:
+            return f"{float(value):g}"
+        return f"{float(value):.{int(decimals)}f}"
+
+    def _run_atr_exit_profile(profile_name: str) -> None:
+        profile = _ATR_EXIT_PROFILE_REGISTRY.get(str(profile_name))
+        if not isinstance(profile, dict):
+            raise SystemExit(f"Unknown ATR sweep profile: {profile_name!r}")
         bars_sig = _bars_cached(signal_bar_size)
-        atr_periods = [7, 10, 14, 21]
-        # Include a low-PT pocket (PTx<1.0): this has produced materially higher net PnL post-fix.
-        pt_mults = [0.6, 0.8, 0.9, 1.0, 1.5, 2.0]
-        sl_mults = [1.0, 1.5, 2.0]
+        base = _base_bundle(bar_size=signal_bar_size, filters=None)
+        atr_periods = tuple(profile.get("atr_periods") or ())
+        pt_mults = tuple(profile.get("pt_mults") or ())
+        sl_mults = tuple(profile.get("sl_mults") or ())
+        decimals_raw = profile.get("decimals")
+        decimals = int(decimals_raw) if isinstance(decimals_raw, int) else None
         rows: list[dict] = []
         for atr_p in atr_periods:
             for pt_m in pt_mults:
                 for sl_m in sl_mults:
-                    cfg = _base_bundle(bar_size=signal_bar_size, filters=None)
                     cfg = replace(
-                        cfg,
+                        base,
                         strategy=replace(
-                            cfg.strategy,
+                            base.strategy,
                             spot_exit_mode="atr",
                             spot_atr_period=int(atr_p),
                             spot_pt_atr_mult=float(pt_m),
@@ -3095,86 +4350,36 @@ def main() -> None:
                             spot_stop_loss_pct=None,
                         ),
                     )
-                    row = _run_cfg(cfg=cfg)
+                    row = _run_cfg(cfg=cfg, bars=bars_sig)
                     if not row:
                         continue
-                    note = f"ATR({atr_p}) PTx{pt_m} SLx{sl_m}"
+                    note = (
+                        f"ATR({int(atr_p)}) "
+                        f"PTx{_fmt_sweep_float(float(pt_m), decimals)} "
+                        f"SLx{_fmt_sweep_float(float(sl_m), decimals)}"
+                    )
                     row["note"] = note
                     _record_milestone(cfg, row, note)
                     rows.append(row)
-        _print_leaderboards(rows, title="C) ATR exits sweep (1h timing + 1d Supertrend)", top_n=int(args.top))
+        _print_leaderboards(rows, title=str(profile.get("title") or "ATR exits sweep"), top_n=int(args.top))
+
+    def _sweep_atr_exits() -> None:
+        _run_atr_exit_profile("atr")
 
     def _sweep_atr_exits_fine() -> None:
         """Fine-grained ATR exit sweep around the current champion neighborhood."""
-        bars_sig = _bars_cached(signal_bar_size)
-        # Cover both the risk-adjusted champ neighborhood (ATR 7/10) and the net-PnL pocket (ATR 14/21).
-        atr_periods = [7, 10, 14, 21]
-        pt_mults = [0.8, 0.9, 1.0, 1.1, 1.2]
-        sl_mults = [1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8]
-        rows: list[dict] = []
-        for atr_p in atr_periods:
-            for pt_m in pt_mults:
-                for sl_m in sl_mults:
-                    cfg = _base_bundle(bar_size=signal_bar_size, filters=None)
-                    cfg = replace(
-                        cfg,
-                        strategy=replace(
-                            cfg.strategy,
-                            spot_exit_mode="atr",
-                            spot_atr_period=int(atr_p),
-                            spot_pt_atr_mult=float(pt_m),
-                            spot_sl_atr_mult=float(sl_m),
-                            spot_profit_target_pct=None,
-                            spot_stop_loss_pct=None,
-                        ),
-                    )
-                    row = _run_cfg(cfg=cfg)
-                    if not row:
-                        continue
-                    note = f"ATR({atr_p}) PTx{pt_m:.2f} SLx{sl_m:.2f}"
-                    row["note"] = note
-                    _record_milestone(cfg, row, note)
-                    rows.append(row)
-        _print_leaderboards(rows, title="ATR exits fine sweep (PT/SL multipliers)", top_n=int(args.top))
+        _run_atr_exit_profile("atr_fine")
 
     def _sweep_atr_exits_ultra() -> None:
         """Ultra-fine ATR exit sweep around the current best PT neighborhood."""
-        bars_sig = _bars_cached(signal_bar_size)
-        atr_periods = [7]
-        pt_mults = [1.05, 1.08, 1.10, 1.12, 1.15]
-        sl_mults = [1.35, 1.40, 1.45, 1.50, 1.55]
-        rows: list[dict] = []
-        for atr_p in atr_periods:
-            for pt_m in pt_mults:
-                for sl_m in sl_mults:
-                    cfg = _base_bundle(bar_size=signal_bar_size, filters=None)
-                    cfg = replace(
-                        cfg,
-                        strategy=replace(
-                            cfg.strategy,
-                            spot_exit_mode="atr",
-                            spot_atr_period=int(atr_p),
-                            spot_pt_atr_mult=float(pt_m),
-                            spot_sl_atr_mult=float(sl_m),
-                            spot_profit_target_pct=None,
-                            spot_stop_loss_pct=None,
-                        ),
-                    )
-                    row = _run_cfg(cfg=cfg)
-                    if not row:
-                        continue
-                    note = f"ATR({atr_p}) PTx{pt_m:.2f} SLx{sl_m:.2f}"
-                    row["note"] = note
-                    _record_milestone(cfg, row, note)
-                    rows.append(row)
-        _print_leaderboards(rows, title="ATR exits ultra-fine sweep (PT/SL micro-grid)", top_n=int(args.top))
+        _run_atr_exit_profile("atr_ultra")
 
     def _sweep_r2_atr() -> None:
         """Joint interaction hunt: regime2 confirm × ATR exits (includes PTx < 1.0)."""
         bars_sig = _bars_cached(signal_bar_size)
         base = _base_bundle(bar_size=signal_bar_size, filters=None)
         base_row = _run_cfg(
-            cfg=base, bars=bars_sig, regime_bars=_regime_bars_for(base), regime2_bars=_regime2_bars_for(base)
+            cfg=base, bars=bars_sig
         )
         if base_row:
             base_row["note"] = "base"
@@ -3359,7 +4564,7 @@ def main() -> None:
         bars_sig = _bars_cached(signal_bar_size)
         base = _base_bundle(bar_size=signal_bar_size, filters=None)
         base_row = _run_cfg(
-            cfg=base, bars=bars_sig, regime_bars=_regime_bars_for(base), regime2_bars=_regime2_bars_for(base)
+            cfg=base, bars=bars_sig
         )
         if base_row:
             base_row["note"] = "base"
@@ -3413,7 +4618,7 @@ def main() -> None:
             if current is None or _score_row_pnl(row) > _score_row_pnl(current["row"]):
                 best_by_r2[r2_key] = {"row": row, "note": r2_note}
 
-        shortlisted = _shortlisted_keys(best_by_r2, top_pnl=10, top_pnl_dd=10)
+        shortlisted = _ranked_keys_by_row_scores(best_by_r2, top_pnl=10, top_pnl_dd=10)
         if not shortlisted:
             print("No eligible regime2 candidates (try lowering --min-trades).")
             return
@@ -3469,7 +4674,7 @@ def main() -> None:
         bars_sig = _bars_cached(signal_bar_size)
         base = _base_bundle(bar_size=signal_bar_size, filters=None)
         base_row = _run_cfg(
-            cfg=base, bars=bars_sig, regime_bars=_regime_bars_for(base), regime2_bars=_regime2_bars_for(base)
+            cfg=base, bars=bars_sig
         )
         if base_row:
             base_row["note"] = "base"
@@ -3500,12 +4705,7 @@ def main() -> None:
                                 spot_stop_loss_pct=None,
                             ),
                         )
-                        row = _run_cfg(
-                            cfg=cfg,
-                            bars=bars_sig,
-                            regime_bars=_regime_bars_for(cfg),
-                            regime2_bars=None,
-                        )
+                        row = _run_cfg(cfg=cfg, bars=bars_sig)
                         if not row:
                             continue
                         key = (str(rbar), int(atr_p), float(mult), str(src))
@@ -3513,7 +4713,7 @@ def main() -> None:
                         if current is None or _score_row_pnl(row) > _score_row_pnl(current["row"]):
                             best_by_regime[key] = {"row": row}
 
-        shortlisted = _shortlisted_keys(best_by_regime, top_pnl=10, top_pnl_dd=10)
+        shortlisted = _ranked_keys_by_row_scores(best_by_regime, top_pnl=10, top_pnl_dd=10)
         if not shortlisted:
             print("No eligible regime candidates (try lowering --min-trades).")
             return
@@ -3742,12 +4942,7 @@ def main() -> None:
                                     **regime_patch,
                                 ),
                             )
-                            row = _run_cfg(
-                                cfg=cfg,
-                                bars=bars_sig,
-                                regime_bars=_regime_bars_for(cfg),
-                                regime2_bars=None,
-                            )
+                            row = _run_cfg(cfg=cfg, bars=bars_sig)
                             if not row:
                                 continue
                             note = (
@@ -3807,12 +5002,7 @@ def main() -> None:
                                         filters=f,
                                     ),
                                 )
-                                row = _run_cfg(
-                                    cfg=cfg,
-                                    bars=bars_sig,
-                                    regime_bars=_regime_bars_for(cfg),
-                                    regime2_bars=None,
-                                )
+                                row = _run_cfg(cfg=cfg, bars=bars_sig)
                                 if not row:
                                     continue
                                 note = (
@@ -3973,12 +5163,7 @@ def main() -> None:
                                         **flip_patch,
                                     ),
                                 )
-                                row = _run_cfg(
-                                    cfg=cfg,
-                                    bars=bars_sig,
-                                    regime_bars=_regime_bars_for(cfg),
-                                    regime2_bars=None,
-                                )
+                                row = _run_cfg(cfg=cfg, bars=bars_sig)
                                 if not row:
                                     continue
                                 note = (
@@ -4014,12 +5199,7 @@ def main() -> None:
                             spot_close_eod=bool(close_eod),
                         ),
                     )
-                    row = _run_cfg(
-                        cfg=cfg,
-                        bars=bars_sig,
-                        regime_bars=_regime_bars_for(cfg),
-                        regime2_bars=None,
-                    )
+                    row = _run_cfg(cfg=cfg, bars=bars_sig)
                     if not row:
                         continue
                     note = f"{seed_note} | expand close_eod={int(close_eod)} max_open={max_open}"
@@ -4037,7 +5217,7 @@ def main() -> None:
             cfg = _base_bundle(bar_size=signal_bar_size, filters=None)
             cfg = replace(cfg, strategy=replace(cfg.strategy, flip_exit_min_hold_bars=int(hold)))
             row = _run_cfg(
-                cfg=cfg, bars=bars_sig, regime_bars=_regime_bars_for(cfg), regime2_bars=_regime2_bars_for(cfg)
+                cfg=cfg, bars=bars_sig
             )
             if not row:
                 continue
@@ -4052,7 +5232,7 @@ def main() -> None:
         bars_sig = _bars_cached(signal_bar_size)
         base = _base_bundle(bar_size=signal_bar_size, filters=None)
         base_row = _run_cfg(
-            cfg=base, bars=bars_sig, regime_bars=_regime_bars_for(base), regime2_bars=_regime2_bars_for(base)
+            cfg=base, bars=bars_sig
         )
         if base_row:
             base_row["note"] = "base"
@@ -4063,7 +5243,7 @@ def main() -> None:
         for mult in vals:
             cfg = replace(base, strategy=replace(base.strategy, spot_short_risk_mult=float(mult)))
             row = _run_cfg(
-                cfg=cfg, bars=bars_sig, regime_bars=_regime_bars_for(cfg), regime2_bars=_regime2_bars_for(cfg)
+                cfg=cfg, bars=bars_sig
             )
             if not row:
                 continue
@@ -4079,7 +5259,7 @@ def main() -> None:
         bars_15m = _bars_cached("15 mins")
         base = _base_bundle(bar_size="15 mins", filters=None)
         base_row = _run_cfg(
-            cfg=base, bars=bars_15m, regime_bars=_regime_bars_for(base), regime2_bars=_regime2_bars_for(base)
+            cfg=base, bars=bars_15m
         )
         if base_row:
             base_row["note"] = "base"
@@ -4124,8 +5304,6 @@ def main() -> None:
                             row = _run_cfg(
                                 cfg=cfg,
                                 bars=bars_15m,
-                                regime_bars=_regime_bars_for(cfg),
-                                regime2_bars=_regime2_bars_for(cfg),
                             )
                             if not row:
                                 continue
@@ -4171,8 +5349,6 @@ def main() -> None:
         base_row = _run_cfg(
             cfg=base,
             bars=bars_15m,
-            regime_bars=_regime_bars_for(base),
-            regime2_bars=_regime2_bars_for(base),
         )
         if base_row:
             base_row["note"] = "base (orb, no regime/tick)"
@@ -4214,15 +5390,13 @@ def main() -> None:
                             row = _run_cfg(
                                 cfg=cfg,
                                 bars=bars_15m,
-                                regime_bars=_regime_bars_for(cfg),
-                                regime2_bars=_regime2_bars_for(cfg),
                             )
                             if not row:
                                 continue
                             orb_key = (str(open_time), int(window_mins), str(target_mode), float(rr), vol_min)
                             best_by_orb[orb_key] = {"row": row}
 
-        shortlisted = _shortlisted_keys(best_by_orb, top_pnl=8, top_pnl_dd=8)
+        shortlisted = _ranked_keys_by_row_scores(best_by_orb, top_pnl=8, top_pnl_dd=8)
         if not shortlisted:
             print("No eligible ORB candidates (try lowering --min-trades).")
             return
@@ -4332,8 +5506,6 @@ def main() -> None:
                     row = _run_cfg(
                         cfg=cfg,
                         bars=bars_15m,
-                        regime_bars=_regime_bars_for(cfg),
-                        regime2_bars=_regime2_bars_for(cfg),
                     )
                     if not row:
                         continue
@@ -4352,12 +5524,8 @@ def main() -> None:
 
     def _sweep_regime() -> None:
         bars_sig = _bars_cached(signal_bar_size)
-        regime_bars_4h = _bars_cached("4 hours")
-        if not regime_bars_4h:
-            raise SystemExit("No 4 hours regime bars returned (IBKR).")
 
         rows: list[dict] = []
-        regime_bars_by_size = {"4 hours": regime_bars_4h, "1 day": regime_bars_1d}
         regime_bar_sizes = ["4 hours", "1 day"]
         # Include both the newer “micro” ST params and some legacy/wider values we’ve
         # historically tested (e.g. mult=0.8 or 2.0) so the unified sweeps cover them.
@@ -4396,12 +5564,7 @@ def main() -> None:
                                 supertrend_source=str(src),
                             ),
                         )
-                        row = _run_cfg(
-                            cfg=cfg,
-                            bars=bars_sig,
-                            regime_bars=regime_bars_by_size[rbar],
-                            regime2_bars=_regime2_bars_for(cfg),
-                        )
+                        row = _run_cfg(cfg=cfg, bars=bars_sig)
                         if not row:
                             continue
                         note = f"ST({atr_p},{mult},{src}) @{rbar}"
@@ -4412,13 +5575,10 @@ def main() -> None:
 
     def _sweep_regime2() -> None:
         bars_sig = _bars_cached(signal_bar_size)
-        regime2_bars_4h = _bars_cached("4 hours")
-        if not regime2_bars_4h:
-            raise SystemExit("No 4 hours regime2 bars returned (IBKR).")
 
         base = _base_bundle(bar_size=signal_bar_size, filters=None)
         base_row = _run_cfg(
-            cfg=base, bars=bars_sig, regime_bars=_regime_bars_for(base), regime2_bars=_regime2_bars_for(base)
+            cfg=base, bars=bars_sig
         )
         if base_row:
             base_row["note"] = "base"
@@ -4458,12 +5618,7 @@ def main() -> None:
                             regime2_supertrend_source=str(src),
                         ),
                     )
-                    row = _run_cfg(
-                        cfg=cfg,
-                        bars=bars_sig,
-                        regime_bars=_regime_bars_for(cfg),
-                        regime2_bars=regime2_bars_4h,
-                    )
+                    row = _run_cfg(cfg=cfg, bars=bars_sig)
                     if not row:
                         continue
                     note = f"ST2(4h:{atr_p},{mult},{src})"
@@ -4479,7 +5634,7 @@ def main() -> None:
         bars_sig = _bars_cached(signal_bar_size)
         base = _base_bundle(bar_size=signal_bar_size, filters=None)
         base_row = _run_cfg(
-            cfg=base, bars=bars_sig, regime_bars=_regime_bars_for(base), regime2_bars=_regime2_bars_for(base)
+            cfg=base, bars=bars_sig
         )
         if base_row:
             base_row["note"] = "base"
@@ -4514,7 +5669,7 @@ def main() -> None:
         bars_sig = _bars_cached(signal_bar_size)
         base = _base_bundle(bar_size=signal_bar_size, filters=None)
         base_row = _run_cfg(
-            cfg=base, bars=bars_sig, regime_bars=_regime_bars_for(base), regime2_bars=_regime2_bars_for(base)
+            cfg=base, bars=bars_sig
         )
         if base_row:
             base_row["note"] = "base"
@@ -4575,7 +5730,7 @@ def main() -> None:
         bars_sig = _bars_cached(signal_bar_size)
         base = _base_bundle(bar_size=signal_bar_size, filters=None)
         base_row = _run_cfg(
-            cfg=base, bars=bars_sig, regime_bars=_regime_bars_for(base), regime2_bars=_regime2_bars_for(base)
+            cfg=base, bars=bars_sig
         )
         if base_row:
             base_row["note"] = "base"
@@ -4624,7 +5779,7 @@ def main() -> None:
         bars_sig = _bars_cached(signal_bar_size)
         base = _base_bundle(bar_size=signal_bar_size, filters=None)
         base_row = _run_cfg(
-            cfg=base, bars=bars_sig, regime_bars=_regime_bars_for(base), regime2_bars=_regime2_bars_for(base)
+            cfg=base, bars=bars_sig
         )
         if base_row:
             base_row["note"] = "base"
@@ -4666,7 +5821,7 @@ def main() -> None:
             cfg = _base_bundle(bar_size=signal_bar_size, filters=None)
             cfg = replace(cfg, strategy=replace(cfg.strategy, entry_confirm_bars=int(confirm)))
             row = _run_cfg(
-                cfg=cfg, bars=bars_sig, regime_bars=_regime_bars_for(cfg), regime2_bars=_regime2_bars_for(cfg)
+                cfg=cfg, bars=bars_sig
             )
             if not row:
                 continue
@@ -4676,60 +5831,41 @@ def main() -> None:
             rows.append(row)
         _print_leaderboards(rows, title="Confirm-bars sweep (quality gate)", top_n=int(args.top))
 
-    def _sweep_spread() -> None:
+    def _run_spread_profile(profile_name: str) -> None:
+        profile = _SPREAD_PROFILE_REGISTRY.get(str(profile_name))
+        if not isinstance(profile, dict):
+            raise SystemExit(f"Unknown spread sweep profile: {profile_name!r}")
         bars_sig = _bars_cached(signal_bar_size)
+        field_name = str(profile.get("field") or "")
+        note_prefix = str(profile.get("note_prefix") or "spread")
+        decimals_raw = profile.get("decimals")
+        decimals = int(decimals_raw) if isinstance(decimals_raw, int) else None
+        values = tuple(profile.get("values") or ())
         rows: list[dict] = []
-        for spread in (None, 0.005, 0.01, 0.02, 0.03, 0.05, 0.1):
-            f = _mk_filters(ema_spread_min_pct=float(spread) if spread is not None else None)
+        for raw in values:
+            spread_val = float(raw) if raw is not None else None
+            overrides: dict[str, object] = {field_name: spread_val}
+            f = _mk_filters(overrides=overrides)
             cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
-            row = _run_cfg(
-                cfg=cfg, bars=bars_sig, regime_bars=_regime_bars_for(cfg), regime2_bars=_regime2_bars_for(cfg)
-            )
+            row = _run_cfg(cfg=cfg, bars=bars_sig)
             if not row:
                 continue
-            spread_note = "-" if spread is None else f"spread>={spread}"
-            row["note"] = spread_note
-            _record_milestone(cfg, row, spread_note)
-            rows.append(row)
-        _print_leaderboards(rows, title="EMA spread sweep (quality gate)", top_n=int(args.top))
-
-    def _sweep_spread_fine() -> None:
-        """Fine-grained sweep around the current champion spread gate."""
-        bars_sig = _bars_cached(signal_bar_size)
-        rows: list[dict] = []
-        spreads = [None, 0.002, 0.0025, 0.003, 0.0035, 0.004, 0.0045, 0.005, 0.0055, 0.006, 0.0065, 0.007, 0.0075, 0.008]
-        for spread in spreads:
-            f = _mk_filters(ema_spread_min_pct=float(spread) if spread is not None else None)
-            cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
-            row = _run_cfg(
-                cfg=cfg, bars=bars_sig, regime_bars=_regime_bars_for(cfg), regime2_bars=_regime2_bars_for(cfg)
-            )
-            if not row:
-                continue
-            spread_note = "-" if spread is None else f"spread>={float(spread):.4f}"
-            row["note"] = spread_note
-            _record_milestone(cfg, row, spread_note)
-            rows.append(row)
-        _print_leaderboards(rows, title="EMA spread fine sweep (quality gate)", top_n=int(args.top))
-
-    def _sweep_spread_down() -> None:
-        """Directional permission: sweep stricter EMA spread gate for down entries only."""
-        bars_sig = _bars_cached(signal_bar_size)
-        rows: list[dict] = []
-        spreads = [None, 0.003, 0.004, 0.005, 0.006, 0.007, 0.008, 0.010, 0.012, 0.015, 0.02, 0.03, 0.05]
-        for spread in spreads:
-            f = _mk_filters(ema_spread_min_pct_down=float(spread) if spread is not None else None)
-            cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
-            row = _run_cfg(
-                cfg=cfg, bars=bars_sig, regime_bars=_regime_bars_for(cfg), regime2_bars=_regime2_bars_for(cfg)
-            )
-            if not row:
-                continue
-            note = "-" if spread is None else f"spread_down>={float(spread):.4f}"
+            note = "-" if spread_val is None else f"{note_prefix}>={_fmt_sweep_float(spread_val, decimals)}"
             row["note"] = note
             _record_milestone(cfg, row, note)
             rows.append(row)
-        _print_leaderboards(rows, title="EMA spread DOWN sweep (directional permission)", top_n=int(args.top))
+        _print_leaderboards(rows, title=str(profile.get("title") or "EMA spread sweep"), top_n=int(args.top))
+
+    def _sweep_spread() -> None:
+        _run_spread_profile("spread")
+
+    def _sweep_spread_fine() -> None:
+        """Fine-grained sweep around the current champion spread gate."""
+        _run_spread_profile("spread_fine")
+
+    def _sweep_spread_down() -> None:
+        """Directional permission: sweep stricter EMA spread gate for down entries only."""
+        _run_spread_profile("spread_down")
 
     def _sweep_slope() -> None:
         bars_sig = _bars_cached(signal_bar_size)
@@ -4738,7 +5874,7 @@ def main() -> None:
             f = _mk_filters(ema_slope_min_pct=float(slope) if slope is not None else None)
             cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
             row = _run_cfg(
-                cfg=cfg, bars=bars_sig, regime_bars=_regime_bars_for(cfg), regime2_bars=_regime2_bars_for(cfg)
+                cfg=cfg, bars=bars_sig
             )
             if not row:
                 continue
@@ -4775,7 +5911,7 @@ def main() -> None:
             )
             cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
             row = _run_cfg(
-                cfg=cfg, bars=bars_sig, regime_bars=_regime_bars_for(cfg), regime2_bars=_regime2_bars_for(cfg)
+                cfg=cfg, bars=bars_sig
             )
             if not row:
                 continue
@@ -4791,7 +5927,7 @@ def main() -> None:
             f = _mk_filters(cooldown_bars=int(cooldown))
             cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
             row = _run_cfg(
-                cfg=cfg, bars=bars_sig, regime_bars=_regime_bars_for(cfg), regime2_bars=_regime2_bars_for(cfg)
+                cfg=cfg, bars=bars_sig
             )
             if not row:
                 continue
@@ -4808,7 +5944,7 @@ def main() -> None:
             f = _mk_filters(skip_first_bars=int(skip))
             cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
             row = _run_cfg(
-                cfg=cfg, bars=bars_sig, regime_bars=_regime_bars_for(cfg), regime2_bars=_regime2_bars_for(cfg)
+                cfg=cfg, bars=bars_sig
             )
             if not row:
                 continue
@@ -4823,7 +5959,7 @@ def main() -> None:
         bars_sig = _bars_cached(signal_bar_size)
         base = _base_bundle(bar_size=signal_bar_size, filters=None)
         base_row = _run_cfg(
-            cfg=base, bars=bars_sig, regime_bars=_regime_bars_for(base), regime2_bars=_regime2_bars_for(base)
+            cfg=base, bars=bars_sig
         )
         if base_row:
             base_row["note"] = "base"
@@ -5268,7 +6404,7 @@ def main() -> None:
 
         base = _base_bundle(bar_size=signal_bar_size, filters=None)
         base_row = _run_cfg(
-            cfg=base, bars=bars_sig, regime_bars=_regime_bars_for(base), regime2_bars=_regime2_bars_for(base)
+            cfg=base, bars=bars_sig
         )
         if base_row:
             base_row["note"] = "base"
@@ -5278,76 +6414,53 @@ def main() -> None:
 
         tested_total = 0
         if jobs > 1 and total > 0:
-            if not offline:
-                raise SystemExit("--jobs>1 for risk_overlays requires --offline (avoid parallel IBKR sessions).")
-
-            base_cli = _strip_flags(
-                list(sys.argv[1:]),
-                flags=("--write-milestones", "--merge-milestones"),
-                flags_with_values=(
-                    "--axis",
-                    "--jobs",
-                    "--milestones-out",
+            payloads = _run_parallel_stage(
+                axis_name="risk_overlays",
+                stage_label="risk_overlays",
+                total=total,
+                jobs=int(jobs),
+                worker_tmp_prefix="tradebot_risk_overlays_",
+                worker_tag="ro",
+                out_prefix="risk_overlays_out",
+                worker_flag="--risk-overlays-worker",
+                workers_flag="--risk-overlays-workers",
+                out_flag="--risk-overlays-out",
+                strip_flags_with_values=(
                     "--risk-overlays-worker",
                     "--risk-overlays-workers",
                     "--risk-overlays-out",
                     "--risk-overlays-run-min-trades",
                 ),
-            )
-
-            jobs_eff = min(int(jobs), int(_default_jobs()), int(total)) if total > 0 else 1
-            print(f"risk_overlays parallel: workers={jobs_eff} total={total}", flush=True)
-
-            payloads = _run_parallel_json_worker_plan(
-                jobs_eff=jobs_eff,
-                tmp_prefix="tradebot_risk_overlays_",
-                worker_tag="ro",
-                out_prefix="risk_overlays_out",
-                build_cmd=lambda worker_id, workers_n, out_path: [
-                    sys.executable,
-                    "-u",
-                    "-m",
-                    "tradebot.backtest",
-                    "spot",
-                    *base_cli,
-                    "--axis",
-                    "risk_overlays",
-                    "--jobs",
-                    "1",
-                    "--risk-overlays-worker",
-                    str(worker_id),
-                    "--risk-overlays-workers",
-                    str(workers_n),
-                    "--risk-overlays-out",
-                    str(out_path),
-                    "--risk-overlays-run-min-trades",
-                    str(int(run_min_trades)),
-                ],
+                run_min_trades_flag="--risk-overlays-run-min-trades",
+                run_min_trades=int(run_min_trades),
                 capture_error="Failed to capture risk_overlays worker stdout.",
                 failure_label="risk_overlays worker",
                 missing_label="risk_overlays",
                 invalid_label="risk_overlays",
             )
 
-            for worker_id in range(jobs_eff):
-                payload = payloads.get(int(worker_id))
-                if not isinstance(payload, dict):
-                    continue
-                tested_total += int(payload.get("tested") or 0)
-                for rec in payload.get("records") or []:
-                    if not isinstance(rec, dict):
-                        continue
-                    overrides = rec.get("overrides")
-                    note = rec.get("note")
-                    row = rec.get("row")
-                    if not isinstance(overrides, dict) or not isinstance(note, str) or not isinstance(row, dict):
-                        continue
-                    row = dict(row)
-                    f = _mk_filters(overrides=overrides)
-                    cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
-                    row["note"] = note
-                    _record_milestone(cfg, row, note)
-                    rows.append(row)
+            def _decode_risk_overlay_record(rec: dict) -> tuple[ConfigBundle, dict, str] | None:
+                overrides = rec.get("overrides")
+                note = rec.get("note")
+                row = rec.get("row")
+                if not isinstance(overrides, dict) or not isinstance(note, str) or not isinstance(row, dict):
+                    return None
+                row_out = dict(row)
+                f = _mk_filters(overrides=overrides)
+                cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
+                row_out["note"] = str(note)
+                return cfg, row_out, str(note)
+
+            def _on_risk_overlay_record(item: tuple[ConfigBundle, dict, str]) -> None:
+                cfg, row, note = item
+                _record_milestone(cfg, row, note)
+                rows.append(row)
+
+            tested_total = _collect_parallel_payload_records(
+                payloads=payloads,
+                decode_record=_decode_risk_overlay_record,
+                on_record=_on_risk_overlay_record,
+            )
 
             run_calls_total += int(tested_total)
         else:
@@ -5541,7 +6654,7 @@ def main() -> None:
                     ),
                 )
                 row = _run_cfg(
-                    cfg=cfg, bars=bars_sig, regime_bars=_regime_bars_for(cfg), regime2_bars=_regime2_bars_for(cfg)
+                    cfg=cfg, bars=bars_sig
                 )
                 if not row:
                     continue
@@ -5556,7 +6669,7 @@ def main() -> None:
         bars_sig = _bars_cached(signal_bar_size)
         base = _base_bundle(bar_size=signal_bar_size, filters=None)
         base_row = _run_cfg(
-            cfg=base, bars=bars_sig, regime_bars=_regime_bars_for(base), regime2_bars=_regime2_bars_for(base)
+            cfg=base, bars=bars_sig
         )
         if base_row:
             base_row["note"] = "base"
@@ -5609,7 +6722,7 @@ def main() -> None:
         bars_sig = _bars_cached(signal_bar_size)
         base = _base_bundle(bar_size=signal_bar_size, filters=None)
         base_row = _run_cfg(
-            cfg=base, bars=bars_sig, regime_bars=_regime_bars_for(base), regime2_bars=_regime2_bars_for(base)
+            cfg=base, bars=bars_sig
         )
         if base_row:
             base_row["note"] = "tick=off (base)"
@@ -5799,12 +6912,6 @@ def main() -> None:
         nonlocal run_calls_total
         bars_sig = _bars_cached(signal_bar_size)
 
-        regime_bars_4h = _bars_cached("4 hours")
-        if not regime_bars_4h:
-            raise SystemExit("No 4 hours regime bars returned (IBKR).")
-
-        regime_bars_by_size = {"4 hours": regime_bars_4h, "1 day": regime_bars_1d}
-
         # Stage 2 variants are constant and are also used by the stage2 worker/sharding mode.
         exit_variants: list[tuple[dict, str]] = []
         for pt, sl in (
@@ -5959,24 +7066,6 @@ def main() -> None:
             note = f"{base_note} | {exit_note} | hold={hold} | {loose_note} | {r2_note}"
             return cfg, note
 
-        def _cfg_from_payload(strategy_payload, filters_payload) -> ConfigBundle | None:
-            if not isinstance(strategy_payload, dict):
-                return None
-            try:
-                filters_obj = _filters_from_payload(filters_payload if isinstance(filters_payload, dict) else None)
-                strategy_obj = _strategy_from_payload(strategy_payload, filters=filters_obj)
-            except Exception:
-                return None
-            return _mk_bundle(
-                strategy=strategy_obj,
-                start=start,
-                end=end,
-                bar_size=signal_bar_size,
-                use_rth=use_rth,
-                cache_dir=cache_dir,
-                offline=offline,
-            )
-
         def _build_stage2_plan(shortlist_local: list[tuple[ConfigBundle, str]]) -> list[tuple[ConfigBundle, str, dict]]:
             plan: list[tuple[ConfigBundle, str, dict]] = []
             for base_idx, (base_cfg, base_note) in enumerate(shortlist_local):
@@ -6012,20 +7101,7 @@ def main() -> None:
             return plan
 
         if args.combo_fast_stage2:
-            if not offline:
-                raise SystemExit("combo_fast stage2 worker mode requires --offline (avoid parallel IBKR sessions).")
             payload_path = Path(str(args.combo_fast_stage2))
-            out_path_raw = str(args.combo_fast_out or "").strip()
-            if not out_path_raw:
-                raise SystemExit("--combo-fast-out is required for combo_fast stage2 worker mode.")
-            out_path = Path(out_path_raw)
-
-            worker_id, workers = _parse_worker_shard(
-                args.combo_fast_worker,
-                args.combo_fast_workers,
-                label="combo_fast",
-            )
-
             try:
                 payload = json.loads(payload_path.read_text())
             except json.JSONDecodeError as exc:
@@ -6036,45 +7112,23 @@ def main() -> None:
 
             shortlist_local: list[tuple[ConfigBundle, str]] = []
             for item in raw_shortlist:
-                if not isinstance(item, dict):
+                decoded = _decode_cfg_payload(item, note_key="base_note")
+                if decoded is None:
                     continue
-                strat_payload = item.get("strategy")
-                filters_payload = item.get("filters")
-                base_note = str(item.get("base_note") or "")
-                base_cfg = _cfg_from_payload(strat_payload, filters_payload)
-                if base_cfg is None:
-                    continue
-                shortlist_local.append((base_cfg, base_note))
+                shortlist_local.append(decoded)
 
             stage2_plan_all = _build_stage2_plan(shortlist_local)
-            stage2_total = len(stage2_plan_all)
-            local_total = (stage2_total // workers) + (1 if worker_id < (stage2_total % workers) else 0)
-            shard_plan = (
-                item for combo_idx, item in enumerate(stage2_plan_all) if (combo_idx % int(workers)) == int(worker_id)
-            )
-            tested, kept = _run_sweep(
-                plan=shard_plan,
+            _run_sharded_stage_worker(
+                stage_label="combo_fast stage2",
+                worker_raw=args.combo_fast_worker,
+                workers_raw=args.combo_fast_workers,
+                out_path_raw=str(args.combo_fast_out or ""),
+                out_flag_name="combo-fast-out",
+                plan_all=stage2_plan_all,
                 bars=bars_sig,
-                total=local_total,
-                progress_label=f"combo_fast stage2 worker {worker_id+1}/{workers}",
                 report_every=100,
-                record_milestones=False,
+                heartbeat_sec=0.0,
             )
-
-            records: list[dict] = []
-            for cfg, row, note, _meta in kept:
-                records.append(
-                    {
-                        "strategy": _spot_strategy_payload(cfg, meta=meta),
-                        "filters": _filters_payload(cfg.strategy.filters),
-                        "note": str(note),
-                        "row": row,
-                    }
-                )
-
-            out_payload = {"tested": tested, "kept": len(records), "records": records}
-            write_json(out_path, out_payload, sort_keys=False)
-            print(f"combo_fast stage2 worker done tested={tested} kept={len(records)} out={out_path}", flush=True)
             return
 
         # Stage 3 variants are constant and are also used by the stage3 worker/sharding mode.
@@ -6221,20 +7275,7 @@ def main() -> None:
             return plan
 
         if args.combo_fast_stage3:
-            if not offline:
-                raise SystemExit("combo_fast stage3 worker mode requires --offline (avoid parallel IBKR sessions).")
             payload_path = Path(str(args.combo_fast_stage3))
-            out_path_raw = str(args.combo_fast_out or "").strip()
-            if not out_path_raw:
-                raise SystemExit("--combo-fast-out is required for combo_fast stage3 worker mode.")
-            out_path = Path(out_path_raw)
-
-            worker_id, workers = _parse_worker_shard(
-                args.combo_fast_worker,
-                args.combo_fast_workers,
-                label="combo_fast",
-            )
-
             try:
                 payload = json.loads(payload_path.read_text())
             except json.JSONDecodeError as exc:
@@ -6245,59 +7286,24 @@ def main() -> None:
 
             bases_local: list[tuple[ConfigBundle, str]] = []
             for item in raw_bases:
-                if not isinstance(item, dict):
+                decoded = _decode_cfg_payload(item, note_key="base_note")
+                if decoded is None:
                     continue
-                strat_payload = item.get("strategy")
-                filters_payload = item.get("filters")
-                base_note = str(item.get("base_note") or "")
-                base_cfg = _cfg_from_payload(strat_payload, filters_payload)
-                if base_cfg is None:
-                    continue
-                bases_local.append((base_cfg, base_note))
+                bases_local.append(decoded)
 
             stage3_plan_all = _build_stage3_plan(bases_local)
-            stage3_total = len(stage3_plan_all)
-            local_total = (stage3_total // workers) + (1 if worker_id < (stage3_total % workers) else 0)
-            shard_plan = (
-                item for combo_idx, item in enumerate(stage3_plan_all) if (combo_idx % int(workers)) == int(worker_id)
-            )
-            tested, kept = _run_sweep(
-                plan=shard_plan,
+            _run_sharded_stage_worker(
+                stage_label="combo_fast stage3",
+                worker_raw=args.combo_fast_worker,
+                workers_raw=args.combo_fast_workers,
+                out_path_raw=str(args.combo_fast_out or ""),
+                out_flag_name="combo-fast-out",
+                plan_all=stage3_plan_all,
                 bars=bars_sig,
-                total=local_total,
-                progress_label=f"combo_fast stage3 worker {worker_id+1}/{workers}",
                 report_every=200,
-                record_milestones=False,
+                heartbeat_sec=0.0,
             )
-
-            records: list[dict] = []
-            for cfg, row, note, _meta in kept:
-                records.append(
-                    {
-                        "strategy": _spot_strategy_payload(cfg, meta=meta),
-                        "filters": _filters_payload(cfg.strategy.filters),
-                        "note": str(note),
-                        "row": row,
-                    }
-                )
-
-            out_payload = {"tested": tested, "kept": len(records), "records": records}
-            write_json(out_path, out_payload, sort_keys=False)
-            print(f"combo_fast stage3 worker done tested={tested} kept={len(records)} out={out_path}", flush=True)
             return
-
-        def _ranked(items: list[tuple[ConfigBundle, dict, str]], *, top_pnl_dd: int, top_pnl: int) -> list:
-            by_dd = sorted(items, key=lambda t: _score_row_pnl_dd(t[1]), reverse=True)[: int(top_pnl_dd)]
-            by_pnl = sorted(items, key=lambda t: _score_row_pnl(t[1]), reverse=True)[: int(top_pnl)]
-            seen: set[str] = set()
-            out: list[tuple[ConfigBundle, dict, str]] = []
-            for cfg, row, note in by_dd + by_pnl:
-                key = _milestone_key(cfg)
-                if key in seen:
-                    continue
-                seen.add(key)
-                out.append((cfg, row, note))
-            return out
 
         # Stage 1: direction × regime sensitivity (bounded) and keep a small diverse shortlist.
         stage1: list[tuple[ConfigBundle, dict, str]] = []
@@ -6428,62 +7434,37 @@ def main() -> None:
         stage1_plan_all = _build_stage1_plan()
         stage1_total = len(stage1_plan_all)
         if args.combo_fast_stage1:
-            if not offline:
-                raise SystemExit("combo_fast stage1 worker mode requires --offline (avoid parallel IBKR sessions).")
-            out_path_raw = str(args.combo_fast_out or "").strip()
-            if not out_path_raw:
-                raise SystemExit("--combo-fast-out is required for combo_fast stage1 worker mode.")
-            out_path = Path(out_path_raw)
-
-            worker_id, workers = _parse_worker_shard(
-                args.combo_fast_worker,
-                args.combo_fast_workers,
-                label="combo_fast",
-            )
-
-            local_total = (stage1_total // workers) + (1 if worker_id < (stage1_total % workers) else 0)
-            shard_plan = (
-                item for combo_idx, item in enumerate(stage1_plan_all) if (combo_idx % int(workers)) == int(worker_id)
-            )
-            tested, kept = _run_sweep(
-                plan=shard_plan,
+            _run_sharded_stage_worker(
+                stage_label="combo_fast stage1",
+                worker_raw=args.combo_fast_worker,
+                workers_raw=args.combo_fast_workers,
+                out_path_raw=str(args.combo_fast_out or ""),
+                out_flag_name="combo-fast-out",
+                plan_all=stage1_plan_all,
                 bars=bars_sig,
-                total=local_total,
-                progress_label=f"combo_fast stage1 worker {worker_id+1}/{workers}",
                 report_every=200,
-                record_milestones=False,
+                heartbeat_sec=0.0,
             )
-
-            records: list[dict] = []
-            for cfg, row, note, _meta in kept:
-                records.append(
-                    {
-                        "strategy": _spot_strategy_payload(cfg, meta=meta),
-                        "filters": _filters_payload(cfg.strategy.filters),
-                        "note": str(note),
-                        "row": row,
-                    }
-                )
-
-            out_payload = {"tested": tested, "kept": len(records), "records": records}
-            write_json(out_path, out_payload, sort_keys=False)
-            print(f"combo_fast stage1 worker done tested={tested} kept={len(records)} out={out_path}", flush=True)
             return
 
         stage1_tested = 0
         report_every_stage1 = 200
         print(f"combo_fast sweep: stage1 total={stage1_total} (progress every {report_every_stage1})", flush=True)
         if jobs > 1 and stage1_total > 0:
-            if not offline:
-                raise SystemExit("--jobs>1 for combo_fast requires --offline (avoid parallel IBKR sessions).")
-
-            base_cli = _strip_flags(
-                list(sys.argv[1:]),
-                flags=("--write-milestones", "--merge-milestones"),
-                flags_with_values=(
-                    "--axis",
-                    "--jobs",
-                    "--milestones-out",
+            payloads = _run_parallel_stage(
+                axis_name="combo_fast",
+                stage_label="combo_fast stage1",
+                total=stage1_total,
+                jobs=int(jobs),
+                worker_tmp_prefix="tradebot_combo_fast1_",
+                worker_tag="cf1",
+                out_prefix="stage1_out",
+                stage_flag="--combo-fast-stage1",
+                stage_value="1",
+                worker_flag="--combo-fast-worker",
+                workers_flag="--combo-fast-workers",
+                out_flag="--combo-fast-out",
+                strip_flags_with_values=(
                     "--combo-fast-stage1",
                     "--combo-fast-stage2",
                     "--combo-fast-stage3",
@@ -6492,79 +7473,38 @@ def main() -> None:
                     "--combo-fast-out",
                     "--combo-fast-run-min-trades",
                 ),
-            )
-
-            jobs_eff = min(int(jobs), int(_default_jobs()), int(stage1_total)) if stage1_total > 0 else 1
-            print(f"combo_fast stage1 parallel: workers={jobs_eff} total={stage1_total}", flush=True)
-
-            payloads = _run_parallel_json_worker_plan(
-                jobs_eff=jobs_eff,
-                tmp_prefix="tradebot_combo_fast1_",
-                worker_tag="cf1",
-                out_prefix="stage1_out",
-                build_cmd=lambda worker_id, workers_n, out_path: [
-                    sys.executable,
-                    "-u",
-                    "-m",
-                    "tradebot.backtest",
-                    "spot",
-                    *base_cli,
-                    "--axis",
-                    "combo_fast",
-                    "--jobs",
-                    "1",
-                    "--combo-fast-stage1",
-                    "1",
-                    "--combo-fast-worker",
-                    str(worker_id),
-                    "--combo-fast-workers",
-                    str(workers_n),
-                    "--combo-fast-out",
-                    str(out_path),
-                    "--combo-fast-run-min-trades",
-                    str(int(run_min_trades)),
-                ],
+                run_min_trades_flag="--combo-fast-run-min-trades",
+                run_min_trades=int(run_min_trades),
                 capture_error="Failed to capture combo_fast stage1 worker stdout.",
                 failure_label="combo_fast stage1 worker",
                 missing_label="combo_fast stage1",
                 invalid_label="combo_fast stage1",
             )
 
-            tested_total = 0
-            for worker_id in range(jobs_eff):
-                payload = payloads.get(int(worker_id))
-                if not isinstance(payload, dict):
-                    continue
-                tested_total += int(payload.get("tested") or 0)
-                for rec in payload.get("records") or []:
-                    if not isinstance(rec, dict):
-                        continue
-                    cfg = _cfg_from_payload(rec.get("strategy"), rec.get("filters"))
-                    if cfg is None:
-                        continue
-                    row = rec.get("row")
-                    if not isinstance(row, dict):
-                        continue
-                    row = dict(row)
-                    note = str(rec.get("note") or "").strip() or "combo_fast stage1"
-                    row["note"] = note
-                    stage1.append((cfg, row, note))
+            tested_total = _collect_stage_rows_from_payloads(
+                payloads=payloads,
+                default_note="combo_fast stage1",
+                on_row=lambda cfg, row, note: stage1.append((cfg, row, note)),
+                dedupe_by_milestone_key=True,
+            )
 
             stage1_tested = int(tested_total)
             run_calls_total += int(tested_total)
         else:
-            stage1_tested, stage1_kept = _run_sweep(
+            stage1_tested, stage1_rows = _run_stage_serial(
+                stage_label="combo_fast sweep: stage1",
                 plan=stage1_plan_all,
                 bars=bars_sig,
                 total=stage1_total,
-                progress_label="combo_fast sweep: stage1",
                 report_every=report_every_stage1,
                 record_milestones=False,
             )
-            for cfg, row, note, _meta in stage1_kept:
-                stage1.append((cfg, row, note))
+            stage1.extend(stage1_rows)
 
-        shortlist = _ranked(stage1, top_pnl_dd=15, top_pnl=7)
+        shortlist = _rank_cfg_rows(
+            stage1,
+            scorers=[(_score_row_pnl_dd, 15), (_score_row_pnl, 7)],
+        )
         print("")
         print(f"combo_fast sweep: shortlist regimes={len(shortlist)} (from stage1={len(stage1)})")
 
@@ -6576,16 +7516,25 @@ def main() -> None:
         print(f"combo_fast sweep: stage2 total={stage2_total} (progress every {report_every})", flush=True)
         tested = 0
         if jobs > 1:
-            if not offline:
-                raise SystemExit("--jobs>1 for combo_fast requires --offline (avoid parallel IBKR sessions).")
-
-            base_cli = _strip_flags(
-                list(sys.argv[1:]),
-                flags=("--write-milestones", "--merge-milestones"),
-                flags_with_values=(
-                    "--axis",
-                    "--jobs",
-                    "--milestones-out",
+            shortlist_payload: list[dict] = []
+            for base_cfg, _row, base_note in shortlist:
+                shortlist_payload.append(_encode_cfg_payload(base_cfg, note=base_note, note_key="base_note"))
+            payloads = _run_parallel_stage_with_payload(
+                axis_name="combo_fast",
+                stage_label="combo_fast stage2",
+                total=stage2_total,
+                jobs=int(jobs),
+                payload={"shortlist": shortlist_payload},
+                payload_filename="stage2_payload.json",
+                temp_prefix="tradebot_combo_fast_",
+                worker_tmp_prefix="tradebot_combo_fast2_",
+                worker_tag="cf2",
+                out_prefix="stage2_out",
+                stage_flag="--combo-fast-stage2",
+                worker_flag="--combo-fast-worker",
+                workers_flag="--combo-fast-workers",
+                out_flag="--combo-fast-out",
+                strip_flags_with_values=(
                     "--combo-fast-stage1",
                     "--combo-fast-stage2",
                     "--combo-fast-stage3",
@@ -6594,96 +7543,44 @@ def main() -> None:
                     "--combo-fast-out",
                     "--combo-fast-run-min-trades",
                 ),
+                run_min_trades_flag="--combo-fast-run-min-trades",
+                run_min_trades=int(run_min_trades),
+                capture_error="Failed to capture combo_fast stage2 worker stdout.",
+                failure_label="combo_fast stage2 worker",
+                missing_label="combo_fast stage2",
+                invalid_label="combo_fast stage2",
             )
 
-            jobs_eff = min(int(jobs), int(_default_jobs()), int(stage2_total)) if stage2_total > 0 else 1
-            print(f"combo_fast stage2 parallel: workers={jobs_eff} total={stage2_total}", flush=True)
+            def _on_stage2_row(cfg: ConfigBundle, row: dict, note: str) -> None:
+                _record_milestone(cfg, row, note)
+                stage2.append((cfg, row, note))
 
-            with tempfile.TemporaryDirectory(prefix="tradebot_combo_fast_") as tmpdir:
-                tmp_root = Path(tmpdir)
-                payload_path = tmp_root / "stage2_payload.json"
-                shortlist_payload: list[dict] = []
-                for base_cfg, _, base_note in shortlist:
-                    shortlist_payload.append(
-                        {
-                            "strategy": _spot_strategy_payload(base_cfg, meta=meta),
-                            "filters": _filters_payload(base_cfg.strategy.filters),
-                            "base_note": str(base_note),
-                        }
-                    )
-                write_json(payload_path, {"shortlist": shortlist_payload}, sort_keys=False)
+            tested_total = _collect_stage_rows_from_payloads(
+                payloads=payloads,
+                default_note="combo_fast stage2",
+                on_row=_on_stage2_row,
+                dedupe_by_milestone_key=True,
+            )
 
-                payloads = _run_parallel_json_worker_plan(
-                    jobs_eff=jobs_eff,
-                    tmp_prefix="tradebot_combo_fast2_",
-                    worker_tag="cf2",
-                    out_prefix="stage2_out",
-                    build_cmd=lambda worker_id, workers_n, out_path: [
-                        sys.executable,
-                        "-u",
-                        "-m",
-                        "tradebot.backtest",
-                        "spot",
-                        *base_cli,
-                        "--axis",
-                        "combo_fast",
-                        "--jobs",
-                        "1",
-                        "--combo-fast-stage2",
-                        str(payload_path),
-                        "--combo-fast-worker",
-                        str(worker_id),
-                        "--combo-fast-workers",
-                        str(workers_n),
-                        "--combo-fast-out",
-                        str(out_path),
-                        "--combo-fast-run-min-trades",
-                        str(int(run_min_trades)),
-                    ],
-                    capture_error="Failed to capture combo_fast stage2 worker stdout.",
-                    failure_label="combo_fast stage2 worker",
-                    missing_label="combo_fast stage2",
-                    invalid_label="combo_fast stage2",
-                )
-
-                tested_total = 0
-                for worker_id in range(jobs_eff):
-                    payload = payloads.get(int(worker_id))
-                    if not isinstance(payload, dict):
-                        continue
-                    tested_total += int(payload.get("tested") or 0)
-                    for rec in payload.get("records") or []:
-                        if not isinstance(rec, dict):
-                            continue
-                        cfg = _cfg_from_payload(rec.get("strategy"), rec.get("filters"))
-                        if cfg is None:
-                            continue
-                        row = rec.get("row")
-                        if not isinstance(row, dict):
-                            continue
-                        row = dict(row)
-                        note = str(rec.get("note") or "").strip() or "combo_fast stage2"
-                        row["note"] = note
-                        _record_milestone(cfg, row, note)
-                        stage2.append((cfg, row, note))
-
-                tested = int(tested_total)
-                run_calls_total += int(tested_total)
+            tested = int(tested_total)
+            run_calls_total += int(tested_total)
         else:
-            tested, stage2_kept = _run_sweep(
+            tested, stage2_rows = _run_stage_serial(
+                stage_label="combo_fast sweep: stage2",
                 plan=stage2_plan_all,
                 bars=bars_sig,
                 total=stage2_total,
-                progress_label="combo_fast sweep: stage2",
                 report_every=report_every,
             )
-            for cfg, row, note, _meta in stage2_kept:
-                stage2.append((cfg, row, note))
+            stage2.extend(stage2_rows)
 
         print(f"combo_fast sweep: stage2 tested={tested} kept={len(stage2)} (min_trades={run_min_trades})")
 
         # Stage 3: apply a small set of quality gates on the top stage2 candidates.
-        top_stage2 = _ranked(stage2, top_pnl_dd=15, top_pnl=7)
+        top_stage2 = _rank_cfg_rows(
+            stage2,
+            scorers=[(_score_row_pnl_dd, 15), (_score_row_pnl, 7)],
+        )
 
         stage3_plan_all = _build_stage3_plan([(cfg, base_note) for cfg, _row, base_note in top_stage2])
         stage3_total = len(stage3_plan_all)
@@ -6693,16 +7590,25 @@ def main() -> None:
 
         stage3: list[dict] = []
         if jobs > 1 and stage3_total > 0:
-            if not offline:
-                raise SystemExit("--jobs>1 for combo_fast requires --offline (avoid parallel IBKR sessions).")
-
-            base_cli = _strip_flags(
-                list(sys.argv[1:]),
-                flags=("--write-milestones", "--merge-milestones"),
-                flags_with_values=(
-                    "--axis",
-                    "--jobs",
-                    "--milestones-out",
+            bases_payload: list[dict] = []
+            for base_cfg, _row, base_note in top_stage2:
+                bases_payload.append(_encode_cfg_payload(base_cfg, note=base_note, note_key="base_note"))
+            payloads = _run_parallel_stage_with_payload(
+                axis_name="combo_fast",
+                stage_label="combo_fast stage3",
+                total=stage3_total,
+                jobs=int(jobs),
+                payload={"bases": bases_payload},
+                payload_filename="stage3_payload.json",
+                temp_prefix="tradebot_combo_fast3_",
+                worker_tmp_prefix="tradebot_combo_fast3_",
+                worker_tag="cf3",
+                out_prefix="stage3_out",
+                stage_flag="--combo-fast-stage3",
+                worker_flag="--combo-fast-worker",
+                workers_flag="--combo-fast-workers",
+                out_flag="--combo-fast-out",
+                strip_flags_with_values=(
                     "--combo-fast-stage1",
                     "--combo-fast-stage2",
                     "--combo-fast-stage3",
@@ -6711,90 +7617,36 @@ def main() -> None:
                     "--combo-fast-out",
                     "--combo-fast-run-min-trades",
                 ),
+                run_min_trades_flag="--combo-fast-run-min-trades",
+                run_min_trades=int(run_min_trades),
+                capture_error="Failed to capture combo_fast stage3 worker stdout.",
+                failure_label="combo_fast stage3 worker",
+                missing_label="combo_fast stage3",
+                invalid_label="combo_fast stage3",
             )
 
-            jobs_eff = min(int(jobs), int(_default_jobs()), int(stage3_total)) if stage3_total > 0 else 1
-            print(f"combo_fast stage3 parallel: workers={jobs_eff} total={stage3_total}", flush=True)
+            def _on_stage3_row(cfg: ConfigBundle, row: dict, note: str) -> None:
+                _record_milestone(cfg, row, note)
+                stage3.append(row)
 
-            with tempfile.TemporaryDirectory(prefix="tradebot_combo_fast3_") as tmpdir:
-                tmp_root = Path(tmpdir)
-                payload_path = tmp_root / "stage3_payload.json"
-                bases_payload: list[dict] = []
-                for base_cfg, _, base_note in top_stage2:
-                    bases_payload.append(
-                        {
-                            "strategy": _spot_strategy_payload(base_cfg, meta=meta),
-                            "filters": _filters_payload(base_cfg.strategy.filters),
-                            "base_note": str(base_note),
-                        }
-                    )
-                write_json(payload_path, {"bases": bases_payload}, sort_keys=False)
+            tested_total = _collect_stage_rows_from_payloads(
+                payloads=payloads,
+                default_note="combo_fast stage3",
+                on_row=_on_stage3_row,
+                dedupe_by_milestone_key=True,
+            )
 
-                payloads = _run_parallel_json_worker_plan(
-                    jobs_eff=jobs_eff,
-                    tmp_prefix="tradebot_combo_fast3_",
-                    worker_tag="cf3",
-                    out_prefix="stage3_out",
-                    build_cmd=lambda worker_id, workers_n, out_path: [
-                        sys.executable,
-                        "-u",
-                        "-m",
-                        "tradebot.backtest",
-                        "spot",
-                        *base_cli,
-                        "--axis",
-                        "combo_fast",
-                        "--jobs",
-                        "1",
-                        "--combo-fast-stage3",
-                        str(payload_path),
-                        "--combo-fast-worker",
-                        str(worker_id),
-                        "--combo-fast-workers",
-                        str(workers_n),
-                        "--combo-fast-out",
-                        str(out_path),
-                        "--combo-fast-run-min-trades",
-                        str(int(run_min_trades)),
-                    ],
-                    capture_error="Failed to capture combo_fast stage3 worker stdout.",
-                    failure_label="combo_fast stage3 worker",
-                    missing_label="combo_fast stage3",
-                    invalid_label="combo_fast stage3",
-                )
-
-                tested_total = 0
-                for worker_id in range(jobs_eff):
-                    payload = payloads.get(int(worker_id))
-                    if not isinstance(payload, dict):
-                        continue
-                    tested_total += int(payload.get("tested") or 0)
-                    for rec in payload.get("records") or []:
-                        if not isinstance(rec, dict):
-                            continue
-                        cfg = _cfg_from_payload(rec.get("strategy"), rec.get("filters"))
-                        if cfg is None:
-                            continue
-                        row = rec.get("row")
-                        if not isinstance(row, dict):
-                            continue
-                        row = dict(row)
-                        note = str(rec.get("note") or "").strip() or "combo_fast stage3"
-                        row["note"] = note
-                        _record_milestone(cfg, row, note)
-                        stage3.append(row)
-
-                stage3_tested = int(tested_total)
-                run_calls_total += int(tested_total)
+            stage3_tested = int(tested_total)
+            run_calls_total += int(tested_total)
         else:
-            stage3_tested, stage3_kept = _run_sweep(
+            stage3_tested, stage3_rows = _run_stage_serial(
+                stage_label="combo_fast sweep: stage3",
                 plan=stage3_plan_all,
                 bars=bars_sig,
                 total=stage3_total,
-                progress_label="combo_fast sweep: stage3",
                 report_every=report_every_stage3,
             )
-            for _cfg, row, _note, _meta in stage3_kept:
+            for _cfg, row, _note in stage3_rows:
                 stage3.append(row)
 
         _print_leaderboards(stage3, title="combo_fast sweep (multi-axis, constrained)", top_n=int(args.top))
@@ -6845,53 +7697,35 @@ def main() -> None:
         print("=== combo_full: running full sweep suite (very slow) ===")
         print("")
 
+        axis_plan = list(_COMBO_FULL_AXIS_SCHEMA_BASE)
+        seed_path_raw = str(getattr(args, "seed_milestones", "") or "").strip()
+        if seed_path_raw:
+            seed_path = Path(seed_path_raw)
+            if seed_path.exists():
+                axis_plan.extend(_COMBO_FULL_AXIS_SCHEMA_SEEDED)
+            else:
+                print(f"SKIP overlay_family/st37_refine: --seed-milestones not found ({seed_path})", flush=True)
+        axes = tuple(axis_name for axis_name, _profile, _emit in axis_plan)
+        axis_profile_by_name = {axis_name: str(profile) for axis_name, profile, _emit in axis_plan}
+        milestone_axes = tuple(axis_name for axis_name, _profile, emit in axis_plan if bool(emit))
+
         if jobs > 1:
-            if not offline:
-                raise SystemExit("--jobs>1 for combo_full requires --offline (avoid parallel IBKR sessions).")
-
-            axes = tuple(_COMBO_FULL_PLAN)
-
-            base_cli = _strip_flags(
-                list(sys.argv[1:]),
-                flags=("--merge-milestones",),
-                flags_with_values=("--axis", "--jobs", "--milestones-out"),
-            )
-
-            milestone_payloads = _run_axis_subprocess_plan(
+            milestone_payloads = _run_parallel_axis_stage(
                 label="combo_full parallel",
                 axes=axes,
-                jobs=int(jobs),
-                base_cli=base_cli,
+                jobs_req=int(jobs),
                 axis_jobs_resolver=lambda axis_name: min(int(jobs), int(_default_jobs()))
-                if str(axis_name) in ("gate_matrix", "combo_fast", "risk_overlays")
+                if axis_profile_by_name.get(str(axis_name), "single") == "scaled"
                 else 1,
-                write_milestones=bool(args.write_milestones),
                 tmp_prefix="tradebot_combo_full_",
+                offline_error="--jobs>1 for combo_full requires --offline (avoid parallel IBKR sessions).",
             )
             if bool(args.write_milestones):
-                eligible_new: list[dict] = []
-                for axis_name in axes:
-                    payload = milestone_payloads.get(axis_name)
-                    if isinstance(payload, dict):
-                        eligible_new.extend(_collect_milestone_items_from_payload(payload, symbol=symbol))
-                out_path = Path(args.milestones_out)
-                total = _merge_and_write_milestones(
-                    out_path=out_path,
-                    eligible_new=eligible_new,
-                    merge_existing=bool(args.merge_milestones),
-                    add_top_pnl_dd=int(args.milestone_add_top_pnl_dd or 0),
-                    add_top_pnl=int(args.milestone_add_top_pnl or 0),
-                    symbol=symbol,
-                    start=start,
-                    end=end,
-                    signal_bar_size=signal_bar_size,
-                    use_rth=use_rth,
-                    milestone_min_win=float(args.milestone_min_win),
-                    milestone_min_trades=int(args.milestone_min_trades),
-                    milestone_min_pnl_dd=float(args.milestone_min_pnl_dd),
+                _merge_axis_parallel_milestones(
+                    milestone_payloads=milestone_payloads,
+                    milestone_axes=milestone_axes,
                 )
                 milestones_written = True
-                print(f"Wrote {out_path} ({total} eligible presets).", flush=True)
 
             return
 
@@ -6908,70 +7742,11 @@ def main() -> None:
             print(f"DONE  {label} tested={tested} kept={kept} elapsed={elapsed:0.1f}s", flush=True)
             print("", flush=True)
 
-        combo_full_registry = {
-            "ema": _sweep_ema,
-            "entry_mode": _sweep_entry_mode,
-            "confirm": _sweep_confirm,
-            "weekday": _sweep_weekdays,
-            "tod": _sweep_tod,
-            "volume": _sweep_volume,
-            "rv": _sweep_rv,
-            "spread": _sweep_spread,
-            "spread_fine": _sweep_spread_fine,
-            "spread_down": _sweep_spread_down,
-            "slope": _sweep_slope,
-            "slope_signed": _sweep_slope_signed,
-            "cooldown": _sweep_cooldown,
-            "skip_open": _sweep_skip_open,
-            "shock": _sweep_shock,
-            "risk_overlays": _sweep_risk_overlays,
-            "ptsl": _sweep_ptsl,
-            "exit_time": _sweep_exit_time,
-            "hold": _sweep_hold,
-            "spot_short_risk_mult": _sweep_spot_short_risk_mult,
-            "flip_exit": _sweep_flip_exit,
-            "loosen": _sweep_loosen,
-            "loosen_atr": _sweep_loosen_atr,
-            "atr": _sweep_atr_exits,
-            "atr_fine": _sweep_atr_exits_fine,
-            "atr_ultra": _sweep_atr_exits_ultra,
-            "regime": _sweep_regime,
-            "regime2": _sweep_regime2,
-            "regime2_ema": _sweep_regime2_ema,
-            "joint": _sweep_joint,
-            "micro_st": _sweep_micro_st,
-            "orb": _sweep_orb,
-            "hf_scalp": _sweep_hf_scalp,
-            "orb_joint": _sweep_orb_joint,
-            "tod_interaction": _sweep_tod_interaction,
-            "perm_joint": _sweep_perm_joint,
-            "ema_perm_joint": _sweep_ema_perm_joint,
-            "tick_perm_joint": _sweep_tick_perm_joint,
-            "chop_joint": _sweep_chop_joint,
-            "tick_ema": _sweep_tick_ema,
-            "ema_regime": _sweep_ema_regime,
-            "ema_atr": _sweep_ema_atr,
-            "regime_atr": _sweep_regime_atr,
-            "r2_atr": _sweep_r2_atr,
-            "r2_tod": _sweep_r2_tod,
-            "tick": _sweep_tick,
-            "gate_matrix": _sweep_gate_matrix,
-            "squeeze": _sweep_squeeze,
-            "combo_fast": _sweep_combo_fast,
-            "frontier": _sweep_frontier,
-        }
-        for axis_name in _COMBO_FULL_PLAN:
-            fn = combo_full_registry.get(str(axis_name))
+        for axis_name, _profile, _emit in axis_plan:
+            fn_obj = axis_registry.get(str(axis_name))
+            fn = fn_obj if callable(fn_obj) else None
             if fn is not None:
                 _run_axis(str(axis_name), fn)
-
-        seed_path_raw = str(getattr(args, "seed_milestones", "") or "").strip()
-        if seed_path_raw:
-            seed_path = Path(seed_path_raw)
-            if seed_path.exists():
-                _run_axis("st37_refine", _sweep_st37_refine)
-            else:
-                print(f"SKIP st37_refine: --seed-milestones not found ({seed_path})", flush=True)
 
     def _sweep_champ_refine() -> None:
         """Seeded, champ-focused refinement around a top-K candidate pool.
@@ -6997,12 +7772,6 @@ def main() -> None:
             print(f"No matching seed candidates found in {seed_path} for {symbol} {signal_bar_size} rth={use_rth}.")
             return
 
-        def _seed_key(item: dict) -> str:
-            st = item.get("strategy") or {}
-            flt = item.get("filters")
-            raw = {"strategy": st, "filters": flt}
-            return json.dumps(raw, sort_keys=True, default=str)
-
         def _family_key(item: dict) -> tuple:
             st = item.get("strategy") or {}
             return (
@@ -7014,45 +7783,22 @@ def main() -> None:
             )
 
         # Prefer diversity: keep the best seed per "family", then take the top-K families.
-        best_per_family: dict[tuple, dict] = {}
-        for item in candidates:
-            fam = _family_key(item)
-            prev = best_per_family.get(fam)
-            if prev is None or _score_row_pnl_dd(item["metrics"]) > _score_row_pnl_dd(prev["metrics"]):
-                best_per_family[fam] = item
-
-        family_winners = sorted(best_per_family.values(), key=lambda x: _score_row_pnl_dd(x["metrics"]), reverse=True)
-
-        # Add a few "outlier" seeds (high pnl / high ROI / high win) even if they share families.
-        by_pnl = sorted(candidates, key=lambda x: _score_row_pnl(x["metrics"]), reverse=True)
-        by_roi = sorted(candidates, key=lambda x: float((x.get("metrics") or {}).get("roi") or 0.0), reverse=True)
-        by_win = sorted(candidates, key=lambda x: float((x.get("metrics") or {}).get("win_rate") or 0.0), reverse=True)
+        family_winners = _seed_best_by_family(
+            candidates,
+            family_key_fn=_family_key,
+            scorer="pnl_dd",
+        )
 
         seed_top = max(1, int(args.seed_top or 0))
-        seed_pool: list[dict] = []
-        for src in (
-            family_winners[:seed_top],
-            by_pnl[: max(5, seed_top // 4)],
-            by_roi[: max(5, seed_top // 4)],
-            by_win[: max(5, seed_top // 4)],
-        ):
-            for item in src:
-                seed_pool.append(item)
-
-        seen_seed: set[str] = set()
-        seeds: list[dict] = []
-        for item in seed_pool:
-            key = _seed_key(item)
-            if key in seen_seed:
-                continue
-            seen_seed.add(key)
-            seeds.append(item)
-            if len(seeds) >= seed_top:
-                break
+        seed_pool = list(family_winners[:seed_top])
+        seed_pool.extend(_seed_rank_slice(candidates, scorer="pnl", top_n=max(5, seed_top // 4)))
+        seed_pool.extend(_seed_rank_slice(candidates, scorer="roi", top_n=max(5, seed_top // 4)))
+        seed_pool.extend(_seed_rank_slice(candidates, scorer="win", top_n=max(5, seed_top // 4)))
+        seeds = _seed_dedupe_candidates(seed_pool, limit=seed_top, key_fn=_seed_candidate_key)
 
         print("")
         print("=== champ_refine: seeded refinement (bounded) ===")
-        print(f"- seeds_in_file={len(candidates)} families={len(best_per_family)} selected={len(seeds)} seed_top={seed_top}")
+        print(f"- seeds_in_file={len(candidates)} families={len(family_winners)} selected={len(seeds)} seed_top={seed_top}")
         print(f"- seed_path={seed_path}")
         print("")
 
@@ -7154,369 +7900,9 @@ def main() -> None:
                 (10, 16, 0, 0, "tod=10-16"),
             ]
 
-        # Shock pocket (includes the v25/v31 daily ATR% family + a few TR-ratio variants).
-        shock_variants: list[tuple[dict[str, object], str]] = [
-            ({"shock_gate_mode": "off"}, "shock=off"),
-        ]
-        if not is_slv:
-            for on_atr, off_atr in ((12.5, 12.0), (13.0, 12.5), (13.5, 13.0), (14.0, 13.5), (14.5, 14.0)):
-                for sl_mult in (0.75, 1.0):
-                    shock_variants.append(
-                        (
-                            {
-                                "shock_gate_mode": "surf",
-                                "shock_detector": "daily_atr_pct",
-                                "shock_daily_atr_period": 14,
-                                "shock_daily_on_atr_pct": float(on_atr),
-                                "shock_daily_off_atr_pct": float(off_atr),
-                                "shock_direction_source": "signal",
-                                "shock_direction_lookback": 1,
-                                "shock_stop_loss_pct_mult": float(sl_mult),
-                            },
-                            f"shock=surf daily_atr on={on_atr:g} off={off_atr:g} sl_mult={sl_mult:g}",
-                        )
-                    )
-            for on_tr in (9.0, 11.0, 14.0):
-                shock_variants.append(
-                    (
-                        {
-                            "shock_gate_mode": "surf",
-                            "shock_detector": "daily_atr_pct",
-                            "shock_daily_atr_period": 14,
-                            "shock_daily_on_atr_pct": 13.5,
-                            "shock_daily_off_atr_pct": 13.0,
-                            "shock_daily_on_tr_pct": float(on_tr),
-                            "shock_direction_source": "signal",
-                            "shock_direction_lookback": 1,
-                            "shock_stop_loss_pct_mult": 0.75,
-                        },
-                        f"shock=surf daily_atr on=13.5 off=13.0 on_tr>={on_tr:g} sl_mult=0.75",
-                    )
-                )
-            shock_variants.append(
-                (
-                    {
-                        "shock_gate_mode": "block_longs",
-                        "shock_detector": "daily_atr_pct",
-                        "shock_daily_atr_period": 14,
-                        "shock_daily_on_atr_pct": 13.5,
-                        "shock_daily_off_atr_pct": 13.0,
-                        "shock_direction_source": "signal",
-                        "shock_direction_lookback": 1,
-                        "shock_stop_loss_pct_mult": 0.75,
-                    },
-                    "shock=block_longs daily_atr on=13.5 off=13.0 sl_mult=0.75",
-                )
-            )
-            shock_variants.append(
-                (
-                    {
-                        "shock_gate_mode": "block",
-                        "shock_detector": "daily_atr_pct",
-                        "shock_daily_atr_period": 14,
-                        "shock_daily_on_atr_pct": 13.5,
-                        "shock_daily_off_atr_pct": 13.0,
-                        "shock_direction_source": "signal",
-                        "shock_direction_lookback": 1,
-                    },
-                    "shock=block daily_atr on=13.5 off=13.0",
-                )
-            )
-            for on_ratio, off_ratio in ((1.35, 1.25), (1.45, 1.30), (1.55, 1.30)):
-                shock_variants.append(
-                    (
-                        {
-                            "shock_gate_mode": "surf",
-                            "shock_detector": "tr_ratio",
-                            "shock_atr_fast_period": 7,
-                            "shock_atr_slow_period": 50,
-                            "shock_on_ratio": float(on_ratio),
-                            "shock_off_ratio": float(off_ratio),
-                            "shock_min_atr_pct": 7.0,
-                            "shock_direction_source": "signal",
-                            "shock_direction_lookback": 1,
-                            "shock_stop_loss_pct_mult": 0.75,
-                        },
-                        f"shock=surf tr_ratio on={on_ratio:g} off={off_ratio:g} min_atr=7 sl_mult=0.75",
-                    )
-                )
-            for on_ratio, off_ratio in ((1.35, 1.25), (1.45, 1.30), (1.55, 1.30)):
-                shock_variants.append(
-                    (
-                        {
-                            "shock_gate_mode": "surf",
-                            "shock_detector": "atr_ratio",
-                            "shock_atr_fast_period": 7,
-                            "shock_atr_slow_period": 50,
-                            "shock_on_ratio": float(on_ratio),
-                            "shock_off_ratio": float(off_ratio),
-                            "shock_min_atr_pct": 7.0,
-                            "shock_direction_source": "signal",
-                            "shock_direction_lookback": 1,
-                            "shock_stop_loss_pct_mult": 0.75,
-                        },
-                        f"shock=surf atr_ratio on={on_ratio:g} off={off_ratio:g} min_atr=7 sl_mult=0.75",
-                    )
-                )
-            shock_variants.append(
-                (
-                    {
-                        "shock_gate_mode": "surf",
-                        "shock_detector": "daily_atr_pct",
-                        "shock_daily_atr_period": 14,
-                        "shock_daily_on_atr_pct": 13.5,
-                        "shock_daily_off_atr_pct": 13.0,
-                        "shock_direction_source": "regime",
-                        "shock_direction_lookback": 2,
-                        "shock_stop_loss_pct_mult": 0.75,
-                    },
-                    "shock=surf daily_atr dir=regime lb=2 on=13.5 off=13.0 sl_mult=0.75",
-                )
-            )
-        else:
-            # SLV: daily ATR% and TR-ratio operate on a much smaller scale; explore a wider-but-still-bounded pocket.
-            for on_atr, off_atr in ((3.0, 2.5), (3.5, 3.0), (4.0, 3.5), (4.5, 4.0), (5.0, 4.5), (6.0, 5.0)):
-                for sl_mult in (0.75, 1.0):
-                    shock_variants.append(
-                        (
-                            {
-                                "shock_gate_mode": "surf",
-                                "shock_detector": "daily_atr_pct",
-                                "shock_daily_atr_period": 14,
-                                "shock_daily_on_atr_pct": float(on_atr),
-                                "shock_daily_off_atr_pct": float(off_atr),
-                                "shock_direction_source": "signal",
-                                "shock_direction_lookback": 1,
-                                "shock_stop_loss_pct_mult": float(sl_mult),
-                            },
-                            f"shock=surf daily_atr on={on_atr:g} off={off_atr:g} sl_mult={sl_mult:g}",
-                        )
-                    )
-            for on_tr in (4.0, 5.0, 6.0):
-                shock_variants.append(
-                    (
-                        {
-                            "shock_gate_mode": "surf",
-                            "shock_detector": "daily_atr_pct",
-                            "shock_daily_atr_period": 14,
-                            "shock_daily_on_atr_pct": 4.5,
-                            "shock_daily_off_atr_pct": 4.0,
-                            "shock_daily_on_tr_pct": float(on_tr),
-                            "shock_direction_source": "signal",
-                            "shock_direction_lookback": 1,
-                            "shock_stop_loss_pct_mult": 0.75,
-                        },
-                        f"shock=surf daily_atr on=4.5 off=4.0 on_tr>={on_tr:g} sl_mult=0.75",
-                    )
-                )
-            # v4: shock/risk scaling pocket (not trade blocking). Keep cadence high, focus on decade DD%.
-            # - Use `detect` mode so the shock engine runs (enables ATR%-based sizing scale),
-            #   without turning into a hard gate like `block`.
-            for det, fast_p, slow_p, on_r, off_r, min_atr, dir_src, dir_lb, target_atr, min_mult, down_mult in (
-                ("tr_ratio", 3, 21, 1.25, 1.15, 0.8, "signal", 1, 3.0, 0.10, 0.60),
-                ("tr_ratio", 3, 21, 1.30, 1.20, 1.0, "signal", 1, 3.5, 0.20, 0.70),
-                ("tr_ratio", 5, 30, 1.25, 1.15, 1.0, "signal", 2, 3.5, 0.20, 0.60),
-                ("tr_ratio", 7, 50, 1.35, 1.25, 1.2, "regime", 2, 4.0, 0.20, 0.60),
-                ("tr_ratio", 7, 50, 1.45, 1.30, 1.5, "regime", 2, 4.0, 0.20, 0.50),
-                ("atr_ratio", 3, 21, 1.25, 1.15, 0.8, "signal", 1, 3.0, 0.10, 0.60),
-                ("atr_ratio", 7, 50, 1.35, 1.25, 1.2, "regime", 2, 4.0, 0.20, 0.60),
-            ):
-                shock_variants.append(
-                    (
-                        {
-                            "shock_gate_mode": "detect",
-                            "shock_detector": str(det),
-                            "shock_atr_fast_period": int(fast_p),
-                            "shock_atr_slow_period": int(slow_p),
-                            "shock_on_ratio": float(on_r),
-                            "shock_off_ratio": float(off_r),
-                            "shock_min_atr_pct": float(min_atr),
-                            "shock_direction_source": str(dir_src),
-                            "shock_direction_lookback": int(dir_lb),
-                            "shock_risk_scale_target_atr_pct": float(target_atr),
-                            "shock_risk_scale_min_mult": float(min_mult),
-                            "shock_long_risk_mult_factor_down": float(down_mult),
-                        },
-                        f"shock=detect {det}({fast_p}/{slow_p}) {on_r:g}/{off_r:g} min_atr%={min_atr:g} "
-                        f"dir={dir_src} lb={dir_lb} scale@{target_atr:g}->{min_mult:g} down={down_mult:g}",
-                    )
-                )
-
-            for on_atr, off_atr, target_atr, min_mult, down_mult in (
-                (4.0, 3.5, 3.0, 0.20, 0.70),
-                (4.0, 3.5, 3.0, 0.10, 0.60),
-                (4.5, 4.0, 3.5, 0.20, 0.60),
-                (5.0, 4.5, 4.0, 0.20, 0.60),
-            ):
-                shock_variants.append(
-                    (
-                        {
-                            "shock_gate_mode": "detect",
-                            "shock_detector": "daily_atr_pct",
-                            "shock_daily_atr_period": 14,
-                            "shock_daily_on_atr_pct": float(on_atr),
-                            "shock_daily_off_atr_pct": float(off_atr),
-                            "shock_direction_source": "signal",
-                            "shock_direction_lookback": 1,
-                            "shock_risk_scale_target_atr_pct": float(target_atr),
-                            "shock_risk_scale_min_mult": float(min_mult),
-                            "shock_long_risk_mult_factor_down": float(down_mult),
-                        },
-                        f"shock=detect daily_atr on={on_atr:g} off={off_atr:g} scale@{target_atr:g}->{min_mult:g} down={down_mult:g}",
-                    )
-                )
-
-            for dd_lb, dd_on, dd_off, down_mult in (
-                (40, -10.0, -6.0, 0.60),
-                (20, -7.0, -4.0, 0.70),
-            ):
-                shock_variants.append(
-                    (
-                        {
-                            "shock_gate_mode": "detect",
-                            "shock_detector": "daily_drawdown",
-                            "shock_drawdown_lookback_days": int(dd_lb),
-                            "shock_on_drawdown_pct": float(dd_on),
-                            "shock_off_drawdown_pct": float(dd_off),
-                            "shock_direction_source": "signal",
-                            "shock_direction_lookback": 2,
-                            "shock_long_risk_mult_factor_down": float(down_mult),
-                        },
-                        f"shock=detect dd lb={dd_lb} on={dd_on:g}% off={dd_off:g}% down={down_mult:g}",
-                    )
-                )
-
-        # TR/gap overlays pocket (panic = defensive, pop = aggressive).
-        def _risk_off_overrides() -> dict[str, object]:
-            return {
-                "risk_entry_cutoff_hour_et": None,
-                "riskoff_tr5_med_pct": None,
-                "riskpanic_tr5_med_pct": None,
-                "riskpanic_neg_gap_ratio_min": None,
-                "riskpop_tr5_med_pct": None,
-                "riskpop_pos_gap_ratio_min": None,
-            }
-
-        if not is_slv:
-            risk_variants: list[tuple[dict[str, object], str]] = [
-                (_risk_off_overrides(), "risk=off"),
-                (
-                    {
-                        **_risk_off_overrides(),
-                        "riskoff_tr5_med_pct": 9.0,
-                        "riskoff_lookback_days": 5,
-                        "riskoff_mode": "hygiene",
-                        "riskoff_long_risk_mult_factor": 0.7,
-                        "riskoff_short_risk_mult_factor": 0.7,
-                        "risk_entry_cutoff_hour_et": 15,
-                    },
-                    "riskoff TRmed5>=9 both=0.7 cutoff<15",
-                ),
-                (
-                    {
-                        **_risk_off_overrides(),
-                        "riskoff_tr5_med_pct": 10.0,
-                        "riskoff_lookback_days": 5,
-                        "riskoff_mode": "hygiene",
-                        "riskoff_long_risk_mult_factor": 0.5,
-                        "riskoff_short_risk_mult_factor": 0.5,
-                        "risk_entry_cutoff_hour_et": 15,
-                    },
-                    "riskoff TRmed5>=10 both=0.5 cutoff<15",
-                ),
-                (
-                    {
-                        **_risk_off_overrides(),
-                        "riskpanic_tr5_med_pct": 9.0,
-                        "riskpanic_neg_gap_ratio_min": 0.6,
-                        "riskpanic_lookback_days": 5,
-                        "riskpanic_short_risk_mult_factor": 0.5,
-                        "risk_entry_cutoff_hour_et": 15,
-                    },
-                    "riskpanic TRmed5>=9 gap>=0.6 short=0.5 cutoff<15",
-                ),
-                (
-                    {
-                        **_risk_off_overrides(),
-                        "riskpanic_tr5_med_pct": 9.0,
-                        "riskpanic_neg_gap_ratio_min": 0.6,
-                        "riskpanic_lookback_days": 5,
-                        "riskpanic_short_risk_mult_factor": 0.0,
-                        "risk_entry_cutoff_hour_et": 15,
-                    },
-                    "riskpanic TRmed5>=9 gap>=0.6 short=0 cutoff<15",
-                ),
-                (
-                    {
-                        **_risk_off_overrides(),
-                        "riskpanic_tr5_med_pct": 10.0,
-                        "riskpanic_neg_gap_ratio_min": 0.7,
-                        "riskpanic_lookback_days": 5,
-                        "riskpanic_short_risk_mult_factor": 0.5,
-                        "risk_entry_cutoff_hour_et": 15,
-                    },
-                    "riskpanic TRmed5>=10 gap>=0.7 short=0.5 cutoff<15",
-                ),
-                (
-                    {
-                        **_risk_off_overrides(),
-                        "riskpop_tr5_med_pct": 9.0,
-                        "riskpop_pos_gap_ratio_min": 0.6,
-                        "riskpop_lookback_days": 5,
-                        "riskpop_long_risk_mult_factor": 1.2,
-                        "riskpop_short_risk_mult_factor": 0.0,
-                        "risk_entry_cutoff_hour_et": 15,
-                    },
-                    "riskpop TRmed5>=9 gap+=0.6 long=1.2 short=0 cutoff<15",
-                ),
-                (
-                    {
-                        **_risk_off_overrides(),
-                        "riskpop_tr5_med_pct": 9.0,
-                        "riskpop_pos_gap_ratio_min": 0.6,
-                        "riskpop_lookback_days": 5,
-                        "riskpop_long_risk_mult_factor": 1.5,
-                        "riskpop_short_risk_mult_factor": 0.0,
-                        "risk_entry_cutoff_hour_et": 15,
-                    },
-                    "riskpop TRmed5>=9 gap+=0.6 long=1.5 short=0 cutoff<15",
-                ),
-                (
-                    {
-                        **_risk_off_overrides(),
-                        "riskpop_tr5_med_pct": 10.0,
-                        "riskpop_pos_gap_ratio_min": 0.7,
-                        "riskpop_lookback_days": 5,
-                        "riskpop_long_risk_mult_factor": 1.5,
-                        "riskpop_short_risk_mult_factor": 0.0,
-                        "risk_entry_cutoff_hour_et": 15,
-                    },
-                    "riskpop TRmed5>=10 gap+=0.7 long=1.5 short=0 cutoff<15",
-                ),
-            ]
-        else:
-            # SLV v4+ focus: avoid risk overlays that cancel entries (keep cadence high).
-            risk_variants = [
-                (_risk_off_overrides(), "risk=off"),
-            ]
-
-        def _cfg_from_payload(strategy_payload, filters_payload) -> ConfigBundle | None:
-            if not isinstance(strategy_payload, dict):
-                return None
-            try:
-                filters_obj = _filters_from_payload(filters_payload)
-                strategy_obj = _strategy_from_payload(strategy_payload, filters=filters_obj)
-            except Exception:
-                return None
-            return _mk_bundle(
-                strategy=strategy_obj,
-                start=start,
-                end=end,
-                bar_size=signal_bar_size,
-                use_rth=use_rth,
-                cache_dir=cache_dir,
-                offline=offline,
-            )
+        # Shock + risk overlay pockets are centralized in helper registries.
+        shock_variants = _build_champ_refine_shock_variants(is_slv=is_slv)
+        risk_variants = _build_champ_refine_risk_variants(is_slv=is_slv)
 
         def _entry_variants_for_cfg(base_cfg: ConfigBundle) -> list[tuple[str, int, str]]:
             seed_mode = str(getattr(base_cfg.strategy, "ema_entry_mode", "cross") or "cross").strip().lower()
@@ -7609,19 +7995,7 @@ def main() -> None:
         report_every = 200
 
         if args.champ_refine_stage3a:
-            if not offline:
-                raise SystemExit("champ_refine stage3a worker mode requires --offline (avoid parallel IBKR sessions).")
             payload_path = Path(str(args.champ_refine_stage3a))
-            out_path_raw = str(args.champ_refine_out or "").strip()
-            if not out_path_raw:
-                raise SystemExit("--champ-refine-out is required for champ_refine stage3a worker mode.")
-            out_path = Path(out_path_raw)
-
-            worker_id, workers = _parse_worker_shard(
-                args.champ_refine_worker,
-                args.champ_refine_workers,
-                label="champ_refine stage3a",
-            )
 
             try:
                 payload = json.loads(payload_path.read_text())
@@ -7634,67 +8008,33 @@ def main() -> None:
 
             base_exit_local: list[tuple[ConfigBundle, str]] = []
             for item in raw_base:
-                if not isinstance(item, dict):
+                decoded = _decode_cfg_payload(item, note_key="exit_note")
+                if decoded is None:
                     continue
-                strat_payload = item.get("strategy") or {}
-                filters_payload = item.get("filters")
-                exit_note = str(item.get("exit_note") or "")
-                cfg = _cfg_from_payload(strat_payload, filters_payload)
-                if cfg is None:
-                    continue
-                base_exit_local.append((cfg, exit_note))
+                base_exit_local.append(decoded)
 
             stage3a_plan_all = _build_stage3a_plan(base_exit_local, seed_tag_local=seed_tag)
             stage3a_total = len(stage3a_plan_all)
-            local_total = (stage3a_total // workers) + (1 if worker_id < (stage3a_total % workers) else 0)
             if len(stage3a_plan_all) != int(stage3a_total):
                 raise SystemExit(
                     f"champ_refine stage3a worker internal error: combos={len(stage3a_plan_all)} expected={stage3a_total}"
                 )
 
-            shard_plan = (
-                item for combo_idx, item in enumerate(stage3a_plan_all) if (combo_idx % int(workers)) == int(worker_id)
-            )
-            tested, kept = _run_sweep(
-                plan=shard_plan,
+            _run_sharded_stage_worker(
+                stage_label="champ_refine stage3a",
+                worker_raw=args.champ_refine_worker,
+                workers_raw=args.champ_refine_workers,
+                out_path_raw=str(args.champ_refine_out or ""),
+                out_flag_name="champ-refine-out",
+                plan_all=stage3a_plan_all,
                 bars=bars_sig,
-                total=local_total,
-                progress_label=f"champ_refine stage3a worker {worker_id+1}/{workers} {seed_tag}",
                 report_every=report_every,
                 heartbeat_sec=heartbeat_sec,
-                record_milestones=False,
             )
-
-            records: list[dict] = []
-            for cfg, row, note, _meta in kept:
-                records.append(
-                    {
-                        "strategy": _spot_strategy_payload(cfg, meta=meta),
-                        "filters": _filters_payload(cfg.strategy.filters),
-                        "note": str(note),
-                        "row": row,
-                    }
-                )
-
-            out_payload = {"tested": tested, "kept": len(records), "records": records}
-            write_json(out_path, out_payload, sort_keys=False)
-            print(f"champ_refine stage3a worker done tested={tested} kept={len(records)} out={out_path}", flush=True)
             return
 
         if args.champ_refine_stage3b:
-            if not offline:
-                raise SystemExit("champ_refine stage3b worker mode requires --offline (avoid parallel IBKR sessions).")
             payload_path = Path(str(args.champ_refine_stage3b))
-            out_path_raw = str(args.champ_refine_out or "").strip()
-            if not out_path_raw:
-                raise SystemExit("--champ-refine-out is required for champ_refine stage3b worker mode.")
-            out_path = Path(out_path_raw)
-
-            worker_id, workers = _parse_worker_shard(
-                args.champ_refine_worker,
-                args.champ_refine_workers,
-                label="champ_refine stage3b",
-            )
 
             try:
                 payload = json.loads(payload_path.read_text())
@@ -7707,51 +8047,29 @@ def main() -> None:
 
             shortlist_local: list[tuple[ConfigBundle, str]] = []
             for item in raw_shortlist:
-                if not isinstance(item, dict):
+                decoded = _decode_cfg_payload(item, note_key="base_note")
+                if decoded is None:
                     continue
-                strat_payload = item.get("strategy") or {}
-                filters_payload = item.get("filters")
-                base_note = str(item.get("base_note") or "")
-                cfg = _cfg_from_payload(strat_payload, filters_payload)
-                if cfg is None:
-                    continue
-                shortlist_local.append((cfg, base_note))
+                shortlist_local.append(decoded)
 
             stage3b_plan_all = _build_stage3b_plan(shortlist_local)
             stage3b_total = len(stage3b_plan_all)
-            local_total = (stage3b_total // workers) + (1 if worker_id < (stage3b_total % workers) else 0)
             if len(stage3b_plan_all) != int(stage3b_total):
                 raise SystemExit(
                     f"champ_refine stage3b worker internal error: combos={len(stage3b_plan_all)} expected={stage3b_total}"
                 )
 
-            shard_plan = (
-                item for combo_idx, item in enumerate(stage3b_plan_all) if (combo_idx % int(workers)) == int(worker_id)
-            )
-            tested, kept = _run_sweep(
-                plan=shard_plan,
+            _run_sharded_stage_worker(
+                stage_label="champ_refine stage3b",
+                worker_raw=args.champ_refine_worker,
+                workers_raw=args.champ_refine_workers,
+                out_path_raw=str(args.champ_refine_out or ""),
+                out_flag_name="champ-refine-out",
+                plan_all=stage3b_plan_all,
                 bars=bars_sig,
-                total=local_total,
-                progress_label=f"champ_refine stage3b worker {worker_id+1}/{workers} {seed_tag}",
                 report_every=report_every,
                 heartbeat_sec=heartbeat_sec,
-                record_milestones=False,
             )
-
-            records: list[dict] = []
-            for cfg, row, note, _meta in kept:
-                records.append(
-                    {
-                        "strategy": _spot_strategy_payload(cfg, meta=meta),
-                        "filters": _filters_payload(cfg.strategy.filters),
-                        "note": str(note),
-                        "row": row,
-                    }
-                )
-
-            out_payload = {"tested": tested, "kept": len(records), "records": records}
-            write_json(out_path, out_payload, sort_keys=False)
-            print(f"champ_refine stage3b worker done tested={tested} kept={len(records)} out={out_path}", flush=True)
             return
 
         for seed_idx, seed in enumerate(seeds, start=1):
@@ -8072,16 +8390,25 @@ def main() -> None:
                 total_3a += 2 * len(tod_variants) * len(perm_variants) * len(signed_slope_variants)
             print(f"  stage3a micro: total={total_3a}", flush=True)
             if jobs > 1:
-                if not offline:
-                    raise SystemExit("--jobs>1 for champ_refine requires --offline (avoid parallel IBKR sessions).")
-
-                base_cli = _strip_flags(
-                    list(sys.argv[1:]),
-                    flags=("--write-milestones", "--merge-milestones"),
-                    flags_with_values=(
-                        "--axis",
-                        "--jobs",
-                        "--milestones-out",
+                base_payload: list[dict] = []
+                for base_cfg, exit_note in base_exit_variants:
+                    base_payload.append(_encode_cfg_payload(base_cfg, note=exit_note, note_key="exit_note"))
+                payloads = _run_parallel_stage_with_payload(
+                    axis_name="champ_refine",
+                    stage_label="  stage3a",
+                    total=total_3a,
+                    jobs=int(jobs),
+                    payload={"seed_tag": seed_tag, "base_exit_variants": base_payload},
+                    payload_filename="stage3a_payload.json",
+                    temp_prefix="tradebot_champ_refine_3a_",
+                    worker_tmp_prefix="tradebot_champ_refine_3a_run_",
+                    worker_tag="cr3a",
+                    out_prefix="stage3a_out",
+                    stage_flag="--champ-refine-stage3a",
+                    worker_flag="--champ-refine-worker",
+                    workers_flag="--champ-refine-workers",
+                    out_flag="--champ-refine-out",
+                    strip_flags_with_values=(
                         "--champ-refine-stage3a",
                         "--champ-refine-stage3b",
                         "--champ-refine-worker",
@@ -8089,133 +8416,78 @@ def main() -> None:
                         "--champ-refine-out",
                         "--champ-refine-run-min-trades",
                     ),
+                    run_min_trades_flag="--champ-refine-run-min-trades",
+                    run_min_trades=int(run_min_trades),
+                    capture_error="Failed to capture champ_refine stage3a worker stdout.",
+                    failure_label="champ_refine stage3a worker",
+                    missing_label="champ_refine stage3a",
+                    invalid_label="champ_refine stage3a",
                 )
 
-                jobs_eff = min(int(jobs), int(_default_jobs()), int(total_3a)) if total_3a > 0 else 1
-                print(f"  stage3a parallel: workers={jobs_eff} total={total_3a}", flush=True)
-
-                with tempfile.TemporaryDirectory(prefix="tradebot_champ_refine_3a_") as tmpdir:
-                    tmp_root = Path(tmpdir)
-                    payload_path = tmp_root / "stage3a_payload.json"
-                    base_payload: list[dict] = []
-                    for base_cfg, exit_note in base_exit_variants:
-                        base_payload.append(
-                            {
-                                "strategy": _spot_strategy_payload(base_cfg, meta=meta),
-                                "filters": _filters_payload(base_cfg.strategy.filters),
-                                "exit_note": str(exit_note),
-                            }
-                        )
-                    write_json(payload_path, {"seed_tag": seed_tag, "base_exit_variants": base_payload}, sort_keys=False)
-
-                    payloads = _run_parallel_json_worker_plan(
-                        jobs_eff=jobs_eff,
-                        tmp_prefix="tradebot_champ_refine_3a_run_",
-                        worker_tag="cr3a",
-                        out_prefix="stage3a_out",
-                        build_cmd=lambda worker_id, workers_n, out_path: [
-                            sys.executable,
-                            "-u",
-                            "-m",
-                            "tradebot.backtest",
-                            "spot",
-                            *base_cli,
-                            "--axis",
-                            "champ_refine",
-                            "--jobs",
-                            "1",
-                            "--champ-refine-stage3a",
-                            str(payload_path),
-                            "--champ-refine-worker",
-                            str(worker_id),
-                            "--champ-refine-workers",
-                            str(workers_n),
-                            "--champ-refine-out",
-                            str(out_path),
-                            "--champ-refine-run-min-trades",
-                            str(int(run_min_trades)),
-                        ],
-                        capture_error="Failed to capture champ_refine stage3a worker stdout.",
-                        failure_label="champ_refine stage3a worker",
-                        missing_label="champ_refine stage3a",
-                        invalid_label="champ_refine stage3a",
+                def _on_stage3a_row(cfg: ConfigBundle, row: dict, note: str) -> None:
+                    note_eff = str(note).strip() or (
+                        f"{seed_tag} | short_mult={getattr(cfg.strategy, 'spot_short_risk_mult', 1.0):g} | stage3a"
                     )
+                    row["note"] = note_eff
+                    _record_milestone(cfg, row, note_eff)
+                    rows.append(row)
+                    stage3a.append((cfg, row, note_eff))
 
-                    tested_total_3a = 0
-                    for worker_id in range(jobs_eff):
-                        payload = payloads.get(int(worker_id))
-                        if not isinstance(payload, dict):
-                            continue
-                        tested_total_3a += int(payload.get("tested") or 0)
-                        for rec in payload.get("records") or []:
-                            if not isinstance(rec, dict):
-                                continue
-                            cfg = _cfg_from_payload(rec.get("strategy"), rec.get("filters"))
-                            if cfg is None:
-                                continue
-                            row = rec.get("row")
-                            if not isinstance(row, dict):
-                                continue
-                            note = str(rec.get("note") or "").strip()
-                            note = (
-                                note
-                                or f"{seed_tag} | short_mult={getattr(cfg.strategy,'spot_short_risk_mult', 1.0):g} | stage3a"
-                            )
-                            row = dict(row)
-                            row["note"] = note
-                            _record_milestone(cfg, row, note)
-                            rows.append(row)
-                            stage3a.append((cfg, row, note))
+                tested_total_3a = _collect_stage_rows_from_payloads(
+                    payloads=payloads,
+                    default_note="stage3a",
+                    on_row=_on_stage3a_row,
+                    dedupe_by_milestone_key=True,
+                )
 
-                    tested_total += int(tested_total_3a)
+                tested_total += int(tested_total_3a)
             else:
                 stage3a_plan = _build_stage3a_plan(base_exit_variants, seed_tag_local=seed_tag)
-                tested_3a, kept_3a = _run_sweep(
+                tested_3a, stage3a_rows = _run_stage_serial(
+                    stage_label="  stage3a",
                     plan=stage3a_plan,
                     bars=bars_sig,
                     total=total_3a,
-                    progress_label="  stage3a",
                     report_every=report_every,
                     heartbeat_sec=heartbeat_sec,
                 )
                 tested_total += int(tested_3a)
-                for cfg, row, note, _meta in kept_3a:
+                for cfg, row, note in stage3a_rows:
                     rows.append(row)
                     stage3a.append((cfg, row, note))
 
             if not stage3a:
                 continue
 
-            # Shortlist: keep diversity (pnl/dd + pnl + roi + win), deduped.
-            by_dd = sorted(stage3a, key=lambda t: _score_row_pnl_dd(t[1]), reverse=True)[:6]
-            by_pnl = sorted(stage3a, key=lambda t: _score_row_pnl(t[1]), reverse=True)[:4]
-            by_roi = sorted(stage3a, key=lambda t: float((t[1] or {}).get("roi") or 0.0), reverse=True)[:3]
-            by_win = sorted(stage3a, key=lambda t: float((t[1] or {}).get("win_rate") or 0.0), reverse=True)[:3]
-            shortlist: list[tuple[ConfigBundle, dict, str]] = []
-            seen_cfg: set[str] = set()
-            for cfg, row, note in by_dd + by_pnl + by_roi + by_win:
-                key = _milestone_key(cfg)
-                if key in seen_cfg:
-                    continue
-                seen_cfg.add(key)
-                shortlist.append((cfg, row, note))
-                if len(shortlist) >= 10:
-                    break
+            shortlist = _rank_cfg_rows(
+                stage3a,
+                scorers=[(_score_row_pnl_dd, 6), (_score_row_pnl, 4), (_score_row_roi, 3), (_score_row_win_rate, 3)],
+                limit=10,
+            )
 
             # Stage 3B: apply shock + TR-overlay pockets to the shortlist.
             total_3b = len(shortlist) * len(shock_variants) * len(risk_variants)
             print(f"  stage3b shock+risk: shortlist={len(shortlist)} total={total_3b}", flush=True)
             if jobs > 1:
-                if not offline:
-                    raise SystemExit("--jobs>1 for champ_refine requires --offline (avoid parallel IBKR sessions).")
-
-                base_cli = _strip_flags(
-                    list(sys.argv[1:]),
-                    flags=("--write-milestones", "--merge-milestones"),
-                    flags_with_values=(
-                        "--axis",
-                        "--jobs",
-                        "--milestones-out",
+                shortlist_payload: list[dict] = []
+                for base_cfg, _row, base_note in shortlist:
+                    shortlist_payload.append(_encode_cfg_payload(base_cfg, note=base_note, note_key="base_note"))
+                payloads = _run_parallel_stage_with_payload(
+                    axis_name="champ_refine",
+                    stage_label="  stage3b",
+                    total=total_3b,
+                    jobs=int(jobs),
+                    payload={"seed_tag": seed_tag, "shortlist": shortlist_payload},
+                    payload_filename="stage3b_payload.json",
+                    temp_prefix="tradebot_champ_refine_3b_",
+                    worker_tmp_prefix="tradebot_champ_refine_3b_run_",
+                    worker_tag="cr3b",
+                    out_prefix="stage3b_out",
+                    stage_flag="--champ-refine-stage3b",
+                    worker_flag="--champ-refine-worker",
+                    workers_flag="--champ-refine-workers",
+                    out_flag="--champ-refine-out",
+                    strip_flags_with_values=(
                         "--champ-refine-stage3a",
                         "--champ-refine-stage3b",
                         "--champ-refine-worker",
@@ -8223,93 +8495,39 @@ def main() -> None:
                         "--champ-refine-out",
                         "--champ-refine-run-min-trades",
                     ),
+                    run_min_trades_flag="--champ-refine-run-min-trades",
+                    run_min_trades=int(run_min_trades),
+                    capture_error="Failed to capture champ_refine stage3b worker stdout.",
+                    failure_label="champ_refine stage3b worker",
+                    missing_label="champ_refine stage3b",
+                    invalid_label="champ_refine stage3b",
                 )
 
-                jobs_eff = min(int(jobs), int(_default_jobs()), int(total_3b)) if total_3b > 0 else 1
-                print(f"  stage3b parallel: workers={jobs_eff} total={total_3b}", flush=True)
+                def _on_stage3b_row(cfg: ConfigBundle, row: dict, note: str) -> None:
+                    _record_milestone(cfg, row, note)
+                    rows.append(row)
 
-                with tempfile.TemporaryDirectory(prefix="tradebot_champ_refine_3b_") as tmpdir:
-                    tmp_root = Path(tmpdir)
-                    payload_path = tmp_root / "stage3b_payload.json"
-                    shortlist_payload: list[dict] = []
-                    for base_cfg, _, base_note in shortlist:
-                        shortlist_payload.append(
-                            {
-                                "strategy": _spot_strategy_payload(base_cfg, meta=meta),
-                                "filters": _filters_payload(base_cfg.strategy.filters),
-                                "base_note": str(base_note),
-                            }
-                        )
-                    write_json(payload_path, {"seed_tag": seed_tag, "shortlist": shortlist_payload}, sort_keys=False)
+                tested_total_3b = _collect_stage_rows_from_payloads(
+                    payloads=payloads,
+                    default_note="stage3b",
+                    on_row=_on_stage3b_row,
+                    dedupe_by_milestone_key=True,
+                )
 
-                    payloads = _run_parallel_json_worker_plan(
-                        jobs_eff=jobs_eff,
-                        tmp_prefix="tradebot_champ_refine_3b_run_",
-                        worker_tag="cr3b",
-                        out_prefix="stage3b_out",
-                        build_cmd=lambda worker_id, workers_n, out_path: [
-                            sys.executable,
-                            "-u",
-                            "-m",
-                            "tradebot.backtest",
-                            "spot",
-                            *base_cli,
-                            "--axis",
-                            "champ_refine",
-                            "--jobs",
-                            "1",
-                            "--champ-refine-stage3b",
-                            str(payload_path),
-                            "--champ-refine-worker",
-                            str(worker_id),
-                            "--champ-refine-workers",
-                            str(workers_n),
-                            "--champ-refine-out",
-                            str(out_path),
-                            "--champ-refine-run-min-trades",
-                            str(int(run_min_trades)),
-                        ],
-                        capture_error="Failed to capture champ_refine stage3b worker stdout.",
-                        failure_label="champ_refine stage3b worker",
-                        missing_label="champ_refine stage3b",
-                        invalid_label="champ_refine stage3b",
-                    )
-
-                    tested_total_3b = 0
-                    for worker_id in range(jobs_eff):
-                        payload = payloads.get(int(worker_id))
-                        if not isinstance(payload, dict):
-                            continue
-                        tested_total_3b += int(payload.get("tested") or 0)
-                        for rec in payload.get("records") or []:
-                            if not isinstance(rec, dict):
-                                continue
-                            cfg = _cfg_from_payload(rec.get("strategy"), rec.get("filters"))
-                            if cfg is None:
-                                continue
-                            row = rec.get("row")
-                            if not isinstance(row, dict):
-                                continue
-                            note = str(rec.get("note") or "").strip() or "stage3b"
-                            row = dict(row)
-                            row["note"] = note
-                            _record_milestone(cfg, row, note)
-                            rows.append(row)
-
-                    tested_total += int(tested_total_3b)
+                tested_total += int(tested_total_3b)
             else:
                 shortlist_pairs = [(cfg, note) for cfg, _row, note in shortlist]
                 stage3b_plan = _build_stage3b_plan(shortlist_pairs)
-                tested_3b, kept_3b = _run_sweep(
+                tested_3b, stage3b_rows = _run_stage_serial(
+                    stage_label="  stage3b",
                     plan=stage3b_plan,
                     bars=bars_sig,
                     total=total_3b,
-                    progress_label="  stage3b",
                     report_every=report_every,
                     heartbeat_sec=heartbeat_sec,
                 )
                 tested_total += int(tested_3b)
-                for _cfg, row, _note, _meta in kept_3b:
+                for _cfg, row, _note in stage3b_rows:
                     rows.append(row)
 
         print("")
@@ -8349,8 +8567,6 @@ def main() -> None:
         print("")
 
         rows: list[dict] = []
-        tested_total = 0
-        t0 = pytime.perf_counter()
         report_every = 100
 
         gate_modes = ["detect", "surf", "block_longs"]
@@ -8425,26 +8641,13 @@ def main() -> None:
             * len(risk_scale_variants)
         )
 
-        for _seed_i, _item, cfg_seed, seed_note in _iter_seed_bundles(seeds):
+        def _build_variants(cfg_seed: ConfigBundle, seed_note: str, _item: dict):
             for gate_mode in gate_modes:
                 for det_over, det_note in detector_variants:
                     for override_dir in regime_override_dirs:
                         for short_factor in short_risk_factors:
                             for long_down in long_down_factors:
                                 for target_atr, min_mult, scale_note in risk_scale_variants:
-                                    tested_total += 1
-                                    if tested_total % report_every == 0 or tested_total == total:
-                                        elapsed = pytime.perf_counter() - t0
-                                        rate = (tested_total / elapsed) if elapsed > 0 else 0.0
-                                        remaining = total - tested_total
-                                        eta_sec = (remaining / rate) if rate > 0 else 0.0
-                                        pct = (tested_total / total * 100.0) if total > 0 else 0.0
-                                        print(
-                                            f"shock_alpha_refine {tested_total}/{total} ({pct:0.1f}%) kept={len(rows)} "
-                                            f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
-                                            flush=True,
-                                        )
-
                                     f_over: dict[str, object] = {
                                         "shock_gate_mode": str(gate_mode),
                                         "shock_direction_source": "signal",
@@ -8460,20 +8663,23 @@ def main() -> None:
                                         if min_mult is not None:
                                             f_over["shock_risk_scale_min_mult"] = float(min_mult)
                                     f_over.update(det_over)
-
                                     f_obj = _merge_filters(cfg_seed.strategy.filters, f_over)
                                     cfg = replace(cfg_seed, strategy=replace(cfg_seed.strategy, filters=f_obj))
-                                    row = _run_cfg(cfg=cfg)
-                                    if not row:
-                                        continue
                                     note = (
                                         f"{seed_note} | gate={gate_mode} {det_note} | "
                                         f"override_dir={int(override_dir)} | "
                                         f"short_factor={short_factor:g} long_down={long_down:g} | {scale_note}"
                                     )
-                                    row["note"] = note
-                                    _record_milestone(cfg, row, note)
-                                    rows.append(row)
+                                    yield cfg, note, None
+
+        _run_seeded_micro_grid(
+            axis_tag="shock_alpha_refine",
+            seeds=seeds,
+            rows=rows,
+            build_variants=_build_variants,
+            total=total,
+            report_every=report_every,
+        )
 
         _print_leaderboards(rows, title="shock_alpha_refine (seeded shock alpha micro)", top_n=int(args.top))
 
@@ -8510,8 +8716,6 @@ def main() -> None:
         print("")
 
         rows: list[dict] = []
-        tested_total = 0
-        t0 = pytime.perf_counter()
         report_every = 100
 
         shock_variants: list[tuple[dict[str, object], str]] = []
@@ -8669,7 +8873,19 @@ def main() -> None:
                         )
                     )
 
-        total = len(seeds) * len(shock_variants) * len(risk_variants)
+        def _build_variants(cfg_seed: ConfigBundle, seed_note: str, _item: dict):
+            for shock_over, shock_note in shock_variants:
+                for risk_over, risk_note in risk_variants:
+                    over: dict[str, object] = {}
+                    over.update(shock_over)
+                    over.update(risk_over)
+                    f_obj = _merge_filters(cfg_seed.strategy.filters, over)
+                    cfg = replace(cfg_seed, strategy=replace(cfg_seed.strategy, filters=f_obj))
+                    note = f"{seed_note} | {shock_note} | {risk_note}"
+                    yield cfg, note, None
+
+        plan_all = list(_iter_seed_micro_plan(seeds=seeds, build_variants=_build_variants))
+        total = len(plan_all)
         print(f"- shock_variants={len(shock_variants)} risk_variants={len(risk_variants)} total={total}", flush=True)
 
         if args.shock_velocity_worker is not None:
@@ -8687,175 +8903,76 @@ def main() -> None:
             )
 
             local_total = (total // workers) + (1 if worker_id < (total % workers) else 0)
-            tested = 0
-            kept = 0
-            combo_idx = 0
-            report_every_local = 100
-            t0_local = pytime.perf_counter()
+            shard_plan = (item for combo_idx, item in enumerate(plan_all) if (combo_idx % int(workers)) == int(worker_id))
+            tested, kept = _run_sweep(
+                plan=shard_plan,
+                total=local_total,
+                progress_label=f"{axis_tag} worker {worker_id+1}/{workers}",
+                report_every=max(1, int(report_every)),
+                heartbeat_sec=50.0,
+                record_milestones=False,
+            )
             records: list[dict] = []
-
-            def _progress() -> None:
-                elapsed = pytime.perf_counter() - t0_local
-                rate = (tested / elapsed) if elapsed > 0 else 0.0
-                remaining = local_total - tested
-                eta_sec = (remaining / rate) if rate > 0 else 0.0
-                pct = (tested / local_total * 100.0) if local_total > 0 else 0.0
-                print(
-                    f"{axis_tag} worker {worker_id+1}/{workers} "
-                    f"{tested}/{local_total} ({pct:0.1f}%) kept={kept} "
-                    f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
-                    flush=True,
+            for cfg, row, note, _meta in kept:
+                records.append(
+                    {
+                        "strategy": _spot_strategy_payload(cfg, meta=meta),
+                        "filters": _filters_payload(cfg.strategy.filters),
+                        "note": str(note),
+                        "row": row,
+                    }
                 )
-
-            for _seed_i, _item, cfg_seed, seed_note in _iter_seed_bundles(seeds):
-
-                for shock_over, shock_note in shock_variants:
-                    for risk_over, risk_note in risk_variants:
-                        assigned = (combo_idx % workers) == worker_id
-                        combo_idx += 1
-                        if not assigned:
-                            continue
-                        tested += 1
-                        if tested % report_every_local == 0 or tested == local_total:
-                            _progress()
-
-                        over: dict[str, object] = {}
-                        over.update(shock_over)
-                        over.update(risk_over)
-                        f_obj = _merge_filters(cfg_seed.strategy.filters, over)
-                        cfg = replace(cfg_seed, strategy=replace(cfg_seed.strategy, filters=f_obj))
-                        row = _run_cfg(cfg=cfg)
-                        if not row:
-                            continue
-                        note = f"{seed_note} | {shock_note} | {risk_note}"
-                        records.append(
-                            {
-                                "strategy": _spot_strategy_payload(cfg, meta=meta),
-                                "filters": _filters_payload(cfg.strategy.filters),
-                                "note": note,
-                                "row": row,
-                            }
-                        )
-                        kept += 1
-
-            if combo_idx != total:
-                raise SystemExit(f"{axis_tag} worker internal error: combos={combo_idx} expected={total}")
-
-            out_payload = {"tested": tested, "kept": kept, "records": records}
+            out_payload = {"tested": int(tested), "kept": len(records), "records": records}
             write_json(out_path, out_payload, sort_keys=False)
-            print(f"{axis_tag} worker done tested={tested} kept={kept} out={out_path}", flush=True)
+            print(f"{axis_tag} worker done tested={tested} kept={len(records)} out={out_path}", flush=True)
             return
 
         tested_total = 0
         if jobs > 1 and total > 0:
-            if not offline:
-                raise SystemExit(f"--jobs>1 for {axis_tag} requires --offline (avoid parallel IBKR sessions).")
-
-            base_cli = _strip_flags(
-                list(sys.argv[1:]),
-                flags=("--write-milestones", "--merge-milestones"),
-                flags_with_values=(
-                    "--axis",
-                    "--jobs",
-                    "--milestones-out",
+            payloads = _run_parallel_stage(
+                axis_name=str(axis_tag),
+                stage_label=str(axis_tag),
+                total=total,
+                jobs=int(jobs),
+                worker_tmp_prefix="tradebot_shock_velocity_",
+                worker_tag="sv",
+                out_prefix="shock_velocity_out",
+                worker_flag="--shock-velocity-worker",
+                workers_flag="--shock-velocity-workers",
+                out_flag="--shock-velocity-out",
+                strip_flags_with_values=(
                     "--shock-velocity-worker",
                     "--shock-velocity-workers",
                     "--shock-velocity-out",
                 ),
-            )
-
-            jobs_eff = min(int(jobs), int(_default_jobs()), int(total)) if total > 0 else 1
-            print(f"{axis_tag} parallel: workers={jobs_eff} total={total}", flush=True)
-
-            payloads = _run_parallel_json_worker_plan(
-                jobs_eff=jobs_eff,
-                tmp_prefix="tradebot_shock_velocity_",
-                worker_tag="sv",
-                out_prefix="shock_velocity_out",
-                build_cmd=lambda worker_id, workers_n, out_path: [
-                    sys.executable,
-                    "-u",
-                    "-m",
-                    "tradebot.backtest",
-                    "spot",
-                    *base_cli,
-                    "--axis",
-                    axis_tag,
-                    "--jobs",
-                    "1",
-                    "--shock-velocity-worker",
-                    str(worker_id),
-                    "--shock-velocity-workers",
-                    str(workers_n),
-                    "--shock-velocity-out",
-                    str(out_path),
-                ],
                 capture_error=f"Failed to capture {axis_tag} worker stdout.",
                 failure_label=f"{axis_tag} worker",
                 missing_label=str(axis_tag),
                 invalid_label=str(axis_tag),
             )
 
-            for worker_id in range(jobs_eff):
-                payload = payloads.get(int(worker_id))
-                if not isinstance(payload, dict):
-                    continue
-                tested_total += int(payload.get("tested") or 0)
-                for rec in payload.get("records") or []:
-                    if not isinstance(rec, dict):
-                        continue
-                    strat_payload = rec.get("strategy")
-                    filters_payload = rec.get("filters")
-                    note = rec.get("note")
-                    row = rec.get("row")
-                    if not isinstance(strat_payload, dict) or not isinstance(note, str) or not isinstance(row, dict):
-                        continue
-                    row = dict(row)
-                    filters_obj = _filters_from_payload(filters_payload) if isinstance(filters_payload, dict) else None
-                    cfg = _mk_bundle(
-                        strategy=_strategy_from_payload(strat_payload, filters=filters_obj),
-                        start=start,
-                        end=end,
-                        bar_size=signal_bar_size,
-                        use_rth=use_rth,
-                        cache_dir=cache_dir,
-                        offline=offline,
-                    )
-                    row["note"] = note
-                    _record_milestone(cfg, row, note)
-                    rows.append(row)
+            def _on_velocity_row(cfg: ConfigBundle, row: dict, note: str) -> None:
+                _record_milestone(cfg, row, note)
+                rows.append(row)
+
+            tested_total = _collect_stage_rows_from_payloads(
+                payloads=payloads,
+                default_note=str(axis_tag),
+                on_row=_on_velocity_row,
+                dedupe_by_milestone_key=False,
+            )
 
             run_calls_total += int(tested_total)
         else:
-            for _seed_i, _item, cfg_seed, seed_note in _iter_seed_bundles(seeds):
-
-                for shock_over, shock_note in shock_variants:
-                    for risk_over, risk_note in risk_variants:
-                        tested_total += 1
-                        if tested_total % report_every == 0 or tested_total == total:
-                            elapsed = pytime.perf_counter() - t0
-                            rate = (tested_total / elapsed) if elapsed > 0 else 0.0
-                            remaining = total - tested_total
-                            eta_sec = (remaining / rate) if rate > 0 else 0.0
-                            pct = (tested_total / total * 100.0) if total > 0 else 0.0
-                            print(
-                                f"{axis_tag} {tested_total}/{total} ({pct:0.1f}%) kept={len(rows)} "
-                                f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
-                                flush=True,
-                            )
-
-                        over: dict[str, object] = {}
-                        over.update(shock_over)
-                        over.update(risk_over)
-                        f_obj = _merge_filters(cfg_seed.strategy.filters, over)
-                        cfg = replace(cfg_seed, strategy=replace(cfg_seed.strategy, filters=f_obj))
-                        row = _run_cfg(cfg=cfg)
-                        if not row:
-                            continue
-                        note = f"{seed_note} | {shock_note} | {risk_note}"
-                        row["note"] = note
-                        _record_milestone(cfg, row, note)
-                        rows.append(row)
+            tested_total, kept = _run_sweep(
+                plan=plan_all,
+                total=total,
+                progress_label=axis_tag,
+                report_every=max(1, int(report_every)),
+                heartbeat_sec=50.0,
+            )
+            for _cfg, row, _note, _meta in kept:
+                rows.append(row)
 
         _print_leaderboards(
             rows,
@@ -9169,23 +9286,14 @@ def main() -> None:
         min_mults: tuple[float, ...] = (0.05, 0.1, 0.2)
         apply_tos: tuple[str, ...] = ("cap", "both")
 
-        t0 = pytime.perf_counter()
-        tested_total = 0
         report_every = 50
+        total = len(seeds) * len(scale_periods) * len(targets) * len(min_mults) * len(apply_tos)
 
-        for _seed_i, _item, cfg_seed, seed_note in _iter_seed_bundles(seeds):
-            _emit_seed_base_row(cfg_seed=cfg_seed, seed_note=seed_note, rows=rows, base_note="shock_scale=off (base)")
-
+        def _build_variants(cfg_seed: ConfigBundle, seed_note: str, _item: dict):
             for fast_p, slow_p in scale_periods:
                 for target_atr in targets:
                     for min_mult in min_mults:
                         for apply_to in apply_tos:
-                            tested_total += 1
-                            if tested_total % report_every == 0:
-                                elapsed = pytime.perf_counter() - t0
-                                rate = (tested_total / elapsed) if elapsed > 0 else 0.0
-                                print(f"{axis_tag} tested={tested_total} kept={len(rows)} rate={rate:0.1f}/s", flush=True)
-
                             over = {
                                 "shock_scale_detector": "tr_ratio",
                                 "shock_atr_fast_period": int(fast_p),
@@ -9198,17 +9306,21 @@ def main() -> None:
                             if f_obj is None:
                                 continue
                             cfg = replace(cfg_seed, strategy=replace(cfg_seed.strategy, filters=f_obj))
-                            row = _run_cfg(cfg=cfg)
-                            if not row:
-                                continue
                             note = (
                                 f"{seed_note} | shock_scale=tr_ratio {fast_p}/{slow_p} "
                                 f"target_atr%={target_atr:g} min_mult={min_mult:g} apply_to={apply_to}"
                             )
-                            row["note"] = note
-                            _record_milestone(cfg, row, note)
-                            rows.append(row)
+                            yield cfg, note, None
 
+        tested_total = _run_seeded_micro_grid(
+            axis_tag=axis_tag,
+            seeds=seeds,
+            rows=rows,
+            build_variants=_build_variants,
+            total=total,
+            report_every=report_every,
+            include_base_note="shock_scale=off (base)",
+        )
         run_calls_total += int(tested_total)
         _print_leaderboards(rows, title=f"{axis_tag} (seeded tr_ratio throttle micro)", top_n=int(args.top))
 
@@ -9253,23 +9365,14 @@ def main() -> None:
         min_mults: tuple[float, ...] = (0.05, 0.1, 0.2, 0.3)
         apply_tos: tuple[str, ...] = ("cap", "both")
 
-        t0 = pytime.perf_counter()
-        tested_total = 0
         report_every = 50
+        total = len(seeds) * len(lookbacks) * len(targets) * len(min_mults) * len(apply_tos)
 
-        for _seed_i, _item, cfg_seed, seed_note in _iter_seed_bundles(seeds):
-            _emit_seed_base_row(cfg_seed=cfg_seed, seed_note=seed_note, rows=rows, base_note="shock_scale=off (base)")
-
+        def _build_variants(cfg_seed: ConfigBundle, seed_note: str, _item: dict):
             for lb in lookbacks:
                 for target_dd in targets:
                     for min_mult in min_mults:
                         for apply_to in apply_tos:
-                            tested_total += 1
-                            if tested_total % report_every == 0:
-                                elapsed = pytime.perf_counter() - t0
-                                rate = (tested_total / elapsed) if elapsed > 0 else 0.0
-                                print(f"{axis_tag} tested={tested_total} kept={len(rows)} rate={rate:0.1f}/s", flush=True)
-
                             over = {
                                 "shock_scale_detector": "daily_drawdown",
                                 "shock_drawdown_lookback_days": int(lb),
@@ -9281,17 +9384,21 @@ def main() -> None:
                             if f_obj is None:
                                 continue
                             cfg = replace(cfg_seed, strategy=replace(cfg_seed.strategy, filters=f_obj))
-                            row = _run_cfg(cfg=cfg)
-                            if not row:
-                                continue
                             note = (
                                 f"{seed_note} | shock_scale=daily_drawdown lb={lb} "
                                 f"target_dd%={target_dd:g} min_mult={min_mult:g} apply_to={apply_to}"
                             )
-                            row["note"] = note
-                            _record_milestone(cfg, row, note)
-                            rows.append(row)
+                            yield cfg, note, None
 
+        tested_total = _run_seeded_micro_grid(
+            axis_tag=axis_tag,
+            seeds=seeds,
+            rows=rows,
+            build_variants=_build_variants,
+            total=total,
+            report_every=report_every,
+            include_base_note="shock_scale=off (base)",
+        )
         run_calls_total += int(tested_total)
         _print_leaderboards(rows, title=f"{axis_tag} (seeded daily_drawdown throttle micro)", top_n=int(args.top))
 
@@ -9342,13 +9449,19 @@ def main() -> None:
         long_factors: tuple[float, ...] = (1.0, 0.4, 0.0)
         scale_modes: tuple[str | None, ...] = (None, "linear")
 
-        t0 = pytime.perf_counter()
-        tested_total = 0
         report_every = 50
+        total = (
+            len(seeds)
+            * len(cutoffs_et)
+            * len(panic_tr_meds)
+            * len(neg_gap_ratios)
+            * len(neg_gap_abs_pcts)
+            * len(tr_delta_mins)
+            * len(long_factors)
+            * len(scale_modes)
+        )
 
-        for _seed_i, _item, cfg_seed, seed_note in _iter_seed_bundles(seeds):
-            _emit_seed_base_row(cfg_seed=cfg_seed, seed_note=seed_note, rows=rows, base_note="base")
-
+        def _build_variants(cfg_seed: ConfigBundle, seed_note: str, _item: dict):
             for cutoff in cutoffs_et:
                 for tr_med in panic_tr_meds:
                     for neg_ratio in neg_gap_ratios:
@@ -9356,12 +9469,6 @@ def main() -> None:
                             for tr_delta_min in tr_delta_mins:
                                 for long_factor in long_factors:
                                     for scale_mode in scale_modes:
-                                        tested_total += 1
-                                        if tested_total % report_every == 0:
-                                            elapsed = pytime.perf_counter() - t0
-                                            rate = (tested_total / elapsed) if elapsed > 0 else 0.0
-                                            print(f"{axis_tag} tested={tested_total} kept={len(rows)} rate={rate:0.1f}/s", flush=True)
-
                                         over: dict[str, object] = {
                                             # Disable other overlay families unless they exist in the seed.
                                             "riskoff_tr5_med_pct": None,
@@ -9383,10 +9490,6 @@ def main() -> None:
                                         if f_obj is None:
                                             continue
                                         cfg = replace(cfg_seed, strategy=replace(cfg_seed.strategy, filters=f_obj))
-                                        row = _run_cfg(cfg=cfg)
-                                        if not row:
-                                            continue
-
                                         cut_note = "-" if cutoff is None else str(cutoff)
                                         abs_note = "None" if abs_gap is None else f"{abs_gap:g}"
                                         delta_note = "=off" if tr_delta_min is None else f">={tr_delta_min:g}"
@@ -9395,12 +9498,43 @@ def main() -> None:
                                             f"{seed_note} | cutoff<{cut_note} | panic med5>={tr_med:g} gap>={neg_ratio:g} abs>={abs_note} "
                                             f"trΔ{delta_note} | long={long_factor:g} scale={mode_note}"
                                         )
-                                        row["note"] = note
-                                        _record_milestone(cfg, row, note)
-                                        rows.append(row)
+                                        yield cfg, note, None
 
+        tested_total = _run_seeded_micro_grid(
+            axis_tag=axis_tag,
+            seeds=seeds,
+            rows=rows,
+            build_variants=_build_variants,
+            total=total,
+            report_every=report_every,
+            include_base_note="base",
+        )
         run_calls_total += int(tested_total)
         _print_leaderboards(rows, title=f"{axis_tag} (seeded riskpanic micro)", top_n=int(args.top))
+
+    def _sweep_overlay_family(*, family: str | None = None) -> None:
+        family_registry = {
+            "shock_throttle_refine": _sweep_shock_throttle_refine,
+            "shock_throttle_tr_ratio": _sweep_shock_throttle_tr_ratio,
+            "shock_throttle_drawdown": _sweep_shock_throttle_drawdown,
+            "riskpanic_micro": _sweep_riskpanic_micro,
+        }
+        family_req = str(family or getattr(args, "overlay_family_kind", "all") or "all").strip().lower()
+        if family_req == "all":
+            selected = tuple(family_registry.keys())
+            print("")
+            print("=== overlay_family: running all seeded overlay families ===")
+            print("")
+        else:
+            if family_req not in family_registry:
+                valid = ", ".join(family_registry.keys())
+                raise SystemExit(f"Unknown overlay family: {family_req!r} (expected one of: {valid}, all)")
+            selected = (family_req,)
+
+        for family_name in selected:
+            fn = family_registry.get(str(family_name))
+            if callable(fn):
+                fn()
 
     def _sweep_exit_pivot() -> None:
         """Seeded micro-grid: exit-model pivot for higher-cadence lanes (PT/SL + flip semantics + close_eod)."""
@@ -9464,27 +9598,15 @@ def main() -> None:
         close_eod_vals: tuple[bool, ...] = (False, True)
         max_open_vals: tuple[int, ...] = (1, 2)
 
-        t0 = pytime.perf_counter()
-        tested_total = 0
         report_every = 100
+        total = len(seeds) * len(max_open_vals) * len(close_eod_vals) * len(only_profit_vals) * len(pt_vals) * len(sl_vals)
 
-        for _seed_i, _item, cfg_seed, seed_note in _iter_seed_bundles(seeds):
-            _emit_seed_base_row(cfg_seed=cfg_seed, seed_note=seed_note, rows=rows, base_note="base")
-
+        def _build_variants(cfg_seed: ConfigBundle, seed_note: str, _item: dict):
             for max_open in max_open_vals:
                 for close_eod in close_eod_vals:
                     for only_profit in only_profit_vals:
                         for pt in pt_vals:
                             for sl in sl_vals:
-                                tested_total += 1
-                                if tested_total % report_every == 0:
-                                    elapsed = pytime.perf_counter() - t0
-                                    rate = (tested_total / elapsed) if elapsed > 0 else 0.0
-                                    print(
-                                        f"{axis_tag} tested={tested_total} kept={len(rows)} rate={rate:0.1f}/s",
-                                        flush=True,
-                                    )
-
                                 cfg = replace(
                                     cfg_seed,
                                     strategy=replace(
@@ -9498,19 +9620,22 @@ def main() -> None:
                                         max_open_trades=int(max_open),
                                     ),
                                 )
-                                row = _run_cfg(cfg=cfg)
-                                if not row:
-                                    continue
-
                                 pt_note = "None" if pt is None else f"{pt:g}"
                                 note = (
                                     f"{seed_note} | max_open={max_open} close_eod={int(close_eod)} "
                                     f"only_profit={int(only_profit)} | PT={pt_note} SL={sl:g}"
                                 )
-                                row["note"] = note
-                                _record_milestone(cfg, row, note)
-                                rows.append(row)
+                                yield cfg, note, None
 
+        tested_total = _run_seeded_micro_grid(
+            axis_tag=axis_tag,
+            seeds=seeds,
+            rows=rows,
+            build_variants=_build_variants,
+            total=total,
+            report_every=report_every,
+            include_base_note="base",
+        )
         run_calls_total += int(tested_total)
         _print_leaderboards(rows, title=f"{axis_tag} (seeded exit pivot)", top_n=int(args.top))
 
@@ -9566,44 +9691,17 @@ def main() -> None:
             print(f"No matching 3/7 trend + ST(4h) seeds found in {seed_path} for {symbol} {signal_bar_size} rth={use_rth}.")
             return
 
-        def _seed_key(item: dict) -> str:
-            st = item.get("strategy") or {}
-            flt = item.get("filters")
-            raw = {"strategy": st, "filters": flt}
-            return json.dumps(raw, sort_keys=True, default=str)
-
-        def _seed_score(item: dict) -> tuple:
-            # Prefer stability-ranked inputs (kingmaker output), but fall back to pnl/dd.
-            ev = item.get("eval") or {}
-            try:
-                stab = float(ev.get("stability_min_roi_dd") or 0.0)
-            except (TypeError, ValueError):
-                stab = 0.0
-            m = item.get("metrics") or {}
-            try:
-                roi_dd = float(m.get("roi_over_dd_pct") or 0.0)
-            except (TypeError, ValueError):
-                roi_dd = 0.0
-            return (
-                stab,
-                roi_dd,
-                float(m.get("pnl_over_dd") or 0.0),
-                float(m.get("roi") or 0.0),
-                float(m.get("pnl") or 0.0),
-            )
-
         seed_top = max(1, int(args.seed_top or 0))
-        cand_sorted = sorted(candidates, key=_seed_score, reverse=True)
-        seen: set[str] = set()
-        seeds: list[dict] = []
-        for item in cand_sorted:
-            key = _seed_key(item)
-            if key in seen:
-                continue
-            seen.add(key)
-            seeds.append(item)
-            if len(seeds) >= seed_top:
-                break
+        cand_sorted = _seed_rank_slice(
+            candidates,
+            scorer="stability_roi_dd",
+            top_n=len(candidates),
+        )
+        seeds = _seed_dedupe_candidates(
+            cand_sorted,
+            limit=seed_top,
+            key_fn=_seed_candidate_key,
+        )
 
         print("")
         print("=== st37_refine: 3/7 trend + ST(4h) refinement (seeded) ===")
@@ -9662,22 +9760,58 @@ def main() -> None:
         bars_sig = _bars_cached(signal_bar_size)
         heartbeat_sec = 50.0
 
+        def _mk_stage2_cfg(base_cfg: ConfigBundle, *, risk_over: dict[str, object], shock_over: dict[str, object]) -> ConfigBundle:
+            over: dict[str, object] = {}
+            over.update(risk_over)
+            over.update(shock_over)
+            f = _merge_filters(base_cfg.strategy.filters, overrides=over)
+            return replace(base_cfg, strategy=replace(base_cfg.strategy, filters=f))
+
+        def _build_stage2_plan(
+            shortlist_local: list[tuple[ConfigBundle, str]],
+            *,
+            risk_variants_local: list[tuple[dict[str, object], str]],
+            shock_variants_local: list[tuple[dict[str, object], str]],
+        ) -> list[tuple[ConfigBundle, str, dict]]:
+            plan: list[tuple[ConfigBundle, str, dict]] = []
+            for base_idx, (base_cfg, base_note) in enumerate(shortlist_local):
+                for risk_idx, (risk_over, risk_note) in enumerate(risk_variants_local):
+                    for shock_idx, (shock_over, shock_note) in enumerate(shock_variants_local):
+                        cfg = _mk_stage2_cfg(base_cfg, risk_over=risk_over, shock_over=shock_over)
+                        note = f"{base_note} | {risk_note} | {shock_note}"
+                        plan.append(
+                            (
+                                cfg,
+                                note,
+                                {
+                                    "base_idx": int(base_idx),
+                                    "risk_idx": int(risk_idx),
+                                    "shock_idx": int(shock_idx),
+                                },
+                            )
+                        )
+            return plan
+
+        def _parse_stage2_variants_payload(raw: object, *, name: str, payload_path: Path) -> list[tuple[dict[str, object], str]]:
+            if not isinstance(raw, list):
+                raise SystemExit(f"st37_refine stage2 payload missing '{name}' list: {payload_path}")
+            out: list[tuple[dict[str, object], str]] = []
+            for item in raw:
+                if not isinstance(item, dict):
+                    continue
+                over = item.get("overrides")
+                note = item.get("note")
+                if not isinstance(over, dict):
+                    continue
+                out.append((over, str(note or "")))
+            if not out:
+                raise SystemExit(f"st37_refine stage2 payload '{name}' empty/invalid: {payload_path}")
+            return out
+
         # Stage2 worker mode must early-exit before stage1 runs; this is invoked by the stage2
         # sharded runner when --jobs>1.
         if args.st37_refine_stage2:
-            if not offline:
-                raise SystemExit("st37_refine stage2 worker mode requires --offline (avoid parallel IBKR sessions).")
             payload_path = Path(str(args.st37_refine_stage2))
-            out_path_raw = str(args.st37_refine_out or "").strip()
-            if not out_path_raw:
-                raise SystemExit("--st37-refine-out is required for st37_refine stage2 worker mode.")
-            out_path = Path(out_path_raw)
-
-            worker_id, workers = _parse_worker_shard(
-                args.st37_refine_worker,
-                args.st37_refine_workers,
-                label="st37_refine stage2",
-            )
 
             try:
                 payload = json.loads(payload_path.read_text())
@@ -9688,38 +9822,24 @@ def main() -> None:
             if not isinstance(raw_shortlist, list):
                 raise SystemExit(f"st37_refine stage2 payload missing 'shortlist' list: {payload_path}")
 
-            def _parse_variants(raw: object, *, name: str) -> list[tuple[dict[str, object], str]]:
-                if not isinstance(raw, list):
-                    raise SystemExit(f"st37_refine stage2 payload missing '{name}' list: {payload_path}")
-                out: list[tuple[dict[str, object], str]] = []
-                for item in raw:
-                    if not isinstance(item, dict):
-                        continue
-                    over = item.get("overrides")
-                    note = item.get("note")
-                    if not isinstance(over, dict):
-                        continue
-                    out.append((over, str(note or "")))
-                if not out:
-                    raise SystemExit(f"st37_refine stage2 payload '{name}' empty/invalid: {payload_path}")
-                return out
-
-            risk_variants_local = _parse_variants(payload.get("risk_variants") if isinstance(payload, dict) else None, name="risk_variants")
-            shock_variants_local = _parse_variants(payload.get("shock_variants") if isinstance(payload, dict) else None, name="shock_variants")
+            risk_variants_local = _parse_stage2_variants_payload(
+                payload.get("risk_variants") if isinstance(payload, dict) else None,
+                name="risk_variants",
+                payload_path=payload_path,
+            )
+            shock_variants_local = _parse_stage2_variants_payload(
+                payload.get("shock_variants") if isinstance(payload, dict) else None,
+                name="shock_variants",
+                payload_path=payload_path,
+            )
 
             shortlist_local: list[tuple[ConfigBundle, str]] = []
             for item in raw_shortlist:
-                if not isinstance(item, dict):
+                decoded = _decode_cfg_payload(item, note_key="base_note")
+                if decoded is None:
                     continue
-                if not isinstance(item.get("strategy"), dict):
-                    continue
-                flt = item.get("filters")
-                if flt is not None and not isinstance(flt, dict):
-                    flt = None
                 seed_tag = str(item.get("seed_tag") or "seed")
-                base_note = str(item.get("base_note") or "")
-                base = _base_bundle(bar_size=signal_bar_size, filters=None)
-                cfg_seed = _apply_milestone_base(base, strategy=item["strategy"], filters=flt)
+                cfg_seed, base_note = decoded
                 shortlist_local.append((cfg_seed, f"{seed_tag} | {base_note}"))
 
             stage2_plan_all = _build_stage2_plan(
@@ -9727,34 +9847,17 @@ def main() -> None:
                 risk_variants_local=risk_variants_local,
                 shock_variants_local=shock_variants_local,
             )
-            stage2_total = len(stage2_plan_all)
-            local_total = (stage2_total // workers) + (1 if worker_id < (stage2_total % workers) else 0)
-            shard_plan = (
-                item for combo_idx, item in enumerate(stage2_plan_all) if (combo_idx % int(workers)) == int(worker_id)
-            )
-            tested, kept = _run_sweep(
-                plan=shard_plan,
+            _run_sharded_stage_worker(
+                stage_label="st37_refine stage2",
+                worker_raw=args.st37_refine_worker,
+                workers_raw=args.st37_refine_workers,
+                out_path_raw=str(args.st37_refine_out or ""),
+                out_flag_name="st37-refine-out",
+                plan_all=stage2_plan_all,
                 bars=bars_sig,
-                total=local_total,
-                progress_label=f"st37_refine stage2 worker {worker_id+1}/{workers}",
                 report_every=200,
                 heartbeat_sec=heartbeat_sec,
-                record_milestones=False,
             )
-
-            records: list[dict] = []
-            for cfg, row, note, _meta in kept:
-                records.append(
-                    {
-                        "strategy": _spot_strategy_payload(cfg, meta=meta),
-                        "filters": _filters_payload(cfg.strategy.filters),
-                        "note": str(note),
-                        "row": row,
-                    }
-                )
-            out_payload = {"tested": tested, "kept": len(records), "records": records}
-            write_json(out_path, out_payload, sort_keys=False)
-            print(f"st37_refine stage2 worker done tested={tested} kept={len(records)} out={out_path}", flush=True)
             return
 
         # Stage 1: sweep v31-style permission gates + TOD window + (SL, short_mult).
@@ -9823,23 +9926,6 @@ def main() -> None:
             note = f"st37 {seed_tag} | {perm_note} | {tod_note} | SL={sl_pct:g} short={short_mult:g}"
             return cfg, note
 
-        def _cfg_from_payload(strategy_payload, filters_payload) -> ConfigBundle | None:
-            if not isinstance(strategy_payload, dict):
-                return None
-            filters_obj = filters_payload if isinstance(filters_payload, dict) else None
-            try:
-                base = _base_bundle(bar_size=signal_bar_size, filters=None)
-                return _apply_milestone_base(base, strategy=strategy_payload, filters=filters_obj)
-            except Exception:
-                return None
-
-        def _mk_stage2_cfg(base_cfg: ConfigBundle, *, risk_over: dict[str, object], shock_over: dict[str, object]) -> ConfigBundle:
-            over: dict[str, object] = {}
-            over.update(risk_over)
-            over.update(shock_over)
-            f = _merge_filters(base_cfg.strategy.filters, overrides=over)
-            return replace(base_cfg, strategy=replace(base_cfg.strategy, filters=f))
-
         def _build_stage1_plan(seed_items: list[dict]) -> list[tuple[ConfigBundle, str, dict]]:
             plan: list[tuple[ConfigBundle, str, dict]] = []
             for seed_idx, seed in enumerate(seed_items):
@@ -9874,45 +9960,8 @@ def main() -> None:
                                 )
             return plan
 
-        def _build_stage2_plan(
-            shortlist_local: list[tuple[ConfigBundle, str]],
-            *,
-            risk_variants_local: list[tuple[dict[str, object], str]],
-            shock_variants_local: list[tuple[dict[str, object], str]],
-        ) -> list[tuple[ConfigBundle, str, dict]]:
-            plan: list[tuple[ConfigBundle, str, dict]] = []
-            for base_idx, (base_cfg, base_note) in enumerate(shortlist_local):
-                for risk_idx, (risk_over, risk_note) in enumerate(risk_variants_local):
-                    for shock_idx, (shock_over, shock_note) in enumerate(shock_variants_local):
-                        cfg = _mk_stage2_cfg(base_cfg, risk_over=risk_over, shock_over=shock_over)
-                        note = f"{base_note} | {risk_note} | {shock_note}"
-                        plan.append(
-                            (
-                                cfg,
-                                note,
-                                {
-                                    "base_idx": int(base_idx),
-                                    "risk_idx": int(risk_idx),
-                                    "shock_idx": int(shock_idx),
-                                },
-                            )
-                        )
-            return plan
-
         if args.st37_refine_stage1:
-            if not offline:
-                raise SystemExit("st37_refine stage1 worker mode requires --offline (avoid parallel IBKR sessions).")
             payload_path = Path(str(args.st37_refine_stage1))
-            out_path_raw = str(args.st37_refine_out or "").strip()
-            if not out_path_raw:
-                raise SystemExit("--st37-refine-out is required for st37_refine stage1 worker mode.")
-            out_path = Path(out_path_raw)
-
-            worker_id, workers = _parse_worker_shard(
-                args.st37_refine_worker,
-                args.st37_refine_workers,
-                label="st37_refine stage1",
-            )
 
             try:
                 payload = json.loads(payload_path.read_text())
@@ -9934,34 +9983,17 @@ def main() -> None:
                 seeds_local.append({"strategy": item["strategy"], "filters": flt, "group_name": str(item.get("group_name") or "")})
 
             stage1_plan_all = _build_stage1_plan(seeds_local)
-            stage1_total = len(stage1_plan_all)
-            local_total = (stage1_total // workers) + (1 if worker_id < (stage1_total % workers) else 0)
-            shard_plan = (
-                item for combo_idx, item in enumerate(stage1_plan_all) if (combo_idx % int(workers)) == int(worker_id)
-            )
-            tested, kept = _run_sweep(
-                plan=shard_plan,
+            _run_sharded_stage_worker(
+                stage_label="st37_refine stage1",
+                worker_raw=args.st37_refine_worker,
+                workers_raw=args.st37_refine_workers,
+                out_path_raw=str(args.st37_refine_out or ""),
+                out_flag_name="st37-refine-out",
+                plan_all=stage1_plan_all,
                 bars=bars_sig,
-                total=local_total,
-                progress_label=f"st37_refine stage1 worker {worker_id+1}/{workers}",
                 report_every=200,
                 heartbeat_sec=heartbeat_sec,
-                record_milestones=False,
             )
-
-            records: list[dict] = []
-            for cfg, row, note, _meta in kept:
-                records.append(
-                    {
-                        "strategy": _spot_strategy_payload(cfg, meta=meta),
-                        "filters": _filters_payload(cfg.strategy.filters),
-                        "note": str(note),
-                        "row": row,
-                    }
-                )
-            out_payload = {"tested": tested, "kept": len(records), "records": records}
-            write_json(out_path, out_payload, sort_keys=False)
-            print(f"st37_refine stage1 worker done tested={tested} kept={len(records)} out={out_path}", flush=True)
             return
 
         stage1_rows: list[tuple[ConfigBundle, dict, str]] = []
@@ -9970,16 +10002,25 @@ def main() -> None:
         tested_1 = 0
         report_every = 200
         if jobs > 1:
-            if not offline:
-                raise SystemExit("--jobs>1 for st37_refine requires --offline (avoid parallel IBKR sessions).")
-
-            base_cli = _strip_flags(
-                list(sys.argv[1:]),
-                flags=("--write-milestones", "--merge-milestones"),
-                flags_with_values=(
-                    "--axis",
-                    "--jobs",
-                    "--milestones-out",
+            seeds_payload: list[dict] = []
+            for s in seeds:
+                seeds_payload.append({"group_name": str(s.get("group_name") or ""), "strategy": s["strategy"], "filters": s.get("filters")})
+            payloads = _run_parallel_stage_with_payload(
+                axis_name="st37_refine",
+                stage_label="st37_refine stage1",
+                total=stage1_total,
+                jobs=int(jobs),
+                payload={"seeds": seeds_payload},
+                payload_filename="stage1_payload.json",
+                temp_prefix="tradebot_st37_refine_1_",
+                worker_tmp_prefix="tradebot_st37_refine_stage1_",
+                worker_tag="st37:1",
+                out_prefix="stage1_out",
+                stage_flag="--st37-refine-stage1",
+                worker_flag="--st37-refine-worker",
+                workers_flag="--st37-refine-workers",
+                out_flag="--st37-refine-out",
+                strip_flags_with_values=(
                     "--st37-refine-stage1",
                     "--st37-refine-stage2",
                     "--st37-refine-worker",
@@ -9987,117 +10028,47 @@ def main() -> None:
                     "--st37-refine-out",
                     "--st37-refine-run-min-trades",
                 ),
+                run_min_trades_flag="--st37-refine-run-min-trades",
+                run_min_trades=int(run_min_trades),
+                capture_error="Failed to capture st37_refine stage1 worker stdout.",
+                failure_label="st37_refine stage1 worker",
+                missing_label="st37_refine stage1",
+                invalid_label="st37_refine stage1",
             )
 
-            jobs_eff = min(int(jobs), int(_default_jobs()), int(stage1_total)) if stage1_total > 0 else 1
-            print(f"st37_refine stage1 parallel: workers={jobs_eff} total={stage1_total}", flush=True)
+            def _on_stage1_row(cfg: ConfigBundle, row: dict, note: str) -> None:
+                _record_milestone(cfg, row, note)
+                stage1_rows.append((cfg, row, note))
 
-            with tempfile.TemporaryDirectory(prefix="tradebot_st37_refine_1_") as tmpdir:
-                tmp_root = Path(tmpdir)
-                payload_path = tmp_root / "stage1_payload.json"
-                seeds_payload: list[dict] = []
-                for s in seeds:
-                    seeds_payload.append(
-                        {"group_name": str(s.get("group_name") or ""), "strategy": s["strategy"], "filters": s.get("filters")}
-                    )
-                write_json(payload_path, {"seeds": seeds_payload}, sort_keys=False)
+            tested_total = _collect_stage_rows_from_payloads(
+                payloads=payloads,
+                default_note="st37 stage1",
+                on_row=_on_stage1_row,
+                dedupe_by_milestone_key=True,
+            )
 
-                payloads = _run_parallel_json_worker_plan(
-                    jobs_eff=jobs_eff,
-                    tmp_prefix="tradebot_st37_refine_stage1_",
-                    worker_tag="st37:1",
-                    out_prefix="stage1_out",
-                    build_cmd=lambda worker_id, workers_n, out_path: [
-                        sys.executable,
-                        "-u",
-                        "-m",
-                        "tradebot.backtest",
-                        "spot",
-                        *base_cli,
-                        "--axis",
-                        "st37_refine",
-                        "--jobs",
-                        "1",
-                        "--st37-refine-stage1",
-                        str(payload_path),
-                        "--st37-refine-worker",
-                        str(worker_id),
-                        "--st37-refine-workers",
-                        str(workers_n),
-                        "--st37-refine-out",
-                        str(out_path),
-                        "--st37-refine-run-min-trades",
-                        str(int(run_min_trades)),
-                    ],
-                    capture_error="Failed to capture st37_refine stage1 worker stdout.",
-                    failure_label="st37_refine stage1 worker",
-                    missing_label="st37_refine stage1",
-                    invalid_label="st37_refine stage1",
-                )
-
-                tested_total = 0
-                for worker_id in range(jobs_eff):
-                    payload = payloads.get(int(worker_id))
-                    if not isinstance(payload, dict):
-                        continue
-                    tested_total += int(payload.get("tested") or 0)
-                    for rec in payload.get("records") or []:
-                        if not isinstance(rec, dict):
-                            continue
-                        cfg = _cfg_from_payload(rec.get("strategy"), rec.get("filters"))
-                        if cfg is None:
-                            continue
-                        row = rec.get("row")
-                        if not isinstance(row, dict):
-                            continue
-                        note = str(rec.get("note") or "").strip() or "st37 stage1"
-                        row = dict(row)
-                        row["note"] = note
-                        _record_milestone(cfg, row, note)
-                        stage1_rows.append((cfg, row, note))
-
-                tested_1 = int(tested_total)
+            tested_1 = int(tested_total)
         else:
             stage1_plan = _build_stage1_plan(seeds)
-            tested_1, kept_1 = _run_sweep(
+            tested_1, stage1_rows_new = _run_stage_serial(
+                stage_label="st37_refine stage1",
                 plan=stage1_plan,
                 bars=bars_sig,
                 total=stage1_total,
-                progress_label="st37_refine stage1",
                 report_every=report_every,
                 heartbeat_sec=heartbeat_sec,
             )
-            for cfg, row, note, _meta in kept_1:
-                stage1_rows.append((cfg, row, note))
+            stage1_rows.extend(stage1_rows_new)
 
         print(f"st37_refine: stage1 kept={len(stage1_rows)} tested={tested_1}", flush=True)
         if not stage1_rows:
             return
 
-        def _roi_dd(row: dict) -> float:
-            try:
-                roi = float(row.get("roi") or 0.0)
-            except (TypeError, ValueError):
-                roi = 0.0
-            try:
-                dd_pct = float(row.get("dd_pct") or 0.0)
-            except (TypeError, ValueError):
-                dd_pct = 0.0
-            if dd_pct <= 0:
-                return float("-inf") if roi <= 0 else float("inf")
-            return roi / dd_pct
-
-        stage1_sorted = sorted(stage1_rows, key=lambda t: (_roi_dd(t[1]), float(t[1].get("pnl_over_dd") or 0.0)), reverse=True)
-        seen_cfg: set[str] = set()
-        stage1_shortlist: list[tuple[ConfigBundle, dict, str]] = []
-        for cfg, row, note in stage1_sorted:
-            key = _milestone_key(cfg)
-            if key in seen_cfg:
-                continue
-            seen_cfg.add(key)
-            stage1_shortlist.append((cfg, row, note))
-            if len(stage1_shortlist) >= 30:
-                break
+        stage1_shortlist = _rank_cfg_rows(
+            stage1_rows,
+            scorers=[(_score_row_roi_dd, 30), (_score_row_pnl_dd, 20)],
+            limit=30,
+        )
 
         print(f"st37_refine: stage1 shortlist={len(stage1_shortlist)}", flush=True)
 
@@ -10106,227 +10077,8 @@ def main() -> None:
         # Goal: aggressively explore the TR-median + gap-ratio overlays (riskpanic + riskpop),
         # plus plain TR-median hygiene overlays (riskoff), with the full aggressive/defensive
         # sizing ends included (notably riskpop_short_factor=0.0 to hard-block shorts).
-        risk_off = {
-            "risk_entry_cutoff_hour_et": None,
-            "riskoff_tr5_med_pct": None,
-            "riskpanic_tr5_med_pct": None,
-            "riskpanic_neg_gap_ratio_min": None,
-            "riskpop_tr5_med_pct": None,
-            "riskpop_pos_gap_ratio_min": None,
-            "riskoff_mode": None,
-            "riskoff_tr5_lookback_days": None,
-            "riskoff_short_risk_mult_factor": None,
-            "riskoff_long_risk_mult_factor": None,
-            "riskpanic_lookback_days": None,
-            "riskpanic_short_risk_mult_factor": None,
-            "riskpop_lookback_days": None,
-            "riskpop_long_risk_mult_factor": None,
-            "riskpop_short_risk_mult_factor": None,
-        }
-        risk_variants: list[tuple[dict[str, object], str]] = [(risk_off, "risk=off")]
-
-        panic_base = {
-            **risk_off,
-            "risk_entry_cutoff_hour_et": 15,
-            "riskpanic_tr5_med_pct": 9.0,
-            "riskpanic_neg_gap_ratio_min": 0.6,
-            "riskpanic_lookback_days": 5,
-            "riskpanic_short_risk_mult_factor": 0.5,
-            "riskoff_mode": "hygiene",
-        }
-        risk_variants.append((panic_base, "riskpanic base (TRmed>=9 gap>=0.6 short=0.5 cutoff<15)"))
-        for v in (1.0, 0.5, 0.2, 0.0):
-            risk_variants.append(({**panic_base, "riskpanic_short_risk_mult_factor": float(v)}, f"riskpanic short={v:g}"))
-        for tr in (8.0, 9.0, 10.0, 11.0):
-            risk_variants.append(({**panic_base, "riskpanic_tr5_med_pct": float(tr)}, f"riskpanic TRmed>={tr:g}"))
-        for ratio in (0.5, 0.6, 0.7):
-            risk_variants.append(({**panic_base, "riskpanic_neg_gap_ratio_min": float(ratio)}, f"riskpanic gap>={ratio:g}"))
-        for lb in (3, 5, 7):
-            risk_variants.append(({**panic_base, "riskpanic_lookback_days": int(lb)}, f"riskpanic lookback={lb}d"))
-        for cutoff in (None, 15, 16):
-            risk_variants.append(
-                ({**panic_base, "risk_entry_cutoff_hour_et": int(cutoff) if cutoff is not None else None}, f"riskpanic cutoff<{cutoff or '-'}")
-            )
-        for mode in ("hygiene", "directional"):
-            risk_variants.append(({**panic_base, "riskoff_mode": str(mode)}, f"riskpanic mode={mode}"))
-
-        riskoff_base = {
-            **risk_off,
-            "risk_entry_cutoff_hour_et": 15,
-            "riskoff_tr5_med_pct": 9.0,
-            "riskoff_tr5_lookback_days": 5,
-            "riskoff_mode": "directional",
-            "riskoff_long_risk_mult_factor": 0.8,
-            "riskoff_short_risk_mult_factor": 0.5,
-        }
-        risk_variants.append((riskoff_base, "riskoff base (TRmed>=9 long=0.8 short=0.5 cutoff<15)"))
-        for tr in (8.0, 9.0, 10.0, 11.0):
-            risk_variants.append(({**riskoff_base, "riskoff_tr5_med_pct": float(tr)}, f"riskoff TRmed>={tr:g}"))
-        for lb in (3, 5, 7):
-            risk_variants.append(({**riskoff_base, "riskoff_tr5_lookback_days": int(lb)}, f"riskoff lookback={lb}d"))
-        for long_f in (0.6, 0.8, 1.0):
-            risk_variants.append(({**riskoff_base, "riskoff_long_risk_mult_factor": float(long_f)}, f"riskoff long={long_f:g}"))
-        for short_f in (1.0, 0.5, 0.2, 0.0):
-            risk_variants.append(({**riskoff_base, "riskoff_short_risk_mult_factor": float(short_f)}, f"riskoff short={short_f:g}"))
-        for cutoff in (None, 15, 16):
-            risk_variants.append(
-                ({**riskoff_base, "risk_entry_cutoff_hour_et": int(cutoff) if cutoff is not None else None}, f"riskoff cutoff<{cutoff or '-'}")
-            )
-        for mode in ("hygiene", "directional"):
-            risk_variants.append(({**riskoff_base, "riskoff_mode": str(mode)}, f"riskoff mode={mode}"))
-
-        pop_base = {
-            **risk_off,
-            "risk_entry_cutoff_hour_et": 15,
-            "riskpop_tr5_med_pct": 9.0,
-            "riskpop_pos_gap_ratio_min": 0.6,
-            "riskpop_lookback_days": 5,
-            "riskpop_long_risk_mult_factor": 1.2,
-            "riskpop_short_risk_mult_factor": 0.5,
-            "riskoff_mode": "hygiene",
-        }
-        risk_variants.append((pop_base, "riskpop base (TRmed>=9 gap>=0.6 long=1.2 short=0.5 cutoff<15)"))
-        for tr in (8.0, 9.0, 10.0, 11.0):
-            risk_variants.append(({**pop_base, "riskpop_tr5_med_pct": float(tr)}, f"riskpop TRmed>={tr:g}"))
-        for ratio in (0.5, 0.6, 0.7):
-            risk_variants.append(({**pop_base, "riskpop_pos_gap_ratio_min": float(ratio)}, f"riskpop gap>={ratio:g}"))
-        for lb in (3, 5, 7):
-            risk_variants.append(({**pop_base, "riskpop_lookback_days": int(lb)}, f"riskpop lookback={lb}d"))
-        # Defensive (2A): reduce long risk when pop is on.
-        for long_f in (0.6, 0.8, 1.0, 1.2, 1.5):
-            risk_variants.append(
-                ({**pop_base, "riskpop_long_risk_mult_factor": float(long_f), "riskpop_short_risk_mult_factor": 1.0}, f"riskpop long={long_f:g} short=1.0")
-            )
-        # Aggressive (2B): block shorts in pop regimes.
-        for short_f in (1.0, 0.5, 0.2, 0.0):
-            risk_variants.append(
-                ({**pop_base, "riskpop_long_risk_mult_factor": 1.2, "riskpop_short_risk_mult_factor": float(short_f)}, f"riskpop long=1.2 short={short_f:g}")
-            )
-        risk_variants.append(
-            ({**pop_base, "riskpop_long_risk_mult_factor": 1.5, "riskpop_short_risk_mult_factor": 0.0}, "riskpop long=1.5 short=0.0")
-        )
-        for cutoff in (None, 15, 16):
-            risk_variants.append(
-                ({**pop_base, "risk_entry_cutoff_hour_et": int(cutoff) if cutoff is not None else None}, f"riskpop cutoff<{cutoff or '-'}")
-            )
-        for mode in ("hygiene", "directional"):
-            risk_variants.append(({**pop_base, "riskoff_mode": str(mode)}, f"riskpop mode={mode}"))
-
-        # Mixed overlays (small set; keep bounded).
-        risk_variants.append(
-            (
-                {
-                    **risk_off,
-                    **panic_base,
-                    "riskoff_tr5_med_pct": riskoff_base.get("riskoff_tr5_med_pct"),
-                    "riskoff_tr5_lookback_days": riskoff_base.get("riskoff_tr5_lookback_days"),
-                    "riskoff_mode": riskoff_base.get("riskoff_mode"),
-                    "riskoff_long_risk_mult_factor": riskoff_base.get("riskoff_long_risk_mult_factor"),
-                    "riskoff_short_risk_mult_factor": riskoff_base.get("riskoff_short_risk_mult_factor"),
-                },
-                "riskoff+panic base",
-            )
-        )
-        risk_variants.append(
-            (
-                {
-                    **risk_off,
-                    **pop_base,
-                    "riskoff_tr5_med_pct": riskoff_base.get("riskoff_tr5_med_pct"),
-                    "riskoff_tr5_lookback_days": riskoff_base.get("riskoff_tr5_lookback_days"),
-                    "riskoff_mode": riskoff_base.get("riskoff_mode"),
-                    "riskoff_long_risk_mult_factor": riskoff_base.get("riskoff_long_risk_mult_factor"),
-                    "riskoff_short_risk_mult_factor": riskoff_base.get("riskoff_short_risk_mult_factor"),
-                },
-                "riskoff+pop base",
-            )
-        )
-
-        shock_variants: list[tuple[dict[str, object], str]] = [
-            ({}, "shock=off"),
-        ]
-        # v31-style daily ATR% surf pocket (+ optional TR-trigger).
-        for on_atr, off_atr in ((13.5, 13.0), (14.0, 13.5), (14.5, 14.0)):
-            base = {
-                "shock_gate_mode": "surf",
-                "shock_detector": "daily_atr_pct",
-                "shock_daily_atr_period": 14,
-                "shock_daily_on_atr_pct": float(on_atr),
-                "shock_daily_off_atr_pct": float(off_atr),
-                "shock_direction_source": "signal",
-                "shock_direction_lookback": 1,
-                "shock_stop_loss_pct_mult": 0.75,
-            }
-            shock_variants.append((base, f"shock=surf daily_atr on={on_atr:g} off={off_atr:g}"))
-            for tr_on in (9.0, 10.0, 11.0):
-                shock_variants.append(
-                    (
-                        {**base, "shock_daily_on_tr_pct": float(tr_on)},
-                        f"shock=surf daily_atr on={on_atr:g} off={off_atr:g} tr_on={tr_on:g}",
-                    )
-                )
-
-        # ATR-ratio pocket.
-        for on_ratio, off_ratio in ((1.35, 1.25), (1.45, 1.30), (1.55, 1.30)):
-            shock_variants.append(
-                (
-                    {
-                        "shock_gate_mode": "surf",
-                        "shock_detector": "atr_ratio",
-                        "shock_atr_fast_period": 7,
-                        "shock_atr_slow_period": 50,
-                        "shock_on_ratio": float(on_ratio),
-                        "shock_off_ratio": float(off_ratio),
-                        "shock_min_atr_pct": 7.0,
-                        "shock_direction_source": "signal",
-                        "shock_direction_lookback": 1,
-                        "shock_stop_loss_pct_mult": 0.75,
-                    },
-                    f"shock=surf atr_ratio on={on_ratio:g} off={off_ratio:g}",
-                )
-            )
-
-        # TR-ratio pocket (often substitutes for daily ATR gating).
-        for on_ratio, off_ratio in ((1.35, 1.25), (1.45, 1.30), (1.55, 1.30)):
-            shock_variants.append(
-                (
-                    {
-                        "shock_gate_mode": "surf",
-                        "shock_detector": "tr_ratio",
-                        "shock_atr_fast_period": 7,
-                        "shock_atr_slow_period": 50,
-                        "shock_on_ratio": float(on_ratio),
-                        "shock_off_ratio": float(off_ratio),
-                        "shock_min_atr_pct": 7.0,
-                        "shock_direction_source": "signal",
-                        "shock_direction_lookback": 1,
-                        "shock_stop_loss_pct_mult": 0.75,
-                    },
-                    f"shock=surf tr_ratio on={on_ratio:g} off={off_ratio:g}",
-                )
-            )
-
-        # Daily drawdown pocket (more "crash aware" than ATR%).
-        for lb, on_dd, off_dd in (
-            (20, -15.0, -10.0),
-            (20, -20.0, -10.0),
-            (30, -20.0, -15.0),
-        ):
-            shock_variants.append(
-                (
-                    {
-                        "shock_gate_mode": "surf",
-                        "shock_detector": "daily_drawdown",
-                        "shock_drawdown_lookback_days": int(lb),
-                        "shock_on_drawdown_pct": float(on_dd),
-                        "shock_off_drawdown_pct": float(off_dd),
-                        "shock_direction_source": "signal",
-                        "shock_direction_lookback": 1,
-                        "shock_stop_loss_pct_mult": 0.75,
-                    },
-                    f"shock=surf daily_dd lb={lb} on={on_dd:g} off={off_dd:g}",
-                )
-            )
+        risk_variants = _build_st37_refine_risk_variants()
+        shock_variants = _build_st37_refine_shock_variants()
 
         # st37_refine stage2 worker mode is handled at the top of this sweep (before stage1).
 
@@ -10340,16 +10092,38 @@ def main() -> None:
         print(f"st37_refine: stage2 total={stage2_total} (risk×shock)", flush=True)
         tested_2 = 0
         if jobs > 1:
-            if not offline:
-                raise SystemExit("--jobs>1 for st37_refine requires --offline (avoid parallel IBKR sessions).")
-
-            base_cli = _strip_flags(
-                list(sys.argv[1:]),
-                flags=("--write-milestones", "--merge-milestones"),
-                flags_with_values=(
-                    "--axis",
-                    "--jobs",
-                    "--milestones-out",
+            shortlist_payload: list[dict] = []
+            for cfg, _row, note in stage1_shortlist:
+                shortlist_payload.append(
+                    _encode_cfg_payload(
+                        cfg,
+                        note=note,
+                        note_key="base_note",
+                        extra={"seed_tag": str(note.split("|", 1)[0]).strip()},
+                    )
+                )
+            risk_payload: list[dict] = []
+            for risk_over, risk_note in risk_variants:
+                risk_payload.append({"overrides": risk_over, "note": risk_note})
+            shock_payload: list[dict] = []
+            for shock_over, shock_note in shock_variants:
+                shock_payload.append({"overrides": shock_over, "note": shock_note})
+            payloads = _run_parallel_stage_with_payload(
+                axis_name="st37_refine",
+                stage_label="st37_refine stage2",
+                total=stage2_total,
+                jobs=int(jobs),
+                payload={"shortlist": shortlist_payload, "risk_variants": risk_payload, "shock_variants": shock_payload},
+                payload_filename="stage2_payload.json",
+                temp_prefix="tradebot_st37_refine_2_",
+                worker_tmp_prefix="tradebot_st37_refine_stage2_",
+                worker_tag="st37:2",
+                out_prefix="stage2_out",
+                stage_flag="--st37-refine-stage2",
+                worker_flag="--st37-refine-worker",
+                workers_flag="--st37-refine-workers",
+                out_flag="--st37-refine-out",
+                strip_flags_with_values=(
                     "--st37-refine-stage1",
                     "--st37-refine-stage2",
                     "--st37-refine-worker",
@@ -10357,118 +10131,46 @@ def main() -> None:
                     "--st37-refine-out",
                     "--st37-refine-run-min-trades",
                 ),
+                run_min_trades_flag="--st37-refine-run-min-trades",
+                run_min_trades=int(run_min_trades),
+                capture_error="Failed to capture st37_refine stage2 worker stdout.",
+                failure_label="st37_refine stage2 worker",
+                missing_label="st37_refine stage2",
+                invalid_label="st37_refine stage2",
             )
 
-            jobs_eff = min(int(jobs), int(_default_jobs()), int(stage2_total)) if stage2_total > 0 else 1
-            print(f"st37_refine stage2 parallel: workers={jobs_eff} total={stage2_total}", flush=True)
+            def _on_stage2_row(cfg: ConfigBundle, row: dict, note: str) -> None:
+                _record_milestone(cfg, row, note)
+                stage2_rows.append((cfg, row, note))
 
-            with tempfile.TemporaryDirectory(prefix="tradebot_st37_refine_2_") as tmpdir:
-                tmp_root = Path(tmpdir)
-                payload_path = tmp_root / "stage2_payload.json"
-                shortlist_payload: list[dict] = []
-                for cfg, _row, note in stage1_shortlist:
-                    shortlist_payload.append(
-                        {
-                            "seed_tag": str(note.split("|", 1)[0]).strip(),
-                            "base_note": str(note),
-                            "strategy": _spot_strategy_payload(cfg, meta=meta),
-                            "filters": _filters_payload(cfg.strategy.filters),
-                        }
-                    )
-                risk_payload: list[dict] = []
-                for risk_over, risk_note in risk_variants:
-                    risk_payload.append({"overrides": risk_over, "note": risk_note})
-                shock_payload: list[dict] = []
-                for shock_over, shock_note in shock_variants:
-                    shock_payload.append({"overrides": shock_over, "note": shock_note})
-                write_json(
-                    payload_path,
-                    {"shortlist": shortlist_payload, "risk_variants": risk_payload, "shock_variants": shock_payload},
-                    sort_keys=False,
-                )
+            tested_total = _collect_stage_rows_from_payloads(
+                payloads=payloads,
+                default_note="st37 stage2",
+                on_row=_on_stage2_row,
+                dedupe_by_milestone_key=True,
+            )
 
-                payloads = _run_parallel_json_worker_plan(
-                    jobs_eff=jobs_eff,
-                    tmp_prefix="tradebot_st37_refine_stage2_",
-                    worker_tag="st37:2",
-                    out_prefix="stage2_out",
-                    build_cmd=lambda worker_id, workers_n, out_path: [
-                        sys.executable,
-                        "-u",
-                        "-m",
-                        "tradebot.backtest",
-                        "spot",
-                        *base_cli,
-                        "--axis",
-                        "st37_refine",
-                        "--jobs",
-                        "1",
-                        "--st37-refine-stage2",
-                        str(payload_path),
-                        "--st37-refine-worker",
-                        str(worker_id),
-                        "--st37-refine-workers",
-                        str(workers_n),
-                        "--st37-refine-out",
-                        str(out_path),
-                        "--st37-refine-run-min-trades",
-                        str(int(run_min_trades)),
-                    ],
-                    capture_error="Failed to capture st37_refine stage2 worker stdout.",
-                    failure_label="st37_refine stage2 worker",
-                    missing_label="st37_refine stage2",
-                    invalid_label="st37_refine stage2",
-                )
-
-                tested_total = 0
-                for worker_id in range(jobs_eff):
-                    payload = payloads.get(int(worker_id))
-                    if not isinstance(payload, dict):
-                        continue
-                    tested_total += int(payload.get("tested") or 0)
-                    for rec in payload.get("records") or []:
-                        if not isinstance(rec, dict):
-                            continue
-                        cfg = _cfg_from_payload(rec.get("strategy"), rec.get("filters"))
-                        if cfg is None:
-                            continue
-                        row = rec.get("row")
-                        if not isinstance(row, dict):
-                            continue
-                        note = str(rec.get("note") or "").strip() or "st37 stage2"
-                        row = dict(row)
-                        row["note"] = note
-                        _record_milestone(cfg, row, note)
-                        stage2_rows.append((cfg, row, note))
-
-                tested_2 = int(tested_total)
+            tested_2 = int(tested_total)
         else:
-            tested_2, kept_2 = _run_sweep(
+            tested_2, stage2_rows_new = _run_stage_serial(
+                stage_label="st37_refine stage2",
                 plan=stage2_plan,
                 bars=bars_sig,
                 total=stage2_total,
-                progress_label="st37_refine stage2",
                 report_every=report_every,
                 heartbeat_sec=heartbeat_sec,
             )
-            for cfg, row, note, _meta in kept_2:
-                stage2_rows.append((cfg, row, note))
+            stage2_rows.extend(stage2_rows_new)
 
         print(f"st37_refine: stage2 kept={len(stage2_rows)} tested={tested_2}", flush=True)
         if not stage2_rows:
             return
 
-        stage2_sorted = sorted(stage2_rows, key=lambda t: (_roi_dd(t[1]), float(t[1].get("pnl_over_dd") or 0.0)), reverse=True)
-        stage2_shortlist: list[tuple[ConfigBundle, dict, str]] = []
-        seen_cfg = set()
-        for cfg, row, note in stage2_sorted:
-            key = _milestone_key(cfg)
-            if key in seen_cfg:
-                continue
-            seen_cfg.add(key)
-            stage2_shortlist.append((cfg, row, note))
-            if len(stage2_shortlist) >= 25:
-                break
+        stage2_shortlist = _rank_cfg_rows(
+            stage2_rows,
+            scorers=[(_score_row_roi_dd, 25), (_score_row_pnl_dd, 15)],
+            limit=25,
+        )
 
         print(f"st37_refine: stage2 shortlist={len(stage2_shortlist)} (for exit sweep)", flush=True)
 
@@ -10651,16 +10353,15 @@ def main() -> None:
         stage3_rows: list[tuple[ConfigBundle, dict, str]] = []
         stage3_total = len(stage3_plan)
         print(f"st37_refine: stage3 total={stage3_total} (exit pocket)", flush=True)
-        tested_3, kept_3 = _run_sweep(
+        tested_3, stage3_rows_new = _run_stage_serial(
+            stage_label="st37_refine stage3",
             plan=stage3_plan,
             bars=bars_sig,
             total=stage3_total,
-            progress_label="st37_refine stage3",
             report_every=report_every,
             heartbeat_sec=heartbeat_sec,
         )
-        for cfg, row, note, _meta in kept_3:
-            stage3_rows.append((cfg, row, note))
+        stage3_rows.extend(stage3_rows_new)
 
         print(f"st37_refine: stage3 kept={len(stage3_rows)} tested={tested_3}", flush=True)
         final_rows = stage3_rows or stage2_rows or stage1_rows
@@ -11059,23 +10760,16 @@ def main() -> None:
             print("Gate-matrix: no stage1 seeds eligible (try lowering --min-trades).")
             return
 
-        def _ranked(items: list[tuple[ConfigBundle, dict, str, str]], *, top_pnl_dd: int, top_pnl: int) -> list:
-            by_dd = sorted(items, key=lambda t: _score_row_pnl_dd(t[1]), reverse=True)[: int(top_pnl_dd)]
-            by_pnl = sorted(items, key=lambda t: _score_row_pnl(t[1]), reverse=True)[: int(top_pnl)]
-            seen: set[str] = set()
-            out: list[tuple[ConfigBundle, dict, str, str]] = []
-            for cfg, row, note, family in by_dd + by_pnl:
-                key = _milestone_key(cfg)
-                if key in seen:
-                    continue
-                seen.add(key)
-                out.append((cfg, row, note, family))
-            return out
-
         families = sorted({t[3] for t in stage1})
         seeds: list[tuple[ConfigBundle, dict, str, str]] = []
         for fam in families:
-            seeds.extend(_ranked([t for t in stage1 if t[3] == fam], top_pnl_dd=3, top_pnl=2))
+            ranked_family = _rank_cfg_rows_with_meta(
+                [t for t in stage1 if t[3] == fam],
+                scorers=[(_score_row_pnl_dd, 3), (_score_row_pnl, 2)],
+                limit=None,
+            )
+            for cfg, row, note, meta_family in ranked_family:
+                seeds.append((cfg, row, note, str(meta_family or fam)))
         # Keep this bounded.
         max_seeds = 8
         seeds = seeds[:max_seeds]
@@ -11086,116 +10780,89 @@ def main() -> None:
         rows: list[dict] = []
         total = len(seeds) * 2 * 2 * 2 * 2 * 2 * 2 * 2 * len(short_mults)
         if jobs > 1:
-            if not offline:
-                raise SystemExit("--jobs>1 for gate_matrix requires --offline (avoid parallel IBKR sessions).")
-
-            base_cli = _strip_flags(
-                list(sys.argv[1:]),
-                flags=("--write-milestones", "--merge-milestones"),
-                flags_with_values=(
-                    "--axis",
-                    "--jobs",
-                    "--milestones-out",
+            seeds_payload: list[dict] = []
+            for seed_cfg, _, seed_note, family in seeds:
+                seeds_payload.append(
+                    {
+                        "strategy": _spot_strategy_payload(seed_cfg, meta=meta),
+                        "filters": _filters_payload(seed_cfg.strategy.filters),
+                        "seed_note": str(seed_note),
+                        "family": str(family),
+                    }
+                )
+            payloads = _run_parallel_stage_with_payload(
+                axis_name="gate_matrix",
+                stage_label="gate_matrix stage2",
+                total=total,
+                jobs=int(jobs),
+                payload={"seeds": seeds_payload},
+                payload_filename="stage2_payload.json",
+                temp_prefix="tradebot_gate_matrix_",
+                worker_tmp_prefix="tradebot_gate_matrix2_",
+                worker_tag="gm2",
+                out_prefix="stage2_out",
+                stage_flag="--gate-matrix-stage2",
+                worker_flag="--gate-matrix-worker",
+                workers_flag="--gate-matrix-workers",
+                out_flag="--gate-matrix-out",
+                strip_flags_with_values=(
                     "--gate-matrix-stage2",
                     "--gate-matrix-worker",
                     "--gate-matrix-workers",
                     "--gate-matrix-out",
                     "--gate-matrix-run-min-trades",
                 ),
+                run_min_trades_flag="--gate-matrix-run-min-trades",
+                run_min_trades=int(run_min_trades),
+                capture_error="Failed to capture gate_matrix worker stdout.",
+                failure_label="gate_matrix stage2 worker",
+                missing_label="gate_matrix stage2",
+                invalid_label="gate_matrix stage2",
             )
 
-            jobs_eff = min(int(jobs), int(_default_jobs()), int(total)) if total > 0 else 1
-            print(f"gate_matrix stage2 parallel: workers={jobs_eff} total={total}", flush=True)
-
-            with tempfile.TemporaryDirectory(prefix="tradebot_gate_matrix_") as tmpdir:
-                tmp_root = Path(tmpdir)
-                payload_path = tmp_root / "stage2_payload.json"
-                seeds_payload: list[dict] = []
-                for seed_cfg, _, seed_note, family in seeds:
-                    seeds_payload.append(
-                        {
-                            "strategy": _spot_strategy_payload(seed_cfg, meta=meta),
-                            "filters": _filters_payload(seed_cfg.strategy.filters),
-                            "seed_note": str(seed_note),
-                            "family": str(family),
-                        }
-                    )
-                write_json(payload_path, {"seeds": seeds_payload}, sort_keys=False)
-
-                payloads = _run_parallel_json_worker_plan(
-                    jobs_eff=jobs_eff,
-                    tmp_prefix="tradebot_gate_matrix2_",
-                    worker_tag="gm2",
-                    out_prefix="stage2_out",
-                    build_cmd=lambda worker_id, workers_n, out_path: [
-                        sys.executable,
-                        "-u",
-                        "-m",
-                        "tradebot.backtest",
-                        "spot",
-                        *base_cli,
-                        "--axis",
-                        "gate_matrix",
-                        "--jobs",
-                        "1",
-                        "--gate-matrix-stage2",
-                        str(payload_path),
-                        "--gate-matrix-worker",
-                        str(worker_id),
-                        "--gate-matrix-workers",
-                        str(workers_n),
-                        "--gate-matrix-out",
-                        str(out_path),
-                        "--gate-matrix-run-min-trades",
-                        str(int(run_min_trades)),
-                    ],
-                    capture_error="Failed to capture gate_matrix worker stdout.",
-                    failure_label="gate_matrix stage2 worker",
-                    missing_label="gate_matrix stage2",
-                    invalid_label="gate_matrix stage2",
+            def _decode_gate_matrix_stage2_record(rec: dict) -> tuple[ConfigBundle, dict, str] | None:
+                seed_idx_raw = rec.get("seed_idx")
+                if seed_idx_raw is None:
+                    return None
+                try:
+                    seed_idx = int(seed_idx_raw)
+                except (TypeError, ValueError):
+                    return None
+                if seed_idx < 0 or seed_idx >= len(seeds):
+                    return None
+                base_seed_cfg, _, seed_note, family = seeds[seed_idx]
+                cfg, note = _mk_stage2_cfg(
+                    base_seed_cfg,
+                    str(seed_note),
+                    str(family),
+                    perm_on=bool(rec.get("perm_on")),
+                    tick_on=bool(rec.get("tick_on")),
+                    shock_on=bool(rec.get("shock_on")),
+                    riskoff_on=bool(rec.get("riskoff_on")),
+                    riskpanic_on=bool(rec.get("riskpanic_on")),
+                    riskpop_on=bool(rec.get("riskpop_on")),
+                    regime2_on=bool(rec.get("regime2_on")),
+                    short_mult=float(rec.get("short_mult") or 0.0),
                 )
+                row = rec.get("row")
+                if not isinstance(row, dict):
+                    return None
+                row_out = dict(row)
+                row_out["note"] = note
+                return cfg, row_out, str(note)
 
-                tested_total = 0
-                for worker_id in range(jobs_eff):
-                    payload = payloads.get(int(worker_id))
-                    if not isinstance(payload, dict):
-                        continue
-                    tested_total += int(payload.get("tested") or 0)
-                    for rec in payload.get("records") or []:
-                        if not isinstance(rec, dict):
-                            continue
-                        seed_idx_raw = rec.get("seed_idx")
-                        if seed_idx_raw is None:
-                            continue
-                        try:
-                            seed_idx = int(seed_idx_raw)
-                        except (TypeError, ValueError):
-                            continue
-                        if seed_idx < 0 or seed_idx >= len(seeds):
-                            continue
-                        base_seed_cfg, _, seed_note, family = seeds[seed_idx]
-                        cfg, note = _mk_stage2_cfg(
-                            base_seed_cfg,
-                            str(seed_note),
-                            str(family),
-                            perm_on=bool(rec.get("perm_on")),
-                            tick_on=bool(rec.get("tick_on")),
-                            shock_on=bool(rec.get("shock_on")),
-                            riskoff_on=bool(rec.get("riskoff_on")),
-                            riskpanic_on=bool(rec.get("riskpanic_on")),
-                            riskpop_on=bool(rec.get("riskpop_on")),
-                            regime2_on=bool(rec.get("regime2_on")),
-                            short_mult=float(rec.get("short_mult") or 0.0),
-                        )
-                        row = rec.get("row")
-                        if not isinstance(row, dict):
-                            continue
-                        row = dict(row)
-                        row["note"] = note
-                        _record_milestone(cfg, row, note)
-                        rows.append(row)
+            def _on_gate_matrix_stage2_record(item: tuple[ConfigBundle, dict, str]) -> None:
+                cfg, row, note = item
+                _record_milestone(cfg, row, note)
+                rows.append(row)
 
-                run_calls_total += int(tested_total)
+            tested_total = _collect_parallel_payload_records(
+                payloads=payloads,
+                decode_record=_decode_gate_matrix_stage2_record,
+                on_record=_on_gate_matrix_stage2_record,
+            )
+
+            run_calls_total += int(tested_total)
         else:
             stage2_plan: list[tuple[ConfigBundle, str, dict | None]] = []
             for seed_cfg, _, seed_note, family in seeds:
@@ -11241,7 +10908,7 @@ def main() -> None:
         bars_sig = _bars_cached(signal_bar_size)
         base = _base_bundle(bar_size=signal_bar_size, filters=None)
         base_row = _run_cfg(
-            cfg=base, bars=bars_sig, regime_bars=_regime_bars_for(base), regime2_bars=_regime2_bars_for(base)
+            cfg=base, bars=bars_sig
         )
         if base_row:
             base_row["note"] = "base"
@@ -11351,55 +11018,28 @@ def main() -> None:
     )
 
     if axis == "all" and jobs > 1:
-        if not offline:
-            raise SystemExit("--jobs>1 for --axis all requires --offline (avoid parallel IBKR sessions).")
-
         axes = tuple(_AXIS_ALL_PLAN)
-
-        base_cli = _strip_flags(
-            list(sys.argv[1:]),
-            flags=("--merge-milestones",),
-            flags_with_values=("--axis", "--jobs", "--milestones-out"),
-        )
-
-        milestone_payloads = _run_axis_subprocess_plan(
+        milestone_payloads = _run_parallel_axis_stage(
             label="axis=all parallel",
             axes=axes,
-            jobs=int(jobs),
-            base_cli=base_cli,
+            jobs_req=int(jobs),
             axis_jobs_resolver=lambda axis_name: min(int(jobs), int(_default_jobs()))
             if str(axis_name) == "risk_overlays"
             else 1,
-            write_milestones=bool(args.write_milestones),
             tmp_prefix="tradebot_axis_all_",
+            offline_error="--jobs>1 for --axis all requires --offline (avoid parallel IBKR sessions).",
         )
         if bool(args.write_milestones):
-            eligible_new: list[dict] = []
-            for axis_name in axes:
-                payload = milestone_payloads.get(axis_name)
-                if isinstance(payload, dict):
-                    eligible_new.extend(_collect_milestone_items_from_payload(payload, symbol=symbol))
-            out_path = Path(args.milestones_out)
-            total = _merge_and_write_milestones(
-                out_path=out_path,
-                eligible_new=eligible_new,
-                merge_existing=bool(args.merge_milestones),
-                add_top_pnl_dd=int(args.milestone_add_top_pnl_dd or 0),
-                add_top_pnl=int(args.milestone_add_top_pnl or 0),
-                symbol=symbol,
-                start=start,
-                end=end,
-                signal_bar_size=signal_bar_size,
-                use_rth=use_rth,
-                milestone_min_win=float(args.milestone_min_win),
-                milestone_min_trades=int(args.milestone_min_trades),
-                milestone_min_pnl_dd=float(args.milestone_min_pnl_dd),
+            _merge_axis_parallel_milestones(
+                milestone_payloads=milestone_payloads,
+                milestone_axes=axes,
             )
-            print(f"Wrote {out_path} ({total} eligible presets).", flush=True)
+            milestones_written = True
 
         return
 
-    sweep_registry = {
+    axis_registry.update(
+        {
         "ema": _sweep_ema,
         "entry_mode": _sweep_entry_mode,
         "combo_fast": _sweep_combo_fast,
@@ -11456,22 +11096,40 @@ def main() -> None:
         "shock_alpha_refine": _sweep_shock_alpha_refine,
         "shock_velocity_refine": lambda: _sweep_shock_velocity_refine(wide=False),
         "shock_velocity_refine_wide": lambda: _sweep_shock_velocity_refine(wide=True),
-        "shock_throttle_refine": _sweep_shock_throttle_refine,
-        "shock_throttle_tr_ratio": _sweep_shock_throttle_tr_ratio,
-        "shock_throttle_drawdown": _sweep_shock_throttle_drawdown,
-        "riskpanic_micro": _sweep_riskpanic_micro,
+        "shock_throttle_refine": lambda: _sweep_overlay_family(family="shock_throttle_refine"),
+        "shock_throttle_tr_ratio": lambda: _sweep_overlay_family(family="shock_throttle_tr_ratio"),
+        "shock_throttle_drawdown": lambda: _sweep_overlay_family(family="shock_throttle_drawdown"),
+        "riskpanic_micro": lambda: _sweep_overlay_family(family="riskpanic_micro"),
+        "overlay_family": _sweep_overlay_family,
         "exit_pivot": _sweep_exit_pivot,
-    }
+        }
+    )
 
     if axis == "all":
         for axis_name in _AXIS_ALL_PLAN:
-            fn = sweep_registry.get(str(axis_name))
+            fn_obj = axis_registry.get(str(axis_name))
+            fn = fn_obj if callable(fn_obj) else None
             if fn is not None:
                 fn()
     else:
-        fn = sweep_registry.get(str(axis))
+        fn_obj = axis_registry.get(str(axis))
+        fn = fn_obj if callable(fn_obj) else None
         if fn is not None:
             fn()
+
+    if int(run_cfg_cache_hits) > 0 and int(run_calls_total) > 0:
+        hit_rate = float(run_cfg_cache_hits) / float(run_calls_total)
+        print(
+            f"run_cfg cache: entries={len(run_cfg_cache)} hits={run_cfg_cache_hits}/{run_calls_total} "
+            f"({hit_rate*100.0:0.1f}%) fp_hits={int(run_cfg_fingerprint_hits)}",
+            flush=True,
+        )
+    if bool(run_cfg_persistent_enabled):
+        print(
+            f"run_cfg persistent cache: path={run_cfg_persistent_path} "
+            f"hits={int(run_cfg_persistent_hits)} writes={int(run_cfg_persistent_writes)}",
+            flush=True,
+        )
 
     if bool(args.write_milestones) and not bool(milestones_written):
         eligible_new = _collect_milestone_items_from_rows(
@@ -12612,10 +12270,13 @@ def spot_multitimeframe_main() -> None:
             flags_with_values=("--jobs", "--multitimeframe-worker", "--multitimeframe-workers", "--multitimeframe-out"),
         )
 
-        print(f"multitimeframe parallel: workers={jobs_eff} candidates={len(candidates)}", flush=True)
-
-        payloads = _run_parallel_json_worker_plan(
-            jobs_eff=jobs_eff,
+        jobs_eff, payloads = _run_parallel_stage_kernel(
+            stage_label="multitimeframe",
+            jobs=int(jobs_eff),
+            total=len(candidates),
+            default_jobs=int(jobs_eff),
+            offline=bool(offline),
+            offline_error="--jobs>1 for multitimeframe requires --offline (avoid parallel IBKR sessions).",
             tmp_prefix="tradebot_multitimeframe_",
             worker_tag="mt",
             out_prefix="multitimeframe_out",
@@ -12641,16 +12302,18 @@ def spot_multitimeframe_main() -> None:
             invalid_label="multitimeframe",
         )
 
-        tested_total = 0
         out_rows: list[dict] = []
-        for worker_id in range(jobs_eff):
-            payload = payloads.get(int(worker_id))
-            if not isinstance(payload, dict):
-                continue
-            tested_total += int(payload.get("tested") or 0)
-            for row in payload.get("rows") or []:
-                if isinstance(row, dict):
-                    out_rows.append(row)
+
+        def _on_multitimeframe_row(row: dict) -> None:
+            out_rows.append(dict(row))
+
+        tested_total = _collect_parallel_payload_records(
+            payloads=payloads,
+            records_key="rows",
+            tested_key="tested",
+            decode_record=lambda rec: dict(rec),
+            on_record=_on_multitimeframe_row,
+        )
 
         _emit_multitimeframe_results(out_rows=out_rows, tested_total=tested_total, workers=jobs_eff)
 

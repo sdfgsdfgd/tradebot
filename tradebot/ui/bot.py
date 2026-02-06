@@ -708,9 +708,8 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
 
     def action_reload(self) -> None:
         self._load_leaderboard()
-        self._status = "Reloaded leaderboard"
+        self._set_status("Reloaded leaderboard")
         self._journal_write(event="RELOAD_LEADERBOARD", reason=None, data=None)
-        self._render_status()
 
     def action_toggle_presets(self) -> None:
         self._presets_visible = not self._presets_visible
@@ -719,21 +718,19 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             self._focus_panel("instances")
         elif self._presets_visible and self._active_panel != "presets":
             self._focus_panel("presets")
-        self._status = f"Presets: {'ON' if self._presets_visible else 'OFF'}"
-        self._render_status()
+        self._set_status(f"Presets: {'ON' if self._presets_visible else 'OFF'}")
         self.refresh(layout=True)
 
     def action_toggle_scope(self) -> None:
         self._scope_all = not self._scope_all
         self._refresh_orders_table()
         self._refresh_logs_table()
-        self._status = "Scope: ALL" if self._scope_all else "Scope: Instance"
         self._journal_write(
             event="SCOPE",
             reason=None,
             data={"scope": "ALL" if self._scope_all else "INSTANCE"},
         )
-        self._render_status()
+        self._set_status("Scope: ALL" if self._scope_all else "Scope: Instance")
         self.refresh(layout=True)
 
     def action_cycle_focus(self) -> None:
@@ -769,9 +766,12 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         self._panel_table(panel).focus()
         self._render_status()
 
-    def _set_status(self, message: str) -> None:
+    def _set_status(self, message: str, *, render_bot: bool = False) -> None:
         self._status = message
-        self._render_status()
+        if bool(render_bot):
+            self._render_bot()
+        else:
+            self._render_status()
 
     def _dispatch_panel_handler(self, handlers: dict[str, str], *, default: str) -> None:
         fn_name = str(handlers.get(str(self._active_panel), default))
@@ -822,10 +822,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             idx = 0
         self._filter_dte = cycle[(idx + 1) % len(cycle)]
         self._rebuild_presets_table()
-        self._status = (
-            "Filter: DTE=ALL" if self._filter_dte is None else f"Filter: DTE={self._filter_dte}"
-        )
-        self._render_status()
+        self._set_status("Filter: DTE=ALL" if self._filter_dte is None else f"Filter: DTE={self._filter_dte}")
         self.refresh(layout=True)
 
     def action_cycle_win_filter(self) -> None:
@@ -837,10 +834,9 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         self._filter_min_win_rate = cycle[(idx + 1) % len(cycle)]
         self._rebuild_presets_table()
         if self._filter_min_win_rate is None:
-            self._status = "Filter: Win=ALL"
+            self._set_status("Filter: Win=ALL")
         else:
-            self._status = f"Filter: Win≥{int(self._filter_min_win_rate * 100)}%"
-        self._render_status()
+            self._set_status(f"Filter: Win≥{int(self._filter_min_win_rate * 100)}%")
         self.refresh(layout=True)
 
     def action_stop_bot(self) -> None:
@@ -899,22 +895,18 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             self._orders = [o for o in self._orders if o is not order]
             self._journal_write(event="ORDER_DROPPED", order=order, reason="staged", data=None)
             self._refresh_orders_table()
-            self._status = "Cancelled staged order"
-            self._render_bot()
+            self._set_status("Cancelled staged order", render_bot=True)
             return
         if order.status != "WORKING":
-            self._status = f"Cancel: not working ({order.status})"
-            self._render_bot()
+            self._set_status(f"Cancel: not working ({order.status})", render_bot=True)
             return
         if self._cancel_task and not self._cancel_task.done():
-            self._status = "Cancel: busy"
-            self._render_bot()
+            self._set_status("Cancel: busy", render_bot=True)
             return
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
-            self._status = "Cancel: no loop"
-            self._render_bot()
+            self._set_status("Cancel: no loop", render_bot=True)
             return
         self._cancel_task = loop.create_task(self._cancel_working_order(order))
 
@@ -924,7 +916,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         trade = order.trade
         if trade is None:
             order.error = "Cancel error: missing IB trade handle"
-            self._status = "Cancel error: missing IB trade handle"
+            self._set_status("Cancel error: missing IB trade handle")
             self._journal_write(event="CANCEL_ERROR", order=order, reason=None, data={"exc": "missing trade"})
             self._refresh_orders_table()
             self._render_bot()
@@ -932,16 +924,15 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         order.status = "CANCELING"
         self._journal_write(event="CANCEL_REQUEST", order=order, reason=None, data=None)
         self._refresh_orders_table()
-        self._status = f"Canceling #{order.order_id or 0}..."
-        self._render_bot()
+        self._set_status(f"Canceling #{order.order_id or 0}...", render_bot=True)
         try:
             await self._client.cancel_trade(trade)
             self._journal_write(event="CANCEL_SENT", order=order, reason=None, data=None)
-            self._status = f"Cancel sent #{order.order_id or 0}"
+            self._set_status(f"Cancel sent #{order.order_id or 0}")
         except Exception as exc:
             order.status = "WORKING"
             order.error = f"Cancel error: {exc}"
-            self._status = f"Cancel error: {exc}"
+            self._set_status(f"Cancel error: {exc}")
             self._journal_write(event="CANCEL_ERROR", order=order, reason=None, data={"exc": str(exc)})
         self._refresh_orders_table()
         self._render_bot()
@@ -999,8 +990,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
 
         def _on_done(result: _BotConfigResult | None) -> None:
             if not result:
-                self._status = "Config: cancelled"
-                self._render_status()
+                self._set_status("Config: cancelled")
                 return
             instance = _BotInstance(
                 instance_id=self._next_instance_id,
@@ -1015,14 +1005,13 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             self._refresh_instances_table()
             self._instances_table.cursor_coordinate = (max(len(self._instances) - 1, 0), 0)
             self._focus_panel("instances")
-            self._status = f"Created instance {instance.instance_id}"
+            self._set_status(f"Created instance {instance.instance_id}")
             self._journal_write(
                 event="INSTANCE_CREATED",
                 instance=instance,
                 reason=None,
                 data={"metrics": entry.get("metrics")},
             )
-            self._render_status()
 
         self.app.push_screen(
             BotConfigScreen(
@@ -1039,17 +1028,15 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
     def _open_config_for_instance(self, instance: _BotInstance) -> None:
         def _on_done(result: _BotConfigResult | None) -> None:
             if not result:
-                self._status = "Config: cancelled"
-                self._render_status()
+                self._set_status("Config: cancelled")
                 return
             instance.group = result.group
             instance.symbol = result.symbol
             instance.strategy = result.strategy
             instance.filters = result.filters
             self._refresh_instances_table()
-            self._status = f"Updated instance {instance.instance_id}"
+            self._set_status(f"Updated instance {instance.instance_id}")
             self._journal_write(event="INSTANCE_UPDATED", instance=instance, reason=None, data=None)
-            self._render_status()
 
         self.app.push_screen(
             BotConfigScreen(
@@ -1185,7 +1172,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
 
         has_champions = bool(groups)
         if not has_champions:
-            self._status = "No CURRENT champions found. Check README paths."
+            self._set_status("No CURRENT champions found. Check README paths.")
 
         # Debug / test preset (fast EMA crosses) to validate logging + auto-order behavior.
         groups.append(
@@ -1840,7 +1827,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         try:
             items = await self._client.fetch_portfolio()
         except Exception as exc:  # pragma: no cover - UI surface
-            self._status = f"Positions error: {exc}"
+            self._set_status(f"Positions error: {exc}")
             return
         self._positions = [item for item in items if item.contract.secType in _SECTION_TYPES]
         self._positions.sort(key=_portfolio_sort_key, reverse=True)
@@ -2314,7 +2301,9 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
 
         entry_signal = normalize_spot_entry_signal(entry_signal_raw)
 
-        now_ref = datetime.now(tz=timezone.utc).replace(tzinfo=None)
+        # IB intraday bars are timestamped in ET wall-clock for this flow; use ET here so
+        # trim_incomplete_last_bar drops the in-progress bar instead of treating it as complete.
+        now_ref = datetime.now(tz=ZoneInfo("America/New_York")).replace(tzinfo=None)
         bars = await self._signal_fetch_bars(
             contract=contract,
             duration_str=self._signal_duration_str(bar_size, filters=filters),
@@ -2717,21 +2706,17 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
     def _submit_selected_order(self) -> None:
         order = self._selected_order()
         if not order:
-            self._status = "Send: no order selected"
-            self._render_bot()
+            self._set_status("Send: no order selected", render_bot=True)
             return
         if order.status != "STAGED":
-            self._status = f"Send: already {order.status}"
-            self._render_bot()
+            self._set_status(f"Send: already {order.status}", render_bot=True)
             return
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
-            self._status = "Send: no loop"
-            self._render_bot()
+            self._set_status("Send: no loop", render_bot=True)
             return
-        self._status = "Sending order..."
-        self._render_bot()
+        self._set_status("Sending order...", render_bot=True)
         self._send_task = loop.create_task(self._send_order(order))
 
     async def _send_order(self, order: _BotOrder) -> None:
@@ -2753,12 +2738,12 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             order.order_id = int(order_id or 0) or None
             order.trade = trade
             order.sent_at = loop.time() if loop is not None else None
-            self._status = f"Sent #{order_id} {order.action} {order.quantity} @ {order.limit_price:.2f}"
+            self._set_status(f"Sent #{order_id} {order.action} {order.quantity} @ {order.limit_price:.2f}")
             self._journal_write(event="SENT", order=order, reason=order.reason, data=None)
         except Exception as exc:
             order.status = "ERROR"
             order.error = str(exc)
-            self._status = f"Send error: {exc}"
+            self._set_status(f"Send error: {exc}")
             self._journal_write(event="SEND_ERROR", order=order, reason=order.reason, data={"exc": str(exc)})
         self._refresh_orders_table()
         self._render_bot()
