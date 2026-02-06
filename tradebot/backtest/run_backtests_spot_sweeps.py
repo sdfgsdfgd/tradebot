@@ -2047,11 +2047,29 @@ def main() -> None:
         tick_cache[(used_symbol, used_exchange)] = (tick_start_dt, tick_bars)
         return tick_bars
 
+    def _context_bars_for_cfg(
+        *,
+        cfg: ConfigBundle,
+        bars: list | None = None,
+        regime_bars: list | None = None,
+        regime2_bars: list | None = None,
+    ) -> tuple[list, list | None, list | None]:
+        bars_eff = bars if bars is not None else _bars_cached(str(cfg.backtest.bar_size))
+        regime_eff = _regime_bars_for(cfg) if regime_bars is None else regime_bars
+        regime2_eff = _regime2_bars_for(cfg) if regime2_bars is None else regime2_bars
+        return bars_eff, regime_eff, regime2_eff
+
     def _run_cfg(
-        *, cfg: ConfigBundle, bars: list, regime_bars: list | None, regime2_bars: list | None
+        *, cfg: ConfigBundle, bars: list | None = None, regime_bars: list | None = None, regime2_bars: list | None = None
     ) -> dict | None:
         nonlocal run_calls_total
         run_calls_total += 1
+        bars_eff, regime_eff, regime2_eff = _context_bars_for_cfg(
+            cfg=cfg,
+            bars=bars,
+            regime_bars=regime_bars,
+            regime2_bars=regime2_bars,
+        )
         tick_bars = _tick_bars_for(cfg)
         exec_bars = None
         exec_size = str(getattr(cfg.strategy, "spot_exec_bar_size", "") or "").strip()
@@ -2059,10 +2077,10 @@ def main() -> None:
             exec_bars = _bars_cached(exec_size)
         s = _run_spot_backtest_summary(
             cfg,
-            bars,
+            bars_eff,
             meta,
-            regime_bars=regime_bars,
-            regime2_bars=regime2_bars,
+            regime_bars=regime_eff,
+            regime2_bars=regime2_eff,
             tick_bars=tick_bars,
             exec_bars=exec_bars,
         )
@@ -2125,12 +2143,7 @@ def main() -> None:
                         )
                     last = float(now)
 
-            row = _run_cfg(
-                cfg=cfg,
-                bars=bars,
-                regime_bars=_regime_bars_for(cfg),
-                regime2_bars=_regime2_bars_for(cfg),
-            )
+            row = _run_cfg(cfg=cfg, bars=bars)
             if not row:
                 continue
 
@@ -2143,6 +2156,39 @@ def main() -> None:
             kept.append((cfg, row, note_s, meta_item))
 
         return tested, kept
+
+    def _iter_seed_bundles(seeds: list[dict]):
+        for seed_i, item in enumerate(seeds, start=1):
+            try:
+                filters_obj = _filters_from_payload(item.get("filters"))
+                strategy_obj = _strategy_from_payload(item.get("strategy") or {}, filters=filters_obj)
+            except Exception:
+                continue
+            cfg_seed = _mk_bundle(
+                strategy=strategy_obj,
+                start=start,
+                end=end,
+                bar_size=signal_bar_size,
+                use_rth=use_rth,
+                cache_dir=cache_dir,
+                offline=offline,
+            )
+            yield seed_i, item, cfg_seed, str(item.get("group_name") or f"seed#{seed_i:02d}")
+
+    def _emit_seed_base_row(
+        *,
+        cfg_seed: ConfigBundle,
+        seed_note: str,
+        rows: list[dict],
+        base_note: str = "base",
+    ) -> None:
+        base_row = _run_cfg(cfg=cfg_seed)
+        if not base_row:
+            return
+        note = f"{seed_note} | {base_note}"
+        base_row["note"] = note
+        _record_milestone(cfg_seed, base_row, note)
+        rows.append(base_row)
 
     def _base_bundle(*, bar_size: str, filters: FiltersConfig | None) -> ConfigBundle:
         cfg = _bundle_base(
@@ -2291,12 +2337,7 @@ def main() -> None:
                     continue
                 f = _mk_filters(rv_min=rv_min, rv_max=rv_max)
                 cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
-                row = _run_cfg(
-                    cfg=cfg,
-                    bars=bars_sig,
-                    regime_bars=_regime_bars_for(cfg),
-                    regime2_bars=_regime2_bars_for(cfg),
-                )
+                row = _run_cfg(cfg=cfg)
                 if not row:
                     continue
                 note = f"rv_min={rv_min} rv_max={rv_max}"
@@ -2347,12 +2388,7 @@ def main() -> None:
                         entry_confirm_bars=int(confirm),
                     ),
                 )
-                row = _run_cfg(
-                    cfg=cfg,
-                    bars=bars_sig,
-                    regime_bars=_regime_bars_for(cfg),
-                    regime2_bars=_regime2_bars_for(cfg),
-                )
+                row = _run_cfg(cfg=cfg)
                 if not row:
                     continue
                 note = f"entry_mode={mode} confirm={confirm}"
@@ -2417,12 +2453,7 @@ def main() -> None:
                             cooldown_bars=int(cooldown),
                         )
                         cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
-                        row = _run_cfg(
-                            cfg=cfg,
-                            bars=bars_sig,
-                            regime_bars=_regime_bars_for(cfg),
-                            regime2_bars=_regime2_bars_for(cfg),
-                        )
+                        row = _run_cfg(cfg=cfg)
                         if not row:
                             continue
                         note = f"tod={start_h:02d}-{end_h:02d} ET skip={skip} cd={cooldown}"
@@ -2503,12 +2534,7 @@ def main() -> None:
                     overrides.update(vol_over)
                     f = _merge_filters(base_filters, overrides=overrides)
                     cfg = replace(base, strategy=replace(base.strategy, filters=f))
-                    row = _run_cfg(
-                        cfg=cfg,
-                        bars=bars_sig,
-                        regime_bars=_regime_bars_for(cfg),
-                        regime2_bars=_regime2_bars_for(cfg),
-                    )
+                    row = _run_cfg(cfg=cfg)
                     if not row:
                         continue
                     note = f"{tod_note} | {spread_note} | {vol_note}"
@@ -2537,12 +2563,7 @@ def main() -> None:
         best_by_ema: dict[str, dict] = {}
         for preset in presets:
             cfg = replace(base, strategy=replace(base.strategy, ema_preset=str(preset), entry_signal="ema"))
-            row = _run_cfg(
-                cfg=cfg,
-                bars=bars_sig,
-                regime_bars=_regime_bars_for(cfg),
-                regime2_bars=_regime2_bars_for(cfg),
-            )
+            row = _run_cfg(cfg=cfg)
             if not row:
                 continue
             best_by_ema[str(preset)] = {"row": row}
@@ -2598,12 +2619,7 @@ def main() -> None:
                                 filters=f,
                             ),
                         )
-                        row = _run_cfg(
-                            cfg=cfg,
-                            bars=bars_sig,
-                            regime_bars=_regime_bars_for(cfg),
-                            regime2_bars=_regime2_bars_for(cfg),
-                        )
+                        row = _run_cfg(cfg=cfg)
                         if not row:
                             continue
                         note = f"ema={preset} | {tod_note} | {spread_note} | {vol_note}"
@@ -2658,12 +2674,7 @@ def main() -> None:
                                         tick_width_slope_lookback=int(slope_lb),
                                     ),
                                 )
-                                row = _run_cfg(
-                                    cfg=cfg,
-                                    bars=bars_sig,
-                                    regime_bars=_regime_bars_for(cfg),
-                                    regime2_bars=_regime2_bars_for(cfg),
-                                )
+                                row = _run_cfg(cfg=cfg)
                                 if not row:
                                     continue
                                 tick_key = (
@@ -2752,12 +2763,7 @@ def main() -> None:
                                 tick_width_slope_lookback=int(slope_lb),
                             ),
                         )
-                        row = _run_cfg(
-                            cfg=cfg,
-                            bars=bars_sig,
-                            regime_bars=_regime_bars_for(cfg),
-                            regime2_bars=_regime2_bars_for(cfg),
-                        )
+                        row = _run_cfg(cfg=cfg)
                         if not row:
                             continue
                         note = (
@@ -2823,12 +2829,7 @@ def main() -> None:
                         supertrend_source=str(src),
                     ),
                 )
-                row = _run_cfg(
-                    cfg=cfg,
-                    bars=bars_sig,
-                    regime_bars=_regime_bars_for(cfg),
-                    regime2_bars=_regime2_bars_for(cfg),
-                )
+                row = _run_cfg(cfg=cfg)
                 if not row:
                     continue
                 note = f"ema={preset} | ST({atr_p},{mult:g},{src})@{rbar}"
@@ -2867,12 +2868,7 @@ def main() -> None:
                     }
                     f = _merge_filters(base_filters, overrides=overrides)
                     cfg = replace(base, strategy=replace(base.strategy, filters=f))
-                    row = _run_cfg(
-                        cfg=cfg,
-                        bars=bars_sig,
-                        regime_bars=_regime_bars_for(cfg),
-                        regime2_bars=_regime2_bars_for(cfg),
-                    )
+                    row = _run_cfg(cfg=cfg)
                     if not row:
                         continue
                     slope_note = "-" if slope is None else f"slope>={float(slope):g}"
@@ -2928,12 +2924,7 @@ def main() -> None:
                                         tick_width_slope_lookback=int(slope_lb),
                                     ),
                                 )
-                                row = _run_cfg(
-                                    cfg=cfg,
-                                    bars=bars_sig,
-                                    regime_bars=_regime_bars_for(cfg),
-                                    regime2_bars=_regime2_bars_for(cfg),
-                                )
+                                row = _run_cfg(cfg=cfg)
                                 if not row:
                                     continue
                                 note = (
@@ -2965,12 +2956,7 @@ def main() -> None:
         best_by_ema: dict[str, dict] = {}
         for preset in presets:
             cfg = replace(base, strategy=replace(base.strategy, ema_preset=str(preset), entry_signal="ema"))
-            row = _run_cfg(
-                cfg=cfg,
-                bars=bars_sig,
-                regime_bars=_regime_bars_for(cfg),
-                regime2_bars=_regime2_bars_for(cfg),
-            )
+            row = _run_cfg(cfg=cfg)
             if not row:
                 continue
             best_by_ema[str(preset)] = {"row": row}
@@ -3005,12 +2991,7 @@ def main() -> None:
                                 spot_stop_loss_pct=None,
                             ),
                         )
-                        row = _run_cfg(
-                            cfg=cfg,
-                            bars=bars_sig,
-                            regime_bars=_regime_bars_for(cfg),
-                            regime2_bars=_regime2_bars_for(cfg),
-                        )
+                        row = _run_cfg(cfg=cfg)
                         if not row:
                             continue
                         note = f"ema={preset} | ATR({atr_p}) PTx{pt_m:.2f} SLx{sl_m:.2f}"
@@ -3046,12 +3027,7 @@ def main() -> None:
         rows: list[dict] = []
         for days, label in day_sets:
             cfg = replace(base, strategy=replace(base.strategy, entry_days=tuple(days)))
-            row = _run_cfg(
-                cfg=cfg,
-                bars=bars_sig,
-                regime_bars=_regime_bars_for(cfg),
-                regime2_bars=_regime2_bars_for(cfg),
-            )
+            row = _run_cfg(cfg=cfg)
             if not row:
                 continue
             note = f"days={label}"
@@ -3085,12 +3061,7 @@ def main() -> None:
         rows: list[dict] = []
         for t in times:
             cfg = replace(base, strategy=replace(base.strategy, spot_exit_time_et=t))
-            row = _run_cfg(
-                cfg=cfg,
-                bars=bars_sig,
-                regime_bars=_regime_bars_for(cfg),
-                regime2_bars=_regime2_bars_for(cfg),
-            )
+            row = _run_cfg(cfg=cfg)
             if not row:
                 continue
             note = "-" if t is None else f"exit_time={t} ET"
@@ -3124,12 +3095,7 @@ def main() -> None:
                             spot_stop_loss_pct=None,
                         ),
                     )
-                    row = _run_cfg(
-                        cfg=cfg,
-                        bars=bars_sig,
-                        regime_bars=_regime_bars_for(cfg),
-                        regime2_bars=_regime2_bars_for(cfg),
-                    )
+                    row = _run_cfg(cfg=cfg)
                     if not row:
                         continue
                     note = f"ATR({atr_p}) PTx{pt_m} SLx{sl_m}"
@@ -3162,12 +3128,7 @@ def main() -> None:
                             spot_stop_loss_pct=None,
                         ),
                     )
-                    row = _run_cfg(
-                        cfg=cfg,
-                        bars=bars_sig,
-                        regime_bars=_regime_bars_for(cfg),
-                        regime2_bars=_regime2_bars_for(cfg),
-                    )
+                    row = _run_cfg(cfg=cfg)
                     if not row:
                         continue
                     note = f"ATR({atr_p}) PTx{pt_m:.2f} SLx{sl_m:.2f}"
@@ -3199,12 +3160,7 @@ def main() -> None:
                             spot_stop_loss_pct=None,
                         ),
                     )
-                    row = _run_cfg(
-                        cfg=cfg,
-                        bars=bars_sig,
-                        regime_bars=_regime_bars_for(cfg),
-                        regime2_bars=_regime2_bars_for(cfg),
-                    )
+                    row = _run_cfg(cfg=cfg)
                     if not row:
                         continue
                     note = f"ATR({atr_p}) PTx{pt_m:.2f} SLx{sl_m:.2f}"
@@ -3316,12 +3272,7 @@ def main() -> None:
                         spot_stop_loss_pct=exit_over["spot_stop_loss_pct"],
                     ),
                 )
-                row = _run_cfg(
-                    cfg=cfg,
-                    bars=bars_sig,
-                    regime_bars=_regime_bars_for(cfg),
-                    regime2_bars=_regime2_bars_for(cfg),
-                )
+                row = _run_cfg(cfg=cfg)
                 if not row:
                     continue
                 r2_key = (
@@ -3387,12 +3338,7 @@ def main() -> None:
                                 spot_stop_loss_pct=None,
                             ),
                         )
-                        row = _run_cfg(
-                            cfg=cfg,
-                            bars=bars_sig,
-                            regime_bars=_regime_bars_for(cfg),
-                            regime2_bars=_regime2_bars_for(cfg),
-                        )
+                        row = _run_cfg(cfg=cfg)
                         if not row:
                             continue
                         if str(r2_mode).strip().lower() == "off":
@@ -3453,12 +3399,7 @@ def main() -> None:
                     regime2_supertrend_source=str(r2_over.get("regime2_supertrend_source") or "hl2"),
                 ),
             )
-            row = _run_cfg(
-                cfg=cfg,
-                bars=bars_sig,
-                regime_bars=_regime_bars_for(cfg),
-                regime2_bars=_regime2_bars_for(cfg),
-            )
+            row = _run_cfg(cfg=cfg)
             if not row:
                 continue
             r2_key = (
@@ -3507,12 +3448,7 @@ def main() -> None:
                         regime2_supertrend_source=str(r2_src or "hl2"),
                     ),
                 )
-                row = _run_cfg(
-                    cfg=cfg,
-                    bars=bars_sig,
-                    regime_bars=_regime_bars_for(cfg),
-                    regime2_bars=_regime2_bars_for(cfg),
-                )
+                row = _run_cfg(cfg=cfg)
                 if not row:
                     continue
                 if str(r2_mode).strip().lower() == "off":
@@ -4562,12 +4498,7 @@ def main() -> None:
                         regime2_ema_preset=str(preset),
                     ),
                 )
-                row = _run_cfg(
-                    cfg=cfg,
-                    bars=bars_sig,
-                    regime_bars=_regime_bars_for(cfg),
-                    regime2_bars=_regime2_bars_for(cfg),
-                )
+                row = _run_cfg(cfg=cfg)
                 if not row:
                     continue
                 note = f"r2=EMA({preset})@{r2_bar}"
@@ -4625,12 +4556,7 @@ def main() -> None:
                                                 regime2_supertrend_source=str(r2_src),
                                             ),
                                         )
-                                        row = _run_cfg(
-                                            cfg=cfg,
-                                            bars=bars_sig,
-                                            regime_bars=_regime_bars_for(cfg),
-                                            regime2_bars=_regime2_bars_for(cfg),
-                                        )
+                                        row = _run_cfg(cfg=cfg)
                                         if not row:
                                             continue
                                         note = (
@@ -4682,12 +4608,7 @@ def main() -> None:
                                 regime2_supertrend_source="close",
                             ),
                         )
-                        row = _run_cfg(
-                            cfg=cfg,
-                            bars=bars_sig,
-                            regime_bars=_regime_bars_for(cfg),
-                            regime2_bars=_regime2_bars_for(cfg),
-                        )
+                        row = _run_cfg(cfg=cfg)
                         if not row:
                             continue
                         note = f"ST({atr_p},{mult},close) + ST2(4h:{r2_atr},{r2_mult},close)"
@@ -4724,12 +4645,7 @@ def main() -> None:
                                 flip_exit_min_hold_bars=int(hold),
                             ),
                         )
-                        row = _run_cfg(
-                            cfg=cfg,
-                            bars=bars_sig,
-                            regime_bars=_regime_bars_for(cfg),
-                            regime2_bars=_regime2_bars_for(cfg),
-                        )
+                        row = _run_cfg(cfg=cfg)
                         if not row:
                             continue
                         note = (
@@ -5021,12 +4937,7 @@ def main() -> None:
                                 overrides.update(params)
                                 f = _mk_filters(overrides=overrides)
                                 cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
-                                row = _run_cfg(
-                                    cfg=cfg,
-                                    bars=bars_sig,
-                                    regime_bars=_regime_bars_for(cfg),
-                                    regime2_bars=_regime2_bars_for(cfg),
-                                )
+                                row = _run_cfg(cfg=cfg)
                                 if not row:
                                     continue
                                 note = (
@@ -5228,12 +5139,7 @@ def main() -> None:
                             }
                             f = _mk_filters(overrides=overrides)
                             cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
-                            row = _run_cfg(
-                                cfg=cfg,
-                                bars=bars_sig,
-                                regime_bars=_regime_bars_for(cfg),
-                                regime2_bars=_regime2_bars_for(cfg),
-                            )
+                            row = _run_cfg(cfg=cfg)
                             if not row:
                                 continue
                             cut_note = "-" if cutoff is None else f"cutoff<{cutoff:02d} ET"
@@ -5282,12 +5188,7 @@ def main() -> None:
                                                 overrides["riskpanic_long_scale_mode"] = "linear"
                                             f = _mk_filters(overrides=overrides)
                                             cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
-                                            row = _run_cfg(
-                                                cfg=cfg,
-                                                bars=bars_sig,
-                                                regime_bars=_regime_bars_for(cfg),
-                                                regime2_bars=_regime2_bars_for(cfg),
-                                            )
+                                            row = _run_cfg(cfg=cfg)
                                             if not row:
                                                 continue
                                             cut_note = "-" if cutoff is None else f"cutoff<{cutoff:02d} ET"
@@ -5343,12 +5244,7 @@ def main() -> None:
                                                     }
                                                     f = _mk_filters(overrides=overrides)
                                                     cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
-                                                    row = _run_cfg(
-                                                        cfg=cfg,
-                                                        bars=bars_sig,
-                                                        regime_bars=_regime_bars_for(cfg),
-                                                        regime2_bars=_regime2_bars_for(cfg),
-                                                    )
+                                                    row = _run_cfg(cfg=cfg)
                                                     if not row:
                                                         continue
                                                     cut_note = "-" if cutoff is None else f"cutoff<{cutoff:02d} ET"
@@ -5486,12 +5382,7 @@ def main() -> None:
                                 }
                             )
                             cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
-                            row = _run_cfg(
-                                cfg=cfg,
-                                bars=bars_sig,
-                                regime_bars=_regime_bars_for(cfg),
-                                regime2_bars=_regime2_bars_for(cfg),
-                            )
+                            row = _run_cfg(cfg=cfg)
                             if not row:
                                 continue
                             cut_note = "-" if cutoff is None else f"cutoff<{cutoff:02d} ET"
@@ -5549,12 +5440,7 @@ def main() -> None:
                                                 overrides["riskpanic_long_scale_mode"] = "linear"
                                             f = _mk_filters(overrides=overrides)
                                             cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
-                                            row = _run_cfg(
-                                                cfg=cfg,
-                                                bars=bars_sig,
-                                                regime_bars=_regime_bars_for(cfg),
-                                                regime2_bars=_regime2_bars_for(cfg),
-                                            )
+                                            row = _run_cfg(cfg=cfg)
                                             if not row:
                                                 continue
                                             cut_note = "-" if cutoff is None else f"cutoff<{cutoff:02d} ET"
@@ -5620,12 +5506,7 @@ def main() -> None:
                                                         }
                                                     )
                                                     cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
-                                                    row = _run_cfg(
-                                                        cfg=cfg,
-                                                        bars=bars_sig,
-                                                        regime_bars=_regime_bars_for(cfg),
-                                                        regime2_bars=_regime2_bars_for(cfg),
-                                                    )
+                                                    row = _run_cfg(cfg=cfg)
                                                     if not row:
                                                         continue
                                                     cut_note = "-" if cutoff is None else f"cutoff<{cutoff:02d} ET"
@@ -5708,12 +5589,7 @@ def main() -> None:
                                     spot_stop_loss_pct=None,
                                 ),
                             )
-                            row = _run_cfg(
-                                cfg=cfg,
-                                bars=bars_sig,
-                                regime_bars=_regime_bars_for(cfg),
-                                regime2_bars=_regime2_bars_for(cfg),
-                            )
+                            row = _run_cfg(cfg=cfg)
                             if not row:
                                 continue
                             note = (
@@ -5830,12 +5706,7 @@ def main() -> None:
                                             ),
                                         ),
                                     )
-                                    row = _run_cfg(
-                                        cfg=cfg,
-                                        bars=bars_sig,
-                                        regime_bars=_regime_bars_for(cfg),
-                                        regime2_bars=_regime2_bars_for(cfg),
-                                    )
+                                    row = _run_cfg(cfg=cfg)
                                     if not row:
                                         continue
                                     note = (
@@ -7906,12 +7777,7 @@ def main() -> None:
             base = _base_bundle(bar_size=signal_bar_size, filters=None)
             cfg_seed = _apply_milestone_base(base, strategy=seed["strategy"], filters=seed.get("filters"))
 
-            base_row = _run_cfg(
-                cfg=cfg_seed,
-                bars=bars_sig,
-                regime_bars=_regime_bars_for(cfg_seed),
-                regime2_bars=_regime2_bars_for(cfg_seed),
-            )
+            base_row = _run_cfg(cfg=cfg_seed)
             if base_row:
                 note = f"{seed_tag} | base"
                 base_row["note"] = note
@@ -7935,12 +7801,7 @@ def main() -> None:
             stage1: list[tuple[float, ConfigBundle, dict]] = []
             for mult in short_vals:
                 cfg = replace(cfg_seed, strategy=replace(cfg_seed.strategy, spot_short_risk_mult=float(mult)))
-                row = _run_cfg(
-                    cfg=cfg,
-                    bars=bars_sig,
-                    regime_bars=_regime_bars_for(cfg),
-                    regime2_bars=_regime2_bars_for(cfg),
-                )
+                row = _run_cfg(cfg=cfg)
                 tested_total += 1
                 now = pytime.perf_counter()
                 if tested_total % report_every == 0 or (now - last_progress) >= heartbeat_sec:
@@ -8023,12 +7884,7 @@ def main() -> None:
                                     supertrend_source=str(src),
                                 ),
                             )
-                            row = _run_cfg(
-                                cfg=cfg,
-                                bars=bars_sig,
-                                regime_bars=_regime_bars_for(cfg),
-                                regime2_bars=_regime2_bars_for(cfg),
-                            )
+                            row = _run_cfg(cfg=cfg)
                             tested_total += 1
                             now = pytime.perf_counter()
                             if tested_total % report_every == 0 or (now - last_progress) >= heartbeat_sec:
@@ -8492,7 +8348,6 @@ def main() -> None:
         print(f"- seed_path={seed_path}")
         print("")
 
-        bars_sig = _bars_cached(signal_bar_size)
         rows: list[dict] = []
         tested_total = 0
         t0 = pytime.perf_counter()
@@ -8570,24 +8425,7 @@ def main() -> None:
             * len(risk_scale_variants)
         )
 
-        for seed_i, item in enumerate(seeds, start=1):
-            try:
-                filters_obj = _filters_from_payload(item.get("filters"))
-                strategy_obj = _strategy_from_payload(item.get("strategy") or {}, filters=filters_obj)
-            except Exception:
-                continue
-
-            cfg_seed = _mk_bundle(
-                strategy=strategy_obj,
-                start=start,
-                end=end,
-                bar_size=signal_bar_size,
-                use_rth=use_rth,
-                cache_dir=cache_dir,
-                offline=offline,
-            )
-
-            seed_note = str(item.get("group_name") or f"seed#{seed_i:02d}")
+        for _seed_i, _item, cfg_seed, seed_note in _iter_seed_bundles(seeds):
             for gate_mode in gate_modes:
                 for det_over, det_note in detector_variants:
                     for override_dir in regime_override_dirs:
@@ -8625,12 +8463,7 @@ def main() -> None:
 
                                     f_obj = _merge_filters(cfg_seed.strategy.filters, f_over)
                                     cfg = replace(cfg_seed, strategy=replace(cfg_seed.strategy, filters=f_obj))
-                                    row = _run_cfg(
-                                        cfg=cfg,
-                                        bars=bars_sig,
-                                        regime_bars=_regime_bars_for(cfg),
-                                        regime2_bars=_regime2_bars_for(cfg),
-                                    )
+                                    row = _run_cfg(cfg=cfg)
                                     if not row:
                                         continue
                                     note = (
@@ -8676,7 +8509,6 @@ def main() -> None:
         print(f"- seed_path={seed_path}")
         print("")
 
-        bars_sig = _bars_cached(signal_bar_size)
         rows: list[dict] = []
         tested_total = 0
         t0 = pytime.perf_counter()
@@ -8875,23 +8707,7 @@ def main() -> None:
                     flush=True,
                 )
 
-            for seed_i, item in enumerate(seeds, start=1):
-                try:
-                    filters_obj = _filters_from_payload(item.get("filters"))
-                    strategy_obj = _strategy_from_payload(item.get("strategy") or {}, filters=filters_obj)
-                except Exception:
-                    continue
-
-                cfg_seed = _mk_bundle(
-                    strategy=strategy_obj,
-                    start=start,
-                    end=end,
-                    bar_size=signal_bar_size,
-                    use_rth=use_rth,
-                    cache_dir=cache_dir,
-                    offline=offline,
-                )
-                seed_note = str(item.get("group_name") or f"seed#{seed_i:02d}")
+            for _seed_i, _item, cfg_seed, seed_note in _iter_seed_bundles(seeds):
 
                 for shock_over, shock_note in shock_variants:
                     for risk_over, risk_note in risk_variants:
@@ -8908,12 +8724,7 @@ def main() -> None:
                         over.update(risk_over)
                         f_obj = _merge_filters(cfg_seed.strategy.filters, over)
                         cfg = replace(cfg_seed, strategy=replace(cfg_seed.strategy, filters=f_obj))
-                        row = _run_cfg(
-                            cfg=cfg,
-                            bars=bars_sig,
-                            regime_bars=_regime_bars_for(cfg),
-                            regime2_bars=_regime2_bars_for(cfg),
-                        )
+                        row = _run_cfg(cfg=cfg)
                         if not row:
                             continue
                         note = f"{seed_note} | {shock_note} | {risk_note}"
@@ -9016,23 +8827,7 @@ def main() -> None:
 
             run_calls_total += int(tested_total)
         else:
-            for seed_i, item in enumerate(seeds, start=1):
-                try:
-                    filters_obj = _filters_from_payload(item.get("filters"))
-                    strategy_obj = _strategy_from_payload(item.get("strategy") or {}, filters=filters_obj)
-                except Exception:
-                    continue
-
-                cfg_seed = _mk_bundle(
-                    strategy=strategy_obj,
-                    start=start,
-                    end=end,
-                    bar_size=signal_bar_size,
-                    use_rth=use_rth,
-                    cache_dir=cache_dir,
-                    offline=offline,
-                )
-                seed_note = str(item.get("group_name") or f"seed#{seed_i:02d}")
+            for _seed_i, _item, cfg_seed, seed_note in _iter_seed_bundles(seeds):
 
                 for shock_over, shock_note in shock_variants:
                     for risk_over, risk_note in risk_variants:
@@ -9054,12 +8849,7 @@ def main() -> None:
                         over.update(risk_over)
                         f_obj = _merge_filters(cfg_seed.strategy.filters, over)
                         cfg = replace(cfg_seed, strategy=replace(cfg_seed.strategy, filters=f_obj))
-                        row = _run_cfg(
-                            cfg=cfg,
-                            bars=bars_sig,
-                            regime_bars=_regime_bars_for(cfg),
-                            regime2_bars=_regime2_bars_for(cfg),
-                        )
+                        row = _run_cfg(cfg=cfg)
                         if not row:
                             continue
                         note = f"{seed_note} | {shock_note} | {risk_note}"
@@ -9105,7 +8895,6 @@ def main() -> None:
         print(f"- seed_path={seed_path}")
         print("")
 
-        bars_sig = _bars_cached(signal_bar_size)
         rows: list[dict] = []
         t0 = pytime.perf_counter()
         report_every = 50
@@ -9232,23 +9021,7 @@ def main() -> None:
 
         work: list[dict] = []
         total = 0
-        for seed_i, item in enumerate(seeds, start=1):
-            try:
-                filters_obj = _filters_from_payload(item.get("filters"))
-                strategy_obj = _strategy_from_payload(item.get("strategy") or {}, filters=filters_obj)
-            except Exception:
-                continue
-
-            cfg_seed = _mk_bundle(
-                strategy=strategy_obj,
-                start=start,
-                end=end,
-                bar_size=signal_bar_size,
-                use_rth=use_rth,
-                cache_dir=cache_dir,
-                offline=offline,
-            )
-            seed_note = str(item.get("group_name") or f"seed#{seed_i:02d}")
+        for _seed_i, _item, cfg_seed, seed_note in _iter_seed_bundles(seeds):
 
             base_filters = cfg_seed.strategy.filters
             mode = _shock_mode(base_filters)
@@ -9336,12 +9109,7 @@ def main() -> None:
                                     spot_stop_loss_pct=float(stop_pct),
                                 ),
                             )
-                            row = _run_cfg(
-                                cfg=cfg,
-                                bars=bars_sig,
-                                regime_bars=_regime_bars_for(cfg),
-                                regime2_bars=_regime2_bars_for(cfg),
-                            )
+                            row = _run_cfg(cfg=cfg)
                             if not row:
                                 continue
 
@@ -9392,7 +9160,6 @@ def main() -> None:
         print(f"- seed_path={seed_path}")
         print("")
 
-        bars_sig = _bars_cached(signal_bar_size)
         rows: list[dict] = []
 
         scale_periods: tuple[tuple[int, int], ...] = ((2, 50), (3, 50), (5, 50), (3, 21))
@@ -9406,35 +9173,8 @@ def main() -> None:
         tested_total = 0
         report_every = 50
 
-        for seed_i, item in enumerate(seeds, start=1):
-            try:
-                filters_obj = _filters_from_payload(item.get("filters"))
-                strategy_obj = _strategy_from_payload(item.get("strategy") or {}, filters=filters_obj)
-            except Exception:
-                continue
-
-            cfg_seed = _mk_bundle(
-                strategy=strategy_obj,
-                start=start,
-                end=end,
-                bar_size=signal_bar_size,
-                use_rth=use_rth,
-                cache_dir=cache_dir,
-                offline=offline,
-            )
-            seed_note = str(item.get("group_name") or f"seed#{seed_i:02d}")
-
-            base_row = _run_cfg(
-                cfg=cfg_seed,
-                bars=bars_sig,
-                regime_bars=_regime_bars_for(cfg_seed),
-                regime2_bars=_regime2_bars_for(cfg_seed),
-            )
-            if base_row:
-                note = f"{seed_note} | shock_scale=off (base)"
-                base_row["note"] = note
-                _record_milestone(cfg_seed, base_row, note)
-                rows.append(base_row)
+        for _seed_i, _item, cfg_seed, seed_note in _iter_seed_bundles(seeds):
+            _emit_seed_base_row(cfg_seed=cfg_seed, seed_note=seed_note, rows=rows, base_note="shock_scale=off (base)")
 
             for fast_p, slow_p in scale_periods:
                 for target_atr in targets:
@@ -9458,12 +9198,7 @@ def main() -> None:
                             if f_obj is None:
                                 continue
                             cfg = replace(cfg_seed, strategy=replace(cfg_seed.strategy, filters=f_obj))
-                            row = _run_cfg(
-                                cfg=cfg,
-                                bars=bars_sig,
-                                regime_bars=_regime_bars_for(cfg),
-                                regime2_bars=_regime2_bars_for(cfg),
-                            )
+                            row = _run_cfg(cfg=cfg)
                             if not row:
                                 continue
                             note = (
@@ -9509,7 +9244,6 @@ def main() -> None:
         print(f"- seed_path={seed_path}")
         print("")
 
-        bars_sig = _bars_cached(signal_bar_size)
         rows: list[dict] = []
 
         lookbacks: tuple[int, ...] = (10, 20, 40)
@@ -9523,35 +9257,8 @@ def main() -> None:
         tested_total = 0
         report_every = 50
 
-        for seed_i, item in enumerate(seeds, start=1):
-            try:
-                filters_obj = _filters_from_payload(item.get("filters"))
-                strategy_obj = _strategy_from_payload(item.get("strategy") or {}, filters=filters_obj)
-            except Exception:
-                continue
-
-            cfg_seed = _mk_bundle(
-                strategy=strategy_obj,
-                start=start,
-                end=end,
-                bar_size=signal_bar_size,
-                use_rth=use_rth,
-                cache_dir=cache_dir,
-                offline=offline,
-            )
-            seed_note = str(item.get("group_name") or f"seed#{seed_i:02d}")
-
-            base_row = _run_cfg(
-                cfg=cfg_seed,
-                bars=bars_sig,
-                regime_bars=_regime_bars_for(cfg_seed),
-                regime2_bars=_regime2_bars_for(cfg_seed),
-            )
-            if base_row:
-                note = f"{seed_note} | shock_scale=off (base)"
-                base_row["note"] = note
-                _record_milestone(cfg_seed, base_row, note)
-                rows.append(base_row)
+        for _seed_i, _item, cfg_seed, seed_note in _iter_seed_bundles(seeds):
+            _emit_seed_base_row(cfg_seed=cfg_seed, seed_note=seed_note, rows=rows, base_note="shock_scale=off (base)")
 
             for lb in lookbacks:
                 for target_dd in targets:
@@ -9574,12 +9281,7 @@ def main() -> None:
                             if f_obj is None:
                                 continue
                             cfg = replace(cfg_seed, strategy=replace(cfg_seed.strategy, filters=f_obj))
-                            row = _run_cfg(
-                                cfg=cfg,
-                                bars=bars_sig,
-                                regime_bars=_regime_bars_for(cfg),
-                                regime2_bars=_regime2_bars_for(cfg),
-                            )
+                            row = _run_cfg(cfg=cfg)
                             if not row:
                                 continue
                             note = (
@@ -9630,7 +9332,6 @@ def main() -> None:
         print(f"- seed_path={seed_path}")
         print("")
 
-        bars_sig = _bars_cached(signal_bar_size)
         rows: list[dict] = []
 
         cutoffs_et: tuple[int | None, ...] = (None, 15)
@@ -9645,35 +9346,8 @@ def main() -> None:
         tested_total = 0
         report_every = 50
 
-        for seed_i, item in enumerate(seeds, start=1):
-            try:
-                filters_obj = _filters_from_payload(item.get("filters"))
-                strategy_obj = _strategy_from_payload(item.get("strategy") or {}, filters=filters_obj)
-            except Exception:
-                continue
-
-            cfg_seed = _mk_bundle(
-                strategy=strategy_obj,
-                start=start,
-                end=end,
-                bar_size=signal_bar_size,
-                use_rth=use_rth,
-                cache_dir=cache_dir,
-                offline=offline,
-            )
-            seed_note = str(item.get("group_name") or f"seed#{seed_i:02d}")
-
-            base_row = _run_cfg(
-                cfg=cfg_seed,
-                bars=bars_sig,
-                regime_bars=_regime_bars_for(cfg_seed),
-                regime2_bars=_regime2_bars_for(cfg_seed),
-            )
-            if base_row:
-                note = f"{seed_note} | base"
-                base_row["note"] = note
-                _record_milestone(cfg_seed, base_row, note)
-                rows.append(base_row)
+        for _seed_i, _item, cfg_seed, seed_note in _iter_seed_bundles(seeds):
+            _emit_seed_base_row(cfg_seed=cfg_seed, seed_note=seed_note, rows=rows, base_note="base")
 
             for cutoff in cutoffs_et:
                 for tr_med in panic_tr_meds:
@@ -9709,12 +9383,7 @@ def main() -> None:
                                         if f_obj is None:
                                             continue
                                         cfg = replace(cfg_seed, strategy=replace(cfg_seed.strategy, filters=f_obj))
-                                        row = _run_cfg(
-                                            cfg=cfg,
-                                            bars=bars_sig,
-                                            regime_bars=_regime_bars_for(cfg),
-                                            regime2_bars=_regime2_bars_for(cfg),
-                                        )
+                                        row = _run_cfg(cfg=cfg)
                                         if not row:
                                             continue
 
@@ -9787,7 +9456,6 @@ def main() -> None:
         print(f"- seed_path={seed_path}")
         print("")
 
-        bars_sig = _bars_cached(signal_bar_size)
         rows: list[dict] = []
 
         pt_vals: tuple[float | None, ...] = (None, 0.0015, 0.002, 0.003, 0.004, 0.006)
@@ -9800,35 +9468,8 @@ def main() -> None:
         tested_total = 0
         report_every = 100
 
-        for seed_i, item in enumerate(seeds, start=1):
-            try:
-                filters_obj = _filters_from_payload(item.get("filters"))
-                strategy_obj = _strategy_from_payload(item.get("strategy") or {}, filters=filters_obj)
-            except Exception:
-                continue
-
-            cfg_seed = _mk_bundle(
-                strategy=strategy_obj,
-                start=start,
-                end=end,
-                bar_size=signal_bar_size,
-                use_rth=use_rth,
-                cache_dir=cache_dir,
-                offline=offline,
-            )
-            seed_note = str(item.get("group_name") or f"seed#{seed_i:02d}")
-
-            base_row = _run_cfg(
-                cfg=cfg_seed,
-                bars=bars_sig,
-                regime_bars=_regime_bars_for(cfg_seed),
-                regime2_bars=_regime2_bars_for(cfg_seed),
-            )
-            if base_row:
-                note = f"{seed_note} | base"
-                base_row["note"] = note
-                _record_milestone(cfg_seed, base_row, note)
-                rows.append(base_row)
+        for _seed_i, _item, cfg_seed, seed_note in _iter_seed_bundles(seeds):
+            _emit_seed_base_row(cfg_seed=cfg_seed, seed_note=seed_note, rows=rows, base_note="base")
 
             for max_open in max_open_vals:
                 for close_eod in close_eod_vals:
@@ -9857,12 +9498,7 @@ def main() -> None:
                                         max_open_trades=int(max_open),
                                     ),
                                 )
-                                row = _run_cfg(
-                                    cfg=cfg,
-                                    bars=bars_sig,
-                                    regime_bars=_regime_bars_for(cfg),
-                                    regime2_bars=_regime2_bars_for(cfg),
-                                )
+                                row = _run_cfg(cfg=cfg)
                                 if not row:
                                     continue
 
@@ -11647,12 +11283,7 @@ def main() -> None:
                                 entry_confirm_bars=0,
                             ),
                         )
-                        row = _run_cfg(
-                            cfg=cfg,
-                            bars=bars_sig,
-                            regime_bars=_regime_bars_for(cfg),
-                            regime2_bars=_regime2_bars_for(cfg),
-                        )
+                        row = _run_cfg(cfg=cfg)
                         if not row:
                             continue
                         note = f"r2=ST({atr_p},{mult},{src})@{r2_bar}"
@@ -11697,12 +11328,7 @@ def main() -> None:
                             base_cfg,
                             strategy=replace(base_cfg.strategy, filters=f, entry_confirm_bars=int(confirm)),
                         )
-                        row = _run_cfg(
-                            cfg=cfg,
-                            bars=bars_sig,
-                            regime_bars=_regime_bars_for(cfg),
-                            regime2_bars=_regime2_bars_for(cfg),
-                        )
+                        row = _run_cfg(cfg=cfg)
                         if not row:
                             continue
                         note = f"{base_note} | {v_note} | {tod_note} | {confirm_note}"

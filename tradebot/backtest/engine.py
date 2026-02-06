@@ -2061,6 +2061,26 @@ def _spot_entry_leg_for_direction(
     return None
 
 
+def _spot_next_open_entry_allowed(
+    *,
+    signal_ts: datetime,
+    next_ts: datetime,
+    riskoff_today: bool,
+    riskoff_end_hour: int | None,
+    exit_mode: str,
+    atr_value: float | None,
+) -> bool:
+    if bool(riskoff_today):
+        if next_ts.date() != signal_ts.date():
+            return False
+        if riskoff_end_hour is not None and int(next_ts.hour) >= int(riskoff_end_hour):
+            return False
+    if str(exit_mode).strip().lower() == "atr":
+        if atr_value is None or float(atr_value) <= 0.0:
+            return False
+    return True
+
+
 def _spot_try_open_entry(
     *,
     cfg: ConfigBundle,
@@ -2963,14 +2983,14 @@ def _run_spot_backtest_exec_loop(
             if spot_leg is not None and direction in ("up", "down"):
                 if spot_entry_fill_mode == "next_open":
                     if next_bar is not None and pending_entry_dir is None:
-                        schedule_ok = True
-                        if riskoff_today:
-                            if next_bar.ts.date() != bar.ts.date():
-                                schedule_ok = False
-                            elif riskoff_end_hour is not None:
-                                if int(next_bar.ts.hour) >= int(riskoff_end_hour):
-                                    schedule_ok = False
-                        if schedule_ok and (exit_mode != "atr" or (atr is not None and float(atr) > 0)):
+                        if _spot_next_open_entry_allowed(
+                            signal_ts=bar.ts,
+                            next_ts=next_bar.ts,
+                            riskoff_today=bool(riskoff_today),
+                            riskoff_end_hour=riskoff_end_hour,
+                            exit_mode=exit_mode,
+                            atr_value=float(atr) if atr is not None else None,
+                        ):
                             pending_entry_dir = direction
                             pending_entry_set_date = bar.ts.date()
                             last_entry_sig_idx = int(sig_idx)
@@ -3340,12 +3360,15 @@ def _run_spot_backtest_exec_loop_summary_fast(
             return False
 
         riskoff_today, _riskpanic_today, _riskpop_today = _risk_flags(exec_bars[sig_exec_idx].ts.date())
-        if bool(riskoff_today):
-            next_bar = exec_bars[entry_exec_idx]
-            if next_bar.ts.date() != exec_bars[sig_exec_idx].ts.date():
-                return False
-            if riskoff_end_hour is not None and int(next_bar.ts.hour) >= int(riskoff_end_hour):
-                return False
+        if not _spot_next_open_entry_allowed(
+            signal_ts=exec_bars[sig_exec_idx].ts,
+            next_ts=exec_bars[entry_exec_idx].ts,
+            riskoff_today=bool(riskoff_today),
+            riskoff_end_hour=riskoff_end_hour,
+            exit_mode="pct",
+            atr_value=None,
+        ):
+            return False
 
         last_entry_sig_idx = int(sig_idx)
         pending_set_date = exec_bars[sig_exec_idx].ts.date()

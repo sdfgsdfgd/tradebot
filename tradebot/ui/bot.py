@@ -557,6 +557,18 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         "bot-logs": "logs",
     }
     _PANEL_ORDER = ("presets", "instances", "orders", "logs")
+    _ACTIVATE_HANDLER_BY_PANEL = {
+        "presets": "_activate_presets_panel",
+        "instances": "_activate_instances_panel",
+        "orders": "_submit_selected_order",
+        "logs": "_activate_logs_panel",
+    }
+    _SPACE_HANDLER_BY_PANEL = {
+        "presets": "action_activate",
+        "instances": "action_toggle_instance",
+        "orders": "action_toggle_instance",
+        "logs": "action_toggle_instance",
+    }
 
     def __init__(self, client: IBKRClient, refresh_sec: float) -> None:
         super().__init__()
@@ -757,35 +769,38 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         self._panel_table(panel).focus()
         self._render_status()
 
+    def _set_status(self, message: str) -> None:
+        self._status = message
+        self._render_status()
+
+    def _dispatch_panel_handler(self, handlers: dict[str, str], *, default: str) -> None:
+        fn_name = str(handlers.get(str(self._active_panel), default))
+        fn = getattr(self, fn_name, None)
+        if callable(fn):
+            fn()
+
     def action_toggle_instance(self) -> None:
         instance = self._selected_instance()
         if not instance:
-            self._status = "Run: select an instance"
-            self._render_status()
+            self._set_status("Run: select an instance")
             return
         instance.state = "PAUSED" if instance.state == "RUNNING" else "RUNNING"
         self._refresh_instances_table()
-        self._status = f"Instance {instance.instance_id}: {instance.state}"
-        self._render_status()
+        self._set_status(f"Instance {instance.instance_id}: {instance.state}")
 
     def action_context_space(self) -> None:
-        if self._active_panel == "presets":
-            self.action_activate()
-            return
-        self.action_toggle_instance()
+        self._dispatch_panel_handler(self._SPACE_HANDLER_BY_PANEL, default="action_toggle_instance")
 
     def action_delete_instance(self) -> None:
         instance = self._selected_instance()
         if not instance:
-            self._status = "Del: select an instance"
-            self._render_status()
+            self._set_status("Del: select an instance")
             return
         self._instances = [i for i in self._instances if i.instance_id != instance.instance_id]
         self._orders = [o for o in self._orders if o.instance_id != instance.instance_id]
         self._refresh_instances_table()
         self._refresh_orders_table()
-        self._status = f"Deleted instance {instance.instance_id}"
-        self._render_status()
+        self._set_status(f"Deleted instance {instance.instance_id}")
 
     def action_cycle_dte_filter(self) -> None:
         dtes: list[int] = []
@@ -831,16 +846,14 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
     def action_stop_bot(self) -> None:
         instance = self._selected_instance()
         if not instance:
-            self._status = "Stop: select an instance"
-            self._render_status()
+            self._set_status("Stop: select an instance")
             return
         instance.state = "PAUSED"
         self._orders = [o for o in self._orders if o.instance_id != instance.instance_id]
         self._refresh_instances_table()
         self._refresh_orders_table()
-        self._status = f"Stopped instance {instance.instance_id}: paused + cleared orders"
         self._journal_write(event="STOP_INSTANCE", instance=instance, reason=None, data=None)
-        self._render_status()
+        self._set_status(f"Stopped instance {instance.instance_id}: paused + cleared orders")
 
     def _kill_all(self) -> None:
         for instance in self._instances:
@@ -848,25 +861,16 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         self._orders.clear()
         self._refresh_instances_table()
         self._refresh_orders_table()
-        self._status = "KILL: paused all + cleared orders"
         self._journal_write(event="KILL_ALL", reason=None, data=None)
-        self._render_status()
+        self._set_status("KILL: paused all + cleared orders")
 
     def action_activate(self) -> None:
-        handlers = {
-            "presets": self._activate_presets_panel,
-            "instances": self._activate_instances_panel,
-            "orders": self._submit_selected_order,
-            "logs": self._activate_logs_panel,
-        }
-        handler = handlers.get(str(self._active_panel), self._activate_logs_panel)
-        handler()
+        self._dispatch_panel_handler(self._ACTIVATE_HANDLER_BY_PANEL, default="_activate_logs_panel")
 
     def _activate_presets_panel(self) -> None:
         row = self._selected_preset_row()
         if row is None:
-            self._status = "Preset: none selected"
-            self._render_status()
+            self._set_status("Preset: none selected")
             return
         if isinstance(row, _PresetHeader):
             self._toggle_preset_node(row.node_id)
@@ -876,24 +880,20 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
     def _activate_instances_panel(self) -> None:
         instance = self._selected_instance()
         if not instance:
-            self._status = "Instance: none selected"
-            self._render_status()
+            self._set_status("Instance: none selected")
             return
         self._open_config_for_instance(instance)
 
     def _activate_logs_panel(self) -> None:
-        self._status = "Logs: no action"
-        self._render_status()
+        self._set_status("Logs: no action")
 
     def action_cancel_order(self) -> None:
         if self._active_panel != "orders":
-            self._status = "Cancel: focus Orders"
-            self._render_bot()
+            self._set_status("Cancel: focus Orders")
             return
         order = self._selected_order()
         if not order:
-            self._status = "Cancel: no order selected"
-            self._render_bot()
+            self._set_status("Cancel: no order selected")
             return
         if order.status == "STAGED":
             self._orders = [o for o in self._orders if o is not order]
