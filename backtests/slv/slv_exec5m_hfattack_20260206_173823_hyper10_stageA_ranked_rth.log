@@ -1,0 +1,255 @@
+multitimeframe parallel: workers=12 total=384
+START mt:0
+START mt:1
+START mt:2
+START mt:3
+START mt:4
+START mt:5
+START mt:6
+START mt:7
+START mt:8
+START mt:9
+START mt:10
+START mt:11
+[mt:1] Traceback (most recent call last):
+[mt:1]   File "<frozen runpy>", line 198, in _run_module_as_main
+[mt:1]   File "<frozen runpy>", line 88, in _run_code
+[mt:1]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/__main__.py", line 6, in <module>
+[mt:1]     main()
+[mt:1]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtest.py", line 78, in main
+[mt:1]     run_backtest_spot.spot_multitimeframe_main()
+[mt:1]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtests_spot_sweeps.py", line 12105, in spot_multitimeframe_main
+[mt:4] Traceback (most recent call last):[mt:1]     tested, out_rows = _evaluate_candidate_multiwindow_shard(
+
+[mt:4]   File "<frozen runpy>", line 198, in _run_module_as_main
+[mt:4]   File "<frozen runpy>", line 88, in _run_code
+[mt:4]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/__main__.py", line 6, in <module>
+[mt:4]     main()[mt:1]                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[mt:1]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtests_spot_sweeps.py", line 11989, in _evaluate_candidate_multiwindow_shard
+
+[mt:4]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtest.py", line 78, in main
+[mt:4]     run_backtest_spot.spot_multitimeframe_main()
+[mt:4]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtests_spot_sweeps.py", line 12105, in spot_multitimeframe_main
+[mt:3] Traceback (most recent call last):
+[mt:3]   File "<frozen runpy>", line 198, in _run_module_as_main
+[mt:3]   File "<frozen runpy>", line 88, in _run_code
+[mt:3]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/__main__.py", line 6, in <module>
+[mt:3]     main()
+[mt:3]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtest.py", line 78, in main
+[mt:3]     run_backtest_spot.spot_multitimeframe_main()
+[mt:3]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtests_spot_sweeps.py", line 12105, in spot_multitimeframe_main
+[mt:0] Traceback (most recent call last):
+[mt:0]   File "<frozen runpy>", line 198, in _run_module_as_main
+[mt:0]   File "<frozen runpy>", line 88, in _run_code
+[mt:0]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/__main__.py", line 6, in <module>
+[mt:0]     main()
+[mt:0]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtest.py", line 78, in main
+[mt:0]     run_backtest_spot.spot_multitimeframe_main()
+[mt:0]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtests_spot_sweeps.py", line 12105, in spot_multitimeframe_main
+[mt:6] Traceback (most recent call last):
+[mt:6]   File "<frozen runpy>", line 198, in _run_module_as_main
+[mt:6]   File "<frozen runpy>", line 88, in _run_code
+[mt:6]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/__main__.py", line 6, in <module>
+[mt:6]     main()
+[mt:6]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtest.py", line 78, in main
+[mt:6]     run_backtest_spot.spot_multitimeframe_main()
+[mt:6]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtests_spot_sweeps.py", line 12105, in spot_multitimeframe_main
+[mt:1]     row = _evaluate_candidate_multiwindow(cand, load_bars_cached=load_bars_cached, data=data)
+[mt:1]           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[mt:1]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtests_spot_sweeps.py", line 11866, in _evaluate_candidate_multiwindow
+[mt:3]     tested, out_rows = _evaluate_candidate_multiwindow_shard(
+[mt:3]                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[mt:3]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtests_spot_sweeps.py", line 11989, in _evaluate_candidate_multiwindow_shard
+[mt:4]     tested, out_rows = _evaluate_candidate_multiwindow_shard(
+[mt:4]                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[mt:4]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtests_spot_sweeps.py", line 11989, in _evaluate_candidate_multiwindow_shard
+[mt:0]     tested, out_rows = _evaluate_candidate_multiwindow_shard(
+[mt:0]                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[mt:0]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtests_spot_sweeps.py", line 11989, in _evaluate_candidate_multiwindow_shard
+[mt:6]     tested, out_rows = _evaluate_candidate_multiwindow_shard(
+[mt:6]                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[mt:6]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtests_spot_sweeps.py", line 11989, in _evaluate_candidate_multiwindow_shard
+[mt:1]     strat_cfg = _strategy_from_payload(strategy_payload, filters=filters)
+[mt:1]                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[mt:1]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtests_spot_sweeps.py", line 11141, in _strategy_from_payload
+[mt:3]     row = _evaluate_candidate_multiwindow(cand, load_bars_cached=load_bars_cached, data=data)
+[mt:3]           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[mt:3]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtests_spot_sweeps.py", line 11866, in _evaluate_candidate_multiwindow
+[mt:4]     row = _evaluate_candidate_multiwindow(cand, load_bars_cached=load_bars_cached, data=data)
+[mt:4]           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[mt:4]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtests_spot_sweeps.py", line 11866, in _evaluate_candidate_multiwindow
+[mt:6]     row = _evaluate_candidate_multiwindow(cand, load_bars_cached=load_bars_cached, data=data)
+[mt:6]           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[mt:6]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtests_spot_sweeps.py", line 11866, in _evaluate_candidate_multiwindow
+[mt:0]     row = _evaluate_candidate_multiwindow(cand, load_bars_cached=load_bars_cached, data=data)
+[mt:0]           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[mt:0]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtests_spot_sweeps.py", line 11866, in _evaluate_candidate_multiwindow
+[mt:6]     strat_cfg = _strategy_from_payload(strategy_payload, filters=filters)
+[mt:6]                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[mt:6]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtests_spot_sweeps.py", line 11141, in _strategy_from_payload
+[mt:1]     return StrategyConfig(**raw)
+[mt:1]            ^^^^^^^^^^^^^^^^^^^^^
+[mt:1] TypeError: StrategyConfig.__init__() missing 1 required positional argument: 'regime_bar_size'
+[mt:3]     strat_cfg = _strategy_from_payload(strategy_payload, filters=filters)
+[mt:4]     strat_cfg = _strategy_from_payload(strategy_payload, filters=filters)
+[mt:4]                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[mt:4]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtests_spot_sweeps.py", line 11141, in _strategy_from_payload
+[mt:3]                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[mt:3]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtests_spot_sweeps.py", line 11141, in _strategy_from_payload
+[mt:0]     strat_cfg = _strategy_from_payload(strategy_payload, filters=filters)
+[mt:0]                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[mt:0]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtests_spot_sweeps.py", line 11141, in _strategy_from_payload
+[mt:9] Traceback (most recent call last):
+[mt:9]   File "<frozen runpy>", line 198, in _run_module_as_main
+[mt:9]   File "<frozen runpy>", line 88, in _run_code
+[mt:9]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/__main__.py", line 6, in <module>
+[mt:9]     main()
+[mt:9]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtest.py", line 78, in main
+[mt:9]     run_backtest_spot.spot_multitimeframe_main()
+[mt:9]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtests_spot_sweeps.py", line 12105, in spot_multitimeframe_main
+[mt:6]     return StrategyConfig(**raw)
+[mt:6]            ^^^^^^^^^^^^^^^^^^^^^
+[mt:6] TypeError: StrategyConfig.__init__() missing 1 required positional argument: 'regime_bar_size'
+[mt:4]     return StrategyConfig(**raw)
+[mt:4]            ^^^^^^^^^^^^^^^^^^^^^
+[mt:4] TypeError: StrategyConfig.__init__() missing 1 required positional argument: 'regime_bar_size'
+[mt:3]     return StrategyConfig(**raw)
+[mt:3]            ^^^^^^^^^^^^^^^^^^^^^
+[mt:3] TypeError: StrategyConfig.__init__() missing 1 required positional argument: 'regime_bar_size'
+[mt:0]     return StrategyConfig(**raw)
+[mt:0]            ^^^^^^^^^^^^^^^^^^^^^
+[mt:0] TypeError: StrategyConfig.__init__() missing 1 required positional argument: 'regime_bar_size'
+[mt:9]     tested, out_rows = _evaluate_candidate_multiwindow_shard(
+[mt:9]                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[mt:9]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtests_spot_sweeps.py", line 11989, in _evaluate_candidate_multiwindow_shard
+[mt:9]     row = _evaluate_candidate_multiwindow(cand, load_bars_cached=load_bars_cached, data=data)
+[mt:9]           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[mt:9]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtests_spot_sweeps.py", line 11866, in _evaluate_candidate_multiwindow
+[mt:9]     strat_cfg = _strategy_from_payload(strategy_payload, filters=filters)
+[mt:9]                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[mt:9]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtests_spot_sweeps.py", line 11141, in _strategy_from_payload
+[mt:5] Traceback (most recent call last):
+[mt:5]   File "<frozen runpy>", line 198, in _run_module_as_main
+[mt:5]   File "<frozen runpy>", line 88, in _run_code
+[mt:5]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/__main__.py", line 6, in <module>
+[mt:5]     main()
+[mt:5]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtest.py", line 78, in main
+[mt:5]     run_backtest_spot.spot_multitimeframe_main()
+[mt:5]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtests_spot_sweeps.py", line 12105, in spot_multitimeframe_main
+[mt:5]     tested, out_rows = _evaluate_candidate_multiwindow_shard(
+[mt:5]                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[mt:5]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtests_spot_sweeps.py", line 11989, in _evaluate_candidate_multiwindow_shard
+[mt:7] Traceback (most recent call last):
+[mt:7]   File "<frozen runpy>", line 198, in _run_module_as_main
+[mt:7]   File "<frozen runpy>", line 88, in _run_code
+[mt:7]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/__main__.py", line 6, in <module>
+[mt:7]     main()
+[mt:7]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtest.py", line 78, in main
+[mt:7]     run_backtest_spot.spot_multitimeframe_main()
+[mt:7]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtests_spot_sweeps.py", line 12105, in spot_multitimeframe_main
+[mt:9]     return StrategyConfig(**raw)
+[mt:9]            ^^^^^^^^^^^^^^^^^^^^^
+[mt:9] TypeError: StrategyConfig.__init__() missing 1 required positional argument: 'regime_bar_size'
+[mt:5]     row = _evaluate_candidate_multiwindow(cand, load_bars_cached=load_bars_cached, data=data)
+[mt:5]           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[mt:5]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtests_spot_sweeps.py", line 11866, in _evaluate_candidate_multiwindow
+[mt:2] Traceback (most recent call last):
+[mt:2]   File "<frozen runpy>", line 198, in _run_module_as_main
+[mt:2]   File "<frozen runpy>", line 88, in _run_code
+[mt:2]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/__main__.py", line 6, in <module>
+[mt:2]     main()
+[mt:2]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtest.py", line 78, in main
+[mt:2]     run_backtest_spot.spot_multitimeframe_main()
+[mt:2]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtests_spot_sweeps.py", line 12105, in spot_multitimeframe_main
+[mt:7]     tested, out_rows = _evaluate_candidate_multiwindow_shard(
+[mt:7]                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[mt:7]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtests_spot_sweeps.py", line 11989, in _evaluate_candidate_multiwindow_shard
+[mt:5]     strat_cfg = _strategy_from_payload(strategy_payload, filters=filters)
+[mt:5]                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[mt:5]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtests_spot_sweeps.py", line 11141, in _strategy_from_payload
+[mt:2]     tested, out_rows = _evaluate_candidate_multiwindow_shard(
+[mt:2]                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[mt:2]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtests_spot_sweeps.py", line 11989, in _evaluate_candidate_multiwindow_shard
+[mt:8] Traceback (most recent call last):
+[mt:8]   File "<frozen runpy>", line 198, in _run_module_as_main
+[mt:8]   File "<frozen runpy>", line 88, in _run_code
+[mt:8]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/__main__.py", line 6, in <module>
+[mt:8]     main()
+[mt:8]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtest.py", line 78, in main
+[mt:8]     run_backtest_spot.spot_multitimeframe_main()
+[mt:8]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtests_spot_sweeps.py", line 12105, in spot_multitimeframe_main
+[mt:7]     row = _evaluate_candidate_multiwindow(cand, load_bars_cached=load_bars_cached, data=data)
+[mt:7]           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[mt:7]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtests_spot_sweeps.py", line 11866, in _evaluate_candidate_multiwindow
+[mt:2]     row = _evaluate_candidate_multiwindow(cand, load_bars_cached=load_bars_cached, data=data)
+[mt:2]           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[mt:2]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtests_spot_sweeps.py", line 11866, in _evaluate_candidate_multiwindow
+[mt:5]     return StrategyConfig(**raw)
+[mt:5]            ^^^^^^^^^^^^^^^^^^^^^
+[mt:5] TypeError: StrategyConfig.__init__() missing 1 required positional argument: 'regime_bar_size'
+[mt:11] Traceback (most recent call last):
+[mt:11]   File "<frozen runpy>", line 198, in _run_module_as_main
+[mt:11]   File "<frozen runpy>", line 88, in _run_code
+[mt:11]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/__main__.py", line 6, in <module>
+[mt:8]     tested, out_rows = _evaluate_candidate_multiwindow_shard(
+[mt:8]                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[mt:8]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtests_spot_sweeps.py", line 11989, in _evaluate_candidate_multiwindow_shard
+[mt:11]     main()
+[mt:11]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtest.py", line 78, in main
+[mt:11]     run_backtest_spot.spot_multitimeframe_main()
+[mt:11]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtests_spot_sweeps.py", line 12105, in spot_multitimeframe_main
+[mt:2]     strat_cfg = _strategy_from_payload(strategy_payload, filters=filters)
+[mt:2]                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[mt:2]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtests_spot_sweeps.py", line 11141, in _strategy_from_payload
+[mt:7]     strat_cfg = _strategy_from_payload(strategy_payload, filters=filters)
+[mt:7]                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[mt:7]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtests_spot_sweeps.py", line 11141, in _strategy_from_payload
+[mt:8]     row = _evaluate_candidate_multiwindow(cand, load_bars_cached=load_bars_cached, data=data)
+[mt:8]           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[mt:8]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtests_spot_sweeps.py", line 11866, in _evaluate_candidate_multiwindow
+[mt:11]     tested, out_rows = _evaluate_candidate_multiwindow_shard(
+[mt:11]                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[mt:11]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtests_spot_sweeps.py", line 11989, in _evaluate_candidate_multiwindow_shard
+[mt:7]     return StrategyConfig(**raw)
+[mt:7]            ^^^^^^^^^^^^^^^^^^^^^
+[mt:7] TypeError: StrategyConfig.__init__() missing 1 required positional argument: 'regime_bar_size'
+[mt:8]     strat_cfg = _strategy_from_payload(strategy_payload, filters=filters)
+[mt:8]                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[mt:8]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtests_spot_sweeps.py", line 11141, in _strategy_from_payload
+[mt:11]     row = _evaluate_candidate_multiwindow(cand, load_bars_cached=load_bars_cached, data=data)
+[mt:11]           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[mt:11]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtests_spot_sweeps.py", line 11866, in _evaluate_candidate_multiwindow
+[mt:2]     return StrategyConfig(**raw)
+[mt:2]            ^^^^^^^^^^^^^^^^^^^^^
+[mt:2] TypeError: StrategyConfig.__init__() missing 1 required positional argument: 'regime_bar_size'
+[mt:8]     return StrategyConfig(**raw)
+[mt:8]            ^^^^^^^^^^^^^^^^^^^^^
+[mt:8] TypeError: StrategyConfig.__init__() missing 1 required positional argument: 'regime_bar_size'
+[mt:11]     strat_cfg = _strategy_from_payload(strategy_payload, filters=filters)
+[mt:11]                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[mt:11]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtests_spot_sweeps.py", line 11141, in _strategy_from_payload
+[mt:10] Traceback (most recent call last):
+[mt:10]   File "<frozen runpy>", line 198, in _run_module_as_main
+[mt:10]   File "<frozen runpy>", line 88, in _run_code
+[mt:10]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/__main__.py", line 6, in <module>
+[mt:10]     main()
+[mt:10]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtest.py", line 78, in main
+[mt:10]     run_backtest_spot.spot_multitimeframe_main()
+[mt:10]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtests_spot_sweeps.py", line 12105, in spot_multitimeframe_main
+[mt:11]     return StrategyConfig(**raw)
+[mt:11]            ^^^^^^^^^^^^^^^^^^^^^
+[mt:11] TypeError: StrategyConfig.__init__() missing 1 required positional argument: 'regime_bar_size'
+[mt:10]     tested, out_rows = _evaluate_candidate_multiwindow_shard(
+[mt:10]                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[mt:10]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtests_spot_sweeps.py", line 11989, in _evaluate_candidate_multiwindow_shard
+[mt:10]     row = _evaluate_candidate_multiwindow(cand, load_bars_cached=load_bars_cached, data=data)
+[mt:10]           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[mt:10]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtests_spot_sweeps.py", line 11866, in _evaluate_candidate_multiwindow
+[mt:10]     strat_cfg = _strategy_from_payload(strategy_payload, filters=filters)
+[mt:10]                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+[mt:10]   File "/Users/x/Desktop/py/tradebot/tradebot/backtest/run_backtests_spot_sweeps.py", line 11141, in _strategy_from_payload
+[mt:10]     return StrategyConfig(**raw)
+[mt:10]            ^^^^^^^^^^^^^^^^^^^^^
+[mt:10] TypeError: StrategyConfig.__init__() missing 1 required positional argument: 'regime_bar_size'
+DONE  mt:0 exit=1 elapsed=0.4s
+multitimeframe worker failed: mt:0 (exit=1)

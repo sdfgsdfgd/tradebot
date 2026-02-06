@@ -7,15 +7,49 @@ This folder is the **single source of truth** for SLV research going forward:
 We are explicitly targeting the new contract:
 - **Symbol:** `SLV`
 - **Instrument:** spot (underlying)
-- **Signal timeframe:** **OPEN** (CURRENT champ is `1 hour` FULL24; we are re-opening `30 mins`/`15 mins` for higher activity)
+- **Signal timeframe:** **OPEN** (CURRENT dethroner is `10 mins` FULL24 with entry-hour gating; high-trade island is `4 hours` regime with the same `10 mins` signal lane)
 - **Execution timeframe:** **5 mins** (`spot_exec_bar_size="5 mins"`) for realism (intrabar stops + next-open fills)
-- **Goal:** **>= 500 trades / year** (CURRENT contract) while preserving stability across **10y / 2y / 1y**
-  - Next contract candidate (under discussion): **>= 1000 trades / year** (“a few times/day”, RTH-friendly), if stability survives
+- **Goal:** dual-track optimization across **10y / 2y / 1y**
+  - **Track A (pnl-first dethrone):** beat v25 on total PnL in all windows (and keep `pnl/dd` healthy)
+  - **Track B (high-trade):** increase trade count while preserving all-window positivity and avoiding the high-churn negative basin
 
 ## Current Champions (stack)
 
-### CURRENT (v25) — Drawdown-driven shock throttle (FULL24, 1h; worst-window `roi/dd = 3.601660671`)
-This is the current best SLV FULL24 stability champ under the **multiwindow stability contract**:
+### CURRENT (v31) — Full24 time-windowed 10m dethroner (all-window `pnl` + `roi/dd` beat vs v25)
+This is the current SLV dethroner under the **multiwindow pnl-first contract**:
+- Positive PnL across **10y / 2y / 1y**
+- Beats v25 on **both** `pnl` and `roi/dd` in all windows
+- Uses `signal_use_rth=false` (FULL24 bars), with entry-hour gating instead of RTH lane
+
+**v31 kingmaker #01** (from `backtests/slv/slv_full24_timegate_plus2_top80_promo_raw.json`)
+- Worst-window `roi/dd`: **4.174889507** (worst window is **1y**)
+- 10y: `roi/dd=6.362166024`, ROI ≈ **528.67%**, DD% ≈ **83.10%**, trades ≈ **1,616**
+- 2y:  `roi/dd=5.451136011`, ROI ≈ **257.76%**, DD% ≈ **47.29%**, trades ≈ **316**
+- 1y:  `roi/dd=4.174889507`, ROI ≈ **123.15%**, DD% ≈ **29.50%**, trades ≈ **152**
+
+Defining delta vs v25 baseline:
+- `signal_bar_size="10 mins"` with `spot_exec_bar_size="5 mins"`
+- FULL24 lane: `signal_use_rth=false`
+- Entry-hour gating: `entry_start_hour_et=10`, `entry_end_hour_et=15`
+- Signal/regime: `ema_preset=5/13`, `ema_entry_mode=trend`, `entry_confirm_bars=0`
+- Regime pocket: `supertrend @ 1 day` (`ST(7,0.4,close)`)
+- Risk shape: `spot_stop_loss_pct=0.016`, `spot_short_risk_mult=0.0`
+
+### CURRENT-HIGH-TRADE (v31-HT) — Full24 all-window beater with higher turnover
+This is the trade-focused counterpart on the same winning family.
+
+**v31-HT kingmaker #51** (from `backtests/slv/slv_full24_timegate_plus2_top80_promo_raw.json`)
+- Worst-window `roi/dd`: **3.913645159** (worst window is **1y**)
+- 10y: `roi/dd=6.104210764`, ROI ≈ **502.82%**, DD% ≈ **82.37%**, trades ≈ **2,591**
+- 2y:  `roi/dd=5.208784411`, ROI ≈ **246.93%**, DD% ≈ **47.41%**, trades ≈ **535**
+- 1y:  `roi/dd=3.913645159`, ROI ≈ **114.97%**, DD% ≈ **29.38%**, trades ≈ **264**
+
+Notes:
+- This variant trades materially more than v31 kingmaker #01 and still beats v25 on all-window `pnl` + `roi/dd`.
+- It remains below the old v25 trade count, which is why the high-trade island remains an active research track.
+
+### Previous (v25) — Drawdown-driven shock throttle (FULL24, 1h; worst-window `roi/dd = 3.601660671`)
+This was the prior SLV FULL24 stability champ under the original **multiwindow stability contract**:
 - Positive PnL across **10y / 2y / 1y**
 - Activity: `>=500 trades` in the 1y window
 - Ranked by stability = maximize the worst-window `roi/dd`
@@ -45,7 +79,7 @@ Interpretation:
 - The v26 `riskpanic_*` settings **do not trigger in the last 2y/1y windows** (so they can’t lift the floor),
   but they do trigger on a small set of older “monster days” → decade ratio improves.
 
-### Previous (v10) — Risk-off overlay dethrone (rounding hides it)
+### Earlier (v10) — Risk-off overlay dethrone (rounding hides it)
 This was the first post-v7 dethrone; it rounds to “3.60”, but it is strictly higher than v7.
 
 **v10 kingmaker #1** (from `backtests/slv/slv_exec5m_v10_risk_overlays_svlscale_1h_10y2y1y_mintr500_top80_20260205_200444.json`)
@@ -1052,6 +1086,197 @@ Conclusion:
 - 10m can “work” in recent years under RTH-only bars, but **it does not generalize to the decade** under this family.
 - If we continue 10m, we must stop generating candidates on 1y/2y and instead run a **10y-first candidate sweep**
   (e.g. `combo_fast` on `10 mins` RTH), then re-evaluate 2y/1y for stability.
+
+### v31 — FULL24 lane diagnosis + time-window rescue (AB + micro)
+Status: **DONE** (diagnostic) + **SUCCESS** (found the first positive FULL24 10m rescue pocket)
+
+Hypothesis:
+- FULL24 10m failure is mostly an overnight/noise execution issue, not necessarily a core signal issue.
+- Keep `signal_use_rth=false`, but restrict **entry hours** and rebalance stop/short settings.
+
+AB test (same strategy, lane behavior changed):
+- RTH run: `backtests/slv/slv_ab_rth_raw.json` -> pnl ≈ **+$68.4k**
+- FULL24 run: `backtests/slv/slv_ab_full24_raw.json` -> pnl ≈ **-$74.2k**
+- FULL24 + entry-hour gating: `backtests/slv/slv_ab_full24_timegated_raw.json` -> pnl ≈ **-$20.9k**
+
+Micro rescue sweep:
+- Milestones: `backtests/slv/slv_full24_timegate_micro_in.json` (144 combos)
+- Eval: `backtests/slv/slv_full24_timegate_micro_raw.json`
+
+Ranges swept (joint):
+- `entry_start_hour_et ∈ {8,9,10}`
+- `entry_end_hour_et ∈ {15,16}`
+- `entry_confirm_bars ∈ {0,1,2}`
+- `flip_exit_min_hold_bars ∈ {0,1}`
+- `spot_stop_loss_pct ∈ {0.012,0.016}`
+- `spot_short_risk_mult ∈ {0.0,0.005}`
+
+Outcome:
+- First positive FULL24 10m island appeared.
+- Top decade result in the micro pass: pnl ≈ **+$37.3k**, trades ≈ **2,276**, `roi/dd≈0.54`.
+
+### v32 — Plus2 joint sweep (new kingmaker lineage; all-window dethrone)
+Status: **DONE** + **CHAMPION DETHRONE**
+
+Goal:
+- Expand directly around the v31 rescue pocket with a compact joint matrix that can win on decade while preserving 2y/1y.
+
+Stage command pattern:
+```bash
+python -m tradebot.backtest spot_multitimeframe \
+  --milestones backtests/slv/slv_full24_timegate_plus2_in.json \
+  --symbol SLV --bar-size "10 mins" --offline --cache-dir db \
+  --window 2016-01-08:2026-01-08
+```
+
+Plus2 ranges (192 combos):
+- Entry window pockets: `(8,15)`, `(9,15)`, `(10,15)`
+- `ema_preset ∈ {"5/13","8/21"}`
+- Regime pockets:
+  - `supertrend @ 4 hours` -> `ST(7,0.5,hl2)`
+  - `supertrend @ 1 day` -> `ST(7,0.4,close)`
+- `spot_stop_loss_pct ∈ {0.016,0.020}`
+- `spot_short_risk_mult ∈ {0.0,0.0025,0.005,0.01}`
+- `entry_confirm_bars ∈ {0,1}`
+
+Artifacts:
+- Discovery: `backtests/slv/slv_full24_timegate_plus2_raw.json`
+- Promotion set: `backtests/slv/slv_full24_timegate_plus2_top80_in.json`
+- Multiwindow promotion eval: `backtests/slv/slv_full24_timegate_plus2_top80_promo_raw.json`
+
+Outcome:
+- Strong new island: top decade pnl in discovery ≈ **+$672.4k**.
+- Promotion result: **77/80** candidates beat v25 champion pnl across **10y/2y/1y**.
+- This produced the new kingmaker entries in the champion stack above.
+
+### v33 — High-trade island mapping (broad + targeted gates)
+Status: **DONE** + **PARTIAL** (high-trade positive region found, but no high-trade dethrone)
+
+Goal:
+- Push turnover up while preserving positivity and searching for all-window champion-level pnl.
+
+Stage A (broad map):
+- Milestones: `backtests/slv/slv_full24_hightrade_stageA_in.json` (648 combos)
+- Eval: `backtests/slv/slv_full24_hightrade_stageA_raw.json`
+- Constraint: `min_trades=2500` on 10y window
+
+Stage A ranges (joint):
+- Entry windows: `(7,15)`, `(7,16)`, `(8,15)`, `(8,16)`, `(9,16)`, `(10,16)`
+- `ema_preset ∈ {"3/7","4/9","5/13"}`
+- Regimes:
+  - `4h ST(7,0.5,hl2)`
+  - `4h ST(10,0.4,close)`
+  - `1d ST(7,0.4,close)`
+- `spot_stop_loss_pct ∈ {0.012,0.016}`
+- `spot_short_risk_mult ∈ {0.0,0.0025,0.005}`
+- `entry_confirm_bars ∈ {0,1}`
+
+Stage B (targeted gate overlays on high-trade seeds):
+- Milestones: `backtests/slv/slv_full24_hightrade_stageB_in.json` (176 combos)
+- Eval: `backtests/slv/slv_full24_hightrade_stageB_raw.json`
+- Constraint: `min_trades=3500`
+
+Stage B ranges:
+- EMA geometry pocket:
+  - `ema_spread_min_pct ∈ {0.0,0.001,0.0015}`
+  - `ema_spread_min_pct_down ∈ {0.005,0.01}`
+  - `ema_slope_min_pct ∈ {0.0,0.005}`
+- Riskpanic pocket:
+  - `riskpanic_tr5_med_pct ∈ {2.5,2.75,3.0}`
+  - `riskpanic_tr5_med_delta_min_pct ∈ {0.25,0.5}`
+  - `riskpanic_long_risk_mult_factor ∈ {0.2,0.0}`
+  - fixed: `neg_ratio=0.6`, `abs_gap=0.005`, `lookback=5`, `scale=linear`
+- Shock/drawdown pocket:
+  - `daily_drawdown` scale with lookback `{10,20}`, target `{8.0}`, min mult `{0.1}`
+  - `tr_ratio` detect pockets (`3/21` and `3/50`) with light caps/throttle
+- Tiny cross pocket: 2 combined tuples per seed
+
+Outcome:
+- High-trade positive region exists (best ≈ **+$73.4k**, trades ≈ **3,501**).
+- No candidate with trades above the old v25 count achieved champion-level pnl.
+
+### v34 — Aggressiveness scaling on high-trade seeds
+Status: **DONE** + **FAIL** (more trades achieved; champion pnl not reached)
+
+Goal:
+- Test whether leverage/exposure scaling can lift the high-trade island to champion pnl.
+
+Milestones + eval:
+- `backtests/slv/slv_full24_hightrade_stageC_in.json` (504 combos)
+- `backtests/slv/slv_full24_hightrade_stageC_raw.json`
+- Constraint: `min_trades=3900`
+
+Scaling ranges:
+- `spot_risk_pct ∈ {0.01,0.015,0.02,0.03,0.04,0.05,0.07}`
+- `max_open_trades ∈ {3,5,8}`
+- `spot_max_notional_pct ∈ {0.5,0.75,1.0}`
+
+Outcome:
+- Trade count increased materially (up to ~**12,300** trades on 10y).
+- Best pnl stayed far below champion (top ≈ **+$54.9k**).
+- Conclusion: naive exposure scaling does not bridge the “high-trade vs high-expectancy” gap.
+
+### v35 — `island_bridge` crisis-overlay pass (km61-anchored, FULL24 10m) + precision audit
+Status: **DONE** + **PARTIAL** (10y pnl lift achieved; no all-window dethrone)
+
+Goal:
+- Recenter on the km61 lineage and inject v25 + TQQQ-style overlays (drawdown throttle, TR-ratio shock detect, riskpanic velocity)
+  to push decade pnl while preserving 2y/1y floors.
+
+Runner:
+- `backtests/slv/slv_10m_attack_hf.py` profile: `island_bridge`
+
+Key commands:
+```bash
+python backtests/slv/slv_10m_attack_hf.py \
+  --profiles island_bridge \
+  --lane-mode full24 \
+  --seed-milestones backtests/slv/slv_full24_timegate_plus2_top80_promo_raw.json \
+  --seed-bar-size "10 mins" --seed-kingmaker-id 61 \
+  --champion-milestones backtests/slv/slv_full24_timegate_plus2_top80_promo_raw.json \
+  --champion-bar-size "10 mins" --champion-kingmaker-id 61 \
+  --stage-window 2016-01-08:2026-01-08 \
+  --stage-min-trades-per-year 100 --promotion-min-trades-per-year 100 \
+  --jobs 12 --offline --run-id slv_exec5m_islandbridge_20260207
+```
+
+Artifacts:
+- Stage A ranked: `backtests/slv/slv_exec5m_islandbridge_20260207_island_bridge_stageA_ranked.json`
+- Stage B ranked: `backtests/slv/slv_exec5m_islandbridge_20260207_island_bridge_stageB_ranked_top120.json`
+- Promotion top-80: `backtests/slv/slv_exec5m_islandbridge_20260207_island_bridge_promotion_top80.json`
+- Precision audit (10y/2y/1y): `backtests/slv/slv_precision_audit_islandbridge_20260207_10y2y1y.json`
+
+Search matrix:
+- Stage A (96):
+  - `ema_preset ∈ {"8/21","5/13"}`; `entry_confirm_bars ∈ {1,0}`
+  - `spot_stop_loss_pct ∈ {0.018,0.020}`; `max_open_trades ∈ {3,4}`
+  - entry windows `(8,15)`, `(9,16)`, `off`; `spot_short_risk_mult ∈ {0.0,0.0025}`
+  - fixed: `signal_bar_size=10 mins`, `spot_exec_bar_size=5 mins`, `signal_use_rth=false`
+- Stage B (360):
+  - drawdown throttle pocket (`shock_scale_detector=daily_drawdown`)
+  - TR-ratio shock pocket (`shock_scale_detector=tr_ratio`, detect/surf subsets)
+  - riskpanic velocity pocket (`riskpanic_tr5_med_pct`, `riskpanic_tr5_med_delta_min_pct`, `riskpanic_long_risk_mult_factor`)
+  - tiny cross interactions
+
+Outcome:
+- Best decade pnl: **KINGMAKER #56** -> pnl ≈ **+$833.2k** (vs baseline km52 ≈ **+$822.5k**), trades ≈ **1,501**
+- Near-dethrone with stable recent windows: **KINGMAKER #50** -> pnl ≈ **+$833.0k**, trades ≈ **1,238**
+- Promotion check: **no candidate beat baseline pnl in all 10y/2y/1y windows**
+  - km50 ties 2y/1y exactly, beats only 10y
+  - km56 beats 10y, but slightly under baseline on 2y/1y
+- High-trade beater attempt: **KINGMAKER #108** reaches trades ≈ **2,533** on 10y, but pnl quality drops materially.
+
+Precision-audit diagnosis (entry vs local 10m extrema):
+- km52/km50 family (lower-trade, higher quality):
+  - 1y `dist_med ≈ 0.31%`, `<=0.5% ≈ 69.5%`, `mfe/mae ≈ 0.75`
+- km56/km61 family (higher-trade, weaker recent precision):
+  - 1y `dist_med ≈ 0.78%`, `<=0.5% ≈ 40.8%`, `mfe/mae ≈ 0.16`
+- km108 (max-turnover mode):
+  - 1y `dist_med ≈ 1.03%`, `<=0.5% ≈ 23.7%`, `mfe/mae ≈ 0.10`
+
+Interpretation:
+- The decade lift is real, but it comes from a regime family that does not improve recent-window execution quality.
+- Increasing turnover past the km50/km52 pocket degrades entry precision too sharply, which explains why recent pnl stalls or slips.
 
 
 ## Notes

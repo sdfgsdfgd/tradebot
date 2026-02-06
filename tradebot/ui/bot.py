@@ -154,6 +154,7 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
         self._strategy.setdefault("supertrend_atr_period", 10)
         self._strategy.setdefault("supertrend_multiplier", 3.0)
         self._strategy.setdefault("supertrend_source", "hl2")
+        self._strategy.setdefault("order_stage_timeout_sec", 20)
 
         if instrument == "spot":
             sym = str(self._symbol or self._strategy.get("symbol") or "").strip().upper()
@@ -163,6 +164,8 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
             self._strategy.setdefault("spot_sec_type", default_sec_type)
             self._strategy.setdefault("spot_exchange", "")
             self._strategy.setdefault("spot_close_eod", False)
+            self._strategy.setdefault("spot_next_open_session", "auto")
+            self._strategy.setdefault("spot_exec_feed_mode", "ticks_side")
             if not isinstance(self._strategy.get("directional_spot"), dict):
                 self._strategy["directional_spot"] = {
                     "up": {"action": "BUY", "qty": 1},
@@ -181,6 +184,7 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
             _BotConfigField("Signal use RTH", "bool", "signal_use_rth"),
             _BotConfigField("Entry days", "text", "entry_days"),
             _BotConfigField("Max entries/day", "int", "max_entries_per_day"),
+            _BotConfigField("Order stage timeout sec", "int", "order_stage_timeout_sec"),
             _BotConfigField("Entry signal", "enum", "entry_signal", options=("ema", "orb")),
             _BotConfigField("EMA preset", "text", "ema_preset"),
             _BotConfigField("EMA entry mode", "enum", "ema_entry_mode", options=("trend", "cross")),
@@ -251,6 +255,18 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
                     _BotConfigField("Spot close EOD", "bool", "spot_close_eod"),
                     _BotConfigField("Spot exit time (ET)", "text", "spot_exit_time_et"),
                     _BotConfigField("Spot exit mode", "enum", "spot_exit_mode", options=("pct", "atr")),
+                    _BotConfigField(
+                        "Spot next-open session",
+                        "enum",
+                        "spot_next_open_session",
+                        options=("auto", "rth", "extended", "always"),
+                    ),
+                    _BotConfigField(
+                        "Spot exec feed",
+                        "enum",
+                        "spot_exec_feed_mode",
+                        options=("ticks_side", "ticks_quote", "poll"),
+                    ),
                     _BotConfigField("Spot ATR period", "int", "spot_atr_period"),
                     _BotConfigField("Spot PT ATR mult", "float", "spot_pt_atr_mult"),
                     _BotConfigField("Spot SL ATR mult", "float", "spot_sl_atr_mult"),
@@ -598,6 +614,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         self._positions: list[PortfolioItem] = []
         self._log_events: list[dict] = []
         self._log_rows: list[dict] = []
+        self._logs_follow_tail = True
         self._status: str | None = None
         self._refresh_task = None
         self._order_task: asyncio.Task | None = None
@@ -764,6 +781,9 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
     def _focus_panel(self, panel: str) -> None:
         self._active_panel = panel
         self._panel_table(panel).focus()
+        if panel == "logs" and self._log_rows:
+            last_idx = len(self._log_rows) - 1
+            self._logs_follow_tail = self._logs_table.cursor_coordinate.row >= last_idx
         self._render_status()
 
     def _set_status(self, message: str, *, render_bot: bool = False) -> None:
@@ -1124,9 +1144,9 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                 if head:
                     tqqq_ver = head.group("ver")
                     tail = backtest_readme[head.end() :]
-                    next_head = re.search(r"^####\\s+", tail, flags=re.MULTILINE)
+                    next_head = re.search(r"^####\s+", tail, flags=re.MULTILINE)
                     section = tail[: next_head.start()] if next_head else tail
-                    match = re.search(r"`(?P<path>backtests/out/[^`]+\\.json)`", section)
+                    match = re.search(r"`(?P<path>backtests/out/[^`]+\.json)`", section)
                     if match:
                         tqqq_path = _resolve_existing_json(match.group("path"))
 
@@ -1153,9 +1173,9 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             if head:
                 slv_ver = head.group("ver")
                 tail = slv_readme[head.end() :]
-                next_head = re.search(r"^###\\s+", tail, flags=re.MULTILINE)
+                next_head = re.search(r"^###\s+", tail, flags=re.MULTILINE)
                 section = tail[: next_head.start()] if next_head else tail
-                match = re.search(r"`(?P<path>backtests/slv/[^`]+\\.json)`", section)
+                match = re.search(r"`(?P<path>backtests/slv/[^`]+\.json)`", section)
                 if match:
                     slv_path = _resolve_existing_json(match.group("path"))
 
@@ -1773,6 +1793,13 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             table.action_cursor_down()
         else:
             table.action_cursor_up()
+        if self._active_panel == "logs":
+            if not self._log_rows:
+                self._logs_follow_tail = True
+            else:
+                self._logs_follow_tail = self._logs_table.cursor_coordinate.row >= (
+                    len(self._log_rows) - 1
+                )
         if self._active_panel == "instances" and not self._scope_all:
             self._refresh_orders_table()
             self._refresh_logs_table()
@@ -1792,7 +1819,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                 dte = "-"
             else:
                 dte = instance.strategy.get("dte", "")
-            bt_pnl = ""
+            bt_pnl: Text | str = ""
             if instance.metrics:
                 try:
                     bt_pnl = _pnl_text(float(instance.metrics.get("pnl", 0.0)))
@@ -1835,7 +1862,9 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
     def _refresh_logs_table(self) -> None:
         prev_count = len(self._log_rows)
         prev_row = self._logs_table.cursor_coordinate.row
-        was_at_end = prev_count > 0 and prev_row >= (prev_count - 1)
+        was_at_end = prev_count == 0 or prev_row >= (prev_count - 1)
+        if self._active_panel == "logs":
+            self._logs_follow_tail = bool(was_at_end)
 
         self._logs_table.clear()
         self._log_rows = []
@@ -1843,6 +1872,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         active_ids = {str(int(i.instance_id)) for i in self._instances}
         scope = self._scope_instance_id()
         tail = self._log_events[-200:]
+        compacted: list[dict[str, object]] = []
         for entry in tail:
             if not isinstance(entry, dict):
                 continue
@@ -1851,24 +1881,50 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                 continue
             if scope is not None and not self._scope_all and inst_id and inst_id != str(int(scope)):
                 continue
+            event = str(entry.get("event") or "")
+            reason = str(entry.get("reason") or "")
+            symbol = str(entry.get("symbol") or "")
+            msg = str(entry.get("msg") or "")
+            if compacted:
+                prev = compacted[-1]
+                if (
+                    str(prev.get("instance_id") or "") == inst_id
+                    and str(prev.get("symbol") or "") == symbol
+                    and str(prev.get("event") or "") == event
+                    and str(prev.get("reason") or "") == reason
+                    and str(prev.get("msg") or "") == msg
+                ):
+                    prev["_repeat"] = int(prev.get("_repeat") or 1) + 1
+                    prev["ts_et"] = entry.get("ts_et")
+                    continue
+            row = dict(entry)
+            row["_repeat"] = 1
+            compacted.append(row)
+
+        for entry in compacted:
             ts = entry.get("ts_et")
+            repeat = int(entry.get("_repeat") or 1)
+            msg = str(entry.get("msg") or "")
+            if repeat > 1:
+                msg = f"x{repeat} {msg}" if msg else f"x{repeat}"
             when = ts.astimezone().strftime("%H:%M:%S") if isinstance(ts, datetime) else ""
             self._logs_table.add_row(
                 when,
-                inst_id,
+                str(entry.get("instance_id") or ""),
                 str(entry.get("symbol") or ""),
                 str(entry.get("event") or ""),
                 str(entry.get("reason") or ""),
-                str(entry.get("msg") or "")[:64],
+                msg,
             )
             self._log_rows.append(entry)
 
         if not self._log_rows:
             return
-        if self._active_panel != "logs" or was_at_end:
+        if self._logs_follow_tail:
             self._logs_table.cursor_coordinate = (len(self._log_rows) - 1, 0)
-        elif 0 <= prev_row < len(self._log_rows):
-            self._logs_table.cursor_coordinate = (prev_row, 0)
+            return
+        target_row = min(max(prev_row, 0), len(self._log_rows) - 1)
+        self._logs_table.cursor_coordinate = (target_row, 0)
 
     def _render_status(self) -> None:
         self._render_bot()
@@ -2869,6 +2925,8 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
     def _add_order(self, order: _BotOrder) -> None:
         self._orders.append(order)
         instance = next((i for i in self._instances if i.instance_id == order.instance_id), None)
+        if instance is not None:
+            self._clear_order_trigger_watch(instance)
         self._journal_write(event="ORDER_STAGED", instance=instance, order=order, reason=order.reason, data=None)
         self._refresh_orders_table()
         if self._active_panel == "orders":

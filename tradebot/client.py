@@ -96,6 +96,34 @@ class IBKRClient:
             # Avoid noisy shutdown if the socket is already closed.
             pass
 
+    @staticmethod
+    def _is_retryable_connect_error(exc: BaseException) -> bool:
+        if isinstance(exc, (ConnectionRefusedError, TimeoutError, asyncio.TimeoutError)):
+            return True
+        if isinstance(exc, OSError):
+            err_no = int(getattr(exc, "errno", 0) or 0)
+            if err_no in (61, 111, 10061):
+                return True
+        msg = str(exc)
+        return "Connect call failed" in msg or "API connection failed" in msg
+
+    def _request_reconnect(self) -> None:
+        if self._shutdown:
+            return
+        if not self._reconnect_in_progress() or self._reconnect_fast_deadline is None:
+            self._reconnect_fast_deadline = (
+                time.monotonic() + float(self._config.reconnect_timeout_sec)
+            )
+        self._reconnect_requested = True
+        self._start_reconnect_loop()
+
+    def _reconnect_in_progress(self) -> bool:
+        return bool(
+            self._reconnect_requested
+            and self._reconnect_task
+            and not self._reconnect_task.done()
+        )
+
     def __init__(self, config: IBKRConfig) -> None:
         self._config = config
         self._ib = IB()
@@ -117,6 +145,8 @@ class IBKRClient:
         self._proxy_force_delayed = False
         self._proxy_probe_task: asyncio.Task | None = None
         self._proxy_contract_force_delayed: set[int] = set()
+        self._proxy_contract_probe_tasks: dict[int, asyncio.Task] = {}
+        self._proxy_contract_delayed_tasks: dict[int, asyncio.Task] = {}
         self._detail_tickers: dict[int, tuple[IB, Ticker]] = {}
         self._ticker_owners: dict[int, set[str]] = {}
         self._historical_bar_cache: dict[
@@ -136,6 +166,7 @@ class IBKRClient:
         self._resubscribe_main_needed = False
         self._resubscribe_proxy_needed = False
         self._reconnect_task: asyncio.Task | None = None
+        self._reconnect_fast_deadline: float | None = None
         self._ib.errorEvent += self._on_error_main
         self._ib.disconnectedEvent += self._on_disconnected_main
         self._ib.updatePortfolioEvent += self._on_stream_update
@@ -150,28 +181,67 @@ class IBKRClient:
     def is_connected(self) -> bool:
         return self._ib.isConnected()
 
+    def reconnect_phase(self) -> str | None:
+        if not self._reconnect_in_progress():
+            return None
+        deadline = self._reconnect_fast_deadline
+        if deadline is None or time.monotonic() < deadline:
+            return "fast"
+        return "slow"
+
+    def connection_state(self) -> str:
+        phase = self.reconnect_phase()
+        if phase == "fast":
+            return "reconnecting-fast"
+        if phase == "slow":
+            return "reconnecting-slow"
+        main_connected = self._ib.isConnected()
+        proxy_connected = self._ib_proxy.isConnected()
+        if main_connected and proxy_connected:
+            return "connected"
+        if main_connected or proxy_connected:
+            return "degraded"
+        return "disconnected"
+
     async def connect(self) -> None:
         self._shutdown = False
         if self._ib.isConnected():
             return
+        if self._reconnect_in_progress() and asyncio.current_task() is not self._reconnect_task:
+            raise ConnectionError("IBKR reconnect in progress")
         async with self._connect_lock:
             if self._ib.isConnected():
                 return
-            await self._connect_ib(self._ib, client_id=int(self._config.client_id))
+            try:
+                await self._connect_ib(self._ib, client_id=int(self._config.client_id))
+            except Exception as exc:
+                if self._is_retryable_connect_error(exc):
+                    self._request_reconnect()
+                raise
 
     async def connect_proxy(self) -> None:
         self._shutdown = False
         if self._ib_proxy.isConnected():
             return
+        if self._reconnect_in_progress() and asyncio.current_task() is not self._reconnect_task:
+            raise ConnectionError("IBKR reconnect in progress")
         async with self._connect_proxy_lock:
             if self._ib_proxy.isConnected():
                 return
-            await self._connect_ib(self._ib_proxy, client_id=int(self._config.proxy_client_id))
+            try:
+                await self._connect_ib(self._ib_proxy, client_id=int(self._config.proxy_client_id))
+                self._proxy_error = None
+            except Exception as exc:
+                self._proxy_error = str(exc)
+                if self._is_retryable_connect_error(exc):
+                    self._request_reconnect()
+                raise
 
     async def disconnect(self) -> None:
         self._shutdown = True
         self._stop_reconnect_loop()
         self._reconnect_requested = False
+        self._reconnect_fast_deadline = None
         self._safe_disconnect(self._ib)
         self._safe_disconnect(self._ib_proxy)
         self._account_updates_started = False
@@ -184,6 +254,14 @@ class IBKRClient:
         self._proxy_force_delayed = False
         self._proxy_probe_task = None
         self._proxy_contract_force_delayed = set()
+        for task in self._proxy_contract_probe_tasks.values():
+            if task and not task.done():
+                task.cancel()
+        for task in self._proxy_contract_delayed_tasks.values():
+            if task and not task.done():
+                task.cancel()
+        self._proxy_contract_probe_tasks = {}
+        self._proxy_contract_delayed_tasks = {}
         self._detail_tickers = {}
         self._ticker_owners = {}
         self._pnl = None
@@ -263,17 +341,20 @@ class IBKRClient:
         return ticker
 
     async def ensure_ticker(self, contract: Contract, *, owner: str = "default") -> Ticker:
+        con_id = int(contract.conId or 0)
         use_proxy = contract.secType in ("STK", "OPT")
+        contract_force_delayed = bool(
+            use_proxy and con_id and con_id in self._proxy_contract_force_delayed
+        )
         if use_proxy:
             await self.connect_proxy()
-            md_type = 3 if self._proxy_force_delayed else 1
+            md_type = 3 if self._proxy_force_delayed or contract_force_delayed else 1
             self._ib_proxy.reqMarketDataType(md_type)
             ib = self._ib_proxy
         else:
             await self.connect()
             self._ib.reqMarketDataType(3)
             ib = self._ib
-        con_id = int(contract.conId or 0)
         req_contract = contract
         if contract.secType == "STK":
             _, include_overnight = _session_flags(datetime.now(tz=_ET_ZONE))
@@ -310,12 +391,30 @@ class IBKRClient:
                     pass
                 ticker = ib.reqMktData(req_contract)
                 self._detail_tickers[con_id] = (ib, ticker)
+                if use_proxy and con_id:
+                    if con_id in self._proxy_contract_force_delayed:
+                        if not self._ticker_has_data(ticker):
+                            self._start_proxy_contract_delayed_resubscribe(req_contract)
+                    else:
+                        self._start_proxy_contract_quote_probe(req_contract)
                 return ticker
+            if use_proxy and con_id:
+                if con_id in self._proxy_contract_force_delayed:
+                    if not self._ticker_has_data(cached_ticker):
+                        self._start_proxy_contract_delayed_resubscribe(req_contract)
+                elif not self._ticker_has_data(cached_ticker):
+                    self._start_proxy_contract_quote_probe(req_contract)
             return cached_ticker
         ticker = ib.reqMktData(req_contract)
         if con_id:
             self._detail_tickers[con_id] = (ib, ticker)
             self._ticker_owners.setdefault(con_id, set()).add(owner)
+        if use_proxy and con_id:
+            if con_id in self._proxy_contract_force_delayed:
+                if not self._ticker_has_data(ticker):
+                    self._start_proxy_contract_delayed_resubscribe(req_contract)
+            else:
+                self._start_proxy_contract_quote_probe(req_contract)
         return ticker
 
     async def place_limit_order(
@@ -410,12 +509,17 @@ class IBKRClient:
     ):
         sec_type = str(getattr(contract, "secType", "") or "")
         use_proxy = sec_type in ("STK", "OPT")
-        if use_proxy:
-            await self.connect_proxy()
-            ib = self._ib_proxy
-        else:
-            await self.connect()
-            ib = self._ib
+        try:
+            if use_proxy:
+                await self.connect_proxy()
+                ib = self._ib_proxy
+            else:
+                await self.connect()
+                ib = self._ib
+        except Exception as exc:
+            if use_proxy:
+                self._proxy_error = str(exc)
+            return []
         req_contract = self._historical_request_contract(contract, sec_type=sec_type)
         try:
             return await ib.reqHistoricalDataAsync(
@@ -638,7 +742,10 @@ class IBKRClient:
         """Return (qualified_underlying, chain) for an equity option underlyer."""
         candidate = Stock(symbol=symbol, exchange="SMART", currency="USD")
         underlying = await self._qualify_contract(candidate, use_proxy=True) or candidate
-        await self.connect_proxy()
+        try:
+            await self.connect_proxy()
+        except Exception:
+            return None
         chains = self._ib_proxy.reqSecDefOptParams(
             underlying.symbol,
             "",
@@ -651,7 +758,10 @@ class IBKRClient:
         return underlying, chain
 
     async def qualify_proxy_contracts(self, *contracts: Contract) -> list[Contract]:
-        await self.connect_proxy()
+        try:
+            await self.connect_proxy()
+        except Exception:
+            return []
         try:
             result = await self._ib_proxy.qualifyContractsAsync(*contracts)
         except Exception:
@@ -700,7 +810,10 @@ class IBKRClient:
                 contract, cached_at = cached
                 if time.monotonic() - cached_at < float(cache_ttl_sec):
                     return contract
-            await self.connect()
+            try:
+                await self.connect()
+            except Exception:
+                return None
             candidate = Future(symbol=sym, lastTradeDateOrContractMonth="", exchange=ex, currency="USD")
             try:
                 details = await self._ib.reqContractDetailsAsync(candidate)
@@ -765,6 +878,12 @@ class IBKRClient:
                 ib.cancelMktData(ticker.contract)
             except Exception:
                 pass
+        probe_task = self._proxy_contract_probe_tasks.pop(con_id, None)
+        if probe_task and not probe_task.done():
+            probe_task.cancel()
+        delayed_task = self._proxy_contract_delayed_tasks.pop(con_id, None)
+        if delayed_task and not delayed_task.done():
+            delayed_task.cancel()
 
     def account_value(
         self, tag: str
@@ -820,6 +939,14 @@ class IBKRClient:
                 self._proxy_task = None
                 return
             self._proxy_contract_force_delayed = set()
+            for task in self._proxy_contract_probe_tasks.values():
+                if task and not task.done():
+                    task.cancel()
+            for task in self._proxy_contract_delayed_tasks.values():
+                if task and not task.done():
+                    task.cancel()
+            self._proxy_contract_probe_tasks = {}
+            self._proxy_contract_delayed_tasks = {}
             for ticker in self._proxy_tickers.values():
                 try:
                     self._ib_proxy.cancelMktData(ticker.contract)
@@ -898,12 +1025,15 @@ class IBKRClient:
         return qualified
 
     async def _qualify_contract(self, contract: Contract, use_proxy: bool) -> Contract | None:
-        if use_proxy:
-            await self.connect_proxy()
-            ib = self._ib_proxy
-        else:
-            await self.connect()
-            ib = self._ib
+        try:
+            if use_proxy:
+                await self.connect_proxy()
+                ib = self._ib_proxy
+            else:
+                await self.connect()
+                ib = self._ib
+        except Exception:
+            return None
         try:
             result = await ib.qualifyContractsAsync(contract)
         except Exception:
@@ -955,9 +1085,9 @@ class IBKRClient:
         if errorCode == 10167 and not self._proxy_force_delayed:
             self._proxy_force_delayed = True
             self._start_proxy_resubscribe()
-        if errorCode in (10089, 10090, 10091, 10168) and contract:
+        if errorCode in (354, 10089, 10090, 10091, 10168) and contract:
             con_id = int(getattr(contract, "conId", 0) or 0)
-            if con_id and con_id not in self._proxy_contract_force_delayed:
+            if con_id:
                 self._proxy_contract_force_delayed.add(con_id)
                 self._start_proxy_contract_delayed_resubscribe(contract)
         self._handle_conn_error(errorCode)
@@ -984,17 +1114,100 @@ class IBKRClient:
         self._proxy_task = None
         self._proxy_tickers = {}
         self._proxy_probe_task = None
+        for task in self._proxy_contract_probe_tasks.values():
+            if task and not task.done():
+                task.cancel()
+        for task in self._proxy_contract_delayed_tasks.values():
+            if task and not task.done():
+                task.cancel()
+        self._proxy_contract_probe_tasks = {}
+        self._proxy_contract_delayed_tasks = {}
         self._reconnect_requested = True
         self._start_reconnect_loop()
         if self._update_callback:
             self._update_callback()
 
     def _start_proxy_contract_delayed_resubscribe(self, contract: Contract) -> None:
+        con_id = int(getattr(contract, "conId", 0) or 0)
+        probe_task = self._proxy_contract_probe_tasks.pop(con_id, None)
+        if probe_task and not probe_task.done():
+            probe_task.cancel()
+        existing = self._proxy_contract_delayed_tasks.get(con_id) if con_id else None
+        if existing is not None and not existing.done():
+            return
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
             return
-        loop.create_task(self._resubscribe_proxy_contract_delayed(contract))
+        task = loop.create_task(self._resubscribe_proxy_contract_delayed(contract))
+        if con_id:
+            self._proxy_contract_delayed_tasks[con_id] = task
+
+            def _cleanup(done_task: asyncio.Task, key: int = con_id) -> None:
+                current = self._proxy_contract_delayed_tasks.get(key)
+                if current is done_task:
+                    self._proxy_contract_delayed_tasks.pop(key, None)
+
+            task.add_done_callback(_cleanup)
+
+    @staticmethod
+    def _ticker_has_data(ticker: Ticker | None) -> bool:
+        if ticker is None:
+            return False
+        for attr in ("last", "close", "prevLast", "bid", "ask"):
+            value = getattr(ticker, attr, None)
+            if value is None:
+                continue
+            try:
+                num = float(value)
+            except (TypeError, ValueError):
+                continue
+            if not math.isnan(num) and num != 0:
+                return True
+        return False
+
+    def _start_proxy_contract_quote_probe(self, contract: Contract) -> None:
+        con_id = int(getattr(contract, "conId", 0) or 0)
+        if (
+            not con_id
+            or self._proxy_force_delayed
+            or con_id in self._proxy_contract_force_delayed
+        ):
+            return
+        existing = self._proxy_contract_probe_tasks.get(con_id)
+        if existing is not None and not existing.done():
+            return
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        task = loop.create_task(self._probe_proxy_contract_quote(contract))
+        self._proxy_contract_probe_tasks[con_id] = task
+
+    async def _probe_proxy_contract_quote(self, contract: Contract) -> None:
+        con_id = int(getattr(contract, "conId", 0) or 0)
+        try:
+            await asyncio.sleep(1.5)
+            if (
+                not con_id
+                or self._proxy_force_delayed
+                or con_id in self._proxy_contract_force_delayed
+            ):
+                return
+            entry = self._detail_tickers.get(con_id)
+            if not entry:
+                return
+            ib, ticker = entry
+            if ib is not self._ib_proxy:
+                return
+            if self._ticker_has_data(ticker):
+                return
+            self._proxy_contract_force_delayed.add(con_id)
+            self._start_proxy_contract_delayed_resubscribe(contract)
+        finally:
+            current = self._proxy_contract_probe_tasks.get(con_id)
+            if current is asyncio.current_task():
+                self._proxy_contract_probe_tasks.pop(con_id, None)
 
     async def _resubscribe_proxy_contract_delayed(self, contract: Contract) -> None:
         async with self._proxy_lock:
@@ -1074,16 +1287,8 @@ class IBKRClient:
 
     def _proxy_has_data(self) -> bool:
         for ticker in self._proxy_tickers.values():
-            for attr in ("last", "close", "prevLast", "bid", "ask"):
-                value = getattr(ticker, attr, None)
-                if value is None:
-                    continue
-                try:
-                    num = float(value)
-                except (TypeError, ValueError):
-                    continue
-                if not math.isnan(num) and num != 0:
-                    return True
+            if self._ticker_has_data(ticker):
+                return True
         return False
 
     async def _reload_proxy_tickers(self) -> None:
@@ -1155,12 +1360,23 @@ class IBKRClient:
             self._reconnect_task.cancel()
 
     async def _reconnect_until_deadline(self) -> None:
-        deadline = time.monotonic() + self._config.reconnect_timeout_sec
-        while self._reconnect_requested and time.monotonic() < deadline:
+        fast_deadline = self._reconnect_fast_deadline
+        if fast_deadline is None:
+            fast_deadline = time.monotonic() + float(self._config.reconnect_timeout_sec)
+            self._reconnect_fast_deadline = fast_deadline
+        fast_interval = max(0.5, float(self._config.reconnect_interval_sec))
+        slow_interval = max(fast_interval, float(self._config.reconnect_slow_interval_sec))
+        slow_notified = False
+        while self._reconnect_requested:
+            if not slow_notified and time.monotonic() >= fast_deadline:
+                slow_notified = True
+                if self._update_callback:
+                    self._update_callback()
             await self._reconnect_once()
             if not self._reconnect_requested:
                 break
-            await asyncio.sleep(self._config.reconnect_interval_sec)
+            interval = fast_interval if time.monotonic() < fast_deadline else slow_interval
+            await asyncio.sleep(interval)
 
     async def _reconnect_once(self) -> None:
         async with self._lock:
@@ -1229,6 +1445,7 @@ class IBKRClient:
             and not self._resubscribe_proxy_needed
         ):
             self._reconnect_requested = False
+            self._reconnect_fast_deadline = None
             if self._update_callback:
                 self._update_callback()
 # endregion

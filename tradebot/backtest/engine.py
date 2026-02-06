@@ -46,6 +46,8 @@ from ..engine import (
     spot_intrabar_worst_ref,
     spot_mark_price as _spot_mark_price,
     spot_profit_level,
+    spot_scale_exit_pcts,
+    spot_shock_exit_pct_multipliers,
     spot_stop_level,
 )
 from ..signals import ema_next, ema_periods as _ema_periods_shared
@@ -2326,13 +2328,14 @@ def _spot_try_open_entry(
     base_stop_loss_pct = stop_loss_pct
 
     shock_on = bool(shock_now) if shock_now is not None else False
-    if can_open and filters is not None and shock_on:
-        sl_mult = float(getattr(filters, "shock_stop_loss_pct_mult", 1.0) or 1.0)
-        pt_mult = float(getattr(filters, "shock_profit_target_pct_mult", 1.0) or 1.0)
-        if stop_loss_pct is not None and float(stop_loss_pct) > 0 and sl_mult > 0:
-            stop_loss_pct = min(float(stop_loss_pct) * float(sl_mult), 0.99)
-        if profit_target_pct is not None and float(profit_target_pct) > 0 and pt_mult > 0:
-            profit_target_pct = min(float(profit_target_pct) * float(pt_mult), 0.99)
+    if can_open:
+        sl_mult, pt_mult = spot_shock_exit_pct_multipliers(filters, shock=shock_on)
+        stop_loss_pct, profit_target_pct = spot_scale_exit_pcts(
+            stop_loss_pct=stop_loss_pct,
+            profit_target_pct=profit_target_pct,
+            stop_mult=sl_mult,
+            profit_mult=pt_mult,
+        )
 
     if can_open:
         signed_qty = spot_calc_signed_qty(
@@ -2891,28 +2894,24 @@ def _run_spot_backtest_exec_loop(
         # state from the prior execution bar (no lookahead within this bar).
         if open_trades and filters is not None and evaluator.shock_enabled:
             shock_now = bool(shock_now_prev) if shock_now_prev is not None else False
-            sl_mult = float(getattr(filters, "shock_stop_loss_pct_mult", 1.0) or 1.0)
-            pt_mult = float(getattr(filters, "shock_profit_target_pct_mult", 1.0) or 1.0)
-            if not bool(shock_now):
-                sl_mult = 1.0
-                pt_mult = 1.0
-            if sl_mult <= 0:
-                sl_mult = 1.0
-            if pt_mult <= 0:
-                pt_mult = 1.0
+            sl_mult, pt_mult = spot_shock_exit_pct_multipliers(filters, shock=shock_now)
             for trade in open_trades:
+                scaled_sl, scaled_pt = spot_scale_exit_pcts(
+                    stop_loss_pct=trade.base_stop_loss_pct,
+                    profit_target_pct=trade.base_profit_target_pct,
+                    stop_mult=sl_mult,
+                    profit_mult=pt_mult,
+                )
                 if (
                     trade.stop_loss_price is None
-                    and trade.base_stop_loss_pct is not None
-                    and float(trade.base_stop_loss_pct) > 0
+                    and scaled_sl is not None
                 ):
-                    trade.stop_loss_pct = min(float(trade.base_stop_loss_pct) * float(sl_mult), 0.99)
+                    trade.stop_loss_pct = float(scaled_sl)
                 if (
                     trade.profit_target_price is None
-                    and trade.base_profit_target_pct is not None
-                    and float(trade.base_profit_target_pct) > 0
+                    and scaled_pt is not None
                 ):
-                    trade.profit_target_pct = min(float(trade.base_profit_target_pct) * float(pt_mult), 0.99)
+                    trade.profit_target_pct = float(scaled_pt)
 
         # Signal processing happens on signal-bar closes (after this bar completes).
         rv = None
@@ -3334,12 +3333,7 @@ def _run_spot_backtest_exec_loop_summary_fast(
 
     riskoff_end_hour = _spot_riskoff_end_hour(filters) if risk_overlay_enabled else None
 
-    shock_stop_mult = float(getattr(filters, "shock_stop_loss_pct_mult", 1.0) or 1.0) if filters is not None else 1.0
-    shock_profit_mult = float(getattr(filters, "shock_profit_target_pct_mult", 1.0) or 1.0) if filters is not None else 1.0
-    if shock_stop_mult <= 0:
-        shock_stop_mult = 1.0
-    if shock_profit_mult <= 0:
-        shock_profit_mult = 1.0
+    shock_stop_mult, shock_profit_mult = spot_shock_exit_pct_multipliers(filters, shock=True)
 
     dd_long_tree, dd_short_tree = _spot_dd_trees(exec_bars=exec_bars, spread=spot_spread, mark_to_market=spot_mark_to_market)
     stop_long_tree = _spot_stop_tree(

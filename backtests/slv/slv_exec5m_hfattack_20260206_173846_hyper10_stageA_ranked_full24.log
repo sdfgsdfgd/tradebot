@@ -1,0 +1,7 @@
+
+[ERROR] --offline was requested, but required cached bars are missing:
+- SLV 30 mins full 2024-01-08→2026-01-08 (expected: db/SLV/SLV_2024-01-08_2026-01-08_30mins_full.csv)
+
+Fix:
+- Re-run without --offline to fetch via IBKR (and populate db/ cache).
+- Or prefetch the missing bars explicitly before running with --offline.

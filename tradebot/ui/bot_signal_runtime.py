@@ -3,12 +3,32 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime
+import json
+from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
-from ..engine import cooldown_ok_by_time, normalize_spot_entry_signal, parse_time_hhmm, signal_filters_ok
+from ..engine import (
+    cooldown_ok_by_time,
+    normalize_spot_entry_signal,
+    parse_time_hhmm,
+    signal_filter_checks,
+    spot_intrabar_exit,
+    spot_profit_level,
+    spot_scale_exit_pcts,
+    spot_shock_exit_pct_multipliers,
+    spot_stop_level,
+)
+from ..signals import parse_bar_size
 from .bot_models import _BotInstance
-from .common import _safe_num, _ticker_price
+from .common import _market_session_bucket, _safe_num, _ticker_price
+
+_RTH_OPEN = time(9, 30)
+_RTH_CLOSE = time(16, 0)
+_EXT_OPEN = time(4, 0)
+_EXT_CLOSE = time(20, 0)
+_DEFAULT_ORDER_STAGE_TIMEOUT_SEC = 20.0
+_BID_TICK_TYPES = {1, 66}
+_ASK_TICK_TYPES = {2, 67}
 
 
 def _weekday_num(label: str) -> int:
@@ -19,27 +39,26 @@ def _weekday_num(label: str) -> int:
 
 class BotSignalRuntimeMixin:
     async def _auto_order_tick(self) -> None:
+        now_et = datetime.now(tz=ZoneInfo("America/New_York"))
+        now_wall = self._wall_time(now_et)
+        self._check_order_trigger_watchdogs(now_et=now_et)
         if self._order_task and not self._order_task.done():
             return
-        now_et = datetime.now(tz=ZoneInfo("America/New_York"))
 
         for instance in self._instances:
             if instance.state != "RUNNING":
                 continue
 
             def _gate(status: str, data: dict | None = None) -> None:
-                if instance.last_gate_status == status:
+                fingerprint = (
+                    str(status or ""),
+                    json.dumps(data, sort_keys=True, default=str) if isinstance(data, dict) else "",
+                )
+                if instance.last_gate_fingerprint == fingerprint:
                     return
+                instance.last_gate_fingerprint = fingerprint
                 instance.last_gate_status = status
                 self._journal_write(event="GATE", instance=instance, reason=status, data=data)
-
-            if not self._can_order_now(instance):
-                _gate("BLOCKED_WEEKDAY_NOW", {"now_weekday": int(now_et.weekday())})
-                continue
-
-            if self._has_pending_order(instance):
-                _gate("PENDING_ORDER", None)
-                continue
 
             symbol = str(
                 instance.symbol or (self._payload.get("symbol", "SLV") if self._payload else "SLV")
@@ -80,6 +99,15 @@ class BotSignalRuntimeMixin:
                 continue
 
             risk = snap.risk
+            ema_fast = float(snap.signal.ema_fast) if snap.signal.ema_fast is not None else None
+            ema_slow = float(snap.signal.ema_slow) if snap.signal.ema_slow is not None else None
+            prev_ema_fast = float(snap.signal.prev_ema_fast) if snap.signal.prev_ema_fast is not None else None
+            ema_spread_pct = None
+            ema_slope_pct = None
+            if ema_fast is not None and ema_slow is not None and snap.close:
+                ema_spread_pct = ((ema_fast - ema_slow) / float(snap.close)) * 100.0
+            if ema_fast is not None and prev_ema_fast is not None and snap.close:
+                ema_slope_pct = ((ema_fast - prev_ema_fast) / float(snap.close)) * 100.0
             signal_fingerprint = (
                 str(snap.signal.state or ""),
                 str(snap.signal.entry_dir or ""),
@@ -113,6 +141,10 @@ class BotSignalRuntimeMixin:
                             "ema_ready": bool(snap.signal.ema_ready),
                             "regime_dir": snap.signal.regime_dir,
                             "regime_ready": bool(snap.signal.regime_ready),
+                            "ema_fast": ema_fast,
+                            "ema_slow": ema_slow,
+                            "ema_spread_pct": ema_spread_pct,
+                            "ema_slope_pct": ema_slope_pct,
                         },
                         "orb": {
                             "ready": bool(snap.or_ready),
@@ -132,11 +164,58 @@ class BotSignalRuntimeMixin:
                             "riskpop": bool(getattr(risk, "riskpop", False)) if risk is not None else None,
                         },
                         "rv": float(snap.rv) if snap.rv is not None else None,
+                        "bars_in_day": int(snap.bars_in_day),
                         "volume": float(snap.volume) if snap.volume is not None else None,
                         "volume_ema": float(snap.volume_ema) if snap.volume_ema is not None else None,
                         "volume_ema_ready": bool(snap.volume_ema_ready),
+                        "meta": {
+                            "entry_signal": str(instance.strategy.get("entry_signal") or "ema"),
+                            "signal_bar_size": self._signal_bar_size(instance),
+                            "signal_use_rth": bool(self._signal_use_rth(instance)),
+                            "regime_mode": str(instance.strategy.get("regime_mode") or "ema"),
+                            "regime_bar_size": str(
+                                instance.strategy.get("regime_bar_size") or self._signal_bar_size(instance)
+                            ),
+                            "regime2_mode": str(instance.strategy.get("regime2_mode") or "off"),
+                            "regime2_bar_size": str(
+                                instance.strategy.get("regime2_bar_size") or self._signal_bar_size(instance)
+                            ),
+                            "regime2_apply_to": str(instance.strategy.get("regime2_apply_to") or "both"),
+                            "spot_exec_feed_mode": self._spot_exec_feed_mode(instance),
+                            "spot_exec_bar_size": str(
+                                instance.strategy.get("spot_exec_bar_size") or self._signal_bar_size(instance)
+                            ),
+                        },
                     },
                 )
+
+            instrument, open_items, open_dir = self._resolve_open_positions(
+                instance,
+                symbol=symbol,
+                signal_contract=signal_contract,
+            )
+
+            if not open_items:
+                if instance.open_direction is not None:
+                    instance.open_direction = None
+                    instance.spot_profit_target_price = None
+                    instance.spot_stop_loss_price = None
+                self._clear_pending_exit(instance)
+                self._spot_reset_exec_bar(instance)
+
+            if self._auto_process_pending_next_open(
+                instance=instance,
+                instrument=instrument,
+                open_items=open_items,
+                open_dir=open_dir,
+                now_wall=now_wall,
+                gate=_gate,
+            ):
+                break
+
+            if self._has_pending_order(instance):
+                _gate("PENDING_ORDER", None)
+                continue
 
             if (
                 bool(snap.signal.cross_up) or bool(snap.signal.cross_down)
@@ -155,6 +234,23 @@ class BotSignalRuntimeMixin:
                         "entry_dir": snap.signal.entry_dir,
                     },
                 )
+
+            if open_items:
+                if await self._auto_maybe_exit_open_positions(
+                    instance=instance,
+                    snap=snap,
+                    instrument=instrument,
+                    open_items=open_items,
+                    open_dir=open_dir,
+                    now_et=now_et,
+                    gate=_gate,
+                ):
+                    break
+                continue
+
+            if not self._can_order_now(instance):
+                _gate("BLOCKED_WEEKDAY_NOW", {"now_weekday": int(now_et.weekday())})
+                continue
 
             entry_days = instance.strategy.get("entry_days", [])
             if entry_days:
@@ -184,7 +280,7 @@ class BotSignalRuntimeMixin:
                 bar_size=self._signal_bar_size(instance),
                 cooldown_bars=cooldown_bars,
             )
-            if not signal_filters_ok(
+            filter_checks = signal_filter_checks(
                 instance.filters,
                 bar_ts=snap.bar_ts,
                 bars_in_day=snap.bars_in_day,
@@ -197,12 +293,15 @@ class BotSignalRuntimeMixin:
                 cooldown_ok=cooldown_ok,
                 shock=snap.shock,
                 shock_dir=snap.shock_dir,
-            ):
+            )
+            if not all(bool(v) for v in filter_checks.values()):
+                failed_filters = [name for name, ok in filter_checks.items() if not bool(ok)]
                 _gate(
                     "BLOCKED_FILTERS",
                     {
                         "symbol": symbol,
                         "bar_ts": snap.bar_ts.isoformat(),
+                        "bars_in_day": int(snap.bars_in_day),
                         "cooldown_ok": bool(cooldown_ok),
                         "rv": float(snap.rv) if snap.rv is not None else None,
                         "volume": float(snap.volume) if snap.volume is not None else None,
@@ -210,36 +309,16 @@ class BotSignalRuntimeMixin:
                         "volume_ema_ready": bool(snap.volume_ema_ready),
                         "shock": snap.shock,
                         "shock_dir": snap.shock_dir,
+                        "state": snap.signal.state,
                         "entry_dir": snap.signal.entry_dir,
+                        "regime_dir": snap.signal.regime_dir,
+                        "filter_checks": filter_checks,
+                        "failed_filters": failed_filters,
                     },
                 )
                 continue
 
-            instrument, open_items, open_dir = self._resolve_open_positions(
-                instance,
-                symbol=symbol,
-                signal_contract=signal_contract,
-            )
-
-            if not open_items and instance.open_direction is not None:
-                instance.open_direction = None
-                instance.spot_profit_target_price = None
-                instance.spot_stop_loss_price = None
-
-            if open_items:
-                if await self._auto_maybe_exit_open_positions(
-                    instance=instance,
-                    snap=snap,
-                    instrument=instrument,
-                    open_items=open_items,
-                    open_dir=open_dir,
-                    now_et=now_et,
-                    gate=_gate,
-                ):
-                    break
-                continue
-
-            if self._auto_try_queue_entry(instance=instance, snap=snap, gate=_gate):
+            if self._auto_try_queue_entry(instance=instance, snap=snap, gate=_gate, now_et=now_et):
                 break
 
     def _has_pending_order(self, instance: _BotInstance) -> bool:
@@ -247,6 +326,514 @@ class BotSignalRuntimeMixin:
             o.status in ("STAGED", "WORKING", "CANCELING") and o.instance_id == instance.instance_id
             for o in self._orders
         )
+
+    @staticmethod
+    def _wall_time(now_et: datetime) -> datetime:
+        return now_et.replace(tzinfo=None) if now_et.tzinfo is not None else now_et
+
+    def _order_stage_timeout_sec(self, instance: _BotInstance) -> float:
+        raw = instance.strategy.get("order_stage_timeout_sec")
+        try:
+            parsed = float(raw) if raw is not None else _DEFAULT_ORDER_STAGE_TIMEOUT_SEC
+        except (TypeError, ValueError):
+            parsed = _DEFAULT_ORDER_STAGE_TIMEOUT_SEC
+        return max(1.0, parsed)
+
+    def _mark_order_trigger_watch(
+        self,
+        *,
+        instance: _BotInstance,
+        intent: str,
+        direction: str | None,
+        signal_bar_ts: datetime | None,
+        now_et: datetime,
+        reason: str | None = None,
+        mode: str | None = None,
+    ) -> None:
+        now_wall = self._wall_time(now_et)
+        instance.order_trigger_intent = str(intent or "")
+        instance.order_trigger_reason = str(reason or "")
+        instance.order_trigger_mode = str(mode or "")
+        instance.order_trigger_direction = str(direction or "")
+        instance.order_trigger_signal_bar_ts = signal_bar_ts
+        instance.order_trigger_ts = now_wall
+        instance.order_trigger_deadline_ts = now_wall + timedelta(seconds=self._order_stage_timeout_sec(instance))
+
+    @staticmethod
+    def _clear_order_trigger_watch(instance: _BotInstance) -> None:
+        instance.order_trigger_intent = None
+        instance.order_trigger_reason = None
+        instance.order_trigger_mode = None
+        instance.order_trigger_direction = None
+        instance.order_trigger_signal_bar_ts = None
+        instance.order_trigger_ts = None
+        instance.order_trigger_deadline_ts = None
+
+    def _check_order_trigger_watchdogs(self, *, now_et: datetime) -> None:
+        now_wall = self._wall_time(now_et)
+        for instance in self._instances:
+            if instance.state != "RUNNING":
+                self._clear_order_trigger_watch(instance)
+                continue
+            deadline = instance.order_trigger_deadline_ts
+            if deadline is None or now_wall < deadline:
+                continue
+            if self._order_task and not self._order_task.done():
+                continue
+            if self._has_pending_order(instance):
+                continue
+            payload = {
+                "intent": instance.order_trigger_intent,
+                "reason": instance.order_trigger_reason,
+                "mode": instance.order_trigger_mode,
+                "direction": instance.order_trigger_direction,
+                "trigger_ts": instance.order_trigger_ts.isoformat() if instance.order_trigger_ts else None,
+                "signal_bar_ts": (
+                    instance.order_trigger_signal_bar_ts.isoformat()
+                    if instance.order_trigger_signal_bar_ts is not None
+                    else None
+                ),
+                "deadline_ts": deadline.isoformat(),
+            }
+            self._journal_write(
+                event="ORDER_DROPPED",
+                instance=instance,
+                order=None,
+                reason="not_staged",
+                data=payload,
+            )
+            self._clear_order_trigger_watch(instance)
+
+    def _spot_exec_duration(self, instance: _BotInstance) -> timedelta:
+        raw = str(instance.strategy.get("spot_exec_bar_size") or self._signal_bar_size(instance) or "").strip()
+        parsed = parse_bar_size(raw)
+        if parsed is None or parsed.duration.total_seconds() <= 0:
+            return timedelta(minutes=5)
+        return parsed.duration
+
+    @staticmethod
+    def _bar_floor(ts: datetime, span: timedelta) -> datetime:
+        sec = float(span.total_seconds())
+        if sec <= 0:
+            return ts
+        day_start = ts.replace(hour=0, minute=0, second=0, microsecond=0)
+        elapsed = max(0.0, float((ts - day_start).total_seconds()))
+        slot = int(elapsed // sec)
+        return day_start + timedelta(seconds=(slot * sec))
+
+    @classmethod
+    def _bar_ceil(cls, ts: datetime, span: timedelta) -> datetime:
+        floor_ts = cls._bar_floor(ts, span)
+        if floor_ts >= ts:
+            return floor_ts
+        return floor_ts + span
+
+    def _spot_signal_close_ts(self, instance: _BotInstance, signal_bar_ts: datetime) -> datetime:
+        signal_def = parse_bar_size(self._signal_bar_size(instance))
+        if signal_def is None or signal_def.duration.total_seconds() <= 0:
+            return signal_bar_ts
+        return signal_bar_ts + signal_def.duration
+
+    def _spot_next_open_due_ts(self, instance: _BotInstance, signal_bar_ts: datetime) -> datetime:
+        close_ts = self._spot_signal_close_ts(instance, signal_bar_ts)
+        span = self._spot_exec_duration(instance)
+        due_ts = self._bar_ceil(close_ts, span)
+        return self._spot_align_exec_open(instance=instance, ts=due_ts, span=span)
+
+    def _spot_session_window(self, instance: _BotInstance) -> tuple[time, time] | None:
+        mode = str(instance.strategy.get("spot_next_open_session", "auto") or "auto").strip().lower()
+        if mode not in ("auto", "rth", "extended", "always"):
+            mode = "auto"
+        if mode == "always":
+            return None
+        if mode == "rth":
+            return (_RTH_OPEN, _RTH_CLOSE)
+        if mode == "extended":
+            return (_EXT_OPEN, _EXT_CLOSE)
+
+        sec_type = str(instance.strategy.get("spot_sec_type") or "STK").strip().upper()
+        if sec_type != "STK":
+            return None
+        return (_RTH_OPEN, _RTH_CLOSE) if bool(self._signal_use_rth(instance)) else (_EXT_OPEN, _EXT_CLOSE)
+
+    @staticmethod
+    def _spot_next_weekday_open(ts: datetime, open_time: time) -> datetime:
+        candidate = datetime.combine(ts.date(), open_time)
+        if candidate <= ts:
+            candidate = candidate + timedelta(days=1)
+        while candidate.weekday() >= 5:
+            candidate = candidate + timedelta(days=1)
+        return candidate
+
+    @staticmethod
+    def _spot_session_contains(ts: datetime, *, open_time: time, close_time: time) -> bool:
+        if ts.weekday() >= 5:
+            return False
+        current = ts.time()
+        return open_time <= current < close_time
+
+    def _spot_align_exec_open(self, *, instance: _BotInstance, ts: datetime, span: timedelta) -> datetime:
+        session = self._spot_session_window(instance)
+        if session is None:
+            return ts
+        open_time, close_time = session
+        candidate = ts
+        while True:
+            if candidate.weekday() >= 5:
+                candidate = self._spot_next_weekday_open(candidate, open_time)
+                continue
+            day_open = datetime.combine(candidate.date(), open_time)
+            day_close = datetime.combine(candidate.date(), close_time)
+            if candidate < day_open:
+                candidate = day_open
+            elif candidate >= day_close:
+                candidate = self._spot_next_weekday_open(candidate, open_time)
+                continue
+
+            aligned = self._bar_ceil(candidate, span)
+            if aligned >= day_close:
+                candidate = self._spot_next_weekday_open(candidate, open_time)
+                continue
+            if not self._spot_session_contains(aligned, open_time=open_time, close_time=close_time):
+                candidate = self._spot_next_weekday_open(candidate, open_time)
+                continue
+            return aligned
+
+    @staticmethod
+    def _spot_exec_feed_mode(instance: _BotInstance) -> str:
+        mode = str(instance.strategy.get("spot_exec_feed_mode", "ticks_side") or "ticks_side").strip().lower()
+        if mode not in ("poll", "ticks_side", "ticks_quote"):
+            mode = "ticks_side"
+        return mode
+
+    @staticmethod
+    def _spot_reset_exec_bar(instance: _BotInstance) -> None:
+        instance.exec_bar_ts = None
+        instance.exec_bar_open = None
+        instance.exec_bar_high = None
+        instance.exec_bar_low = None
+        instance.exec_tick_cursor = 0
+        instance.exec_tick_by_tick_cursor = 0
+
+    def _spot_exec_tick_prices(self, *, instance: _BotInstance, ticker, qty_sign: int) -> list[float]:
+        mode = self._spot_exec_feed_mode(instance)
+        if mode == "poll":
+            return []
+        prices: list[float] = []
+
+        raw_ticks = list(getattr(ticker, "ticks", []) or [])
+        tick_cursor = int(instance.exec_tick_cursor or 0)
+        if tick_cursor < 0 or tick_cursor > len(raw_ticks):
+            tick_cursor = 0
+        new_ticks = raw_ticks[tick_cursor:]
+        instance.exec_tick_cursor = len(raw_ticks)
+        if len(new_ticks) > 256:
+            new_ticks = new_ticks[-256:]
+        for tick in new_ticks:
+            price = _safe_num(getattr(tick, "price", None))
+            if price is None or price <= 0:
+                continue
+            try:
+                tick_type = int(getattr(tick, "tickType", -1) or -1)
+            except (TypeError, ValueError):
+                tick_type = -1
+            if mode == "ticks_quote":
+                if tick_type in _BID_TICK_TYPES or tick_type in _ASK_TICK_TYPES:
+                    prices.append(float(price))
+                continue
+            if qty_sign > 0 and tick_type in _BID_TICK_TYPES:
+                prices.append(float(price))
+            elif qty_sign < 0 and tick_type in _ASK_TICK_TYPES:
+                prices.append(float(price))
+
+        raw_tbt = list(getattr(ticker, "tickByTicks", []) or [])
+        tbt_cursor = int(instance.exec_tick_by_tick_cursor or 0)
+        if tbt_cursor < 0 or tbt_cursor > len(raw_tbt):
+            tbt_cursor = 0
+        new_tbt = raw_tbt[tbt_cursor:]
+        instance.exec_tick_by_tick_cursor = len(raw_tbt)
+        if len(new_tbt) > 256:
+            new_tbt = new_tbt[-256:]
+        for item in new_tbt:
+            bid_p = _safe_num(getattr(item, "bidPrice", None))
+            ask_p = _safe_num(getattr(item, "askPrice", None))
+            if mode == "ticks_quote":
+                if bid_p is not None and bid_p > 0:
+                    prices.append(float(bid_p))
+                if ask_p is not None and ask_p > 0:
+                    prices.append(float(ask_p))
+                continue
+            if qty_sign > 0 and bid_p is not None and bid_p > 0:
+                prices.append(float(bid_p))
+            elif qty_sign < 0 and ask_p is not None and ask_p > 0:
+                prices.append(float(ask_p))
+        return prices
+
+    def _spot_exec_price_points(
+        self,
+        *,
+        instance: _BotInstance,
+        ticker,
+        qty_sign: int,
+        market_price: float | None,
+        bid: float | None,
+        ask: float | None,
+    ) -> list[float]:
+        prices: list[float] = []
+        if qty_sign > 0 and bid is not None and bid > 0:
+            prices.append(float(bid))
+        elif qty_sign < 0 and ask is not None and ask > 0:
+            prices.append(float(ask))
+        elif market_price is not None and market_price > 0:
+            prices.append(float(market_price))
+
+        mode = self._spot_exec_feed_mode(instance)
+        if mode == "ticks_quote":
+            if bid is not None and bid > 0:
+                prices.append(float(bid))
+            if ask is not None and ask > 0:
+                prices.append(float(ask))
+        prices.extend(self._spot_exec_tick_prices(instance=instance, ticker=ticker, qty_sign=qty_sign))
+        if not prices and market_price is not None and market_price > 0:
+            prices.append(float(market_price))
+        return prices
+
+    def _spot_update_exec_bar(self, instance: _BotInstance, *, now_wall: datetime, prices: list[float]) -> None:
+        cleaned: list[float] = []
+        for raw in prices:
+            try:
+                value = float(raw)
+            except (TypeError, ValueError):
+                continue
+            if value > 0:
+                cleaned.append(value)
+        if not cleaned:
+            return
+        span = self._spot_exec_duration(instance)
+        bar_ts = self._bar_floor(now_wall, span)
+        open_price = float(cleaned[0])
+        high_price = max(cleaned)
+        low_price = min(cleaned)
+        if instance.exec_bar_ts != bar_ts:
+            instance.exec_bar_ts = bar_ts
+            instance.exec_bar_open = open_price
+            instance.exec_bar_high = high_price
+            instance.exec_bar_low = low_price
+            return
+        hi = instance.exec_bar_high
+        lo = instance.exec_bar_low
+        instance.exec_bar_high = high_price if hi is None else max(float(hi), high_price)
+        instance.exec_bar_low = low_price if lo is None else min(float(lo), low_price)
+
+    @staticmethod
+    def _clear_pending_entry(instance: _BotInstance) -> None:
+        instance.pending_entry_direction = None
+        instance.pending_entry_signal_bar_ts = None
+        instance.pending_entry_due_ts = None
+
+    @staticmethod
+    def _clear_pending_exit(instance: _BotInstance) -> None:
+        instance.pending_exit_reason = None
+        instance.pending_exit_signal_bar_ts = None
+        instance.pending_exit_due_ts = None
+
+    def _schedule_pending_entry_next_open(
+        self,
+        *,
+        instance: _BotInstance,
+        direction: str,
+        signal_bar_ts: datetime,
+        now_wall: datetime,
+        gate,
+    ) -> bool:
+        due_ts = self._spot_next_open_due_ts(instance, signal_bar_ts)
+        if due_ts <= now_wall:
+            self._queue_order(
+                instance,
+                intent="enter",
+                direction=direction,
+                signal_bar_ts=signal_bar_ts,
+                trigger_reason="next_open",
+                trigger_mode="spot",
+            )
+            gate(
+                "TRIGGER_ENTRY",
+                {
+                    "direction": direction,
+                    "fill_mode": "next_open",
+                    "next_open_due": due_ts.isoformat(),
+                    "signal_bar_ts": signal_bar_ts.isoformat(),
+                },
+            )
+            return True
+
+        if instance.pending_entry_due_ts is not None:
+            return False
+
+        instance.pending_entry_direction = str(direction)
+        instance.pending_entry_signal_bar_ts = signal_bar_ts
+        instance.pending_entry_due_ts = due_ts
+        gate(
+            "PENDING_ENTRY_NEXT_OPEN",
+            {
+                "direction": direction,
+                "next_open_due": due_ts.isoformat(),
+                "signal_bar_ts": signal_bar_ts.isoformat(),
+            },
+        )
+        return True
+
+    def _schedule_pending_exit_next_open(
+        self,
+        *,
+        instance: _BotInstance,
+        reason: str,
+        direction: str | None,
+        signal_bar_ts: datetime,
+        now_wall: datetime,
+        mode: str,
+        gate,
+    ) -> bool:
+        due_ts = self._spot_next_open_due_ts(instance, signal_bar_ts)
+        if due_ts <= now_wall:
+            self._queue_order(
+                instance,
+                intent="exit",
+                direction=direction,
+                signal_bar_ts=signal_bar_ts,
+                trigger_reason=reason,
+                trigger_mode=mode,
+            )
+            gate(
+                "TRIGGER_EXIT",
+                {
+                    "mode": mode,
+                    "reason": reason,
+                    "fill_mode": "next_open",
+                    "next_open_due": due_ts.isoformat(),
+                    "signal_bar_ts": signal_bar_ts.isoformat(),
+                },
+            )
+            return True
+
+        if instance.pending_exit_due_ts is not None:
+            return False
+
+        instance.pending_exit_reason = str(reason)
+        instance.pending_exit_signal_bar_ts = signal_bar_ts
+        instance.pending_exit_due_ts = due_ts
+        gate(
+            "PENDING_EXIT_NEXT_OPEN",
+            {
+                "mode": mode,
+                "reason": reason,
+                "next_open_due": due_ts.isoformat(),
+                "signal_bar_ts": signal_bar_ts.isoformat(),
+            },
+        )
+        return True
+
+    def _auto_process_pending_next_open(
+        self,
+        *,
+        instance: _BotInstance,
+        instrument: str,
+        open_items: list,
+        open_dir: str | None,
+        now_wall: datetime,
+        gate,
+    ) -> bool:
+        if instrument != "spot":
+            self._clear_pending_entry(instance)
+            self._clear_pending_exit(instance)
+            return False
+
+        # Backtest parity: execute pending flip exits before pending entries.
+        pending_exit_due = instance.pending_exit_due_ts
+        if pending_exit_due is not None and now_wall >= pending_exit_due:
+            if open_items:
+                self._queue_order(
+                    instance,
+                    intent="exit",
+                    direction=open_dir,
+                    signal_bar_ts=instance.pending_exit_signal_bar_ts,
+                    trigger_reason=str(instance.pending_exit_reason or "flip"),
+                    trigger_mode="spot",
+                )
+                gate(
+                    "TRIGGER_EXIT",
+                    {
+                        "mode": "spot",
+                        "reason": str(instance.pending_exit_reason or "flip"),
+                        "fill_mode": "next_open",
+                        "next_open_due": pending_exit_due.isoformat(),
+                        "signal_bar_ts": (
+                            instance.pending_exit_signal_bar_ts.isoformat()
+                            if instance.pending_exit_signal_bar_ts is not None
+                            else None
+                        ),
+                    },
+                )
+                self._clear_pending_exit(instance)
+                return True
+            self._clear_pending_exit(instance)
+
+        pending_entry_due = instance.pending_entry_due_ts
+        if pending_entry_due is not None and now_wall >= pending_entry_due:
+            direction = instance.pending_entry_direction
+            if direction in ("up", "down") and not open_items:
+                self._queue_order(
+                    instance,
+                    intent="enter",
+                    direction=direction,
+                    signal_bar_ts=instance.pending_entry_signal_bar_ts,
+                    trigger_reason="next_open",
+                    trigger_mode="spot",
+                )
+                gate(
+                    "TRIGGER_ENTRY",
+                    {
+                        "direction": direction,
+                        "fill_mode": "next_open",
+                        "next_open_due": pending_entry_due.isoformat(),
+                        "signal_bar_ts": (
+                            instance.pending_entry_signal_bar_ts.isoformat()
+                            if instance.pending_entry_signal_bar_ts is not None
+                            else None
+                        ),
+                    },
+                )
+                self._clear_pending_entry(instance)
+                return True
+            self._clear_pending_entry(instance)
+        if instance.pending_exit_due_ts is not None:
+            gate(
+                "PENDING_EXIT_NEXT_OPEN",
+                {
+                    "mode": "spot",
+                    "reason": str(instance.pending_exit_reason or "flip"),
+                    "next_open_due": instance.pending_exit_due_ts.isoformat(),
+                    "signal_bar_ts": (
+                        instance.pending_exit_signal_bar_ts.isoformat()
+                        if instance.pending_exit_signal_bar_ts is not None
+                        else None
+                    ),
+                },
+            )
+        elif instance.pending_entry_due_ts is not None:
+            gate(
+                "PENDING_ENTRY_NEXT_OPEN",
+                {
+                    "direction": instance.pending_entry_direction,
+                    "next_open_due": instance.pending_entry_due_ts.isoformat(),
+                    "signal_bar_ts": (
+                        instance.pending_entry_signal_bar_ts.isoformat()
+                        if instance.pending_entry_signal_bar_ts is not None
+                        else None
+                    ),
+                },
+            )
+        return False
 
     async def _auto_maybe_exit_open_positions(
         self,
@@ -278,6 +865,8 @@ class BotSignalRuntimeMixin:
                 intent="exit",
                 direction=open_dir,
                 signal_bar_ts=snap.bar_ts,
+                trigger_reason=reason,
+                trigger_mode=mode,
             )
             payload = {"mode": mode, "reason": reason}
             if calc:
@@ -291,7 +880,55 @@ class BotSignalRuntimeMixin:
                 pos = float(getattr(open_item, "position", 0.0) or 0.0)
             except (TypeError, ValueError):
                 pos = 0.0
-            avg_cost = _safe_num(getattr(open_item, "averageCost", None))
+            qty_sign = 1 if pos > 0 else -1 if pos < 0 else 0
+            broker_avg_cost = _safe_num(getattr(open_item, "averageCost", None))
+            tracked_entry_price = _safe_num(instance.spot_entry_basis_price)
+            recent_enter_price = None
+            for prior in reversed(self._orders):
+                if int(getattr(prior, "instance_id", 0) or 0) != int(instance.instance_id):
+                    continue
+                if str(getattr(prior, "intent", "") or "").strip().lower() != "enter":
+                    continue
+                if str(getattr(prior, "status", "") or "").strip().upper() != "FILLED":
+                    continue
+                sec_type = str(getattr(getattr(prior, "order_contract", None), "secType", "") or "").strip().upper()
+                if sec_type != "STK":
+                    continue
+                px = _safe_num(getattr(prior, "limit_price", None))
+                if px is not None and px > 0:
+                    recent_enter_price = float(px)
+                    break
+            basis_guard_delta_pct = None
+            if tracked_entry_price is not None and tracked_entry_price > 0 and pos:
+                avg_cost = float(tracked_entry_price)
+                entry_basis_source = str(instance.spot_entry_basis_source or "tracked_entry")
+            elif (
+                broker_avg_cost is not None
+                and broker_avg_cost > 0
+                and recent_enter_price is not None
+                and pos
+            ):
+                try:
+                    basis_guard_delta_pct = abs(float(broker_avg_cost) - float(recent_enter_price)) / float(
+                        recent_enter_price
+                    )
+                except (TypeError, ValueError, ZeroDivisionError):
+                    basis_guard_delta_pct = None
+                if basis_guard_delta_pct is not None and basis_guard_delta_pct > 0.003:
+                    avg_cost = float(recent_enter_price)
+                    entry_basis_source = "recent_enter_price_guard"
+                else:
+                    avg_cost = float(broker_avg_cost)
+                    entry_basis_source = "portfolio_avg_cost"
+            elif broker_avg_cost is not None and broker_avg_cost > 0 and pos:
+                avg_cost = float(broker_avg_cost)
+                entry_basis_source = "portfolio_avg_cost"
+            elif recent_enter_price is not None and recent_enter_price > 0 and pos:
+                avg_cost = float(recent_enter_price)
+                entry_basis_source = "recent_enter_price_fallback"
+            else:
+                avg_cost = None
+                entry_basis_source = None
             portfolio_market_price = _safe_num(getattr(open_item, "marketPrice", None))
             ticker = await self._client.ensure_ticker(open_item.contract, owner="bot")
             bid = _safe_num(getattr(ticker, "bid", None))
@@ -328,17 +965,22 @@ class BotSignalRuntimeMixin:
             market_price_source = quote_market_source if quote_market_price is not None else (
                 "portfolio" if portfolio_market_price is not None else None
             )
-
-            def _session_label() -> str:
-                h = int(now_et.hour)
-                m = int(now_et.minute)
-                if (h, m) >= (9, 30) and (h, m) < (16, 0):
-                    return "RTH"
-                if (h, m) >= (4, 0) and (h, m) < (9, 30):
-                    return "PRE"
-                if (h, m) >= (16, 0) and (h, m) < (20, 0):
-                    return "AFTER"
-                return "OVERNIGHT"
+            now_wall = self._wall_time(now_et)
+            exec_prices = self._spot_exec_price_points(
+                instance=instance,
+                ticker=ticker,
+                qty_sign=qty_sign,
+                market_price=market_price,
+                bid=bid,
+                ask=ask,
+            )
+            self._spot_update_exec_bar(instance, now_wall=now_wall, prices=exec_prices)
+            exec_bar_ts = instance.exec_bar_ts
+            exec_bar_open = instance.exec_bar_open
+            exec_bar_high = instance.exec_bar_high
+            exec_bar_low = instance.exec_bar_low
+            session_bucket = _market_session_bucket(now_et)
+            session_label = "AFTER" if session_bucket == "POST" else session_bucket
 
             def _spot_calc(
                 *,
@@ -348,11 +990,26 @@ class BotSignalRuntimeMixin:
                 stop: float | None = None,
                 pt: float | None = None,
                 sl: float | None = None,
+                stop_level: float | None = None,
+                profit_level: float | None = None,
+                exec_hit_ref: float | None = None,
             ) -> dict:
                 return {
-                    "session": _session_label(),
+                    "session": session_label,
                     "pos": float(pos),
                     "avg_cost": float(avg_cost) if avg_cost is not None else None,
+                    "entry_basis_source": entry_basis_source,
+                    "broker_avg_cost": float(broker_avg_cost) if broker_avg_cost is not None else None,
+                    "tracked_entry_price": float(tracked_entry_price) if tracked_entry_price is not None else None,
+                    "recent_enter_price": float(recent_enter_price) if recent_enter_price is not None else None,
+                    "basis_guard_delta_pct": (
+                        float(basis_guard_delta_pct) if basis_guard_delta_pct is not None else None
+                    ),
+                    "tracked_entry_set_ts": (
+                        instance.spot_entry_basis_set_ts.isoformat()
+                        if instance.spot_entry_basis_set_ts is not None
+                        else None
+                    ),
                     "bid": float(bid) if bid is not None else None,
                     "ask": float(ask) if ask is not None else None,
                     "last": float(last) if last is not None else None,
@@ -361,6 +1018,8 @@ class BotSignalRuntimeMixin:
                     "portfolio_market_price": float(portfolio_market_price) if portfolio_market_price is not None else None,
                     "market_price_used": float(market_price) if market_price is not None else None,
                     "market_price_source": market_price_source,
+                    "exec_feed_mode": self._spot_exec_feed_mode(instance),
+                    "exec_prices_count": int(len(exec_prices)),
                     "mark_to_market": mark_to_market,
                     "target_price": float(target) if target is not None else None,
                     "stop_price": float(stop) if stop is not None else None,
@@ -368,60 +1027,18 @@ class BotSignalRuntimeMixin:
                     "stop_loss_pct": float(sl) if sl is not None else None,
                     "threshold": float(threshold) if threshold is not None else None,
                     "move": float(move) if move is not None else None,
+                    "stop_level": float(stop_level) if stop_level is not None else None,
+                    "profit_level": float(profit_level) if profit_level is not None else None,
+                    "exec_bar_ts": exec_bar_ts.isoformat() if exec_bar_ts is not None else None,
+                    "exec_bar_open": float(exec_bar_open) if exec_bar_open is not None else None,
+                    "exec_bar_high": float(exec_bar_high) if exec_bar_high is not None else None,
+                    "exec_bar_low": float(exec_bar_low) if exec_bar_low is not None else None,
+                    "exec_hit_ref": float(exec_hit_ref) if exec_hit_ref is not None else None,
                     "contract_exchange": str(getattr(getattr(open_item, "contract", None), "exchange", "") or ""),
                 }
 
             target_price = instance.spot_profit_target_price
             stop_price = instance.spot_stop_loss_price
-            if (
-                pos
-                and market_price is not None
-                and market_price > 0
-                and (target_price is not None or stop_price is not None)
-            ):
-                try:
-                    mp = float(market_price)
-                except (TypeError, ValueError):
-                    mp = None
-                if mp is not None:
-                    if target_price is not None:
-                        try:
-                            target = float(target_price)
-                        except (TypeError, ValueError):
-                            target = None
-                        if target is not None and target > 0:
-                            if (pos > 0 and mp >= target) or (pos < 0 and mp <= target):
-                                return _trigger_exit(
-                                    "profit_target",
-                                    mode="spot",
-                                    calc=_spot_calc(target=target),
-                                )
-                    if stop_price is not None:
-                        try:
-                            stop = float(stop_price)
-                        except (TypeError, ValueError):
-                            stop = None
-                        if stop is not None and stop > 0:
-                            if (pos > 0 and mp <= stop) or (pos < 0 and mp >= stop):
-                                return _trigger_exit(
-                                    "stop_loss",
-                                    mode="spot",
-                                    calc=_spot_calc(stop=stop),
-                                )
-
-            move = None
-            if (
-                target_price is None
-                and stop_price is None
-                and avg_cost is not None
-                and avg_cost > 0
-                and market_price is not None
-                and market_price > 0
-                and pos
-            ):
-                move = (market_price - avg_cost) / avg_cost
-                if pos < 0:
-                    move = -move
 
             try:
                 pt = (
@@ -441,36 +1058,126 @@ class BotSignalRuntimeMixin:
                 sl = None
 
             # Dynamic shock SL/PT: mirror backtest semantics for pct-based exits.
-            if bool(snap.shock) and isinstance(instance.filters, dict):
-                try:
-                    sl_mult = float(instance.filters.get("shock_stop_loss_pct_mult", 1.0) or 1.0)
-                except (TypeError, ValueError):
-                    sl_mult = 1.0
-                try:
-                    pt_mult = float(instance.filters.get("shock_profit_target_pct_mult", 1.0) or 1.0)
-                except (TypeError, ValueError):
-                    pt_mult = 1.0
-                if sl_mult <= 0:
-                    sl_mult = 1.0
-                if pt_mult <= 0:
-                    pt_mult = 1.0
-                if sl is not None and float(sl) > 0:
-                    sl = min(float(sl) * float(sl_mult), 0.99)
-                if pt is not None and float(pt) > 0:
-                    pt = min(float(pt) * float(pt_mult), 0.99)
+            sl_mult, pt_mult = spot_shock_exit_pct_multipliers(instance.filters, shock=snap.shock)
+            sl, pt = spot_scale_exit_pcts(
+                stop_loss_pct=sl,
+                profit_target_pct=pt,
+                stop_mult=sl_mult,
+                profit_mult=pt_mult,
+            )
 
-            if move is not None and pt is not None and move >= pt:
-                return _trigger_exit(
-                    "profit_target_pct",
-                    mode="spot",
-                    calc=_spot_calc(move=move, threshold=float(pt), pt=pt, sl=sl),
+            profit_level = (
+                spot_profit_level(
+                    float(avg_cost),
+                    qty_sign,
+                    profit_target_price=target_price,
+                    profit_target_pct=pt,
                 )
-            if move is not None and sl is not None and move <= -sl:
-                return _trigger_exit(
-                    "stop_loss_pct",
-                    mode="spot",
-                    calc=_spot_calc(move=move, threshold=-float(sl), pt=pt, sl=sl),
+                if avg_cost is not None and avg_cost > 0 and pos
+                else spot_profit_level(
+                    1.0,
+                    qty_sign,
+                    profit_target_price=target_price,
+                    profit_target_pct=None,
                 )
+            )
+            stop_level = (
+                spot_stop_level(
+                    float(avg_cost),
+                    qty_sign,
+                    stop_loss_price=stop_price,
+                    stop_loss_pct=sl,
+                )
+                if avg_cost is not None and avg_cost > 0 and pos
+                else spot_stop_level(
+                    1.0,
+                    qty_sign,
+                    stop_loss_price=stop_price,
+                    stop_loss_pct=None,
+                )
+            )
+
+            intrabar_enabled = bool(instance.strategy.get("spot_intrabar_exits", False))
+            if (
+                pos
+                and intrabar_enabled
+                and exec_bar_open is not None
+                and exec_bar_high is not None
+                and exec_bar_low is not None
+                and (stop_level is not None or profit_level is not None)
+            ):
+                hit = spot_intrabar_exit(
+                    qty=qty_sign,
+                    bar_open=float(exec_bar_open),
+                    bar_high=float(exec_bar_high),
+                    bar_low=float(exec_bar_low),
+                    stop_level=stop_level,
+                    profit_level=profit_level,
+                )
+                if hit is not None:
+                    kind, ref = hit
+                    if kind == "stop":
+                        reason_key = "stop_loss" if stop_price is not None else "stop_loss_pct"
+                    else:
+                        reason_key = "profit_target" if target_price is not None else "profit_target_pct"
+                    return _trigger_exit(
+                        reason_key,
+                        mode="spot",
+                        calc=_spot_calc(
+                            target=float(target_price) if target_price is not None else None,
+                            stop=float(stop_price) if stop_price is not None else None,
+                            pt=pt,
+                            sl=sl,
+                            stop_level=stop_level,
+                            profit_level=profit_level,
+                            exec_hit_ref=float(ref),
+                        ),
+                    )
+
+            move = None
+            if avg_cost is not None and avg_cost > 0 and market_price is not None and market_price > 0 and pos:
+                move = (market_price - avg_cost) / avg_cost
+                if pos < 0:
+                    move = -move
+
+            if pos and market_price is not None and market_price > 0 and (stop_level is not None or profit_level is not None):
+                try:
+                    mp = float(market_price)
+                except (TypeError, ValueError):
+                    mp = None
+                if mp is not None:
+                    if stop_level is not None:
+                        if (pos > 0 and mp <= float(stop_level)) or (pos < 0 and mp >= float(stop_level)):
+                            return _trigger_exit(
+                                "stop_loss" if stop_price is not None else "stop_loss_pct",
+                                mode="spot",
+                                calc=_spot_calc(
+                                    move=move,
+                                    threshold=-float(sl) if sl is not None else None,
+                                    target=float(target_price) if target_price is not None else None,
+                                    stop=float(stop_price) if stop_price is not None else None,
+                                    pt=pt,
+                                    sl=sl,
+                                    stop_level=stop_level,
+                                    profit_level=profit_level,
+                                ),
+                            )
+                    if profit_level is not None:
+                        if (pos > 0 and mp >= float(profit_level)) or (pos < 0 and mp <= float(profit_level)):
+                            return _trigger_exit(
+                                "profit_target" if target_price is not None else "profit_target_pct",
+                                mode="spot",
+                                calc=_spot_calc(
+                                    move=move,
+                                    threshold=float(pt) if pt is not None else None,
+                                    target=float(target_price) if target_price is not None else None,
+                                    stop=float(stop_price) if stop_price is not None else None,
+                                    pt=pt,
+                                    sl=sl,
+                                    stop_level=stop_level,
+                                    profit_level=profit_level,
+                                ),
+                            )
 
             exit_time = parse_time_hhmm(instance.strategy.get("spot_exit_time_et"))
             if exit_time is not None and now_et.time() >= exit_time:
@@ -517,10 +1224,22 @@ class BotSignalRuntimeMixin:
                             return _trigger_exit("stop_loss_max_loss", mode="options")
 
         if self._should_exit_on_flip(instance, snap, open_dir, open_items):
+            if instrument == "spot":
+                flip_fill_mode = str(instance.strategy.get("spot_flip_exit_fill_mode", "close") or "close").strip().lower()
+                if flip_fill_mode == "next_open":
+                    return self._schedule_pending_exit_next_open(
+                        instance=instance,
+                        reason="flip",
+                        direction=open_dir,
+                        signal_bar_ts=snap.bar_ts,
+                        now_wall=self._wall_time(now_et),
+                        mode="spot",
+                        gate=gate,
+                    )
             return _trigger_exit("flip", mode=instrument)
         return False
 
-    def _auto_try_queue_entry(self, *, instance: _BotInstance, snap, gate) -> bool:
+    def _auto_try_queue_entry(self, *, instance: _BotInstance, snap, gate, now_et: datetime) -> bool:
         if not self._entry_limit_ok(instance):
             gate("BLOCKED_ENTRY_LIMIT", {"entries_today": int(instance.entries_today)})
             return False
@@ -545,11 +1264,24 @@ class BotSignalRuntimeMixin:
             gate("BLOCKED_DIRECTION", {"direction": direction})
             return False
 
+        if instrument == "spot":
+            entry_fill_mode = str(instance.strategy.get("spot_entry_fill_mode", "close") or "close").strip().lower()
+            if entry_fill_mode == "next_open":
+                return self._schedule_pending_entry_next_open(
+                    instance=instance,
+                    direction=direction,
+                    signal_bar_ts=snap.bar_ts,
+                    now_wall=self._wall_time(now_et),
+                    gate=gate,
+                )
+
         self._queue_order(
             instance,
             intent="enter",
             direction=direction,
             signal_bar_ts=snap.bar_ts,
+            trigger_reason="entry",
+            trigger_mode=instrument,
         )
         gate("TRIGGER_ENTRY", {"direction": direction})
         return True
@@ -561,6 +1293,8 @@ class BotSignalRuntimeMixin:
         intent: str,
         direction: str | None,
         signal_bar_ts: datetime | None,
+        trigger_reason: str | None = None,
+        trigger_mode: str | None = None,
     ) -> None:
         if self._order_task and not self._order_task.done():
             self._status = "Order: busy"
@@ -576,14 +1310,42 @@ class BotSignalRuntimeMixin:
         dir_note = f" ({direction})" if direction else ""
         self._status = f"{action} for instance {instance.instance_id}{dir_note}..."
         self._render_status()
-        self._order_task = loop.create_task(
-            self._create_order_for_instance(
-                instance,
-                intent=str(intent),
-                direction=direction,
-                signal_bar_ts=signal_bar_ts,
-            )
+        self._mark_order_trigger_watch(
+            instance=instance,
+            intent=str(intent),
+            direction=direction,
+            signal_bar_ts=signal_bar_ts,
+            now_et=datetime.now(tz=ZoneInfo("America/New_York")),
+            reason=trigger_reason,
+            mode=trigger_mode,
         )
+
+        async def _create_order_task() -> None:
+            try:
+                await self._create_order_for_instance(
+                    instance,
+                    intent=str(intent),
+                    direction=direction,
+                    signal_bar_ts=signal_bar_ts,
+                )
+            except Exception as exc:
+                self._journal_write(
+                    event="ORDER_BUILD_FAILED",
+                    instance=instance,
+                    order=None,
+                    reason=str(intent),
+                    data={
+                        "error": str(exc),
+                        "exc": str(exc),
+                        "direction": direction,
+                        "signal_bar_ts": signal_bar_ts.isoformat() if signal_bar_ts else None,
+                    },
+                )
+                self._clear_order_trigger_watch(instance)
+                self._status = f"Order build error: {exc}"
+                self._render_status()
+
+        self._order_task = loop.create_task(_create_order_task())
 
     def _can_order_now(self, instance: _BotInstance) -> bool:
         entry_days = instance.strategy.get("entry_days", [])

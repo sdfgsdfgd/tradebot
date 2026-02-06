@@ -306,6 +306,18 @@ class BotOrderBuilderMixin:
 
         def _fail(message: str) -> None:
             _set_status(message)
+            self._journal_write(
+                event="ORDER_BUILD_FAILED",
+                instance=instance,
+                order=None,
+                reason=intent_clean,
+                data={
+                    "error": str(message or ""),
+                    "direction": direction,
+                    "signal_bar_ts": signal_bar_ts.isoformat() if signal_bar_ts is not None else None,
+                },
+            )
+            self._clear_order_trigger_watch(instance)
 
         def _finalize_leg_orders(
             *,
@@ -602,7 +614,7 @@ class BotOrderBuilderMixin:
 
             # Spot sizing: mirror backtest semantics (fixed / notional_pct / risk_pct), with optional
             # shock/risk overlays applied via the filters snapshot.
-            from ..engine import spot_calc_signed_qty
+            from ..engine import spot_calc_signed_qty, spot_scale_exit_pcts, spot_shock_exit_pct_multipliers
 
             filters = instance.filters if isinstance(instance.filters, dict) else None
             stop_loss_pct = None
@@ -626,14 +638,13 @@ class BotOrderBuilderMixin:
             if stop_price is not None and float(stop_price) <= 0:
                 stop_price = None
 
-            shock_now = bool(snap.shock) if snap.shock is not None else False
-            if shock_now and filters is not None:
-                try:
-                    sl_mult = float(filters.get("shock_stop_loss_pct_mult", 1.0) or 1.0)
-                except (TypeError, ValueError):
-                    sl_mult = 1.0
-                if sl_mult > 0 and stop_loss_pct is not None and float(stop_loss_pct) > 0:
-                    stop_loss_pct = min(float(stop_loss_pct) * float(sl_mult), 0.99)
+            sl_mult, _ = spot_shock_exit_pct_multipliers(filters, shock=snap.shock)
+            stop_loss_pct, _ = spot_scale_exit_pcts(
+                stop_loss_pct=stop_loss_pct,
+                profit_target_pct=None,
+                stop_mult=sl_mult,
+                profit_mult=1.0,
+            )
 
             net_liq_val, _currency, _updated = self._client.account_value("NetLiquidation")
             buying_power_val, _bp_currency, _bp_updated = self._client.account_value("BuyingPower")

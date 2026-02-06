@@ -58,10 +58,33 @@ class _BotInstance:
     error: str | None = None
     spot_profit_target_price: float | None = None
     spot_stop_loss_price: float | None = None
+    spot_entry_basis_price: float | None = None
+    spot_entry_basis_source: str | None = None
+    spot_entry_basis_set_ts: datetime | None = None
     touched_conids: set[int] = field(default_factory=set)
     last_signal_fingerprint: tuple | None = None
     last_cross_bar_ts: datetime | None = None
     last_gate_status: str | None = None
+    last_gate_fingerprint: tuple | None = None
+    pending_entry_direction: str | None = None
+    pending_entry_signal_bar_ts: datetime | None = None
+    pending_entry_due_ts: datetime | None = None
+    pending_exit_reason: str | None = None
+    pending_exit_signal_bar_ts: datetime | None = None
+    pending_exit_due_ts: datetime | None = None
+    exec_bar_ts: datetime | None = None
+    exec_bar_open: float | None = None
+    exec_bar_high: float | None = None
+    exec_bar_low: float | None = None
+    exec_tick_cursor: int = 0
+    exec_tick_by_tick_cursor: int = 0
+    order_trigger_intent: str | None = None
+    order_trigger_reason: str | None = None
+    order_trigger_mode: str | None = None
+    order_trigger_direction: str | None = None
+    order_trigger_signal_bar_ts: datetime | None = None
+    order_trigger_ts: datetime | None = None
+    order_trigger_deadline_ts: datetime | None = None
 
 
 @dataclass(frozen=True)
@@ -134,4 +157,3 @@ class _SignalSnapshot:
     or_high: float | None = None
     or_low: float | None = None
     or_ready: bool = False
-

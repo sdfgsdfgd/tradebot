@@ -618,6 +618,63 @@ def spot_stop_level(
     return None
 
 
+def spot_shock_exit_pct_multipliers(
+    filters: Mapping[str, object] | object | None,
+    *,
+    shock: bool | None,
+) -> tuple[float, float]:
+    """Return sanitized stop/profit multipliers for shock-aware pct exits."""
+    if not bool(shock) or filters is None:
+        return 1.0, 1.0
+    stop_mult = _parse_float(_filters_get(filters, "shock_stop_loss_pct_mult"), default=1.0)
+    profit_mult = _parse_float(_filters_get(filters, "shock_profit_target_pct_mult"), default=1.0)
+    if stop_mult <= 0:
+        stop_mult = 1.0
+    if profit_mult <= 0:
+        profit_mult = 1.0
+    return float(stop_mult), float(profit_mult)
+
+
+def spot_scale_exit_pcts(
+    *,
+    stop_loss_pct: float | None,
+    profit_target_pct: float | None,
+    stop_mult: float = 1.0,
+    profit_mult: float = 1.0,
+) -> tuple[float | None, float | None]:
+    """Scale pct-based stop/profit levels with safe bounds and invalid-value handling."""
+    try:
+        stop_mult_f = float(stop_mult)
+    except (TypeError, ValueError):
+        stop_mult_f = 1.0
+    try:
+        profit_mult_f = float(profit_mult)
+    except (TypeError, ValueError):
+        profit_mult_f = 1.0
+    if stop_mult_f <= 0:
+        stop_mult_f = 1.0
+    if profit_mult_f <= 0:
+        profit_mult_f = 1.0
+
+    stop_pct: float | None
+    try:
+        stop_pct = float(stop_loss_pct) if stop_loss_pct is not None else None
+    except (TypeError, ValueError):
+        stop_pct = None
+    if stop_pct is not None:
+        stop_pct = min(stop_pct * stop_mult_f, 0.99) if stop_pct > 0 else None
+
+    profit_pct: float | None
+    try:
+        profit_pct = float(profit_target_pct) if profit_target_pct is not None else None
+    except (TypeError, ValueError):
+        profit_pct = None
+    if profit_pct is not None:
+        profit_pct = min(profit_pct * profit_mult_f, 0.99) if profit_pct > 0 else None
+
+    return stop_pct, profit_pct
+
+
 def spot_calc_signed_qty(
     *,
     strategy: Mapping[str, object] | object,
@@ -2652,8 +2709,40 @@ def signal_filters_ok(
     shock: bool | None = None,
     shock_dir: str | None = None,
 ) -> bool:
+    checks = signal_filter_checks(
+        filters,
+        bar_ts=bar_ts,
+        bars_in_day=bars_in_day,
+        close=close,
+        volume=volume,
+        volume_ema=volume_ema,
+        volume_ema_ready=volume_ema_ready,
+        rv=rv,
+        signal=signal,
+        cooldown_ok=cooldown_ok,
+        shock=shock,
+        shock_dir=shock_dir,
+    )
+    return all(bool(v) for v in checks.values())
+
+
+def signal_filter_checks(
+    filters: Mapping[str, object] | object | None,
+    *,
+    bar_ts: datetime,
+    bars_in_day: int,
+    close: float,
+    volume: float | None = None,
+    volume_ema: float | None = None,
+    volume_ema_ready: bool = True,
+    rv: float | None = None,
+    signal: EmaDecisionSnapshot | None = None,
+    cooldown_ok: bool = True,
+    shock: bool | None = None,
+    shock_dir: str | None = None,
+) -> dict[str, bool]:
     if filters is None:
-        return True
+        return {name: True for name, _predicate in _SIGNAL_FILTER_REGISTRY}
     ctx = _SignalFilterContext(
         bar_ts=bar_ts,
         bars_in_day=int(bars_in_day),
@@ -2667,10 +2756,10 @@ def signal_filters_ok(
         shock=shock,
         shock_dir=shock_dir,
     )
-    for _name, predicate in _SIGNAL_FILTER_REGISTRY:
-        if not predicate(filters, ctx):
-            return False
-    return True
+    checks: dict[str, bool] = {}
+    for name, predicate in _SIGNAL_FILTER_REGISTRY:
+        checks[str(name)] = bool(predicate(filters, ctx))
+    return checks
 
 
 # endregion

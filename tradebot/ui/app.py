@@ -356,7 +356,7 @@ class PositionsApp(App):
         self._ticker_loading.clear()
 
     def _status_text(self) -> str:
-        conn = "connected" if self._client.is_connected else "disconnected"
+        conn = self._client.connection_state()
         updated = self._snapshot.updated_at
         if updated:
             ts = updated.astimezone().strftime("%Y-%m-%d %H:%M:%S")

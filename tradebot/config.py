@@ -8,6 +8,7 @@ DEFAULT_REFRESH_SEC = 0.25
 DEFAULT_DETAIL_REFRESH_SEC = 0.5
 DEFAULT_RECONNECT_INTERVAL_SEC = 5.0
 DEFAULT_RECONNECT_TIMEOUT_SEC = 240.0
+DEFAULT_RECONNECT_SLOW_INTERVAL_SEC = 60.0
 
 
 @dataclass(frozen=True)
@@ -21,6 +22,7 @@ class IBKRConfig:
     detail_refresh_sec: float
     reconnect_interval_sec: float
     reconnect_timeout_sec: float
+    reconnect_slow_interval_sec: float
 
 
 def load_config() -> IBKRConfig:
@@ -42,5 +44,11 @@ def load_config() -> IBKRConfig:
         ),
         reconnect_timeout_sec=float(
             os.getenv("IBKR_RECONNECT_TIMEOUT_SEC", DEFAULT_RECONNECT_TIMEOUT_SEC)
+        ),
+        reconnect_slow_interval_sec=float(
+            os.getenv(
+                "IBKR_RECONNECT_SLOW_INTERVAL_SEC",
+                DEFAULT_RECONNECT_SLOW_INTERVAL_SEC,
+            )
         ),
     )

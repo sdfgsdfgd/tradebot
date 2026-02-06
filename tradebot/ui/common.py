@@ -286,15 +286,24 @@ def _quote_status_line(ticker: Ticker) -> Text:
     return Text(f"MD Quotes: bid/ask {bid_ask} · last {last_label}", style="dim")
 
 
-def _market_session_label() -> str:
-    now_et = datetime.now(ZoneInfo("America/New_York")).time()
-    if time(4, 0) <= now_et < time(9, 30):
+def _market_session_bucket(ts_et: datetime | time) -> str:
+    current = ts_et.time() if isinstance(ts_et, datetime) else ts_et
+    if time(4, 0) <= current < time(9, 30):
         return "PRE"
-    if time(9, 30) <= now_et < time(16, 0):
-        return "MRKT"
-    if time(16, 0) <= now_et < time(20, 0):
+    if time(9, 30) <= current < time(16, 0):
+        return "RTH"
+    if time(16, 0) <= current < time(20, 0):
         return "POST"
-    return "OVRNGHT"
+    return "OVERNIGHT"
+
+
+def _market_session_label() -> str:
+    bucket = _market_session_bucket(datetime.now(ZoneInfo("America/New_York")))
+    if bucket == "RTH":
+        return "MRKT"
+    if bucket == "OVERNIGHT":
+        return "OVRNGHT"
+    return bucket
 
 
 def _ticker_line(
