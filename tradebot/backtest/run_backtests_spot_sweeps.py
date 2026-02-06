@@ -80,6 +80,36 @@ def _strip_flag_with_value(argv: list[str], flag: str) -> list[str]:
     return out
 
 
+def _strip_flags(
+    argv: list[str],
+    *,
+    flags: tuple[str, ...] = (),
+    flags_with_values: tuple[str, ...] = (),
+) -> list[str]:
+    out = list(argv)
+    for flag in flags:
+        out = _strip_flag(out, str(flag))
+    for flag in flags_with_values:
+        out = _strip_flag_with_value(out, str(flag))
+    return out
+
+
+def _parse_worker_shard(raw_worker: object, raw_workers: object, *, label: str) -> tuple[int, int]:
+    try:
+        worker_id = int(raw_worker) if raw_worker is not None else 0
+    except (TypeError, ValueError):
+        worker_id = 0
+    try:
+        workers = int(raw_workers) if raw_workers is not None else 1
+    except (TypeError, ValueError):
+        workers = 1
+    workers = max(1, int(workers))
+    worker_id = max(0, int(worker_id))
+    if worker_id >= workers:
+        raise SystemExit(f"Invalid {label} worker shard: worker={worker_id} workers={workers} (worker must be < workers).")
+    return worker_id, workers
+
+
 # region Cache Helpers
 def _require_offline_cache_or_die(
     *,
@@ -653,6 +683,47 @@ def _run_parallel_worker_specs(
     if failures:
         worker_name, rc = failures[0]
         raise SystemExit(f"{failure_label} failed: {worker_name} (exit={rc})")
+
+
+def _run_parallel_json_worker_plan(
+    *,
+    jobs_eff: int,
+    tmp_prefix: str,
+    worker_tag: str,
+    out_prefix: str,
+    build_cmd,
+    capture_error: str,
+    failure_label: str,
+    missing_label: str,
+    invalid_label: str,
+) -> dict[int, dict]:
+    with tempfile.TemporaryDirectory(prefix=tmp_prefix) as tmpdir:
+        tmp_root = Path(tmpdir)
+        specs: list[tuple[str, list[str]]] = []
+        out_paths: dict[int, Path] = {}
+        for worker_id in range(max(1, int(jobs_eff))):
+            out_path = tmp_root / f"{out_prefix}_{worker_id}.json"
+            out_paths[worker_id] = out_path
+            specs.append((f"{worker_tag}:{worker_id}", list(build_cmd(int(worker_id), int(jobs_eff), out_path))))
+
+        _run_parallel_worker_specs(
+            specs=specs,
+            jobs=int(jobs_eff),
+            capture_error=str(capture_error),
+            failure_label=str(failure_label),
+        )
+
+        payloads: dict[int, dict] = {}
+        for worker_id, out_path in out_paths.items():
+            if not out_path.exists():
+                raise SystemExit(f"Missing {missing_label} output: {worker_tag}:{worker_id} ({out_path})")
+            try:
+                payload = json.loads(out_path.read_text())
+            except json.JSONDecodeError as exc:
+                raise SystemExit(f"Invalid {invalid_label} output JSON: {worker_tag}:{worker_id} ({out_path})") from exc
+            if isinstance(payload, dict):
+                payloads[int(worker_id)] = payload
+    return payloads
 
 
 def _run_axis_subprocess_plan(
@@ -4977,20 +5048,11 @@ def main() -> None:
                 raise SystemExit("--risk-overlays-out is required for risk_overlays worker mode.")
             out_path = Path(out_path_raw)
 
-            try:
-                worker_id = int(args.risk_overlays_worker) if args.risk_overlays_worker is not None else 0
-            except (TypeError, ValueError):
-                worker_id = 0
-            try:
-                workers = int(args.risk_overlays_workers) if args.risk_overlays_workers is not None else 1
-            except (TypeError, ValueError):
-                workers = 1
-            workers = max(1, int(workers))
-            worker_id = max(0, int(worker_id))
-            if worker_id >= workers:
-                raise SystemExit(
-                    f"Invalid risk_overlays worker shard: worker={worker_id} workers={workers} (worker must be < workers)."
-                )
+            worker_id, workers = _parse_worker_shard(
+                args.risk_overlays_worker,
+                args.risk_overlays_workers,
+                label="risk_overlays",
+            )
 
             local_total = (total // workers) + (1 if worker_id < (total % workers) else 0)
             tested = 0
@@ -5191,84 +5253,75 @@ def main() -> None:
             if not offline:
                 raise SystemExit("--jobs>1 for risk_overlays requires --offline (avoid parallel IBKR sessions).")
 
-            base_cli = list(sys.argv[1:])
-            base_cli = _strip_flag_with_value(base_cli, "--axis")
-            base_cli = _strip_flag_with_value(base_cli, "--jobs")
-            base_cli = _strip_flag(base_cli, "--write-milestones")
-            base_cli = _strip_flag(base_cli, "--merge-milestones")
-            base_cli = _strip_flag_with_value(base_cli, "--milestones-out")
-            base_cli = _strip_flag_with_value(base_cli, "--risk-overlays-worker")
-            base_cli = _strip_flag_with_value(base_cli, "--risk-overlays-workers")
-            base_cli = _strip_flag_with_value(base_cli, "--risk-overlays-out")
-            base_cli = _strip_flag_with_value(base_cli, "--risk-overlays-run-min-trades")
+            base_cli = _strip_flags(
+                list(sys.argv[1:]),
+                flags=("--write-milestones", "--merge-milestones"),
+                flags_with_values=(
+                    "--axis",
+                    "--jobs",
+                    "--milestones-out",
+                    "--risk-overlays-worker",
+                    "--risk-overlays-workers",
+                    "--risk-overlays-out",
+                    "--risk-overlays-run-min-trades",
+                ),
+            )
 
             jobs_eff = min(int(jobs), int(_default_jobs()), int(total)) if total > 0 else 1
             print(f"risk_overlays parallel: workers={jobs_eff} total={total}", flush=True)
 
-            with tempfile.TemporaryDirectory(prefix="tradebot_risk_overlays_") as tmpdir:
-                tmp_root = Path(tmpdir)
-                out_paths: dict[int, Path] = {}
-                specs: list[tuple[str, list[str]]] = []
+            payloads = _run_parallel_json_worker_plan(
+                jobs_eff=jobs_eff,
+                tmp_prefix="tradebot_risk_overlays_",
+                worker_tag="ro",
+                out_prefix="risk_overlays_out",
+                build_cmd=lambda worker_id, workers_n, out_path: [
+                    sys.executable,
+                    "-u",
+                    "-m",
+                    "tradebot.backtest",
+                    "spot",
+                    *base_cli,
+                    "--axis",
+                    "risk_overlays",
+                    "--jobs",
+                    "1",
+                    "--risk-overlays-worker",
+                    str(worker_id),
+                    "--risk-overlays-workers",
+                    str(workers_n),
+                    "--risk-overlays-out",
+                    str(out_path),
+                    "--risk-overlays-run-min-trades",
+                    str(int(run_min_trades)),
+                ],
+                capture_error="Failed to capture risk_overlays worker stdout.",
+                failure_label="risk_overlays worker",
+                missing_label="risk_overlays",
+                invalid_label="risk_overlays",
+            )
 
-                for worker_id in range(jobs_eff):
-                    out_path = tmp_root / f"risk_overlays_out_{worker_id}.json"
-                    out_paths[worker_id] = out_path
-                    cmd = [
-                        sys.executable,
-                        "-u",
-                        "-m",
-                        "tradebot.backtest",
-                        "spot",
-                        *base_cli,
-                        "--axis",
-                        "risk_overlays",
-                        "--jobs",
-                        "1",
-                        "--risk-overlays-worker",
-                        str(worker_id),
-                        "--risk-overlays-workers",
-                        str(jobs_eff),
-                        "--risk-overlays-out",
-                        str(out_path),
-                        "--risk-overlays-run-min-trades",
-                        str(int(run_min_trades)),
-                    ]
-                    specs.append((f"ro:{worker_id}", cmd))
-
-                _run_parallel_worker_specs(
-                    specs=specs,
-                    jobs=jobs_eff,
-                    capture_error="Failed to capture risk_overlays worker stdout.",
-                    failure_label="risk_overlays worker",
-                )
-
-                for worker_id in range(jobs_eff):
-                    out_path = out_paths.get(worker_id)
-                    if out_path is None or not out_path.exists():
-                        raise SystemExit(f"Missing risk_overlays output: ro:{worker_id} ({out_path})")
-                    try:
-                        payload = json.loads(out_path.read_text())
-                    except json.JSONDecodeError as exc:
-                        raise SystemExit(f"Invalid risk_overlays output JSON: ro:{worker_id} ({out_path})") from exc
-                    if not isinstance(payload, dict):
+            for worker_id in range(jobs_eff):
+                payload = payloads.get(int(worker_id))
+                if not isinstance(payload, dict):
+                    continue
+                tested_total += int(payload.get("tested") or 0)
+                for rec in payload.get("records") or []:
+                    if not isinstance(rec, dict):
                         continue
-                    tested_total += int(payload.get("tested") or 0)
-                    for rec in payload.get("records") or []:
-                        if not isinstance(rec, dict):
-                            continue
-                        overrides = rec.get("overrides")
-                        note = rec.get("note")
-                        row = rec.get("row")
-                        if not isinstance(overrides, dict) or not isinstance(note, str) or not isinstance(row, dict):
-                            continue
-                        row = dict(row)
-                        f = _mk_filters(overrides=overrides)
-                        cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
-                        row["note"] = note
-                        _record_milestone(cfg, row, note)
-                        rows.append(row)
+                    overrides = rec.get("overrides")
+                    note = rec.get("note")
+                    row = rec.get("row")
+                    if not isinstance(overrides, dict) or not isinstance(note, str) or not isinstance(row, dict):
+                        continue
+                    row = dict(row)
+                    f = _mk_filters(overrides=overrides)
+                    cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
+                    row["note"] = note
+                    _record_milestone(cfg, row, note)
+                    rows.append(row)
 
-                run_calls_total += int(tested_total)
+            run_calls_total += int(tested_total)
         else:
             tested = 0
             t0 = pytime.perf_counter()
@@ -5964,20 +6017,11 @@ def main() -> None:
                 raise SystemExit("--combo-fast-out is required for combo_fast stage2 worker mode.")
             out_path = Path(out_path_raw)
 
-            try:
-                worker_id = int(args.combo_fast_worker) if args.combo_fast_worker is not None else 0
-            except (TypeError, ValueError):
-                worker_id = 0
-            try:
-                workers = int(args.combo_fast_workers) if args.combo_fast_workers is not None else 1
-            except (TypeError, ValueError):
-                workers = 1
-            workers = max(1, int(workers))
-            worker_id = max(0, int(worker_id))
-            if worker_id >= workers:
-                raise SystemExit(
-                    f"Invalid combo_fast worker shard: worker={worker_id} workers={workers} (worker must be < workers)."
-                )
+            worker_id, workers = _parse_worker_shard(
+                args.combo_fast_worker,
+                args.combo_fast_workers,
+                label="combo_fast",
+            )
 
             try:
                 payload = json.loads(payload_path.read_text())
@@ -6182,20 +6226,11 @@ def main() -> None:
                 raise SystemExit("--combo-fast-out is required for combo_fast stage3 worker mode.")
             out_path = Path(out_path_raw)
 
-            try:
-                worker_id = int(args.combo_fast_worker) if args.combo_fast_worker is not None else 0
-            except (TypeError, ValueError):
-                worker_id = 0
-            try:
-                workers = int(args.combo_fast_workers) if args.combo_fast_workers is not None else 1
-            except (TypeError, ValueError):
-                workers = 1
-            workers = max(1, int(workers))
-            worker_id = max(0, int(worker_id))
-            if worker_id >= workers:
-                raise SystemExit(
-                    f"Invalid combo_fast worker shard: worker={worker_id} workers={workers} (worker must be < workers)."
-                )
+            worker_id, workers = _parse_worker_shard(
+                args.combo_fast_worker,
+                args.combo_fast_workers,
+                label="combo_fast",
+            )
 
             try:
                 payload = json.loads(payload_path.read_text())
@@ -6397,20 +6432,11 @@ def main() -> None:
                 raise SystemExit("--combo-fast-out is required for combo_fast stage1 worker mode.")
             out_path = Path(out_path_raw)
 
-            try:
-                worker_id = int(args.combo_fast_worker) if args.combo_fast_worker is not None else 0
-            except (TypeError, ValueError):
-                worker_id = 0
-            try:
-                workers = int(args.combo_fast_workers) if args.combo_fast_workers is not None else 1
-            except (TypeError, ValueError):
-                workers = 1
-            workers = max(1, int(workers))
-            worker_id = max(0, int(worker_id))
-            if worker_id >= workers:
-                raise SystemExit(
-                    f"Invalid combo_fast worker shard: worker={worker_id} workers={workers} (worker must be < workers)."
-                )
+            worker_id, workers = _parse_worker_shard(
+                args.combo_fast_worker,
+                args.combo_fast_workers,
+                label="combo_fast",
+            )
 
             local_total = (stage1_total // workers) + (1 if worker_id < (stage1_total % workers) else 0)
             shard_plan = (
@@ -6448,90 +6474,81 @@ def main() -> None:
             if not offline:
                 raise SystemExit("--jobs>1 for combo_fast requires --offline (avoid parallel IBKR sessions).")
 
-            base_cli = list(sys.argv[1:])
-            base_cli = _strip_flag_with_value(base_cli, "--axis")
-            base_cli = _strip_flag_with_value(base_cli, "--jobs")
-            base_cli = _strip_flag(base_cli, "--write-milestones")
-            base_cli = _strip_flag(base_cli, "--merge-milestones")
-            base_cli = _strip_flag_with_value(base_cli, "--milestones-out")
-            base_cli = _strip_flag_with_value(base_cli, "--combo-fast-stage1")
-            base_cli = _strip_flag_with_value(base_cli, "--combo-fast-stage2")
-            base_cli = _strip_flag_with_value(base_cli, "--combo-fast-stage3")
-            base_cli = _strip_flag_with_value(base_cli, "--combo-fast-worker")
-            base_cli = _strip_flag_with_value(base_cli, "--combo-fast-workers")
-            base_cli = _strip_flag_with_value(base_cli, "--combo-fast-out")
-            base_cli = _strip_flag_with_value(base_cli, "--combo-fast-run-min-trades")
+            base_cli = _strip_flags(
+                list(sys.argv[1:]),
+                flags=("--write-milestones", "--merge-milestones"),
+                flags_with_values=(
+                    "--axis",
+                    "--jobs",
+                    "--milestones-out",
+                    "--combo-fast-stage1",
+                    "--combo-fast-stage2",
+                    "--combo-fast-stage3",
+                    "--combo-fast-worker",
+                    "--combo-fast-workers",
+                    "--combo-fast-out",
+                    "--combo-fast-run-min-trades",
+                ),
+            )
 
             jobs_eff = min(int(jobs), int(_default_jobs()), int(stage1_total)) if stage1_total > 0 else 1
             print(f"combo_fast stage1 parallel: workers={jobs_eff} total={stage1_total}", flush=True)
 
-            with tempfile.TemporaryDirectory(prefix="tradebot_combo_fast1_") as tmpdir:
-                tmp_root = Path(tmpdir)
-                out_paths: dict[int, Path] = {}
-                specs: list[tuple[str, list[str]]] = []
+            payloads = _run_parallel_json_worker_plan(
+                jobs_eff=jobs_eff,
+                tmp_prefix="tradebot_combo_fast1_",
+                worker_tag="cf1",
+                out_prefix="stage1_out",
+                build_cmd=lambda worker_id, workers_n, out_path: [
+                    sys.executable,
+                    "-u",
+                    "-m",
+                    "tradebot.backtest",
+                    "spot",
+                    *base_cli,
+                    "--axis",
+                    "combo_fast",
+                    "--jobs",
+                    "1",
+                    "--combo-fast-stage1",
+                    "1",
+                    "--combo-fast-worker",
+                    str(worker_id),
+                    "--combo-fast-workers",
+                    str(workers_n),
+                    "--combo-fast-out",
+                    str(out_path),
+                    "--combo-fast-run-min-trades",
+                    str(int(run_min_trades)),
+                ],
+                capture_error="Failed to capture combo_fast stage1 worker stdout.",
+                failure_label="combo_fast stage1 worker",
+                missing_label="combo_fast stage1",
+                invalid_label="combo_fast stage1",
+            )
 
-                for worker_id in range(jobs_eff):
-                    out_path = tmp_root / f"stage1_out_{worker_id}.json"
-                    out_paths[worker_id] = out_path
-                    cmd = [
-                        sys.executable,
-                        "-u",
-                        "-m",
-                        "tradebot.backtest",
-                        "spot",
-                        *base_cli,
-                        "--axis",
-                        "combo_fast",
-                        "--jobs",
-                        "1",
-                        "--combo-fast-stage1",
-                        "1",
-                        "--combo-fast-worker",
-                        str(worker_id),
-                        "--combo-fast-workers",
-                        str(jobs_eff),
-                        "--combo-fast-out",
-                        str(out_path),
-                        "--combo-fast-run-min-trades",
-                        str(int(run_min_trades)),
-                    ]
-                    specs.append((f"cf1:{worker_id}", cmd))
-
-                _run_parallel_worker_specs(
-                    specs=specs,
-                    jobs=jobs_eff,
-                    capture_error="Failed to capture combo_fast stage1 worker stdout.",
-                    failure_label="combo_fast stage1 worker",
-                )
-
-                tested_total = 0
-                for worker_id in range(jobs_eff):
-                    out_path = out_paths.get(worker_id)
-                    if out_path is None or not out_path.exists():
-                        raise SystemExit(f"Missing combo_fast stage1 output: cf1:{worker_id} ({out_path})")
-                    try:
-                        payload = json.loads(out_path.read_text())
-                    except json.JSONDecodeError as exc:
-                        raise SystemExit(f"Invalid combo_fast stage1 output JSON: cf1:{worker_id} ({out_path})") from exc
-                    if not isinstance(payload, dict):
+            tested_total = 0
+            for worker_id in range(jobs_eff):
+                payload = payloads.get(int(worker_id))
+                if not isinstance(payload, dict):
+                    continue
+                tested_total += int(payload.get("tested") or 0)
+                for rec in payload.get("records") or []:
+                    if not isinstance(rec, dict):
                         continue
-                    tested_total += int(payload.get("tested") or 0)
-                    for rec in payload.get("records") or []:
-                        if not isinstance(rec, dict):
-                            continue
-                        cfg = _cfg_from_payload(rec.get("strategy"), rec.get("filters"))
-                        if cfg is None:
-                            continue
-                        row = rec.get("row")
-                        if not isinstance(row, dict):
-                            continue
-                        row = dict(row)
-                        note = str(rec.get("note") or "").strip() or "combo_fast stage1"
-                        row["note"] = note
-                        stage1.append((cfg, row, note))
+                    cfg = _cfg_from_payload(rec.get("strategy"), rec.get("filters"))
+                    if cfg is None:
+                        continue
+                    row = rec.get("row")
+                    if not isinstance(row, dict):
+                        continue
+                    row = dict(row)
+                    note = str(rec.get("note") or "").strip() or "combo_fast stage1"
+                    row["note"] = note
+                    stage1.append((cfg, row, note))
 
-                stage1_tested = int(tested_total)
-                run_calls_total += int(tested_total)
+            stage1_tested = int(tested_total)
+            run_calls_total += int(tested_total)
         else:
             stage1_tested, stage1_kept = _run_sweep(
                 plan=stage1_plan_all,
@@ -6559,19 +6576,22 @@ def main() -> None:
             if not offline:
                 raise SystemExit("--jobs>1 for combo_fast requires --offline (avoid parallel IBKR sessions).")
 
-            base_cli = list(sys.argv[1:])
-            base_cli = _strip_flag_with_value(base_cli, "--axis")
-            base_cli = _strip_flag_with_value(base_cli, "--jobs")
-            base_cli = _strip_flag(base_cli, "--write-milestones")
-            base_cli = _strip_flag(base_cli, "--merge-milestones")
-            base_cli = _strip_flag_with_value(base_cli, "--milestones-out")
-            base_cli = _strip_flag_with_value(base_cli, "--combo-fast-stage1")
-            base_cli = _strip_flag_with_value(base_cli, "--combo-fast-stage2")
-            base_cli = _strip_flag_with_value(base_cli, "--combo-fast-stage3")
-            base_cli = _strip_flag_with_value(base_cli, "--combo-fast-worker")
-            base_cli = _strip_flag_with_value(base_cli, "--combo-fast-workers")
-            base_cli = _strip_flag_with_value(base_cli, "--combo-fast-out")
-            base_cli = _strip_flag_with_value(base_cli, "--combo-fast-run-min-trades")
+            base_cli = _strip_flags(
+                list(sys.argv[1:]),
+                flags=("--write-milestones", "--merge-milestones"),
+                flags_with_values=(
+                    "--axis",
+                    "--jobs",
+                    "--milestones-out",
+                    "--combo-fast-stage1",
+                    "--combo-fast-stage2",
+                    "--combo-fast-stage3",
+                    "--combo-fast-worker",
+                    "--combo-fast-workers",
+                    "--combo-fast-out",
+                    "--combo-fast-run-min-trades",
+                ),
+            )
 
             jobs_eff = min(int(jobs), int(_default_jobs()), int(stage2_total)) if stage2_total > 0 else 1
             print(f"combo_fast stage2 parallel: workers={jobs_eff} total={stage2_total}", flush=True)
@@ -6590,13 +6610,12 @@ def main() -> None:
                     )
                 write_json(payload_path, {"shortlist": shortlist_payload}, sort_keys=False)
 
-                out_paths: dict[int, Path] = {}
-                specs: list[tuple[str, list[str]]] = []
-
-                for worker_id in range(jobs_eff):
-                    out_path = tmp_root / f"stage2_out_{worker_id}.json"
-                    out_paths[worker_id] = out_path
-                    cmd = [
+                payloads = _run_parallel_json_worker_plan(
+                    jobs_eff=jobs_eff,
+                    tmp_prefix="tradebot_combo_fast2_",
+                    worker_tag="cf2",
+                    out_prefix="stage2_out",
+                    build_cmd=lambda worker_id, workers_n, out_path: [
                         sys.executable,
                         "-u",
                         "-m",
@@ -6612,30 +6631,21 @@ def main() -> None:
                         "--combo-fast-worker",
                         str(worker_id),
                         "--combo-fast-workers",
-                        str(jobs_eff),
+                        str(workers_n),
                         "--combo-fast-out",
                         str(out_path),
                         "--combo-fast-run-min-trades",
                         str(int(run_min_trades)),
-                    ]
-                    specs.append((f"cf2:{worker_id}", cmd))
-
-                _run_parallel_worker_specs(
-                    specs=specs,
-                    jobs=jobs_eff,
+                    ],
                     capture_error="Failed to capture combo_fast stage2 worker stdout.",
                     failure_label="combo_fast stage2 worker",
+                    missing_label="combo_fast stage2",
+                    invalid_label="combo_fast stage2",
                 )
 
                 tested_total = 0
                 for worker_id in range(jobs_eff):
-                    out_path = out_paths.get(worker_id)
-                    if out_path is None or not out_path.exists():
-                        raise SystemExit(f"Missing combo_fast stage2 output: cf2:{worker_id} ({out_path})")
-                    try:
-                        payload = json.loads(out_path.read_text())
-                    except json.JSONDecodeError as exc:
-                        raise SystemExit(f"Invalid combo_fast stage2 output JSON: cf2:{worker_id} ({out_path})") from exc
+                    payload = payloads.get(int(worker_id))
                     if not isinstance(payload, dict):
                         continue
                     tested_total += int(payload.get("tested") or 0)
@@ -6683,19 +6693,22 @@ def main() -> None:
             if not offline:
                 raise SystemExit("--jobs>1 for combo_fast requires --offline (avoid parallel IBKR sessions).")
 
-            base_cli = list(sys.argv[1:])
-            base_cli = _strip_flag_with_value(base_cli, "--axis")
-            base_cli = _strip_flag_with_value(base_cli, "--jobs")
-            base_cli = _strip_flag(base_cli, "--write-milestones")
-            base_cli = _strip_flag(base_cli, "--merge-milestones")
-            base_cli = _strip_flag_with_value(base_cli, "--milestones-out")
-            base_cli = _strip_flag_with_value(base_cli, "--combo-fast-stage1")
-            base_cli = _strip_flag_with_value(base_cli, "--combo-fast-stage2")
-            base_cli = _strip_flag_with_value(base_cli, "--combo-fast-stage3")
-            base_cli = _strip_flag_with_value(base_cli, "--combo-fast-worker")
-            base_cli = _strip_flag_with_value(base_cli, "--combo-fast-workers")
-            base_cli = _strip_flag_with_value(base_cli, "--combo-fast-out")
-            base_cli = _strip_flag_with_value(base_cli, "--combo-fast-run-min-trades")
+            base_cli = _strip_flags(
+                list(sys.argv[1:]),
+                flags=("--write-milestones", "--merge-milestones"),
+                flags_with_values=(
+                    "--axis",
+                    "--jobs",
+                    "--milestones-out",
+                    "--combo-fast-stage1",
+                    "--combo-fast-stage2",
+                    "--combo-fast-stage3",
+                    "--combo-fast-worker",
+                    "--combo-fast-workers",
+                    "--combo-fast-out",
+                    "--combo-fast-run-min-trades",
+                ),
+            )
 
             jobs_eff = min(int(jobs), int(_default_jobs()), int(stage3_total)) if stage3_total > 0 else 1
             print(f"combo_fast stage3 parallel: workers={jobs_eff} total={stage3_total}", flush=True)
@@ -6714,13 +6727,12 @@ def main() -> None:
                     )
                 write_json(payload_path, {"bases": bases_payload}, sort_keys=False)
 
-                out_paths: dict[int, Path] = {}
-                specs: list[tuple[str, list[str]]] = []
-
-                for worker_id in range(jobs_eff):
-                    out_path = tmp_root / f"stage3_out_{worker_id}.json"
-                    out_paths[worker_id] = out_path
-                    cmd = [
+                payloads = _run_parallel_json_worker_plan(
+                    jobs_eff=jobs_eff,
+                    tmp_prefix="tradebot_combo_fast3_",
+                    worker_tag="cf3",
+                    out_prefix="stage3_out",
+                    build_cmd=lambda worker_id, workers_n, out_path: [
                         sys.executable,
                         "-u",
                         "-m",
@@ -6736,30 +6748,21 @@ def main() -> None:
                         "--combo-fast-worker",
                         str(worker_id),
                         "--combo-fast-workers",
-                        str(jobs_eff),
+                        str(workers_n),
                         "--combo-fast-out",
                         str(out_path),
                         "--combo-fast-run-min-trades",
                         str(int(run_min_trades)),
-                    ]
-                    specs.append((f"cf3:{worker_id}", cmd))
-
-                _run_parallel_worker_specs(
-                    specs=specs,
-                    jobs=jobs_eff,
+                    ],
                     capture_error="Failed to capture combo_fast stage3 worker stdout.",
                     failure_label="combo_fast stage3 worker",
+                    missing_label="combo_fast stage3",
+                    invalid_label="combo_fast stage3",
                 )
 
                 tested_total = 0
                 for worker_id in range(jobs_eff):
-                    out_path = out_paths.get(worker_id)
-                    if out_path is None or not out_path.exists():
-                        raise SystemExit(f"Missing combo_fast stage3 output: cf3:{worker_id} ({out_path})")
-                    try:
-                        payload = json.loads(out_path.read_text())
-                    except json.JSONDecodeError as exc:
-                        raise SystemExit(f"Invalid combo_fast stage3 output JSON: cf3:{worker_id} ({out_path})") from exc
+                    payload = payloads.get(int(worker_id))
                     if not isinstance(payload, dict):
                         continue
                     tested_total += int(payload.get("tested") or 0)
@@ -6845,11 +6848,11 @@ def main() -> None:
 
             axes = tuple(_COMBO_FULL_PLAN)
 
-            base_cli = list(sys.argv[1:])
-            base_cli = _strip_flag_with_value(base_cli, "--axis")
-            base_cli = _strip_flag_with_value(base_cli, "--jobs")
-            base_cli = _strip_flag_with_value(base_cli, "--milestones-out")
-            base_cli = _strip_flag(base_cli, "--merge-milestones")
+            base_cli = _strip_flags(
+                list(sys.argv[1:]),
+                flags=("--merge-milestones",),
+                flags_with_values=("--axis", "--jobs", "--milestones-out"),
+            )
 
             milestone_payloads = _run_axis_subprocess_plan(
                 label="combo_full parallel",
@@ -7654,20 +7657,11 @@ def main() -> None:
                 raise SystemExit("--champ-refine-out is required for champ_refine stage3a worker mode.")
             out_path = Path(out_path_raw)
 
-            try:
-                worker_id = int(args.champ_refine_worker) if args.champ_refine_worker is not None else 0
-            except (TypeError, ValueError):
-                worker_id = 0
-            try:
-                workers = int(args.champ_refine_workers) if args.champ_refine_workers is not None else 1
-            except (TypeError, ValueError):
-                workers = 1
-            workers = max(1, int(workers))
-            worker_id = max(0, int(worker_id))
-            if worker_id >= workers:
-                raise SystemExit(
-                    f"Invalid champ_refine stage3a worker shard: worker={worker_id} workers={workers} (worker must be < workers)."
-                )
+            worker_id, workers = _parse_worker_shard(
+                args.champ_refine_worker,
+                args.champ_refine_workers,
+                label="champ_refine stage3a",
+            )
 
             try:
                 payload = json.loads(payload_path.read_text())
@@ -7736,20 +7730,11 @@ def main() -> None:
                 raise SystemExit("--champ-refine-out is required for champ_refine stage3b worker mode.")
             out_path = Path(out_path_raw)
 
-            try:
-                worker_id = int(args.champ_refine_worker) if args.champ_refine_worker is not None else 0
-            except (TypeError, ValueError):
-                worker_id = 0
-            try:
-                workers = int(args.champ_refine_workers) if args.champ_refine_workers is not None else 1
-            except (TypeError, ValueError):
-                workers = 1
-            workers = max(1, int(workers))
-            worker_id = max(0, int(worker_id))
-            if worker_id >= workers:
-                raise SystemExit(
-                    f"Invalid champ_refine stage3b worker shard: worker={worker_id} workers={workers} (worker must be < workers)."
-                )
+            worker_id, workers = _parse_worker_shard(
+                args.champ_refine_worker,
+                args.champ_refine_workers,
+                label="champ_refine stage3b",
+            )
 
             try:
                 payload = json.loads(payload_path.read_text())
@@ -8145,18 +8130,21 @@ def main() -> None:
                 if not offline:
                     raise SystemExit("--jobs>1 for champ_refine requires --offline (avoid parallel IBKR sessions).")
 
-                base_cli = list(sys.argv[1:])
-                base_cli = _strip_flag_with_value(base_cli, "--axis")
-                base_cli = _strip_flag_with_value(base_cli, "--jobs")
-                base_cli = _strip_flag(base_cli, "--write-milestones")
-                base_cli = _strip_flag(base_cli, "--merge-milestones")
-                base_cli = _strip_flag_with_value(base_cli, "--milestones-out")
-                base_cli = _strip_flag_with_value(base_cli, "--champ-refine-stage3a")
-                base_cli = _strip_flag_with_value(base_cli, "--champ-refine-stage3b")
-                base_cli = _strip_flag_with_value(base_cli, "--champ-refine-worker")
-                base_cli = _strip_flag_with_value(base_cli, "--champ-refine-workers")
-                base_cli = _strip_flag_with_value(base_cli, "--champ-refine-out")
-                base_cli = _strip_flag_with_value(base_cli, "--champ-refine-run-min-trades")
+                base_cli = _strip_flags(
+                    list(sys.argv[1:]),
+                    flags=("--write-milestones", "--merge-milestones"),
+                    flags_with_values=(
+                        "--axis",
+                        "--jobs",
+                        "--milestones-out",
+                        "--champ-refine-stage3a",
+                        "--champ-refine-stage3b",
+                        "--champ-refine-worker",
+                        "--champ-refine-workers",
+                        "--champ-refine-out",
+                        "--champ-refine-run-min-trades",
+                    ),
+                )
 
                 jobs_eff = min(int(jobs), int(_default_jobs()), int(total_3a)) if total_3a > 0 else 1
                 print(f"  stage3a parallel: workers={jobs_eff} total={total_3a}", flush=True)
@@ -8175,13 +8163,12 @@ def main() -> None:
                         )
                     write_json(payload_path, {"seed_tag": seed_tag, "base_exit_variants": base_payload}, sort_keys=False)
 
-                    out_paths: dict[int, Path] = {}
-                    specs: list[tuple[str, list[str]]] = []
-
-                    for worker_id in range(jobs_eff):
-                        out_path = tmp_root / f"stage3a_out_{worker_id}.json"
-                        out_paths[worker_id] = out_path
-                        cmd = [
+                    payloads = _run_parallel_json_worker_plan(
+                        jobs_eff=jobs_eff,
+                        tmp_prefix="tradebot_champ_refine_3a_run_",
+                        worker_tag="cr3a",
+                        out_prefix="stage3a_out",
+                        build_cmd=lambda worker_id, workers_n, out_path: [
                             sys.executable,
                             "-u",
                             "-m",
@@ -8197,32 +8184,21 @@ def main() -> None:
                             "--champ-refine-worker",
                             str(worker_id),
                             "--champ-refine-workers",
-                            str(jobs_eff),
+                            str(workers_n),
                             "--champ-refine-out",
                             str(out_path),
                             "--champ-refine-run-min-trades",
                             str(int(run_min_trades)),
-                        ]
-                        specs.append((f"cr3a:{worker_id}", cmd))
-
-                    _run_parallel_worker_specs(
-                        specs=specs,
-                        jobs=jobs_eff,
+                        ],
                         capture_error="Failed to capture champ_refine stage3a worker stdout.",
                         failure_label="champ_refine stage3a worker",
+                        missing_label="champ_refine stage3a",
+                        invalid_label="champ_refine stage3a",
                     )
 
                     tested_total_3a = 0
                     for worker_id in range(jobs_eff):
-                        out_path = out_paths.get(worker_id)
-                        if out_path is None or not out_path.exists():
-                            raise SystemExit(f"Missing champ_refine stage3a output: cr3a:{worker_id} ({out_path})")
-                        try:
-                            payload = json.loads(out_path.read_text())
-                        except json.JSONDecodeError as exc:
-                            raise SystemExit(
-                                f"Invalid champ_refine stage3a output JSON: cr3a:{worker_id} ({out_path})"
-                            ) from exc
+                        payload = payloads.get(int(worker_id))
                         if not isinstance(payload, dict):
                             continue
                         tested_total_3a += int(payload.get("tested") or 0)
@@ -8288,18 +8264,21 @@ def main() -> None:
                 if not offline:
                     raise SystemExit("--jobs>1 for champ_refine requires --offline (avoid parallel IBKR sessions).")
 
-                base_cli = list(sys.argv[1:])
-                base_cli = _strip_flag_with_value(base_cli, "--axis")
-                base_cli = _strip_flag_with_value(base_cli, "--jobs")
-                base_cli = _strip_flag(base_cli, "--write-milestones")
-                base_cli = _strip_flag(base_cli, "--merge-milestones")
-                base_cli = _strip_flag_with_value(base_cli, "--milestones-out")
-                base_cli = _strip_flag_with_value(base_cli, "--champ-refine-stage3a")
-                base_cli = _strip_flag_with_value(base_cli, "--champ-refine-stage3b")
-                base_cli = _strip_flag_with_value(base_cli, "--champ-refine-worker")
-                base_cli = _strip_flag_with_value(base_cli, "--champ-refine-workers")
-                base_cli = _strip_flag_with_value(base_cli, "--champ-refine-out")
-                base_cli = _strip_flag_with_value(base_cli, "--champ-refine-run-min-trades")
+                base_cli = _strip_flags(
+                    list(sys.argv[1:]),
+                    flags=("--write-milestones", "--merge-milestones"),
+                    flags_with_values=(
+                        "--axis",
+                        "--jobs",
+                        "--milestones-out",
+                        "--champ-refine-stage3a",
+                        "--champ-refine-stage3b",
+                        "--champ-refine-worker",
+                        "--champ-refine-workers",
+                        "--champ-refine-out",
+                        "--champ-refine-run-min-trades",
+                    ),
+                )
 
                 jobs_eff = min(int(jobs), int(_default_jobs()), int(total_3b)) if total_3b > 0 else 1
                 print(f"  stage3b parallel: workers={jobs_eff} total={total_3b}", flush=True)
@@ -8318,13 +8297,12 @@ def main() -> None:
                         )
                     write_json(payload_path, {"seed_tag": seed_tag, "shortlist": shortlist_payload}, sort_keys=False)
 
-                    out_paths: dict[int, Path] = {}
-                    specs: list[tuple[str, list[str]]] = []
-
-                    for worker_id in range(jobs_eff):
-                        out_path = tmp_root / f"stage3b_out_{worker_id}.json"
-                        out_paths[worker_id] = out_path
-                        cmd = [
+                    payloads = _run_parallel_json_worker_plan(
+                        jobs_eff=jobs_eff,
+                        tmp_prefix="tradebot_champ_refine_3b_run_",
+                        worker_tag="cr3b",
+                        out_prefix="stage3b_out",
+                        build_cmd=lambda worker_id, workers_n, out_path: [
                             sys.executable,
                             "-u",
                             "-m",
@@ -8340,32 +8318,21 @@ def main() -> None:
                             "--champ-refine-worker",
                             str(worker_id),
                             "--champ-refine-workers",
-                            str(jobs_eff),
+                            str(workers_n),
                             "--champ-refine-out",
                             str(out_path),
                             "--champ-refine-run-min-trades",
                             str(int(run_min_trades)),
-                        ]
-                        specs.append((f"cr3b:{worker_id}", cmd))
-
-                    _run_parallel_worker_specs(
-                        specs=specs,
-                        jobs=jobs_eff,
+                        ],
                         capture_error="Failed to capture champ_refine stage3b worker stdout.",
                         failure_label="champ_refine stage3b worker",
+                        missing_label="champ_refine stage3b",
+                        invalid_label="champ_refine stage3b",
                     )
 
                     tested_total_3b = 0
                     for worker_id in range(jobs_eff):
-                        out_path = out_paths.get(worker_id)
-                        if out_path is None or not out_path.exists():
-                            raise SystemExit(f"Missing champ_refine stage3b output: cr3b:{worker_id} ({out_path})")
-                        try:
-                            payload = json.loads(out_path.read_text())
-                        except json.JSONDecodeError as exc:
-                            raise SystemExit(
-                                f"Invalid champ_refine stage3b output JSON: cr3b:{worker_id} ({out_path})"
-                            ) from exc
+                        payload = payloads.get(int(worker_id))
                         if not isinstance(payload, dict):
                             continue
                         tested_total_3b += int(payload.get("tested") or 0)
@@ -8901,21 +8868,11 @@ def main() -> None:
                 raise SystemExit("--shock-velocity-out is required for shock_velocity_refine worker mode.")
             out_path = Path(out_path_raw)
 
-            try:
-                worker_id = int(args.shock_velocity_worker) if args.shock_velocity_worker is not None else 0
-            except (TypeError, ValueError):
-                worker_id = 0
-            try:
-                workers = int(args.shock_velocity_workers) if args.shock_velocity_workers is not None else 1
-            except (TypeError, ValueError):
-                workers = 1
-            workers = max(1, int(workers))
-            worker_id = max(0, int(worker_id))
-            if worker_id >= workers:
-                raise SystemExit(
-                    f"Invalid shock_velocity_refine worker shard: worker={worker_id} workers={workers} "
-                    "(worker must be < workers)."
-                )
+            worker_id, workers = _parse_worker_shard(
+                args.shock_velocity_worker,
+                args.shock_velocity_workers,
+                label="shock_velocity_refine",
+            )
 
             local_total = (total // workers) + (1 if worker_id < (total % workers) else 0)
             tested = 0
@@ -9003,88 +8960,79 @@ def main() -> None:
             if not offline:
                 raise SystemExit(f"--jobs>1 for {axis_tag} requires --offline (avoid parallel IBKR sessions).")
 
-            base_cli = list(sys.argv[1:])
-            base_cli = _strip_flag_with_value(base_cli, "--axis")
-            base_cli = _strip_flag_with_value(base_cli, "--jobs")
-            base_cli = _strip_flag(base_cli, "--write-milestones")
-            base_cli = _strip_flag(base_cli, "--merge-milestones")
-            base_cli = _strip_flag_with_value(base_cli, "--milestones-out")
-            base_cli = _strip_flag_with_value(base_cli, "--shock-velocity-worker")
-            base_cli = _strip_flag_with_value(base_cli, "--shock-velocity-workers")
-            base_cli = _strip_flag_with_value(base_cli, "--shock-velocity-out")
+            base_cli = _strip_flags(
+                list(sys.argv[1:]),
+                flags=("--write-milestones", "--merge-milestones"),
+                flags_with_values=(
+                    "--axis",
+                    "--jobs",
+                    "--milestones-out",
+                    "--shock-velocity-worker",
+                    "--shock-velocity-workers",
+                    "--shock-velocity-out",
+                ),
+            )
 
             jobs_eff = min(int(jobs), int(_default_jobs()), int(total)) if total > 0 else 1
             print(f"{axis_tag} parallel: workers={jobs_eff} total={total}", flush=True)
 
-            with tempfile.TemporaryDirectory(prefix="tradebot_shock_velocity_") as tmpdir:
-                tmp_root = Path(tmpdir)
-                out_paths: dict[int, Path] = {}
-                specs: list[tuple[str, list[str]]] = []
+            payloads = _run_parallel_json_worker_plan(
+                jobs_eff=jobs_eff,
+                tmp_prefix="tradebot_shock_velocity_",
+                worker_tag="sv",
+                out_prefix="shock_velocity_out",
+                build_cmd=lambda worker_id, workers_n, out_path: [
+                    sys.executable,
+                    "-u",
+                    "-m",
+                    "tradebot.backtest",
+                    "spot",
+                    *base_cli,
+                    "--axis",
+                    axis_tag,
+                    "--jobs",
+                    "1",
+                    "--shock-velocity-worker",
+                    str(worker_id),
+                    "--shock-velocity-workers",
+                    str(workers_n),
+                    "--shock-velocity-out",
+                    str(out_path),
+                ],
+                capture_error=f"Failed to capture {axis_tag} worker stdout.",
+                failure_label=f"{axis_tag} worker",
+                missing_label=str(axis_tag),
+                invalid_label=str(axis_tag),
+            )
 
-                for worker_id in range(jobs_eff):
-                    out_path = tmp_root / f"shock_velocity_out_{worker_id}.json"
-                    out_paths[worker_id] = out_path
-                    cmd = [
-                        sys.executable,
-                        "-u",
-                        "-m",
-                        "tradebot.backtest",
-                        "spot",
-                        *base_cli,
-                        "--axis",
-                        axis_tag,
-                        "--jobs",
-                        "1",
-                        "--shock-velocity-worker",
-                        str(worker_id),
-                        "--shock-velocity-workers",
-                        str(jobs_eff),
-                        "--shock-velocity-out",
-                        str(out_path),
-                    ]
-                    specs.append((f"sv:{worker_id}", cmd))
-
-                _run_parallel_worker_specs(
-                    specs=specs,
-                    jobs=jobs_eff,
-                    capture_error=f"Failed to capture {axis_tag} worker stdout.",
-                    failure_label=f"{axis_tag} worker",
-                )
-
-                for worker_id in range(jobs_eff):
-                    out_path = out_paths.get(worker_id)
-                    if out_path is None or not out_path.exists():
-                        raise SystemExit(f"Missing {axis_tag} output: sv:{worker_id} ({out_path})")
-                    try:
-                        payload = json.loads(out_path.read_text())
-                    except json.JSONDecodeError as exc:
-                        raise SystemExit(f"Invalid {axis_tag} output JSON: sv:{worker_id} ({out_path})") from exc
-                    if not isinstance(payload, dict):
+            for worker_id in range(jobs_eff):
+                payload = payloads.get(int(worker_id))
+                if not isinstance(payload, dict):
+                    continue
+                tested_total += int(payload.get("tested") or 0)
+                for rec in payload.get("records") or []:
+                    if not isinstance(rec, dict):
                         continue
-                    tested_total += int(payload.get("tested") or 0)
-                    for rec in payload.get("records") or []:
-                        if not isinstance(rec, dict):
-                            continue
-                        strat_payload = rec.get("strategy")
-                        filters_payload = rec.get("filters")
-                        note = rec.get("note")
-                        row = rec.get("row")
-                        if not isinstance(strat_payload, dict) or not isinstance(note, str) or not isinstance(row, dict):
-                            continue
-                        row = dict(row)
-                        filters_obj = _filters_from_payload(filters_payload) if isinstance(filters_payload, dict) else None
-                        cfg = _mk_bundle(
-                            strategy=_strategy_from_payload(strat_payload, filters=filters_obj),
-                            start=start,
-                            end=end,
-                            bar_size=signal_bar_size,
-                            use_rth=use_rth,
-                            cache_dir=cache_dir,
-                            offline=offline,
-                        )
-                        row["note"] = note
-                        _record_milestone(cfg, row, note)
-                        rows.append(row)
+                    strat_payload = rec.get("strategy")
+                    filters_payload = rec.get("filters")
+                    note = rec.get("note")
+                    row = rec.get("row")
+                    if not isinstance(strat_payload, dict) or not isinstance(note, str) or not isinstance(row, dict):
+                        continue
+                    row = dict(row)
+                    filters_obj = _filters_from_payload(filters_payload) if isinstance(filters_payload, dict) else None
+                    cfg = _mk_bundle(
+                        strategy=_strategy_from_payload(strat_payload, filters=filters_obj),
+                        start=start,
+                        end=end,
+                        bar_size=signal_bar_size,
+                        use_rth=use_rth,
+                        cache_dir=cache_dir,
+                        offline=offline,
+                    )
+                    row["note"] = note
+                    _record_milestone(cfg, row, note)
+                    rows.append(row)
 
             run_calls_total += int(tested_total)
         else:
@@ -10398,20 +10346,11 @@ def main() -> None:
                 raise SystemExit("--st37-refine-out is required for st37_refine stage2 worker mode.")
             out_path = Path(out_path_raw)
 
-            try:
-                worker_id = int(args.st37_refine_worker) if args.st37_refine_worker is not None else 0
-            except (TypeError, ValueError):
-                worker_id = 0
-            try:
-                workers = int(args.st37_refine_workers) if args.st37_refine_workers is not None else 1
-            except (TypeError, ValueError):
-                workers = 1
-            workers = max(1, int(workers))
-            worker_id = max(0, int(worker_id))
-            if worker_id >= workers:
-                raise SystemExit(
-                    f"Invalid st37_refine stage2 worker shard: worker={worker_id} workers={workers} (worker must be < workers)."
-                )
+            worker_id, workers = _parse_worker_shard(
+                args.st37_refine_worker,
+                args.st37_refine_workers,
+                label="st37_refine stage2",
+            )
 
             try:
                 payload = json.loads(payload_path.read_text())
@@ -10642,20 +10581,11 @@ def main() -> None:
                 raise SystemExit("--st37-refine-out is required for st37_refine stage1 worker mode.")
             out_path = Path(out_path_raw)
 
-            try:
-                worker_id = int(args.st37_refine_worker) if args.st37_refine_worker is not None else 0
-            except (TypeError, ValueError):
-                worker_id = 0
-            try:
-                workers = int(args.st37_refine_workers) if args.st37_refine_workers is not None else 1
-            except (TypeError, ValueError):
-                workers = 1
-            workers = max(1, int(workers))
-            worker_id = max(0, int(worker_id))
-            if worker_id >= workers:
-                raise SystemExit(
-                    f"Invalid st37_refine stage1 worker shard: worker={worker_id} workers={workers} (worker must be < workers)."
-                )
+            worker_id, workers = _parse_worker_shard(
+                args.st37_refine_worker,
+                args.st37_refine_workers,
+                label="st37_refine stage1",
+            )
 
             try:
                 payload = json.loads(payload_path.read_text())
@@ -10716,18 +10646,21 @@ def main() -> None:
             if not offline:
                 raise SystemExit("--jobs>1 for st37_refine requires --offline (avoid parallel IBKR sessions).")
 
-            base_cli = list(sys.argv[1:])
-            base_cli = _strip_flag_with_value(base_cli, "--axis")
-            base_cli = _strip_flag_with_value(base_cli, "--jobs")
-            base_cli = _strip_flag(base_cli, "--write-milestones")
-            base_cli = _strip_flag(base_cli, "--merge-milestones")
-            base_cli = _strip_flag_with_value(base_cli, "--milestones-out")
-            base_cli = _strip_flag_with_value(base_cli, "--st37-refine-stage1")
-            base_cli = _strip_flag_with_value(base_cli, "--st37-refine-stage2")
-            base_cli = _strip_flag_with_value(base_cli, "--st37-refine-worker")
-            base_cli = _strip_flag_with_value(base_cli, "--st37-refine-workers")
-            base_cli = _strip_flag_with_value(base_cli, "--st37-refine-out")
-            base_cli = _strip_flag_with_value(base_cli, "--st37-refine-run-min-trades")
+            base_cli = _strip_flags(
+                list(sys.argv[1:]),
+                flags=("--write-milestones", "--merge-milestones"),
+                flags_with_values=(
+                    "--axis",
+                    "--jobs",
+                    "--milestones-out",
+                    "--st37-refine-stage1",
+                    "--st37-refine-stage2",
+                    "--st37-refine-worker",
+                    "--st37-refine-workers",
+                    "--st37-refine-out",
+                    "--st37-refine-run-min-trades",
+                ),
+            )
 
             jobs_eff = min(int(jobs), int(_default_jobs()), int(stage1_total)) if stage1_total > 0 else 1
             print(f"st37_refine stage1 parallel: workers={jobs_eff} total={stage1_total}", flush=True)
@@ -10742,13 +10675,12 @@ def main() -> None:
                     )
                 write_json(payload_path, {"seeds": seeds_payload}, sort_keys=False)
 
-                out_paths: dict[int, Path] = {}
-                specs: list[tuple[str, list[str]]] = []
-
-                for worker_id in range(jobs_eff):
-                    out_path = tmp_root / f"stage1_out_{worker_id}.json"
-                    out_paths[worker_id] = out_path
-                    cmd = [
+                payloads = _run_parallel_json_worker_plan(
+                    jobs_eff=jobs_eff,
+                    tmp_prefix="tradebot_st37_refine_stage1_",
+                    worker_tag="st37:1",
+                    out_prefix="stage1_out",
+                    build_cmd=lambda worker_id, workers_n, out_path: [
                         sys.executable,
                         "-u",
                         "-m",
@@ -10764,32 +10696,21 @@ def main() -> None:
                         "--st37-refine-worker",
                         str(worker_id),
                         "--st37-refine-workers",
-                        str(jobs_eff),
+                        str(workers_n),
                         "--st37-refine-out",
                         str(out_path),
                         "--st37-refine-run-min-trades",
                         str(int(run_min_trades)),
-                    ]
-                    specs.append((f"st37:1:{worker_id}", cmd))
-
-                _run_parallel_worker_specs(
-                    specs=specs,
-                    jobs=jobs_eff,
+                    ],
                     capture_error="Failed to capture st37_refine stage1 worker stdout.",
                     failure_label="st37_refine stage1 worker",
+                    missing_label="st37_refine stage1",
+                    invalid_label="st37_refine stage1",
                 )
 
                 tested_total = 0
                 for worker_id in range(jobs_eff):
-                    out_path = out_paths.get(worker_id)
-                    if out_path is None or not out_path.exists():
-                        raise SystemExit(f"Missing st37_refine stage1 output: st37:1:{worker_id} ({out_path})")
-                    try:
-                        payload = json.loads(out_path.read_text())
-                    except json.JSONDecodeError as exc:
-                        raise SystemExit(
-                            f"Invalid st37_refine stage1 output JSON: st37:1:{worker_id} ({out_path})"
-                        ) from exc
+                    payload = payloads.get(int(worker_id))
                     if not isinstance(payload, dict):
                         continue
                     tested_total += int(payload.get("tested") or 0)
@@ -11095,18 +11016,21 @@ def main() -> None:
             if not offline:
                 raise SystemExit("--jobs>1 for st37_refine requires --offline (avoid parallel IBKR sessions).")
 
-            base_cli = list(sys.argv[1:])
-            base_cli = _strip_flag_with_value(base_cli, "--axis")
-            base_cli = _strip_flag_with_value(base_cli, "--jobs")
-            base_cli = _strip_flag(base_cli, "--write-milestones")
-            base_cli = _strip_flag(base_cli, "--merge-milestones")
-            base_cli = _strip_flag_with_value(base_cli, "--milestones-out")
-            base_cli = _strip_flag_with_value(base_cli, "--st37-refine-stage1")
-            base_cli = _strip_flag_with_value(base_cli, "--st37-refine-stage2")
-            base_cli = _strip_flag_with_value(base_cli, "--st37-refine-worker")
-            base_cli = _strip_flag_with_value(base_cli, "--st37-refine-workers")
-            base_cli = _strip_flag_with_value(base_cli, "--st37-refine-out")
-            base_cli = _strip_flag_with_value(base_cli, "--st37-refine-run-min-trades")
+            base_cli = _strip_flags(
+                list(sys.argv[1:]),
+                flags=("--write-milestones", "--merge-milestones"),
+                flags_with_values=(
+                    "--axis",
+                    "--jobs",
+                    "--milestones-out",
+                    "--st37-refine-stage1",
+                    "--st37-refine-stage2",
+                    "--st37-refine-worker",
+                    "--st37-refine-workers",
+                    "--st37-refine-out",
+                    "--st37-refine-run-min-trades",
+                ),
+            )
 
             jobs_eff = min(int(jobs), int(_default_jobs()), int(stage2_total)) if stage2_total > 0 else 1
             print(f"st37_refine stage2 parallel: workers={jobs_eff} total={stage2_total}", flush=True)
@@ -11136,13 +11060,12 @@ def main() -> None:
                     sort_keys=False,
                 )
 
-                out_paths: dict[int, Path] = {}
-                specs: list[tuple[str, list[str]]] = []
-
-                for worker_id in range(jobs_eff):
-                    out_path = tmp_root / f"stage2_out_{worker_id}.json"
-                    out_paths[worker_id] = out_path
-                    cmd = [
+                payloads = _run_parallel_json_worker_plan(
+                    jobs_eff=jobs_eff,
+                    tmp_prefix="tradebot_st37_refine_stage2_",
+                    worker_tag="st37:2",
+                    out_prefix="stage2_out",
+                    build_cmd=lambda worker_id, workers_n, out_path: [
                         sys.executable,
                         "-u",
                         "-m",
@@ -11158,32 +11081,21 @@ def main() -> None:
                         "--st37-refine-worker",
                         str(worker_id),
                         "--st37-refine-workers",
-                        str(jobs_eff),
+                        str(workers_n),
                         "--st37-refine-out",
                         str(out_path),
                         "--st37-refine-run-min-trades",
                         str(int(run_min_trades)),
-                    ]
-                    specs.append((f"st37:2:{worker_id}", cmd))
-
-                _run_parallel_worker_specs(
-                    specs=specs,
-                    jobs=jobs_eff,
+                    ],
                     capture_error="Failed to capture st37_refine stage2 worker stdout.",
                     failure_label="st37_refine stage2 worker",
+                    missing_label="st37_refine stage2",
+                    invalid_label="st37_refine stage2",
                 )
 
                 tested_total = 0
                 for worker_id in range(jobs_eff):
-                    out_path = out_paths.get(worker_id)
-                    if out_path is None or not out_path.exists():
-                        raise SystemExit(f"Missing st37_refine stage2 output: st37:2:{worker_id} ({out_path})")
-                    try:
-                        payload = json.loads(out_path.read_text())
-                    except json.JSONDecodeError as exc:
-                        raise SystemExit(
-                            f"Invalid st37_refine stage2 output JSON: st37:2:{worker_id} ({out_path})"
-                        ) from exc
+                    payload = payloads.get(int(worker_id))
                     if not isinstance(payload, dict):
                         continue
                     tested_total += int(payload.get("tested") or 0)
@@ -11580,20 +11492,11 @@ def main() -> None:
                 raise SystemExit("--gate-matrix-out is required for gate_matrix stage2 worker mode.")
             out_path = Path(out_path_raw)
 
-            try:
-                worker_id = int(args.gate_matrix_worker) if args.gate_matrix_worker is not None else 0
-            except (TypeError, ValueError):
-                worker_id = 0
-            try:
-                workers = int(args.gate_matrix_workers) if args.gate_matrix_workers is not None else 1
-            except (TypeError, ValueError):
-                workers = 1
-            workers = max(1, int(workers))
-            worker_id = max(0, int(worker_id))
-            if worker_id >= workers:
-                raise SystemExit(
-                    f"Invalid gate_matrix worker shard: worker={worker_id} workers={workers} (worker must be < workers)."
-                )
+            worker_id, workers = _parse_worker_shard(
+                args.gate_matrix_worker,
+                args.gate_matrix_workers,
+                label="gate_matrix",
+            )
 
             try:
                 payload = json.loads(payload_path.read_text())
@@ -11859,17 +11762,20 @@ def main() -> None:
             if not offline:
                 raise SystemExit("--jobs>1 for gate_matrix requires --offline (avoid parallel IBKR sessions).")
 
-            base_cli = list(sys.argv[1:])
-            base_cli = _strip_flag_with_value(base_cli, "--axis")
-            base_cli = _strip_flag_with_value(base_cli, "--jobs")
-            base_cli = _strip_flag(base_cli, "--write-milestones")
-            base_cli = _strip_flag(base_cli, "--merge-milestones")
-            base_cli = _strip_flag_with_value(base_cli, "--milestones-out")
-            base_cli = _strip_flag_with_value(base_cli, "--gate-matrix-stage2")
-            base_cli = _strip_flag_with_value(base_cli, "--gate-matrix-worker")
-            base_cli = _strip_flag_with_value(base_cli, "--gate-matrix-workers")
-            base_cli = _strip_flag_with_value(base_cli, "--gate-matrix-out")
-            base_cli = _strip_flag_with_value(base_cli, "--gate-matrix-run-min-trades")
+            base_cli = _strip_flags(
+                list(sys.argv[1:]),
+                flags=("--write-milestones", "--merge-milestones"),
+                flags_with_values=(
+                    "--axis",
+                    "--jobs",
+                    "--milestones-out",
+                    "--gate-matrix-stage2",
+                    "--gate-matrix-worker",
+                    "--gate-matrix-workers",
+                    "--gate-matrix-out",
+                    "--gate-matrix-run-min-trades",
+                ),
+            )
 
             jobs_eff = min(int(jobs), int(_default_jobs()), int(total)) if total > 0 else 1
             print(f"gate_matrix stage2 parallel: workers={jobs_eff} total={total}", flush=True)
@@ -11889,13 +11795,12 @@ def main() -> None:
                     )
                 write_json(payload_path, {"seeds": seeds_payload}, sort_keys=False)
 
-                out_paths: dict[int, Path] = {}
-                specs: list[tuple[str, list[str]]] = []
-
-                for worker_id in range(jobs_eff):
-                    out_path = tmp_root / f"stage2_out_{worker_id}.json"
-                    out_paths[worker_id] = out_path
-                    cmd = [
+                payloads = _run_parallel_json_worker_plan(
+                    jobs_eff=jobs_eff,
+                    tmp_prefix="tradebot_gate_matrix2_",
+                    worker_tag="gm2",
+                    out_prefix="stage2_out",
+                    build_cmd=lambda worker_id, workers_n, out_path: [
                         sys.executable,
                         "-u",
                         "-m",
@@ -11911,29 +11816,21 @@ def main() -> None:
                         "--gate-matrix-worker",
                         str(worker_id),
                         "--gate-matrix-workers",
-                        str(jobs_eff),
+                        str(workers_n),
                         "--gate-matrix-out",
                         str(out_path),
                         "--gate-matrix-run-min-trades",
                         str(int(run_min_trades)),
-                    ]
-                    specs.append((f"gm2:{worker_id}", cmd))
-                _run_parallel_worker_specs(
-                    specs=specs,
-                    jobs=jobs_eff,
+                    ],
                     capture_error="Failed to capture gate_matrix worker stdout.",
                     failure_label="gate_matrix stage2 worker",
+                    missing_label="gate_matrix stage2",
+                    invalid_label="gate_matrix stage2",
                 )
 
                 tested_total = 0
                 for worker_id in range(jobs_eff):
-                    out_path = out_paths.get(worker_id)
-                    if out_path is None or not out_path.exists():
-                        raise SystemExit(f"Missing gate_matrix stage2 output: gm2:{worker_id} ({out_path})")
-                    try:
-                        payload = json.loads(out_path.read_text())
-                    except json.JSONDecodeError as exc:
-                        raise SystemExit(f"Invalid gate_matrix stage2 output JSON: gm2:{worker_id} ({out_path})") from exc
+                    payload = payloads.get(int(worker_id))
                     if not isinstance(payload, dict):
                         continue
                     tested_total += int(payload.get("tested") or 0)
@@ -12142,11 +12039,11 @@ def main() -> None:
 
         axes = tuple(_AXIS_ALL_PLAN)
 
-        base_cli = list(sys.argv[1:])
-        base_cli = _strip_flag_with_value(base_cli, "--axis")
-        base_cli = _strip_flag_with_value(base_cli, "--jobs")
-        base_cli = _strip_flag_with_value(base_cli, "--milestones-out")
-        base_cli = _strip_flag(base_cli, "--merge-milestones")
+        base_cli = _strip_flags(
+            list(sys.argv[1:]),
+            flags=("--merge-milestones",),
+            flags_with_values=("--axis", "--jobs", "--milestones-out"),
+        )
 
         milestone_payloads = _run_axis_subprocess_plan(
             label="axis=all parallel",
@@ -13235,283 +13132,74 @@ def spot_multitimeframe_main() -> None:
             "windows": per_window,
         }
 
-    if args.multitimeframe_worker is not None:
-        if not offline:
-            raise SystemExit("multitimeframe worker mode requires --offline (avoid parallel IBKR sessions).")
-        out_path_raw = str(args.multitimeframe_out or "").strip()
-        if not out_path_raw:
-            raise SystemExit("--multitimeframe-out is required for multitimeframe worker mode.")
-        out_path = Path(out_path_raw)
-
-        try:
-            worker_id = int(args.multitimeframe_worker) if args.multitimeframe_worker is not None else 0
-        except (TypeError, ValueError):
-            worker_id = 0
-        try:
-            workers = int(args.multitimeframe_workers) if args.multitimeframe_workers is not None else 1
-        except (TypeError, ValueError):
-            workers = 1
-        workers = max(1, int(workers))
-        worker_id = max(0, int(worker_id))
-        if worker_id >= workers:
-            raise SystemExit(
-                f"Invalid multitimeframe worker shard: worker={worker_id} workers={workers} (worker must be < workers)."
-            )
-
-        _preflight_offline_cache_or_die(
-            symbol=symbol,
-            candidates=candidates,
-            windows=windows,
-            signal_bar_size=str(args.bar_size),
-            use_rth=use_rth,
-            cache_dir=cache_dir,
-        )
-
-        data = IBKRHistoricalData()
-        _load_bars_cached = _make_bars_loader(data)
-
+    def _evaluate_candidate_multiwindow_shard(
+        *,
+        load_bars_cached,
+        data: IBKRHistoricalData | None,
+        worker_id: int,
+        workers: int,
+        progress_mode: str,
+    ) -> tuple[int, list[dict]]:
         out_rows: list[dict] = []
         tested = 0
         started = pytime.perf_counter()
         report_every = 10
-
         for idx, cand in enumerate(candidates, start=1):
-            assigned = ((idx - 1) % workers) == worker_id
-            if not assigned:
+            if ((idx - 1) % int(workers)) != int(worker_id):
                 continue
             tested += 1
-            row = _evaluate_candidate_multiwindow(cand, load_bars_cached=_load_bars_cached, data=data)
+            row = _evaluate_candidate_multiwindow(cand, load_bars_cached=load_bars_cached, data=data)
             if row is not None:
                 out_rows.append(row)
 
-            if tested % report_every == 0:
-                elapsed = pytime.perf_counter() - started
-                rate = tested / elapsed if elapsed > 0 else 0.0
+            if tested % report_every != 0:
+                continue
+            elapsed = pytime.perf_counter() - started
+            rate = tested / elapsed if elapsed > 0 else 0.0
+            if progress_mode == "worker":
                 print(
                     f"multitimeframe worker {worker_id+1}/{workers} tested={tested} kept={len(out_rows)} "
                     f"({rate:0.2f} cands/s)",
                     flush=True,
                 )
+            else:
+                print(f"[{tested}/{len(candidates)}] evaluated… ({rate:0.2f} cands/s, kept={len(out_rows)})", flush=True)
+        return tested, out_rows
 
-        out_payload = {"tested": tested, "kept": len(out_rows), "rows": out_rows}
-        write_json(out_path, out_payload, sort_keys=False)
-        print(f"multitimeframe worker done tested={tested} kept={len(out_rows)} out={out_path}", flush=True)
-        return
+    def _emit_multitimeframe_results(*, out_rows: list[dict], tested_total: int | None = None, workers: int | None = None) -> None:
+        out_rows = sorted(out_rows, key=_score_key, reverse=True)
+        print("")
+        print(f"Multiwindow results: {len(out_rows)} candidates passed filters.")
+        print(f"- symbol={symbol} bar={args.bar_size} rth={use_rth} offline={offline}")
+        print(f"- windows={', '.join([f'{a.isoformat()}→{b.isoformat()}' for a,b in windows])}")
+        extra = f" min_trades_per_year={float(min_trades_per_year):g}" if min_trades_per_year is not None else ""
+        print(f"- min_trades={int(args.min_trades)} min_win={float(args.min_win):0.2f}{extra}")
+        if tested_total is not None and workers is not None:
+            print(f"- workers={int(workers)} tested_total={int(tested_total)}")
+        print("")
 
-    if jobs_eff > 1:
-        if not offline:
-            raise SystemExit("--jobs>1 for multitimeframe requires --offline (avoid parallel IBKR sessions).")
-
-        _preflight_offline_cache_or_die(
-            symbol=symbol,
-            candidates=candidates,
-            windows=windows,
-            signal_bar_size=str(args.bar_size),
-            use_rth=use_rth,
-            cache_dir=cache_dir,
-        )
-
-        base_cli = list(sys.argv[1:])
-        base_cli = _strip_flag_with_value(base_cli, "--jobs")
-        base_cli = _strip_flag_with_value(base_cli, "--multitimeframe-worker")
-        base_cli = _strip_flag_with_value(base_cli, "--multitimeframe-workers")
-        base_cli = _strip_flag_with_value(base_cli, "--multitimeframe-out")
-
-        print(f"multitimeframe parallel: workers={jobs_eff} candidates={len(candidates)}", flush=True)
-
-        with tempfile.TemporaryDirectory(prefix="tradebot_multitimeframe_") as tmpdir:
-            tmp_root = Path(tmpdir)
-            out_paths: dict[int, Path] = {}
-            specs: list[tuple[str, list[str]]] = []
-
-            for worker_id in range(jobs_eff):
-                out_path = tmp_root / f"multitimeframe_out_{worker_id}.json"
-                out_paths[worker_id] = out_path
-                cmd = [
-                    sys.executable,
-                    "-u",
-                    "-m",
-                    "tradebot.backtest",
-                    "spot_multitimeframe",
-                    *base_cli,
-                    "--jobs",
-                    "1",
-                    "--multitimeframe-worker",
-                    str(worker_id),
-                    "--multitimeframe-workers",
-                    str(jobs_eff),
-                    "--multitimeframe-out",
-                    str(out_path),
-                ]
-                specs.append((f"mt:{worker_id}", cmd))
-            _run_parallel_worker_specs(
-                specs=specs,
-                jobs=jobs_eff,
-                capture_error="Failed to capture multitimeframe worker stdout.",
-                failure_label="multitimeframe worker",
+        show = min(20, len(out_rows))
+        for rank, item in enumerate(out_rows[:show], start=1):
+            st = item["strategy"]
+            print(
+                f"{rank:2d}. stability(min roi/dd)={item.get('stability_min_roi_dd', 0.0):.2f} "
+                f"full roi/dd={item.get('full_roi_over_dd_pct', 0.0):.2f} "
+                f"roi={item.get('full_roi', 0.0)*100:.1f}% dd%={item.get('full_dd_pct', 0.0)*100:.1f}% "
+                f"pnl={item['full_pnl']:.1f} "
+                f"win={item['full_win']*100:.1f}% tr={item['full_trades']} "
+                f"ema={st.get('ema_preset')} {st.get('ema_entry_mode')} "
+                f"regime={st.get('regime_mode')} rbar={st.get('regime_bar_size')}"
             )
 
-            tested_total = 0
-            out_rows: list[dict] = []
-            for worker_id in range(jobs_eff):
-                out_path = out_paths.get(worker_id)
-                if out_path is None or not out_path.exists():
-                    raise SystemExit(f"Missing multitimeframe output: mt:{worker_id} ({out_path})")
-                try:
-                    payload = json.loads(out_path.read_text())
-                except json.JSONDecodeError as exc:
-                    raise SystemExit(f"Invalid multitimeframe output JSON: mt:{worker_id} ({out_path})") from exc
-                if not isinstance(payload, dict):
-                    continue
-                tested_total += int(payload.get("tested") or 0)
-                for row in payload.get("rows") or []:
-                    if isinstance(row, dict):
-                        out_rows.append(row)
-
-            out_rows = sorted(out_rows, key=_score_key, reverse=True)
-            print("")
-            print(f"Multiwindow results: {len(out_rows)} candidates passed filters.")
-            print(f"- symbol={symbol} bar={args.bar_size} rth={use_rth} offline={offline}")
-            print(f"- windows={', '.join([f'{a.isoformat()}→{b.isoformat()}' for a,b in windows])}")
-            extra = (
-                f" min_trades_per_year={float(min_trades_per_year):g}" if min_trades_per_year is not None else ""
-            )
-            print(f"- min_trades={int(args.min_trades)} min_win={float(args.min_win):0.2f}{extra}")
-            print(f"- workers={jobs_eff} tested_total={tested_total}")
-            print("")
-
-            show = min(20, len(out_rows))
-            for rank, item in enumerate(out_rows[:show], start=1):
-                st = item["strategy"]
-                print(
-                    f"{rank:2d}. stability(min roi/dd)={item.get('stability_min_roi_dd', 0.0):.2f} "
-                    f"full roi/dd={item.get('full_roi_over_dd_pct', 0.0):.2f} "
-                    f"roi={item.get('full_roi', 0.0)*100:.1f}% dd%={item.get('full_dd_pct', 0.0)*100:.1f}% "
-                    f"pnl={item['full_pnl']:.1f} "
-                    f"win={item['full_win']*100:.1f}% tr={item['full_trades']} "
-                    f"ema={st.get('ema_preset')} {st.get('ema_entry_mode')} "
-                    f"regime={st.get('regime_mode')} rbar={st.get('regime_bar_size')}"
-                )
-
-            if int(args.write_top or 0) > 0:
-                top_k = max(1, int(args.write_top))
-                now = utc_now_iso_z()
-                groups_out: list[dict] = []
-                for idx, item in enumerate(out_rows[:top_k], start=1):
-                    m = item.get("metrics") or {}
-                    strategy = item["strategy"]
-                    filters_payload = item.get("filters")
-                    key = _strategy_key(strategy, filters=filters_payload)
-                    metrics = {
-                        "pnl": float(item.get("full_pnl") or 0.0),
-                        "roi": float(item.get("full_roi") or 0.0),
-                        "win_rate": float(item.get("full_win") or 0.0),
-                        "trades": int(item.get("full_trades") or 0),
-                        "max_drawdown": float(item.get("full_dd") or 0.0),
-                        "max_drawdown_pct": float(item.get("full_dd_pct") or 0.0),
-                        "pnl_over_dd": float(item.get("full_pnl_over_dd") or 0.0),
-                        "roi_over_dd_pct": float(item.get("full_roi_over_dd_pct") or 0.0),
-                    }
-                    groups_out.append(
-                        {
-                            "name": f"Spot ({symbol}) KINGMAKER #{idx:02d} roi/dd={metrics['roi_over_dd_pct']:.2f} "
-                            f"roi={metrics['roi']*100:.1f}% dd%={metrics['max_drawdown_pct']*100:.1f}% "
-                            f"win={metrics['win_rate']*100:.1f}% tr={metrics['trades']} pnl={metrics['pnl']:.1f}",
-                            "filters": filters_payload,
-                            "entries": [{"symbol": symbol, "metrics": metrics, "strategy": strategy}],
-                            "_eval": {
-                                "stability_min_pnl_dd": float(item.get("stability_min_pnl_dd") or 0.0),
-                                "stability_min_pnl": float(item.get("stability_min_pnl") or 0.0),
-                                "stability_min_roi_dd": float(item.get("stability_min_roi_dd") or 0.0),
-                                "stability_min_roi": float(item.get("stability_min_roi") or 0.0),
-                                "windows": item.get("windows") or [],
-                            },
-                            "_key": key,
-                        }
-                    )
-                out_payload = {
-                    "name": "multitimeframe_top",
-                    "generated_at": now,
-                    "source": str(milestones_path),
-                    "windows": [{"start": a.isoformat(), "end": b.isoformat()} for a, b in windows],
-                    "groups": groups_out,
-                }
-                out_path = Path(args.out)
-                write_json(out_path, out_payload, sort_keys=False)
-                print(f"\nWrote {out_path} (top={top_k}).")
-
-        return
-
-    data = IBKRHistoricalData()
-    _load_bars_cached = _make_bars_loader(data)
-
-    if not offline:
-        try:
-            data.connect()
-        except Exception as exc:
-            raise SystemExit(
-                "IBKR API connection failed. Start IB Gateway / TWS (or run with --offline after prefetching cached bars)."
-            ) from exc
-
-    if offline:
-        _preflight_offline_cache_or_die(
-            symbol=symbol,
-            candidates=candidates,
-            windows=windows,
-            signal_bar_size=str(args.bar_size),
-            use_rth=use_rth,
-            cache_dir=cache_dir,
-        )
-
-    out_rows: list[dict] = []
-    started = pytime.perf_counter()
-    report_every = 10
-
-    for idx, cand in enumerate(candidates, start=1):
-        row = _evaluate_candidate_multiwindow(cand, load_bars_cached=_load_bars_cached, data=data)
-        if row is not None:
-            out_rows.append(row)
-
-        if idx % report_every == 0:
-            elapsed = pytime.perf_counter() - started
-            rate = idx / elapsed if elapsed > 0 else 0.0
-            print(f"[{idx}/{len(candidates)}] evaluated… ({rate:0.2f} cands/s, kept={len(out_rows)})", flush=True)
-
-    if not offline:
-        data.disconnect()
-
-    out_rows = sorted(out_rows, key=_score_key, reverse=True)
-    print("")
-    print(f"Multiwindow results: {len(out_rows)} candidates passed filters.")
-    print(f"- symbol={symbol} bar={args.bar_size} rth={use_rth} offline={offline}")
-    print(f"- windows={', '.join([f'{a.isoformat()}→{b.isoformat()}' for a,b in windows])}")
-    extra = f" min_trades_per_year={float(min_trades_per_year):g}" if min_trades_per_year is not None else ""
-    print(f"- min_trades={int(args.min_trades)} min_win={float(args.min_win):0.2f}{extra}")
-    print("")
-
-    show = min(20, len(out_rows))
-    for rank, item in enumerate(out_rows[:show], start=1):
-        st = item["strategy"]
-        print(
-            f"{rank:2d}. stability(min roi/dd)={item.get('stability_min_roi_dd', 0.0):.2f} "
-            f"full roi/dd={item.get('full_roi_over_dd_pct', 0.0):.2f} "
-            f"roi={item.get('full_roi', 0.0)*100:.1f}% dd%={item.get('full_dd_pct', 0.0)*100:.1f}% "
-            f"pnl={item['full_pnl']:.1f} "
-            f"win={item['full_win']*100:.1f}% tr={item['full_trades']} "
-            f"ema={st.get('ema_preset')} {st.get('ema_entry_mode')} "
-            f"regime={st.get('regime_mode')} rbar={st.get('regime_bar_size')}"
-        )
-
-    if int(args.write_top or 0) > 0:
+        if int(args.write_top or 0) <= 0:
+            return
         top_k = max(1, int(args.write_top))
         now = utc_now_iso_z()
         groups_out: list[dict] = []
         for idx, item in enumerate(out_rows[:top_k], start=1):
-            m = item.get("metrics") or {}
             strategy = item["strategy"]
             filters_payload = item.get("filters")
             key = _strategy_key(strategy, filters=filters_payload)
-            # Use the full-window metrics for the saved preset. (Stability details belong in README.)
             metrics = {
                 "pnl": float(item.get("full_pnl") or 0.0),
                 "roi": float(item.get("full_roi") or 0.0),
@@ -13549,6 +13237,141 @@ def spot_multitimeframe_main() -> None:
         out_path = Path(args.out)
         write_json(out_path, out_payload, sort_keys=False)
         print(f"\nWrote {out_path} (top={top_k}).")
+
+    if args.multitimeframe_worker is not None:
+        if not offline:
+            raise SystemExit("multitimeframe worker mode requires --offline (avoid parallel IBKR sessions).")
+        out_path_raw = str(args.multitimeframe_out or "").strip()
+        if not out_path_raw:
+            raise SystemExit("--multitimeframe-out is required for multitimeframe worker mode.")
+        out_path = Path(out_path_raw)
+
+        worker_id, workers = _parse_worker_shard(
+            args.multitimeframe_worker,
+            args.multitimeframe_workers,
+            label="multitimeframe",
+        )
+
+        _preflight_offline_cache_or_die(
+            symbol=symbol,
+            candidates=candidates,
+            windows=windows,
+            signal_bar_size=str(args.bar_size),
+            use_rth=use_rth,
+            cache_dir=cache_dir,
+        )
+
+        data = IBKRHistoricalData()
+        _load_bars_cached = _make_bars_loader(data)
+
+        tested, out_rows = _evaluate_candidate_multiwindow_shard(
+            load_bars_cached=_load_bars_cached,
+            data=data,
+            worker_id=int(worker_id),
+            workers=int(workers),
+            progress_mode="worker",
+        )
+
+        out_payload = {"tested": tested, "kept": len(out_rows), "rows": out_rows}
+        write_json(out_path, out_payload, sort_keys=False)
+        print(f"multitimeframe worker done tested={tested} kept={len(out_rows)} out={out_path}", flush=True)
+        return
+
+    if jobs_eff > 1:
+        if not offline:
+            raise SystemExit("--jobs>1 for multitimeframe requires --offline (avoid parallel IBKR sessions).")
+
+        _preflight_offline_cache_or_die(
+            symbol=symbol,
+            candidates=candidates,
+            windows=windows,
+            signal_bar_size=str(args.bar_size),
+            use_rth=use_rth,
+            cache_dir=cache_dir,
+        )
+
+        base_cli = _strip_flags(
+            list(sys.argv[1:]),
+            flags_with_values=("--jobs", "--multitimeframe-worker", "--multitimeframe-workers", "--multitimeframe-out"),
+        )
+
+        print(f"multitimeframe parallel: workers={jobs_eff} candidates={len(candidates)}", flush=True)
+
+        payloads = _run_parallel_json_worker_plan(
+            jobs_eff=jobs_eff,
+            tmp_prefix="tradebot_multitimeframe_",
+            worker_tag="mt",
+            out_prefix="multitimeframe_out",
+            build_cmd=lambda worker_id, workers_n, out_path: [
+                sys.executable,
+                "-u",
+                "-m",
+                "tradebot.backtest",
+                "spot_multitimeframe",
+                *base_cli,
+                "--jobs",
+                "1",
+                "--multitimeframe-worker",
+                str(worker_id),
+                "--multitimeframe-workers",
+                str(workers_n),
+                "--multitimeframe-out",
+                str(out_path),
+            ],
+            capture_error="Failed to capture multitimeframe worker stdout.",
+            failure_label="multitimeframe worker",
+            missing_label="multitimeframe",
+            invalid_label="multitimeframe",
+        )
+
+        tested_total = 0
+        out_rows: list[dict] = []
+        for worker_id in range(jobs_eff):
+            payload = payloads.get(int(worker_id))
+            if not isinstance(payload, dict):
+                continue
+            tested_total += int(payload.get("tested") or 0)
+            for row in payload.get("rows") or []:
+                if isinstance(row, dict):
+                    out_rows.append(row)
+
+        _emit_multitimeframe_results(out_rows=out_rows, tested_total=tested_total, workers=jobs_eff)
+
+        return
+
+    data = IBKRHistoricalData()
+    _load_bars_cached = _make_bars_loader(data)
+
+    if not offline:
+        try:
+            data.connect()
+        except Exception as exc:
+            raise SystemExit(
+                "IBKR API connection failed. Start IB Gateway / TWS (or run with --offline after prefetching cached bars)."
+            ) from exc
+
+    if offline:
+        _preflight_offline_cache_or_die(
+            symbol=symbol,
+            candidates=candidates,
+            windows=windows,
+            signal_bar_size=str(args.bar_size),
+            use_rth=use_rth,
+            cache_dir=cache_dir,
+        )
+
+    _tested_serial, out_rows = _evaluate_candidate_multiwindow_shard(
+        load_bars_cached=_load_bars_cached,
+        data=data,
+        worker_id=0,
+        workers=1,
+        progress_mode="serial",
+    )
+
+    if not offline:
+        data.disconnect()
+
+    _emit_multitimeframe_results(out_rows=out_rows)
 
 multitimeframe_main = spot_multitimeframe_main
 

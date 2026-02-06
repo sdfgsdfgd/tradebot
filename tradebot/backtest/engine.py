@@ -1389,6 +1389,105 @@ def _resolve_backtest_contract_meta(*, data: IBKRHistoricalData, cfg: ConfigBund
     return resolved
 
 
+def _int_attr(obj: object, name: str, default: int) -> int:
+    try:
+        return int(getattr(obj, name, default) or default)
+    except (TypeError, ValueError):
+        return int(default)
+
+
+def _load_spot_backtest_context_bars(
+    *,
+    data: IBKRHistoricalData,
+    cfg: ConfigBundle,
+    start_dt: datetime,
+    end_dt: datetime,
+) -> tuple[list[Bar] | None, list[Bar] | None, list[Bar] | None, list[Bar] | None]:
+    _regime_mode, _regime_preset, regime_bar, use_mtf_regime = resolve_spot_regime_spec(
+        bar_size=cfg.backtest.bar_size,
+        regime_mode_raw=getattr(cfg.strategy, "regime_mode", "ema"),
+        regime_ema_preset_raw=getattr(cfg.strategy, "regime_ema_preset", None),
+        regime_bar_size_raw=getattr(cfg.strategy, "regime_bar_size", None),
+    )
+    regime_bars = None
+    if use_mtf_regime:
+        # Shock overlays can need longer warmup than the base regime engine.
+        regime_start_dt = start_dt
+        filters = getattr(cfg.strategy, "filters", None)
+        if normalize_shock_gate_mode(filters) != "off":
+            slow_p = _int_attr(filters, "shock_atr_slow_period", 50)
+            regime_start_dt = start_dt - timedelta(days=max(30, int(slow_p)))
+        regime_bars = _load_backtest_bars_offline_fallback_start(
+            data=data,
+            cfg=cfg,
+            symbol=cfg.strategy.symbol,
+            exchange=cfg.strategy.exchange,
+            start=regime_start_dt,
+            fallback_start=start_dt,
+            end=end_dt,
+            bar_size=str(regime_bar),
+            use_rth=cfg.backtest.use_rth,
+        )
+
+    _regime2_mode, _regime2_preset, regime2_bar, use_mtf_regime2 = resolve_spot_regime2_spec(
+        bar_size=cfg.backtest.bar_size,
+        regime2_mode_raw=getattr(cfg.strategy, "regime2_mode", "off"),
+        regime2_ema_preset_raw=getattr(cfg.strategy, "regime2_ema_preset", None),
+        regime2_bar_size_raw=getattr(cfg.strategy, "regime2_bar_size", None),
+    )
+    regime2_bars = None
+    if use_mtf_regime2:
+        regime2_bars = _load_backtest_bars(
+            data=data,
+            cfg=cfg,
+            symbol=cfg.strategy.symbol,
+            exchange=cfg.strategy.exchange,
+            start=start_dt,
+            end=end_dt,
+            bar_size=str(regime2_bar),
+            use_rth=cfg.backtest.use_rth,
+        )
+
+    tick_bars = None
+    tick_mode = str(getattr(cfg.strategy, "tick_gate_mode", "off") or "off").strip().lower()
+    if tick_mode not in ("off", "raschke"):
+        tick_mode = "off"
+    if tick_mode != "off":
+        tick_warm_days = max(
+            60,
+            _int_attr(cfg.strategy, "tick_width_z_lookback", 252)
+            + _int_attr(cfg.strategy, "tick_band_ma_period", 10)
+            + _int_attr(cfg.strategy, "tick_width_slope_lookback", 3)
+            + 5,
+        )
+        tick_bars = _load_backtest_bars(
+            data=data,
+            cfg=cfg,
+            symbol=str(getattr(cfg.strategy, "tick_gate_symbol", "TICK-NYSE") or "TICK-NYSE").strip(),
+            exchange=str(getattr(cfg.strategy, "tick_gate_exchange", "NYSE") or "NYSE").strip(),
+            start=start_dt - timedelta(days=tick_warm_days),
+            end=end_dt,
+            bar_size="1 day",
+            use_rth=True,
+        )
+
+    exec_bars = None
+    exec_bar_size = str(getattr(cfg.strategy, "spot_exec_bar_size", "") or "").strip()
+    if exec_bar_size and str(exec_bar_size) != str(cfg.backtest.bar_size):
+        exec_bars = _load_backtest_bars(
+            data=data,
+            cfg=cfg,
+            symbol=cfg.strategy.symbol,
+            exchange=cfg.strategy.exchange,
+            start=start_dt,
+            end=end_dt,
+            bar_size=str(exec_bar_size),
+            use_rth=cfg.backtest.use_rth,
+        )
+
+    return regime_bars, regime2_bars, tick_bars, exec_bars
+
+
 def run_backtest(cfg: ConfigBundle) -> BacktestResult:
     data = IBKRHistoricalData()
     start_dt = datetime.combine(cfg.backtest.start, time(0, 0))
@@ -1408,101 +1507,12 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
     meta = _resolve_backtest_contract_meta(data=data, cfg=cfg)
 
     if cfg.strategy.instrument == "spot":
-        _regime_mode, _regime_preset, regime_bar, use_mtf_regime = resolve_spot_regime_spec(
-            bar_size=cfg.backtest.bar_size,
-            regime_mode_raw=getattr(cfg.strategy, "regime_mode", "ema"),
-            regime_ema_preset_raw=getattr(cfg.strategy, "regime_ema_preset", None),
-            regime_bar_size_raw=getattr(cfg.strategy, "regime_bar_size", None),
+        regime_bars, regime2_bars, tick_bars, exec_bars = _load_spot_backtest_context_bars(
+            data=data,
+            cfg=cfg,
+            start_dt=start_dt,
+            end_dt=end_dt,
         )
-        regime_bars = None
-        if use_mtf_regime:
-            # Shock overlays can require a longer warmup than Supertrend itself (e.g., ATR slow period=50).
-            # We extend the *regime bars* start backward for indicator warmup while still starting trading
-            # at `cfg.backtest.start` (signal bars remain unchanged).
-            regime_start_dt = start_dt
-            filters = getattr(cfg.strategy, "filters", None)
-            shock_gate_mode = normalize_shock_gate_mode(filters)
-            if shock_gate_mode != "off":
-                slow_p = int(getattr(filters, "shock_atr_slow_period", 50) or 50)
-                warmup_days = max(30, slow_p)
-                regime_start_dt = start_dt - timedelta(days=int(warmup_days))
-            regime_bars = _load_backtest_bars_offline_fallback_start(
-                data=data,
-                cfg=cfg,
-                symbol=cfg.strategy.symbol,
-                exchange=cfg.strategy.exchange,
-                start=regime_start_dt,
-                fallback_start=start_dt,
-                end=end_dt,
-                bar_size=str(regime_bar),
-                use_rth=cfg.backtest.use_rth,
-            )
-        _regime2_mode, _regime2_preset, regime2_bar, use_mtf_regime2 = resolve_spot_regime2_spec(
-            bar_size=cfg.backtest.bar_size,
-            regime2_mode_raw=getattr(cfg.strategy, "regime2_mode", "off"),
-            regime2_ema_preset_raw=getattr(cfg.strategy, "regime2_ema_preset", None),
-            regime2_bar_size_raw=getattr(cfg.strategy, "regime2_bar_size", None),
-        )
-        regime2_bars = None
-        if use_mtf_regime2:
-            regime2_bars = _load_backtest_bars(
-                data=data,
-                cfg=cfg,
-                symbol=cfg.strategy.symbol,
-                exchange=cfg.strategy.exchange,
-                start=start_dt,
-                end=end_dt,
-                bar_size=str(regime2_bar),
-                use_rth=cfg.backtest.use_rth,
-            )
-
-        tick_mode = str(getattr(cfg.strategy, "tick_gate_mode", "off") or "off").strip().lower()
-        if tick_mode not in ("off", "raschke"):
-            tick_mode = "off"
-        tick_bars = None
-        if tick_mode != "off":
-            tick_symbol = str(getattr(cfg.strategy, "tick_gate_symbol", "TICK-NYSE") or "TICK-NYSE").strip()
-            tick_exchange = str(getattr(cfg.strategy, "tick_gate_exchange", "NYSE") or "NYSE").strip()
-            try:
-                z_lookback = int(getattr(cfg.strategy, "tick_width_z_lookback", 252) or 252)
-            except (TypeError, ValueError):
-                z_lookback = 252
-            try:
-                ma_period = int(getattr(cfg.strategy, "tick_band_ma_period", 10) or 10)
-            except (TypeError, ValueError):
-                ma_period = 10
-            try:
-                slope_lb = int(getattr(cfg.strategy, "tick_width_slope_lookback", 3) or 3)
-            except (TypeError, ValueError):
-                slope_lb = 3
-            tick_warm_days = max(60, z_lookback + ma_period + slope_lb + 5)
-            tick_start_dt = start_dt - timedelta(days=tick_warm_days)
-            # $TICK is defined for RTH only (NYSE hours).
-            tick_use_rth = True
-            tick_bars = _load_backtest_bars(
-                data=data,
-                cfg=cfg,
-                symbol=tick_symbol,
-                exchange=tick_exchange,
-                start=tick_start_dt,
-                end=end_dt,
-                bar_size="1 day",
-                use_rth=tick_use_rth,
-            )
-
-        exec_bars = None
-        exec_bar_size = str(getattr(cfg.strategy, "spot_exec_bar_size", "") or "").strip()
-        if exec_bar_size and str(exec_bar_size) != str(cfg.backtest.bar_size):
-            exec_bars = _load_backtest_bars(
-                data=data,
-                cfg=cfg,
-                symbol=cfg.strategy.symbol,
-                exchange=cfg.strategy.exchange,
-                start=start_dt,
-                end=end_dt,
-                bar_size=str(exec_bar_size),
-                use_rth=cfg.backtest.use_rth,
-            )
 
         result = _run_spot_backtest(
             cfg,
