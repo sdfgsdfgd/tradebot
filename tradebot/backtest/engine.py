@@ -3599,6 +3599,37 @@ def _run_spot_backtest_exec_loop_summary_fast(
         _apply_opened_entry_state(opened=opened, entry_exec_idx=int(entry_exec_idx))
         return True
 
+    def _try_flip_same_bar_reentry(
+        *,
+        exit_reason: str,
+        flip_sig_idx: int | None,
+        flip_exec_idx: int | None,
+    ) -> bool:
+        nonlocal sig_cursor
+        if exit_reason != "flip" or flip_sig_idx is None or flip_exec_idx is None:
+            return False
+        sig_idx = int(flip_sig_idx)
+        sig_exec = align.exec_idx_by_sig_idx[sig_idx]
+        if _try_open_entry_from_signal(
+            sig_idx=int(sig_idx),
+            sig_exec_idx=int(sig_exec),
+            entry_exec_idx=int(flip_exec_idx),
+        ):
+            sig_cursor = max(int(sig_cursor), int(sig_idx + 1))
+            return True
+        return False
+
+    def _advance_sig_cursor_after_exit(*, exit_reason: str, exit_exec_idx: int) -> None:
+        nonlocal sig_cursor
+        if exit_reason in ("stop", "profit"):
+            sig_at_exit = align.sig_idx_by_exec_idx[int(exit_exec_idx)]
+            if sig_at_exit >= 0:
+                sig_cursor = max(int(sig_cursor), int(sig_at_exit))
+                return
+            sig_cursor = max(int(sig_cursor), int(bisect_right(signal_ts, exec_bars[int(exit_exec_idx)].ts)))
+            return
+        sig_cursor = max(int(sig_cursor), int(bisect_left(signal_ts, exec_bars[int(exit_exec_idx)].ts)))
+
     while True:
         if open_qty == 0:
             # Find the next signal close that schedules an entry.
@@ -3826,19 +3857,11 @@ def _run_spot_backtest_exec_loop_summary_fast(
         _clear_open_entry_state()
 
         # Flip exits can optionally schedule a same-open entry; attempt it here.
-        opened_same_bar = False
-        if exit_reason == "flip" and flip_sig_idx is not None and flip_exec_idx is not None:
-            sig_idx = int(flip_sig_idx)
-            sig_exec = align.exec_idx_by_sig_idx[sig_idx]
-            if _try_open_entry_from_signal(
-                sig_idx=int(sig_idx),
-                sig_exec_idx=int(sig_exec),
-                entry_exec_idx=int(flip_exec_idx),
-            ):
-                sig_cursor = max(int(sig_cursor), int(sig_idx + 1))
-                opened_same_bar = True
-
-        if opened_same_bar:
+        if _try_flip_same_bar_reentry(
+            exit_reason=str(exit_reason),
+            flip_sig_idx=flip_sig_idx,
+            flip_exec_idx=flip_exec_idx,
+        ):
             continue
 
         # If we are flat at the close of this bar, update close-equity drawdown/peak.
@@ -3853,14 +3876,10 @@ def _run_spot_backtest_exec_loop_summary_fast(
         # Resume entry scanning from the next signal close after this time.
         if exit_reason == "end":
             break
-        if exit_reason in ("stop", "profit"):
-            sig_at_exit = align.sig_idx_by_exec_idx[int(exit_exec_idx)]
-            if sig_at_exit >= 0:
-                sig_cursor = max(int(sig_cursor), int(sig_at_exit))
-            else:
-                sig_cursor = max(int(sig_cursor), int(bisect_right(signal_ts, exec_bars[int(exit_exec_idx)].ts)))
-        else:
-            sig_cursor = max(int(sig_cursor), int(bisect_left(signal_ts, exec_bars[int(exit_exec_idx)].ts)))
+        _advance_sig_cursor_after_exit(
+            exit_reason=str(exit_reason),
+            exit_exec_idx=int(exit_exec_idx),
+        )
 
     win_rate = wins / trades if trades else 0.0
     avg_win = win_sum / wins if wins else 0.0

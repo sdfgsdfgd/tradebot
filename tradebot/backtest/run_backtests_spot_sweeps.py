@@ -3176,6 +3176,22 @@ def main() -> None:
             return {
                 "cfg_pairs": _decode_cfg_list(key="bases", note_key="base_note"),
             }
+        if name == "gate_matrix_stage2":
+            seeds_local: list[tuple[ConfigBundle, str, str]] = []
+            for item in _require_list("seeds"):
+                if not isinstance(item, dict):
+                    continue
+                cfg_seed = _cfg_from_strategy_filters_payload(item.get("strategy"), item.get("filters"))
+                if cfg_seed is None:
+                    continue
+                seeds_local.append(
+                    (
+                        cfg_seed,
+                        str(item.get("seed_note") or ""),
+                        str(item.get("family") or ""),
+                    )
+                )
+            return {"seed_triples": seeds_local}
         raise SystemExit(f"Unknown worker payload schema: {schema_name!r}")
 
     def _worker_records_from_kept(kept: list[tuple[ConfigBundle, dict, str, dict | None]]) -> list[dict]:
@@ -3238,86 +3254,19 @@ def main() -> None:
         row_out["note"] = note
         return cfg, row_out, str(note)
 
-    def _decode_payload_schema_gate_matrix_stage2(
-        rec: dict,
-        *,
-        default_note: str,
-        context: dict | None = None,
-    ) -> tuple[ConfigBundle, dict, str] | None:
-        del default_note
-        if not isinstance(context, dict):
-            return None
-        seeds = context.get("seeds")
-        mk_stage2_cfg = context.get("mk_stage2_cfg")
-        if not isinstance(seeds, list) or not callable(mk_stage2_cfg):
-            return None
-        seed_idx_raw = rec.get("seed_idx")
-        if seed_idx_raw is None:
-            return None
-        try:
-            seed_idx = int(seed_idx_raw)
-        except (TypeError, ValueError):
-            return None
-        if seed_idx < 0 or seed_idx >= len(seeds):
-            return None
-        base_seed_cfg, _seed_row, seed_note, family = seeds[seed_idx]
-        cfg, note = mk_stage2_cfg(
-            base_seed_cfg,
-            str(seed_note),
-            str(family),
-            perm_on=bool(rec.get("perm_on")),
-            tick_on=bool(rec.get("tick_on")),
-            shock_on=bool(rec.get("shock_on")),
-            riskoff_on=bool(rec.get("riskoff_on")),
-            riskpanic_on=bool(rec.get("riskpanic_on")),
-            riskpop_on=bool(rec.get("riskpop_on")),
-            regime2_on=bool(rec.get("regime2_on")),
-            short_mult=float(rec.get("short_mult") or 0.0),
-        )
-        row = rec.get("row")
-        if not isinstance(row, dict):
-            return None
-        row_out = dict(row)
-        row_out["note"] = note
-        return cfg, row_out, str(note)
-
-    _STAGE_PAYLOAD_SCHEMA_REGISTRY: dict[str, dict[str, object]] = {
-        "cfg_rows": {
-            "records_key": "records",
-            "tested_key": "tested",
-            "decode": _decode_payload_schema_cfg_row,
-        },
-        "gate_matrix_stage2_rows": {
-            "records_key": "records",
-            "tested_key": "tested",
-            "decode": _decode_payload_schema_gate_matrix_stage2,
-        },
-    }
-
-    def _collect_stage_payloads_by_schema(
+    def _collect_stage_cfg_payload_rows(
         *,
         payloads: dict[int, dict],
-        schema_name: str,
-        default_note: str = "",
-        context: dict | None = None,
+        default_note: str,
         on_item=None,
     ) -> int:
-        schema = _STAGE_PAYLOAD_SCHEMA_REGISTRY.get(str(schema_name))
-        if not isinstance(schema, dict):
-            raise SystemExit(f"Unknown payload schema: {schema_name!r}")
-        records_key = str(schema.get("records_key") or "records")
-        tested_key = str(schema.get("tested_key") or "tested")
-        decode = schema.get("decode")
-        if not callable(decode):
-            raise SystemExit(f"Invalid payload schema decode handler: {schema_name!r}")
-
         def _decode_record(rec: dict):
-            return decode(rec, default_note=str(default_note), context=context)
+            return _decode_payload_schema_cfg_row(rec, default_note=str(default_note), context=None)
 
         return _collect_parallel_payload_records(
             payloads=payloads,
-            records_key=records_key,
-            tested_key=tested_key,
+            records_key="records",
+            tested_key="tested",
             decode_record=_decode_record,
             on_record=on_item,
         )
@@ -3342,9 +3291,8 @@ def main() -> None:
                 seen_keys.add(cfg_key)
             on_row(cfg, row, note)
 
-        return _collect_stage_payloads_by_schema(
+        return _collect_stage_cfg_payload_rows(
             payloads=payloads,
-            schema_name="cfg_rows",
             default_note=str(default_note),
             on_item=_on_item,
         )
@@ -10401,59 +10349,11 @@ def main() -> None:
             )
             return cfg, note
 
-        if args.gate_matrix_stage2:
-            payload_path = Path(str(args.gate_matrix_stage2))
-            out_path_raw = str(args.gate_matrix_out or "").strip()
-            if not out_path_raw:
-                raise SystemExit("--gate-matrix-out is required for gate_matrix stage2 worker mode.")
-            out_path = Path(out_path_raw)
-
-            worker_id, workers = _parse_worker_shard(
-                args.gate_matrix_worker,
-                args.gate_matrix_workers,
-                label="gate_matrix",
-            )
-
-            try:
-                payload = json.loads(payload_path.read_text())
-            except json.JSONDecodeError as exc:
-                raise SystemExit(f"Invalid gate_matrix stage2 payload JSON: {payload_path}") from exc
-            raw_seeds = payload.get("seeds") if isinstance(payload, dict) else None
-            if not isinstance(raw_seeds, list):
-                raise SystemExit(f"gate_matrix stage2 payload missing 'seeds' list: {payload_path}")
-
-            seeds_local: list[tuple[ConfigBundle, str, str]] = []
-            for item in raw_seeds:
-                if not isinstance(item, dict):
-                    continue
-                strat_payload = item.get("strategy") or {}
-                filters_payload = item.get("filters")
-                seed_note = str(item.get("seed_note") or "")
-                family = str(item.get("family") or "")
-                if not isinstance(strat_payload, dict):
-                    continue
-                try:
-                    filters_obj = _filters_from_payload(filters_payload)
-                    strategy_obj = _strategy_from_payload(strat_payload, filters=filters_obj)
-                except Exception:
-                    continue
-                seed_cfg = _mk_bundle(
-                    strategy=strategy_obj,
-                    start=start,
-                    end=end,
-                    bar_size=signal_bar_size,
-                    use_rth=use_rth,
-                    cache_dir=cache_dir,
-                    offline=offline,
-                )
-                seeds_local.append((seed_cfg, seed_note, family))
-
-            bars_sig = _bars_cached(signal_bar_size)
-            total = len(seeds_local) * 2 * 2 * 2 * 2 * 2 * 2 * 2 * len(short_mults)
-            local_total = (total // workers) + (1 if worker_id < (total % workers) else 0)
-
-            stage2_plan_all: list[tuple[ConfigBundle, str, dict]] = []
-            for seed_idx, (seed_cfg, seed_note, family) in enumerate(seeds_local):
+        def _build_stage2_plan(
+            seed_triples: list[tuple[ConfigBundle, str, str]],
+        ) -> list[tuple[ConfigBundle, str, dict]]:
+            plan: list[tuple[ConfigBundle, str, dict]] = []
+            for seed_idx, (seed_cfg, seed_note, family) in enumerate(seed_triples):
                 for perm_on in (False, True):
                     for tick_on in (False, True):
                         for shock_on in (False, True):
@@ -10475,12 +10375,12 @@ def main() -> None:
                                                     regime2_on=regime2_on,
                                                     short_mult=float(short_mult),
                                                 )
-                                                stage2_plan_all.append(
+                                                plan.append(
                                                     (
                                                         cfg,
                                                         note,
                                                         {
-                                                            "seed_idx": seed_idx,
+                                                            "seed_idx": int(seed_idx),
                                                             "perm_on": bool(perm_on),
                                                             "tick_on": bool(tick_on),
                                                             "shock_on": bool(shock_on),
@@ -10492,34 +10392,32 @@ def main() -> None:
                                                         },
                                                     )
                                                 )
+            return plan
 
+        if args.gate_matrix_stage2:
+            payload_path = Path(str(args.gate_matrix_stage2))
+            payload_decoded = _load_worker_stage_payload(
+                schema_name="gate_matrix_stage2",
+                payload_path=payload_path,
+            )
+            seeds_local = list(payload_decoded.get("seed_triples") or [])
+            stage2_plan_all = _build_stage2_plan(seeds_local)
+            total = len(seeds_local) * 2 * 2 * 2 * 2 * 2 * 2 * 2 * len(short_mults)
             if len(stage2_plan_all) != int(total):
                 raise SystemExit(
                     f"gate_matrix stage2 worker internal error: combos={len(stage2_plan_all)} expected={total}"
                 )
-
-            shard_plan = (
-                item for combo_idx, item in enumerate(stage2_plan_all) if (combo_idx % int(workers)) == int(worker_id)
-            )
-            tested, kept = _run_sweep(
-                plan=shard_plan,
+            _run_sharded_stage_worker(
+                stage_label="gate_matrix stage2",
+                worker_raw=args.gate_matrix_worker,
+                workers_raw=args.gate_matrix_workers,
+                out_path_raw=str(args.gate_matrix_out or ""),
+                out_flag_name="gate-matrix-out",
+                plan_all=stage2_plan_all,
                 bars=bars_sig,
-                total=local_total,
-                progress_label=f"gate_matrix stage2 worker {worker_id+1}/{workers}",
                 report_every=100,
-                record_milestones=False,
+                heartbeat_sec=0.0,
             )
-            records: list[dict] = []
-            for _cfg, row, _note, meta_item in kept:
-                if not isinstance(meta_item, dict):
-                    continue
-                rec = dict(meta_item)
-                rec["row"] = row
-                records.append(rec)
-
-            out_payload = {"tested": tested, "kept": len(records), "records": records}
-            write_json(out_path, out_payload, sort_keys=False)
-            print(f"gate_matrix stage2 worker done tested={tested} kept={len(records)} out={out_path}", flush=True)
             return
 
         bars_sig = _bars_cached(signal_bar_size)
@@ -10667,23 +10565,31 @@ def main() -> None:
         # Stage 2: gate cross-product around the shortlist.
         rows: list[dict] = []
         total = len(seeds) * 2 * 2 * 2 * 2 * 2 * 2 * 2 * len(short_mults)
-        if jobs > 1:
-            seeds_payload: list[dict] = []
-            for seed_cfg, _, seed_note, family in seeds:
-                seeds_payload.append(
-                    {
-                        "strategy": _spot_strategy_payload(seed_cfg, meta=meta),
-                        "filters": _filters_payload(seed_cfg.strategy.filters),
-                        "seed_note": str(seed_note),
-                        "family": str(family),
-                    }
-                )
-            payloads = _run_parallel_stage_with_payload(
+        seed_triples = [(seed_cfg, str(seed_note), str(family)) for seed_cfg, _row, seed_note, family in seeds]
+        tested_total = _run_stage_cfg_rows(
+            stage_label="gate_matrix stage2",
+            total=total,
+            jobs_req=int(jobs),
+            bars=bars_sig,
+            report_every=200,
+            on_row=lambda _cfg, row, _note: rows.append(row),
+            serial_plan_builder=lambda: _build_stage2_plan(seed_triples),
+            parallel_payloads_builder=lambda: _run_parallel_stage_with_payload(
                 axis_name="gate_matrix",
                 stage_label="gate_matrix stage2",
                 total=total,
                 jobs=int(jobs),
-                payload={"seeds": seeds_payload},
+                payload={
+                    "seeds": [
+                        {
+                            "strategy": _spot_strategy_payload(seed_cfg, meta=meta),
+                            "filters": _filters_payload(seed_cfg.strategy.filters),
+                            "seed_note": str(seed_note),
+                            "family": str(family),
+                        }
+                        for seed_cfg, _row, seed_note, family in seeds
+                    ],
+                },
                 payload_filename="stage2_payload.json",
                 temp_prefix="tradebot_gate_matrix_",
                 worker_tmp_prefix="tradebot_gate_matrix2_",
@@ -10706,56 +10612,13 @@ def main() -> None:
                 failure_label="gate_matrix stage2 worker",
                 missing_label="gate_matrix stage2",
                 invalid_label="gate_matrix stage2",
-            )
-
-            def _on_gate_matrix_stage2_record(item: tuple[ConfigBundle, dict, str] | None) -> None:
-                if item is None:
-                    return
-                cfg, row, note = item
-                _record_milestone(cfg, row, note)
-                rows.append(row)
-
-            tested_total = _collect_stage_payloads_by_schema(
-                payloads=payloads,
-                schema_name="gate_matrix_stage2_rows",
-                context={"seeds": seeds, "mk_stage2_cfg": _mk_stage2_cfg},
-                on_item=_on_gate_matrix_stage2_record,
-            )
-
+            ),
+            parallel_default_note="gate_matrix stage2",
+            parallel_dedupe_by_milestone_key=False,
+            record_milestones=True,
+        )
+        if jobs > 1:
             run_calls_total += int(tested_total)
-        else:
-            stage2_plan: list[tuple[ConfigBundle, str, dict | None]] = []
-            for seed_cfg, _, seed_note, family in seeds:
-                for perm_on in (False, True):
-                    for tick_on in (False, True):
-                        for shock_on in (False, True):
-                            for riskoff_on in (False, True):
-                                for riskpanic_on in (False, True):
-                                    for riskpop_on in (False, True):
-                                        for regime2_on in (False, True):
-                                            for short_mult in short_mults:
-                                                cfg, note = _mk_stage2_cfg(
-                                                    seed_cfg,
-                                                    seed_note,
-                                                    family,
-                                                    perm_on=perm_on,
-                                                    tick_on=tick_on,
-                                                    shock_on=shock_on,
-                                                    riskoff_on=riskoff_on,
-                                                    riskpanic_on=riskpanic_on,
-                                                    riskpop_on=riskpop_on,
-                                                    regime2_on=regime2_on,
-                                                    short_mult=float(short_mult),
-                                                )
-                                                stage2_plan.append((cfg, note, None))
-            _tested, kept = _run_sweep(
-                plan=stage2_plan,
-                bars=bars_sig,
-                total=total,
-                progress_label="gate_matrix stage2",
-                report_every=200,
-            )
-            rows.extend(row for _cfg, row, _note, _meta in kept)
 
         _print_leaderboards(rows, title="Gate-matrix sweep (bounded cross-product)", top_n=int(args.top))
 
