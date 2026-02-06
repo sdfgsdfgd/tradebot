@@ -125,6 +125,82 @@ def _parse_float(value: object, *, default: float, min_value: float | None = Non
 # endregion
 
 
+# region Spot Strategy Parsing
+def normalize_spot_entry_signal(entry_signal_raw: object | None) -> str:
+    entry_signal = str(entry_signal_raw or "ema").strip().lower()
+    if entry_signal not in ("ema", "orb"):
+        return "ema"
+    return entry_signal
+
+
+def normalize_spot_regime_mode(regime_mode_raw: object | None) -> str:
+    regime_mode = str(regime_mode_raw or "ema").strip().lower()
+    if regime_mode not in ("ema", "supertrend"):
+        return "ema"
+    return regime_mode
+
+
+def normalize_spot_regime2_mode(regime2_mode_raw: object | None) -> str:
+    regime2_mode = str(regime2_mode_raw or "off").strip().lower()
+    if regime2_mode not in ("off", "ema", "supertrend"):
+        return "off"
+    return regime2_mode
+
+
+def resolve_spot_regime_spec(
+    *,
+    bar_size: object,
+    regime_mode_raw: object | None,
+    regime_ema_preset_raw: object | None,
+    regime_bar_size_raw: object | None,
+) -> tuple[str, str | None, str, bool]:
+    base_bar_size = str(bar_size)
+    regime_mode = normalize_spot_regime_mode(regime_mode_raw)
+    regime_preset = str(regime_ema_preset_raw or "").strip() or None
+    regime_bar_size = str(regime_bar_size_raw or "").strip()
+    if not regime_bar_size or regime_bar_size.lower() in ("same", "default"):
+        regime_bar_size = base_bar_size
+    if regime_mode == "supertrend":
+        use_mtf = str(regime_bar_size) != base_bar_size
+    else:
+        use_mtf = bool(regime_preset) and str(regime_bar_size) != base_bar_size
+    return regime_mode, regime_preset, regime_bar_size, use_mtf
+
+
+def resolve_spot_regime2_spec(
+    *,
+    bar_size: object,
+    regime2_mode_raw: object | None,
+    regime2_ema_preset_raw: object | None,
+    regime2_bar_size_raw: object | None,
+) -> tuple[str, str | None, str, bool]:
+    base_bar_size = str(bar_size)
+    regime2_mode = normalize_spot_regime2_mode(regime2_mode_raw)
+    regime2_preset = str(regime2_ema_preset_raw or "").strip() or None
+    if regime2_mode == "ema" and not regime2_preset:
+        regime2_mode = "off"
+    regime2_bar_size = str(regime2_bar_size_raw or "").strip()
+    if not regime2_bar_size or regime2_bar_size.lower() in ("same", "default"):
+        regime2_bar_size = base_bar_size
+    if regime2_mode == "supertrend":
+        use_mtf = str(regime2_bar_size) != base_bar_size
+    else:
+        use_mtf = bool(regime2_preset) and str(regime2_bar_size) != base_bar_size
+    return regime2_mode, regime2_preset, regime2_bar_size, use_mtf
+
+
+def spot_regime_apply_matches_direction(*, apply_to_raw: object | None, entry_dir: str | None) -> bool:
+    apply_to = str(apply_to_raw or "both").strip().lower()
+    if apply_to == "longs":
+        return str(entry_dir) == "up"
+    if apply_to == "shorts":
+        return str(entry_dir) == "down"
+    return True
+
+
+# endregion
+
+
 # region Shock Gate / Engine Factory
 def normalize_shock_gate_mode(filters: Mapping[str, object] | object | None) -> str:
     raw = _filters_get(filters, "shock_gate_mode")
@@ -554,10 +630,11 @@ def spot_calc_signed_qty(
     shock: bool | None,
     shock_dir: str | None,
     shock_atr_pct: float | None,
-    riskoff: bool,
-    risk_dir: str | None,
-    riskpanic: bool,
-    riskpop: bool,
+    riskoff: bool = False,
+    risk_dir: str | None = None,
+    riskpanic: bool = False,
+    riskpop: bool = False,
+    risk: RiskOverlaySnapshot | None = None,
     equity_ref: float,
     cash_ref: float | None,
 ) -> int:
@@ -595,6 +672,7 @@ def spot_calc_signed_qty(
     if float(entry_price) <= 0:
         return 0
 
+    cap_pct = float(spot_max_notional_pct)
     desired_qty = 0
     if sizing_mode == "notional_pct":
         if spot_notional_pct > 0 and float(equity_ref) > 0:
@@ -617,6 +695,7 @@ def spot_calc_signed_qty(
                 riskoff_mode,
                 riskoff_long_factor,
                 riskoff_short_factor,
+                riskpanic_long_factor,
                 riskpanic_short_factor,
                 riskpop_long_factor,
                 riskpop_short_factor,
@@ -627,6 +706,54 @@ def spot_calc_signed_qty(
                     if float(riskoff_long_factor) == 0:
                         return 0
                     risk_dollars *= float(riskoff_long_factor)
+                if bool(riskpanic):
+                    if float(riskpanic_long_factor) == 0:
+                        return 0
+                    risk_dollars *= float(riskpanic_long_factor)
+                elif filters is not None and risk is not None:
+                    scale_mode = str(_filters_get(filters, "riskpanic_long_scale_mode") or "off").strip().lower()
+                    if scale_mode in ("linear", "lin", "delta", "linear_delta", "linear_tr_delta"):
+                        tr_delta = getattr(risk, "tr_median_delta_pct", None)
+                        gap_ratio = getattr(risk, "neg_gap_ratio", None)
+                        if tr_delta is not None and gap_ratio is not None:
+                            try:
+                                gap_min = float(_filters_get(filters, "riskpanic_neg_gap_ratio_min") or 0.0)
+                            except (TypeError, ValueError):
+                                gap_min = 0.0
+                            gap_min = float(max(0.0, min(1.0, gap_min)))
+                            try:
+                                gap_ratio_f = float(gap_ratio)
+                            except (TypeError, ValueError):
+                                gap_ratio_f = 0.0
+                            gap_ratio_f = float(max(0.0, min(1.0, gap_ratio_f)))
+                            gap_strength = 0.0
+                            if gap_min < 1.0:
+                                gap_strength = (gap_ratio_f - gap_min) / (1.0 - gap_min)
+                            gap_strength = float(max(0.0, min(1.0, gap_strength)))
+
+                            raw_delta_max = _filters_get(filters, "riskpanic_long_scale_tr_delta_max_pct")
+                            if raw_delta_max is None:
+                                raw_delta_max = _filters_get(filters, "riskpanic_tr5_med_delta_min_pct")
+                            try:
+                                delta_max = float(raw_delta_max) if raw_delta_max is not None else 0.0
+                            except (TypeError, ValueError):
+                                delta_max = 0.0
+                            if delta_max <= 0:
+                                delta_max = 1.0
+                            try:
+                                delta_f = float(tr_delta)
+                            except (TypeError, ValueError):
+                                delta_f = 0.0
+                            delta_strength = float(max(0.0, min(1.0, max(0.0, delta_f) / float(delta_max))))
+
+                            strength = float(gap_strength) * float(delta_strength)
+                            if strength > 0:
+                                base_factor = float(max(0.0, min(1.0, float(riskpanic_long_factor))))
+                                eff = 1.0 - (float(strength) * (1.0 - float(base_factor)))
+                                eff = float(max(0.0, min(1.0, eff)))
+                                if eff <= 0:
+                                    return 0
+                                risk_dollars *= float(eff)
                 if bool(riskpop):
                     if float(riskpop_long_factor) == 0:
                         return 0
@@ -677,7 +804,19 @@ def spot_calc_signed_qty(
                     min_mult = float(max(0.0, min(1.0, min_mult)))
                     scale = min(1.0, float(target) / float(shock_atr_pct))
                     scale = float(max(min_mult, min(1.0, scale)))
-                    risk_dollars *= float(scale)
+                    apply_to = _filters_get(filters, "shock_risk_scale_apply_to") or "risk"
+                    apply_to = str(apply_to).strip().lower()
+                    if apply_to in ("cap", "cap_only", "cap-only", "notional_cap", "max_notional", "notional_pct_cap"):
+                        apply_to = "cap"
+                    elif apply_to in ("both", "all", "risk_and_cap", "cap_and_risk", "cap+risk"):
+                        apply_to = "both"
+                    else:
+                        apply_to = "risk"
+
+                    if apply_to in ("risk", "both"):
+                        risk_dollars *= float(scale)
+                    if apply_to in ("cap", "both"):
+                        cap_pct *= float(scale)
 
             if per_share_risk > 1e-9 and risk_dollars > 0:
                 desired_qty = int(risk_dollars / per_share_risk)
@@ -685,8 +824,8 @@ def spot_calc_signed_qty(
     if desired_qty <= 0:
         desired_qty = lot * quantity_mult
 
-    if spot_max_notional_pct > 0 and float(equity_ref) > 0:
-        cap_qty = int((float(equity_ref) * float(spot_max_notional_pct)) / float(entry_price))
+    if cap_pct > 0 and float(equity_ref) > 0:
+        cap_qty = int((float(equity_ref) * float(cap_pct)) / float(entry_price))
         desired_qty = min(int(desired_qty), max(0, int(cap_qty)))
 
     if raw_action == "BUY" and cash_ref is not None and float(cash_ref) > 0:
@@ -1912,9 +2051,10 @@ class TrPctRiskOverlayEngine:
         ):
             self._riskpanic_tr_hist = deque(maxlen=self._riskpanic_lookback)
             self._riskpanic_neg_gap_hist = deque(maxlen=self._riskpanic_lookback)
+        # Track TR-median deltas whenever the overlay is enabled (not only when delta gating is active).
         self._riskpanic_tr_med_hist: deque[float] | None = (
             deque(maxlen=max(2, int(self._riskpanic_tr_med_delta_lookback) + 1))
-            if self._riskpanic_tr_med_delta_min_pct is not None
+            if self._riskpanic_tr_hist is not None
             else None
         )
         self._riskpop_tr_hist: deque[float] | None = None
@@ -1928,7 +2068,7 @@ class TrPctRiskOverlayEngine:
             self._riskpop_pos_gap_hist = deque(maxlen=self._riskpop_lookback)
         self._riskpop_tr_med_hist: deque[float] | None = (
             deque(maxlen=max(2, int(self._riskpop_tr_med_delta_lookback) + 1))
-            if self._riskpop_tr_med_delta_min_pct is not None
+            if self._riskpop_tr_hist is not None
             else None
         )
 
@@ -2232,8 +2372,8 @@ def build_tr_pct_risk_overlay_engine(
 
 def risk_overlay_policy_from_filters(
     filters: Mapping[str, object] | object | None,
-) -> tuple[str, float, float, float, float, float]:
-    """Return (riskoff_mode, riskoff_long_factor, riskoff_short_factor, riskpanic_short_factor, riskpop_long_factor, riskpop_short_factor)."""
+) -> tuple[str, float, float, float, float, float, float]:
+    """Return (riskoff_mode, riskoff_long_factor, riskoff_short_factor, riskpanic_long_factor, riskpanic_short_factor, riskpop_long_factor, riskpop_short_factor)."""
     mode = str(_filters_get(filters, "riskoff_mode") or "hygiene").strip().lower()
     if mode not in ("hygiene", "directional"):
         mode = "hygiene"
@@ -2244,6 +2384,9 @@ def risk_overlay_policy_from_filters(
     riskoff_long = _parse_float(_filters_get(filters, "riskoff_long_risk_mult_factor"), default=1.0)
     if riskoff_long < 0:
         riskoff_long = 1.0
+    riskpanic_long = _parse_float(_filters_get(filters, "riskpanic_long_risk_mult_factor"), default=1.0)
+    if riskpanic_long < 0:
+        riskpanic_long = 1.0
     riskpanic_short = _parse_float(_filters_get(filters, "riskpanic_short_risk_mult_factor"), default=1.0)
     if riskpanic_short < 0:
         riskpanic_short = 1.0
@@ -2259,6 +2402,7 @@ def risk_overlay_policy_from_filters(
         str(mode),
         float(riskoff_long),
         float(riskoff_short),
+        float(riskpanic_long),
         float(riskpanic_short),
         float(riskpop_long),
         float(riskpop_short),

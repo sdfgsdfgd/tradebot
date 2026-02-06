@@ -330,6 +330,25 @@ def _filters_payload(filters: FiltersConfig | None) -> dict | None:
             detector = "atr_ratio"
         out["shock_detector"] = detector
 
+        scale_detector = raw.get("shock_scale_detector")
+        if scale_detector is not None:
+            scale_detector = str(scale_detector).strip().lower()
+        if scale_detector in ("", "0", "false", "none", "null", "off"):
+            scale_detector = None
+        if scale_detector is not None:
+            if scale_detector in ("daily", "daily_atr", "daily_atr_pct", "daily_atr14", "daily_atr%"):
+                scale_detector = "daily_atr_pct"
+            elif scale_detector in ("drawdown", "daily_drawdown", "daily-dd", "dd", "peak_dd", "peak_drawdown"):
+                scale_detector = "daily_drawdown"
+            elif scale_detector in ("tr_ratio", "tr-ratio", "tr_ratio_pct", "tr_ratio%"):
+                scale_detector = "tr_ratio"
+            elif scale_detector in ("atr_ratio", "ratio", "atr-ratio", "atr_ratio_pct", "atr_ratio%"):
+                scale_detector = "atr_ratio"
+            else:
+                scale_detector = None
+        if scale_detector is not None:
+            out["shock_scale_detector"] = scale_detector
+
         out["shock_direction_source"] = str(raw.get("shock_direction_source") or "regime").strip().lower()
         out["shock_direction_lookback"] = int(raw.get("shock_direction_lookback") or 2)
         if bool(raw.get("shock_regime_override_dir")):
@@ -344,6 +363,19 @@ def _filters_payload(filters: FiltersConfig | None) -> dict | None:
                 out[key] = raw[key]
         if raw.get("shock_risk_scale_target_atr_pct") is not None:
             out["shock_risk_scale_min_mult"] = float(raw.get("shock_risk_scale_min_mult") or 0.2)
+            apply_to = raw.get("shock_risk_scale_apply_to")
+            if apply_to is not None:
+                apply_to = str(apply_to).strip().lower()
+            if apply_to in ("", "0", "false", "none", "null"):
+                apply_to = None
+            if apply_to in ("cap", "notional_cap", "max_notional", "cap_only", "cap-only"):
+                apply_to = "cap"
+            elif apply_to in ("both", "all", "cap_and_risk", "risk_and_cap", "cap+risk"):
+                apply_to = "both"
+            else:
+                apply_to = "risk"
+            if apply_to != "risk":
+                out["shock_risk_scale_apply_to"] = str(apply_to)
         for key in (
             "shock_short_risk_mult_factor",
             "shock_long_risk_mult_factor",
@@ -354,17 +386,17 @@ def _filters_payload(filters: FiltersConfig | None) -> dict | None:
             if raw.get(key) is not None:
                 out[key] = raw[key]
 
-        if detector == "daily_atr_pct":
+        if detector == "daily_atr_pct" or scale_detector == "daily_atr_pct":
             out["shock_daily_atr_period"] = int(raw.get("shock_daily_atr_period") or 14)
             out["shock_daily_on_atr_pct"] = float(raw.get("shock_daily_on_atr_pct") or 0.0)
             out["shock_daily_off_atr_pct"] = float(raw.get("shock_daily_off_atr_pct") or 0.0)
             if raw.get("shock_daily_on_tr_pct") is not None:
                 out["shock_daily_on_tr_pct"] = float(raw.get("shock_daily_on_tr_pct") or 0.0)
-        elif detector == "daily_drawdown":
+        if detector == "daily_drawdown" or scale_detector == "daily_drawdown":
             out["shock_drawdown_lookback_days"] = int(raw.get("shock_drawdown_lookback_days") or 20)
             out["shock_on_drawdown_pct"] = float(raw.get("shock_on_drawdown_pct") or 0.0)
             out["shock_off_drawdown_pct"] = float(raw.get("shock_off_drawdown_pct") or 0.0)
-        else:
+        if detector in ("atr_ratio", "tr_ratio") or scale_detector in ("atr_ratio", "tr_ratio"):
             # "atr_ratio" and "tr_ratio" share this main ratio knob family (TR uses these as fallback too).
             out["shock_atr_fast_period"] = int(raw.get("shock_atr_fast_period") or 7)
             out["shock_atr_slow_period"] = int(raw.get("shock_atr_slow_period") or 50)
@@ -377,8 +409,12 @@ def _filters_payload(filters: FiltersConfig | None) -> dict | None:
     if raw.get("riskoff_tr5_med_pct") is not None:
         out["riskoff_tr5_med_pct"] = float(raw.get("riskoff_tr5_med_pct") or 0.0)
         out["riskoff_tr5_lookback_days"] = int(raw.get("riskoff_tr5_lookback_days") or 5)
-        out["riskoff_short_risk_mult_factor"] = float(raw.get("riskoff_short_risk_mult_factor") or 1.0)
-        out["riskoff_long_risk_mult_factor"] = float(raw.get("riskoff_long_risk_mult_factor") or 1.0)
+        out["riskoff_short_risk_mult_factor"] = float(
+            1.0 if raw.get("riskoff_short_risk_mult_factor") is None else raw.get("riskoff_short_risk_mult_factor")
+        )
+        out["riskoff_long_risk_mult_factor"] = float(
+            1.0 if raw.get("riskoff_long_risk_mult_factor") is None else raw.get("riskoff_long_risk_mult_factor")
+        )
         overlay_any = True
 
     if raw.get("riskpanic_tr5_med_pct") is not None and raw.get("riskpanic_neg_gap_ratio_min") is not None:
@@ -390,7 +426,32 @@ def _filters_payload(filters: FiltersConfig | None) -> dict | None:
         if raw.get("riskpanic_tr5_med_delta_min_pct") is not None:
             out["riskpanic_tr5_med_delta_min_pct"] = float(raw.get("riskpanic_tr5_med_delta_min_pct") or 0.0)
             out["riskpanic_tr5_med_delta_lookback_days"] = int(raw.get("riskpanic_tr5_med_delta_lookback_days") or 1)
-        out["riskpanic_short_risk_mult_factor"] = float(raw.get("riskpanic_short_risk_mult_factor") or 1.0)
+        out["riskpanic_long_risk_mult_factor"] = float(
+            1.0
+            if raw.get("riskpanic_long_risk_mult_factor") is None
+            else raw.get("riskpanic_long_risk_mult_factor")
+        )
+        scale_mode = str(raw.get("riskpanic_long_scale_mode") or "off").strip().lower()
+        if scale_mode in ("linear", "lin", "delta", "linear_delta", "linear_tr_delta"):
+            scale_mode = "linear"
+        elif scale_mode in ("", "0", "false", "none", "null", "off"):
+            scale_mode = "off"
+        else:
+            scale_mode = "off"
+        if scale_mode != "off":
+            out["riskpanic_long_scale_mode"] = scale_mode
+            if raw.get("riskpanic_long_scale_tr_delta_max_pct") is not None:
+                try:
+                    delta_max = float(raw.get("riskpanic_long_scale_tr_delta_max_pct"))
+                except (TypeError, ValueError):
+                    delta_max = 0.0
+                if delta_max > 0:
+                    out["riskpanic_long_scale_tr_delta_max_pct"] = float(delta_max)
+        out["riskpanic_short_risk_mult_factor"] = float(
+            1.0
+            if raw.get("riskpanic_short_risk_mult_factor") is None
+            else raw.get("riskpanic_short_risk_mult_factor")
+        )
         overlay_any = True
 
     if raw.get("riskpop_tr5_med_pct") is not None and raw.get("riskpop_pos_gap_ratio_min") is not None:
@@ -402,8 +463,12 @@ def _filters_payload(filters: FiltersConfig | None) -> dict | None:
         if raw.get("riskpop_tr5_med_delta_min_pct") is not None:
             out["riskpop_tr5_med_delta_min_pct"] = float(raw.get("riskpop_tr5_med_delta_min_pct") or 0.0)
             out["riskpop_tr5_med_delta_lookback_days"] = int(raw.get("riskpop_tr5_med_delta_lookback_days") or 1)
-        out["riskpop_long_risk_mult_factor"] = float(raw.get("riskpop_long_risk_mult_factor") or 1.0)
-        out["riskpop_short_risk_mult_factor"] = float(raw.get("riskpop_short_risk_mult_factor") or 1.0)
+        out["riskpop_long_risk_mult_factor"] = float(
+            1.0 if raw.get("riskpop_long_risk_mult_factor") is None else raw.get("riskpop_long_risk_mult_factor")
+        )
+        out["riskpop_short_risk_mult_factor"] = float(
+            1.0 if raw.get("riskpop_short_risk_mult_factor") is None else raw.get("riskpop_short_risk_mult_factor")
+        )
         overlay_any = True
 
     if overlay_any:
@@ -657,6 +722,7 @@ def _apply_milestone_base(
         "spot_max_qty",
         "exit_on_signal_flip",
         "flip_exit_mode",
+        "flip_exit_gate_mode",
         "flip_exit_min_hold_bars",
         "flip_exit_only_if_profit",
         "max_open_trades",
@@ -901,8 +967,39 @@ def main() -> None:
             "shock_alpha_refine",
             "shock_velocity_refine",
             "shock_velocity_refine_wide",
+            "shock_throttle_refine",
+            "shock_throttle_tr_ratio",
+            "shock_throttle_drawdown",
+            "riskpanic_micro",
+            "exit_pivot",
         ),
         help="Run one axis sweep (or all in sequence)",
+    )
+    parser.add_argument(
+        "--risk-overlays-riskoff-trs",
+        default=None,
+        help="Override risk_overlays riskoff TR pct median thresholds (comma-separated floats).",
+    )
+    parser.add_argument(
+        "--risk-overlays-riskpanic-trs",
+        default=None,
+        help="Override risk_overlays riskpanic TR pct median thresholds (comma-separated floats).",
+    )
+    parser.add_argument(
+        "--risk-overlays-riskpanic-long-factors",
+        default=None,
+        help="risk_overlays: sweep riskpanic_long_risk_mult_factor (comma-separated floats, e.g. 1,0.8,0.6,0.4).",
+    )
+    parser.add_argument(
+        "--risk-overlays-riskpop-trs",
+        default=None,
+        help="Override risk_overlays riskpop TR pct median thresholds (comma-separated floats).",
+    )
+    parser.add_argument(
+        "--risk-overlays-skip-pop",
+        action="store_true",
+        default=False,
+        help="risk_overlays: skip riskpop stage (riskoff+riskpanic only).",
     )
     # Internal flags (used by combo_full/gate_matrix parallel sharding).
     parser.add_argument("--gate-matrix-stage2", default=None, help=argparse.SUPPRESS)
@@ -4247,9 +4344,54 @@ def main() -> None:
         """Risk-off / risk-panic / risk-pop TR% overlays (TR median + gap pressure + optional TR-velocity)."""
         nonlocal run_calls_total
         bars_sig = _bars_cached(signal_bar_size)
+        skip_pop = bool(getattr(args, "risk_overlays_skip_pop", False))
+
+        def _parse_tr_thresholds(flag: str, raw: object | None) -> list[float] | None:
+            s = str(raw or "").strip()
+            if not s:
+                return None
+            out: list[float] = []
+            for part in s.split(","):
+                part = str(part or "").strip()
+                if not part:
+                    continue
+                try:
+                    v = float(part)
+                except (TypeError, ValueError) as exc:
+                    raise SystemExit(f"Invalid {flag}: {part!r}") from exc
+                if v <= 0:
+                    continue
+                out.append(float(v))
+            if not out:
+                return None
+            out = sorted(set(out))
+            return out
+
+        def _parse_nonneg_factors(flag: str, raw: object | None) -> list[float] | None:
+            s = str(raw or "").strip()
+            if not s:
+                return None
+            out: list[float] = []
+            for part in s.split(","):
+                part = str(part or "").strip()
+                if not part:
+                    continue
+                try:
+                    v = float(part)
+                except (TypeError, ValueError) as exc:
+                    raise SystemExit(f"Invalid {flag}: {part!r}") from exc
+                if v < 0:
+                    continue
+                out.append(float(v))
+            if not out:
+                return None
+            return sorted(set(out))
 
         # Risk-off: TR% median above threshold (no gap condition).
         riskoff_trs = [6.0, 7.0, 8.0, 9.0, 10.0, 12.0]
+        riskoff_trs_over = _parse_tr_thresholds("--risk-overlays-riskoff-trs", args.risk_overlays_riskoff_trs)
+        if riskoff_trs_over is not None:
+            riskoff_trs = riskoff_trs_over
         riskoff_lbs = [3, 5, 7, 10]
         riskoff_modes = ["hygiene", "directional"]
         # Optional late-day cutoff (ET hour). When set, this only matters on risk-off days.
@@ -4258,6 +4400,15 @@ def main() -> None:
 
         # Risk-panic: TR% median + negative gap ratio.
         panic_trs = [8.0, 9.0, 10.0, 12.0]
+        panic_trs_over = _parse_tr_thresholds("--risk-overlays-riskpanic-trs", args.risk_overlays_riskpanic_trs)
+        if panic_trs_over is not None:
+            panic_trs = panic_trs_over
+        panic_long_factors_raw = _parse_nonneg_factors(
+            "--risk-overlays-riskpanic-long-factors", args.risk_overlays_riskpanic_long_factors
+        )
+        panic_long_factors: list[float | None] = [None]
+        if panic_long_factors_raw is not None:
+            panic_long_factors = [float(v) for v in panic_long_factors_raw]
         neg_ratios = [0.5, 0.6, 0.8]
         panic_lbs = [5, 10]
         panic_short_factors = [1.0, 0.5, 0.2, 0.0]
@@ -4267,8 +4418,10 @@ def main() -> None:
         # Optional TR median "velocity": require TRmed(today)-TRmed(prev) >= delta, or over a wider lookback.
         panic_tr_delta_variants: list[tuple[float | None, int, str]] = [
             (None, 1, "trΔ=off"),
+            (0.25, 1, "trΔ>=0.25@1d"),
             (0.5, 1, "trΔ>=0.5@1d"),
             (0.5, 5, "trΔ>=0.5@5d"),
+            (0.75, 1, "trΔ>=0.75@1d"),
             (1.0, 1, "trΔ>=1.0@1d"),
             (1.0, 5, "trΔ>=1.0@5d"),
         ]
@@ -4276,6 +4429,7 @@ def main() -> None:
             len(panic_trs)
             * len(neg_ratios)
             * len(panic_lbs)
+            * len(panic_long_factors)
             * len(panic_short_factors)
             * len(panic_cutoffs_et)
             * len(panic_neg_gap_abs_pcts)
@@ -4284,6 +4438,9 @@ def main() -> None:
 
         # Risk-pop: TR% median + positive gap ratio.
         pop_trs = [7.0, 8.0, 9.0, 10.0, 12.0]
+        pop_trs_over = _parse_tr_thresholds("--risk-overlays-riskpop-trs", args.risk_overlays_riskpop_trs)
+        if pop_trs_over is not None:
+            pop_trs = pop_trs_over
         pos_ratios = [0.5, 0.6, 0.8]
         pop_lbs = [5, 10]
         pop_long_factors = [0.6, 0.8, 1.0, 1.2, 1.5]
@@ -4310,6 +4467,8 @@ def main() -> None:
             * len(pop_pos_gap_abs_pcts)
             * len(pop_tr_delta_variants)
         )
+        if skip_pop:
+            pop_total = 0
         total = riskoff_total + panic_total + pop_total
 
         if args.risk_overlays_worker is not None:
@@ -4392,103 +4551,124 @@ def main() -> None:
             for tr_med in panic_trs:
                 for neg_ratio in neg_ratios:
                     for lb in panic_lbs:
-                        for short_factor in panic_short_factors:
-                            for cutoff in panic_cutoffs_et:
-                                for abs_gap in panic_neg_gap_abs_pcts:
-                                    for tr_delta_min, tr_delta_lb, tr_delta_note in panic_tr_delta_variants:
-                                        assigned = (combo_idx % workers) == worker_id
-                                        combo_idx += 1
-                                        if not assigned:
-                                            continue
-                                        tested += 1
-                                        if tested % report_every == 0 or tested == local_total:
-                                            _progress("riskpanic")
+                        for long_factor in panic_long_factors:
+                            for short_factor in panic_short_factors:
+                                for cutoff in panic_cutoffs_et:
+                                    for abs_gap in panic_neg_gap_abs_pcts:
+                                        for tr_delta_min, tr_delta_lb, tr_delta_note in panic_tr_delta_variants:
+                                            assigned = (combo_idx % workers) == worker_id
+                                            combo_idx += 1
+                                            if not assigned:
+                                                continue
+                                            tested += 1
+                                            if tested % report_every == 0 or tested == local_total:
+                                                _progress("riskpanic")
 
-                                        overrides = {
-                                            "riskoff_tr5_med_pct": None,
-                                            "riskpanic_tr5_med_pct": float(tr_med),
-                                            "riskpanic_neg_gap_ratio_min": float(neg_ratio),
-                                            "riskpanic_neg_gap_abs_pct_min": float(abs_gap) if abs_gap is not None else None,
-                                            "riskpanic_lookback_days": int(lb),
-                                            "riskpanic_tr5_med_delta_min_pct": (
-                                                float(tr_delta_min) if tr_delta_min is not None else None
-                                            ),
-                                            "riskpanic_tr5_med_delta_lookback_days": int(tr_delta_lb),
-                                            "riskpanic_short_risk_mult_factor": float(short_factor),
-                                            "risk_entry_cutoff_hour_et": int(cutoff) if cutoff is not None else None,
-                                        }
-                                        f = _mk_filters(overrides=overrides)
-                                        cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
-                                        row = _run_cfg(
-                                            cfg=cfg,
-                                            bars=bars_sig,
-                                            regime_bars=_regime_bars_for(cfg),
-                                            regime2_bars=_regime2_bars_for(cfg),
-                                        )
-                                        if not row:
-                                            continue
-                                        cut_note = "-" if cutoff is None else f"cutoff<{cutoff:02d} ET"
-                                        gap_note = "-" if abs_gap is None else f"|gap|>={abs_gap*100:0.0f}%"
-                                        note = (
-                                            f"riskpanic TRmed{lb}>={tr_med:g} neg_gap>={neg_ratio:g} {gap_note} "
-                                            f"{tr_delta_note} short_factor={short_factor:g} {cut_note}"
-                                        )
-                                        records.append({"overrides": overrides, "note": note, "row": row})
+                                            overrides = {
+                                                "riskoff_tr5_med_pct": None,
+                                                "riskpanic_tr5_med_pct": float(tr_med),
+                                                "riskpanic_neg_gap_ratio_min": float(neg_ratio),
+                                                "riskpanic_neg_gap_abs_pct_min": (
+                                                    float(abs_gap) if abs_gap is not None else None
+                                                ),
+                                                "riskpanic_lookback_days": int(lb),
+                                                "riskpanic_tr5_med_delta_min_pct": (
+                                                    float(tr_delta_min) if tr_delta_min is not None else None
+                                                ),
+                                                "riskpanic_tr5_med_delta_lookback_days": int(tr_delta_lb),
+                                                "riskpanic_short_risk_mult_factor": float(short_factor),
+                                                "risk_entry_cutoff_hour_et": int(cutoff) if cutoff is not None else None,
+                                            }
+                                            if long_factor is not None:
+                                                overrides["riskpanic_long_risk_mult_factor"] = float(long_factor)
+                                            # v39-style: pre-panic continuous scaling (requires TR-velocity gate + long shrink).
+                                            if (
+                                                long_factor is not None
+                                                and float(long_factor) < 1.0
+                                                and tr_delta_min is not None
+                                            ):
+                                                overrides["riskpanic_long_scale_mode"] = "linear"
+                                            f = _mk_filters(overrides=overrides)
+                                            cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
+                                            row = _run_cfg(
+                                                cfg=cfg,
+                                                bars=bars_sig,
+                                                regime_bars=_regime_bars_for(cfg),
+                                                regime2_bars=_regime2_bars_for(cfg),
+                                            )
+                                            if not row:
+                                                continue
+                                            cut_note = "-" if cutoff is None else f"cutoff<{cutoff:02d} ET"
+                                            gap_note = "-" if abs_gap is None else f"|gap|>={abs_gap*100:0.0f}%"
+                                            long_note = "" if long_factor is None else f" long_factor={long_factor:g}"
+                                            scale_note = ""
+                                            if overrides.get("riskpanic_long_scale_mode") == "linear":
+                                                scale_note = " scale=lin"
+                                            note = (
+                                                f"riskpanic TRmed{lb}>={tr_med:g} neg_gap>={neg_ratio:g} {gap_note} "
+                                                f"{tr_delta_note}{scale_note} short_factor={short_factor:g}{long_note} {cut_note}"
+                                            )
+                                            records.append({"overrides": overrides, "note": note, "row": row})
 
-            for tr_med in pop_trs:
-                for pos_ratio in pos_ratios:
-                    for lb in pop_lbs:
-                        for long_factor in pop_long_factors:
-                            for short_factor in pop_short_factors:
-                                for cutoff in pop_cutoffs_et:
-                                    for mode in pop_modes:
-                                        for abs_gap in pop_pos_gap_abs_pcts:
-                                            for tr_delta_min, tr_delta_lb, tr_delta_note in pop_tr_delta_variants:
-                                                assigned = (combo_idx % workers) == worker_id
-                                                combo_idx += 1
-                                                if not assigned:
-                                                    continue
-                                                tested += 1
-                                                if tested % report_every == 0 or tested == local_total:
-                                                    _progress("riskpop")
+            if not skip_pop:
+                for tr_med in pop_trs:
+                    for pos_ratio in pos_ratios:
+                        for lb in pop_lbs:
+                            for long_factor in pop_long_factors:
+                                for short_factor in pop_short_factors:
+                                    for cutoff in pop_cutoffs_et:
+                                        for mode in pop_modes:
+                                            for abs_gap in pop_pos_gap_abs_pcts:
+                                                for tr_delta_min, tr_delta_lb, tr_delta_note in pop_tr_delta_variants:
+                                                    assigned = (combo_idx % workers) == worker_id
+                                                    combo_idx += 1
+                                                    if not assigned:
+                                                        continue
+                                                    tested += 1
+                                                    if tested % report_every == 0 or tested == local_total:
+                                                        _progress("riskpop")
 
-                                                overrides = {
-                                                    "riskoff_tr5_med_pct": None,
-                                                    "riskpanic_tr5_med_pct": None,
-                                                    "riskpanic_neg_gap_ratio_min": None,
-                                                    "riskpop_tr5_med_pct": float(tr_med),
-                                                    "riskpop_pos_gap_ratio_min": float(pos_ratio),
-                                                    "riskpop_pos_gap_abs_pct_min": (
-                                                        float(abs_gap) if abs_gap is not None else None
-                                                    ),
-                                                    "riskpop_lookback_days": int(lb),
-                                                    "riskpop_tr5_med_delta_min_pct": (
-                                                        float(tr_delta_min) if tr_delta_min is not None else None
-                                                    ),
-                                                    "riskpop_tr5_med_delta_lookback_days": int(tr_delta_lb),
-                                                    "riskpop_long_risk_mult_factor": float(long_factor),
-                                                    "riskpop_short_risk_mult_factor": float(short_factor),
-                                                    "risk_entry_cutoff_hour_et": int(cutoff) if cutoff is not None else None,
-                                                    "riskoff_mode": str(mode),
-                                                }
-                                                f = _mk_filters(overrides=overrides)
-                                                cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
-                                                row = _run_cfg(
-                                                    cfg=cfg,
-                                                    bars=bars_sig,
-                                                    regime_bars=_regime_bars_for(cfg),
-                                                    regime2_bars=_regime2_bars_for(cfg),
-                                                )
-                                                if not row:
-                                                    continue
-                                                cut_note = "-" if cutoff is None else f"cutoff<{cutoff:02d} ET"
-                                                gap_note = "-" if abs_gap is None else f"|gap|>={abs_gap*100:0.0f}%"
-                                                note = (
-                                                    f"riskpop TRmed{lb}>={tr_med:g} pos_gap>={pos_ratio:g} {gap_note} "
-                                                    f"{tr_delta_note} mode={mode} long_factor={long_factor:g} "
-                                                    f"short_factor={short_factor:g} {cut_note}"
-                                                )
-                                                records.append({"overrides": overrides, "note": note, "row": row})
+                                                    overrides = {
+                                                        "riskoff_tr5_med_pct": None,
+                                                        "riskpanic_tr5_med_pct": None,
+                                                        "riskpanic_neg_gap_ratio_min": None,
+                                                        "riskpop_tr5_med_pct": float(tr_med),
+                                                        "riskpop_pos_gap_ratio_min": float(pos_ratio),
+                                                        "riskpop_pos_gap_abs_pct_min": (
+                                                            float(abs_gap) if abs_gap is not None else None
+                                                        ),
+                                                        "riskpop_lookback_days": int(lb),
+                                                        "riskpop_tr5_med_delta_min_pct": (
+                                                            float(tr_delta_min) if tr_delta_min is not None else None
+                                                        ),
+                                                        "riskpop_tr5_med_delta_lookback_days": int(tr_delta_lb),
+                                                        "riskpop_long_risk_mult_factor": float(long_factor),
+                                                        "riskpop_short_risk_mult_factor": float(short_factor),
+                                                        "risk_entry_cutoff_hour_et": (
+                                                            int(cutoff) if cutoff is not None else None
+                                                        ),
+                                                        "riskoff_mode": str(mode),
+                                                    }
+                                                    f = _mk_filters(overrides=overrides)
+                                                    cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
+                                                    row = _run_cfg(
+                                                        cfg=cfg,
+                                                        bars=bars_sig,
+                                                        regime_bars=_regime_bars_for(cfg),
+                                                        regime2_bars=_regime2_bars_for(cfg),
+                                                    )
+                                                    if not row:
+                                                        continue
+                                                    cut_note = "-" if cutoff is None else f"cutoff<{cutoff:02d} ET"
+                                                    gap_note = (
+                                                        "-" if abs_gap is None else f"|gap|>={abs_gap*100:0.0f}%"
+                                                    )
+                                                    note = (
+                                                        f"riskpop TRmed{lb}>={tr_med:g} pos_gap>={pos_ratio:g} {gap_note} "
+                                                        f"{tr_delta_note} mode={mode} long_factor={long_factor:g} "
+                                                        f"short_factor={short_factor:g} {cut_note}"
+                                                    )
+                                                    records.append({"overrides": overrides, "note": note, "row": row})
 
             if combo_idx != total:
                 raise SystemExit(f"risk_overlays worker internal error: combos={combo_idx} expected={total}")
@@ -4700,25 +4880,25 @@ def main() -> None:
             for tr_med in panic_trs:
                 for neg_ratio in neg_ratios:
                     for lb in panic_lbs:
-                        for short_factor in panic_short_factors:
-                            for cutoff in panic_cutoffs_et:
-                                for abs_gap in panic_neg_gap_abs_pcts:
-                                    for tr_delta_min, tr_delta_lb, tr_delta_note in panic_tr_delta_variants:
-                                        tested += 1
-                                        if tested % report_every == 0 or tested == panic_total:
-                                            elapsed = pytime.perf_counter() - t0
-                                            rate = (tested / elapsed) if elapsed > 0 else 0.0
-                                            remaining = panic_total - tested
-                                            eta_sec = (remaining / rate) if rate > 0 else 0.0
-                                            pct = (tested / panic_total * 100.0) if panic_total > 0 else 0.0
-                                            print(
-                                                f"riskpanic progress {tested}/{panic_total} ({pct:0.1f}%) kept={len(rows)} "
-                                                f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
-                                                flush=True,
-                                            )
+                        for long_factor in panic_long_factors:
+                            for short_factor in panic_short_factors:
+                                for cutoff in panic_cutoffs_et:
+                                    for abs_gap in panic_neg_gap_abs_pcts:
+                                        for tr_delta_min, tr_delta_lb, tr_delta_note in panic_tr_delta_variants:
+                                            tested += 1
+                                            if tested % report_every == 0 or tested == panic_total:
+                                                elapsed = pytime.perf_counter() - t0
+                                                rate = (tested / elapsed) if elapsed > 0 else 0.0
+                                                remaining = panic_total - tested
+                                                eta_sec = (remaining / rate) if rate > 0 else 0.0
+                                                pct = (tested / panic_total * 100.0) if panic_total > 0 else 0.0
+                                                print(
+                                                    f"riskpanic progress {tested}/{panic_total} ({pct:0.1f}%) kept={len(rows)} "
+                                                    f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
+                                                    flush=True,
+                                                )
 
-                                        f = _mk_filters(
-                                            overrides={
+                                            overrides = {
                                                 "riskoff_tr5_med_pct": None,
                                                 "riskpanic_tr5_med_pct": float(tr_med),
                                                 "riskpanic_neg_gap_ratio_min": float(neg_ratio),
@@ -4733,90 +4913,108 @@ def main() -> None:
                                                 "riskpanic_short_risk_mult_factor": float(short_factor),
                                                 "risk_entry_cutoff_hour_et": int(cutoff) if cutoff is not None else None,
                                             }
-                                        )
-                                        cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
-                                        row = _run_cfg(
-                                            cfg=cfg,
-                                            bars=bars_sig,
-                                            regime_bars=_regime_bars_for(cfg),
-                                            regime2_bars=_regime2_bars_for(cfg),
-                                        )
-                                        if not row:
-                                            continue
-                                        cut_note = "-" if cutoff is None else f"cutoff<{cutoff:02d} ET"
-                                        gap_note = "-" if abs_gap is None else f"|gap|>={abs_gap*100:0.0f}%"
-                                        note = (
-                                            f"riskpanic TRmed{lb}>={tr_med:g} neg_gap>={neg_ratio:g} {gap_note} "
-                                            f"{tr_delta_note} short_factor={short_factor:g} {cut_note}"
-                                        )
-                                        row["note"] = note
-                                        _record_milestone(cfg, row, note)
-                                        rows.append(row)
+                                            if long_factor is not None:
+                                                overrides["riskpanic_long_risk_mult_factor"] = float(long_factor)
+                                            # v39-style: pre-panic continuous scaling (requires TR-velocity gate + long shrink).
+                                            if (
+                                                long_factor is not None
+                                                and float(long_factor) < 1.0
+                                                and tr_delta_min is not None
+                                            ):
+                                                overrides["riskpanic_long_scale_mode"] = "linear"
+                                            f = _mk_filters(overrides=overrides)
+                                            cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
+                                            row = _run_cfg(
+                                                cfg=cfg,
+                                                bars=bars_sig,
+                                                regime_bars=_regime_bars_for(cfg),
+                                                regime2_bars=_regime2_bars_for(cfg),
+                                            )
+                                            if not row:
+                                                continue
+                                            cut_note = "-" if cutoff is None else f"cutoff<{cutoff:02d} ET"
+                                            gap_note = "-" if abs_gap is None else f"|gap|>={abs_gap*100:0.0f}%"
+                                            long_note = "" if long_factor is None else f" long_factor={long_factor:g}"
+                                            scale_note = ""
+                                            if overrides.get("riskpanic_long_scale_mode") == "linear":
+                                                scale_note = " scale=lin"
+                                            note = (
+                                                f"riskpanic TRmed{lb}>={tr_med:g} neg_gap>={neg_ratio:g} {gap_note} "
+                                                f"{tr_delta_note}{scale_note} short_factor={short_factor:g}{long_note} {cut_note}"
+                                            )
+                                            row["note"] = note
+                                            _record_milestone(cfg, row, note)
+                                            rows.append(row)
 
-            tested = 0
-            t0 = pytime.perf_counter()
-            for tr_med in pop_trs:
-                for pos_ratio in pos_ratios:
-                    for lb in pop_lbs:
-                        for long_factor in pop_long_factors:
-                            for short_factor in pop_short_factors:
-                                for cutoff in pop_cutoffs_et:
-                                    for mode in pop_modes:
-                                        for abs_gap in pop_pos_gap_abs_pcts:
-                                            for tr_delta_min, tr_delta_lb, tr_delta_note in pop_tr_delta_variants:
-                                                tested += 1
-                                                if tested % report_every == 0 or tested == pop_total:
-                                                    elapsed = pytime.perf_counter() - t0
-                                                    rate = (tested / elapsed) if elapsed > 0 else 0.0
-                                                    remaining = pop_total - tested
-                                                    eta_sec = (remaining / rate) if rate > 0 else 0.0
-                                                    pct = (tested / pop_total * 100.0) if pop_total > 0 else 0.0
-                                                    print(
-                                                        f"riskpop progress {tested}/{pop_total} ({pct:0.1f}%) kept={len(rows)} "
-                                                        f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
-                                                        flush=True,
+            if not skip_pop:
+                tested = 0
+                t0 = pytime.perf_counter()
+                for tr_med in pop_trs:
+                    for pos_ratio in pos_ratios:
+                        for lb in pop_lbs:
+                            for long_factor in pop_long_factors:
+                                for short_factor in pop_short_factors:
+                                    for cutoff in pop_cutoffs_et:
+                                        for mode in pop_modes:
+                                            for abs_gap in pop_pos_gap_abs_pcts:
+                                                for tr_delta_min, tr_delta_lb, tr_delta_note in pop_tr_delta_variants:
+                                                    tested += 1
+                                                    if tested % report_every == 0 or tested == pop_total:
+                                                        elapsed = pytime.perf_counter() - t0
+                                                        rate = (tested / elapsed) if elapsed > 0 else 0.0
+                                                        remaining = pop_total - tested
+                                                        eta_sec = (remaining / rate) if rate > 0 else 0.0
+                                                        pct = (tested / pop_total * 100.0) if pop_total > 0 else 0.0
+                                                        print(
+                                                            f"riskpop progress {tested}/{pop_total} ({pct:0.1f}%) kept={len(rows)} "
+                                                            f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
+                                                            flush=True,
+                                                        )
+
+                                                    f = _mk_filters(
+                                                        overrides={
+                                                            "riskoff_tr5_med_pct": None,
+                                                            "riskpanic_tr5_med_pct": None,
+                                                            "riskpanic_neg_gap_ratio_min": None,
+                                                            "riskpop_tr5_med_pct": float(tr_med),
+                                                            "riskpop_pos_gap_ratio_min": float(pos_ratio),
+                                                            "riskpop_pos_gap_abs_pct_min": (
+                                                                float(abs_gap) if abs_gap is not None else None
+                                                            ),
+                                                            "riskpop_lookback_days": int(lb),
+                                                            "riskpop_tr5_med_delta_min_pct": (
+                                                                float(tr_delta_min) if tr_delta_min is not None else None
+                                                            ),
+                                                            "riskpop_tr5_med_delta_lookback_days": int(tr_delta_lb),
+                                                            "riskpop_long_risk_mult_factor": float(long_factor),
+                                                            "riskpop_short_risk_mult_factor": float(short_factor),
+                                                            "risk_entry_cutoff_hour_et": (
+                                                                int(cutoff) if cutoff is not None else None
+                                                            ),
+                                                            "riskoff_mode": str(mode),
+                                                        }
                                                     )
-
-                                                f = _mk_filters(
-                                                    overrides={
-                                                        "riskoff_tr5_med_pct": None,
-                                                        "riskpanic_tr5_med_pct": None,
-                                                        "riskpanic_neg_gap_ratio_min": None,
-                                                        "riskpop_tr5_med_pct": float(tr_med),
-                                                        "riskpop_pos_gap_ratio_min": float(pos_ratio),
-                                                        "riskpop_pos_gap_abs_pct_min": (
-                                                            float(abs_gap) if abs_gap is not None else None
-                                                        ),
-                                                        "riskpop_lookback_days": int(lb),
-                                                        "riskpop_tr5_med_delta_min_pct": (
-                                                            float(tr_delta_min) if tr_delta_min is not None else None
-                                                        ),
-                                                        "riskpop_tr5_med_delta_lookback_days": int(tr_delta_lb),
-                                                        "riskpop_long_risk_mult_factor": float(long_factor),
-                                                        "riskpop_short_risk_mult_factor": float(short_factor),
-                                                        "risk_entry_cutoff_hour_et": int(cutoff) if cutoff is not None else None,
-                                                        "riskoff_mode": str(mode),
-                                                    }
-                                                )
-                                                cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
-                                                row = _run_cfg(
-                                                    cfg=cfg,
-                                                    bars=bars_sig,
-                                                    regime_bars=_regime_bars_for(cfg),
-                                                    regime2_bars=_regime2_bars_for(cfg),
-                                                )
-                                                if not row:
-                                                    continue
-                                                cut_note = "-" if cutoff is None else f"cutoff<{cutoff:02d} ET"
-                                                gap_note = "-" if abs_gap is None else f"|gap|>={abs_gap*100:0.0f}%"
-                                                note = (
-                                                    f"riskpop TRmed{lb}>={tr_med:g} pos_gap>={pos_ratio:g} {gap_note} "
-                                                    f"{tr_delta_note} mode={mode} long_factor={long_factor:g} "
-                                                    f"short_factor={short_factor:g} {cut_note}"
-                                                )
-                                                row["note"] = note
-                                                _record_milestone(cfg, row, note)
-                                                rows.append(row)
+                                                    cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
+                                                    row = _run_cfg(
+                                                        cfg=cfg,
+                                                        bars=bars_sig,
+                                                        regime_bars=_regime_bars_for(cfg),
+                                                        regime2_bars=_regime2_bars_for(cfg),
+                                                    )
+                                                    if not row:
+                                                        continue
+                                                    cut_note = "-" if cutoff is None else f"cutoff<{cutoff:02d} ET"
+                                                    gap_note = (
+                                                        "-" if abs_gap is None else f"|gap|>={abs_gap*100:0.0f}%"
+                                                    )
+                                                    note = (
+                                                        f"riskpop TRmed{lb}>={tr_med:g} pos_gap>={pos_ratio:g} {gap_note} "
+                                                        f"{tr_delta_note} mode={mode} long_factor={long_factor:g} "
+                                                        f"short_factor={short_factor:g} {cut_note}"
+                                                    )
+                                                    row["note"] = note
+                                                    _record_milestone(cfg, row, note)
+                                                    rows.append(row)
 
         if base_row:
             rows.append(base_row)
@@ -7076,6 +7274,12 @@ def main() -> None:
                 continue
             if bool(strat.get("signal_use_rth")) != bool(use_rth):
                 continue
+            try:
+                seed_trades = int(metrics.get("trades") or 0)
+            except (TypeError, ValueError):
+                seed_trades = 0
+            if int(seed_trades) < int(run_min_trades):
+                continue
             candidates.append(
                 {
                     "group_name": str(group.get("name") or ""),
@@ -9000,7 +9204,7 @@ def main() -> None:
         axis_tag = "shock_velocity_refine_wide" if wide else "shock_velocity_refine"
 
         if args.seed_milestones is None:
-            seed_path = Path("backtests/out/tqqq_exec5m_v36_champ_only_milestone.json")
+            seed_path = Path("backtests/out/tqqq_exec5m_v37_champ_only_milestone.json")
         else:
             seed_path = Path(str(args.seed_milestones))
         if not seed_path.exists():
@@ -9118,6 +9322,8 @@ def main() -> None:
                 "riskpanic_neg_gap_ratio_min": None,
                 "riskpanic_neg_gap_abs_pct_min": None,
                 "riskpanic_tr5_med_delta_min_pct": None,
+                "riskpanic_long_scale_mode": "off",
+                "riskpanic_long_scale_tr_delta_max_pct": None,
                 "riskpop_tr5_med_pct": None,
                 "riskpop_pos_gap_ratio_min": None,
                 "riskpop_pos_gap_abs_pct_min": None,
@@ -9132,8 +9338,9 @@ def main() -> None:
         panic_gap = 0.6
         panic_lb = 5
         panic_cutoffs = (None, 15)
-        panic_short_factors = (0.5, 0.2)
+        panic_short_factors = (1.0, 0.5)
         panic_abs_gap = (None, 0.01, 0.02)
+        panic_long_extra = (0.8, 0.6, 0.0)
         panic_tr_delta_variants: tuple[tuple[float | None, int, str], ...] = (
             (None, 1, "trΔ=off"),
             (0.5, 1, "trΔ>=0.5@1d"),
@@ -9141,7 +9348,7 @@ def main() -> None:
             (1.0, 1, "trΔ>=1.0@1d"),
         )
         if wide:
-            panic_short_factors = (0.5, 0.2, 0.0)
+            panic_short_factors = (1.0, 0.5, 0.2)
             panic_abs_gap = (None, 0.01)
             panic_tr_delta_variants = (
                 (None, 1, "trΔ=off"),
@@ -9150,33 +9357,52 @@ def main() -> None:
                 (0.75, 1, "trΔ>=0.75@1d"),
                 (1.0, 1, "trΔ>=1.0@1d"),
             )
+            panic_long_extra = (0.8, 0.6, 0.4, 0.0)
+
+        panic_scale_delta_max = (None, 0.5, 1.0, 2.0)
+        if wide:
+            panic_scale_delta_max = (None, 0.25, 0.5, 1.0, 2.0, 4.0)
 
         for cutoff in panic_cutoffs:
             for short_factor in panic_short_factors:
                 for abs_gap in panic_abs_gap:
                     for tr_delta_min, tr_delta_lb, tr_delta_note in panic_tr_delta_variants:
-                        cut_note = "-" if cutoff is None else f"cutoff<{cutoff:02d} ET"
-                        gap_note = "-" if abs_gap is None else f"|gap|>={abs_gap*100:0.0f}%"
-                        risk_variants.append(
-                            (
-                                {
-                                    **_risk_off_overrides(),
-                                    "riskpanic_tr5_med_pct": float(panic_tr),
-                                    "riskpanic_neg_gap_ratio_min": float(panic_gap),
-                                    "riskpanic_neg_gap_abs_pct_min": float(abs_gap) if abs_gap is not None else None,
-                                    "riskpanic_lookback_days": int(panic_lb),
-                                    "riskpanic_tr5_med_delta_min_pct": (
-                                        float(tr_delta_min) if tr_delta_min is not None else None
-                                    ),
-                                    "riskpanic_tr5_med_delta_lookback_days": int(tr_delta_lb),
-                                    "riskpanic_short_risk_mult_factor": float(short_factor),
-                                    "risk_entry_cutoff_hour_et": int(cutoff) if cutoff is not None else None,
-                                    "riskoff_mode": "hygiene",
-                                },
+                        long_factors = (1.0,)
+                        if float(short_factor) == 1.0:
+                            long_factors = (*long_factors, *panic_long_extra)
+
+                        for long_factor in long_factors:
+                            cut_note = "-" if cutoff is None else f"cutoff<{cutoff:02d} ET"
+                            gap_note = "-" if abs_gap is None else f"|gap|>={abs_gap*100:0.0f}%"
+                            base_over = {
+                                **_risk_off_overrides(),
+                                "riskpanic_tr5_med_pct": float(panic_tr),
+                                "riskpanic_neg_gap_ratio_min": float(panic_gap),
+                                "riskpanic_neg_gap_abs_pct_min": float(abs_gap) if abs_gap is not None else None,
+                                "riskpanic_lookback_days": int(panic_lb),
+                                "riskpanic_tr5_med_delta_min_pct": float(tr_delta_min) if tr_delta_min is not None else None,
+                                "riskpanic_tr5_med_delta_lookback_days": int(tr_delta_lb),
+                                "riskpanic_long_risk_mult_factor": float(long_factor),
+                                "riskpanic_short_risk_mult_factor": float(short_factor),
+                                "risk_entry_cutoff_hour_et": int(cutoff) if cutoff is not None else None,
+                                "riskoff_mode": "hygiene",
+                            }
+                            base_note = (
                                 f"riskpanic TRmed{panic_lb}>=9 gap>={panic_gap:g} {gap_note} {tr_delta_note} "
-                                f"short={short_factor:g} {cut_note}",
+                                f"long={long_factor:g} short={short_factor:g} {cut_note}"
                             )
-                        )
+                            risk_variants.append((base_over, base_note))
+
+                            # Candidate-3 policy: pre-panic continuous scaling (only meaningful when long_factor<1 and trΔ is in play).
+                            if tr_delta_min is not None and float(long_factor) < 1.0:
+                                for delta_max in panic_scale_delta_max:
+                                    dm_note = "Δmax=Δmin" if delta_max is None else f"Δmax={delta_max:g}"
+                                    over = dict(base_over)
+                                    over["riskpanic_long_scale_mode"] = "linear"
+                                    over["riskpanic_long_scale_tr_delta_max_pct"] = (
+                                        float(delta_max) if delta_max is not None else None
+                                    )
+                                    risk_variants.append((over, f"{base_note} | scale=lin {dm_note}"))
 
         # Riskpop: controlled "momentum-on" vs defensive variants (keep this tight: pop can destabilize).
         pop_tr = 8.0
@@ -9526,6 +9752,1063 @@ def main() -> None:
             title=f"{axis_tag} (seeded tr_ratio × TR-velocity overlays)",
             top_n=int(args.top),
         )
+
+    def _sweep_shock_throttle_refine() -> None:
+        """Seeded micro-grid: shock risk scaling target/min-mult × a tiny stop-loss pocket.
+
+        Intent: improve the CURRENT champ by shrinking risk in "moderate vol" conditions where
+        the default risk scaling (target_atr_pct≈12) rarely engages.
+        """
+        nonlocal run_calls_total
+
+        axis_tag = "shock_throttle_refine"
+
+        if args.seed_milestones is None:
+            seed_path = Path("backtests/out/tqqq_exec5m_v37_champ_only_milestone.json")
+        else:
+            seed_path = Path(str(args.seed_milestones))
+        if not seed_path.exists():
+            raise SystemExit(f"--axis {axis_tag} requires --seed-milestones (missing {seed_path})")
+
+        payload = json.loads(seed_path.read_text())
+        if not isinstance(payload, dict):
+            raise SystemExit(f"Invalid seed milestones payload: {seed_path}")
+        raw_groups = payload.get("groups") or []
+        if not isinstance(raw_groups, list):
+            raise SystemExit(f"Invalid seed milestones groups: {seed_path}")
+
+        candidates: list[dict] = []
+        for group in raw_groups:
+            if not isinstance(group, dict):
+                continue
+            entries = group.get("entries") or []
+            if not isinstance(entries, list) or not entries:
+                continue
+            entry = entries[0]
+            if not isinstance(entry, dict):
+                continue
+            strat = entry.get("strategy") or {}
+            metrics = entry.get("metrics") or {}
+            if not isinstance(strat, dict) or not isinstance(metrics, dict):
+                continue
+            if str(strat.get("instrument", "spot") or "spot").strip().lower() != "spot":
+                continue
+            if str(entry.get("symbol") or strat.get("symbol") or "").strip().upper() != str(symbol).strip().upper():
+                continue
+            if str(strat.get("signal_bar_size") or "").strip().lower() != str(signal_bar_size).strip().lower():
+                continue
+            if bool(strat.get("signal_use_rth")) != bool(use_rth):
+                continue
+            candidates.append(
+                {
+                    "group_name": str(group.get("name") or ""),
+                    "strategy": strat,
+                    "filters": group.get("filters") if isinstance(group.get("filters"), dict) else None,
+                    "metrics": metrics,
+                }
+            )
+
+        if not candidates:
+            print(f"No matching seed candidates found in {seed_path} for {symbol} {signal_bar_size} rth={use_rth}.")
+            return
+
+        def _sort_key(item: dict) -> tuple:
+            m = item.get("metrics") or {}
+            return (
+                float(m.get("pnl_over_dd") or float("-inf")),
+                float(m.get("pnl") or float("-inf")),
+                float(m.get("win_rate") or 0.0),
+                int(m.get("trades") or 0),
+            )
+
+        seed_top = max(1, int(args.seed_top or 0))
+        seeds = sorted(candidates, key=_sort_key, reverse=True)[:seed_top]
+
+        print("")
+        print(f"=== {axis_tag}: seeded shock scaling target × min-mult pocket ===")
+        print(f"- seeds_in_file={len(candidates)} selected={len(seeds)} seed_top={seed_top}")
+        print(f"- seed_path={seed_path}")
+        print("")
+
+        bars_sig = _bars_cached(signal_bar_size)
+        rows: list[dict] = []
+        t0 = pytime.perf_counter()
+        report_every = 50
+
+        def _merge_filters(base_filters: FiltersConfig | None, overrides: dict[str, object]) -> FiltersConfig | None:
+            base_payload = _filters_payload(base_filters) or {}
+            merged = dict(base_payload)
+            merged.update(overrides)
+            out = _parse_filters(merged)
+            if _filters_payload(out) is None:
+                return None
+            return out
+
+        def _shock_mode(filters: FiltersConfig | None) -> str:
+            if filters is None:
+                return "off"
+            mode = str(getattr(filters, "shock_gate_mode", None) or "off").strip().lower()
+            if mode in ("", "0", "false", "none", "null"):
+                mode = "off"
+            if mode not in ("off", "detect", "block", "block_longs", "block_shorts", "surf"):
+                mode = "off"
+            return mode
+
+        def _shock_detector(filters: FiltersConfig | None) -> str:
+            if filters is None:
+                return "atr_ratio"
+            raw = str(getattr(filters, "shock_detector", None) or "atr_ratio").strip().lower()
+            if raw in ("daily", "daily_atr", "daily_atr_pct", "daily_atr14", "daily_atr%"):
+                return "daily_atr_pct"
+            if raw in ("drawdown", "daily_drawdown", "daily-dd", "dd", "peak_dd", "peak_drawdown"):
+                return "daily_drawdown"
+            if raw in ("tr_ratio", "tr-ratio", "tr_ratio_pct", "tr_ratio%"):
+                return "tr_ratio"
+            if raw in ("atr_ratio", "ratio", "atr-ratio", "atr_ratio_pct", "atr_ratio%"):
+                return "atr_ratio"
+            return "atr_ratio"
+
+        def _ensure_shock_detect_overrides(filters: FiltersConfig | None) -> dict[str, object]:
+            if _shock_mode(filters) != "off":
+                return {}
+            # Needed so shock_atr_pct is available (no entry gating change).
+            return {"shock_gate_mode": "detect", "shock_detector": "daily_atr_pct"}
+
+        def _stop_pocket(seed_stop_pct: float | None) -> tuple[float, ...]:
+            try:
+                base = float(seed_stop_pct) if seed_stop_pct is not None else 0.0
+            except (TypeError, ValueError):
+                base = 0.0
+            if base <= 0:
+                base = 0.045
+            pocket = (
+                base * 0.70,
+                base * 0.85,
+                base * 0.925,
+                base,
+                base * 1.075,
+                base * 1.15,
+                base * 1.30,
+            )
+            # Guardrails: keep stops >0 and dedupe.
+            out = sorted({float(round(p, 6)) for p in pocket if p > 0})
+            if not out:
+                return (float(base),)
+            return tuple(out)
+
+        def _targets_pocket(
+            filters: FiltersConfig | None, *, detector: str, shock_missing: bool
+        ) -> tuple[float, ...]:
+            # Key insight: risk scaling applies whenever shock_atr_pct is available (not only when shock==True),
+            # so lowering target_atr_pct can throttle sizing in moderate-vol chop without changing the detector.
+            if detector == "daily_atr_pct":
+                if bool(shock_missing):
+                    pocket = (2.0, 3.0, 4.0, 4.5, 5.0, 6.0)
+                else:
+                    try:
+                        on_raw = getattr(filters, "shock_daily_on_atr_pct", None) if filters is not None else None
+                        off_raw = getattr(filters, "shock_daily_off_atr_pct", None) if filters is not None else None
+                        on = float(on_raw) if on_raw is not None else None
+                        off = float(off_raw) if off_raw is not None else None
+                    except (TypeError, ValueError):
+                        on = None
+                        off = None
+                    if on is not None and off is not None and on > 0 and off > 0:
+                        base = min(on, off)
+                        pocket = (
+                            base * 0.50,
+                            base * 0.75,
+                            base,
+                            max(on, off),
+                            max(on, off) * 1.25,
+                            max(on, off) * 1.50,
+                        )
+                    else:
+                        pocket = (2.0, 3.0, 4.0, 4.5, 5.0, 6.0)
+            else:
+                try:
+                    min_atr = float(getattr(filters, "shock_min_atr_pct", None) or 0.0) if filters is not None else 0.0
+                except (TypeError, ValueError):
+                    min_atr = 0.0
+                anchor = min_atr if min_atr > 0 else 7.0
+                pocket = (
+                    anchor,
+                    anchor * 1.5,
+                    anchor * 2.0,
+                    anchor * 2.5,
+                    anchor * 3.0,
+                    anchor * 4.0,
+                )
+            out = sorted({float(round(v, 6)) for v in pocket if v > 0})
+            return tuple(out) if out else (12.0,)
+
+        def _daily_threshold_pocket(filters: FiltersConfig | None, *, mode: str, detector: str) -> tuple[tuple[float | None, float | None], ...]:
+            if mode != "surf" or detector != "daily_atr_pct" or filters is None:
+                return ((None, None),)
+            try:
+                on = float(getattr(filters, "shock_daily_on_atr_pct"))
+                off = float(getattr(filters, "shock_daily_off_atr_pct"))
+            except (TypeError, ValueError):
+                return ((None, None),)
+            if on <= 0 or off <= 0:
+                return ((None, None),)
+            on_vals = sorted({max(0.1, on - 1.5), max(0.1, on - 0.5), on, on + 0.5})
+            off_vals = sorted({max(0.1, off - 1.5), max(0.1, off - 0.5), off})
+            pairs: list[tuple[float | None, float | None]] = []
+            for off_v in off_vals:
+                for on_v in on_vals:
+                    if off_v > on_v:
+                        continue
+                    pairs.append((float(off_v), float(on_v)))
+            return tuple(pairs) if pairs else ((None, None),)
+
+        min_mults = (0.05, 0.1, 0.2)
+
+        work: list[dict] = []
+        total = 0
+        for seed_i, item in enumerate(seeds, start=1):
+            try:
+                filters_obj = _filters_from_payload(item.get("filters"))
+                strategy_obj = _strategy_from_payload(item.get("strategy") or {}, filters=filters_obj)
+            except Exception:
+                continue
+
+            cfg_seed = _mk_bundle(
+                strategy=strategy_obj,
+                start=start,
+                end=end,
+                bar_size=signal_bar_size,
+                use_rth=use_rth,
+                cache_dir=cache_dir,
+                offline=offline,
+            )
+            seed_note = str(item.get("group_name") or f"seed#{seed_i:02d}")
+
+            base_filters = cfg_seed.strategy.filters
+            mode = _shock_mode(base_filters)
+            detect_over = _ensure_shock_detect_overrides(base_filters)
+            detector_eff = _shock_detector(base_filters) if not detect_over else "daily_atr_pct"
+
+            targets_f = _targets_pocket(base_filters, detector=detector_eff, shock_missing=bool(detect_over))
+            targets: tuple[float | None, ...] = (None,) + targets_f
+            stops = _stop_pocket(getattr(cfg_seed.strategy, "spot_stop_loss_pct", None))
+            daily_pairs = _daily_threshold_pocket(base_filters, mode=mode, detector=detector_eff)
+
+            targets_variants = sum((len(min_mults) if t is not None else 1) for t in targets)
+            variants = int(targets_variants) * len(stops) * len(daily_pairs)
+            if variants <= 0:
+                continue
+            total += int(variants)
+            work.append(
+                {
+                    "cfg_seed": cfg_seed,
+                    "seed_note": seed_note,
+                    "detect_over": detect_over,
+                    "mode": mode,
+                    "detector": detector_eff,
+                    "targets": targets,
+                    "stops": stops,
+                    "daily_pairs": daily_pairs,
+                }
+            )
+
+        if not work:
+            print("No usable seeds after parsing/filtering.", flush=True)
+            return
+
+        print(
+            f"- variants: seed-aware pockets (min_mult={min_mults}); total={total} "
+            f"(note: auto-enables shock_gate_mode=detect when missing)",
+            flush=True,
+        )
+
+        tested_total = 0
+        for item in work:
+            cfg_seed = item["cfg_seed"]
+            seed_note = item["seed_note"]
+            detect_over = item["detect_over"]
+            targets = item["targets"]
+            stops = item["stops"]
+            daily_pairs = item["daily_pairs"]
+
+            for off_on in daily_pairs:
+                off_v, on_v = off_on
+                daily_over: dict[str, object] = {}
+                if off_v is not None and on_v is not None:
+                    daily_over = {"shock_daily_off_atr_pct": float(off_v), "shock_daily_on_atr_pct": float(on_v)}
+
+                for target_atr in targets:
+                    min_mult_iter = (None,) if target_atr is None else min_mults
+                    for min_mult in min_mult_iter:
+                        base_over: dict[str, object] = {}
+                        if target_atr is not None:
+                            base_over["shock_risk_scale_target_atr_pct"] = float(target_atr)
+                            base_over["shock_risk_scale_min_mult"] = float(min_mult) if min_mult is not None else 0.2
+                            base_over["shock_risk_scale_apply_to"] = "cap"
+                        base_over.update(detect_over)
+                        base_over.update(daily_over)
+                        f_obj = _merge_filters(cfg_seed.strategy.filters, base_over)
+                        for stop_pct in stops:
+                            tested_total += 1
+                            if tested_total % report_every == 0 or tested_total == total:
+                                elapsed = pytime.perf_counter() - t0
+                                rate = (tested_total / elapsed) if elapsed > 0 else 0.0
+                                remaining = total - tested_total
+                                eta_sec = (remaining / rate) if rate > 0 else 0.0
+                                pct = (tested_total / total * 100.0) if total > 0 else 0.0
+                                print(
+                                    f"{axis_tag} {tested_total}/{total} ({pct:0.1f}%) kept={len(rows)} "
+                                    f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
+                                    flush=True,
+                                )
+
+                            cfg = replace(
+                                cfg_seed,
+                                strategy=replace(
+                                    cfg_seed.strategy,
+                                    filters=f_obj,
+                                    spot_stop_loss_pct=float(stop_pct),
+                                ),
+                            )
+                            row = _run_cfg(
+                                cfg=cfg,
+                                bars=bars_sig,
+                                regime_bars=_regime_bars_for(cfg),
+                                regime2_bars=_regime2_bars_for(cfg),
+                            )
+                            if not row:
+                                continue
+
+                            surf_note = ""
+                            if off_v is not None and on_v is not None:
+                                surf_note = f" surf(off={off_v:g},on={on_v:g})"
+                            if target_atr is None:
+                                scale_note = " shock_scale=off"
+                            else:
+                                scale_note = f" shock_scale target_atr%={target_atr:g} min_mult={min_mult:g} apply_to=cap"
+                            note = f"{seed_note} |{scale_note}{surf_note} | stop%={stop_pct:g}"
+                            row["note"] = note
+                            _record_milestone(cfg, row, note)
+                            rows.append(row)
+
+        run_calls_total += int(tested_total)
+        _print_leaderboards(rows, title=f"{axis_tag} (seeded shock risk scaling micro)", top_n=int(args.top))
+
+    def _sweep_shock_throttle_tr_ratio() -> None:
+        """Seeded micro-grid: keep the base strategy identical, but compute shock risk scaling off TR-ratio ATR%.
+
+        This is a pure "throttle" lever:
+        - gate shock config (e.g. daily_atr_pct surf + stop tightening) stays unchanged
+        - sizing is throttled using `shock_risk_scale_*` with `shock_scale_detector=tr_ratio` (detect-only)
+        """
+        nonlocal run_calls_total
+
+        axis_tag = "shock_throttle_tr_ratio"
+
+        if args.seed_milestones is None:
+            raise SystemExit(f"--axis {axis_tag} requires --seed-milestones <milestones.json>")
+        seed_path = Path(str(args.seed_milestones))
+        if not seed_path.exists():
+            raise SystemExit(f"--axis {axis_tag} requires --seed-milestones (missing {seed_path})")
+
+        payload = json.loads(seed_path.read_text())
+        if not isinstance(payload, dict):
+            raise SystemExit(f"Invalid seed milestones payload: {seed_path}")
+        raw_groups = payload.get("groups") or []
+        if not isinstance(raw_groups, list):
+            raise SystemExit(f"Invalid seed milestones groups: {seed_path}")
+
+        candidates: list[dict] = []
+        for group in raw_groups:
+            if not isinstance(group, dict):
+                continue
+            entries = group.get("entries") or []
+            if not isinstance(entries, list) or not entries:
+                continue
+            entry = entries[0]
+            if not isinstance(entry, dict):
+                continue
+            strat = entry.get("strategy") or {}
+            metrics = entry.get("metrics") or {}
+            if not isinstance(strat, dict) or not isinstance(metrics, dict):
+                continue
+            if str(strat.get("instrument", "spot") or "spot").strip().lower() != "spot":
+                continue
+            if str(entry.get("symbol") or strat.get("symbol") or "").strip().upper() != str(symbol).strip().upper():
+                continue
+            if str(strat.get("signal_bar_size") or "").strip().lower() != str(signal_bar_size).strip().lower():
+                continue
+            if bool(strat.get("signal_use_rth")) != bool(use_rth):
+                continue
+            candidates.append(
+                {
+                    "group_name": str(group.get("name") or ""),
+                    "strategy": strat,
+                    "filters": group.get("filters") if isinstance(group.get("filters"), dict) else None,
+                    "metrics": metrics,
+                }
+            )
+
+        if not candidates:
+            print(f"No matching seed candidates found in {seed_path} for {symbol} {signal_bar_size} rth={use_rth}.")
+            return
+
+        def _sort_key(item: dict) -> tuple:
+            m = item.get("metrics") or {}
+            return (
+                float(m.get("pnl_over_dd") or float("-inf")),
+                float(m.get("pnl") or float("-inf")),
+                float(m.get("win_rate") or 0.0),
+                int(m.get("trades") or 0),
+            )
+
+        seed_top = max(1, int(args.seed_top or 0))
+        seeds = sorted(candidates, key=_sort_key, reverse=True)[:seed_top]
+
+        print("")
+        print(f"=== {axis_tag}: seeded TR-ratio throttle micro-grid ===")
+        print(f"- seeds_in_file={len(candidates)} selected={len(seeds)} seed_top={seed_top}")
+        print(f"- seed_path={seed_path}")
+        print("")
+
+        bars_sig = _bars_cached(signal_bar_size)
+        rows: list[dict] = []
+
+        def _merge_filters(base_filters: FiltersConfig | None, overrides: dict[str, object]) -> FiltersConfig | None:
+            base_payload = _filters_payload(base_filters) or {}
+            merged = dict(base_payload)
+            merged.update(overrides)
+            out = _parse_filters(merged)
+            if _filters_payload(out) is None:
+                return None
+            return out
+
+        scale_periods: tuple[tuple[int, int], ...] = ((2, 50), (3, 50), (5, 50), (3, 21))
+        # Telemetry (SLV 1h FULL24 tr_fast_pct): p75≈0.71%, p85≈0.90%, p92≈1.14% (1y window).
+        # Include a few aggressive "surprise" targets to actually touch cap-bound trades.
+        targets: tuple[float, ...] = (0.25, 0.35, 0.45, 0.55, 0.7, 0.9, 1.1)
+        min_mults: tuple[float, ...] = (0.05, 0.1, 0.2)
+        apply_tos: tuple[str, ...] = ("cap", "both")
+
+        t0 = pytime.perf_counter()
+        tested_total = 0
+        report_every = 50
+
+        for seed_i, item in enumerate(seeds, start=1):
+            try:
+                filters_obj = _filters_from_payload(item.get("filters"))
+                strategy_obj = _strategy_from_payload(item.get("strategy") or {}, filters=filters_obj)
+            except Exception:
+                continue
+
+            cfg_seed = _mk_bundle(
+                strategy=strategy_obj,
+                start=start,
+                end=end,
+                bar_size=signal_bar_size,
+                use_rth=use_rth,
+                cache_dir=cache_dir,
+                offline=offline,
+            )
+            seed_note = str(item.get("group_name") or f"seed#{seed_i:02d}")
+
+            base_row = _run_cfg(
+                cfg=cfg_seed,
+                bars=bars_sig,
+                regime_bars=_regime_bars_for(cfg_seed),
+                regime2_bars=_regime2_bars_for(cfg_seed),
+            )
+            if base_row:
+                note = f"{seed_note} | shock_scale=off (base)"
+                base_row["note"] = note
+                _record_milestone(cfg_seed, base_row, note)
+                rows.append(base_row)
+
+            for fast_p, slow_p in scale_periods:
+                for target_atr in targets:
+                    for min_mult in min_mults:
+                        for apply_to in apply_tos:
+                            tested_total += 1
+                            if tested_total % report_every == 0:
+                                elapsed = pytime.perf_counter() - t0
+                                rate = (tested_total / elapsed) if elapsed > 0 else 0.0
+                                print(f"{axis_tag} tested={tested_total} kept={len(rows)} rate={rate:0.1f}/s", flush=True)
+
+                            over = {
+                                "shock_scale_detector": "tr_ratio",
+                                "shock_atr_fast_period": int(fast_p),
+                                "shock_atr_slow_period": int(slow_p),
+                                "shock_risk_scale_target_atr_pct": float(target_atr),
+                                "shock_risk_scale_min_mult": float(min_mult),
+                                "shock_risk_scale_apply_to": str(apply_to),
+                            }
+                            f_obj = _merge_filters(cfg_seed.strategy.filters, over)
+                            if f_obj is None:
+                                continue
+                            cfg = replace(cfg_seed, strategy=replace(cfg_seed.strategy, filters=f_obj))
+                            row = _run_cfg(
+                                cfg=cfg,
+                                bars=bars_sig,
+                                regime_bars=_regime_bars_for(cfg),
+                                regime2_bars=_regime2_bars_for(cfg),
+                            )
+                            if not row:
+                                continue
+                            note = (
+                                f"{seed_note} | shock_scale=tr_ratio {fast_p}/{slow_p} "
+                                f"target_atr%={target_atr:g} min_mult={min_mult:g} apply_to={apply_to}"
+                            )
+                            row["note"] = note
+                            _record_milestone(cfg, row, note)
+                            rows.append(row)
+
+        run_calls_total += int(tested_total)
+        _print_leaderboards(rows, title=f"{axis_tag} (seeded tr_ratio throttle micro)", top_n=int(args.top))
+
+    def _sweep_shock_throttle_drawdown() -> None:
+        """Seeded micro-grid: compute shock risk scaling off daily drawdown magnitude (detect-only).
+
+        This is a pure throttle lever:
+        - primary shock config (e.g. daily_atr_pct surf + stop tightening) stays unchanged
+        - sizing is throttled using `shock_risk_scale_*` with `shock_scale_detector=daily_drawdown`
+        """
+        nonlocal run_calls_total
+
+        axis_tag = "shock_throttle_drawdown"
+
+        if args.seed_milestones is None:
+            raise SystemExit(f"--axis {axis_tag} requires --seed-milestones <milestones.json>")
+        seed_path = Path(str(args.seed_milestones))
+        if not seed_path.exists():
+            raise SystemExit(f"--axis {axis_tag} requires --seed-milestones (missing {seed_path})")
+
+        payload = json.loads(seed_path.read_text())
+        if not isinstance(payload, dict):
+            raise SystemExit(f"Invalid seed milestones payload: {seed_path}")
+        raw_groups = payload.get("groups") or []
+        if not isinstance(raw_groups, list):
+            raise SystemExit(f"Invalid seed milestones groups: {seed_path}")
+
+        candidates: list[dict] = []
+        for group in raw_groups:
+            if not isinstance(group, dict):
+                continue
+            entries = group.get("entries") or []
+            if not isinstance(entries, list) or not entries:
+                continue
+            entry = entries[0]
+            if not isinstance(entry, dict):
+                continue
+            strat = entry.get("strategy") or {}
+            metrics = entry.get("metrics") or {}
+            if not isinstance(strat, dict) or not isinstance(metrics, dict):
+                continue
+            if str(strat.get("instrument", "spot") or "spot").strip().lower() != "spot":
+                continue
+            if str(entry.get("symbol") or strat.get("symbol") or "").strip().upper() != str(symbol).strip().upper():
+                continue
+            if str(strat.get("signal_bar_size") or "").strip().lower() != str(signal_bar_size).strip().lower():
+                continue
+            if bool(strat.get("signal_use_rth")) != bool(use_rth):
+                continue
+            candidates.append(
+                {
+                    "group_name": str(group.get("name") or ""),
+                    "strategy": strat,
+                    "filters": group.get("filters") if isinstance(group.get("filters"), dict) else None,
+                    "metrics": metrics,
+                }
+            )
+
+        if not candidates:
+            print(f"No matching seed candidates found in {seed_path} for {symbol} {signal_bar_size} rth={use_rth}.")
+            return
+
+        def _sort_key(item: dict) -> tuple:
+            m = item.get("metrics") or {}
+            return (
+                float(m.get("pnl_over_dd") or float("-inf")),
+                float(m.get("pnl") or float("-inf")),
+                float(m.get("win_rate") or 0.0),
+                int(m.get("trades") or 0),
+            )
+
+        seed_top = max(1, int(args.seed_top or 0))
+        seeds = sorted(candidates, key=_sort_key, reverse=True)[:seed_top]
+
+        print("")
+        print(f"=== {axis_tag}: seeded daily_drawdown throttle micro-grid ===")
+        print(f"- seeds_in_file={len(candidates)} selected={len(seeds)} seed_top={seed_top}")
+        print(f"- seed_path={seed_path}")
+        print("")
+
+        bars_sig = _bars_cached(signal_bar_size)
+        rows: list[dict] = []
+
+        def _merge_filters(base_filters: FiltersConfig | None, overrides: dict[str, object]) -> FiltersConfig | None:
+            base_payload = _filters_payload(base_filters) or {}
+            merged = dict(base_payload)
+            merged.update(overrides)
+            out = _parse_filters(merged)
+            if _filters_payload(out) is None:
+                return None
+            return out
+
+        lookbacks: tuple[int, ...] = (10, 20, 40)
+        # SLV 1y FULL24 stop-entries drawdown magnitude (20d peak):
+        # p50≈1.17%, p75≈3.12%, p90≈9.70%, p95≈10.59%, max≈12.30%.
+        targets: tuple[float, ...] = (3.0, 4.0, 6.0, 8.0, 10.0, 12.0, 15.0)
+        min_mults: tuple[float, ...] = (0.05, 0.1, 0.2, 0.3)
+        apply_tos: tuple[str, ...] = ("cap", "both")
+
+        t0 = pytime.perf_counter()
+        tested_total = 0
+        report_every = 50
+
+        for seed_i, item in enumerate(seeds, start=1):
+            try:
+                filters_obj = _filters_from_payload(item.get("filters"))
+                strategy_obj = _strategy_from_payload(item.get("strategy") or {}, filters=filters_obj)
+            except Exception:
+                continue
+
+            cfg_seed = _mk_bundle(
+                strategy=strategy_obj,
+                start=start,
+                end=end,
+                bar_size=signal_bar_size,
+                use_rth=use_rth,
+                cache_dir=cache_dir,
+                offline=offline,
+            )
+            seed_note = str(item.get("group_name") or f"seed#{seed_i:02d}")
+
+            base_row = _run_cfg(
+                cfg=cfg_seed,
+                bars=bars_sig,
+                regime_bars=_regime_bars_for(cfg_seed),
+                regime2_bars=_regime2_bars_for(cfg_seed),
+            )
+            if base_row:
+                note = f"{seed_note} | shock_scale=off (base)"
+                base_row["note"] = note
+                _record_milestone(cfg_seed, base_row, note)
+                rows.append(base_row)
+
+            for lb in lookbacks:
+                for target_dd in targets:
+                    for min_mult in min_mults:
+                        for apply_to in apply_tos:
+                            tested_total += 1
+                            if tested_total % report_every == 0:
+                                elapsed = pytime.perf_counter() - t0
+                                rate = (tested_total / elapsed) if elapsed > 0 else 0.0
+                                print(f"{axis_tag} tested={tested_total} kept={len(rows)} rate={rate:0.1f}/s", flush=True)
+
+                            over = {
+                                "shock_scale_detector": "daily_drawdown",
+                                "shock_drawdown_lookback_days": int(lb),
+                                "shock_risk_scale_target_atr_pct": float(target_dd),
+                                "shock_risk_scale_min_mult": float(min_mult),
+                                "shock_risk_scale_apply_to": str(apply_to),
+                            }
+                            f_obj = _merge_filters(cfg_seed.strategy.filters, over)
+                            if f_obj is None:
+                                continue
+                            cfg = replace(cfg_seed, strategy=replace(cfg_seed.strategy, filters=f_obj))
+                            row = _run_cfg(
+                                cfg=cfg,
+                                bars=bars_sig,
+                                regime_bars=_regime_bars_for(cfg),
+                                regime2_bars=_regime2_bars_for(cfg),
+                            )
+                            if not row:
+                                continue
+                            note = (
+                                f"{seed_note} | shock_scale=daily_drawdown lb={lb} "
+                                f"target_dd%={target_dd:g} min_mult={min_mult:g} apply_to={apply_to}"
+                            )
+                            row["note"] = note
+                            _record_milestone(cfg, row, note)
+                            rows.append(row)
+
+        run_calls_total += int(tested_total)
+        _print_leaderboards(rows, title=f"{axis_tag} (seeded daily_drawdown throttle micro)", top_n=int(args.top))
+
+    def _sweep_riskpanic_micro() -> None:
+        """Seeded micro-grid: riskpanic overlay knobs inspired by the TQQQ v37→v39 needle-thread.
+
+        Keeps strategy identical and focuses on the small set of knobs that moved the TQQQ stability champ:
+        - risk_entry_cutoff_hour_et (late-day entry cutoff on risk days)
+        - riskpanic_long_risk_mult_factor + riskpanic_long_scale_mode ("linear" pre-panic de-risking)
+        - riskpanic_neg_gap_abs_pct_min (count all neg gaps vs only big gaps)
+        - riskpanic_tr5_med_delta_min_pct (TR-velocity gate)
+
+        Note: riskpanic detection requires (riskpanic_tr5_med_pct, riskpanic_neg_gap_ratio_min).
+        For SLV FULL24, med(TR% last 5d) is on a ~2–3% scale, not TQQQ's ~9–10%.
+        """
+        nonlocal run_calls_total
+
+        axis_tag = "riskpanic_micro"
+
+        if args.seed_milestones is None:
+            raise SystemExit(f"--axis {axis_tag} requires --seed-milestones <milestones.json>")
+        seed_path = Path(str(args.seed_milestones))
+        if not seed_path.exists():
+            raise SystemExit(f"--axis {axis_tag} requires --seed-milestones (missing {seed_path})")
+
+        payload = json.loads(seed_path.read_text())
+        if not isinstance(payload, dict):
+            raise SystemExit(f"Invalid seed milestones payload: {seed_path}")
+        raw_groups = payload.get("groups") or []
+        if not isinstance(raw_groups, list):
+            raise SystemExit(f"Invalid seed milestones groups: {seed_path}")
+
+        candidates: list[dict] = []
+        for group in raw_groups:
+            if not isinstance(group, dict):
+                continue
+            entries = group.get("entries") or []
+            if not isinstance(entries, list) or not entries:
+                continue
+            entry = entries[0]
+            if not isinstance(entry, dict):
+                continue
+            strat = entry.get("strategy") or {}
+            metrics = entry.get("metrics") or {}
+            if not isinstance(strat, dict) or not isinstance(metrics, dict):
+                continue
+            if str(strat.get("instrument", "spot") or "spot").strip().lower() != "spot":
+                continue
+            if str(entry.get("symbol") or strat.get("symbol") or "").strip().upper() != str(symbol).strip().upper():
+                continue
+            if str(strat.get("signal_bar_size") or "").strip().lower() != str(signal_bar_size).strip().lower():
+                continue
+            if bool(strat.get("signal_use_rth")) != bool(use_rth):
+                continue
+            candidates.append(
+                {
+                    "group_name": str(group.get("name") or ""),
+                    "strategy": strat,
+                    "filters": group.get("filters") if isinstance(group.get("filters"), dict) else None,
+                    "metrics": metrics,
+                }
+            )
+
+        if not candidates:
+            print(f"No matching seed candidates found in {seed_path} for {symbol} {signal_bar_size} rth={use_rth}.")
+            return
+
+        def _sort_key(item: dict) -> tuple:
+            m = item.get("metrics") or {}
+            return (
+                float(m.get("pnl_over_dd") or float("-inf")),
+                float(m.get("pnl") or float("-inf")),
+                float(m.get("win_rate") or 0.0),
+                int(m.get("trades") or 0),
+            )
+
+        seed_top = max(1, int(args.seed_top or 0))
+        seeds = sorted(candidates, key=_sort_key, reverse=True)[:seed_top]
+
+        print("")
+        print(f"=== {axis_tag}: seeded riskpanic micro-grid ===")
+        print(f"- seeds_in_file={len(candidates)} selected={len(seeds)} seed_top={seed_top}")
+        print(f"- seed_path={seed_path}")
+        print("")
+
+        bars_sig = _bars_cached(signal_bar_size)
+        rows: list[dict] = []
+
+        def _merge_filters(base_filters: FiltersConfig | None, overrides: dict[str, object]) -> FiltersConfig | None:
+            base_payload = _filters_payload(base_filters) or {}
+            merged = dict(base_payload)
+            merged.update(overrides)
+            out = _parse_filters(merged)
+            if _filters_payload(out) is None:
+                return None
+            return out
+
+        cutoffs_et: tuple[int | None, ...] = (None, 15)
+        panic_tr_meds: tuple[float, ...] = (2.75, 3.0, 3.25)
+        neg_gap_ratios: tuple[float, ...] = (0.5, 0.6)
+        neg_gap_abs_pcts: tuple[float | None, ...] = (None, 0.005)
+        tr_delta_mins: tuple[float | None, ...] = (None, 0.25, 0.5, 0.75)
+        long_factors: tuple[float, ...] = (1.0, 0.4, 0.0)
+        scale_modes: tuple[str | None, ...] = (None, "linear")
+
+        t0 = pytime.perf_counter()
+        tested_total = 0
+        report_every = 50
+
+        for seed_i, item in enumerate(seeds, start=1):
+            try:
+                filters_obj = _filters_from_payload(item.get("filters"))
+                strategy_obj = _strategy_from_payload(item.get("strategy") or {}, filters=filters_obj)
+            except Exception:
+                continue
+
+            cfg_seed = _mk_bundle(
+                strategy=strategy_obj,
+                start=start,
+                end=end,
+                bar_size=signal_bar_size,
+                use_rth=use_rth,
+                cache_dir=cache_dir,
+                offline=offline,
+            )
+            seed_note = str(item.get("group_name") or f"seed#{seed_i:02d}")
+
+            base_row = _run_cfg(
+                cfg=cfg_seed,
+                bars=bars_sig,
+                regime_bars=_regime_bars_for(cfg_seed),
+                regime2_bars=_regime2_bars_for(cfg_seed),
+            )
+            if base_row:
+                note = f"{seed_note} | base"
+                base_row["note"] = note
+                _record_milestone(cfg_seed, base_row, note)
+                rows.append(base_row)
+
+            for cutoff in cutoffs_et:
+                for tr_med in panic_tr_meds:
+                    for neg_ratio in neg_gap_ratios:
+                        for abs_gap in neg_gap_abs_pcts:
+                            for tr_delta_min in tr_delta_mins:
+                                for long_factor in long_factors:
+                                    for scale_mode in scale_modes:
+                                        tested_total += 1
+                                        if tested_total % report_every == 0:
+                                            elapsed = pytime.perf_counter() - t0
+                                            rate = (tested_total / elapsed) if elapsed > 0 else 0.0
+                                            print(f"{axis_tag} tested={tested_total} kept={len(rows)} rate={rate:0.1f}/s", flush=True)
+
+                                        over: dict[str, object] = {
+                                            # Disable other overlay families unless they exist in the seed.
+                                            "riskoff_tr5_med_pct": None,
+                                            "riskpop_tr5_med_pct": None,
+                                            # Panic detector (enables overlay engine).
+                                            "riskpanic_tr5_med_pct": float(tr_med),
+                                            "riskpanic_neg_gap_ratio_min": float(neg_ratio),
+                                            "riskpanic_neg_gap_abs_pct_min": abs_gap,
+                                            "riskpanic_lookback_days": 5,
+                                            "riskpanic_tr5_med_delta_min_pct": tr_delta_min,
+                                            "riskpanic_tr5_med_delta_lookback_days": 1,
+                                            # Panic policy.
+                                            "risk_entry_cutoff_hour_et": int(cutoff) if cutoff is not None else None,
+                                            "riskpanic_long_risk_mult_factor": float(long_factor),
+                                            "riskpanic_short_risk_mult_factor": 1.0,
+                                            "riskpanic_long_scale_mode": scale_mode,
+                                        }
+                                        f_obj = _merge_filters(cfg_seed.strategy.filters, over)
+                                        if f_obj is None:
+                                            continue
+                                        cfg = replace(cfg_seed, strategy=replace(cfg_seed.strategy, filters=f_obj))
+                                        row = _run_cfg(
+                                            cfg=cfg,
+                                            bars=bars_sig,
+                                            regime_bars=_regime_bars_for(cfg),
+                                            regime2_bars=_regime2_bars_for(cfg),
+                                        )
+                                        if not row:
+                                            continue
+
+                                        cut_note = "-" if cutoff is None else str(cutoff)
+                                        abs_note = "None" if abs_gap is None else f"{abs_gap:g}"
+                                        delta_note = "=off" if tr_delta_min is None else f">={tr_delta_min:g}"
+                                        mode_note = "off" if not scale_mode else str(scale_mode)
+                                        note = (
+                                            f"{seed_note} | cutoff<{cut_note} | panic med5>={tr_med:g} gap>={neg_ratio:g} abs>={abs_note} "
+                                            f"trΔ{delta_note} | long={long_factor:g} scale={mode_note}"
+                                        )
+                                        row["note"] = note
+                                        _record_milestone(cfg, row, note)
+                                        rows.append(row)
+
+        run_calls_total += int(tested_total)
+        _print_leaderboards(rows, title=f"{axis_tag} (seeded riskpanic micro)", top_n=int(args.top))
+
+    def _sweep_exit_pivot() -> None:
+        """Seeded micro-grid: exit-model pivot for higher-cadence lanes (PT/SL + flip semantics + close_eod)."""
+        nonlocal run_calls_total
+
+        axis_tag = "exit_pivot"
+
+        if args.seed_milestones is None:
+            raise SystemExit(f"--axis {axis_tag} requires --seed-milestones <milestones.json>")
+        seed_path = Path(str(args.seed_milestones))
+        if not seed_path.exists():
+            raise SystemExit(f"--axis {axis_tag} requires --seed-milestones (missing {seed_path})")
+
+        payload = json.loads(seed_path.read_text())
+        if not isinstance(payload, dict):
+            raise SystemExit(f"Invalid seed milestones payload: {seed_path}")
+        raw_groups = payload.get("groups") or []
+        if not isinstance(raw_groups, list):
+            raise SystemExit(f"Invalid seed milestones groups: {seed_path}")
+
+        candidates: list[dict] = []
+        for group in raw_groups:
+            if not isinstance(group, dict):
+                continue
+            entries = group.get("entries") or []
+            if not isinstance(entries, list) or not entries:
+                continue
+            entry = entries[0]
+            if not isinstance(entry, dict):
+                continue
+            strat = entry.get("strategy") or {}
+            metrics = entry.get("metrics") or {}
+            if not isinstance(strat, dict) or not isinstance(metrics, dict):
+                continue
+            if str(strat.get("instrument", "spot") or "spot").strip().lower() != "spot":
+                continue
+            if str(entry.get("symbol") or strat.get("symbol") or "").strip().upper() != str(symbol).strip().upper():
+                continue
+            if str(strat.get("signal_bar_size") or "").strip().lower() != str(signal_bar_size).strip().lower():
+                continue
+            if bool(strat.get("signal_use_rth")) != bool(use_rth):
+                continue
+            candidates.append(
+                {
+                    "group_name": str(group.get("name") or ""),
+                    "strategy": strat,
+                    "filters": group.get("filters") if isinstance(group.get("filters"), dict) else None,
+                    "metrics": metrics,
+                }
+            )
+
+        if not candidates:
+            print(f"No matching seed candidates found in {seed_path} for {symbol} {signal_bar_size} rth={use_rth}.")
+            return
+
+        def _sort_key_pnl(item: dict) -> tuple:
+            m = item.get("metrics") or {}
+            return (
+                float(m.get("pnl") or float("-inf")),
+                int(m.get("trades") or 0),
+                float(m.get("pnl_over_dd") or float("-inf")),
+                float(m.get("win_rate") or 0.0),
+            )
+
+        def _sort_key_trades(item: dict) -> tuple:
+            m = item.get("metrics") or {}
+            return (
+                int(m.get("trades") or 0),
+                float(m.get("pnl") or float("-inf")),
+                float(m.get("pnl_over_dd") or float("-inf")),
+            )
+
+        seed_top = max(1, int(args.seed_top or 0))
+        by_pnl = sorted(candidates, key=_sort_key_pnl, reverse=True)[:seed_top]
+        by_trades = sorted(candidates, key=_sort_key_trades, reverse=True)[: max(1, min(seed_top, 5))]
+
+        seen: set[str] = set()
+        seeds: list[dict] = []
+        for item in by_pnl + by_trades:
+            key = json.dumps(item.get("strategy") or {}, sort_keys=True, default=str)
+            if key in seen:
+                continue
+            seen.add(key)
+            seeds.append(item)
+
+        print("")
+        print(f"=== {axis_tag}: seeded exit pivot micro-grid ===")
+        print(f"- seeds_in_file={len(candidates)} selected={len(seeds)} seed_top={seed_top}")
+        print(f"- seed_path={seed_path}")
+        print("")
+
+        bars_sig = _bars_cached(signal_bar_size)
+        rows: list[dict] = []
+
+        pt_vals: tuple[float | None, ...] = (None, 0.0015, 0.002, 0.003, 0.004, 0.006)
+        sl_vals: tuple[float, ...] = (0.003, 0.004, 0.006, 0.008, 0.01, 0.012)
+        only_profit_vals: tuple[bool, ...] = (False, True)
+        close_eod_vals: tuple[bool, ...] = (False, True)
+        max_open_vals: tuple[int, ...] = (1, 2)
+
+        t0 = pytime.perf_counter()
+        tested_total = 0
+        report_every = 100
+
+        for seed_i, item in enumerate(seeds, start=1):
+            try:
+                filters_obj = _filters_from_payload(item.get("filters"))
+                strategy_obj = _strategy_from_payload(item.get("strategy") or {}, filters=filters_obj)
+            except Exception:
+                continue
+
+            cfg_seed = _mk_bundle(
+                strategy=strategy_obj,
+                start=start,
+                end=end,
+                bar_size=signal_bar_size,
+                use_rth=use_rth,
+                cache_dir=cache_dir,
+                offline=offline,
+            )
+            seed_note = str(item.get("group_name") or f"seed#{seed_i:02d}")
+
+            base_row = _run_cfg(
+                cfg=cfg_seed,
+                bars=bars_sig,
+                regime_bars=_regime_bars_for(cfg_seed),
+                regime2_bars=_regime2_bars_for(cfg_seed),
+            )
+            if base_row:
+                note = f"{seed_note} | base"
+                base_row["note"] = note
+                _record_milestone(cfg_seed, base_row, note)
+                rows.append(base_row)
+
+            for max_open in max_open_vals:
+                for close_eod in close_eod_vals:
+                    for only_profit in only_profit_vals:
+                        for pt in pt_vals:
+                            for sl in sl_vals:
+                                tested_total += 1
+                                if tested_total % report_every == 0:
+                                    elapsed = pytime.perf_counter() - t0
+                                    rate = (tested_total / elapsed) if elapsed > 0 else 0.0
+                                    print(
+                                        f"{axis_tag} tested={tested_total} kept={len(rows)} rate={rate:0.1f}/s",
+                                        flush=True,
+                                    )
+
+                                cfg = replace(
+                                    cfg_seed,
+                                    strategy=replace(
+                                        cfg_seed.strategy,
+                                        spot_exit_mode="pct",
+                                        spot_profit_target_pct=pt,
+                                        spot_stop_loss_pct=float(sl),
+                                        exit_on_signal_flip=True,
+                                        flip_exit_only_if_profit=bool(only_profit),
+                                        spot_close_eod=bool(close_eod),
+                                        max_open_trades=int(max_open),
+                                    ),
+                                )
+                                row = _run_cfg(
+                                    cfg=cfg,
+                                    bars=bars_sig,
+                                    regime_bars=_regime_bars_for(cfg),
+                                    regime2_bars=_regime2_bars_for(cfg),
+                                )
+                                if not row:
+                                    continue
+
+                                pt_note = "None" if pt is None else f"{pt:g}"
+                                note = (
+                                    f"{seed_note} | max_open={max_open} close_eod={int(close_eod)} "
+                                    f"only_profit={int(only_profit)} | PT={pt_note} SL={sl:g}"
+                                )
+                                row["note"] = note
+                                _record_milestone(cfg, row, note)
+                                rows.append(row)
+
+        run_calls_total += int(tested_total)
+        _print_leaderboards(rows, title=f"{axis_tag} (seeded exit pivot)", top_n=int(args.top))
 
     def _sweep_st37_refine() -> None:
         """Refine the 3/7 trend + SuperTrend(4h) cluster (seeded) with v31-style gates + overlays.
@@ -12206,6 +13489,16 @@ def main() -> None:
         _sweep_shock_velocity_refine(wide=False)
     if axis == "shock_velocity_refine_wide":
         _sweep_shock_velocity_refine(wide=True)
+    if axis == "shock_throttle_refine":
+        _sweep_shock_throttle_refine()
+    if axis == "shock_throttle_tr_ratio":
+        _sweep_shock_throttle_tr_ratio()
+    if axis == "shock_throttle_drawdown":
+        _sweep_shock_throttle_drawdown()
+    if axis == "riskpanic_micro":
+        _sweep_riskpanic_micro()
+    if axis == "exit_pivot":
+        _sweep_exit_pivot()
     if axis == "frontier":
         _sweep_frontier()
 

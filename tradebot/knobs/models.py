@@ -71,6 +71,7 @@ class FiltersConfig:
     ema_slope_signed_min_pct_down: float | None = None
     shock_gate_mode: str = "off"
     shock_detector: str = "atr_ratio"  # "atr_ratio" | "tr_ratio" | "daily_atr_pct" | "daily_drawdown"
+    shock_scale_detector: str | None = None  # Optional: compute shock_risk_scale_* off a separate detector.
     shock_atr_fast_period: int = 7
     shock_atr_slow_period: int = 50
     shock_on_ratio: float = 1.55
@@ -96,6 +97,7 @@ class FiltersConfig:
     shock_daily_cooling_atr_pct: float | None = None
     shock_risk_scale_target_atr_pct: float | None = None
     shock_risk_scale_min_mult: float = 0.2
+    shock_risk_scale_apply_to: str = "risk"  # "risk" | "cap" | "both"
     risk_entry_cutoff_hour_et: int | None = None
     riskoff_tr5_med_pct: float | None = None
     riskoff_tr5_lookback_days: int = 5
@@ -108,6 +110,9 @@ class FiltersConfig:
     riskpanic_lookback_days: int = 5
     riskpanic_tr5_med_delta_min_pct: float | None = None
     riskpanic_tr5_med_delta_lookback_days: int = 1
+    riskpanic_long_risk_mult_factor: float = 1.0
+    riskpanic_long_scale_mode: str = "off"  # "off" | "linear"
+    riskpanic_long_scale_tr_delta_max_pct: float | None = None
     riskpanic_short_risk_mult_factor: float = 1.0
     riskpop_tr5_med_pct: float | None = None
     riskpop_pos_gap_ratio_min: float | None = None

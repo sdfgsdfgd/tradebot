@@ -30,9 +30,12 @@ from ..engine import (
     normalize_shock_detector,
     normalize_shock_direction_source,
     normalize_shock_gate_mode,
+    normalize_spot_entry_signal,
     parse_time_hhmm,
     permission_gate_status,
     realized_vol_from_closes,
+    resolve_spot_regime2_spec,
+    resolve_spot_regime_spec,
     risk_overlay_policy_from_filters,
     signal_filters_ok,
     spot_calc_signed_qty,
@@ -759,6 +762,21 @@ def _spot_shock_series(
     detector = normalize_shock_detector(filters)
     dir_source = normalize_shock_direction_source(filters)
     dir_lb = int(getattr(filters, "shock_direction_lookback", 2) or 2)
+    scale_detector_raw = getattr(filters, "shock_scale_detector", None)
+    if scale_detector_raw is not None:
+        scale_detector_raw = str(scale_detector_raw).strip().lower()
+    if scale_detector_raw in ("", "0", "false", "none", "null", "off"):
+        scale_detector_raw = None
+    scale_detector = None
+    if scale_detector_raw is not None:
+        if scale_detector_raw in ("daily", "daily_atr", "daily_atr_pct", "daily_atr14", "daily_atr%"):
+            scale_detector = "daily_atr_pct"
+        elif scale_detector_raw in ("drawdown", "daily_drawdown", "daily-dd", "dd", "peak_dd", "peak_drawdown"):
+            scale_detector = "daily_drawdown"
+        elif scale_detector_raw in ("tr_ratio", "tr-ratio", "tr_ratio_pct", "tr_ratio%"):
+            scale_detector = "tr_ratio"
+        elif scale_detector_raw in ("atr_ratio", "ratio", "atr-ratio", "atr_ratio_pct", "atr_ratio%"):
+            scale_detector = "atr_ratio"
 
     # Cache by bar identities + normalized shock knobs.
     shock_key: tuple[object, ...]
@@ -799,6 +817,38 @@ def _spot_shock_series(
     else:
         shock_key = (mode, detector, dir_source, int(dir_lb))
 
+    if scale_detector is not None:
+        scale_key: tuple[object, ...]
+        if scale_detector == "daily_atr_pct":
+            scale_key = (
+                "scale",
+                scale_detector,
+                int(getattr(filters, "shock_daily_atr_period", 14) or 14),
+                float(getattr(filters, "shock_daily_on_atr_pct", 13.0) or 13.0),
+                float(getattr(filters, "shock_daily_off_atr_pct", 11.0) or 11.0),
+                getattr(filters, "shock_daily_on_tr_pct", None),
+            )
+        elif scale_detector == "daily_drawdown":
+            scale_key = (
+                "scale",
+                scale_detector,
+                int(getattr(filters, "shock_drawdown_lookback_days", 20) or 20),
+                float(getattr(filters, "shock_on_drawdown_pct", -20.0) or -20.0),
+                float(getattr(filters, "shock_off_drawdown_pct", -10.0) or -10.0),
+            )
+        else:
+            scale_key = (
+                "scale",
+                scale_detector,
+                int(getattr(filters, "shock_atr_fast_period", 7) or 7),
+                int(getattr(filters, "shock_atr_slow_period", 50) or 50),
+                float(getattr(filters, "shock_on_ratio", 1.55) or 1.55),
+                float(getattr(filters, "shock_off_ratio", 1.30) or 1.30),
+                float(getattr(filters, "shock_min_atr_pct", 7.0) or 7.0),
+                str(st_src_for_shock or "hl2"),
+            )
+        shock_key = (*shock_key, scale_key)
+
     cache_key = (id(exec_bars), id(signal_bars), id(regime_bars) if regime_bars else 0, shock_key)
     cached = _SPOT_SHOCK_SERIES_CACHE.get(cache_key)
     if cached is not None:
@@ -811,6 +861,90 @@ def _spot_shock_series(
     shock_by_exec_idx: list[bool | None] = [None] * len(exec_bars)
     shock_atr_pct_by_exec_idx: list[float | None] = [None] * len(exec_bars)
     shock_dir_by_exec_idx: list[str | None] = [None] * len(exec_bars)
+
+    def _atr_pct_from(snap: object | None) -> float | None:
+        if snap is None:
+            return None
+        atr_pct = getattr(snap, "atr_pct", None)
+        if atr_pct is None:
+            atr_pct = getattr(snap, "atr_fast_pct", None)
+        if atr_pct is None:
+            atr_pct = getattr(snap, "tr_fast_pct", None)
+        try:
+            return float(atr_pct) if atr_pct is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    def _scale_atr_pct_series() -> tuple[list[float | None], list[float | None]] | None:
+        if scale_detector is None:
+            return None
+
+        scale_filters: dict[str, object] = {
+            "shock_gate_mode": "detect",
+            "shock_detector": str(scale_detector),
+            "shock_direction_source": "regime",
+            "shock_direction_lookback": int(dir_lb),
+            "shock_atr_fast_period": int(getattr(filters, "shock_atr_fast_period", 7) or 7),
+            "shock_atr_slow_period": int(getattr(filters, "shock_atr_slow_period", 50) or 50),
+            "shock_on_ratio": float(getattr(filters, "shock_on_ratio", 1.55) or 1.55),
+            "shock_off_ratio": float(getattr(filters, "shock_off_ratio", 1.30) or 1.30),
+            "shock_min_atr_pct": float(getattr(filters, "shock_min_atr_pct", 7.0) or 7.0),
+            "shock_daily_atr_period": int(getattr(filters, "shock_daily_atr_period", 14) or 14),
+            "shock_daily_on_atr_pct": float(getattr(filters, "shock_daily_on_atr_pct", 13.0) or 13.0),
+            "shock_daily_off_atr_pct": float(getattr(filters, "shock_daily_off_atr_pct", 11.0) or 11.0),
+            "shock_daily_on_tr_pct": getattr(filters, "shock_daily_on_tr_pct", None),
+            "shock_drawdown_lookback_days": int(getattr(filters, "shock_drawdown_lookback_days", 20) or 20),
+            "shock_on_drawdown_pct": float(getattr(filters, "shock_on_drawdown_pct", -20.0) or -20.0),
+            "shock_off_drawdown_pct": float(getattr(filters, "shock_off_drawdown_pct", -10.0) or -10.0),
+        }
+        scale_engine = build_shock_engine(scale_filters, source=str(st_src_for_shock or "hl2").strip().lower() or "hl2")
+        if scale_engine is None:
+            return None
+
+        scale_atr_pct_by_sig_idx: list[float | None] = [None] * len(signal_bars)
+        scale_atr_pct_by_exec_idx: list[float | None] = [None] * len(exec_bars)
+
+        if scale_detector in ("daily_atr_pct", "daily_drawdown"):
+            last = None
+            for i, bar in enumerate(exec_bars):
+                last = scale_engine.update(
+                    day=bar.ts.date(),
+                    high=float(bar.high),
+                    low=float(bar.low),
+                    close=float(bar.close),
+                    update_direction=False,
+                )
+                scale_atr_pct_by_exec_idx[i] = _atr_pct_from(last)
+
+            align = _spot_exec_alignment(signal_bars, exec_bars)
+            for sig_i, _sig_bar in enumerate(signal_bars):
+                exec_i = align.exec_idx_by_sig_idx[sig_i]
+                if exec_i >= 0:
+                    scale_atr_pct_by_sig_idx[sig_i] = scale_atr_pct_by_exec_idx[exec_i]
+            return scale_atr_pct_by_sig_idx, scale_atr_pct_by_exec_idx
+
+        last = None
+        for sig_i, sig_bar in enumerate(signal_bars):
+            last = scale_engine.update(
+                high=float(sig_bar.high),
+                low=float(sig_bar.low),
+                close=float(sig_bar.close),
+                update_direction=False,
+            )
+            ready = bool(getattr(last, "ready", False)) if last is not None else False
+            if ready:
+                scale_atr_pct_by_sig_idx[sig_i] = _atr_pct_from(last)
+
+        # Propagate scale ATR% to every exec bar (constant between signal closes).
+        align = _spot_exec_alignment(signal_bars, exec_bars)
+        cur: float | None = None
+        for exec_i, _bar in enumerate(exec_bars):
+            sig_i = align.sig_idx_by_exec_idx[exec_i]
+            if sig_i >= 0:
+                cur = scale_atr_pct_by_sig_idx[sig_i]
+            scale_atr_pct_by_exec_idx[exec_i] = cur
+
+        return scale_atr_pct_by_sig_idx, scale_atr_pct_by_exec_idx
 
     # Daily detectors: shock is advanced by execution bars; optionally compute direction on signal closes.
     if detector in ("daily_atr_pct", "daily_drawdown"):
@@ -884,6 +1018,10 @@ def _spot_shock_series(
                     # *subsequent* execution bars (SpotSignalEvaluator updates direction in
                     # `update_signal_bar`, which is called after `update_exec_bar` for this bar).
                     cur_dir = shock_dir_by_sig_idx[sig_i]
+
+        scale_series = _scale_atr_pct_series()
+        if scale_series is not None:
+            shock_atr_pct_by_sig_idx, shock_atr_pct_by_exec_idx = scale_series
 
         out = _SpotShockSeries(
             shock_by_exec_idx=shock_by_exec_idx,
@@ -975,6 +1113,10 @@ def _spot_shock_series(
         shock_by_exec_idx[exec_i] = cur_shock
         shock_atr_pct_by_exec_idx[exec_i] = cur_atr_pct
         shock_dir_by_exec_idx[exec_i] = cur_dir
+
+    scale_series = _scale_atr_pct_series()
+    if scale_series is not None:
+        shock_atr_pct_by_sig_idx, shock_atr_pct_by_exec_idx = scale_series
 
     out = _SpotShockSeries(
         shock_by_exec_idx=shock_by_exec_idx,
@@ -1201,15 +1343,12 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
             )
 
     if cfg.strategy.instrument == "spot":
-        regime_mode = str(getattr(cfg.strategy, "regime_mode", "ema") or "ema").strip().lower()
-        if regime_mode not in ("ema", "supertrend"):
-            regime_mode = "ema"
-        regime_preset = cfg.strategy.regime_ema_preset
-        regime_bar = cfg.strategy.regime_bar_size or cfg.backtest.bar_size
-        if regime_mode == "supertrend":
-            use_mtf_regime = str(regime_bar) != str(cfg.backtest.bar_size)
-        else:
-            use_mtf_regime = bool(regime_preset) and str(regime_bar) != str(cfg.backtest.bar_size)
+        _regime_mode, _regime_preset, regime_bar, use_mtf_regime = resolve_spot_regime_spec(
+            bar_size=cfg.backtest.bar_size,
+            regime_mode_raw=getattr(cfg.strategy, "regime_mode", "ema"),
+            regime_ema_preset_raw=getattr(cfg.strategy, "regime_ema_preset", None),
+            regime_bar_size_raw=getattr(cfg.strategy, "regime_bar_size", None),
+        )
         regime_bars = None
         if use_mtf_regime:
             # Shock overlays can require a longer warmup than Supertrend itself (e.g., ATR slow period=50).
@@ -1253,15 +1392,12 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
                     use_rth=cfg.backtest.use_rth,
                     cache_dir=cfg.backtest.cache_dir,
                 )
-        regime2_mode = str(getattr(cfg.strategy, "regime2_mode", "off") or "off").strip().lower()
-        if regime2_mode not in ("off", "ema", "supertrend"):
-            regime2_mode = "off"
-        regime2_preset = getattr(cfg.strategy, "regime2_ema_preset", None)
-        regime2_bar = getattr(cfg.strategy, "regime2_bar_size", None) or cfg.backtest.bar_size
-        if regime2_mode == "supertrend":
-            use_mtf_regime2 = str(regime2_bar) != str(cfg.backtest.bar_size)
-        else:
-            use_mtf_regime2 = bool(regime2_preset) and str(regime2_bar) != str(cfg.backtest.bar_size)
+        _regime2_mode, _regime2_preset, regime2_bar, use_mtf_regime2 = resolve_spot_regime2_spec(
+            bar_size=cfg.backtest.bar_size,
+            regime2_mode_raw=getattr(cfg.strategy, "regime2_mode", "off"),
+            regime2_ema_preset_raw=getattr(cfg.strategy, "regime2_ema_preset", None),
+            regime2_bar_size_raw=getattr(cfg.strategy, "regime2_bar_size", None),
+        )
         regime2_bars = None
         if use_mtf_regime2:
             if cfg.backtest.offline:
@@ -1897,9 +2033,7 @@ def _run_spot_backtest_exec_loop(
         signal_idx_by_ts[bar.ts] = idx
 
     filters = cfg.strategy.filters
-    entry_signal = str(getattr(cfg.strategy, "entry_signal", "ema") or "ema").strip().lower()
-    if entry_signal not in ("ema", "orb"):
-        entry_signal = "ema"
+    entry_signal = normalize_spot_entry_signal(getattr(cfg.strategy, "entry_signal", "ema"))
 
     ema_periods = _ema_periods(cfg.strategy.ema_preset) if entry_signal == "ema" else None
     needs_direction = cfg.strategy.directional_spot is not None
@@ -1907,24 +2041,22 @@ def _run_spot_backtest_exec_loop(
         raise ValueError("spot backtests require ema_preset")
     ema_needed = entry_signal == "ema"
 
-    regime_mode = str(getattr(cfg.strategy, "regime_mode", "ema") or "ema").strip().lower()
-    if regime_mode not in ("ema", "supertrend"):
-        regime_mode = "ema"
-    use_mtf_regime = bool(regime_bars) and (
-        regime_mode == "supertrend" or bool(cfg.strategy.regime_ema_preset)
+    _regime_mode, _regime_preset, _regime_bar, use_mtf_regime_cfg = resolve_spot_regime_spec(
+        bar_size=cfg.backtest.bar_size,
+        regime_mode_raw=getattr(cfg.strategy, "regime_mode", "ema"),
+        regime_ema_preset_raw=getattr(cfg.strategy, "regime_ema_preset", None),
+        regime_bar_size_raw=getattr(cfg.strategy, "regime_bar_size", None),
     )
-    regime2_mode = str(getattr(cfg.strategy, "regime2_mode", "off") or "off").strip().lower()
-    if regime2_mode not in ("off", "ema", "supertrend"):
-        regime2_mode = "off"
-    regime2_preset = str(getattr(cfg.strategy, "regime2_ema_preset", "") or "").strip()
-    if regime2_mode == "ema" and not regime2_preset:
-        regime2_mode = "off"
-    regime2_bar = str(getattr(cfg.strategy, "regime2_bar_size", "") or "").strip() or str(cfg.backtest.bar_size)
-    if regime2_mode != "off" and str(regime2_bar) != str(cfg.backtest.bar_size) and not regime2_bars:
+    use_mtf_regime = bool(regime_bars) and bool(use_mtf_regime_cfg)
+    regime2_mode, _regime2_preset, _regime2_bar, use_mtf_regime2_cfg = resolve_spot_regime2_spec(
+        bar_size=cfg.backtest.bar_size,
+        regime2_mode_raw=getattr(cfg.strategy, "regime2_mode", "off"),
+        regime2_ema_preset_raw=getattr(cfg.strategy, "regime2_ema_preset", None),
+        regime2_bar_size_raw=getattr(cfg.strategy, "regime2_bar_size", None),
+    )
+    if regime2_mode != "off" and bool(use_mtf_regime2_cfg) and not regime2_bars:
         raise ValueError("regime2_mode enabled but regime2_bars was not provided for multi-timeframe regime2")
-    use_mtf_regime2 = bool(regime2_bars) and (
-        regime2_mode == "supertrend" or bool(regime2_preset)
-    )
+    use_mtf_regime2 = bool(regime2_bars) and bool(use_mtf_regime2_cfg)
 
     from ..spot_engine import SpotSignalEvaluator, SpotSignalSnapshot
 
@@ -2025,6 +2157,7 @@ def _run_spot_backtest_exec_loop(
         risk_dir: str | None,
         riskpanic: bool,
         riskpop: bool,
+        risk: object | None,
         equity_ref: float,
         cash_ref: float,
     ) -> int:
@@ -2038,6 +2171,7 @@ def _run_spot_backtest_exec_loop(
         if entry_price <= 0:
             return 0
 
+        cap_pct = float(spot_max_notional_pct)
         desired_qty = 0
         if spot_sizing_mode == "notional_pct":
             if spot_notional_pct > 0 and equity_ref > 0:
@@ -2059,6 +2193,54 @@ def _run_spot_backtest_exec_loop(
                         if float(riskoff_long_factor) == 0:
                             return 0
                         risk_dollars *= float(riskoff_long_factor)
+                    if bool(riskpanic):
+                        if float(riskpanic_long_factor) == 0:
+                            return 0
+                        risk_dollars *= float(riskpanic_long_factor)
+                    elif filters is not None and risk is not None:
+                        scale_mode = str(getattr(filters, "riskpanic_long_scale_mode", "off") or "off").strip().lower()
+                        if scale_mode in ("linear", "lin", "delta", "linear_delta", "linear_tr_delta"):
+                            tr_delta = getattr(risk, "tr_median_delta_pct", None)
+                            gap_ratio = getattr(risk, "neg_gap_ratio", None)
+                            if tr_delta is not None and gap_ratio is not None:
+                                try:
+                                    gap_min = float(getattr(filters, "riskpanic_neg_gap_ratio_min", 0.0) or 0.0)
+                                except (TypeError, ValueError):
+                                    gap_min = 0.0
+                                gap_min = float(max(0.0, min(1.0, gap_min)))
+                                try:
+                                    gap_ratio_f = float(gap_ratio)
+                                except (TypeError, ValueError):
+                                    gap_ratio_f = 0.0
+                                gap_ratio_f = float(max(0.0, min(1.0, gap_ratio_f)))
+                                gap_strength = 0.0
+                                if gap_min < 1.0:
+                                    gap_strength = (gap_ratio_f - gap_min) / (1.0 - gap_min)
+                                gap_strength = float(max(0.0, min(1.0, gap_strength)))
+
+                                raw_delta_max = getattr(filters, "riskpanic_long_scale_tr_delta_max_pct", None)
+                                if raw_delta_max is None:
+                                    raw_delta_max = getattr(filters, "riskpanic_tr5_med_delta_min_pct", None)
+                                try:
+                                    delta_max = float(raw_delta_max) if raw_delta_max is not None else 0.0
+                                except (TypeError, ValueError):
+                                    delta_max = 0.0
+                                if delta_max <= 0:
+                                    delta_max = 1.0
+                                try:
+                                    delta_f = float(tr_delta)
+                                except (TypeError, ValueError):
+                                    delta_f = 0.0
+                                delta_strength = float(max(0.0, min(1.0, max(0.0, delta_f) / float(delta_max))))
+
+                                strength = float(gap_strength) * float(delta_strength)
+                                if strength > 0:
+                                    base_factor = float(max(0.0, min(1.0, float(riskpanic_long_factor))))
+                                    eff = 1.0 - (float(strength) * (1.0 - float(base_factor)))
+                                    eff = float(max(0.0, min(1.0, eff)))
+                                    if eff <= 0:
+                                        return 0
+                                    risk_dollars *= float(eff)
                     if bool(riskpop):
                         if float(riskpop_long_factor) == 0:
                             return 0
@@ -2114,15 +2296,27 @@ def _run_spot_backtest_exec_loop(
                         min_mult = float(max(0.0, min(1.0, min_mult)))
                         scale = min(1.0, float(target) / float(shock_atr_pct))
                         scale = float(max(min_mult, min(1.0, scale)))
-                        risk_dollars *= float(scale)
+                        apply_to = getattr(filters, "shock_risk_scale_apply_to", None) or "risk"
+                        apply_to = str(apply_to).strip().lower()
+                        if apply_to in ("cap", "notional_cap", "max_notional", "cap_only", "cap-only"):
+                            apply_to = "cap"
+                        elif apply_to in ("both", "all", "risk_and_cap", "cap_and_risk", "cap+risk"):
+                            apply_to = "both"
+                        else:
+                            apply_to = "risk"
+
+                        if apply_to in ("risk", "both"):
+                            risk_dollars *= float(scale)
+                        if apply_to in ("cap", "both"):
+                            cap_pct *= float(scale)
                 if per_share_risk > 1e-9 and risk_dollars > 0:
                     desired_qty = int(risk_dollars / per_share_risk)
 
         if desired_qty <= 0:
             desired_qty = lot * int(cfg.strategy.quantity)
 
-        if spot_max_notional_pct > 0 and equity_ref > 0:
-            cap_qty = int((float(equity_ref) * float(spot_max_notional_pct)) / float(entry_price))
+        if cap_pct > 0 and equity_ref > 0:
+            cap_qty = int((float(equity_ref) * float(cap_pct)) / float(entry_price))
             desired_qty = min(desired_qty, max(0, cap_qty))
 
         if action == "BUY" and cash_ref > 0:
@@ -2147,6 +2341,7 @@ def _run_spot_backtest_exec_loop(
         riskoff_mode,
         riskoff_long_factor,
         riskoff_short_factor,
+        riskpanic_long_factor,
         riskpanic_short_factor,
         riskpop_long_factor,
         riskpop_short_factor,
@@ -2365,6 +2560,7 @@ def _run_spot_backtest_exec_loop(
                             risk_dir=shock_dir_now,
                             riskpanic=bool(riskpanic_today),
                             riskpop=bool(riskpop_today),
+                            risk=evaluator.last_risk if risk_overlay_enabled else None,
                             equity_ref=float(equity_before),
                             cash_ref=float(cash),
                         )
@@ -2866,6 +3062,7 @@ def _run_spot_backtest_exec_loop(
                             risk_dir=shock_dir,
                             riskpanic=bool(riskpanic_today),
                             riskpop=bool(riskpop_today),
+                            risk=evaluator.last_risk if risk_overlay_enabled else None,
                             equity_ref=float(equity_before),
                             cash_ref=float(cash),
                         )
@@ -3367,6 +3564,7 @@ def _run_spot_backtest_exec_loop_summary_fast(
                     risk_dir=shock_dir_prev_now,
                     riskpanic=bool(riskpanic_fill),
                     riskpop=bool(riskpop_fill),
+                    risk=risk_by_day.get(bar.ts.date()),
                     equity_ref=float(cash),
                     cash_ref=float(cash),
                 )
@@ -3722,6 +3920,7 @@ def _run_spot_backtest_exec_loop_summary_fast(
                                     risk_dir=shock_dir_prev_now,
                                     riskpanic=bool(riskpanic_fill),
                                     riskpop=bool(riskpop_fill),
+                                    risk=risk_by_day.get(bar.ts.date()),
                                     equity_ref=float(cash),
                                     cash_ref=float(cash),
                                 )
@@ -3862,9 +4061,7 @@ def _run_spot_backtest_exec_loop_summary(
         signal_idx_by_ts[bar.ts] = idx
 
     filters = cfg.strategy.filters
-    entry_signal = str(getattr(cfg.strategy, "entry_signal", "ema") or "ema").strip().lower()
-    if entry_signal not in ("ema", "orb"):
-        entry_signal = "ema"
+    entry_signal = normalize_spot_entry_signal(getattr(cfg.strategy, "entry_signal", "ema"))
 
     ema_periods = _ema_periods_shared(cfg.strategy.ema_preset) if entry_signal == "ema" else None
     needs_direction = cfg.strategy.directional_spot is not None
@@ -3872,24 +4069,22 @@ def _run_spot_backtest_exec_loop_summary(
         raise ValueError("spot backtests require ema_preset")
     ema_needed = entry_signal == "ema"
 
-    regime_mode = str(getattr(cfg.strategy, "regime_mode", "ema") or "ema").strip().lower()
-    if regime_mode not in ("ema", "supertrend"):
-        regime_mode = "ema"
-    use_mtf_regime = bool(regime_bars) and (
-        regime_mode == "supertrend" or bool(cfg.strategy.regime_ema_preset)
+    _regime_mode, _regime_preset, _regime_bar, use_mtf_regime_cfg = resolve_spot_regime_spec(
+        bar_size=cfg.backtest.bar_size,
+        regime_mode_raw=getattr(cfg.strategy, "regime_mode", "ema"),
+        regime_ema_preset_raw=getattr(cfg.strategy, "regime_ema_preset", None),
+        regime_bar_size_raw=getattr(cfg.strategy, "regime_bar_size", None),
     )
-    regime2_mode = str(getattr(cfg.strategy, "regime2_mode", "off") or "off").strip().lower()
-    if regime2_mode not in ("off", "ema", "supertrend"):
-        regime2_mode = "off"
-    regime2_preset = str(getattr(cfg.strategy, "regime2_ema_preset", "") or "").strip()
-    if regime2_mode == "ema" and not regime2_preset:
-        regime2_mode = "off"
-    regime2_bar = str(getattr(cfg.strategy, "regime2_bar_size", "") or "").strip() or str(cfg.backtest.bar_size)
-    if regime2_mode != "off" and str(regime2_bar) != str(cfg.backtest.bar_size) and not regime2_bars:
+    use_mtf_regime = bool(regime_bars) and bool(use_mtf_regime_cfg)
+    regime2_mode, _regime2_preset, _regime2_bar, use_mtf_regime2_cfg = resolve_spot_regime2_spec(
+        bar_size=cfg.backtest.bar_size,
+        regime2_mode_raw=getattr(cfg.strategy, "regime2_mode", "off"),
+        regime2_ema_preset_raw=getattr(cfg.strategy, "regime2_ema_preset", None),
+        regime2_bar_size_raw=getattr(cfg.strategy, "regime2_bar_size", None),
+    )
+    if regime2_mode != "off" and bool(use_mtf_regime2_cfg) and not regime2_bars:
         raise ValueError("regime2_mode enabled but regime2_bars was not provided for multi-timeframe regime2")
-    use_mtf_regime2 = bool(regime2_bars) and (
-        regime2_mode == "supertrend" or bool(regime2_preset)
-    )
+    use_mtf_regime2 = bool(regime2_bars) and bool(use_mtf_regime2_cfg)
 
     from ..spot_engine import SpotSignalEvaluator, SpotSignalSnapshot
 
@@ -3990,6 +4185,7 @@ def _run_spot_backtest_exec_loop_summary(
         risk_dir: str | None,
         riskpanic: bool,
         riskpop: bool,
+        risk: object | None,
         equity_ref: float,
         cash_ref: float,
     ) -> int:
@@ -4003,6 +4199,7 @@ def _run_spot_backtest_exec_loop_summary(
         if entry_price <= 0:
             return 0
 
+        cap_pct = float(spot_max_notional_pct)
         desired_qty = 0
         if spot_sizing_mode == "notional_pct":
             if spot_notional_pct > 0 and equity_ref > 0:
@@ -4024,6 +4221,54 @@ def _run_spot_backtest_exec_loop_summary(
                         if float(riskoff_long_factor) == 0:
                             return 0
                         risk_dollars *= float(riskoff_long_factor)
+                    if bool(riskpanic):
+                        if float(riskpanic_long_factor) == 0:
+                            return 0
+                        risk_dollars *= float(riskpanic_long_factor)
+                    elif filters is not None and risk is not None:
+                        scale_mode = str(getattr(filters, "riskpanic_long_scale_mode", "off") or "off").strip().lower()
+                        if scale_mode in ("linear", "lin", "delta", "linear_delta", "linear_tr_delta"):
+                            tr_delta = getattr(risk, "tr_median_delta_pct", None)
+                            gap_ratio = getattr(risk, "neg_gap_ratio", None)
+                            if tr_delta is not None and gap_ratio is not None:
+                                try:
+                                    gap_min = float(getattr(filters, "riskpanic_neg_gap_ratio_min", 0.0) or 0.0)
+                                except (TypeError, ValueError):
+                                    gap_min = 0.0
+                                gap_min = float(max(0.0, min(1.0, gap_min)))
+                                try:
+                                    gap_ratio_f = float(gap_ratio)
+                                except (TypeError, ValueError):
+                                    gap_ratio_f = 0.0
+                                gap_ratio_f = float(max(0.0, min(1.0, gap_ratio_f)))
+                                gap_strength = 0.0
+                                if gap_min < 1.0:
+                                    gap_strength = (gap_ratio_f - gap_min) / (1.0 - gap_min)
+                                gap_strength = float(max(0.0, min(1.0, gap_strength)))
+
+                                raw_delta_max = getattr(filters, "riskpanic_long_scale_tr_delta_max_pct", None)
+                                if raw_delta_max is None:
+                                    raw_delta_max = getattr(filters, "riskpanic_tr5_med_delta_min_pct", None)
+                                try:
+                                    delta_max = float(raw_delta_max) if raw_delta_max is not None else 0.0
+                                except (TypeError, ValueError):
+                                    delta_max = 0.0
+                                if delta_max <= 0:
+                                    delta_max = 1.0
+                                try:
+                                    delta_f = float(tr_delta)
+                                except (TypeError, ValueError):
+                                    delta_f = 0.0
+                                delta_strength = float(max(0.0, min(1.0, max(0.0, delta_f) / float(delta_max))))
+
+                                strength = float(gap_strength) * float(delta_strength)
+                                if strength > 0:
+                                    base_factor = float(max(0.0, min(1.0, float(riskpanic_long_factor))))
+                                    eff = 1.0 - (float(strength) * (1.0 - float(base_factor)))
+                                    eff = float(max(0.0, min(1.0, eff)))
+                                    if eff <= 0:
+                                        return 0
+                                    risk_dollars *= float(eff)
                     if bool(riskpop):
                         if float(riskpop_long_factor) == 0:
                             return 0
@@ -4079,15 +4324,27 @@ def _run_spot_backtest_exec_loop_summary(
                         min_mult = float(max(0.0, min(1.0, min_mult)))
                         scale = min(1.0, float(target) / float(shock_atr_pct))
                         scale = float(max(min_mult, min(1.0, scale)))
-                        risk_dollars *= float(scale)
+                        apply_to = getattr(filters, "shock_risk_scale_apply_to", None) or "risk"
+                        apply_to = str(apply_to).strip().lower()
+                        if apply_to in ("cap", "notional_cap", "max_notional", "cap_only", "cap-only"):
+                            apply_to = "cap"
+                        elif apply_to in ("both", "all", "risk_and_cap", "cap_and_risk", "cap+risk"):
+                            apply_to = "both"
+                        else:
+                            apply_to = "risk"
+
+                        if apply_to in ("risk", "both"):
+                            risk_dollars *= float(scale)
+                        if apply_to in ("cap", "both"):
+                            cap_pct *= float(scale)
                 if per_share_risk > 1e-9 and risk_dollars > 0:
                     desired_qty = int(risk_dollars / per_share_risk)
 
         if desired_qty <= 0:
             desired_qty = lot * int(cfg.strategy.quantity)
 
-        if spot_max_notional_pct > 0 and equity_ref > 0:
-            cap_qty = int((float(equity_ref) * float(spot_max_notional_pct)) / float(entry_price))
+        if cap_pct > 0 and equity_ref > 0:
+            cap_qty = int((float(equity_ref) * float(cap_pct)) / float(entry_price))
             desired_qty = min(desired_qty, max(0, cap_qty))
 
         if action == "BUY" and cash_ref > 0:
@@ -4112,6 +4369,7 @@ def _run_spot_backtest_exec_loop_summary(
         riskoff_mode,
         riskoff_long_factor,
         riskoff_short_factor,
+        riskpanic_long_factor,
         riskpanic_short_factor,
         riskpop_long_factor,
         riskpop_short_factor,
@@ -4334,6 +4592,7 @@ def _run_spot_backtest_exec_loop_summary(
                             risk_dir=shock_dir_now,
                             riskpanic=bool(riskpanic_today),
                             riskpop=bool(riskpop_today),
+                            risk=evaluator.last_risk if risk_overlay_enabled else None,
                             equity_ref=float(equity_before),
                             cash_ref=float(cash),
                         )
@@ -4852,6 +5111,7 @@ def _run_spot_backtest_exec_loop_summary(
                             risk_dir=shock_dir_now,
                             riskpanic=bool(riskpanic_today),
                             riskpop=bool(riskpop_today),
+                            risk=evaluator.last_risk if risk_overlay_enabled else None,
                             equity_ref=float(equity_before),
                             cash_ref=float(cash),
                         )

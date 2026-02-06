@@ -30,9 +30,13 @@ from .engine import (
     apply_regime_gate,
     build_shock_engine,
     build_tr_pct_risk_overlay_engine,
+    normalize_spot_entry_signal,
+    normalize_spot_regime_mode,
     normalize_shock_detector,
     normalize_shock_direction_source,
     parse_time_hhmm,
+    resolve_spot_regime2_spec,
+    spot_regime_apply_matches_direction,
 )
 from .signals import ema_next, ema_periods
 
@@ -111,15 +115,11 @@ class SpotSignalEvaluator:
         self._sig_bars_in_day = 0
 
         # Entry signal
-        entry_signal = str(_get(strategy, "entry_signal", "ema") or "ema").strip().lower()
-        if entry_signal not in ("ema", "orb"):
-            entry_signal = "ema"
+        entry_signal = normalize_spot_entry_signal(_get(strategy, "entry_signal", "ema"))
         self.entry_signal = entry_signal
 
         # Regime mode (primary)
-        regime_mode = str(_get(strategy, "regime_mode", "ema") or "ema").strip().lower()
-        if regime_mode not in ("ema", "supertrend"):
-            regime_mode = "ema"
+        regime_mode = normalize_spot_regime_mode(_get(strategy, "regime_mode", "ema"))
         self._regime_mode = regime_mode
         regime_preset = str(_get(strategy, "regime_ema_preset", "") or "").strip() or None
 
@@ -231,22 +231,55 @@ class SpotSignalEvaluator:
         st_src_for_shock = str(_get(strategy, "supertrend_source", "hl2") or "hl2").strip() or "hl2"
         self._shock_engine = build_shock_engine(filters, source=st_src_for_shock)
         self._last_shock = None
+        self._shock_scale_detector: str | None = None
+        self._shock_scale_engine = None
+        self._last_shock_scale = None
+        if filters is not None:
+            raw_scale = _get(filters, "shock_scale_detector", None)
+            cleaned = str(raw_scale).strip().lower() if raw_scale is not None else ""
+            if cleaned and cleaned not in ("0", "false", "none", "null", "off"):
+                scale_detector = normalize_shock_detector({"shock_detector": cleaned})
+                if scale_detector in ("atr_ratio", "tr_ratio", "daily_atr_pct", "daily_drawdown"):
+                    self._shock_scale_detector = str(scale_detector)
+                    scale_filters: dict[str, object] = {
+                        # Scale-only detector: always detect-only (no gating) by construction.
+                        "shock_gate_mode": "detect",
+                        "shock_detector": str(scale_detector),
+                        # Reuse the existing shock knob family for the scale detector.
+                        "shock_atr_fast_period": _get(filters, "shock_atr_fast_period", 7),
+                        "shock_atr_slow_period": _get(filters, "shock_atr_slow_period", 50),
+                        "shock_on_ratio": _get(filters, "shock_on_ratio", 1.55),
+                        "shock_off_ratio": _get(filters, "shock_off_ratio", 1.30),
+                        "shock_min_atr_pct": _get(filters, "shock_min_atr_pct", 7.0),
+                        "shock_daily_atr_period": _get(filters, "shock_daily_atr_period", 14),
+                        "shock_daily_on_atr_pct": _get(filters, "shock_daily_on_atr_pct", 13.0),
+                        "shock_daily_off_atr_pct": _get(filters, "shock_daily_off_atr_pct", 11.0),
+                        "shock_daily_on_tr_pct": _get(filters, "shock_daily_on_tr_pct", None),
+                        "shock_drawdown_lookback_days": _get(filters, "shock_drawdown_lookback_days", 20),
+                        "shock_on_drawdown_pct": _get(filters, "shock_on_drawdown_pct", -20.0),
+                        "shock_off_drawdown_pct": _get(filters, "shock_off_drawdown_pct", -10.0),
+                        "shock_direction_source": _get(filters, "shock_direction_source", "regime"),
+                        "shock_direction_lookback": _get(filters, "shock_direction_lookback", 2),
+                    }
+                    self._shock_scale_engine = build_shock_engine(scale_filters, source=st_src_for_shock)
 
         # Risk overlay (daily TR% heuristics)
         self._risk_overlay = build_tr_pct_risk_overlay_engine(filters)
         self._last_risk: RiskOverlaySnapshot | None = None
 
         # Regime2 gating (secondary)
-        regime2_mode = str(_get(strategy, "regime2_mode", "off") or "off").strip().lower()
-        if regime2_mode not in ("off", "ema", "supertrend"):
-            regime2_mode = "off"
+        regime2_mode, regime2_preset, _regime2_bar_size, _use_mtf_regime2_cfg = resolve_spot_regime2_spec(
+            bar_size=self._bar_size,
+            regime2_mode_raw=_get(strategy, "regime2_mode", "off"),
+            regime2_ema_preset_raw=_get(strategy, "regime2_ema_preset", ""),
+            regime2_bar_size_raw=_get(strategy, "regime2_bar_size", ""),
+        )
         self._regime2_mode = regime2_mode
 
         self._use_mtf_regime2 = bool(regime2_bars)
         self._regime2_bars = list(regime2_bars) if regime2_bars else []
         self._regime2_idx = 0
 
-        regime2_preset = str(_get(strategy, "regime2_ema_preset", "") or "").strip() or None
         self._regime2_engine: EmaDecisionEngine | None = None
         if regime2_mode == "ema" and regime2_preset:
             self._regime2_engine = EmaDecisionEngine(
@@ -320,42 +353,74 @@ class SpotSignalEvaluator:
                 is_last_bar=bool(is_last_bar),
             )
 
-        if self._shock_engine is None:
-            return
-        if self._shock_detector not in ("daily_atr_pct", "daily_drawdown"):
-            return
-        self._last_shock = self._shock_engine.update(
-            day=bar.ts.date(),
-            high=float(bar.high),
-            low=float(bar.low),
-            close=float(bar.close),
-            update_direction=(self._shock_dir_source != "signal"),
-        )
+        if self._shock_engine is not None and self._shock_detector in ("daily_atr_pct", "daily_drawdown"):
+            self._last_shock = self._shock_engine.update(
+                day=bar.ts.date(),
+                high=float(bar.high),
+                low=float(bar.low),
+                close=float(bar.close),
+                update_direction=(self._shock_dir_source != "signal"),
+            )
+
+        if self._shock_scale_engine is not None and self._shock_scale_detector in ("daily_atr_pct", "daily_drawdown"):
+            self._last_shock_scale = self._shock_scale_engine.update(
+                day=bar.ts.date(),
+                high=float(bar.high),
+                low=float(bar.low),
+                close=float(bar.close),
+                update_direction=False,
+            )
 
     def _shock_view(self) -> tuple[bool | None, str | None, float | None]:
-        if self._shock_engine is None:
-            return None, None, None
-        if self._last_shock is None:
-            return None, None, None
-        ready_ok = (
-            self._shock_detector in ("daily_atr_pct", "daily_drawdown")
-            or bool(getattr(self._last_shock, "ready", False))
-        )
-        if not ready_ok:
-            return None, None, None
+        def _atr_pct_from(snap: object | None) -> float | None:
+            if snap is None:
+                return None
+            # Daily drawdown snapshots use a negative percent (e.g. -12.0 for -12%).
+            # For scaling we treat it as a positive "magnitude" comparable to ATR%.
+            dd_pct = getattr(snap, "drawdown_pct", None)
+            if dd_pct is not None:
+                try:
+                    v = float(dd_pct)
+                except (TypeError, ValueError):
+                    v = None
+                if v is not None:
+                    return max(0.0, -float(v))
+            atr_pct = getattr(snap, "atr_pct", None)
+            if atr_pct is None:
+                atr_pct = getattr(snap, "atr_fast_pct", None)
+            if atr_pct is None:
+                atr_pct = getattr(snap, "tr_fast_pct", None)
+            try:
+                return float(atr_pct) if atr_pct is not None else None
+            except (TypeError, ValueError):
+                return None
 
-        shock = bool(getattr(self._last_shock, "shock", False))
-        shock_dir = (
-            str(getattr(self._last_shock, "direction"))
-            if bool(getattr(self._last_shock, "direction_ready", False))
-            and getattr(self._last_shock, "direction", None) in ("up", "down")
-            else None
-        )
-        atr_pct = getattr(self._last_shock, "atr_pct", None)
-        if atr_pct is None:
-            atr_pct = getattr(self._last_shock, "atr_fast_pct", None)
-        shock_atr_pct = float(atr_pct) if atr_pct is not None else None
-        return shock, shock_dir, shock_atr_pct
+        shock = None
+        shock_dir = None
+        if self._shock_engine is not None and self._last_shock is not None:
+            gate_ready_ok = (
+                self._shock_detector in ("daily_atr_pct", "daily_drawdown")
+                or bool(getattr(self._last_shock, "ready", False))
+            )
+            if gate_ready_ok:
+                shock = bool(getattr(self._last_shock, "shock", False))
+                if bool(getattr(self._last_shock, "direction_ready", False)) and getattr(self._last_shock, "direction", None) in ("up", "down"):
+                    shock_dir = str(getattr(self._last_shock, "direction"))
+
+        # Optional: override the ATR% stream used for risk scaling with a separate detector.
+        # When configured, we return the scale detector's ATR% stream (or None until ready).
+        if self._shock_scale_engine is not None:
+            if self._last_shock_scale is None:
+                return shock, shock_dir, None
+            scale_ready_ok = (
+                self._shock_scale_detector in ("daily_atr_pct", "daily_drawdown")
+                or bool(getattr(self._last_shock_scale, "ready", False))
+            )
+            if not scale_ready_ok:
+                return shock, shock_dir, None
+            return shock, shock_dir, _atr_pct_from(self._last_shock_scale)
+
+        return shock, shock_dir, _atr_pct_from(self._last_shock)
 
     def update_signal_bar(self, bar: BarLike) -> SpotSignalSnapshot | None:
         """Update the evaluator for a single signal bar close."""
@@ -569,6 +634,17 @@ class SpotSignalEvaluator:
                     update_direction=True,
                 )
 
+        if (
+            self._shock_scale_engine is not None
+            and self._shock_scale_detector not in ("daily_atr_pct", "daily_drawdown")
+        ):
+            self._last_shock_scale = self._shock_scale_engine.update(
+                high=float(bar.high),
+                low=float(bar.low),
+                close=float(bar.close),
+                update_direction=False,
+            )
+
         # Secondary regime2 gating.
         if self._supertrend2_engine is not None:
             if self._use_mtf_regime2 and self._regime2_bars:
@@ -587,13 +663,10 @@ class SpotSignalEvaluator:
                     close=float(bar.close),
                 )
 
-            regime2_apply_to = str(_get(self._strategy, "regime2_apply_to", "both") or "both").strip().lower()
-            apply_regime2 = True
-            if regime2_apply_to == "longs":
-                apply_regime2 = bool(signal is not None and signal.entry_dir == "up")
-            elif regime2_apply_to == "shorts":
-                apply_regime2 = bool(signal is not None and signal.entry_dir == "down")
-            if apply_regime2:
+            if spot_regime_apply_matches_direction(
+                apply_to_raw=_get(self._strategy, "regime2_apply_to", "both"),
+                entry_dir=getattr(signal, "entry_dir", None),
+            ):
                 signal = apply_regime_gate(
                     signal,
                     regime_dir=self._last_supertrend2.direction if self._last_supertrend2 is not None else None,
@@ -609,13 +682,10 @@ class SpotSignalEvaluator:
             else:
                 self._last_regime2 = self._regime2_engine.update(float(bar.close))
 
-            regime2_apply_to = str(_get(self._strategy, "regime2_apply_to", "both") or "both").strip().lower()
-            apply_regime2 = True
-            if regime2_apply_to == "longs":
-                apply_regime2 = bool(signal is not None and signal.entry_dir == "up")
-            elif regime2_apply_to == "shorts":
-                apply_regime2 = bool(signal is not None and signal.entry_dir == "down")
-            if apply_regime2:
+            if spot_regime_apply_matches_direction(
+                apply_to_raw=_get(self._strategy, "regime2_apply_to", "both"),
+                entry_dir=getattr(signal, "entry_dir", None),
+            ):
                 signal = apply_regime_gate(
                     signal,
                     regime_dir=self._last_regime2.state if self._last_regime2 is not None else None,

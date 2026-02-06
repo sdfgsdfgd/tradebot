@@ -398,6 +398,23 @@ def _parse_filters(raw) -> FiltersConfig | None:
     else:
         shock_detector = "atr_ratio"
 
+    shock_scale_detector = raw.get("shock_scale_detector")
+    if shock_scale_detector is not None:
+        shock_scale_detector = str(shock_scale_detector).strip().lower()
+    if shock_scale_detector in ("", "0", "false", "none", "null", "off"):
+        shock_scale_detector = None
+    elif shock_scale_detector is not None:
+        if shock_scale_detector in ("daily", "daily_atr", "daily_atr_pct", "daily_atr14", "daily_atr%"):
+            shock_scale_detector = "daily_atr_pct"
+        elif shock_scale_detector in ("drawdown", "daily_drawdown", "daily-dd", "dd", "peak_dd", "peak_drawdown"):
+            shock_scale_detector = "daily_drawdown"
+        elif shock_scale_detector in ("tr_ratio", "tr-ratio", "tr_ratio_pct", "tr_ratio%"):
+            shock_scale_detector = "tr_ratio"
+        elif shock_scale_detector in ("atr_ratio", "ratio", "atr-ratio", "atr_ratio_pct", "atr_ratio%"):
+            shock_scale_detector = "atr_ratio"
+        else:
+            shock_scale_detector = None
+
     shock_fast = _i(raw.get("shock_atr_fast_period"))
     if shock_fast is None or shock_fast <= 0:
         shock_fast = 7
@@ -474,6 +491,18 @@ def _parse_filters(raw) -> FiltersConfig | None:
     if shock_scale_min is None:
         shock_scale_min = 0.2
     shock_scale_min = float(max(0.0, min(1.0, shock_scale_min)))
+
+    shock_scale_apply_to = raw.get("shock_risk_scale_apply_to")
+    if shock_scale_apply_to is not None:
+        shock_scale_apply_to = str(shock_scale_apply_to).strip().lower()
+    if shock_scale_apply_to in ("", "0", "false", "none", "null"):
+        shock_scale_apply_to = None
+    if shock_scale_apply_to in ("cap", "notional_cap", "max_notional", "cap_only"):
+        shock_scale_apply_to = "cap"
+    elif shock_scale_apply_to in ("both", "cap_and_risk", "risk_and_cap", "all"):
+        shock_scale_apply_to = "both"
+    else:
+        shock_scale_apply_to = "risk"
     riskoff_tr5_med = _f(raw.get("riskoff_tr5_med_pct"))
     if riskoff_tr5_med is not None and riskoff_tr5_med <= 0:
         riskoff_tr5_med = None
@@ -517,6 +546,25 @@ def _parse_filters(raw) -> FiltersConfig | None:
     riskpanic_tr5_delta_lb = _i(raw.get("riskpanic_tr5_med_delta_lookback_days"))
     if riskpanic_tr5_delta_lb is None or riskpanic_tr5_delta_lb <= 0:
         riskpanic_tr5_delta_lb = 1
+    riskpanic_long_factor = _f(raw.get("riskpanic_long_risk_mult_factor"))
+    if riskpanic_long_factor is None:
+        riskpanic_long_factor = 1.0
+    if riskpanic_long_factor < 0:
+        riskpanic_long_factor = 1.0
+    riskpanic_long_scale_mode = raw.get("riskpanic_long_scale_mode")
+    if isinstance(riskpanic_long_scale_mode, str):
+        riskpanic_long_scale_mode = riskpanic_long_scale_mode.strip().lower()
+    else:
+        riskpanic_long_scale_mode = "off"
+    if riskpanic_long_scale_mode in ("linear", "lin", "delta", "linear_delta", "linear_tr_delta"):
+        riskpanic_long_scale_mode = "linear"
+    elif riskpanic_long_scale_mode in ("", "0", "false", "none", "null", "off"):
+        riskpanic_long_scale_mode = "off"
+    else:
+        riskpanic_long_scale_mode = "off"
+    riskpanic_long_scale_delta_max = _f(raw.get("riskpanic_long_scale_tr_delta_max_pct"))
+    if riskpanic_long_scale_delta_max is not None and riskpanic_long_scale_delta_max <= 0:
+        riskpanic_long_scale_delta_max = None
     riskpanic_short_factor = _f(raw.get("riskpanic_short_risk_mult_factor"))
     if riskpanic_short_factor is None:
         riskpanic_short_factor = 1.0
@@ -569,6 +617,7 @@ def _parse_filters(raw) -> FiltersConfig | None:
         volume_ratio_min=_f(raw.get("volume_ratio_min")),
         shock_gate_mode=shock_gate_mode,
         shock_detector=shock_detector,
+        shock_scale_detector=str(shock_scale_detector) if shock_scale_detector is not None else None,
         shock_atr_fast_period=int(shock_fast),
         shock_atr_slow_period=int(shock_slow),
         shock_on_ratio=float(shock_on) if shock_on is not None else 1.55,
@@ -594,6 +643,7 @@ def _parse_filters(raw) -> FiltersConfig | None:
         shock_daily_cooling_atr_pct=shock_daily_cool_atr,
         shock_risk_scale_target_atr_pct=shock_scale_target,
         shock_risk_scale_min_mult=shock_scale_min,
+        shock_risk_scale_apply_to=str(shock_scale_apply_to),
         risk_entry_cutoff_hour_et=risk_cutoff_et,
         riskoff_tr5_med_pct=riskoff_tr5_med,
         riskoff_tr5_lookback_days=int(riskoff_tr5_lb),
@@ -606,6 +656,9 @@ def _parse_filters(raw) -> FiltersConfig | None:
         riskpanic_lookback_days=int(riskpanic_lb),
         riskpanic_tr5_med_delta_min_pct=riskpanic_tr5_delta_min,
         riskpanic_tr5_med_delta_lookback_days=int(riskpanic_tr5_delta_lb),
+        riskpanic_long_risk_mult_factor=float(riskpanic_long_factor),
+        riskpanic_long_scale_mode=str(riskpanic_long_scale_mode),
+        riskpanic_long_scale_tr_delta_max_pct=riskpanic_long_scale_delta_max,
         riskpanic_short_risk_mult_factor=float(riskpanic_short_factor),
         riskpop_tr5_med_pct=riskpop_tr5_med,
         riskpop_pos_gap_ratio_min=riskpop_pos_gap,
