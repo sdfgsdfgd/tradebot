@@ -1979,6 +1979,48 @@ def _spot_apply_exit_accounting(
     return float(next_cash), float(next_margin)
 
 
+def _spot_exec_exit_and_account(
+    *,
+    qty: int,
+    exit_ref_price: float,
+    exit_time: datetime,
+    reason: str,
+    cash: float,
+    margin_used: float,
+    margin_required: float,
+    spread: float,
+    commission_per_share: float,
+    commission_min: float,
+    slippage_per_share: float,
+    multiplier: float,
+    apply_slippage: bool = True,
+    trade: SpotTrade | None = None,
+    trades: list[SpotTrade] | None = None,
+) -> tuple[float, float, float]:
+    side = "sell" if int(qty) > 0 else "buy"
+    exit_price = _spot_exec_price(
+        float(exit_ref_price),
+        side=side,
+        qty=int(qty),
+        spread=float(spread),
+        commission_per_share=float(commission_per_share),
+        commission_min=float(commission_min),
+        slippage_per_share=float(slippage_per_share),
+        apply_slippage=bool(apply_slippage),
+    )
+    if trade is not None and trades is not None:
+        _close_spot_trade(trade, exit_time, float(exit_price), reason, trades)
+    next_cash, next_margin = _spot_apply_exit_accounting(
+        cash=float(cash),
+        margin_used=float(margin_used),
+        qty=int(qty),
+        exit_price=float(exit_price),
+        margin_required=float(margin_required),
+        multiplier=float(multiplier),
+    )
+    return float(exit_price), float(next_cash), float(next_margin)
+
+
 def _spot_entry_accounting(
     *,
     cash: float,
@@ -2521,24 +2563,22 @@ def _run_spot_backtest_exec_loop(
         if pending_exit_all and open_trades:
             exit_ref = float(bar.open)
             for trade in list(open_trades):
-                side = "sell" if trade.qty > 0 else "buy"
-                exit_price = _spot_exec_price(
-                    exit_ref,
-                    side=side,
+                _exit_price, cash, margin_used = _spot_exec_exit_and_account(
                     qty=trade.qty,
-                    spread=spot_spread,
-                    commission_per_share=spot_commission,
-                    commission_min=spot_commission_min,
-                    slippage_per_share=spot_slippage,
-                )
-                _close_spot_trade(trade, bar.ts, exit_price, pending_exit_reason or "flip", trades)
-                cash, margin_used = _spot_apply_exit_accounting(
+                    exit_ref_price=exit_ref,
+                    exit_time=bar.ts,
+                    reason=pending_exit_reason or "flip",
                     cash=float(cash),
                     margin_used=float(margin_used),
-                    qty=int(trade.qty),
-                    exit_price=float(exit_price),
                     margin_required=float(trade.margin_required),
+                    spread=float(spot_spread),
+                    commission_per_share=float(spot_commission),
+                    commission_min=float(spot_commission_min),
+                    slippage_per_share=float(spot_slippage),
                     multiplier=float(meta.multiplier),
+                    apply_slippage=True,
+                    trade=trade,
+                    trades=trades,
                 )
             open_trades = []
             pending_exit_all = False
@@ -2822,25 +2862,22 @@ def _run_spot_backtest_exec_loop(
                     exit_ref = float(bar.close)
 
                 if should_close and exit_ref is not None:
-                    side = "sell" if trade.qty > 0 else "buy"
-                    exit_price = _spot_exec_price(
-                        float(exit_ref),
-                        side=side,
+                    _exit_price, cash, margin_used = _spot_exec_exit_and_account(
                         qty=trade.qty,
-                        spread=spot_spread,
-                        commission_per_share=spot_commission,
-                        commission_min=spot_commission_min,
-                        slippage_per_share=spot_slippage,
-                        apply_slippage=(reason != "profit"),
-                    )
-                    _close_spot_trade(trade, bar.ts, exit_price, reason, trades)
-                    cash, margin_used = _spot_apply_exit_accounting(
+                        exit_ref_price=float(exit_ref),
+                        exit_time=bar.ts,
+                        reason=reason,
                         cash=float(cash),
                         margin_used=float(margin_used),
-                        qty=int(trade.qty),
-                        exit_price=float(exit_price),
                         margin_required=float(trade.margin_required),
+                        spread=float(spot_spread),
+                        commission_per_share=float(spot_commission),
+                        commission_min=float(spot_commission_min),
+                        slippage_per_share=float(spot_slippage),
                         multiplier=float(meta.multiplier),
+                        apply_slippage=(reason != "profit"),
+                        trade=trade,
+                        trades=trades,
                     )
                 else:
                     still_open.append(trade)
@@ -2981,24 +3018,22 @@ def _run_spot_backtest_exec_loop(
     if open_trades:
         last_bar = exec_bars[-1]
         for trade in open_trades:
-            side = "sell" if trade.qty > 0 else "buy"
-            exit_price = _spot_exec_price(
-                float(last_bar.close),
-                side=side,
+            _exit_price, cash, margin_used = _spot_exec_exit_and_account(
                 qty=trade.qty,
-                spread=spot_spread,
-                commission_per_share=spot_commission,
-                commission_min=spot_commission_min,
-                slippage_per_share=spot_slippage,
-            )
-            _close_spot_trade(trade, last_bar.ts, exit_price, "end", trades)
-            cash, margin_used = _spot_apply_exit_accounting(
+                exit_ref_price=float(last_bar.close),
+                exit_time=last_bar.ts,
+                reason="end",
                 cash=float(cash),
                 margin_used=float(margin_used),
-                qty=int(trade.qty),
-                exit_price=float(exit_price),
                 margin_required=float(trade.margin_required),
+                spread=float(spot_spread),
+                commission_per_share=float(spot_commission),
+                commission_min=float(spot_commission_min),
+                slippage_per_share=float(spot_slippage),
                 multiplier=float(meta.multiplier),
+                apply_slippage=True,
+                trade=trade,
+                trades=trades,
             )
 
     summary = _summarize_from_trades_and_max_dd(
@@ -3550,15 +3585,19 @@ def _run_spot_backtest_exec_loop_summary_fast(
                 _r, exit_ref = hit
                 # `spot_intrabar_exit` can only return stop/profit; keep our chosen reason (stop precedence already handled).
 
-        side = "sell" if open_qty > 0 else "buy"
-        exit_price = _spot_exec_price(
-            float(exit_ref),
-            side=side,
+        exit_price, cash, _ = _spot_exec_exit_and_account(
             qty=int(open_qty),
-            spread=spot_spread,
-            commission_per_share=spot_commission,
-            commission_min=spot_commission_min,
-            slippage_per_share=spot_slippage,
+            exit_ref_price=float(exit_ref),
+            exit_time=exit_time,
+            reason=exit_reason,
+            cash=float(cash),
+            margin_used=float(open_margin_required),
+            margin_required=float(open_margin_required),
+            spread=float(spot_spread),
+            commission_per_share=float(spot_commission),
+            commission_min=float(spot_commission_min),
+            slippage_per_share=float(spot_slippage),
+            multiplier=float(meta.multiplier),
             apply_slippage=(exit_reason != "profit"),
         )
 
@@ -3573,15 +3612,6 @@ def _run_spot_backtest_exec_loop_summary_fast(
             loss_sum += float(pnl)
         hold_sum += (exit_time - open_entry_time).total_seconds() / 3600.0
         hold_n += 1
-
-        cash, _ = _spot_apply_exit_accounting(
-            cash=float(cash),
-            margin_used=float(open_margin_required),
-            qty=int(open_qty),
-            exit_price=float(exit_price),
-            margin_required=float(open_margin_required),
-            multiplier=float(meta.multiplier),
-        )
 
         if debug_trades is not None:
             debug_trades.append(
