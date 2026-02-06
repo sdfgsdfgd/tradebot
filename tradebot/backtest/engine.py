@@ -1903,6 +1903,24 @@ def _spot_multiplier(symbol: str, is_future: bool, default: float = 1.0) -> floa
     return overrides.get(symbol, default if default > 0 else 1.0)
 
 
+def _spot_liquidation_value(
+    *,
+    open_trades: list[SpotTrade],
+    ref_price: float,
+    spread: float,
+    mark_to_market: str,
+    multiplier: float,
+) -> float:
+    total = 0.0
+    for trade in open_trades:
+        total += (
+            trade.qty
+            * _spot_mark_price(float(ref_price), qty=trade.qty, spread=spread, mode=mark_to_market)
+            * float(multiplier)
+        )
+    return float(total)
+
+
 def _run_spot_backtest(
     cfg: ConfigBundle,
     bars: list[Bar],
@@ -2007,6 +2025,7 @@ def _run_spot_backtest_exec_loop(
     regime_bars: list[Bar] | None = None,
     regime2_bars: list[Bar] | None = None,
     tick_bars: list[Bar] | None = None,
+    capture_equity: bool = True,
 ) -> BacktestResult:
     """Spot backtest using an execution-bar loop.
 
@@ -2123,214 +2142,28 @@ def _run_spot_backtest_exec_loop(
     spot_drawdown_mode = str(getattr(cfg.strategy, "spot_drawdown_mode", "close") or "close").strip().lower()
     if spot_drawdown_mode not in ("close", "intrabar"):
         spot_drawdown_mode = "close"
+    equity_peak: float | None = None
+    equity_max_dd = 0.0
 
-    spot_sizing_mode = str(getattr(cfg.strategy, "spot_sizing_mode", "fixed") or "fixed").strip().lower()
-    if spot_sizing_mode not in ("fixed", "notional_pct", "risk_pct"):
-        spot_sizing_mode = "fixed"
-    spot_notional_pct = max(0.0, float(getattr(cfg.strategy, "spot_notional_pct", 0.0) or 0.0))
-    spot_risk_pct = max(0.0, float(getattr(cfg.strategy, "spot_risk_pct", 0.0) or 0.0))
-    spot_short_risk_mult = max(0.0, float(getattr(cfg.strategy, "spot_short_risk_mult", 1.0) or 1.0))
-    spot_max_notional_pct = max(0.0, float(getattr(cfg.strategy, "spot_max_notional_pct", 1.0) or 1.0))
-    spot_min_qty = max(1, int(getattr(cfg.strategy, "spot_min_qty", 1) or 1))
-    spot_max_qty = max(0, int(getattr(cfg.strategy, "spot_max_qty", 0) or 0))
+    def _record_equity_point(ts: datetime, equity: float) -> None:
+        nonlocal equity_peak, equity_max_dd
+        value = float(equity)
+        if capture_equity:
+            equity_curve.append(EquityPoint(ts=ts, equity=value))
+        if equity_peak is None or value > equity_peak:
+            equity_peak = value
+        dd = float(equity_peak) - value
+        if dd > equity_max_dd:
+            equity_max_dd = dd
 
     def _spot_liquidation(ref_price: float) -> float:
-        total = 0.0
-        for t in open_trades:
-            total += (
-                t.qty
-                * _spot_mark_price(float(ref_price), qty=t.qty, spread=spot_spread, mode=spot_mark_to_market)
-                * meta.multiplier
-            )
-        return total
-
-    def _spot_calc_signed_qty(
-        spot_leg: SpotLegConfig,
-        *,
-        entry_price: float,
-        stop_price: float | None,
-        stop_loss_pct: float | None,
-        shock: bool | None,
-        shock_dir: str | None,
-        shock_atr_pct: float | None,
-        riskoff: bool,
-        risk_dir: str | None,
-        riskpanic: bool,
-        riskpop: bool,
-        risk: object | None,
-        equity_ref: float,
-        cash_ref: float,
-    ) -> int:
-        lot = max(1, int(getattr(spot_leg, "qty", 1) or 1))
-        action = str(getattr(spot_leg, "action", "BUY") or "BUY").strip().upper()
-        if action not in ("BUY", "SELL"):
-            action = "BUY"
-        if spot_sizing_mode == "fixed":
-            base_qty = lot * int(cfg.strategy.quantity)
-            return base_qty if action == "BUY" else -base_qty
-        if entry_price <= 0:
-            return 0
-
-        cap_pct = float(spot_max_notional_pct)
-        desired_qty = 0
-        if spot_sizing_mode == "notional_pct":
-            if spot_notional_pct > 0 and equity_ref > 0:
-                desired_qty = int((equity_ref * spot_notional_pct) / float(entry_price))
-        elif spot_sizing_mode == "risk_pct":
-            stop_level = None
-            if stop_price is not None and float(stop_price) > 0:
-                stop_level = float(stop_price)
-            elif stop_loss_pct is not None and float(stop_loss_pct) > 0:
-                if action == "BUY":
-                    stop_level = float(entry_price) * (1.0 - float(stop_loss_pct))
-                else:
-                    stop_level = float(entry_price) * (1.0 + float(stop_loss_pct))
-            if stop_level is not None and spot_risk_pct > 0 and equity_ref > 0:
-                per_share_risk = abs(float(entry_price) - float(stop_level))
-                risk_dollars = float(equity_ref) * float(spot_risk_pct)
-                if action == "BUY":
-                    if bool(riskoff) and riskoff_mode == "directional" and risk_dir == "up":
-                        if float(riskoff_long_factor) == 0:
-                            return 0
-                        risk_dollars *= float(riskoff_long_factor)
-                    if bool(riskpanic):
-                        if float(riskpanic_long_factor) == 0:
-                            return 0
-                        risk_dollars *= float(riskpanic_long_factor)
-                    elif filters is not None and risk is not None:
-                        scale_mode = str(getattr(filters, "riskpanic_long_scale_mode", "off") or "off").strip().lower()
-                        if scale_mode in ("linear", "lin", "delta", "linear_delta", "linear_tr_delta"):
-                            tr_delta = getattr(risk, "tr_median_delta_pct", None)
-                            gap_ratio = getattr(risk, "neg_gap_ratio", None)
-                            if tr_delta is not None and gap_ratio is not None:
-                                try:
-                                    gap_min = float(getattr(filters, "riskpanic_neg_gap_ratio_min", 0.0) or 0.0)
-                                except (TypeError, ValueError):
-                                    gap_min = 0.0
-                                gap_min = float(max(0.0, min(1.0, gap_min)))
-                                try:
-                                    gap_ratio_f = float(gap_ratio)
-                                except (TypeError, ValueError):
-                                    gap_ratio_f = 0.0
-                                gap_ratio_f = float(max(0.0, min(1.0, gap_ratio_f)))
-                                gap_strength = 0.0
-                                if gap_min < 1.0:
-                                    gap_strength = (gap_ratio_f - gap_min) / (1.0 - gap_min)
-                                gap_strength = float(max(0.0, min(1.0, gap_strength)))
-
-                                raw_delta_max = getattr(filters, "riskpanic_long_scale_tr_delta_max_pct", None)
-                                if raw_delta_max is None:
-                                    raw_delta_max = getattr(filters, "riskpanic_tr5_med_delta_min_pct", None)
-                                try:
-                                    delta_max = float(raw_delta_max) if raw_delta_max is not None else 0.0
-                                except (TypeError, ValueError):
-                                    delta_max = 0.0
-                                if delta_max <= 0:
-                                    delta_max = 1.0
-                                try:
-                                    delta_f = float(tr_delta)
-                                except (TypeError, ValueError):
-                                    delta_f = 0.0
-                                delta_strength = float(max(0.0, min(1.0, max(0.0, delta_f) / float(delta_max))))
-
-                                strength = float(gap_strength) * float(delta_strength)
-                                if strength > 0:
-                                    base_factor = float(max(0.0, min(1.0, float(riskpanic_long_factor))))
-                                    eff = 1.0 - (float(strength) * (1.0 - float(base_factor)))
-                                    eff = float(max(0.0, min(1.0, eff)))
-                                    if eff <= 0:
-                                        return 0
-                                    risk_dollars *= float(eff)
-                    if bool(riskpop):
-                        if float(riskpop_long_factor) == 0:
-                            return 0
-                        risk_dollars *= float(riskpop_long_factor)
-                    if bool(shock) and shock_dir in ("up", "down"):
-                        if shock_dir == "up":
-                            shock_long_mult = (
-                                float(getattr(filters, "shock_long_risk_mult_factor", 1.0) or 1.0)
-                                if filters is not None
-                                else 1.0
-                            )
-                        else:
-                            shock_long_mult = (
-                                float(getattr(filters, "shock_long_risk_mult_factor_down", 1.0) or 1.0)
-                                if filters is not None
-                                else 1.0
-                            )
-                        if shock_long_mult < 0:
-                            shock_long_mult = 1.0
-                        if shock_long_mult == 0:
-                            return 0
-                        risk_dollars *= float(shock_long_mult)
-                if action == "SELL":
-                    short_mult = float(spot_short_risk_mult)
-                    if bool(riskoff) and riskoff_mode == "directional" and risk_dir == "down":
-                        short_mult *= float(riskoff_short_factor)
-                    if bool(riskpanic):
-                        short_mult *= float(riskpanic_short_factor)
-                    if bool(riskpop):
-                        short_mult *= float(riskpop_short_factor)
-                    if bool(shock) and shock_dir == "down":
-                        shock_short_mult = (
-                            float(getattr(filters, "shock_short_risk_mult_factor", 1.0) or 1.0)
-                            if filters is not None
-                            else 1.0
-                        )
-                        if shock_short_mult < 0:
-                            shock_short_mult = 1.0
-                        short_mult *= float(shock_short_mult)
-                    if short_mult <= 0:
-                        return 0
-                    risk_dollars *= float(short_mult)
-
-                if (
-                    filters is not None
-                    and shock_atr_pct is not None
-                    and float(shock_atr_pct) > 0
-                    and getattr(filters, "shock_risk_scale_target_atr_pct", None) is not None
-                ):
-                    target = float(getattr(filters, "shock_risk_scale_target_atr_pct", 0.0) or 0.0)
-                    if target > 0:
-                        min_mult = float(getattr(filters, "shock_risk_scale_min_mult", 0.2) or 0.2)
-                        min_mult = float(max(0.0, min(1.0, min_mult)))
-                        scale = min(1.0, float(target) / float(shock_atr_pct))
-                        scale = float(max(min_mult, min(1.0, scale)))
-                        apply_to = getattr(filters, "shock_risk_scale_apply_to", None) or "risk"
-                        apply_to = str(apply_to).strip().lower()
-                        if apply_to in ("cap", "notional_cap", "max_notional", "cap_only", "cap-only"):
-                            apply_to = "cap"
-                        elif apply_to in ("both", "all", "risk_and_cap", "cap_and_risk", "cap+risk"):
-                            apply_to = "both"
-                        else:
-                            apply_to = "risk"
-
-                        if apply_to in ("risk", "both"):
-                            risk_dollars *= float(scale)
-                        if apply_to in ("cap", "both"):
-                            cap_pct *= float(scale)
-                if per_share_risk > 1e-9 and risk_dollars > 0:
-                    desired_qty = int(risk_dollars / per_share_risk)
-
-        if desired_qty <= 0:
-            desired_qty = lot * int(cfg.strategy.quantity)
-
-        if cap_pct > 0 and equity_ref > 0:
-            cap_qty = int((float(equity_ref) * float(cap_pct)) / float(entry_price))
-            desired_qty = min(desired_qty, max(0, cap_qty))
-
-        if action == "BUY" and cash_ref > 0:
-            afford_qty = int(float(cash_ref) / float(entry_price))
-            desired_qty = min(desired_qty, max(0, afford_qty))
-
-        if spot_max_qty > 0:
-            desired_qty = min(desired_qty, spot_max_qty)
-
-        desired_qty = (int(desired_qty) // lot) * lot
-        min_effective = max(spot_min_qty, lot)
-        if desired_qty < min_effective:
-            return 0
-        return int(desired_qty) if action == "BUY" else -int(desired_qty)
+        return _spot_liquidation_value(
+            open_trades=open_trades,
+            ref_price=float(ref_price),
+            spread=spot_spread,
+            mark_to_market=spot_mark_to_market,
+            multiplier=meta.multiplier,
+        )
 
     pending_entry_dir: str | None = None
     pending_entry_set_date: date | None = None
@@ -2548,8 +2381,11 @@ def _run_spot_backtest_exec_loop(
                             profit_target_pct = min(float(profit_target_pct) * float(pt_mult), 0.99)
 
                     if can_open:
-                        signed_qty = _spot_calc_signed_qty(
-                            entry_leg,
+                        signed_qty = spot_calc_signed_qty(
+                            strategy=cfg.strategy,
+                            filters=filters,
+                            action=action,
+                            lot=lot,
                             entry_price=float(entry_price_est),
                             stop_price=stop_price,
                             stop_loss_pct=stop_loss_pct,
@@ -2772,7 +2608,7 @@ def _run_spot_backtest_exec_loop(
                     * _spot_mark_price(worst_ref, qty=trade.qty, spread=spot_spread, mode=spot_mark_to_market)
                     * meta.multiplier
                 )
-            equity_curve.append(EquityPoint(ts=bar.ts - timedelta(microseconds=1), equity=cash + worst_liquidation))
+            _record_equity_point(bar.ts - timedelta(microseconds=1), cash + worst_liquidation)
 
         # Exit checks (profit/stop always; flip only on signal-bar closes).
         if open_trades:
@@ -2876,7 +2712,7 @@ def _run_spot_backtest_exec_loop(
                 * _spot_mark_price(float(bar.close), qty=trade.qty, spread=spot_spread, mode=spot_mark_to_market)
                 * meta.multiplier
             )
-        equity_curve.append(EquityPoint(ts=bar.ts, equity=cash + liquidation))
+        _record_equity_point(bar.ts, cash + liquidation)
 
         if sig_bar is None or sig_idx is None:
             shock_prev, shock_dir_prev, shock_atr_pct_prev = evaluator.shock_view
@@ -3050,8 +2886,11 @@ def _run_spot_backtest_exec_loop(
                             profit_target_pct = min(float(profit_target_pct) * float(pt_mult), 0.99)
 
                     if can_open:
-                        signed_qty = _spot_calc_signed_qty(
-                            spot_leg,
+                        signed_qty = spot_calc_signed_qty(
+                            strategy=cfg.strategy,
+                            filters=filters,
+                            action=action,
+                            lot=lot,
                             entry_price=float(entry_price_est),
                             stop_price=stop_price,
                             stop_loss_pct=stop_loss_pct,
@@ -3158,7 +2997,12 @@ def _run_spot_backtest_exec_loop(
             cash += (trade.qty * exit_price) * meta.multiplier
             margin_used = max(0.0, margin_used - trade.margin_required)
 
-    summary = _summarize(trades, cfg.backtest.starting_cash, equity_curve, meta.multiplier)
+    summary = _summarize_from_trades_and_max_dd(
+        trades,
+        starting_cash=cfg.backtest.starting_cash,
+        max_dd=float(equity_max_dd),
+        multiplier=meta.multiplier,
+    )
     return BacktestResult(trades=trades, equity=equity_curve, summary=summary)
 
 
@@ -3998,6 +3842,40 @@ def _run_spot_backtest_exec_loop_summary_fast(
     )
 
 
+def _can_use_fast_summary_path(
+    cfg: ConfigBundle,
+    *,
+    signal_bars: list[Bar],
+    exec_bars: list[Bar],
+    tick_bars: list[Bar] | None,
+) -> bool:
+    strat = cfg.strategy
+    stop_loss_pct = getattr(strat, "spot_stop_loss_pct", None)
+    stop_ok = stop_loss_pct is not None and float(stop_loss_pct or 0.0) > 0.0
+    return (
+        str(getattr(strat, "entry_signal", "ema") or "ema").strip().lower() == "ema"
+        and str(getattr(strat, "spot_entry_fill_mode", "close") or "close").strip().lower() == "next_open"
+        and str(getattr(strat, "spot_flip_exit_fill_mode", "close") or "close").strip().lower() == "next_open"
+        and bool(getattr(strat, "spot_intrabar_exits", False))
+        and str(getattr(strat, "spot_drawdown_mode", "close") or "close").strip().lower() == "intrabar"
+        and str(getattr(strat, "spot_exit_mode", "pct") or "pct").strip().lower() == "pct"
+        and bool(stop_ok)
+        and getattr(strat, "spot_exit_time_et", None) is None
+        and not bool(getattr(strat, "spot_close_eod", False))
+        and str(getattr(strat, "tick_gate_mode", "off") or "off").strip().lower() == "off"
+        and str(getattr(strat, "flip_exit_gate_mode", "off") or "off").strip().lower() == "off"
+        and (
+            (not bool(getattr(strat, "exit_on_signal_flip", False)))
+            or bool(getattr(strat, "flip_exit_only_if_profit", False))
+        )
+        and str(getattr(strat, "direction_source", "ema") or "ema").strip().lower() == "ema"
+        and int(getattr(strat, "max_open_trades", 1) or 0) == 1
+        and tick_bars is None
+        and bool(signal_bars)
+        and bool(exec_bars)
+    )
+
+
 def _run_spot_backtest_exec_loop_summary(
     cfg: ConfigBundle,
     *,
@@ -4009,31 +3887,11 @@ def _run_spot_backtest_exec_loop_summary(
     tick_bars: list[Bar] | None = None,
 ) -> SummaryStats:
     """Summary-only spot backtest (avoids materializing full equity curve)."""
-    # This implementation intentionally mirrors `_run_spot_backtest_exec_loop` closely.
-    if (
-        str(getattr(cfg.strategy, "entry_signal", "ema") or "ema").strip().lower() == "ema"
-        and str(getattr(cfg.strategy, "spot_entry_fill_mode", "close") or "close").strip().lower() == "next_open"
-        and str(getattr(cfg.strategy, "spot_flip_exit_fill_mode", "close") or "close").strip().lower() == "next_open"
-        and bool(getattr(cfg.strategy, "spot_intrabar_exits", False))
-        and str(getattr(cfg.strategy, "spot_drawdown_mode", "close") or "close").strip().lower() == "intrabar"
-        and str(getattr(cfg.strategy, "spot_exit_mode", "pct") or "pct").strip().lower() == "pct"
-        and (
-            getattr(cfg.strategy, "spot_stop_loss_pct", None) is not None
-            and float(getattr(cfg.strategy, "spot_stop_loss_pct", 0.0) or 0.0) > 0.0
-        )
-        and getattr(cfg.strategy, "spot_exit_time_et", None) is None
-        and not bool(getattr(cfg.strategy, "spot_close_eod", False))
-        and str(getattr(cfg.strategy, "tick_gate_mode", "off") or "off").strip().lower() == "off"
-        and str(getattr(cfg.strategy, "flip_exit_gate_mode", "off") or "off").strip().lower() == "off"
-        and (
-            (not bool(getattr(cfg.strategy, "exit_on_signal_flip", False)))
-            or bool(getattr(cfg.strategy, "flip_exit_only_if_profit", False))
-        )
-        and str(getattr(cfg.strategy, "direction_source", "ema") or "ema").strip().lower() == "ema"
-        and int(getattr(cfg.strategy, "max_open_trades", 1) or 0) == 1
-        and tick_bars is None
-        and bool(signal_bars)
-        and bool(exec_bars)
+    if _can_use_fast_summary_path(
+        cfg,
+        signal_bars=signal_bars,
+        exec_bars=exec_bars,
+        tick_bars=tick_bars,
     ):
         return _run_spot_backtest_exec_loop_summary_fast(
             cfg,
@@ -4044,1209 +3902,16 @@ def _run_spot_backtest_exec_loop_summary(
             regime2_bars=regime2_bars,
         )
 
-    cash = cfg.backtest.starting_cash
-    margin_used = 0.0
-    trades: list[SpotTrade] = []
-    open_trades: list[SpotTrade] = []
-
-    if not signal_bars:
-        raise ValueError("signal_bars is empty")
-    if not exec_bars:
-        raise ValueError("exec_bars is empty")
-
-    signal_by_ts: dict[datetime, Bar] = {}
-    signal_idx_by_ts: dict[datetime, int] = {}
-    for idx, bar in enumerate(signal_bars):
-        signal_by_ts[bar.ts] = bar
-        signal_idx_by_ts[bar.ts] = idx
-
-    filters = cfg.strategy.filters
-    entry_signal = normalize_spot_entry_signal(getattr(cfg.strategy, "entry_signal", "ema"))
-
-    ema_periods = _ema_periods_shared(cfg.strategy.ema_preset) if entry_signal == "ema" else None
-    needs_direction = cfg.strategy.directional_spot is not None
-    if entry_signal == "ema" and ema_periods is None:
-        raise ValueError("spot backtests require ema_preset")
-    ema_needed = entry_signal == "ema"
-
-    _regime_mode, _regime_preset, _regime_bar, use_mtf_regime_cfg = resolve_spot_regime_spec(
-        bar_size=cfg.backtest.bar_size,
-        regime_mode_raw=getattr(cfg.strategy, "regime_mode", "ema"),
-        regime_ema_preset_raw=getattr(cfg.strategy, "regime_ema_preset", None),
-        regime_bar_size_raw=getattr(cfg.strategy, "regime_bar_size", None),
-    )
-    use_mtf_regime = bool(regime_bars) and bool(use_mtf_regime_cfg)
-    regime2_mode, _regime2_preset, _regime2_bar, use_mtf_regime2_cfg = resolve_spot_regime2_spec(
-        bar_size=cfg.backtest.bar_size,
-        regime2_mode_raw=getattr(cfg.strategy, "regime2_mode", "off"),
-        regime2_ema_preset_raw=getattr(cfg.strategy, "regime2_ema_preset", None),
-        regime2_bar_size_raw=getattr(cfg.strategy, "regime2_bar_size", None),
-    )
-    if regime2_mode != "off" and bool(use_mtf_regime2_cfg) and not regime2_bars:
-        raise ValueError("regime2_mode enabled but regime2_bars was not provided for multi-timeframe regime2")
-    use_mtf_regime2 = bool(regime2_bars) and bool(use_mtf_regime2_cfg)
-
-    from ..spot_engine import SpotSignalEvaluator, SpotSignalSnapshot
-
-    evaluator = SpotSignalEvaluator(
-        strategy=cfg.strategy,
-        filters=filters,
-        bar_size=str(cfg.backtest.bar_size),
-        use_rth=bool(cfg.backtest.use_rth),
-        rv_lookback=int(cfg.synthetic.rv_lookback),
-        rv_ewma_lambda=float(cfg.synthetic.rv_ewma_lambda),
-        regime_bars=regime_bars if use_mtf_regime else None,
-        regime2_bars=regime2_bars if use_mtf_regime2 else None,
-    )
-    orb_engine = evaluator.orb_engine
-    last_sig_snap: SpotSignalSnapshot | None = None
-    shock_prev, shock_dir_prev, shock_atr_pct_prev = evaluator.shock_view
-
-    tick_mode = str(getattr(cfg.strategy, "tick_gate_mode", "off") or "off").strip().lower()
-    if tick_mode not in ("off", "raschke"):
-        tick_mode = "off"
-    tick_neutral_policy = str(getattr(cfg.strategy, "tick_neutral_policy", "allow") or "allow").strip().lower()
-    if tick_neutral_policy not in ("allow", "block"):
-        tick_neutral_policy = "allow"
-    tick_direction_policy = str(getattr(cfg.strategy, "tick_direction_policy", "both") or "both").strip().lower()
-    if tick_direction_policy not in ("both", "wide_only"):
-        tick_direction_policy = "both"
-
-    tick_ma_period = max(1, int(getattr(cfg.strategy, "tick_band_ma_period", 10) or 10))
-    tick_z_lookback = max(5, int(getattr(cfg.strategy, "tick_width_z_lookback", 252) or 252))
-    tick_z_enter = float(getattr(cfg.strategy, "tick_width_z_enter", 1.0) or 1.0)
-    tick_z_exit = max(0.0, float(getattr(cfg.strategy, "tick_width_z_exit", 0.5) or 0.5))
-    tick_slope_lookback = max(1, int(getattr(cfg.strategy, "tick_width_slope_lookback", 3) or 3))
-
-    tick_idx = 0
-    tick_state = "neutral"  # "neutral" | "wide" | "narrow"
-    tick_dir: str | None = None
-    tick_ready = False
-    tick_highs: deque[float] = deque(maxlen=tick_ma_period)
-    tick_lows: deque[float] = deque(maxlen=tick_ma_period)
-    tick_high_sum = 0.0
-    tick_low_sum = 0.0
-    tick_widths: deque[float] = deque(maxlen=tick_z_lookback)
-    tick_width_hist: list[float] = []
-
-    exit_mode = str(getattr(cfg.strategy, "spot_exit_mode", "pct") or "pct").strip().lower()
-    if exit_mode not in ("pct", "atr"):
-        exit_mode = "pct"
-    spot_exit_time = parse_time_hhmm(getattr(cfg.strategy, "spot_exit_time_et", None))
-
-    spot_entry_fill_mode = str(getattr(cfg.strategy, "spot_entry_fill_mode", "close") or "close").strip().lower()
-    if spot_entry_fill_mode not in ("close", "next_open"):
-        spot_entry_fill_mode = "close"
-    spot_flip_exit_fill_mode = str(getattr(cfg.strategy, "spot_flip_exit_fill_mode", "close") or "close").strip().lower()
-    if spot_flip_exit_fill_mode not in ("close", "next_open"):
-        spot_flip_exit_fill_mode = "close"
-    spot_intrabar_exits = bool(getattr(cfg.strategy, "spot_intrabar_exits", False))
-    spot_spread = max(0.0, float(getattr(cfg.strategy, "spot_spread", 0.0) or 0.0))
-    spot_commission = max(0.0, float(getattr(cfg.strategy, "spot_commission_per_share", 0.0) or 0.0))
-    spot_commission_min = max(0.0, float(getattr(cfg.strategy, "spot_commission_min", 0.0) or 0.0))
-    spot_slippage = max(0.0, float(getattr(cfg.strategy, "spot_slippage_per_share", 0.0) or 0.0))
-    spot_mark_to_market = str(getattr(cfg.strategy, "spot_mark_to_market", "close") or "close").strip().lower()
-    if spot_mark_to_market not in ("close", "liquidation"):
-        spot_mark_to_market = "close"
-    spot_drawdown_mode = str(getattr(cfg.strategy, "spot_drawdown_mode", "close") or "close").strip().lower()
-    if spot_drawdown_mode not in ("close", "intrabar"):
-        spot_drawdown_mode = "close"
-
-    spot_sizing_mode = str(getattr(cfg.strategy, "spot_sizing_mode", "fixed") or "fixed").strip().lower()
-    if spot_sizing_mode not in ("fixed", "notional_pct", "risk_pct"):
-        spot_sizing_mode = "fixed"
-    spot_notional_pct = max(0.0, float(getattr(cfg.strategy, "spot_notional_pct", 0.0) or 0.0))
-    spot_risk_pct = max(0.0, float(getattr(cfg.strategy, "spot_risk_pct", 0.0) or 0.0))
-    spot_short_risk_mult = max(0.0, float(getattr(cfg.strategy, "spot_short_risk_mult", 1.0) or 1.0))
-    spot_max_notional_pct = max(0.0, float(getattr(cfg.strategy, "spot_max_notional_pct", 1.0) or 1.0))
-    spot_min_qty = max(1, int(getattr(cfg.strategy, "spot_min_qty", 1) or 1))
-    spot_max_qty = max(0, int(getattr(cfg.strategy, "spot_max_qty", 0) or 0))
-
-    def _spot_liquidation(ref_price: float) -> float:
-        total = 0.0
-        for t in open_trades:
-            total += (
-                t.qty
-                * _spot_mark_price(float(ref_price), qty=t.qty, spread=spot_spread, mode=spot_mark_to_market)
-                * meta.multiplier
-            )
-        return total
-
-    def _spot_calc_signed_qty(
-        spot_leg: SpotLegConfig,
-        *,
-        entry_price: float,
-        stop_price: float | None,
-        stop_loss_pct: float | None,
-        shock: bool | None,
-        shock_dir: str | None,
-        shock_atr_pct: float | None,
-        riskoff: bool,
-        risk_dir: str | None,
-        riskpanic: bool,
-        riskpop: bool,
-        risk: object | None,
-        equity_ref: float,
-        cash_ref: float,
-    ) -> int:
-        lot = max(1, int(getattr(spot_leg, "qty", 1) or 1))
-        action = str(getattr(spot_leg, "action", "BUY") or "BUY").strip().upper()
-        if action not in ("BUY", "SELL"):
-            action = "BUY"
-        if spot_sizing_mode == "fixed":
-            base_qty = lot * int(cfg.strategy.quantity)
-            return base_qty if action == "BUY" else -base_qty
-        if entry_price <= 0:
-            return 0
-
-        cap_pct = float(spot_max_notional_pct)
-        desired_qty = 0
-        if spot_sizing_mode == "notional_pct":
-            if spot_notional_pct > 0 and equity_ref > 0:
-                desired_qty = int((equity_ref * spot_notional_pct) / float(entry_price))
-        elif spot_sizing_mode == "risk_pct":
-            stop_level = None
-            if stop_price is not None and float(stop_price) > 0:
-                stop_level = float(stop_price)
-            elif stop_loss_pct is not None and float(stop_loss_pct) > 0:
-                if action == "BUY":
-                    stop_level = float(entry_price) * (1.0 - float(stop_loss_pct))
-                else:
-                    stop_level = float(entry_price) * (1.0 + float(stop_loss_pct))
-            if stop_level is not None and spot_risk_pct > 0 and equity_ref > 0:
-                per_share_risk = abs(float(entry_price) - float(stop_level))
-                risk_dollars = float(equity_ref) * float(spot_risk_pct)
-                if action == "BUY":
-                    if bool(riskoff) and riskoff_mode == "directional" and risk_dir == "up":
-                        if float(riskoff_long_factor) == 0:
-                            return 0
-                        risk_dollars *= float(riskoff_long_factor)
-                    if bool(riskpanic):
-                        if float(riskpanic_long_factor) == 0:
-                            return 0
-                        risk_dollars *= float(riskpanic_long_factor)
-                    elif filters is not None and risk is not None:
-                        scale_mode = str(getattr(filters, "riskpanic_long_scale_mode", "off") or "off").strip().lower()
-                        if scale_mode in ("linear", "lin", "delta", "linear_delta", "linear_tr_delta"):
-                            tr_delta = getattr(risk, "tr_median_delta_pct", None)
-                            gap_ratio = getattr(risk, "neg_gap_ratio", None)
-                            if tr_delta is not None and gap_ratio is not None:
-                                try:
-                                    gap_min = float(getattr(filters, "riskpanic_neg_gap_ratio_min", 0.0) or 0.0)
-                                except (TypeError, ValueError):
-                                    gap_min = 0.0
-                                gap_min = float(max(0.0, min(1.0, gap_min)))
-                                try:
-                                    gap_ratio_f = float(gap_ratio)
-                                except (TypeError, ValueError):
-                                    gap_ratio_f = 0.0
-                                gap_ratio_f = float(max(0.0, min(1.0, gap_ratio_f)))
-                                gap_strength = 0.0
-                                if gap_min < 1.0:
-                                    gap_strength = (gap_ratio_f - gap_min) / (1.0 - gap_min)
-                                gap_strength = float(max(0.0, min(1.0, gap_strength)))
-
-                                raw_delta_max = getattr(filters, "riskpanic_long_scale_tr_delta_max_pct", None)
-                                if raw_delta_max is None:
-                                    raw_delta_max = getattr(filters, "riskpanic_tr5_med_delta_min_pct", None)
-                                try:
-                                    delta_max = float(raw_delta_max) if raw_delta_max is not None else 0.0
-                                except (TypeError, ValueError):
-                                    delta_max = 0.0
-                                if delta_max <= 0:
-                                    delta_max = 1.0
-                                try:
-                                    delta_f = float(tr_delta)
-                                except (TypeError, ValueError):
-                                    delta_f = 0.0
-                                delta_strength = float(max(0.0, min(1.0, max(0.0, delta_f) / float(delta_max))))
-
-                                strength = float(gap_strength) * float(delta_strength)
-                                if strength > 0:
-                                    base_factor = float(max(0.0, min(1.0, float(riskpanic_long_factor))))
-                                    eff = 1.0 - (float(strength) * (1.0 - float(base_factor)))
-                                    eff = float(max(0.0, min(1.0, eff)))
-                                    if eff <= 0:
-                                        return 0
-                                    risk_dollars *= float(eff)
-                    if bool(riskpop):
-                        if float(riskpop_long_factor) == 0:
-                            return 0
-                        risk_dollars *= float(riskpop_long_factor)
-                    if bool(shock) and shock_dir in ("up", "down"):
-                        if shock_dir == "up":
-                            shock_long_mult = (
-                                float(getattr(filters, "shock_long_risk_mult_factor", 1.0) or 1.0)
-                                if filters is not None
-                                else 1.0
-                            )
-                        else:
-                            shock_long_mult = (
-                                float(getattr(filters, "shock_long_risk_mult_factor_down", 1.0) or 1.0)
-                                if filters is not None
-                                else 1.0
-                            )
-                        if shock_long_mult < 0:
-                            shock_long_mult = 1.0
-                        if shock_long_mult == 0:
-                            return 0
-                        risk_dollars *= float(shock_long_mult)
-                if action == "SELL":
-                    short_mult = float(spot_short_risk_mult)
-                    if bool(riskoff) and riskoff_mode == "directional" and risk_dir == "down":
-                        short_mult *= float(riskoff_short_factor)
-                    if bool(riskpanic):
-                        short_mult *= float(riskpanic_short_factor)
-                    if bool(riskpop):
-                        short_mult *= float(riskpop_short_factor)
-                    if bool(shock) and shock_dir == "down":
-                        shock_short_mult = (
-                            float(getattr(filters, "shock_short_risk_mult_factor", 1.0) or 1.0)
-                            if filters is not None
-                            else 1.0
-                        )
-                        if shock_short_mult < 0:
-                            shock_short_mult = 1.0
-                        short_mult *= float(shock_short_mult)
-                    if short_mult <= 0:
-                        return 0
-                    risk_dollars *= float(short_mult)
-
-                if (
-                    filters is not None
-                    and shock_atr_pct is not None
-                    and float(shock_atr_pct) > 0
-                    and getattr(filters, "shock_risk_scale_target_atr_pct", None) is not None
-                ):
-                    target = float(getattr(filters, "shock_risk_scale_target_atr_pct", 0.0) or 0.0)
-                    if target > 0:
-                        min_mult = float(getattr(filters, "shock_risk_scale_min_mult", 0.2) or 0.2)
-                        min_mult = float(max(0.0, min(1.0, min_mult)))
-                        scale = min(1.0, float(target) / float(shock_atr_pct))
-                        scale = float(max(min_mult, min(1.0, scale)))
-                        apply_to = getattr(filters, "shock_risk_scale_apply_to", None) or "risk"
-                        apply_to = str(apply_to).strip().lower()
-                        if apply_to in ("cap", "notional_cap", "max_notional", "cap_only", "cap-only"):
-                            apply_to = "cap"
-                        elif apply_to in ("both", "all", "risk_and_cap", "cap_and_risk", "cap+risk"):
-                            apply_to = "both"
-                        else:
-                            apply_to = "risk"
-
-                        if apply_to in ("risk", "both"):
-                            risk_dollars *= float(scale)
-                        if apply_to in ("cap", "both"):
-                            cap_pct *= float(scale)
-                if per_share_risk > 1e-9 and risk_dollars > 0:
-                    desired_qty = int(risk_dollars / per_share_risk)
-
-        if desired_qty <= 0:
-            desired_qty = lot * int(cfg.strategy.quantity)
-
-        if cap_pct > 0 and equity_ref > 0:
-            cap_qty = int((float(equity_ref) * float(cap_pct)) / float(entry_price))
-            desired_qty = min(desired_qty, max(0, cap_qty))
-
-        if action == "BUY" and cash_ref > 0:
-            afford_qty = int(float(cash_ref) / float(entry_price))
-            desired_qty = min(desired_qty, max(0, afford_qty))
-
-        if spot_max_qty > 0:
-            desired_qty = min(desired_qty, spot_max_qty)
-
-        desired_qty = (int(desired_qty) // lot) * lot
-        min_effective = max(spot_min_qty, lot)
-        if desired_qty < min_effective:
-            return 0
-        return int(desired_qty) if action == "BUY" else -int(desired_qty)
-
-    pending_entry_dir: str | None = None
-    pending_entry_set_date: date | None = None
-    pending_exit_all = False
-    pending_exit_reason = ""
-
-    (
-        riskoff_mode,
-        riskoff_long_factor,
-        riskoff_short_factor,
-        riskpanic_long_factor,
-        riskpanic_short_factor,
-        riskpop_long_factor,
-        riskpop_short_factor,
-    ) = risk_overlay_policy_from_filters(filters)
-    risk_overlay_enabled = bool(evaluator.risk_overlay_enabled)
-    riskoff_today = False
-    riskpanic_today = False
-    riskpop_today = False
-    riskoff_end_hour: int | None = None
-    if risk_overlay_enabled and filters is not None:
-        raw_cutoff_et = getattr(filters, "risk_entry_cutoff_hour_et", None)
-        if raw_cutoff_et is not None:
-            try:
-                # Cached bars are naive ET; use raw hour to avoid timezone-shift surprises.
-                riskoff_end_hour = int(raw_cutoff_et)
-            except (TypeError, ValueError):
-                riskoff_end_hour = None
-        else:
-            # Legacy fallback: allow using entry_end_hour_* as a cutoff only if a TOD window isn't set.
-            raw_start_et = getattr(filters, "entry_start_hour_et", None)
-            raw_end_et = getattr(filters, "entry_end_hour_et", None)
-            raw_start = getattr(filters, "entry_start_hour", None)
-            raw_end = getattr(filters, "entry_end_hour", None)
-            if raw_start_et is None and raw_end_et is not None:
-                try:
-                    riskoff_end_hour = int(raw_end_et)
-                except (TypeError, ValueError):
-                    riskoff_end_hour = None
-            elif raw_start is None and raw_end is not None:
-                try:
-                    riskoff_end_hour = int(raw_end)
-                except (TypeError, ValueError):
-                    riskoff_end_hour = None
-    last_entry_sig_idx: int | None = None
-
-    exec_last_date = None
-    entries_today = 0
-
-    # Max drawdown tracking (equity is mark-to-market under spot_mark_to_market).
-    peak_equity = cash
-    max_dd = 0.0
-
-    for idx, bar in enumerate(exec_bars):
-        next_bar = exec_bars[idx + 1] if idx + 1 < len(exec_bars) else None
-        is_last_bar = next_bar is None or next_bar.ts.date() != bar.ts.date()
-        sig_bar = signal_by_ts.get(bar.ts)
-        sig_idx = signal_idx_by_ts.get(bar.ts)
-
-        if exec_last_date != bar.ts.date():
-            exec_last_date = bar.ts.date()
-            entries_today = 0
-        shock_now_prev = shock_prev
-        shock_dir_prev_now = shock_dir_prev
-        shock_atr_pct_prev_now = shock_atr_pct_prev
-
-        evaluator.update_exec_bar(bar, is_last_bar=bool(is_last_bar))
-        if evaluator.last_risk is not None:
-            riskoff_today = bool(evaluator.last_risk.riskoff)
-            riskpanic_today = bool(evaluator.last_risk.riskpanic)
-            riskpop_today = bool(getattr(evaluator.last_risk, "riskpop", False))
-        else:
-            riskoff_today = False
-            riskpanic_today = False
-            riskpop_today = False
-
-        # Execute next-open fills (from prior bar close) before processing this bar.
-        if pending_exit_all and open_trades:
-            exit_ref = float(bar.open)
-            for trade in list(open_trades):
-                side = "sell" if trade.qty > 0 else "buy"
-                exit_price = _spot_exec_price(
-                    exit_ref,
-                    side=side,
-                    qty=trade.qty,
-                    spread=spot_spread,
-                    commission_per_share=spot_commission,
-                    commission_min=spot_commission_min,
-                    slippage_per_share=spot_slippage,
-                )
-                _close_spot_trade(trade, bar.ts, exit_price, pending_exit_reason or "flip", trades)
-                cash += (trade.qty * exit_price) * meta.multiplier
-                margin_used = max(0.0, margin_used - trade.margin_required)
-            open_trades = []
-            pending_exit_all = False
-            pending_exit_reason = ""
-
-        if pending_entry_dir is not None:
-            if (riskoff_today or riskpanic_today or riskpop_today) and risk_overlay_enabled:
-                shock_dir_now: str | None = shock_dir_prev_now
-                cancel = False
-                if riskoff_mode == "directional" and shock_dir_now in ("up", "down"):
-                    if pending_entry_dir != shock_dir_now:
-                        cancel = True
-                else:
-                    if pending_entry_set_date is not None and pending_entry_set_date != bar.ts.date():
-                        cancel = True
-                    if riskoff_end_hour is not None:
-                        if int(bar.ts.hour) >= int(riskoff_end_hour):
-                            cancel = True
-                if cancel:
-                    pending_entry_dir = None
-                    pending_entry_set_date = None
-
-            open_slots_ok = cfg.strategy.max_open_trades == 0 or len(open_trades) < cfg.strategy.max_open_trades
-            entries_ok = cfg.strategy.max_entries_per_day == 0 or entries_today < cfg.strategy.max_entries_per_day
-            if pending_entry_dir is not None and open_slots_ok and entries_ok and (bar.ts.weekday() in cfg.strategy.entry_days):
-                entry_dir = pending_entry_dir
-                pending_entry_dir = None
-                pending_entry_set_date = None
-
-                entry_leg = None
-                if needs_direction and cfg.strategy.directional_spot:
-                    entry_leg = cfg.strategy.directional_spot.get(entry_dir)
-                elif entry_dir == "up":
-                    entry_leg = SpotLegConfig(action="BUY", qty=1)
-
-                if entry_leg is not None:
-                    liquidation_open = _spot_liquidation(float(bar.open))
-                    equity_before = cash + liquidation_open
-
-                    action = str(getattr(entry_leg, "action", "BUY") or "BUY").strip().upper()
-                    side = "buy" if action == "BUY" else "sell"
-                    lot = max(1, int(getattr(entry_leg, "qty", 1) or 1))
-                    base_signed_qty = lot * int(cfg.strategy.quantity)
-                    if action != "BUY":
-                        base_signed_qty = -base_signed_qty
-                    entry_price_est = _spot_exec_price(
-                        float(bar.open),
-                        side=side,
-                        qty=base_signed_qty,
-                        spread=spot_spread,
-                        commission_per_share=spot_commission,
-                        commission_min=spot_commission_min,
-                        slippage_per_share=spot_slippage,
-                    )
-                    target_price = None
-                    stop_price = None
-                    profit_target_pct = cfg.strategy.spot_profit_target_pct
-                    stop_loss_pct = cfg.strategy.spot_stop_loss_pct
-                    can_open = True
-
-                    if entry_signal == "orb" and orb_engine is not None and entry_dir in ("up", "down"):
-                        orb_high = orb_engine.or_high
-                        orb_low = orb_engine.or_low
-                        if orb_high is not None and orb_low is not None and orb_high > 0 and orb_low > 0:
-                            stop_price = float(orb_low) if entry_dir == "up" else float(orb_high)
-                            rr = float(getattr(cfg.strategy, "orb_risk_reward", 2.0) or 2.0)
-                            target_mode = str(getattr(cfg.strategy, "orb_target_mode", "rr") or "rr").strip().lower()
-                            if target_mode not in ("rr", "or_range"):
-                                target_mode = "rr"
-                            if rr <= 0:
-                                can_open = False
-                            elif target_mode == "or_range":
-                                rng = float(orb_high) - float(orb_low)
-                                if rng <= 0:
-                                    can_open = False
-                                else:
-                                    target_price = (
-                                        float(orb_high) + (rr * rng)
-                                        if entry_dir == "up"
-                                        else float(orb_low) - (rr * rng)
-                                    )
-                            else:
-                                risk = abs(float(entry_price_est) - float(stop_price))
-                                if risk <= 0:
-                                    can_open = False
-                                else:
-                                    target_price = (
-                                        float(entry_price_est) + (rr * risk)
-                                        if entry_dir == "up"
-                                        else float(entry_price_est) - (rr * risk)
-                                    )
-                        profit_target_pct = None
-                        stop_loss_pct = None
-                    elif exit_mode == "atr":
-                        atr = (
-                            float(last_sig_snap.atr)
-                            if last_sig_snap is not None and last_sig_snap.atr is not None
-                            else 0.0
-                        )
-                        if atr > 0 and entry_dir in ("up", "down"):
-                            pt_mult = float(getattr(cfg.strategy, "spot_pt_atr_mult", 1.5) or 1.5)
-                            sl_mult = float(getattr(cfg.strategy, "spot_sl_atr_mult", 1.0) or 1.0)
-                            if base_signed_qty > 0:
-                                target_price = float(entry_price_est) + (pt_mult * atr)
-                                stop_price = float(entry_price_est) - (sl_mult * atr)
-                            else:
-                                target_price = float(entry_price_est) - (pt_mult * atr)
-                                stop_price = float(entry_price_est) + (sl_mult * atr)
-                            profit_target_pct = None
-                            stop_loss_pct = None
-                        else:
-                            can_open = False
-
-                    base_profit_target_pct = profit_target_pct
-                    base_stop_loss_pct = stop_loss_pct
-
-                    shock_now = bool(shock_now_prev) if shock_now_prev is not None else False
-                    shock_dir_now: str | None = shock_dir_prev_now
-                    shock_atr_pct_now: float | None = shock_atr_pct_prev_now
-
-                    if can_open and filters is not None and shock_now:
-                        sl_mult = float(getattr(filters, "shock_stop_loss_pct_mult", 1.0) or 1.0)
-                        pt_mult = float(getattr(filters, "shock_profit_target_pct_mult", 1.0) or 1.0)
-                        if stop_loss_pct is not None and float(stop_loss_pct) > 0 and sl_mult > 0:
-                            stop_loss_pct = min(float(stop_loss_pct) * float(sl_mult), 0.99)
-                        if profit_target_pct is not None and float(profit_target_pct) > 0 and pt_mult > 0:
-                            profit_target_pct = min(float(profit_target_pct) * float(pt_mult), 0.99)
-
-                    if can_open:
-                        signed_qty = _spot_calc_signed_qty(
-                            entry_leg,
-                            entry_price=float(entry_price_est),
-                            stop_price=stop_price,
-                            stop_loss_pct=stop_loss_pct,
-                            shock=shock_now,
-                            shock_dir=shock_dir_now,
-                            shock_atr_pct=shock_atr_pct_now,
-                            riskoff=bool(riskoff_today),
-                            risk_dir=shock_dir_now,
-                            riskpanic=bool(riskpanic_today),
-                            riskpop=bool(riskpop_today),
-                            risk=evaluator.last_risk if risk_overlay_enabled else None,
-                            equity_ref=float(equity_before),
-                            cash_ref=float(cash),
-                        )
-                        if signed_qty == 0:
-                            can_open = False
-
-                    if can_open:
-                        entry_price = _spot_exec_price(
-                            float(bar.open),
-                            side=side,
-                            qty=signed_qty,
-                            spread=spot_spread,
-                            commission_per_share=spot_commission,
-                            commission_min=spot_commission_min,
-                            slippage_per_share=spot_slippage,
-                        )
-
-                        if entry_signal == "orb" and orb_engine is not None and entry_dir in ("up", "down"):
-                            if stop_price is not None:
-                                rr = float(getattr(cfg.strategy, "orb_risk_reward", 2.0) or 2.0)
-                                target_mode = str(getattr(cfg.strategy, "orb_target_mode", "rr") or "rr").strip().lower()
-                                if target_mode not in ("rr", "or_range"):
-                                    target_mode = "rr"
-                                if rr <= 0:
-                                    can_open = False
-                                elif target_mode == "rr":
-                                    risk = abs(float(entry_price) - float(stop_price))
-                                    if risk <= 0:
-                                        can_open = False
-                                    else:
-                                        target_price = (
-                                            float(entry_price) + (rr * risk)
-                                            if entry_dir == "up"
-                                            else float(entry_price) - (rr * risk)
-                                        )
-                        elif exit_mode == "atr":
-                            atr = (
-                                float(last_sig_snap.atr)
-                                if last_sig_snap is not None and last_sig_snap.atr is not None
-                                else 0.0
-                            )
-                            if atr > 0 and entry_dir in ("up", "down"):
-                                pt_mult = float(getattr(cfg.strategy, "spot_pt_atr_mult", 1.5) or 1.5)
-                                sl_mult = float(getattr(cfg.strategy, "spot_sl_atr_mult", 1.0) or 1.0)
-                                if signed_qty > 0:
-                                    target_price = float(entry_price) + (pt_mult * atr)
-                                    stop_price = float(entry_price) - (sl_mult * atr)
-                                else:
-                                    target_price = float(entry_price) - (pt_mult * atr)
-                                    stop_price = float(entry_price) + (sl_mult * atr)
-
-                    if can_open:
-                        candidate = SpotTrade(
-                            symbol=cfg.strategy.symbol,
-                            qty=signed_qty,
-                            entry_time=bar.ts,
-                            entry_price=entry_price,
-                            exit_time=None,
-                            exit_price=None,
-                            exit_reason="",
-                            base_profit_target_pct=base_profit_target_pct,
-                            base_stop_loss_pct=base_stop_loss_pct,
-                            profit_target_pct=profit_target_pct,
-                            stop_loss_pct=stop_loss_pct,
-                            profit_target_price=target_price,
-                            stop_loss_price=stop_price,
-                        )
-                        candidate.margin_required = abs(signed_qty * entry_price) * meta.multiplier
-                        cash_after = cash - (signed_qty * entry_price) * meta.multiplier
-                        margin_after = margin_used + candidate.margin_required
-                        candidate_mark = (
-                            signed_qty
-                            * _spot_mark_price(float(bar.open), qty=signed_qty, spread=spot_spread, mode=spot_mark_to_market)
-                            * meta.multiplier
-                        )
-                        equity_after = cash_after + liquidation_open + candidate_mark
-                        if cash_after >= 0 and equity_after >= margin_after:
-                            open_trades.append(candidate)
-                            cash = cash_after
-                            margin_used = margin_after
-                            entries_today += 1
-            else:
-                pending_entry_dir = None
-
-        # Dynamic shock SL/PT: apply the shock multipliers to *open* trades using the shock
-        # state from the prior execution bar (no lookahead within this bar).
-        if open_trades and filters is not None and evaluator.shock_enabled:
-            shock_now = bool(shock_now_prev) if shock_now_prev is not None else False
-            sl_mult = float(getattr(filters, "shock_stop_loss_pct_mult", 1.0) or 1.0)
-            pt_mult = float(getattr(filters, "shock_profit_target_pct_mult", 1.0) or 1.0)
-            if not bool(shock_now):
-                sl_mult = 1.0
-                pt_mult = 1.0
-            if sl_mult <= 0:
-                sl_mult = 1.0
-            if pt_mult <= 0:
-                pt_mult = 1.0
-            for trade in open_trades:
-                if (
-                    trade.stop_loss_price is None
-                    and trade.base_stop_loss_pct is not None
-                    and float(trade.base_stop_loss_pct) > 0
-                ):
-                    trade.stop_loss_pct = min(float(trade.base_stop_loss_pct) * float(sl_mult), 0.99)
-                if (
-                    trade.profit_target_price is None
-                    and trade.base_profit_target_pct is not None
-                    and float(trade.base_profit_target_pct) > 0
-                ):
-                    trade.profit_target_pct = min(float(trade.base_profit_target_pct) * float(pt_mult), 0.99)
-
-        # Signal processing happens on signal-bar closes (after this bar completes).
-        rv = None
-        sig_bars_in_day = 0
-        volume_ema = None
-        volume_ema_ready = True
-        shock = None
-        shock_dir = None
-        shock_atr_pct = None
-        atr = None
-        signal = None
-        ema_ready = False
-        if sig_bar is not None:
-            sig_snap = evaluator.update_signal_bar(sig_bar)
-            if sig_snap is not None:
-                last_sig_snap = sig_snap
-                rv = sig_snap.rv
-                sig_bars_in_day = int(sig_snap.bars_in_day)
-                volume_ema = sig_snap.volume_ema
-                volume_ema_ready = bool(sig_snap.volume_ema_ready)
-                shock = sig_snap.shock
-                shock_dir = sig_snap.shock_dir
-                shock_atr_pct = sig_snap.shock_atr_pct
-                atr = sig_snap.atr
-                signal = sig_snap.signal
-                ema_ready = bool(ema_needed and signal is not None and signal.ema_ready)
-
-            if tick_mode != "off" and tick_bars is not None:
-                while tick_idx < len(tick_bars) and tick_bars[tick_idx].ts <= sig_bar.ts:
-                    tbar = tick_bars[tick_idx]
-                    high_v = float(tbar.high)
-                    low_v = float(tbar.low)
-
-                    if len(tick_highs) == tick_highs.maxlen:
-                        tick_high_sum -= tick_highs[0]
-                    if len(tick_lows) == tick_lows.maxlen:
-                        tick_low_sum -= tick_lows[0]
-                    tick_highs.append(high_v)
-                    tick_lows.append(low_v)
-                    tick_high_sum += high_v
-                    tick_low_sum += low_v
-
-                    tick_ready = False
-                    tick_dir = None
-                    if len(tick_highs) >= tick_ma_period and len(tick_lows) >= tick_ma_period:
-                        upper = tick_high_sum / float(tick_ma_period)
-                        lower = tick_low_sum / float(tick_ma_period)
-                        width = float(upper) - float(lower)
-                        tick_widths.append(width)
-                        tick_width_hist.append(width)
-
-                        min_z = min(tick_z_lookback, 30)
-                        if len(tick_widths) >= max(5, min_z) and len(tick_width_hist) >= (tick_slope_lookback + 1):
-                            w_list = list(tick_widths)
-                            mean = sum(w_list) / float(len(w_list))
-                            var = sum((w - mean) ** 2 for w in w_list) / float(len(w_list))
-                            std = math.sqrt(var)
-                            z = (width - mean) / std if std > 1e-9 else 0.0
-                            delta = width - tick_width_hist[-1 - tick_slope_lookback]
-
-                            if tick_state == "neutral":
-                                if z >= tick_z_enter and delta > 0:
-                                    tick_state = "wide"
-                                elif z <= (-tick_z_enter) and delta < 0:
-                                    tick_state = "narrow"
-                            elif tick_state == "wide":
-                                if z < tick_z_exit:
-                                    tick_state = "neutral"
-                            elif tick_state == "narrow":
-                                if z > (-tick_z_exit):
-                                    tick_state = "neutral"
-
-                            if tick_state == "wide":
-                                tick_dir = "up"
-                            elif tick_state == "narrow":
-                                tick_dir = "down" if tick_direction_policy == "both" else None
-                            else:
-                                tick_dir = None
-                            tick_ready = True
-
-                    tick_idx += 1
-
-        # Track worst-in-bar equity using the execution bars (for drawdown realism).
-        if spot_drawdown_mode == "intrabar" and open_trades:
-            worst_liquidation = 0.0
-            for trade in open_trades:
-                stop_level = spot_stop_level(
-                    float(trade.entry_price),
-                    int(trade.qty),
-                    stop_loss_price=trade.stop_loss_price,
-                    stop_loss_pct=trade.stop_loss_pct,
-                )
-                worst_ref = spot_intrabar_worst_ref(
-                    qty=int(trade.qty),
-                    bar_open=float(bar.open),
-                    bar_high=float(bar.high),
-                    bar_low=float(bar.low),
-                    stop_level=stop_level,
-                )
-                worst_liquidation += (
-                    trade.qty
-                    * _spot_mark_price(worst_ref, qty=trade.qty, spread=spot_spread, mode=spot_mark_to_market)
-                    * meta.multiplier
-                )
-            equity = cash + worst_liquidation
-            if equity > peak_equity:
-                peak_equity = float(equity)
-            dd = float(peak_equity) - float(equity)
-            if dd > max_dd:
-                max_dd = float(dd)
-
-        # Exit checks (profit/stop always; flip only on signal-bar closes).
-        if open_trades:
-            still_open: list[SpotTrade] = []
-            for trade in open_trades:
-                should_close = False
-                reason = ""
-                exit_ref = None
-
-                if spot_intrabar_exits:
-                    stop_level = spot_stop_level(
-                        float(trade.entry_price),
-                        int(trade.qty),
-                        stop_loss_price=trade.stop_loss_price,
-                        stop_loss_pct=trade.stop_loss_pct,
-                    )
-                    profit_level = spot_profit_level(
-                        float(trade.entry_price),
-                        int(trade.qty),
-                        profit_target_price=trade.profit_target_price,
-                        profit_target_pct=trade.profit_target_pct,
-                    )
-                    hit = spot_intrabar_exit(
-                        qty=int(trade.qty),
-                        bar_open=float(bar.open),
-                        bar_high=float(bar.high),
-                        bar_low=float(bar.low),
-                        stop_level=stop_level,
-                        profit_level=profit_level,
-                    )
-                    if hit is not None:
-                        should_close = True
-                        reason, exit_ref = hit
-                else:
-                    if spot_hit_profit(
-                        entry_price=float(trade.entry_price),
-                        qty=int(trade.qty),
-                        price=float(bar.close),
-                        profit_target_price=trade.profit_target_price,
-                        profit_target_pct=trade.profit_target_pct,
-                    ):
-                        should_close = True
-                        reason = "profit"
-                        exit_ref = float(bar.close)
-                    elif spot_hit_stop(
-                        entry_price=float(trade.entry_price),
-                        qty=int(trade.qty),
-                        price=float(bar.close),
-                        stop_loss_price=trade.stop_loss_price,
-                        stop_loss_pct=trade.stop_loss_pct,
-                    ):
-                        should_close = True
-                        reason = "stop"
-                        exit_ref = float(bar.close)
-
-                is_signal_close = bar.ts in signal_by_ts
-                if not should_close and is_signal_close and _spot_hit_flip_exit(cfg, trade, bar, signal):
-                    if spot_flip_exit_fill_mode == "next_open" and next_bar is not None:
-                        pending_exit_all = True
-                        pending_exit_reason = "flip"
-                        still_open.append(trade)
-                        continue
-                    should_close = True
-                    reason = "flip"
-                    exit_ref = float(bar.close)
-                elif not should_close and spot_exit_time is not None:
-                    ts_et = _ts_to_et(bar.ts)
-                    if ts_et.time() >= spot_exit_time:
-                        should_close = True
-                        reason = "time"
-                        exit_ref = float(bar.close)
-                elif not should_close and cfg.strategy.spot_close_eod and is_last_bar:
-                    should_close = True
-                    reason = "eod"
-                    exit_ref = float(bar.close)
-
-                if should_close and exit_ref is not None:
-                    side = "sell" if trade.qty > 0 else "buy"
-                    exit_price = _spot_exec_price(
-                        float(exit_ref),
-                        side=side,
-                        qty=trade.qty,
-                        spread=spot_spread,
-                        commission_per_share=spot_commission,
-                        commission_min=spot_commission_min,
-                        slippage_per_share=spot_slippage,
-                        apply_slippage=(reason != "profit"),
-                    )
-                    _close_spot_trade(trade, bar.ts, exit_price, reason, trades)
-                    cash += (trade.qty * exit_price) * meta.multiplier
-                    margin_used = max(0.0, margin_used - trade.margin_required)
-                else:
-                    still_open.append(trade)
-            open_trades = still_open
-
-        # Update drawdown / equity after processing this execution bar.
-        liquidation = 0.0
-        for trade in open_trades:
-            liquidation += (
-                trade.qty
-                * _spot_mark_price(float(bar.close), qty=trade.qty, spread=spot_spread, mode=spot_mark_to_market)
-                * meta.multiplier
-            )
-        equity = cash + liquidation
-        if equity > peak_equity:
-            peak_equity = float(equity)
-        dd = float(peak_equity) - float(equity)
-        if dd > max_dd:
-            max_dd = float(dd)
-
-        if sig_bar is None or sig_idx is None:
-            shock_prev, shock_dir_prev, shock_atr_pct_prev = evaluator.shock_view
-            continue
-
-        entry_signal_dir = signal.entry_dir if signal is not None else None
-        if tick_mode != "off":
-            if not tick_ready:
-                if tick_neutral_policy == "block":
-                    entry_signal_dir = None
-            elif tick_dir is None:
-                if tick_neutral_policy == "block":
-                    entry_signal_dir = None
-            elif entry_signal_dir is not None and entry_signal_dir != tick_dir:
-                entry_signal_dir = None
-
-        entry_ok = True
-        direction = entry_signal_dir
-        if ema_needed and not ema_ready:
-            entry_ok = False
-            direction = None
-        if needs_direction:
-            entry_ok = (
-                entry_ok
-                and direction is not None
-                and cfg.strategy.directional_spot is not None
-                and direction in cfg.strategy.directional_spot
-            )
-        else:
-            entry_ok = entry_ok and direction == "up"
-
-        cooldown_ok = cooldown_ok_by_index(
-            current_idx=int(sig_idx),
-            last_entry_idx=last_entry_sig_idx,
-            cooldown_bars=filters.cooldown_bars if filters else 0,
-        )
-        filters_ok = signal_filters_ok(
-            filters,
-            bar_ts=sig_bar.ts,
-            bars_in_day=sig_bars_in_day,
-            close=float(sig_bar.close),
-            volume=float(sig_bar.volume),
-            volume_ema=float(volume_ema) if volume_ema is not None else None,
-            volume_ema_ready=bool(volume_ema_ready),
-            rv=float(rv) if rv is not None else None,
-            signal=signal,
-            cooldown_ok=cooldown_ok,
-            shock=shock,
-            shock_dir=shock_dir,
-        )
-
-        effective_open = 0 if (pending_exit_all and spot_flip_exit_fill_mode == "next_open") else len(open_trades)
-        if pending_entry_dir is not None:
-            effective_open += 1
-        open_slots_ok = cfg.strategy.max_open_trades == 0 or effective_open < cfg.strategy.max_open_trades
-        entries_ok = cfg.strategy.max_entries_per_day == 0 or entries_today < cfg.strategy.max_entries_per_day
-        if (
-            open_slots_ok
-            and entries_ok
-            and (sig_bar.ts.weekday() in cfg.strategy.entry_days)
-            and entry_ok
-            and filters_ok
-        ):
-            spot_leg = None
-            if needs_direction and direction and cfg.strategy.directional_spot:
-                spot_leg = cfg.strategy.directional_spot.get(direction)
-            elif direction == "up":
-                spot_leg = SpotLegConfig(action="BUY", qty=1)
-
-            if spot_leg is None and not needs_direction and direction == "up":
-                spot_leg = SpotLegConfig(action="BUY", qty=1)
-
-            if spot_leg is not None:
-                if spot_entry_fill_mode == "next_open":
-                    if next_bar is not None and pending_entry_dir is None:
-                        schedule_ok = True
-                        if riskoff_today:
-                            if next_bar.ts.date() != bar.ts.date():
-                                schedule_ok = False
-                            elif riskoff_end_hour is not None:
-                                if int(next_bar.ts.hour) >= int(riskoff_end_hour):
-                                    schedule_ok = False
-                        if schedule_ok and (exit_mode != "atr" or (atr is not None and float(atr) > 0)):
-                            pending_entry_dir = direction
-                            pending_entry_set_date = bar.ts.date()
-                            last_entry_sig_idx = int(sig_idx)
-                else:
-                    can_open = True
-                    liquidation_close = _spot_liquidation(float(bar.close))
-                    equity_before = cash + liquidation_close
-
-                    action = str(getattr(spot_leg, "action", "BUY") or "BUY").strip().upper()
-                    side = "buy" if action == "BUY" else "sell"
-                    lot = max(1, int(getattr(spot_leg, "qty", 1) or 1))
-                    base_signed_qty = lot * int(cfg.strategy.quantity)
-                    if action != "BUY":
-                        base_signed_qty = -base_signed_qty
-                    entry_price_est = _spot_exec_price(
-                        float(bar.close),
-                        side=side,
-                        qty=base_signed_qty,
-                        spread=spot_spread,
-                        commission_per_share=spot_commission,
-                        commission_min=spot_commission_min,
-                        slippage_per_share=spot_slippage,
-                    )
-                    target_price = None
-                    stop_price = None
-                    profit_target_pct = cfg.strategy.spot_profit_target_pct
-                    stop_loss_pct = cfg.strategy.spot_stop_loss_pct
-
-                    if entry_signal == "orb" and orb_engine is not None and direction in ("up", "down"):
-                        orb_high = orb_engine.or_high
-                        orb_low = orb_engine.or_low
-                        if orb_high is not None and orb_low is not None and orb_high > 0 and orb_low > 0:
-                            stop_price = float(orb_low) if direction == "up" else float(orb_high)
-                            rr = float(getattr(cfg.strategy, "orb_risk_reward", 2.0) or 2.0)
-                            target_mode = str(getattr(cfg.strategy, "orb_target_mode", "rr") or "rr").strip().lower()
-                            if target_mode not in ("rr", "or_range"):
-                                target_mode = "rr"
-
-                            if rr <= 0:
-                                can_open = False
-                            elif target_mode == "or_range":
-                                rng = float(orb_high) - float(orb_low)
-                                if rng <= 0:
-                                    can_open = False
-                                else:
-                                    target_price = (
-                                        float(orb_high) + (rr * rng)
-                                        if direction == "up"
-                                        else float(orb_low) - (rr * rng)
-                                    )
-                            else:
-                                risk = abs(float(entry_price_est) - float(stop_price))
-                                if risk <= 0:
-                                    can_open = False
-                                else:
-                                    target_price = (
-                                        float(entry_price_est) + (rr * risk)
-                                        if direction == "up"
-                                        else float(entry_price_est) - (rr * risk)
-                                    )
-                        profit_target_pct = None
-                        stop_loss_pct = None
-                    elif exit_mode == "atr":
-                        if atr is not None and float(atr) > 0 and direction in ("up", "down"):
-                            pt_mult = float(getattr(cfg.strategy, "spot_pt_atr_mult", 1.5) or 1.5)
-                            sl_mult = float(getattr(cfg.strategy, "spot_sl_atr_mult", 1.0) or 1.0)
-                            if base_signed_qty > 0:
-                                target_price = float(entry_price_est) + (pt_mult * float(atr))
-                                stop_price = float(entry_price_est) - (sl_mult * float(atr))
-                            else:
-                                target_price = float(entry_price_est) - (pt_mult * float(atr))
-                                stop_price = float(entry_price_est) + (sl_mult * float(atr))
-                            profit_target_pct = None
-                            stop_loss_pct = None
-                        else:
-                            can_open = False
-
-                    base_profit_target_pct = profit_target_pct
-                    base_stop_loss_pct = stop_loss_pct
-
-                    shock_now = bool(shock_prev) if shock_prev is not None else False
-                    shock_dir_now: str | None = shock_dir_prev
-                    shock_atr_pct_now: float | None = shock_atr_pct_prev
-
-                    if can_open and filters is not None and shock_now:
-                        sl_mult = float(getattr(filters, "shock_stop_loss_pct_mult", 1.0) or 1.0)
-                        pt_mult = float(getattr(filters, "shock_profit_target_pct_mult", 1.0) or 1.0)
-                        if stop_loss_pct is not None and float(stop_loss_pct) > 0 and sl_mult > 0:
-                            stop_loss_pct = min(float(stop_loss_pct) * float(sl_mult), 0.99)
-                        if profit_target_pct is not None and float(profit_target_pct) > 0 and pt_mult > 0:
-                            profit_target_pct = min(float(profit_target_pct) * float(pt_mult), 0.99)
-
-                    signed_qty = 0
-                    if can_open:
-                        signed_qty = _spot_calc_signed_qty(
-                            spot_leg,
-                            entry_price=float(entry_price_est),
-                            stop_price=stop_price,
-                            stop_loss_pct=stop_loss_pct,
-                            shock=shock_now,
-                            shock_dir=shock_dir_now,
-                            shock_atr_pct=shock_atr_pct_now,
-                            riskoff=bool(riskoff_today),
-                            risk_dir=shock_dir_now,
-                            riskpanic=bool(riskpanic_today),
-                            riskpop=bool(riskpop_today),
-                            risk=evaluator.last_risk if risk_overlay_enabled else None,
-                            equity_ref=float(equity_before),
-                            cash_ref=float(cash),
-                        )
-                    if can_open and signed_qty != 0:
-                        entry_price = _spot_exec_price(
-                            float(bar.close),
-                            side=side,
-                            qty=signed_qty,
-                            spread=spot_spread,
-                            commission_per_share=spot_commission,
-                            commission_min=spot_commission_min,
-                            slippage_per_share=spot_slippage,
-                        )
-
-                        if entry_signal == "orb" and orb_engine is not None and direction in ("up", "down"):
-                            if stop_price is not None:
-                                rr = float(getattr(cfg.strategy, "orb_risk_reward", 2.0) or 2.0)
-                                target_mode = str(getattr(cfg.strategy, "orb_target_mode", "rr") or "rr").strip().lower()
-                                if target_mode not in ("rr", "or_range"):
-                                    target_mode = "rr"
-
-                                if rr <= 0:
-                                    can_open = False
-                                elif target_mode == "rr":
-                                    risk = abs(float(entry_price) - float(stop_price))
-                                    if risk <= 0:
-                                        can_open = False
-                                    else:
-                                        target_price = (
-                                            float(entry_price) + (rr * risk)
-                                            if direction == "up"
-                                            else float(entry_price) - (rr * risk)
-                                        )
-                        elif exit_mode == "atr":
-                            if atr is not None and float(atr) > 0 and direction in ("up", "down"):
-                                pt_mult = float(getattr(cfg.strategy, "spot_pt_atr_mult", 1.5) or 1.5)
-                                sl_mult = float(getattr(cfg.strategy, "spot_sl_atr_mult", 1.0) or 1.0)
-                                if signed_qty > 0:
-                                    target_price = float(entry_price) + (pt_mult * float(atr))
-                                    stop_price = float(entry_price) - (sl_mult * float(atr))
-                                else:
-                                    target_price = float(entry_price) - (pt_mult * float(atr))
-                                    stop_price = float(entry_price) + (sl_mult * float(atr))
-
-                    if can_open and signed_qty != 0:
-                        candidate = SpotTrade(
-                            symbol=cfg.strategy.symbol,
-                            qty=signed_qty,
-                            entry_time=bar.ts,
-                            entry_price=entry_price,
-                            exit_time=None,
-                            exit_price=None,
-                            exit_reason="",
-                            base_profit_target_pct=base_profit_target_pct,
-                            base_stop_loss_pct=base_stop_loss_pct,
-                            profit_target_pct=profit_target_pct,
-                            stop_loss_pct=stop_loss_pct,
-                            profit_target_price=target_price,
-                            stop_loss_price=stop_price,
-                        )
-                        candidate.margin_required = abs(signed_qty * entry_price) * meta.multiplier
-                        cash_after = cash - (signed_qty * entry_price) * meta.multiplier
-                        margin_after = margin_used + candidate.margin_required
-                        candidate_mark = (
-                            signed_qty
-                            * _spot_mark_price(float(bar.close), qty=signed_qty, spread=spot_spread, mode=spot_mark_to_market)
-                            * meta.multiplier
-                        )
-                        equity_after = cash_after + liquidation_close + candidate_mark
-                        if cash_after >= 0 and equity_after >= margin_after:
-                            open_trades.append(candidate)
-                            cash = cash_after
-                            margin_used = margin_after
-                            entries_today += 1
-                            last_entry_sig_idx = int(sig_idx)
-
-        shock_prev, shock_dir_prev, shock_atr_pct_prev = evaluator.shock_view
-
-    if open_trades:
-        last_bar = exec_bars[-1]
-        for trade in open_trades:
-            side = "sell" if trade.qty > 0 else "buy"
-            exit_price = _spot_exec_price(
-                float(last_bar.close),
-                side=side,
-                qty=trade.qty,
-                spread=spot_spread,
-                commission_per_share=spot_commission,
-                commission_min=spot_commission_min,
-                slippage_per_share=spot_slippage,
-            )
-            _close_spot_trade(trade, last_bar.ts, exit_price, "end", trades)
-            cash += (trade.qty * exit_price) * meta.multiplier
-            margin_used = max(0.0, margin_used - trade.margin_required)
-
-    wins = 0
-    losses = 0
-    total_pnl = 0.0
-    win_sum = 0.0
-    loss_sum = 0.0
-    hold_sum = 0.0
-    hold_n = 0
-    for trade in trades:
-        pnl = trade.pnl(meta.multiplier)
-        total_pnl += pnl
-        if pnl >= 0:
-            wins += 1
-            win_sum += pnl
-        else:
-            losses += 1
-            loss_sum += pnl
-        if trade.exit_time:
-            hold_sum += (trade.exit_time - trade.entry_time).total_seconds() / 3600.0
-            hold_n += 1
-
-    total = wins + losses
-    win_rate = wins / total if total else 0.0
-    avg_win = win_sum / wins if wins else 0.0
-    avg_loss = loss_sum / losses if losses else 0.0
-    avg_hold = hold_sum / hold_n if hold_n else 0.0
-    roi = (total_pnl / cfg.backtest.starting_cash) if cfg.backtest.starting_cash > 0 else 0.0
-    max_dd_pct = (max_dd / cfg.backtest.starting_cash) if cfg.backtest.starting_cash > 0 else 0.0
-    return SummaryStats(
-        trades=total,
-        wins=wins,
-        losses=losses,
-        win_rate=win_rate,
-        total_pnl=total_pnl,
-        roi=roi,
-        avg_win=avg_win,
-        avg_loss=avg_loss,
-        max_drawdown=float(max_dd),
-        max_drawdown_pct=float(max_dd_pct),
-        avg_hold_hours=avg_hold,
-    )
+    return _run_spot_backtest_exec_loop(
+        cfg,
+        signal_bars=signal_bars,
+        exec_bars=exec_bars,
+        meta=meta,
+        regime_bars=regime_bars,
+        regime2_bars=regime2_bars,
+        tick_bars=tick_bars,
+        capture_equity=False,
+    ).summary
 
 
 def _spot_hit_flip_exit(
@@ -5568,10 +4233,11 @@ def _close_trade(trade: OptionTrade, ts: datetime, price: float, reason: str, tr
     trades.append(trade)
 
 
-def _summarize(
+def _summarize_from_trades_and_max_dd(
     trades: list[OptionTrade | SpotTrade],
+    *,
     starting_cash: float,
-    equity_curve: list[EquityPoint],
+    max_dd: float,
     multiplier: float,
 ) -> SummaryStats:
     wins = 0
@@ -5580,16 +4246,7 @@ def _summarize(
     win_pnls: list[float] = []
     loss_pnls: list[float] = []
     hold_hours: list[float] = []
-    peak = starting_cash
-    max_dd = 0.0
-    if equity_curve:
-        peak = equity_curve[0].equity
-    for point in equity_curve:
-        if point.equity > peak:
-            peak = point.equity
-        dd = peak - point.equity
-        if dd > max_dd:
-            max_dd = dd
+
     for trade in trades:
         pnl = trade.pnl(multiplier)
         total_pnl += pnl
@@ -5601,6 +4258,7 @@ def _summarize(
             loss_pnls.append(pnl)
         if trade.exit_time:
             hold_hours.append((trade.exit_time - trade.entry_time).total_seconds() / 3600.0)
+
     total = wins + losses
     win_rate = wins / total if total else 0.0
     avg_win = sum(win_pnls) / len(win_pnls) if win_pnls else 0.0
@@ -5620,6 +4278,30 @@ def _summarize(
         max_drawdown=max_dd,
         max_drawdown_pct=max_dd_pct,
         avg_hold_hours=avg_hold,
+    )
+
+
+def _summarize(
+    trades: list[OptionTrade | SpotTrade],
+    starting_cash: float,
+    equity_curve: list[EquityPoint],
+    multiplier: float,
+) -> SummaryStats:
+    peak = starting_cash
+    max_dd = 0.0
+    if equity_curve:
+        peak = equity_curve[0].equity
+    for point in equity_curve:
+        if point.equity > peak:
+            peak = point.equity
+        dd = peak - point.equity
+        if dd > max_dd:
+            max_dd = dd
+    return _summarize_from_trades_and_max_dd(
+        trades,
+        starting_cash=starting_cash,
+        max_dd=float(max_dd),
+        multiplier=multiplier,
     )
 
 

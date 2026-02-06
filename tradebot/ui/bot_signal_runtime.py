@@ -37,11 +37,7 @@ class BotSignalRuntimeMixin:
                 _gate("BLOCKED_WEEKDAY_NOW", {"now_weekday": int(now_et.weekday())})
                 continue
 
-            pending = any(
-                o.status in ("STAGED", "WORKING", "CANCELING") and o.instance_id == instance.instance_id
-                for o in self._orders
-            )
-            if pending:
+            if self._has_pending_order(instance):
                 _gate("PENDING_ORDER", None)
                 continue
 
@@ -231,215 +227,239 @@ class BotSignalRuntimeMixin:
                 instance.spot_stop_loss_price = None
 
             if open_items:
-                if instance.last_exit_bar_ts is not None and instance.last_exit_bar_ts == snap.bar_ts:
-                    _gate(
-                        "BLOCKED_EXIT_SAME_BAR",
-                        {
-                            "bar_ts": snap.bar_ts.isoformat(),
-                            "direction": open_dir,
-                            "items": len(open_items),
-                        },
-                    )
-                    continue
-                _gate("HOLDING", {"direction": open_dir, "items": len(open_items)})
-
-                def _trigger_exit(reason: str, *, mode: str = instrument) -> None:
-                    self._queue_order(
-                        instance,
-                        intent="exit",
-                        direction=open_dir,
-                        signal_bar_ts=snap.bar_ts,
-                    )
-                    _gate("TRIGGER_EXIT", {"mode": mode, "reason": reason})
-
-                if instrument == "spot":
-                    open_item = open_items[0]
-                    try:
-                        pos = float(getattr(open_item, "position", 0.0) or 0.0)
-                    except (TypeError, ValueError):
-                        pos = 0.0
-                    avg_cost = _safe_num(getattr(open_item, "averageCost", None))
-                    market_price = _safe_num(getattr(open_item, "marketPrice", None))
-                    if market_price is None:
-                        ticker = await self._client.ensure_ticker(open_item.contract, owner="bot")
-                        market_price = _ticker_price(ticker)
-
-                    target_price = instance.spot_profit_target_price
-                    stop_price = instance.spot_stop_loss_price
-                    if (
-                        pos
-                        and market_price is not None
-                        and market_price > 0
-                        and (target_price is not None or stop_price is not None)
-                    ):
-                        try:
-                            mp = float(market_price)
-                        except (TypeError, ValueError):
-                            mp = None
-                        if mp is not None:
-                            if target_price is not None:
-                                try:
-                                    target = float(target_price)
-                                except (TypeError, ValueError):
-                                    target = None
-                                if target is not None and target > 0:
-                                    if (pos > 0 and mp >= target) or (pos < 0 and mp <= target):
-                                        _trigger_exit("profit_target", mode="spot")
-                                        break
-                            if stop_price is not None:
-                                try:
-                                    stop = float(stop_price)
-                                except (TypeError, ValueError):
-                                    stop = None
-                                if stop is not None and stop > 0:
-                                    if (pos > 0 and mp <= stop) or (pos < 0 and mp >= stop):
-                                        _trigger_exit("stop_loss", mode="spot")
-                                        break
-                    move = None
-                    if (
-                        target_price is None
-                        and stop_price is None
-                        and avg_cost is not None
-                        and avg_cost > 0
-                        and market_price is not None
-                        and market_price > 0
-                        and pos
-                    ):
-                        move = (market_price - avg_cost) / avg_cost
-                        if pos < 0:
-                            move = -move
-
-                    try:
-                        pt = (
-                            float(instance.strategy.get("spot_profit_target_pct"))
-                            if instance.strategy.get("spot_profit_target_pct") is not None
-                            else None
-                        )
-                    except (TypeError, ValueError):
-                        pt = None
-                    try:
-                        sl = (
-                            float(instance.strategy.get("spot_stop_loss_pct"))
-                            if instance.strategy.get("spot_stop_loss_pct") is not None
-                            else None
-                        )
-                    except (TypeError, ValueError):
-                        sl = None
-
-                    # Dynamic shock SL/PT: mirror backtest semantics for pct-based exits.
-                    if bool(snap.shock) and isinstance(instance.filters, dict):
-                        try:
-                            sl_mult = float(instance.filters.get("shock_stop_loss_pct_mult", 1.0) or 1.0)
-                        except (TypeError, ValueError):
-                            sl_mult = 1.0
-                        try:
-                            pt_mult = float(instance.filters.get("shock_profit_target_pct_mult", 1.0) or 1.0)
-                        except (TypeError, ValueError):
-                            pt_mult = 1.0
-                        if sl_mult <= 0:
-                            sl_mult = 1.0
-                        if pt_mult <= 0:
-                            pt_mult = 1.0
-                        if sl is not None and float(sl) > 0:
-                            sl = min(float(sl) * float(sl_mult), 0.99)
-                        if pt is not None and float(pt) > 0:
-                            pt = min(float(pt) * float(pt_mult), 0.99)
-
-                    if move is not None and pt is not None and move >= pt:
-                        _trigger_exit("profit_target_pct", mode="spot")
-                        break
-                    if move is not None and sl is not None and move <= -sl:
-                        _trigger_exit("stop_loss_pct", mode="spot")
-                        break
-
-                    exit_time = parse_time_hhmm(instance.strategy.get("spot_exit_time_et"))
-                    if exit_time is not None and now_et.time() >= exit_time:
-                        _trigger_exit("exit_time", mode="spot")
-                        break
-
-                    if bool(instance.strategy.get("spot_close_eod")) and (
-                        now_et.hour > 15 or now_et.hour == 15 and now_et.minute >= 55
-                    ):
-                        _trigger_exit("close_eod", mode="spot")
-                        break
-
-                if instrument != "spot":
-                    if self._should_exit_on_dte(instance, open_items, now_et.date()):
-                        _trigger_exit("dte", mode="options")
-                        break
-
-                    entry_value, current_value = self._options_position_values(open_items)
-                    if entry_value is not None and current_value is not None:
-                        profit = float(entry_value) - float(current_value)
-                        try:
-                            profit_target = float(instance.strategy.get("profit_target", 0.0) or 0.0)
-                        except (TypeError, ValueError):
-                            profit_target = 0.0
-                        if profit_target > 0 and abs(entry_value) > 0:
-                            if profit >= abs(entry_value) * profit_target:
-                                _trigger_exit("profit_target", mode="options")
-                                break
-
-                        try:
-                            stop_loss = float(instance.strategy.get("stop_loss", 0.0) or 0.0)
-                        except (TypeError, ValueError):
-                            stop_loss = 0.0
-                        if stop_loss > 0:
-                            loss = max(0.0, float(current_value) - float(entry_value))
-                            basis = str(instance.strategy.get("stop_loss_basis") or "max_loss").strip().lower()
-                            if basis == "credit":
-                                if entry_value >= 0:
-                                    if current_value >= entry_value * (1.0 + stop_loss):
-                                        _trigger_exit("stop_loss_credit", mode="options")
-                                        break
-                                elif loss >= abs(entry_value) * stop_loss:
-                                    _trigger_exit("stop_loss_credit", mode="options")
-                                    break
-                            else:
-                                max_loss = self._options_max_loss_estimate(open_items, spot=float(snap.close))
-                                if max_loss is None or max_loss <= 0:
-                                    max_loss = abs(entry_value)
-                                if max_loss and loss >= float(max_loss) * stop_loss:
-                                    _trigger_exit("stop_loss_max_loss", mode="options")
-                                    break
-
-                if self._should_exit_on_flip(instance, snap, open_dir, open_items):
-                    _trigger_exit("flip", mode=instrument)
+                if await self._auto_maybe_exit_open_positions(
+                    instance=instance,
+                    snap=snap,
+                    instrument=instrument,
+                    open_items=open_items,
+                    open_dir=open_dir,
+                    now_et=now_et,
+                    gate=_gate,
+                ):
                     break
                 continue
 
-            if not self._entry_limit_ok(instance):
-                _gate("BLOCKED_ENTRY_LIMIT", {"entries_today": int(instance.entries_today)})
-                continue
-            if instance.last_entry_bar_ts is not None and instance.last_entry_bar_ts == snap.bar_ts:
-                _gate("BLOCKED_ENTRY_SAME_BAR", {"bar_ts": snap.bar_ts.isoformat()})
-                continue
+            if self._auto_try_queue_entry(instance=instance, snap=snap, gate=_gate):
+                break
 
-            instrument = self._strategy_instrument(instance.strategy)
-            if instrument == "spot":
-                exit_mode = str(instance.strategy.get("spot_exit_mode") or "pct").strip().lower()
-                if exit_mode == "atr":
-                    atr = float(snap.atr or 0.0) if snap.atr is not None else 0.0
-                    if atr <= 0:
-                        _gate("BLOCKED_ATR_NOT_READY", {"atr": float(atr)})
-                        continue
+    def _has_pending_order(self, instance: _BotInstance) -> bool:
+        return any(
+            o.status in ("STAGED", "WORKING", "CANCELING") and o.instance_id == instance.instance_id
+            for o in self._orders
+        )
 
-            direction = self._entry_direction_for_instance(instance, snap)
-            if direction is None:
-                _gate("WAITING_SIGNAL", {"bar_ts": snap.bar_ts.isoformat()})
-                continue
-            if direction not in self._allowed_entry_directions(instance):
-                _gate("BLOCKED_DIRECTION", {"direction": direction})
-                continue
+    async def _auto_maybe_exit_open_positions(
+        self,
+        *,
+        instance: _BotInstance,
+        snap,
+        instrument: str,
+        open_items: list,
+        open_dir: str | None,
+        now_et: datetime,
+        gate,
+    ) -> bool:
+        if instance.last_exit_bar_ts is not None and instance.last_exit_bar_ts == snap.bar_ts:
+            gate(
+                "BLOCKED_EXIT_SAME_BAR",
+                {
+                    "bar_ts": snap.bar_ts.isoformat(),
+                    "direction": open_dir,
+                    "items": len(open_items),
+                },
+            )
+            return False
 
+        gate("HOLDING", {"direction": open_dir, "items": len(open_items)})
+
+        def _trigger_exit(reason: str, *, mode: str = instrument) -> bool:
             self._queue_order(
                 instance,
-                intent="enter",
-                direction=direction,
+                intent="exit",
+                direction=open_dir,
                 signal_bar_ts=snap.bar_ts,
             )
-            _gate("TRIGGER_ENTRY", {"direction": direction})
-            break
+            gate("TRIGGER_EXIT", {"mode": mode, "reason": reason})
+            return True
+
+        if instrument == "spot":
+            open_item = open_items[0]
+            try:
+                pos = float(getattr(open_item, "position", 0.0) or 0.0)
+            except (TypeError, ValueError):
+                pos = 0.0
+            avg_cost = _safe_num(getattr(open_item, "averageCost", None))
+            market_price = _safe_num(getattr(open_item, "marketPrice", None))
+            if market_price is None:
+                ticker = await self._client.ensure_ticker(open_item.contract, owner="bot")
+                market_price = _ticker_price(ticker)
+
+            target_price = instance.spot_profit_target_price
+            stop_price = instance.spot_stop_loss_price
+            if (
+                pos
+                and market_price is not None
+                and market_price > 0
+                and (target_price is not None or stop_price is not None)
+            ):
+                try:
+                    mp = float(market_price)
+                except (TypeError, ValueError):
+                    mp = None
+                if mp is not None:
+                    if target_price is not None:
+                        try:
+                            target = float(target_price)
+                        except (TypeError, ValueError):
+                            target = None
+                        if target is not None and target > 0:
+                            if (pos > 0 and mp >= target) or (pos < 0 and mp <= target):
+                                return _trigger_exit("profit_target", mode="spot")
+                    if stop_price is not None:
+                        try:
+                            stop = float(stop_price)
+                        except (TypeError, ValueError):
+                            stop = None
+                        if stop is not None and stop > 0:
+                            if (pos > 0 and mp <= stop) or (pos < 0 and mp >= stop):
+                                return _trigger_exit("stop_loss", mode="spot")
+
+            move = None
+            if (
+                target_price is None
+                and stop_price is None
+                and avg_cost is not None
+                and avg_cost > 0
+                and market_price is not None
+                and market_price > 0
+                and pos
+            ):
+                move = (market_price - avg_cost) / avg_cost
+                if pos < 0:
+                    move = -move
+
+            try:
+                pt = (
+                    float(instance.strategy.get("spot_profit_target_pct"))
+                    if instance.strategy.get("spot_profit_target_pct") is not None
+                    else None
+                )
+            except (TypeError, ValueError):
+                pt = None
+            try:
+                sl = (
+                    float(instance.strategy.get("spot_stop_loss_pct"))
+                    if instance.strategy.get("spot_stop_loss_pct") is not None
+                    else None
+                )
+            except (TypeError, ValueError):
+                sl = None
+
+            # Dynamic shock SL/PT: mirror backtest semantics for pct-based exits.
+            if bool(snap.shock) and isinstance(instance.filters, dict):
+                try:
+                    sl_mult = float(instance.filters.get("shock_stop_loss_pct_mult", 1.0) or 1.0)
+                except (TypeError, ValueError):
+                    sl_mult = 1.0
+                try:
+                    pt_mult = float(instance.filters.get("shock_profit_target_pct_mult", 1.0) or 1.0)
+                except (TypeError, ValueError):
+                    pt_mult = 1.0
+                if sl_mult <= 0:
+                    sl_mult = 1.0
+                if pt_mult <= 0:
+                    pt_mult = 1.0
+                if sl is not None and float(sl) > 0:
+                    sl = min(float(sl) * float(sl_mult), 0.99)
+                if pt is not None and float(pt) > 0:
+                    pt = min(float(pt) * float(pt_mult), 0.99)
+
+            if move is not None and pt is not None and move >= pt:
+                return _trigger_exit("profit_target_pct", mode="spot")
+            if move is not None and sl is not None and move <= -sl:
+                return _trigger_exit("stop_loss_pct", mode="spot")
+
+            exit_time = parse_time_hhmm(instance.strategy.get("spot_exit_time_et"))
+            if exit_time is not None and now_et.time() >= exit_time:
+                return _trigger_exit("exit_time", mode="spot")
+
+            if bool(instance.strategy.get("spot_close_eod")) and (
+                now_et.hour > 15 or now_et.hour == 15 and now_et.minute >= 55
+            ):
+                return _trigger_exit("close_eod", mode="spot")
+
+        if instrument != "spot":
+            if self._should_exit_on_dte(instance, open_items, now_et.date()):
+                return _trigger_exit("dte", mode="options")
+
+            entry_value, current_value = self._options_position_values(open_items)
+            if entry_value is not None and current_value is not None:
+                profit = float(entry_value) - float(current_value)
+                try:
+                    profit_target = float(instance.strategy.get("profit_target", 0.0) or 0.0)
+                except (TypeError, ValueError):
+                    profit_target = 0.0
+                if profit_target > 0 and abs(entry_value) > 0:
+                    if profit >= abs(entry_value) * profit_target:
+                        return _trigger_exit("profit_target", mode="options")
+
+                try:
+                    stop_loss = float(instance.strategy.get("stop_loss", 0.0) or 0.0)
+                except (TypeError, ValueError):
+                    stop_loss = 0.0
+                if stop_loss > 0:
+                    loss = max(0.0, float(current_value) - float(entry_value))
+                    basis = str(instance.strategy.get("stop_loss_basis") or "max_loss").strip().lower()
+                    if basis == "credit":
+                        if entry_value >= 0:
+                            if current_value >= entry_value * (1.0 + stop_loss):
+                                return _trigger_exit("stop_loss_credit", mode="options")
+                        elif loss >= abs(entry_value) * stop_loss:
+                            return _trigger_exit("stop_loss_credit", mode="options")
+                    else:
+                        max_loss = self._options_max_loss_estimate(open_items, spot=float(snap.close))
+                        if max_loss is None or max_loss <= 0:
+                            max_loss = abs(entry_value)
+                        if max_loss and loss >= float(max_loss) * stop_loss:
+                            return _trigger_exit("stop_loss_max_loss", mode="options")
+
+        if self._should_exit_on_flip(instance, snap, open_dir, open_items):
+            return _trigger_exit("flip", mode=instrument)
+        return False
+
+    def _auto_try_queue_entry(self, *, instance: _BotInstance, snap, gate) -> bool:
+        if not self._entry_limit_ok(instance):
+            gate("BLOCKED_ENTRY_LIMIT", {"entries_today": int(instance.entries_today)})
+            return False
+        if instance.last_entry_bar_ts is not None and instance.last_entry_bar_ts == snap.bar_ts:
+            gate("BLOCKED_ENTRY_SAME_BAR", {"bar_ts": snap.bar_ts.isoformat()})
+            return False
+
+        instrument = self._strategy_instrument(instance.strategy)
+        if instrument == "spot":
+            exit_mode = str(instance.strategy.get("spot_exit_mode") or "pct").strip().lower()
+            if exit_mode == "atr":
+                atr = float(snap.atr or 0.0) if snap.atr is not None else 0.0
+                if atr <= 0:
+                    gate("BLOCKED_ATR_NOT_READY", {"atr": float(atr)})
+                    return False
+
+        direction = self._entry_direction_for_instance(instance, snap)
+        if direction is None:
+            gate("WAITING_SIGNAL", {"bar_ts": snap.bar_ts.isoformat()})
+            return False
+        if direction not in self._allowed_entry_directions(instance):
+            gate("BLOCKED_DIRECTION", {"direction": direction})
+            return False
+
+        self._queue_order(
+            instance,
+            intent="enter",
+            direction=direction,
+            signal_bar_ts=snap.bar_ts,
+        )
+        gate("TRIGGER_ENTRY", {"direction": direction})
+        return True
 
     def _queue_order(
         self,

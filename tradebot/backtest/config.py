@@ -7,7 +7,7 @@ from pathlib import Path
 
 from ..signals import parse_bar_size
 from .cli_utils import parse_date as _parse_date_impl
-from .knobs.models import (
+from ..knobs.models import (
     BacktestConfig,
     ConfigBundle,
     FiltersConfig,

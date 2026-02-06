@@ -1321,6 +1321,36 @@ class SupertrendEngine:
 
 
 # region Shock Engines
+class _ShockDirectionMixin:
+    _dir_lookback: int
+    _dir_prev_close: float | None
+    _ret_hist: deque[float]
+    _direction: str | None
+
+    def _init_direction_state(self, direction_lookback: int) -> None:
+        self._dir_lookback = max(1, int(direction_lookback))
+        self._dir_prev_close = None
+        self._ret_hist = deque(maxlen=self._dir_lookback)
+        self._direction = None
+
+    def _update_direction(self, close: float) -> None:
+        prev_close = self._dir_prev_close
+        self._dir_prev_close = float(close)
+        if prev_close is not None and prev_close > 0 and close > 0:
+            self._ret_hist.append((float(close) / float(prev_close)) - 1.0)
+            if len(self._ret_hist) >= self._dir_lookback:
+                ret_sum = float(sum(self._ret_hist))
+                if ret_sum > 0:
+                    self._direction = "up"
+                elif ret_sum < 0:
+                    self._direction = "down"
+
+    def _direction_state(self) -> tuple[str | None, bool]:
+        direction = str(self._direction) if self._direction in ("up", "down") else None
+        direction_ready = bool(direction in ("up", "down") and len(self._ret_hist) >= self._dir_lookback)
+        return direction, direction_ready
+
+
 @dataclass(frozen=True)
 class AtrRatioShockSnapshot:
     shock: bool
@@ -1333,7 +1363,7 @@ class AtrRatioShockSnapshot:
     direction_ready: bool = False
 
 
-class AtrRatioShockEngine:
+class AtrRatioShockEngine(_ShockDirectionMixin):
     """Fast/slow ATR ratio shock detector with hysteresis.
 
     This is a *risk state* overlay, not a directional gate:
@@ -1367,31 +1397,15 @@ class AtrRatioShockEngine:
         self._off_ratio = float(off_ratio)
         self._min_atr_pct = float(min_atr_pct)
         self._shock = False
-        self._dir_lookback = max(1, int(direction_lookback))
-        self._dir_prev_close: float | None = None
-        self._ret_hist: deque[float] = deque(maxlen=self._dir_lookback)
-        self._direction: str | None = None
+        self._init_direction_state(direction_lookback)
         self._atr_ready = False
         self._last_ratio: float | None = None
         self._last_atr_fast_pct: float | None = None
         self._last_atr_fast: float | None = None
         self._last_atr_slow: float | None = None
 
-    def _update_direction(self, close: float) -> None:
-        prev_close = self._dir_prev_close
-        self._dir_prev_close = float(close)
-        if prev_close is not None and prev_close > 0 and close > 0:
-            self._ret_hist.append((float(close) / float(prev_close)) - 1.0)
-            if len(self._ret_hist) >= self._dir_lookback:
-                ret_sum = float(sum(self._ret_hist))
-                if ret_sum > 0:
-                    self._direction = "up"
-                elif ret_sum < 0:
-                    self._direction = "down"
-
     def _snapshot(self) -> AtrRatioShockSnapshot:
-        direction = str(self._direction) if self._direction in ("up", "down") else None
-        direction_ready = bool(direction in ("up", "down") and len(self._ret_hist) >= self._dir_lookback)
+        direction, direction_ready = self._direction_state()
         if not bool(self._atr_ready):
             return AtrRatioShockSnapshot(
                 shock=False,
@@ -1471,7 +1485,7 @@ class TrRatioShockSnapshot:
     direction_ready: bool = False
 
 
-class TrRatioShockEngine:
+class TrRatioShockEngine(_ShockDirectionMixin):
     """Fast/slow True Range EMA ratio shock detector with hysteresis.
 
     Compared to ATR-ratio, this is a bit more "twitchy" (less smoothing), which can help
@@ -1495,10 +1509,7 @@ class TrRatioShockEngine:
         self._min_tr_pct = float(min_tr_pct)
         self._shock = False
 
-        self._dir_lookback = max(1, int(direction_lookback))
-        self._dir_prev_close: float | None = None
-        self._ret_hist: deque[float] = deque(maxlen=self._dir_lookback)
-        self._direction: str | None = None
+        self._init_direction_state(direction_lookback)
 
         self._tr_prev_close: float | None = None
         self._tr_fast_ema: float | None = None
@@ -1510,18 +1521,6 @@ class TrRatioShockEngine:
         self._last_tr_fast_pct: float | None = None
         self._last_tr_fast: float | None = None
         self._last_tr_slow: float | None = None
-
-    def _update_direction(self, close: float) -> None:
-        prev_close = self._dir_prev_close
-        self._dir_prev_close = float(close)
-        if prev_close is not None and prev_close > 0 and close > 0:
-            self._ret_hist.append((float(close) / float(prev_close)) - 1.0)
-            if len(self._ret_hist) >= self._dir_lookback:
-                ret_sum = float(sum(self._ret_hist))
-                if ret_sum > 0:
-                    self._direction = "up"
-                elif ret_sum < 0:
-                    self._direction = "down"
 
     def _true_range(self, *, high: float, low: float, close: float) -> float:
         prev_close = self._tr_prev_close
@@ -1535,8 +1534,7 @@ class TrRatioShockEngine:
         )
 
     def _snapshot(self) -> TrRatioShockSnapshot:
-        direction = str(self._direction) if self._direction in ("up", "down") else None
-        direction_ready = bool(direction in ("up", "down") and len(self._ret_hist) >= self._dir_lookback)
+        direction, direction_ready = self._direction_state()
         if not bool(self._ready):
             return TrRatioShockSnapshot(
                 shock=False,
@@ -1617,7 +1615,7 @@ class DailyAtrPctShockSnapshot:
     direction_ready: bool = False
 
 
-class DailyAtrPctShockEngine:
+class DailyAtrPctShockEngine(_ShockDirectionMixin):
     """Daily ATR% shock detector with hysteresis.
 
     - Computes daily TR and ATR using Wilder smoothing (updates once per session/day).
@@ -1662,27 +1660,12 @@ class DailyAtrPctShockEngine:
         self._cur_low: float | None = None
         self._cur_close: float | None = None
 
-        self._dir_lookback = max(1, int(direction_lookback))
-        self._dir_prev_close: float | None = None
-        self._ret_hist: deque[float] = deque(maxlen=self._dir_lookback)
-        self._direction: str | None = None
+        self._init_direction_state(direction_lookback)
         # Cached last-computed values so `update_direction()` can avoid recomputing ATR/TR state.
         self._last_ready = False
         self._last_atr_pct: float | None = None
         self._last_atr: float | None = None
         self._last_tr: float | None = None
-
-    def _update_direction(self, close: float) -> None:
-        prev_close = self._dir_prev_close
-        self._dir_prev_close = float(close)
-        if prev_close is not None and prev_close > 0 and close > 0:
-            self._ret_hist.append((float(close) / float(prev_close)) - 1.0)
-            if len(self._ret_hist) >= self._dir_lookback:
-                ret_sum = float(sum(self._ret_hist))
-                if ret_sum > 0:
-                    self._direction = "up"
-                elif ret_sum < 0:
-                    self._direction = "down"
 
     @staticmethod
     def _true_range(high: float, low: float, prev_close: float | None) -> float:
@@ -1716,8 +1699,7 @@ class DailyAtrPctShockEngine:
         atr: float | None,
         tr: float | None,
     ) -> DailyAtrPctShockSnapshot:
-        direction = str(self._direction) if self._direction in ("up", "down") else None
-        direction_ready = bool(direction in ("up", "down") and len(self._ret_hist) >= self._dir_lookback)
+        direction, direction_ready = self._direction_state()
         return DailyAtrPctShockSnapshot(
             shock=bool(shock),
             ready=bool(ready),
@@ -1826,7 +1808,7 @@ class DailyDrawdownShockSnapshot:
     direction_ready: bool = False
 
 
-class DailyDrawdownShockEngine:
+class DailyDrawdownShockEngine(_ShockDirectionMixin):
     """Daily drawdown shock detector with hysteresis.
 
     Tracks close vs a rolling peak close over the last N finalized sessions and triggers
@@ -1853,25 +1835,10 @@ class DailyDrawdownShockEngine:
         self._daily_closes: deque[float] = deque(maxlen=self._lookback)
         self._rolling_peak: float | None = None
 
-        self._dir_lookback = max(1, int(direction_lookback))
-        self._dir_prev_close: float | None = None
-        self._ret_hist: deque[float] = deque(maxlen=self._dir_lookback)
-        self._direction: str | None = None
+        self._init_direction_state(direction_lookback)
         self._last_ready = False
         self._last_drawdown_pct: float | None = None
         self._last_peak_close: float | None = None
-
-    def _update_direction(self, close: float) -> None:
-        prev_close = self._dir_prev_close
-        self._dir_prev_close = float(close)
-        if prev_close is not None and prev_close > 0 and close > 0:
-            self._ret_hist.append((float(close) / float(prev_close)) - 1.0)
-            if len(self._ret_hist) >= self._dir_lookback:
-                ret_sum = float(sum(self._ret_hist))
-                if ret_sum > 0:
-                    self._direction = "up"
-                elif ret_sum < 0:
-                    self._direction = "down"
 
     def _finalize_day(self) -> None:
         if self._cur_close is None:
@@ -1889,8 +1856,7 @@ class DailyDrawdownShockEngine:
         drawdown_pct: float | None,
         peak_close: float | None,
     ) -> DailyDrawdownShockSnapshot:
-        direction = str(self._direction) if self._direction in ("up", "down") else None
-        direction_ready = bool(direction in ("up", "down") and len(self._ret_hist) >= self._dir_lookback)
+        direction, direction_ready = self._direction_state()
         return DailyDrawdownShockSnapshot(
             shock=bool(shock),
             ready=bool(ready),
@@ -2472,6 +2438,155 @@ def flip_exit_hit(
     return state == "up"
 
 
+def _signal_filter_rv_ok(
+    filters: Mapping[str, object] | object | None,
+    *,
+    rv: float | None,
+) -> bool:
+    rv_min = _filters_get(filters, "rv_min")
+    rv_max = _filters_get(filters, "rv_max")
+    if rv_min is None and rv_max is None:
+        return True
+    if rv is None:
+        return False
+    try:
+        rv_min_f = float(rv_min) if rv_min is not None else None
+    except (TypeError, ValueError):
+        rv_min_f = None
+    try:
+        rv_max_f = float(rv_max) if rv_max is not None else None
+    except (TypeError, ValueError):
+        rv_max_f = None
+    if rv_min_f is not None and float(rv) < rv_min_f:
+        return False
+    if rv_max_f is not None and float(rv) > rv_max_f:
+        return False
+    return True
+
+
+def _hour_window_ok(hour: int, *, start_raw: object, end_raw: object) -> bool:
+    try:
+        start = int(start_raw)
+        end = int(end_raw)
+    except (TypeError, ValueError):
+        return True
+    if start <= end:
+        return start <= hour < end
+    return hour >= start or hour < end
+
+
+def _signal_filter_time_ok(
+    filters: Mapping[str, object] | object | None,
+    *,
+    bar_ts: datetime,
+) -> bool:
+    entry_start_hour_et = _filters_get(filters, "entry_start_hour_et")
+    entry_end_hour_et = _filters_get(filters, "entry_end_hour_et")
+    if entry_start_hour_et is not None and entry_end_hour_et is not None:
+        return _hour_window_ok(
+            int(_ts_to_et(bar_ts).hour),
+            start_raw=entry_start_hour_et,
+            end_raw=entry_end_hour_et,
+        )
+
+    entry_start_hour = _filters_get(filters, "entry_start_hour")
+    entry_end_hour = _filters_get(filters, "entry_end_hour")
+    if entry_start_hour is not None and entry_end_hour is not None:
+        return _hour_window_ok(
+            int(bar_ts.hour),
+            start_raw=entry_start_hour,
+            end_raw=entry_end_hour,
+        )
+    return True
+
+
+def _signal_filter_skip_first_ok(
+    filters: Mapping[str, object] | object | None,
+    *,
+    bars_in_day: int,
+) -> bool:
+    skip_first = _filters_get(filters, "skip_first_bars")
+    try:
+        skip_first_n = int(skip_first or 0)
+    except (TypeError, ValueError):
+        skip_first_n = 0
+    return not (skip_first_n > 0 and int(bars_in_day) <= skip_first_n)
+
+
+def _signal_filter_shock_gate_ok(
+    filters: Mapping[str, object] | object | None,
+    *,
+    shock: bool | None,
+    shock_dir: str | None,
+    signal: EmaDecisionSnapshot | None,
+) -> bool:
+    shock_mode = normalize_shock_gate_mode(filters)
+    if shock_mode == "block":
+        if shock is None:
+            return False
+        return not bool(shock)
+    if shock_mode in ("block_longs", "block_shorts"):
+        if shock is None:
+            return False
+        if not bool(shock):
+            return True
+        entry_dir = signal.entry_dir if signal is not None else None
+        if shock_mode == "block_longs" and entry_dir == "up":
+            return False
+        if shock_mode == "block_shorts" and entry_dir == "down":
+            return False
+        return True
+    if shock_mode == "surf":
+        if shock is None:
+            return False
+        if not bool(shock):
+            return True
+        entry_dir = signal.entry_dir if signal is not None else None
+        cleaned = str(shock_dir) if shock_dir in ("up", "down") else None
+        if cleaned is None or entry_dir not in ("up", "down"):
+            return False
+        return entry_dir == cleaned
+    return True
+
+
+def _signal_filter_permission_ok(
+    filters: Mapping[str, object] | object | None,
+    *,
+    close: float,
+    signal: EmaDecisionSnapshot | None,
+) -> bool:
+    entry_dir = signal.entry_dir if signal is not None else None
+    _, perm_ok = permission_gate_status(filters, close=float(close), signal=signal, entry_dir=entry_dir)
+    return bool(perm_ok)
+
+
+def _signal_filter_volume_ok(
+    filters: Mapping[str, object] | object | None,
+    *,
+    volume: float | None,
+    volume_ema: float | None,
+    volume_ema_ready: bool,
+) -> bool:
+    volume_ratio_min = _filters_get(filters, "volume_ratio_min")
+    if volume_ratio_min is None:
+        return True
+    try:
+        ratio_min = float(volume_ratio_min)
+    except (TypeError, ValueError):
+        ratio_min = None
+    if ratio_min is None:
+        return True
+    if not bool(volume_ema_ready):
+        return False
+    if volume is None or volume_ema is None:
+        return False
+    denom = float(volume_ema)
+    if denom <= 0:
+        return False
+    ratio = float(volume) / denom
+    return ratio >= ratio_min
+
+
 def signal_filters_ok(
     filters: Mapping[str, object] | object | None,
     *,
@@ -2489,131 +2604,24 @@ def signal_filters_ok(
 ) -> bool:
     if filters is None:
         return True
-
-    def _get(key: str):
-        return _filters_get(filters, key)
-
-    rv_min = _get("rv_min")
-    rv_max = _get("rv_max")
-    if rv_min is not None or rv_max is not None:
-        if rv is None:
-            return False
-        try:
-            rv_min_f = float(rv_min) if rv_min is not None else None
-        except (TypeError, ValueError):
-            rv_min_f = None
-        try:
-            rv_max_f = float(rv_max) if rv_max is not None else None
-        except (TypeError, ValueError):
-            rv_max_f = None
-        if rv_min_f is not None and float(rv) < rv_min_f:
-            return False
-        if rv_max_f is not None and float(rv) > rv_max_f:
-            return False
-
-    entry_start_hour_et = _get("entry_start_hour_et")
-    entry_end_hour_et = _get("entry_end_hour_et")
-    if entry_start_hour_et is not None and entry_end_hour_et is not None:
-        try:
-            start = int(entry_start_hour_et)
-            end = int(entry_end_hour_et)
-        except (TypeError, ValueError):
-            start = None
-            end = None
-        if start is not None and end is not None:
-            hour = int(_ts_to_et(bar_ts).hour)
-            if start <= end:
-                if not (start <= hour < end):
-                    return False
-            else:
-                if not (hour >= start or hour < end):
-                    return False
-    else:
-        entry_start_hour = _get("entry_start_hour")
-        entry_end_hour = _get("entry_end_hour")
-        if entry_start_hour is not None and entry_end_hour is not None:
-            try:
-                start = int(entry_start_hour)
-                end = int(entry_end_hour)
-            except (TypeError, ValueError):
-                start = None
-                end = None
-            if start is not None and end is not None:
-                hour = int(bar_ts.hour)
-                if start <= end:
-                    if not (start <= hour < end):
-                        return False
-                else:
-                    if not (hour >= start or hour < end):
-                        return False
-
-    skip_first = _get("skip_first_bars")
-    try:
-        skip_first_n = int(skip_first or 0)
-    except (TypeError, ValueError):
-        skip_first_n = 0
-    if skip_first_n > 0 and int(bars_in_day) <= skip_first_n:
+    if not _signal_filter_rv_ok(filters, rv=rv):
         return False
-
+    if not _signal_filter_time_ok(filters, bar_ts=bar_ts):
+        return False
+    if not _signal_filter_skip_first_ok(filters, bars_in_day=bars_in_day):
+        return False
     if not bool(cooldown_ok):
         return False
-
-    shock_mode = normalize_shock_gate_mode(filters)
-    if shock_mode == "block":
-        # Like other filters, if the derived feature isn't ready, we block rather than guessing.
-        if shock is None:
-            return False
-        if bool(shock):
-            return False
-    elif shock_mode in ("block_longs", "block_shorts"):
-        if shock is None:
-            return False
-        if bool(shock):
-            entry_dir = None
-            if signal is not None:
-                entry_dir = signal.entry_dir
-            if shock_mode == "block_longs" and entry_dir == "up":
-                return False
-            if shock_mode == "block_shorts" and entry_dir == "down":
-                return False
-    elif shock_mode == "surf":
-        # During a shock, only allow entries aligned with the shock direction.
-        if shock is None:
-            return False
-        if bool(shock):
-            entry_dir = None
-            if signal is not None:
-                entry_dir = signal.entry_dir
-            cleaned = str(shock_dir) if shock_dir in ("up", "down") else None
-            if cleaned is None or entry_dir not in ("up", "down"):
-                return False
-            if entry_dir != cleaned:
-                return False
-
-    entry_dir = signal.entry_dir if signal is not None else None
-    _, perm_ok = permission_gate_status(filters, close=float(close), signal=signal, entry_dir=entry_dir)
-    if not bool(perm_ok):
+    if not _signal_filter_shock_gate_ok(filters, shock=shock, shock_dir=shock_dir, signal=signal):
         return False
-
-    volume_ratio_min = _get("volume_ratio_min")
-    if volume_ratio_min is not None:
-        try:
-            ratio_min = float(volume_ratio_min)
-        except (TypeError, ValueError):
-            ratio_min = None
-        if ratio_min is not None:
-            if not bool(volume_ema_ready):
-                return False
-            if volume is None or volume_ema is None:
-                return False
-            denom = float(volume_ema)
-            if denom <= 0:
-                return False
-            ratio = float(volume) / denom
-            if ratio < ratio_min:
-                return False
-
-    return True
+    if not _signal_filter_permission_ok(filters, close=float(close), signal=signal):
+        return False
+    return _signal_filter_volume_ok(
+        filters,
+        volume=volume,
+        volume_ema=volume_ema,
+        volume_ema_ready=volume_ema_ready,
+    )
 
 
 # endregion

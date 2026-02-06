@@ -149,6 +149,120 @@ class BotOrderBuilderMixin:
                 self._tracked_conids.discard(con_id)
         return best_strike
 
+    async def _create_order_for_instance_exit(
+        self,
+        *,
+        instance: _BotInstance,
+        instrument: str,
+        symbol: str,
+        direction: str | None,
+        signal_bar_ts: datetime | None,
+        intent_clean: str,
+        mode: str,
+        leg_price,
+        fail,
+        set_status,
+        finalize_leg_orders,
+    ) -> None:
+        if instrument == "spot":
+            _instrument, open_items, _open_dir = self._resolve_open_positions(
+                instance,
+                symbol=symbol,
+            )
+            open_item = open_items[0] if open_items else None
+            if open_item is None:
+                return fail(f"Exit: no spot position for {symbol}")
+            try:
+                pos = float(getattr(open_item, "position", 0.0) or 0.0)
+            except (TypeError, ValueError):
+                pos = 0.0
+            if not pos:
+                return fail(f"Exit: no spot position for {symbol}")
+
+            action = "SELL" if pos > 0 else "BUY"
+            qty = int(abs(pos))
+            if qty <= 0:
+                return fail(f"Exit: invalid position size for {symbol}")
+
+            contract = open_item.contract
+            con_id = int(getattr(contract, "conId", 0) or 0)
+            if con_id:
+                self._tracked_conids.add(con_id)
+            ticker = await self._client.ensure_ticker(contract, owner="bot")
+            bid = _safe_num(getattr(ticker, "bid", None))
+            ask = _safe_num(getattr(ticker, "ask", None))
+            last = _safe_num(getattr(ticker, "last", None))
+            limit = leg_price(bid, ask, last, action)
+            if limit is None:
+                return fail("Quote: no bid/ask/last (cannot price)")
+            tick = _tick_size(contract, ticker, limit) or 0.01
+            limit = _round_to_tick(float(limit), tick)
+            order = _BotOrder(
+                instance_id=instance.instance_id,
+                preset=None,
+                underlying=contract,
+                order_contract=contract,
+                legs=[_BotLegOrder(contract=contract, action=action, ratio=qty)],
+                action=action,
+                quantity=qty,
+                limit_price=float(limit),
+                created_at=datetime.now(tz=ZoneInfo("America/New_York")),
+                bid=bid,
+                ask=ask,
+                last=last,
+                intent=intent_clean,
+                direction=direction,
+                reason="exit",
+                signal_bar_ts=signal_bar_ts,
+                exec_mode=mode,
+            )
+            if con_id:
+                instance.touched_conids.add(con_id)
+            self._add_order(order)
+            if signal_bar_ts is not None:
+                instance.last_exit_bar_ts = signal_bar_ts
+            set_status(f"Created order EXIT {action} {qty} {symbol} @ {limit:.2f}")
+            return
+
+        _instrument, open_items, _open_dir = self._resolve_open_positions(
+            instance,
+            symbol=symbol,
+        )
+        if not open_items:
+            return fail(f"Exit: no option positions for instance {instance.instance_id}")
+        underlying = Stock(symbol=symbol, exchange="SMART", currency="USD")
+        qualified = await self._client.qualify_proxy_contracts(underlying)
+        if qualified:
+            underlying = qualified[0]
+
+        leg_orders: list[_BotLegOrder] = []
+        leg_quotes: list[tuple[float | None, float | None, float | None, Ticker]] = []
+        for item in open_items:
+            contract = item.contract
+            try:
+                pos = float(getattr(item, "position", 0.0) or 0.0)
+            except (TypeError, ValueError):
+                continue
+            if not pos:
+                continue
+            ratio = int(abs(pos))
+            if ratio <= 0:
+                continue
+            action = "SELL" if pos > 0 else "BUY"
+            con_id = int(getattr(contract, "conId", 0) or 0)
+            if con_id:
+                self._tracked_conids.add(con_id)
+            ticker = await self._client.ensure_ticker(contract, owner="bot")
+            bid = _safe_num(getattr(ticker, "bid", None))
+            ask = _safe_num(getattr(ticker, "ask", None))
+            last = _safe_num(getattr(ticker, "last", None))
+            leg_orders.append(_BotLegOrder(contract=contract, action=action, ratio=ratio))
+            leg_quotes.append((bid, ask, last, ticker))
+
+        if not leg_orders:
+            return fail(f"Exit: no option positions for instance {instance.instance_id}")
+        finalize_leg_orders(underlying=underlying, leg_orders=leg_orders, leg_quotes=leg_quotes)
+
     async def _create_order_for_instance(
         self,
         instance: _BotInstance,
@@ -337,104 +451,19 @@ class BotOrderBuilderMixin:
             _set_status(f"Created order {order_action} BAG {symbol} @ {order_limit:.2f} ({len(leg_orders)} legs)")
 
         if intent_clean == "exit":
-            if instrument == "spot":
-                _instrument, open_items, _open_dir = self._resolve_open_positions(
-                    instance,
-                    symbol=symbol,
-                )
-                open_item = open_items[0] if open_items else None
-                if open_item is None:
-                    return _fail(f"Exit: no spot position for {symbol}")
-                try:
-                    pos = float(getattr(open_item, "position", 0.0) or 0.0)
-                except (TypeError, ValueError):
-                    pos = 0.0
-                if not pos:
-                    return _fail(f"Exit: no spot position for {symbol}")
-
-                action = "SELL" if pos > 0 else "BUY"
-                qty = int(abs(pos))
-                if qty <= 0:
-                    return _fail(f"Exit: invalid position size for {symbol}")
-
-                contract = open_item.contract
-                con_id = int(getattr(contract, "conId", 0) or 0)
-                if con_id:
-                    self._tracked_conids.add(con_id)
-                ticker = await self._client.ensure_ticker(contract, owner="bot")
-                bid = _safe_num(getattr(ticker, "bid", None))
-                ask = _safe_num(getattr(ticker, "ask", None))
-                last = _safe_num(getattr(ticker, "last", None))
-                limit = _leg_price(bid, ask, last, action)
-                if limit is None:
-                    return _fail("Quote: no bid/ask/last (cannot price)")
-                tick = _tick_size(contract, ticker, limit) or 0.01
-                limit = _round_to_tick(float(limit), tick)
-                order = _BotOrder(
-                    instance_id=instance.instance_id,
-                    preset=None,
-                    underlying=contract,
-                    order_contract=contract,
-                    legs=[_BotLegOrder(contract=contract, action=action, ratio=qty)],
-                    action=action,
-                    quantity=qty,
-                    limit_price=float(limit),
-                    created_at=datetime.now(tz=ZoneInfo("America/New_York")),
-                    bid=bid,
-                    ask=ask,
-                    last=last,
-                    intent=intent_clean,
-                    direction=direction,
-                    reason="exit",
-                    signal_bar_ts=signal_bar_ts,
-                    exec_mode=mode,
-                )
-                if con_id:
-                    instance.touched_conids.add(con_id)
-                self._add_order(order)
-                if signal_bar_ts is not None:
-                    instance.last_exit_bar_ts = signal_bar_ts
-                _set_status(f"Created order EXIT {action} {qty} {symbol} @ {limit:.2f}")
-                return
-
-            _instrument, open_items, _open_dir = self._resolve_open_positions(
-                instance,
+            await self._create_order_for_instance_exit(
+                instance=instance,
+                instrument=instrument,
                 symbol=symbol,
+                direction=direction,
+                signal_bar_ts=signal_bar_ts,
+                intent_clean=intent_clean,
+                mode=mode,
+                leg_price=_leg_price,
+                fail=_fail,
+                set_status=_set_status,
+                finalize_leg_orders=_finalize_leg_orders,
             )
-            if not open_items:
-                return _fail(f"Exit: no option positions for instance {instance.instance_id}")
-            underlying = Stock(symbol=symbol, exchange="SMART", currency="USD")
-            qualified = await self._client.qualify_proxy_contracts(underlying)
-            if qualified:
-                underlying = qualified[0]
-
-            leg_orders: list[_BotLegOrder] = []
-            leg_quotes: list[tuple[float | None, float | None, float | None, Ticker]] = []
-            for item in open_items:
-                contract = item.contract
-                try:
-                    pos = float(getattr(item, "position", 0.0) or 0.0)
-                except (TypeError, ValueError):
-                    continue
-                if not pos:
-                    continue
-                ratio = int(abs(pos))
-                if ratio <= 0:
-                    continue
-                action = "SELL" if pos > 0 else "BUY"
-                con_id = int(getattr(contract, "conId", 0) or 0)
-                if con_id:
-                    self._tracked_conids.add(con_id)
-                ticker = await self._client.ensure_ticker(contract, owner="bot")
-                bid = _safe_num(getattr(ticker, "bid", None))
-                ask = _safe_num(getattr(ticker, "ask", None))
-                last = _safe_num(getattr(ticker, "last", None))
-                leg_orders.append(_BotLegOrder(contract=contract, action=action, ratio=ratio))
-                leg_quotes.append((bid, ask, last, ticker))
-
-            if not leg_orders:
-                return _fail(f"Exit: no option positions for instance {instance.instance_id}")
-            _finalize_leg_orders(underlying=underlying, leg_orders=leg_orders, leg_quotes=leg_quotes)
             return
 
         if instrument == "spot":
