@@ -1291,32 +1291,77 @@ class BacktestResult:
     summary: SummaryStats
 
 
-def run_backtest(cfg: ConfigBundle) -> BacktestResult:
-    data = IBKRHistoricalData()
-    start_dt = datetime.combine(cfg.backtest.start, time(0, 0))
-    end_dt = datetime.combine(cfg.backtest.end, time(23, 59))
-    if cfg.backtest.offline:
-        bars = data.load_cached_bars(
-            symbol=cfg.strategy.symbol,
-            exchange=cfg.strategy.exchange,
-            start=start_dt,
-            end=end_dt,
-            bar_size=cfg.backtest.bar_size,
-            use_rth=cfg.backtest.use_rth,
-            cache_dir=cfg.backtest.cache_dir,
+def _load_backtest_bars(
+    *,
+    data: IBKRHistoricalData,
+    cfg: ConfigBundle,
+    symbol: str,
+    exchange: str | None,
+    start: datetime,
+    end: datetime,
+    bar_size: str,
+    use_rth: bool,
+) -> list[Bar]:
+    loader = data.load_cached_bars if bool(cfg.backtest.offline) else data.load_or_fetch_bars
+    return loader(
+        symbol=symbol,
+        exchange=exchange,
+        start=start,
+        end=end,
+        bar_size=str(bar_size),
+        use_rth=bool(use_rth),
+        cache_dir=cfg.backtest.cache_dir,
+    )
+
+
+def _load_backtest_bars_offline_fallback_start(
+    *,
+    data: IBKRHistoricalData,
+    cfg: ConfigBundle,
+    symbol: str,
+    exchange: str | None,
+    start: datetime,
+    fallback_start: datetime,
+    end: datetime,
+    bar_size: str,
+    use_rth: bool,
+) -> list[Bar]:
+    if not bool(cfg.backtest.offline) or start == fallback_start:
+        return _load_backtest_bars(
+            data=data,
+            cfg=cfg,
+            symbol=symbol,
+            exchange=exchange,
+            start=start,
+            end=end,
+            bar_size=bar_size,
+            use_rth=use_rth,
         )
-    else:
-        bars = data.load_or_fetch_bars(
-            symbol=cfg.strategy.symbol,
-            exchange=cfg.strategy.exchange,
-            start=start_dt,
-            end=end_dt,
-            bar_size=cfg.backtest.bar_size,
-            use_rth=cfg.backtest.use_rth,
-            cache_dir=cfg.backtest.cache_dir,
+    try:
+        return _load_backtest_bars(
+            data=data,
+            cfg=cfg,
+            symbol=symbol,
+            exchange=exchange,
+            start=start,
+            end=end,
+            bar_size=bar_size,
+            use_rth=use_rth,
         )
-    if not bars:
-        raise RuntimeError("No bars loaded for backtest")
+    except FileNotFoundError:
+        return _load_backtest_bars(
+            data=data,
+            cfg=cfg,
+            symbol=symbol,
+            exchange=exchange,
+            start=fallback_start,
+            end=end,
+            bar_size=bar_size,
+            use_rth=use_rth,
+        )
+
+
+def _resolve_backtest_contract_meta(*, data: IBKRHistoricalData, cfg: ConfigBundle) -> ContractMeta:
     is_future = cfg.strategy.symbol in ("MNQ", "MBT")
     if cfg.backtest.offline:
         exchange = "CME" if is_future else "SMART"
@@ -1324,23 +1369,43 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
             multiplier = _spot_multiplier(cfg.strategy.symbol, is_future)
         else:
             multiplier = 1.0 if is_future else 100.0
-        meta = ContractMeta(symbol=cfg.strategy.symbol, exchange=exchange, multiplier=multiplier, min_tick=0.01)
-    else:
-        _, meta = data.resolve_contract(cfg.strategy.symbol, cfg.strategy.exchange)
-        if cfg.strategy.instrument == "spot":
-            meta = ContractMeta(
-                symbol=meta.symbol,
-                exchange=meta.exchange,
-                multiplier=_spot_multiplier(cfg.strategy.symbol, is_future, default=meta.multiplier),
-                min_tick=meta.min_tick,
-            )
-        elif not is_future and meta.exchange == "SMART":
-            meta = ContractMeta(
-                symbol=meta.symbol,
-                exchange=meta.exchange,
-                multiplier=100.0,
-                min_tick=meta.min_tick,
-            )
+        return ContractMeta(symbol=cfg.strategy.symbol, exchange=exchange, multiplier=multiplier, min_tick=0.01)
+
+    _, resolved = data.resolve_contract(cfg.strategy.symbol, cfg.strategy.exchange)
+    if cfg.strategy.instrument == "spot":
+        return ContractMeta(
+            symbol=resolved.symbol,
+            exchange=resolved.exchange,
+            multiplier=_spot_multiplier(cfg.strategy.symbol, is_future, default=resolved.multiplier),
+            min_tick=resolved.min_tick,
+        )
+    if (not is_future) and resolved.exchange == "SMART":
+        return ContractMeta(
+            symbol=resolved.symbol,
+            exchange=resolved.exchange,
+            multiplier=100.0,
+            min_tick=resolved.min_tick,
+        )
+    return resolved
+
+
+def run_backtest(cfg: ConfigBundle) -> BacktestResult:
+    data = IBKRHistoricalData()
+    start_dt = datetime.combine(cfg.backtest.start, time(0, 0))
+    end_dt = datetime.combine(cfg.backtest.end, time(23, 59))
+    bars = _load_backtest_bars(
+        data=data,
+        cfg=cfg,
+        symbol=cfg.strategy.symbol,
+        exchange=cfg.strategy.exchange,
+        start=start_dt,
+        end=end_dt,
+        bar_size=cfg.backtest.bar_size,
+        use_rth=cfg.backtest.use_rth,
+    )
+    if not bars:
+        raise RuntimeError("No bars loaded for backtest")
+    meta = _resolve_backtest_contract_meta(data=data, cfg=cfg)
 
     if cfg.strategy.instrument == "spot":
         _regime_mode, _regime_preset, regime_bar, use_mtf_regime = resolve_spot_regime_spec(
@@ -1361,37 +1426,17 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
                 slow_p = int(getattr(filters, "shock_atr_slow_period", 50) or 50)
                 warmup_days = max(30, slow_p)
                 regime_start_dt = start_dt - timedelta(days=int(warmup_days))
-            if cfg.backtest.offline:
-                try:
-                    regime_bars = data.load_cached_bars(
-                        symbol=cfg.strategy.symbol,
-                        exchange=cfg.strategy.exchange,
-                        start=regime_start_dt,
-                        end=end_dt,
-                        bar_size=str(regime_bar),
-                        use_rth=cfg.backtest.use_rth,
-                        cache_dir=cfg.backtest.cache_dir,
-                    )
-                except FileNotFoundError:
-                    regime_bars = data.load_cached_bars(
-                        symbol=cfg.strategy.symbol,
-                        exchange=cfg.strategy.exchange,
-                        start=start_dt,
-                        end=end_dt,
-                        bar_size=str(regime_bar),
-                        use_rth=cfg.backtest.use_rth,
-                        cache_dir=cfg.backtest.cache_dir,
-                    )
-            else:
-                regime_bars = data.load_or_fetch_bars(
-                    symbol=cfg.strategy.symbol,
-                    exchange=cfg.strategy.exchange,
-                    start=regime_start_dt,
-                    end=end_dt,
-                    bar_size=str(regime_bar),
-                    use_rth=cfg.backtest.use_rth,
-                    cache_dir=cfg.backtest.cache_dir,
-                )
+            regime_bars = _load_backtest_bars_offline_fallback_start(
+                data=data,
+                cfg=cfg,
+                symbol=cfg.strategy.symbol,
+                exchange=cfg.strategy.exchange,
+                start=regime_start_dt,
+                fallback_start=start_dt,
+                end=end_dt,
+                bar_size=str(regime_bar),
+                use_rth=cfg.backtest.use_rth,
+            )
         _regime2_mode, _regime2_preset, regime2_bar, use_mtf_regime2 = resolve_spot_regime2_spec(
             bar_size=cfg.backtest.bar_size,
             regime2_mode_raw=getattr(cfg.strategy, "regime2_mode", "off"),
@@ -1400,26 +1445,16 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
         )
         regime2_bars = None
         if use_mtf_regime2:
-            if cfg.backtest.offline:
-                regime2_bars = data.load_cached_bars(
-                    symbol=cfg.strategy.symbol,
-                    exchange=cfg.strategy.exchange,
-                    start=start_dt,
-                    end=end_dt,
-                    bar_size=str(regime2_bar),
-                    use_rth=cfg.backtest.use_rth,
-                    cache_dir=cfg.backtest.cache_dir,
-                )
-            else:
-                regime2_bars = data.load_or_fetch_bars(
-                    symbol=cfg.strategy.symbol,
-                    exchange=cfg.strategy.exchange,
-                    start=start_dt,
-                    end=end_dt,
-                    bar_size=str(regime2_bar),
-                    use_rth=cfg.backtest.use_rth,
-                    cache_dir=cfg.backtest.cache_dir,
-                )
+            regime2_bars = _load_backtest_bars(
+                data=data,
+                cfg=cfg,
+                symbol=cfg.strategy.symbol,
+                exchange=cfg.strategy.exchange,
+                start=start_dt,
+                end=end_dt,
+                bar_size=str(regime2_bar),
+                use_rth=cfg.backtest.use_rth,
+            )
 
         tick_mode = str(getattr(cfg.strategy, "tick_gate_mode", "off") or "off").strip().lower()
         if tick_mode not in ("off", "raschke"):
@@ -1444,50 +1479,30 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
             tick_start_dt = start_dt - timedelta(days=tick_warm_days)
             # $TICK is defined for RTH only (NYSE hours).
             tick_use_rth = True
-            if cfg.backtest.offline:
-                tick_bars = data.load_cached_bars(
-                    symbol=tick_symbol,
-                    exchange=tick_exchange,
-                    start=tick_start_dt,
-                    end=end_dt,
-                    bar_size="1 day",
-                    use_rth=tick_use_rth,
-                    cache_dir=cfg.backtest.cache_dir,
-                )
-            else:
-                tick_bars = data.load_or_fetch_bars(
-                    symbol=tick_symbol,
-                    exchange=tick_exchange,
-                    start=tick_start_dt,
-                    end=end_dt,
-                    bar_size="1 day",
-                    use_rth=tick_use_rth,
-                    cache_dir=cfg.backtest.cache_dir,
-                )
+            tick_bars = _load_backtest_bars(
+                data=data,
+                cfg=cfg,
+                symbol=tick_symbol,
+                exchange=tick_exchange,
+                start=tick_start_dt,
+                end=end_dt,
+                bar_size="1 day",
+                use_rth=tick_use_rth,
+            )
 
         exec_bars = None
         exec_bar_size = str(getattr(cfg.strategy, "spot_exec_bar_size", "") or "").strip()
         if exec_bar_size and str(exec_bar_size) != str(cfg.backtest.bar_size):
-            if cfg.backtest.offline:
-                exec_bars = data.load_cached_bars(
-                    symbol=cfg.strategy.symbol,
-                    exchange=cfg.strategy.exchange,
-                    start=start_dt,
-                    end=end_dt,
-                    bar_size=str(exec_bar_size),
-                    use_rth=cfg.backtest.use_rth,
-                    cache_dir=cfg.backtest.cache_dir,
-                )
-            else:
-                exec_bars = data.load_or_fetch_bars(
-                    symbol=cfg.strategy.symbol,
-                    exchange=cfg.strategy.exchange,
-                    start=start_dt,
-                    end=end_dt,
-                    bar_size=str(exec_bar_size),
-                    use_rth=cfg.backtest.use_rth,
-                    cache_dir=cfg.backtest.cache_dir,
-                )
+            exec_bars = _load_backtest_bars(
+                data=data,
+                cfg=cfg,
+                symbol=cfg.strategy.symbol,
+                exchange=cfg.strategy.exchange,
+                start=start_dt,
+                end=end_dt,
+                bar_size=str(exec_bar_size),
+                use_rth=cfg.backtest.use_rth,
+            )
 
         result = _run_spot_backtest(
             cfg,
@@ -1547,26 +1562,16 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
         use_mtf_regime = bool(regime_preset) and str(regime_bar) != str(cfg.backtest.bar_size)
     regime_bars = None
     if use_mtf_regime:
-        if cfg.backtest.offline:
-            regime_bars = data.load_cached_bars(
-                symbol=cfg.strategy.symbol,
-                exchange=cfg.strategy.exchange,
-                start=start_dt,
-                end=end_dt,
-                bar_size=str(regime_bar),
-                use_rth=cfg.backtest.use_rth,
-                cache_dir=cfg.backtest.cache_dir,
-            )
-        else:
-            regime_bars = data.load_or_fetch_bars(
-                symbol=cfg.strategy.symbol,
-                exchange=cfg.strategy.exchange,
-                start=start_dt,
-                end=end_dt,
-                bar_size=str(regime_bar),
-                use_rth=cfg.backtest.use_rth,
-                cache_dir=cfg.backtest.cache_dir,
-            )
+        regime_bars = _load_backtest_bars(
+            data=data,
+            cfg=cfg,
+            symbol=cfg.strategy.symbol,
+            exchange=cfg.strategy.exchange,
+            start=start_dt,
+            end=end_dt,
+            bar_size=str(regime_bar),
+            use_rth=cfg.backtest.use_rth,
+        )
 
     signal_engine: EmaDecisionEngine | None = None
     if ema_periods is not None:
@@ -3237,6 +3242,168 @@ def _run_spot_backtest_exec_loop_summary_fast(
             entries_today_date = d
             entries_today = 0
 
+    def _try_open_entry_from_signal(*, sig_idx: int, sig_exec_idx: int, entry_exec_idx: int) -> bool:
+        nonlocal cash, open_qty, open_entry_exec_idx, open_entry_time, open_entry_price, open_margin_required
+        nonlocal entries_today, last_entry_sig_idx
+        if sig_exec_idx < 0 or entry_exec_idx < 0 or entry_exec_idx >= len(exec_bars):
+            return False
+
+        _set_day_for_exec_idx(sig_exec_idx)
+        if max_entries_per_day and entries_today >= max_entries_per_day:
+            return False
+
+        sig = signal_series.signal_by_sig_idx[sig_idx]
+        entry_dir = sig.entry_dir if sig is not None else None
+        if sig is None or not bool(sig.ema_ready):
+            entry_dir = None
+        if needs_direction:
+            if entry_dir is None or strat.directional_spot is None or entry_dir not in strat.directional_spot:
+                entry_dir = None
+        else:
+            if entry_dir != "up":
+                entry_dir = None
+        if entry_dir is None:
+            return False
+
+        cooldown_ok = cooldown_ok_by_index(
+            current_idx=int(sig_idx),
+            last_entry_idx=last_entry_sig_idx,
+            cooldown_bars=filters.cooldown_bars if filters else 0,
+        )
+        shock_now = shock_series.shock_by_sig_idx[sig_idx]
+        shock_dir_now = shock_series.shock_dir_by_sig_idx[sig_idx]
+        rv_now = rv_series.rv_by_sig_idx[sig_idx] if rv_series is not None else None
+        volume_ema_now = volume_series.volume_ema_by_sig_idx[sig_idx] if volume_series is not None else None
+        volume_ema_ready_now = volume_series.volume_ema_ready_by_sig_idx[sig_idx] if volume_series is not None else True
+        filters_ok = signal_filters_ok(
+            filters,
+            bar_ts=signal_bars[sig_idx].ts,
+            bars_in_day=int(signal_series.bars_in_day_by_sig_idx[sig_idx]),
+            close=float(signal_bars[sig_idx].close),
+            volume=float(signal_bars[sig_idx].volume),
+            volume_ema=volume_ema_now,
+            volume_ema_ready=bool(volume_ema_ready_now),
+            rv=rv_now,
+            signal=sig,
+            cooldown_ok=bool(cooldown_ok),
+            shock=shock_now,
+            shock_dir=shock_dir_now,
+        )
+        if not bool(filters_ok):
+            return False
+        if int(signal_bars[sig_idx].ts.weekday()) not in strat.entry_days:
+            return False
+
+        riskoff_today, _riskpanic_today, _riskpop_today = _risk_flags(exec_bars[sig_exec_idx].ts.date())
+        if bool(riskoff_today):
+            next_bar = exec_bars[entry_exec_idx]
+            if next_bar.ts.date() != exec_bars[sig_exec_idx].ts.date():
+                return False
+            if riskoff_end_hour is not None and int(next_bar.ts.hour) >= int(riskoff_end_hour):
+                return False
+
+        last_entry_sig_idx = int(sig_idx)
+        pending_set_date = exec_bars[sig_exec_idx].ts.date()
+        pending_dir = str(entry_dir)
+
+        _set_day_for_exec_idx(entry_exec_idx)
+        if max_entries_per_day and entries_today >= max_entries_per_day:
+            return False
+        if _maybe_cancel_pending_entry(
+            pending_dir=pending_dir,
+            pending_set_date=pending_set_date,
+            exec_idx=entry_exec_idx,
+        ):
+            return False
+
+        leg = None
+        if needs_direction and strat.directional_spot is not None:
+            leg = strat.directional_spot.get(pending_dir)
+        elif pending_dir == "up":
+            leg = SpotLegConfig(action="BUY", qty=1)
+        if leg is None:
+            return False
+
+        action = str(getattr(leg, "action", "BUY") or "BUY").strip().upper()
+        if action not in ("BUY", "SELL"):
+            action = "BUY"
+        side = "buy" if action == "BUY" else "sell"
+        lot = max(1, int(getattr(leg, "qty", 1) or 1))
+        base_signed_qty = lot * int(strat.quantity)
+        if action != "BUY":
+            base_signed_qty = -base_signed_qty
+
+        bar = exec_bars[entry_exec_idx]
+        entry_ref = float(bar.open)
+        entry_price_est = _spot_exec_price(
+            entry_ref,
+            side=side,
+            qty=base_signed_qty,
+            spread=spot_spread,
+            commission_per_share=spot_commission,
+            commission_min=spot_commission_min,
+            slippage_per_share=spot_slippage,
+        )
+
+        shock_prev_on, shock_dir_prev_now, shock_atr_pct_prev_now = _shock_prev(entry_exec_idx)
+        stop_pct_eff = _effective_pct(float(base_stop_pct), shock_stop_mult, shock_prev_on)
+
+        riskoff_fill, riskpanic_fill, riskpop_fill = _risk_flags(bar.ts.date())
+        signed_qty = spot_calc_signed_qty(
+            strategy=strat,
+            filters=filters,
+            action=action,
+            lot=lot,
+            entry_price=float(entry_price_est),
+            stop_price=None,
+            stop_loss_pct=stop_pct_eff,
+            shock=bool(shock_prev_on),
+            shock_dir=shock_dir_prev_now,
+            shock_atr_pct=shock_atr_pct_prev_now,
+            riskoff=bool(riskoff_fill),
+            risk_dir=shock_dir_prev_now,
+            riskpanic=bool(riskpanic_fill),
+            riskpop=bool(riskpop_fill),
+            risk=risk_by_day.get(bar.ts.date()),
+            equity_ref=float(cash),
+            cash_ref=float(cash),
+        )
+        if int(signed_qty) == 0:
+            return False
+
+        entry_price = _spot_exec_price(
+            entry_ref,
+            side=side,
+            qty=int(signed_qty),
+            spread=spot_spread,
+            commission_per_share=spot_commission,
+            commission_min=spot_commission_min,
+            slippage_per_share=spot_slippage,
+        )
+
+        ok, cash_after, _margin_after, margin_required = _spot_entry_accounting(
+            cash=float(cash),
+            margin_used=0.0,
+            signed_qty=int(signed_qty),
+            entry_price=float(entry_price),
+            mark_ref_price=float(entry_ref),
+            liquidation_value=0.0,
+            spread=float(spot_spread),
+            mark_to_market=str(spot_mark_to_market),
+            multiplier=float(meta.multiplier),
+        )
+        if not ok:
+            return False
+
+        open_qty = int(signed_qty)
+        open_entry_exec_idx = int(entry_exec_idx)
+        open_entry_time = bar.ts
+        open_entry_price = float(entry_price)
+        open_margin_required = float(margin_required)
+        cash = float(cash_after)
+        entries_today += 1
+        return True
+
     while True:
         if open_qty == 0:
             # Find the next signal close that schedules an entry.
@@ -3251,170 +3418,13 @@ def _run_spot_backtest_exec_loop_summary_fast(
                 entry_exec_idx = sig_exec_idx + 1
                 if entry_exec_idx >= len(exec_bars):
                     continue
-
-                _set_day_for_exec_idx(sig_exec_idx)
-                if max_entries_per_day and entries_today >= max_entries_per_day:
-                    continue
-
-                sig = signal_series.signal_by_sig_idx[sig_idx]
-                if sig is None:
-                    continue
-                entry_dir = sig.entry_dir
-                if not bool(sig.ema_ready):
-                    entry_dir = None
-                if needs_direction:
-                    if entry_dir is None or strat.directional_spot is None or entry_dir not in strat.directional_spot:
-                        entry_dir = None
-                else:
-                    if entry_dir != "up":
-                        entry_dir = None
-                if entry_dir is None:
-                    continue
-
-                cooldown_ok = cooldown_ok_by_index(
-                    current_idx=int(sig_idx),
-                    last_entry_idx=last_entry_sig_idx,
-                    cooldown_bars=filters.cooldown_bars if filters else 0,
-                )
-                shock_now = shock_series.shock_by_sig_idx[sig_idx]
-                shock_dir_now = shock_series.shock_dir_by_sig_idx[sig_idx]
-                rv_now = rv_series.rv_by_sig_idx[sig_idx] if rv_series is not None else None
-                volume_ema_now = volume_series.volume_ema_by_sig_idx[sig_idx] if volume_series is not None else None
-                volume_ema_ready_now = (
-                    volume_series.volume_ema_ready_by_sig_idx[sig_idx] if volume_series is not None else True
-                )
-                filters_ok = signal_filters_ok(
-                    filters,
-                    bar_ts=signal_bars[sig_idx].ts,
-                    bars_in_day=int(signal_series.bars_in_day_by_sig_idx[sig_idx]),
-                    close=float(signal_bars[sig_idx].close),
-                    volume=float(signal_bars[sig_idx].volume),
-                    volume_ema=volume_ema_now,
-                    volume_ema_ready=bool(volume_ema_ready_now),
-                    rv=rv_now,
-                    signal=sig,
-                    cooldown_ok=bool(cooldown_ok),
-                    shock=shock_now,
-                    shock_dir=shock_dir_now,
-                )
-                if not bool(filters_ok):
-                    continue
-                if int(signal_bars[sig_idx].ts.weekday()) not in strat.entry_days:
-                    continue
-
-                # Riskoff scheduling constraint (only checked when riskoff is active).
-                riskoff_today, _riskpanic_today, _riskpop_today = _risk_flags(exec_bars[sig_exec_idx].ts.date())
-                if bool(riskoff_today):
-                    next_bar = exec_bars[entry_exec_idx]
-                    if next_bar.ts.date() != exec_bars[sig_exec_idx].ts.date():
-                        continue
-                    if riskoff_end_hour is not None and int(next_bar.ts.hour) >= int(riskoff_end_hour):
-                        continue
-
-                # Schedule and attempt to execute at the next open.
-                last_entry_sig_idx = int(sig_idx)
-                pending_set_date = exec_bars[sig_exec_idx].ts.date()
-                pending_dir = str(entry_dir)
-
-                _set_day_for_exec_idx(entry_exec_idx)
-                if max_entries_per_day and entries_today >= max_entries_per_day:
-                    continue
-                if _maybe_cancel_pending_entry(
-                    pending_dir=pending_dir,
-                    pending_set_date=pending_set_date,
-                    exec_idx=entry_exec_idx,
+                if _try_open_entry_from_signal(
+                    sig_idx=int(sig_idx),
+                    sig_exec_idx=int(sig_exec_idx),
+                    entry_exec_idx=int(entry_exec_idx),
                 ):
-                    continue
-
-                leg = None
-                if needs_direction and strat.directional_spot is not None:
-                    leg = strat.directional_spot.get(pending_dir)
-                elif pending_dir == "up":
-                    leg = SpotLegConfig(action="BUY", qty=1)
-                if leg is None:
-                    continue
-
-                action = str(getattr(leg, "action", "BUY") or "BUY").strip().upper()
-                if action not in ("BUY", "SELL"):
-                    action = "BUY"
-                side = "buy" if action == "BUY" else "sell"
-                lot = max(1, int(getattr(leg, "qty", 1) or 1))
-                base_signed_qty = lot * int(strat.quantity)
-                if action != "BUY":
-                    base_signed_qty = -base_signed_qty
-
-                bar = exec_bars[entry_exec_idx]
-                entry_ref = float(bar.open)
-                entry_price_est = _spot_exec_price(
-                    entry_ref,
-                    side=side,
-                    qty=base_signed_qty,
-                    spread=spot_spread,
-                    commission_per_share=spot_commission,
-                    commission_min=spot_commission_min,
-                    slippage_per_share=spot_slippage,
-                )
-
-                shock_prev_on, shock_dir_prev_now, shock_atr_pct_prev_now = _shock_prev(entry_exec_idx)
-                stop_pct_eff = _effective_pct(float(base_stop_pct), shock_stop_mult, shock_prev_on)
-                pt_pct_eff = _effective_pct(float(base_pt_pct) if base_pt_pct is not None else None, shock_profit_mult, shock_prev_on)
-
-                riskoff_fill, riskpanic_fill, riskpop_fill = _risk_flags(bar.ts.date())
-                signed_qty = spot_calc_signed_qty(
-                    strategy=strat,
-                    filters=filters,
-                    action=action,
-                    lot=lot,
-                    entry_price=float(entry_price_est),
-                    stop_price=None,
-                    stop_loss_pct=stop_pct_eff,
-                    shock=bool(shock_prev_on),
-                    shock_dir=shock_dir_prev_now,
-                    shock_atr_pct=shock_atr_pct_prev_now,
-                    riskoff=bool(riskoff_fill),
-                    risk_dir=shock_dir_prev_now,
-                    riskpanic=bool(riskpanic_fill),
-                    riskpop=bool(riskpop_fill),
-                    risk=risk_by_day.get(bar.ts.date()),
-                    equity_ref=float(cash),
-                    cash_ref=float(cash),
-                )
-                if int(signed_qty) == 0:
-                    continue
-
-                entry_price = _spot_exec_price(
-                    entry_ref,
-                    side=side,
-                    qty=int(signed_qty),
-                    spread=spot_spread,
-                    commission_per_share=spot_commission,
-                    commission_min=spot_commission_min,
-                    slippage_per_share=spot_slippage,
-                )
-
-                ok, cash_after, _margin_after, margin_required = _spot_entry_accounting(
-                    cash=float(cash),
-                    margin_used=0.0,
-                    signed_qty=int(signed_qty),
-                    entry_price=float(entry_price),
-                    mark_ref_price=float(entry_ref),
-                    liquidation_value=0.0,
-                    spread=float(spot_spread),
-                    mark_to_market=str(spot_mark_to_market),
-                    multiplier=float(meta.multiplier),
-                )
-                if not ok:
-                    continue
-
-                open_qty = int(signed_qty)
-                open_entry_exec_idx = int(entry_exec_idx)
-                open_entry_time = bar.ts
-                open_entry_price = float(entry_price)
-                open_margin_required = float(margin_required)
-                cash = float(cash_after)
-                entries_today += 1
-                opened = True
-                break
+                    opened = True
+                    break
 
             if not opened:
                 break
@@ -3619,163 +3629,16 @@ def _run_spot_backtest_exec_loop_summary_fast(
 
         # Flip exits can optionally schedule a same-open entry; attempt it here.
         opened_same_bar = False
-        if exit_reason == "flip" and flip_sig_idx is not None:
+        if exit_reason == "flip" and flip_sig_idx is not None and flip_exec_idx is not None:
             sig_idx = int(flip_sig_idx)
             sig_exec = align.exec_idx_by_sig_idx[sig_idx]
-            if sig_exec >= 0:
-                _set_day_for_exec_idx(sig_exec)
-                if not (max_entries_per_day and entries_today >= max_entries_per_day):
-                    sig = signal_series.signal_by_sig_idx[sig_idx]
-                    entry_dir = sig.entry_dir if sig is not None else None
-                    if sig is None or not bool(sig.ema_ready):
-                        entry_dir = None
-                    if needs_direction:
-                        if entry_dir is None or strat.directional_spot is None or entry_dir not in strat.directional_spot:
-                            entry_dir = None
-                    else:
-                        if entry_dir != "up":
-                            entry_dir = None
-
-                    if entry_dir is not None:
-                        cooldown_ok = cooldown_ok_by_index(
-                            current_idx=int(sig_idx),
-                            last_entry_idx=last_entry_sig_idx,
-                            cooldown_bars=filters.cooldown_bars if filters else 0,
-                        )
-                        shock_now = shock_series.shock_by_sig_idx[sig_idx]
-                        shock_dir_now = shock_series.shock_dir_by_sig_idx[sig_idx]
-                        rv_now = rv_series.rv_by_sig_idx[sig_idx] if rv_series is not None else None
-                        volume_ema_now = volume_series.volume_ema_by_sig_idx[sig_idx] if volume_series is not None else None
-                        volume_ema_ready_now = (
-                            volume_series.volume_ema_ready_by_sig_idx[sig_idx] if volume_series is not None else True
-                        )
-                        filters_ok = signal_filters_ok(
-                            filters,
-                            bar_ts=signal_bars[sig_idx].ts,
-                            bars_in_day=int(signal_series.bars_in_day_by_sig_idx[sig_idx]),
-                            close=float(signal_bars[sig_idx].close),
-                            volume=float(signal_bars[sig_idx].volume),
-                            volume_ema=volume_ema_now,
-                            volume_ema_ready=bool(volume_ema_ready_now),
-                            rv=rv_now,
-                            signal=sig,
-                            cooldown_ok=bool(cooldown_ok),
-                            shock=shock_now,
-                            shock_dir=shock_dir_now,
-                        )
-                        if not bool(filters_ok) or int(signal_bars[sig_idx].ts.weekday()) not in strat.entry_days:
-                            entry_dir = None
-                        else:
-                            riskoff_today, _riskpanic_today, _riskpop_today = _risk_flags(exec_bars[sig_exec].ts.date())
-                            if bool(riskoff_today) and flip_exec_idx is not None:
-                                next_bar = exec_bars[int(flip_exec_idx)]
-                                if next_bar.ts.date() != exec_bars[sig_exec].ts.date():
-                                    entry_dir = None
-                                elif riskoff_end_hour is not None and int(next_bar.ts.hour) >= int(riskoff_end_hour):
-                                    entry_dir = None
-
-                    if entry_dir is not None and flip_exec_idx is not None:
-                        last_entry_sig_idx = int(sig_idx)
-                        pending_set_date = exec_bars[sig_exec].ts.date()
-                        pending_dir = str(entry_dir)
-
-                        _set_day_for_exec_idx(int(flip_exec_idx))
-                        if max_entries_per_day and entries_today >= max_entries_per_day:
-                            pending_dir = ""
-                        if pending_dir and _maybe_cancel_pending_entry(
-                            pending_dir=pending_dir,
-                            pending_set_date=pending_set_date,
-                            exec_idx=int(flip_exec_idx),
-                        ):
-                            pending_dir = ""
-
-                        if pending_dir:
-                            leg = None
-                            if needs_direction and strat.directional_spot is not None:
-                                leg = strat.directional_spot.get(pending_dir)
-                            elif pending_dir == "up":
-                                leg = SpotLegConfig(action="BUY", qty=1)
-                            if leg is not None:
-                                action = str(getattr(leg, "action", "BUY") or "BUY").strip().upper()
-                                if action not in ("BUY", "SELL"):
-                                    action = "BUY"
-                                side = "buy" if action == "BUY" else "sell"
-                                lot = max(1, int(getattr(leg, "qty", 1) or 1))
-                                base_signed_qty = lot * int(strat.quantity)
-                                if action != "BUY":
-                                    base_signed_qty = -base_signed_qty
-
-                                bar = exec_bars[int(flip_exec_idx)]
-                                entry_ref = float(bar.open)
-                                entry_price_est = _spot_exec_price(
-                                    entry_ref,
-                                    side=side,
-                                    qty=base_signed_qty,
-                                    spread=spot_spread,
-                                    commission_per_share=spot_commission,
-                                    commission_min=spot_commission_min,
-                                    slippage_per_share=spot_slippage,
-                                )
-
-                                shock_prev_on, shock_dir_prev_now, shock_atr_pct_prev_now = _shock_prev(int(flip_exec_idx))
-                                stop_pct_eff = _effective_pct(float(base_stop_pct), shock_stop_mult, shock_prev_on)
-                                pt_pct_eff = _effective_pct(
-                                    float(base_pt_pct) if base_pt_pct is not None else None,
-                                    shock_profit_mult,
-                                    shock_prev_on,
-                                )
-
-                                riskoff_fill, riskpanic_fill, riskpop_fill = _risk_flags(bar.ts.date())
-                                signed_qty = spot_calc_signed_qty(
-                                    strategy=strat,
-                                    filters=filters,
-                                    action=action,
-                                    lot=lot,
-                                    entry_price=float(entry_price_est),
-                                    stop_price=None,
-                                    stop_loss_pct=stop_pct_eff,
-                                    shock=bool(shock_prev_on),
-                                    shock_dir=shock_dir_prev_now,
-                                    shock_atr_pct=shock_atr_pct_prev_now,
-                                    riskoff=bool(riskoff_fill),
-                                    risk_dir=shock_dir_prev_now,
-                                    riskpanic=bool(riskpanic_fill),
-                                    riskpop=bool(riskpop_fill),
-                                    risk=risk_by_day.get(bar.ts.date()),
-                                    equity_ref=float(cash),
-                                    cash_ref=float(cash),
-                                )
-                                if int(signed_qty) != 0:
-                                    entry_price = _spot_exec_price(
-                                        entry_ref,
-                                        side=side,
-                                        qty=int(signed_qty),
-                                        spread=spot_spread,
-                                        commission_per_share=spot_commission,
-                                        commission_min=spot_commission_min,
-                                        slippage_per_share=spot_slippage,
-                                    )
-                                    ok, cash_after, _margin_after, margin_required = _spot_entry_accounting(
-                                        cash=float(cash),
-                                        margin_used=0.0,
-                                        signed_qty=int(signed_qty),
-                                        entry_price=float(entry_price),
-                                        mark_ref_price=float(entry_ref),
-                                        liquidation_value=0.0,
-                                        spread=float(spot_spread),
-                                        mark_to_market=str(spot_mark_to_market),
-                                        multiplier=float(meta.multiplier),
-                                    )
-                                    if ok:
-                                        open_qty = int(signed_qty)
-                                        open_entry_exec_idx = int(flip_exec_idx)
-                                        open_entry_time = bar.ts
-                                        open_entry_price = float(entry_price)
-                                        open_margin_required = float(margin_required)
-                                        cash = float(cash_after)
-                                        entries_today += 1
-                                        sig_cursor = max(int(sig_cursor), int(sig_idx + 1))
-                                        opened_same_bar = True
+            if _try_open_entry_from_signal(
+                sig_idx=int(sig_idx),
+                sig_exec_idx=int(sig_exec),
+                entry_exec_idx=int(flip_exec_idx),
+            ):
+                sig_cursor = max(int(sig_cursor), int(sig_idx + 1))
+                opened_same_bar = True
 
         if opened_same_bar:
             continue
