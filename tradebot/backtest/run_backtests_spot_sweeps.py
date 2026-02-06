@@ -850,8 +850,10 @@ def _collect_parallel_payload_records(
     tested_key: str = "tested",
     decode_record=None,
     on_record=None,
+    dedupe_key=None,
 ) -> int:
     tested_total = 0
+    seen: set[str] | None = set() if callable(dedupe_key) else None
     for payload in payloads.values():
         if not isinstance(payload, dict):
             continue
@@ -865,6 +867,16 @@ def _collect_parallel_payload_records(
             rec_obj = decode_record(rec) if callable(decode_record) else rec
             if rec_obj is None:
                 continue
+            if seen is not None:
+                try:
+                    rec_key = dedupe_key(rec_obj)
+                except Exception:
+                    rec_key = None
+                if rec_key is not None:
+                    rec_key_s = str(rec_key)
+                    if rec_key_s in seen:
+                        continue
+                    seen.add(rec_key_s)
             if callable(on_record):
                 on_record(rec_obj)
     return int(tested_total)
@@ -2048,6 +2060,80 @@ def _seed_top_candidates(
     sort_key: Callable[[dict], tuple] = _seed_sort_key_default,
 ) -> list[dict]:
     return sorted(candidates, key=sort_key, reverse=True)[: max(1, int(seed_top))]
+
+
+def _select_seed_candidates_default(candidates: list[dict], *, seed_top: int) -> list[dict]:
+    return _seed_top_candidates(candidates, seed_top=int(seed_top))
+
+
+def _select_seed_candidates_champ_refine(candidates: list[dict], *, seed_top: int) -> list[dict]:
+    def _family_key(item: dict) -> tuple:
+        st = item.get("strategy") or {}
+        return (
+            str(st.get("ema_preset") or ""),
+            str(st.get("ema_entry_mode") or ""),
+            str(st.get("regime_mode") or ""),
+            str(st.get("regime_bar_size") or ""),
+            str(st.get("spot_exit_mode") or ""),
+        )
+
+    family_winners = _seed_best_by_family(
+        candidates,
+        family_key_fn=_family_key,
+        scorer="pnl_dd",
+    )
+    seed_pool = list(family_winners[: max(1, int(seed_top))])
+    seed_pool.extend(_seed_rank_slice(candidates, scorer="pnl", top_n=max(5, int(seed_top) // 4)))
+    seed_pool.extend(_seed_rank_slice(candidates, scorer="roi", top_n=max(5, int(seed_top) // 4)))
+    seed_pool.extend(_seed_rank_slice(candidates, scorer="win", top_n=max(5, int(seed_top) // 4)))
+    return _seed_dedupe_candidates(seed_pool, limit=int(seed_top), key_fn=_seed_candidate_key)
+
+
+def _select_seed_candidates_exit_pivot(candidates: list[dict], *, seed_top: int) -> list[dict]:
+    seed_pool = []
+    seed_pool.extend(_seed_rank_slice(candidates, scorer="pnl", top_n=max(1, int(seed_top))))
+    seed_pool.extend(_seed_rank_slice(candidates, scorer="trades", top_n=max(1, min(int(seed_top), 5))))
+    return _seed_dedupe_candidates(seed_pool, limit=None, key_fn=_seed_candidate_key)
+
+
+def _select_seed_candidates_st37_refine(candidates: list[dict], *, seed_top: int) -> list[dict]:
+    cand_sorted = _seed_rank_slice(
+        candidates,
+        scorer="stability_roi_dd",
+        top_n=len(candidates),
+    )
+    return _seed_dedupe_candidates(
+        cand_sorted,
+        limit=int(seed_top),
+        key_fn=_seed_candidate_key,
+    )
+
+
+_SEED_SELECTION_POLICY_REGISTRY: dict[str, Callable[..., list[dict]]] = {
+    "default": _select_seed_candidates_default,
+    "champ_refine": _select_seed_candidates_champ_refine,
+    "exit_pivot": _select_seed_candidates_exit_pivot,
+    "st37_refine": _select_seed_candidates_st37_refine,
+}
+
+
+def _seed_select_candidates(
+    candidates: list[dict],
+    *,
+    seed_top: int,
+    policy: str = "default",
+) -> list[dict]:
+    seed_top_i = max(1, int(seed_top))
+    selector = _SEED_SELECTION_POLICY_REGISTRY.get(str(policy).strip().lower() or "default")
+    if not callable(selector):
+        selector = _select_seed_candidates_default
+    try:
+        selected = selector(candidates, seed_top=seed_top_i)  # type: ignore[misc]
+    except TypeError:
+        selected = selector(candidates, seed_top_i)  # type: ignore[misc]
+    if not isinstance(selected, list):
+        return []
+    return [item for item in selected if isinstance(item, dict)]
 
 
 def _load_spot_milestones() -> dict | None:
@@ -3573,6 +3659,66 @@ def main() -> None:
             write_milestones=bool(args.write_milestones),
             tmp_prefix=str(tmp_prefix),
         )
+
+    def _axis_plan_parts(axis_plan: list[tuple[str, str, bool]]) -> tuple[tuple[str, ...], dict[str, str], tuple[str, ...]]:
+        axes = tuple(axis_name for axis_name, _profile, _emit in axis_plan)
+        axis_profile_by_name = {axis_name: str(profile) for axis_name, profile, _emit in axis_plan}
+        milestone_axes = tuple(axis_name for axis_name, _profile, emit in axis_plan if bool(emit))
+        return axes, axis_profile_by_name, milestone_axes
+
+    def _run_axis_plan_parallel_if_requested(
+        *,
+        axis_plan: list[tuple[str, str, bool]],
+        jobs_req: int,
+        label: str,
+        tmp_prefix: str,
+        offline_error: str,
+    ) -> bool:
+        nonlocal milestones_written
+        if int(jobs_req) <= 1:
+            return False
+        axes, axis_profile_by_name, milestone_axes = _axis_plan_parts(axis_plan)
+        milestone_payloads = _run_parallel_axis_stage(
+            label=str(label),
+            axes=axes,
+            jobs_req=int(jobs_req),
+            axis_jobs_resolver=lambda axis_name: min(int(jobs_req), int(_default_jobs()))
+            if axis_profile_by_name.get(str(axis_name), "single") == "scaled"
+            else 1,
+            tmp_prefix=str(tmp_prefix),
+            offline_error=str(offline_error),
+        )
+        if bool(args.write_milestones):
+            _merge_axis_parallel_milestones(
+                milestone_payloads=milestone_payloads,
+                milestone_axes=milestone_axes,
+            )
+            milestones_written = True
+        return True
+
+    def _run_axis_plan_serial(
+        axis_plan: list[tuple[str, str, bool]],
+        *,
+        timed: bool = False,
+    ) -> None:
+        for axis_name, _profile, _emit in axis_plan:
+            fn_obj = axis_registry.get(str(axis_name))
+            fn = fn_obj if callable(fn_obj) else None
+            if fn is None:
+                continue
+            if not bool(timed):
+                fn()
+                continue
+            before_kept = len(milestone_rows)
+            before_calls = int(run_calls_total)
+            t0 = pytime.perf_counter()
+            print(f"START {axis_name} total=?", flush=True)
+            fn()
+            elapsed = pytime.perf_counter() - t0
+            tested = int(run_calls_total) - int(before_calls)
+            kept = len(milestone_rows) - before_kept
+            print(f"DONE  {axis_name} tested={tested} kept={kept} elapsed={elapsed:0.1f}s", flush=True)
+            print("", flush=True)
 
     def _iter_seed_bundles(seeds: list[dict]):
         for seed_i, item in enumerate(seeds, start=1):
@@ -7625,48 +7771,16 @@ def main() -> None:
                     f"--seed-milestones not found ({seed_path})",
                     flush=True,
                 )
-        axes = tuple(axis_name for axis_name, _profile, _emit in axis_plan)
-        axis_profile_by_name = {axis_name: str(profile) for axis_name, profile, _emit in axis_plan}
-        milestone_axes = tuple(axis_name for axis_name, _profile, emit in axis_plan if bool(emit))
-
-        if jobs > 1:
-            milestone_payloads = _run_parallel_axis_stage(
-                label="combo_full parallel",
-                axes=axes,
-                jobs_req=int(jobs),
-                axis_jobs_resolver=lambda axis_name: min(int(jobs), int(_default_jobs()))
-                if axis_profile_by_name.get(str(axis_name), "single") == "scaled"
-                else 1,
-                tmp_prefix="tradebot_combo_full_",
-                offline_error="--jobs>1 for combo_full requires --offline (avoid parallel IBKR sessions).",
-            )
-            if bool(args.write_milestones):
-                _merge_axis_parallel_milestones(
-                    milestone_payloads=milestone_payloads,
-                    milestone_axes=milestone_axes,
-                )
-                milestones_written = True
-
+        if _run_axis_plan_parallel_if_requested(
+            axis_plan=axis_plan,
+            jobs_req=int(jobs),
+            label="combo_full parallel",
+            tmp_prefix="tradebot_combo_full_",
+            offline_error="--jobs>1 for combo_full requires --offline (avoid parallel IBKR sessions).",
+        ):
             return
 
-        def _run_axis(label: str, fn, *, total: int | None = None) -> None:
-            before_kept = len(milestone_rows)
-            before_calls = int(run_calls_total)
-            t0 = pytime.perf_counter()
-            total_label = str(int(total)) if total is not None else "?"
-            print(f"START {label} total={total_label}", flush=True)
-            fn()
-            elapsed = pytime.perf_counter() - t0
-            tested = int(run_calls_total) - int(before_calls)
-            kept = len(milestone_rows) - before_kept
-            print(f"DONE  {label} tested={tested} kept={kept} elapsed={elapsed:0.1f}s", flush=True)
-            print("", flush=True)
-
-        for axis_name, _profile, _emit in axis_plan:
-            fn_obj = axis_registry.get(str(axis_name))
-            fn = fn_obj if callable(fn_obj) else None
-            if fn is not None:
-                _run_axis(str(axis_name), fn)
+        _run_axis_plan_serial(axis_plan, timed=True)
 
     def _sweep_champ_refine() -> None:
         """Seeded, champ-focused refinement around a top-K candidate pool.
@@ -7692,29 +7806,23 @@ def main() -> None:
             print(f"No matching seed candidates found in {seed_path} for {symbol} {signal_bar_size} rth={use_rth}.")
             return
 
-        def _family_key(item: dict) -> tuple:
-            st = item.get("strategy") or {}
-            return (
-                str(st.get("ema_preset") or ""),
-                str(st.get("ema_entry_mode") or ""),
-                str(st.get("regime_mode") or ""),
-                str(st.get("regime_bar_size") or ""),
-                str(st.get("spot_exit_mode") or ""),
-            )
-
-        # Prefer diversity: keep the best seed per "family", then take the top-K families.
+        seed_top = max(1, int(args.seed_top or 0))
         family_winners = _seed_best_by_family(
             candidates,
-            family_key_fn=_family_key,
+            family_key_fn=lambda item: (
+                str((item.get("strategy") or {}).get("ema_preset") or ""),
+                str((item.get("strategy") or {}).get("ema_entry_mode") or ""),
+                str((item.get("strategy") or {}).get("regime_mode") or ""),
+                str((item.get("strategy") or {}).get("regime_bar_size") or ""),
+                str((item.get("strategy") or {}).get("spot_exit_mode") or ""),
+            ),
             scorer="pnl_dd",
         )
-
-        seed_top = max(1, int(args.seed_top or 0))
-        seed_pool = list(family_winners[:seed_top])
-        seed_pool.extend(_seed_rank_slice(candidates, scorer="pnl", top_n=max(5, seed_top // 4)))
-        seed_pool.extend(_seed_rank_slice(candidates, scorer="roi", top_n=max(5, seed_top // 4)))
-        seed_pool.extend(_seed_rank_slice(candidates, scorer="win", top_n=max(5, seed_top // 4)))
-        seeds = _seed_dedupe_candidates(seed_pool, limit=seed_top, key_fn=_seed_candidate_key)
+        seeds = _seed_select_candidates(
+            candidates,
+            seed_top=seed_top,
+            policy="champ_refine",
+        )
 
         print("")
         print("=== champ_refine: seeded refinement (bounded) ===")
@@ -9427,35 +9535,12 @@ def main() -> None:
             print(f"No matching seed candidates found in {seed_path} for {symbol} {signal_bar_size} rth={use_rth}.")
             return
 
-        def _sort_key_pnl(item: dict) -> tuple:
-            m = item.get("metrics") or {}
-            return (
-                float(m.get("pnl") or float("-inf")),
-                int(m.get("trades") or 0),
-                float(m.get("pnl_over_dd") or float("-inf")),
-                float(m.get("win_rate") or 0.0),
-            )
-
-        def _sort_key_trades(item: dict) -> tuple:
-            m = item.get("metrics") or {}
-            return (
-                int(m.get("trades") or 0),
-                float(m.get("pnl") or float("-inf")),
-                float(m.get("pnl_over_dd") or float("-inf")),
-            )
-
         seed_top = max(1, int(args.seed_top or 0))
-        by_pnl = sorted(candidates, key=_sort_key_pnl, reverse=True)[:seed_top]
-        by_trades = sorted(candidates, key=_sort_key_trades, reverse=True)[: max(1, min(seed_top, 5))]
-
-        seen: set[str] = set()
-        seeds: list[dict] = []
-        for item in by_pnl + by_trades:
-            key = json.dumps(item.get("strategy") or {}, sort_keys=True, default=str)
-            if key in seen:
-                continue
-            seen.add(key)
-            seeds.append(item)
+        seeds = _seed_select_candidates(
+            candidates,
+            seed_top=seed_top,
+            policy="exit_pivot",
+        )
 
         print("")
         print(f"=== {axis_tag}: seeded exit pivot micro-grid ===")
@@ -9565,15 +9650,10 @@ def main() -> None:
             return
 
         seed_top = max(1, int(args.seed_top or 0))
-        cand_sorted = _seed_rank_slice(
+        seeds = _seed_select_candidates(
             candidates,
-            scorer="stability_roi_dd",
-            top_n=len(candidates),
-        )
-        seeds = _seed_dedupe_candidates(
-            cand_sorted,
-            limit=seed_top,
-            key_fn=_seed_candidate_key,
+            seed_top=seed_top,
+            policy="st37_refine",
         )
 
         print("")
@@ -10637,19 +10717,6 @@ def main() -> None:
             base_row["note"] = "base"
             _record_milestone(base, base_row, "base")
 
-        def _shortlist(items: list[tuple[ConfigBundle, dict, str]], *, top_pnl_dd: int, top_pnl: int) -> list:
-            by_dd = sorted(items, key=lambda t: _score_row_pnl_dd(t[1]), reverse=True)[: int(top_pnl_dd)]
-            by_pnl = sorted(items, key=lambda t: _score_row_pnl(t[1]), reverse=True)[: int(top_pnl)]
-            seen: set[str] = set()
-            out: list[tuple[ConfigBundle, dict, str]] = []
-            for cfg, row, note in by_dd + by_pnl:
-                key = _milestone_key(cfg)
-                if key in seen:
-                    continue
-                seen.add(key)
-                out.append((cfg, row, note))
-            return out
-
         # Stage 1: sweep regime2 timeframe + params (bounded), with no extra filters.
         stage1: list[tuple[ConfigBundle, dict, str]] = []
         stage1.append((base, base_row, "base") if base_row else (base, {}, "base"))
@@ -10681,7 +10748,10 @@ def main() -> None:
                         stage1.append((cfg, row, note))
 
         stage1 = [t for t in stage1 if t[1]]
-        shortlisted = _shortlist(stage1, top_pnl_dd=15, top_pnl=10)
+        shortlisted = _rank_cfg_rows(
+            stage1,
+            scorers=[(_score_row_pnl_dd, 15), (_score_row_pnl, 10)],
+        )
         print("")
         print(f"Squeeze sweep: stage1 candidates={len(stage1)} shortlist={len(shortlisted)} (min_trades={run_min_trades})")
 
@@ -10742,25 +10812,13 @@ def main() -> None:
 
     if axis == "all" and jobs > 1:
         axis_plan = _axis_mode_plan(mode="axis_all", include_seeded=False)
-        axes = tuple(axis_name for axis_name, _profile, _emit in axis_plan)
-        axis_profile_by_name = {axis_name: str(profile) for axis_name, profile, _emit in axis_plan}
-        milestone_payloads = _run_parallel_axis_stage(
-            label="axis=all parallel",
-            axes=axes,
+        _run_axis_plan_parallel_if_requested(
+            axis_plan=list(axis_plan),
             jobs_req=int(jobs),
-            axis_jobs_resolver=lambda axis_name: min(int(jobs), int(_default_jobs()))
-            if axis_profile_by_name.get(str(axis_name), "single") == "scaled"
-            else 1,
+            label="axis=all parallel",
             tmp_prefix="tradebot_axis_all_",
             offline_error="--jobs>1 for --axis all requires --offline (avoid parallel IBKR sessions).",
         )
-        if bool(args.write_milestones):
-            _merge_axis_parallel_milestones(
-                milestone_payloads=milestone_payloads,
-                milestone_axes=axes,
-            )
-            milestones_written = True
-
         return
 
     axis_registry.update(
@@ -10832,11 +10890,7 @@ def main() -> None:
     )
 
     if axis == "all":
-        for axis_name in _AXIS_ALL_PLAN:
-            fn_obj = axis_registry.get(str(axis_name))
-            fn = fn_obj if callable(fn_obj) else None
-            if fn is not None:
-                fn()
+        _run_axis_plan_serial(list(_axis_mode_plan(mode="axis_all", include_seeded=False)), timed=False)
     else:
         fn_obj = axis_registry.get(str(axis))
         fn = fn_obj if callable(fn_obj) else None
@@ -11939,6 +11993,27 @@ def spot_multitimeframe_main() -> None:
         write_json(out_path, out_payload, sort_keys=False)
         print(f"\nWrote {out_path} (top={top_k}).")
 
+    def _collect_multitimeframe_rows_from_payloads(*, payloads: dict[int, dict]) -> tuple[int, list[dict]]:
+        out_rows: list[dict] = []
+
+        def _decode_row(rec: dict) -> dict | None:
+            return dict(rec) if isinstance(rec, dict) else None
+
+        def _row_key(row: dict) -> str:
+            strategy = row.get("strategy") if isinstance(row.get("strategy"), dict) else {}
+            filters_payload = row.get("filters") if isinstance(row.get("filters"), dict) else None
+            return _strategy_key(strategy, filters=filters_payload)
+
+        tested_total = _collect_parallel_payload_records(
+            payloads=payloads,
+            records_key="rows",
+            tested_key="tested",
+            decode_record=_decode_row,
+            on_record=lambda row: out_rows.append(dict(row)),
+            dedupe_key=_row_key,
+        )
+        return int(tested_total), out_rows
+
     if args.multitimeframe_worker is not None:
         if not offline:
             raise SystemExit("multitimeframe worker mode requires --offline (avoid parallel IBKR sessions).")
@@ -12028,18 +12103,7 @@ def spot_multitimeframe_main() -> None:
             invalid_label="multitimeframe",
         )
 
-        out_rows: list[dict] = []
-
-        def _on_multitimeframe_row(row: dict) -> None:
-            out_rows.append(dict(row))
-
-        tested_total = _collect_parallel_payload_records(
-            payloads=payloads,
-            records_key="rows",
-            tested_key="tested",
-            decode_record=lambda rec: dict(rec),
-            on_record=_on_multitimeframe_row,
-        )
+        tested_total, out_rows = _collect_multitimeframe_rows_from_payloads(payloads=payloads)
 
         _emit_multitimeframe_results(out_rows=out_rows, tested_total=tested_total, workers=jobs_eff)
 
