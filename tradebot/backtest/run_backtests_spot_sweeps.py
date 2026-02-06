@@ -573,6 +573,88 @@ def _merge_and_write_milestones(
     return len(groups)
 
 
+def _pump_subprocess_output(prefix: str, stream) -> None:
+    for line in iter(stream.readline, ""):
+        print(f"[{prefix}] {line.rstrip()}", flush=True)
+
+
+def _run_parallel_worker_specs(
+    *,
+    specs: list[tuple[str, list[str]]],
+    jobs: int,
+    capture_error: str,
+    failure_label: str,
+) -> None:
+    if not specs:
+        return
+    jobs_eff = max(1, min(int(jobs), len(specs)))
+    pending = list(specs)
+    running: list[tuple[str, subprocess.Popen, threading.Thread, float]] = []
+    failures: list[tuple[str, int]] = []
+
+    while pending or running:
+        while pending and len(running) < jobs_eff and not failures:
+            worker_name, cmd = pending.pop(0)
+            print(f"START {worker_name}", flush=True)
+            proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+            )
+            if proc.stdout is None:
+                raise RuntimeError(str(capture_error))
+            t = threading.Thread(target=_pump_subprocess_output, args=(worker_name, proc.stdout), daemon=True)
+            t.start()
+            running.append((worker_name, proc, t, pytime.perf_counter()))
+
+        finished = False
+        for idx, (worker_name, proc, t, started_at) in enumerate(running):
+            rc = proc.poll()
+            if rc is None:
+                continue
+            finished = True
+            elapsed = pytime.perf_counter() - float(started_at)
+            print(f"DONE  {worker_name} exit={rc} elapsed={elapsed:0.1f}s", flush=True)
+            try:
+                proc.wait(timeout=1.0)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.wait(timeout=5.0)
+            try:
+                t.join(timeout=1.0)
+            except Exception:
+                pass
+            if rc != 0:
+                failures.append((worker_name, int(rc)))
+            running.pop(idx)
+            break
+
+        if failures:
+            for _worker_name, proc, _t, _started_at in running:
+                try:
+                    proc.terminate()
+                except Exception:
+                    pass
+            for _worker_name, proc, _t, _started_at in running:
+                try:
+                    proc.wait(timeout=5.0)
+                except subprocess.TimeoutExpired:
+                    try:
+                        proc.kill()
+                    except Exception:
+                        pass
+            break
+
+        if not finished:
+            pytime.sleep(0.05)
+
+    if failures:
+        worker_name, rc = failures[0]
+        raise SystemExit(f"{failure_label} failed: {worker_name} (exit={rc})")
+
+
 def _run_axis_subprocess_plan(
     *,
     label: str,
@@ -586,21 +668,13 @@ def _run_axis_subprocess_plan(
     jobs_eff = min(int(jobs), len(axes))
     print(f"{label}: jobs={jobs_eff} axes={len(axes)}", flush=True)
 
-    def _pump(prefix: str, stream) -> None:
-        for line in iter(stream.readline, ""):
-            print(f"[{prefix}] {line.rstrip()}", flush=True)
-
-    failures: list[tuple[str, int]] = []
     milestone_paths: dict[str, Path] = {}
     milestone_payloads: dict[str, dict] = {}
-    start_times: dict[str, float] = {}
 
     with tempfile.TemporaryDirectory(prefix=tmp_prefix) as tmpdir:
         tmp_root = Path(tmpdir)
-        pending = list(axes)
-        running: list[tuple[str, subprocess.Popen, threading.Thread]] = []
-
-        def _spawn(axis_name: str) -> None:
+        specs: list[tuple[str, list[str]]] = []
+        for axis_name in axes:
             cmd = [
                 sys.executable,
                 "-u",
@@ -617,66 +691,14 @@ def _run_axis_subprocess_plan(
                 out_path = tmp_root / f"milestones_{axis_name}.json"
                 milestone_paths[axis_name] = out_path
                 cmd += ["--milestones-out", str(out_path)]
-            proc = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                bufsize=1,
-            )
-            if proc.stdout is None:
-                raise RuntimeError(f"Failed to capture {label} worker stdout.")
-            t = threading.Thread(target=_pump, args=(axis_name, proc.stdout), daemon=True)
-            t.start()
-            start_times[axis_name] = pytime.perf_counter()
-            running.append((axis_name, proc, t))
+            specs.append((str(axis_name), cmd))
 
-        while pending or running:
-            while pending and len(running) < jobs_eff and not failures:
-                axis_name = pending.pop(0)
-                print(f"START {axis_name}", flush=True)
-                _spawn(axis_name)
-
-            finished_idx = None
-            for idx, (axis_name, proc, t) in enumerate(running):
-                rc = proc.poll()
-                if rc is None:
-                    continue
-                finished_idx = idx
-                elapsed = pytime.perf_counter() - float(start_times.get(axis_name) or pytime.perf_counter())
-                print(f"DONE  {axis_name} exit={rc} elapsed={elapsed:0.1f}s", flush=True)
-                try:
-                    proc.wait(timeout=1.0)
-                except subprocess.TimeoutExpired:
-                    proc.kill()
-                    proc.wait(timeout=5.0)
-                try:
-                    t.join(timeout=1.0)
-                except Exception:
-                    pass
-                if rc != 0:
-                    failures.append((axis_name, int(rc)))
-                running.pop(idx)
-                break
-
-            if failures:
-                for _axis_name, proc, _t in running:
-                    try:
-                        proc.terminate()
-                    except Exception:
-                        pass
-                for _axis_name, proc, _t in running:
-                    try:
-                        proc.wait(timeout=5.0)
-                    except Exception:
-                        try:
-                            proc.kill()
-                        except Exception:
-                            pass
-                break
-
-            if finished_idx is None:
-                pytime.sleep(0.05)
+        _run_parallel_worker_specs(
+            specs=specs,
+            jobs=jobs_eff,
+            capture_error=f"Failed to capture {label} worker stdout.",
+            failure_label=f"{label} axis",
+        )
 
         if bool(write_milestones):
             for axis_name, out_path in milestone_paths.items():
@@ -689,9 +711,6 @@ def _run_axis_subprocess_plan(
                 if isinstance(payload, dict):
                     milestone_payloads[axis_name] = payload
 
-    if failures:
-        axis_name, rc = failures[0]
-        raise SystemExit(f"{label} axis failed: {axis_name} (exit={rc})")
     return milestone_payloads
 
 
@@ -1859,6 +1878,68 @@ def main() -> None:
             "dd_pct": dd_pct,
             "pnl_over_dd": (pnl / dd) if dd > 0 else None,
         }
+
+    def _run_sweep(
+        *,
+        plan,
+        bars: list,
+        total: int | None = None,
+        progress_label: str | None = None,
+        report_every: int = 0,
+        heartbeat_sec: float = 0.0,
+        record_milestones: bool = True,
+    ) -> tuple[int, list[tuple[ConfigBundle, dict, str, dict | None]]]:
+        tested = 0
+        kept: list[tuple[ConfigBundle, dict, str, dict | None]] = []
+        t0 = pytime.perf_counter()
+        last = float(t0)
+        total_i = int(total) if total is not None else None
+
+        for cfg, note, meta_item in plan:
+            tested += 1
+            if progress_label:
+                now = pytime.perf_counter()
+                hit_report_every = int(report_every) > 0 and (tested % int(report_every) == 0)
+                hit_total = total_i is not None and tested == int(total_i)
+                hit_heartbeat = float(heartbeat_sec) > 0 and (now - last) >= float(heartbeat_sec)
+                if hit_report_every or hit_total or hit_heartbeat:
+                    elapsed = now - t0
+                    rate = (tested / elapsed) if elapsed > 0 else 0.0
+                    if total_i is not None and total_i > 0:
+                        remaining = total_i - tested
+                        eta_sec = (remaining / rate) if rate > 0 else 0.0
+                        pct = (tested / total_i) * 100.0
+                        print(
+                            f"{progress_label} {tested}/{total_i} ({pct:0.1f}%) kept={len(kept)} "
+                            f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
+                            flush=True,
+                        )
+                    else:
+                        print(
+                            f"{progress_label} tested={tested} kept={len(kept)} rate={rate:0.2f}/s "
+                            f"elapsed={elapsed:0.1f}s",
+                            flush=True,
+                        )
+                    last = float(now)
+
+            row = _run_cfg(
+                cfg=cfg,
+                bars=bars,
+                regime_bars=_regime_bars_for(cfg),
+                regime2_bars=_regime2_bars_for(cfg),
+            )
+            if not row:
+                continue
+
+            note_s = str(note or "")
+            row = dict(row)
+            if note_s:
+                row["note"] = note_s
+                if bool(record_milestones):
+                    _record_milestone(cfg, row, note_s)
+            kept.append((cfg, row, note_s, meta_item))
+
+        return tested, kept
 
     def _base_bundle(*, bar_size: str, filters: FiltersConfig | None) -> ConfigBundle:
         cfg = _bundle_base(
@@ -3352,7 +3433,7 @@ def main() -> None:
         bars_sig = _bars_cached(signal_bar_size)
         pt_vals = [0.005, 0.01, 0.015, 0.02]
         sl_vals = [0.015, 0.02, 0.03]
-        rows: list[dict] = []
+        plan = []
         for pt in pt_vals:
             for sl in sl_vals:
                 cfg = _base_bundle(bar_size=signal_bar_size, filters=None)
@@ -3365,15 +3446,9 @@ def main() -> None:
                         spot_exit_mode="pct",
                     ),
                 )
-                row = _run_cfg(
-                    cfg=cfg, bars=bars_sig, regime_bars=_regime_bars_for(cfg), regime2_bars=_regime2_bars_for(cfg)
-                )
-                if not row:
-                    continue
-                note = f"PT={pt:.3f} SL={sl:.3f}"
-                row["note"] = note
-                _record_milestone(cfg, row, note)
-                rows.append(row)
+                plan.append((cfg, f"PT={pt:.3f} SL={sl:.3f}", None))
+        _tested, kept = _run_sweep(plan=plan, bars=bars_sig)
+        rows = [row for _, row, _note, _meta in kept]
         _print_leaderboards(rows, title="PT/SL sweep (fixed pct exits)", top_n=int(args.top))
 
     def _sweep_hf_scalp() -> None:
@@ -5138,17 +5213,10 @@ def main() -> None:
             jobs_eff = min(int(jobs), int(_default_jobs()), int(total)) if total > 0 else 1
             print(f"risk_overlays parallel: workers={jobs_eff} total={total}", flush=True)
 
-            def _pump(prefix: str, stream) -> None:
-                for line in iter(stream.readline, ""):
-                    print(f"[{prefix}] {line.rstrip()}", flush=True)
-
-            failures: list[tuple[int, int]] = []
-            start_times: dict[int, float] = {}
-
             with tempfile.TemporaryDirectory(prefix="tradebot_risk_overlays_") as tmpdir:
                 tmp_root = Path(tmpdir)
-                running: list[tuple[int, subprocess.Popen, threading.Thread, Path]] = []
                 out_paths: dict[int, Path] = {}
+                specs: list[tuple[str, list[str]]] = []
 
                 for worker_id in range(jobs_eff):
                     out_path = tmp_root / f"risk_overlays_out_{worker_id}.json"
@@ -5173,65 +5241,14 @@ def main() -> None:
                         "--risk-overlays-run-min-trades",
                         str(int(run_min_trades)),
                     ]
-                    proc = subprocess.Popen(
-                        cmd,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.STDOUT,
-                        text=True,
-                        bufsize=1,
-                    )
-                    if proc.stdout is None:
-                        raise RuntimeError("Failed to capture risk_overlays worker stdout.")
-                    t = threading.Thread(target=_pump, args=(f"ro:{worker_id}", proc.stdout), daemon=True)
-                    t.start()
-                    start_times[worker_id] = pytime.perf_counter()
-                    running.append((worker_id, proc, t, out_path))
+                    specs.append((f"ro:{worker_id}", cmd))
 
-                while running and not failures:
-                    finished_idx = None
-                    for idx, (worker_id, proc, t, out_path) in enumerate(running):
-                        rc = proc.poll()
-                        if rc is None:
-                            continue
-                        finished_idx = idx
-                        elapsed = pytime.perf_counter() - float(start_times.get(worker_id) or pytime.perf_counter())
-                        print(f"DONE  ro:{worker_id} exit={rc} elapsed={elapsed:0.1f}s", flush=True)
-                        try:
-                            proc.wait(timeout=1.0)
-                        except subprocess.TimeoutExpired:
-                            proc.kill()
-                            proc.wait(timeout=5.0)
-                        try:
-                            t.join(timeout=1.0)
-                        except Exception:
-                            pass
-                        if rc != 0:
-                            failures.append((int(worker_id), int(rc)))
-                        running.pop(idx)
-                        break
-
-                    if failures:
-                        for worker_id, proc, t, out_path in running:
-                            try:
-                                proc.terminate()
-                            except Exception:
-                                pass
-                        for worker_id, proc, t, out_path in running:
-                            try:
-                                proc.wait(timeout=5.0)
-                            except subprocess.TimeoutExpired:
-                                try:
-                                    proc.kill()
-                                except Exception:
-                                    pass
-                        break
-
-                    if finished_idx is None:
-                        pytime.sleep(0.05)
-
-                if failures:
-                    wid, rc = failures[0]
-                    raise SystemExit(f"risk_overlays worker failed: ro:{wid} (exit={rc})")
+                _run_parallel_worker_specs(
+                    specs=specs,
+                    jobs=jobs_eff,
+                    capture_error="Failed to capture risk_overlays worker stdout.",
+                    failure_label="risk_overlays worker",
+                )
 
                 for worker_id in range(jobs_eff):
                     out_path = out_paths.get(worker_id)
@@ -6434,17 +6451,10 @@ def main() -> None:
             jobs_eff = min(int(jobs), int(_default_jobs()), int(stage1_total)) if stage1_total > 0 else 1
             print(f"combo_fast stage1 parallel: workers={jobs_eff} total={stage1_total}", flush=True)
 
-            def _pump(prefix: str, stream) -> None:
-                for line in iter(stream.readline, ""):
-                    print(f"[{prefix}] {line.rstrip()}", flush=True)
-
-            failures: list[tuple[int, int]] = []
-            start_times: dict[int, float] = {}
-
             with tempfile.TemporaryDirectory(prefix="tradebot_combo_fast1_") as tmpdir:
                 tmp_root = Path(tmpdir)
-                running: list[tuple[int, subprocess.Popen, threading.Thread, Path]] = []
                 out_paths: dict[int, Path] = {}
+                specs: list[tuple[str, list[str]]] = []
 
                 for worker_id in range(jobs_eff):
                     out_path = tmp_root / f"stage1_out_{worker_id}.json"
@@ -6471,65 +6481,14 @@ def main() -> None:
                         "--combo-fast-run-min-trades",
                         str(int(run_min_trades)),
                     ]
-                    proc = subprocess.Popen(
-                        cmd,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.STDOUT,
-                        text=True,
-                        bufsize=1,
-                    )
-                    if proc.stdout is None:
-                        raise RuntimeError("Failed to capture combo_fast stage1 worker stdout.")
-                    t = threading.Thread(target=_pump, args=(f"cf1:{worker_id}", proc.stdout), daemon=True)
-                    t.start()
-                    start_times[worker_id] = pytime.perf_counter()
-                    running.append((worker_id, proc, t, out_path))
+                    specs.append((f"cf1:{worker_id}", cmd))
 
-                while running and not failures:
-                    finished_idx = None
-                    for idx, (worker_id, proc, t, out_path) in enumerate(running):
-                        rc = proc.poll()
-                        if rc is None:
-                            continue
-                        finished_idx = idx
-                        elapsed = pytime.perf_counter() - float(start_times.get(worker_id) or pytime.perf_counter())
-                        print(f"DONE  cf1:{worker_id} exit={rc} elapsed={elapsed:0.1f}s", flush=True)
-                        try:
-                            proc.wait(timeout=1.0)
-                        except subprocess.TimeoutExpired:
-                            proc.kill()
-                            proc.wait(timeout=5.0)
-                        try:
-                            t.join(timeout=1.0)
-                        except Exception:
-                            pass
-                        if rc != 0:
-                            failures.append((int(worker_id), int(rc)))
-                        running.pop(idx)
-                        break
-
-                    if failures:
-                        for worker_id, proc, t, out_path in running:
-                            try:
-                                proc.terminate()
-                            except Exception:
-                                pass
-                        for worker_id, proc, t, out_path in running:
-                            try:
-                                proc.wait(timeout=5.0)
-                            except subprocess.TimeoutExpired:
-                                try:
-                                    proc.kill()
-                                except Exception:
-                                    pass
-                        break
-
-                    if finished_idx is None:
-                        pytime.sleep(0.05)
-
-                if failures:
-                    wid, rc = failures[0]
-                    raise SystemExit(f"combo_fast stage1 worker failed: cf1:{wid} (exit={rc})")
+                _run_parallel_worker_specs(
+                    specs=specs,
+                    jobs=jobs_eff,
+                    capture_error="Failed to capture combo_fast stage1 worker stdout.",
+                    failure_label="combo_fast stage1 worker",
+                )
 
                 tested_total = 0
                 for worker_id in range(jobs_eff):
@@ -6686,13 +6645,6 @@ def main() -> None:
             jobs_eff = min(int(jobs), int(_default_jobs()), int(stage2_total)) if stage2_total > 0 else 1
             print(f"combo_fast stage2 parallel: workers={jobs_eff} total={stage2_total}", flush=True)
 
-            def _pump(prefix: str, stream) -> None:
-                for line in iter(stream.readline, ""):
-                    print(f"[{prefix}] {line.rstrip()}", flush=True)
-
-            failures: list[tuple[int, int]] = []
-            start_times: dict[int, float] = {}
-
             with tempfile.TemporaryDirectory(prefix="tradebot_combo_fast_") as tmpdir:
                 tmp_root = Path(tmpdir)
                 payload_path = tmp_root / "stage2_payload.json"
@@ -6707,8 +6659,8 @@ def main() -> None:
                     )
                 write_json(payload_path, {"shortlist": shortlist_payload}, sort_keys=False)
 
-                running: list[tuple[int, subprocess.Popen, threading.Thread, Path]] = []
                 out_paths: dict[int, Path] = {}
+                specs: list[tuple[str, list[str]]] = []
 
                 for worker_id in range(jobs_eff):
                     out_path = tmp_root / f"stage2_out_{worker_id}.json"
@@ -6735,65 +6687,14 @@ def main() -> None:
                         "--combo-fast-run-min-trades",
                         str(int(run_min_trades)),
                     ]
-                    proc = subprocess.Popen(
-                        cmd,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.STDOUT,
-                        text=True,
-                        bufsize=1,
-                    )
-                    if proc.stdout is None:
-                        raise RuntimeError("Failed to capture combo_fast stage2 worker stdout.")
-                    t = threading.Thread(target=_pump, args=(f"cf2:{worker_id}", proc.stdout), daemon=True)
-                    t.start()
-                    start_times[worker_id] = pytime.perf_counter()
-                    running.append((worker_id, proc, t, out_path))
+                    specs.append((f"cf2:{worker_id}", cmd))
 
-                while running and not failures:
-                    finished_idx = None
-                    for idx, (worker_id, proc, t, out_path) in enumerate(running):
-                        rc = proc.poll()
-                        if rc is None:
-                            continue
-                        finished_idx = idx
-                        elapsed = pytime.perf_counter() - float(start_times.get(worker_id) or pytime.perf_counter())
-                        print(f"DONE  cf2:{worker_id} exit={rc} elapsed={elapsed:0.1f}s", flush=True)
-                        try:
-                            proc.wait(timeout=1.0)
-                        except subprocess.TimeoutExpired:
-                            proc.kill()
-                            proc.wait(timeout=5.0)
-                        try:
-                            t.join(timeout=1.0)
-                        except Exception:
-                            pass
-                        if rc != 0:
-                            failures.append((int(worker_id), int(rc)))
-                        running.pop(idx)
-                        break
-
-                    if failures:
-                        for worker_id, proc, t, out_path in running:
-                            try:
-                                proc.terminate()
-                            except Exception:
-                                pass
-                        for worker_id, proc, t, out_path in running:
-                            try:
-                                proc.wait(timeout=5.0)
-                            except Exception:
-                                try:
-                                    proc.kill()
-                                except Exception:
-                                    pass
-                        break
-
-                    if finished_idx is None:
-                        pytime.sleep(0.05)
-
-                if failures:
-                    wid, rc = failures[0]
-                    raise SystemExit(f"combo_fast stage2 worker failed: cf2:{wid} (exit={rc})")
+                _run_parallel_worker_specs(
+                    specs=specs,
+                    jobs=jobs_eff,
+                    capture_error="Failed to capture combo_fast stage2 worker stdout.",
+                    failure_label="combo_fast stage2 worker",
+                )
 
                 tested_total = 0
                 for worker_id in range(jobs_eff):
@@ -6936,13 +6837,6 @@ def main() -> None:
             jobs_eff = min(int(jobs), int(_default_jobs()), int(stage3_total)) if stage3_total > 0 else 1
             print(f"combo_fast stage3 parallel: workers={jobs_eff} total={stage3_total}", flush=True)
 
-            def _pump(prefix: str, stream) -> None:
-                for line in iter(stream.readline, ""):
-                    print(f"[{prefix}] {line.rstrip()}", flush=True)
-
-            failures: list[tuple[int, int]] = []
-            start_times: dict[int, float] = {}
-
             with tempfile.TemporaryDirectory(prefix="tradebot_combo_fast3_") as tmpdir:
                 tmp_root = Path(tmpdir)
                 payload_path = tmp_root / "stage3_payload.json"
@@ -6957,8 +6851,8 @@ def main() -> None:
                     )
                 write_json(payload_path, {"bases": bases_payload}, sort_keys=False)
 
-                running: list[tuple[int, subprocess.Popen, threading.Thread, Path]] = []
                 out_paths: dict[int, Path] = {}
+                specs: list[tuple[str, list[str]]] = []
 
                 for worker_id in range(jobs_eff):
                     out_path = tmp_root / f"stage3_out_{worker_id}.json"
@@ -6985,65 +6879,14 @@ def main() -> None:
                         "--combo-fast-run-min-trades",
                         str(int(run_min_trades)),
                     ]
-                    proc = subprocess.Popen(
-                        cmd,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.STDOUT,
-                        text=True,
-                        bufsize=1,
-                    )
-                    if proc.stdout is None:
-                        raise RuntimeError("Failed to capture combo_fast stage3 worker stdout.")
-                    t = threading.Thread(target=_pump, args=(f"cf3:{worker_id}", proc.stdout), daemon=True)
-                    t.start()
-                    start_times[worker_id] = pytime.perf_counter()
-                    running.append((worker_id, proc, t, out_path))
+                    specs.append((f"cf3:{worker_id}", cmd))
 
-                while running and not failures:
-                    finished_idx = None
-                    for idx, (worker_id, proc, t, out_path) in enumerate(running):
-                        rc = proc.poll()
-                        if rc is None:
-                            continue
-                        finished_idx = idx
-                        elapsed = pytime.perf_counter() - float(start_times.get(worker_id) or pytime.perf_counter())
-                        print(f"DONE  cf3:{worker_id} exit={rc} elapsed={elapsed:0.1f}s", flush=True)
-                        try:
-                            proc.wait(timeout=1.0)
-                        except subprocess.TimeoutExpired:
-                            proc.kill()
-                            proc.wait(timeout=5.0)
-                        try:
-                            t.join(timeout=1.0)
-                        except Exception:
-                            pass
-                        if rc != 0:
-                            failures.append((int(worker_id), int(rc)))
-                        running.pop(idx)
-                        break
-
-                    if failures:
-                        for worker_id, proc, t, out_path in running:
-                            try:
-                                proc.terminate()
-                            except Exception:
-                                pass
-                        for worker_id, proc, t, out_path in running:
-                            try:
-                                proc.wait(timeout=5.0)
-                            except subprocess.TimeoutExpired:
-                                try:
-                                    proc.kill()
-                                except Exception:
-                                    pass
-                        break
-
-                    if finished_idx is None:
-                        pytime.sleep(0.05)
-
-                if failures:
-                    wid, rc = failures[0]
-                    raise SystemExit(f"combo_fast stage3 worker failed: cf3:{wid} (exit={rc})")
+                _run_parallel_worker_specs(
+                    specs=specs,
+                    jobs=jobs_eff,
+                    capture_error="Failed to capture combo_fast stage3 worker stdout.",
+                    failure_label="combo_fast stage3 worker",
+                )
 
                 tested_total = 0
                 for worker_id in range(jobs_eff):
@@ -8570,13 +8413,6 @@ def main() -> None:
                 jobs_eff = min(int(jobs), int(_default_jobs()), int(total_3a)) if total_3a > 0 else 1
                 print(f"  stage3a parallel: workers={jobs_eff} total={total_3a}", flush=True)
 
-                def _pump(prefix: str, stream) -> None:
-                    for line in iter(stream.readline, ""):
-                        print(f"[{prefix}] {line.rstrip()}", flush=True)
-
-                failures: list[tuple[int, int]] = []
-                start_times: dict[int, float] = {}
-
                 with tempfile.TemporaryDirectory(prefix="tradebot_champ_refine_3a_") as tmpdir:
                     tmp_root = Path(tmpdir)
                     payload_path = tmp_root / "stage3a_payload.json"
@@ -8591,8 +8427,8 @@ def main() -> None:
                         )
                     write_json(payload_path, {"seed_tag": seed_tag, "base_exit_variants": base_payload}, sort_keys=False)
 
-                    running: list[tuple[int, subprocess.Popen, threading.Thread, Path]] = []
                     out_paths: dict[int, Path] = {}
+                    specs: list[tuple[str, list[str]]] = []
 
                     for worker_id in range(jobs_eff):
                         out_path = tmp_root / f"stage3a_out_{worker_id}.json"
@@ -8619,67 +8455,14 @@ def main() -> None:
                             "--champ-refine-run-min-trades",
                             str(int(run_min_trades)),
                         ]
-                        proc = subprocess.Popen(
-                            cmd,
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.STDOUT,
-                            text=True,
-                            bufsize=1,
-                        )
-                        if proc.stdout is None:
-                            raise RuntimeError("Failed to capture champ_refine stage3a worker stdout.")
-                        t = threading.Thread(target=_pump, args=(f"cr3a:{worker_id}", proc.stdout), daemon=True)
-                        t.start()
-                        start_times[worker_id] = pytime.perf_counter()
-                        running.append((worker_id, proc, t, out_path))
+                        specs.append((f"cr3a:{worker_id}", cmd))
 
-                    while running and not failures:
-                        finished_idx = None
-                        for idx, (worker_id, proc, t, out_path) in enumerate(running):
-                            rc = proc.poll()
-                            if rc is None:
-                                continue
-                            finished_idx = idx
-                            elapsed = pytime.perf_counter() - float(
-                                start_times.get(worker_id) or pytime.perf_counter()
-                            )
-                            print(f"DONE  cr3a:{worker_id} exit={rc} elapsed={elapsed:0.1f}s", flush=True)
-                            try:
-                                proc.wait(timeout=1.0)
-                            except subprocess.TimeoutExpired:
-                                proc.kill()
-                                proc.wait(timeout=5.0)
-                            try:
-                                t.join(timeout=1.0)
-                            except Exception:
-                                pass
-                            if rc != 0:
-                                failures.append((int(worker_id), int(rc)))
-                            running.pop(idx)
-                            break
-
-                        if failures:
-                            for worker_id, proc, t, out_path in running:
-                                try:
-                                    proc.terminate()
-                                except Exception:
-                                    pass
-                            for worker_id, proc, t, out_path in running:
-                                try:
-                                    proc.wait(timeout=5.0)
-                                except subprocess.TimeoutExpired:
-                                    try:
-                                        proc.kill()
-                                    except Exception:
-                                        pass
-                            break
-
-                        if finished_idx is None:
-                            pytime.sleep(0.05)
-
-                    if failures:
-                        wid, rc = failures[0]
-                        raise SystemExit(f"champ_refine stage3a worker failed: cr3a:{wid} (exit={rc})")
+                    _run_parallel_worker_specs(
+                        specs=specs,
+                        jobs=jobs_eff,
+                        capture_error="Failed to capture champ_refine stage3a worker stdout.",
+                        failure_label="champ_refine stage3a worker",
+                    )
 
                     tested_total_3a = 0
                     for worker_id in range(jobs_eff):
@@ -8886,13 +8669,6 @@ def main() -> None:
                 jobs_eff = min(int(jobs), int(_default_jobs()), int(total_3b)) if total_3b > 0 else 1
                 print(f"  stage3b parallel: workers={jobs_eff} total={total_3b}", flush=True)
 
-                def _pump(prefix: str, stream) -> None:
-                    for line in iter(stream.readline, ""):
-                        print(f"[{prefix}] {line.rstrip()}", flush=True)
-
-                failures: list[tuple[int, int]] = []
-                start_times: dict[int, float] = {}
-
                 with tempfile.TemporaryDirectory(prefix="tradebot_champ_refine_3b_") as tmpdir:
                     tmp_root = Path(tmpdir)
                     payload_path = tmp_root / "stage3b_payload.json"
@@ -8907,8 +8683,8 @@ def main() -> None:
                         )
                     write_json(payload_path, {"seed_tag": seed_tag, "shortlist": shortlist_payload}, sort_keys=False)
 
-                    running: list[tuple[int, subprocess.Popen, threading.Thread, Path]] = []
                     out_paths: dict[int, Path] = {}
+                    specs: list[tuple[str, list[str]]] = []
 
                     for worker_id in range(jobs_eff):
                         out_path = tmp_root / f"stage3b_out_{worker_id}.json"
@@ -8935,67 +8711,14 @@ def main() -> None:
                             "--champ-refine-run-min-trades",
                             str(int(run_min_trades)),
                         ]
-                        proc = subprocess.Popen(
-                            cmd,
-                            stdout=subprocess.PIPE,
-                            stderr=subprocess.STDOUT,
-                            text=True,
-                            bufsize=1,
-                        )
-                        if proc.stdout is None:
-                            raise RuntimeError("Failed to capture champ_refine stage3b worker stdout.")
-                        t = threading.Thread(target=_pump, args=(f"cr3b:{worker_id}", proc.stdout), daemon=True)
-                        t.start()
-                        start_times[worker_id] = pytime.perf_counter()
-                        running.append((worker_id, proc, t, out_path))
+                        specs.append((f"cr3b:{worker_id}", cmd))
 
-                    while running and not failures:
-                        finished_idx = None
-                        for idx, (worker_id, proc, t, out_path) in enumerate(running):
-                            rc = proc.poll()
-                            if rc is None:
-                                continue
-                            finished_idx = idx
-                            elapsed = pytime.perf_counter() - float(
-                                start_times.get(worker_id) or pytime.perf_counter()
-                            )
-                            print(f"DONE  cr3b:{worker_id} exit={rc} elapsed={elapsed:0.1f}s", flush=True)
-                            try:
-                                proc.wait(timeout=1.0)
-                            except subprocess.TimeoutExpired:
-                                proc.kill()
-                                proc.wait(timeout=5.0)
-                            try:
-                                t.join(timeout=1.0)
-                            except Exception:
-                                pass
-                            if rc != 0:
-                                failures.append((int(worker_id), int(rc)))
-                            running.pop(idx)
-                            break
-
-                        if failures:
-                            for worker_id, proc, t, out_path in running:
-                                try:
-                                    proc.terminate()
-                                except Exception:
-                                    pass
-                            for worker_id, proc, t, out_path in running:
-                                try:
-                                    proc.wait(timeout=5.0)
-                                except subprocess.TimeoutExpired:
-                                    try:
-                                        proc.kill()
-                                    except Exception:
-                                        pass
-                            break
-
-                        if finished_idx is None:
-                            pytime.sleep(0.05)
-
-                    if failures:
-                        wid, rc = failures[0]
-                        raise SystemExit(f"champ_refine stage3b worker failed: cr3b:{wid} (exit={rc})")
+                    _run_parallel_worker_specs(
+                        specs=specs,
+                        jobs=jobs_eff,
+                        capture_error="Failed to capture champ_refine stage3b worker stdout.",
+                        failure_label="champ_refine stage3b worker",
+                    )
 
                     tested_total_3b = 0
                     for worker_id in range(jobs_eff):
@@ -9704,17 +9427,10 @@ def main() -> None:
             jobs_eff = min(int(jobs), int(_default_jobs()), int(total)) if total > 0 else 1
             print(f"{axis_tag} parallel: workers={jobs_eff} total={total}", flush=True)
 
-            def _pump(prefix: str, stream) -> None:
-                for line in iter(stream.readline, ""):
-                    print(f"[{prefix}] {line.rstrip()}", flush=True)
-
-            failures: list[tuple[int, int]] = []
-            start_times: dict[int, float] = {}
-
             with tempfile.TemporaryDirectory(prefix="tradebot_shock_velocity_") as tmpdir:
                 tmp_root = Path(tmpdir)
-                running: list[tuple[int, subprocess.Popen, threading.Thread, Path]] = []
                 out_paths: dict[int, Path] = {}
+                specs: list[tuple[str, list[str]]] = []
 
                 for worker_id in range(jobs_eff):
                     out_path = tmp_root / f"shock_velocity_out_{worker_id}.json"
@@ -9737,65 +9453,14 @@ def main() -> None:
                         "--shock-velocity-out",
                         str(out_path),
                     ]
-                    proc = subprocess.Popen(
-                        cmd,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.STDOUT,
-                        text=True,
-                        bufsize=1,
-                    )
-                    if proc.stdout is None:
-                        raise RuntimeError(f"Failed to capture {axis_tag} worker stdout.")
-                    t = threading.Thread(target=_pump, args=(f"sv:{worker_id}", proc.stdout), daemon=True)
-                    t.start()
-                    start_times[worker_id] = pytime.perf_counter()
-                    running.append((worker_id, proc, t, out_path))
+                    specs.append((f"sv:{worker_id}", cmd))
 
-                while running and not failures:
-                    finished_idx = None
-                    for idx, (worker_id, proc, t, out_path) in enumerate(running):
-                        rc = proc.poll()
-                        if rc is None:
-                            continue
-                        finished_idx = idx
-                        elapsed = pytime.perf_counter() - float(start_times.get(worker_id) or pytime.perf_counter())
-                        print(f"DONE  sv:{worker_id} exit={rc} elapsed={elapsed:0.1f}s", flush=True)
-                        try:
-                            proc.wait(timeout=1.0)
-                        except subprocess.TimeoutExpired:
-                            proc.kill()
-                            proc.wait(timeout=5.0)
-                        try:
-                            t.join(timeout=1.0)
-                        except Exception:
-                            pass
-                        if rc != 0:
-                            failures.append((int(worker_id), int(rc)))
-                        running.pop(idx)
-                        break
-
-                    if failures:
-                        for worker_id, proc, t, out_path in running:
-                            try:
-                                proc.terminate()
-                            except Exception:
-                                pass
-                        for worker_id, proc, t, out_path in running:
-                            try:
-                                proc.wait(timeout=5.0)
-                            except subprocess.TimeoutExpired:
-                                try:
-                                    proc.kill()
-                                except Exception:
-                                    pass
-                        break
-
-                    if finished_idx is None:
-                        pytime.sleep(0.05)
-
-                if failures:
-                    wid, rc = failures[0]
-                    raise SystemExit(f"{axis_tag} worker failed: sv:{wid} (exit={rc})")
+                _run_parallel_worker_specs(
+                    specs=specs,
+                    jobs=jobs_eff,
+                    capture_error=f"Failed to capture {axis_tag} worker stdout.",
+                    failure_label=f"{axis_tag} worker",
+                )
 
                 for worker_id in range(jobs_eff):
                     out_path = out_paths.get(worker_id)
@@ -11475,13 +11140,6 @@ def main() -> None:
             jobs_eff = min(int(jobs), int(_default_jobs()), int(stage1_total)) if stage1_total > 0 else 1
             print(f"st37_refine stage1 parallel: workers={jobs_eff} total={stage1_total}", flush=True)
 
-            def _pump(prefix: str, stream) -> None:
-                for line in iter(stream.readline, ""):
-                    print(f"[{prefix}] {line.rstrip()}", flush=True)
-
-            failures: list[tuple[int, int]] = []
-            start_times: dict[int, float] = {}
-
             with tempfile.TemporaryDirectory(prefix="tradebot_st37_refine_1_") as tmpdir:
                 tmp_root = Path(tmpdir)
                 payload_path = tmp_root / "stage1_payload.json"
@@ -11492,8 +11150,8 @@ def main() -> None:
                     )
                 write_json(payload_path, {"seeds": seeds_payload}, sort_keys=False)
 
-                running: list[tuple[int, subprocess.Popen, threading.Thread, Path]] = []
                 out_paths: dict[int, Path] = {}
+                specs: list[tuple[str, list[str]]] = []
 
                 for worker_id in range(jobs_eff):
                     out_path = tmp_root / f"stage1_out_{worker_id}.json"
@@ -11520,65 +11178,14 @@ def main() -> None:
                         "--st37-refine-run-min-trades",
                         str(int(run_min_trades)),
                     ]
-                    proc = subprocess.Popen(
-                        cmd,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.STDOUT,
-                        text=True,
-                        bufsize=1,
-                    )
-                    if proc.stdout is None:
-                        raise RuntimeError("Failed to capture st37_refine stage1 worker stdout.")
-                    t = threading.Thread(target=_pump, args=(f"st37:1:{worker_id}", proc.stdout), daemon=True)
-                    t.start()
-                    start_times[worker_id] = pytime.perf_counter()
-                    running.append((worker_id, proc, t, out_path))
+                    specs.append((f"st37:1:{worker_id}", cmd))
 
-                while running and not failures:
-                    finished_idx = None
-                    for idx, (worker_id, proc, t, out_path) in enumerate(running):
-                        rc = proc.poll()
-                        if rc is None:
-                            continue
-                        finished_idx = idx
-                        elapsed = pytime.perf_counter() - float(start_times.get(worker_id) or pytime.perf_counter())
-                        print(f"DONE  st37:1:{worker_id} exit={rc} elapsed={elapsed:0.1f}s", flush=True)
-                        try:
-                            proc.wait(timeout=1.0)
-                        except subprocess.TimeoutExpired:
-                            proc.kill()
-                            proc.wait(timeout=5.0)
-                        try:
-                            t.join(timeout=1.0)
-                        except Exception:
-                            pass
-                        if rc != 0:
-                            failures.append((int(worker_id), int(rc)))
-                        running.pop(idx)
-                        break
-
-                    if failures:
-                        for worker_id, proc, t, out_path in running:
-                            try:
-                                proc.terminate()
-                            except Exception:
-                                pass
-                        for worker_id, proc, t, out_path in running:
-                            try:
-                                proc.wait(timeout=5.0)
-                            except subprocess.TimeoutExpired:
-                                try:
-                                    proc.kill()
-                                except Exception:
-                                    pass
-                        break
-
-                    if finished_idx is None:
-                        pytime.sleep(0.05)
-
-                if failures:
-                    wid, rc = failures[0]
-                    raise SystemExit(f"st37_refine stage1 worker failed: st37:1:{wid} (exit={rc})")
+                _run_parallel_worker_specs(
+                    specs=specs,
+                    jobs=jobs_eff,
+                    capture_error="Failed to capture st37_refine stage1 worker stdout.",
+                    failure_label="st37_refine stage1 worker",
+                )
 
                 # Rebuild seeds once (for config reconstruction).
                 seed_cfgs: list[tuple[ConfigBundle, str]] = []
@@ -11988,13 +11595,6 @@ def main() -> None:
             jobs_eff = min(int(jobs), int(_default_jobs()), int(stage2_total)) if stage2_total > 0 else 1
             print(f"st37_refine stage2 parallel: workers={jobs_eff} total={stage2_total}", flush=True)
 
-            def _pump(prefix: str, stream) -> None:
-                for line in iter(stream.readline, ""):
-                    print(f"[{prefix}] {line.rstrip()}", flush=True)
-
-            failures: list[tuple[int, int]] = []
-            start_times: dict[int, float] = {}
-
             with tempfile.TemporaryDirectory(prefix="tradebot_st37_refine_2_") as tmpdir:
                 tmp_root = Path(tmpdir)
                 payload_path = tmp_root / "stage2_payload.json"
@@ -12020,8 +11620,8 @@ def main() -> None:
                     sort_keys=False,
                 )
 
-                running: list[tuple[int, subprocess.Popen, threading.Thread, Path]] = []
                 out_paths: dict[int, Path] = {}
+                specs: list[tuple[str, list[str]]] = []
 
                 for worker_id in range(jobs_eff):
                     out_path = tmp_root / f"stage2_out_{worker_id}.json"
@@ -12048,65 +11648,14 @@ def main() -> None:
                         "--st37-refine-run-min-trades",
                         str(int(run_min_trades)),
                     ]
-                    proc = subprocess.Popen(
-                        cmd,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.STDOUT,
-                        text=True,
-                        bufsize=1,
-                    )
-                    if proc.stdout is None:
-                        raise RuntimeError("Failed to capture st37_refine stage2 worker stdout.")
-                    t = threading.Thread(target=_pump, args=(f"st37:2:{worker_id}", proc.stdout), daemon=True)
-                    t.start()
-                    start_times[worker_id] = pytime.perf_counter()
-                    running.append((worker_id, proc, t, out_path))
+                    specs.append((f"st37:2:{worker_id}", cmd))
 
-                while running and not failures:
-                    finished_idx = None
-                    for idx, (worker_id, proc, t, out_path) in enumerate(running):
-                        rc = proc.poll()
-                        if rc is None:
-                            continue
-                        finished_idx = idx
-                        elapsed = pytime.perf_counter() - float(start_times.get(worker_id) or pytime.perf_counter())
-                        print(f"DONE  st37:2:{worker_id} exit={rc} elapsed={elapsed:0.1f}s", flush=True)
-                        try:
-                            proc.wait(timeout=1.0)
-                        except subprocess.TimeoutExpired:
-                            proc.kill()
-                            proc.wait(timeout=5.0)
-                        try:
-                            t.join(timeout=1.0)
-                        except Exception:
-                            pass
-                        if rc != 0:
-                            failures.append((int(worker_id), int(rc)))
-                        running.pop(idx)
-                        break
-
-                    if failures:
-                        for worker_id, proc, t, out_path in running:
-                            try:
-                                proc.terminate()
-                            except Exception:
-                                pass
-                        for worker_id, proc, t, out_path in running:
-                            try:
-                                proc.wait(timeout=5.0)
-                            except subprocess.TimeoutExpired:
-                                try:
-                                    proc.kill()
-                                except Exception:
-                                    pass
-                        break
-
-                    if finished_idx is None:
-                        pytime.sleep(0.05)
-
-                if failures:
-                    wid, rc = failures[0]
-                    raise SystemExit(f"st37_refine stage2 worker failed: st37:2:{wid} (exit={rc})")
+                _run_parallel_worker_specs(
+                    specs=specs,
+                    jobs=jobs_eff,
+                    capture_error="Failed to capture st37_refine stage2 worker stdout.",
+                    failure_label="st37_refine stage2 worker",
+                )
 
                 # Rebuild shortlist base cfgs for config reconstruction.
                 base_cfgs: list[tuple[ConfigBundle, str]] = []
@@ -12614,11 +12163,8 @@ def main() -> None:
             bars_sig = _bars_cached(signal_bar_size)
             total = len(seeds_local) * 2 * 2 * 2 * 2 * 2 * 2 * 2 * len(short_mults)
             local_total = (total // workers) + (1 if worker_id < (total % workers) else 0)
-            tested = 0
-            combo_idx = 0
-            report_every = 100
-            t0 = pytime.perf_counter()
-            records: list[dict] = []
+
+            stage2_plan_all: list[tuple[ConfigBundle, str, dict]] = []
             for seed_idx, (seed_cfg, seed_note, family) in enumerate(seeds_local):
                 for perm_on in (False, True):
                     for tick_on in (False, True):
@@ -12628,25 +12174,7 @@ def main() -> None:
                                     for riskpop_on in (False, True):
                                         for regime2_on in (False, True):
                                             for short_mult in short_mults:
-                                                assigned = (combo_idx % workers) == worker_id
-                                                combo_idx += 1
-                                                if not assigned:
-                                                    continue
-                                                tested += 1
-                                                if tested % report_every == 0 or tested == local_total:
-                                                    elapsed = pytime.perf_counter() - t0
-                                                    rate = (tested / elapsed) if elapsed > 0 else 0.0
-                                                    remaining = local_total - tested
-                                                    eta_sec = (remaining / rate) if rate > 0 else 0.0
-                                                    pct = (tested / local_total * 100.0) if local_total > 0 else 0.0
-                                                    print(
-                                                        f"gate_matrix stage2 worker {worker_id+1}/{workers} "
-                                                        f"{tested}/{local_total} ({pct:0.1f}%) kept={len(records)} "
-                                                        f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
-                                                        flush=True,
-                                                    )
-
-                                                cfg, _ = _mk_stage2_cfg(
+                                                cfg, note = _mk_stage2_cfg(
                                                     seed_cfg,
                                                     seed_note,
                                                     family,
@@ -12659,31 +12187,47 @@ def main() -> None:
                                                     regime2_on=regime2_on,
                                                     short_mult=float(short_mult),
                                                 )
-                                                row = _run_cfg(
-                                                    cfg=cfg,
-                                                    bars=bars_sig,
-                                                    regime_bars=_regime_bars_for(cfg),
-                                                    regime2_bars=_regime2_bars_for(cfg),
-                                                )
-                                                if not row:
-                                                    continue
-                                                records.append(
-                                                    {
-                                                        "seed_idx": seed_idx,
-                                                        "perm_on": bool(perm_on),
-                                                        "tick_on": bool(tick_on),
-                                                        "shock_on": bool(shock_on),
-                                                        "riskoff_on": bool(riskoff_on),
-                                                        "riskpanic_on": bool(riskpanic_on),
-                                                        "riskpop_on": bool(riskpop_on),
-                                                        "regime2_on": bool(regime2_on),
-                                                        "short_mult": float(short_mult),
-                                                        "row": row,
-                                                    }
+                                                stage2_plan_all.append(
+                                                    (
+                                                        cfg,
+                                                        note,
+                                                        {
+                                                            "seed_idx": seed_idx,
+                                                            "perm_on": bool(perm_on),
+                                                            "tick_on": bool(tick_on),
+                                                            "shock_on": bool(shock_on),
+                                                            "riskoff_on": bool(riskoff_on),
+                                                            "riskpanic_on": bool(riskpanic_on),
+                                                            "riskpop_on": bool(riskpop_on),
+                                                            "regime2_on": bool(regime2_on),
+                                                            "short_mult": float(short_mult),
+                                                        },
+                                                    )
                                                 )
 
-            if combo_idx != total:
-                raise SystemExit(f"gate_matrix stage2 worker internal error: combos={combo_idx} expected={total}")
+            if len(stage2_plan_all) != int(total):
+                raise SystemExit(
+                    f"gate_matrix stage2 worker internal error: combos={len(stage2_plan_all)} expected={total}"
+                )
+
+            shard_plan = (
+                item for combo_idx, item in enumerate(stage2_plan_all) if (combo_idx % int(workers)) == int(worker_id)
+            )
+            tested, kept = _run_sweep(
+                plan=shard_plan,
+                bars=bars_sig,
+                total=local_total,
+                progress_label=f"gate_matrix stage2 worker {worker_id+1}/{workers}",
+                report_every=100,
+                record_milestones=False,
+            )
+            records: list[dict] = []
+            for _cfg, row, _note, meta_item in kept:
+                if not isinstance(meta_item, dict):
+                    continue
+                rec = dict(meta_item)
+                rec["row"] = row
+                records.append(rec)
 
             out_payload = {"tested": tested, "kept": len(records), "records": records}
             write_json(out_path, out_payload, sort_keys=False)
@@ -12875,13 +12419,6 @@ def main() -> None:
             jobs_eff = min(int(jobs), int(_default_jobs()), int(total)) if total > 0 else 1
             print(f"gate_matrix stage2 parallel: workers={jobs_eff} total={total}", flush=True)
 
-            def _pump(prefix: str, stream) -> None:
-                for line in iter(stream.readline, ""):
-                    print(f"[{prefix}] {line.rstrip()}", flush=True)
-
-            failures: list[tuple[int, int]] = []
-            start_times: dict[int, float] = {}
-
             with tempfile.TemporaryDirectory(prefix="tradebot_gate_matrix_") as tmpdir:
                 tmp_root = Path(tmpdir)
                 payload_path = tmp_root / "stage2_payload.json"
@@ -12897,8 +12434,8 @@ def main() -> None:
                     )
                 write_json(payload_path, {"seeds": seeds_payload}, sort_keys=False)
 
-                running: list[tuple[int, subprocess.Popen, threading.Thread, Path]] = []
                 out_paths: dict[int, Path] = {}
+                specs: list[tuple[str, list[str]]] = []
 
                 for worker_id in range(jobs_eff):
                     out_path = tmp_root / f"stage2_out_{worker_id}.json"
@@ -12925,65 +12462,13 @@ def main() -> None:
                         "--gate-matrix-run-min-trades",
                         str(int(run_min_trades)),
                     ]
-                    proc = subprocess.Popen(
-                        cmd,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.STDOUT,
-                        text=True,
-                        bufsize=1,
-                    )
-                    if proc.stdout is None:
-                        raise RuntimeError("Failed to capture gate_matrix worker stdout.")
-                    t = threading.Thread(target=_pump, args=(f"gm2:{worker_id}", proc.stdout), daemon=True)
-                    t.start()
-                    start_times[worker_id] = pytime.perf_counter()
-                    running.append((worker_id, proc, t, out_path))
-
-                while running and not failures:
-                    finished_idx = None
-                    for idx, (worker_id, proc, t, out_path) in enumerate(running):
-                        rc = proc.poll()
-                        if rc is None:
-                            continue
-                        finished_idx = idx
-                        elapsed = pytime.perf_counter() - float(start_times.get(worker_id) or pytime.perf_counter())
-                        print(f"DONE  gm2:{worker_id} exit={rc} elapsed={elapsed:0.1f}s", flush=True)
-                        try:
-                            proc.wait(timeout=1.0)
-                        except subprocess.TimeoutExpired:
-                            proc.kill()
-                            proc.wait(timeout=5.0)
-                        try:
-                            t.join(timeout=1.0)
-                        except Exception:
-                            pass
-                        if rc != 0:
-                            failures.append((int(worker_id), int(rc)))
-                        running.pop(idx)
-                        break
-
-                    if failures:
-                        for worker_id, proc, t, out_path in running:
-                            try:
-                                proc.terminate()
-                            except Exception:
-                                pass
-                        for worker_id, proc, t, out_path in running:
-                            try:
-                                proc.wait(timeout=5.0)
-                            except Exception:
-                                try:
-                                    proc.kill()
-                                except Exception:
-                                    pass
-                        break
-
-                    if finished_idx is None:
-                        pytime.sleep(0.05)
-
-                if failures:
-                    wid, rc = failures[0]
-                    raise SystemExit(f"gate_matrix stage2 worker failed: gm2:{wid} (exit={rc})")
+                    specs.append((f"gm2:{worker_id}", cmd))
+                _run_parallel_worker_specs(
+                    specs=specs,
+                    jobs=jobs_eff,
+                    capture_error="Failed to capture gate_matrix worker stdout.",
+                    failure_label="gate_matrix stage2 worker",
+                )
 
                 tested_total = 0
                 for worker_id in range(jobs_eff):
@@ -13033,9 +12518,7 @@ def main() -> None:
 
                 run_calls_total += int(tested_total)
         else:
-            tested = 0
-            t0 = pytime.perf_counter()
-            report_every = 200
+            stage2_plan: list[tuple[ConfigBundle, str, dict | None]] = []
             for seed_cfg, _, seed_note, family in seeds:
                 for perm_on in (False, True):
                     for tick_on in (False, True):
@@ -13045,19 +12528,6 @@ def main() -> None:
                                     for riskpop_on in (False, True):
                                         for regime2_on in (False, True):
                                             for short_mult in short_mults:
-                                                tested += 1
-                                                if tested % report_every == 0 or tested == total:
-                                                    elapsed = pytime.perf_counter() - t0
-                                                    rate = (tested / elapsed) if elapsed > 0 else 0.0
-                                                    remaining = total - tested
-                                                    eta_sec = (remaining / rate) if rate > 0 else 0.0
-                                                    pct = (tested / total * 100.0) if total > 0 else 0.0
-                                                    print(
-                                                        f"gate_matrix stage2 {tested}/{total} ({pct:0.1f}%) kept={len(rows)} "
-                                                        f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
-                                                        flush=True,
-                                                    )
-
                                                 cfg, note = _mk_stage2_cfg(
                                                     seed_cfg,
                                                     seed_note,
@@ -13071,17 +12541,15 @@ def main() -> None:
                                                     regime2_on=regime2_on,
                                                     short_mult=float(short_mult),
                                                 )
-                                                row = _run_cfg(
-                                                    cfg=cfg,
-                                                    bars=bars_sig,
-                                                    regime_bars=_regime_bars_for(cfg),
-                                                    regime2_bars=_regime2_bars_for(cfg),
-                                                )
-                                                if not row:
-                                                    continue
-                                                row["note"] = note
-                                                _record_milestone(cfg, row, note)
-                                                rows.append(row)
+                                                stage2_plan.append((cfg, note, None))
+            _tested, kept = _run_sweep(
+                plan=stage2_plan,
+                bars=bars_sig,
+                total=total,
+                progress_label="gate_matrix stage2",
+                report_every=200,
+            )
+            rows.extend(row for _cfg, row, _note, _meta in kept)
 
         _print_leaderboards(rows, title="Gate-matrix sweep (bounded cross-product)", top_n=int(args.top))
 
@@ -13994,39 +13462,7 @@ def spot_multitimeframe_main() -> None:
         req_by_year = int(math.ceil(years * float(min_trades_per_year)))
         return max(required, req_by_year)
 
-    if args.multitimeframe_worker is not None:
-        if not offline:
-            raise SystemExit("multitimeframe worker mode requires --offline (avoid parallel IBKR sessions).")
-        out_path_raw = str(args.multitimeframe_out or "").strip()
-        if not out_path_raw:
-            raise SystemExit("--multitimeframe-out is required for multitimeframe worker mode.")
-        out_path = Path(out_path_raw)
-
-        try:
-            worker_id = int(args.multitimeframe_worker) if args.multitimeframe_worker is not None else 0
-        except (TypeError, ValueError):
-            worker_id = 0
-        try:
-            workers = int(args.multitimeframe_workers) if args.multitimeframe_workers is not None else 1
-        except (TypeError, ValueError):
-            workers = 1
-        workers = max(1, int(workers))
-        worker_id = max(0, int(worker_id))
-        if worker_id >= workers:
-            raise SystemExit(
-                f"Invalid multitimeframe worker shard: worker={worker_id} workers={workers} (worker must be < workers)."
-            )
-
-        _preflight_offline_cache_or_die(
-            symbol=symbol,
-            candidates=candidates,
-            windows=windows,
-            signal_bar_size=str(args.bar_size),
-            use_rth=use_rth,
-            cache_dir=cache_dir,
-        )
-
-        data = IBKRHistoricalData()
+    def _make_bars_loader(data: IBKRHistoricalData):
         bars_cache: dict[tuple[str, str | None, str, str, str, bool, bool], list] = {}
 
         def _load_bars_cached(
@@ -14065,6 +13501,320 @@ def spot_multitimeframe_main() -> None:
             bars_cache[key] = bars
             return bars
 
+        return _load_bars_cached
+
+    meta_cache: dict[tuple[str, str | None, bool], ContractMeta] = {}
+
+    def _resolve_meta(bundle: ConfigBundle, *, data: IBKRHistoricalData | None) -> ContractMeta:
+        key = (str(bundle.strategy.symbol), bundle.strategy.exchange, bool(offline))
+        cached = meta_cache.get(key)
+        if cached is not None:
+            return cached
+        is_future = bundle.strategy.symbol in ("MNQ", "MBT")
+        if offline or data is None:
+            exchange = "CME" if is_future else "SMART"
+            meta = ContractMeta(
+                symbol=bundle.strategy.symbol,
+                exchange=exchange,
+                multiplier=_spot_multiplier(bundle.strategy.symbol, is_future),
+                min_tick=0.01,
+            )
+        else:
+            _, resolved = data.resolve_contract(bundle.strategy.symbol, bundle.strategy.exchange)
+            meta = ContractMeta(
+                symbol=resolved.symbol,
+                exchange=resolved.exchange,
+                multiplier=_spot_multiplier(bundle.strategy.symbol, is_future, default=resolved.multiplier),
+                min_tick=resolved.min_tick,
+            )
+        meta_cache[key] = meta
+        return meta
+
+    def _load_window_context_bars(
+        *,
+        bundle: ConfigBundle,
+        start_dt: datetime,
+        end_dt: datetime,
+        load_bars_cached,
+    ) -> tuple[list | None, list | None, list | None, list | None]:
+        base_bar = str(bundle.backtest.bar_size)
+        regime_bar = str(getattr(bundle.strategy, "regime_bar_size", "") or "").strip()
+
+        regime_bars = None
+        regime_mode = str(getattr(bundle.strategy, "regime_mode", "") or "").strip().lower()
+        needs_regime = False
+        if regime_bar and regime_bar != base_bar:
+            if regime_mode == "supertrend":
+                needs_regime = True
+            elif bool(getattr(bundle.strategy, "regime_ema_preset", None)):
+                needs_regime = True
+        if needs_regime:
+            regime_bars = load_bars_cached(
+                symbol=bundle.strategy.symbol,
+                exchange=bundle.strategy.exchange,
+                start_dt=start_dt,
+                end_dt=end_dt,
+                bar_size=regime_bar,
+                use_rth=bundle.backtest.use_rth,
+                offline=bundle.backtest.offline,
+            )
+            if not regime_bars:
+                _die_empty_bars(
+                    kind="regime",
+                    cache_dir=cache_dir,
+                    symbol=bundle.strategy.symbol,
+                    exchange=bundle.strategy.exchange,
+                    start_dt=start_dt,
+                    end_dt=end_dt,
+                    bar_size=regime_bar,
+                    use_rth=bundle.backtest.use_rth,
+                    offline=bundle.backtest.offline,
+                )
+
+        regime2_bars = None
+        regime2_mode = str(getattr(bundle.strategy, "regime2_mode", "off") or "off").strip().lower()
+        regime2_bar = str(getattr(bundle.strategy, "regime2_bar_size", "") or "").strip() or base_bar
+        if regime2_mode != "off" and regime2_bar != base_bar:
+            regime2_bars = load_bars_cached(
+                symbol=bundle.strategy.symbol,
+                exchange=bundle.strategy.exchange,
+                start_dt=start_dt,
+                end_dt=end_dt,
+                bar_size=regime2_bar,
+                use_rth=bundle.backtest.use_rth,
+                offline=bundle.backtest.offline,
+            )
+            if not regime2_bars:
+                _die_empty_bars(
+                    kind="regime2",
+                    cache_dir=cache_dir,
+                    symbol=bundle.strategy.symbol,
+                    exchange=bundle.strategy.exchange,
+                    start_dt=start_dt,
+                    end_dt=end_dt,
+                    bar_size=regime2_bar,
+                    use_rth=bundle.backtest.use_rth,
+                    offline=bundle.backtest.offline,
+                )
+
+        tick_bars = None
+        tick_mode = str(getattr(bundle.strategy, "tick_gate_mode", "off") or "off").strip().lower()
+        if tick_mode != "off":
+            try:
+                z_lookback = int(getattr(bundle.strategy, "tick_width_z_lookback", 252) or 252)
+            except (TypeError, ValueError):
+                z_lookback = 252
+            try:
+                ma_period = int(getattr(bundle.strategy, "tick_band_ma_period", 10) or 10)
+            except (TypeError, ValueError):
+                ma_period = 10
+            try:
+                slope_lb = int(getattr(bundle.strategy, "tick_width_slope_lookback", 3) or 3)
+            except (TypeError, ValueError):
+                slope_lb = 3
+            tick_warm_days = max(60, z_lookback + ma_period + slope_lb + 5)
+            tick_start_dt = start_dt - timedelta(days=tick_warm_days)
+            tick_symbol = str(getattr(bundle.strategy, "tick_gate_symbol", "TICK-NYSE") or "TICK-NYSE").strip()
+            tick_exchange = str(getattr(bundle.strategy, "tick_gate_exchange", "NYSE") or "NYSE").strip()
+            tick_bars = load_bars_cached(
+                symbol=tick_symbol,
+                exchange=tick_exchange,
+                start_dt=tick_start_dt,
+                end_dt=end_dt,
+                bar_size="1 day",
+                use_rth=True,
+                offline=bundle.backtest.offline,
+            )
+            if not tick_bars:
+                _die_empty_bars(
+                    kind="tick_gate",
+                    cache_dir=cache_dir,
+                    symbol=tick_symbol,
+                    exchange=tick_exchange,
+                    start_dt=tick_start_dt,
+                    end_dt=end_dt,
+                    bar_size="1 day",
+                    use_rth=True,
+                    offline=bundle.backtest.offline,
+                )
+
+        exec_bars = None
+        exec_size = str(getattr(bundle.strategy, "spot_exec_bar_size", "") or "").strip()
+        if exec_size and exec_size != base_bar:
+            exec_bars = load_bars_cached(
+                symbol=bundle.strategy.symbol,
+                exchange=bundle.strategy.exchange,
+                start_dt=start_dt,
+                end_dt=end_dt,
+                bar_size=exec_size,
+                use_rth=bundle.backtest.use_rth,
+                offline=bundle.backtest.offline,
+            )
+            if not exec_bars:
+                _die_empty_bars(
+                    kind="exec",
+                    cache_dir=cache_dir,
+                    symbol=bundle.strategy.symbol,
+                    exchange=bundle.strategy.exchange,
+                    start_dt=start_dt,
+                    end_dt=end_dt,
+                    bar_size=exec_size,
+                    use_rth=bundle.backtest.use_rth,
+                    offline=bundle.backtest.offline,
+                )
+        return regime_bars, regime2_bars, tick_bars, exec_bars
+
+    def _evaluate_candidate_multiwindow(
+        cand: dict,
+        *,
+        load_bars_cached,
+        data: IBKRHistoricalData | None,
+    ) -> dict | None:
+        filters_payload = cand.get("filters")
+        filters = _filters_from_payload(filters_payload)
+        strategy_payload = cand["strategy"]
+        strat_cfg = _strategy_from_payload(strategy_payload, filters=filters)
+        if bool(args.require_close_eod) and not bool(getattr(strat_cfg, "spot_close_eod", False)):
+            return None
+        if args.max_open is not None:
+            max_open = int(getattr(strat_cfg, "max_open_trades", 0) or 0)
+            if max_open == 0 and not bool(args.allow_unlimited_stacking):
+                return None
+            if max_open != 0 and max_open > int(args.max_open):
+                return None
+
+        sig_bar_size = str(strategy_payload.get("signal_bar_size") or args.bar_size)
+        sig_use_rth = (
+            use_rth if strategy_payload.get("signal_use_rth") is None else bool(strategy_payload.get("signal_use_rth"))
+        )
+
+        per_window: list[dict] = []
+        for wstart, wend in windows:
+            bundle = _mk_bundle(
+                strategy=strat_cfg,
+                start=wstart,
+                end=wend,
+                bar_size=sig_bar_size,
+                use_rth=sig_use_rth,
+                cache_dir=cache_dir,
+                offline=offline,
+            )
+
+            start_dt = datetime.combine(bundle.backtest.start, time(0, 0))
+            end_dt = datetime.combine(bundle.backtest.end, time(23, 59))
+            bars_sig = load_bars_cached(
+                symbol=bundle.strategy.symbol,
+                exchange=bundle.strategy.exchange,
+                start_dt=start_dt,
+                end_dt=end_dt,
+                bar_size=bundle.backtest.bar_size,
+                use_rth=bundle.backtest.use_rth,
+                offline=bundle.backtest.offline,
+            )
+            if not bars_sig:
+                _die_empty_bars(
+                    kind="signal",
+                    cache_dir=cache_dir,
+                    symbol=bundle.strategy.symbol,
+                    exchange=bundle.strategy.exchange,
+                    start_dt=start_dt,
+                    end_dt=end_dt,
+                    bar_size=str(bundle.backtest.bar_size),
+                    use_rth=bundle.backtest.use_rth,
+                    offline=bundle.backtest.offline,
+                )
+
+            regime_bars, regime2_bars, tick_bars, exec_bars = _load_window_context_bars(
+                bundle=bundle,
+                start_dt=start_dt,
+                end_dt=end_dt,
+                load_bars_cached=load_bars_cached,
+            )
+            summary = _run_spot_backtest_summary(
+                bundle,
+                bars_sig,
+                _resolve_meta(bundle, data=data),
+                regime_bars=regime_bars,
+                regime2_bars=regime2_bars,
+                tick_bars=tick_bars,
+                exec_bars=exec_bars,
+            )
+            m = _metrics_from_summary(summary)
+            if bool(args.require_positive_pnl) and float(m["pnl"]) <= 0:
+                return None
+            req_trades = _required_trades_for_window(wstart, wend)
+            if m["trades"] < int(req_trades) or m["win_rate"] < float(args.min_win):
+                return None
+            per_window.append(
+                {
+                    "start": wstart.isoformat(),
+                    "end": wend.isoformat(),
+                    **m,
+                }
+            )
+
+        if not per_window:
+            return None
+        min_pnl_dd = min(float(x["pnl_over_dd"]) for x in per_window)
+        min_pnl = min(float(x["pnl"]) for x in per_window)
+        min_roi_dd = min(float(x.get("roi_over_dd_pct") or 0.0) for x in per_window)
+        min_roi = min(float(x.get("roi") or 0.0) for x in per_window)
+        primary = per_window[0] if per_window else {}
+        return {
+            "key": _strategy_key(strategy_payload, filters=filters_payload),
+            "strategy": strategy_payload,
+            "filters": filters_payload,
+            "seed_group_name": cand.get("group_name"),
+            "full_trades": int(primary.get("trades") or 0),
+            "full_win": float(primary.get("win_rate") or 0.0),
+            "full_pnl": float(primary.get("pnl") or 0.0),
+            "full_dd": float(primary.get("dd") or 0.0),
+            "full_pnl_over_dd": float(primary.get("pnl_over_dd") or 0.0),
+            "full_roi": float(primary.get("roi") or 0.0),
+            "full_dd_pct": float(primary.get("dd_pct") or 0.0),
+            "full_roi_over_dd_pct": float(primary.get("roi_over_dd_pct") or 0.0),
+            "stability_min_pnl_dd": min_pnl_dd,
+            "stability_min_pnl": min_pnl,
+            "stability_min_roi_dd": min_roi_dd,
+            "stability_min_roi": min_roi,
+            "windows": per_window,
+        }
+
+    if args.multitimeframe_worker is not None:
+        if not offline:
+            raise SystemExit("multitimeframe worker mode requires --offline (avoid parallel IBKR sessions).")
+        out_path_raw = str(args.multitimeframe_out or "").strip()
+        if not out_path_raw:
+            raise SystemExit("--multitimeframe-out is required for multitimeframe worker mode.")
+        out_path = Path(out_path_raw)
+
+        try:
+            worker_id = int(args.multitimeframe_worker) if args.multitimeframe_worker is not None else 0
+        except (TypeError, ValueError):
+            worker_id = 0
+        try:
+            workers = int(args.multitimeframe_workers) if args.multitimeframe_workers is not None else 1
+        except (TypeError, ValueError):
+            workers = 1
+        workers = max(1, int(workers))
+        worker_id = max(0, int(worker_id))
+        if worker_id >= workers:
+            raise SystemExit(
+                f"Invalid multitimeframe worker shard: worker={worker_id} workers={workers} (worker must be < workers)."
+            )
+
+        _preflight_offline_cache_or_die(
+            symbol=symbol,
+            candidates=candidates,
+            windows=windows,
+            signal_bar_size=str(args.bar_size),
+            use_rth=use_rth,
+            cache_dir=cache_dir,
+        )
+
+        data = IBKRHistoricalData()
+        _load_bars_cached = _make_bars_loader(data)
+
         out_rows: list[dict] = []
         tested = 0
         started = pytime.perf_counter()
@@ -14075,278 +13825,9 @@ def spot_multitimeframe_main() -> None:
             if not assigned:
                 continue
             tested += 1
-
-            filters_payload = cand.get("filters")
-            filters = _filters_from_payload(filters_payload)
-            strategy_payload = cand["strategy"]
-            strat_cfg = _strategy_from_payload(strategy_payload, filters=filters)
-            if bool(args.require_close_eod) and not bool(getattr(strat_cfg, "spot_close_eod", False)):
-                continue
-            if args.max_open is not None:
-                max_open = int(getattr(strat_cfg, "max_open_trades", 0) or 0)
-                if max_open == 0 and not bool(args.allow_unlimited_stacking):
-                    continue
-                if max_open != 0 and max_open > int(args.max_open):
-                    continue
-
-            sig_bar_size = str(strategy_payload.get("signal_bar_size") or args.bar_size)
-            sig_use_rth = (
-                use_rth
-                if strategy_payload.get("signal_use_rth") is None
-                else bool(strategy_payload.get("signal_use_rth"))
-            )
-
-            per_window: list[dict] = []
-            ok = True
-            for wstart, wend in windows:
-                bundle = _mk_bundle(
-                    strategy=strat_cfg,
-                    start=wstart,
-                    end=wend,
-                    bar_size=sig_bar_size,
-                    use_rth=sig_use_rth,
-                    cache_dir=cache_dir,
-                    offline=offline,
-                )
-
-                start_dt = datetime.combine(bundle.backtest.start, time(0, 0))
-                end_dt = datetime.combine(bundle.backtest.end, time(23, 59))
-                bars_sig = _load_bars_cached(
-                    symbol=bundle.strategy.symbol,
-                    exchange=bundle.strategy.exchange,
-                    start_dt=start_dt,
-                    end_dt=end_dt,
-                    bar_size=bundle.backtest.bar_size,
-                    use_rth=bundle.backtest.use_rth,
-                    offline=bundle.backtest.offline,
-                )
-                if not bars_sig:
-                    _die_empty_bars(
-                        kind="signal",
-                        cache_dir=cache_dir,
-                        symbol=bundle.strategy.symbol,
-                        exchange=bundle.strategy.exchange,
-                        start_dt=start_dt,
-                        end_dt=end_dt,
-                        bar_size=str(bundle.backtest.bar_size),
-                        use_rth=bundle.backtest.use_rth,
-                        offline=bundle.backtest.offline,
-                    )
-
-                is_future = bundle.strategy.symbol in ("MNQ", "MBT")
-                exchange = "CME" if is_future else "SMART"
-                meta = ContractMeta(
-                    symbol=bundle.strategy.symbol,
-                    exchange=exchange,
-                    multiplier=_spot_multiplier(bundle.strategy.symbol, is_future),
-                    min_tick=0.01,
-                )
-
-                # Load multi-timeframe regime/regime2 bars only when needed.
-                regime_bars = None
-                if str(bundle.strategy.regime_mode).strip().lower() == "supertrend":
-                    if bundle.strategy.regime_bar_size and str(bundle.strategy.regime_bar_size) != str(bundle.backtest.bar_size):
-                        regime_bars = _load_bars_cached(
-                            symbol=bundle.strategy.symbol,
-                            exchange=bundle.strategy.exchange,
-                            start_dt=start_dt,
-                            end_dt=end_dt,
-                            bar_size=str(bundle.strategy.regime_bar_size),
-                            use_rth=bundle.backtest.use_rth,
-                            offline=bundle.backtest.offline,
-                        )
-                        if not regime_bars:
-                            _die_empty_bars(
-                                kind="regime",
-                                cache_dir=cache_dir,
-                                symbol=bundle.strategy.symbol,
-                                exchange=bundle.strategy.exchange,
-                                start_dt=start_dt,
-                                end_dt=end_dt,
-                                bar_size=str(bundle.strategy.regime_bar_size),
-                                use_rth=bundle.backtest.use_rth,
-                                offline=bundle.backtest.offline,
-                            )
-                else:
-                    if (
-                        bundle.strategy.regime_ema_preset
-                        and bundle.strategy.regime_bar_size
-                        and str(bundle.strategy.regime_bar_size) != str(bundle.backtest.bar_size)
-                    ):
-                        regime_bars = _load_bars_cached(
-                            symbol=bundle.strategy.symbol,
-                            exchange=bundle.strategy.exchange,
-                            start_dt=start_dt,
-                            end_dt=end_dt,
-                            bar_size=str(bundle.strategy.regime_bar_size),
-                            use_rth=bundle.backtest.use_rth,
-                            offline=bundle.backtest.offline,
-                        )
-                        if not regime_bars:
-                            _die_empty_bars(
-                                kind="regime",
-                                cache_dir=cache_dir,
-                                symbol=bundle.strategy.symbol,
-                                exchange=bundle.strategy.exchange,
-                                start_dt=start_dt,
-                                end_dt=end_dt,
-                                bar_size=str(bundle.strategy.regime_bar_size),
-                                use_rth=bundle.backtest.use_rth,
-                                offline=bundle.backtest.offline,
-                            )
-
-                regime2_bars = None
-                if str(getattr(bundle.strategy, "regime2_mode", "off") or "off").strip().lower() != "off":
-                    rb2 = str(getattr(bundle.strategy, "regime2_bar_size", "") or "").strip() or str(bundle.backtest.bar_size)
-                    if str(rb2) != str(bundle.backtest.bar_size):
-                        regime2_bars = _load_bars_cached(
-                            symbol=bundle.strategy.symbol,
-                            exchange=bundle.strategy.exchange,
-                            start_dt=start_dt,
-                            end_dt=end_dt,
-                            bar_size=rb2,
-                            use_rth=bundle.backtest.use_rth,
-                            offline=bundle.backtest.offline,
-                        )
-                        if not regime2_bars:
-                            _die_empty_bars(
-                                kind="regime2",
-                                cache_dir=cache_dir,
-                                symbol=bundle.strategy.symbol,
-                                exchange=bundle.strategy.exchange,
-                                start_dt=start_dt,
-                                end_dt=end_dt,
-                                bar_size=rb2,
-                                use_rth=bundle.backtest.use_rth,
-                                offline=bundle.backtest.offline,
-                            )
-
-                tick_bars = None
-                tick_mode = str(getattr(bundle.strategy, "tick_gate_mode", "off") or "off").strip().lower()
-                if tick_mode != "off":
-                    try:
-                        z_lookback = int(getattr(bundle.strategy, "tick_width_z_lookback", 252) or 252)
-                    except (TypeError, ValueError):
-                        z_lookback = 252
-                    try:
-                        ma_period = int(getattr(bundle.strategy, "tick_band_ma_period", 10) or 10)
-                    except (TypeError, ValueError):
-                        ma_period = 10
-                    try:
-                        slope_lb = int(getattr(bundle.strategy, "tick_width_slope_lookback", 3) or 3)
-                    except (TypeError, ValueError):
-                        slope_lb = 3
-                    tick_warm_days = max(60, z_lookback + ma_period + slope_lb + 5)
-                    tick_start_dt = start_dt - timedelta(days=tick_warm_days)
-                    tick_symbol = str(getattr(bundle.strategy, "tick_gate_symbol", "TICK-NYSE") or "TICK-NYSE").strip()
-                    tick_exchange = str(getattr(bundle.strategy, "tick_gate_exchange", "NYSE") or "NYSE").strip()
-                    tick_bars = _load_bars_cached(
-                        symbol=tick_symbol,
-                        exchange=tick_exchange,
-                        start_dt=tick_start_dt,
-                        end_dt=end_dt,
-                        bar_size="1 day",
-                        use_rth=True,
-                        offline=bundle.backtest.offline,
-                    )
-                    if not tick_bars:
-                        _die_empty_bars(
-                            kind="tick_gate",
-                            cache_dir=cache_dir,
-                            symbol=tick_symbol,
-                            exchange=tick_exchange,
-                            start_dt=tick_start_dt,
-                            end_dt=end_dt,
-                            bar_size="1 day",
-                            use_rth=True,
-                            offline=bundle.backtest.offline,
-                        )
-
-                exec_bars = None
-                exec_size = str(getattr(bundle.strategy, "spot_exec_bar_size", "") or "").strip()
-                if exec_size and str(exec_size) != str(bundle.backtest.bar_size):
-                    exec_bars = _load_bars_cached(
-                        symbol=bundle.strategy.symbol,
-                        exchange=bundle.strategy.exchange,
-                        start_dt=start_dt,
-                        end_dt=end_dt,
-                        bar_size=exec_size,
-                        use_rth=bundle.backtest.use_rth,
-                        offline=bundle.backtest.offline,
-                    )
-                    if not exec_bars:
-                        _die_empty_bars(
-                            kind="exec",
-                            cache_dir=cache_dir,
-                            symbol=bundle.strategy.symbol,
-                            exchange=bundle.strategy.exchange,
-                            start_dt=start_dt,
-                            end_dt=end_dt,
-                            bar_size=exec_size,
-                            use_rth=bundle.backtest.use_rth,
-                            offline=bundle.backtest.offline,
-                        )
-
-                summary = _run_spot_backtest_summary(
-                    bundle,
-                    bars_sig,
-                    meta,
-                    regime_bars=regime_bars,
-                    regime2_bars=regime2_bars,
-                    tick_bars=tick_bars,
-                    exec_bars=exec_bars,
-                )
-                m = _metrics_from_summary(summary)
-                if bool(args.require_positive_pnl) and float(m["pnl"]) <= 0:
-                    ok = False
-                    break
-                req_trades = _required_trades_for_window(wstart, wend)
-                if m["trades"] < int(req_trades) or m["win_rate"] < float(args.min_win):
-                    ok = False
-                    break
-                per_window.append(
-                    {
-                        "start": wstart.isoformat(),
-                        "end": wend.isoformat(),
-                        **m,
-                    }
-                )
-
-            if ok and per_window:
-                min_pnl_dd = min(float(x["pnl_over_dd"]) for x in per_window)
-                min_pnl = min(float(x["pnl"]) for x in per_window)
-                min_roi_dd = min(float(x.get("roi_over_dd_pct") or 0.0) for x in per_window)
-                min_roi = min(float(x.get("roi") or 0.0) for x in per_window)
-                primary = per_window[0] if per_window else {}
-                full_trades = int(primary.get("trades") or 0)
-                full_win = float(primary.get("win_rate") or 0.0)
-                full_pnl = float(primary.get("pnl") or 0.0)
-                full_dd = float(primary.get("dd") or 0.0)
-                full_pnl_over_dd = float(primary.get("pnl_over_dd") or 0.0)
-                full_roi = float(primary.get("roi") or 0.0)
-                full_dd_pct = float(primary.get("dd_pct") or 0.0)
-                full_roi_dd = float(primary.get("roi_over_dd_pct") or 0.0)
-                out_rows.append(
-                    {
-                        "key": _strategy_key(strategy_payload, filters=filters_payload),
-                        "strategy": strategy_payload,
-                        "filters": filters_payload,
-                        "seed_group_name": cand.get("group_name"),
-                        "full_trades": full_trades,
-                        "full_win": full_win,
-                        "full_pnl": full_pnl,
-                        "full_dd": full_dd,
-                        "full_pnl_over_dd": full_pnl_over_dd,
-                        "full_roi": full_roi,
-                        "full_dd_pct": full_dd_pct,
-                        "full_roi_over_dd_pct": full_roi_dd,
-                        "stability_min_pnl_dd": min_pnl_dd,
-                        "stability_min_pnl": min_pnl,
-                        "stability_min_roi_dd": min_roi_dd,
-                        "stability_min_roi": min_roi,
-                        "windows": per_window,
-                    }
-                )
+            row = _evaluate_candidate_multiwindow(cand, load_bars_cached=_load_bars_cached, data=data)
+            if row is not None:
+                out_rows.append(row)
 
             if tested % report_every == 0:
                 elapsed = pytime.perf_counter() - started
@@ -14383,17 +13864,10 @@ def spot_multitimeframe_main() -> None:
 
         print(f"multitimeframe parallel: workers={jobs_eff} candidates={len(candidates)}", flush=True)
 
-        def _pump(prefix: str, stream) -> None:
-            for line in iter(stream.readline, ""):
-                print(f"[{prefix}] {line.rstrip()}", flush=True)
-
-        failures: list[tuple[int, int]] = []
-        start_times: dict[int, float] = {}
-
         with tempfile.TemporaryDirectory(prefix="tradebot_multitimeframe_") as tmpdir:
             tmp_root = Path(tmpdir)
-            running: list[tuple[int, subprocess.Popen, threading.Thread, Path]] = []
             out_paths: dict[int, Path] = {}
+            specs: list[tuple[str, list[str]]] = []
 
             for worker_id in range(jobs_eff):
                 out_path = tmp_root / f"multitimeframe_out_{worker_id}.json"
@@ -14414,65 +13888,13 @@ def spot_multitimeframe_main() -> None:
                     "--multitimeframe-out",
                     str(out_path),
                 ]
-                proc = subprocess.Popen(
-                    cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    text=True,
-                    bufsize=1,
-                )
-                if proc.stdout is None:
-                    raise RuntimeError("Failed to capture multitimeframe worker stdout.")
-                t = threading.Thread(target=_pump, args=(f"mt:{worker_id}", proc.stdout), daemon=True)
-                t.start()
-                start_times[worker_id] = pytime.perf_counter()
-                running.append((worker_id, proc, t, out_path))
-
-            while running and not failures:
-                finished_idx = None
-                for idx, (worker_id, proc, t, out_path) in enumerate(running):
-                    rc = proc.poll()
-                    if rc is None:
-                        continue
-                    finished_idx = idx
-                    elapsed = pytime.perf_counter() - float(start_times.get(worker_id) or pytime.perf_counter())
-                    print(f"DONE  mt:{worker_id} exit={rc} elapsed={elapsed:0.1f}s", flush=True)
-                    try:
-                        proc.wait(timeout=1.0)
-                    except subprocess.TimeoutExpired:
-                        proc.kill()
-                        proc.wait(timeout=5.0)
-                    try:
-                        t.join(timeout=1.0)
-                    except Exception:
-                        pass
-                    if rc != 0:
-                        failures.append((int(worker_id), int(rc)))
-                    running.pop(idx)
-                    break
-
-                if failures:
-                    for worker_id, proc, t, out_path in running:
-                        try:
-                            proc.terminate()
-                        except Exception:
-                            pass
-                    for worker_id, proc, t, out_path in running:
-                        try:
-                            proc.wait(timeout=5.0)
-                        except subprocess.TimeoutExpired:
-                            try:
-                                proc.kill()
-                            except Exception:
-                                pass
-                    break
-
-                if finished_idx is None:
-                    pytime.sleep(0.05)
-
-            if failures:
-                wid, rc = failures[0]
-                raise SystemExit(f"multitimeframe worker failed: mt:{wid} (exit={rc})")
+                specs.append((f"mt:{worker_id}", cmd))
+            _run_parallel_worker_specs(
+                specs=specs,
+                jobs=jobs_eff,
+                capture_error="Failed to capture multitimeframe worker stdout.",
+                failure_label="multitimeframe worker",
+            )
 
             tested_total = 0
             out_rows: list[dict] = []
@@ -14566,43 +13988,7 @@ def spot_multitimeframe_main() -> None:
         return
 
     data = IBKRHistoricalData()
-    bars_cache: dict[tuple[str, str | None, str, str, str, bool, bool], list] = {}
-
-    def _load_bars_cached(
-        *,
-        symbol: str,
-        exchange: str | None,
-        start_dt: datetime,
-        end_dt: datetime,
-        bar_size: str,
-        use_rth: bool,
-        offline: bool,
-    ) -> list:
-        key = (
-            str(symbol),
-            str(exchange) if exchange is not None else None,
-            start_dt.isoformat(),
-            end_dt.isoformat(),
-            str(bar_size),
-            bool(use_rth),
-            bool(offline),
-        )
-        cached = bars_cache.get(key)
-        if cached is not None:
-            return cached
-        bars = _load_bars(
-            data,
-            symbol=symbol,
-            exchange=exchange,
-            start_dt=start_dt,
-            end_dt=end_dt,
-            bar_size=bar_size,
-            use_rth=use_rth,
-            cache_dir=cache_dir,
-            offline=offline,
-        )
-        bars_cache[key] = bars
-        return bars
+    _load_bars_cached = _make_bars_loader(data)
 
     if not offline:
         try:
@@ -14627,288 +14013,9 @@ def spot_multitimeframe_main() -> None:
     report_every = 10
 
     for idx, cand in enumerate(candidates, start=1):
-        filters_payload = cand.get("filters")
-        filters = _filters_from_payload(filters_payload)
-        strategy_payload = cand["strategy"]
-        strat_cfg = _strategy_from_payload(strategy_payload, filters=filters)
-        if bool(args.require_close_eod) and not bool(getattr(strat_cfg, "spot_close_eod", False)):
-            continue
-        if args.max_open is not None:
-            max_open = int(getattr(strat_cfg, "max_open_trades", 0) or 0)
-            if max_open == 0 and not bool(args.allow_unlimited_stacking):
-                continue
-            if max_open != 0 and max_open > int(args.max_open):
-                continue
-
-        sig_bar_size = str(strategy_payload.get("signal_bar_size") or args.bar_size)
-        sig_use_rth = (
-            use_rth
-            if strategy_payload.get("signal_use_rth") is None
-            else bool(strategy_payload.get("signal_use_rth"))
-        )
-
-        per_window: list[dict] = []
-        ok = True
-        for wstart, wend in windows:
-            bundle = _mk_bundle(
-                strategy=strat_cfg,
-                start=wstart,
-                end=wend,
-                bar_size=sig_bar_size,
-                use_rth=sig_use_rth,
-                cache_dir=cache_dir,
-                offline=offline,
-            )
-
-            start_dt = datetime.combine(bundle.backtest.start, time(0, 0))
-            end_dt = datetime.combine(bundle.backtest.end, time(23, 59))
-            bars_sig = _load_bars_cached(
-                symbol=bundle.strategy.symbol,
-                exchange=bundle.strategy.exchange,
-                start_dt=start_dt,
-                end_dt=end_dt,
-                bar_size=bundle.backtest.bar_size,
-                use_rth=bundle.backtest.use_rth,
-                offline=bundle.backtest.offline,
-            )
-            if not bars_sig:
-                _die_empty_bars(
-                    kind="signal",
-                    cache_dir=cache_dir,
-                    symbol=bundle.strategy.symbol,
-                    exchange=bundle.strategy.exchange,
-                    start_dt=start_dt,
-                    end_dt=end_dt,
-                    bar_size=str(bundle.backtest.bar_size),
-                    use_rth=bundle.backtest.use_rth,
-                    offline=bundle.backtest.offline,
-                )
-
-            is_future = bundle.strategy.symbol in ("MNQ", "MBT")
-            if offline:
-                exchange = "CME" if is_future else "SMART"
-                meta = ContractMeta(
-                    symbol=bundle.strategy.symbol,
-                    exchange=exchange,
-                    multiplier=_spot_multiplier(bundle.strategy.symbol, is_future),
-                    min_tick=0.01,
-                )
-            else:
-                _, meta = data.resolve_contract(bundle.strategy.symbol, bundle.strategy.exchange)
-                meta = ContractMeta(
-                    symbol=meta.symbol,
-                    exchange=meta.exchange,
-                    multiplier=_spot_multiplier(bundle.strategy.symbol, is_future, default=meta.multiplier),
-                    min_tick=meta.min_tick,
-                )
-
-            # Load multi-timeframe regime/regime2 bars only when needed.
-            regime_bars = None
-            if str(bundle.strategy.regime_mode).strip().lower() == "supertrend":
-                if bundle.strategy.regime_bar_size and str(bundle.strategy.regime_bar_size) != str(bundle.backtest.bar_size):
-                    regime_bars = _load_bars_cached(
-                        symbol=bundle.strategy.symbol,
-                        exchange=bundle.strategy.exchange,
-                        start_dt=start_dt,
-                        end_dt=end_dt,
-                        bar_size=str(bundle.strategy.regime_bar_size),
-                        use_rth=bundle.backtest.use_rth,
-                        offline=bundle.backtest.offline,
-                    )
-                    if not regime_bars:
-                        _die_empty_bars(
-                            kind="regime",
-                            cache_dir=cache_dir,
-                            symbol=bundle.strategy.symbol,
-                            exchange=bundle.strategy.exchange,
-                            start_dt=start_dt,
-                            end_dt=end_dt,
-                            bar_size=str(bundle.strategy.regime_bar_size),
-                            use_rth=bundle.backtest.use_rth,
-                            offline=bundle.backtest.offline,
-                        )
-            else:
-                if (
-                    bundle.strategy.regime_ema_preset
-                    and bundle.strategy.regime_bar_size
-                    and str(bundle.strategy.regime_bar_size) != str(bundle.backtest.bar_size)
-                ):
-                    regime_bars = _load_bars_cached(
-                        symbol=bundle.strategy.symbol,
-                        exchange=bundle.strategy.exchange,
-                        start_dt=start_dt,
-                        end_dt=end_dt,
-                        bar_size=str(bundle.strategy.regime_bar_size),
-                        use_rth=bundle.backtest.use_rth,
-                        offline=bundle.backtest.offline,
-                    )
-                    if not regime_bars:
-                        _die_empty_bars(
-                            kind="regime",
-                            cache_dir=cache_dir,
-                            symbol=bundle.strategy.symbol,
-                            exchange=bundle.strategy.exchange,
-                            start_dt=start_dt,
-                            end_dt=end_dt,
-                            bar_size=str(bundle.strategy.regime_bar_size),
-                            use_rth=bundle.backtest.use_rth,
-                            offline=bundle.backtest.offline,
-                        )
-
-            regime2_bars = None
-            if str(bundle.strategy.regime2_mode or "off").strip().lower() != "off":
-                r2bar = str(bundle.strategy.regime2_bar_size or bundle.backtest.bar_size)
-                if r2bar != str(bundle.backtest.bar_size):
-                    regime2_bars = _load_bars_cached(
-                        symbol=bundle.strategy.symbol,
-                        exchange=bundle.strategy.exchange,
-                        start_dt=start_dt,
-                        end_dt=end_dt,
-                        bar_size=r2bar,
-                        use_rth=bundle.backtest.use_rth,
-                        offline=bundle.backtest.offline,
-                    )
-                    if not regime2_bars:
-                        _die_empty_bars(
-                            kind="regime2",
-                            cache_dir=cache_dir,
-                            symbol=bundle.strategy.symbol,
-                            exchange=bundle.strategy.exchange,
-                            start_dt=start_dt,
-                            end_dt=end_dt,
-                            bar_size=r2bar,
-                            use_rth=bundle.backtest.use_rth,
-                            offline=bundle.backtest.offline,
-                        )
-
-            tick_bars = None
-            tick_mode = str(getattr(bundle.strategy, "tick_gate_mode", "off") or "off").strip().lower()
-            if tick_mode != "off":
-                try:
-                    z_lookback = int(getattr(bundle.strategy, "tick_width_z_lookback", 252) or 252)
-                except (TypeError, ValueError):
-                    z_lookback = 252
-                try:
-                    ma_period = int(getattr(bundle.strategy, "tick_band_ma_period", 10) or 10)
-                except (TypeError, ValueError):
-                    ma_period = 10
-                try:
-                    slope_lb = int(getattr(bundle.strategy, "tick_width_slope_lookback", 3) or 3)
-                except (TypeError, ValueError):
-                    slope_lb = 3
-                tick_warm_days = max(60, z_lookback + ma_period + slope_lb + 5)
-                tick_start_dt = start_dt - timedelta(days=tick_warm_days)
-                tick_symbol = str(getattr(bundle.strategy, "tick_gate_symbol", "TICK-NYSE") or "TICK-NYSE").strip()
-                tick_exchange = str(getattr(bundle.strategy, "tick_gate_exchange", "NYSE") or "NYSE").strip()
-                tick_bars = _load_bars_cached(
-                    symbol=tick_symbol,
-                    exchange=tick_exchange,
-                    start_dt=tick_start_dt,
-                    end_dt=end_dt,
-                    bar_size="1 day",
-                    use_rth=True,
-                    offline=bundle.backtest.offline,
-                )
-                if not tick_bars:
-                    _die_empty_bars(
-                        kind="tick_gate",
-                        cache_dir=cache_dir,
-                        symbol=tick_symbol,
-                        exchange=tick_exchange,
-                        start_dt=tick_start_dt,
-                        end_dt=end_dt,
-                        bar_size="1 day",
-                        use_rth=True,
-                        offline=bundle.backtest.offline,
-                    )
-
-            exec_bars = None
-            exec_size = str(getattr(bundle.strategy, "spot_exec_bar_size", "") or "").strip()
-            if exec_size and str(exec_size) != str(bundle.backtest.bar_size):
-                exec_bars = _load_bars_cached(
-                    symbol=bundle.strategy.symbol,
-                    exchange=bundle.strategy.exchange,
-                    start_dt=start_dt,
-                    end_dt=end_dt,
-                    bar_size=exec_size,
-                    use_rth=bundle.backtest.use_rth,
-                    offline=bundle.backtest.offline,
-                )
-                if not exec_bars:
-                    _die_empty_bars(
-                        kind="exec",
-                        cache_dir=cache_dir,
-                        symbol=bundle.strategy.symbol,
-                        exchange=bundle.strategy.exchange,
-                        start_dt=start_dt,
-                        end_dt=end_dt,
-                        bar_size=exec_size,
-                        use_rth=bundle.backtest.use_rth,
-                        offline=bundle.backtest.offline,
-                    )
-
-            summary = _run_spot_backtest_summary(
-                bundle,
-                bars_sig,
-                meta,
-                regime_bars=regime_bars,
-                regime2_bars=regime2_bars,
-                tick_bars=tick_bars,
-                exec_bars=exec_bars,
-            )
-            m = _metrics_from_summary(summary)
-            if bool(args.require_positive_pnl) and float(m["pnl"]) <= 0:
-                ok = False
-                break
-            req_trades = _required_trades_for_window(wstart, wend)
-            if m["trades"] < int(req_trades) or m["win_rate"] < float(args.min_win):
-                ok = False
-                break
-            per_window.append(
-                {
-                    "start": wstart.isoformat(),
-                    "end": wend.isoformat(),
-                    **m,
-                }
-            )
-
-        if ok and per_window:
-            min_pnl_dd = min(float(x["pnl_over_dd"]) for x in per_window)
-            min_pnl = min(float(x["pnl"]) for x in per_window)
-            min_roi_dd = min(float(x.get("roi_over_dd_pct") or 0.0) for x in per_window)
-            min_roi = min(float(x.get("roi") or 0.0) for x in per_window)
-            # "Full" metrics should reflect the evaluation window(s), not the seed metrics from the input milestones.
-            # We treat the first requested window as the "primary" window for display and tie-break sorting.
-            primary = per_window[0] if per_window else {}
-            full_trades = int(primary.get("trades") or 0)
-            full_win = float(primary.get("win_rate") or 0.0)
-            full_pnl = float(primary.get("pnl") or 0.0)
-            full_dd = float(primary.get("dd") or 0.0)
-            full_pnl_over_dd = float(primary.get("pnl_over_dd") or 0.0)
-            full_roi = float(primary.get("roi") or 0.0)
-            full_dd_pct = float(primary.get("dd_pct") or 0.0)
-            full_roi_dd = float(primary.get("roi_over_dd_pct") or 0.0)
-            out_rows.append(
-                {
-                    "key": _strategy_key(strategy_payload, filters=filters_payload),
-                    "strategy": strategy_payload,
-                    "filters": filters_payload,
-                    "seed_group_name": cand.get("group_name"),
-                    "full_trades": full_trades,
-                    "full_win": full_win,
-                    "full_pnl": full_pnl,
-                    "full_dd": full_dd,
-                    "full_pnl_over_dd": full_pnl_over_dd,
-                    "full_roi": full_roi,
-                    "full_dd_pct": full_dd_pct,
-                    "full_roi_over_dd_pct": full_roi_dd,
-                    "stability_min_pnl_dd": min_pnl_dd,
-                    "stability_min_pnl": min_pnl,
-                    "stability_min_roi_dd": min_roi_dd,
-                    "stability_min_roi": min_roi,
-                    "windows": per_window,
-                }
-            )
+        row = _evaluate_candidate_multiwindow(cand, load_bars_cached=_load_bars_cached, data=data)
+        if row is not None:
+            out_rows.append(row)
 
         if idx % report_every == 0:
             elapsed = pytime.perf_counter() - started
