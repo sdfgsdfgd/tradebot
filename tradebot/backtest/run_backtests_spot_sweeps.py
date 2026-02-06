@@ -348,6 +348,7 @@ _AXIS_SPECS: tuple[tuple[str, bool, bool], ...] = (
     ("loosen_atr", False, True),
     ("tick", True, True),
     ("gate_matrix", False, True),
+    ("seeded_refine", False, False),
     ("champ_refine", False, False),
     ("st37_refine", False, False),
     ("shock_alpha_refine", False, False),
@@ -375,9 +376,13 @@ _AXIS_PARALLEL_PROFILE_BY_MODE: dict[str, dict[str, str]] = {
         "risk_overlays": "scaled",
         "combo_fast": "scaled",
         "gate_matrix": "scaled",
+        "seeded_refine": "scaled",
     },
 }
 _COMBO_FULL_SEEDED_AXES: tuple[str, ...] = (
+    "seeded_refine",
+)
+_SEEDED_REFINEMENT_MEMBER_AXES: tuple[str, ...] = (
     "champ_refine",
     "overlay_family",
     "st37_refine",
@@ -3162,6 +3167,14 @@ def main() -> None:
                 "cfg_pairs": _decode_cfg_list(key="shortlist", note_key="base_note", seed_prefix=True),
                 "risk_variants": _decode_overrides_list(key="risk_variants"),
                 "shock_variants": _decode_overrides_list(key="shock_variants"),
+            }
+        if name == "combo_fast_stage2":
+            return {
+                "cfg_pairs": _decode_cfg_list(key="shortlist", note_key="base_note"),
+            }
+        if name == "combo_fast_stage3":
+            return {
+                "cfg_pairs": _decode_cfg_list(key="bases", note_key="base_note"),
             }
         raise SystemExit(f"Unknown worker payload schema: {schema_name!r}")
 
@@ -6582,9 +6595,19 @@ def main() -> None:
 
         rows: list[dict] = []
 
-        tested_total = 0
-        if jobs > 1 and total > 0:
-            payloads = _run_parallel_stage(
+        def _on_risk_overlay_row(_cfg: ConfigBundle, row: dict, _note: str) -> None:
+            rows.append(row)
+
+        tested_total = _run_stage_cfg_rows(
+            stage_label="risk_overlays",
+            total=total,
+            jobs_req=int(jobs),
+            bars=bars_sig,
+            report_every=50,
+            heartbeat_sec=50.0,
+            on_row=_on_risk_overlay_row,
+            serial_plan_builder=_iter_risk_overlay_plan,
+            parallel_payloads_builder=lambda: _run_parallel_stage(
                 axis_name="risk_overlays",
                 stage_label="risk_overlays",
                 total=total,
@@ -6607,30 +6630,13 @@ def main() -> None:
                 failure_label="risk_overlays worker",
                 missing_label="risk_overlays",
                 invalid_label="risk_overlays",
-            )
-
-            def _on_parallel_row(cfg: ConfigBundle, row: dict, note: str) -> None:
-                _record_milestone(cfg, row, note)
-                rows.append(row)
-
-            tested_total = _collect_stage_rows_from_payloads(
-                payloads=payloads,
-                default_note="risk_overlays",
-                on_row=_on_parallel_row,
-                dedupe_by_milestone_key=False,
-            )
-
+            ),
+            parallel_default_note="risk_overlays",
+            parallel_dedupe_by_milestone_key=False,
+            record_milestones=True,
+        )
+        if jobs > 1 and total > 0:
             run_calls_total += int(tested_total)
-        else:
-            _tested_serial, rows_serial = _run_stage_serial(
-                stage_label="risk_overlays",
-                plan=_iter_risk_overlay_plan(),
-                bars=bars_sig,
-                total=total,
-                report_every=50,
-                heartbeat_sec=50.0,
-            )
-            rows.extend(row for _cfg, row, _note in rows_serial)
 
         if base_row:
             rows.append(base_row)
@@ -7099,20 +7105,15 @@ def main() -> None:
 
         if args.combo_fast_stage2:
             payload_path = Path(str(args.combo_fast_stage2))
-            try:
-                payload = json.loads(payload_path.read_text())
-            except json.JSONDecodeError as exc:
-                raise SystemExit(f"Invalid combo_fast stage2 payload JSON: {payload_path}") from exc
-            raw_shortlist = payload.get("shortlist") if isinstance(payload, dict) else None
-            if not isinstance(raw_shortlist, list):
-                raise SystemExit(f"combo_fast stage2 payload missing 'shortlist' list: {payload_path}")
-
-            shortlist_local: list[tuple[ConfigBundle, str]] = []
-            for item in raw_shortlist:
-                decoded = _decode_cfg_payload(item, note_key="base_note")
-                if decoded is None:
-                    continue
-                shortlist_local.append(decoded)
+            payload_decoded = _load_worker_stage_payload(
+                schema_name="combo_fast_stage2",
+                payload_path=payload_path,
+            )
+            shortlist_local = [
+                (cfg, note)
+                for cfg, note in (payload_decoded.get("cfg_pairs") or [])
+                if isinstance(note, str)
+            ]
 
             stage2_plan_all = _build_stage2_plan(shortlist_local)
             _run_sharded_stage_worker(
@@ -7273,20 +7274,15 @@ def main() -> None:
 
         if args.combo_fast_stage3:
             payload_path = Path(str(args.combo_fast_stage3))
-            try:
-                payload = json.loads(payload_path.read_text())
-            except json.JSONDecodeError as exc:
-                raise SystemExit(f"Invalid combo_fast stage3 payload JSON: {payload_path}") from exc
-            raw_bases = payload.get("bases") if isinstance(payload, dict) else None
-            if not isinstance(raw_bases, list):
-                raise SystemExit(f"combo_fast stage3 payload missing 'bases' list: {payload_path}")
-
-            bases_local: list[tuple[ConfigBundle, str]] = []
-            for item in raw_bases:
-                decoded = _decode_cfg_payload(item, note_key="base_note")
-                if decoded is None:
-                    continue
-                bases_local.append(decoded)
+            payload_decoded = _load_worker_stage_payload(
+                schema_name="combo_fast_stage3",
+                payload_path=payload_path,
+            )
+            bases_local = [
+                (cfg, note)
+                for cfg, note in (payload_decoded.get("cfg_pairs") or [])
+                if isinstance(note, str)
+            ]
 
             stage3_plan_all = _build_stage3_plan(bases_local)
             _run_sharded_stage_worker(
@@ -7447,8 +7443,15 @@ def main() -> None:
         stage1_tested = 0
         report_every_stage1 = 200
         print(f"combo_fast sweep: stage1 total={stage1_total} (progress every {report_every_stage1})", flush=True)
-        if jobs > 1 and stage1_total > 0:
-            payloads = _run_parallel_stage(
+        stage1_tested = _run_stage_cfg_rows(
+            stage_label="combo_fast sweep: stage1",
+            total=stage1_total,
+            jobs_req=int(jobs),
+            bars=bars_sig,
+            report_every=report_every_stage1,
+            on_row=lambda cfg, row, note: stage1.append((cfg, row, note)),
+            serial_plan=stage1_plan_all,
+            parallel_payloads_builder=lambda: _run_parallel_stage(
                 axis_name="combo_fast",
                 stage_label="combo_fast stage1",
                 total=stage1_total,
@@ -7476,27 +7479,13 @@ def main() -> None:
                 failure_label="combo_fast stage1 worker",
                 missing_label="combo_fast stage1",
                 invalid_label="combo_fast stage1",
-            )
-
-            tested_total = _collect_stage_rows_from_payloads(
-                payloads=payloads,
-                default_note="combo_fast stage1",
-                on_row=lambda cfg, row, note: stage1.append((cfg, row, note)),
-                dedupe_by_milestone_key=True,
-            )
-
-            stage1_tested = int(tested_total)
-            run_calls_total += int(tested_total)
-        else:
-            stage1_tested, stage1_rows = _run_stage_serial(
-                stage_label="combo_fast sweep: stage1",
-                plan=stage1_plan_all,
-                bars=bars_sig,
-                total=stage1_total,
-                report_every=report_every_stage1,
-                record_milestones=False,
-            )
-            stage1.extend(stage1_rows)
+            ),
+            parallel_default_note="combo_fast stage1",
+            parallel_dedupe_by_milestone_key=True,
+            record_milestones=False,
+        )
+        if jobs > 1 and stage1_total > 0:
+            run_calls_total += int(stage1_tested)
 
         shortlist = _rank_cfg_rows(
             stage1,
@@ -7511,17 +7500,25 @@ def main() -> None:
         stage2_plan_all = _build_stage2_plan([(cfg, note) for cfg, _row, note in shortlist])
         stage2_total = len(stage2_plan_all)
         print(f"combo_fast sweep: stage2 total={stage2_total} (progress every {report_every})", flush=True)
-        tested = 0
-        if jobs > 1:
-            shortlist_payload: list[dict] = []
-            for base_cfg, _row, base_note in shortlist:
-                shortlist_payload.append(_encode_cfg_payload(base_cfg, note=base_note, note_key="base_note"))
-            payloads = _run_parallel_stage_with_payload(
+        tested = _run_stage_cfg_rows(
+            stage_label="combo_fast sweep: stage2",
+            total=stage2_total,
+            jobs_req=int(jobs),
+            bars=bars_sig,
+            report_every=report_every,
+            on_row=lambda cfg, row, note: stage2.append((cfg, row, note)),
+            serial_plan=stage2_plan_all,
+            parallel_payloads_builder=lambda: _run_parallel_stage_with_payload(
                 axis_name="combo_fast",
                 stage_label="combo_fast stage2",
                 total=stage2_total,
                 jobs=int(jobs),
-                payload={"shortlist": shortlist_payload},
+                payload={
+                    "shortlist": [
+                        _encode_cfg_payload(base_cfg, note=base_note, note_key="base_note")
+                        for base_cfg, _row, base_note in shortlist
+                    ],
+                },
                 payload_filename="stage2_payload.json",
                 temp_prefix="tradebot_combo_fast_",
                 worker_tmp_prefix="tradebot_combo_fast2_",
@@ -7546,30 +7543,13 @@ def main() -> None:
                 failure_label="combo_fast stage2 worker",
                 missing_label="combo_fast stage2",
                 invalid_label="combo_fast stage2",
-            )
-
-            def _on_stage2_row(cfg: ConfigBundle, row: dict, note: str) -> None:
-                _record_milestone(cfg, row, note)
-                stage2.append((cfg, row, note))
-
-            tested_total = _collect_stage_rows_from_payloads(
-                payloads=payloads,
-                default_note="combo_fast stage2",
-                on_row=_on_stage2_row,
-                dedupe_by_milestone_key=True,
-            )
-
-            tested = int(tested_total)
-            run_calls_total += int(tested_total)
-        else:
-            tested, stage2_rows = _run_stage_serial(
-                stage_label="combo_fast sweep: stage2",
-                plan=stage2_plan_all,
-                bars=bars_sig,
-                total=stage2_total,
-                report_every=report_every,
-            )
-            stage2.extend(stage2_rows)
+            ),
+            parallel_default_note="combo_fast stage2",
+            parallel_dedupe_by_milestone_key=True,
+            record_milestones=True,
+        )
+        if jobs > 1 and stage2_total > 0:
+            run_calls_total += int(tested)
 
         print(f"combo_fast sweep: stage2 tested={tested} kept={len(stage2)} (min_trades={run_min_trades})")
 
@@ -7586,16 +7566,25 @@ def main() -> None:
         print(f"combo_fast sweep: stage3 total={stage3_total} (progress every {report_every_stage3})", flush=True)
 
         stage3: list[dict] = []
-        if jobs > 1 and stage3_total > 0:
-            bases_payload: list[dict] = []
-            for base_cfg, _row, base_note in top_stage2:
-                bases_payload.append(_encode_cfg_payload(base_cfg, note=base_note, note_key="base_note"))
-            payloads = _run_parallel_stage_with_payload(
+        stage3_tested = _run_stage_cfg_rows(
+            stage_label="combo_fast sweep: stage3",
+            total=stage3_total,
+            jobs_req=int(jobs),
+            bars=bars_sig,
+            report_every=report_every_stage3,
+            on_row=lambda _cfg, row, _note: stage3.append(row),
+            serial_plan=stage3_plan_all,
+            parallel_payloads_builder=lambda: _run_parallel_stage_with_payload(
                 axis_name="combo_fast",
                 stage_label="combo_fast stage3",
                 total=stage3_total,
                 jobs=int(jobs),
-                payload={"bases": bases_payload},
+                payload={
+                    "bases": [
+                        _encode_cfg_payload(base_cfg, note=base_note, note_key="base_note")
+                        for base_cfg, _row, base_note in top_stage2
+                    ],
+                },
                 payload_filename="stage3_payload.json",
                 temp_prefix="tradebot_combo_fast3_",
                 worker_tmp_prefix="tradebot_combo_fast3_",
@@ -7620,31 +7609,13 @@ def main() -> None:
                 failure_label="combo_fast stage3 worker",
                 missing_label="combo_fast stage3",
                 invalid_label="combo_fast stage3",
-            )
-
-            def _on_stage3_row(cfg: ConfigBundle, row: dict, note: str) -> None:
-                _record_milestone(cfg, row, note)
-                stage3.append(row)
-
-            tested_total = _collect_stage_rows_from_payloads(
-                payloads=payloads,
-                default_note="combo_fast stage3",
-                on_row=_on_stage3_row,
-                dedupe_by_milestone_key=True,
-            )
-
-            stage3_tested = int(tested_total)
-            run_calls_total += int(tested_total)
-        else:
-            stage3_tested, stage3_rows = _run_stage_serial(
-                stage_label="combo_fast sweep: stage3",
-                plan=stage3_plan_all,
-                bars=bars_sig,
-                total=stage3_total,
-                report_every=report_every_stage3,
-            )
-            for _cfg, row, _note in stage3_rows:
-                stage3.append(row)
+            ),
+            parallel_default_note="combo_fast stage3",
+            parallel_dedupe_by_milestone_key=True,
+            record_milestones=True,
+        )
+        if jobs > 1 and stage3_total > 0:
+            run_calls_total += int(stage3_tested)
 
         _print_leaderboards(stage3, title="combo_fast sweep (multi-axis, constrained)", top_n=int(args.top))
 
@@ -7702,7 +7673,8 @@ def main() -> None:
                 axis_plan = list(_axis_mode_plan(mode="combo_full", include_seeded=True))
             else:
                 print(
-                    f"SKIP champ_refine/overlay_family/st37_refine: --seed-milestones not found ({seed_path})",
+                    f"SKIP seeded_refine bundle ({','.join(_SEEDED_REFINEMENT_MEMBER_AXES)}): "
+                    f"--seed-milestones not found ({seed_path})",
                     flush=True,
                 )
         axes = tuple(axis_name for axis_name, _profile, _emit in axis_plan)
@@ -8528,6 +8500,7 @@ def main() -> None:
         print("")
 
         rows: list[dict] = []
+        bars_sig = _bars_cached(signal_bar_size)
         report_every = 100
 
         gate_modes = ["detect", "surf", "block_longs"]
@@ -8677,6 +8650,7 @@ def main() -> None:
         print("")
 
         rows: list[dict] = []
+        bars_sig = _bars_cached(signal_bar_size)
         report_every = 100
 
         shock_variants: list[tuple[dict[str, object], str]] = []
@@ -8888,9 +8862,16 @@ def main() -> None:
             print(f"{axis_tag} worker done tested={tested} kept={len(records)} out={out_path}", flush=True)
             return
 
-        tested_total = 0
-        if jobs > 1 and total > 0:
-            payloads = _run_parallel_stage(
+        tested_total = _run_stage_cfg_rows(
+            stage_label=str(axis_tag),
+            total=total,
+            jobs_req=int(jobs),
+            bars=bars_sig,
+            report_every=max(1, int(report_every)),
+            heartbeat_sec=50.0,
+            on_row=lambda _cfg, row, _note: rows.append(row),
+            serial_plan=plan_all,
+            parallel_payloads_builder=lambda: _run_parallel_stage(
                 axis_name=str(axis_tag),
                 stage_label=str(axis_tag),
                 total=total,
@@ -8910,30 +8891,13 @@ def main() -> None:
                 failure_label=f"{axis_tag} worker",
                 missing_label=str(axis_tag),
                 invalid_label=str(axis_tag),
-            )
-
-            def _on_velocity_row(cfg: ConfigBundle, row: dict, note: str) -> None:
-                _record_milestone(cfg, row, note)
-                rows.append(row)
-
-            tested_total = _collect_stage_rows_from_payloads(
-                payloads=payloads,
-                default_note=str(axis_tag),
-                on_row=_on_velocity_row,
-                dedupe_by_milestone_key=False,
-            )
-
+            ),
+            parallel_default_note=str(axis_tag),
+            parallel_dedupe_by_milestone_key=False,
+            record_milestones=True,
+        )
+        if jobs > 1 and total > 0:
             run_calls_total += int(tested_total)
-        else:
-            tested_total, kept = _run_sweep(
-                plan=plan_all,
-                total=total,
-                progress_label=axis_tag,
-                report_every=max(1, int(report_every)),
-                heartbeat_sec=50.0,
-            )
-            for _cfg, row, _note, _meta in kept:
-                rows.append(row)
 
         _print_leaderboards(
             rows,
@@ -10286,6 +10250,22 @@ def main() -> None:
         _print_top(rows_only, title="st37_refine — Top by roi/dd%", top_n=int(args.top), sort_key=_score_roi_dd)
         _print_leaderboards(rows_only, title="st37_refine", top_n=int(args.top))
 
+    def _sweep_seeded_refine_bundle() -> None:
+        _resolve_seed_milestones_path(
+            seed_milestones=args.seed_milestones,
+            axis_tag="seeded_refine",
+        )
+        print("")
+        print("=== seeded_refine: unified seeded refinement bundle ===")
+        print(
+            f"- members={','.join(_SEEDED_REFINEMENT_MEMBER_AXES)}",
+            flush=True,
+        )
+        print("")
+        _sweep_champ_refine()
+        _sweep_overlay_family()
+        _sweep_st37_refine()
+
     def _sweep_gate_matrix() -> None:
         """Bounded cross-product of major gates (overnight-capable exhaustive discovery)."""
         nonlocal run_calls_total
@@ -10973,6 +10953,7 @@ def main() -> None:
         "loosen_atr": _sweep_loosen_atr,
         "tick": _sweep_tick,
         "gate_matrix": _sweep_gate_matrix,
+        "seeded_refine": _sweep_seeded_refine_bundle,
         "champ_refine": _sweep_champ_refine,
         "st37_refine": _sweep_st37_refine,
         "shock_alpha_refine": _sweep_shock_alpha_refine,

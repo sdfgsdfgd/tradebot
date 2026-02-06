@@ -3897,6 +3897,10 @@ def _can_use_fast_summary_path(
     flip_fill_mode = str(getattr(strat, "spot_flip_exit_fill_mode", "close") or "close").strip().lower()
     exit_on_signal_flip = bool(getattr(strat, "exit_on_signal_flip", False))
     flip_fill_ok = (not bool(exit_on_signal_flip)) or (flip_fill_mode == "next_open")
+    tick_gate_mode = str(getattr(strat, "tick_gate_mode", "off") or "off").strip().lower()
+    tick_gate_off = tick_gate_mode in ("off", "", "none", "false", "0")
+    # If tick gate is disabled, preloaded tick bars should not disqualify the fast path.
+    tick_ok = bool(tick_gate_off) and (tick_bars is None or isinstance(tick_bars, list))
     return (
         str(getattr(strat, "entry_signal", "ema") or "ema").strip().lower() == "ema"
         and entry_fill_mode == "next_open"
@@ -3907,7 +3911,7 @@ def _can_use_fast_summary_path(
         and bool(stop_ok)
         and getattr(strat, "spot_exit_time_et", None) is None
         and not bool(getattr(strat, "spot_close_eod", False))
-        and str(getattr(strat, "tick_gate_mode", "off") or "off").strip().lower() == "off"
+        and bool(tick_ok)
         and str(getattr(strat, "flip_exit_gate_mode", "off") or "off").strip().lower() == "off"
         and (
             (not bool(exit_on_signal_flip))
@@ -3915,7 +3919,6 @@ def _can_use_fast_summary_path(
         )
         and str(getattr(strat, "direction_source", "ema") or "ema").strip().lower() == "ema"
         and int(getattr(strat, "max_open_trades", 1) or 0) == 1
-        and not bool(tick_bars)
         and bool(signal_bars)
         and bool(exec_bars)
     )
