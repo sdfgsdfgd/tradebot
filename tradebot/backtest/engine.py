@@ -3757,15 +3757,16 @@ def _run_spot_backtest_exec_loop_summary(
     ).summary
 
 
-def _spot_hit_flip_exit(
+def _flip_exit_base_checks(
     cfg: ConfigBundle,
-    trade: SpotTrade,
-    bar: Bar,
+    *,
+    trade_dir: str | None,
+    entry_time: datetime,
+    bar_ts: datetime,
     signal: EmaDecisionSnapshot | None,
 ) -> bool:
     if cfg.strategy.direction_source != "ema":
         return False
-    trade_dir = "up" if trade.qty > 0 else "down" if trade.qty < 0 else None
     if trade_dir is None:
         return False
     if not flip_exit_hit(
@@ -3776,11 +3777,22 @@ def _spot_hit_flip_exit(
         ema_entry_mode_raw=cfg.strategy.ema_entry_mode,
     ):
         return False
-
     if cfg.strategy.flip_exit_min_hold_bars:
-        held = _bars_held(cfg.backtest.bar_size, trade.entry_time, bar.ts)
+        held = _bars_held(cfg.backtest.bar_size, entry_time, bar_ts)
         if held < cfg.strategy.flip_exit_min_hold_bars:
             return False
+    return True
+
+
+def _spot_hit_flip_exit(
+    cfg: ConfigBundle,
+    trade: SpotTrade,
+    bar: Bar,
+    signal: EmaDecisionSnapshot | None,
+) -> bool:
+    trade_dir = "up" if trade.qty > 0 else "down" if trade.qty < 0 else None
+    if not _flip_exit_base_checks(cfg, trade_dir=trade_dir, entry_time=trade.entry_time, bar_ts=bar.ts, signal=signal):
+        return False
 
     if cfg.strategy.flip_exit_only_if_profit:
         pnl = (price := bar.close) - trade.entry_price
@@ -4012,24 +4024,9 @@ def _hit_flip_exit(
     current_value: float,
     signal: EmaDecisionSnapshot | None,
 ) -> bool:
-    if cfg.strategy.direction_source != "ema":
-        return False
     trade_dir = _direction_from_legs(trade.legs)
-    if trade_dir is None:
+    if not _flip_exit_base_checks(cfg, trade_dir=trade_dir, entry_time=trade.entry_time, bar_ts=bar.ts, signal=signal):
         return False
-    if not flip_exit_hit(
-        exit_on_signal_flip=bool(cfg.strategy.exit_on_signal_flip),
-        open_dir=trade_dir,
-        signal=signal,
-        flip_exit_mode_raw=cfg.strategy.flip_exit_mode,
-        ema_entry_mode_raw=cfg.strategy.ema_entry_mode,
-    ):
-        return False
-
-    if cfg.strategy.flip_exit_min_hold_bars:
-        held = _bars_held(cfg.backtest.bar_size, trade.entry_time, bar.ts)
-        if held < cfg.strategy.flip_exit_min_hold_bars:
-            return False
 
     if cfg.strategy.flip_exit_only_if_profit:
         if (trade.entry_price - current_value) <= 0:

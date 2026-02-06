@@ -69,6 +69,33 @@ def _session_flags(now: datetime) -> tuple[bool, bool]:
 
 # region Client
 class IBKRClient:
+    async def _connect_ib(self, ib: IB, *, client_id: int) -> None:
+        if hasattr(ib, "connectAsync"):
+            await ib.connectAsync(
+                self._config.host,
+                self._config.port,
+                clientId=int(client_id),
+                timeout=5,
+            )
+            return
+        await asyncio.to_thread(
+            ib.connect,
+            self._config.host,
+            self._config.port,
+            int(client_id),
+            5,
+        )
+
+    @staticmethod
+    def _safe_disconnect(ib: IB) -> None:
+        if not ib.isConnected():
+            return
+        try:
+            ib.disconnect()
+        except OSError:
+            # Avoid noisy shutdown if the socket is already closed.
+            pass
+
     def __init__(self, config: IBKRConfig) -> None:
         self._config = config
         self._ib = IB()
@@ -130,21 +157,7 @@ class IBKRClient:
         async with self._connect_lock:
             if self._ib.isConnected():
                 return
-            if hasattr(self._ib, "connectAsync"):
-                await self._ib.connectAsync(
-                    self._config.host,
-                    self._config.port,
-                    clientId=self._config.client_id,
-                    timeout=5,
-                )
-            else:
-                await asyncio.to_thread(
-                    self._ib.connect,
-                    self._config.host,
-                    self._config.port,
-                    self._config.client_id,
-                    5,
-                )
+            await self._connect_ib(self._ib, client_id=int(self._config.client_id))
 
     async def connect_proxy(self) -> None:
         self._shutdown = False
@@ -153,37 +166,14 @@ class IBKRClient:
         async with self._connect_proxy_lock:
             if self._ib_proxy.isConnected():
                 return
-            if hasattr(self._ib_proxy, "connectAsync"):
-                await self._ib_proxy.connectAsync(
-                    self._config.host,
-                    self._config.port,
-                    clientId=self._config.proxy_client_id,
-                    timeout=5,
-                )
-            else:
-                await asyncio.to_thread(
-                    self._ib_proxy.connect,
-                    self._config.host,
-                    self._config.port,
-                    self._config.proxy_client_id,
-                    5,
-                )
+            await self._connect_ib(self._ib_proxy, client_id=int(self._config.proxy_client_id))
 
     async def disconnect(self) -> None:
         self._shutdown = True
         self._stop_reconnect_loop()
         self._reconnect_requested = False
-        if self._ib.isConnected():
-            try:
-                self._ib.disconnect()
-            except OSError:
-                # Avoid noisy shutdown if the socket is already closed.
-                pass
-        if self._ib_proxy.isConnected():
-            try:
-                self._ib_proxy.disconnect()
-            except OSError:
-                pass
+        self._safe_disconnect(self._ib)
+        self._safe_disconnect(self._ib_proxy)
         self._account_updates_started = False
         self._index_tickers = {}
         self._index_task = None
