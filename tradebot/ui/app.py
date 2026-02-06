@@ -13,7 +13,7 @@ from textual.widgets import DataTable, Footer, Header, Static
 
 from ..client import IBKRClient
 from ..config import load_config
-from .bot import BotScreen
+from .bot_runtime import BotRuntime
 from .common import (
     _INDEX_LABELS,
     _INDEX_ORDER,
@@ -138,7 +138,7 @@ class PositionsApp(App):
         super().__init__()
         self._config = load_config()
         self._client = IBKRClient(self._config)
-        self._bot_screen: BotScreen | None = None
+        self._bot_runtime = BotRuntime(self._client, self._config.detail_refresh_sec)
         self._snapshot = PortfolioSnapshot()
         self._refresh_lock = asyncio.Lock()
         self._dirty = False
@@ -186,6 +186,7 @@ class PositionsApp(App):
         self._setup_columns()
         self._table.cursor_type = "row"
         self._table.focus()
+        self._bot_runtime.install(self)
         self._client.set_update_callback(self._mark_dirty)
         await self.refresh_positions()
 
@@ -233,12 +234,7 @@ class PositionsApp(App):
             )
 
     def action_toggle_bot(self) -> None:
-        if isinstance(self.screen, BotScreen):
-            self.pop_screen()
-            return
-        if self._bot_screen is None:
-            self._bot_screen = BotScreen(self._client, self._config.detail_refresh_sec)
-        self.push_screen(self._bot_screen)
+        self._bot_runtime.toggle(self)
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         item = self._row_item_by_key.get(event.row_key.value)

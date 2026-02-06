@@ -4,17 +4,14 @@ from __future__ import annotations
 
 import asyncio
 import copy
-import csv
 import json
 import math
 import re
-import threading
-from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from ib_insync import Bag, ComboLeg, Contract, Option, PortfolioItem, Stock, Ticker, Trade
+from ib_insync import Contract, PortfolioItem, Stock
 from rich.text import Text
 from textual import events
 from textual.app import ComposeResult
@@ -24,12 +21,10 @@ from textual.widgets import DataTable, Footer, Header, Static
 
 from ..client import IBKRClient
 from ..engine import (
-    EmaDecisionSnapshot,
-    RiskOverlaySnapshot,
-    cooldown_ok_by_time,
     flip_exit_hit,
-    parse_time_hhmm,
-    signal_filters_ok,
+    normalize_spot_entry_signal,
+    resolve_spot_regime2_spec,
+    resolve_spot_regime_spec,
 )
 from ..signals import (
     direction_from_action_right,
@@ -37,10 +32,9 @@ from ..signals import (
     flip_exit_mode,
     parse_bar_size,
 )
+from ..utils.date_utils import business_days_until
 from .common import (
     _SECTION_TYPES,
-    _EXEC_LADDER_TIMEOUT_SEC,
-    _exec_ladder_mode,
     _fmt_quote,
     _limit_price_for_mode,
     _market_session_label,
@@ -58,136 +52,21 @@ from .common import (
     _ticker_price,
     _trade_sort_key,
 )
-
-# region Bot Journal
-_BOT_JOURNAL_FIELDS = (
-    "ts_et",
-    "ts_utc",
-    "event",
-    "instance_id",
-    "group",
-    "symbol",
-    "instrument",
-    "action",
-    "qty",
-    "limit_price",
-    "order_id",
-    "status",
-    "reason",
-    "data_json",
+from .bot_journal import BotJournal
+from .bot_models import (
+    _BotConfigField,
+    _BotConfigResult,
+    _BotInstance,
+    _BotOrder,
+    _BotPreset,
+    _PresetHeader,
+    _SignalSnapshot,
 )
-# endregion
+from .bot_engine_runtime import BotEngineRuntimeMixin
+from .bot_order_builder import BotOrderBuilderMixin
+from .bot_signal_runtime import BotSignalRuntimeMixin
 
 # region Bot UI
-@dataclass(frozen=True)
-class _BotPreset:
-    group: str
-    entry: dict
-
-
-@dataclass(frozen=True)
-class _PresetHeader:
-    node_id: str
-    depth: int
-    label: str
-
-
-@dataclass
-class _BotInstance:
-    instance_id: int
-    group: str
-    symbol: str
-    strategy: dict
-    filters: dict | None
-    metrics: dict | None = None
-    state: str = "RUNNING"
-    last_order_date: date | None = None
-    open_direction: str | None = None
-    last_entry_bar_ts: datetime | None = None
-    last_exit_bar_ts: datetime | None = None
-    entries_today: int = 0
-    entries_today_date: date | None = None
-    error: str | None = None
-    spot_profit_target_price: float | None = None
-    spot_stop_loss_price: float | None = None
-    touched_conids: set[int] = field(default_factory=set)
-    last_signal_fingerprint: tuple | None = None
-    last_cross_bar_ts: datetime | None = None
-    last_gate_status: str | None = None
-
-
-@dataclass(frozen=True)
-class _BotConfigResult:
-    mode: str  # "create" or "update"
-    instance_id: int | None
-    group: str
-    symbol: str
-    strategy: dict
-    filters: dict | None
-
-
-@dataclass(frozen=True)
-class _BotConfigField:
-    label: str
-    kind: str  # "int" | "float" | "bool" | "enum" | "text"
-    path: str
-    options: tuple[str, ...] = ()
-
-
-@dataclass
-class _BotLegOrder:
-    contract: Contract
-    action: str  # BUY/SELL
-    ratio: int
-
-
-@dataclass
-class _BotOrder:
-    instance_id: int
-    preset: _BotPreset | None
-    underlying: Contract
-    order_contract: Contract
-    legs: list[_BotLegOrder]
-    action: str  # BUY/SELL (order action for order_contract)
-    quantity: int  # combo quantity (BAG) or contracts (single-leg)
-    limit_price: float
-    created_at: datetime
-    bid: float | None = None
-    ask: float | None = None
-    last: float | None = None
-    status: str = "STAGED"
-    order_id: int | None = None
-    trade: Trade | None = None
-    error: str | None = None
-    intent: str | None = None
-    direction: str | None = None
-    reason: str | None = None
-    signal_bar_ts: datetime | None = None
-    journal: dict | None = None
-    sent_at: float | None = None  # asyncio loop time (monotonic)
-    exec_mode: str | None = None  # OPTIMISTIC/MID/AGGRESSIVE/CROSS
-
-
-@dataclass(frozen=True)
-class _SignalSnapshot:
-    bar_ts: datetime
-    close: float
-    signal: EmaDecisionSnapshot
-    bars_in_day: int
-    rv: float | None
-    volume: float | None = None
-    volume_ema: float | None = None
-    volume_ema_ready: bool = True
-    shock: bool | None = None
-    shock_dir: str | None = None
-    shock_atr_pct: float | None = None
-    risk: RiskOverlaySnapshot | None = None
-    atr: float | None = None
-    or_high: float | None = None
-    or_low: float | None = None
-    or_ready: bool = False
-
-
 class BotConfigScreen(Screen[_BotConfigResult | None]):
     BINDINGS = [
         ("escape", "cancel", "Cancel"),
@@ -297,7 +176,7 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
                 "Signal bar size",
                 "enum",
                 "signal_bar_size",
-                options=("1 min", "2 mins", "5 mins", "15 mins", "30 mins", "1 hour", "4 hours", "1 day"),
+                options=("1 min", "2 mins", "5 mins", "10 mins", "15 mins", "30 mins", "1 hour", "4 hours", "1 day"),
             ),
             _BotConfigField("Signal use RTH", "bool", "signal_use_rth"),
             _BotConfigField("Entry days", "text", "entry_days"),
@@ -316,7 +195,7 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
                 "Regime bar size",
                 "enum",
                 "regime_bar_size",
-                options=("", "1 min", "2 mins", "5 mins", "15 mins", "30 mins", "1 hour", "4 hours", "1 day"),
+                options=("", "1 min", "2 mins", "5 mins", "10 mins", "15 mins", "30 mins", "1 hour", "4 hours", "1 day"),
             ),
             _BotConfigField("Supertrend ATR period", "int", "supertrend_atr_period"),
             _BotConfigField("Supertrend multiplier", "float", "supertrend_multiplier"),
@@ -343,7 +222,7 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
                 "Regime2 bar size",
                 "enum",
                 "regime2_bar_size",
-                options=("", "1 min", "2 mins", "5 mins", "15 mins", "30 mins", "1 hour", "4 hours", "1 day"),
+                options=("", "1 min", "2 mins", "5 mins", "10 mins", "15 mins", "30 mins", "1 hour", "4 hours", "1 day"),
             ),
             _BotConfigField("Regime2 Supertrend ATR period", "int", "regime2_supertrend_atr_period"),
             _BotConfigField("Regime2 Supertrend multiplier", "float", "regime2_supertrend_multiplier"),
@@ -648,7 +527,7 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
         self.dismiss(None)
 
 
-class BotScreen(Screen):
+class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMixin, Screen):
     BINDINGS = [
         ("escape", "app.pop_screen", "Back"),
         ("q", "app.pop_screen", "Back"),
@@ -710,8 +589,7 @@ class BotScreen(Screen):
         self._refresh_lock = asyncio.Lock()
         self._scope_all = False
         self._last_chase_ts = 0.0
-        self._journal_lock = threading.Lock()
-        self._journal_path = self._init_journal_path()
+        self._journal = BotJournal(Path(__file__).resolve().parent / "out")
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -759,16 +637,6 @@ class BotScreen(Screen):
         self._tracked_conids.clear()
         self._journal_write(event="SHUTDOWN", reason=None, data=None)
 
-    # region Journal
-    def _init_journal_path(self) -> Path | None:
-        out_dir = Path(__file__).resolve().parent / "out"
-        try:
-            out_dir.mkdir(parents=True, exist_ok=True)
-        except Exception:
-            return None
-        started_at = datetime.now(tz=ZoneInfo("America/New_York"))
-        return out_dir / f"bot_journal_{started_at:%Y%m%d_%H%M%S_ET}.csv"
-
     def _journal_write(
         self,
         *,
@@ -778,123 +646,22 @@ class BotScreen(Screen):
         reason: str | None,
         data: dict | None,
     ) -> None:
-        now_et = datetime.now(tz=ZoneInfo("America/New_York"))
-        now_utc = datetime.now(tz=timezone.utc)
-
-        row: dict[str, object] = {k: "" for k in _BOT_JOURNAL_FIELDS}
-        row["ts_et"] = now_et.isoformat()
-        row["ts_utc"] = now_utc.isoformat()
-        row["event"] = str(event or "")
-        row["reason"] = str(reason) if reason else ""
-
-        if instance is not None:
-            row["instance_id"] = str(int(instance.instance_id))
-            row["group"] = str(instance.group or "")
-            row["symbol"] = str(instance.symbol or "")
-            try:
-                row["instrument"] = str(self._strategy_instrument(instance.strategy or {}))
-            except Exception:
-                row["instrument"] = ""
-        if order is not None:
-            row["instance_id"] = str(int(order.instance_id))
-            row["action"] = str(order.action or "")
-            row["qty"] = str(int(order.quantity or 0))
-            row["limit_price"] = f"{float(order.limit_price):.6f}"
-            row["status"] = str(order.status or "")
-            row["order_id"] = str(int(order.order_id)) if order.order_id else ""
-
-        extra: dict[str, object] = {}
-        if instance is not None:
-            extra["strategy"] = instance.strategy
-            extra["filters"] = instance.filters
-        if order is not None:
-            extra["intent"] = order.intent
-            extra["direction"] = order.direction
-            extra["signal_bar_ts"] = order.signal_bar_ts.isoformat() if order.signal_bar_ts else None
-            extra["order_journal"] = order.journal
-            extra["error"] = order.error
-            extra["exec_mode"] = order.exec_mode
-        if isinstance(data, dict) and data:
-            extra.update(data)
-        row["data_json"] = json.dumps(extra, sort_keys=True, default=str) if extra else ""
-
-        # In-app log tail (independent of CSV path availability).
         try:
-            detail = data if isinstance(data, dict) else {}
-            msg = ""
-            if event == "SIGNAL" and isinstance(detail.get("signal"), dict):
-                sig = detail.get("signal") or {}
-                state = str(sig.get("state") or "")
-                entry_dir = str(sig.get("entry_dir") or "")
-                regime_dir = str(sig.get("regime_dir") or "")
-                cross_up = bool(sig.get("cross_up"))
-                cross_down = bool(sig.get("cross_down"))
-                parts = [f"state={state}", f"entry={entry_dir}"]
-                if cross_up:
-                    parts.append("cross=up")
-                elif cross_down:
-                    parts.append("cross=down")
-                if regime_dir:
-                    parts.append(f"regime={regime_dir}")
-                msg = " ".join(p for p in parts if p and not p.endswith("="))
-            elif event == "CROSS":
-                close = detail.get("close")
-                try:
-                    close_f = float(close) if close is not None else None
-                except (TypeError, ValueError):
-                    close_f = None
-                if close_f is not None:
-                    msg = f"close={close_f:.2f}"
-            elif event == "GATE":
-                parts: list[str] = []
-                if detail.get("direction") in ("up", "down"):
-                    parts.append(f"dir={detail.get('direction')}")
-                mode = detail.get("mode")
-                if mode:
-                    parts.append(f"mode={mode}")
-                why = detail.get("reason")
-                if why and isinstance(why, str) and why:
-                    parts.append(f"why={why}")
-                msg = " ".join(parts)
-            elif event.startswith("ORDER") or event in ("SENDING", "SENT", "CANCEL_SENT", "CANCEL_ERROR"):
-                msg = str(extra.get("error") or "")
-
-            self._log_events.append(
-                {
-                    "ts_et": now_et,
-                    "event": str(event or ""),
-                    "reason": str(reason or ""),
-                    "instance_id": str(row.get("instance_id") or ""),
-                    "symbol": str(row.get("symbol") or ""),
-                    "msg": msg,
-                }
+            entry = self._journal.write(
+                event=event,
+                instance=instance,
+                order=order,
+                reason=reason,
+                data=data,
+                strategy_instrument=self._strategy_instrument,
             )
-            if len(self._log_events) > 500:
-                self._log_events = self._log_events[-500:]
-            if hasattr(self, "_logs_table"):
-                self._refresh_logs_table()
-        except Exception:
-            pass
-
-        path = self._journal_path
-        if path is None:
-            return
-        try:
-            try:
-                is_new = (not path.exists()) or path.stat().st_size == 0
-            except Exception:
-                is_new = True
-            with self._journal_lock:
-                path.parent.mkdir(parents=True, exist_ok=True)
-                with path.open("a", newline="") as handle:
-                    writer = csv.DictWriter(handle, fieldnames=_BOT_JOURNAL_FIELDS)
-                    if is_new:
-                        writer.writeheader()
-                    writer.writerow(row)
         except Exception:
             return
-
-    # endregion
+        self._log_events.append(entry)
+        if len(self._log_events) > 500:
+            self._log_events = self._log_events[-500:]
+        if hasattr(self, "_logs_table"):
+            self._refresh_logs_table()
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         # DataTable captures Enter and emits RowSelected; hook it so Enter arms/sends.
@@ -2124,662 +1891,6 @@ class BotScreen(Screen):
     def _render_status(self) -> None:
         self._render_bot()
 
-    async def _on_refresh_tick(self) -> None:
-        if self._refresh_lock.locked():
-            return
-        async with self._refresh_lock:
-            await self._refresh_positions()
-            await self._auto_order_tick()
-            await self._chase_orders_tick()
-            self._auto_send_tick()
-            self._render_status()
-
-    async def _auto_order_tick(self) -> None:
-        if self._order_task and not self._order_task.done():
-            return
-        now_et = datetime.now(tz=ZoneInfo("America/New_York"))
-
-        for instance in self._instances:
-            if instance.state != "RUNNING":
-                continue
-
-            def _gate(status: str, data: dict | None = None) -> None:
-                if instance.last_gate_status == status:
-                    return
-                instance.last_gate_status = status
-                self._journal_write(event="GATE", instance=instance, reason=status, data=data)
-
-            if not self._can_order_now(instance):
-                _gate("BLOCKED_WEEKDAY_NOW", {"now_weekday": int(now_et.weekday())})
-                continue
-
-            pending = any(
-                o.status in ("STAGED", "WORKING", "CANCELING") and o.instance_id == instance.instance_id
-                for o in self._orders
-            )
-            if pending:
-                _gate("PENDING_ORDER", None)
-                continue
-
-            symbol = str(
-                instance.symbol or (self._payload.get("symbol", "SLV") if self._payload else "SLV")
-            ).strip().upper()
-
-            entry_signal = str(instance.strategy.get("entry_signal") or "ema").strip().lower()
-            if entry_signal not in ("ema", "orb"):
-                entry_signal = "ema"
-            ema_preset = instance.strategy.get("ema_preset")
-            if entry_signal == "ema" and not ema_preset:
-                raise RuntimeError(
-                    "FATAL: missing required strategy field `ema_preset` "
-                    f"(instance_id={instance.instance_id} group={instance.group!r} symbol={symbol!r})"
-                )
-
-            signal_contract = await self._signal_contract(instance, symbol)
-            if signal_contract is None:
-                _gate("NO_SIGNAL_CONTRACT", {"symbol": symbol})
-                continue
-
-            snap = await self._signal_snapshot_for_contract(
-                contract=signal_contract,
-                ema_preset_raw=str(ema_preset) if ema_preset else None,
-                bar_size=self._signal_bar_size(instance),
-                use_rth=self._signal_use_rth(instance),
-                entry_signal_raw=entry_signal,
-                entry_mode_raw=instance.strategy.get("ema_entry_mode"),
-                entry_confirm_bars=instance.strategy.get("entry_confirm_bars", 0),
-                orb_window_mins_raw=instance.strategy.get("orb_window_mins"),
-                orb_open_time_et_raw=instance.strategy.get("orb_open_time_et"),
-                regime_ema_preset_raw=instance.strategy.get("regime_ema_preset"),
-                regime_bar_size_raw=instance.strategy.get("regime_bar_size"),
-                regime_mode_raw=instance.strategy.get("regime_mode"),
-                supertrend_atr_period_raw=instance.strategy.get("supertrend_atr_period"),
-                supertrend_multiplier_raw=instance.strategy.get("supertrend_multiplier"),
-                supertrend_source_raw=instance.strategy.get("supertrend_source"),
-                regime2_ema_preset_raw=instance.strategy.get("regime2_ema_preset"),
-                regime2_bar_size_raw=instance.strategy.get("regime2_bar_size"),
-                regime2_mode_raw=instance.strategy.get("regime2_mode"),
-                regime2_supertrend_atr_period_raw=instance.strategy.get("regime2_supertrend_atr_period"),
-                regime2_supertrend_multiplier_raw=instance.strategy.get("regime2_supertrend_multiplier"),
-                regime2_supertrend_source_raw=instance.strategy.get("regime2_supertrend_source"),
-                filters=instance.filters if isinstance(instance.filters, dict) else None,
-                spot_exit_mode_raw=instance.strategy.get("spot_exit_mode"),
-                spot_atr_period_raw=instance.strategy.get("spot_atr_period"),
-            )
-            if snap is None:
-                _gate(
-                    "NO_SIGNAL_SNAPSHOT",
-                    {
-                        "symbol": symbol,
-                        "bar_size": self._signal_bar_size(instance),
-                        "use_rth": bool(self._signal_use_rth(instance)),
-                    },
-                )
-                continue
-
-            risk = snap.risk
-            signal_fingerprint = (
-                str(snap.signal.state or ""),
-                str(snap.signal.entry_dir or ""),
-                str(snap.signal.regime_dir or ""),
-                bool(snap.signal.regime_ready),
-                bool(snap.or_ready),
-                float(snap.or_high) if snap.or_high is not None else None,
-                float(snap.or_low) if snap.or_low is not None else None,
-                bool(snap.shock) if snap.shock is not None else None,
-                str(snap.shock_dir or ""),
-                bool(getattr(risk, "riskoff", False)) if risk is not None else None,
-                bool(getattr(risk, "riskpanic", False)) if risk is not None else None,
-                bool(getattr(risk, "riskpop", False)) if risk is not None else None,
-            )
-            if instance.last_signal_fingerprint != signal_fingerprint:
-                instance.last_signal_fingerprint = signal_fingerprint
-                self._journal_write(
-                    event="SIGNAL",
-                    instance=instance,
-                    order=None,
-                    reason=None,
-                    data={
-                        "symbol": symbol,
-                        "bar_ts": snap.bar_ts.isoformat(),
-                        "close": float(snap.close),
-                        "signal": {
-                            "state": snap.signal.state,
-                            "entry_dir": snap.signal.entry_dir,
-                            "cross_up": bool(snap.signal.cross_up),
-                            "cross_down": bool(snap.signal.cross_down),
-                            "ema_ready": bool(snap.signal.ema_ready),
-                            "regime_dir": snap.signal.regime_dir,
-                            "regime_ready": bool(snap.signal.regime_ready),
-                        },
-                        "orb": {
-                            "ready": bool(snap.or_ready),
-                            "high": float(snap.or_high) if snap.or_high is not None else None,
-                            "low": float(snap.or_low) if snap.or_low is not None else None,
-                        },
-                        "shock": {
-                            "shock": snap.shock,
-                            "dir": snap.shock_dir,
-                            "atr_pct": float(snap.shock_atr_pct)
-                            if snap.shock_atr_pct is not None
-                            else None,
-                        },
-                        "risk": {
-                            "riskoff": bool(getattr(risk, "riskoff", False)) if risk is not None else None,
-                            "riskpanic": bool(getattr(risk, "riskpanic", False)) if risk is not None else None,
-                            "riskpop": bool(getattr(risk, "riskpop", False)) if risk is not None else None,
-                        },
-                        "rv": float(snap.rv) if snap.rv is not None else None,
-                        "volume": float(snap.volume) if snap.volume is not None else None,
-                        "volume_ema": float(snap.volume_ema) if snap.volume_ema is not None else None,
-                        "volume_ema_ready": bool(snap.volume_ema_ready),
-                    },
-                )
-
-            if (
-                bool(snap.signal.cross_up) or bool(snap.signal.cross_down)
-            ) and instance.last_cross_bar_ts != snap.bar_ts:
-                instance.last_cross_bar_ts = snap.bar_ts
-                self._journal_write(
-                    event="CROSS",
-                    instance=instance,
-                    order=None,
-                    reason="up" if bool(snap.signal.cross_up) else "down",
-                    data={
-                        "symbol": symbol,
-                        "bar_ts": snap.bar_ts.isoformat(),
-                        "close": float(snap.close),
-                        "state": snap.signal.state,
-                        "entry_dir": snap.signal.entry_dir,
-                    },
-                )
-
-            entry_days = instance.strategy.get("entry_days", [])
-            if entry_days:
-                allowed_days = {_weekday_num(day) for day in entry_days}
-            else:
-                allowed_days = {0, 1, 2, 3, 4}
-            if snap.bar_ts.weekday() not in allowed_days:
-                _gate(
-                    "BLOCKED_ENTRY_DAY",
-                    {
-                        "signal_weekday": int(snap.bar_ts.weekday()),
-                        "allowed_days": sorted(int(d) for d in allowed_days),
-                    },
-                )
-                continue
-
-            cooldown_bars = 0
-            if isinstance(instance.filters, dict):
-                raw = instance.filters.get("cooldown_bars", 0)
-                try:
-                    cooldown_bars = int(raw or 0)
-                except (TypeError, ValueError):
-                    cooldown_bars = 0
-            cooldown_ok = cooldown_ok_by_time(
-                current_bar_ts=snap.bar_ts,
-                last_entry_bar_ts=instance.last_entry_bar_ts,
-                bar_size=self._signal_bar_size(instance),
-                cooldown_bars=cooldown_bars,
-            )
-            if not signal_filters_ok(
-                instance.filters,
-                bar_ts=snap.bar_ts,
-                bars_in_day=snap.bars_in_day,
-                close=float(snap.close),
-                volume=snap.volume,
-                volume_ema=snap.volume_ema,
-                volume_ema_ready=snap.volume_ema_ready,
-                rv=snap.rv,
-                signal=snap.signal,
-                cooldown_ok=cooldown_ok,
-                shock=snap.shock,
-                shock_dir=snap.shock_dir,
-            ):
-                _gate(
-                    "BLOCKED_FILTERS",
-                    {
-                        "symbol": symbol,
-                        "bar_ts": snap.bar_ts.isoformat(),
-                        "cooldown_ok": bool(cooldown_ok),
-                        "rv": float(snap.rv) if snap.rv is not None else None,
-                        "volume": float(snap.volume) if snap.volume is not None else None,
-                        "volume_ema": float(snap.volume_ema) if snap.volume_ema is not None else None,
-                        "volume_ema_ready": bool(snap.volume_ema_ready),
-                        "shock": snap.shock,
-                        "shock_dir": snap.shock_dir,
-                        "entry_dir": snap.signal.entry_dir,
-                    },
-                )
-                continue
-
-            instrument = self._strategy_instrument(instance.strategy)
-            open_items: list[PortfolioItem] = []
-            open_dir: str | None = None
-            if instrument == "spot":
-                open_item = self._spot_open_position(
-                    symbol=symbol,
-                    sec_type=str(getattr(signal_contract, "secType", "") or "STK"),
-                    con_id=int(getattr(signal_contract, "conId", 0) or 0),
-                )
-                if open_item is not None:
-                    open_items = [open_item]
-                    try:
-                        pos = float(getattr(open_item, "position", 0.0) or 0.0)
-                    except (TypeError, ValueError):
-                        pos = 0.0
-                    open_dir = "up" if pos > 0 else "down" if pos < 0 else None
-            else:
-                open_items = self._options_open_positions(instance)
-                open_dir = instance.open_direction or self._open_direction_from_positions(open_items)
-
-            if not open_items and instance.open_direction is not None:
-                instance.open_direction = None
-                instance.spot_profit_target_price = None
-                instance.spot_stop_loss_price = None
-
-            if open_items:
-                if instance.last_exit_bar_ts is not None and instance.last_exit_bar_ts == snap.bar_ts:
-                    _gate(
-                        "BLOCKED_EXIT_SAME_BAR",
-                        {
-                            "bar_ts": snap.bar_ts.isoformat(),
-                            "direction": open_dir,
-                            "items": len(open_items),
-                        },
-                    )
-                    continue
-                _gate("HOLDING", {"direction": open_dir, "items": len(open_items)})
-
-                if instrument == "spot":
-                    open_item = open_items[0]
-                    try:
-                        pos = float(getattr(open_item, "position", 0.0) or 0.0)
-                    except (TypeError, ValueError):
-                        pos = 0.0
-                    avg_cost = _safe_num(getattr(open_item, "averageCost", None))
-                    market_price = _safe_num(getattr(open_item, "marketPrice", None))
-                    if market_price is None:
-                        ticker = await self._client.ensure_ticker(open_item.contract, owner="bot")
-                        market_price = _ticker_price(ticker)
-
-                    target_price = instance.spot_profit_target_price
-                    stop_price = instance.spot_stop_loss_price
-                    if (
-                        pos
-                        and market_price is not None
-                        and market_price > 0
-                        and (target_price is not None or stop_price is not None)
-                    ):
-                        try:
-                            mp = float(market_price)
-                        except (TypeError, ValueError):
-                            mp = None
-                        if mp is not None:
-                            if target_price is not None:
-                                try:
-                                    target = float(target_price)
-                                except (TypeError, ValueError):
-                                    target = None
-                                if target is not None and target > 0:
-                                    if (pos > 0 and mp >= target) or (pos < 0 and mp <= target):
-                                        self._queue_order(
-                                            instance,
-                                            intent="exit",
-                                            direction=open_dir,
-                                            signal_bar_ts=snap.bar_ts,
-                                        )
-                                        _gate("TRIGGER_EXIT", {"mode": "spot", "reason": "profit_target"})
-                                        break
-                            if stop_price is not None:
-                                try:
-                                    stop = float(stop_price)
-                                except (TypeError, ValueError):
-                                    stop = None
-                                if stop is not None and stop > 0:
-                                    if (pos > 0 and mp <= stop) or (pos < 0 and mp >= stop):
-                                        self._queue_order(
-                                            instance,
-                                            intent="exit",
-                                            direction=open_dir,
-                                            signal_bar_ts=snap.bar_ts,
-                                        )
-                                        _gate("TRIGGER_EXIT", {"mode": "spot", "reason": "stop_loss"})
-                                        break
-                    move = None
-                    if (
-                        target_price is None
-                        and stop_price is None
-                        and avg_cost is not None
-                        and avg_cost > 0
-                        and market_price is not None
-                        and market_price > 0
-                        and pos
-                    ):
-                        move = (market_price - avg_cost) / avg_cost
-                        if pos < 0:
-                            move = -move
-
-                    try:
-                        pt = (
-                            float(instance.strategy.get("spot_profit_target_pct"))
-                            if instance.strategy.get("spot_profit_target_pct") is not None
-                            else None
-                        )
-                    except (TypeError, ValueError):
-                        pt = None
-                    try:
-                        sl = (
-                            float(instance.strategy.get("spot_stop_loss_pct"))
-                            if instance.strategy.get("spot_stop_loss_pct") is not None
-                            else None
-                        )
-                    except (TypeError, ValueError):
-                        sl = None
-
-                    # Dynamic shock SL/PT: mirror backtest semantics for pct-based exits.
-                    if bool(snap.shock) and isinstance(instance.filters, dict):
-                        try:
-                            sl_mult = float(instance.filters.get("shock_stop_loss_pct_mult", 1.0) or 1.0)
-                        except (TypeError, ValueError):
-                            sl_mult = 1.0
-                        try:
-                            pt_mult = float(instance.filters.get("shock_profit_target_pct_mult", 1.0) or 1.0)
-                        except (TypeError, ValueError):
-                            pt_mult = 1.0
-                        if sl_mult <= 0:
-                            sl_mult = 1.0
-                        if pt_mult <= 0:
-                            pt_mult = 1.0
-                        if sl is not None and float(sl) > 0:
-                            sl = min(float(sl) * float(sl_mult), 0.99)
-                        if pt is not None and float(pt) > 0:
-                            pt = min(float(pt) * float(pt_mult), 0.99)
-
-                    if move is not None and pt is not None and move >= pt:
-                        self._queue_order(
-                            instance, intent="exit", direction=open_dir, signal_bar_ts=snap.bar_ts
-                        )
-                        _gate("TRIGGER_EXIT", {"mode": "spot", "reason": "profit_target_pct"})
-                        break
-                    if move is not None and sl is not None and move <= -sl:
-                        self._queue_order(
-                            instance, intent="exit", direction=open_dir, signal_bar_ts=snap.bar_ts
-                        )
-                        _gate("TRIGGER_EXIT", {"mode": "spot", "reason": "stop_loss_pct"})
-                        break
-
-                    exit_time = parse_time_hhmm(instance.strategy.get("spot_exit_time_et"))
-                    if exit_time is not None and now_et.time() >= exit_time:
-                        self._queue_order(
-                            instance, intent="exit", direction=open_dir, signal_bar_ts=snap.bar_ts
-                        )
-                        _gate("TRIGGER_EXIT", {"mode": "spot", "reason": "exit_time"})
-                        break
-
-                    if bool(instance.strategy.get("spot_close_eod")) and (
-                        now_et.hour > 15 or now_et.hour == 15 and now_et.minute >= 55
-                    ):
-                        self._queue_order(
-                            instance, intent="exit", direction=open_dir, signal_bar_ts=snap.bar_ts
-                        )
-                        _gate("TRIGGER_EXIT", {"mode": "spot", "reason": "close_eod"})
-                        break
-
-                if instrument != "spot":
-                    if self._should_exit_on_dte(instance, open_items, now_et.date()):
-                        self._queue_order(
-                            instance, intent="exit", direction=open_dir, signal_bar_ts=snap.bar_ts
-                        )
-                        _gate("TRIGGER_EXIT", {"mode": "options", "reason": "dte"})
-                        break
-
-                    entry_value, current_value = self._options_position_values(open_items)
-                    if entry_value is not None and current_value is not None:
-                        profit = float(entry_value) - float(current_value)
-                        try:
-                            profit_target = float(instance.strategy.get("profit_target", 0.0) or 0.0)
-                        except (TypeError, ValueError):
-                            profit_target = 0.0
-                        if profit_target > 0 and abs(entry_value) > 0:
-                            if profit >= abs(entry_value) * profit_target:
-                                self._queue_order(
-                                    instance,
-                                    intent="exit",
-                                    direction=open_dir,
-                                    signal_bar_ts=snap.bar_ts,
-                                )
-                                _gate("TRIGGER_EXIT", {"mode": "options", "reason": "profit_target"})
-                                break
-
-                        try:
-                            stop_loss = float(instance.strategy.get("stop_loss", 0.0) or 0.0)
-                        except (TypeError, ValueError):
-                            stop_loss = 0.0
-                        if stop_loss > 0:
-                            loss = max(0.0, float(current_value) - float(entry_value))
-                            basis = str(instance.strategy.get("stop_loss_basis") or "max_loss").strip().lower()
-                            if basis == "credit":
-                                if entry_value >= 0:
-                                    if current_value >= entry_value * (1.0 + stop_loss):
-                                        self._queue_order(
-                                            instance,
-                                            intent="exit",
-                                            direction=open_dir,
-                                            signal_bar_ts=snap.bar_ts,
-                                        )
-                                        _gate("TRIGGER_EXIT", {"mode": "options", "reason": "stop_loss_credit"})
-                                        break
-                                elif loss >= abs(entry_value) * stop_loss:
-                                    self._queue_order(
-                                        instance,
-                                        intent="exit",
-                                        direction=open_dir,
-                                        signal_bar_ts=snap.bar_ts,
-                                    )
-                                    _gate("TRIGGER_EXIT", {"mode": "options", "reason": "stop_loss_credit"})
-                                    break
-                            else:
-                                max_loss = self._options_max_loss_estimate(open_items, spot=float(snap.close))
-                                if max_loss is None or max_loss <= 0:
-                                    max_loss = abs(entry_value)
-                                if max_loss and loss >= float(max_loss) * stop_loss:
-                                    self._queue_order(
-                                        instance,
-                                        intent="exit",
-                                        direction=open_dir,
-                                        signal_bar_ts=snap.bar_ts,
-                                    )
-                                    _gate("TRIGGER_EXIT", {"mode": "options", "reason": "stop_loss_max_loss"})
-                                    break
-
-                if self._should_exit_on_flip(instance, snap, open_dir, open_items):
-                    self._queue_order(instance, intent="exit", direction=open_dir, signal_bar_ts=snap.bar_ts)
-                    _gate("TRIGGER_EXIT", {"mode": instrument, "reason": "flip"})
-                    break
-                continue
-
-            if not self._entry_limit_ok(instance):
-                _gate("BLOCKED_ENTRY_LIMIT", {"entries_today": int(instance.entries_today)})
-                continue
-            if instance.last_entry_bar_ts is not None and instance.last_entry_bar_ts == snap.bar_ts:
-                _gate("BLOCKED_ENTRY_SAME_BAR", {"bar_ts": snap.bar_ts.isoformat()})
-                continue
-
-            instrument = self._strategy_instrument(instance.strategy)
-            if instrument == "spot":
-                exit_mode = str(instance.strategy.get("spot_exit_mode") or "pct").strip().lower()
-                if exit_mode == "atr":
-                    atr = float(snap.atr or 0.0) if snap.atr is not None else 0.0
-                    if atr <= 0:
-                        _gate("BLOCKED_ATR_NOT_READY", {"atr": float(atr)})
-                        continue
-
-            direction = self._entry_direction_for_instance(instance, snap)
-            if direction is None:
-                _gate("WAITING_SIGNAL", {"bar_ts": snap.bar_ts.isoformat()})
-                continue
-            if direction not in self._allowed_entry_directions(instance):
-                _gate("BLOCKED_DIRECTION", {"direction": direction})
-                continue
-
-            self._queue_order(
-                instance,
-                intent="enter",
-                direction=direction,
-                signal_bar_ts=snap.bar_ts,
-            )
-            _gate("TRIGGER_ENTRY", {"direction": direction})
-            break
-
-    def _auto_send_tick(self) -> None:
-        if self._send_task and not self._send_task.done():
-            return
-        order = next((o for o in self._orders if o.status == "STAGED"), None)
-        if order is None:
-            return
-        instance = next((i for i in self._instances if i.instance_id == order.instance_id), None)
-        if not instance:
-            return
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            self._status = "Send: no loop"
-            return
-        self._send_task = loop.create_task(self._send_order(order))
-
-    async def _chase_orders_tick(self) -> None:
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            return
-        now = loop.time()
-        if now - self._last_chase_ts < 5.0:
-            return
-        self._last_chase_ts = now
-
-        updated = False
-        for order in self._orders:
-            if order.status not in ("STAGED", "WORKING", "CANCELING"):
-                continue
-            instance = next(
-                (i for i in self._instances if i.instance_id == order.instance_id), None
-            )
-            if not instance:
-                continue
-            if order.status == "STAGED":
-                changed = await self._reprice_order(order, mode="OPTIMISTIC")
-                updated = updated or changed
-                continue
-
-            trade = order.trade
-            if trade is None:
-                order.status = "ERROR"
-                order.error = "Missing IB trade handle for WORKING order"
-                updated = True
-                continue
-
-            is_done = False
-            try:
-                is_done = bool(trade.isDone())
-            except Exception:
-                is_done = False
-            status_raw = str(getattr(getattr(trade, "orderStatus", None), "status", "") or "")
-            status = status_raw.strip()
-            if status in ("Filled", "Cancelled", "ApiCancelled", "Inactive"):
-                is_done = True
-
-            if is_done:
-                prev_status = order.status
-                if status == "Filled":
-                    order.status = "FILLED"
-                    done_event = "ORDER_FILLED"
-                elif status in ("Cancelled", "ApiCancelled"):
-                    order.status = "CANCELLED"
-                    done_event = "ORDER_CANCELLED"
-                else:
-                    order.status = status.upper() if status else "DONE"
-                    done_event = "ORDER_DONE"
-                if prev_status in ("WORKING", "CANCELING") and order.status != prev_status:
-                    done_data: dict[str, object] = {"ib_status": status_raw}
-                    if order.exec_mode:
-                        done_data["exec_mode_last"] = str(order.exec_mode)
-                    if order.sent_at is not None:
-                        elapsed = now - float(order.sent_at)
-                        done_data["exec_elapsed_sec"] = float(elapsed)
-                        mode_now = _exec_ladder_mode(elapsed)
-                        done_data["exec_mode_now"] = str(mode_now) if mode_now is not None else "TIMEOUT"
-                    self._journal_write(
-                        event=done_event,
-                        order=order,
-                        reason=None,
-                        data=done_data,
-                    )
-                updated = True
-                continue
-
-            if order.status != "WORKING":
-                continue
-
-            if order.sent_at is None:
-                order.sent_at = float(now)
-            elapsed = now - float(order.sent_at)
-            mode = _exec_ladder_mode(elapsed)
-            if mode is None:
-                # Timed out: cancel and give up.
-                try:
-                    order.status = "CANCELING"
-                    order.error = f"Timeout after {int(elapsed)}s"
-                    self._journal_write(
-                        event="ORDER_TIMEOUT_CANCEL",
-                        order=order,
-                        reason="timeout",
-                        data={
-                            "elapsed_sec": float(elapsed),
-                            "timeout_sec": float(_EXEC_LADDER_TIMEOUT_SEC),
-                        },
-                    )
-                    await self._client.cancel_trade(trade)
-                    self._journal_write(
-                        event="CANCEL_SENT",
-                        order=order,
-                        reason="timeout",
-                        data={"elapsed_sec": float(elapsed)},
-                    )
-                    self._status = f"Timeout cancel sent #{order.order_id or 0}"
-                except Exception as exc:
-                    order.status = "WORKING"
-                    order.error = f"Timeout cancel error: {exc}"
-                    self._status = f"Timeout cancel error #{order.order_id or 0}: {exc}"
-                    self._journal_write(
-                        event="CANCEL_ERROR",
-                        order=order,
-                        reason="timeout",
-                        data={"elapsed_sec": float(elapsed), "exc": str(exc)},
-                    )
-                updated = True
-                continue
-
-            changed = await self._reprice_order(order, mode=mode)
-            updated = updated or changed
-            if not changed:
-                continue
-
-            try:
-                order.trade = await self._client.modify_limit_order(trade, float(order.limit_price))
-                updated = True
-            except Exception as exc:
-                order.error = f"Chase error: {exc}"
-                self._status = f"Chase error #{order.order_id or 0}: {exc}"
-                updated = True
-        if updated:
-            self._refresh_orders_table()
-            if self._active_panel == "orders" and self._order_rows:
-                row = min(
-                    self._orders_table.cursor_coordinate.row, len(self._order_rows) - 1
-                )
-                self._orders_table.cursor_coordinate = (max(row, 0), 0)
-
     async def _reprice_order(self, order: _BotOrder, *, mode: str) -> bool:
         prev_mode = order.exec_mode
         order.exec_mode = str(mode or "").strip().upper() or None
@@ -2850,48 +1961,6 @@ class BotScreen(Screen):
         order.last = new_last
         return changed or mode_changed
 
-    def _queue_order(
-        self,
-        instance: _BotInstance,
-        *,
-        intent: str,
-        direction: str | None,
-        signal_bar_ts: datetime | None,
-    ) -> None:
-        if self._order_task and not self._order_task.done():
-            self._status = "Order: busy"
-            self._render_status()
-            return
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            self._status = "Order: no loop"
-            self._render_status()
-            return
-        action = "Exiting" if intent == "exit" else "Creating order"
-        dir_note = f" ({direction})" if direction else ""
-        self._status = f"{action} for instance {instance.instance_id}{dir_note}..."
-        self._render_status()
-        self._order_task = loop.create_task(
-            self._create_order_for_instance(
-                instance,
-                intent=str(intent),
-                direction=direction,
-                signal_bar_ts=signal_bar_ts,
-            )
-        )
-
-    def _can_order_now(self, instance: _BotInstance) -> bool:
-        entry_days = instance.strategy.get("entry_days", [])
-        if entry_days:
-            allowed = {_weekday_num(day) for day in entry_days}
-        else:
-            allowed = {0, 1, 2, 3, 4, 5, 6}
-        now = datetime.now(tz=ZoneInfo("America/New_York"))
-        if now.weekday() not in allowed:
-            return False
-        return True
-
     def _strategy_instrument(self, strategy: dict) -> str:
         value = strategy.get("instrument", "options")
         cleaned = str(value or "options").strip().lower()
@@ -2955,6 +2024,47 @@ class BotScreen(Screen):
             return bool(self._payload.get("use_rth", False))
         return False
 
+    def _signal_snapshot_kwargs(
+        self,
+        instance: _BotInstance,
+        *,
+        strategy: dict | None = None,
+        ema_preset_raw: str | None = None,
+        entry_signal_raw: str | None = None,
+        include_orb: bool = False,
+        include_spot_exit: bool = False,
+    ) -> dict[str, object]:
+        strat = strategy if isinstance(strategy, dict) else (instance.strategy or {})
+        kwargs: dict[str, object] = {
+            "ema_preset_raw": ema_preset_raw,
+            "bar_size": self._signal_bar_size(instance),
+            "use_rth": self._signal_use_rth(instance),
+            "entry_mode_raw": strat.get("ema_entry_mode"),
+            "entry_confirm_bars": strat.get("entry_confirm_bars", 0),
+            "regime_ema_preset_raw": strat.get("regime_ema_preset"),
+            "regime_bar_size_raw": strat.get("regime_bar_size"),
+            "regime_mode_raw": strat.get("regime_mode"),
+            "supertrend_atr_period_raw": strat.get("supertrend_atr_period"),
+            "supertrend_multiplier_raw": strat.get("supertrend_multiplier"),
+            "supertrend_source_raw": strat.get("supertrend_source"),
+            "regime2_ema_preset_raw": strat.get("regime2_ema_preset"),
+            "regime2_bar_size_raw": strat.get("regime2_bar_size"),
+            "regime2_mode_raw": strat.get("regime2_mode"),
+            "regime2_supertrend_atr_period_raw": strat.get("regime2_supertrend_atr_period"),
+            "regime2_supertrend_multiplier_raw": strat.get("regime2_supertrend_multiplier"),
+            "regime2_supertrend_source_raw": strat.get("regime2_supertrend_source"),
+            "filters": instance.filters if isinstance(instance.filters, dict) else None,
+        }
+        if entry_signal_raw is not None:
+            kwargs["entry_signal_raw"] = entry_signal_raw
+        if include_orb:
+            kwargs["orb_window_mins_raw"] = strat.get("orb_window_mins")
+            kwargs["orb_open_time_et_raw"] = strat.get("orb_open_time_et")
+        if include_spot_exit:
+            kwargs["spot_exit_mode_raw"] = strat.get("spot_exit_mode")
+            kwargs["spot_atr_period_raw"] = strat.get("spot_atr_period")
+        return kwargs
+
     def _signal_duration_str(self, bar_size: str, *, filters: dict | None = None) -> str:
         label = str(bar_size or "").strip().lower()
 
@@ -2972,7 +2082,7 @@ class BotScreen(Screen):
         base = "2 W"
         if label.startswith(("1 min", "2 mins")):
             base = "2 D"
-        elif label.startswith(("5 mins", "15 mins", "30 mins")):
+        elif label.startswith(("5 mins", "10 mins", "15 mins", "30 mins")):
             base = "1 W"
         elif "hour" in label:
             base = "2 W"
@@ -3020,6 +2130,162 @@ class BotScreen(Screen):
             needed = "1 Y"
         return _max_duration(base, needed)
 
+    async def _signal_fetch_bars(
+        self,
+        *,
+        contract: Contract,
+        duration_str: str,
+        bar_size: str,
+        use_rth: bool,
+        now_ref: datetime,
+    ) -> list | None:
+        from ..utils.bar_utils import trim_incomplete_last_bar
+
+        bars = await self._client.historical_bars_ohlcv(
+            contract,
+            duration_str=duration_str,
+            bar_size=bar_size,
+            use_rth=use_rth,
+            cache_ttl_sec=30.0,
+        )
+        if not bars:
+            return None
+        bars = trim_incomplete_last_bar(bars, bar_size=bar_size, now_ref=now_ref)
+        return bars if bars else None
+
+    def _signal_regime_spec(
+        self,
+        *,
+        regime_mode_raw: str | None,
+        regime_ema_preset_raw: str | None,
+        regime_bar_size_raw: str | None,
+        bar_size: str,
+    ) -> tuple[str, str | None, str, bool]:
+        return resolve_spot_regime_spec(
+            bar_size=bar_size,
+            regime_mode_raw=regime_mode_raw,
+            regime_ema_preset_raw=regime_ema_preset_raw,
+            regime_bar_size_raw=regime_bar_size_raw,
+        )
+
+    def _signal_regime2_spec(
+        self,
+        *,
+        regime2_mode_raw: str | None,
+        regime2_ema_preset_raw: str | None,
+        regime2_bar_size_raw: str | None,
+        bar_size: str,
+    ) -> tuple[str, str | None, str, bool]:
+        return resolve_spot_regime2_spec(
+            bar_size=bar_size,
+            regime2_mode_raw=regime2_mode_raw,
+            regime2_ema_preset_raw=regime2_ema_preset_raw,
+            regime2_bar_size_raw=regime2_bar_size_raw,
+        )
+
+    def _signal_regime_duration(
+        self,
+        *,
+        regime_duration: str,
+        regime_bar_size: str,
+        filters: dict | None,
+    ) -> str:
+        if not isinstance(filters, dict) or "hour" not in str(regime_bar_size).strip().lower():
+            return regime_duration
+        shock_gate_mode = str(filters.get("shock_gate_mode") or "off").strip().lower()
+        if shock_gate_mode in ("", "0", "false", "none", "null"):
+            shock_gate_mode = "off"
+        if shock_gate_mode not in ("off", "detect", "block", "block_longs", "block_shorts", "surf"):
+            shock_gate_mode = "off"
+        if shock_gate_mode == "off":
+            return regime_duration
+        try:
+            atr_slow = int(filters.get("shock_atr_slow_period", 50))
+        except (TypeError, ValueError):
+            atr_slow = 50
+        if atr_slow <= 0:
+            return regime_duration
+        alt = "1 M" if atr_slow <= 60 else "2 M"
+        order = ("1 W", "2 W", "1 M", "2 M", "3 M", "6 M", "1 Y", "2 Y")
+        try:
+            return alt if order.index(str(alt)) > order.index(str(regime_duration)) else regime_duration
+        except ValueError:
+            return regime_duration
+
+    def _signal_strategy_payload(
+        self,
+        *,
+        entry_signal: str,
+        ema_preset_raw: str | None,
+        entry_mode_raw: str | None,
+        entry_confirm_bars: int,
+        orb_window_mins_raw: int | None,
+        orb_open_time_et_raw: str | None,
+        spot_exit_mode_raw: str | None,
+        spot_atr_period_raw: int | None,
+        regime_mode: str,
+        regime_preset: str | None,
+        supertrend_atr_period_raw: int | None,
+        supertrend_multiplier_raw: float | None,
+        supertrend_source_raw: str | None,
+        regime2_mode: str,
+        regime2_preset: str | None,
+        regime2_supertrend_atr_period_raw: int | None,
+        regime2_supertrend_multiplier_raw: float | None,
+        regime2_supertrend_source_raw: str | None,
+    ) -> dict:
+        return {
+            "entry_signal": entry_signal,
+            "ema_preset": ema_preset_raw,
+            "ema_entry_mode": entry_mode_raw,
+            "entry_confirm_bars": entry_confirm_bars,
+            "orb_window_mins": orb_window_mins_raw,
+            "orb_open_time_et": orb_open_time_et_raw,
+            "spot_exit_mode": spot_exit_mode_raw,
+            "spot_atr_period": spot_atr_period_raw,
+            "regime_mode": regime_mode,
+            "regime_ema_preset": regime_preset,
+            "supertrend_atr_period": supertrend_atr_period_raw,
+            "supertrend_multiplier": supertrend_multiplier_raw,
+            "supertrend_source": supertrend_source_raw,
+            "regime2_mode": regime2_mode,
+            "regime2_ema_preset": regime2_preset,
+            "regime2_supertrend_atr_period": regime2_supertrend_atr_period_raw,
+            "regime2_supertrend_multiplier": regime2_supertrend_multiplier_raw,
+            "regime2_supertrend_source": regime2_supertrend_source_raw,
+        }
+
+    def _signal_eval_last_snapshot(self, *, evaluator: object, bars: list) -> object | None:
+        last_snap = None
+        for idx, bar in enumerate(bars):
+            next_bar = bars[idx + 1] if idx + 1 < len(bars) else None
+            is_last_bar = next_bar is None or next_bar.ts.date() != bar.ts.date()
+            evaluator.update_exec_bar(bar, is_last_bar=bool(is_last_bar))
+            snap = evaluator.update_signal_bar(bar)
+            if snap is not None:
+                last_snap = snap
+        return last_snap
+
+    def _signal_snapshot_from_eval(self, snap: object) -> _SignalSnapshot:
+        return _SignalSnapshot(
+            bar_ts=snap.bar_ts,
+            close=float(snap.close),
+            signal=snap.signal,
+            bars_in_day=int(snap.bars_in_day),
+            rv=float(snap.rv) if snap.rv is not None else None,
+            volume=float(snap.volume) if snap.volume is not None else None,
+            volume_ema=float(snap.volume_ema) if snap.volume_ema is not None else None,
+            volume_ema_ready=bool(snap.volume_ema_ready),
+            shock=snap.shock,
+            shock_dir=snap.shock_dir,
+            shock_atr_pct=float(snap.shock_atr_pct) if snap.shock_atr_pct is not None else None,
+            risk=snap.risk,
+            atr=float(snap.atr) if snap.atr is not None else None,
+            or_high=float(snap.or_high) if snap.or_high is not None else None,
+            or_low=float(snap.or_low) if snap.or_low is not None else None,
+            or_ready=bool(snap.or_ready),
+        )
+
     async def _signal_snapshot_for_contract(
         self,
         *,
@@ -3048,125 +2314,83 @@ class BotScreen(Screen):
         regime2_supertrend_source_raw: str | None = None,
         filters: dict | None = None,
     ) -> _SignalSnapshot | None:
-        from ..utils.bar_utils import trim_incomplete_last_bar
         from ..spot_engine import SpotSignalEvaluator
 
-        entry_signal = str(entry_signal_raw or "ema").strip().lower()
-        if entry_signal not in ("ema", "orb"):
-            entry_signal = "ema"
+        entry_signal = normalize_spot_entry_signal(entry_signal_raw)
 
-        bars = await self._client.historical_bars_ohlcv(
-            contract,
+        now_ref = datetime.now(tz=timezone.utc).replace(tzinfo=None)
+        bars = await self._signal_fetch_bars(
+            contract=contract,
             duration_str=self._signal_duration_str(bar_size, filters=filters),
             bar_size=bar_size,
             use_rth=use_rth,
-            cache_ttl_sec=30.0,
+            now_ref=now_ref,
         )
         if not bars:
             return None
-        now_ref = datetime.now(tz=timezone.utc).replace(tzinfo=None)
-        bars = trim_incomplete_last_bar(bars, bar_size=bar_size, now_ref=now_ref)
-        if not bars:
-            return None
 
-        regime_mode = str(regime_mode_raw or "ema").strip().lower()
-        if regime_mode not in ("ema", "supertrend"):
-            regime_mode = "ema"
-
-        regime_preset = str(regime_ema_preset_raw or "").strip() or None
-        regime_bar_size = str(regime_bar_size_raw or "").strip()
-        if not regime_bar_size or regime_bar_size.lower() in ("same", "default"):
-            regime_bar_size = str(bar_size)
-        if regime_mode == "supertrend":
-            use_mtf_regime = str(regime_bar_size) != str(bar_size)
-        else:
-            use_mtf_regime = bool(regime_preset) and (str(regime_bar_size) != str(bar_size))
+        regime_mode, regime_preset, regime_bar_size, use_mtf_regime = self._signal_regime_spec(
+            regime_mode_raw=regime_mode_raw,
+            regime_ema_preset_raw=regime_ema_preset_raw,
+            regime_bar_size_raw=regime_bar_size_raw,
+            bar_size=bar_size,
+        )
 
         regime_bars = None
         if use_mtf_regime:
-            regime_duration = self._signal_duration_str(regime_bar_size, filters=filters)
-            if isinstance(filters, dict) and "hour" in str(regime_bar_size).strip().lower():
-                shock_gate_mode = str(filters.get("shock_gate_mode") or "off").strip().lower()
-                if shock_gate_mode in ("", "0", "false", "none", "null"):
-                    shock_gate_mode = "off"
-                if shock_gate_mode not in ("off", "detect", "block", "block_longs", "block_shorts", "surf"):
-                    shock_gate_mode = "off"
-                if shock_gate_mode != "off":
-                    try:
-                        atr_slow = int(filters.get("shock_atr_slow_period", 50))
-                    except (TypeError, ValueError):
-                        atr_slow = 50
-                    if atr_slow > 0:
-                        # Avoid shrinking the base duration (daily detectors may require longer).
-                        alt = "1 M" if atr_slow <= 60 else "2 M"
-                        order = ("1 W", "2 W", "1 M", "2 M", "3 M", "6 M", "1 Y", "2 Y")
-                        try:
-                            if order.index(str(alt)) > order.index(str(regime_duration)):
-                                regime_duration = alt
-                        except ValueError:
-                            pass
-            regime_bars = await self._client.historical_bars_ohlcv(
-                contract,
+            regime_duration = self._signal_regime_duration(
+                regime_duration=self._signal_duration_str(regime_bar_size, filters=filters),
+                regime_bar_size=regime_bar_size,
+                filters=filters,
+            )
+            regime_bars = await self._signal_fetch_bars(
+                contract=contract,
                 duration_str=regime_duration,
                 bar_size=regime_bar_size,
                 use_rth=use_rth,
-                cache_ttl_sec=30.0,
+                now_ref=now_ref,
             )
             if not regime_bars:
                 return None
-            regime_bars = trim_incomplete_last_bar(
-                regime_bars, bar_size=regime_bar_size, now_ref=now_ref
-            )
 
-        regime2_mode = str(regime2_mode_raw or "off").strip().lower()
-        if regime2_mode not in ("off", "ema", "supertrend"):
-            regime2_mode = "off"
-        regime2_preset = str(regime2_ema_preset_raw or "").strip() or None
-        if regime2_mode == "ema" and not regime2_preset:
-            regime2_mode = "off"
-        regime2_bar_size = str(regime2_bar_size_raw or "").strip()
-        if not regime2_bar_size or regime2_bar_size.lower() in ("same", "default"):
-            regime2_bar_size = str(bar_size)
-        if regime2_mode == "supertrend":
-            use_mtf_regime2 = str(regime2_bar_size) != str(bar_size)
-        else:
-            use_mtf_regime2 = bool(regime2_preset) and (str(regime2_bar_size) != str(bar_size))
+        regime2_mode, regime2_preset, regime2_bar_size, use_mtf_regime2 = self._signal_regime2_spec(
+            regime2_mode_raw=regime2_mode_raw,
+            regime2_ema_preset_raw=regime2_ema_preset_raw,
+            regime2_bar_size_raw=regime2_bar_size_raw,
+            bar_size=bar_size,
+        )
 
         regime2_bars = None
         if regime2_mode != "off" and use_mtf_regime2:
-            regime2_bars = await self._client.historical_bars_ohlcv(
-                contract,
+            regime2_bars = await self._signal_fetch_bars(
+                contract=contract,
                 duration_str=self._signal_duration_str(regime2_bar_size, filters=filters),
                 bar_size=regime2_bar_size,
                 use_rth=use_rth,
-                cache_ttl_sec=30.0,
+                now_ref=now_ref,
             )
             if not regime2_bars:
                 return None
-            regime2_bars = trim_incomplete_last_bar(
-                regime2_bars, bar_size=regime2_bar_size, now_ref=now_ref
-            )
-
-        strategy = {
-            "entry_signal": entry_signal,
-            "ema_preset": ema_preset_raw,
-            "ema_entry_mode": entry_mode_raw,
-            "entry_confirm_bars": entry_confirm_bars,
-            "orb_window_mins": orb_window_mins_raw,
-            "orb_open_time_et": orb_open_time_et_raw,
-            "spot_exit_mode": spot_exit_mode_raw,
-            "spot_atr_period": spot_atr_period_raw,
-            "regime_mode": regime_mode,
-            "regime_ema_preset": regime_preset,
-            "supertrend_atr_period": supertrend_atr_period_raw,
-            "supertrend_multiplier": supertrend_multiplier_raw,
-            "supertrend_source": supertrend_source_raw,
-            "regime2_mode": regime2_mode,
-            "regime2_ema_preset": regime2_preset,
-            "regime2_supertrend_atr_period": regime2_supertrend_atr_period_raw,
-            "regime2_supertrend_multiplier": regime2_supertrend_multiplier_raw,
-            "regime2_supertrend_source": regime2_supertrend_source_raw,
-        }
+        strategy = self._signal_strategy_payload(
+            entry_signal=entry_signal,
+            ema_preset_raw=ema_preset_raw,
+            entry_mode_raw=entry_mode_raw,
+            entry_confirm_bars=entry_confirm_bars,
+            orb_window_mins_raw=orb_window_mins_raw,
+            orb_open_time_et_raw=orb_open_time_et_raw,
+            spot_exit_mode_raw=spot_exit_mode_raw,
+            spot_atr_period_raw=spot_atr_period_raw,
+            regime_mode=regime_mode,
+            regime_preset=regime_preset,
+            supertrend_atr_period_raw=supertrend_atr_period_raw,
+            supertrend_multiplier_raw=supertrend_multiplier_raw,
+            supertrend_source_raw=supertrend_source_raw,
+            regime2_mode=regime2_mode,
+            regime2_preset=regime2_preset,
+            regime2_supertrend_atr_period_raw=regime2_supertrend_atr_period_raw,
+            regime2_supertrend_multiplier_raw=regime2_supertrend_multiplier_raw,
+            regime2_supertrend_source_raw=regime2_supertrend_source_raw,
+        )
 
         evaluator = SpotSignalEvaluator(
             strategy=strategy,
@@ -3177,35 +2401,11 @@ class BotScreen(Screen):
             regime2_bars=regime2_bars,
         )
 
-        last_snap = None
-        for idx, bar in enumerate(bars):
-            next_bar = bars[idx + 1] if idx + 1 < len(bars) else None
-            is_last_bar = next_bar is None or next_bar.ts.date() != bar.ts.date()
-            evaluator.update_exec_bar(bar, is_last_bar=bool(is_last_bar))
-            snap = evaluator.update_signal_bar(bar)
-            if snap is not None:
-                last_snap = snap
+        last_snap = self._signal_eval_last_snapshot(evaluator=evaluator, bars=bars)
         if last_snap is None or not bool(last_snap.signal.ema_ready):
             return None
 
-        return _SignalSnapshot(
-            bar_ts=last_snap.bar_ts,
-            close=float(last_snap.close),
-            signal=last_snap.signal,
-            bars_in_day=int(last_snap.bars_in_day),
-            rv=float(last_snap.rv) if last_snap.rv is not None else None,
-            volume=float(last_snap.volume) if last_snap.volume is not None else None,
-            volume_ema=float(last_snap.volume_ema) if last_snap.volume_ema is not None else None,
-            volume_ema_ready=bool(last_snap.volume_ema_ready),
-            shock=last_snap.shock,
-            shock_dir=last_snap.shock_dir,
-            shock_atr_pct=float(last_snap.shock_atr_pct) if last_snap.shock_atr_pct is not None else None,
-            risk=last_snap.risk,
-            atr=float(last_snap.atr) if last_snap.atr is not None else None,
-            or_high=float(last_snap.or_high) if last_snap.or_high is not None else None,
-            or_low=float(last_snap.or_low) if last_snap.or_low is not None else None,
-            or_ready=bool(last_snap.or_ready),
-        )
+        return self._signal_snapshot_from_eval(last_snap)
 
     def _reset_daily_counters_if_needed(self, instance: _BotInstance) -> None:
         today = datetime.now(tz=ZoneInfo("America/New_York")).date()
@@ -3272,6 +2472,34 @@ class BotScreen(Screen):
             if pos:
                 open_items.append(item)
         return open_items
+
+    def _resolve_open_positions(
+        self,
+        instance: _BotInstance,
+        *,
+        symbol: str,
+        signal_contract: Contract | None = None,
+    ) -> tuple[str, list[PortfolioItem], str | None]:
+        instrument = self._strategy_instrument(instance.strategy)
+        if instrument == "spot":
+            sec_type = str(getattr(signal_contract, "secType", "") or "").strip().upper()
+            if not sec_type:
+                sec_type = self._spot_sec_type(instance, symbol)
+            con_id = int(getattr(signal_contract, "conId", 0) or 0) if signal_contract else 0
+            item = self._spot_open_position(symbol=symbol, sec_type=sec_type, con_id=con_id)
+            items = [item] if item is not None else []
+            if not items:
+                return instrument, items, None
+            try:
+                pos = float(getattr(items[0], "position", 0.0) or 0.0)
+            except (TypeError, ValueError):
+                pos = 0.0
+            direction = "up" if pos > 0 else "down" if pos < 0 else None
+            return instrument, items, direction
+
+        items = self._options_open_positions(instance)
+        direction = instance.open_direction or self._open_direction_from_positions(items)
+        return instrument, items, direction
 
     def _options_position_values(self, items: list[PortfolioItem]) -> tuple[float | None, float | None]:
         if not items:
@@ -3487,863 +2715,6 @@ class BotScreen(Screen):
                     return {bias}
         return {"up", "down"}
 
-    async def _strike_by_delta(
-        self,
-        *,
-        symbol: str,
-        expiry: str,
-        right_char: str,
-        strikes: list[float],
-        trading_class: str | None,
-        near_strike: float,
-        target_delta: float,
-    ) -> float | None:
-        try:
-            target = abs(float(target_delta))
-        except (TypeError, ValueError):
-            return None
-        if target <= 0 or target > 1:
-            return None
-        try:
-            strike_values = sorted(float(s) for s in strikes)
-        except (TypeError, ValueError):
-            return None
-        if not strike_values:
-            return None
-        center_idx = min(
-            range(len(strike_values)), key=lambda idx: abs(strike_values[idx] - near_strike)
-        )
-        window = strike_values[max(center_idx - 10, 0) : center_idx + 11]
-        if not window:
-            return None
-
-        candidates = [
-            Option(
-                symbol=symbol,
-                lastTradeDateOrContractMonth=expiry,
-                strike=float(strike),
-                right=right_char,
-                exchange="SMART",
-                currency="USD",
-                tradingClass=trading_class,
-            )
-            for strike in window
-        ]
-        qualified = await self._client.qualify_proxy_contracts(*candidates)
-        if qualified and len(qualified) == len(candidates):
-            contracts: list[Contract] = list(qualified)
-        else:
-            contracts = list(candidates)
-
-        best_strike: float | None = None
-        best_diff: float | None = None
-        for contract, strike in zip(contracts, window):
-            con_id = int(getattr(contract, "conId", 0) or 0)
-            if con_id:
-                self._tracked_conids.add(con_id)
-            ticker = await self._client.ensure_ticker(contract, owner="bot")
-            delta = None
-            for _ in range(6):
-                for attr in ("modelGreeks", "bidGreeks", "askGreeks", "lastGreeks"):
-                    greeks = getattr(ticker, attr, None)
-                    if greeks is not None:
-                        raw = getattr(greeks, "delta", None)
-                        if raw is not None:
-                            try:
-                                delta = float(raw)
-                            except (TypeError, ValueError):
-                                delta = None
-                            break
-                if delta is not None:
-                    break
-                await asyncio.sleep(0.05)
-            if delta is None:
-                continue
-            diff = abs(abs(delta) - target)
-            if best_diff is None or diff < best_diff:
-                best_diff = diff
-                best_strike = float(strike)
-
-        # Avoid keeping a large number of quote subscriptions just to pick strike.
-        for contract, strike in zip(contracts, window):
-            if best_strike is not None and float(strike) == best_strike:
-                continue
-            con_id = int(getattr(contract, "conId", 0) or 0)
-            if con_id:
-                self._client.release_ticker(con_id, owner="bot")
-                self._tracked_conids.discard(con_id)
-        return best_strike
-
-    async def _create_order_for_instance(
-        self,
-        instance: _BotInstance,
-        *,
-        intent: str,
-        direction: str | None,
-        signal_bar_ts: datetime | None,
-    ) -> None:
-        strat = instance.strategy or {}
-        instrument = self._strategy_instrument(strat)
-        intent_clean = str(intent or "enter").strip().lower()
-        intent_clean = "exit" if intent_clean == "exit" else "enter"
-        symbol = str(
-            instance.symbol or (self._payload.get("symbol", "SLV") if self._payload else "SLV")
-        ).strip().upper()
-
-        entry_signal = str(strat.get("entry_signal") or "ema").strip().lower()
-        if entry_signal not in ("ema", "orb"):
-            entry_signal = "ema"
-        ema_preset = str(strat.get("ema_preset") or "").strip()
-        if entry_signal == "ema" and not ema_preset:
-            raise RuntimeError(
-                "FATAL: missing required strategy field `ema_preset` "
-                f"(instance_id={instance.instance_id} group={instance.group!r} symbol={symbol!r})"
-            )
-
-        # All live execution uses the shared "execution ladder" (optimistic → mid → aggressive → cross).
-        # Orders always start at the optimistic phase; the chase loop handles escalation.
-        mode = "OPTIMISTIC"
-
-        def _leg_price(
-            bid: float | None, ask: float | None, last: float | None, action: str
-        ) -> float | None:
-            return _limit_price_for_mode(bid, ask, last, action=action, mode=mode)
-
-        def _bump_entry_counters() -> None:
-            self._reset_daily_counters_if_needed(instance)
-            instance.entries_today += 1
-
-        def _finalize_leg_orders(
-            *,
-            underlying: Contract,
-            leg_orders: list[_BotLegOrder],
-            leg_quotes: list[tuple[float | None, float | None, float | None, Ticker]],
-        ) -> None:
-            if not leg_orders:
-                self._status = "Order: no legs configured"
-                self._render_status()
-                return
-
-            # Compute net price in "debit units": BUY adds, SELL subtracts.
-            debit_mid = 0.0
-            debit_bid = 0.0
-            debit_ask = 0.0
-            desired_debit = 0.0
-            tick = None
-            for leg_order, (bid, ask, last, ticker) in zip(leg_orders, leg_quotes):
-                mid = _midpoint(bid, ask)
-                leg_mid = mid or last
-                if leg_mid is None:
-                    self._status = "Quote: missing mid/last (cannot price)"
-                    self._render_status()
-                    return
-                leg_bid = bid or mid or last
-                leg_ask = ask or mid or last
-                if leg_bid is None or leg_ask is None:
-                    self._status = "Quote: missing bid/ask (cannot price)"
-                    self._render_status()
-                    return
-                leg_desired = _leg_price(bid, ask, last, leg_order.action)
-                if leg_desired is None:
-                    self._status = "Quote: missing bid/ask/last (cannot price)"
-                    self._render_status()
-                    return
-                leg_tick = _tick_size(leg_order.contract, ticker, leg_desired)
-                tick = leg_tick if tick is None else min(tick, leg_tick)
-                sign = 1.0 if leg_order.action == "BUY" else -1.0
-                debit_mid += sign * float(leg_mid) * leg_order.ratio
-                debit_bid += sign * float(leg_bid) * leg_order.ratio
-                debit_ask += sign * float(leg_ask) * leg_order.ratio
-                desired_debit += sign * float(leg_desired) * leg_order.ratio
-
-            tick = tick or 0.01
-
-            if len(leg_orders) == 1:
-                single = leg_orders[0]
-                (bid, ask, last, ticker) = leg_quotes[0]
-                limit = _leg_price(bid, ask, last, single.action)
-                if limit is None:
-                    self._status = "Quote: no bid/ask/last (cannot price)"
-                    self._render_status()
-                    return
-                limit = _round_to_tick(float(limit), tick)
-                order = _BotOrder(
-                    instance_id=instance.instance_id,
-                    preset=None,
-                    underlying=underlying,
-                    order_contract=single.contract,
-                    legs=leg_orders,
-                    action=single.action,
-                    quantity=single.ratio,
-                    limit_price=float(limit),
-                    created_at=datetime.now(tz=ZoneInfo("America/New_York")),
-                    bid=bid,
-                    ask=ask,
-                    last=last,
-                    intent=intent_clean,
-                    direction=direction,
-                    reason=intent_clean,
-                    signal_bar_ts=signal_bar_ts,
-                    exec_mode=mode,
-                )
-                con_id = int(getattr(single.contract, "conId", 0) or 0)
-                if con_id:
-                    instance.touched_conids.add(con_id)
-                self._add_order(order)
-                self._status = f"Created order {single.action} {single.ratio} {symbol} @ {limit:.2f}"
-                if intent_clean == "enter":
-                    if direction in ("up", "down"):
-                        instance.open_direction = str(direction)
-                    if signal_bar_ts is not None:
-                        instance.last_entry_bar_ts = signal_bar_ts
-                    _bump_entry_counters()
-                elif signal_bar_ts is not None:
-                    instance.last_exit_bar_ts = signal_bar_ts
-                self._render_status()
-                return
-
-            # Multi-leg combo: use IBKR's native encoding (can be negative for credits).
-            order_action = "BUY"
-            order_bid = debit_bid
-            order_ask = debit_ask
-            order_last = debit_mid
-            order_limit = _round_to_tick(float(desired_debit), tick)
-            if not order_limit:
-                self._status = "Quote: combo price is 0 (cannot price)"
-                self._render_status()
-                return
-            combo_legs: list[ComboLeg] = []
-            for leg_order, (_, _, _, ticker) in zip(leg_orders, leg_quotes):
-                con_id = int(getattr(leg_order.contract, "conId", 0) or 0)
-                if not con_id:
-                    self._status = "Contract: missing conId for combo leg"
-                    self._render_status()
-                    return
-                leg_exchange = (
-                    getattr(getattr(ticker, "contract", None), "exchange", "") or ""
-                ).strip()
-                if not leg_exchange:
-                    leg_exchange = (getattr(leg_order.contract, "exchange", "") or "").strip()
-                if not leg_exchange:
-                    leg_sec_type = str(getattr(leg_order.contract, "secType", "") or "").strip()
-                    leg_exchange = "CME" if leg_sec_type == "FOP" else "SMART"
-                combo_legs.append(
-                    ComboLeg(
-                        conId=con_id,
-                        ratio=leg_order.ratio,
-                        action=leg_order.action,
-                        exchange=leg_exchange,
-                    )
-                )
-            bag = Bag(symbol=symbol, exchange="SMART", currency="USD", comboLegs=combo_legs)
-
-            order = _BotOrder(
-                instance_id=instance.instance_id,
-                preset=None,
-                underlying=underlying,
-                order_contract=bag,
-                legs=leg_orders,
-                action=order_action,
-                quantity=1,
-                limit_price=float(order_limit),
-                created_at=datetime.now(tz=ZoneInfo("America/New_York")),
-                bid=order_bid,
-                ask=order_ask,
-                last=order_last,
-                intent=intent_clean,
-                direction=direction,
-                reason=intent_clean,
-                signal_bar_ts=signal_bar_ts,
-                exec_mode=mode,
-            )
-            for leg_order in leg_orders:
-                con_id = int(getattr(leg_order.contract, "conId", 0) or 0)
-                if con_id:
-                    instance.touched_conids.add(con_id)
-            self._add_order(order)
-            self._status = (
-                f"Created order {order_action} BAG {symbol} @ {order_limit:.2f} ({len(leg_orders)} legs)"
-            )
-            if intent_clean == "enter":
-                if direction in ("up", "down"):
-                    instance.open_direction = str(direction)
-                if signal_bar_ts is not None:
-                    instance.last_entry_bar_ts = signal_bar_ts
-                _bump_entry_counters()
-            elif signal_bar_ts is not None:
-                instance.last_exit_bar_ts = signal_bar_ts
-            self._render_status()
-
-        if intent_clean == "exit":
-            if instrument == "spot":
-                sec_type = self._spot_sec_type(instance, symbol)
-                open_item = self._spot_open_position(symbol=symbol, sec_type=sec_type, con_id=0)
-                if open_item is None:
-                    self._status = f"Exit: no spot position for {symbol}"
-                    self._render_status()
-                    return
-                try:
-                    pos = float(getattr(open_item, "position", 0.0) or 0.0)
-                except (TypeError, ValueError):
-                    pos = 0.0
-                if not pos:
-                    self._status = f"Exit: no spot position for {symbol}"
-                    self._render_status()
-                    return
-
-                action = "SELL" if pos > 0 else "BUY"
-                qty = int(abs(pos))
-                if qty <= 0:
-                    self._status = f"Exit: invalid position size for {symbol}"
-                    self._render_status()
-                    return
-
-                contract = open_item.contract
-                con_id = int(getattr(contract, "conId", 0) or 0)
-                if con_id:
-                    self._tracked_conids.add(con_id)
-                ticker = await self._client.ensure_ticker(contract, owner="bot")
-                bid = _safe_num(getattr(ticker, "bid", None))
-                ask = _safe_num(getattr(ticker, "ask", None))
-                last = _safe_num(getattr(ticker, "last", None))
-                limit = _leg_price(bid, ask, last, action)
-                if limit is None:
-                    self._status = "Quote: no bid/ask/last (cannot price)"
-                    self._render_status()
-                    return
-                tick = _tick_size(contract, ticker, limit) or 0.01
-                limit = _round_to_tick(float(limit), tick)
-                order = _BotOrder(
-                    instance_id=instance.instance_id,
-                    preset=None,
-                    underlying=contract,
-                    order_contract=contract,
-                    legs=[_BotLegOrder(contract=contract, action=action, ratio=qty)],
-                    action=action,
-                    quantity=qty,
-                    limit_price=float(limit),
-                    created_at=datetime.now(tz=ZoneInfo("America/New_York")),
-                    bid=bid,
-                    ask=ask,
-                    last=last,
-                    intent=intent_clean,
-                    direction=direction,
-                    reason="exit",
-                    signal_bar_ts=signal_bar_ts,
-                    exec_mode=mode,
-                )
-                if con_id:
-                    instance.touched_conids.add(con_id)
-                self._add_order(order)
-                if signal_bar_ts is not None:
-                    instance.last_exit_bar_ts = signal_bar_ts
-                self._status = f"Created order EXIT {action} {qty} {symbol} @ {limit:.2f}"
-                self._render_status()
-                return
-
-            open_items = self._options_open_positions(instance)
-            if not open_items:
-                self._status = f"Exit: no option positions for instance {instance.instance_id}"
-                self._render_status()
-                return
-            underlying = Stock(symbol=symbol, exchange="SMART", currency="USD")
-            qualified = await self._client.qualify_proxy_contracts(underlying)
-            if qualified:
-                underlying = qualified[0]
-
-            leg_orders: list[_BotLegOrder] = []
-            leg_quotes: list[tuple[float | None, float | None, float | None, Ticker]] = []
-            for item in open_items:
-                contract = item.contract
-                try:
-                    pos = float(getattr(item, "position", 0.0) or 0.0)
-                except (TypeError, ValueError):
-                    continue
-                if not pos:
-                    continue
-                ratio = int(abs(pos))
-                if ratio <= 0:
-                    continue
-                action = "SELL" if pos > 0 else "BUY"
-                con_id = int(getattr(contract, "conId", 0) or 0)
-                if con_id:
-                    self._tracked_conids.add(con_id)
-                ticker = await self._client.ensure_ticker(contract, owner="bot")
-                bid = _safe_num(getattr(ticker, "bid", None))
-                ask = _safe_num(getattr(ticker, "ask", None))
-                last = _safe_num(getattr(ticker, "last", None))
-                leg_orders.append(_BotLegOrder(contract=contract, action=action, ratio=ratio))
-                leg_quotes.append((bid, ask, last, ticker))
-
-            if not leg_orders:
-                self._status = f"Exit: no option positions for instance {instance.instance_id}"
-                self._render_status()
-                return
-            _finalize_leg_orders(underlying=underlying, leg_orders=leg_orders, leg_quotes=leg_quotes)
-            return
-
-        if instrument == "spot":
-            entry_signal = str(strat.get("entry_signal") or "ema").strip().lower()
-            if entry_signal not in ("ema", "orb"):
-                entry_signal = "ema"
-            exit_mode = str(strat.get("spot_exit_mode") or "pct").strip().lower()
-            if exit_mode not in ("pct", "atr"):
-                exit_mode = "pct"
-
-            signal_contract = await self._signal_contract(instance, symbol)
-            snap = (
-                await self._signal_snapshot_for_contract(
-                    contract=signal_contract,
-                    ema_preset_raw=str(strat.get("ema_preset")) if strat.get("ema_preset") else None,
-                    bar_size=self._signal_bar_size(instance),
-                    use_rth=self._signal_use_rth(instance),
-                    entry_signal_raw=entry_signal,
-                    orb_window_mins_raw=strat.get("orb_window_mins"),
-                    orb_open_time_et_raw=strat.get("orb_open_time_et"),
-                    entry_mode_raw=strat.get("ema_entry_mode"),
-                    entry_confirm_bars=strat.get("entry_confirm_bars", 0),
-                    spot_exit_mode_raw=strat.get("spot_exit_mode"),
-                    spot_atr_period_raw=strat.get("spot_atr_period"),
-                    regime_ema_preset_raw=strat.get("regime_ema_preset"),
-                    regime_bar_size_raw=strat.get("regime_bar_size"),
-                    regime_mode_raw=strat.get("regime_mode"),
-                    supertrend_atr_period_raw=strat.get("supertrend_atr_period"),
-                    supertrend_multiplier_raw=strat.get("supertrend_multiplier"),
-                    supertrend_source_raw=strat.get("supertrend_source"),
-                    regime2_ema_preset_raw=strat.get("regime2_ema_preset"),
-                    regime2_bar_size_raw=strat.get("regime2_bar_size"),
-                    regime2_mode_raw=strat.get("regime2_mode"),
-                    regime2_supertrend_atr_period_raw=strat.get("regime2_supertrend_atr_period"),
-                    regime2_supertrend_multiplier_raw=strat.get("regime2_supertrend_multiplier"),
-                    regime2_supertrend_source_raw=strat.get("regime2_supertrend_source"),
-                    filters=instance.filters if isinstance(instance.filters, dict) else None,
-                )
-                if signal_contract is not None
-                else None
-            )
-            if snap is None:
-                self._status = f"Signal: no snapshot for {symbol}"
-                self._render_status()
-                return
-
-            if direction not in ("up", "down") and snap is not None:
-                direction = self._entry_direction_for_instance(instance, snap) or (
-                    str(snap.signal.state) if snap.signal.state in ("up", "down") else None
-                )
-            direction = direction if direction in ("up", "down") else "up"
-
-            mapping = strat.get("directional_spot") if isinstance(strat.get("directional_spot"), dict) else None
-            chosen = mapping.get(direction) if mapping else None
-            if not isinstance(chosen, dict):
-                if direction == "up":
-                    chosen = {"action": "BUY", "qty": 1}
-                else:
-                    chosen = {"action": "SELL", "qty": 1}
-            action = str(chosen.get("action", "")).strip().upper()
-            if action not in ("BUY", "SELL"):
-                self._status = f"Order: invalid spot action for {direction}"
-                self._render_status()
-                return
-            try:
-                qty = int(chosen.get("qty", 1) or 1)
-            except (TypeError, ValueError):
-                qty = 1
-            qty = max(1, abs(qty))
-
-            contract = await self._spot_contract(instance, symbol)
-            if contract is None:
-                self._status = f"Contract: not found for {symbol}"
-                self._render_status()
-                return
-
-            con_id = int(getattr(contract, "conId", 0) or 0)
-            if con_id:
-                self._tracked_conids.add(con_id)
-            ticker = await self._client.ensure_ticker(contract, owner="bot")
-            bid = _safe_num(getattr(ticker, "bid", None))
-            ask = _safe_num(getattr(ticker, "ask", None))
-            last = _safe_num(getattr(ticker, "last", None))
-            limit = _leg_price(bid, ask, last, action)
-            if limit is None:
-                self._status = "Quote: no bid/ask/last (cannot price)"
-                self._render_status()
-                return
-            tick = _tick_size(contract, ticker, limit) or 0.01
-            limit = _round_to_tick(float(limit), tick)
-
-            instance.spot_profit_target_price = None
-            instance.spot_stop_loss_price = None
-            if snap is not None and entry_signal == "orb":
-                try:
-                    rr = float(strat.get("orb_risk_reward", 2.0) or 2.0)
-                except (TypeError, ValueError):
-                    rr = 2.0
-                target_mode = str(strat.get("orb_target_mode", "rr") or "rr").strip().lower()
-                if target_mode not in ("rr", "or_range"):
-                    target_mode = "rr"
-                or_high = snap.or_high
-                or_low = snap.or_low
-                if (
-                    rr > 0
-                    and bool(snap.or_ready)
-                    and or_high is not None
-                    and or_low is not None
-                    and float(or_high) > 0
-                    and float(or_low) > 0
-                ):
-                    stop = float(or_low) if direction == "up" else float(or_high)
-                    if target_mode == "or_range":
-                        rng = float(or_high) - float(or_low)
-                        if rng > 0:
-                            target = (
-                                float(or_high) + (rr * rng)
-                                if direction == "up"
-                                else float(or_low) - (rr * rng)
-                            )
-                            if (
-                                (direction == "up" and float(target) <= float(limit))
-                                or (direction == "down" and float(target) >= float(limit))
-                            ):
-                                self._status = "Order: ORB target already hit (skip)"
-                                self._render_status()
-                                return
-                            instance.spot_profit_target_price = float(target)
-                            instance.spot_stop_loss_price = float(stop)
-                    else:
-                        risk = abs(float(limit) - stop)
-                        if risk > 0:
-                            target = float(limit) + (rr * risk) if direction == "up" else float(limit) - (rr * risk)
-                            instance.spot_profit_target_price = float(target)
-                            instance.spot_stop_loss_price = float(stop)
-            elif exit_mode == "atr":
-                atr = float(snap.atr) if snap is not None and snap.atr is not None else 0.0
-                if atr <= 0:
-                    self._status = "Order: ATR not ready (spot_exit_mode=atr)"
-                    self._render_status()
-                    return
-                try:
-                    pt_mult = float(strat.get("spot_pt_atr_mult", 1.5) or 1.5)
-                except (TypeError, ValueError):
-                    pt_mult = 1.5
-                try:
-                    sl_mult = float(strat.get("spot_sl_atr_mult", 1.0) or 1.0)
-                except (TypeError, ValueError):
-                    sl_mult = 1.0
-                if direction == "up":
-                    instance.spot_profit_target_price = float(limit) + (pt_mult * atr)
-                    instance.spot_stop_loss_price = float(limit) - (sl_mult * atr)
-                else:
-                    instance.spot_profit_target_price = float(limit) - (pt_mult * atr)
-                    instance.spot_stop_loss_price = float(limit) + (sl_mult * atr)
-
-            # Spot sizing: mirror backtest semantics (fixed / notional_pct / risk_pct), with optional
-            # shock/risk overlays applied via the filters snapshot.
-            from ..engine import spot_calc_signed_qty
-
-            filters = instance.filters if isinstance(instance.filters, dict) else None
-            stop_loss_pct = None
-            try:
-                stop_loss_pct = (
-                    float(strat.get("spot_stop_loss_pct"))
-                    if strat.get("spot_stop_loss_pct") is not None
-                    else None
-                )
-            except (TypeError, ValueError):
-                stop_loss_pct = None
-            if stop_loss_pct is not None and float(stop_loss_pct) <= 0:
-                stop_loss_pct = None
-
-            stop_price = instance.spot_stop_loss_price
-            if stop_price is not None:
-                try:
-                    stop_price = float(stop_price)
-                except (TypeError, ValueError):
-                    stop_price = None
-            if stop_price is not None and float(stop_price) <= 0:
-                stop_price = None
-
-            shock_now = bool(snap.shock) if snap.shock is not None else False
-            if shock_now and filters is not None:
-                try:
-                    sl_mult = float(filters.get("shock_stop_loss_pct_mult", 1.0) or 1.0)
-                except (TypeError, ValueError):
-                    sl_mult = 1.0
-                if sl_mult > 0 and stop_loss_pct is not None and float(stop_loss_pct) > 0:
-                    stop_loss_pct = min(float(stop_loss_pct) * float(sl_mult), 0.99)
-
-            net_liq_val, _currency, _updated = self._client.account_value("NetLiquidation")
-            buying_power_val, _bp_currency, _bp_updated = self._client.account_value("BuyingPower")
-            try:
-                equity_ref = float(net_liq_val) if net_liq_val is not None else 0.0
-            except (TypeError, ValueError):
-                equity_ref = 0.0
-            try:
-                cash_ref = float(buying_power_val) if buying_power_val is not None else None
-            except (TypeError, ValueError):
-                cash_ref = None
-
-            riskoff = bool(snap.risk.riskoff) if snap.risk is not None else False
-            riskpanic = bool(snap.risk.riskpanic) if snap.risk is not None else False
-
-            signed_qty = spot_calc_signed_qty(
-                strategy=strat,
-                filters=filters,
-                action=str(action),
-                lot=int(qty),
-                entry_price=float(limit),
-                stop_price=stop_price,
-                stop_loss_pct=stop_loss_pct,
-                shock=snap.shock,
-                shock_dir=snap.shock_dir,
-                shock_atr_pct=snap.shock_atr_pct,
-                riskoff=riskoff,
-                risk_dir=snap.shock_dir,
-                riskpanic=riskpanic,
-                equity_ref=float(equity_ref),
-                cash_ref=cash_ref,
-            )
-            if signed_qty == 0:
-                self._status = "Order: spot sizing returned 0 qty"
-                self._render_status()
-                return
-            action = "BUY" if int(signed_qty) > 0 else "SELL"
-            qty = int(abs(int(signed_qty)))
-
-            journal = {
-                "intent": intent_clean,
-                "direction": direction,
-                "bar_ts": snap.bar_ts.isoformat() if snap is not None else None,
-                "close": float(snap.close) if snap is not None else None,
-                "signal": {
-                    "state": getattr(getattr(snap, "signal", None), "state", None),
-                    "entry_dir": getattr(getattr(snap, "signal", None), "entry_dir", None),
-                    "regime_dir": getattr(getattr(snap, "signal", None), "regime_dir", None),
-                    "ema_ready": bool(getattr(getattr(snap, "signal", None), "ema_ready", False)),
-                },
-                "bars_in_day": int(snap.bars_in_day) if snap is not None else None,
-                "rv": float(snap.rv) if snap is not None and snap.rv is not None else None,
-                "volume": float(snap.volume) if snap is not None and snap.volume is not None else None,
-                "shock": bool(snap.shock) if snap is not None and snap.shock is not None else None,
-                "shock_dir": snap.shock_dir if snap is not None else None,
-                "shock_atr_pct": float(snap.shock_atr_pct)
-                if snap is not None and snap.shock_atr_pct is not None
-                else None,
-                "riskoff": bool(snap.risk.riskoff) if snap is not None and snap.risk is not None else None,
-                "riskpanic": bool(snap.risk.riskpanic) if snap is not None and snap.risk is not None else None,
-                "atr": float(snap.atr) if snap is not None and snap.atr is not None else None,
-                "or_high": float(snap.or_high) if snap is not None and snap.or_high is not None else None,
-                "or_low": float(snap.or_low) if snap is not None and snap.or_low is not None else None,
-                "or_ready": bool(snap.or_ready) if snap is not None else None,
-                "exit_mode": exit_mode,
-                "stop_loss_pct": float(stop_loss_pct) if stop_loss_pct is not None else None,
-                "stop_price": float(stop_price) if stop_price is not None else None,
-                "target_price": float(instance.spot_profit_target_price)
-                if instance.spot_profit_target_price is not None
-                else None,
-                "net_liq": float(equity_ref) if equity_ref is not None else None,
-                "buying_power": float(cash_ref) if cash_ref is not None else None,
-                "exec_policy": "LADDER",
-                "exec_mode": "OPTIMISTIC",
-                "chase_orders": bool(strat.get("chase_orders", True)),
-            }
-
-            order = _BotOrder(
-                instance_id=instance.instance_id,
-                preset=None,
-                underlying=contract,
-                order_contract=contract,
-                legs=[_BotLegOrder(contract=contract, action=action, ratio=qty)],
-                action=action,
-                quantity=qty,
-                limit_price=float(limit),
-                created_at=datetime.now(tz=ZoneInfo("America/New_York")),
-                bid=bid,
-                ask=ask,
-                last=last,
-                intent=intent_clean,
-                direction=direction,
-                reason="enter",
-                signal_bar_ts=snap.bar_ts if snap is not None else signal_bar_ts,
-                journal=journal,
-                exec_mode=mode,
-            )
-            if con_id:
-                instance.touched_conids.add(con_id)
-            instance.open_direction = str(direction)
-            if signal_bar_ts is not None:
-                instance.last_entry_bar_ts = signal_bar_ts
-            _bump_entry_counters()
-            self._add_order(order)
-            self._status = f"Created order {action} {qty} {symbol} @ {limit:.2f} ({direction})"
-            self._render_status()
-            return
-
-        legs_raw: list[dict] | None = None
-        if isinstance(strat.get("directional_legs"), dict):
-            dmap = strat.get("directional_legs") or {}
-            if direction not in ("up", "down"):
-                ema_preset = strat.get("ema_preset")
-                if ema_preset:
-                    signal_contract = await self._signal_contract(instance, symbol)
-                    snap = (
-                        await self._signal_snapshot_for_contract(
-                            contract=signal_contract,
-                            ema_preset_raw=str(ema_preset),
-                            bar_size=self._signal_bar_size(instance),
-                            use_rth=self._signal_use_rth(instance),
-                            entry_mode_raw=strat.get("ema_entry_mode"),
-                            entry_confirm_bars=strat.get("entry_confirm_bars", 0),
-                            regime_ema_preset_raw=strat.get("regime_ema_preset"),
-                            regime_bar_size_raw=strat.get("regime_bar_size"),
-                            regime_mode_raw=strat.get("regime_mode"),
-                            supertrend_atr_period_raw=strat.get("supertrend_atr_period"),
-                            supertrend_multiplier_raw=strat.get("supertrend_multiplier"),
-                            supertrend_source_raw=strat.get("supertrend_source"),
-                            regime2_ema_preset_raw=strat.get("regime2_ema_preset"),
-                            regime2_bar_size_raw=strat.get("regime2_bar_size"),
-                            regime2_mode_raw=strat.get("regime2_mode"),
-                            regime2_supertrend_atr_period_raw=strat.get("regime2_supertrend_atr_period"),
-                            regime2_supertrend_multiplier_raw=strat.get("regime2_supertrend_multiplier"),
-                            regime2_supertrend_source_raw=strat.get("regime2_supertrend_source"),
-                            filters=instance.filters if isinstance(instance.filters, dict) else None,
-                        )
-                            if signal_contract is not None
-                            else None
-                    )
-                    if snap is not None:
-                        direction = self._entry_direction_for_instance(instance, snap) or (
-                            str(snap.signal.state) if snap.signal.state in ("up", "down") else None
-                        )
-            if direction in ("up", "down") and dmap.get(direction):
-                legs_raw = dmap.get(direction)
-            else:
-                for key in ("up", "down"):
-                    if dmap.get(key):
-                        legs_raw = dmap.get(key)
-                        direction = key
-                        break
-
-        if legs_raw is None:
-            raw = strat.get("legs", []) or []
-            legs_raw = raw if isinstance(raw, list) else []
-
-        if not isinstance(legs_raw, list) or not legs_raw:
-            self._status = "Order: no legs configured"
-            self._render_status()
-            return
-
-        dte_raw = strat.get("dte", 0)
-        try:
-            dte = int(dte_raw or 0)
-        except (TypeError, ValueError):
-            dte = 0
-
-        chain_info = await self._client.stock_option_chain(symbol)
-        if not chain_info:
-            self._status = f"Chain: not found for {symbol}"
-            self._render_status()
-            return
-        underlying, chain = chain_info
-        underlying_ticker = await self._client.ensure_ticker(underlying, owner="bot")
-        under_con_id = int(getattr(underlying, "conId", 0) or 0)
-        if under_con_id:
-            self._tracked_conids.add(under_con_id)
-        spot = _ticker_price(underlying_ticker)
-        if spot is None:
-            self._status = f"Spot: n/a for {symbol}"
-            self._render_status()
-            return
-
-        expiry = _pick_chain_expiry(date.today(), dte, getattr(chain, "expirations", []))
-        if not expiry:
-            self._status = f"Expiry: none for {symbol}"
-            self._render_status()
-            return
-
-        # Build and qualify option legs.
-        strikes = getattr(chain, "strikes", [])
-        trading_class = getattr(chain, "tradingClass", None)
-        option_candidates: list[Option] = []
-        leg_specs: list[tuple[str, str, int, float, float | None]] = []
-        for leg_raw in legs_raw:
-            if not isinstance(leg_raw, dict):
-                self._status = "Order: invalid leg config"
-                self._render_status()
-                return
-            action = str(leg_raw.get("action", "")).upper()
-            right = str(leg_raw.get("right", "")).upper()
-            if action not in ("BUY", "SELL") or right not in ("PUT", "CALL"):
-                self._status = "Order: invalid leg config"
-                self._render_status()
-                return
-            try:
-                ratio = int(leg_raw.get("qty", 1) or 1)
-            except (TypeError, ValueError):
-                ratio = 1
-            ratio = max(1, abs(ratio))
-            try:
-                moneyness = float(leg_raw.get("moneyness_pct", 0.0) or 0.0)
-            except (TypeError, ValueError):
-                moneyness = 0.0
-            delta_target = leg_raw.get("delta")
-            try:
-                delta_target = float(delta_target) if delta_target is not None else None
-            except (TypeError, ValueError):
-                delta_target = None
-
-            target_strike = _strike_from_moneyness(spot, right, moneyness)
-            right_char = "P" if right == "PUT" else "C"
-            strike = None
-            if delta_target is not None and strikes:
-                strike = await self._strike_by_delta(
-                    symbol=symbol,
-                    expiry=expiry,
-                    right_char=right_char,
-                    strikes=list(strikes),
-                    trading_class=trading_class,
-                    near_strike=target_strike,
-                    target_delta=delta_target,
-                )
-            if strike is None:
-                strike = _nearest_strike(strikes, target_strike)
-            if strike is None:
-                self._status = f"Strike: none for {symbol}"
-                self._render_status()
-                return
-            option_candidates.append(
-                Option(
-                    symbol=symbol,
-                    lastTradeDateOrContractMonth=expiry,
-                    strike=float(strike),
-                    right=right_char,
-                    exchange="SMART",
-                    currency="USD",
-                    tradingClass=trading_class,
-                )
-            )
-            leg_specs.append((action, right, ratio, moneyness, delta_target))
-
-        qualified = await self._client.qualify_proxy_contracts(*option_candidates)
-        if qualified and len(qualified) == len(option_candidates):
-            option_contracts: list[Contract] = list(qualified)
-        else:
-            option_contracts = list(option_candidates)
-
-        leg_orders: list[_BotLegOrder] = []
-        leg_quotes: list[tuple[float | None, float | None, float | None, Ticker]] = []
-        for contract, (action, _, ratio, _, _) in zip(option_contracts, leg_specs):
-            con_id = int(getattr(contract, "conId", 0) or 0)
-            if con_id:
-                self._tracked_conids.add(con_id)
-            ticker = await self._client.ensure_ticker(contract, owner="bot")
-            bid = _safe_num(getattr(ticker, "bid", None))
-            ask = _safe_num(getattr(ticker, "ask", None))
-            last = _safe_num(getattr(ticker, "last", None))
-            leg_orders.append(_BotLegOrder(contract=contract, action=action, ratio=ratio))
-            leg_quotes.append((bid, ask, last, ticker))
-
-        _finalize_leg_orders(underlying=underlying, leg_orders=leg_orders, leg_quotes=leg_quotes)
-
     def _submit_order(self) -> None:
         self._submit_selected_order()
 
@@ -4558,6 +2929,7 @@ class BotScreen(Screen):
 
 
 # region UI Helpers
+# region View/Text Helpers
 def _fmt_pct(value: float) -> str:
     return f"{value:.0f}%"
 
@@ -4625,7 +2997,7 @@ def _preset_lines(preset: _BotPreset) -> list[Text]:
             legs_label = "SPOT"
 
         signal_bar = str(strat.get("signal_bar_size") or "").strip()
-        entry_signal = str(strat.get("entry_signal") or "ema").strip().lower()
+        entry_signal = normalize_spot_entry_signal(strat.get("entry_signal"))
         confirm = strat.get("entry_confirm_bars", 0)
         regime_mode = str(strat.get("regime_mode") or "ema").strip().lower()
         regime = str(strat.get("regime_ema_preset") or "").strip()
@@ -4753,12 +3125,10 @@ def _order_lines(order: _BotOrder) -> list[Text]:
     return parts
 
 
-def _weekday_num(label: str) -> int:
-    key = label.strip().upper()[:3]
-    mapping = {"MON": 0, "TUE": 1, "WED": 2, "THU": 3, "FRI": 4, "SAT": 5, "SUN": 6}
-    return mapping.get(key, 0)
+# endregion
 
 
+# region Config/Path Helpers
 def _parse_entry_days(raw: str) -> list[str]:
     cleaned = str(raw or "").strip()
     if not cleaned:
@@ -4790,30 +3160,6 @@ def _filters_for_group(payload: dict | None, group_name: str) -> dict | None:
     return None
 
 
-def _pick_chain_expiry(today: date, dte: int, expirations: list[str]) -> str | None:
-    if not expirations:
-        return None
-    target = add_business_days(today, dte)
-    parsed: list[tuple[date, str]] = []
-    for exp in expirations:
-        dt = _parse_chain_date(exp)
-        if dt:
-            parsed.append((dt, exp))
-    if not parsed:
-        return None
-    future = [(dt, exp) for dt, exp in parsed if dt >= target]
-    candidates = future or parsed
-    candidates.sort(key=lambda pair: abs((pair[0] - target).days))
-    return candidates[0][1]
-
-
-def _parse_chain_date(raw: str) -> date | None:
-    raw = str(raw).strip()
-    if len(raw) != 8 or not raw.isdigit():
-        return None
-    return date(int(raw[:4]), int(raw[4:6]), int(raw[6:8]))
-
-
 def _contract_expiry_date(raw: object) -> date | None:
     if raw is None:
         return None
@@ -4829,22 +3175,6 @@ def _contract_expiry_date(raw: object) -> date | None:
         except ValueError:
             return None
     return None
-
-
-def _strike_from_moneyness(spot: float, right: str, moneyness_pct: float) -> float:
-    # Negative moneyness means ITM (e.g., -1 = 1% ITM).
-    if right == "PUT":
-        return spot * (1 - moneyness_pct / 100.0)
-    return spot * (1 + moneyness_pct / 100.0)
-
-
-def _nearest_strike(strikes: list[float], target: float) -> float | None:
-    if not strikes:
-        return None
-    try:
-        return min((float(s) for s in strikes), key=lambda s: abs(s - target))
-    except (TypeError, ValueError):
-        return None
 
 
 def _get_path(root: object, path: str) -> object:
@@ -4905,6 +3235,10 @@ def _set_path(root: object, path: str, value: object) -> None:
         return
 
 
+# endregion
+
+
+# region Table Row Helpers
 def _order_row(order: _BotOrder) -> tuple[str, str, str, str, str, str, str, str]:
     ts = order.created_at.astimezone().strftime("%H:%M:%S")
     inst = str(order.instance_id)
@@ -4992,3 +3326,9 @@ def _position_as_order_row(item: PortfolioItem, *, scope: int | None) -> tuple[s
         _fmt_quote(mkt),
         status,
     )
+
+
+# endregion
+
+
+# endregion
