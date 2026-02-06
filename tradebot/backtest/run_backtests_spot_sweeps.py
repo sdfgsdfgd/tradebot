@@ -3144,19 +3144,55 @@ def main() -> None:
 
     axis_progress_state: dict[str, object] = {
         "active": False,
+        "axis_key": "",
         "label": "",
         "tested": 0,
         "kept": 0,
         "total": None,
         "started_at": 0.0,
         "last_report": 0.0,
+        "last_reported_tested": 0,
         "report_every": 0,
         "heartbeat_sec": 20.0,
         "suppress": False,
     }
+    axis_progress_history_path = cache_dir / "spot_axis_total_hints.json"
+    axis_progress_history: dict[str, int] = {}
+    try:
+        raw_hist = json.loads(axis_progress_history_path.read_text())
+        if isinstance(raw_hist, dict):
+            for key, val in raw_hist.items():
+                try:
+                    iv = int(val)
+                except (TypeError, ValueError):
+                    continue
+                if iv > 0:
+                    axis_progress_history[str(key).strip().lower()] = int(iv)
+    except Exception:
+        axis_progress_history = {}
 
     def _axis_total_hint(axis_name: str) -> int | None:
         axis = str(axis_name).strip().lower()
+        static_simple: dict[str, int] = {
+            "ema": 6,
+            "entry_mode": 6,
+            "volume": 13,
+            "rv": 29,
+            "tod": 29,
+            "tod_interaction": 81,
+            "exit_time": 7,
+            "regime2_ema": 12,
+            "flip_exit": 48,
+            "confirm": 4,
+            "hold": 7,
+            "spot_short_risk_mult": 13,
+            "slope": 6,
+            "cooldown": 7,
+            "skip_open": 6,
+        }
+        static_val = static_simple.get(axis)
+        if isinstance(static_val, int) and static_val > 0:
+            return int(static_val)
         if axis in _ATR_EXIT_PROFILE_REGISTRY:
             profile = _ATR_EXIT_PROFILE_REGISTRY.get(axis) or {}
             return int(
@@ -3204,17 +3240,23 @@ def main() -> None:
                 * len(tuple(profile.get("pt_mults") or ()))
                 * len(tuple(profile.get("short_risk_factors") or ()))
             )
+        hist = axis_progress_history.get(str(axis))
+        if isinstance(hist, int) and hist > 0:
+            return int(hist)
         return None
 
     def _axis_progress_begin(*, axis_name: str) -> None:
+        axis_key = str(axis_name).strip().lower()
         axis_progress_state["active"] = True
-        axis_progress_state["label"] = f"{str(axis_name).strip().lower()} axis"
+        axis_progress_state["axis_key"] = str(axis_key)
+        axis_progress_state["label"] = f"{axis_key} axis"
         axis_progress_state["tested"] = 0
         axis_progress_state["kept"] = 0
-        axis_progress_state["total"] = _axis_total_hint(str(axis_name))
+        axis_progress_state["total"] = _axis_total_hint(str(axis_key))
         started_at = float(pytime.perf_counter())
         axis_progress_state["started_at"] = started_at
         axis_progress_state["last_report"] = started_at
+        axis_progress_state["last_reported_tested"] = 0
         axis_progress_state["report_every"] = 200
         axis_progress_state["heartbeat_sec"] = 20.0
         axis_progress_state["suppress"] = False
@@ -3251,12 +3293,15 @@ def main() -> None:
             flush=True,
         )
         axis_progress_state["last_report"] = now
+        axis_progress_state["last_reported_tested"] = int(tested)
 
     def _axis_progress_end() -> None:
         if not bool(axis_progress_state.get("active")):
             return
         tested = int(axis_progress_state.get("tested") or 0)
-        if tested > 0:
+        axis_key = str(axis_progress_state.get("axis_key") or "").strip().lower()
+        last_reported_tested = int(axis_progress_state.get("last_reported_tested") or 0)
+        if tested > 0 and tested != last_reported_tested:
             print(
                 _progress_line(
                     label=str(axis_progress_state.get("label") or "axis"),
@@ -3272,13 +3317,21 @@ def main() -> None:
                 ),
                 flush=True,
             )
+            if axis_key:
+                axis_progress_history[str(axis_key)] = int(tested)
+                try:
+                    write_json(axis_progress_history_path, axis_progress_history, sort_keys=True)
+                except Exception:
+                    pass
         axis_progress_state["active"] = False
+        axis_progress_state["axis_key"] = ""
         axis_progress_state["label"] = ""
         axis_progress_state["tested"] = 0
         axis_progress_state["kept"] = 0
         axis_progress_state["total"] = None
         axis_progress_state["started_at"] = 0.0
         axis_progress_state["last_report"] = 0.0
+        axis_progress_state["last_reported_tested"] = 0
         axis_progress_state["suppress"] = False
 
     def _run_cfg(
