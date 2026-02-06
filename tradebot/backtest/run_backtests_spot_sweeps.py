@@ -449,6 +449,93 @@ _SPREAD_PROFILE_REGISTRY: dict[str, dict[str, object]] = {
         "decimals": 4,
     },
 }
+_PERM_JOINT_PROFILE: dict[str, tuple] = {
+    "tod_windows": (
+        (None, None, "tod=base", {}),
+        (None, None, "tod=off", {"entry_start_hour_et": None, "entry_end_hour_et": None}),
+        (9, 16, "tod=09-16 ET", {"entry_start_hour_et": 9, "entry_end_hour_et": 16}),
+        (10, 15, "tod=10-15 ET", {"entry_start_hour_et": 10, "entry_end_hour_et": 15}),
+        (11, 16, "tod=11-16 ET", {"entry_start_hour_et": 11, "entry_end_hour_et": 16}),
+        (17, 3, "tod=17-03 ET", {"entry_start_hour_et": 17, "entry_end_hour_et": 3}),
+        (17, 4, "tod=17-04 ET", {"entry_start_hour_et": 17, "entry_end_hour_et": 4}),
+        (17, 5, "tod=17-05 ET", {"entry_start_hour_et": 17, "entry_end_hour_et": 5}),
+        (18, 3, "tod=18-03 ET", {"entry_start_hour_et": 18, "entry_end_hour_et": 3}),
+        (18, 4, "tod=18-04 ET", {"entry_start_hour_et": 18, "entry_end_hour_et": 4}),
+        (18, 5, "tod=18-05 ET", {"entry_start_hour_et": 18, "entry_end_hour_et": 5}),
+        (19, 3, "tod=19-03 ET", {"entry_start_hour_et": 19, "entry_end_hour_et": 3}),
+        (19, 4, "tod=19-04 ET", {"entry_start_hour_et": 19, "entry_end_hour_et": 4}),
+        (19, 5, "tod=19-05 ET", {"entry_start_hour_et": 19, "entry_end_hour_et": 5}),
+    ),
+    "spread_variants": (
+        ("spread=base", {}),
+        ("spread=off", {"ema_spread_min_pct": None}),
+        ("spread>=0.0020", {"ema_spread_min_pct": 0.002}),
+        ("spread>=0.0030", {"ema_spread_min_pct": 0.003}),
+        ("spread>=0.0040", {"ema_spread_min_pct": 0.004}),
+        ("spread>=0.0050", {"ema_spread_min_pct": 0.005}),
+        ("spread>=0.0060", {"ema_spread_min_pct": 0.006}),
+        ("spread>=0.0070", {"ema_spread_min_pct": 0.007}),
+        ("spread>=0.0080", {"ema_spread_min_pct": 0.008}),
+        ("spread>=0.0100", {"ema_spread_min_pct": 0.01}),
+    ),
+    "vol_variants": (
+        ("vol=base", {}),
+        ("vol=off", {"volume_ratio_min": None, "volume_ema_period": None}),
+        ("vol>=1.0@10", {"volume_ratio_min": 1.0, "volume_ema_period": 10}),
+        ("vol>=1.0@20", {"volume_ratio_min": 1.0, "volume_ema_period": 20}),
+        ("vol>=1.1@10", {"volume_ratio_min": 1.1, "volume_ema_period": 10}),
+        ("vol>=1.1@20", {"volume_ratio_min": 1.1, "volume_ema_period": 20}),
+        ("vol>=1.2@10", {"volume_ratio_min": 1.2, "volume_ema_period": 10}),
+        ("vol>=1.2@20", {"volume_ratio_min": 1.2, "volume_ema_period": 20}),
+        ("vol>=1.5@10", {"volume_ratio_min": 1.5, "volume_ema_period": 10}),
+        ("vol>=1.5@20", {"volume_ratio_min": 1.5, "volume_ema_period": 20}),
+    ),
+}
+_REGIME_ST_PROFILE: dict[str, tuple] = {
+    "bars": ("4 hours", "1 day"),
+    "atr_periods": (2, 3, 4, 5, 6, 7, 10, 11, 14, 21),
+    "multipliers": (0.05, 0.075, 0.1, 0.125, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0, 1.5, 2.0),
+    "sources": ("close", "hl2"),
+}
+_REGIME2_ST_PROFILE: dict[str, tuple] = {
+    "atr_periods": (2, 3, 4, 5, 6, 7, 10, 11, 14, 21),
+    "multipliers": (0.05, 0.075, 0.1, 0.125, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0, 1.5, 2.0),
+    "sources": ("close", "hl2"),
+}
+_SHOCK_SWEEP_PROFILE: dict[str, tuple] = {
+    "modes": ("detect", "block", "block_longs", "block_shorts", "surf"),
+    "dir_variants": (("regime", 2, "dir=regime@2"), ("signal", 1, "dir=signal@1")),
+    "sl_mults": (1.0, 0.75),
+    "pt_mults": (1.0, 0.75),
+    "short_risk_factors": (1.0, 0.5),
+    "ratio_rows": (
+        ("atr_ratio", 5, 30, 1.35, 1.20, 6.0),
+        ("atr_ratio", 7, 50, 1.55, 1.30, 7.0),
+        ("atr_ratio", 10, 80, 1.45, 1.25, 7.0),
+        ("atr_ratio", 14, 120, 1.35, 1.20, 9.0),
+        ("atr_ratio", 7, 30, 1.70, 1.40, 7.0),
+        ("tr_ratio", 5, 30, 1.35, 1.20, 6.0),
+        ("tr_ratio", 7, 50, 1.55, 1.30, 7.0),
+        ("tr_ratio", 10, 80, 1.45, 1.25, 7.0),
+        ("tr_ratio", 14, 120, 1.35, 1.20, 9.0),
+        ("tr_ratio", 7, 30, 1.70, 1.40, 7.0),
+    ),
+    "daily_atr_rows": (
+        (14, 13.0, 11.0, None),
+        (14, 13.5, 13.0, None),
+        (14, 14.0, 13.0, None),
+        (14, 14.0, 13.0, 9.0),
+        (10, 13.0, 11.0, 9.0),
+        (21, 14.0, 13.0, 10.0),
+    ),
+    "drawdown_rows": (
+        (10, -15.0, -8.0),
+        (20, -20.0, -10.0),
+        (20, -25.0, -15.0),
+        (30, -25.0, -15.0),
+        (60, -30.0, -20.0),
+    ),
+}
 _SHOCK_THROTTLE_TR_RATIO_PROFILE: dict[str, tuple] = {
     "periods": ((2, 50), (3, 50), (5, 50), (3, 21)),
     "targets": (0.25, 0.35, 0.45, 0.55, 0.7, 0.9, 1.1),
@@ -3055,6 +3142,145 @@ def main() -> None:
             getattr(last, "ts", None),
         )
 
+    axis_progress_state: dict[str, object] = {
+        "active": False,
+        "label": "",
+        "tested": 0,
+        "kept": 0,
+        "total": None,
+        "started_at": 0.0,
+        "last_report": 0.0,
+        "report_every": 0,
+        "heartbeat_sec": 20.0,
+        "suppress": False,
+    }
+
+    def _axis_total_hint(axis_name: str) -> int | None:
+        axis = str(axis_name).strip().lower()
+        if axis in _ATR_EXIT_PROFILE_REGISTRY:
+            profile = _ATR_EXIT_PROFILE_REGISTRY.get(axis) or {}
+            return int(
+                len(tuple(profile.get("atr_periods") or ()))
+                * len(tuple(profile.get("pt_mults") or ()))
+                * len(tuple(profile.get("sl_mults") or ()))
+            )
+        if axis in _SPREAD_PROFILE_REGISTRY:
+            profile = _SPREAD_PROFILE_REGISTRY.get(axis) or {}
+            return int(len(tuple(profile.get("values") or ())))
+        if axis == "perm_joint":
+            profile = _PERM_JOINT_PROFILE
+            return int(
+                len(tuple(profile.get("tod_windows") or ()))
+                * len(tuple(profile.get("spread_variants") or ()))
+                * len(tuple(profile.get("vol_variants") or ()))
+            )
+        if axis == "regime":
+            profile = _REGIME_ST_PROFILE
+            return int(
+                len(tuple(profile.get("bars") or ()))
+                * len(tuple(profile.get("atr_periods") or ()))
+                * len(tuple(profile.get("multipliers") or ()))
+                * len(tuple(profile.get("sources") or ()))
+            )
+        if axis == "regime2":
+            profile = _REGIME2_ST_PROFILE
+            return int(
+                len(tuple(profile.get("atr_periods") or ()))
+                * len(tuple(profile.get("multipliers") or ()))
+                * len(tuple(profile.get("sources") or ()))
+            )
+        if axis == "shock":
+            profile = _SHOCK_SWEEP_PROFILE
+            preset_count = int(
+                len(tuple(profile.get("ratio_rows") or ()))
+                + len(tuple(profile.get("daily_atr_rows") or ()))
+                + len(tuple(profile.get("drawdown_rows") or ()))
+            )
+            return int(
+                preset_count
+                * len(tuple(profile.get("modes") or ()))
+                * len(tuple(profile.get("dir_variants") or ()))
+                * len(tuple(profile.get("sl_mults") or ()))
+                * len(tuple(profile.get("pt_mults") or ()))
+                * len(tuple(profile.get("short_risk_factors") or ()))
+            )
+        return None
+
+    def _axis_progress_begin(*, axis_name: str) -> None:
+        axis_progress_state["active"] = True
+        axis_progress_state["label"] = f"{str(axis_name).strip().lower()} axis"
+        axis_progress_state["tested"] = 0
+        axis_progress_state["kept"] = 0
+        axis_progress_state["total"] = _axis_total_hint(str(axis_name))
+        started_at = float(pytime.perf_counter())
+        axis_progress_state["started_at"] = started_at
+        axis_progress_state["last_report"] = started_at
+        axis_progress_state["report_every"] = 200
+        axis_progress_state["heartbeat_sec"] = 20.0
+        axis_progress_state["suppress"] = False
+
+    def _axis_progress_record(*, kept: bool) -> None:
+        if not bool(axis_progress_state.get("active")):
+            return
+        axis_progress_state["tested"] = int(axis_progress_state.get("tested") or 0) + 1
+        if bool(kept):
+            axis_progress_state["kept"] = int(axis_progress_state.get("kept") or 0) + 1
+        if bool(axis_progress_state.get("suppress")):
+            return
+        tested = int(axis_progress_state.get("tested") or 0)
+        report_every = int(axis_progress_state.get("report_every") or 0)
+        started_at = float(axis_progress_state.get("started_at") or 0.0)
+        total = axis_progress_state.get("total")
+        hit_report_every = report_every > 0 and (tested % report_every == 0)
+        hit_total = isinstance(total, int) and int(total) > 0 and tested >= int(total)
+        now = float(pytime.perf_counter())
+        hit_heartbeat = (now - float(axis_progress_state.get("last_report") or started_at)) >= float(
+            axis_progress_state.get("heartbeat_sec") or 20.0
+        )
+        if not (hit_report_every or hit_total or hit_heartbeat):
+            return
+        print(
+            _progress_line(
+                label=str(axis_progress_state.get("label") or "axis"),
+                tested=int(tested),
+                total=(int(total) if isinstance(total, int) else None),
+                kept=int(axis_progress_state.get("kept") or 0),
+                started_at=float(started_at),
+                rate_unit="cfg/s",
+            ),
+            flush=True,
+        )
+        axis_progress_state["last_report"] = now
+
+    def _axis_progress_end() -> None:
+        if not bool(axis_progress_state.get("active")):
+            return
+        tested = int(axis_progress_state.get("tested") or 0)
+        if tested > 0:
+            print(
+                _progress_line(
+                    label=str(axis_progress_state.get("label") or "axis"),
+                    tested=tested,
+                    total=(
+                        int(axis_progress_state.get("total"))
+                        if isinstance(axis_progress_state.get("total"), int)
+                        else None
+                    ),
+                    kept=int(axis_progress_state.get("kept") or 0),
+                    started_at=float(axis_progress_state.get("started_at") or 0.0),
+                    rate_unit="cfg/s",
+                ),
+                flush=True,
+            )
+        axis_progress_state["active"] = False
+        axis_progress_state["label"] = ""
+        axis_progress_state["tested"] = 0
+        axis_progress_state["kept"] = 0
+        axis_progress_state["total"] = None
+        axis_progress_state["started_at"] = 0.0
+        axis_progress_state["last_report"] = 0.0
+        axis_progress_state["suppress"] = False
+
     def _run_cfg(
         *, cfg: ConfigBundle, bars: list | None = None, regime_bars: list | None = None, regime2_bars: list | None = None
     ) -> dict | None:
@@ -3076,7 +3302,9 @@ def main() -> None:
             run_cfg_cache_hits += 1
             run_cfg_fingerprint_hits += 1
             fp_row = fp_cached[1]
-            return dict(fp_row) if isinstance(fp_row, dict) else None
+            row = dict(fp_row) if isinstance(fp_row, dict) else None
+            _axis_progress_record(kept=bool(row))
+            return row
         cache_key = (
             cfg_key,
             bars_sig,
@@ -3088,14 +3316,18 @@ def main() -> None:
         if cached is not _RUN_CFG_CACHE_MISS:
             run_cfg_cache_hits += 1
             run_cfg_fingerprint_cache[cfg_key] = (ctx_sig, cached if isinstance(cached, dict) else None)
-            return dict(cached) if isinstance(cached, dict) else None
+            row = dict(cached) if isinstance(cached, dict) else None
+            _axis_progress_record(kept=bool(row))
+            return row
         persisted = _run_cfg_persistent_get(cache_key=str(persistent_key))
         if persisted is not _RUN_CFG_CACHE_MISS:
             run_cfg_cache_hits += 1
             run_cfg_persistent_hits += 1
             run_cfg_cache[cache_key] = persisted if isinstance(persisted, dict) else None
             run_cfg_fingerprint_cache[cfg_key] = (ctx_sig, persisted if isinstance(persisted, dict) else None)
-            return dict(persisted) if isinstance(persisted, dict) else None
+            row = dict(persisted) if isinstance(persisted, dict) else None
+            _axis_progress_record(kept=bool(row))
+            return row
         tick_bars = _tick_bars_for(cfg)
         exec_bars = None
         exec_size = str(getattr(cfg.strategy, "spot_exec_bar_size", "") or "").strip()
@@ -3115,6 +3347,7 @@ def main() -> None:
             run_cfg_fingerprint_cache[cfg_key] = (ctx_sig, None)
             _run_cfg_persistent_set(cache_key=str(persistent_key), payload=None)
             run_cfg_persistent_writes += 1
+            _axis_progress_record(kept=False)
             return None
         pnl = float(s.total_pnl or 0.0)
         dd = float(s.max_drawdown or 0.0)
@@ -3133,6 +3366,7 @@ def main() -> None:
         run_cfg_fingerprint_cache[cfg_key] = (ctx_sig, out)
         _run_cfg_persistent_set(cache_key=str(persistent_key), payload=out)
         run_cfg_persistent_writes += 1
+        _axis_progress_record(kept=True)
         return dict(out)
 
     def _run_sweep(
@@ -3150,39 +3384,45 @@ def main() -> None:
         t0 = pytime.perf_counter()
         last = float(t0)
         total_i = int(total) if total is not None else None
+        suppress_prev = bool(axis_progress_state.get("suppress"))
+        if progress_label:
+            axis_progress_state["suppress"] = True
 
-        for cfg, note, meta_item in plan:
-            tested += 1
-            if progress_label:
-                now = pytime.perf_counter()
-                hit_report_every = int(report_every) > 0 and (tested % int(report_every) == 0)
-                hit_total = total_i is not None and tested == int(total_i)
-                hit_heartbeat = float(heartbeat_sec) > 0 and (now - last) >= float(heartbeat_sec)
-                if hit_report_every or hit_total or hit_heartbeat:
-                    print(
-                        _progress_line(
-                            label=str(progress_label),
-                            tested=int(tested),
-                            total=total_i,
-                            kept=len(kept),
-                            started_at=t0,
-                            rate_unit="s",
-                        ),
-                        flush=True,
-                    )
-                    last = float(now)
+        try:
+            for cfg, note, meta_item in plan:
+                tested += 1
+                if progress_label:
+                    now = pytime.perf_counter()
+                    hit_report_every = int(report_every) > 0 and (tested % int(report_every) == 0)
+                    hit_total = total_i is not None and tested == int(total_i)
+                    hit_heartbeat = float(heartbeat_sec) > 0 and (now - last) >= float(heartbeat_sec)
+                    if hit_report_every or hit_total or hit_heartbeat:
+                        print(
+                            _progress_line(
+                                label=str(progress_label),
+                                tested=int(tested),
+                                total=total_i,
+                                kept=len(kept),
+                                started_at=t0,
+                                rate_unit="s",
+                            ),
+                            flush=True,
+                        )
+                        last = float(now)
 
-            row = _run_cfg(cfg=cfg, bars=bars)
-            if not row:
-                continue
+                row = _run_cfg(cfg=cfg, bars=bars)
+                if not row:
+                    continue
 
-            note_s = str(note or "")
-            row = dict(row)
-            if note_s:
-                row["note"] = note_s
-                if bool(record_milestones):
-                    _record_milestone(cfg, row, note_s)
-            kept.append((cfg, row, note_s, meta_item))
+                note_s = str(note or "")
+                row = dict(row)
+                if note_s:
+                    row["note"] = note_s
+                    if bool(record_milestones):
+                        _record_milestone(cfg, row, note_s)
+                kept.append((cfg, row, note_s, meta_item))
+        finally:
+            axis_progress_state["suppress"] = suppress_prev
 
         return tested, kept
 
@@ -3773,24 +4013,31 @@ def main() -> None:
         *,
         timed: bool = False,
     ) -> None:
+        def _run_axis_callable(axis_name: str, fn, *, timed_local: bool) -> None:
+            before_calls = int(run_calls_total)
+            t0 = pytime.perf_counter()
+            total_hint = _axis_total_hint(str(axis_name))
+            total_hint_s = str(total_hint) if total_hint is not None else "?"
+            if bool(timed_local):
+                print(f"START {axis_name} total={total_hint_s}", flush=True)
+            else:
+                print(f"START {axis_name} total={total_hint_s}", flush=True)
+            _axis_progress_begin(axis_name=str(axis_name))
+            try:
+                fn()
+            finally:
+                _axis_progress_end()
+            elapsed = pytime.perf_counter() - t0
+            tested = int(run_calls_total) - int(before_calls)
+            print(f"DONE  {axis_name} tested={tested} elapsed={elapsed:0.1f}s", flush=True)
+            print("", flush=True)
+
         for axis_name, _profile, _emit in axis_plan:
             fn_obj = axis_registry.get(str(axis_name))
             fn = fn_obj if callable(fn_obj) else None
             if fn is None:
                 continue
-            if not bool(timed):
-                fn()
-                continue
-            before_kept = len(milestone_rows)
-            before_calls = int(run_calls_total)
-            t0 = pytime.perf_counter()
-            print(f"START {axis_name} total=?", flush=True)
-            fn()
-            elapsed = pytime.perf_counter() - t0
-            tested = int(run_calls_total) - int(before_calls)
-            kept = len(milestone_rows) - before_kept
-            print(f"DONE  {axis_name} tested={tested} kept={kept} elapsed={elapsed:0.1f}s", flush=True)
-            print("", flush=True)
+            _run_axis_callable(str(axis_name), fn, timed_local=bool(timed))
 
     def _iter_seed_bundles(seeds: list[dict]):
         for seed_i, item in enumerate(seeds, start=1):
@@ -4225,81 +4472,39 @@ def main() -> None:
 
     def _sweep_perm_joint() -> None:
         """Joint permission sweep: TOD × spread × volume (no funnel pruning)."""
-        bars_sig = _bars_cached(signal_bar_size)
         base = _base_bundle(bar_size=signal_bar_size, filters=None)
-        base_row = _run_cfg(
-            cfg=base, bars=bars_sig
-        )
+        base_row = _run_cfg(cfg=base)
         if base_row:
             base_row["note"] = "base"
             _record_milestone(base, base_row, "base")
 
         base_filters = base.strategy.filters
-
-        tod_windows: list[tuple[int | None, int | None, str, dict[str, object]]] = []
-        tod_windows.append((None, None, "tod=base", {}))
-        tod_windows.append((None, None, "tod=off", {"entry_start_hour_et": None, "entry_end_hour_et": None}))
-        for start_h, end_h, label in (
-            (9, 16, "tod=09-16 ET"),
-            (10, 15, "tod=10-15 ET"),
-            (11, 16, "tod=11-16 ET"),
-        ):
-            tod_windows.append((start_h, end_h, label, {"entry_start_hour_et": int(start_h), "entry_end_hour_et": int(end_h)}))
-        for start_h in (17, 18, 19):
-            for end_h in (3, 4, 5):
-                label = f"tod={start_h:02d}-{end_h:02d} ET"
-                tod_windows.append(
-                    (start_h, end_h, label, {"entry_start_hour_et": int(start_h), "entry_end_hour_et": int(end_h)})
-                )
-
-        spread_variants: list[tuple[str, dict[str, object]]] = [
-            ("spread=base", {}),
-            ("spread=off", {"ema_spread_min_pct": None}),
-        ]
-        for s in (0.002, 0.003, 0.004, 0.005, 0.006, 0.007, 0.008, 0.01):
-            spread_variants.append((f"spread>={s:.4f}", {"ema_spread_min_pct": float(s)}))
-
-        vol_variants: list[tuple[str, dict[str, object]]] = [
-            ("vol=base", {}),
-            ("vol=off", {"volume_ratio_min": None, "volume_ema_period": None}),
-        ]
-        for ratio in (1.0, 1.1, 1.2, 1.5):
-            for ema_p in (10, 20):
-                vol_variants.append((f"vol>={ratio}@{ema_p}", {"volume_ratio_min": float(ratio), "volume_ema_period": int(ema_p)}))
-
+        profile = _PERM_JOINT_PROFILE
+        tod_windows: tuple = tuple(profile.get("tod_windows") or ())
+        spread_variants: tuple = tuple(profile.get("spread_variants") or ())
+        vol_variants: tuple = tuple(profile.get("vol_variants") or ())
         rows: list[dict] = []
-        tested = 0
-        total = len(tod_windows) * len(spread_variants) * len(vol_variants)
-        t0 = pytime.perf_counter()
-        report_every = 200
+        cfg_pairs: list[tuple[ConfigBundle, str]] = []
         for _, _, tod_note, tod_over in tod_windows:
             for spread_note, spread_over in spread_variants:
                 for vol_note, vol_over in vol_variants:
-                    tested += 1
-                    if tested % report_every == 0 or tested == total:
-                        elapsed = pytime.perf_counter() - t0
-                        rate = (tested / elapsed) if elapsed > 0 else 0.0
-                        remaining = total - tested
-                        eta_sec = (remaining / rate) if rate > 0 else 0.0
-                        pct = (tested / total * 100.0) if total > 0 else 0.0
-                        print(
-                            f"perm_joint progress {tested}/{total} ({pct:0.1f}%) kept={len(rows)} "
-                            f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
-                            flush=True,
-                        )
                     overrides: dict[str, object] = {}
                     overrides.update(tod_over)
                     overrides.update(spread_over)
                     overrides.update(vol_over)
                     f = _merge_filters(base_filters, overrides=overrides)
                     cfg = replace(base, strategy=replace(base.strategy, filters=f))
-                    row = _run_cfg(cfg=cfg)
-                    if not row:
-                        continue
                     note = f"{tod_note} | {spread_note} | {vol_note}"
-                    row["note"] = note
-                    _record_milestone(cfg, row, note)
-                    rows.append(row)
+                    cfg_pairs.append((cfg, note))
+        tested_total = _run_cfg_pairs_grid(
+            axis_tag="perm_joint",
+            cfg_pairs=cfg_pairs,
+            rows=rows,
+            report_every=200,
+            heartbeat_sec=20.0,
+        )
+        if int(tested_total) < 0:
+            return
         if base_row:
             rows.append(base_row)
         _print_leaderboards(rows, title="Permission joint sweep (TOD × spread × volume)", top_n=int(args.top))
@@ -4490,14 +4695,15 @@ def main() -> None:
                     for vol_note, vol_over in vol_variants:
                         tested += 1
                         if tested % report_every == 0 or tested == total:
-                            elapsed = pytime.perf_counter() - t0
-                            rate = (tested / elapsed) if elapsed > 0 else 0.0
-                            remaining = total - tested
-                            eta_sec = (remaining / rate) if rate > 0 else 0.0
-                            pct = (tested / total * 100.0) if total > 0 else 0.0
                             print(
-                                f"tick_perm_joint stage2 {tested}/{total} ({pct:0.1f}%) kept={len(rows)} "
-                                f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
+                                _progress_line(
+                                    label="tick_perm_joint stage2",
+                                    tested=int(tested),
+                                    total=int(total),
+                                    kept=len(rows),
+                                    started_at=t0,
+                                    rate_unit="s",
+                                ),
                                 flush=True,
                             )
                         overrides: dict[str, object] = {}
@@ -6033,90 +6239,58 @@ def main() -> None:
         _print_leaderboards(rows, title="ORB joint sweep (ORB × regime × tick)", top_n=int(args.top))
 
     def _sweep_regime() -> None:
-        bars_sig = _bars_cached(signal_bar_size)
-
+        base = _base_bundle(bar_size=signal_bar_size, filters=None)
+        profile = _REGIME_ST_PROFILE
+        regime_bar_sizes = tuple(profile.get("bars") or ())
+        atr_periods = tuple(profile.get("atr_periods") or ())
+        multipliers = tuple(profile.get("multipliers") or ())
+        sources = tuple(profile.get("sources") or ())
         rows: list[dict] = []
-        regime_bar_sizes = ["4 hours", "1 day"]
-        # Include both the newer “micro” ST params and some legacy/wider values we’ve
-        # historically tested (e.g. mult=0.8 or 2.0) so the unified sweeps cover them.
-        atr_periods = [2, 3, 4, 5, 6, 7, 10, 11, 14, 21]
-        multipliers = [0.05, 0.075, 0.1, 0.125, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0, 1.5, 2.0]
-        sources = ["close", "hl2"]
-        tested = 0
-        total = len(regime_bar_sizes) * len(atr_periods) * len(multipliers) * len(sources)
-        t0 = pytime.perf_counter()
-        report_every = 100
+        cfg_pairs: list[tuple[ConfigBundle, str]] = []
         for rbar in regime_bar_sizes:
             for atr_p in atr_periods:
                 for mult in multipliers:
                     for src in sources:
-                        tested += 1
-                        if tested % report_every == 0 or tested == total:
-                            elapsed = pytime.perf_counter() - t0
-                            rate = (tested / elapsed) if elapsed > 0 else 0.0
-                            remaining = total - tested
-                            eta_sec = (remaining / rate) if rate > 0 else 0.0
-                            pct = (tested / total * 100.0) if total > 0 else 0.0
-                            print(
-                                f"regime progress {tested}/{total} ({pct:0.1f}%) kept={len(rows)} "
-                                f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
-                                flush=True,
-                            )
-                        cfg = _base_bundle(bar_size=signal_bar_size, filters=None)
                         cfg = replace(
-                            cfg,
+                            base,
                             strategy=replace(
-                                cfg.strategy,
+                                base.strategy,
                                 regime_mode="supertrend",
-                                regime_bar_size=rbar,
+                                regime_bar_size=str(rbar),
                                 supertrend_atr_period=int(atr_p),
                                 supertrend_multiplier=float(mult),
                                 supertrend_source=str(src),
                             ),
                         )
-                        row = _run_cfg(cfg=cfg, bars=bars_sig)
-                        if not row:
-                            continue
                         note = f"ST({atr_p},{mult},{src}) @{rbar}"
-                        row["note"] = note
-                        _record_milestone(cfg, row, note)
-                        rows.append(row)
+                        cfg_pairs.append((cfg, note))
+        tested_total = _run_cfg_pairs_grid(
+            axis_tag="regime",
+            cfg_pairs=cfg_pairs,
+            rows=rows,
+            report_every=100,
+            heartbeat_sec=20.0,
+        )
+        if int(tested_total) < 0:
+            return
         _print_leaderboards(rows, title="Regime sweep (Supertrend params + timeframe)", top_n=int(args.top))
 
     def _sweep_regime2() -> None:
-        bars_sig = _bars_cached(signal_bar_size)
-
         base = _base_bundle(bar_size=signal_bar_size, filters=None)
-        base_row = _run_cfg(
-            cfg=base, bars=bars_sig
-        )
+        base_row = _run_cfg(cfg=base)
         if base_row:
             base_row["note"] = "base"
             _record_milestone(base, base_row, "base")
 
+        profile = _REGIME2_ST_PROFILE
+        atr_periods = tuple(profile.get("atr_periods") or ())
+        multipliers = tuple(profile.get("multipliers") or ())
+        sources = tuple(profile.get("sources") or ())
         rows: list[dict] = []
-        atr_periods = [2, 3, 4, 5, 6, 7, 10, 11, 14, 21]
-        multipliers = [0.05, 0.075, 0.1, 0.125, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0, 1.5, 2.0]
-        sources = ["close", "hl2"]
-        tested = 0
-        total = len(atr_periods) * len(multipliers) * len(sources)
-        t0 = pytime.perf_counter()
-        report_every = 100
+        cfg_pairs: list[tuple[ConfigBundle, str]] = []
         for atr_p in atr_periods:
             for mult in multipliers:
                 for src in sources:
-                    tested += 1
-                    if tested % report_every == 0 or tested == total:
-                        elapsed = pytime.perf_counter() - t0
-                        rate = (tested / elapsed) if elapsed > 0 else 0.0
-                        remaining = total - tested
-                        eta_sec = (remaining / rate) if rate > 0 else 0.0
-                        pct = (tested / total * 100.0) if total > 0 else 0.0
-                        print(
-                            f"regime2 progress {tested}/{total} ({pct:0.1f}%) kept={len(rows)} "
-                            f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
-                            flush=True,
-                        )
                     cfg = replace(
                         base,
                         strategy=replace(
@@ -6128,13 +6302,17 @@ def main() -> None:
                             regime2_supertrend_source=str(src),
                         ),
                     )
-                    row = _run_cfg(cfg=cfg, bars=bars_sig)
-                    if not row:
-                        continue
                     note = f"ST2(4h:{atr_p},{mult},{src})"
-                    row["note"] = note
-                    _record_milestone(cfg, row, note)
-                    rows.append(row)
+                    cfg_pairs.append((cfg, note))
+        tested_total = _run_cfg_pairs_grid(
+            axis_tag="regime2",
+            cfg_pairs=cfg_pairs,
+            rows=rows,
+            report_every=100,
+            heartbeat_sec=20.0,
+        )
+        if int(tested_total) < 0:
+            return
         if base_row:
             rows.append(base_row)
         _print_leaderboards(rows, title="Dual regime sweep (regime2 Supertrend @ 4h)", top_n=int(args.top))
@@ -6480,45 +6658,30 @@ def main() -> None:
             base_row["note"] = "base"
             _record_milestone(base, base_row, "base")
 
-        modes = ["detect", "block", "block_longs", "block_shorts", "surf"]
-        dir_variants = [("regime", 2, "dir=regime@2"), ("signal", 1, "dir=signal@1")]
-        sl_mults = [1.0, 0.75]
-        pt_mults = [1.0, 0.75]
-        short_risk_factors = [1.0, 0.5]
+        profile = _SHOCK_SWEEP_PROFILE
+        modes = tuple(profile.get("modes") or ())
+        dir_variants = tuple(profile.get("dir_variants") or ())
+        sl_mults = tuple(profile.get("sl_mults") or ())
+        pt_mults = tuple(profile.get("pt_mults") or ())
+        short_risk_factors = tuple(profile.get("short_risk_factors") or ())
 
-        ratio_presets: list[tuple[str, dict[str, object], str]] = []
-        for detector in ("atr_ratio", "tr_ratio"):
-            for fast, slow, on, off, min_pct in (
-                (5, 30, 1.35, 1.20, 6.0),
-                (7, 50, 1.55, 1.30, 7.0),
-                (10, 80, 1.45, 1.25, 7.0),
-                (14, 120, 1.35, 1.20, 9.0),
-                (7, 30, 1.70, 1.40, 7.0),
-            ):
-                ratio_presets.append(
-                    (
-                        detector,
-                        {
-                            "shock_atr_fast_period": int(fast),
-                            "shock_atr_slow_period": int(slow),
-                            "shock_on_ratio": float(on),
-                            "shock_off_ratio": float(off),
-                            "shock_min_atr_pct": float(min_pct),
-                        },
-                        f"{detector} fast={fast} slow={slow} on={on:g} off={off:g} min={min_pct:g}",
-                    )
+        presets: list[tuple[str, dict[str, object], str]] = []
+        for detector, fast, slow, on, off, min_pct in tuple(profile.get("ratio_rows") or ()):
+            presets.append(
+                (
+                    str(detector),
+                    {
+                        "shock_atr_fast_period": int(fast),
+                        "shock_atr_slow_period": int(slow),
+                        "shock_on_ratio": float(on),
+                        "shock_off_ratio": float(off),
+                        "shock_min_atr_pct": float(min_pct),
+                    },
+                    f"{detector} fast={fast} slow={slow} on={on:g} off={off:g} min={min_pct:g}",
                 )
-
-        daily_atr_presets: list[tuple[str, dict[str, object], str]] = []
-        for period, on_atr, off_atr, tr_on in (
-            (14, 13.0, 11.0, None),
-            (14, 13.5, 13.0, None),
-            (14, 14.0, 13.0, None),
-            (14, 14.0, 13.0, 9.0),
-            (10, 13.0, 11.0, 9.0),
-            (21, 14.0, 13.0, 10.0),
-        ):
-            daily_atr_presets.append(
+            )
+        for period, on_atr, off_atr, tr_on in tuple(profile.get("daily_atr_rows") or ()):
+            presets.append(
                 (
                     "daily_atr_pct",
                     {
@@ -6530,16 +6693,8 @@ def main() -> None:
                     f"daily_atr_pct p={period} on={on_atr:g} off={off_atr:g} tr_on={tr_on if tr_on is not None else '-'}",
                 )
             )
-
-        drawdown_presets: list[tuple[str, dict[str, object], str]] = []
-        for lb, dd_on, dd_off in (
-            (10, -15.0, -8.0),
-            (20, -20.0, -10.0),
-            (20, -25.0, -15.0),
-            (30, -25.0, -15.0),
-            (60, -30.0, -20.0),
-        ):
-            drawdown_presets.append(
+        for lb, dd_on, dd_off in tuple(profile.get("drawdown_rows") or ()):
+            presets.append(
                 (
                     "daily_drawdown",
                     {
@@ -6551,31 +6706,14 @@ def main() -> None:
                 )
             )
 
-        presets = ratio_presets + daily_atr_presets + drawdown_presets
         rows: list[dict] = []
-        tested = 0
-        total = len(modes) * len(dir_variants) * len(sl_mults) * len(pt_mults) * len(short_risk_factors) * len(presets)
-        t0 = pytime.perf_counter()
-        report_every = 50
+        cfg_pairs: list[tuple[ConfigBundle, str]] = []
         for detector, params, det_note in presets:
             for mode in modes:
                 for dir_src, dir_lb, dir_note in dir_variants:
                     for sl_mult in sl_mults:
                         for pt_mult in pt_mults:
                             for short_factor in short_risk_factors:
-                                tested += 1
-                                if tested % report_every == 0 or tested == total:
-                                    elapsed = pytime.perf_counter() - t0
-                                    rate = (tested / elapsed) if elapsed > 0 else 0.0
-                                    remaining = total - tested
-                                    eta_sec = (remaining / rate) if rate > 0 else 0.0
-                                    pct = (tested / total * 100.0) if total > 0 else 0.0
-                                    print(
-                                        f"shock progress {tested}/{total} ({pct:0.1f}%) kept={len(rows)} "
-                                        f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
-                                        flush=True,
-                                    )
-
                                 overrides = {
                                     "shock_gate_mode": str(mode),
                                     "shock_detector": str(detector),
@@ -6588,16 +6726,20 @@ def main() -> None:
                                 overrides.update(params)
                                 f = _mk_filters(overrides=overrides)
                                 cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
-                                row = _run_cfg(cfg=cfg)
-                                if not row:
-                                    continue
                                 note = (
                                     f"shock={mode} {det_note} | {dir_note} | "
                                     f"sl_mult={sl_mult:g} pt_mult={pt_mult:g} short_factor={short_factor:g}"
                                 )
-                                row["note"] = note
-                                _record_milestone(cfg, row, note)
-                                rows.append(row)
+                                cfg_pairs.append((cfg, note))
+        tested_total = _run_cfg_pairs_grid(
+            axis_tag="shock",
+            cfg_pairs=cfg_pairs,
+            rows=rows,
+            report_every=50,
+            heartbeat_sec=20.0,
+        )
+        if int(tested_total) < 0:
+            return
 
         if base_row:
             rows.append(base_row)
@@ -11085,7 +11227,7 @@ def main() -> None:
         fn_obj = axis_registry.get(str(axis))
         fn = fn_obj if callable(fn_obj) else None
         if fn is not None:
-            fn()
+            _run_axis_plan_serial([(str(axis), "single", False)], timed=False)
 
     if int(run_cfg_cache_hits) > 0 and int(run_calls_total) > 0:
         hit_rate = float(run_cfg_cache_hits) / float(run_calls_total)

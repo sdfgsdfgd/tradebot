@@ -3992,7 +3992,10 @@ def _can_use_fast_summary_path(
     tick_gate_mode = str(getattr(strat, "tick_gate_mode", "off") or "off").strip().lower()
     tick_gate_off = tick_gate_mode in ("off", "", "none", "false", "0")
     flip_gate_mode = str(getattr(strat, "flip_exit_gate_mode", "off") or "off").strip().lower()
-    flip_gate_ok = (not bool(exit_on_signal_flip)) or (flip_gate_mode == "off")
+    flip_gate_off = flip_gate_mode in ("off", "", "none", "false", "0")
+    flip_gate_ok = (not bool(exit_on_signal_flip)) or bool(flip_gate_off)
+    direction_source = str(getattr(strat, "direction_source", "ema") or "ema").strip().lower()
+    direction_ok = (not bool(exit_on_signal_flip)) or (direction_source == "ema")
     # If tick gate is disabled, preloaded tick bars should not disqualify the fast path.
     tick_ok = bool(tick_gate_off) and (tick_bars is None or isinstance(tick_bars, list))
     return (
@@ -4007,7 +4010,7 @@ def _can_use_fast_summary_path(
         and not bool(getattr(strat, "spot_close_eod", False))
         and bool(tick_ok)
         and bool(flip_gate_ok)
-        and str(getattr(strat, "direction_source", "ema") or "ema").strip().lower() == "ema"
+        and bool(direction_ok)
         and int(getattr(strat, "max_open_trades", 1) or 0) == 1
         and bool(signal_bars)
         and bool(exec_bars)
