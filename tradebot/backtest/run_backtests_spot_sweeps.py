@@ -450,6 +450,7 @@ _SPREAD_PROFILE_REGISTRY: dict[str, dict[str, object]] = {
     },
 }
 _RUN_CFG_CACHE_ENGINE_VERSION = "spot_summary_v1"
+_MULTIWINDOW_CACHE_ENGINE_VERSION = "spot_multiwindow_v1"
 
 
 def _strategy_fingerprint(
@@ -2502,6 +2503,11 @@ def main() -> None:
     parser.add_argument("--risk-overlays-workers", type=int, default=None, help=argparse.SUPPRESS)
     parser.add_argument("--risk-overlays-out", default=None, help=argparse.SUPPRESS)
     parser.add_argument("--risk-overlays-run-min-trades", type=int, default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--seeded-micro-stage", default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--seeded-micro-worker", type=int, default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--seeded-micro-workers", type=int, default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--seeded-micro-out", default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--seeded-micro-run-min-trades", type=int, default=None, help=argparse.SUPPRESS)
     parser.add_argument("--champ-refine-stage3a", default=None, help=argparse.SUPPRESS)
     parser.add_argument("--champ-refine-stage3b", default=None, help=argparse.SUPPRESS)
     parser.add_argument("--champ-refine-worker", type=int, default=None, help=argparse.SUPPRESS)
@@ -2596,6 +2602,11 @@ def main() -> None:
     if args.risk_overlays_run_min_trades is not None:
         try:
             run_min_trades = int(args.risk_overlays_run_min_trades)
+        except (TypeError, ValueError):
+            run_min_trades = int(args.min_trades)
+    if args.seeded_micro_run_min_trades is not None:
+        try:
+            run_min_trades = int(args.seeded_micro_run_min_trades)
         except (TypeError, ValueError):
             run_min_trades = int(args.min_trades)
     if args.champ_refine_run_min_trades is not None:
@@ -3262,6 +3273,11 @@ def main() -> None:
             return {
                 "cfg_pairs": _decode_cfg_list(key="bases", note_key="base_note"),
             }
+        if name == "seeded_micro_stage":
+            return {
+                "axis_tag": str(payload.get("axis_tag") or ""),
+                "cfg_pairs": _decode_cfg_list(key="cfgs", note_key="note"),
+            }
         if name == "gate_matrix_stage2":
             seeds_local: list[tuple[ConfigBundle, str, str]] = []
             for item in _require_list("seeds"):
@@ -3762,21 +3778,95 @@ def main() -> None:
         heartbeat_sec: float = 0.0,
         include_base_note: str | None = None,
     ) -> int:
-        seed_count = sum(1 for _ in _iter_seed_bundles(seeds)) if include_base_note else 0
-        total_eff = (int(total) + int(seed_count)) if total is not None else None
-        tested, kept = _run_sweep(
-            plan=_iter_seed_micro_plan(
+        if args.seeded_micro_stage:
+            payload_path = Path(str(args.seeded_micro_stage))
+            payload_decoded = _load_worker_stage_payload(
+                schema_name="seeded_micro_stage",
+                payload_path=payload_path,
+            )
+            payload_axis = str(payload_decoded.get("axis_tag") or "").strip().lower()
+            if payload_axis and payload_axis != str(axis_tag).strip().lower():
+                raise SystemExit(
+                    f"seeded_micro worker payload axis mismatch: expected {axis_tag} got {payload_axis} ({payload_path})"
+                )
+            plan_all = [
+                (cfg, note, None)
+                for cfg, note in (payload_decoded.get("cfg_pairs") or [])
+                if isinstance(note, str)
+            ]
+            _run_sharded_stage_worker(
+                stage_label=str(axis_tag),
+                worker_raw=args.seeded_micro_worker,
+                workers_raw=args.seeded_micro_workers,
+                out_path_raw=str(args.seeded_micro_out or ""),
+                out_flag_name="seeded-micro-out",
+                plan_all=plan_all,
+                bars=_bars_cached(signal_bar_size),
+                report_every=max(1, int(report_every)),
+                heartbeat_sec=float(heartbeat_sec),
+            )
+            return -1
+
+        plan_all = list(
+            _iter_seed_micro_plan(
                 seeds=seeds,
                 include_base_note=include_base_note,
                 build_variants=build_variants,
-            ),
-            total=total_eff,
-            progress_label=str(axis_tag),
-            report_every=int(report_every),
-            heartbeat_sec=float(heartbeat_sec),
+            )
         )
-        rows.extend(row for _, row, _, _meta in kept)
-        return int(tested)
+        total_eff = len(plan_all)
+        if total is not None and int(total) != int(total_eff):
+            print(
+                f"{axis_tag}: normalized total={total_eff} (declared={int(total)})",
+                flush=True,
+            )
+        bars_sig = _bars_cached(signal_bar_size)
+        tested_total = _run_stage_cfg_rows(
+            stage_label=str(axis_tag),
+            total=int(total_eff),
+            jobs_req=int(jobs),
+            bars=bars_sig,
+            report_every=max(1, int(report_every)),
+            heartbeat_sec=float(heartbeat_sec),
+            on_row=lambda _cfg, row, _note: rows.append(row),
+            serial_plan=plan_all,
+            parallel_payloads_builder=lambda: _run_parallel_stage_with_payload(
+                axis_name=str(axis_tag),
+                stage_label=str(axis_tag),
+                total=int(total_eff),
+                jobs=int(jobs),
+                payload={
+                    "axis_tag": str(axis_tag),
+                    "cfgs": [_encode_cfg_payload(cfg, note=note) for cfg, note, _meta in plan_all],
+                },
+                payload_filename="seeded_micro_payload.json",
+                temp_prefix=f"tradebot_{str(axis_tag)}_seeded_",
+                worker_tmp_prefix=f"tradebot_{str(axis_tag)}_seeded_worker_",
+                worker_tag=f"sm:{str(axis_tag)}",
+                out_prefix="seeded_micro_out",
+                stage_flag="--seeded-micro-stage",
+                worker_flag="--seeded-micro-worker",
+                workers_flag="--seeded-micro-workers",
+                out_flag="--seeded-micro-out",
+                strip_flags_with_values=(
+                    "--seeded-micro-stage",
+                    "--seeded-micro-worker",
+                    "--seeded-micro-workers",
+                    "--seeded-micro-out",
+                    "--seeded-micro-run-min-trades",
+                ),
+                run_min_trades_flag="--seeded-micro-run-min-trades",
+                run_min_trades=int(run_min_trades),
+                capture_error=f"Failed to capture {axis_tag} worker stdout.",
+                failure_label=f"{axis_tag} worker",
+                missing_label=str(axis_tag),
+                invalid_label=str(axis_tag),
+            ),
+            parallel_default_note=str(axis_tag),
+            parallel_dedupe_by_milestone_key=True,
+            record_milestones=True,
+        )
+        return int(tested_total)
 
     def _base_bundle(*, bar_size: str, filters: FiltersConfig | None) -> ConfigBundle:
         cfg = _bundle_base(
@@ -8662,7 +8752,7 @@ def main() -> None:
                                     )
                                     yield cfg, note, None
 
-        _run_seeded_micro_grid(
+        tested_total = _run_seeded_micro_grid(
             axis_tag="shock_alpha_refine",
             seeds=seeds,
             rows=rows,
@@ -8670,6 +8760,10 @@ def main() -> None:
             total=total,
             report_every=report_every,
         )
+        if int(tested_total) < 0:
+            return
+        if jobs > 1 and int(tested_total) > 0:
+            run_calls_total += int(tested_total)
 
         _print_leaderboards(rows, title="shock_alpha_refine (seeded shock alpha micro)", top_n=int(args.top))
 
@@ -8994,7 +9088,6 @@ def main() -> None:
         print("")
 
         rows: list[dict] = []
-        t0 = pytime.perf_counter()
         report_every = 50
 
         def _shock_mode(filters: FiltersConfig | None) -> str:
@@ -9117,10 +9210,7 @@ def main() -> None:
 
         min_mults = (0.05, 0.1, 0.2)
 
-        work: list[dict] = []
-        total = 0
-        for _seed_i, _item, cfg_seed, seed_note in _iter_seed_bundles(seeds):
-
+        def _seed_variant_count(cfg_seed: ConfigBundle) -> int:
             base_filters = cfg_seed.strategy.filters
             mode = _shock_mode(base_filters)
             detect_over = _ensure_shock_detect_overrides(base_filters)
@@ -9133,23 +9223,13 @@ def main() -> None:
 
             targets_variants = sum((len(min_mults) if t is not None else 1) for t in targets)
             variants = int(targets_variants) * len(stops) * len(daily_pairs)
-            if variants <= 0:
-                continue
-            total += int(variants)
-            work.append(
-                {
-                    "cfg_seed": cfg_seed,
-                    "seed_note": seed_note,
-                    "detect_over": detect_over,
-                    "mode": mode,
-                    "detector": detector_eff,
-                    "targets": targets,
-                    "stops": stops,
-                    "daily_pairs": daily_pairs,
-                }
-            )
+            return int(max(0, variants))
 
-        if not work:
+        total = 0
+        for _seed_i, _item, cfg_seed, _seed_note in _iter_seed_bundles(seeds):
+            total += _seed_variant_count(cfg_seed)
+
+        if total <= 0:
             print("No usable seeds after parsing/filtering.", flush=True)
             return
 
@@ -9159,21 +9239,20 @@ def main() -> None:
             flush=True,
         )
 
-        tested_total = 0
-        for item in work:
-            cfg_seed = item["cfg_seed"]
-            seed_note = item["seed_note"]
-            detect_over = item["detect_over"]
-            targets = item["targets"]
-            stops = item["stops"]
-            daily_pairs = item["daily_pairs"]
+        def _build_variants(cfg_seed: ConfigBundle, seed_note: str, _item: dict):
+            base_filters = cfg_seed.strategy.filters
+            mode = _shock_mode(base_filters)
+            detect_over = _ensure_shock_detect_overrides(base_filters)
+            detector_eff = _shock_detector(base_filters) if not detect_over else "daily_atr_pct"
+            targets_f = _targets_pocket(base_filters, detector=detector_eff, shock_missing=bool(detect_over))
+            targets: tuple[float | None, ...] = (None,) + targets_f
+            stops = _stop_pocket(getattr(cfg_seed.strategy, "spot_stop_loss_pct", None))
+            daily_pairs = _daily_threshold_pocket(base_filters, mode=mode, detector=detector_eff)
 
-            for off_on in daily_pairs:
-                off_v, on_v = off_on
+            for off_v, on_v in daily_pairs:
                 daily_over: dict[str, object] = {}
                 if off_v is not None and on_v is not None:
                     daily_over = {"shock_daily_off_atr_pct": float(off_v), "shock_daily_on_atr_pct": float(on_v)}
-
                 for target_atr in targets:
                     min_mult_iter = (None,) if target_atr is None else min_mults
                     for min_mult in min_mult_iter:
@@ -9186,19 +9265,6 @@ def main() -> None:
                         base_over.update(daily_over)
                         f_obj = _merge_filters(cfg_seed.strategy.filters, base_over)
                         for stop_pct in stops:
-                            tested_total += 1
-                            if tested_total % report_every == 0 or tested_total == total:
-                                elapsed = pytime.perf_counter() - t0
-                                rate = (tested_total / elapsed) if elapsed > 0 else 0.0
-                                remaining = total - tested_total
-                                eta_sec = (remaining / rate) if rate > 0 else 0.0
-                                pct = (tested_total / total * 100.0) if total > 0 else 0.0
-                                print(
-                                    f"{axis_tag} {tested_total}/{total} ({pct:0.1f}%) kept={len(rows)} "
-                                    f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
-                                    flush=True,
-                                )
-
                             cfg = replace(
                                 cfg_seed,
                                 strategy=replace(
@@ -9207,10 +9273,6 @@ def main() -> None:
                                     spot_stop_loss_pct=float(stop_pct),
                                 ),
                             )
-                            row = _run_cfg(cfg=cfg)
-                            if not row:
-                                continue
-
                             surf_note = ""
                             if off_v is not None and on_v is not None:
                                 surf_note = f" surf(off={off_v:g},on={on_v:g})"
@@ -9219,11 +9281,20 @@ def main() -> None:
                             else:
                                 scale_note = f" shock_scale target_atr%={target_atr:g} min_mult={min_mult:g} apply_to=cap"
                             note = f"{seed_note} |{scale_note}{surf_note} | stop%={stop_pct:g}"
-                            row["note"] = note
-                            _record_milestone(cfg, row, note)
-                            rows.append(row)
+                            yield cfg, note, None
 
-        run_calls_total += int(tested_total)
+        tested_total = _run_seeded_micro_grid(
+            axis_tag=axis_tag,
+            seeds=seeds,
+            rows=rows,
+            build_variants=_build_variants,
+            total=total,
+            report_every=report_every,
+        )
+        if int(tested_total) < 0:
+            return
+        if jobs > 1 and int(tested_total) > 0:
+            run_calls_total += int(tested_total)
         _print_leaderboards(rows, title=f"{axis_tag} (seeded shock risk scaling micro)", top_n=int(args.top))
 
     def _sweep_shock_throttle_tr_ratio() -> None:
@@ -9302,7 +9373,10 @@ def main() -> None:
             report_every=report_every,
             include_base_note="shock_scale=off (base)",
         )
-        run_calls_total += int(tested_total)
+        if int(tested_total) < 0:
+            return
+        if jobs > 1 and int(tested_total) > 0:
+            run_calls_total += int(tested_total)
         _print_leaderboards(rows, title=f"{axis_tag} (seeded tr_ratio throttle micro)", top_n=int(args.top))
 
     def _sweep_shock_throttle_drawdown() -> None:
@@ -9380,7 +9454,10 @@ def main() -> None:
             report_every=report_every,
             include_base_note="shock_scale=off (base)",
         )
-        run_calls_total += int(tested_total)
+        if int(tested_total) < 0:
+            return
+        if jobs > 1 and int(tested_total) > 0:
+            run_calls_total += int(tested_total)
         _print_leaderboards(rows, title=f"{axis_tag} (seeded daily_drawdown throttle micro)", top_n=int(args.top))
 
     def _sweep_riskpanic_micro() -> None:
@@ -9490,7 +9567,10 @@ def main() -> None:
             report_every=report_every,
             include_base_note="base",
         )
-        run_calls_total += int(tested_total)
+        if int(tested_total) < 0:
+            return
+        if jobs > 1 and int(tested_total) > 0:
+            run_calls_total += int(tested_total)
         _print_leaderboards(rows, title=f"{axis_tag} (seeded riskpanic micro)", top_n=int(args.top))
 
     def _sweep_overlay_family(*, family: str | None = None) -> None:
@@ -9594,7 +9674,10 @@ def main() -> None:
             report_every=report_every,
             include_base_note="base",
         )
-        run_calls_total += int(tested_total)
+        if int(tested_total) < 0:
+            return
+        if jobs > 1 and int(tested_total) > 0:
+            run_calls_total += int(tested_total)
         _print_leaderboards(rows, title=f"{axis_tag} (seeded exit pivot)", top_n=int(args.top))
 
     def _sweep_st37_refine() -> None:
@@ -11559,6 +11642,95 @@ def spot_multitimeframe_main() -> None:
 
     cache_dir = Path(args.cache_dir)
     offline = bool(args.offline)
+    multiwindow_cache_path = cache_dir / "spot_multiwindow_eval_cache.sqlite3"
+    multiwindow_cache_conn: sqlite3.Connection | None = None
+    multiwindow_cache_enabled = True
+    multiwindow_cache_lock = threading.Lock()
+    multiwindow_cache_hits = 0
+    multiwindow_cache_writes = 0
+    _MULTIWINDOW_CACHE_MISS = object()
+
+    def _multiwindow_cache_conn() -> sqlite3.Connection | None:
+        nonlocal multiwindow_cache_conn, multiwindow_cache_enabled
+        if not bool(multiwindow_cache_enabled):
+            return None
+        if multiwindow_cache_conn is not None:
+            return multiwindow_cache_conn
+        try:
+            conn = sqlite3.connect(
+                str(multiwindow_cache_path),
+                timeout=15.0,
+                isolation_level=None,
+            )
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA synchronous=NORMAL")
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS multiwindow_eval_cache ("
+                "cache_key TEXT PRIMARY KEY, "
+                "payload_json TEXT NOT NULL, "
+                "updated_at REAL NOT NULL)"
+            )
+            multiwindow_cache_conn = conn
+            return conn
+        except Exception:
+            multiwindow_cache_enabled = False
+            multiwindow_cache_conn = None
+            return None
+
+    def _multiwindow_windows_signature() -> tuple[tuple[str, str], ...]:
+        return tuple((a.isoformat(), b.isoformat()) for a, b in windows)
+
+    def _multiwindow_cache_key(*, strategy_payload: dict, filters_payload: dict | None) -> str:
+        raw = {
+            "version": str(_MULTIWINDOW_CACHE_ENGINE_VERSION),
+            "strategy_key": _strategy_key(strategy_payload, filters=filters_payload),
+            "windows": _multiwindow_windows_signature(),
+            "min_trades": int(args.min_trades),
+            "min_trades_per_year": float(min_trades_per_year) if min_trades_per_year is not None else None,
+            "min_win": float(args.min_win),
+            "max_open": int(args.max_open) if args.max_open is not None else None,
+            "allow_unlimited_stacking": bool(args.allow_unlimited_stacking),
+            "require_close_eod": bool(args.require_close_eod),
+            "require_positive_pnl": bool(args.require_positive_pnl),
+            "offline": bool(offline),
+        }
+        return hashlib.sha1(json.dumps(raw, sort_keys=True, default=str).encode("utf-8")).hexdigest()
+
+    def _multiwindow_cache_get(*, cache_key: str) -> dict | None | object:
+        conn = _multiwindow_cache_conn()
+        if conn is None:
+            return _MULTIWINDOW_CACHE_MISS
+        try:
+            with multiwindow_cache_lock:
+                row = conn.execute(
+                    "SELECT payload_json FROM multiwindow_eval_cache WHERE cache_key=?",
+                    (str(cache_key),),
+                ).fetchone()
+        except Exception:
+            return _MULTIWINDOW_CACHE_MISS
+        if row is None:
+            return _MULTIWINDOW_CACHE_MISS
+        try:
+            payload = json.loads(str(row[0]))
+        except Exception:
+            return _MULTIWINDOW_CACHE_MISS
+        if payload is None:
+            return None
+        return dict(payload) if isinstance(payload, dict) else _MULTIWINDOW_CACHE_MISS
+
+    def _multiwindow_cache_set(*, cache_key: str, payload: dict | None) -> None:
+        conn = _multiwindow_cache_conn()
+        if conn is None:
+            return
+        try:
+            payload_json = json.dumps(payload, sort_keys=True, default=str)
+            with multiwindow_cache_lock:
+                conn.execute(
+                    "INSERT OR REPLACE INTO multiwindow_eval_cache(cache_key, payload_json, updated_at) VALUES(?,?,?)",
+                    (str(cache_key), payload_json, float(pytime.time())),
+                )
+        except Exception:
+            return
 
     def _required_trades_for_window(wstart: date, wend: date) -> int:
         required = int(args.min_trades)
@@ -11777,18 +11949,34 @@ def spot_multitimeframe_main() -> None:
         load_bars_cached,
         data: IBKRHistoricalData | None,
     ) -> dict | None:
+        nonlocal multiwindow_cache_hits, multiwindow_cache_writes
         filters_payload = cand.get("filters")
-        filters = _filters_from_payload(filters_payload)
         strategy_payload = cand["strategy"]
+        cache_key = _multiwindow_cache_key(
+            strategy_payload=strategy_payload if isinstance(strategy_payload, dict) else {},
+            filters_payload=filters_payload if isinstance(filters_payload, dict) else None,
+        )
+        cached = _multiwindow_cache_get(cache_key=cache_key)
+        if cached is not _MULTIWINDOW_CACHE_MISS:
+            multiwindow_cache_hits += 1
+            return dict(cached) if isinstance(cached, dict) else None
+
+        def _cache_and_return(payload: dict | None) -> dict | None:
+            nonlocal multiwindow_cache_writes
+            _multiwindow_cache_set(cache_key=cache_key, payload=payload if isinstance(payload, dict) else None)
+            multiwindow_cache_writes += 1
+            return dict(payload) if isinstance(payload, dict) else None
+
+        filters = _filters_from_payload(filters_payload)
         strat_cfg = _strategy_from_payload(strategy_payload, filters=filters)
         if bool(args.require_close_eod) and not bool(getattr(strat_cfg, "spot_close_eod", False)):
-            return None
+            return _cache_and_return(None)
         if args.max_open is not None:
             max_open = int(getattr(strat_cfg, "max_open_trades", 0) or 0)
             if max_open == 0 and not bool(args.allow_unlimited_stacking):
-                return None
+                return _cache_and_return(None)
             if max_open != 0 and max_open > int(args.max_open):
-                return None
+                return _cache_and_return(None)
 
         sig_bar_size = str(strategy_payload.get("signal_bar_size") or args.bar_size)
         sig_use_rth = (
@@ -11848,10 +12036,10 @@ def spot_multitimeframe_main() -> None:
             )
             m = _metrics_from_summary(summary)
             if bool(args.require_positive_pnl) and float(m["pnl"]) <= 0:
-                return None
+                return _cache_and_return(None)
             req_trades = _required_trades_for_window(wstart, wend)
             if m["trades"] < int(req_trades) or m["win_rate"] < float(args.min_win):
-                return None
+                return _cache_and_return(None)
             per_window.append(
                 {
                     "start": wstart.isoformat(),
@@ -11861,13 +12049,14 @@ def spot_multitimeframe_main() -> None:
             )
 
         if not per_window:
-            return None
+            return _cache_and_return(None)
         min_pnl_dd = min(float(x["pnl_over_dd"]) for x in per_window)
         min_pnl = min(float(x["pnl"]) for x in per_window)
         min_roi_dd = min(float(x.get("roi_over_dd_pct") or 0.0) for x in per_window)
         min_roi = min(float(x.get("roi") or 0.0) for x in per_window)
         primary = per_window[0] if per_window else {}
-        return {
+        return _cache_and_return(
+            {
             "key": _strategy_key(strategy_payload, filters=filters_payload),
             "strategy": strategy_payload,
             "filters": filters_payload,
@@ -11885,7 +12074,8 @@ def spot_multitimeframe_main() -> None:
             "stability_min_roi_dd": min_roi_dd,
             "stability_min_roi": min_roi,
             "windows": per_window,
-        }
+            }
+        )
 
     def _evaluate_candidate_multiwindow_shard(
         *,
@@ -11899,6 +12089,7 @@ def spot_multitimeframe_main() -> None:
         tested = 0
         started = pytime.perf_counter()
         report_every = 10
+        worker_total = (len(candidates) // int(workers)) + (1 if int(worker_id) < (len(candidates) % int(workers)) else 0)
         for idx, cand in enumerate(candidates, start=1):
             if ((idx - 1) % int(workers)) != int(worker_id):
                 continue
@@ -11911,14 +12102,21 @@ def spot_multitimeframe_main() -> None:
                 continue
             elapsed = pytime.perf_counter() - started
             rate = tested / elapsed if elapsed > 0 else 0.0
+            remaining = max(0, int(worker_total) - int(tested))
+            eta_sec = (remaining / rate) if rate > 0 else 0.0
+            pct = ((tested / worker_total) * 100.0) if worker_total > 0 else 0.0
             if progress_mode == "worker":
                 print(
-                    f"multitimeframe worker {worker_id+1}/{workers} tested={tested} kept={len(out_rows)} "
-                    f"({rate:0.2f} cands/s)",
+                    f"multitimeframe worker {worker_id+1}/{workers} {tested}/{worker_total} ({pct:0.1f}%) "
+                    f"kept={len(out_rows)} elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m ({rate:0.2f} cands/s)",
                     flush=True,
                 )
             else:
-                print(f"[{tested}/{len(candidates)}] evaluated… ({rate:0.2f} cands/s, kept={len(out_rows)})", flush=True)
+                print(
+                    f"multitimeframe serial {tested}/{worker_total} ({pct:0.1f}%) kept={len(out_rows)} "
+                    f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m ({rate:0.2f} cands/s)",
+                    flush=True,
+                )
         return tested, out_rows
 
     def _emit_multitimeframe_results(*, out_rows: list[dict], tested_total: int | None = None, workers: int | None = None) -> None:
@@ -11931,6 +12129,11 @@ def spot_multitimeframe_main() -> None:
         print(f"- min_trades={int(args.min_trades)} min_win={float(args.min_win):0.2f}{extra}")
         if tested_total is not None and workers is not None:
             print(f"- workers={int(workers)} tested_total={int(tested_total)}")
+        if bool(multiwindow_cache_enabled):
+            print(
+                f"- eval_cache={multiwindow_cache_path} hits={int(multiwindow_cache_hits)} writes={int(multiwindow_cache_writes)}",
+                flush=True,
+            )
         print("")
 
         show = min(20, len(out_rows))

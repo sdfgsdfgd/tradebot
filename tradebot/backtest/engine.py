@@ -116,6 +116,7 @@ _SPOT_STOP_TREE_CACHE: dict[tuple[int, int, float, float, str, str], object] = {
 _SPOT_PROFIT_TREE_CACHE: dict[tuple[int, int, float, float, str, str], object] = {}
 _SPOT_SIGNAL_SERIES_CACHE: dict[tuple[object, ...], object] = {}
 _SPOT_FLIP_TREE_CACHE: dict[tuple[object, ...], object] = {}
+_SPOT_FLIP_NEXT_SIG_CACHE: dict[tuple[object, ...], tuple[list[int], list[int]]] = {}
 _SPOT_RV_SERIES_CACHE: dict[tuple[int, int, float, str, bool], object] = {}
 _SPOT_VOLUME_EMA_SERIES_CACHE: dict[tuple[int, int], object] = {}
 
@@ -625,6 +626,68 @@ def _spot_flip_trees(
     short_tree = _MaxFirstGtTree(down_vals)
     out = (long_tree, short_tree)
     _SPOT_FLIP_TREE_CACHE[key] = out
+    return out
+
+
+def _spot_flip_next_sig_idx(
+    *,
+    signal_series: _SpotSignalSeries,
+    exit_on_signal_flip: bool,
+    flip_exit_mode: str,
+    ema_entry_mode: str,
+) -> tuple[list[int], list[int]]:
+    if not bool(exit_on_signal_flip):
+        n = len(signal_series.signal_by_sig_idx)
+        return ([-1] * n, [-1] * n)
+
+    key = (
+        id(signal_series.signal_by_sig_idx),
+        bool(exit_on_signal_flip),
+        str(flip_exit_mode or ""),
+        str(ema_entry_mode or ""),
+    )
+    cached = _SPOT_FLIP_NEXT_SIG_CACHE.get(key)
+    if cached is not None:
+        return cached
+
+    n = len(signal_series.signal_by_sig_idx)
+    hit_up = [False] * n
+    hit_down = [False] * n
+    for i, sig in enumerate(signal_series.signal_by_sig_idx):
+        hit_up[i] = bool(
+            flip_exit_hit(
+                exit_on_signal_flip=True,
+                open_dir="up",
+                signal=sig,
+                flip_exit_mode_raw=flip_exit_mode,
+                ema_entry_mode_raw=ema_entry_mode,
+            )
+        )
+        hit_down[i] = bool(
+            flip_exit_hit(
+                exit_on_signal_flip=True,
+                open_dir="down",
+                signal=sig,
+                flip_exit_mode_raw=flip_exit_mode,
+                ema_entry_mode_raw=ema_entry_mode,
+            )
+        )
+
+    next_up = [-1] * n
+    next_down = [-1] * n
+    nxt = -1
+    for i in range(n - 1, -1, -1):
+        if hit_up[i]:
+            nxt = int(i)
+        next_up[i] = int(nxt)
+    nxt = -1
+    for i in range(n - 1, -1, -1):
+        if hit_down[i]:
+            nxt = int(i)
+        next_down[i] = int(nxt)
+
+    out = (next_up, next_down)
+    _SPOT_FLIP_NEXT_SIG_CACHE[key] = out
     return out
 
 
@@ -3324,6 +3387,12 @@ def _run_spot_backtest_exec_loop_summary_fast(
         ema_entry_mode=str(getattr(strat, "ema_entry_mode", "trend") or "trend"),
         only_if_profit=bool(getattr(strat, "flip_exit_only_if_profit", False)),
     )
+    flip_next_up, flip_next_down = _spot_flip_next_sig_idx(
+        signal_series=signal_series,
+        exit_on_signal_flip=bool(exit_on_signal_flip),
+        flip_exit_mode=str(getattr(strat, "flip_exit_mode", "entry") or "entry"),
+        ema_entry_mode=str(getattr(strat, "ema_entry_mode", "trend") or "trend"),
+    )
     if bool(exit_on_signal_flip) and bool(getattr(strat, "flip_exit_only_if_profit", False)):
         if flip_long_tree is None or flip_short_tree is None:
             raise ValueError("fast summary runner requires flip trees when flip_exit_only_if_profit is enabled")
@@ -3678,20 +3747,24 @@ def _run_spot_backtest_exec_loop_summary_fast(
 
         flip_sig_idx = None
         flip_exec_idx = None
-        if (
-            bool(exit_on_signal_flip)
-            and strat.direction_source == "ema"
-            and bool(getattr(strat, "flip_exit_only_if_profit", False))
-        ):
+        if bool(exit_on_signal_flip) and strat.direction_source == "ema":
             hold_bars = int(getattr(strat, "flip_exit_min_hold_bars", 0) or 0)
             hold_hours = float(signal_bar_hours) * float(max(0, hold_bars))
             hold_start_ts = open_entry_time + timedelta(hours=hold_hours)
             start_sig = bisect_left(signal_ts, hold_start_ts)
             start_sig = max(int(start_sig), int(sig_cursor))
-            if trade_dir == "up" and flip_long_tree is not None:
-                flip_sig_idx = flip_long_tree.find_first_gt(start=start_sig, threshold=float(open_entry_price))
-            elif trade_dir == "down" and flip_short_tree is not None:
-                flip_sig_idx = flip_short_tree.find_first_gt(start=start_sig, threshold=-float(open_entry_price))
+            if bool(getattr(strat, "flip_exit_only_if_profit", False)):
+                if trade_dir == "up" and flip_long_tree is not None:
+                    flip_sig_idx = flip_long_tree.find_first_gt(start=start_sig, threshold=float(open_entry_price))
+                elif trade_dir == "down" and flip_short_tree is not None:
+                    flip_sig_idx = flip_short_tree.find_first_gt(start=start_sig, threshold=-float(open_entry_price))
+            elif start_sig < len(signal_ts):
+                if trade_dir == "up":
+                    nxt = flip_next_up[int(start_sig)] if int(start_sig) < len(flip_next_up) else -1
+                    flip_sig_idx = int(nxt) if int(nxt) >= 0 else None
+                else:
+                    nxt = flip_next_down[int(start_sig)] if int(start_sig) < len(flip_next_down) else -1
+                    flip_sig_idx = int(nxt) if int(nxt) >= 0 else None
             if flip_sig_idx is not None:
                 sc_exec = align.exec_idx_by_sig_idx[int(flip_sig_idx)]
                 if sc_exec >= 0 and (sc_exec + 1) < len(exec_bars):
@@ -3918,6 +3991,8 @@ def _can_use_fast_summary_path(
     flip_fill_ok = (not bool(exit_on_signal_flip)) or (flip_fill_mode == "next_open")
     tick_gate_mode = str(getattr(strat, "tick_gate_mode", "off") or "off").strip().lower()
     tick_gate_off = tick_gate_mode in ("off", "", "none", "false", "0")
+    flip_gate_mode = str(getattr(strat, "flip_exit_gate_mode", "off") or "off").strip().lower()
+    flip_gate_ok = (not bool(exit_on_signal_flip)) or (flip_gate_mode == "off")
     # If tick gate is disabled, preloaded tick bars should not disqualify the fast path.
     tick_ok = bool(tick_gate_off) and (tick_bars is None or isinstance(tick_bars, list))
     return (
@@ -3931,11 +4006,7 @@ def _can_use_fast_summary_path(
         and getattr(strat, "spot_exit_time_et", None) is None
         and not bool(getattr(strat, "spot_close_eod", False))
         and bool(tick_ok)
-        and str(getattr(strat, "flip_exit_gate_mode", "off") or "off").strip().lower() == "off"
-        and (
-            (not bool(exit_on_signal_flip))
-            or bool(getattr(strat, "flip_exit_only_if_profit", False))
-        )
+        and bool(flip_gate_ok)
         and str(getattr(strat, "direction_source", "ema") or "ema").strip().lower() == "ema"
         and int(getattr(strat, "max_open_trades", 1) or 0) == 1
         and bool(signal_bars)
