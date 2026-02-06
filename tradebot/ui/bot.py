@@ -550,6 +550,13 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         ("w", "cycle_win_filter", "Win"),
         ("r", "reload", "Reload"),
     ]
+    _PANEL_BY_TABLE_ID = {
+        "bot-presets": "presets",
+        "bot-instances": "instances",
+        "bot-orders": "orders",
+        "bot-logs": "logs",
+    }
+    _PANEL_ORDER = ("presets", "instances", "orders", "logs")
 
     def __init__(self, client: IBKRClient, refresh_sec: float) -> None:
         super().__init__()
@@ -665,15 +672,10 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         # DataTable captures Enter and emits RowSelected; hook it so Enter arms/sends.
-        table_id = getattr(event.control, "id", None)
-        if table_id == "bot-presets":
-            self._active_panel = "presets"
-        elif table_id == "bot-instances":
-            self._active_panel = "instances"
-        elif table_id == "bot-orders":
-            self._active_panel = "orders"
-        elif table_id == "bot-logs":
-            self._active_panel = "logs"
+        table_id = str(getattr(event.control, "id", "") or "")
+        panel = self._PANEL_BY_TABLE_ID.get(table_id)
+        if panel:
+            self._active_panel = str(panel)
         self.action_activate()
 
     def on_key(self, event: events.Key) -> None:
@@ -732,7 +734,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         self._cycle_focus(1)
 
     def _cycle_focus(self, direction: int) -> None:
-        panels = ["presets", "instances", "orders", "logs"]
+        panels = list(self._PANEL_ORDER)
         if not self._presets_visible:
             panels.remove("presets")
         try:
@@ -741,16 +743,18 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             idx = 0
         self._focus_panel(panels[(idx + direction) % len(panels)])
 
+    def _panel_table(self, panel: str | None = None) -> DataTable:
+        target = str(panel or self._active_panel or "logs")
+        return {
+            "presets": self._presets_table,
+            "instances": self._instances_table,
+            "orders": self._orders_table,
+            "logs": self._logs_table,
+        }.get(target, self._logs_table)
+
     def _focus_panel(self, panel: str) -> None:
         self._active_panel = panel
-        if panel == "presets":
-            self._presets_table.focus()
-        elif panel == "instances":
-            self._instances_table.focus()
-        elif panel == "orders":
-            self._orders_table.focus()
-        else:
-            self._logs_table.focus()
+        self._panel_table(panel).focus()
         self._render_status()
 
     def action_toggle_instance(self) -> None:
@@ -849,28 +853,35 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         self._render_status()
 
     def action_activate(self) -> None:
-        if self._active_panel == "presets":
-            row = self._selected_preset_row()
-            if row is None:
-                self._status = "Preset: none selected"
-                self._render_status()
-                return
-            if isinstance(row, _PresetHeader):
-                self._toggle_preset_node(row.node_id)
-                return
-            self._open_config_for_preset(row)
+        handlers = {
+            "presets": self._activate_presets_panel,
+            "instances": self._activate_instances_panel,
+            "orders": self._submit_selected_order,
+            "logs": self._activate_logs_panel,
+        }
+        handler = handlers.get(str(self._active_panel), self._activate_logs_panel)
+        handler()
+
+    def _activate_presets_panel(self) -> None:
+        row = self._selected_preset_row()
+        if row is None:
+            self._status = "Preset: none selected"
+            self._render_status()
             return
-        if self._active_panel == "instances":
-            instance = self._selected_instance()
-            if not instance:
-                self._status = "Instance: none selected"
-                self._render_status()
-                return
-            self._open_config_for_instance(instance)
+        if isinstance(row, _PresetHeader):
+            self._toggle_preset_node(row.node_id)
             return
-        if self._active_panel == "orders":
-            self._submit_selected_order()
+        self._open_config_for_preset(row)
+
+    def _activate_instances_panel(self) -> None:
+        instance = self._selected_instance()
+        if not instance:
+            self._status = "Instance: none selected"
+            self._render_status()
             return
+        self._open_config_for_instance(instance)
+
+    def _activate_logs_panel(self) -> None:
         self._status = "Logs: no action"
         self._render_status()
 
@@ -1770,26 +1781,11 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         self._logs_table.add_columns("When", "Inst", "Sym", "Event", "Reason", "Msg")
 
     def _cursor_move(self, direction: int) -> None:
-        if self._active_panel == "presets":
-            if direction > 0:
-                self._presets_table.action_cursor_down()
-            else:
-                self._presets_table.action_cursor_up()
-        elif self._active_panel == "instances":
-            if direction > 0:
-                self._instances_table.action_cursor_down()
-            else:
-                self._instances_table.action_cursor_up()
-        elif self._active_panel == "orders":
-            if direction > 0:
-                self._orders_table.action_cursor_down()
-            else:
-                self._orders_table.action_cursor_up()
+        table = self._panel_table()
+        if direction > 0:
+            table.action_cursor_down()
         else:
-            if direction > 0:
-                self._logs_table.action_cursor_down()
-            else:
-                self._logs_table.action_cursor_up()
+            table.action_cursor_up()
         if self._active_panel == "instances" and not self._scope_all:
             self._refresh_orders_table()
             self._refresh_logs_table()

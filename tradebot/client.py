@@ -399,6 +399,61 @@ class IBKRClient:
             return qualified or candidate
         return None
 
+    @staticmethod
+    def _historical_request_contract(contract: Contract, *, sec_type: str) -> Contract:
+        req_contract = contract
+        if sec_type in ("STK", "OPT") and (
+            not getattr(contract, "exchange", "") or getattr(contract, "exchange", "") == "OVERNIGHT"
+        ):
+            req_contract = copy.copy(contract)
+            req_contract.exchange = "SMART"
+        return req_contract
+
+    async def _request_historical_data(
+        self,
+        contract: Contract,
+        *,
+        duration_str: str,
+        bar_size: str,
+        what_to_show: str,
+        use_rth: bool,
+    ):
+        sec_type = str(getattr(contract, "secType", "") or "")
+        use_proxy = sec_type in ("STK", "OPT")
+        if use_proxy:
+            await self.connect_proxy()
+            ib = self._ib_proxy
+        else:
+            await self.connect()
+            ib = self._ib
+        req_contract = self._historical_request_contract(contract, sec_type=sec_type)
+        try:
+            return await ib.reqHistoricalDataAsync(
+                req_contract,
+                endDateTime="",
+                durationStr=str(duration_str),
+                barSizeSetting=str(bar_size),
+                whatToShow=str(what_to_show),
+                useRTH=1 if use_rth else 0,
+                formatDate=1,
+                keepUpToDate=False,
+            )
+        except Exception:
+            return []
+
+    @staticmethod
+    def _ib_bar_datetime(value) -> datetime | None:
+        dt = value
+        if isinstance(dt, str):
+            dt = util.parseIBDatetime(dt)
+        if dt is None:
+            return None
+        if isinstance(dt, date) and not isinstance(dt, datetime):
+            dt = datetime.combine(dt, dtime(0, 0))
+        if getattr(dt, "tzinfo", None) is not None:
+            dt = dt.replace(tzinfo=None)
+        return dt
+
     async def session_closes(
         self,
         contract: Contract,
@@ -426,27 +481,12 @@ class IBKRClient:
                 prev_close, close_3ago, cached_at = cached
                 if time.monotonic() - cached_at < cache_ttl_sec:
                     return prev_close, close_3ago
-            if use_proxy:
-                await self.connect_proxy()
-                ib = self._ib_proxy
-            else:
-                await self.connect()
-                ib = self._ib
-            req_contract = contract
-            if contract.secType in ("STK", "OPT") and (
-                not getattr(contract, "exchange", "") or getattr(contract, "exchange", "") == "OVERNIGHT"
-            ):
-                req_contract = copy.copy(contract)
-                req_contract.exchange = "SMART"
-            bars = await ib.reqHistoricalDataAsync(
-                req_contract,
-                endDateTime="",
-                durationStr="2 W",
-                barSizeSetting="1 day",
-                whatToShow="TRADES",
-                useRTH=True,
-                formatDate=1,
-                keepUpToDate=False,
+            bars = await self._request_historical_data(
+                contract,
+                duration_str="2 W",
+                bar_size="1 day",
+                what_to_show="TRADES",
+                use_rth=True,
             )
             closes: list[float] = []
             for bar in bars or []:
@@ -504,42 +544,19 @@ class IBKRClient:
                 bars, cached_at = cached
                 if time.monotonic() - cached_at < float(cache_ttl_sec):
                     return list(bars)
-            if use_proxy:
-                await self.connect_proxy()
-                ib = self._ib_proxy
-            else:
-                await self.connect()
-                ib = self._ib
-
-            req_contract = contract
-            if sec_type in ("STK", "OPT") and (
-                not getattr(contract, "exchange", "") or getattr(contract, "exchange", "") == "OVERNIGHT"
-            ):
-                req_contract = copy.copy(contract)
-                req_contract.exchange = "SMART"
-
-            raw = await ib.reqHistoricalDataAsync(
-                req_contract,
-                endDateTime="",
-                durationStr=str(duration_str),
-                barSizeSetting=str(bar_size),
-                whatToShow=str(what_to_show),
-                useRTH=1 if use_rth else 0,
-                formatDate=1,
-                keepUpToDate=False,
+            raw = await self._request_historical_data(
+                contract,
+                duration_str=str(duration_str),
+                bar_size=str(bar_size),
+                what_to_show=str(what_to_show),
+                use_rth=bool(use_rth),
             )
 
             bars: list[tuple[datetime, float]] = []
             for bar in raw or []:
-                dt = getattr(bar, "date", None)
-                if isinstance(dt, str):
-                    dt = util.parseIBDatetime(dt)
+                dt = self._ib_bar_datetime(getattr(bar, "date", None))
                 if dt is None:
                     continue
-                if isinstance(dt, date) and not isinstance(dt, datetime):
-                    dt = datetime.combine(dt, dtime(0, 0))
-                if getattr(dt, "tzinfo", None) is not None:
-                    dt = dt.replace(tzinfo=None)
                 try:
                     close = float(getattr(bar, "close", 0.0) or 0.0)
                 except (TypeError, ValueError):
@@ -590,42 +607,19 @@ class IBKRClient:
                 bars, cached_at = cached
                 if time.monotonic() - cached_at < float(cache_ttl_sec):
                     return list(bars)
-            if use_proxy:
-                await self.connect_proxy()
-                ib = self._ib_proxy
-            else:
-                await self.connect()
-                ib = self._ib
-
-            req_contract = contract
-            if sec_type in ("STK", "OPT") and (
-                not getattr(contract, "exchange", "") or getattr(contract, "exchange", "") == "OVERNIGHT"
-            ):
-                req_contract = copy.copy(contract)
-                req_contract.exchange = "SMART"
-
-            raw = await ib.reqHistoricalDataAsync(
-                req_contract,
-                endDateTime="",
-                durationStr=str(duration_str),
-                barSizeSetting=str(bar_size),
-                whatToShow=str(what_to_show),
-                useRTH=1 if use_rth else 0,
-                formatDate=1,
-                keepUpToDate=False,
+            raw = await self._request_historical_data(
+                contract,
+                duration_str=str(duration_str),
+                bar_size=str(bar_size),
+                what_to_show=str(what_to_show),
+                use_rth=bool(use_rth),
             )
 
             bars: list[OhlcvBar] = []
             for bar in raw or []:
-                dt = getattr(bar, "date", None)
-                if isinstance(dt, str):
-                    dt = util.parseIBDatetime(dt)
+                dt = self._ib_bar_datetime(getattr(bar, "date", None))
                 if dt is None:
                     continue
-                if isinstance(dt, date) and not isinstance(dt, datetime):
-                    dt = datetime.combine(dt, dtime(0, 0))
-                if getattr(dt, "tzinfo", None) is not None:
-                    dt = dt.replace(tzinfo=None)
                 try:
                     open_p = float(getattr(bar, "open", 0.0) or 0.0)
                     high = float(getattr(bar, "high", 0.0) or 0.0)

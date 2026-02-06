@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from datetime import date
 from pathlib import Path
 
@@ -33,146 +34,158 @@ _WEEKDAYS = {
 # region Public API
 def load_config(path: str | Path) -> ConfigBundle:
     raw = json.loads(Path(path).read_text())
-    backtest_raw = raw.get("backtest", {})
-    strategy_raw = raw.get("strategy", {})
-    synthetic_raw = raw.get("synthetic", {})
+    backtest_raw = raw.get("backtest", {}) if isinstance(raw, dict) else {}
+    strategy_raw = raw.get("strategy", {}) if isinstance(raw, dict) else {}
+    synthetic_raw = raw.get("synthetic", {}) if isinstance(raw, dict) else {}
+    if not isinstance(backtest_raw, dict):
+        backtest_raw = {}
+    if not isinstance(strategy_raw, dict):
+        strategy_raw = {}
+    if not isinstance(synthetic_raw, dict):
+        synthetic_raw = {}
 
-    # TODO: replace with historical rates source for higher fidelity.
-    backtest = BacktestConfig(
-        start=_parse_date(backtest_raw.get("start")),
-        end=_parse_date(backtest_raw.get("end")),
-        bar_size=backtest_raw.get("bar_size", "1 hour"),
-        use_rth=bool(backtest_raw.get("use_rth", False)),
-        starting_cash=float(backtest_raw.get("starting_cash", 100_000.0)),
-        risk_free_rate=float(backtest_raw.get("risk_free_rate", 0.02)),
-        cache_dir=Path(backtest_raw.get("cache_dir", "db")),
-        calibration_dir=Path(backtest_raw.get("calibration_dir", "db/calibration")),
-        output_dir=Path(backtest_raw.get("output_dir", "backtests/out")),
-        calibrate=bool(backtest_raw.get("calibrate", False)),
-        offline=bool(backtest_raw.get("offline", False)),
-    )
-
-    entry_days = _parse_weekdays(strategy_raw.get("entry_days", []))
-    strategy = StrategyConfig(
-        name=strategy_raw.get("name", "credit_spread"),
-        instrument=_parse_instrument(strategy_raw.get("instrument")),
-        symbol=strategy_raw.get("symbol", "MNQ"),
-        exchange=strategy_raw.get("exchange"),
-        right=str(strategy_raw.get("right", "PUT")).upper(),
-        entry_days=entry_days,
-        max_entries_per_day=_parse_non_negative_int(
-            strategy_raw.get("max_entries_per_day"), default=1
-        ),
-        max_open_trades=_parse_non_negative_int(strategy_raw.get("max_open_trades"), default=1),
-        dte=int(strategy_raw.get("dte", 0)),
-        otm_pct=float(strategy_raw.get("otm_pct", 2.5)),
-        width_pct=float(strategy_raw.get("width_pct", 1.0)),
-        profit_target=float(strategy_raw.get("profit_target", 0.5)),
-        stop_loss=float(strategy_raw.get("stop_loss", 0.35)),
-        exit_dte=int(strategy_raw.get("exit_dte", 0)),
-        quantity=int(strategy_raw.get("quantity", 1)),
-        stop_loss_basis=strategy_raw.get("stop_loss_basis", "max_loss"),
-        min_credit=(
-            float(strategy_raw["min_credit"])
-            if strategy_raw.get("min_credit") is not None
-            else None
-        ),
-        ema_preset=_parse_ema_preset(strategy_raw.get("ema_preset")),
-        ema_entry_mode=_parse_ema_entry_mode(strategy_raw.get("ema_entry_mode")),
-        entry_confirm_bars=_parse_non_negative_int(strategy_raw.get("entry_confirm_bars"), default=0),
-        regime_ema_preset=_parse_ema_preset(strategy_raw.get("regime_ema_preset")),
-        regime_bar_size=_parse_bar_size(strategy_raw.get("regime_bar_size")),
-        ema_directional=bool(strategy_raw.get("ema_directional", False)),
-        exit_on_signal_flip=bool(strategy_raw.get("exit_on_signal_flip", False)),
-        flip_exit_mode=_parse_flip_exit_mode(strategy_raw.get("flip_exit_mode")),
-        flip_exit_gate_mode=_parse_flip_exit_gate_mode(strategy_raw.get("flip_exit_gate_mode")),
-        flip_exit_min_hold_bars=_parse_non_negative_int(
-            strategy_raw.get("flip_exit_min_hold_bars"), default=0
-        ),
-        flip_exit_only_if_profit=bool(strategy_raw.get("flip_exit_only_if_profit", False)),
-        direction_source=_parse_direction_source(strategy_raw.get("direction_source")),
-        directional_legs=_parse_directional_legs(strategy_raw.get("directional_legs")),
-        directional_spot=_parse_directional_spot(strategy_raw.get("directional_spot")),
-        legs=_parse_legs(strategy_raw.get("legs")),
-        filters=_parse_filters(strategy_raw.get("filters")),
-        spot_profit_target_pct=_parse_optional_float(strategy_raw.get("spot_profit_target_pct")),
-        spot_stop_loss_pct=_parse_optional_float(strategy_raw.get("spot_stop_loss_pct")),
-        spot_close_eod=bool(strategy_raw.get("spot_close_eod", False)),
-        entry_signal=_parse_entry_signal(strategy_raw.get("entry_signal")),
-        orb_window_mins=_parse_positive_int(strategy_raw.get("orb_window_mins"), default=15),
-        orb_risk_reward=_parse_positive_float(strategy_raw.get("orb_risk_reward"), default=2.0),
-        orb_target_mode=_parse_orb_target_mode(strategy_raw.get("orb_target_mode")),
-        orb_open_time_et=strategy_raw.get("orb_open_time_et"),
-        spot_exit_mode=_parse_spot_exit_mode(strategy_raw.get("spot_exit_mode")),
-        spot_atr_period=_parse_positive_int(strategy_raw.get("spot_atr_period"), default=14),
-        spot_pt_atr_mult=_parse_positive_float(strategy_raw.get("spot_pt_atr_mult"), default=1.5),
-        spot_sl_atr_mult=_parse_positive_float(strategy_raw.get("spot_sl_atr_mult"), default=1.0),
-        spot_exit_time_et=strategy_raw.get("spot_exit_time_et"),
-        spot_exec_bar_size=_parse_bar_size(strategy_raw.get("spot_exec_bar_size")),
-        regime_mode=_parse_regime_mode(strategy_raw.get("regime_mode")),
-        regime2_mode=_parse_regime_gate_mode(strategy_raw.get("regime2_mode")),
-        regime2_apply_to=_parse_regime2_apply_to(strategy_raw.get("regime2_apply_to")),
-        regime2_ema_preset=_parse_ema_preset(strategy_raw.get("regime2_ema_preset")),
-        regime2_bar_size=_parse_bar_size(strategy_raw.get("regime2_bar_size")),
-        regime2_supertrend_atr_period=_parse_positive_int(
-            strategy_raw.get("regime2_supertrend_atr_period"), default=10
-        ),
-        regime2_supertrend_multiplier=_parse_positive_float(
-            strategy_raw.get("regime2_supertrend_multiplier"), default=3.0
-        ),
-        regime2_supertrend_source=_parse_supertrend_source(
-            strategy_raw.get("regime2_supertrend_source")
-        ),
-        supertrend_atr_period=_parse_positive_int(strategy_raw.get("supertrend_atr_period"), default=10),
-        supertrend_multiplier=_parse_positive_float(strategy_raw.get("supertrend_multiplier"), default=3.0),
-        supertrend_source=_parse_supertrend_source(strategy_raw.get("supertrend_source")),
-        tick_gate_mode=_parse_tick_gate_mode(strategy_raw.get("tick_gate_mode")),
-        tick_gate_symbol=str(strategy_raw.get("tick_gate_symbol", "TICK-NYSE") or "TICK-NYSE").strip(),
-        tick_gate_exchange=str(strategy_raw.get("tick_gate_exchange", "NYSE") or "NYSE").strip(),
-        tick_band_ma_period=_parse_positive_int(strategy_raw.get("tick_band_ma_period"), default=10),
-        tick_width_z_lookback=_parse_positive_int(strategy_raw.get("tick_width_z_lookback"), default=252),
-        tick_width_z_enter=_parse_positive_float(strategy_raw.get("tick_width_z_enter"), default=1.0),
-        tick_width_z_exit=_parse_positive_float(strategy_raw.get("tick_width_z_exit"), default=0.5),
-        tick_width_slope_lookback=_parse_positive_int(strategy_raw.get("tick_width_slope_lookback"), default=3),
-        tick_neutral_policy=_parse_tick_neutral_policy(strategy_raw.get("tick_neutral_policy")),
-        tick_direction_policy=_parse_tick_direction_policy(strategy_raw.get("tick_direction_policy")),
-        spot_entry_fill_mode=_parse_spot_fill_mode(strategy_raw.get("spot_entry_fill_mode"), default="close"),
-        spot_flip_exit_fill_mode=_parse_spot_fill_mode(
-            strategy_raw.get("spot_flip_exit_fill_mode"), default="close"
-        ),
-        spot_intrabar_exits=bool(strategy_raw.get("spot_intrabar_exits", False)),
-        spot_spread=_parse_non_negative_float(strategy_raw.get("spot_spread"), default=0.0),
-        spot_commission_per_share=_parse_non_negative_float(
-            strategy_raw.get("spot_commission_per_share"), default=0.0
-        ),
-        spot_commission_min=_parse_non_negative_float(strategy_raw.get("spot_commission_min"), default=0.0),
-        spot_slippage_per_share=_parse_non_negative_float(
-            strategy_raw.get("spot_slippage_per_share"), default=0.0
-        ),
-        spot_mark_to_market=_parse_spot_mark_to_market(strategy_raw.get("spot_mark_to_market")),
-        spot_drawdown_mode=_parse_spot_drawdown_mode(strategy_raw.get("spot_drawdown_mode")),
-        spot_sizing_mode=_parse_spot_sizing_mode(strategy_raw.get("spot_sizing_mode")),
-        spot_notional_pct=_parse_non_negative_float(strategy_raw.get("spot_notional_pct"), default=0.0),
-        spot_risk_pct=_parse_non_negative_float(strategy_raw.get("spot_risk_pct"), default=0.0),
-        spot_short_risk_mult=_parse_non_negative_float(
-            strategy_raw.get("spot_short_risk_mult"), default=1.0
-        ),
-        spot_max_notional_pct=_parse_non_negative_float(strategy_raw.get("spot_max_notional_pct"), default=1.0),
-        spot_min_qty=_parse_positive_int(strategy_raw.get("spot_min_qty"), default=1),
-        spot_max_qty=_parse_non_negative_int(strategy_raw.get("spot_max_qty"), default=0),
-    )
-
-    synthetic = SyntheticConfig(
-        rv_lookback=int(synthetic_raw.get("rv_lookback", 60)),
-        rv_ewma_lambda=float(synthetic_raw.get("rv_ewma_lambda", 0.94)),
-        iv_risk_premium=float(synthetic_raw.get("iv_risk_premium", 1.2)),
-        iv_floor=float(synthetic_raw.get("iv_floor", 0.05)),
-        term_slope=float(synthetic_raw.get("term_slope", 0.02)),
-        skew=float(synthetic_raw.get("skew", -0.25)),
-        min_spread_pct=float(synthetic_raw.get("min_spread_pct", 0.1)),
-    )
+    backtest = BacktestConfig(**_parse_from_schema(backtest_raw, _backtest_schema()))
+    strategy = StrategyConfig(**_parse_from_schema(strategy_raw, _strategy_schema()))
+    synthetic = SyntheticConfig(**_parse_from_schema(synthetic_raw, _synthetic_schema()))
 
     return ConfigBundle(backtest=backtest, strategy=strategy, synthetic=synthetic)
+
+
+def _parse_from_schema(
+    raw: dict,
+    schema: dict[str, Callable[[dict], object]],
+) -> dict[str, object]:
+    out: dict[str, object] = {}
+    for field, parser in schema.items():
+        out[field] = parser(raw)
+    return out
+
+
+def _backtest_schema() -> dict[str, Callable[[dict], object]]:
+    return {
+        "start": lambda raw: _parse_date(raw.get("start")),
+        "end": lambda raw: _parse_date(raw.get("end")),
+        "bar_size": lambda raw: raw.get("bar_size", "1 hour"),
+        "use_rth": lambda raw: bool(raw.get("use_rth", False)),
+        "starting_cash": lambda raw: float(raw.get("starting_cash", 100_000.0)),
+        "risk_free_rate": lambda raw: float(raw.get("risk_free_rate", 0.02)),
+        "cache_dir": lambda raw: Path(raw.get("cache_dir", "db")),
+        "calibration_dir": lambda raw: Path(raw.get("calibration_dir", "db/calibration")),
+        "output_dir": lambda raw: Path(raw.get("output_dir", "backtests/out")),
+        "calibrate": lambda raw: bool(raw.get("calibrate", False)),
+        "offline": lambda raw: bool(raw.get("offline", False)),
+    }
+
+
+def _strategy_schema() -> dict[str, Callable[[dict], object]]:
+    return {
+        "name": lambda raw: raw.get("name", "credit_spread"),
+        "instrument": lambda raw: _parse_instrument(raw.get("instrument")),
+        "symbol": lambda raw: raw.get("symbol", "MNQ"),
+        "exchange": lambda raw: raw.get("exchange"),
+        "right": lambda raw: str(raw.get("right", "PUT")).upper(),
+        "entry_days": lambda raw: _parse_weekdays(raw.get("entry_days", [])),
+        "max_entries_per_day": lambda raw: _parse_non_negative_int(raw.get("max_entries_per_day"), default=1),
+        "max_open_trades": lambda raw: _parse_non_negative_int(raw.get("max_open_trades"), default=1),
+        "dte": lambda raw: int(raw.get("dte", 0)),
+        "otm_pct": lambda raw: float(raw.get("otm_pct", 2.5)),
+        "width_pct": lambda raw: float(raw.get("width_pct", 1.0)),
+        "profit_target": lambda raw: float(raw.get("profit_target", 0.5)),
+        "stop_loss": lambda raw: float(raw.get("stop_loss", 0.35)),
+        "exit_dte": lambda raw: int(raw.get("exit_dte", 0)),
+        "quantity": lambda raw: int(raw.get("quantity", 1)),
+        "stop_loss_basis": lambda raw: raw.get("stop_loss_basis", "max_loss"),
+        "min_credit": lambda raw: float(raw["min_credit"]) if raw.get("min_credit") is not None else None,
+        "ema_preset": lambda raw: _parse_ema_preset(raw.get("ema_preset")),
+        "ema_entry_mode": lambda raw: _parse_ema_entry_mode(raw.get("ema_entry_mode")),
+        "entry_confirm_bars": lambda raw: _parse_non_negative_int(raw.get("entry_confirm_bars"), default=0),
+        "regime_ema_preset": lambda raw: _parse_ema_preset(raw.get("regime_ema_preset")),
+        "regime_bar_size": lambda raw: _parse_bar_size(raw.get("regime_bar_size")),
+        "ema_directional": lambda raw: bool(raw.get("ema_directional", False)),
+        "exit_on_signal_flip": lambda raw: bool(raw.get("exit_on_signal_flip", False)),
+        "flip_exit_mode": lambda raw: _parse_flip_exit_mode(raw.get("flip_exit_mode")),
+        "flip_exit_gate_mode": lambda raw: _parse_flip_exit_gate_mode(raw.get("flip_exit_gate_mode")),
+        "flip_exit_min_hold_bars": lambda raw: _parse_non_negative_int(raw.get("flip_exit_min_hold_bars"), default=0),
+        "flip_exit_only_if_profit": lambda raw: bool(raw.get("flip_exit_only_if_profit", False)),
+        "direction_source": lambda raw: _parse_direction_source(raw.get("direction_source")),
+        "directional_legs": lambda raw: _parse_directional_legs(raw.get("directional_legs")),
+        "directional_spot": lambda raw: _parse_directional_spot(raw.get("directional_spot")),
+        "legs": lambda raw: _parse_legs(raw.get("legs")),
+        "filters": lambda raw: _parse_filters(raw.get("filters")),
+        "spot_profit_target_pct": lambda raw: _parse_optional_float(raw.get("spot_profit_target_pct")),
+        "spot_stop_loss_pct": lambda raw: _parse_optional_float(raw.get("spot_stop_loss_pct")),
+        "spot_close_eod": lambda raw: bool(raw.get("spot_close_eod", False)),
+        "entry_signal": lambda raw: _parse_entry_signal(raw.get("entry_signal")),
+        "orb_window_mins": lambda raw: _parse_positive_int(raw.get("orb_window_mins"), default=15),
+        "orb_risk_reward": lambda raw: _parse_positive_float(raw.get("orb_risk_reward"), default=2.0),
+        "orb_target_mode": lambda raw: _parse_orb_target_mode(raw.get("orb_target_mode")),
+        "orb_open_time_et": lambda raw: raw.get("orb_open_time_et"),
+        "spot_exit_mode": lambda raw: _parse_spot_exit_mode(raw.get("spot_exit_mode")),
+        "spot_atr_period": lambda raw: _parse_positive_int(raw.get("spot_atr_period"), default=14),
+        "spot_pt_atr_mult": lambda raw: _parse_positive_float(raw.get("spot_pt_atr_mult"), default=1.5),
+        "spot_sl_atr_mult": lambda raw: _parse_positive_float(raw.get("spot_sl_atr_mult"), default=1.0),
+        "spot_exit_time_et": lambda raw: raw.get("spot_exit_time_et"),
+        "spot_exec_bar_size": lambda raw: _parse_bar_size(raw.get("spot_exec_bar_size")),
+        "regime_mode": lambda raw: _parse_regime_mode(raw.get("regime_mode")),
+        "regime2_mode": lambda raw: _parse_regime_gate_mode(raw.get("regime2_mode")),
+        "regime2_apply_to": lambda raw: _parse_regime2_apply_to(raw.get("regime2_apply_to")),
+        "regime2_ema_preset": lambda raw: _parse_ema_preset(raw.get("regime2_ema_preset")),
+        "regime2_bar_size": lambda raw: _parse_bar_size(raw.get("regime2_bar_size")),
+        "regime2_supertrend_atr_period": lambda raw: _parse_positive_int(
+            raw.get("regime2_supertrend_atr_period"), default=10
+        ),
+        "regime2_supertrend_multiplier": lambda raw: _parse_positive_float(
+            raw.get("regime2_supertrend_multiplier"), default=3.0
+        ),
+        "regime2_supertrend_source": lambda raw: _parse_supertrend_source(raw.get("regime2_supertrend_source")),
+        "supertrend_atr_period": lambda raw: _parse_positive_int(raw.get("supertrend_atr_period"), default=10),
+        "supertrend_multiplier": lambda raw: _parse_positive_float(raw.get("supertrend_multiplier"), default=3.0),
+        "supertrend_source": lambda raw: _parse_supertrend_source(raw.get("supertrend_source")),
+        "tick_gate_mode": lambda raw: _parse_tick_gate_mode(raw.get("tick_gate_mode")),
+        "tick_gate_symbol": lambda raw: str(raw.get("tick_gate_symbol", "TICK-NYSE") or "TICK-NYSE").strip(),
+        "tick_gate_exchange": lambda raw: str(raw.get("tick_gate_exchange", "NYSE") or "NYSE").strip(),
+        "tick_band_ma_period": lambda raw: _parse_positive_int(raw.get("tick_band_ma_period"), default=10),
+        "tick_width_z_lookback": lambda raw: _parse_positive_int(raw.get("tick_width_z_lookback"), default=252),
+        "tick_width_z_enter": lambda raw: _parse_positive_float(raw.get("tick_width_z_enter"), default=1.0),
+        "tick_width_z_exit": lambda raw: _parse_positive_float(raw.get("tick_width_z_exit"), default=0.5),
+        "tick_width_slope_lookback": lambda raw: _parse_positive_int(raw.get("tick_width_slope_lookback"), default=3),
+        "tick_neutral_policy": lambda raw: _parse_tick_neutral_policy(raw.get("tick_neutral_policy")),
+        "tick_direction_policy": lambda raw: _parse_tick_direction_policy(raw.get("tick_direction_policy")),
+        "spot_entry_fill_mode": lambda raw: _parse_spot_fill_mode(raw.get("spot_entry_fill_mode"), default="close"),
+        "spot_flip_exit_fill_mode": lambda raw: _parse_spot_fill_mode(
+            raw.get("spot_flip_exit_fill_mode"), default="close"
+        ),
+        "spot_intrabar_exits": lambda raw: bool(raw.get("spot_intrabar_exits", False)),
+        "spot_spread": lambda raw: _parse_non_negative_float(raw.get("spot_spread"), default=0.0),
+        "spot_commission_per_share": lambda raw: _parse_non_negative_float(
+            raw.get("spot_commission_per_share"), default=0.0
+        ),
+        "spot_commission_min": lambda raw: _parse_non_negative_float(raw.get("spot_commission_min"), default=0.0),
+        "spot_slippage_per_share": lambda raw: _parse_non_negative_float(
+            raw.get("spot_slippage_per_share"), default=0.0
+        ),
+        "spot_mark_to_market": lambda raw: _parse_spot_mark_to_market(raw.get("spot_mark_to_market")),
+        "spot_drawdown_mode": lambda raw: _parse_spot_drawdown_mode(raw.get("spot_drawdown_mode")),
+        "spot_sizing_mode": lambda raw: _parse_spot_sizing_mode(raw.get("spot_sizing_mode")),
+        "spot_notional_pct": lambda raw: _parse_non_negative_float(raw.get("spot_notional_pct"), default=0.0),
+        "spot_risk_pct": lambda raw: _parse_non_negative_float(raw.get("spot_risk_pct"), default=0.0),
+        "spot_short_risk_mult": lambda raw: _parse_non_negative_float(raw.get("spot_short_risk_mult"), default=1.0),
+        "spot_max_notional_pct": lambda raw: _parse_non_negative_float(raw.get("spot_max_notional_pct"), default=1.0),
+        "spot_min_qty": lambda raw: _parse_positive_int(raw.get("spot_min_qty"), default=1),
+        "spot_max_qty": lambda raw: _parse_non_negative_int(raw.get("spot_max_qty"), default=0),
+    }
+
+
+def _synthetic_schema() -> dict[str, Callable[[dict], object]]:
+    return {
+        "rv_lookback": lambda raw: int(raw.get("rv_lookback", 60)),
+        "rv_ewma_lambda": lambda raw: float(raw.get("rv_ewma_lambda", 0.94)),
+        "iv_risk_premium": lambda raw: float(raw.get("iv_risk_premium", 1.2)),
+        "iv_floor": lambda raw: float(raw.get("iv_floor", 0.05)),
+        "term_slope": lambda raw: float(raw.get("term_slope", 0.02)),
+        "skew": lambda raw: float(raw.get("skew", -0.25)),
+        "min_spread_pct": lambda raw: float(raw.get("min_spread_pct", 0.1)),
+    }
 
 
 # endregion

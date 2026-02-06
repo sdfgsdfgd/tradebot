@@ -263,6 +263,436 @@ def _mk_filters(
 
 
 _WDAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
+_AXIS_ALL_PLAN = (
+    "ema",
+    "volume",
+    "rv",
+    "tod",
+    "atr",
+    "ptsl",
+    "hold",
+    "orb",
+    "regime",
+    "regime2",
+    "joint",
+    "flip_exit",
+    "confirm",
+    "spread",
+    "slope",
+    "slope_signed",
+    "cooldown",
+    "skip_open",
+    "shock",
+    "risk_overlays",
+    "loosen",
+    "tick",
+    "spot_short_risk_mult",
+)
+_COMBO_FULL_PLAN = (
+    "ema",
+    "entry_mode",
+    "confirm",
+    "weekday",
+    "tod",
+    "volume",
+    "rv",
+    "spread",
+    "spread_fine",
+    "spread_down",
+    "slope",
+    "slope_signed",
+    "cooldown",
+    "skip_open",
+    "shock",
+    "risk_overlays",
+    "ptsl",
+    "exit_time",
+    "hold",
+    "spot_short_risk_mult",
+    "flip_exit",
+    "loosen",
+    "loosen_atr",
+    "atr",
+    "atr_fine",
+    "atr_ultra",
+    "regime",
+    "regime2",
+    "regime2_ema",
+    "joint",
+    "micro_st",
+    "orb",
+    "orb_joint",
+    "tod_interaction",
+    "perm_joint",
+    "ema_perm_joint",
+    "tick_perm_joint",
+    "chop_joint",
+    "tick_ema",
+    "ema_regime",
+    "ema_atr",
+    "regime_atr",
+    "r2_atr",
+    "r2_tod",
+    "tick",
+    "gate_matrix",
+    "squeeze",
+    "combo_fast",
+    "frontier",
+)
+
+
+def _strategy_fingerprint(
+    strategy: dict,
+    *,
+    filters: dict | None,
+    signal_bar_size: str | None = None,
+    signal_use_rth: bool | None = None,
+) -> str:
+    raw = dict(strategy)
+    raw["filters"] = filters
+    if signal_bar_size is not None:
+        raw["signal_bar_size"] = str(signal_bar_size)
+    if signal_use_rth is not None:
+        raw["signal_use_rth"] = bool(signal_use_rth)
+    return json.dumps(raw, sort_keys=True, default=str)
+
+
+def _milestone_metrics_from_row(row: dict) -> dict:
+    return {
+        "pnl": float(row.get("pnl") or 0.0),
+        "roi": float(row.get("roi") or 0.0),
+        "win_rate": float(row.get("win_rate") or 0.0),
+        "trades": int(row.get("trades") or 0),
+        "max_drawdown": float(row.get("dd") or row.get("max_drawdown") or 0.0),
+        "max_drawdown_pct": float(row.get("dd_pct") or row.get("max_drawdown_pct") or 0.0),
+        "pnl_over_dd": row.get("pnl_over_dd"),
+    }
+
+
+def _milestone_item(
+    *,
+    strategy: dict,
+    filters: dict | None,
+    note: str | None,
+    metrics: dict,
+) -> dict:
+    return {
+        "key": _strategy_fingerprint(strategy, filters=filters),
+        "strategy": strategy,
+        "filters": filters,
+        "note": note,
+        "metrics": {
+            "pnl": float(metrics.get("pnl") or 0.0),
+            "roi": float(metrics.get("roi") or 0.0),
+            "win_rate": float(metrics.get("win_rate") or 0.0),
+            "trades": int(metrics.get("trades") or 0),
+            "max_drawdown": float(metrics.get("max_drawdown") or 0.0),
+            "max_drawdown_pct": float(metrics.get("max_drawdown_pct") or 0.0),
+            "pnl_over_dd": metrics.get("pnl_over_dd"),
+        },
+    }
+
+
+def _note_from_group_name(raw_name: str) -> str | None:
+    text = str(raw_name or "")
+    if text.endswith("]") and "[" in text:
+        try:
+            return text[text.rfind("[") + 1 : -1].strip() or None
+        except Exception:
+            return None
+    return None
+
+
+def _collect_milestone_items_from_rows(
+    rows: list[tuple[ConfigBundle, dict, str]],
+    *,
+    meta: ContractMeta,
+    min_win: float,
+    min_trades: int,
+    min_pnl_dd: float,
+) -> list[dict]:
+    out: list[dict] = []
+    for cfg, row, note in rows:
+        try:
+            win = float(row.get("win_rate") or 0.0)
+        except (TypeError, ValueError):
+            win = 0.0
+        try:
+            trades = int(row.get("trades") or 0)
+        except (TypeError, ValueError):
+            trades = 0
+        pnl_dd_raw = row.get("pnl_over_dd")
+        try:
+            pnl_dd = float(pnl_dd_raw) if pnl_dd_raw is not None else None
+        except (TypeError, ValueError):
+            pnl_dd = None
+        if win < float(min_win) or trades < int(min_trades) or pnl_dd is None or pnl_dd < float(min_pnl_dd):
+            continue
+        strategy = _spot_strategy_payload(cfg, meta=meta)
+        out.append(
+            _milestone_item(
+                strategy=strategy,
+                filters=_filters_payload(cfg.strategy.filters),
+                note=str(note),
+                metrics=_milestone_metrics_from_row(row),
+            )
+        )
+    return out
+
+
+def _collect_milestone_items_from_payload(payload: dict, *, symbol: str) -> list[dict]:
+    out: list[dict] = []
+    if not isinstance(payload, dict):
+        return out
+    symbol_key = str(symbol).strip().upper()
+    for group in payload.get("groups") or []:
+        if not isinstance(group, dict):
+            continue
+        filters = group.get("filters") if isinstance(group.get("filters"), dict) else None
+        note = _note_from_group_name(str(group.get("name") or ""))
+        for entry in group.get("entries") or []:
+            if not isinstance(entry, dict):
+                continue
+            strategy = entry.get("strategy") or {}
+            metrics = entry.get("metrics") or {}
+            if not isinstance(strategy, dict) or not isinstance(metrics, dict):
+                continue
+            entry_symbol = str(entry.get("symbol") or symbol_key).strip().upper()
+            if entry_symbol != symbol_key:
+                continue
+            out.append(
+                _milestone_item(
+                    strategy=dict(strategy),
+                    filters=filters,
+                    note=note,
+                    metrics=metrics,
+                )
+            )
+    return out
+
+
+def _milestone_sort_key(item: dict) -> tuple:
+    m = item.get("metrics") or {}
+    return (
+        float(m.get("pnl_over_dd") or float("-inf")),
+        float(m.get("pnl") or 0.0),
+        float(m.get("win_rate") or 0.0),
+        int(m.get("trades") or 0),
+    )
+
+
+def _milestone_sort_key_pnl(item: dict) -> tuple:
+    m = item.get("metrics") or {}
+    return (
+        float(m.get("pnl") or float("-inf")),
+        float(m.get("pnl_over_dd") or 0.0),
+        float(m.get("win_rate") or 0.0),
+        int(m.get("trades") or 0),
+    )
+
+
+def _dedupe_best_milestones(items: list[dict]) -> list[dict]:
+    best_by_key: dict[str, dict] = {}
+    for item in items:
+        key = str(item.get("key") or "")
+        if not key:
+            continue
+        prev = best_by_key.get(key)
+        if prev is None or _milestone_sort_key(item) > _milestone_sort_key(prev):
+            best_by_key[key] = item
+    return sorted(best_by_key.values(), key=_milestone_sort_key, reverse=True)
+
+
+def _merge_and_write_milestones(
+    *,
+    out_path: Path,
+    eligible_new: list[dict],
+    merge_existing: bool,
+    add_top_pnl_dd: int,
+    add_top_pnl: int,
+    symbol: str,
+    start: date,
+    end: date,
+    signal_bar_size: str,
+    use_rth: bool,
+    milestone_min_win: float,
+    milestone_min_trades: int,
+    milestone_min_pnl_dd: float,
+) -> int:
+    items = list(eligible_new)
+    add_top_dd = max(0, int(add_top_pnl_dd or 0))
+    add_top_pnl = max(0, int(add_top_pnl or 0))
+    if merge_existing and (add_top_dd > 0 or add_top_pnl > 0):
+        by_dd = sorted(items, key=_milestone_sort_key, reverse=True)[:add_top_dd] if add_top_dd > 0 else []
+        by_pnl = sorted(items, key=_milestone_sort_key_pnl, reverse=True)[:add_top_pnl] if add_top_pnl > 0 else []
+        seen: set[str] = set()
+        selected: list[dict] = []
+        for item in by_dd + by_pnl:
+            key = str(item.get("key") or "")
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            selected.append(item)
+        items = selected
+
+    if merge_existing and out_path.exists():
+        try:
+            existing_payload = json.loads(out_path.read_text())
+        except json.JSONDecodeError:
+            existing_payload = {}
+        items.extend(_collect_milestone_items_from_payload(existing_payload, symbol=symbol))
+
+    unique = _dedupe_best_milestones(items)
+    groups: list[dict] = []
+    for idx, item in enumerate(unique, start=1):
+        metrics = item["metrics"]
+        groups.append(
+            {
+                "name": _milestone_group_name_from_strategy(
+                    rank=idx,
+                    strategy=item["strategy"],
+                    metrics=metrics,
+                    note=str(item.get("note") or "").strip(),
+                ),
+                "filters": item["filters"],
+                "entries": [{"symbol": symbol, "metrics": metrics, "strategy": item["strategy"]}],
+            }
+        )
+    payload = {
+        "name": "spot_milestones",
+        "generated_at": utc_now_iso_z(),
+        "notes": (
+            f"Auto-generated via evolve_spot.py (post-fix). "
+            f"window={start.isoformat()}→{end.isoformat()}, bar_size={signal_bar_size}, use_rth={use_rth}. "
+            f"thresholds: win>={float(milestone_min_win):.2f}, trades>={int(milestone_min_trades)}, "
+            f"pnl/dd>={float(milestone_min_pnl_dd):.2f}."
+        ),
+        "groups": groups,
+    }
+    write_json(out_path, payload, sort_keys=False)
+    return len(groups)
+
+
+def _run_axis_subprocess_plan(
+    *,
+    label: str,
+    axes: tuple[str, ...],
+    jobs: int,
+    base_cli: list[str],
+    axis_jobs_resolver,
+    write_milestones: bool,
+    tmp_prefix: str,
+) -> dict[str, dict]:
+    jobs_eff = min(int(jobs), len(axes))
+    print(f"{label}: jobs={jobs_eff} axes={len(axes)}", flush=True)
+
+    def _pump(prefix: str, stream) -> None:
+        for line in iter(stream.readline, ""):
+            print(f"[{prefix}] {line.rstrip()}", flush=True)
+
+    failures: list[tuple[str, int]] = []
+    milestone_paths: dict[str, Path] = {}
+    milestone_payloads: dict[str, dict] = {}
+    start_times: dict[str, float] = {}
+
+    with tempfile.TemporaryDirectory(prefix=tmp_prefix) as tmpdir:
+        tmp_root = Path(tmpdir)
+        pending = list(axes)
+        running: list[tuple[str, subprocess.Popen, threading.Thread]] = []
+
+        def _spawn(axis_name: str) -> None:
+            cmd = [
+                sys.executable,
+                "-u",
+                "-m",
+                "tradebot.backtest",
+                "spot",
+                *base_cli,
+                "--axis",
+                str(axis_name),
+                "--jobs",
+                str(int(axis_jobs_resolver(axis_name))),
+            ]
+            if bool(write_milestones):
+                out_path = tmp_root / f"milestones_{axis_name}.json"
+                milestone_paths[axis_name] = out_path
+                cmd += ["--milestones-out", str(out_path)]
+            proc = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True,
+                bufsize=1,
+            )
+            if proc.stdout is None:
+                raise RuntimeError(f"Failed to capture {label} worker stdout.")
+            t = threading.Thread(target=_pump, args=(axis_name, proc.stdout), daemon=True)
+            t.start()
+            start_times[axis_name] = pytime.perf_counter()
+            running.append((axis_name, proc, t))
+
+        while pending or running:
+            while pending and len(running) < jobs_eff and not failures:
+                axis_name = pending.pop(0)
+                print(f"START {axis_name}", flush=True)
+                _spawn(axis_name)
+
+            finished_idx = None
+            for idx, (axis_name, proc, t) in enumerate(running):
+                rc = proc.poll()
+                if rc is None:
+                    continue
+                finished_idx = idx
+                elapsed = pytime.perf_counter() - float(start_times.get(axis_name) or pytime.perf_counter())
+                print(f"DONE  {axis_name} exit={rc} elapsed={elapsed:0.1f}s", flush=True)
+                try:
+                    proc.wait(timeout=1.0)
+                except subprocess.TimeoutExpired:
+                    proc.kill()
+                    proc.wait(timeout=5.0)
+                try:
+                    t.join(timeout=1.0)
+                except Exception:
+                    pass
+                if rc != 0:
+                    failures.append((axis_name, int(rc)))
+                running.pop(idx)
+                break
+
+            if failures:
+                for _axis_name, proc, _t in running:
+                    try:
+                        proc.terminate()
+                    except Exception:
+                        pass
+                for _axis_name, proc, _t in running:
+                    try:
+                        proc.wait(timeout=5.0)
+                    except Exception:
+                        try:
+                            proc.kill()
+                        except Exception:
+                            pass
+                break
+
+            if finished_idx is None:
+                pytime.sleep(0.05)
+
+        if bool(write_milestones):
+            for axis_name, out_path in milestone_paths.items():
+                if not out_path.exists():
+                    continue
+                try:
+                    payload = json.loads(out_path.read_text())
+                except json.JSONDecodeError:
+                    continue
+                if isinstance(payload, dict):
+                    milestone_payloads[axis_name] = payload
+
+    if failures:
+        axis_name, rc = failures[0]
+        raise SystemExit(f"{label} axis failed: {axis_name} (exit={rc})")
+    return milestone_payloads
 
 
 def _entry_days_labels(days: tuple[int, ...]) -> list[str]:
@@ -496,13 +926,14 @@ def _spot_strategy_payload(cfg: ConfigBundle, *, meta: ContractMeta) -> dict:
 
 
 def _milestone_key(cfg: ConfigBundle) -> str:
-    # Keep this stable and compact; include filters.
     strategy = asdict(cfg.strategy)
-    filters = _filters_payload(cfg.strategy.filters)
-    strategy["filters"] = filters
-    strategy["signal_bar_size"] = str(cfg.backtest.bar_size)
-    strategy["signal_use_rth"] = bool(cfg.backtest.use_rth)
-    return json.dumps(strategy, sort_keys=True, default=str)
+    strategy.pop("filters", None)
+    return _strategy_fingerprint(
+        strategy,
+        filters=_filters_payload(cfg.strategy.filters),
+        signal_bar_size=str(cfg.backtest.bar_size),
+        signal_use_rth=bool(cfg.backtest.use_rth),
+    )
 
 
 def _milestone_group_name(*, rank: int, cfg: ConfigBundle, metrics: dict, note: str | None) -> str:
@@ -6818,58 +7249,7 @@ def main() -> None:
             if not offline:
                 raise SystemExit("--jobs>1 for combo_full requires --offline (avoid parallel IBKR sessions).")
 
-            # Keep the same ordering as the sequential combo_full path.
-            axes = [
-                "ema",
-                "entry_mode",
-                "confirm",
-                "weekday",
-                "tod",
-                "volume",
-                "rv",
-                "spread",
-                "spread_fine",
-                "spread_down",
-                "slope",
-                "slope_signed",
-                "cooldown",
-                "skip_open",
-                "shock",
-                "risk_overlays",
-                "ptsl",
-                "exit_time",
-                "hold",
-                "spot_short_risk_mult",
-                "flip_exit",
-                "loosen",
-                "loosen_atr",
-                "atr",
-                "atr_fine",
-                "atr_ultra",
-                "regime",
-                "regime2",
-                "regime2_ema",
-                "joint",
-                "micro_st",
-                "orb",
-                "orb_joint",
-                "tod_interaction",
-                "perm_joint",
-                "ema_perm_joint",
-                "tick_perm_joint",
-                "chop_joint",
-                "tick_ema",
-                "ema_regime",
-                "ema_atr",
-                "regime_atr",
-                "r2_atr",
-                "r2_tod",
-                "tick",
-                "gate_matrix",
-                "squeeze",
-                "combo_fast",
-                "frontier",
-            ]
+            axes = tuple(_COMBO_FULL_PLAN)
 
             base_cli = list(sys.argv[1:])
             base_cli = _strip_flag_with_value(base_cli, "--axis")
@@ -6877,274 +7257,41 @@ def main() -> None:
             base_cli = _strip_flag_with_value(base_cli, "--milestones-out")
             base_cli = _strip_flag(base_cli, "--merge-milestones")
 
-            jobs_eff = min(int(jobs), len(axes))
-            print(f"combo_full parallel: jobs={jobs_eff} axes={len(axes)}", flush=True)
-
-            def _pump(prefix: str, stream) -> None:
-                for line in iter(stream.readline, ""):
-                    print(f"[{prefix}] {line.rstrip()}", flush=True)
-
-            failures: list[tuple[str, int]] = []
-            milestone_paths: dict[str, Path] = {}
-            start_times: dict[str, float] = {}
-
-            with tempfile.TemporaryDirectory(prefix="tradebot_combo_full_") as tmpdir:
-                tmp_root = Path(tmpdir)
-                pending = list(axes)
-                running: list[tuple[str, subprocess.Popen, threading.Thread]] = []
-
-                def _spawn(axis_name: str) -> None:
-                    axis_jobs = "1"
-                    if str(axis_name) in ("gate_matrix", "combo_fast", "risk_overlays"):
-                        axis_jobs = str(min(int(jobs), int(_default_jobs())))
-                    cmd = [
-                        sys.executable,
-                        "-u",
-                        "-m",
-                        "tradebot.backtest",
-                        "spot",
-                        *base_cli,
-                        "--axis",
-                        str(axis_name),
-                        "--jobs",
-                        str(axis_jobs),
-                    ]
-                    if bool(args.write_milestones):
-                        out_path = tmp_root / f"milestones_{axis_name}.json"
-                        milestone_paths[axis_name] = out_path
-                        cmd += ["--milestones-out", str(out_path)]
-                    proc = subprocess.Popen(
-                        cmd,
-                        stdout=subprocess.PIPE,
-                        stderr=subprocess.STDOUT,
-                        text=True,
-                        bufsize=1,
-                    )
-                    if proc.stdout is None:
-                        raise RuntimeError("Failed to capture worker stdout.")
-                    t = threading.Thread(target=_pump, args=(axis_name, proc.stdout), daemon=True)
-                    t.start()
-                    start_times[axis_name] = pytime.perf_counter()
-                    running.append((axis_name, proc, t))
-
-                while pending or running:
-                    while pending and len(running) < jobs_eff and not failures:
-                        axis_name = pending.pop(0)
-                        print(f"START {axis_name}", flush=True)
-                        _spawn(axis_name)
-
-                    finished_idx = None
-                    for idx, (axis_name, proc, t) in enumerate(running):
-                        rc = proc.poll()
-                        if rc is None:
-                            continue
-                        finished_idx = idx
-                        elapsed = pytime.perf_counter() - float(start_times.get(axis_name) or pytime.perf_counter())
-                        print(f"DONE  {axis_name} exit={rc} elapsed={elapsed:0.1f}s", flush=True)
-                        try:
-                            proc.wait(timeout=1.0)
-                        except subprocess.TimeoutExpired:
-                            proc.kill()
-                            proc.wait(timeout=5.0)
-                        try:
-                            t.join(timeout=1.0)
-                        except Exception:
-                            pass
-                        if rc != 0:
-                            failures.append((axis_name, int(rc)))
-                        running.pop(idx)
-                        break
-
-                    if failures:
-                        for axis_name, proc, t in running:
-                            try:
-                                proc.terminate()
-                            except Exception:
-                                pass
-                        for axis_name, proc, t in running:
-                            try:
-                                proc.wait(timeout=5.0)
-                            except Exception:
-                                try:
-                                    proc.kill()
-                                except Exception:
-                                    pass
-                        break
-
-                    if finished_idx is None:
-                        pytime.sleep(0.05)
-
-                if failures:
-                    axis_name, rc = failures[0]
-                    raise SystemExit(f"combo_full parallel axis failed: {axis_name} (exit={rc})")
-
-                if bool(args.write_milestones):
-                    eligible_new: list[dict] = []
-                    for axis_name in axes:
-                        path = milestone_paths.get(axis_name)
-                        if path is None or not path.exists():
-                            continue
-                        payload = json.loads(path.read_text())
-                        if not isinstance(payload, dict):
-                            continue
-                        for group in payload.get("groups") or []:
-                            if not isinstance(group, dict):
-                                continue
-                            filters = group.get("filters")
-                            raw_name = str(group.get("name") or "")
-                            parsed_note = None
-                            if raw_name.endswith("]") and "[" in raw_name:
-                                try:
-                                    parsed_note = raw_name[raw_name.rfind("[") + 1 : -1].strip() or None
-                                except Exception:
-                                    parsed_note = None
-                            for entry in group.get("entries") or []:
-                                if not isinstance(entry, dict):
-                                    continue
-                                strat = entry.get("strategy") or {}
-                                metrics = entry.get("metrics") or {}
-                                if not isinstance(strat, dict) or not isinstance(metrics, dict):
-                                    continue
-                                key_obj = dict(strat)
-                                key_obj["filters"] = filters
-                                eligible_new.append(
-                                    {
-                                        "key": json.dumps(key_obj, sort_keys=True, default=str),
-                                        "strategy": strat,
-                                        "filters": filters,
-                                        "note": parsed_note,
-                                        "metrics": {
-                                            "pnl": float(metrics.get("pnl") or 0.0),
-                                            "roi": float(metrics.get("roi") or 0.0),
-                                            "win_rate": float(metrics.get("win_rate") or 0.0),
-                                            "trades": int(metrics.get("trades") or 0),
-                                            "max_drawdown": float(metrics.get("max_drawdown") or 0.0),
-                                            "max_drawdown_pct": float(metrics.get("max_drawdown_pct") or 0.0),
-                                            "pnl_over_dd": metrics.get("pnl_over_dd"),
-                                        },
-                                    }
-                                )
-
-                    out_path = Path(args.milestones_out)
-                    eligible: list[dict] = []
-
-                    def _sort_key(item: dict) -> tuple:
-                        m = item.get("metrics") or {}
-                        return (
-                            float(m.get("pnl_over_dd") or float("-inf")),
-                            float(m.get("pnl") or 0.0),
-                            float(m.get("win_rate") or 0.0),
-                            int(m.get("trades") or 0),
-                        )
-
-                    def _sort_key_pnl(item: dict) -> tuple:
-                        m = item.get("metrics") or {}
-                        return (
-                            float(m.get("pnl") or float("-inf")),
-                            float(m.get("pnl_over_dd") or 0.0),
-                            float(m.get("win_rate") or 0.0),
-                            int(m.get("trades") or 0),
-                        )
-
-                    add_top_dd = max(0, int(args.milestone_add_top_pnl_dd or 0))
-                    add_top_pnl = max(0, int(args.milestone_add_top_pnl or 0))
-                    if bool(args.merge_milestones) and (add_top_dd > 0 or add_top_pnl > 0):
-                        by_dd = sorted(eligible_new, key=_sort_key, reverse=True)[:add_top_dd] if add_top_dd > 0 else []
-                        by_pnl = (
-                            sorted(eligible_new, key=_sort_key_pnl, reverse=True)[:add_top_pnl]
-                            if add_top_pnl > 0
-                            else []
-                        )
-                        seen_new: set[str] = set()
-                        limited_new: list[dict] = []
-                        for item in by_dd + by_pnl:
-                            key = str(item.get("key") or "")
-                            if not key or key in seen_new:
-                                continue
-                            seen_new.add(key)
-                            limited_new.append(item)
-                        eligible.extend(limited_new)
-                    else:
-                        eligible.extend(eligible_new)
-
-                    if bool(args.merge_milestones) and out_path.exists():
-                        try:
-                            existing = json.loads(out_path.read_text())
-                        except json.JSONDecodeError:
-                            existing = {}
-                        for group in existing.get("groups") or []:
-                            filters = group.get("filters")
-                            raw_name = str(group.get("name") or "")
-                            parsed_note = None
-                            if raw_name.endswith("]") and "[" in raw_name:
-                                try:
-                                    parsed_note = raw_name[raw_name.rfind("[") + 1 : -1].strip() or None
-                                except Exception:
-                                    parsed_note = None
-                            for entry in group.get("entries") or []:
-                                strat = entry.get("strategy") or {}
-                                metrics = entry.get("metrics") or {}
-                                key_obj = dict(strat)
-                                key_obj["filters"] = filters
-                                eligible.append(
-                                    {
-                                        "key": json.dumps(key_obj, sort_keys=True, default=str),
-                                        "strategy": strat,
-                                        "filters": filters,
-                                        "note": parsed_note,
-                                        "metrics": {
-                                            "pnl": float(metrics.get("pnl") or 0.0),
-                                            "roi": float(metrics.get("roi") or 0.0),
-                                            "win_rate": float(metrics.get("win_rate") or 0.0),
-                                            "trades": int(metrics.get("trades") or 0),
-                                            "max_drawdown": float(metrics.get("max_drawdown") or 0.0),
-                                            "max_drawdown_pct": float(metrics.get("max_drawdown_pct") or 0.0),
-                                            "pnl_over_dd": metrics.get("pnl_over_dd"),
-                                        },
-                                    }
-                                )
-
-                    best_by_key: dict[str, dict] = {}
-                    for item in eligible:
-                        key = str(item.get("key") or "")
-                        if not key:
-                            continue
-                        current = best_by_key.get(key)
-                        if current is None or _sort_key(item) > _sort_key(current):
-                            best_by_key[key] = item
-
-                    unique = sorted(best_by_key.values(), key=_sort_key, reverse=True)
-                    groups: list[dict] = []
-                    for idx, item in enumerate(unique, start=1):
-                        metrics = item["metrics"]
-                        entry = {"symbol": symbol, "metrics": metrics, "strategy": item["strategy"]}
-                        groups.append(
-                            {
-                                "name": _milestone_group_name_from_strategy(
-                                    rank=idx,
-                                    strategy=item["strategy"],
-                                    metrics=metrics,
-                                    note=str(item.get("note") or "").strip(),
-                                ),
-                                "filters": item["filters"],
-                                "entries": [entry],
-                            }
-                        )
-
-                    payload = {
-                        "name": "spot_milestones",
-                        "generated_at": utc_now_iso_z(),
-                        "notes": (
-                            f"Auto-generated via evolve_spot.py (post-fix). "
-                            f"window={start.isoformat()}→{end.isoformat()}, bar_size={signal_bar_size}, use_rth={use_rth}. "
-                            f"thresholds: win>={float(args.milestone_min_win):.2f}, trades>={int(args.milestone_min_trades)}, "
-                            f"pnl/dd>={float(args.milestone_min_pnl_dd):.2f}."
-                        ),
-                        "groups": groups,
-                    }
-                    write_json(out_path, payload, sort_keys=False)
-                    milestones_written = True
-                    print(f"Wrote {out_path} ({len(groups)} eligible presets).", flush=True)
+            milestone_payloads = _run_axis_subprocess_plan(
+                label="combo_full parallel",
+                axes=axes,
+                jobs=int(jobs),
+                base_cli=base_cli,
+                axis_jobs_resolver=lambda axis_name: min(int(jobs), int(_default_jobs()))
+                if str(axis_name) in ("gate_matrix", "combo_fast", "risk_overlays")
+                else 1,
+                write_milestones=bool(args.write_milestones),
+                tmp_prefix="tradebot_combo_full_",
+            )
+            if bool(args.write_milestones):
+                eligible_new: list[dict] = []
+                for axis_name in axes:
+                    payload = milestone_payloads.get(axis_name)
+                    if isinstance(payload, dict):
+                        eligible_new.extend(_collect_milestone_items_from_payload(payload, symbol=symbol))
+                out_path = Path(args.milestones_out)
+                total = _merge_and_write_milestones(
+                    out_path=out_path,
+                    eligible_new=eligible_new,
+                    merge_existing=bool(args.merge_milestones),
+                    add_top_pnl_dd=int(args.milestone_add_top_pnl_dd or 0),
+                    add_top_pnl=int(args.milestone_add_top_pnl or 0),
+                    symbol=symbol,
+                    start=start,
+                    end=end,
+                    signal_bar_size=signal_bar_size,
+                    use_rth=use_rth,
+                    milestone_min_win=float(args.milestone_min_win),
+                    milestone_min_trades=int(args.milestone_min_trades),
+                    milestone_min_pnl_dd=float(args.milestone_min_pnl_dd),
+                )
+                milestones_written = True
+                print(f"Wrote {out_path} ({total} eligible presets).", flush=True)
 
             return
 
@@ -7161,70 +7308,61 @@ def main() -> None:
             print(f"DONE  {label} tested={tested} kept={kept} elapsed={elapsed:0.1f}s", flush=True)
             print("", flush=True)
 
-        # Signal / timing layer
-        _run_axis("ema", _sweep_ema)
-        _run_axis("entry_mode", _sweep_entry_mode)
-        _run_axis("confirm", _sweep_confirm)
-        _run_axis("weekday", _sweep_weekdays)
-
-        # Permission / quality gates (single-axis)
-        _run_axis("tod", _sweep_tod)
-        _run_axis("volume", _sweep_volume)
-        _run_axis("rv", _sweep_rv)
-        _run_axis("spread", _sweep_spread)
-        _run_axis("spread_fine", _sweep_spread_fine)
-        _run_axis("spread_down", _sweep_spread_down)
-        _run_axis("slope", _sweep_slope)
-        _run_axis("slope_signed", _sweep_slope_signed)
-        _run_axis("cooldown", _sweep_cooldown)
-        _run_axis("skip_open", _sweep_skip_open)
-        _run_axis("shock", _sweep_shock)
-        _run_axis("risk_overlays", _sweep_risk_overlays)
-
-        # Exits / management (single-axis)
-        _run_axis("ptsl", _sweep_ptsl)
-        _run_axis("exit_time", _sweep_exit_time)
-        _run_axis("hold", _sweep_hold)
-        _run_axis("spot_short_risk_mult", _sweep_spot_short_risk_mult)
-        _run_axis("flip_exit", _sweep_flip_exit)
-        _run_axis("loosen", _sweep_loosen)
-        _run_axis("loosen_atr", _sweep_loosen_atr)
-        _run_axis("atr", _sweep_atr_exits)
-        _run_axis("atr_fine", _sweep_atr_exits_fine)
-        _run_axis("atr_ultra", _sweep_atr_exits_ultra)
-
-        # Bias / regimes (single-axis)
-        _run_axis("regime", _sweep_regime)
-        _run_axis("regime2", _sweep_regime2)
-        _run_axis("regime2_ema", _sweep_regime2_ema)
-        _run_axis("joint", _sweep_joint)
-        _run_axis("micro_st", _sweep_micro_st)
-
-        # ORB family
-        _run_axis("orb", _sweep_orb)
-        _run_axis("orb_joint", _sweep_orb_joint)
-
-        # Joint sweeps (interaction hunts)
-        _run_axis("tod_interaction", _sweep_tod_interaction)
-        _run_axis("perm_joint", _sweep_perm_joint)
-        _run_axis("ema_perm_joint", _sweep_ema_perm_joint)
-        _run_axis("tick_perm_joint", _sweep_tick_perm_joint)
-        _run_axis("chop_joint", _sweep_chop_joint)
-        _run_axis("tick_ema", _sweep_tick_ema)
-        _run_axis("ema_regime", _sweep_ema_regime)
-        _run_axis("ema_atr", _sweep_ema_atr)
-        _run_axis("regime_atr", _sweep_regime_atr)
-        _run_axis("r2_atr", _sweep_r2_atr)
-        _run_axis("r2_tod", _sweep_r2_tod)
-
-        # Standalone tick gate sweep
-        _run_axis("tick", _sweep_tick)
-
-        # Multi-axis funnels (bounded but high leverage)
-        _run_axis("gate_matrix", _sweep_gate_matrix)
-        _run_axis("squeeze", _sweep_squeeze)
-        _run_axis("combo_fast", _sweep_combo_fast)
-        _run_axis("frontier", _sweep_frontier)
+        combo_full_registry = {
+            "ema": _sweep_ema,
+            "entry_mode": _sweep_entry_mode,
+            "confirm": _sweep_confirm,
+            "weekday": _sweep_weekdays,
+            "tod": _sweep_tod,
+            "volume": _sweep_volume,
+            "rv": _sweep_rv,
+            "spread": _sweep_spread,
+            "spread_fine": _sweep_spread_fine,
+            "spread_down": _sweep_spread_down,
+            "slope": _sweep_slope,
+            "slope_signed": _sweep_slope_signed,
+            "cooldown": _sweep_cooldown,
+            "skip_open": _sweep_skip_open,
+            "shock": _sweep_shock,
+            "risk_overlays": _sweep_risk_overlays,
+            "ptsl": _sweep_ptsl,
+            "exit_time": _sweep_exit_time,
+            "hold": _sweep_hold,
+            "spot_short_risk_mult": _sweep_spot_short_risk_mult,
+            "flip_exit": _sweep_flip_exit,
+            "loosen": _sweep_loosen,
+            "loosen_atr": _sweep_loosen_atr,
+            "atr": _sweep_atr_exits,
+            "atr_fine": _sweep_atr_exits_fine,
+            "atr_ultra": _sweep_atr_exits_ultra,
+            "regime": _sweep_regime,
+            "regime2": _sweep_regime2,
+            "regime2_ema": _sweep_regime2_ema,
+            "joint": _sweep_joint,
+            "micro_st": _sweep_micro_st,
+            "orb": _sweep_orb,
+            "orb_joint": _sweep_orb_joint,
+            "tod_interaction": _sweep_tod_interaction,
+            "perm_joint": _sweep_perm_joint,
+            "ema_perm_joint": _sweep_ema_perm_joint,
+            "tick_perm_joint": _sweep_tick_perm_joint,
+            "chop_joint": _sweep_chop_joint,
+            "tick_ema": _sweep_tick_ema,
+            "ema_regime": _sweep_ema_regime,
+            "ema_atr": _sweep_ema_atr,
+            "regime_atr": _sweep_regime_atr,
+            "r2_atr": _sweep_r2_atr,
+            "r2_tod": _sweep_r2_tod,
+            "tick": _sweep_tick,
+            "gate_matrix": _sweep_gate_matrix,
+            "squeeze": _sweep_squeeze,
+            "combo_fast": _sweep_combo_fast,
+            "frontier": _sweep_frontier,
+        }
+        for axis_name in _COMBO_FULL_PLAN:
+            fn = combo_full_registry.get(str(axis_name))
+            if fn is not None:
+                _run_axis(str(axis_name), fn)
 
     def _sweep_champ_refine() -> None:
         """Seeded, champ-focused refinement around a top-K candidate pool.
@@ -13079,31 +13217,7 @@ def main() -> None:
         if not offline:
             raise SystemExit("--jobs>1 for --axis all requires --offline (avoid parallel IBKR sessions).")
 
-        axes = [
-            "ema",
-            "volume",
-            "rv",
-            "tod",
-            "atr",
-            "ptsl",
-            "hold",
-            "orb",
-            "regime",
-            "regime2",
-            "joint",
-            "flip_exit",
-            "confirm",
-            "spread",
-            "slope",
-            "slope_signed",
-            "cooldown",
-            "skip_open",
-            "shock",
-            "risk_overlays",
-            "loosen",
-            "tick",
-            "spot_short_risk_mult",
-        ]
+        axes = tuple(_AXIS_ALL_PLAN)
 
         base_cli = list(sys.argv[1:])
         base_cli = _strip_flag_with_value(base_cli, "--axis")
@@ -13111,555 +13225,142 @@ def main() -> None:
         base_cli = _strip_flag_with_value(base_cli, "--milestones-out")
         base_cli = _strip_flag(base_cli, "--merge-milestones")
 
-        jobs_eff = min(int(jobs), len(axes))
-        print(f"axis=all parallel: jobs={jobs_eff} axes={len(axes)}", flush=True)
-
-        def _pump(prefix: str, stream) -> None:
-            for line in iter(stream.readline, ""):
-                print(f"[{prefix}] {line.rstrip()}", flush=True)
-
-        failures: list[tuple[str, int]] = []
-        milestone_paths: dict[str, Path] = {}
-        start_times: dict[str, float] = {}
-
-        with tempfile.TemporaryDirectory(prefix="tradebot_axis_all_") as tmpdir:
-            tmp_root = Path(tmpdir)
-            pending = list(axes)
-            running: list[tuple[str, subprocess.Popen, threading.Thread]] = []
-
-            def _spawn(axis_name: str) -> None:
-                axis_jobs = "1"
-                if str(axis_name) == "risk_overlays":
-                    axis_jobs = str(min(int(jobs), int(_default_jobs())))
-                cmd = [
-                    sys.executable,
-                    "-u",
-                    "-m",
-                    "tradebot.backtest",
-                    "spot",
-                    *base_cli,
-                    "--axis",
-                    str(axis_name),
-                    "--jobs",
-                    str(axis_jobs),
-                ]
-                if bool(args.write_milestones):
-                    out_path = tmp_root / f"milestones_{axis_name}.json"
-                    milestone_paths[axis_name] = out_path
-                    cmd += ["--milestones-out", str(out_path)]
-                proc = subprocess.Popen(
-                    cmd,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.STDOUT,
-                    text=True,
-                    bufsize=1,
-                )
-                if proc.stdout is None:
-                    raise RuntimeError("Failed to capture axis worker stdout.")
-                t = threading.Thread(target=_pump, args=(axis_name, proc.stdout), daemon=True)
-                t.start()
-                start_times[axis_name] = pytime.perf_counter()
-                running.append((axis_name, proc, t))
-
-            while pending or running:
-                while pending and len(running) < jobs_eff and not failures:
-                    axis_name = pending.pop(0)
-                    print(f"START {axis_name}", flush=True)
-                    _spawn(axis_name)
-
-                finished_idx = None
-                for idx, (axis_name, proc, t) in enumerate(running):
-                    rc = proc.poll()
-                    if rc is None:
-                        continue
-                    finished_idx = idx
-                    elapsed = pytime.perf_counter() - float(start_times.get(axis_name) or pytime.perf_counter())
-                    print(f"DONE  {axis_name} exit={rc} elapsed={elapsed:0.1f}s", flush=True)
-                    try:
-                        proc.wait(timeout=1.0)
-                    except subprocess.TimeoutExpired:
-                        proc.kill()
-                        proc.wait(timeout=5.0)
-                    try:
-                        t.join(timeout=1.0)
-                    except Exception:
-                        pass
-                    if rc != 0:
-                        failures.append((axis_name, int(rc)))
-                    running.pop(idx)
-                    break
-
-                if failures:
-                    for axis_name, proc, t in running:
-                        try:
-                            proc.terminate()
-                        except Exception:
-                            pass
-                    for axis_name, proc, t in running:
-                        try:
-                            proc.wait(timeout=5.0)
-                        except Exception:
-                            try:
-                                proc.kill()
-                            except Exception:
-                                pass
-                    break
-
-                if finished_idx is None:
-                    pytime.sleep(0.05)
-
-            if failures:
-                axis_name, rc = failures[0]
-                raise SystemExit(f"axis=all parallel axis failed: {axis_name} (exit={rc})")
-
-            if bool(args.write_milestones):
-                eligible_new: list[dict] = []
-                for axis_name in axes:
-                    path = milestone_paths.get(axis_name)
-                    if path is None or not path.exists():
-                        continue
-                    payload = json.loads(path.read_text())
-                    if not isinstance(payload, dict):
-                        continue
-                    for group in payload.get("groups") or []:
-                        if not isinstance(group, dict):
-                            continue
-                        filters = group.get("filters")
-                        raw_name = str(group.get("name") or "")
-                        parsed_note = None
-                        if raw_name.endswith("]") and "[" in raw_name:
-                            try:
-                                parsed_note = raw_name[raw_name.rfind("[") + 1 : -1].strip() or None
-                            except Exception:
-                                parsed_note = None
-                        for entry in group.get("entries") or []:
-                            if not isinstance(entry, dict):
-                                continue
-                            strat = entry.get("strategy") or {}
-                            metrics = entry.get("metrics") or {}
-                            if not isinstance(strat, dict) or not isinstance(metrics, dict):
-                                continue
-                            key_obj = dict(strat)
-                            key_obj["filters"] = filters
-                            eligible_new.append(
-                                {
-                                    "key": json.dumps(key_obj, sort_keys=True, default=str),
-                                    "strategy": strat,
-                                    "filters": filters,
-                                    "note": parsed_note,
-                                    "metrics": {
-                                        "pnl": float(metrics.get("pnl") or 0.0),
-                                        "roi": float(metrics.get("roi") or 0.0),
-                                        "win_rate": float(metrics.get("win_rate") or 0.0),
-                                        "trades": int(metrics.get("trades") or 0),
-                                        "max_drawdown": float(metrics.get("max_drawdown") or 0.0),
-                                        "max_drawdown_pct": float(metrics.get("max_drawdown_pct") or 0.0),
-                                        "pnl_over_dd": metrics.get("pnl_over_dd"),
-                                    },
-                                }
-                            )
-
-                out_path = Path(args.milestones_out)
-                eligible: list[dict] = []
-
-                def _sort_key(item: dict) -> tuple:
-                    m = item.get("metrics") or {}
-                    return (
-                        float(m.get("pnl_over_dd") or float("-inf")),
-                        float(m.get("pnl") or 0.0),
-                        float(m.get("win_rate") or 0.0),
-                        int(m.get("trades") or 0),
-                    )
-
-                def _sort_key_pnl(item: dict) -> tuple:
-                    m = item.get("metrics") or {}
-                    return (
-                        float(m.get("pnl") or float("-inf")),
-                        float(m.get("pnl_over_dd") or 0.0),
-                        float(m.get("win_rate") or 0.0),
-                        int(m.get("trades") or 0),
-                    )
-
-                add_top_dd = max(0, int(args.milestone_add_top_pnl_dd or 0))
-                add_top_pnl = max(0, int(args.milestone_add_top_pnl or 0))
-                if bool(args.merge_milestones) and (add_top_dd > 0 or add_top_pnl > 0):
-                    by_dd = sorted(eligible_new, key=_sort_key, reverse=True)[:add_top_dd] if add_top_dd > 0 else []
-                    by_pnl = (
-                        sorted(eligible_new, key=_sort_key_pnl, reverse=True)[:add_top_pnl] if add_top_pnl > 0 else []
-                    )
-                    seen_new: set[str] = set()
-                    limited_new: list[dict] = []
-                    for item in by_dd + by_pnl:
-                        key = str(item.get("key") or "")
-                        if not key or key in seen_new:
-                            continue
-                        seen_new.add(key)
-                        limited_new.append(item)
-                    eligible.extend(limited_new)
-                else:
-                    eligible.extend(eligible_new)
-
-                if bool(args.merge_milestones) and out_path.exists():
-                    try:
-                        existing = json.loads(out_path.read_text())
-                    except json.JSONDecodeError:
-                        existing = {}
-                    for group in existing.get("groups") or []:
-                        filters = group.get("filters")
-                        raw_name = str(group.get("name") or "")
-                        parsed_note = None
-                        if raw_name.endswith("]") and "[" in raw_name:
-                            try:
-                                parsed_note = raw_name[raw_name.rfind("[") + 1 : -1].strip() or None
-                            except Exception:
-                                parsed_note = None
-                        for entry in group.get("entries") or []:
-                            strat = entry.get("strategy") or {}
-                            metrics = entry.get("metrics") or {}
-                            key_obj = dict(strat)
-                            key_obj["filters"] = filters
-                            eligible.append(
-                                {
-                                    "key": json.dumps(key_obj, sort_keys=True, default=str),
-                                    "strategy": strat,
-                                    "filters": filters,
-                                    "note": parsed_note,
-                                    "metrics": {
-                                        "pnl": float(metrics.get("pnl") or 0.0),
-                                        "roi": float(metrics.get("roi") or 0.0),
-                                        "win_rate": float(metrics.get("win_rate") or 0.0),
-                                        "trades": int(metrics.get("trades") or 0),
-                                        "max_drawdown": float(metrics.get("max_drawdown") or 0.0),
-                                        "max_drawdown_pct": float(metrics.get("max_drawdown_pct") or 0.0),
-                                        "pnl_over_dd": metrics.get("pnl_over_dd"),
-                                    },
-                                }
-                            )
-
-                best_by_key: dict[str, dict] = {}
-                for item in eligible:
-                    key = str(item.get("key") or "")
-                    if not key:
-                        continue
-                    current = best_by_key.get(key)
-                    if current is None or _sort_key(item) > _sort_key(current):
-                        best_by_key[key] = item
-
-                unique = sorted(best_by_key.values(), key=_sort_key, reverse=True)
-                groups: list[dict] = []
-                for idx, item in enumerate(unique, start=1):
-                    metrics = item["metrics"]
-                    entry = {"symbol": symbol, "metrics": metrics, "strategy": item["strategy"]}
-                    groups.append(
-                        {
-                            "name": _milestone_group_name_from_strategy(
-                                rank=idx,
-                                strategy=item["strategy"],
-                                metrics=metrics,
-                                note=str(item.get("note") or "").strip(),
-                            ),
-                            "filters": item["filters"],
-                            "entries": [entry],
-                        }
-                    )
-
-                payload = {
-                    "name": "spot_milestones",
-                    "generated_at": utc_now_iso_z(),
-                    "notes": (
-                        f"Auto-generated via evolve_spot.py (post-fix). "
-                        f"window={start.isoformat()}→{end.isoformat()}, bar_size={signal_bar_size}, use_rth={use_rth}. "
-                        f"thresholds: win>={float(args.milestone_min_win):.2f}, trades>={int(args.milestone_min_trades)}, "
-                        f"pnl/dd>={float(args.milestone_min_pnl_dd):.2f}."
-                    ),
-                    "groups": groups,
-                }
-                write_json(out_path, payload, sort_keys=False)
-                print(f"Wrote {out_path} ({len(groups)} eligible presets).", flush=True)
+        milestone_payloads = _run_axis_subprocess_plan(
+            label="axis=all parallel",
+            axes=axes,
+            jobs=int(jobs),
+            base_cli=base_cli,
+            axis_jobs_resolver=lambda axis_name: min(int(jobs), int(_default_jobs()))
+            if str(axis_name) == "risk_overlays"
+            else 1,
+            write_milestones=bool(args.write_milestones),
+            tmp_prefix="tradebot_axis_all_",
+        )
+        if bool(args.write_milestones):
+            eligible_new: list[dict] = []
+            for axis_name in axes:
+                payload = milestone_payloads.get(axis_name)
+                if isinstance(payload, dict):
+                    eligible_new.extend(_collect_milestone_items_from_payload(payload, symbol=symbol))
+            out_path = Path(args.milestones_out)
+            total = _merge_and_write_milestones(
+                out_path=out_path,
+                eligible_new=eligible_new,
+                merge_existing=bool(args.merge_milestones),
+                add_top_pnl_dd=int(args.milestone_add_top_pnl_dd or 0),
+                add_top_pnl=int(args.milestone_add_top_pnl or 0),
+                symbol=symbol,
+                start=start,
+                end=end,
+                signal_bar_size=signal_bar_size,
+                use_rth=use_rth,
+                milestone_min_win=float(args.milestone_min_win),
+                milestone_min_trades=int(args.milestone_min_trades),
+                milestone_min_pnl_dd=float(args.milestone_min_pnl_dd),
+            )
+            print(f"Wrote {out_path} ({total} eligible presets).", flush=True)
 
         return
 
-    if axis in ("all", "ema"):
-        _sweep_ema()
-    if axis == "entry_mode":
-        _sweep_entry_mode()
-    if axis == "combo_fast":
-        _sweep_combo_fast()
-    if axis == "combo_full":
-        _sweep_combo_full()
-    if axis == "squeeze":
-        _sweep_squeeze()
-    if axis in ("all", "volume"):
-        _sweep_volume()
-    if axis in ("all", "rv"):
-        _sweep_rv()
-    if axis in ("all", "tod"):
-        _sweep_tod()
-    if axis == "tod_interaction":
-        _sweep_tod_interaction()
-    if axis == "perm_joint":
-        _sweep_perm_joint()
-    if axis == "ema_perm_joint":
-        _sweep_ema_perm_joint()
-    if axis == "tick_perm_joint":
-        _sweep_tick_perm_joint()
-    if axis == "ema_regime":
-        _sweep_ema_regime()
-    if axis == "chop_joint":
-        _sweep_chop_joint()
-    if axis == "tick_ema":
-        _sweep_tick_ema()
-    if axis == "ema_atr":
-        _sweep_ema_atr()
-    if axis == "weekday":
-        _sweep_weekdays()
-    if axis == "exit_time":
-        _sweep_exit_time()
-    if axis in ("all", "atr"):
-        _sweep_atr_exits()
-    if axis == "atr_fine":
-        _sweep_atr_exits_fine()
-    if axis == "atr_ultra":
-        _sweep_atr_exits_ultra()
-    if axis == "r2_atr":
-        _sweep_r2_atr()
-    if axis == "r2_tod":
-        _sweep_r2_tod()
-    if axis == "regime_atr":
-        _sweep_regime_atr()
-    if axis in ("all", "ptsl"):
-        _sweep_ptsl()
-    if axis == "hf_scalp":
-        _sweep_hf_scalp()
-    if axis in ("all", "hold"):
-        _sweep_hold()
-    if axis in ("all", "orb"):
-        _sweep_orb()
-    if axis == "orb_joint":
-        _sweep_orb_joint()
-    if axis in ("all", "regime"):
-        _sweep_regime()
-    if axis in ("all", "regime2"):
-        _sweep_regime2()
-    if axis == "regime2_ema":
-        _sweep_regime2_ema()
-    if axis in ("all", "joint"):
-        _sweep_joint()
-    if axis == "micro_st":
-        _sweep_micro_st()
-    if axis in ("all", "flip_exit"):
-        _sweep_flip_exit()
-    if axis in ("all", "confirm"):
-        _sweep_confirm()
-    if axis in ("all", "spread"):
-        _sweep_spread()
-    if axis == "spread_fine":
-        _sweep_spread_fine()
-    if axis == "spread_down":
-        _sweep_spread_down()
-    if axis in ("all", "slope"):
-        _sweep_slope()
-    if axis in ("all", "slope_signed"):
-        _sweep_slope_signed()
-    if axis in ("all", "cooldown"):
-        _sweep_cooldown()
-    if axis in ("all", "skip_open"):
-        _sweep_skip_open()
-    if axis in ("all", "shock"):
-        _sweep_shock()
-    if axis in ("all", "risk_overlays"):
-        _sweep_risk_overlays()
-    if axis in ("all", "loosen"):
-        _sweep_loosen()
-    if axis == "loosen_atr":
-        _sweep_loosen_atr()
-    if axis in ("all", "tick"):
-        _sweep_tick()
-    if axis in ("all", "spot_short_risk_mult"):
-        _sweep_spot_short_risk_mult()
-    if axis == "gate_matrix":
-        _sweep_gate_matrix()
-    if axis == "champ_refine":
-        _sweep_champ_refine()
-    if axis == "st37_refine":
-        _sweep_st37_refine()
-    if axis == "shock_alpha_refine":
-        _sweep_shock_alpha_refine()
-    if axis == "shock_velocity_refine":
-        _sweep_shock_velocity_refine(wide=False)
-    if axis == "shock_velocity_refine_wide":
-        _sweep_shock_velocity_refine(wide=True)
-    if axis == "shock_throttle_refine":
-        _sweep_shock_throttle_refine()
-    if axis == "shock_throttle_tr_ratio":
-        _sweep_shock_throttle_tr_ratio()
-    if axis == "shock_throttle_drawdown":
-        _sweep_shock_throttle_drawdown()
-    if axis == "riskpanic_micro":
-        _sweep_riskpanic_micro()
-    if axis == "exit_pivot":
-        _sweep_exit_pivot()
-    if axis == "frontier":
-        _sweep_frontier()
+    sweep_registry = {
+        "ema": _sweep_ema,
+        "entry_mode": _sweep_entry_mode,
+        "combo_fast": _sweep_combo_fast,
+        "combo_full": _sweep_combo_full,
+        "squeeze": _sweep_squeeze,
+        "volume": _sweep_volume,
+        "rv": _sweep_rv,
+        "tod": _sweep_tod,
+        "tod_interaction": _sweep_tod_interaction,
+        "perm_joint": _sweep_perm_joint,
+        "weekday": _sweep_weekdays,
+        "exit_time": _sweep_exit_time,
+        "atr": _sweep_atr_exits,
+        "atr_fine": _sweep_atr_exits_fine,
+        "atr_ultra": _sweep_atr_exits_ultra,
+        "r2_atr": _sweep_r2_atr,
+        "r2_tod": _sweep_r2_tod,
+        "ema_perm_joint": _sweep_ema_perm_joint,
+        "tick_perm_joint": _sweep_tick_perm_joint,
+        "regime_atr": _sweep_regime_atr,
+        "ema_regime": _sweep_ema_regime,
+        "chop_joint": _sweep_chop_joint,
+        "ema_atr": _sweep_ema_atr,
+        "tick_ema": _sweep_tick_ema,
+        "ptsl": _sweep_ptsl,
+        "hf_scalp": _sweep_hf_scalp,
+        "hold": _sweep_hold,
+        "spot_short_risk_mult": _sweep_spot_short_risk_mult,
+        "orb": _sweep_orb,
+        "orb_joint": _sweep_orb_joint,
+        "frontier": _sweep_frontier,
+        "regime": _sweep_regime,
+        "regime2": _sweep_regime2,
+        "regime2_ema": _sweep_regime2_ema,
+        "joint": _sweep_joint,
+        "micro_st": _sweep_micro_st,
+        "flip_exit": _sweep_flip_exit,
+        "confirm": _sweep_confirm,
+        "spread": _sweep_spread,
+        "spread_fine": _sweep_spread_fine,
+        "spread_down": _sweep_spread_down,
+        "slope": _sweep_slope,
+        "slope_signed": _sweep_slope_signed,
+        "cooldown": _sweep_cooldown,
+        "skip_open": _sweep_skip_open,
+        "shock": _sweep_shock,
+        "risk_overlays": _sweep_risk_overlays,
+        "loosen": _sweep_loosen,
+        "loosen_atr": _sweep_loosen_atr,
+        "tick": _sweep_tick,
+        "gate_matrix": _sweep_gate_matrix,
+        "champ_refine": _sweep_champ_refine,
+        "st37_refine": _sweep_st37_refine,
+        "shock_alpha_refine": _sweep_shock_alpha_refine,
+        "shock_velocity_refine": lambda: _sweep_shock_velocity_refine(wide=False),
+        "shock_velocity_refine_wide": lambda: _sweep_shock_velocity_refine(wide=True),
+        "shock_throttle_refine": _sweep_shock_throttle_refine,
+        "shock_throttle_tr_ratio": _sweep_shock_throttle_tr_ratio,
+        "shock_throttle_drawdown": _sweep_shock_throttle_drawdown,
+        "riskpanic_micro": _sweep_riskpanic_micro,
+        "exit_pivot": _sweep_exit_pivot,
+    }
+
+    if axis == "all":
+        for axis_name in _AXIS_ALL_PLAN:
+            fn = sweep_registry.get(str(axis_name))
+            if fn is not None:
+                fn()
+    else:
+        fn = sweep_registry.get(str(axis))
+        if fn is not None:
+            fn()
 
     if bool(args.write_milestones) and not bool(milestones_written):
-        eligible_new: list[dict] = []
-        for cfg, row, note in milestone_rows:
-            try:
-                win = float(row.get("win_rate") or 0.0)
-            except (TypeError, ValueError):
-                win = 0.0
-            try:
-                trades = int(row.get("trades") or 0)
-            except (TypeError, ValueError):
-                trades = 0
-            pnl_dd_raw = row.get("pnl_over_dd")
-            try:
-                pnl_dd = float(pnl_dd_raw) if pnl_dd_raw is not None else None
-            except (TypeError, ValueError):
-                pnl_dd = None
-            if win < float(args.milestone_min_win):
-                continue
-            if trades < int(args.milestone_min_trades):
-                continue
-            if pnl_dd is None or pnl_dd < float(args.milestone_min_pnl_dd):
-                continue
-            strategy = _spot_strategy_payload(cfg, meta=meta)
-            filters = _filters_payload(cfg.strategy.filters)
-            key_obj = dict(strategy)
-            key_obj["filters"] = filters
-            eligible_new.append(
-                {
-                    "key": json.dumps(key_obj, sort_keys=True, default=str),
-                    "strategy": strategy,
-                    "filters": filters,
-                    "note": note,
-                    "metrics": {
-                        "pnl": float(row.get("pnl") or 0.0),
-                        "roi": float(row.get("roi") or 0.0),
-                        "win_rate": float(row.get("win_rate") or 0.0),
-                        "trades": int(row.get("trades") or 0),
-                        "max_drawdown": float(row.get("dd") or 0.0),
-                        "max_drawdown_pct": float(row.get("dd_pct") or 0.0),
-                        "pnl_over_dd": row.get("pnl_over_dd"),
-                    },
-                }
-            )
-
+        eligible_new = _collect_milestone_items_from_rows(
+            milestone_rows,
+            meta=meta,
+            min_win=float(args.milestone_min_win),
+            min_trades=int(args.milestone_min_trades),
+            min_pnl_dd=float(args.milestone_min_pnl_dd),
+        )
         out_path = Path(args.milestones_out)
-        eligible: list[dict] = []
-
-        def _sort_key(item: dict) -> tuple:
-            m = item.get("metrics") or {}
-            return (
-                float(m.get("pnl_over_dd") or float("-inf")),
-                float(m.get("pnl") or 0.0),
-                float(m.get("win_rate") or 0.0),
-                int(m.get("trades") or 0),
-            )
-
-        def _sort_key_pnl(item: dict) -> tuple:
-            m = item.get("metrics") or {}
-            return (
-                float(m.get("pnl") or float("-inf")),
-                float(m.get("pnl_over_dd") or 0.0),
-                float(m.get("win_rate") or 0.0),
-                int(m.get("trades") or 0),
-            )
-
-        add_top_dd = max(0, int(args.milestone_add_top_pnl_dd or 0))
-        add_top_pnl = max(0, int(args.milestone_add_top_pnl or 0))
-        if bool(args.merge_milestones) and (add_top_dd > 0 or add_top_pnl > 0):
-            by_dd = sorted(eligible_new, key=_sort_key, reverse=True)[:add_top_dd] if add_top_dd > 0 else []
-            by_pnl = (
-                sorted(eligible_new, key=_sort_key_pnl, reverse=True)[:add_top_pnl] if add_top_pnl > 0 else []
-            )
-            seen_new: set[str] = set()
-            limited_new: list[dict] = []
-            for item in by_dd + by_pnl:
-                key = str(item.get("key") or "")
-                if not key or key in seen_new:
-                    continue
-                seen_new.add(key)
-                limited_new.append(item)
-            eligible.extend(limited_new)
-        else:
-            eligible.extend(eligible_new)
-
-        if bool(args.merge_milestones) and out_path.exists():
-            try:
-                existing = json.loads(out_path.read_text())
-            except json.JSONDecodeError:
-                existing = {}
-            for group in existing.get("groups") or []:
-                filters = group.get("filters")
-                raw_name = str(group.get("name") or "")
-                parsed_note = None
-                if raw_name.endswith("]") and "[" in raw_name:
-                    try:
-                        parsed_note = raw_name[raw_name.rfind("[") + 1 : -1].strip() or None
-                    except Exception:
-                        parsed_note = None
-                for entry in group.get("entries") or []:
-                    strat = entry.get("strategy") or {}
-                    metrics = entry.get("metrics") or {}
-                    key_obj = dict(strat)
-                    key_obj["filters"] = filters
-                    eligible.append(
-                        {
-                            "key": json.dumps(key_obj, sort_keys=True, default=str),
-                            "strategy": strat,
-                            "filters": filters,
-                            "note": parsed_note,
-                            "metrics": {
-                                "pnl": float(metrics.get("pnl") or 0.0),
-                                "roi": float(metrics.get("roi") or 0.0),
-                                "win_rate": float(metrics.get("win_rate") or 0.0),
-                                "trades": int(metrics.get("trades") or 0),
-                                "max_drawdown": float(metrics.get("max_drawdown") or 0.0),
-                                "max_drawdown_pct": float(metrics.get("max_drawdown_pct") or 0.0),
-                                "pnl_over_dd": metrics.get("pnl_over_dd"),
-                            },
-                        }
-                    )
-
-        best_by_key: dict[str, dict] = {}
-        for item in eligible:
-            key = str(item.get("key") or "")
-            if not key:
-                continue
-            current = best_by_key.get(key)
-            if current is None or _sort_key(item) > _sort_key(current):
-                best_by_key[key] = item
-
-        unique = sorted(best_by_key.values(), key=_sort_key, reverse=True)
-        groups: list[dict] = []
-        for idx, item in enumerate(unique, start=1):
-            metrics = item["metrics"]
-            entry = {"symbol": symbol, "metrics": metrics, "strategy": item["strategy"]}
-            groups.append(
-                {
-                    "name": _milestone_group_name_from_strategy(
-                        rank=idx, strategy=item["strategy"], metrics=metrics, note=str(item.get("note") or "").strip()
-                    ),
-                    "filters": item["filters"],
-                    "entries": [entry],
-                }
-            )
-
-        payload = {
-            "name": "spot_milestones",
-            "generated_at": utc_now_iso_z(),
-            "notes": (
-                f"Auto-generated via evolve_spot.py (post-fix). "
-                f"window={start.isoformat()}→{end.isoformat()}, bar_size={signal_bar_size}, use_rth={use_rth}. "
-                f"thresholds: win>={float(args.milestone_min_win):.2f}, trades>={int(args.milestone_min_trades)}, "
-                f"pnl/dd>={float(args.milestone_min_pnl_dd):.2f}."
-            ),
-            "groups": groups,
-        }
-        write_json(out_path, payload, sort_keys=False)
-        print(f"Wrote {out_path} ({len(groups)} eligible presets).")
+        total = _merge_and_write_milestones(
+            out_path=out_path,
+            eligible_new=eligible_new,
+            merge_existing=bool(args.merge_milestones),
+            add_top_pnl_dd=int(args.milestone_add_top_pnl_dd or 0),
+            add_top_pnl=int(args.milestone_add_top_pnl or 0),
+            symbol=symbol,
+            start=start,
+            end=end,
+            signal_bar_size=signal_bar_size,
+            use_rth=use_rth,
+            milestone_min_win=float(args.milestone_min_win),
+            milestone_min_trades=int(args.milestone_min_trades),
+            milestone_min_pnl_dd=float(args.milestone_min_pnl_dd),
+        )
+        print(f"Wrote {out_path} ({total} eligible presets).")
 
     if not offline:
         data.disconnect()
@@ -14110,9 +13811,7 @@ def _score_key(item: dict) -> tuple:
 
 
 def _strategy_key(strategy: dict, *, filters: dict | None) -> str:
-    raw = dict(strategy)
-    raw["filters"] = filters
-    return json.dumps(raw, sort_keys=True, default=str)
+    return _strategy_fingerprint(strategy, filters=filters)
 
 
 # endregion

@@ -450,7 +450,16 @@ class BotOrderBuilderMixin:
                 instance.last_exit_bar_ts = signal_bar_ts
             _set_status(f"Created order {order_action} BAG {symbol} @ {order_limit:.2f} ({len(leg_orders)} legs)")
 
-        if intent_clean == "exit":
+        instrument_kind = "spot" if instrument == "spot" else "options"
+        flow_key = (intent_clean, instrument_kind)
+        flow = {
+            ("exit", "spot"): "exit",
+            ("exit", "options"): "exit",
+            ("enter", "spot"): "enter_spot",
+            ("enter", "options"): "enter_options",
+        }.get(flow_key, "enter_options")
+
+        if flow == "exit":
             await self._create_order_for_instance_exit(
                 instance=instance,
                 instrument=instrument,
@@ -466,7 +475,7 @@ class BotOrderBuilderMixin:
             )
             return
 
-        if instrument == "spot":
+        if flow == "enter_spot":
             entry_signal = normalize_spot_entry_signal(strat.get("entry_signal"))
             exit_mode = str(strat.get("spot_exit_mode") or "pct").strip().lower()
             if exit_mode not in ("pct", "atr"):

@@ -1,0 +1,56 @@
+multitimeframe parallel: workers=12 candidates=238
+[mt:11] multitimeframe worker 12/12 tested=10 kept=0 (0.22 cands/s)
+[mt:10] multitimeframe worker 11/12 tested=10 kept=0 (0.22 cands/s)
+[mt:5] multitimeframe worker 6/12 tested=10 kept=0 (0.22 cands/s)
+[mt:4] multitimeframe worker 5/12 tested=10 kept=0 (0.21 cands/s)
+[mt:3] multitimeframe worker 4/12 tested=10 kept=0 (0.21 cands/s)
+[mt:2] multitimeframe worker 3/12 tested=10 kept=0 (0.21 cands/s)
+[mt:8] multitimeframe worker 9/12 tested=10 kept=0 (0.21 cands/s)
+[mt:9] multitimeframe worker 10/12 tested=10 kept=0 (0.21 cands/s)
+[mt:1] multitimeframe worker 2/12 tested=10 kept=0 (0.21 cands/s)
+[mt:0] multitimeframe worker 1/12 tested=10 kept=0 (0.21 cands/s)
+[mt:7] multitimeframe worker 8/12 tested=10 kept=0 (0.21 cands/s)
+[mt:6] multitimeframe worker 7/12 tested=10 kept=0 (0.21 cands/s)
+[mt:11] multitimeframe worker done tested=19 kept=0 out=/var/folders/rn/tbt648y54zl_f0m02zrb01sm0000gn/T/tradebot_multitimeframe_1jdfok6d/multitimeframe_out_11.json
+DONE  mt:11 exit=0 elapsed=85.1s
+[mt:10] multitimeframe worker done tested=19 kept=0 out=/var/folders/rn/tbt648y54zl_f0m02zrb01sm0000gn/T/tradebot_multitimeframe_1jdfok6d/multitimeframe_out_10.json
+DONE  mt:10 exit=0 elapsed=85.7s
+[mt:5] multitimeframe worker 6/12 tested=20 kept=0 (0.22 cands/s)
+[mt:5] multitimeframe worker done tested=20 kept=0 out=/var/folders/rn/tbt648y54zl_f0m02zrb01sm0000gn/T/tradebot_multitimeframe_1jdfok6d/multitimeframe_out_5.json
+DONE  mt:5 exit=0 elapsed=90.0s
+[mt:2] multitimeframe worker 3/12 tested=20 kept=0 (0.22 cands/s)
+[mt:2] multitimeframe worker done tested=20 kept=0 out=/var/folders/rn/tbt648y54zl_f0m02zrb01sm0000gn/T/tradebot_multitimeframe_1jdfok6d/multitimeframe_out_2.json
+[mt:1] multitimeframe worker 2/12 tested=20 kept=0 (0.22 cands/s)
+[mt:1] multitimeframe worker done tested=20 kept=0 out=/var/folders/rn/tbt648y54zl_f0m02zrb01sm0000gn/T/tradebot_multitimeframe_1jdfok6d/multitimeframe_out_1.json
+DONE  mt:2 exit=0 elapsed=90.1s
+[mt:0] multitimeframe worker 1/12 tested=20 kept=0 (0.22 cands/s)
+[mt:0] multitimeframe worker done tested=20 kept=0 out=/var/folders/rn/tbt648y54zl_f0m02zrb01sm0000gn/T/tradebot_multitimeframe_1jdfok6d/multitimeframe_out_0.json
+DONE  mt:1 exit=0 elapsed=90.2s
+DONE  mt:0 exit=0 elapsed=90.4s
+[mt:3] multitimeframe worker 4/12 tested=20 kept=0 (0.22 cands/s)
+[mt:3] multitimeframe worker done tested=20 kept=0 out=/var/folders/rn/tbt648y54zl_f0m02zrb01sm0000gn/T/tradebot_multitimeframe_1jdfok6d/multitimeframe_out_3.json
+DONE  mt:3 exit=0 elapsed=90.6s
+[mt:9] multitimeframe worker 10/12 tested=20 kept=0 (0.22 cands/s)
+[mt:9] multitimeframe worker done tested=20 kept=0 out=/var/folders/rn/tbt648y54zl_f0m02zrb01sm0000gn/T/tradebot_multitimeframe_1jdfok6d/multitimeframe_out_9.json
+[mt:7] multitimeframe worker 8/12 tested=20 kept=0 (0.22 cands/s)
+[mt:7] multitimeframe worker done tested=20 kept=0 out=/var/folders/rn/tbt648y54zl_f0m02zrb01sm0000gn/T/tradebot_multitimeframe_1jdfok6d/multitimeframe_out_7.json
+[mt:4] multitimeframe worker 5/12 tested=20 kept=0 (0.22 cands/s)
+[mt:4] multitimeframe worker done tested=20 kept=0 out=/var/folders/rn/tbt648y54zl_f0m02zrb01sm0000gn/T/tradebot_multitimeframe_1jdfok6d/multitimeframe_out_4.json
+DONE  mt:9 exit=0 elapsed=90.9s
+[mt:8] multitimeframe worker 9/12 tested=20 kept=0 (0.22 cands/s)
+[mt:8] multitimeframe worker done tested=20 kept=0 out=/var/folders/rn/tbt648y54zl_f0m02zrb01sm0000gn/T/tradebot_multitimeframe_1jdfok6d/multitimeframe_out_8.json
+DONE  mt:7 exit=0 elapsed=90.9s
+DONE  mt:4 exit=0 elapsed=91.1s
+DONE  mt:8 exit=0 elapsed=91.0s
+[mt:6] multitimeframe worker 7/12 tested=20 kept=0 (0.22 cands/s)
+[mt:6] multitimeframe worker done tested=20 kept=0 out=/var/folders/rn/tbt648y54zl_f0m02zrb01sm0000gn/T/tradebot_multitimeframe_1jdfok6d/multitimeframe_out_6.json
+DONE  mt:6 exit=0 elapsed=91.4s
+
+Multiwindow results: 0 candidates passed filters.
+- symbol=SLV bar=10 mins rth=True offline=True
+- windows=2016-01-08→2026-01-08, 2024-01-08→2026-01-08, 2025-01-08→2026-01-08
+- min_trades=0 min_win=0.00 min_trades_per_year=500
+- workers=12 tested_total=238
+
+
+Wrote backtests/slv/slv_exec5m_v35_exit_pivot_seedv25_10m_rth_10y2y1y_mintr500py_top80_20260206_215657.json (top=80).

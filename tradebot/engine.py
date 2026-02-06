@@ -20,7 +20,7 @@ from collections import deque
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta, timezone
 from functools import lru_cache
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING, Iterable
 from zoneinfo import ZoneInfo
 
@@ -2587,6 +2587,56 @@ def _signal_filter_volume_ok(
     return ratio >= ratio_min
 
 
+@dataclass(frozen=True)
+class _SignalFilterContext:
+    bar_ts: datetime
+    bars_in_day: int
+    close: float
+    volume: float | None
+    volume_ema: float | None
+    volume_ema_ready: bool
+    rv: float | None
+    signal: EmaDecisionSnapshot | None
+    cooldown_ok: bool
+    shock: bool | None
+    shock_dir: str | None
+
+
+def _signal_filter_cooldown_ok(
+    _filters: Mapping[str, object] | object | None,
+    *,
+    ctx: _SignalFilterContext,
+) -> bool:
+    return bool(ctx.cooldown_ok)
+
+
+_SIGNAL_FILTER_REGISTRY: tuple[tuple[str, Callable[[Mapping[str, object] | object | None, _SignalFilterContext], bool]], ...] = (
+    ("rv", lambda filters, ctx: _signal_filter_rv_ok(filters, rv=ctx.rv)),
+    ("time", lambda filters, ctx: _signal_filter_time_ok(filters, bar_ts=ctx.bar_ts)),
+    ("skip_first", lambda filters, ctx: _signal_filter_skip_first_ok(filters, bars_in_day=ctx.bars_in_day)),
+    ("cooldown", lambda filters, ctx: _signal_filter_cooldown_ok(filters, ctx=ctx)),
+    (
+        "shock_gate",
+        lambda filters, ctx: _signal_filter_shock_gate_ok(
+            filters,
+            shock=ctx.shock,
+            shock_dir=ctx.shock_dir,
+            signal=ctx.signal,
+        ),
+    ),
+    ("permission", lambda filters, ctx: _signal_filter_permission_ok(filters, close=float(ctx.close), signal=ctx.signal)),
+    (
+        "volume",
+        lambda filters, ctx: _signal_filter_volume_ok(
+            filters,
+            volume=ctx.volume,
+            volume_ema=ctx.volume_ema,
+            volume_ema_ready=ctx.volume_ema_ready,
+        ),
+    ),
+)
+
+
 def signal_filters_ok(
     filters: Mapping[str, object] | object | None,
     *,
@@ -2604,24 +2654,23 @@ def signal_filters_ok(
 ) -> bool:
     if filters is None:
         return True
-    if not _signal_filter_rv_ok(filters, rv=rv):
-        return False
-    if not _signal_filter_time_ok(filters, bar_ts=bar_ts):
-        return False
-    if not _signal_filter_skip_first_ok(filters, bars_in_day=bars_in_day):
-        return False
-    if not bool(cooldown_ok):
-        return False
-    if not _signal_filter_shock_gate_ok(filters, shock=shock, shock_dir=shock_dir, signal=signal):
-        return False
-    if not _signal_filter_permission_ok(filters, close=float(close), signal=signal):
-        return False
-    return _signal_filter_volume_ok(
-        filters,
+    ctx = _SignalFilterContext(
+        bar_ts=bar_ts,
+        bars_in_day=int(bars_in_day),
+        close=float(close),
         volume=volume,
         volume_ema=volume_ema,
-        volume_ema_ready=volume_ema_ready,
+        volume_ema_ready=bool(volume_ema_ready),
+        rv=rv,
+        signal=signal,
+        cooldown_ok=bool(cooldown_ok),
+        shock=shock,
+        shock_dir=shock_dir,
     )
+    for _name, predicate in _SIGNAL_FILTER_REGISTRY:
+        if not predicate(filters, ctx):
+            return False
+    return True
 
 
 # endregion

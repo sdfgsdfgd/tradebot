@@ -945,6 +945,114 @@ Conclusion:
 - If we continue 10m, the next lever is likely a **different exit model** (profit target / cut-on-flip even when red / close_eod),
   not more micro-tuning of shock/risk overlays.
 
+### v28 — Exit-model pivot (seeded from v25) (10m FULL24, 2y; still negative)
+Status: **DONE** (exit-model lever tested) + **FAIL** (still negative)
+
+Goal:
+- Keep the core v25/v7 “trend+stop” family intact, but try the “trade more often” premise on `10 mins`
+  by sweeping the exit semantics (PT/SL + close_eod + flip-only-if-profit).
+
+Seed transform (so seeded sweeps can run on `10 mins` without rewriting the seed generator):
+- Input: `backtests/slv/slv_exec5m_v25_shock_throttle_drawdown_1h_10y2y1y_mintr500_top80_20260206_173719.json`
+- Output: `backtests/slv/slv_exec5m_v28_seed_v25_as_10m_full24_top80.json`
+  - Overwrites `strategy.signal_bar_size="10 mins"` and `strategy.signal_use_rth=false` for all entries (metrics remain from v25).
+
+Sweep command (2y window, FULL24):
+```bash
+python -u -m tradebot.backtest spot \
+  --symbol SLV --cache-dir db --offline \
+  --start 2024-01-08 --end 2026-01-08 \
+  --bar-size "10 mins" --spot-exec-bar-size "5 mins" \
+  --realism2 \
+  --axis exit_pivot --seed-milestones backtests/slv/slv_exec5m_v28_seed_v25_as_10m_full24_top80.json --seed-top 2 \
+  --min-trades 2000 --top 25 \
+  --milestone-min-win 0 --milestone-min-trades 2000 --milestone-min-pnl-dd -999 \
+  --write-milestones --milestones-out backtests/slv/slv_exec5m_v28_exit_pivot_seedv25_10m_2y_milestones_20260206_213020.json
+```
+
+Artifacts:
+- log: `backtests/slv/slv_exec5m_v28_exit_pivot_seedv25_10m_2y_log_20260206_213020.txt`
+- milestones: `backtests/slv/slv_exec5m_v28_exit_pivot_seedv25_10m_2y_milestones_20260206_213020.json`
+
+Outcome:
+- Best 2y pnl among the high-trade variants is still deeply negative: **~-$46.8k** (ROI **~-46.8%**, trades **~2,214**).
+- This is a strong signal that **FULL24 10m** in this family is not “more data = more edge”; it’s “more churn = more costs”.
+
+### v29 — 10m FULL24 + TOD restriction (9–16 ET) (2y; less bad but still negative)
+Status: **DONE** (hypothesis tested) + **FAIL** (still negative)
+
+Hypothesis:
+- Maybe 10m dies because the family is getting dragged through overnight noise/zero-volume bars.
+- Try an entry window restriction (`entry_start_hour_et=9`, `entry_end_hour_et=16`) while still running FULL24 bars.
+
+Seed transform:
+- Output: `backtests/slv/slv_exec5m_v29_seed_v25_as_10m_full24_tod916_top80.json` (adds TOD filter to all groups).
+
+Sweep command:
+```bash
+python -u -m tradebot.backtest spot \
+  --symbol SLV --cache-dir db --offline \
+  --start 2024-01-08 --end 2026-01-08 \
+  --bar-size "10 mins" --spot-exec-bar-size "5 mins" \
+  --realism2 \
+  --axis exit_pivot --seed-milestones backtests/slv/slv_exec5m_v29_seed_v25_as_10m_full24_tod916_top80.json --seed-top 2 \
+  --min-trades 1500 --top 25 \
+  --milestone-min-win 0 --milestone-min-trades 1500 --milestone-min-pnl-dd -999 \
+  --write-milestones --milestones-out backtests/slv/slv_exec5m_v29_exit_pivot_seedv25_tod916_10m_2y_milestones_20260206_214157.json
+```
+
+Artifacts:
+- log: `backtests/slv/slv_exec5m_v29_exit_pivot_seedv25_tod916_10m_2y_log_20260206_214157.txt`
+- milestones: `backtests/slv/slv_exec5m_v29_exit_pivot_seedv25_tod916_10m_2y_milestones_20260206_214157.json`
+
+Outcome:
+- Best 2y pnl is still negative: **~-$26.8k** (ROI **~-26.8%**, trades **~1,602**).
+- Conclusion: “FULL24 signals + TOD entry restriction” is not the fix; the overnight bars are still poisoning the signal stream.
+
+### v30 — 10m RTH lane (use_rth=true) (2y positive; decade fails)
+Status: **DONE** (key diagnostic) + **MIXED** (2y improves; 10y collapses)
+
+Key move:
+- Instead of FULL24 bars + filters, run **RTH-only bars** (`--use-rth`) so the 10m signal stream is not polluted by overnight bars.
+
+Cache (deterministic; no IBKR refetch drift):
+- Built 10m RTH cache from the existing 5m RTH cache:
+  - `python -m tradebot.backtest.tools.resample_cache --symbol SLV --start 2016-01-08 --end 2026-01-08 --src-bar-size "5 mins" --dst-bar-size "10 mins" --use-rth --cache-dir db`
+  - output: `db/SLV/SLV_2016-01-08_2026-01-08_10mins_rth.csv` (rows=97,668)
+
+Seed transform:
+- Output: `backtests/slv/slv_exec5m_v30_seed_v25_as_10m_rth_top80.json` (sets `signal_use_rth=true`).
+
+2y sweep (RTH):
+```bash
+python -u -m tradebot.backtest spot \
+  --symbol SLV --cache-dir db --offline --use-rth \
+  --start 2024-01-08 --end 2026-01-08 \
+  --bar-size "10 mins" --spot-exec-bar-size "5 mins" \
+  --realism2 \
+  --axis exit_pivot --seed-milestones backtests/slv/slv_exec5m_v30_seed_v25_as_10m_rth_top80.json --seed-top 2 \
+  --min-trades 1000 --top 25 \
+  --milestone-min-win 0 --milestone-min-trades 1000 --milestone-min-pnl-dd -999 \
+  --write-milestones --milestones-out backtests/slv/slv_exec5m_v30_exit_pivot_seedv25_10m_rth_2y_milestones_20260206_215316.json
+```
+
+Outcome (2y):
+- We finally see **positive pnl** winners on 2y:
+  - best: **~+$17.3k**, ROI **~+17.3%**, DD% **~17.4%**, trades **~1,055** (2y)
+  - best knob delta vs seed: `spot_close_eod=true`, stop-only `SL≈0.008`, PT off.
+
+But on decade:
+- Multiwindow eval with positivity gate finds **0** candidates that stay positive across **10y/2y/1y**:
+  - log: `backtests/slv/slv_exec5m_v30_exit_pivot_seedv25_10m_rth_10y2y1y_mintr500py_log_20260206_215657.txt`
+  - empty top80: `backtests/slv/slv_exec5m_v30_exit_pivot_seedv25_10m_rth_10y2y1y_mintr500py_top80_20260206_215657.json`
+- Even the best 2y winner is catastrophic on 10y (example diagnostic on top-1):
+  - decade ROI ≈ **-75%**, DD% ≈ **83%**, trades ≈ **5,425**
+
+Conclusion:
+- 10m can “work” in recent years under RTH-only bars, but **it does not generalize to the decade** under this family.
+- If we continue 10m, we must stop generating candidates on 1y/2y and instead run a **10y-first candidate sweep**
+  (e.g. `combo_fast` on `10 mins` RTH), then re-evaluate 2y/1y for stability.
+
 
 ## Notes
 
