@@ -1759,10 +1759,10 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
 
     def _setup_tables(self) -> None:
         self._instances_table.clear(columns=True)
-        self._instances_table.add_columns("ID", "Strategy", "Legs", "DTE", "State", "BT PnL")
+        self._instances_table.add_columns("ID", "Strategy", "DTE", "State", "BT PnL", "Unreal", "Realized")
 
         self._orders_table.clear(columns=True)
-        self._orders_table.add_columns("When", "Inst", "Side", "Qty", "Contract", "Lmt", "B/A", "Status")
+        self._orders_table.add_columns("When", "Inst", "Side", "Qty", "Contract", "Lmt", "B/A", "Status", "Unreal", "Realized")
 
         self._logs_table.clear(columns=True)
         self._logs_table.add_columns("When", "Inst", "Sym", "Event", "Reason", "Msg")
@@ -1789,25 +1789,24 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         for instance in self._instances:
             instrument = self._strategy_instrument(instance.strategy or {})
             if instrument == "spot":
-                sec_type = str((instance.strategy or {}).get("spot_sec_type") or "").strip().upper()
-                legs_desc = "SPOT-FUT" if sec_type == "FUT" else "SPOT-STK"
                 dte = "-"
             else:
-                legs_desc = _legs_label(instance.strategy.get("legs", []))
                 dte = instance.strategy.get("dte", "")
             bt_pnl = ""
             if instance.metrics:
                 try:
-                    bt_pnl = f"{float(instance.metrics.get('pnl', 0.0)):.0f}"
+                    bt_pnl = _pnl_text(float(instance.metrics.get("pnl", 0.0)))
                 except (TypeError, ValueError):
                     bt_pnl = ""
+            unreal_cell, realized_cell = _instance_pnl_cells(instance, self._positions)
             self._instances_table.add_row(
                 str(instance.instance_id),
                 instance.group[:24],
-                legs_desc[:24],
                 str(dte),
                 instance.state,
                 bt_pnl,
+                unreal_cell,
+                realized_cell,
             )
             self._instance_rows.append(instance)
 
@@ -2895,7 +2894,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             con_ids = set(instance.touched_conids) if instance else set()
         if not con_ids:
             return
-        self._orders_table.add_row("", "", "", "", Text("POSITIONS", style="bold"), "", "", "")
+        self._orders_table.add_row("", "", "", "", Text("POSITIONS", style="bold"), "", "", "", "", "")
         for item in self._positions:
             try:
                 con_id = int(getattr(item.contract, "conId", 0) or 0)
@@ -3220,7 +3219,7 @@ def _set_path(root: object, path: str, value: object) -> None:
 
 
 # region Table Row Helpers
-def _order_row(order: _BotOrder) -> tuple[str, str, str, str, str, str, str, str]:
+def _order_row(order: _BotOrder) -> tuple[str, str, str, str, str, str, str, str, str, str]:
     ts = order.created_at.astimezone().strftime("%H:%M:%S")
     inst = str(order.instance_id)
     contract = order.order_contract
@@ -3246,10 +3245,12 @@ def _order_row(order: _BotOrder) -> tuple[str, str, str, str, str, str, str, str
         status = f"ERROR {order.error}"[:32]
     elif order.error and order.status == "WORKING":
         status = f"{status} !{order.error}"[:32]
-    return (ts, inst, side, qty, local, limit, bid_ask, status)
+    return (ts, inst, side, qty, local, limit, bid_ask, status, "", "")
 
 
-def _position_as_order_row(item: PortfolioItem, *, scope: int | None) -> tuple[str, str, str, str, str, str, str, str]:
+def _position_as_order_row(
+    item: PortfolioItem, *, scope: int | None
+) -> tuple[str, str, str, str, str, str, str, str, Text, Text]:
     contract = getattr(item, "contract", None)
     sec_type = str(getattr(contract, "secType", "") or "") if contract is not None else ""
     symbol = str(getattr(contract, "symbol", "") or "") if contract is not None else ""
@@ -3290,12 +3291,8 @@ def _position_as_order_row(item: PortfolioItem, *, scope: int | None) -> tuple[s
     unreal = _safe_num(getattr(item, "unrealizedPNL", None))
     realized = _safe_num(getattr(item, "realizedPNL", None))
 
-    status_parts: list[str] = []
-    if unreal is not None:
-        status_parts.append(f"u={unreal:+.0f}")
-    if realized is not None and realized:
-        status_parts.append(f"r={realized:+.0f}")
-    status = " ".join(status_parts)[:32]
+    unreal_cell = _pnl_text(unreal) if unreal is not None else Text("")
+    realized_cell = _pnl_text(realized) if realized is not None else Text("")
 
     return (
         "POS",
@@ -3305,8 +3302,36 @@ def _position_as_order_row(item: PortfolioItem, *, scope: int | None) -> tuple[s
         local,
         _fmt_quote(avg),
         _fmt_quote(mkt),
-        status,
+        "",
+        unreal_cell,
+        realized_cell,
     )
+
+
+def _instance_pnl_cells(instance: _BotInstance, positions: list[PortfolioItem]) -> tuple[Text | str, Text | str]:
+    con_ids = set(instance.touched_conids)
+    if not con_ids:
+        return "", ""
+    has_match = False
+    unreal_total = 0.0
+    realized_total = 0.0
+    for item in positions:
+        try:
+            con_id = int(getattr(item.contract, "conId", 0) or 0)
+        except (TypeError, ValueError):
+            con_id = 0
+        if con_id not in con_ids:
+            continue
+        has_match = True
+        unreal = _safe_num(getattr(item, "unrealizedPNL", None))
+        realized = _safe_num(getattr(item, "realizedPNL", None))
+        if unreal is not None:
+            unreal_total += float(unreal)
+        if realized is not None:
+            realized_total += float(realized)
+    if not has_match:
+        return "", ""
+    return _pnl_text(unreal_total), _pnl_text(realized_total)
 
 
 # endregion
