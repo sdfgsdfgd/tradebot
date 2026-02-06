@@ -3385,7 +3385,7 @@ def main() -> None:
         pt_mults = [0.6, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.0]
         sl_mults = [1.2, 1.4, 1.5, 1.6, 1.8, 2.0]
 
-        rows: list[dict] = []
+        plan: list[tuple[ConfigBundle, str, dict | None]] = []
         for rbar, atr_p, mult, src in shortlisted:
             for exit_atr in atr_periods:
                 for pt_m in pt_mults:
@@ -3409,21 +3409,13 @@ def main() -> None:
                                 spot_stop_loss_pct=None,
                             ),
                         )
-                        row = _run_cfg(
-                            cfg=cfg,
-                            bars=bars_sig,
-                            regime_bars=_regime_bars_for(cfg),
-                            regime2_bars=None,
-                        )
-                        if not row:
-                            continue
                         note = (
                             f"ST({atr_p},{mult:g},{src})@{rbar} | "
                             f"ATR({exit_atr}) PTx{pt_m:.2f} SLx{sl_m:.2f} | r2=off"
                         )
-                        row["note"] = note
-                        _record_milestone(cfg, row, note)
-                        rows.append(row)
+                        plan.append((cfg, note, None))
+        _tested, kept = _run_sweep(plan=plan, bars=bars_sig, total=len(plan), progress_label="Regime×ATR stage2")
+        rows = [row for _cfg, row, _note, _meta in kept]
 
         if base_row:
             rows.append(base_row)
@@ -7786,6 +7778,112 @@ def main() -> None:
                 return None
             return out
 
+        def _cfg_from_payload(strategy_payload, filters_payload) -> ConfigBundle | None:
+            if not isinstance(strategy_payload, dict):
+                return None
+            try:
+                filters_obj = _filters_from_payload(filters_payload)
+                strategy_obj = _strategy_from_payload(strategy_payload, filters=filters_obj)
+            except Exception:
+                return None
+            return _mk_bundle(
+                strategy=strategy_obj,
+                start=start,
+                end=end,
+                bar_size=signal_bar_size,
+                use_rth=use_rth,
+                cache_dir=cache_dir,
+                offline=offline,
+            )
+
+        def _entry_variants_for_cfg(base_cfg: ConfigBundle) -> list[tuple[str, int, str]]:
+            seed_mode = str(getattr(base_cfg.strategy, "ema_entry_mode", "cross") or "cross").strip().lower()
+            if seed_mode not in ("cross", "trend"):
+                seed_mode = "cross"
+            try:
+                seed_confirm = int(getattr(base_cfg.strategy, "entry_confirm_bars", 0) or 0)
+            except (TypeError, ValueError):
+                seed_confirm = 0
+            other_mode = "trend" if seed_mode == "cross" else "cross"
+            return [
+                (seed_mode, seed_confirm, f"entry=seed({seed_mode} c={seed_confirm})"),
+                (other_mode, 0, f"entry={other_mode} c=0"),
+            ]
+
+        def _build_stage3a_plan(
+            base_exit_local: list[tuple[ConfigBundle, str]],
+            *,
+            seed_tag_local: str,
+        ) -> list[tuple[ConfigBundle, str, dict]]:
+            plan: list[tuple[ConfigBundle, str, dict]] = []
+            for base_idx, (base_cfg, exit_note) in enumerate(base_exit_local):
+                entry_variants = _entry_variants_for_cfg(base_cfg)
+                for tod_idx, (tod_s, tod_e, skip, cooldown, tod_note) in enumerate(tod_variants):
+                    for perm_idx, (perm_over, perm_note) in enumerate(perm_variants):
+                        for ss_idx, (ss_over, ss_note) in enumerate(signed_slope_variants):
+                            for entry_idx, (entry_mode, entry_confirm, entry_note) in enumerate(entry_variants):
+                                over: dict[str, object] = {}
+                                over.update(perm_over)
+                                over.update(ss_over)
+                                over["skip_first_bars"] = int(skip)
+                                over["cooldown_bars"] = int(cooldown)
+                                over["entry_start_hour_et"] = tod_s
+                                over["entry_end_hour_et"] = tod_e
+                                f = _merge_filters(base_cfg.strategy.filters, over)
+                                cfg = replace(
+                                    base_cfg,
+                                    strategy=replace(
+                                        base_cfg.strategy,
+                                        filters=f,
+                                        ema_entry_mode=str(entry_mode),
+                                        entry_confirm_bars=int(entry_confirm),
+                                    ),
+                                )
+                                note = (
+                                    f"{seed_tag_local} | short_mult={getattr(cfg.strategy,'spot_short_risk_mult', 1.0):g} | "
+                                    f"{exit_note} | {entry_note} | {tod_note} | {perm_note} | {ss_note}"
+                                )
+                                plan.append(
+                                    (
+                                        cfg,
+                                        note,
+                                        {
+                                            "base_idx": int(base_idx),
+                                            "tod_idx": int(tod_idx),
+                                            "perm_idx": int(perm_idx),
+                                            "ss_idx": int(ss_idx),
+                                            "entry_idx": int(entry_idx),
+                                        },
+                                    )
+                                )
+            return plan
+
+        def _build_stage3b_plan(
+            shortlist_local: list[tuple[ConfigBundle, str]],
+        ) -> list[tuple[ConfigBundle, str, dict]]:
+            plan: list[tuple[ConfigBundle, str, dict]] = []
+            for base_idx, (base_cfg, base_note) in enumerate(shortlist_local):
+                for shock_idx, (shock_over, shock_note) in enumerate(shock_variants):
+                    for risk_idx, (risk_over, risk_note) in enumerate(risk_variants):
+                        over: dict[str, object] = {}
+                        over.update(shock_over)
+                        over.update(risk_over)
+                        f = _merge_filters(base_cfg.strategy.filters, over)
+                        cfg = replace(base_cfg, strategy=replace(base_cfg.strategy, filters=f))
+                        note = f"{base_note} | {shock_note} | {risk_note}"
+                        plan.append(
+                            (
+                                cfg,
+                                note,
+                                {
+                                    "base_idx": int(base_idx),
+                                    "shock_idx": int(shock_idx),
+                                    "risk_idx": int(risk_idx),
+                                },
+                            )
+                        )
+            return plan
+
         report_every = 200
 
         if args.champ_refine_stage3a:
@@ -7828,113 +7926,41 @@ def main() -> None:
                 strat_payload = item.get("strategy") or {}
                 filters_payload = item.get("filters")
                 exit_note = str(item.get("exit_note") or "")
-                if not isinstance(strat_payload, dict):
+                cfg = _cfg_from_payload(strat_payload, filters_payload)
+                if cfg is None:
                     continue
-                try:
-                    filters_obj = _filters_from_payload(filters_payload)
-                    strategy_obj = _strategy_from_payload(strat_payload, filters=filters_obj)
-                except Exception:
-                    continue
-                cfg = _mk_bundle(
-                    strategy=strategy_obj,
-                    start=start,
-                    end=end,
-                    bar_size=signal_bar_size,
-                    use_rth=use_rth,
-                    cache_dir=cache_dir,
-                    offline=offline,
-                )
                 base_exit_local.append((cfg, exit_note))
 
-            stage3a_total = (
-                len(base_exit_local) * 2 * len(tod_variants) * len(perm_variants) * len(signed_slope_variants)
-            )
+            stage3a_plan_all = _build_stage3a_plan(base_exit_local, seed_tag_local=seed_tag)
+            stage3a_total = len(stage3a_plan_all)
             local_total = (stage3a_total // workers) + (1 if worker_id < (stage3a_total % workers) else 0)
-            tested = 0
-            combo_idx = 0
-            t0 = pytime.perf_counter()
-            last = float(t0)
-            records: list[dict] = []
-            for base_idx, (base_cfg, exit_note) in enumerate(base_exit_local):
-                seed_mode = str(getattr(base_cfg.strategy, "ema_entry_mode", "cross") or "cross").strip().lower()
-                if seed_mode not in ("cross", "trend"):
-                    seed_mode = "cross"
-                try:
-                    seed_confirm = int(getattr(base_cfg.strategy, "entry_confirm_bars", 0) or 0)
-                except (TypeError, ValueError):
-                    seed_confirm = 0
-                other_mode = "trend" if seed_mode == "cross" else "cross"
-                entry_variants = [
-                    (seed_mode, seed_confirm, f"entry=seed({seed_mode} c={seed_confirm})"),
-                    (other_mode, 0, f"entry={other_mode} c=0"),
-                ]
-                for tod_idx, (tod_s, tod_e, skip, cooldown, tod_note) in enumerate(tod_variants):
-                    for perm_idx, (perm_over, perm_note) in enumerate(perm_variants):
-                        for ss_idx, (ss_over, ss_note) in enumerate(signed_slope_variants):
-                            for entry_idx, (entry_mode, entry_confirm, entry_note) in enumerate(entry_variants):
-                                assigned = (combo_idx % workers) == worker_id
-                                combo_idx += 1
-                                if not assigned:
-                                    continue
-                                tested += 1
-                                now = pytime.perf_counter()
-                                if (
-                                    tested % report_every == 0
-                                    or tested == local_total
-                                    or (now - last) >= heartbeat_sec
-                                ):
-                                    elapsed = now - t0
-                                    rate = (tested / elapsed) if elapsed > 0 else 0.0
-                                    remaining = local_total - tested
-                                    eta_sec = (remaining / rate) if rate > 0 else 0.0
-                                    pct = (tested / local_total * 100.0) if local_total > 0 else 0.0
-                                    print(
-                                        f"champ_refine stage3a worker {worker_id+1}/{workers} {seed_tag} "
-                                        f"{tested}/{local_total} ({pct:0.1f}%) kept={len(records)} "
-                                        f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
-                                        flush=True,
-                                    )
-                                    last = float(now)
-                                over: dict[str, object] = {}
-                                over.update(perm_over)
-                                over.update(ss_over)
-                                over["skip_first_bars"] = int(skip)
-                                over["cooldown_bars"] = int(cooldown)
-                                over["entry_start_hour_et"] = tod_s
-                                over["entry_end_hour_et"] = tod_e
-                                f = _merge_filters(base_cfg.strategy.filters, over)
-                                cfg = replace(
-                                    base_cfg,
-                                    strategy=replace(
-                                        base_cfg.strategy,
-                                        filters=f,
-                                        ema_entry_mode=str(entry_mode),
-                                        entry_confirm_bars=int(entry_confirm),
-                                    ),
-                                )
-                                row = _run_cfg(
-                                    cfg=cfg,
-                                    bars=bars_sig,
-                                    regime_bars=_regime_bars_for(cfg),
-                                    regime2_bars=_regime2_bars_for(cfg),
-                                )
-                                if not row:
-                                    continue
-                                records.append(
-                                    {
-                                        "base_idx": base_idx,
-                                        "tod_idx": tod_idx,
-                                        "perm_idx": perm_idx,
-                                        "ss_idx": ss_idx,
-                                        "entry_idx": entry_idx,
-                                        "exit_note": exit_note,
-                                        "row": row,
-                                    }
-                                )
-
-            if combo_idx != stage3a_total:
+            if len(stage3a_plan_all) != int(stage3a_total):
                 raise SystemExit(
-                    f"champ_refine stage3a worker internal error: combos={combo_idx} expected={stage3a_total}"
+                    f"champ_refine stage3a worker internal error: combos={len(stage3a_plan_all)} expected={stage3a_total}"
+                )
+
+            shard_plan = (
+                item for combo_idx, item in enumerate(stage3a_plan_all) if (combo_idx % int(workers)) == int(worker_id)
+            )
+            tested, kept = _run_sweep(
+                plan=shard_plan,
+                bars=bars_sig,
+                total=local_total,
+                progress_label=f"champ_refine stage3a worker {worker_id+1}/{workers} {seed_tag}",
+                report_every=report_every,
+                heartbeat_sec=heartbeat_sec,
+                record_milestones=False,
+            )
+
+            records: list[dict] = []
+            for cfg, row, note, _meta in kept:
+                records.append(
+                    {
+                        "strategy": _spot_strategy_payload(cfg, meta=meta),
+                        "filters": _filters_payload(cfg.strategy.filters),
+                        "note": str(note),
+                        "row": row,
+                    }
                 )
 
             out_payload = {"tested": tested, "kept": len(records), "records": records}
@@ -7982,78 +8008,41 @@ def main() -> None:
                 strat_payload = item.get("strategy") or {}
                 filters_payload = item.get("filters")
                 base_note = str(item.get("base_note") or "")
-                if not isinstance(strat_payload, dict):
+                cfg = _cfg_from_payload(strat_payload, filters_payload)
+                if cfg is None:
                     continue
-                try:
-                    filters_obj = _filters_from_payload(filters_payload)
-                    strategy_obj = _strategy_from_payload(strat_payload, filters=filters_obj)
-                except Exception:
-                    continue
-                cfg = _mk_bundle(
-                    strategy=strategy_obj,
-                    start=start,
-                    end=end,
-                    bar_size=signal_bar_size,
-                    use_rth=use_rth,
-                    cache_dir=cache_dir,
-                    offline=offline,
-                )
                 shortlist_local.append((cfg, base_note))
 
-            stage3b_total = len(shortlist_local) * len(shock_variants) * len(risk_variants)
+            stage3b_plan_all = _build_stage3b_plan(shortlist_local)
+            stage3b_total = len(stage3b_plan_all)
             local_total = (stage3b_total // workers) + (1 if worker_id < (stage3b_total % workers) else 0)
-            tested = 0
-            combo_idx = 0
-            t0 = pytime.perf_counter()
-            last = float(t0)
-            records: list[dict] = []
-            for base_idx, (base_cfg, _base_note) in enumerate(shortlist_local):
-                for shock_idx, (shock_over, _shock_note) in enumerate(shock_variants):
-                    for risk_idx, (risk_over, _risk_note) in enumerate(risk_variants):
-                        assigned = (combo_idx % workers) == worker_id
-                        combo_idx += 1
-                        if not assigned:
-                            continue
-                        tested += 1
-                        now = pytime.perf_counter()
-                        if tested % report_every == 0 or tested == local_total or (now - last) >= heartbeat_sec:
-                            elapsed = now - t0
-                            rate = (tested / elapsed) if elapsed > 0 else 0.0
-                            remaining = local_total - tested
-                            eta_sec = (remaining / rate) if rate > 0 else 0.0
-                            pct = (tested / local_total * 100.0) if local_total > 0 else 0.0
-                            print(
-                                f"champ_refine stage3b worker {worker_id+1}/{workers} {seed_tag} "
-                                f"{tested}/{local_total} ({pct:0.1f}%) kept={len(records)} "
-                                f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
-                                flush=True,
-                            )
-                            last = float(now)
-                        over: dict[str, object] = {}
-                        over.update(shock_over)
-                        over.update(risk_over)
-                        f = _merge_filters(base_cfg.strategy.filters, over)
-                        cfg = replace(base_cfg, strategy=replace(base_cfg.strategy, filters=f))
-                        row = _run_cfg(
-                            cfg=cfg,
-                            bars=bars_sig,
-                            regime_bars=_regime_bars_for(cfg),
-                            regime2_bars=_regime2_bars_for(cfg),
-                        )
-                        if not row:
-                            continue
-                        records.append(
-                            {
-                                "base_idx": base_idx,
-                                "shock_idx": shock_idx,
-                                "risk_idx": risk_idx,
-                                "row": row,
-                            }
-                        )
-
-            if combo_idx != stage3b_total:
+            if len(stage3b_plan_all) != int(stage3b_total):
                 raise SystemExit(
-                    f"champ_refine stage3b worker internal error: combos={combo_idx} expected={stage3b_total}"
+                    f"champ_refine stage3b worker internal error: combos={len(stage3b_plan_all)} expected={stage3b_total}"
+                )
+
+            shard_plan = (
+                item for combo_idx, item in enumerate(stage3b_plan_all) if (combo_idx % int(workers)) == int(worker_id)
+            )
+            tested, kept = _run_sweep(
+                plan=shard_plan,
+                bars=bars_sig,
+                total=local_total,
+                progress_label=f"champ_refine stage3b worker {worker_id+1}/{workers} {seed_tag}",
+                report_every=report_every,
+                heartbeat_sec=heartbeat_sec,
+                record_milestones=False,
+            )
+
+            records: list[dict] = []
+            for cfg, row, note, _meta in kept:
+                records.append(
+                    {
+                        "strategy": _spot_strategy_payload(cfg, meta=meta),
+                        "filters": _filters_payload(cfg.strategy.filters),
+                        "note": str(note),
+                        "row": row,
+                    }
                 )
 
             out_payload = {"tested": tested, "kept": len(records), "records": records}
@@ -8481,71 +8470,16 @@ def main() -> None:
                         for rec in payload.get("records") or []:
                             if not isinstance(rec, dict):
                                 continue
-                            try:
-                                base_idx = int(rec.get("base_idx"))
-                                tod_idx = int(rec.get("tod_idx"))
-                                perm_idx = int(rec.get("perm_idx"))
-                                ss_idx = int(rec.get("ss_idx"))
-                                entry_idx = int(rec.get("entry_idx"))
-                            except (TypeError, ValueError):
+                            cfg = _cfg_from_payload(rec.get("strategy"), rec.get("filters"))
+                            if cfg is None:
                                 continue
-                            if base_idx < 0 or base_idx >= len(base_exit_variants):
-                                raise SystemExit(f"champ_refine stage3a merge: invalid base_idx={base_idx}")
-                            if tod_idx < 0 or tod_idx >= len(tod_variants):
-                                raise SystemExit(f"champ_refine stage3a merge: invalid tod_idx={tod_idx}")
-                            if perm_idx < 0 or perm_idx >= len(perm_variants):
-                                raise SystemExit(f"champ_refine stage3a merge: invalid perm_idx={perm_idx}")
-                            if ss_idx < 0 or ss_idx >= len(signed_slope_variants):
-                                raise SystemExit(f"champ_refine stage3a merge: invalid ss_idx={ss_idx}")
                             row = rec.get("row")
                             if not isinstance(row, dict):
                                 continue
-
-                            base_cfg, exit_note = base_exit_variants[base_idx]
-                            tod_s, tod_e, skip, cooldown, tod_note = tod_variants[tod_idx]
-                            perm_over, perm_note = perm_variants[perm_idx]
-                            ss_over, ss_note = signed_slope_variants[ss_idx]
-
-                            seed_mode = (
-                                str(getattr(base_cfg.strategy, "ema_entry_mode", "cross") or "cross")
-                                .strip()
-                                .lower()
-                            )
-                            if seed_mode not in ("cross", "trend"):
-                                seed_mode = "cross"
-                            try:
-                                seed_confirm = int(getattr(base_cfg.strategy, "entry_confirm_bars", 0) or 0)
-                            except (TypeError, ValueError):
-                                seed_confirm = 0
-                            other_mode = "trend" if seed_mode == "cross" else "cross"
-                            entry_variants = [
-                                (seed_mode, seed_confirm, f"entry=seed({seed_mode} c={seed_confirm})"),
-                                (other_mode, 0, f"entry={other_mode} c=0"),
-                            ]
-                            if entry_idx < 0 or entry_idx >= len(entry_variants):
-                                raise SystemExit(f"champ_refine stage3a merge: invalid entry_idx={entry_idx}")
-                            entry_mode, entry_confirm, entry_note = entry_variants[entry_idx]
-
-                            over: dict[str, object] = {}
-                            over.update(perm_over)
-                            over.update(ss_over)
-                            over["skip_first_bars"] = int(skip)
-                            over["cooldown_bars"] = int(cooldown)
-                            over["entry_start_hour_et"] = tod_s
-                            over["entry_end_hour_et"] = tod_e
-                            f = _merge_filters(base_cfg.strategy.filters, over)
-                            cfg = replace(
-                                base_cfg,
-                                strategy=replace(
-                                    base_cfg.strategy,
-                                    filters=f,
-                                    ema_entry_mode=str(entry_mode),
-                                    entry_confirm_bars=int(entry_confirm),
-                                ),
-                            )
+                            note = str(rec.get("note") or "").strip()
                             note = (
-                                f"{seed_tag} | short_mult={getattr(cfg.strategy,'spot_short_risk_mult', 1.0):g} | "
-                                f"{exit_note} | {entry_note} | {tod_note} | {perm_note} | {ss_note}"
+                                note
+                                or f"{seed_tag} | short_mult={getattr(cfg.strategy,'spot_short_risk_mult', 1.0):g} | stage3a"
                             )
                             row = dict(row)
                             row["note"] = note
@@ -8555,77 +8489,19 @@ def main() -> None:
 
                     tested_total += int(tested_total_3a)
             else:
-                tested_3a = 0
-                t0_3a = pytime.perf_counter()
-                last_3a = float(t0_3a)
-                for base_cfg, exit_note in base_exit_variants:
-                    seed_mode = str(getattr(base_cfg.strategy, "ema_entry_mode", "cross") or "cross").strip().lower()
-                    if seed_mode not in ("cross", "trend"):
-                        seed_mode = "cross"
-                    try:
-                        seed_confirm = int(getattr(base_cfg.strategy, "entry_confirm_bars", 0) or 0)
-                    except (TypeError, ValueError):
-                        seed_confirm = 0
-                    other_mode = "trend" if seed_mode == "cross" else "cross"
-                    entry_variants = [
-                        (seed_mode, seed_confirm, f"entry=seed({seed_mode} c={seed_confirm})"),
-                        (other_mode, 0, f"entry={other_mode} c=0"),
-                    ]
-                    for tod_s, tod_e, skip, cooldown, tod_note in tod_variants:
-                        for perm_over, perm_note in perm_variants:
-                            for ss_over, ss_note in signed_slope_variants:
-                                for entry_mode, entry_confirm, entry_note in entry_variants:
-                                    over: dict[str, object] = {}
-                                    over.update(perm_over)
-                                    over.update(ss_over)
-                                    over["skip_first_bars"] = int(skip)
-                                    over["cooldown_bars"] = int(cooldown)
-                                    over["entry_start_hour_et"] = tod_s
-                                    over["entry_end_hour_et"] = tod_e
-                                    f = _merge_filters(base_cfg.strategy.filters, over)
-                                    cfg = replace(
-                                        base_cfg,
-                                        strategy=replace(
-                                            base_cfg.strategy,
-                                            filters=f,
-                                            ema_entry_mode=str(entry_mode),
-                                            entry_confirm_bars=int(entry_confirm),
-                                        ),
-                                    )
-                                    row = _run_cfg(
-                                        cfg=cfg,
-                                        bars=bars_sig,
-                                        regime_bars=_regime_bars_for(cfg),
-                                        regime2_bars=_regime2_bars_for(cfg),
-                                    )
-                                    tested_total += 1
-                                    tested_3a += 1
-                                    now = pytime.perf_counter()
-                                    if (
-                                        tested_3a % report_every == 0
-                                        or tested_3a == total_3a
-                                        or (now - last_3a) >= heartbeat_sec
-                                    ):
-                                        elapsed = now - t0_3a
-                                        rate = tested_3a / elapsed if elapsed > 0 else 0.0
-                                        remaining = total_3a - tested_3a
-                                        eta_sec = remaining / rate if rate > 0 else 0.0
-                                        print(
-                                            f"  stage3a {tested_3a}/{total_3a} kept={len(stage3a)} "
-                                            f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
-                                            flush=True,
-                                        )
-                                        last_3a = float(now)
-                                    if not row:
-                                        continue
-                                    note = (
-                                        f"{seed_tag} | short_mult={getattr(cfg.strategy,'spot_short_risk_mult', 1.0):g} | "
-                                        f"{exit_note} | {entry_note} | {tod_note} | {perm_note} | {ss_note}"
-                                    )
-                                    row["note"] = note
-                                    _record_milestone(cfg, row, note)
-                                    rows.append(row)
-                                    stage3a.append((cfg, row, note))
+                stage3a_plan = _build_stage3a_plan(base_exit_variants, seed_tag_local=seed_tag)
+                tested_3a, kept_3a = _run_sweep(
+                    plan=stage3a_plan,
+                    bars=bars_sig,
+                    total=total_3a,
+                    progress_label="  stage3a",
+                    report_every=report_every,
+                    heartbeat_sec=heartbeat_sec,
+                )
+                tested_total += int(tested_3a)
+                for cfg, row, note, _meta in kept_3a:
+                    rows.append(row)
+                    stage3a.append((cfg, row, note))
 
             if not stage3a:
                 continue
@@ -8737,31 +8613,13 @@ def main() -> None:
                         for rec in payload.get("records") or []:
                             if not isinstance(rec, dict):
                                 continue
-                            try:
-                                base_idx = int(rec.get("base_idx"))
-                                shock_idx = int(rec.get("shock_idx"))
-                                risk_idx = int(rec.get("risk_idx"))
-                            except (TypeError, ValueError):
+                            cfg = _cfg_from_payload(rec.get("strategy"), rec.get("filters"))
+                            if cfg is None:
                                 continue
-                            if base_idx < 0 or base_idx >= len(shortlist):
-                                raise SystemExit(f"champ_refine stage3b merge: invalid base_idx={base_idx}")
-                            if shock_idx < 0 or shock_idx >= len(shock_variants):
-                                raise SystemExit(f"champ_refine stage3b merge: invalid shock_idx={shock_idx}")
-                            if risk_idx < 0 or risk_idx >= len(risk_variants):
-                                raise SystemExit(f"champ_refine stage3b merge: invalid risk_idx={risk_idx}")
                             row = rec.get("row")
                             if not isinstance(row, dict):
                                 continue
-
-                            base_cfg, _, base_note = shortlist[base_idx]
-                            shock_over, shock_note = shock_variants[shock_idx]
-                            risk_over, risk_note = risk_variants[risk_idx]
-                            over: dict[str, object] = {}
-                            over.update(shock_over)
-                            over.update(risk_over)
-                            f = _merge_filters(base_cfg.strategy.filters, over)
-                            cfg = replace(base_cfg, strategy=replace(base_cfg.strategy, filters=f))
-                            note = f"{base_note} | {shock_note} | {risk_note}"
+                            note = str(rec.get("note") or "").strip() or "stage3b"
                             row = dict(row)
                             row["note"] = note
                             _record_milestone(cfg, row, note)
@@ -8769,47 +8627,19 @@ def main() -> None:
 
                     tested_total += int(tested_total_3b)
             else:
-                tested_3b = 0
-                t0_3b = pytime.perf_counter()
-                last_3b = float(t0_3b)
-                for base_cfg, _, base_note in shortlist:
-                    for shock_over, shock_note in shock_variants:
-                        for risk_over, risk_note in risk_variants:
-                            over: dict[str, object] = {}
-                            over.update(shock_over)
-                            over.update(risk_over)
-                            f = _merge_filters(base_cfg.strategy.filters, over)
-                            cfg = replace(base_cfg, strategy=replace(base_cfg.strategy, filters=f))
-                            row = _run_cfg(
-                                cfg=cfg,
-                                bars=bars_sig,
-                                regime_bars=_regime_bars_for(cfg),
-                                regime2_bars=_regime2_bars_for(cfg),
-                            )
-                            tested_total += 1
-                            tested_3b += 1
-                            now = pytime.perf_counter()
-                            if (
-                                tested_3b % report_every == 0
-                                or tested_3b == total_3b
-                                or (now - last_3b) >= heartbeat_sec
-                            ):
-                                elapsed = now - t0_3b
-                                rate = tested_3b / elapsed if elapsed > 0 else 0.0
-                                remaining = total_3b - tested_3b
-                                eta_sec = remaining / rate if rate > 0 else 0.0
-                                print(
-                                    f"  stage3b {tested_3b}/{total_3b} kept={len(rows)} "
-                                    f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
-                                    flush=True,
-                                )
-                                last_3b = float(now)
-                            if not row:
-                                continue
-                            note = f"{base_note} | {shock_note} | {risk_note}"
-                            row["note"] = note
-                            _record_milestone(cfg, row, note)
-                            rows.append(row)
+                shortlist_pairs = [(cfg, note) for cfg, _row, note in shortlist]
+                stage3b_plan = _build_stage3b_plan(shortlist_pairs)
+                tested_3b, kept_3b = _run_sweep(
+                    plan=stage3b_plan,
+                    bars=bars_sig,
+                    total=total_3b,
+                    progress_label="  stage3b",
+                    report_every=report_every,
+                    heartbeat_sec=heartbeat_sec,
+                )
+                tested_total += int(tested_3b)
+                for _cfg, row, _note, _meta in kept_3b:
+                    rows.append(row)
 
         print("")
         _print_leaderboards(rows, title="champ_refine (seeded, bounded)", top_n=int(args.top))
@@ -10867,57 +10697,36 @@ def main() -> None:
                 cfg_seed = _apply_milestone_base(base, strategy=item["strategy"], filters=flt)
                 shortlist_local.append((cfg_seed, f"{seed_tag} | {base_note}"))
 
-            def _mk_stage2_cfg_local(base_cfg: ConfigBundle, *, risk_over: dict[str, object], shock_over: dict[str, object]) -> ConfigBundle:
-                over: dict[str, object] = {}
-                over.update(risk_over)
-                over.update(shock_over)
-                f = _merge_filters(base_cfg.strategy.filters, overrides=over)
-                return replace(base_cfg, strategy=replace(base_cfg.strategy, filters=f))
-
-            stage2_total = len(shortlist_local) * len(risk_variants_local) * len(shock_variants_local)
+            stage2_plan_all = _build_stage2_plan(
+                shortlist_local,
+                risk_variants_local=risk_variants_local,
+                shock_variants_local=shock_variants_local,
+            )
+            stage2_total = len(stage2_plan_all)
             local_total = (stage2_total // workers) + (1 if worker_id < (stage2_total % workers) else 0)
-            tested = 0
-            combo_idx = 0
-            report_every = 200
-            t0 = pytime.perf_counter()
-            last = float(t0)
+            shard_plan = (
+                item for combo_idx, item in enumerate(stage2_plan_all) if (combo_idx % int(workers)) == int(worker_id)
+            )
+            tested, kept = _run_sweep(
+                plan=shard_plan,
+                bars=bars_sig,
+                total=local_total,
+                progress_label=f"st37_refine stage2 worker {worker_id+1}/{workers}",
+                report_every=200,
+                heartbeat_sec=heartbeat_sec,
+                record_milestones=False,
+            )
+
             records: list[dict] = []
-            for base_idx, (base_cfg, base_note) in enumerate(shortlist_local):
-                for risk_idx, (risk_over, risk_note) in enumerate(risk_variants_local):
-                    for shock_idx, (shock_over, shock_note) in enumerate(shock_variants_local):
-                        assigned = (combo_idx % workers) == worker_id
-                        combo_idx += 1
-                        if not assigned:
-                            continue
-                        tested += 1
-                        now = pytime.perf_counter()
-                        if tested % report_every == 0 or tested == local_total or (now - last) >= heartbeat_sec:
-                            elapsed = now - t0
-                            rate = (tested / elapsed) if elapsed > 0 else 0.0
-                            remaining = local_total - tested
-                            eta_sec = (remaining / rate) if rate > 0 else 0.0
-                            pct = (tested / local_total * 100.0) if local_total > 0 else 0.0
-                            print(
-                                f"st37_refine stage2 worker {worker_id+1}/{workers} "
-                                f"{tested}/{local_total} ({pct:0.1f}%) kept={len(records)} "
-                                f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
-                                flush=True,
-                            )
-                            last = float(now)
-                        cfg = _mk_stage2_cfg_local(base_cfg, risk_over=risk_over, shock_over=shock_over)
-                        row = _run_cfg(
-                            cfg=cfg,
-                            bars=bars_sig,
-                            regime_bars=_regime_bars_for(cfg),
-                            regime2_bars=_regime2_bars_for(cfg),
-                        )
-                        if not row:
-                            continue
-                        records.append({"base_idx": base_idx, "risk_idx": risk_idx, "shock_idx": shock_idx, "row": row})
-
-            if combo_idx != stage2_total:
-                raise SystemExit(f"st37_refine stage2 worker internal error: combos={combo_idx} expected={stage2_total}")
-
+            for cfg, row, note, _meta in kept:
+                records.append(
+                    {
+                        "strategy": _spot_strategy_payload(cfg, meta=meta),
+                        "filters": _filters_payload(cfg.strategy.filters),
+                        "note": str(note),
+                        "row": row,
+                    }
+                )
             out_payload = {"tested": tested, "kept": len(records), "records": records}
             write_json(out_path, out_payload, sort_keys=False)
             print(f"st37_refine stage2 worker done tested={tested} kept={len(records)} out={out_path}", flush=True)
@@ -10989,6 +10798,82 @@ def main() -> None:
             note = f"st37 {seed_tag} | {perm_note} | {tod_note} | SL={sl_pct:g} short={short_mult:g}"
             return cfg, note
 
+        def _cfg_from_payload(strategy_payload, filters_payload) -> ConfigBundle | None:
+            if not isinstance(strategy_payload, dict):
+                return None
+            filters_obj = filters_payload if isinstance(filters_payload, dict) else None
+            try:
+                base = _base_bundle(bar_size=signal_bar_size, filters=None)
+                return _apply_milestone_base(base, strategy=strategy_payload, filters=filters_obj)
+            except Exception:
+                return None
+
+        def _mk_stage2_cfg(base_cfg: ConfigBundle, *, risk_over: dict[str, object], shock_over: dict[str, object]) -> ConfigBundle:
+            over: dict[str, object] = {}
+            over.update(risk_over)
+            over.update(shock_over)
+            f = _merge_filters(base_cfg.strategy.filters, overrides=over)
+            return replace(base_cfg, strategy=replace(base_cfg.strategy, filters=f))
+
+        def _build_stage1_plan(seed_items: list[dict]) -> list[tuple[ConfigBundle, str, dict]]:
+            plan: list[tuple[ConfigBundle, str, dict]] = []
+            for seed_idx, seed in enumerate(seed_items):
+                cfg_seed, seed_tag = _mk_seed_cfg(seed)
+                for perm_idx, (perm_over, perm_note) in enumerate(perm_variants):
+                    for tod_idx, (tod_s, tod_e, tod_note) in enumerate(tod_variants):
+                        for sl_idx, sl_pct in enumerate(sl_vals):
+                            for short_idx, short_mult in enumerate(short_mult_vals):
+                                cfg, note = _mk_stage1_cfg(
+                                    cfg_seed,
+                                    seed_tag,
+                                    perm_over=perm_over,
+                                    perm_note=perm_note,
+                                    tod_s=tod_s,
+                                    tod_e=tod_e,
+                                    tod_note=tod_note,
+                                    sl_pct=float(sl_pct),
+                                    short_mult=float(short_mult),
+                                )
+                                plan.append(
+                                    (
+                                        cfg,
+                                        note,
+                                        {
+                                            "seed_idx": int(seed_idx),
+                                            "perm_idx": int(perm_idx),
+                                            "tod_idx": int(tod_idx),
+                                            "sl_idx": int(sl_idx),
+                                            "short_idx": int(short_idx),
+                                        },
+                                    )
+                                )
+            return plan
+
+        def _build_stage2_plan(
+            shortlist_local: list[tuple[ConfigBundle, str]],
+            *,
+            risk_variants_local: list[tuple[dict[str, object], str]],
+            shock_variants_local: list[tuple[dict[str, object], str]],
+        ) -> list[tuple[ConfigBundle, str, dict]]:
+            plan: list[tuple[ConfigBundle, str, dict]] = []
+            for base_idx, (base_cfg, base_note) in enumerate(shortlist_local):
+                for risk_idx, (risk_over, risk_note) in enumerate(risk_variants_local):
+                    for shock_idx, (shock_over, shock_note) in enumerate(shock_variants_local):
+                        cfg = _mk_stage2_cfg(base_cfg, risk_over=risk_over, shock_over=shock_over)
+                        note = f"{base_note} | {risk_note} | {shock_note}"
+                        plan.append(
+                            (
+                                cfg,
+                                note,
+                                {
+                                    "base_idx": int(base_idx),
+                                    "risk_idx": int(risk_idx),
+                                    "shock_idx": int(shock_idx),
+                                },
+                            )
+                        )
+            return plan
+
         if args.st37_refine_stage1:
             if not offline:
                 raise SystemExit("st37_refine stage1 worker mode requires --offline (avoid parallel IBKR sessions).")
@@ -11032,82 +10917,32 @@ def main() -> None:
                     flt = None
                 seeds_local.append({"strategy": item["strategy"], "filters": flt, "group_name": str(item.get("group_name") or "")})
 
-            stage1_total = (
-                len(seeds_local)
-                * len(perm_variants)
-                * len(tod_variants)
-                * len(sl_vals)
-                * len(short_mult_vals)
-            )
+            stage1_plan_all = _build_stage1_plan(seeds_local)
+            stage1_total = len(stage1_plan_all)
             local_total = (stage1_total // workers) + (1 if worker_id < (stage1_total % workers) else 0)
-            tested = 0
-            combo_idx = 0
-            report_every = 200
-            t0 = pytime.perf_counter()
-            last = float(t0)
+            shard_plan = (
+                item for combo_idx, item in enumerate(stage1_plan_all) if (combo_idx % int(workers)) == int(worker_id)
+            )
+            tested, kept = _run_sweep(
+                plan=shard_plan,
+                bars=bars_sig,
+                total=local_total,
+                progress_label=f"st37_refine stage1 worker {worker_id+1}/{workers}",
+                report_every=200,
+                heartbeat_sec=heartbeat_sec,
+                record_milestones=False,
+            )
+
             records: list[dict] = []
-            for seed_idx, seed in enumerate(seeds_local):
-                cfg_seed, seed_tag = _mk_seed_cfg(seed)
-                for perm_idx, (perm_over, perm_note) in enumerate(perm_variants):
-                    for tod_idx, (tod_s, tod_e, tod_note) in enumerate(tod_variants):
-                        for sl_idx, sl_pct in enumerate(sl_vals):
-                            for short_idx, short_mult in enumerate(short_mult_vals):
-                                assigned = (combo_idx % workers) == worker_id
-                                combo_idx += 1
-                                if not assigned:
-                                    continue
-                                tested += 1
-                                now = pytime.perf_counter()
-                                if (
-                                    tested % report_every == 0
-                                    or tested == local_total
-                                    or (now - last) >= heartbeat_sec
-                                ):
-                                    elapsed = now - t0
-                                    rate = (tested / elapsed) if elapsed > 0 else 0.0
-                                    remaining = local_total - tested
-                                    eta_sec = (remaining / rate) if rate > 0 else 0.0
-                                    pct = (tested / local_total * 100.0) if local_total > 0 else 0.0
-                                    print(
-                                        f"st37_refine stage1 worker {worker_id+1}/{workers} "
-                                        f"{tested}/{local_total} ({pct:0.1f}%) kept={len(records)} "
-                                        f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
-                                        flush=True,
-                                    )
-                                    last = float(now)
-                                cfg, _note = _mk_stage1_cfg(
-                                    cfg_seed,
-                                    seed_tag,
-                                    perm_over=perm_over,
-                                    perm_note=perm_note,
-                                    tod_s=tod_s,
-                                    tod_e=tod_e,
-                                    tod_note=tod_note,
-                                    sl_pct=float(sl_pct),
-                                    short_mult=float(short_mult),
-                                )
-                                row = _run_cfg(
-                                    cfg=cfg,
-                                    bars=bars_sig,
-                                    regime_bars=_regime_bars_for(cfg),
-                                    regime2_bars=_regime2_bars_for(cfg),
-                                )
-                                if not row:
-                                    continue
-                                records.append(
-                                    {
-                                        "seed_idx": seed_idx,
-                                        "perm_idx": perm_idx,
-                                        "tod_idx": tod_idx,
-                                        "sl_idx": sl_idx,
-                                        "short_idx": short_idx,
-                                        "row": row,
-                                    }
-                                )
-
-            if combo_idx != stage1_total:
-                raise SystemExit(f"st37_refine stage1 worker internal error: combos={combo_idx} expected={stage1_total}")
-
+            for cfg, row, note, _meta in kept:
+                records.append(
+                    {
+                        "strategy": _spot_strategy_payload(cfg, meta=meta),
+                        "filters": _filters_payload(cfg.strategy.filters),
+                        "note": str(note),
+                        "row": row,
+                    }
+                )
             out_payload = {"tested": tested, "kept": len(records), "records": records}
             write_json(out_path, out_payload, sort_keys=False)
             print(f"st37_refine stage1 worker done tested={tested} kept={len(records)} out={out_path}", flush=True)
@@ -11117,9 +10952,7 @@ def main() -> None:
         stage1_total = len(seeds) * len(perm_variants) * len(tod_variants) * len(sl_vals) * len(short_mult_vals)
         print(f"st37_refine: stage1 total={stage1_total} (perm×tod×sl×short)", flush=True)
         tested_1 = 0
-        t0_1 = pytime.perf_counter()
         report_every = 200
-        last_1 = float(t0_1)
         if jobs > 1:
             if not offline:
                 raise SystemExit("--jobs>1 for st37_refine requires --offline (avoid parallel IBKR sessions).")
@@ -11187,12 +11020,6 @@ def main() -> None:
                     failure_label="st37_refine stage1 worker",
                 )
 
-                # Rebuild seeds once (for config reconstruction).
-                seed_cfgs: list[tuple[ConfigBundle, str]] = []
-                for s in seeds_payload:
-                    cfg_seed, seed_tag = _mk_seed_cfg(s)
-                    seed_cfgs.append((cfg_seed, seed_tag))
-
                 tested_total = 0
                 for worker_id in range(jobs_eff):
                     out_path = out_paths.get(worker_id)
@@ -11210,44 +11037,13 @@ def main() -> None:
                     for rec in payload.get("records") or []:
                         if not isinstance(rec, dict):
                             continue
-                        try:
-                            seed_idx = int(rec.get("seed_idx"))
-                            perm_idx = int(rec.get("perm_idx"))
-                            tod_idx = int(rec.get("tod_idx"))
-                            sl_idx = int(rec.get("sl_idx"))
-                            short_idx = int(rec.get("short_idx"))
-                        except (TypeError, ValueError):
+                        cfg = _cfg_from_payload(rec.get("strategy"), rec.get("filters"))
+                        if cfg is None:
                             continue
-                        if seed_idx < 0 or seed_idx >= len(seed_cfgs):
-                            raise SystemExit(f"st37_refine stage1 merge: invalid seed_idx={seed_idx}")
-                        if perm_idx < 0 or perm_idx >= len(perm_variants):
-                            raise SystemExit(f"st37_refine stage1 merge: invalid perm_idx={perm_idx}")
-                        if tod_idx < 0 or tod_idx >= len(tod_variants):
-                            raise SystemExit(f"st37_refine stage1 merge: invalid tod_idx={tod_idx}")
-                        if sl_idx < 0 or sl_idx >= len(sl_vals):
-                            raise SystemExit(f"st37_refine stage1 merge: invalid sl_idx={sl_idx}")
-                        if short_idx < 0 or short_idx >= len(short_mult_vals):
-                            raise SystemExit(f"st37_refine stage1 merge: invalid short_idx={short_idx}")
-
                         row = rec.get("row")
                         if not isinstance(row, dict):
                             continue
-                        cfg_seed, seed_tag = seed_cfgs[seed_idx]
-                        perm_over, perm_note = perm_variants[perm_idx]
-                        tod_s, tod_e, tod_note = tod_variants[tod_idx]
-                        sl_pct = float(sl_vals[sl_idx])
-                        short_mult = float(short_mult_vals[short_idx])
-                        cfg, note = _mk_stage1_cfg(
-                            cfg_seed,
-                            seed_tag,
-                            perm_over=perm_over,
-                            perm_note=perm_note,
-                            tod_s=tod_s,
-                            tod_e=tod_e,
-                            tod_note=tod_note,
-                            sl_pct=sl_pct,
-                            short_mult=short_mult,
-                        )
+                        note = str(rec.get("note") or "").strip() or "st37 stage1"
                         row = dict(row)
                         row["note"] = note
                         _record_milestone(cfg, row, note)
@@ -11255,52 +11051,17 @@ def main() -> None:
 
                 tested_1 = int(tested_total)
         else:
-            for seed in seeds:
-                cfg_seed, seed_tag = _mk_seed_cfg(seed)
-                for perm_over, perm_note in perm_variants:
-                    for tod_s, tod_e, tod_note in tod_variants:
-                        for sl_pct in sl_vals:
-                            for short_mult in short_mult_vals:
-                                cfg, note = _mk_stage1_cfg(
-                                    cfg_seed,
-                                    seed_tag,
-                                    perm_over=perm_over,
-                                    perm_note=perm_note,
-                                    tod_s=tod_s,
-                                    tod_e=tod_e,
-                                    tod_note=tod_note,
-                                    sl_pct=float(sl_pct),
-                                    short_mult=float(short_mult),
-                                )
-                                row = _run_cfg(
-                                    cfg=cfg,
-                                    bars=bars_sig,
-                                    regime_bars=_regime_bars_for(cfg),
-                                    regime2_bars=_regime2_bars_for(cfg),
-                                )
-                                tested_1 += 1
-                                now = pytime.perf_counter()
-                                if (
-                                    tested_1 % report_every == 0
-                                    or tested_1 == stage1_total
-                                    or (now - last_1) >= heartbeat_sec
-                                ):
-                                    elapsed = now - t0_1
-                                    rate = (tested_1 / elapsed) if elapsed > 0 else 0.0
-                                    remaining = stage1_total - tested_1
-                                    eta_sec = (remaining / rate) if rate > 0 else 0.0
-                                    pct = (tested_1 / stage1_total * 100.0) if stage1_total > 0 else 0.0
-                                    print(
-                                        f"st37_refine stage1 {tested_1}/{stage1_total} ({pct:0.1f}%) "
-                                        f"kept={len(stage1_rows)} elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
-                                        flush=True,
-                                    )
-                                    last_1 = float(now)
-                                if not row:
-                                    continue
-                                row["note"] = note
-                                _record_milestone(cfg, row, note)
-                                stage1_rows.append((cfg, row, note))
+            stage1_plan = _build_stage1_plan(seeds)
+            tested_1, kept_1 = _run_sweep(
+                plan=stage1_plan,
+                bars=bars_sig,
+                total=stage1_total,
+                progress_label="st37_refine stage1",
+                report_every=report_every,
+                heartbeat_sec=heartbeat_sec,
+            )
+            for cfg, row, note, _meta in kept_1:
+                stage1_rows.append((cfg, row, note))
 
         print(f"st37_refine: stage1 kept={len(stage1_rows)} tested={tested_1}", flush=True)
         if not stage1_rows:
@@ -11560,21 +11321,17 @@ def main() -> None:
                 )
             )
 
-        def _mk_stage2_cfg(base_cfg: ConfigBundle, *, risk_over: dict[str, object], shock_over: dict[str, object]) -> ConfigBundle:
-            over: dict[str, object] = {}
-            over.update(risk_over)
-            over.update(shock_over)
-            f = _merge_filters(base_cfg.strategy.filters, overrides=over)
-            return replace(base_cfg, strategy=replace(base_cfg.strategy, filters=f))
-
         # st37_refine stage2 worker mode is handled at the top of this sweep (before stage1).
 
         stage2_rows: list[tuple[ConfigBundle, dict, str]] = []
-        stage2_total = len(stage1_shortlist) * len(risk_variants) * len(shock_variants)
+        stage2_plan = _build_stage2_plan(
+            [(cfg, note) for cfg, _row, note in stage1_shortlist],
+            risk_variants_local=risk_variants,
+            shock_variants_local=shock_variants,
+        )
+        stage2_total = len(stage2_plan)
         print(f"st37_refine: stage2 total={stage2_total} (risk×shock)", flush=True)
         tested_2 = 0
-        t0_2 = pytime.perf_counter()
-        last_2 = float(t0_2)
         if jobs > 1:
             if not offline:
                 raise SystemExit("--jobs>1 for st37_refine requires --offline (avoid parallel IBKR sessions).")
@@ -11657,13 +11414,6 @@ def main() -> None:
                     failure_label="st37_refine stage2 worker",
                 )
 
-                # Rebuild shortlist base cfgs for config reconstruction.
-                base_cfgs: list[tuple[ConfigBundle, str]] = []
-                for item in shortlist_payload:
-                    base = _base_bundle(bar_size=signal_bar_size, filters=None)
-                    cfg_seed = _apply_milestone_base(base, strategy=item["strategy"], filters=item.get("filters"))
-                    base_cfgs.append((cfg_seed, str(item.get("base_note") or "")))
-
                 tested_total = 0
                 for worker_id in range(jobs_eff):
                     out_path = out_paths.get(worker_id)
@@ -11681,27 +11431,13 @@ def main() -> None:
                     for rec in payload.get("records") or []:
                         if not isinstance(rec, dict):
                             continue
-                        try:
-                            base_idx = int(rec.get("base_idx"))
-                            risk_idx = int(rec.get("risk_idx"))
-                            shock_idx = int(rec.get("shock_idx"))
-                        except (TypeError, ValueError):
+                        cfg = _cfg_from_payload(rec.get("strategy"), rec.get("filters"))
+                        if cfg is None:
                             continue
-                        if base_idx < 0 or base_idx >= len(base_cfgs):
-                            raise SystemExit(f"st37_refine stage2 merge: invalid base_idx={base_idx}")
-                        if risk_idx < 0 or risk_idx >= len(risk_variants):
-                            raise SystemExit(f"st37_refine stage2 merge: invalid risk_idx={risk_idx}")
-                        if shock_idx < 0 or shock_idx >= len(shock_variants):
-                            raise SystemExit(f"st37_refine stage2 merge: invalid shock_idx={shock_idx}")
                         row = rec.get("row")
                         if not isinstance(row, dict):
                             continue
-
-                        base_cfg, base_note = base_cfgs[base_idx]
-                        risk_over, risk_note = risk_variants[risk_idx]
-                        shock_over, shock_note = shock_variants[shock_idx]
-                        cfg = _mk_stage2_cfg(base_cfg, risk_over=risk_over, shock_over=shock_over)
-                        note = f"{base_note} | {risk_note} | {shock_note}"
+                        note = str(rec.get("note") or "").strip() or "st37 stage2"
                         row = dict(row)
                         row["note"] = note
                         _record_milestone(cfg, row, note)
@@ -11709,40 +11445,16 @@ def main() -> None:
 
                 tested_2 = int(tested_total)
         else:
-            for base_cfg, _row, base_note in stage1_shortlist:
-                for risk_over, risk_note in risk_variants:
-                    for shock_over, shock_note in shock_variants:
-                        cfg = _mk_stage2_cfg(base_cfg, risk_over=risk_over, shock_over=shock_over)
-                        row = _run_cfg(
-                            cfg=cfg,
-                            bars=bars_sig,
-                            regime_bars=_regime_bars_for(cfg),
-                            regime2_bars=_regime2_bars_for(cfg),
-                        )
-                        tested_2 += 1
-                        now = pytime.perf_counter()
-                        if (
-                            tested_2 % report_every == 0
-                            or tested_2 == stage2_total
-                            or (now - last_2) >= heartbeat_sec
-                        ):
-                            elapsed = now - t0_2
-                            rate = (tested_2 / elapsed) if elapsed > 0 else 0.0
-                            remaining = stage2_total - tested_2
-                            eta_sec = (remaining / rate) if rate > 0 else 0.0
-                            pct = (tested_2 / stage2_total * 100.0) if stage2_total > 0 else 0.0
-                            print(
-                                f"st37_refine stage2 {tested_2}/{stage2_total} ({pct:0.1f}%) "
-                                f"kept={len(stage2_rows)} elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
-                                flush=True,
-                            )
-                            last_2 = float(now)
-                        if not row:
-                            continue
-                        note = f"{base_note} | {risk_note} | {shock_note}"
-                        row["note"] = note
-                        _record_milestone(cfg, row, note)
-                        stage2_rows.append((cfg, row, note))
+            tested_2, kept_2 = _run_sweep(
+                plan=stage2_plan,
+                bars=bars_sig,
+                total=stage2_total,
+                progress_label="st37_refine stage2",
+                report_every=report_every,
+                heartbeat_sec=heartbeat_sec,
+            )
+            for cfg, row, note, _meta in kept_2:
+                stage2_rows.append((cfg, row, note))
 
         print(f"st37_refine: stage2 kept={len(stage2_rows)} tested={tested_2}", flush=True)
         if not stage2_rows:
@@ -11897,62 +11609,60 @@ def main() -> None:
                 )
             )
 
-        stage3_rows: list[tuple[ConfigBundle, dict, str]] = []
-        stage3_total = len(stage2_shortlist) * len(exit_variants)
-        tested_3 = 0
-        t0_3 = pytime.perf_counter()
-        last_3 = float(t0_3)
-        print(f"st37_refine: stage3 total={stage3_total} (exit pocket)", flush=True)
-        for base_cfg, _row, base_note in stage2_shortlist:
-            for exit_over, exit_note in exit_variants:
-                cfg = replace(
-                    base_cfg,
-                    strategy=replace(
-                        base_cfg.strategy,
-                        spot_exit_mode=str(exit_over.get("spot_exit_mode") or base_cfg.strategy.spot_exit_mode),
-                        spot_profit_target_pct=exit_over.get("spot_profit_target_pct"),
-                        spot_stop_loss_pct=exit_over.get("spot_stop_loss_pct"),
-                        spot_atr_period=int(exit_over.get("spot_atr_period") or getattr(base_cfg.strategy, "spot_atr_period", 14)),
-                        spot_pt_atr_mult=float(exit_over.get("spot_pt_atr_mult") or getattr(base_cfg.strategy, "spot_pt_atr_mult", 1.5)),
-                        spot_sl_atr_mult=float(exit_over.get("spot_sl_atr_mult") or getattr(base_cfg.strategy, "spot_sl_atr_mult", 1.0)),
-                        spot_exit_time_et=(
-                            exit_over.get("spot_exit_time_et")
-                            if "spot_exit_time_et" in exit_over
-                            else getattr(base_cfg.strategy, "spot_exit_time_et", None)
-                        ),
-                        exit_on_signal_flip=bool(exit_over.get("exit_on_signal_flip") if "exit_on_signal_flip" in exit_over else getattr(base_cfg.strategy, "exit_on_signal_flip", True)),
-                        flip_exit_mode=str(exit_over.get("flip_exit_mode") or getattr(base_cfg.strategy, "flip_exit_mode", "entry")),
-                        flip_exit_only_if_profit=bool(exit_over.get("flip_exit_only_if_profit") if "flip_exit_only_if_profit" in exit_over else getattr(base_cfg.strategy, "flip_exit_only_if_profit", False)),
-                        flip_exit_min_hold_bars=int(exit_over.get("flip_exit_min_hold_bars") or getattr(base_cfg.strategy, "flip_exit_min_hold_bars", 2)),
-                        flip_exit_gate_mode=str(exit_over.get("flip_exit_gate_mode") or getattr(base_cfg.strategy, "flip_exit_gate_mode", "off")),
+        def _mk_stage3_cfg(base_cfg: ConfigBundle, *, exit_over: dict[str, object]) -> ConfigBundle:
+            return replace(
+                base_cfg,
+                strategy=replace(
+                    base_cfg.strategy,
+                    spot_exit_mode=str(exit_over.get("spot_exit_mode") or base_cfg.strategy.spot_exit_mode),
+                    spot_profit_target_pct=exit_over.get("spot_profit_target_pct"),
+                    spot_stop_loss_pct=exit_over.get("spot_stop_loss_pct"),
+                    spot_atr_period=int(exit_over.get("spot_atr_period") or getattr(base_cfg.strategy, "spot_atr_period", 14)),
+                    spot_pt_atr_mult=float(exit_over.get("spot_pt_atr_mult") or getattr(base_cfg.strategy, "spot_pt_atr_mult", 1.5)),
+                    spot_sl_atr_mult=float(exit_over.get("spot_sl_atr_mult") or getattr(base_cfg.strategy, "spot_sl_atr_mult", 1.0)),
+                    spot_exit_time_et=(
+                        exit_over.get("spot_exit_time_et")
+                        if "spot_exit_time_et" in exit_over
+                        else getattr(base_cfg.strategy, "spot_exit_time_et", None)
                     ),
-                )
-                row = _run_cfg(
-                    cfg=cfg,
-                    bars=bars_sig,
-                    regime_bars=_regime_bars_for(cfg),
-                    regime2_bars=_regime2_bars_for(cfg),
-                )
-                tested_3 += 1
-                now = pytime.perf_counter()
-                if tested_3 % report_every == 0 or tested_3 == stage3_total or (now - last_3) >= heartbeat_sec:
-                    elapsed = now - t0_3
-                    rate = (tested_3 / elapsed) if elapsed > 0 else 0.0
-                    remaining = stage3_total - tested_3
-                    eta_sec = (remaining / rate) if rate > 0 else 0.0
-                    pct = (tested_3 / stage3_total * 100.0) if stage3_total > 0 else 0.0
-                    print(
-                        f"st37_refine stage3 {tested_3}/{stage3_total} ({pct:0.1f}%) "
-                        f"kept={len(stage3_rows)} elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
-                        flush=True,
-                    )
-                    last_3 = float(now)
-                if not row:
-                    continue
+                    exit_on_signal_flip=bool(
+                        exit_over.get("exit_on_signal_flip")
+                        if "exit_on_signal_flip" in exit_over
+                        else getattr(base_cfg.strategy, "exit_on_signal_flip", True)
+                    ),
+                    flip_exit_mode=str(exit_over.get("flip_exit_mode") or getattr(base_cfg.strategy, "flip_exit_mode", "entry")),
+                    flip_exit_only_if_profit=bool(
+                        exit_over.get("flip_exit_only_if_profit")
+                        if "flip_exit_only_if_profit" in exit_over
+                        else getattr(base_cfg.strategy, "flip_exit_only_if_profit", False)
+                    ),
+                    flip_exit_min_hold_bars=int(
+                        exit_over.get("flip_exit_min_hold_bars") or getattr(base_cfg.strategy, "flip_exit_min_hold_bars", 2)
+                    ),
+                    flip_exit_gate_mode=str(exit_over.get("flip_exit_gate_mode") or getattr(base_cfg.strategy, "flip_exit_gate_mode", "off")),
+                ),
+            )
+
+        stage3_plan: list[tuple[ConfigBundle, str, dict]] = []
+        for base_idx, (base_cfg, _row, base_note) in enumerate(stage2_shortlist):
+            for exit_idx, (exit_over, exit_note) in enumerate(exit_variants):
+                cfg = _mk_stage3_cfg(base_cfg, exit_over=exit_over)
                 note = f"{base_note} | {exit_note}"
-                row["note"] = note
-                _record_milestone(cfg, row, note)
-                stage3_rows.append((cfg, row, note))
+                stage3_plan.append((cfg, note, {"base_idx": int(base_idx), "exit_idx": int(exit_idx)}))
+
+        stage3_rows: list[tuple[ConfigBundle, dict, str]] = []
+        stage3_total = len(stage3_plan)
+        print(f"st37_refine: stage3 total={stage3_total} (exit pocket)", flush=True)
+        tested_3, kept_3 = _run_sweep(
+            plan=stage3_plan,
+            bars=bars_sig,
+            total=stage3_total,
+            progress_label="st37_refine stage3",
+            report_every=report_every,
+            heartbeat_sec=heartbeat_sec,
+        )
+        for cfg, row, note, _meta in kept_3:
+            stage3_rows.append((cfg, row, note))
 
         print(f"st37_refine: stage3 kept={len(stage3_rows)} tested={tested_3}", flush=True)
         final_rows = stage3_rows or stage2_rows or stage1_rows
@@ -12317,27 +12027,10 @@ def main() -> None:
             ),
         ]
 
-        stage1: list[tuple[ConfigBundle, dict, str, str]] = []
-        tested = 0
-        total = len(direction_variants) * len(regimes) * len(exit_variants)
-        t0 = pytime.perf_counter()
-        report_every = 50
+        stage1_plan: list[tuple[ConfigBundle, str, dict]] = []
         for preset, mode, confirm, dir_note in direction_variants:
             for rbar, atr_p, mult, src, reg_note in regimes:
                 for exit_family, exit_over in exit_variants:
-                    tested += 1
-                    if tested % report_every == 0 or tested == total:
-                        elapsed = pytime.perf_counter() - t0
-                        rate = (tested / elapsed) if elapsed > 0 else 0.0
-                        remaining = total - tested
-                        eta_sec = (remaining / rate) if rate > 0 else 0.0
-                        pct = (tested / total * 100.0) if total > 0 else 0.0
-                        print(
-                            f"gate_matrix stage1 {tested}/{total} ({pct:0.1f}%) kept={len(stage1)} "
-                            f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m",
-                            flush=True,
-                        )
-
                     cfg = replace(
                         base,
                         strategy=replace(
@@ -12357,18 +12050,21 @@ def main() -> None:
                             **exit_over,
                         ),
                     )
-                    row = _run_cfg(
-                        cfg=cfg,
-                        bars=bars_sig,
-                        regime_bars=_regime_bars_for(cfg),
-                        regime2_bars=None,
-                    )
-                    if not row:
-                        continue
                     note = f"{dir_note} | {reg_note} | exit={exit_family}"
-                    row["note"] = note
-                    _record_milestone(cfg, row, note)
-                    stage1.append((cfg, row, note, str(exit_family)))
+                    stage1_plan.append((cfg, note, {"exit_family": str(exit_family)}))
+
+        total = len(stage1_plan)
+        _tested, kept = _run_sweep(
+            plan=stage1_plan,
+            bars=bars_sig,
+            total=total,
+            progress_label="gate_matrix stage1",
+            report_every=50,
+        )
+        stage1: list[tuple[ConfigBundle, dict, str, str]] = []
+        for cfg, row, note, meta_item in kept:
+            family = str(meta_item.get("exit_family") or "") if isinstance(meta_item, dict) else ""
+            stage1.append((cfg, row, note, family))
 
         if not stage1:
             print("Gate-matrix: no stage1 seeds eligible (try lowering --min-trades).")
