@@ -6,7 +6,7 @@ import copy
 import math
 import time
 from dataclasses import dataclass
-from datetime import datetime, time as dtime, timezone
+from datetime import date, datetime, time as dtime, timezone
 from typing import Callable, Iterable
 from zoneinfo import ZoneInfo
 
@@ -536,6 +536,8 @@ class IBKRClient:
                     dt = util.parseIBDatetime(dt)
                 if dt is None:
                     continue
+                if isinstance(dt, date) and not isinstance(dt, datetime):
+                    dt = datetime.combine(dt, dtime(0, 0))
                 if getattr(dt, "tzinfo", None) is not None:
                     dt = dt.replace(tzinfo=None)
                 try:
@@ -620,6 +622,8 @@ class IBKRClient:
                     dt = util.parseIBDatetime(dt)
                 if dt is None:
                     continue
+                if isinstance(dt, date) and not isinstance(dt, datetime):
+                    dt = datetime.combine(dt, dtime(0, 0))
                 if getattr(dt, "tzinfo", None) is not None:
                     dt = dt.replace(tzinfo=None)
                 try:

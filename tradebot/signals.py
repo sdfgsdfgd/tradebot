@@ -178,6 +178,8 @@ def parse_bar_size(bar_size: str) -> BarSize | None:
         return BarSize(label="1 min", duration=timedelta(minutes=1))
     if label.startswith("2 mins"):
         return BarSize(label="2 mins", duration=timedelta(minutes=2))
+    if label.startswith("10 mins") or label.startswith("10 min"):
+        return BarSize(label="10 mins", duration=timedelta(minutes=10))
     if label.startswith("1 hour"):
         return BarSize(label="1 hour", duration=timedelta(hours=1))
     if label.startswith("4 hour"):

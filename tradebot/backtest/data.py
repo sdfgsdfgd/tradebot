@@ -313,14 +313,46 @@ def _read_cache_cached(path: str) -> tuple[Bar, ...]:
                     volume=float(row["volume"]),
                 )
             )
+    needs_fix = False
+    prev_ts = None
+    for bar in rows:
+        if prev_ts is not None and bar.ts <= prev_ts:
+            needs_fix = True
+            break
+        prev_ts = bar.ts
+    if needs_fix:
+        rows.sort(key=lambda b: b.ts)
+        deduped: list[Bar] = []
+        last_ts = None
+        for bar in rows:
+            if last_ts is not None and bar.ts == last_ts:
+                deduped[-1] = bar
+            else:
+                deduped.append(bar)
+                last_ts = bar.ts
+        rows = deduped
     return tuple(rows)
 
 
 def _write_cache(path: Path, bars: Iterable[Bar]) -> None:
-    with path.open("w", newline="") as handle:
+    rows = list(bars)
+    if not rows:
+        return
+    rows.sort(key=lambda b: b.ts)
+    deduped: list[Bar] = []
+    last_ts = None
+    for bar in rows:
+        if last_ts is not None and bar.ts == last_ts:
+            deduped[-1] = bar
+        else:
+            deduped.append(bar)
+            last_ts = bar.ts
+
+    tmp = path.with_suffix(path.suffix + f".tmp{os.getpid()}")
+    with tmp.open("w", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=["ts", "open", "high", "low", "close", "volume"])
         writer.writeheader()
-        for bar in bars:
+        for bar in deduped:
             writer.writerow(
                 {
                     "ts": bar.ts.isoformat(),
@@ -331,6 +363,7 @@ def _write_cache(path: Path, bars: Iterable[Bar]) -> None:
                     "volume": bar.volume,
                 }
             )
+    os.replace(tmp, path)
 
 
 def _convert_bar(bar) -> Bar:
