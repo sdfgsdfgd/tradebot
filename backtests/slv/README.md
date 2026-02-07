@@ -33,7 +33,7 @@ Defining delta vs v25 baseline:
 - Entry-hour gating: `entry_start_hour_et=10`, `entry_end_hour_et=15`
 - Signal/regime: `ema_preset=5/13`, `ema_entry_mode=trend`, `entry_confirm_bars=0`
 - Regime pocket: `supertrend @ 1 day` (`ST(7,0.4,close)`)
-- Risk shape: `spot_stop_loss_pct=0.016`, `spot_short_risk_mult=0.0`
+- Risk shape: `spot_stop_loss_pct=0.016`, `spot_short_risk_mult=1.0`
 
 ### CURRENT-HIGH-TRADE (v31-HT) — Full24 all-window beater with higher turnover
 This is the trade-focused counterpart on the same winning family.
@@ -1109,7 +1109,7 @@ Ranges swept (joint):
 - `entry_confirm_bars ∈ {0,1,2}`
 - `flip_exit_min_hold_bars ∈ {0,1}`
 - `spot_stop_loss_pct ∈ {0.012,0.016}`
-- `spot_short_risk_mult ∈ {0.0,0.005}`
+- `spot_short_risk_mult ∈ {1.0,0.005}`
 
 Outcome:
 - First positive FULL24 10m island appeared.
@@ -1136,7 +1136,7 @@ Plus2 ranges (192 combos):
   - `supertrend @ 4 hours` -> `ST(7,0.5,hl2)`
   - `supertrend @ 1 day` -> `ST(7,0.4,close)`
 - `spot_stop_loss_pct ∈ {0.016,0.020}`
-- `spot_short_risk_mult ∈ {0.0,0.0025,0.005,0.01}`
+- `spot_short_risk_mult ∈ {1.0,0.0025,0.005,0.01}`
 - `entry_confirm_bars ∈ {0,1}`
 
 Artifacts:
@@ -1168,7 +1168,7 @@ Stage A ranges (joint):
   - `4h ST(10,0.4,close)`
   - `1d ST(7,0.4,close)`
 - `spot_stop_loss_pct ∈ {0.012,0.016}`
-- `spot_short_risk_mult ∈ {0.0,0.0025,0.005}`
+- `spot_short_risk_mult ∈ {1.0,0.0025,0.005}`
 - `entry_confirm_bars ∈ {0,1}`
 
 Stage B (targeted gate overlays on high-trade seeds):
@@ -1250,7 +1250,7 @@ Search matrix:
 - Stage A (96):
   - `ema_preset ∈ {"8/21","5/13"}`; `entry_confirm_bars ∈ {1,0}`
   - `spot_stop_loss_pct ∈ {0.018,0.020}`; `max_open_trades ∈ {3,4}`
-  - entry windows `(8,15)`, `(9,16)`, `off`; `spot_short_risk_mult ∈ {0.0,0.0025}`
+  - entry windows `(8,15)`, `(9,16)`, `off`; `spot_short_risk_mult ∈ {1.0,0.0025}`
   - fixed: `signal_bar_size=10 mins`, `spot_exec_bar_size=5 mins`, `signal_use_rth=false`
 - Stage B (360):
   - drawdown throttle pocket (`shock_scale_detector=daily_drawdown`)

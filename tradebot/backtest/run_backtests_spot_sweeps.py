@@ -2444,11 +2444,180 @@ def _apply_milestone_base(
 
 
 # region CLI
+class _SpotSweepsHelpFormatter(argparse.RawTextHelpFormatter):
+    def _get_help_string(self, action: argparse.Action) -> str:
+        help_text = action.help or ""
+        if action.help is argparse.SUPPRESS:
+            return help_text
+        if "%(default)" in help_text:
+            return help_text
+        if action.default is argparse.SUPPRESS or action.default is None:
+            return help_text
+        return f"{help_text} (default: %(default)s)"
+
+
+_BASE_HELP_NOTES: dict[str, str] = {
+    "default": "Minimal baseline profile (EMA 2/4, fixed pct exits, no extra gates).",
+    "champion": "Loads highest pnl/dd winner from spot milestones for current symbol/bar/rth (preferred).",
+    "champion_pnl": "Loads highest pnl winner from spot milestones for current symbol/bar/rth.",
+    "dual_regime": "Regime + regime2 baseline profile used for dual-regime refinement flows.",
+}
+
+_AXIS_HELP_NOTES: dict[str, str] = {
+    "ema": "EMA preset timing sweep (direction speed).",
+    "entry_mode": "Entry semantics sweep (cross vs trend) with directional rules.",
+    "combo_fast": "Bounded 3-stage multi-axis funnel for fast corner hunting.",
+    "combo_full": "Full suite run: one-axis sweeps + joint sweeps + bounded funnels (very slow).",
+    "squeeze": "Regime2 squeeze flow then small vol/TOD/confirm pocket.",
+    "volume": "Volume gate sweep (ratio threshold x EMA period).",
+    "rv": "Realized volatility gate sweep.",
+    "tod": "Time-of-day gate sweep (ET entry windows).",
+    "tod_interaction": "TOD interaction micro-grid (overnight-heavy windows).",
+    "perm_joint": "Joint permissions sweep: TOD x spread x volume.",
+    "weekday": "Weekday entry gating sweep.",
+    "exit_time": "Fixed ET flatten-time sweep.",
+    "atr": "Core ATR exits sweep.",
+    "atr_fine": "Fine ATR PT/SL pocket sweep.",
+    "atr_ultra": "Ultra-fine ATR PT/SL micro-grid.",
+    "r2_atr": "Regime2 x ATR joint sweep.",
+    "r2_tod": "Regime2 x TOD joint sweep.",
+    "ema_perm_joint": "EMA x permission gates joint sweep.",
+    "tick_perm_joint": "TICK gate x permission gates joint sweep.",
+    "regime_atr": "Regime (ST) x ATR joint sweep.",
+    "ema_regime": "EMA x regime bias joint sweep.",
+    "chop_joint": "Chop-killer joint sweep (slope x cooldown x skip-open).",
+    "ema_atr": "EMA x ATR exits joint sweep.",
+    "tick_ema": "TICK width x EMA joint sweep.",
+    "ptsl": "Fixed-percent PT/SL exits sweep (non-ATR).",
+    "hf_scalp": "HF scalp cadence sweep.",
+    "hold": "Flip-exit minimum-hold-bars sweep.",
+    "spot_short_risk_mult": "Short-side risk multiplier sweep.",
+    "orb": "ORB sweep (open-time, window, target semantics).",
+    "orb_joint": "ORB x regime x TICK joint sweep.",
+    "frontier": "Frontier sweep over shortlist dimensions.",
+    "regime": "Primary Supertrend regime params/timeframe sweep.",
+    "regime2": "Secondary (regime2) Supertrend params/timeframe sweep.",
+    "regime2_ema": "Regime2 EMA confirm sweep.",
+    "joint": "Targeted regime x regime2 interaction hunt.",
+    "micro_st": "Micro sweep around current ST/ST2 neighborhood.",
+    "flip_exit": "Flip-exit semantics/gating sweep.",
+    "confirm": "Entry confirmation bars sweep.",
+    "spread": "EMA spread quality gate sweep.",
+    "spread_fine": "Fine EMA spread threshold sweep.",
+    "spread_down": "Directional down-side EMA spread gate sweep.",
+    "slope": "EMA slope quality gate sweep.",
+    "slope_signed": "Signed directional EMA slope gate sweep.",
+    "cooldown": "Entry cooldown bars sweep.",
+    "skip_open": "Skip-first-bars-after-open sweep.",
+    "shock": "Shock detector/mode/threshold sweep.",
+    "risk_overlays": "Risk overlay family sweep (riskoff/riskpanic/riskpop).",
+    "loosen": "Loosenings sweep (stacking + EOD behavior).",
+    "loosen_atr": "Loosenings x ATR joint sweep.",
+    "tick": "Raschke-style $TICK width gate sweep.",
+    "gate_matrix": "Bounded cross-product matrix of permission gates.",
+    "seeded_refine": "Seeded refinement bundle (champ_refine + overlay_family + st37_refine).",
+    "champ_refine": "Champion-centered refinement around interaction edges.",
+    "st37_refine": "v31/st37-style refinement stages (permissions, overlays, exits).",
+    "shock_alpha_refine": "Shock alpha refinement pocket around winning detectors.",
+    "shock_velocity_refine": "Shock velocity refinement (narrow grid).",
+    "shock_velocity_refine_wide": "Shock velocity refinement (wide grid).",
+    "shock_throttle_refine": "Overlay family member: shock throttle core refine.",
+    "shock_throttle_tr_ratio": "Overlay family member: TR-ratio throttle sweep.",
+    "shock_throttle_drawdown": "Overlay family member: drawdown throttle sweep.",
+    "riskpanic_micro": "Overlay family member: riskpanic micro-grid.",
+    "overlay_family": "Run one/all seeded overlay families (see --overlay-family-kind).",
+    "exit_pivot": "Exit-style pivot sweep around active champion semantics.",
+}
+
+_INTERNAL_FLAG_HELP_LINES: tuple[str, ...] = (
+    "--gate-matrix-stage2 PATH: gate_matrix stage2 worker payload JSON.",
+    "--gate-matrix-worker INT / --gate-matrix-workers INT / --gate-matrix-out PATH: gate_matrix shard controls.",
+    "--gate-matrix-run-min-trades INT: stage-specific min trades override for gate_matrix.",
+    "--combo-fast-stage1 PATH / --combo-fast-stage2 PATH / --combo-fast-stage3 PATH: combo_fast stage payloads.",
+    "--combo-fast-worker INT / --combo-fast-workers INT / --combo-fast-out PATH: combo_fast shard controls.",
+    "--combo-fast-run-min-trades INT: stage-specific min trades override for combo_fast.",
+    "--risk-overlays-worker INT / --risk-overlays-workers INT / --risk-overlays-out PATH: risk_overlays shard controls.",
+    "--risk-overlays-run-min-trades INT: stage-specific min trades override for risk_overlays.",
+    "--seeded-micro-stage PATH / --seeded-micro-worker INT / --seeded-micro-workers INT / --seeded-micro-out PATH.",
+    "--seeded-micro-run-min-trades INT: stage-specific min trades override for seeded micro stages.",
+    "--champ-refine-stage3a PATH / --champ-refine-stage3b PATH: champ_refine stage payloads.",
+    "--champ-refine-worker INT / --champ-refine-workers INT / --champ-refine-out PATH: champ_refine shard controls.",
+    "--champ-refine-run-min-trades INT: stage-specific min trades override for champ_refine.",
+    "--st37-refine-stage1 PATH / --st37-refine-stage2 PATH: st37_refine stage payloads.",
+    "--st37-refine-worker INT / --st37-refine-workers INT / --st37-refine-out PATH: st37_refine shard controls.",
+    "--st37-refine-run-min-trades INT: stage-specific min trades override for st37_refine.",
+    "--shock-velocity-worker INT / --shock-velocity-workers INT / --shock-velocity-out PATH: shock_velocity shard controls.",
+)
+
+
+def _spot_sweeps_help_epilog() -> str:
+    axis_lines: list[str] = [
+        "Axis Catalog:",
+        "  all                        Serial axis_all plan (or parallel when --jobs > 1 with --offline).",
+    ]
+    for axis_name in _AXIS_CHOICES:
+        axis_desc = str(_AXIS_HELP_NOTES.get(axis_name) or "See source.")
+        axis_lines.append(f"  {axis_name:<26} {axis_desc}")
+
+    base_lines = ["Base Profiles:"]
+    for key in ("default", "champion", "champion_pnl", "dual_regime"):
+        base_lines.append(f"  {key:<14} {_BASE_HELP_NOTES.get(key, '')}")
+
+    internal_lines = ["Internal Orchestration Flags (auto-managed by parent stages):"]
+    for raw in _INTERNAL_FLAG_HELP_LINES:
+        internal_lines.append(f"  {raw}")
+
+    return "\n".join(
+        (
+            "Examples:",
+            "  python -m tradebot.backtest spot --offline --axis all --start 2025-01-08 --end 2026-01-08",
+            "  python -m tradebot.backtest spot --axis regime --symbol MNQ --bar-size '1 hour'",
+            "  python -m tradebot.backtest spot --axis combo_full --offline --jobs 8",
+            "  python -m tradebot.backtest spot --axis champ_refine --seed-milestones my_pool.json --seed-top 30",
+            "",
+            "Execution Notes:",
+            "  - --start/--end are inclusive dates (YYYY-MM-DD).",
+            "  - --bar-size is signal timeframe; ORB sweeps always use 15m signal bars internally.",
+            "  - --spot-exec-bar-size overrides only execution bars; signals still use --bar-size.",
+            "  - --jobs <= 0 (or omitted) means auto CPU count; effective jobs are clamped to available CPUs.",
+            "  - Parallel worker modes require --offline to avoid concurrent IBKR sessions.",
+            "  - --cache-dir stores bar cache plus run_cfg cache DB (spot_sweeps_run_cfg_cache.sqlite3).",
+            "  - --write-milestones emits UI preset candidates filtered by milestone thresholds.",
+            "  - --seed-milestones can override champion source for champion/champion_pnl base modes.",
+            "",
+            *base_lines,
+            "",
+            *axis_lines,
+            "",
+            *internal_lines,
+        )
+    )
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Controlled spot evolution sweeps (MNQ spot)")
-    parser.add_argument("--symbol", default="MNQ")
-    parser.add_argument("--start", default="2025-01-08")
-    parser.add_argument("--end", default="2026-01-08")
+    parser = argparse.ArgumentParser(
+        description=(
+            "Controlled spot evolution sweeps for the spot backtest engine.\n"
+            "Canonical entrypoint: python -m tradebot.backtest spot ..."
+        ),
+        formatter_class=_SpotSweepsHelpFormatter,
+        epilog=_spot_sweeps_help_epilog(),
+    )
+    parser.add_argument(
+        "--symbol",
+        default="MNQ",
+        help="Instrument symbol to backtest (uppercased).",
+    )
+    parser.add_argument(
+        "--start",
+        default="2025-01-08",
+        help="Inclusive backtest start date (YYYY-MM-DD).",
+    )
+    parser.add_argument(
+        "--end",
+        default="2026-01-08",
+        help="Inclusive backtest end date (YYYY-MM-DD).",
+    )
     parser.add_argument(
         "--bar-size",
         default="1 hour",
@@ -2457,10 +2626,22 @@ def main() -> None:
     parser.add_argument(
         "--spot-exec-bar-size",
         default=None,
-        help="Optional execution bar size for spot simulation (e.g. '5 mins'). Signals still run on --bar-size.",
+        help=(
+            "Optional execution timeframe for fill simulation (e.g. '5 mins'). "
+            "Signals still run on --bar-size."
+        ),
     )
-    parser.add_argument("--use-rth", action="store_true", default=False)
-    parser.add_argument("--cache-dir", default="db")
+    parser.add_argument(
+        "--use-rth",
+        action="store_true",
+        default=False,
+        help="Use regular trading hours bars (RTH) instead of full-session bars.",
+    )
+    parser.add_argument(
+        "--cache-dir",
+        default="db",
+        help="Cache root for historical bars and sweep caches.",
+    )
     parser.add_argument(
         "--offline",
         action="store_true",
@@ -2480,10 +2661,20 @@ def main() -> None:
         "--base",
         default="champion",
         choices=("default", "champion", "champion_pnl", "dual_regime"),
-        help="Select the base strategy shape to start from (champion comes from spot_milestones.json).",
+        help="Base profile to mutate before running the selected axis (see Base Profiles below).",
     )
-    parser.add_argument("--max-open-trades", type=int, default=2)
-    parser.add_argument("--close-eod", action="store_true", default=False)
+    parser.add_argument(
+        "--max-open-trades",
+        type=int,
+        default=2,
+        help="Maximum simultaneous open positions. Use 0 for unlimited stacking.",
+    )
+    parser.add_argument(
+        "--close-eod",
+        action="store_true",
+        default=False,
+        help="Force end-of-day flattening on spot positions.",
+    )
     parser.add_argument(
         "--long-only",
         action="store_true",
@@ -2500,48 +2691,81 @@ def main() -> None:
             "commission=$0.005/share (min $1.00), risk sizing=1%% equity risk, max notional=50%%."
         ),
     )
-    parser.add_argument("--spot-spread", type=float, default=None, help="Spot spread in price units (e.g. 0.01)")
+    parser.add_argument(
+        "--spot-spread",
+        type=float,
+        default=None,
+        help="Spot spread in price units (e.g. 0.01). If omitted: 0.01 with --realism2, else 0.0.",
+    )
     parser.add_argument(
         "--spot-commission",
         type=float,
         default=None,
-        help="Spot commission per share/contract (price units). (Backtest-only; embedded into fills.)",
+        help=(
+            "Spot commission per share/contract (price units). "
+            "If omitted: 0.005 with --realism2, else 0.0."
+        ),
     )
     parser.add_argument(
         "--spot-commission-min",
         type=float,
         default=None,
-        help="Spot commission minimum per order (price units), e.g. 1.0 for $1.00 min.",
+        help="Spot commission minimum per order (price units). If omitted: 1.0 with --realism2, else 0.0.",
     )
     parser.add_argument(
         "--spot-slippage",
         type=float,
         default=None,
-        help="Spot slippage per share (price units). Applied on entry/stop/flip (market-like fills).",
+        help="Spot slippage per share (price units). If omitted: 0.0.",
     )
     parser.add_argument(
         "--spot-sizing-mode",
         default=None,
         choices=("fixed", "notional_pct", "risk_pct"),
-        help="Spot sizing mode (v2): fixed qty, %% notional, or %% equity risk-to-stop.",
+        help="Spot sizing mode (v2): fixed qty, %% notional, or %% equity risk-to-stop. If omitted: risk_pct with --realism2, else fixed.",
     )
-    parser.add_argument("--spot-risk-pct", type=float, default=None, help="Risk per trade as fraction of equity (v2).")
+    parser.add_argument(
+        "--spot-risk-pct",
+        type=float,
+        default=None,
+        help="Risk per trade as fraction of equity (v2). If omitted: 0.01 with --realism2, else 0.0.",
+    )
     parser.add_argument(
         "--spot-notional-pct",
         type=float,
         default=None,
-        help="Notional allocation per trade as fraction of equity (v2).",
+        help="Notional allocation per trade as fraction of equity (v2). If omitted: 0.0.",
     )
     parser.add_argument(
         "--spot-max-notional-pct",
         type=float,
         default=None,
-        help="Max notional per trade as fraction of equity (v2).",
+        help="Max notional per trade as fraction of equity (v2). If omitted: 0.50 with --realism2, else 1.0.",
     )
-    parser.add_argument("--spot-min-qty", type=int, default=None, help="Min shares per trade (v2).")
-    parser.add_argument("--spot-max-qty", type=int, default=None, help="Max shares per trade, 0=none (v2).")
-    parser.add_argument("--min-trades", type=int, default=100)
-    parser.add_argument("--top", type=int, default=15)
+    parser.add_argument(
+        "--spot-min-qty",
+        type=int,
+        default=None,
+        help="Min shares/contracts per trade (v2). If omitted: 1.",
+    )
+    parser.add_argument(
+        "--spot-max-qty",
+        type=int,
+        default=None,
+        help="Max shares/contracts per trade (v2); 0 means unlimited. If omitted: 0.",
+    )
+    parser.add_argument(
+        "--min-trades",
+        type=int,
+        default=100,
+        help="Minimum trades required for a config to be kept in sweep outputs.",
+    )
+    parser.add_argument(
+        "--top",
+        type=int,
+        default=15,
+        help="How many leaderboard rows to print per sweep.",
+    )
     parser.add_argument(
         "--write-milestones",
         action="store_true",
@@ -2557,11 +2781,26 @@ def main() -> None:
     parser.add_argument(
         "--milestones-out",
         default="tradebot/backtest/spot_milestones.json",
-        help="Output path for --write-milestones",
+        help="Output JSON path for --write-milestones.",
     )
-    parser.add_argument("--milestone-min-win", type=float, default=0.55)
-    parser.add_argument("--milestone-min-trades", type=int, default=200)
-    parser.add_argument("--milestone-min-pnl-dd", type=float, default=8.0)
+    parser.add_argument(
+        "--milestone-min-win",
+        type=float,
+        default=0.55,
+        help="Milestone eligibility: minimum win rate (0..1).",
+    )
+    parser.add_argument(
+        "--milestone-min-trades",
+        type=int,
+        default=200,
+        help="Milestone eligibility: minimum trades.",
+    )
+    parser.add_argument(
+        "--milestone-min-pnl-dd",
+        type=float,
+        default=8.0,
+        help="Milestone eligibility: minimum pnl/dd ratio.",
+    )
     parser.add_argument(
         "--milestone-add-top-pnl-dd",
         type=int,
@@ -2585,7 +2824,7 @@ def main() -> None:
         default=None,
         help=(
             "Optional milestones JSON used as a seed pool for seeded refine sweeps "
-            "(e.g. --axis champ_refine)."
+            "(e.g. --axis champ_refine). Also used as champion source override for --base champion/champion_pnl."
         ),
     )
     parser.add_argument(
@@ -2598,12 +2837,14 @@ def main() -> None:
         "--axis",
         default="all",
         choices=("all", *_AXIS_CHOICES),
-        help="Run one axis sweep (or all in sequence)",
+        metavar="AXIS",
+        help="Axis to execute. Use 'all' for the axis_all plan. See Axis Catalog below.",
     )
     parser.add_argument(
         "--overlay-family-kind",
         default="all",
         choices=("all", "shock_throttle_refine", "shock_throttle_tr_ratio", "shock_throttle_drawdown", "riskpanic_micro"),
+        metavar="FAMILY",
         help=(
             "Used by --axis overlay_family. "
             "'all' runs all seeded overlay families; otherwise runs only the selected family."
@@ -2612,22 +2853,22 @@ def main() -> None:
     parser.add_argument(
         "--risk-overlays-riskoff-trs",
         default=None,
-        help="Override risk_overlays riskoff TR pct median thresholds (comma-separated floats).",
+        help="CSV float override for risk_overlays riskoff TR%% median thresholds.",
     )
     parser.add_argument(
         "--risk-overlays-riskpanic-trs",
         default=None,
-        help="Override risk_overlays riskpanic TR pct median thresholds (comma-separated floats).",
+        help="CSV float override for risk_overlays riskpanic TR%% median thresholds.",
     )
     parser.add_argument(
         "--risk-overlays-riskpanic-long-factors",
         default=None,
-        help="risk_overlays: sweep riskpanic_long_risk_mult_factor (comma-separated floats, e.g. 1,0.8,0.6,0.4).",
+        help="CSV float override for riskpanic_long_risk_mult_factor (e.g. 1,0.8,0.6,0.4).",
     )
     parser.add_argument(
         "--risk-overlays-riskpop-trs",
         default=None,
-        help="Override risk_overlays riskpop TR pct median thresholds (comma-separated floats).",
+        help="CSV float override for risk_overlays riskpop TR%% median thresholds.",
     )
     parser.add_argument(
         "--risk-overlays-skip-pop",

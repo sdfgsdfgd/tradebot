@@ -715,12 +715,12 @@ def spot_calc_signed_qty(
     sizing_mode = str(_get("spot_sizing_mode", "fixed") or "fixed").strip().lower()
     if sizing_mode not in ("fixed", "notional_pct", "risk_pct"):
         sizing_mode = "fixed"
-    spot_notional_pct = max(0.0, float(_get("spot_notional_pct", 0.0) or 0.0))
-    spot_risk_pct = max(0.0, float(_get("spot_risk_pct", 0.0) or 0.0))
-    spot_short_risk_mult = max(0.0, float(_get("spot_short_risk_mult", 1.0) or 1.0))
-    spot_max_notional_pct = max(0.0, float(_get("spot_max_notional_pct", 1.0) or 1.0))
-    spot_min_qty = max(1, int(_get("spot_min_qty", 1) or 1))
-    spot_max_qty = max(0, int(_get("spot_max_qty", 0) or 0))
+    spot_notional_pct = max(0.0, _parse_float(_get("spot_notional_pct"), default=0.0))
+    spot_risk_pct = max(0.0, _parse_float(_get("spot_risk_pct"), default=0.0))
+    spot_short_risk_mult = max(0.0, _parse_float(_get("spot_short_risk_mult"), default=1.0))
+    spot_max_notional_pct = max(0.0, _parse_float(_get("spot_max_notional_pct"), default=1.0))
+    spot_min_qty = _parse_int(_get("spot_min_qty"), default=1, min_value=1)
+    spot_max_qty = _parse_int(_get("spot_max_qty"), default=0, min_value=0)
 
     if sizing_mode == "fixed":
         base_qty = lot * quantity_mult
@@ -817,9 +817,15 @@ def spot_calc_signed_qty(
                     risk_dollars *= float(riskpop_long_factor)
                 if bool(shock) and shock_dir in ("up", "down"):
                     if shock_dir == "up":
-                        shock_long_mult = float(_filters_get(filters, "shock_long_risk_mult_factor") or 1.0)
+                        shock_long_mult = _parse_float(
+                            _filters_get(filters, "shock_long_risk_mult_factor"),
+                            default=1.0,
+                        )
                     else:
-                        shock_long_mult = float(_filters_get(filters, "shock_long_risk_mult_factor_down") or 1.0)
+                        shock_long_mult = _parse_float(
+                            _filters_get(filters, "shock_long_risk_mult_factor_down"),
+                            default=1.0,
+                        )
                     if shock_long_mult < 0:
                         shock_long_mult = 1.0
                     if shock_long_mult == 0:
@@ -834,7 +840,10 @@ def spot_calc_signed_qty(
                 if bool(riskpop):
                     short_mult *= float(riskpop_short_factor)
                 if bool(shock) and str(shock_dir) == "down":
-                    shock_short_mult = float(_filters_get(filters, "shock_short_risk_mult_factor") or 1.0)
+                    shock_short_mult = _parse_float(
+                        _filters_get(filters, "shock_short_risk_mult_factor"),
+                        default=1.0,
+                    )
                     if shock_short_mult < 0:
                         shock_short_mult = 1.0
                     short_mult *= float(shock_short_mult)
@@ -853,11 +862,7 @@ def spot_calc_signed_qty(
                 except (TypeError, ValueError):
                     target = 0.0
                 if target > 0:
-                    min_mult_raw = _filters_get(filters, "shock_risk_scale_min_mult") or 0.2
-                    try:
-                        min_mult = float(min_mult_raw)
-                    except (TypeError, ValueError):
-                        min_mult = 0.2
+                    min_mult = _parse_float(_filters_get(filters, "shock_risk_scale_min_mult"), default=0.2)
                     min_mult = float(max(0.0, min(1.0, min_mult)))
                     scale = min(1.0, float(target) / float(shock_atr_pct))
                     scale = float(max(min_mult, min(1.0, scale)))
