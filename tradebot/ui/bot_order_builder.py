@@ -597,12 +597,14 @@ class BotOrderBuilderMixin:
                 atr = float(snap.atr) if snap is not None and snap.atr is not None else 0.0
                 if atr <= 0:
                     return _fail("Order: ATR not ready (spot_exit_mode=atr)")
+                pt_raw = strat.get("spot_pt_atr_mult", 1.5)
                 try:
-                    pt_mult = float(strat.get("spot_pt_atr_mult", 1.5) or 1.5)
+                    pt_mult = float(1.5 if pt_raw is None else pt_raw)
                 except (TypeError, ValueError):
                     pt_mult = 1.5
+                sl_raw = strat.get("spot_sl_atr_mult", 1.0)
                 try:
-                    sl_mult = float(strat.get("spot_sl_atr_mult", 1.0) or 1.0)
+                    sl_mult = float(1.0 if sl_raw is None else sl_raw)
                 except (TypeError, ValueError):
                     sl_mult = 1.0
                 if direction == "up":

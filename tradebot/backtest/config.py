@@ -147,8 +147,8 @@ def _strategy_schema() -> dict[str, _FieldSpec]:
         "orb_open_time_et": _field(_identity, None),
         "spot_exit_mode": _field(_parse_spot_exit_mode, None),
         "spot_atr_period": _field(lambda value: _parse_positive_int(value, default=14), 14),
-        "spot_pt_atr_mult": _field(lambda value: _parse_positive_float(value, default=1.5), 1.5),
-        "spot_sl_atr_mult": _field(lambda value: _parse_positive_float(value, default=1.0), 1.0),
+        "spot_pt_atr_mult": _field(lambda value: _parse_non_negative_float_or_default(value, default=1.5), 1.5),
+        "spot_sl_atr_mult": _field(lambda value: _parse_non_negative_float_or_default(value, default=1.0), 1.0),
         "spot_exit_time_et": _field(_identity, None),
         "spot_exec_bar_size": _field(_parse_bar_size, None),
         "regime_mode": _field(_parse_regime_mode, None),
@@ -890,6 +890,16 @@ def _parse_positive_float(value, *, default: float) -> float:
     except (TypeError, ValueError):
         return float(default)
     return parsed if parsed > 0 else float(default)
+
+
+def _parse_non_negative_float_or_default(value, *, default: float) -> float:
+    if value is None:
+        return float(default)
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return float(default)
+    return parsed if parsed >= 0 else float(default)
 
 
 def _parse_supertrend_source(value) -> str:

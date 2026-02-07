@@ -2311,8 +2311,16 @@ def _spot_try_open_entry(
     elif exit_mode == "atr":
         atr = float(atr_value or 0.0)
         if atr > 0 and entry_dir in ("up", "down"):
-            pt_mult = float(getattr(cfg.strategy, "spot_pt_atr_mult", 1.5) or 1.5)
-            sl_mult = float(getattr(cfg.strategy, "spot_sl_atr_mult", 1.0) or 1.0)
+            pt_raw = getattr(cfg.strategy, "spot_pt_atr_mult", 1.5)
+            sl_raw = getattr(cfg.strategy, "spot_sl_atr_mult", 1.0)
+            try:
+                pt_mult = float(1.5 if pt_raw is None else pt_raw)
+            except (TypeError, ValueError):
+                pt_mult = 1.5
+            try:
+                sl_mult = float(1.0 if sl_raw is None else sl_raw)
+            except (TypeError, ValueError):
+                sl_mult = 1.0
             if base_signed_qty > 0:
                 target_price = float(entry_price_est) + (pt_mult * atr)
                 stop_price = float(entry_price_est) - (sl_mult * atr)
@@ -2393,8 +2401,16 @@ def _spot_try_open_entry(
     elif exit_mode == "atr":
         atr = float(atr_value or 0.0)
         if atr > 0 and entry_dir in ("up", "down"):
-            pt_mult = float(getattr(cfg.strategy, "spot_pt_atr_mult", 1.5) or 1.5)
-            sl_mult = float(getattr(cfg.strategy, "spot_sl_atr_mult", 1.0) or 1.0)
+            pt_raw = getattr(cfg.strategy, "spot_pt_atr_mult", 1.5)
+            sl_raw = getattr(cfg.strategy, "spot_sl_atr_mult", 1.0)
+            try:
+                pt_mult = float(1.5 if pt_raw is None else pt_raw)
+            except (TypeError, ValueError):
+                pt_mult = 1.5
+            try:
+                sl_mult = float(1.0 if sl_raw is None else sl_raw)
+            except (TypeError, ValueError):
+                sl_mult = 1.0
             if int(signed_qty) > 0:
                 target_price = float(entry_price) + (pt_mult * atr)
                 stop_price = float(entry_price) - (sl_mult * atr)

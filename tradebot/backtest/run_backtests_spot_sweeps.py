@@ -8732,7 +8732,11 @@ def main() -> None:
                 rows.append(base_row)
 
             # Stage 1: short asymmetry scan (find a good multiplier pocket for this seed).
-            seed_short = float(getattr(cfg_seed.strategy, "spot_short_risk_mult", 1.0) or 1.0)
+            seed_short_raw = getattr(cfg_seed.strategy, "spot_short_risk_mult", 1.0)
+            try:
+                seed_short = float(1.0 if seed_short_raw is None else seed_short_raw)
+            except (TypeError, ValueError):
+                seed_short = 1.0
             short_grid = [seed_short, *short_grid_base]
             short_vals: list[float] = []
             for v in short_grid:
@@ -10729,14 +10733,16 @@ def main() -> None:
                 v31_atr_p = int(v31_exit.get("spot_atr_period") or v31_atr_p)
             except (TypeError, ValueError):
                 pass
-            try:
-                v31_ptx = float(v31_exit.get("spot_pt_atr_mult") or v31_ptx)
-            except (TypeError, ValueError):
-                pass
-            try:
-                v31_slx = float(v31_exit.get("spot_sl_atr_mult") or v31_slx)
-            except (TypeError, ValueError):
-                pass
+            if "spot_pt_atr_mult" in v31_exit and v31_exit.get("spot_pt_atr_mult") is not None:
+                try:
+                    v31_ptx = float(v31_exit.get("spot_pt_atr_mult"))
+                except (TypeError, ValueError):
+                    pass
+            if "spot_sl_atr_mult" in v31_exit and v31_exit.get("spot_sl_atr_mult") is not None:
+                try:
+                    v31_slx = float(v31_exit.get("spot_sl_atr_mult"))
+                except (TypeError, ValueError):
+                    pass
             v31_exit_time = v31_exit.get("spot_exit_time_et")
             v31_exit_on_flip = bool(v31_exit.get("exit_on_signal_flip")) if "exit_on_signal_flip" in v31_exit else True
             v31_flip_mode = str(v31_exit.get("flip_exit_mode") or v31_flip_mode)
@@ -10836,6 +10842,16 @@ def main() -> None:
             )
 
         def _mk_stage3_cfg(base_cfg: ConfigBundle, *, exit_over: dict[str, object]) -> ConfigBundle:
+            ptx_raw = (
+                exit_over.get("spot_pt_atr_mult")
+                if "spot_pt_atr_mult" in exit_over
+                else getattr(base_cfg.strategy, "spot_pt_atr_mult", 1.5)
+            )
+            slx_raw = (
+                exit_over.get("spot_sl_atr_mult")
+                if "spot_sl_atr_mult" in exit_over
+                else getattr(base_cfg.strategy, "spot_sl_atr_mult", 1.0)
+            )
             return replace(
                 base_cfg,
                 strategy=replace(
@@ -10844,8 +10860,8 @@ def main() -> None:
                     spot_profit_target_pct=exit_over.get("spot_profit_target_pct"),
                     spot_stop_loss_pct=exit_over.get("spot_stop_loss_pct"),
                     spot_atr_period=int(exit_over.get("spot_atr_period") or getattr(base_cfg.strategy, "spot_atr_period", 14)),
-                    spot_pt_atr_mult=float(exit_over.get("spot_pt_atr_mult") or getattr(base_cfg.strategy, "spot_pt_atr_mult", 1.5)),
-                    spot_sl_atr_mult=float(exit_over.get("spot_sl_atr_mult") or getattr(base_cfg.strategy, "spot_sl_atr_mult", 1.0)),
+                    spot_pt_atr_mult=float(1.5 if ptx_raw is None else ptx_raw),
+                    spot_sl_atr_mult=float(1.0 if slx_raw is None else slx_raw),
                     spot_exit_time_et=(
                         exit_over.get("spot_exit_time_et")
                         if "spot_exit_time_et" in exit_over
