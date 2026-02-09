@@ -125,6 +125,19 @@ class _ExitGateHarness(BotSignalRuntimeMixin):
     pass
 
 
+class _EntryDayHarness(BotSignalRuntimeMixin):
+    @staticmethod
+    def _strategy_instrument(strategy: dict) -> str:
+        value = strategy.get("instrument", "spot")
+        cleaned = str(value or "spot").strip().lower()
+        return "spot" if cleaned == "spot" else "options"
+
+    @staticmethod
+    def _signal_use_rth(instance: _BotInstance) -> bool:
+        raw = instance.strategy.get("signal_use_rth")
+        return bool(raw)
+
+
 def _new_instance(*, strategy: dict | None = None) -> _BotInstance:
     return _BotInstance(
         instance_id=1,
@@ -199,6 +212,36 @@ def test_exit_gate_blocks_retry_limit_and_cooldown() -> None:
 
     assert asyncio.run(_run_cd()) is False
     assert "BLOCKED_EXIT_RETRY_COOLDOWN" in gates_cd
+
+
+def test_entry_weekday_maps_sunday_overnight_to_monday_for_spot_non_rth() -> None:
+    harness = _EntryDayHarness()
+    instance = _new_instance(
+        strategy={
+            "instrument": "spot",
+            "signal_use_rth": False,
+            "spot_sec_type": "STK",
+            "entry_days": ["Mon", "Tue", "Wed", "Thu", "Fri"],
+        }
+    )
+    sunday_overnight = datetime(2026, 2, 8, 23, 32)
+    assert harness._entry_weekday_for_ts(instance, sunday_overnight) == 0
+    assert harness._can_order_now(instance, now_et=sunday_overnight) is True
+
+
+def test_entry_weekday_keeps_sunday_for_rth_mode() -> None:
+    harness = _EntryDayHarness()
+    instance = _new_instance(
+        strategy={
+            "instrument": "spot",
+            "signal_use_rth": True,
+            "spot_sec_type": "STK",
+            "entry_days": ["Mon", "Tue", "Wed", "Thu", "Fri"],
+        }
+    )
+    sunday_overnight = datetime(2026, 2, 8, 23, 32)
+    assert harness._entry_weekday_for_ts(instance, sunday_overnight) == 6
+    assert harness._can_order_now(instance, now_et=sunday_overnight) is False
 
 
 class _FakeTrade:

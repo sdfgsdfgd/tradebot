@@ -286,8 +286,15 @@ class BotSignalRuntimeMixin:
                     break
                 continue
 
-            if not self._can_order_now(instance):
-                _gate("BLOCKED_WEEKDAY_NOW", {"now_weekday": int(now_et.weekday())})
+            entry_weekday_now = self._entry_weekday_for_ts(instance, now_et)
+            if not self._can_order_now(instance, now_et=now_et):
+                _gate(
+                    "BLOCKED_WEEKDAY_NOW",
+                    {
+                        "now_weekday": int(now_et.weekday()),
+                        "entry_weekday": int(entry_weekday_now),
+                    },
+                )
                 continue
 
             entry_days = instance.strategy.get("entry_days", [])
@@ -295,11 +302,13 @@ class BotSignalRuntimeMixin:
                 allowed_days = {_weekday_num(day) for day in entry_days}
             else:
                 allowed_days = {0, 1, 2, 3, 4}
-            if snap.bar_ts.weekday() not in allowed_days:
+            signal_weekday = self._entry_weekday_for_ts(instance, snap.bar_ts)
+            if signal_weekday not in allowed_days:
                 _gate(
                     "BLOCKED_ENTRY_DAY",
                     {
                         "signal_weekday": int(snap.bar_ts.weekday()),
+                        "entry_weekday": int(signal_weekday),
                         "allowed_days": sorted(int(d) for d in allowed_days),
                     },
                 )
@@ -1431,13 +1440,32 @@ class BotSignalRuntimeMixin:
 
         self._order_task = loop.create_task(_create_order_task())
 
-    def _can_order_now(self, instance: _BotInstance) -> bool:
+    def _entry_weekday_for_ts(self, instance: _BotInstance, ts: datetime) -> int:
+        ts_et = (
+            ts.replace(tzinfo=ZoneInfo("America/New_York"))
+            if ts.tzinfo is None
+            else ts.astimezone(ZoneInfo("America/New_York"))
+        )
+        weekday = int(ts_et.weekday())
+        if self._strategy_instrument(instance.strategy) != "spot":
+            return weekday
+        if bool(self._signal_use_rth(instance)):
+            return weekday
+        sec_type = str(instance.strategy.get("spot_sec_type") or "STK").strip().upper()
+        if sec_type != "STK":
+            return weekday
+        if weekday == 6 and ts_et.time() >= time(20, 0):
+            # Sunday evening overnight session belongs to Monday's entry day.
+            return 0
+        return weekday
+
+    def _can_order_now(self, instance: _BotInstance, *, now_et: datetime | None = None) -> bool:
         entry_days = instance.strategy.get("entry_days", [])
         if entry_days:
             allowed = {_weekday_num(day) for day in entry_days}
         else:
             allowed = {0, 1, 2, 3, 4, 5, 6}
-        now = datetime.now(tz=ZoneInfo("America/New_York"))
-        if now.weekday() not in allowed:
+        now = now_et if now_et is not None else datetime.now(tz=ZoneInfo("America/New_York"))
+        if self._entry_weekday_for_ts(instance, now) not in allowed:
             return False
         return True
