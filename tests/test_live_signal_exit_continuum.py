@@ -8,11 +8,13 @@ import sys
 import time
 from types import SimpleNamespace
 import types
+from unittest.mock import patch
 
-from ib_insync import Stock
+from ib_insync import Future, Stock
 
 from tradebot.client import IBKRClient
 from tradebot.config import IBKRConfig
+from tradebot.engine import flip_exit_gate_blocked
 
 _UI_DIR = Path(__file__).resolve().parents[1] / "tradebot" / "ui"
 if "tradebot.ui" not in sys.modules:
@@ -121,6 +123,59 @@ def test_historical_full24_stitches_overnight_and_keeps_what_to_show_cache_separ
     assert any(exchange == "OVERNIGHT" and what == "MIDPOINT" for exchange, what, _ in calls)
 
 
+def test_historical_bars_ohlcv_empty_cache_expires_quickly() -> None:
+    client = _new_client()
+    calls = 0
+
+    async def _fake_request(
+        contract,
+        *,
+        duration_str: str,
+        bar_size: str,
+        what_to_show: str,
+        use_rth: bool,
+    ):
+        nonlocal calls
+        calls += 1
+        return []
+
+    client._request_historical_data = _fake_request  # type: ignore[method-assign]
+
+    contract = Future(symbol="MES", lastTradeDateOrContractMonth="202603", exchange="CME", currency="USD")
+    contract.conId = 2001
+
+    monotonic_calls = {"n": 0}
+
+    def _fake_monotonic() -> float:
+        monotonic_calls["n"] += 1
+        return 1000.0 if monotonic_calls["n"] < 4 else 1001.2
+
+    with patch("tradebot.client.time.monotonic", side_effect=_fake_monotonic):
+        asyncio.run(
+            client.historical_bars_ohlcv(
+                contract,
+                duration_str="1 W",
+                bar_size="10 mins",
+                use_rth=False,
+                what_to_show="TRADES",
+                cache_ttl_sec=30.0,
+            )
+        )
+        asyncio.run(
+            client.historical_bars_ohlcv(
+                contract,
+                duration_str="1 W",
+                bar_size="10 mins",
+                use_rth=False,
+                what_to_show="TRADES",
+                cache_ttl_sec=30.0,
+            )
+        )
+
+    # Empty snapshots should use a short cache TTL so a second request can recover quickly.
+    assert calls == 2
+
+
 class _ExitGateHarness(BotSignalRuntimeMixin):
     pass
 
@@ -138,13 +193,115 @@ class _EntryDayHarness(BotSignalRuntimeMixin):
         return bool(raw)
 
 
-def _new_instance(*, strategy: dict | None = None) -> _BotInstance:
+class _GapGateHarness(BotSignalRuntimeMixin):
+    def __init__(self, *, instance: _BotInstance, snap, diag: dict | None = None) -> None:
+        self._instances = [instance]
+        self._orders = []
+        self._positions = []
+        self._payload = None
+        self._order_task = None
+        self._events: list[tuple[str, str | None, dict | None]] = []
+        self._snap = snap
+        self._last_signal_snapshot_diag = dict(diag) if isinstance(diag, dict) else {
+            "stage": "ok",
+            "bars_count": 100,
+            "regime_bars_count": 100,
+            "regime2_bars_count": 100,
+        }
+
+    def _check_order_trigger_watchdogs(self, *, now_et: datetime) -> None:
+        return None
+
+    def _journal_write(self, *, event: str, reason: str | None = None, data: dict | None = None, **kwargs) -> None:
+        self._events.append((str(event), reason, dict(data) if isinstance(data, dict) else data))
+
+    async def _signal_contract(self, instance: _BotInstance, symbol: str):
+        return Stock(symbol=symbol, exchange="SMART", currency="USD")
+
+    async def _signal_snapshot_for_contract(self, **kwargs):
+        return self._snap
+
+    def _signal_snapshot_kwargs(self, *args, **kwargs):
+        return {}
+
+    @staticmethod
+    def _signal_bar_size(instance: _BotInstance) -> str:
+        return "10 mins"
+
+    @staticmethod
+    def _signal_use_rth(instance: _BotInstance) -> bool:
+        return False
+
+    @staticmethod
+    def _strategy_instrument(strategy: dict) -> str:
+        value = strategy.get("instrument", "spot")
+        cleaned = str(value or "spot").strip().lower()
+        return "spot" if cleaned == "spot" else "options"
+
+    def _resolve_open_positions(self, instance: _BotInstance, *, symbol: str, signal_contract):
+        return "spot", [], None
+
+    def _auto_process_pending_next_open(self, **kwargs) -> bool:
+        return False
+
+
+class _QuoteStarveHarness(BotSignalRuntimeMixin):
+    def __init__(self) -> None:
+        self._events: list[tuple[str, dict | None]] = []
+
+        class _Client:
+            def __init__(self):
+                self.released: list[int] = []
+                self.started = 0
+
+            def release_ticker(self, con_id: int, *, owner: str = "bot") -> None:
+                self.released.append(int(con_id))
+
+            def start_proxy_tickers(self) -> None:
+                self.started += 1
+
+            @staticmethod
+            def proxy_error() -> str | None:
+                return None
+
+        self._client = _Client()
+
+    def _gate(self, status: str, data: dict | None = None) -> None:
+        self._events.append((str(status), dict(data or {})))
+
+
+class _PendingNextOpenHarness(BotSignalRuntimeMixin):
+    def __init__(self) -> None:
+        self.queued: list[dict[str, object]] = []
+
+    def _queue_order(
+        self,
+        instance: _BotInstance,
+        *,
+        intent: str,
+        direction: str | None,
+        signal_bar_ts: datetime | None,
+        trigger_reason: str | None = None,
+        trigger_mode: str | None = None,
+    ) -> None:
+        self.queued.append(
+            {
+                "intent": str(intent),
+                "direction": direction,
+                "signal_bar_ts": signal_bar_ts,
+                "trigger_reason": trigger_reason,
+                "trigger_mode": trigger_mode,
+            }
+        )
+
+
+def _new_instance(*, strategy: dict | None = None, filters: dict | None = None) -> _BotInstance:
     return _BotInstance(
         instance_id=1,
         group="g",
         symbol="SLV",
         strategy=dict(strategy or {}),
-        filters=None,
+        filters=dict(filters) if isinstance(filters, dict) else filters,
     )
 
 
@@ -242,6 +399,334 @@ def test_entry_weekday_keeps_sunday_for_rth_mode() -> None:
     sunday_overnight = datetime(2026, 2, 8, 23, 32)
     assert harness._entry_weekday_for_ts(instance, sunday_overnight) == 6
     assert harness._can_order_now(instance, now_et=sunday_overnight) is False
+
+
+def test_pending_next_open_cancels_on_risk_overlay_date_roll() -> None:
+    harness = _PendingNextOpenHarness()
+    instance = _new_instance(
+        strategy={"instrument": "spot"},
+        filters={"riskoff_mode": "hygiene", "risk_entry_cutoff_hour_et": 4},
+    )
+    instance.pending_entry_direction = "up"
+    instance.pending_entry_signal_bar_ts = datetime(2026, 2, 8, 15, 50)
+    instance.pending_entry_due_ts = datetime(2026, 2, 9, 4, 0)
+    gates: list[str] = []
+
+    fired = harness._auto_process_pending_next_open(
+        instance=instance,
+        instrument="spot",
+        open_items=[],
+        open_dir=None,
+        now_wall=datetime(2026, 2, 9, 4, 0),
+        snap=SimpleNamespace(risk=SimpleNamespace(riskoff=True, riskpanic=False, riskpop=False), shock_dir="up"),
+        gate=lambda status, data=None: gates.append(str(status)),
+    )
+
+    assert fired is False
+    assert not harness.queued
+    assert instance.pending_entry_due_ts is None
+    assert "CANCEL_PENDING_ENTRY_RISK_OVERLAY" in gates
+
+
+def test_pending_next_open_cancels_on_directional_shock_mismatch() -> None:
+    harness = _PendingNextOpenHarness()
+    instance = _new_instance(
+        strategy={"instrument": "spot"},
+        filters={"riskoff_mode": "directional"},
+    )
+    instance.pending_entry_direction = "up"
+    instance.pending_entry_signal_bar_ts = datetime(2026, 2, 9, 3, 50)
+    instance.pending_entry_due_ts = datetime(2026, 2, 9, 4, 0)
+    gates: list[str] = []
+
+    fired = harness._auto_process_pending_next_open(
+        instance=instance,
+        instrument="spot",
+        open_items=[],
+        open_dir=None,
+        now_wall=datetime(2026, 2, 9, 4, 0),
+        snap=SimpleNamespace(risk=SimpleNamespace(riskoff=True, riskpanic=False, riskpop=False), shock_dir="down"),
+        gate=lambda status, data=None: gates.append(str(status)),
+    )
+
+    assert fired is False
+    assert not harness.queued
+    assert instance.pending_entry_due_ts is None
+    assert "CANCEL_PENDING_ENTRY_RISK_OVERLAY" in gates
+
+
+def test_pending_next_open_triggers_when_directional_shock_matches() -> None:
+    harness = _PendingNextOpenHarness()
+    instance = _new_instance(
+        strategy={"instrument": "spot"},
+        filters={"riskoff_mode": "directional"},
+    )
+    instance.pending_entry_direction = "up"
+    instance.pending_entry_signal_bar_ts = datetime(2026, 2, 9, 3, 50)
+    instance.pending_entry_due_ts = datetime(2026, 2, 9, 4, 0)
+    gates: list[str] = []
+
+    fired = harness._auto_process_pending_next_open(
+        instance=instance,
+        instrument="spot",
+        open_items=[],
+        open_dir=None,
+        now_wall=datetime(2026, 2, 9, 4, 0),
+        snap=SimpleNamespace(risk=SimpleNamespace(riskoff=True, riskpanic=False, riskpop=False), shock_dir="up"),
+        gate=lambda status, data=None: gates.append(str(status)),
+    )
+
+    assert fired is True
+    assert len(harness.queued) == 1
+    assert harness.queued[0]["intent"] == "enter"
+    assert harness.queued[0]["direction"] == "up"
+    assert instance.pending_entry_due_ts is None
+    assert "TRIGGER_ENTRY" in gates
+
+
+def test_flip_exit_gate_mode_regime_blocks_supported_position() -> None:
+    signal = SimpleNamespace(
+        ema_ready=True,
+        ema_fast=101.0,
+        ema_slow=100.0,
+        state="down",
+        cross_up=False,
+        cross_down=False,
+        regime_ready=True,
+        regime_dir="up",
+    )
+    assert (
+        flip_exit_gate_blocked(
+            gate_mode_raw="regime",
+            filters=None,
+            close=100.0,
+            signal=signal,
+            trade_dir="up",
+        )
+        is True
+    )
+
+
+def test_flip_exit_gate_mode_permission_blocks_supported_position() -> None:
+    signal = SimpleNamespace(
+        ema_ready=True,
+        ema_fast=101.0,
+        ema_slow=100.0,
+        state="down",
+        cross_up=False,
+        cross_down=False,
+        regime_ready=False,
+        regime_dir="down",
+    )
+    assert (
+        flip_exit_gate_blocked(
+            gate_mode_raw="permission",
+            filters={"ema_spread_min_pct": 0.5},
+            close=100.0,
+            signal=signal,
+            trade_dir="up",
+        )
+        is True
+    )
+
+
+def test_auto_tick_blocks_waiting_data_gap_when_flat() -> None:
+    bar_ts = datetime(2026, 2, 9, 12, 0)
+    signal = SimpleNamespace(
+        state="up",
+        entry_dir="up",
+        cross_up=False,
+        cross_down=False,
+        ema_ready=True,
+        regime_dir="up",
+        regime_ready=True,
+        ema_fast=74.0,
+        ema_slow=73.5,
+        prev_ema_fast=73.9,
+    )
+    snap = SimpleNamespace(
+        bar_ts=bar_ts,
+        close=74.2,
+        signal=signal,
+        bars_in_day=5,
+        rv=None,
+        volume=1000.0,
+        volume_ema=None,
+        volume_ema_ready=True,
+        shock=True,
+        shock_dir="up",
+        shock_atr_pct=0.4,
+        risk=None,
+        atr=None,
+        or_high=None,
+        or_low=None,
+        or_ready=False,
+        bar_health={
+            "stale": False,
+            "gap_detected": True,
+            "last_bar_ts": bar_ts,
+            "recent_gap_count": 1,
+            "max_gap_bars": 3.0,
+        },
+    )
+    instance = _new_instance(
+        strategy={
+            "entry_signal": "ema",
+            "ema_preset": "5/13",
+            "instrument": "spot",
+        }
+    )
+    harness = _GapGateHarness(instance=instance, snap=snap)
+
+    asyncio.run(harness._auto_order_tick())
+
+    assert any(
+        event == "GATE" and reason == "WAITING_DATA_GAP"
+        for event, reason, _data in harness._events
+    )
+
+
+def test_auto_tick_blocks_waiting_preflight_bars_when_history_too_short() -> None:
+    bar_ts = datetime(2026, 2, 9, 12, 0)
+    signal = SimpleNamespace(
+        state="up",
+        entry_dir="up",
+        cross_up=False,
+        cross_down=False,
+        ema_ready=True,
+        regime_dir="up",
+        regime_ready=True,
+        ema_fast=74.0,
+        ema_slow=73.5,
+        prev_ema_fast=73.9,
+    )
+    snap = SimpleNamespace(
+        bar_ts=bar_ts,
+        close=74.2,
+        signal=signal,
+        bars_in_day=5,
+        rv=None,
+        volume=1000.0,
+        volume_ema=None,
+        volume_ema_ready=True,
+        shock=False,
+        shock_dir="up",
+        shock_atr_pct=0.4,
+        risk=None,
+        atr=1.2,
+        or_high=None,
+        or_low=None,
+        or_ready=False,
+        bar_health={
+            "stale": False,
+            "gap_detected": False,
+            "last_bar_ts": bar_ts,
+            "recent_gap_count": 0,
+            "max_gap_bars": 0.0,
+        },
+    )
+    instance = _new_instance(
+        strategy={
+            "entry_signal": "ema",
+            "ema_preset": "5/13",
+            "regime_mode": "supertrend",
+            "regime_bar_size": "1 day",
+            "supertrend_atr_period": 7,
+            "instrument": "spot",
+        }
+    )
+    harness = _GapGateHarness(
+        instance=instance,
+        snap=snap,
+        diag={
+            "stage": "ok",
+            "bars_count": 5,
+            "regime_bars_count": 3,
+            "regime2_bars_count": 0,
+        },
+    )
+
+    asyncio.run(harness._auto_order_tick())
+
+    assert any(
+        event == "GATE" and reason == "WAITING_PREFLIGHT_BARS"
+        for event, reason, _data in harness._events
+    )
+
+
+def test_quote_starvation_watchdog_repairs_and_recovers() -> None:
+    harness = _QuoteStarveHarness()
+    instance = _new_instance(
+        strategy={
+            "spot_quote_starve_warn_sec": 5,
+            "spot_quote_starve_kill_sec": 10,
+            "spot_quote_starve_repair_cooldown_sec": 3,
+            "spot_quote_starve_action": "force_exit",
+        }
+    )
+    now = datetime(2026, 2, 9, 12, 0, 0)
+
+    first = harness._spot_quote_starvation_watchdog(
+        instance=instance,
+        now_wall=now,
+        symbol="SLV",
+        con_id=1234,
+        bid=None,
+        ask=None,
+        last=None,
+        ticker_market_price=None,
+        market_price=None,
+        gate=harness._gate,
+    )
+    assert first["starving"] is True
+    assert first["force_exit"] is False
+
+    warn = harness._spot_quote_starvation_watchdog(
+        instance=instance,
+        now_wall=now.replace(second=6),
+        symbol="SLV",
+        con_id=1234,
+        bid=None,
+        ask=None,
+        last=None,
+        ticker_market_price=None,
+        market_price=None,
+        gate=harness._gate,
+    )
+    assert warn["starving"] is True
+    assert harness._client.released == [1234]
+    assert harness._client.started >= 1
+
+    kill = harness._spot_quote_starvation_watchdog(
+        instance=instance,
+        now_wall=now.replace(second=12),
+        symbol="SLV",
+        con_id=1234,
+        bid=None,
+        ask=None,
+        last=None,
+        ticker_market_price=None,
+        market_price=None,
+        gate=harness._gate,
+    )
+    assert kill["force_exit"] is True
+    assert any(status == "QUOTE_STARVE_KILL_SWITCH" for status, _ in harness._events)
+
+    recovered = harness._spot_quote_starvation_watchdog(
+        instance=instance,
+        now_wall=now.replace(second=13),
+        symbol="SLV",
+        con_id=1234,
+        bid=73.1,
+        ask=73.2,
+        last=73.15,
+        ticker_market_price=73.15,
+        market_price=73.15,
+        gate=harness._gate,
+    )
+    assert recovered["starving"] is False
+    assert instance.quote_starvation_since is None
+    assert any(status == "QUOTE_STARVE_RECOVERED" for status, _ in harness._events)
 
 
 class _FakeTrade:

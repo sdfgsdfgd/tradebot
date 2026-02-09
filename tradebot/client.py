@@ -150,10 +150,12 @@ class IBKRClient:
         self._detail_tickers: dict[int, tuple[IB, Ticker]] = {}
         self._ticker_owners: dict[int, set[str]] = {}
         self._historical_bar_cache: dict[
-            tuple[str, int, str, str, bool, str, str], tuple[list[tuple[datetime, float]], float]
+            tuple[str, int, str, str, bool, str, str],
+            tuple[list[tuple[datetime, float]], float] | tuple[list[tuple[datetime, float]], float, float],
         ] = {}
         self._historical_bar_ohlcv_cache: dict[
-            tuple[str, int, str, str, bool, str, str], tuple[list[OhlcvBar], float]
+            tuple[str, int, str, str, bool, str, str],
+            tuple[list[OhlcvBar], float] | tuple[list[OhlcvBar], float, float],
         ] = {}
         self._front_future_cache: dict[tuple[str, str], tuple[Contract, float]] = {}
         self._update_callback: Callable[[], None] | None = None
@@ -703,20 +705,34 @@ class IBKRClient:
             str(what_to_show),
             str(duration_str),
         )
-        cached = self._historical_bar_cache.get(key)
-        if cached:
-            bars, cached_at = cached
-            if time.monotonic() - cached_at < float(cache_ttl_sec):
+        requested_ttl = max(0.0, float(cache_ttl_sec))
+        empty_ttl_sec = 1.0
+
+        def _cached_bars(
+            cached_entry: tuple[list[tuple[datetime, float]], float] | tuple[list[tuple[datetime, float]], float, float] | None,
+        ) -> list[tuple[datetime, float]] | None:
+            if cached_entry is None:
+                return None
+            if len(cached_entry) >= 3:
+                bars, cached_at, cached_ttl = cached_entry[0], cached_entry[1], cached_entry[2]
+            else:
+                bars, cached_at = cached_entry
+                cached_ttl = requested_ttl
+            ttl = max(0.0, float(cached_ttl))
+            if time.monotonic() - float(cached_at) < ttl:
                 return list(bars)
+            return None
+
+        cached_bars = _cached_bars(self._historical_bar_cache.get(key))
+        if cached_bars is not None:
+            return cached_bars
 
         use_proxy = sec_type in ("STK", "OPT")
         lock = self._proxy_lock if use_proxy else self._lock
         async with lock:
-            cached = self._historical_bar_cache.get(key)
-            if cached:
-                bars, cached_at = cached
-                if time.monotonic() - cached_at < float(cache_ttl_sec):
-                    return list(bars)
+            cached_bars = _cached_bars(self._historical_bar_cache.get(key))
+            if cached_bars is not None:
+                return cached_bars
             raw = await self._request_historical_data_for_stream(
                 contract,
                 duration_str=str(duration_str),
@@ -738,7 +754,8 @@ class IBKRClient:
                     continue
                 bars.append((dt, close))
 
-            self._historical_bar_cache[key] = (bars, time.monotonic())
+            cache_ttl = min(requested_ttl, empty_ttl_sec) if not bars else requested_ttl
+            self._historical_bar_cache[key] = (bars, time.monotonic(), cache_ttl)
             return list(bars)
 
     async def historical_bars_ohlcv(
@@ -767,20 +784,34 @@ class IBKRClient:
             str(what_to_show),
             str(duration_str),
         )
-        cached = self._historical_bar_ohlcv_cache.get(key)
-        if cached:
-            bars, cached_at = cached
-            if time.monotonic() - cached_at < float(cache_ttl_sec):
+        requested_ttl = max(0.0, float(cache_ttl_sec))
+        empty_ttl_sec = 1.0
+
+        def _cached_bars(
+            cached_entry: tuple[list[OhlcvBar], float] | tuple[list[OhlcvBar], float, float] | None,
+        ) -> list[OhlcvBar] | None:
+            if cached_entry is None:
+                return None
+            if len(cached_entry) >= 3:
+                bars, cached_at, cached_ttl = cached_entry[0], cached_entry[1], cached_entry[2]
+            else:
+                bars, cached_at = cached_entry
+                cached_ttl = requested_ttl
+            ttl = max(0.0, float(cached_ttl))
+            if time.monotonic() - float(cached_at) < ttl:
                 return list(bars)
+            return None
+
+        cached_bars = _cached_bars(self._historical_bar_ohlcv_cache.get(key))
+        if cached_bars is not None:
+            return cached_bars
 
         use_proxy = sec_type in ("STK", "OPT")
         lock = self._proxy_lock if use_proxy else self._lock
         async with lock:
-            cached = self._historical_bar_ohlcv_cache.get(key)
-            if cached:
-                bars, cached_at = cached
-                if time.monotonic() - cached_at < float(cache_ttl_sec):
-                    return list(bars)
+            cached_bars = _cached_bars(self._historical_bar_ohlcv_cache.get(key))
+            if cached_bars is not None:
+                return cached_bars
             raw = await self._request_historical_data_for_stream(
                 contract,
                 duration_str=str(duration_str),
@@ -815,7 +846,8 @@ class IBKRClient:
                     )
                 )
 
-            self._historical_bar_ohlcv_cache[key] = (bars, time.monotonic())
+            cache_ttl = min(requested_ttl, empty_ttl_sec) if not bars else requested_ttl
+            self._historical_bar_ohlcv_cache[key] = (bars, time.monotonic(), cache_ttl)
             return list(bars)
 
     async def stock_option_chain(self, symbol: str):

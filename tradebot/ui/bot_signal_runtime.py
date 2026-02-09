@@ -11,6 +11,8 @@ from ..engine import (
     cooldown_ok_by_time,
     normalize_spot_entry_signal,
     parse_time_hhmm,
+    resolve_spot_regime2_spec,
+    resolve_spot_regime_spec,
     signal_filter_checks,
     spot_intrabar_exit,
     spot_profit_level,
@@ -18,7 +20,7 @@ from ..engine import (
     spot_shock_exit_pct_multipliers,
     spot_stop_level,
 )
-from ..signals import parse_bar_size
+from ..signals import ema_periods, parse_bar_size
 from .bot_models import _BotInstance
 from .common import _market_session_bucket, _safe_num, _ticker_price
 
@@ -42,6 +44,7 @@ class BotSignalRuntimeMixin:
     async def _auto_order_tick(self) -> None:
         now_et = datetime.now(tz=ZoneInfo("America/New_York"))
         now_wall = self._wall_time(now_et)
+        no_signal_watchdog_sec = 60.0
         self._check_order_trigger_watchdogs(now_et=now_et)
         if self._order_task and not self._order_task.done():
             return
@@ -51,15 +54,48 @@ class BotSignalRuntimeMixin:
                 continue
 
             def _gate(status: str, data: dict | None = None) -> None:
+                status_text = str(status or "")
                 fingerprint = (
-                    str(status or ""),
+                    status_text,
                     json.dumps(data, sort_keys=True, default=str) if isinstance(data, dict) else "",
                 )
                 if instance.last_gate_fingerprint == fingerprint:
+                    if status_text == "NO_SIGNAL_SNAPSHOT":
+                        if instance.no_signal_snapshot_since is None:
+                            instance.no_signal_snapshot_since = now_et
+                        last_ping = instance.no_signal_snapshot_last_ping
+                        should_ping = (
+                            last_ping is None
+                            or (now_et - last_ping).total_seconds() >= float(no_signal_watchdog_sec)
+                        )
+                        if should_ping:
+                            instance.no_signal_snapshot_last_ping = now_et
+                            since_sec = max(
+                                0.0,
+                                float((now_et - instance.no_signal_snapshot_since).total_seconds()),
+                            )
+                            payload: dict[str, object] = {"since_sec": since_sec}
+                            if isinstance(data, dict):
+                                for key in ("symbol", "bar_size", "use_rth", "diag"):
+                                    if key in data:
+                                        payload[key] = data.get(key)
+                            self._journal_write(
+                                event="GATE",
+                                instance=instance,
+                                reason="NO_SIGNAL_PERSISTING",
+                                data=payload,
+                            )
                     return
                 instance.last_gate_fingerprint = fingerprint
-                instance.last_gate_status = status
-                self._journal_write(event="GATE", instance=instance, reason=status, data=data)
+                instance.last_gate_status = status_text
+                if status_text == "NO_SIGNAL_SNAPSHOT":
+                    if instance.no_signal_snapshot_since is None:
+                        instance.no_signal_snapshot_since = now_et
+                    instance.no_signal_snapshot_last_ping = now_et
+                else:
+                    instance.no_signal_snapshot_since = None
+                    instance.no_signal_snapshot_last_ping = None
+                self._journal_write(event="GATE", instance=instance, reason=status_text, data=data)
 
             symbol = str(
                 instance.symbol or (self._payload.get("symbol", "SLV") if self._payload else "SLV")
@@ -89,12 +125,14 @@ class BotSignalRuntimeMixin:
                 ),
             )
             if snap is None:
+                diag = getattr(self, "_last_signal_snapshot_diag", None)
                 _gate(
                     "NO_SIGNAL_SNAPSHOT",
                     {
                         "symbol": symbol,
                         "bar_size": self._signal_bar_size(instance),
                         "use_rth": bool(self._signal_use_rth(instance)),
+                        "diag": dict(diag) if isinstance(diag, dict) else None,
                     },
                 )
                 continue
@@ -107,6 +145,7 @@ class BotSignalRuntimeMixin:
                 if isinstance(last_bar_ts, datetime):
                     bar_health["last_bar_ts"] = last_bar_ts.isoformat()
             stale_signal = bool(bar_health_raw and bar_health_raw.get("stale"))
+            gap_signal = bool(bar_health_raw and bar_health_raw.get("gap_detected"))
             ema_fast = float(snap.signal.ema_fast) if snap.signal.ema_fast is not None else None
             ema_slow = float(snap.signal.ema_slow) if snap.signal.ema_slow is not None else None
             prev_ema_fast = float(snap.signal.prev_ema_fast) if snap.signal.prev_ema_fast is not None else None
@@ -219,6 +258,7 @@ class BotSignalRuntimeMixin:
                 self._clear_pending_exit(instance)
                 self._reset_exit_retry_state(instance)
                 self._spot_reset_exec_bar(instance)
+                self._reset_quote_starvation_state(instance)
 
             if stale_signal and not open_items:
                 self._clear_pending_entry(instance)
@@ -240,6 +280,33 @@ class BotSignalRuntimeMixin:
                         "bar_health": bar_health,
                     },
                 )
+            if gap_signal and not open_items:
+                self._clear_pending_entry(instance)
+                _gate(
+                    "WAITING_DATA_GAP",
+                    {
+                        "bar_ts": snap.bar_ts.isoformat(),
+                        "symbol": symbol,
+                        "bar_health": bar_health,
+                    },
+                )
+                continue
+            if gap_signal and open_items:
+                _gate(
+                    "DATA_GAP_HOLDING",
+                    {
+                        "bar_ts": snap.bar_ts.isoformat(),
+                        "symbol": symbol,
+                        "bar_health": bar_health,
+                    },
+                )
+
+            if not open_items:
+                preflight_ready, preflight_payload = self._signal_preflight_status(instance=instance, snap=snap)
+                if not preflight_ready:
+                    self._clear_pending_entry(instance)
+                    _gate("WAITING_PREFLIGHT_BARS", preflight_payload)
+                    continue
 
             if self._auto_process_pending_next_open(
                 instance=instance,
@@ -247,6 +314,7 @@ class BotSignalRuntimeMixin:
                 open_items=open_items,
                 open_dir=open_dir,
                 now_wall=now_wall,
+                snap=snap,
                 gate=_gate,
             ):
                 break
@@ -368,6 +436,147 @@ class BotSignalRuntimeMixin:
             if self._auto_try_queue_entry(instance=instance, snap=snap, gate=_gate, now_et=now_et):
                 break
 
+    @staticmethod
+    def _int_from(raw: object, *, default: int, min_value: int = 0) -> int:
+        try:
+            value = int(raw if raw is not None else default)
+        except (TypeError, ValueError):
+            value = int(default)
+        return max(int(min_value), int(value))
+
+    @staticmethod
+    def _ema_slow_period(preset_raw: object) -> int:
+        preset = str(preset_raw or "").strip()
+        if not preset:
+            return 0
+        periods = ema_periods(preset)
+        if periods is None:
+            return 0
+        return max(int(periods[0]), int(periods[1]))
+
+    def _signal_preflight_requirements(self, instance: _BotInstance) -> dict[str, object]:
+        strategy = instance.strategy if isinstance(instance.strategy, dict) else {}
+        filters = instance.filters if isinstance(instance.filters, dict) else {}
+        bar_size = self._signal_bar_size(instance)
+
+        signal_need = 0
+        regime_need = 0
+        regime2_need = 0
+        active: list[dict[str, object]] = []
+
+        def _register(bucket: str, label: str, bars: int) -> None:
+            nonlocal signal_need, regime_need, regime2_need
+            need = max(0, int(bars))
+            if need <= 0:
+                return
+            if bucket == "signal":
+                signal_need = max(signal_need, need)
+            elif bucket == "regime":
+                regime_need = max(regime_need, need)
+            elif bucket == "regime2":
+                regime2_need = max(regime2_need, need)
+            active.append({"bucket": bucket, "name": label, "bars": need})
+
+        entry_signal = normalize_spot_entry_signal(strategy.get("entry_signal"))
+        if entry_signal == "ema":
+            slow = self._ema_slow_period(strategy.get("ema_preset"))
+            _register("signal", "entry_ema", slow)
+
+        strategy_instrument = "spot"
+        strategy_instrument_fn = getattr(self, "_strategy_instrument", None)
+        if callable(strategy_instrument_fn):
+            try:
+                strategy_instrument = str(strategy_instrument_fn(strategy) or "spot").strip().lower()
+            except Exception:
+                strategy_instrument = "spot"
+        elif str(strategy.get("instrument") or "spot").strip().lower() != "spot":
+            strategy_instrument = "options"
+        if strategy_instrument == "spot":
+            exit_mode = str(strategy.get("spot_exit_mode") or "pct").strip().lower()
+            if exit_mode == "atr":
+                atr_period = self._int_from(strategy.get("spot_atr_period"), default=14, min_value=1)
+                _register("signal", "spot_exit_atr", atr_period)
+
+        if isinstance(filters, dict) and filters.get("volume_ratio_min") is not None:
+            vol_period = self._int_from(filters.get("volume_ema_period"), default=20, min_value=1)
+            _register("signal", "volume_ema", vol_period)
+
+        regime_mode, regime_preset, _regime_bar_size, use_mtf_regime = resolve_spot_regime_spec(
+            bar_size=bar_size,
+            regime_mode_raw=strategy.get("regime_mode"),
+            regime_ema_preset_raw=strategy.get("regime_ema_preset"),
+            regime_bar_size_raw=strategy.get("regime_bar_size"),
+        )
+        if regime_mode == "supertrend":
+            st_period = self._int_from(strategy.get("supertrend_atr_period"), default=10, min_value=1)
+            _register("regime" if use_mtf_regime else "signal", "regime_supertrend", st_period)
+        elif regime_mode == "ema":
+            regime_slow = self._ema_slow_period(regime_preset)
+            if regime_slow > 0:
+                _register("regime" if use_mtf_regime else "signal", "regime_ema", regime_slow)
+
+        regime2_mode, regime2_preset, _regime2_bar_size, use_mtf_regime2 = resolve_spot_regime2_spec(
+            bar_size=bar_size,
+            regime2_mode_raw=strategy.get("regime2_mode"),
+            regime2_ema_preset_raw=strategy.get("regime2_ema_preset"),
+            regime2_bar_size_raw=strategy.get("regime2_bar_size"),
+        )
+        if regime2_mode == "supertrend":
+            st2_period = self._int_from(strategy.get("regime2_supertrend_atr_period"), default=10, min_value=1)
+            _register("regime2" if use_mtf_regime2 else "signal", "regime2_supertrend", st2_period)
+        elif regime2_mode == "ema":
+            regime2_slow = self._ema_slow_period(regime2_preset)
+            if regime2_slow > 0:
+                _register("regime2" if use_mtf_regime2 else "signal", "regime2_ema", regime2_slow)
+
+        return {
+            "signal_bars_min": int(signal_need),
+            "regime_bars_min": int(regime_need),
+            "regime2_bars_min": int(regime2_need),
+            "active_requirements": active,
+        }
+
+    def _signal_preflight_status(self, *, instance: _BotInstance, snap) -> tuple[bool, dict]:
+        req = self._signal_preflight_requirements(instance)
+        diag = getattr(self, "_last_signal_snapshot_diag", None)
+        diag_dict = dict(diag) if isinstance(diag, dict) else {}
+
+        def _have(name: str) -> int:
+            try:
+                raw = diag_dict.get(name, 0)
+                return max(0, int(raw or 0))
+            except (TypeError, ValueError):
+                return 0
+
+        signal_have = _have("bars_count")
+        regime_have = _have("regime_bars_count")
+        regime2_have = _have("regime2_bars_count")
+        signal_need = int(req.get("signal_bars_min", 0) or 0)
+        regime_need = int(req.get("regime_bars_min", 0) or 0)
+        regime2_need = int(req.get("regime2_bars_min", 0) or 0)
+
+        missing: list[str] = []
+        if signal_have < signal_need:
+            missing.append("signal")
+        if regime_have < regime_need:
+            missing.append("regime")
+        if regime2_have < regime2_need:
+            missing.append("regime2")
+
+        payload = {
+            "bar_ts": snap.bar_ts.isoformat(),
+            "diag_stage": str(diag_dict.get("stage") or ""),
+            "signal_have": int(signal_have),
+            "signal_need": int(signal_need),
+            "regime_have": int(regime_have),
+            "regime_need": int(regime_need),
+            "regime2_have": int(regime2_have),
+            "regime2_need": int(regime2_need),
+            "missing": list(missing),
+            "requirements": list(req.get("active_requirements") or []),
+        }
+        return len(missing) == 0, payload
+
     def _has_pending_order(self, instance: _BotInstance) -> bool:
         return any(
             o.status in ("STAGED", "WORKING", "CANCELING") and o.instance_id == instance.instance_id
@@ -377,6 +586,69 @@ class BotSignalRuntimeMixin:
     @staticmethod
     def _wall_time(now_et: datetime) -> datetime:
         return now_et.replace(tzinfo=None) if now_et.tzinfo is not None else now_et
+
+    @staticmethod
+    def _filters_get_value(filters: dict | object | None, key: str) -> object | None:
+        if isinstance(filters, dict):
+            return filters.get(key)
+        return getattr(filters, key, None) if filters is not None else None
+
+    def _spot_riskoff_mode(self, instance: _BotInstance) -> str:
+        mode = str(self._filters_get_value(instance.filters, "riskoff_mode") or "hygiene").strip().lower()
+        if mode not in ("hygiene", "directional"):
+            return "hygiene"
+        return mode
+
+    def _spot_riskoff_end_hour(self, instance: _BotInstance) -> int | None:
+        filters = instance.filters
+        raw_cutoff_et = self._filters_get_value(filters, "risk_entry_cutoff_hour_et")
+        if raw_cutoff_et is not None:
+            try:
+                return int(raw_cutoff_et)
+            except (TypeError, ValueError):
+                return None
+
+        raw_start_et = self._filters_get_value(filters, "entry_start_hour_et")
+        raw_end_et = self._filters_get_value(filters, "entry_end_hour_et")
+        raw_start = self._filters_get_value(filters, "entry_start_hour")
+        raw_end = self._filters_get_value(filters, "entry_end_hour")
+        if raw_start_et is None and raw_end_et is not None:
+            try:
+                return int(raw_end_et)
+            except (TypeError, ValueError):
+                return None
+        if raw_start is None and raw_end is not None:
+            try:
+                return int(raw_end)
+            except (TypeError, ValueError):
+                return None
+        return None
+
+    @staticmethod
+    def _spot_pending_entry_should_cancel(
+        *,
+        pending_dir: str,
+        pending_set_date,
+        exec_ts: datetime,
+        risk_overlay_enabled: bool,
+        riskoff_today: bool,
+        riskpanic_today: bool,
+        riskpop_today: bool,
+        riskoff_mode: str,
+        shock_dir_now: str | None,
+        riskoff_end_hour: int | None,
+    ) -> bool:
+        if not bool(risk_overlay_enabled):
+            return False
+        if not (bool(riskoff_today) or bool(riskpanic_today) or bool(riskpop_today)):
+            return False
+        if str(riskoff_mode) == "directional" and shock_dir_now in ("up", "down"):
+            return str(pending_dir) != str(shock_dir_now)
+        if pending_set_date is not None and pending_set_date != exec_ts.date():
+            return True
+        if riskoff_end_hour is not None and int(exec_ts.hour) >= int(riskoff_end_hour):
+            return True
+        return False
 
     def _order_stage_timeout_sec(self, instance: _BotInstance) -> float:
         raw = instance.strategy.get("order_stage_timeout_sec")
@@ -561,6 +833,128 @@ class BotSignalRuntimeMixin:
         instance.exec_bar_low = None
         instance.exec_tick_cursor = 0
         instance.exec_tick_by_tick_cursor = 0
+
+    @staticmethod
+    def _reset_quote_starvation_state(instance: _BotInstance) -> None:
+        instance.quote_starvation_since = None
+        instance.quote_starvation_stage = None
+        instance.quote_starvation_last_repair_ts = None
+        instance.quote_starvation_last_kill_ts = None
+
+    def _spot_quote_starvation_watchdog(
+        self,
+        *,
+        instance: _BotInstance,
+        now_wall: datetime,
+        symbol: str,
+        con_id: int,
+        bid: float | None,
+        ask: float | None,
+        last: float | None,
+        ticker_market_price: float | None,
+        market_price: float | None,
+        gate,
+    ) -> dict[str, object]:
+        strategy = instance.strategy if isinstance(instance.strategy, dict) else {}
+        warn_sec = float(self._int_from(strategy.get("spot_quote_starve_warn_sec"), default=45, min_value=5))
+        kill_sec = float(self._int_from(strategy.get("spot_quote_starve_kill_sec"), default=180, min_value=10))
+        if kill_sec < warn_sec:
+            kill_sec = warn_sec
+        repair_cooldown_sec = float(
+            self._int_from(strategy.get("spot_quote_starve_repair_cooldown_sec"), default=15, min_value=3)
+        )
+        action = str(strategy.get("spot_quote_starve_action") or "repair_only").strip().lower()
+        if action not in ("repair_only", "force_exit"):
+            action = "repair_only"
+
+        has_live_quote = any(
+            value is not None and float(value) > 0.0
+            for value in (bid, ask, last, ticker_market_price, market_price)
+        )
+        if has_live_quote:
+            since = instance.quote_starvation_since
+            if since is not None:
+                down_sec = max(0.0, float((now_wall - since).total_seconds()))
+                gate(
+                    "QUOTE_STARVE_RECOVERED",
+                    {
+                        "symbol": symbol,
+                        "down_sec": down_sec,
+                    },
+                )
+            self._reset_quote_starvation_state(instance)
+            return {"starving": False, "since_sec": 0.0, "force_exit": False, "action": action}
+
+        if instance.quote_starvation_since is None:
+            instance.quote_starvation_since = now_wall
+            instance.quote_starvation_stage = None
+
+        since = instance.quote_starvation_since
+        since_sec = max(0.0, float((now_wall - since).total_seconds())) if since is not None else 0.0
+        if since_sec >= kill_sec:
+            stage = "kill"
+        elif since_sec >= warn_sec:
+            stage = "warn"
+        else:
+            stage = "fresh"
+
+        if instance.quote_starvation_stage != stage:
+            instance.quote_starvation_stage = stage
+            gate(
+                "QUOTE_STARVING_HOLDING",
+                {
+                    "symbol": symbol,
+                    "stage": stage,
+                    "since_sec": since_sec,
+                    "warn_sec": warn_sec,
+                    "kill_sec": kill_sec,
+                    "proxy_error": self._client.proxy_error(),
+                },
+            )
+            if stage == "kill":
+                gate(
+                    "QUOTE_STARVE_KILL_SWITCH",
+                    {
+                        "symbol": symbol,
+                        "action": action,
+                        "since_sec": since_sec,
+                    },
+                )
+
+        last_repair = instance.quote_starvation_last_repair_ts
+        repair_due = (
+            last_repair is None
+            or (now_wall - last_repair).total_seconds() >= float(repair_cooldown_sec)
+        )
+        if stage in ("warn", "kill") and repair_due:
+            if int(con_id or 0) > 0:
+                self._client.release_ticker(int(con_id), owner="bot")
+            self._client.start_proxy_tickers()
+            instance.quote_starvation_last_repair_ts = now_wall
+            gate(
+                "QUOTE_STARVE_REPAIR",
+                {
+                    "symbol": symbol,
+                    "stage": stage,
+                    "repair_cooldown_sec": repair_cooldown_sec,
+                    "proxy_error": self._client.proxy_error(),
+                },
+            )
+
+        force_exit = False
+        if stage == "kill" and action == "force_exit":
+            last_kill = instance.quote_starvation_last_kill_ts
+            if last_kill is None or (now_wall - last_kill).total_seconds() >= 30.0:
+                instance.quote_starvation_last_kill_ts = now_wall
+                force_exit = True
+
+        return {
+            "starving": True,
+            "since_sec": since_sec,
+            "stage": stage,
+            "force_exit": bool(force_exit),
+            "action": action,
+        }
 
     def _spot_exec_tick_prices(self, *, instance: _BotInstance, ticker, qty_sign: int) -> list[float]:
         mode = self._spot_exec_feed_mode(instance)
@@ -794,6 +1188,7 @@ class BotSignalRuntimeMixin:
         open_items: list,
         open_dir: str | None,
         now_wall: datetime,
+        snap,
         gate,
     ) -> bool:
         if instrument != "spot":
@@ -830,6 +1225,51 @@ class BotSignalRuntimeMixin:
                 self._clear_pending_exit(instance)
                 return True
             self._clear_pending_exit(instance)
+
+        pending_direction = instance.pending_entry_direction
+        if pending_direction in ("up", "down") and instance.pending_entry_due_ts is not None:
+            risk = getattr(snap, "risk", None) if snap is not None else None
+            shock_dir_now = str(getattr(snap, "shock_dir", "") or "").strip().lower() if snap is not None else ""
+            if shock_dir_now not in ("up", "down"):
+                shock_dir_now = None
+            pending_set_date = (
+                instance.pending_entry_signal_bar_ts.date()
+                if instance.pending_entry_signal_bar_ts is not None
+                else None
+            )
+            riskoff_mode = self._spot_riskoff_mode(instance)
+            riskoff_end_hour = self._spot_riskoff_end_hour(instance)
+            if self._spot_pending_entry_should_cancel(
+                pending_dir=str(pending_direction),
+                pending_set_date=pending_set_date,
+                exec_ts=now_wall,
+                risk_overlay_enabled=bool(risk is not None),
+                riskoff_today=bool(getattr(risk, "riskoff", False)) if risk is not None else False,
+                riskpanic_today=bool(getattr(risk, "riskpanic", False)) if risk is not None else False,
+                riskpop_today=bool(getattr(risk, "riskpop", False)) if risk is not None else False,
+                riskoff_mode=riskoff_mode,
+                shock_dir_now=shock_dir_now,
+                riskoff_end_hour=riskoff_end_hour,
+            ):
+                gate(
+                    "CANCEL_PENDING_ENTRY_RISK_OVERLAY",
+                    {
+                        "direction": str(pending_direction),
+                        "next_open_due": instance.pending_entry_due_ts.isoformat(),
+                        "signal_bar_ts": (
+                            instance.pending_entry_signal_bar_ts.isoformat()
+                            if instance.pending_entry_signal_bar_ts is not None
+                            else None
+                        ),
+                        "riskoff_mode": riskoff_mode,
+                        "shock_dir": shock_dir_now,
+                        "riskoff": bool(getattr(risk, "riskoff", False)) if risk is not None else False,
+                        "riskpanic": bool(getattr(risk, "riskpanic", False)) if risk is not None else False,
+                        "riskpop": bool(getattr(risk, "riskpop", False)) if risk is not None else False,
+                        "riskoff_end_hour": riskoff_end_hour,
+                    },
+                )
+                self._clear_pending_entry(instance)
 
         pending_entry_due = instance.pending_entry_due_ts
         if pending_entry_due is not None and now_wall >= pending_entry_due:
@@ -969,6 +1409,12 @@ class BotSignalRuntimeMixin:
 
         if instrument == "spot":
             open_item = open_items[0]
+            contract_symbol = str(
+                getattr(getattr(open_item, "contract", None), "symbol", "")
+                or getattr(instance, "symbol", "")
+                or ""
+            ).strip().upper()
+            contract_con_id = int(getattr(getattr(open_item, "contract", None), "conId", 0) or 0)
             try:
                 pos = float(getattr(open_item, "position", 0.0) or 0.0)
             except (TypeError, ValueError):
@@ -1059,6 +1505,30 @@ class BotSignalRuntimeMixin:
                 "portfolio" if portfolio_market_price is not None else None
             )
             now_wall = self._wall_time(now_et)
+            quote_watch = self._spot_quote_starvation_watchdog(
+                instance=instance,
+                now_wall=now_wall,
+                symbol=contract_symbol,
+                con_id=contract_con_id,
+                bid=bid,
+                ask=ask,
+                last=last,
+                ticker_market_price=ticker_market_price,
+                market_price=market_price,
+                gate=gate,
+            )
+            if bool(quote_watch.get("force_exit")):
+                return _trigger_exit("quote_starvation_kill", mode="spot")
+            quote_starving = bool(quote_watch.get("starving"))
+            quote_starve_since_sec = (
+                float(quote_watch.get("since_sec"))
+                if quote_watch.get("since_sec") is not None
+                else None
+            )
+            quote_watch_action = str(quote_watch.get("action") or "")
+            if quote_starving:
+                market_price = None
+                market_price_source = None
             exec_prices = self._spot_exec_price_points(
                 instance=instance,
                 ticker=ticker,
@@ -1111,6 +1581,9 @@ class BotSignalRuntimeMixin:
                     "portfolio_market_price": float(portfolio_market_price) if portfolio_market_price is not None else None,
                     "market_price_used": float(market_price) if market_price is not None else None,
                     "market_price_source": market_price_source,
+                    "quote_starving": bool(quote_starving),
+                    "quote_starve_since_sec": quote_starve_since_sec,
+                    "quote_starve_action": quote_watch_action,
                     "exec_feed_mode": self._spot_exec_feed_mode(instance),
                     "exec_prices_count": int(len(exec_prices)),
                     "mark_to_market": mark_to_market,

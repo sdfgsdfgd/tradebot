@@ -21,6 +21,7 @@ from textual.widgets import DataTable, Footer, Header, Static
 
 from ..client import IBKRClient
 from ..engine import (
+    flip_exit_gate_blocked,
     flip_exit_hit,
     normalize_spot_entry_signal,
     resolve_spot_regime2_spec,
@@ -2370,6 +2371,16 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             needed = "1 Y"
         return _max_duration(base, needed)
 
+    @staticmethod
+    def _signal_expand_duration(duration: str) -> str:
+        order = ("1 D", "2 D", "1 W", "2 W", "1 M", "2 M", "3 M", "6 M", "1 Y", "2 Y")
+        cleaned = str(duration or "").strip()
+        try:
+            idx = order.index(cleaned)
+        except ValueError:
+            return cleaned
+        return order[min(idx + 1, len(order) - 1)]
+
     def _signal_expected_live_bars(
         self,
         *,
@@ -2397,6 +2408,27 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         if weekday == 4 and current >= time(20, 0):
             return False
         return True
+
+    def _signal_stale_threshold_bars(
+        self,
+        *,
+        now_ref: datetime,
+        use_rth: bool,
+        sec_type: str,
+        source: str,
+        bar_seconds: float,
+    ) -> float:
+        threshold = 2.25
+        if bar_seconds <= 0:
+            return threshold
+        session = _market_session_bucket(now_ref)
+        sec = str(sec_type or "").strip().upper()
+        src = str(source or "").strip().upper()
+        # IBKR STK TRADES bars can publish late around PRE/RTH edges while still being contiguous.
+        # Allow a slightly wider freshness window in this stream/session profile.
+        if sec == "STK" and not bool(use_rth) and src == "TRADES" and session in ("PRE", "RTH"):
+            return 2.55
+        return threshold
 
     def _signal_bar_health(
         self,
@@ -2426,7 +2458,20 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             use_rth=use_rth,
             sec_type=sec_type,
         )
-        stale = bool(last_bar_ts is None or (expected_live and lag_bars > 2.25))
+        stale_threshold_bars = self._signal_stale_threshold_bars(
+            now_ref=now_ref,
+            use_rth=use_rth,
+            sec_type=sec_type,
+            source=source,
+            bar_seconds=bar_seconds,
+        )
+        stale = bool(last_bar_ts is None or (expected_live and lag_bars > stale_threshold_bars))
+        gap_stats = self._signal_gap_stats(
+            bars=bars,
+            bar_size=bar_size,
+            use_rth=use_rth,
+            sec_type=sec_type,
+        )
         return {
             "source": str(source or "TRADES").upper(),
             "last_bar_ts": last_bar_ts,
@@ -2437,9 +2482,93 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             "session": _market_session_bucket(now_ref),
             "use_rth": bool(use_rth),
             "sec_type": str(sec_type or "").strip().upper(),
+            "stale_threshold_bars": float(stale_threshold_bars),
             "heal_attempted": bool(heal_attempted),
             "heal_sources": list(heal_sources or []),
+            "gap_count": int(gap_stats.get("gap_count", 0)),
+            "max_gap_bars": float(gap_stats.get("max_gap_bars", 0.0)),
+            "recent_gap_count": int(gap_stats.get("recent_gap_count", 0)),
+            "recent_max_gap_bars": float(gap_stats.get("recent_max_gap_bars", 0.0)),
+            "gap_threshold_bars": float(gap_stats.get("gap_threshold_bars", 2.25)),
+            "recent_horizon_bars": int(gap_stats.get("recent_horizon_bars", 0)),
+            "gap_detected": bool(gap_stats.get("gap_detected", False)),
         }
+
+    def _signal_gap_stats(
+        self,
+        *,
+        bars: list | None,
+        bar_size: str,
+        use_rth: bool,
+        sec_type: str,
+    ) -> dict[str, object]:
+        out = {
+            "gap_count": 0,
+            "max_gap_bars": 0.0,
+            "recent_gap_count": 0,
+            "recent_max_gap_bars": 0.0,
+            "gap_threshold_bars": 2.25,
+            "recent_horizon_bars": 72,
+            "gap_detected": False,
+        }
+        if not bars or len(bars) < 2:
+            return out
+        bar_def = parse_bar_size(str(bar_size))
+        if bar_def is None or bar_def.duration.total_seconds() <= 0:
+            return out
+
+        bar_seconds = float(bar_def.duration.total_seconds())
+        gap_threshold = float(out["gap_threshold_bars"])
+        recent_horizon_bars = int(out["recent_horizon_bars"])
+        recent_horizon_sec = max(bar_seconds, float(recent_horizon_bars) * bar_seconds)
+
+        last_ts = getattr(bars[-1], "ts", None)
+        if not isinstance(last_ts, datetime):
+            return out
+        recent_cutoff = last_ts - timedelta(seconds=recent_horizon_sec)
+
+        gap_count = 0
+        max_gap_bars = 0.0
+        recent_gap_count = 0
+        recent_max_gap_bars = 0.0
+
+        prev_ts = getattr(bars[0], "ts", None)
+        if not isinstance(prev_ts, datetime):
+            prev_ts = None
+        for bar in bars[1:]:
+            curr_ts = getattr(bar, "ts", None)
+            if not isinstance(curr_ts, datetime):
+                continue
+            if not isinstance(prev_ts, datetime):
+                prev_ts = curr_ts
+                continue
+            delta_sec = float((curr_ts - prev_ts).total_seconds())
+            prev_ts = curr_ts
+            if delta_sec <= bar_seconds:
+                continue
+            midpoint = curr_ts - timedelta(seconds=(delta_sec / 2.0))
+            expected_live = self._signal_expected_live_bars(
+                now_ref=midpoint,
+                use_rth=use_rth,
+                sec_type=sec_type,
+            )
+            if not expected_live:
+                continue
+            gap_bars = float(delta_sec / bar_seconds)
+            if gap_bars <= gap_threshold:
+                continue
+            gap_count += 1
+            max_gap_bars = max(max_gap_bars, gap_bars)
+            if curr_ts >= recent_cutoff:
+                recent_gap_count += 1
+                recent_max_gap_bars = max(recent_max_gap_bars, gap_bars)
+
+        out["gap_count"] = int(gap_count)
+        out["max_gap_bars"] = float(max_gap_bars)
+        out["recent_gap_count"] = int(recent_gap_count)
+        out["recent_max_gap_bars"] = float(recent_max_gap_bars)
+        out["gap_detected"] = bool(recent_gap_count > 0)
+        return out
 
     @staticmethod
     def _signal_pick_fresher(
@@ -2457,6 +2586,26 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             return current
         if current_bars is None:
             return candidate
+        cur_gap = bool(current_health.get("gap_detected")) if isinstance(current_health, dict) else True
+        cand_gap = bool(cand_health.get("gap_detected")) if isinstance(cand_health, dict) else True
+        if cur_gap and not cand_gap:
+            return candidate
+        if cand_gap and not cur_gap:
+            return current
+        cur_recent_gaps = (
+            int(current_health.get("recent_gap_count", 0))
+            if isinstance(current_health, dict)
+            else 1_000_000
+        )
+        cand_recent_gaps = (
+            int(cand_health.get("recent_gap_count", 0))
+            if isinstance(cand_health, dict)
+            else 1_000_000
+        )
+        if cand_recent_gaps < cur_recent_gaps:
+            return candidate
+        if cand_recent_gaps > cur_recent_gaps:
+            return current
         cur_stale = bool(current_health.get("stale")) if isinstance(current_health, dict) else True
         cand_stale = bool(cand_health.get("stale")) if isinstance(cand_health, dict) else True
         if cur_stale and not cand_stale:
@@ -2481,10 +2630,16 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
 
         sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
 
-        async def _fetch(*, what_to_show: str, cache_ttl_sec: float) -> tuple[list | None, dict | None]:
+        async def _fetch(
+            *,
+            what_to_show: str,
+            cache_ttl_sec: float,
+            duration_override: str | None = None,
+        ) -> tuple[list | None, dict | None]:
+            req_duration = str(duration_override or duration_str)
             bars = await self._client.historical_bars_ohlcv(
                 contract,
-                duration_str=duration_str,
+                duration_str=req_duration,
                 bar_size=bar_size,
                 use_rth=use_rth,
                 what_to_show=what_to_show,
@@ -2524,21 +2679,32 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             return bars, health
 
         stale_now = bool(health and health.get("stale"))
+        gap_now = bool(health and health.get("gap_detected"))
         expected_live = bool(health and health.get("expected_live"))
-        if not stale_now or not expected_live:
+        if (not stale_now and not gap_now) or not expected_live:
             return bars, health
 
         heal_sources = ["TRADES", "MIDPOINT"]
+        heal_durations = [str(duration_str)]
+        expanded_duration = self._signal_expand_duration(str(duration_str))
+        if expanded_duration and expanded_duration not in heal_durations:
+            heal_durations.append(expanded_duration)
         picked = (bars, health)
-        for source in heal_sources:
-            candidate = await _fetch(what_to_show=source, cache_ttl_sec=0.0)
-            picked = self._signal_pick_fresher(current=picked, candidate=candidate)
+        for heal_duration in heal_durations:
+            for source in heal_sources:
+                candidate = await _fetch(
+                    what_to_show=source,
+                    cache_ttl_sec=0.0,
+                    duration_override=heal_duration,
+                )
+                picked = self._signal_pick_fresher(current=picked, candidate=candidate)
 
         picked_bars, picked_health = picked
         if isinstance(picked_health, dict):
             picked_health = dict(picked_health)
             picked_health["heal_attempted"] = True
             picked_health["heal_sources"] = heal_sources
+            picked_health["heal_durations"] = heal_durations
         return picked_bars, picked_health
 
     def _signal_regime_spec(
@@ -2675,6 +2841,20 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             bar_health=bar_health,
         )
 
+    @staticmethod
+    def _signal_health_payload(bar_health: dict | None) -> dict | None:
+        if not isinstance(bar_health, dict):
+            return None
+        payload: dict[str, object] = {}
+        for key, value in bar_health.items():
+            if isinstance(value, datetime):
+                payload[str(key)] = value.isoformat()
+            elif isinstance(value, list):
+                payload[str(key)] = list(value)
+            else:
+                payload[str(key)] = value
+        return payload
+
     async def _signal_snapshot_for_contract(
         self,
         *,
@@ -2706,10 +2886,25 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         from ..spot_engine import SpotSignalEvaluator
 
         entry_signal = normalize_spot_entry_signal(entry_signal_raw)
+        diag: dict[str, object] = {
+            "stage": "init",
+            "bar_size": str(bar_size),
+            "use_rth": bool(use_rth),
+            "entry_signal": str(entry_signal),
+            "proxy_error": self._client.proxy_error(),
+        }
+
+        def _set_diag(stage: str, **extra: object) -> None:
+            payload = dict(diag)
+            payload["stage"] = str(stage)
+            payload.update(extra)
+            payload["proxy_error"] = self._client.proxy_error()
+            self._last_signal_snapshot_diag = payload
 
         # IB intraday bars are timestamped in ET wall-clock for this flow; use ET here so
         # trim_incomplete_last_bar drops the in-progress bar instead of treating it as complete.
         now_ref = datetime.now(tz=ZoneInfo("America/New_York")).replace(tzinfo=None)
+        _set_diag("signal_fetch")
         bars, bar_health = await self._signal_fetch_bars(
             contract=contract,
             duration_str=self._signal_duration_str(bar_size, filters=filters),
@@ -2719,6 +2914,10 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             heal_if_stale=True,
         )
         if not bars:
+            _set_diag(
+                "signal_bars",
+                bar_health=self._signal_health_payload(bar_health),
+            )
             return None
 
         regime_mode, regime_preset, regime_bar_size, use_mtf_regime = self._signal_regime_spec(
@@ -2729,13 +2928,20 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         )
 
         regime_bars = None
+        regime_health = None
         if use_mtf_regime:
             regime_duration = self._signal_regime_duration(
                 regime_duration=self._signal_duration_str(regime_bar_size, filters=filters),
                 regime_bar_size=regime_bar_size,
                 filters=filters,
             )
-            regime_bars, _ = await self._signal_fetch_bars(
+            _set_diag(
+                "regime_fetch",
+                regime_bar_size=str(regime_bar_size),
+                regime_duration=str(regime_duration),
+                bar_health=self._signal_health_payload(bar_health),
+            )
+            regime_bars, regime_health = await self._signal_fetch_bars(
                 contract=contract,
                 duration_str=regime_duration,
                 bar_size=regime_bar_size,
@@ -2743,6 +2949,13 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                 now_ref=now_ref,
             )
             if not regime_bars:
+                _set_diag(
+                    "regime_bars",
+                    regime_bar_size=str(regime_bar_size),
+                    regime_duration=str(regime_duration),
+                    bar_health=self._signal_health_payload(bar_health),
+                    regime_bar_health=self._signal_health_payload(regime_health),
+                )
                 return None
 
         regime2_mode, regime2_preset, regime2_bar_size, use_mtf_regime2 = self._signal_regime2_spec(
@@ -2753,15 +2966,33 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         )
 
         regime2_bars = None
+        regime2_health = None
         if regime2_mode != "off" and use_mtf_regime2:
-            regime2_bars, _ = await self._signal_fetch_bars(
+            regime2_duration = self._signal_duration_str(regime2_bar_size, filters=filters)
+            _set_diag(
+                "regime2_fetch",
+                regime2_mode=str(regime2_mode),
+                regime2_bar_size=str(regime2_bar_size),
+                regime2_duration=str(regime2_duration),
+                bar_health=self._signal_health_payload(bar_health),
+                regime_bar_health=self._signal_health_payload(regime_health),
+            )
+            regime2_bars, regime2_health = await self._signal_fetch_bars(
                 contract=contract,
-                duration_str=self._signal_duration_str(regime2_bar_size, filters=filters),
+                duration_str=regime2_duration,
                 bar_size=regime2_bar_size,
                 use_rth=use_rth,
                 now_ref=now_ref,
             )
             if not regime2_bars:
+                _set_diag(
+                    "regime2_bars",
+                    regime2_mode=str(regime2_mode),
+                    regime2_bar_size=str(regime2_bar_size),
+                    bar_health=self._signal_health_payload(bar_health),
+                    regime_bar_health=self._signal_health_payload(regime_health),
+                    regime2_bar_health=self._signal_health_payload(regime2_health),
+                )
                 return None
         strategy = self._signal_strategy_payload(
             entry_signal=entry_signal,
@@ -2793,10 +3024,45 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             regime2_bars=regime2_bars,
         )
 
+        _set_diag(
+            "eval",
+            bars_count=int(len(bars)),
+            regime_bars_count=int(len(regime_bars or [])),
+            regime2_bars_count=int(len(regime2_bars or [])),
+            bar_health=self._signal_health_payload(bar_health),
+            regime_bar_health=self._signal_health_payload(regime_health),
+            regime2_bar_health=self._signal_health_payload(regime2_health),
+        )
         last_snap = self._signal_eval_last_snapshot(evaluator=evaluator, bars=bars)
-        if last_snap is None or not bool(last_snap.signal.ema_ready):
+        if last_snap is None:
+            _set_diag(
+                "eval_no_snapshot",
+                bars_count=int(len(bars)),
+                regime_bars_count=int(len(regime_bars or [])),
+                regime2_bars_count=int(len(regime2_bars or [])),
+                bar_health=self._signal_health_payload(bar_health),
+            )
+            return None
+        if not bool(last_snap.signal.ema_ready):
+            _set_diag(
+                "eval_ema_not_ready",
+                bars_count=int(len(bars)),
+                last_bar_ts=(last_snap.bar_ts.isoformat() if isinstance(last_snap.bar_ts, datetime) else None),
+                signal_state=str(last_snap.signal.state or ""),
+                entry_dir=str(last_snap.signal.entry_dir or ""),
+                regime_dir=str(last_snap.signal.regime_dir or ""),
+                bar_health=self._signal_health_payload(bar_health),
+            )
             return None
 
+        _set_diag(
+            "ok",
+            bars_count=int(len(bars)),
+            regime_bars_count=int(len(regime_bars or [])),
+            regime2_bars_count=int(len(regime2_bars or [])),
+            bar_health=self._signal_health_payload(bar_health),
+            bar_ts=last_snap.bar_ts.isoformat() if isinstance(last_snap.bar_ts, datetime) else None,
+        )
         return self._signal_snapshot_from_eval(last_snap, bar_health=bar_health)
 
     def _reset_daily_counters_if_needed(self, instance: _BotInstance) -> None:
@@ -3071,6 +3337,15 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                     continue
             if pnl <= 0:
                 return False
+
+        if flip_exit_gate_blocked(
+            gate_mode_raw=instance.strategy.get("flip_exit_gate_mode"),
+            filters=instance.filters,
+            close=float(snap.close),
+            signal=snap.signal,
+            trade_dir=open_dir,
+        ):
+            return False
         return True
 
     def _entry_direction_for_instance(self, instance: _BotInstance, snap: _SignalSnapshot) -> str | None:

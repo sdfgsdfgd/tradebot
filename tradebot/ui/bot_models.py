@@ -69,6 +69,12 @@ class _BotInstance:
     last_cross_bar_ts: datetime | None = None
     last_gate_status: str | None = None
     last_gate_fingerprint: tuple | None = None
+    no_signal_snapshot_since: datetime | None = None
+    no_signal_snapshot_last_ping: datetime | None = None
+    quote_starvation_since: datetime | None = None
+    quote_starvation_stage: str | None = None
+    quote_starvation_last_repair_ts: datetime | None = None
+    quote_starvation_last_kill_ts: datetime | None = None
     pending_entry_direction: str | None = None
     pending_entry_signal_bar_ts: datetime | None = None
     pending_entry_due_ts: datetime | None = None

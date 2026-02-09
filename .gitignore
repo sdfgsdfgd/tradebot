@@ -11,3 +11,4 @@ db/quotes/
 docs/todo/
 tradebot/backtest/spot_milestones.tqqq_*.json
 tradebot/ui/out/
+.codex/
