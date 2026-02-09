@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 import sys
+import time
 from types import SimpleNamespace
 import types
 
@@ -21,6 +22,7 @@ if "tradebot.ui" not in sys.modules:
 
 from tradebot.ui.bot_engine_runtime import BotEngineRuntimeMixin
 from tradebot.ui.bot_models import _BotInstance, _BotOrder
+from tradebot.ui.bot_order_builder import BotOrderBuilderMixin
 from tradebot.ui.bot_signal_runtime import BotSignalRuntimeMixin
 
 
@@ -35,6 +37,10 @@ class _RawBar:
 
 
 def _new_client() -> IBKRClient:
+    try:
+        asyncio.get_event_loop()
+    except RuntimeError:
+        asyncio.set_event_loop(asyncio.new_event_loop())
     cfg = IBKRConfig(
         host="127.0.0.1",
         port=4001,
@@ -196,8 +202,15 @@ def test_exit_gate_blocks_retry_limit_and_cooldown() -> None:
 
 
 class _FakeTrade:
-    def __init__(self, status: str) -> None:
-        self.orderStatus = SimpleNamespace(status=status)
+    def __init__(
+        self,
+        status: str,
+        *,
+        why_held: str = "",
+        log_messages: list[str] | None = None,
+    ) -> None:
+        self.orderStatus = SimpleNamespace(status=status, whyHeld=why_held)
+        self.log = [SimpleNamespace(message=msg) for msg in list(log_messages or [])]
         self.fills = []
 
     def isDone(self) -> bool:
@@ -205,13 +218,18 @@ class _FakeTrade:
 
 
 class _EngineHarness(BotEngineRuntimeMixin):
-    def __init__(self, *, instance: _BotInstance, order: _BotOrder) -> None:
+    def __init__(self, *, instance: _BotInstance, order: _BotOrder, client=None) -> None:
         self._orders = [order]
         self._instances = [instance]
         self._last_chase_ts = -1_000_000_000.0
         self._active_panel = "instances"
         self._order_rows = []
         self._events: list[tuple[str, dict]] = []
+        self._client = (
+            client
+            if client is not None
+            else SimpleNamespace(pop_order_error=lambda order_id, max_age_sec=120.0: None)
+        )
 
     async def _reprice_order(self, order: _BotOrder, *, mode: str) -> bool:
         return False
@@ -223,7 +241,14 @@ class _EngineHarness(BotEngineRuntimeMixin):
         return None
 
 
-def _new_order(*, status: str, signal_bar_ts: datetime) -> _BotOrder:
+def _new_order(
+    *,
+    status: str,
+    signal_bar_ts: datetime,
+    order_id: int | None = 777,
+    why_held: str = "",
+    log_messages: list[str] | None = None,
+) -> _BotOrder:
     contract = Stock(symbol="SLV", exchange="SMART", currency="USD")
     return _BotOrder(
         instance_id=1,
@@ -236,9 +261,10 @@ def _new_order(*, status: str, signal_bar_ts: datetime) -> _BotOrder:
         limit_price=1.0,
         created_at=datetime(2026, 2, 9, 10, 0),
         status="WORKING",
+        order_id=order_id,
         intent="exit",
         signal_bar_ts=signal_bar_ts,
-        trade=_FakeTrade(status),
+        trade=_FakeTrade(status, why_held=why_held, log_messages=log_messages),
     )
 
 
@@ -274,3 +300,141 @@ def test_engine_filled_exit_sets_same_bar_lock_and_clears_retry_state() -> None:
     assert instance.exit_retry_count == 0
     assert instance.exit_retry_cooldown_until is None
     assert any(event == "ORDER_FILLED" and data.get("exit_lock_bar_ts") for event, data in harness._events)
+
+
+def test_engine_inactive_exit_attaches_ib_reject_reason() -> None:
+    class _RejectClient:
+        def pop_order_error(self, order_id, *, max_age_sec: float = 120.0):
+            assert int(order_id) == 777
+            return {
+                "code": 201,
+                "message": "The time-in-force GTC is invalid for this combination of exchange and security type.",
+            }
+
+    bar_ts = datetime(2026, 2, 9, 10, 0)
+    instance = _new_instance(strategy={"exit_retry_cooldown_sec": 2})
+    order = _new_order(status="Inactive", signal_bar_ts=bar_ts, order_id=777)
+    harness = _EngineHarness(instance=instance, order=order, client=_RejectClient())
+
+    asyncio.run(harness._chase_orders_tick())
+
+    assert order.status == "INACTIVE"
+    assert order.error is not None
+    assert order.error.startswith("IB 201:")
+    done_payload = next(data for event, data in harness._events if event == "ORDER_DONE")
+    assert done_payload.get("ib_error_code") == 201
+    assert "time-in-force GTC is invalid" in str(done_payload.get("ib_error_message") or "")
+
+
+def test_order_error_cache_pop_and_expiry() -> None:
+    client = _new_client()
+    client._remember_order_error(1001, 201, "bad tif")
+    payload = client.pop_order_error(1001)
+    assert payload == {"code": 201, "message": "bad tif"}
+    assert client.pop_order_error(1001) is None
+
+    client._order_error_cache[1002] = (time.monotonic() - 600.0, 201, "stale")
+    assert client.pop_order_error(1002, max_age_sec=120.0) is None
+
+    client._remember_order_error(1003, 2104, "Market data farm connection is OK")
+    assert client.pop_order_error(1003) is None
+
+
+def test_place_limit_order_overnight_uses_day_tif(monkeypatch) -> None:
+    class _FakeIB:
+        def __init__(self) -> None:
+            self.calls: list[tuple[object, object]] = []
+
+        def placeOrder(self, contract, order):
+            self.calls.append((contract, order))
+            return SimpleNamespace(contract=contract, order=SimpleNamespace(orderId=123, permId=0))
+
+    client = _new_client()
+    fake_ib = _FakeIB()
+    client._ib = fake_ib
+
+    async def _fake_connect() -> None:
+        return None
+
+    client.connect = _fake_connect  # type: ignore[method-assign]
+    monkeypatch.setattr("tradebot.client._session_flags", lambda _now: (False, True))
+
+    contract = Stock(symbol="SLV", exchange="SMART", currency="USD")
+    asyncio.run(client.place_limit_order(contract, "BUY", 1, 73.42, outside_rth=True))
+
+    placed_contract, placed_order = fake_ib.calls[-1]
+    assert str(getattr(placed_contract, "exchange", "")).upper() == "OVERNIGHT"
+    assert str(getattr(placed_order, "tif", "")).upper() == "DAY"
+    assert bool(getattr(placed_order, "outsideRth", False)) is False
+
+
+def test_place_limit_order_premarket_uses_gtc_outside_rth(monkeypatch) -> None:
+    class _FakeIB:
+        def __init__(self) -> None:
+            self.calls: list[tuple[object, object]] = []
+
+        def placeOrder(self, contract, order):
+            self.calls.append((contract, order))
+            return SimpleNamespace(contract=contract, order=SimpleNamespace(orderId=123, permId=0))
+
+    client = _new_client()
+    fake_ib = _FakeIB()
+    client._ib = fake_ib
+
+    async def _fake_connect() -> None:
+        return None
+
+    client.connect = _fake_connect  # type: ignore[method-assign]
+    monkeypatch.setattr("tradebot.client._session_flags", lambda _now: (True, False))
+
+    contract = Stock(symbol="SLV", exchange="SMART", currency="USD")
+    asyncio.run(client.place_limit_order(contract, "SELL", 2, 73.11, outside_rth=True))
+
+    placed_contract, placed_order = fake_ib.calls[-1]
+    assert str(getattr(placed_contract, "exchange", "")).upper() == "SMART"
+    assert str(getattr(placed_order, "tif", "")).upper() == "GTC"
+    assert bool(getattr(placed_order, "outsideRth", False)) is True
+
+
+def test_initial_exec_mode_escalates_stop_exit_retries() -> None:
+    instance = _new_instance()
+    instance.order_trigger_reason = "stop_loss_pct"
+
+    instance.exit_retry_count = 0
+    assert (
+        BotOrderBuilderMixin._initial_exec_mode(
+            instance=instance,
+            instrument="spot",
+            intent_clean="exit",
+        )
+        == "OPTIMISTIC"
+    )
+
+    instance.exit_retry_count = 1
+    assert (
+        BotOrderBuilderMixin._initial_exec_mode(
+            instance=instance,
+            instrument="spot",
+            intent_clean="exit",
+        )
+        == "MID"
+    )
+
+    instance.exit_retry_count = 2
+    assert (
+        BotOrderBuilderMixin._initial_exec_mode(
+            instance=instance,
+            instrument="spot",
+            intent_clean="exit",
+        )
+        == "AGGRESSIVE"
+    )
+
+    assert (
+        BotOrderBuilderMixin._initial_exec_mode(
+            instance=instance,
+            instrument="options",
+            intent_clean="exit",
+        )
+        == "OPTIMISTIC"
+    )

@@ -62,6 +62,21 @@ def _nearest_strike(strikes: list[float], target: float) -> float | None:
 
 
 class BotOrderBuilderMixin:
+    @staticmethod
+    def _initial_exec_mode(*, instance: _BotInstance, instrument: str, intent_clean: str) -> str:
+        mode = "OPTIMISTIC"
+        if str(instrument or "").strip().lower() != "spot" or str(intent_clean or "") != "exit":
+            return mode
+        trigger_reason = str(instance.order_trigger_reason or "").strip().lower()
+        if trigger_reason not in ("stop_loss", "stop_loss_pct"):
+            return mode
+        retry_count = max(0, int(instance.exit_retry_count or 0))
+        if retry_count >= 2:
+            return "AGGRESSIVE"
+        if retry_count >= 1:
+            return "MID"
+        return mode
+
     async def _strike_by_delta(
         self,
         *,
@@ -285,9 +300,13 @@ class BotOrderBuilderMixin:
                 f"(instance_id={instance.instance_id} group={instance.group!r} symbol={symbol!r})"
             )
 
-        # All live execution uses the shared "execution ladder" (optimistic → mid → aggressive → cross).
-        # Orders always start at the optimistic phase; the chase loop handles escalation.
-        mode = "OPTIMISTIC"
+        # All live execution uses the shared execution ladder (optimistic -> mid -> aggressive -> cross).
+        # For repeated stop exits, start one rung higher so risk-off retries become marketable faster.
+        mode = self._initial_exec_mode(
+            instance=instance,
+            instrument=instrument,
+            intent_clean=intent_clean,
+        )
 
         def _leg_price(
             bid: float | None, ask: float | None, last: float | None, action: str

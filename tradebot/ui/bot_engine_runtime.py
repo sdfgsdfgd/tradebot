@@ -11,6 +11,14 @@ from .common import _EXEC_LADDER_TIMEOUT_SEC, _exec_ladder_mode
 _DEFAULT_EXIT_RETRY_COOLDOWN_SEC = 3.0
 
 
+def _latest_trade_log_message(trade) -> str | None:
+    for record in reversed(list(getattr(trade, "log", []) or [])):
+        message = str(getattr(record, "message", "") or "").strip()
+        if message:
+            return message
+    return None
+
+
 class BotEngineRuntimeMixin:
     async def _on_refresh_tick(self) -> None:
         if self._refresh_lock.locked():
@@ -102,6 +110,41 @@ class BotEngineRuntimeMixin:
                     sec_type = str(getattr(order.order_contract, "secType", "") or "").strip().upper()
                     intent = str(order.intent or "").strip().lower()
                     signal_bar_ts = order.signal_bar_ts if isinstance(order.signal_bar_ts, datetime) else None
+                    if status == "Inactive":
+                        error_payload = None
+                        client = getattr(self, "_client", None)
+                        if client is not None:
+                            try:
+                                error_payload = client.pop_order_error(order.order_id or 0)
+                            except Exception:
+                                error_payload = None
+                        if isinstance(error_payload, dict):
+                            try:
+                                error_code = int(error_payload.get("code") or 0)
+                            except (TypeError, ValueError):
+                                error_code = 0
+                            error_message = str(error_payload.get("message") or "").strip()
+                            if error_code:
+                                done_data["ib_error_code"] = int(error_code)
+                            if error_message:
+                                done_data["ib_error_message"] = error_message
+                                order.error = (
+                                    f"IB {error_code}: {error_message}"
+                                    if error_code
+                                    else error_message
+                                )
+                        if "ib_error_message" not in done_data:
+                            why_held = str(
+                                getattr(getattr(trade, "orderStatus", None), "whyHeld", "") or ""
+                            ).strip()
+                            if why_held:
+                                done_data["ib_why_held"] = why_held
+                                order.error = why_held
+                            else:
+                                log_message = _latest_trade_log_message(trade)
+                                if log_message:
+                                    done_data["ib_log_message"] = log_message
+                                    order.error = log_message
                     if status == "Filled" and intent == "exit":
                         if signal_bar_ts is not None:
                             instance.last_exit_bar_ts = signal_bar_ts

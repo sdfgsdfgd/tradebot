@@ -161,6 +161,7 @@ class IBKRClient:
         self._pnl_account: str | None = None
         self._account_value_cache: dict[tuple[str, str], tuple[float, datetime]] = {}
         self._session_close_cache: dict[int, tuple[float | None, float | None, float]] = {}
+        self._order_error_cache: dict[int, tuple[float, int, str]] = {}
         self._farm_connectivity_lost = False
         self._reconnect_requested = False
         self._resubscribe_main_needed = False
@@ -427,17 +428,19 @@ class IBKRClient:
     ) -> Trade:
         await self.connect()
         order_contract = contract
-        order = LimitOrder(action, quantity, limit_price, tif="GTC")
+        tif = "GTC"
+        outside_session = False
+        include_overnight = False
         if contract.secType == "STK":
-            allow_outside = outside_rth
-            outside_session, include_overnight = _session_flags(
-                datetime.now(tz=_ET_ZONE)
-            )
+            outside_session, include_overnight = _session_flags(datetime.now(tz=_ET_ZONE))
             if include_overnight:
                 order_contract = copy.copy(contract)
                 order_contract.exchange = "OVERNIGHT"
-            if allow_outside and outside_session:
-                order.outsideRth = True
+                # IBKR rejects STK OVERNIGHT orders with GTC; DAY is required.
+                tif = "DAY"
+        order = LimitOrder(action, quantity, limit_price, tif=tif)
+        if contract.secType == "STK" and outside_rth and outside_session and not include_overnight:
+            order.outsideRth = True
         order_contract = _normalize_order_contract(order_contract)
         return self._ib.placeOrder(order_contract, order)
 
@@ -1156,9 +1159,11 @@ class IBKRClient:
             self._proxy_error = str(exc)
 
     def _on_error_main(self, reqId, errorCode, errorString, contract) -> None:
+        self._remember_order_error(reqId, errorCode, errorString)
         self._handle_conn_error(errorCode)
 
     def _on_error_proxy(self, reqId, errorCode, errorString, contract) -> None:
+        self._remember_order_error(reqId, errorCode, errorString)
         if errorCode == 10167 and not self._proxy_force_delayed:
             self._proxy_force_delayed = True
             self._start_proxy_resubscribe()
@@ -1168,6 +1173,47 @@ class IBKRClient:
                 self._proxy_contract_force_delayed.add(con_id)
                 self._start_proxy_contract_delayed_resubscribe(contract)
         self._handle_conn_error(errorCode)
+
+    def _remember_order_error(self, req_id, error_code, error_text) -> None:
+        try:
+            order_id = int(req_id or 0)
+        except (TypeError, ValueError):
+            return
+        if order_id <= 0:
+            return
+        try:
+            code = int(error_code or 0)
+        except (TypeError, ValueError):
+            code = 0
+        message = str(error_text or "").strip()
+        if not message:
+            return
+        # Keep order-related errors only; reqId is shared across other request types.
+        if code not in (201, 202, 10147, 10148, 10149) and "order" not in message.lower():
+            return
+        self._order_error_cache[order_id] = (time.monotonic(), code, message)
+        if len(self._order_error_cache) > 512:
+            stale = sorted(
+                self._order_error_cache.items(),
+                key=lambda item: item[1][0],
+            )[:64]
+            for key, _value in stale:
+                self._order_error_cache.pop(int(key), None)
+
+    def pop_order_error(self, order_id: int, *, max_age_sec: float = 120.0) -> dict | None:
+        try:
+            key = int(order_id or 0)
+        except (TypeError, ValueError):
+            key = 0
+        if key <= 0:
+            return None
+        payload = self._order_error_cache.pop(key, None)
+        if payload is None:
+            return None
+        ts_mono, code, message = payload
+        if (time.monotonic() - float(ts_mono)) > float(max_age_sec):
+            return None
+        return {"code": int(code), "message": str(message)}
 
     def _on_disconnected_main(self) -> None:
         if self._shutdown:
