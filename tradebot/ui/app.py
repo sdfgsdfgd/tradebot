@@ -50,10 +50,10 @@ from .store import PortfolioSnapshot
 # region Positions UI
 class PositionsApp(App):
     _SECTION_HEADER_STYLE_BY_TYPE = {
-        "OPT": "bold #9fc7ff on #18243a",
-        "STK": "bold #8ee6b8 on #15251f",
-        "FUT": "bold #ffcf88 on #2b2215",
-        "FOP": "bold #d0b7ff on #211a33",
+        "OPT": "bold #8fbfff",
+        "STK": "bold #86dca9",
+        "FUT": "bold #ffcc84",
+        "FOP": "bold #c9b2ff",
     }
 
     BINDINGS = [
@@ -84,8 +84,14 @@ class PositionsApp(App):
     }
 
     #positions > .datatable--cursor {
-        background: #11151b;
+        background: #0d1117;
         text-style: none;
+    }
+
+    #positions > .datatable--header-cursor {
+        background: #182230;
+        color: #c6d4e1;
+        text-style: bold;
     }
 
     #status {
@@ -214,7 +220,12 @@ class PositionsApp(App):
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
         yield Static("", id="ticker")
-        yield DataTable(id="positions", zebra_stripes=True)
+        yield DataTable(
+            id="positions",
+            zebra_stripes=True,
+            cursor_foreground_priority="renderable",
+            cursor_background_priority="css",
+        )
         yield Static("Starting...", id="status")
         yield Footer()
 
