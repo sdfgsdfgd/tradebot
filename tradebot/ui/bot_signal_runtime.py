@@ -9,6 +9,8 @@ from zoneinfo import ZoneInfo
 
 from ..engine import (
     cooldown_ok_by_time,
+    normalize_shock_detector,
+    normalize_shock_gate_mode,
     normalize_spot_entry_signal,
     parse_time_hhmm,
     resolve_spot_regime2_spec,
@@ -28,6 +30,7 @@ _RTH_OPEN = time(9, 30)
 _RTH_CLOSE = time(16, 0)
 _EXT_OPEN = time(4, 0)
 _EXT_CLOSE = time(20, 0)
+_ET_ZONE = ZoneInfo("America/New_York")
 _DEFAULT_ORDER_STAGE_TIMEOUT_SEC = 20.0
 _DEFAULT_EXIT_RETRY_MAX_PER_BAR = 3
 _BID_TICK_TYPES = {1, 66}
@@ -42,7 +45,7 @@ def _weekday_num(label: str) -> int:
 
 class BotSignalRuntimeMixin:
     async def _auto_order_tick(self) -> None:
-        now_et = datetime.now(tz=ZoneInfo("America/New_York"))
+        now_et = datetime.now(tz=_ET_ZONE)
         now_wall = self._wall_time(now_et)
         no_signal_watchdog_sec = 60.0
         self._check_order_trigger_watchdogs(now_et=now_et)
@@ -240,6 +243,11 @@ class BotSignalRuntimeMixin:
                             "spot_exec_bar_size": str(
                                 instance.strategy.get("spot_exec_bar_size") or self._signal_bar_size(instance)
                             ),
+                            "shock_gate_mode": normalize_shock_gate_mode(instance.filters),
+                            "shock_detector": normalize_shock_detector(instance.filters),
+                            "shock_scale_detector": str(
+                                self._filters_get_value(instance.filters, "shock_scale_detector") or ""
+                            ).strip(),
                         },
                     },
                 )
@@ -395,9 +403,10 @@ class BotSignalRuntimeMixin:
                 bar_size=self._signal_bar_size(instance),
                 cooldown_bars=cooldown_bars,
             )
+            filter_bar_ts = self._as_et_aware(snap.bar_ts)
             filter_checks = signal_filter_checks(
                 instance.filters,
-                bar_ts=snap.bar_ts,
+                bar_ts=filter_bar_ts,
                 bars_in_day=snap.bars_in_day,
                 close=float(snap.close),
                 volume=snap.volume,
@@ -416,6 +425,8 @@ class BotSignalRuntimeMixin:
                     {
                         "symbol": symbol,
                         "bar_ts": snap.bar_ts.isoformat(),
+                        "bar_ts_et": filter_bar_ts.isoformat(),
+                        "bar_hour_et": int(filter_bar_ts.hour),
                         "bars_in_day": int(snap.bars_in_day),
                         "cooldown_ok": bool(cooldown_ok),
                         "rv": float(snap.rv) if snap.rv is not None else None,
@@ -588,6 +599,12 @@ class BotSignalRuntimeMixin:
         return now_et.replace(tzinfo=None) if now_et.tzinfo is not None else now_et
 
     @staticmethod
+    def _as_et_aware(ts: datetime) -> datetime:
+        # Runtime signal bars are ET wall-clock timestamps with tz stripped at ingest.
+        # Reattach ET here before shared-core filters that convert to ET.
+        return ts.replace(tzinfo=_ET_ZONE) if ts.tzinfo is None else ts.astimezone(_ET_ZONE)
+
+    @staticmethod
     def _filters_get_value(filters: dict | object | None, key: str) -> object | None:
         if isinstance(filters, dict):
             return filters.get(key)
@@ -670,10 +687,38 @@ class BotSignalRuntimeMixin:
         mode: str | None = None,
     ) -> None:
         now_wall = self._wall_time(now_et)
-        instance.order_trigger_intent = str(intent or "")
-        instance.order_trigger_reason = str(reason or "")
-        instance.order_trigger_mode = str(mode or "")
-        instance.order_trigger_direction = str(direction or "")
+        intent_clean = str(intent or "")
+        reason_clean = str(reason or "")
+        mode_clean = str(mode or "")
+        direction_clean = str(direction or "")
+        prev_key = (
+            str(instance.order_trigger_intent or ""),
+            str(instance.order_trigger_reason or ""),
+            str(instance.order_trigger_mode or ""),
+            str(instance.order_trigger_direction or ""),
+            instance.order_trigger_signal_bar_ts.isoformat() if instance.order_trigger_signal_bar_ts is not None else "",
+        )
+        new_key = (
+            intent_clean,
+            reason_clean,
+            mode_clean,
+            direction_clean,
+            signal_bar_ts.isoformat() if signal_bar_ts is not None else "",
+        )
+        same_trigger = bool(instance.order_trigger_ts is not None and prev_key == new_key)
+        if same_trigger:
+            instance.order_trigger_attempt = max(1, int(instance.order_trigger_attempt or 0)) + 1
+            if instance.order_trigger_retry_reason is None:
+                retry_raw = str(instance.order_trigger_last_error or "").strip()
+                instance.order_trigger_retry_reason = retry_raw or "retry"
+        else:
+            instance.order_trigger_attempt = 1
+            instance.order_trigger_retry_reason = None
+            instance.order_trigger_last_error = None
+        instance.order_trigger_intent = intent_clean
+        instance.order_trigger_reason = reason_clean
+        instance.order_trigger_mode = mode_clean
+        instance.order_trigger_direction = direction_clean
         instance.order_trigger_signal_bar_ts = signal_bar_ts
         instance.order_trigger_ts = now_wall
         instance.order_trigger_deadline_ts = now_wall + timedelta(seconds=self._order_stage_timeout_sec(instance))
@@ -687,6 +732,20 @@ class BotSignalRuntimeMixin:
         instance.order_trigger_signal_bar_ts = None
         instance.order_trigger_ts = None
         instance.order_trigger_deadline_ts = None
+        instance.order_trigger_attempt = 0
+        instance.order_trigger_retry_reason = None
+        instance.order_trigger_last_error = None
+
+    @staticmethod
+    def _order_trigger_watch_payload(instance: _BotInstance) -> dict[str, object]:
+        payload: dict[str, object] = {}
+        attempt = max(0, int(instance.order_trigger_attempt or 0))
+        if attempt > 0:
+            payload["order_attempt"] = int(attempt)
+        retry_reason = str(instance.order_trigger_retry_reason or "").strip()
+        if retry_reason:
+            payload["retry_reason"] = retry_reason
+        return payload
 
     def _check_order_trigger_watchdogs(self, *, now_et: datetime) -> None:
         now_wall = self._wall_time(now_et)
@@ -714,6 +773,7 @@ class BotSignalRuntimeMixin:
                 ),
                 "deadline_ts": deadline.isoformat(),
             }
+            payload.update(self._order_trigger_watch_payload(instance))
             self._journal_write(
                 event="ORDER_DROPPED",
                 instance=instance,
@@ -1093,6 +1153,7 @@ class BotSignalRuntimeMixin:
         now_wall: datetime,
         gate,
     ) -> bool:
+        due_from_ts = self._spot_signal_close_ts(instance, signal_bar_ts)
         due_ts = self._spot_next_open_due_ts(instance, signal_bar_ts)
         if due_ts <= now_wall:
             self._queue_order(
@@ -1109,7 +1170,10 @@ class BotSignalRuntimeMixin:
                     "direction": direction,
                     "fill_mode": "next_open",
                     "next_open_due": due_ts.isoformat(),
+                    "next_open_due_from": due_from_ts.isoformat(),
+                    "now_wall_ts": now_wall.isoformat(),
                     "signal_bar_ts": signal_bar_ts.isoformat(),
+                    **self._order_trigger_watch_payload(instance),
                 },
             )
             return True
@@ -1125,6 +1189,8 @@ class BotSignalRuntimeMixin:
             {
                 "direction": direction,
                 "next_open_due": due_ts.isoformat(),
+                "next_open_due_from": due_from_ts.isoformat(),
+                "now_wall_ts": now_wall.isoformat(),
                 "signal_bar_ts": signal_bar_ts.isoformat(),
             },
         )
@@ -1141,6 +1207,7 @@ class BotSignalRuntimeMixin:
         mode: str,
         gate,
     ) -> bool:
+        due_from_ts = self._spot_signal_close_ts(instance, signal_bar_ts)
         due_ts = self._spot_next_open_due_ts(instance, signal_bar_ts)
         if due_ts <= now_wall:
             self._queue_order(
@@ -1158,7 +1225,10 @@ class BotSignalRuntimeMixin:
                     "reason": reason,
                     "fill_mode": "next_open",
                     "next_open_due": due_ts.isoformat(),
+                    "next_open_due_from": due_from_ts.isoformat(),
+                    "now_wall_ts": now_wall.isoformat(),
                     "signal_bar_ts": signal_bar_ts.isoformat(),
+                    **self._order_trigger_watch_payload(instance),
                 },
             )
             return True
@@ -1175,6 +1245,8 @@ class BotSignalRuntimeMixin:
                 "mode": mode,
                 "reason": reason,
                 "next_open_due": due_ts.isoformat(),
+                "next_open_due_from": due_from_ts.isoformat(),
+                "now_wall_ts": now_wall.isoformat(),
                 "signal_bar_ts": signal_bar_ts.isoformat(),
             },
         )
@@ -1200,11 +1272,17 @@ class BotSignalRuntimeMixin:
         pending_exit_due = instance.pending_exit_due_ts
         if pending_exit_due is not None and now_wall >= pending_exit_due:
             if open_items:
+                pending_exit_signal_bar_ts = instance.pending_exit_signal_bar_ts
+                due_from_ts = (
+                    self._spot_signal_close_ts(instance, pending_exit_signal_bar_ts)
+                    if pending_exit_signal_bar_ts is not None
+                    else pending_exit_due
+                )
                 self._queue_order(
                     instance,
                     intent="exit",
                     direction=open_dir,
-                    signal_bar_ts=instance.pending_exit_signal_bar_ts,
+                    signal_bar_ts=pending_exit_signal_bar_ts,
                     trigger_reason=str(instance.pending_exit_reason or "flip"),
                     trigger_mode="spot",
                 )
@@ -1215,11 +1293,14 @@ class BotSignalRuntimeMixin:
                         "reason": str(instance.pending_exit_reason or "flip"),
                         "fill_mode": "next_open",
                         "next_open_due": pending_exit_due.isoformat(),
+                        "next_open_due_from": due_from_ts.isoformat(),
+                        "now_wall_ts": now_wall.isoformat(),
                         "signal_bar_ts": (
-                            instance.pending_exit_signal_bar_ts.isoformat()
-                            if instance.pending_exit_signal_bar_ts is not None
+                            pending_exit_signal_bar_ts.isoformat()
+                            if pending_exit_signal_bar_ts is not None
                             else None
                         ),
+                        **self._order_trigger_watch_payload(instance),
                     },
                 )
                 self._clear_pending_exit(instance)
@@ -1275,11 +1356,17 @@ class BotSignalRuntimeMixin:
         if pending_entry_due is not None and now_wall >= pending_entry_due:
             direction = instance.pending_entry_direction
             if direction in ("up", "down") and not open_items:
+                pending_entry_signal_bar_ts = instance.pending_entry_signal_bar_ts
+                due_from_ts = (
+                    self._spot_signal_close_ts(instance, pending_entry_signal_bar_ts)
+                    if pending_entry_signal_bar_ts is not None
+                    else pending_entry_due
+                )
                 self._queue_order(
                     instance,
                     intent="enter",
                     direction=direction,
-                    signal_bar_ts=instance.pending_entry_signal_bar_ts,
+                    signal_bar_ts=pending_entry_signal_bar_ts,
                     trigger_reason="next_open",
                     trigger_mode="spot",
                 )
@@ -1289,11 +1376,14 @@ class BotSignalRuntimeMixin:
                         "direction": direction,
                         "fill_mode": "next_open",
                         "next_open_due": pending_entry_due.isoformat(),
+                        "next_open_due_from": due_from_ts.isoformat(),
+                        "now_wall_ts": now_wall.isoformat(),
                         "signal_bar_ts": (
-                            instance.pending_entry_signal_bar_ts.isoformat()
-                            if instance.pending_entry_signal_bar_ts is not None
+                            pending_entry_signal_bar_ts.isoformat()
+                            if pending_entry_signal_bar_ts is not None
                             else None
                         ),
+                        **self._order_trigger_watch_payload(instance),
                     },
                 )
                 self._clear_pending_entry(instance)
@@ -1306,6 +1396,12 @@ class BotSignalRuntimeMixin:
                     "mode": "spot",
                     "reason": str(instance.pending_exit_reason or "flip"),
                     "next_open_due": instance.pending_exit_due_ts.isoformat(),
+                    "next_open_due_from": (
+                        self._spot_signal_close_ts(instance, instance.pending_exit_signal_bar_ts).isoformat()
+                        if instance.pending_exit_signal_bar_ts is not None
+                        else instance.pending_exit_due_ts.isoformat()
+                    ),
+                    "now_wall_ts": now_wall.isoformat(),
                     "signal_bar_ts": (
                         instance.pending_exit_signal_bar_ts.isoformat()
                         if instance.pending_exit_signal_bar_ts is not None
@@ -1319,6 +1415,12 @@ class BotSignalRuntimeMixin:
                 {
                     "direction": instance.pending_entry_direction,
                     "next_open_due": instance.pending_entry_due_ts.isoformat(),
+                    "next_open_due_from": (
+                        self._spot_signal_close_ts(instance, instance.pending_entry_signal_bar_ts).isoformat()
+                        if instance.pending_entry_signal_bar_ts is not None
+                        else instance.pending_entry_due_ts.isoformat()
+                    ),
+                    "now_wall_ts": now_wall.isoformat(),
                     "signal_bar_ts": (
                         instance.pending_entry_signal_bar_ts.isoformat()
                         if instance.pending_entry_signal_bar_ts is not None
@@ -1404,6 +1506,7 @@ class BotSignalRuntimeMixin:
             payload = {"mode": mode, "reason": reason}
             if calc:
                 payload["calc"] = calc
+            payload.update(self._order_trigger_watch_payload(instance))
             gate("TRIGGER_EXIT", payload)
             return True
 
@@ -1849,7 +1952,9 @@ class BotSignalRuntimeMixin:
             trigger_reason="entry",
             trigger_mode=instrument,
         )
-        gate("TRIGGER_ENTRY", {"direction": direction})
+        payload = {"direction": direction}
+        payload.update(self._order_trigger_watch_payload(instance))
+        gate("TRIGGER_ENTRY", payload)
         return True
 
     def _queue_order(
@@ -1895,6 +2000,9 @@ class BotSignalRuntimeMixin:
                     signal_bar_ts=signal_bar_ts,
                 )
             except Exception as exc:
+                instance.order_trigger_last_error = str(exc)
+                if not str(instance.order_trigger_retry_reason or "").strip():
+                    instance.order_trigger_retry_reason = "order_build_exception"
                 self._journal_write(
                     event="ORDER_BUILD_FAILED",
                     instance=instance,
@@ -1905,20 +2013,17 @@ class BotSignalRuntimeMixin:
                         "exc": str(exc),
                         "direction": direction,
                         "signal_bar_ts": signal_bar_ts.isoformat() if signal_bar_ts else None,
+                        "retry_reason": "order_build_exception",
+                        **self._order_trigger_watch_payload(instance),
                     },
                 )
-                self._clear_order_trigger_watch(instance)
                 self._status = f"Order build error: {exc}"
                 self._render_status()
 
         self._order_task = loop.create_task(_create_order_task())
 
     def _entry_weekday_for_ts(self, instance: _BotInstance, ts: datetime) -> int:
-        ts_et = (
-            ts.replace(tzinfo=ZoneInfo("America/New_York"))
-            if ts.tzinfo is None
-            else ts.astimezone(ZoneInfo("America/New_York"))
-        )
+        ts_et = self._as_et_aware(ts)
         weekday = int(ts_et.weekday())
         if self._strategy_instrument(instance.strategy) != "spot":
             return weekday
@@ -1938,7 +2043,7 @@ class BotSignalRuntimeMixin:
             allowed = {_weekday_num(day) for day in entry_days}
         else:
             allowed = {0, 1, 2, 3, 4, 5, 6}
-        now = now_et if now_et is not None else datetime.now(tz=ZoneInfo("America/New_York"))
+        now = now_et if now_et is not None else datetime.now(tz=_ET_ZONE)
         if self._entry_weekday_for_ts(instance, now) not in allowed:
             return False
         return True

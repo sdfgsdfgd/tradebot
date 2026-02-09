@@ -187,6 +187,21 @@ class BotJournal:
                     parts.append(f"bar#={int(bars_in_day)}")
             except (TypeError, ValueError):
                 pass
+            bar_ts = detail.get("bar_ts")
+            if isinstance(bar_ts, str) and len(bar_ts) >= 16:
+                parts.append(f"bar={bar_ts[11:16]}")
+            bar_health = detail.get("bar_health") if isinstance(detail.get("bar_health"), dict) else None
+            if bar_health is not None:
+                lag_bars = bar_health.get("lag_bars")
+                try:
+                    if lag_bars is not None:
+                        parts.append(f"lag={float(lag_bars):.2f}b")
+                except (TypeError, ValueError):
+                    pass
+                if "stale" in bar_health:
+                    parts.append(f"stale={'1' if bool(bar_health.get('stale')) else '0'}")
+                if "gap_detected" in bar_health:
+                    parts.append(f"gap={'1' if bool(bar_health.get('gap_detected')) else '0'}")
             entry_signal = str(meta.get("entry_signal") or "")
             signal_bar_size = str(meta.get("signal_bar_size") or "")
             if entry_signal or signal_bar_size:
@@ -206,6 +221,15 @@ class BotJournal:
             exec_bar_size = str(meta.get("spot_exec_bar_size") or "")
             if exec_feed_mode or exec_bar_size:
                 parts.append(f"exec={exec_feed_mode or '?'}@{exec_bar_size or '?'}")
+            shock_mode = str(meta.get("shock_gate_mode") or "").strip()
+            shock_detector = str(meta.get("shock_detector") or "").strip()
+            shock_scale_detector = str(meta.get("shock_scale_detector") or "").strip()
+            if shock_mode:
+                parts.append(f"shm={shock_mode}")
+            if shock_detector:
+                parts.append(f"shdet={shock_detector}")
+            if shock_scale_detector and shock_scale_detector.lower() not in ("off", "none", "null", "false", "0"):
+                parts.append(f"shscale={shock_scale_detector}")
             msg = " ".join(p for p in parts if p and not p.endswith("="))
         elif event == "CROSS":
             close = detail.get("close")
@@ -280,6 +304,12 @@ class BotJournal:
             due = detail.get("next_open_due")
             if isinstance(due, str) and due:
                 parts.append(f"due={due[11:16]}")
+            due_from = detail.get("next_open_due_from")
+            if isinstance(due_from, str) and due_from:
+                parts.append(f"due_from={due_from[11:16]}")
+            now_ts = detail.get("now_wall_ts")
+            if isinstance(now_ts, str) and now_ts:
+                parts.append(f"now={now_ts[11:16]}")
             calc = detail.get("calc")
             if isinstance(calc, dict):
                 session = calc.get("session")
@@ -311,7 +341,43 @@ class BotJournal:
                     pass
             msg = " ".join(parts)
         elif event.startswith("ORDER") or event in ("SENDING", "SENT", "CANCEL_SENT", "CANCEL_ERROR"):
-            msg = str(extra.get("error") or "")
+            parts: list[str] = []
+            error = str(extra.get("error") or detail.get("error") or "").strip()
+            if error:
+                parts.append(error)
+            order_journal = extra.get("order_journal") if isinstance(extra.get("order_journal"), dict) else {}
+            attempt = detail.get("order_attempt")
+            if attempt is None:
+                attempt = order_journal.get("order_attempt")
+            try:
+                if attempt is not None and int(attempt) > 0:
+                    parts.append(f"attempt={int(attempt)}")
+            except (TypeError, ValueError):
+                pass
+            retry_reason = str(detail.get("retry_reason") or order_journal.get("retry_reason") or "").strip()
+            if retry_reason:
+                parts.append(f"retry={retry_reason}")
+            quote = detail.get("quote") if isinstance(detail.get("quote"), dict) else None
+            if quote:
+                for key in ("bid", "ask", "last"):
+                    value = quote.get(key)
+                    try:
+                        parts.append(f"{key}={float(value):.2f}" if value is not None else f"{key}=-")
+                    except (TypeError, ValueError):
+                        parts.append(f"{key}=-")
+                for key in ("md_ok", "live", "delayed", "frozen"):
+                    if key in quote:
+                        parts.append(f"{key}={'1' if bool(quote.get(key)) else '0'}")
+                age_ms = quote.get("ticker_age_ms")
+                try:
+                    if age_ms is not None:
+                        parts.append(f"age_ms={int(age_ms)}")
+                except (TypeError, ValueError):
+                    pass
+                proxy_error = str(quote.get("proxy_error") or "").strip()
+                if proxy_error:
+                    parts.append(f"proxy={proxy_error[:48]}")
+            msg = " ".join(parts)
         return {
             "ts_et": now_et,
             "event": str(event or ""),

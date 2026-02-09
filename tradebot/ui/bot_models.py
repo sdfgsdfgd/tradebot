@@ -94,6 +94,9 @@ class _BotInstance:
     order_trigger_signal_bar_ts: datetime | None = None
     order_trigger_ts: datetime | None = None
     order_trigger_deadline_ts: datetime | None = None
+    order_trigger_attempt: int = 0
+    order_trigger_retry_reason: str | None = None
+    order_trigger_last_error: str | None = None
 
 
 @dataclass(frozen=True)

@@ -14,7 +14,7 @@ from ib_insync import Future, Stock
 
 from tradebot.client import IBKRClient
 from tradebot.config import IBKRConfig
-from tradebot.engine import flip_exit_gate_blocked
+from tradebot.engine import flip_exit_gate_blocked, signal_filter_checks
 
 _UI_DIR = Path(__file__).resolve().parents[1] / "tradebot" / "ui"
 if "tradebot.ui" not in sys.modules:
@@ -23,6 +23,7 @@ if "tradebot.ui" not in sys.modules:
     sys.modules["tradebot.ui"] = ui_pkg
 
 from tradebot.ui.bot_engine_runtime import BotEngineRuntimeMixin
+from tradebot.ui.bot_journal import BotJournal
 from tradebot.ui.bot_models import _BotInstance, _BotOrder
 from tradebot.ui.bot_order_builder import BotOrderBuilderMixin
 from tradebot.ui.bot_signal_runtime import BotSignalRuntimeMixin
@@ -274,6 +275,14 @@ class _PendingNextOpenHarness(BotSignalRuntimeMixin):
     def __init__(self) -> None:
         self.queued: list[dict[str, object]] = []
 
+    @staticmethod
+    def _signal_bar_size(instance: _BotInstance) -> str:
+        return str(instance.strategy.get("signal_bar_size") or "10 mins")
+
+    @staticmethod
+    def _signal_use_rth(instance: _BotInstance) -> bool:
+        return bool(instance.strategy.get("signal_use_rth"))
+
     def _queue_order(
         self,
         instance: _BotInstance,
@@ -401,6 +410,29 @@ def test_entry_weekday_keeps_sunday_for_rth_mode() -> None:
     assert harness._can_order_now(instance, now_et=sunday_overnight) is False
 
 
+def test_signal_filter_time_respects_runtime_et_wall_clock_bars() -> None:
+    harness = _EntryDayHarness()
+    filters = {"entry_start_hour_et": 10, "entry_end_hour_et": 15}
+    before_open = datetime(2026, 2, 9, 9, 50)
+    in_window = datetime(2026, 2, 9, 10, 0)
+
+    before_checks = signal_filter_checks(
+        filters,
+        bar_ts=harness._as_et_aware(before_open),
+        bars_in_day=1,
+        close=73.0,
+    )
+    in_window_checks = signal_filter_checks(
+        filters,
+        bar_ts=harness._as_et_aware(in_window),
+        bars_in_day=1,
+        close=73.0,
+    )
+
+    assert before_checks["time"] is False
+    assert in_window_checks["time"] is True
+
+
 def test_pending_next_open_cancels_on_risk_overlay_date_roll() -> None:
     harness = _PendingNextOpenHarness()
     instance = _new_instance(
@@ -482,6 +514,93 @@ def test_pending_next_open_triggers_when_directional_shock_matches() -> None:
     assert harness.queued[0]["direction"] == "up"
     assert instance.pending_entry_due_ts is None
     assert "TRIGGER_ENTRY" in gates
+
+
+def test_schedule_next_open_emits_due_from_and_now_wall() -> None:
+    harness = _PendingNextOpenHarness()
+    instance = _new_instance(
+        strategy={
+            "instrument": "spot",
+            "signal_bar_size": "10 mins",
+            "spot_exec_bar_size": "5 mins",
+        }
+    )
+    signal_bar_ts = datetime(2026, 2, 9, 11, 10)
+    gate_events: list[tuple[str, dict | None]] = []
+
+    fired = harness._schedule_pending_entry_next_open(
+        instance=instance,
+        direction="up",
+        signal_bar_ts=signal_bar_ts,
+        now_wall=datetime(2026, 2, 9, 11, 29),
+        gate=lambda status, data=None: gate_events.append((str(status), dict(data or {}))),
+    )
+
+    assert fired is True
+    assert gate_events
+    status, payload = gate_events[-1]
+    assert status == "TRIGGER_ENTRY"
+    assert payload.get("next_open_due_from") == "2026-02-09T11:20:00"
+    assert payload.get("now_wall_ts") == "2026-02-09T11:29:00"
+
+
+def test_journal_signal_and_order_build_failed_compact_diagnostics() -> None:
+    signal_entry = BotJournal._in_app_entry(
+        now_et=datetime(2026, 2, 9, 11, 29),
+        event="SIGNAL",
+        reason=None,
+        instance_id="1",
+        symbol="SLV",
+        extra={},
+        detail={
+            "bar_ts": "2026-02-09T11:10:00",
+            "bar_health": {"lag_bars": 1.94, "stale": False, "gap_detected": False},
+            "signal": {"state": "up", "entry_dir": "up", "regime_dir": "up", "regime_ready": True},
+            "meta": {
+                "entry_signal": "ema",
+                "signal_bar_size": "10 mins",
+                "shock_gate_mode": "detect",
+                "shock_detector": "tr_ratio",
+                "shock_scale_detector": "daily_atr_pct",
+            },
+        },
+    )
+    assert "bar=11:10" in str(signal_entry["msg"])
+    assert "lag=1.94b" in str(signal_entry["msg"])
+    assert "stale=0" in str(signal_entry["msg"])
+    assert "gap=0" in str(signal_entry["msg"])
+    assert "shm=detect" in str(signal_entry["msg"])
+    assert "shdet=tr_ratio" in str(signal_entry["msg"])
+    assert "shscale=daily_atr_pct" in str(signal_entry["msg"])
+
+    failed_entry = BotJournal._in_app_entry(
+        now_et=datetime(2026, 2, 9, 11, 29),
+        event="ORDER_BUILD_FAILED",
+        reason="enter",
+        instance_id="1",
+        symbol="SLV",
+        extra={"error": "Quote: no bid/ask/last (cannot price)", "order_journal": {"order_attempt": 2}},
+        detail={
+            "order_attempt": 2,
+            "retry_reason": "quote_unpriced",
+            "quote": {
+                "bid": None,
+                "ask": None,
+                "last": None,
+                "md_ok": False,
+                "live": False,
+                "delayed": True,
+                "frozen": False,
+                "ticker_age_ms": 1250,
+            },
+        },
+    )
+    msg = str(failed_entry["msg"])
+    assert "attempt=2" in msg
+    assert "retry=quote_unpriced" in msg
+    assert "md_ok=0" in msg
+    assert "delayed=1" in msg
+    assert "age_ms=1250" in msg
 
 
 def test_flip_exit_gate_mode_regime_blocks_supported_position() -> None:

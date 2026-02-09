@@ -209,7 +209,10 @@ class BotOrderBuilderMixin:
             last = _safe_num(getattr(ticker, "last", None))
             limit = leg_price(bid, ask, last, action)
             if limit is None:
-                return fail("Quote: no bid/ask/last (cannot price)")
+                return fail(
+                    "Quote: no bid/ask/last (cannot price)",
+                    quote_payload=_quote_failure_payload(ticker=ticker, bid=bid, ask=ask, last=last),
+                )
             tick = _tick_size(contract, ticker, limit) or 0.01
             limit = _round_to_tick(float(limit), tick)
             order = _BotOrder(
@@ -229,6 +232,7 @@ class BotOrderBuilderMixin:
                 direction=direction,
                 reason="exit",
                 signal_bar_ts=signal_bar_ts,
+                journal=_order_journal_with_attempt(),
                 exec_mode=mode,
             )
             if con_id:
@@ -321,20 +325,102 @@ class BotOrderBuilderMixin:
             self._status = message
             self._render_status()
 
-        def _fail(message: str) -> None:
+        def _order_attempt_payload() -> dict[str, object]:
+            payload: dict[str, object] = {
+                "order_attempt": max(1, int(instance.order_trigger_attempt or 1)),
+            }
+            retry_reason = str(instance.order_trigger_retry_reason or "").strip()
+            if retry_reason:
+                payload["retry_reason"] = retry_reason
+            return payload
+
+        def _order_journal_with_attempt(base: dict | None = None) -> dict[str, object]:
+            payload: dict[str, object] = dict(base) if isinstance(base, dict) else {}
+            payload.update(_order_attempt_payload())
+            return payload
+
+        def _retry_reason_from_error(message: str) -> str:
+            text = str(message or "").strip().lower()
+            if text.startswith("quote:"):
+                return "quote_unpriced"
+            if text.startswith("signal:"):
+                return "signal_unavailable"
+            if text.startswith("contract:"):
+                return "contract_unavailable"
+            if text.startswith("order: atr not ready"):
+                return "atr_not_ready"
+            if text.startswith("order: spot sizing returned 0 qty"):
+                return "sizing_zero_qty"
+            return "order_build_failed"
+
+        def _quote_failure_payload(
+            *,
+            ticker: Ticker | None,
+            bid: float | None,
+            ask: float | None,
+            last: float | None,
+            mid: float | None = None,
+        ) -> dict[str, object]:
+            md_type_raw = getattr(ticker, "marketDataType", None) if ticker is not None else None
+            try:
+                md_type = int(md_type_raw) if md_type_raw is not None else None
+            except (TypeError, ValueError):
+                md_type = None
+            live = md_type in (1, 2)
+            delayed = md_type in (3, 4)
+            frozen = md_type in (2, 4)
+            quote_ok = any(v is not None and float(v) > 0 for v in (bid, ask, last))
+            age_ms = None
+            if ticker is not None:
+                ticker_ts = getattr(ticker, "time", None)
+                if isinstance(ticker_ts, datetime):
+                    now_ts = datetime.now(tz=ticker_ts.tzinfo) if ticker_ts.tzinfo is not None else datetime.now()
+                    try:
+                        age_ms = max(0, int((now_ts - ticker_ts).total_seconds() * 1000.0))
+                    except Exception:
+                        age_ms = None
+            return {
+                "quote": {
+                    "bid": float(bid) if bid is not None else None,
+                    "ask": float(ask) if ask is not None else None,
+                    "last": float(last) if last is not None else None,
+                    "mid": float(mid) if mid is not None else None,
+                    "market_data_type": md_type,
+                    "live": bool(live),
+                    "delayed": bool(delayed),
+                    "frozen": bool(frozen),
+                    "md_ok": bool(quote_ok),
+                    "ticker_age_ms": age_ms,
+                    "proxy_error": self._client.proxy_error(),
+                }
+            }
+
+        def _fail(
+            message: str,
+            *,
+            quote_payload: dict[str, object] | None = None,
+            retry_reason: str | None = None,
+        ) -> None:
             _set_status(message)
+            reason_clean = str(retry_reason or "").strip() or _retry_reason_from_error(message)
+            instance.order_trigger_last_error = str(message or "")
+            instance.order_trigger_retry_reason = reason_clean
+            payload = {
+                "error": str(message or ""),
+                "direction": direction,
+                "signal_bar_ts": signal_bar_ts.isoformat() if signal_bar_ts is not None else None,
+                "retry_reason": reason_clean,
+                **_order_attempt_payload(),
+            }
+            if isinstance(quote_payload, dict):
+                payload.update(quote_payload)
             self._journal_write(
                 event="ORDER_BUILD_FAILED",
                 instance=instance,
                 order=None,
                 reason=intent_clean,
-                data={
-                    "error": str(message or ""),
-                    "direction": direction,
-                    "signal_bar_ts": signal_bar_ts.isoformat() if signal_bar_ts is not None else None,
-                },
+                data=payload,
             )
-            self._clear_order_trigger_watch(instance)
 
         def _finalize_leg_orders(
             *,
@@ -355,14 +441,23 @@ class BotOrderBuilderMixin:
                 mid = _midpoint(bid, ask)
                 leg_mid = mid or last
                 if leg_mid is None:
-                    return _fail("Quote: missing mid/last (cannot price)")
+                    return _fail(
+                        "Quote: missing mid/last (cannot price)",
+                        quote_payload=_quote_failure_payload(ticker=ticker, bid=bid, ask=ask, last=last, mid=mid),
+                    )
                 leg_bid = bid or mid or last
                 leg_ask = ask or mid or last
                 if leg_bid is None or leg_ask is None:
-                    return _fail("Quote: missing bid/ask (cannot price)")
+                    return _fail(
+                        "Quote: missing bid/ask (cannot price)",
+                        quote_payload=_quote_failure_payload(ticker=ticker, bid=bid, ask=ask, last=last, mid=mid),
+                    )
                 leg_desired = _leg_price(bid, ask, last, leg_order.action)
                 if leg_desired is None:
-                    return _fail("Quote: missing bid/ask/last (cannot price)")
+                    return _fail(
+                        "Quote: missing bid/ask/last (cannot price)",
+                        quote_payload=_quote_failure_payload(ticker=ticker, bid=bid, ask=ask, last=last, mid=mid),
+                    )
                 leg_tick = _tick_size(leg_order.contract, ticker, leg_desired)
                 tick = leg_tick if tick is None else min(tick, leg_tick)
                 sign = 1.0 if leg_order.action == "BUY" else -1.0
@@ -378,7 +473,10 @@ class BotOrderBuilderMixin:
                 (bid, ask, last, ticker) = leg_quotes[0]
                 limit = _leg_price(bid, ask, last, single.action)
                 if limit is None:
-                    return _fail("Quote: no bid/ask/last (cannot price)")
+                    return _fail(
+                        "Quote: no bid/ask/last (cannot price)",
+                        quote_payload=_quote_failure_payload(ticker=ticker, bid=bid, ask=ask, last=last),
+                    )
                 limit = _round_to_tick(float(limit), tick)
                 order = _BotOrder(
                     instance_id=instance.instance_id,
@@ -397,6 +495,7 @@ class BotOrderBuilderMixin:
                     direction=direction,
                     reason=intent_clean,
                     signal_bar_ts=signal_bar_ts,
+                    journal=_order_journal_with_attempt(),
                     exec_mode=mode,
                 )
                 con_id = int(getattr(single.contract, "conId", 0) or 0)
@@ -460,6 +559,7 @@ class BotOrderBuilderMixin:
                 direction=direction,
                 reason=intent_clean,
                 signal_bar_ts=signal_bar_ts,
+                journal=_order_journal_with_attempt(),
                 exec_mode=mode,
             )
             for leg_order in leg_orders:
@@ -560,7 +660,10 @@ class BotOrderBuilderMixin:
             last = _safe_num(getattr(ticker, "last", None))
             limit = _leg_price(bid, ask, last, action)
             if limit is None:
-                return _fail("Quote: no bid/ask/last (cannot price)")
+                return _fail(
+                    "Quote: no bid/ask/last (cannot price)",
+                    quote_payload=_quote_failure_payload(ticker=ticker, bid=bid, ask=ask, last=last),
+                )
             tick = _tick_size(contract, ticker, limit) or 0.01
             limit = _round_to_tick(float(limit), tick)
 
@@ -737,6 +840,7 @@ class BotOrderBuilderMixin:
                 "exec_mode": "OPTIMISTIC",
                 "chase_orders": bool(strat.get("chase_orders", True)),
             }
+            journal.update(_order_attempt_payload())
 
             order = _BotOrder(
                 instance_id=instance.instance_id,
