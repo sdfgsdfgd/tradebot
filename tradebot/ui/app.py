@@ -77,10 +77,11 @@ class PositionsApp(App):
 
     #positions {
         height: 1fr;
+        border: solid #1b3650;
     }
 
     #positions:focus {
-        border: solid #26567a;
+        border: solid #2c82c9;
     }
 
     #positions > .datatable--cursor {
@@ -129,25 +130,33 @@ class PositionsApp(App):
     #bot-presets {
         height: 2fr;
         padding: 0 1;
-        border: solid #003054;
+        border: solid #1b3650;
     }
 
     #bot-instances {
         height: 10;
         padding: 0 1;
-        border: solid #003054;
+        border: solid #1b3650;
     }
 
     #bot-orders {
         height: 1fr;
         padding: 0 1;
-        border: solid #003054;
+        border: solid #1b3650;
     }
 
     #bot-logs {
         height: 1fr;
         padding: 0 1;
-        border: solid #003054;
+        border: solid #1b3650;
+    }
+
+    #bot-presets,
+    #bot-instances,
+    #bot-orders,
+    #bot-logs,
+    #bot-config {
+        background-tint: #000000 12%;
     }
 
     #bot-presets:focus,
@@ -156,6 +165,7 @@ class PositionsApp(App):
     #bot-logs:focus,
     #bot-config:focus {
         border: solid #2c82c9;
+        background-tint: #000000 0%;
     }
 
     #bot-presets > .datatable--cursor {
@@ -231,6 +241,7 @@ class PositionsApp(App):
             None,
         )
         self._buying_power_daily_anchor: float | None = None
+        self._marker_row = -1
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -251,6 +262,7 @@ class PositionsApp(App):
         self._setup_columns()
         self._table.cursor_type = "row"
         self._table.focus()
+        self._sync_row_marker(force=True)
         self._bot_runtime.install(self)
         self._client.set_update_callback(self._mark_dirty)
         await self.refresh_positions()
@@ -311,6 +323,10 @@ class PositionsApp(App):
                     self._config.detail_refresh_sec,
                 )
             )
+
+    def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
+        if event.control is self._table:
+            self._sync_row_marker()
 
     async def refresh_positions(self, hard: bool = False) -> None:
         if self._refresh_lock.locked():
@@ -390,6 +406,29 @@ class PositionsApp(App):
         self._render_ticker_bar()
         self._status.update(self._status_text())
         self._restore_cursor(prev_row_key, prev_row_index, prev_column)
+        self._sync_row_marker(force=True)
+
+    def _sync_row_marker(self, *, force: bool = False) -> None:
+        if not hasattr(self, "_table"):
+            return
+        current_row = int(getattr(self._table.cursor_coordinate, "row", -1) or -1)
+        previous_row = -1 if force else int(self._marker_row)
+        if not force and previous_row == current_row:
+            return
+        self._set_row_marker(previous_row, active=False)
+        self._set_row_marker(current_row, active=True)
+        self._marker_row = current_row
+
+    def _set_row_marker(self, row_index: int, *, active: bool) -> None:
+        if row_index < 0 or row_index >= self._table.row_count:
+            return
+        row = self._table.ordered_rows[row_index]
+        marker = Text("▌", style="bold #2c82c9") if active else Text(" ")
+        prev = row.label if isinstance(row.label, Text) else Text(str(row.label or ""))
+        if prev.plain == marker.plain and str(prev.style or "") == str(marker.style or ""):
+            return
+        row.label = marker
+        self._table.refresh_row(row_index)
 
     def _maybe_update_netliq_anchor(self) -> None:
         value, _currency, updated_at = self._net_liq

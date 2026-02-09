@@ -111,6 +111,7 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
         self._fields: list[_BotConfigField] = []
         self._editing: _BotConfigField | None = None
         self._edit_buffer = ""
+        self._marker_row = -1
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -134,11 +135,16 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
         self._table.add_columns("Field", "Value")
         self._build_fields()
         self._refresh_table()
+        self._sync_row_marker(force=True)
         self._table.focus()
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         # DataTable captures Enter and emits RowSelected; treat Enter as Save.
         self.action_save()
+
+    def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
+        if event.control is self._table:
+            self._sync_row_marker()
 
     def _build_fields(self) -> None:
         instrument_raw = self._strategy.get("instrument", "options")
@@ -377,6 +383,27 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
             target_row = max(0, min(target_row, len(self._fields) - 1))
             target_col = max(0, min(prev_col, 1))
             self._table.cursor_coordinate = (target_row, target_col)
+        self._sync_row_marker(force=True)
+
+    def _sync_row_marker(self, *, force: bool = False) -> None:
+        current_row = int(getattr(self._table.cursor_coordinate, "row", -1) or -1)
+        previous_row = -1 if force else int(self._marker_row)
+        if not force and previous_row == current_row:
+            return
+        self._set_row_marker(previous_row, active=False)
+        self._set_row_marker(current_row, active=True)
+        self._marker_row = current_row
+
+    def _set_row_marker(self, row_index: int, *, active: bool) -> None:
+        if row_index < 0 or row_index >= self._table.row_count:
+            return
+        row = self._table.ordered_rows[row_index]
+        marker = Text("▌", style="bold #2c82c9") if active else Text(" ")
+        prev = row.label if isinstance(row.label, Text) else Text(str(row.label or ""))
+        if prev.plain == marker.plain and str(prev.style or "") == str(marker.style or ""):
+            return
+        row.label = marker
+        self._table.refresh_row(row_index)
 
     def _format_value(self, field: _BotConfigField, value: object) -> str:
         if field.kind == "bool":
@@ -718,6 +745,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         self._cancel_task: asyncio.Task | None = None
         self._tracked_conids: set[int] = set()
         self._active_panel = "presets"
+        self._marker_row_by_table: dict[str, int] = {}
         self._refresh_lock = asyncio.Lock()
         self._scope_all = False
         self._last_chase_ts = 0.0
@@ -776,6 +804,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         self._journal_write(event="BOOT", reason=None, data={"refresh_sec": self._refresh_sec})
         self._render_status()
         self._focus_panel("presets")
+        self._sync_panel_markers(force=True)
         self._refresh_task = self.set_interval(self._refresh_sec, self._on_refresh_tick)
 
     async def on_unmount(self) -> None:
@@ -820,6 +849,12 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             self._active_panel = str(panel)
         self.action_activate()
 
+    def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
+        table = event.control
+        table_id = str(getattr(table, "id", "") or "")
+        if table_id in self._PANEL_BY_TABLE_ID:
+            self._sync_row_marker(table)
+
     def on_key(self, event: events.Key) -> None:
         if event.character == "X":
             self._submit_selected_order()
@@ -850,6 +885,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             self._focus_panel("presets")
         self._render_panel_titles()
         self._set_status(f"Presets: {'ON' if self._presets_visible else 'OFF'}")
+        self._sync_panel_markers(force=True)
         self.refresh(layout=True)
 
     def action_toggle_scope(self) -> None:
@@ -892,6 +928,37 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             "logs": self._logs_table,
         }.get(target, self._logs_table)
 
+    def _sync_panel_markers(self, *, force: bool = False) -> None:
+        for panel in self._PANEL_ORDER:
+            table = self._panel_table(panel)
+            if not bool(getattr(table, "display", True)):
+                continue
+            self._sync_row_marker(table, force=force)
+
+    def _sync_row_marker(self, table: DataTable, *, force: bool = False) -> None:
+        table_id = str(getattr(table, "id", "") or "")
+        if not table_id:
+            return
+        current_row = int(getattr(table.cursor_coordinate, "row", -1) or -1)
+        previous_row = -1 if force else int(self._marker_row_by_table.get(table_id, -1))
+        if not force and previous_row == current_row:
+            return
+        self._set_row_marker(table, previous_row, active=False)
+        self._set_row_marker(table, current_row, active=True)
+        self._marker_row_by_table[table_id] = current_row
+
+    @staticmethod
+    def _set_row_marker(table: DataTable, row_index: int, *, active: bool) -> None:
+        if row_index < 0 or row_index >= table.row_count:
+            return
+        row = table.ordered_rows[row_index]
+        marker = Text("▌", style="bold #2c82c9") if active else Text(" ")
+        prev = row.label if isinstance(row.label, Text) else Text(str(row.label or ""))
+        if prev.plain == marker.plain and str(prev.style or "") == str(marker.style or ""):
+            return
+        row.label = marker
+        table.refresh_row(row_index)
+
     def _render_panel_titles(self) -> None:
         labels = {
             "presets": "Presets",
@@ -907,7 +974,9 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
     def _focus_panel(self, panel: str) -> None:
         self._active_panel = panel
         self._render_panel_titles()
-        self._panel_table(panel).focus()
+        table = self._panel_table(panel)
+        table.focus()
+        self._sync_row_marker(table, force=True)
         if panel == "logs" and self._log_rows:
             last_idx = len(self._log_rows) - 1
             self._logs_follow_tail = self._logs_table.cursor_coordinate.row >= last_idx
@@ -1386,6 +1455,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         groups = payload.get("groups", [])
         if not isinstance(groups, list) or not groups:
             self._move_cursor_to_first_preset()
+            self._sync_row_marker(self._presets_table, force=True)
             self._render_status()
             self._presets_table.refresh(repaint=True)
             return
@@ -1881,6 +1951,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                                 _add_leaf(item, depth=3)
 
         self._move_cursor_to_first_preset()
+        self._sync_row_marker(self._presets_table, force=True)
         self._render_status()
         self._presets_table.refresh(repaint=True)
 
@@ -1972,6 +2043,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         elif self._instance_rows:
             self._instances_table.cursor_coordinate = (0, 0)
 
+        self._sync_row_marker(self._instances_table, force=True)
         if not self._scope_all:
             self._refresh_orders_table()
             self._refresh_logs_table()
@@ -2046,12 +2118,15 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             self._log_rows.append(entry)
 
         if not self._log_rows:
+            self._sync_row_marker(self._logs_table, force=True)
             return
         if self._logs_follow_tail:
             self._logs_table.cursor_coordinate = (len(self._log_rows) - 1, 0)
+            self._sync_row_marker(self._logs_table, force=True)
             return
         target_row = min(max(prev_row, 0), len(self._log_rows) - 1)
         self._logs_table.cursor_coordinate = (target_row, 0)
+        self._sync_row_marker(self._logs_table, force=True)
 
     def _render_status(self) -> None:
         self._render_bot()
@@ -3222,6 +3297,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         self._order_rows = []
         scope = self._scope_instance_id()
         if scope is None and not self._scope_all:
+            self._sync_row_marker(self._orders_table, force=True)
             return
         for order in self._orders:
             if scope is not None and order.instance_id != scope:
@@ -3236,6 +3312,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             instance = next((i for i in self._instances if i.instance_id == scope), None)
             con_ids = set(instance.touched_conids) if instance else set()
         if not con_ids:
+            self._sync_row_marker(self._orders_table, force=True)
             return
         self._orders_table.add_row("", "", "", "", Text("POSITIONS", style="bold"), "", "", "", "", "")
         for item in self._positions:
@@ -3246,6 +3323,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             if con_id not in con_ids:
                 continue
             self._orders_table.add_row(*_position_as_order_row(item, scope=scope))
+        self._sync_row_marker(self._orders_table, force=True)
 
 
 # endregion
