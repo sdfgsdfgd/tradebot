@@ -115,7 +115,12 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
         yield Static("", id="bot-config-header")
-        yield DataTable(id="bot-config", zebra_stripes=True)
+        yield DataTable(
+            id="bot-config",
+            zebra_stripes=True,
+            cursor_foreground_priority="renderable",
+            cursor_background_priority="css",
+        )
         yield Static(
             "Enter=Save & start  Esc=Cancel  Type=Edit  e=Edit w/ current  Space=Toggle  ←/→=Cycle enum  Hours: blank=off",
             id="bot-config-help",
@@ -722,10 +727,30 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         yield Header(show_clock=True)
         yield Vertical(
             Static("", id="bot-status"),
-            DataTable(id="bot-presets", zebra_stripes=True),
-            DataTable(id="bot-instances", zebra_stripes=True),
-            DataTable(id="bot-orders", zebra_stripes=True),
-            DataTable(id="bot-logs", zebra_stripes=True),
+            DataTable(
+                id="bot-presets",
+                zebra_stripes=True,
+                cursor_foreground_priority="renderable",
+                cursor_background_priority="css",
+            ),
+            DataTable(
+                id="bot-instances",
+                zebra_stripes=True,
+                cursor_foreground_priority="renderable",
+                cursor_background_priority="css",
+            ),
+            DataTable(
+                id="bot-orders",
+                zebra_stripes=True,
+                cursor_foreground_priority="renderable",
+                cursor_background_priority="css",
+            ),
+            DataTable(
+                id="bot-logs",
+                zebra_stripes=True,
+                cursor_foreground_priority="renderable",
+                cursor_background_priority="css",
+            ),
             id="bot-body",
         )
         yield Footer()
