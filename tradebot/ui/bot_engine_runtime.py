@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from .common import _EXEC_LADDER_TIMEOUT_SEC, _exec_ladder_mode
+
+_DEFAULT_EXIT_RETRY_COOLDOWN_SEC = 3.0
 
 
 class BotEngineRuntimeMixin:
@@ -98,6 +101,16 @@ class BotEngineRuntimeMixin:
                         done_data["exec_mode_now"] = str(mode_now) if mode_now is not None else "TIMEOUT"
                     sec_type = str(getattr(order.order_contract, "secType", "") or "").strip().upper()
                     intent = str(order.intent or "").strip().lower()
+                    signal_bar_ts = order.signal_bar_ts if isinstance(order.signal_bar_ts, datetime) else None
+                    if status == "Filled" and intent == "exit":
+                        if signal_bar_ts is not None:
+                            instance.last_exit_bar_ts = signal_bar_ts
+                        instance.exit_retry_bar_ts = None
+                        instance.exit_retry_count = 0
+                        instance.exit_retry_cooldown_until = None
+                        done_data["exit_lock_bar_ts"] = (
+                            signal_bar_ts.isoformat() if signal_bar_ts is not None else None
+                        )
                     if status == "Filled" and sec_type == "STK":
                         if intent == "enter":
                             basis_price = None
@@ -131,6 +144,31 @@ class BotEngineRuntimeMixin:
                             instance.spot_entry_basis_source = None
                             instance.spot_entry_basis_set_ts = None
                             done_data["entry_basis_cleared"] = True
+                    if status == "Inactive" and intent == "exit":
+                        if signal_bar_ts is not None and instance.exit_retry_bar_ts != signal_bar_ts:
+                            instance.exit_retry_bar_ts = signal_bar_ts
+                            instance.exit_retry_count = 0
+                        instance.exit_retry_count = max(0, int(instance.exit_retry_count or 0)) + 1
+                        raw_cd = instance.strategy.get("exit_retry_cooldown_sec", _DEFAULT_EXIT_RETRY_COOLDOWN_SEC)
+                        try:
+                            cooldown_sec = float(raw_cd if raw_cd is not None else _DEFAULT_EXIT_RETRY_COOLDOWN_SEC)
+                        except (TypeError, ValueError):
+                            cooldown_sec = _DEFAULT_EXIT_RETRY_COOLDOWN_SEC
+                        cooldown_sec = max(0.0, float(cooldown_sec))
+                        now_wall = datetime.now(tz=ZoneInfo("America/New_York")).replace(tzinfo=None)
+                        if cooldown_sec > 0:
+                            instance.exit_retry_cooldown_until = now_wall + timedelta(seconds=cooldown_sec)
+                        else:
+                            instance.exit_retry_cooldown_until = now_wall
+                        done_data["retryable"] = True
+                        done_data["retry_count"] = int(instance.exit_retry_count)
+                        done_data["retry_cooldown_sec"] = float(cooldown_sec)
+                        done_data["retry_cooldown_until"] = (
+                            instance.exit_retry_cooldown_until.isoformat()
+                            if instance.exit_retry_cooldown_until is not None
+                            else None
+                        )
+                        done_data["retry_bar_ts"] = signal_bar_ts.isoformat() if signal_bar_ts is not None else None
                     self._journal_write(
                         event=done_event,
                         order=order,

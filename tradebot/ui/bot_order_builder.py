@@ -219,8 +219,6 @@ class BotOrderBuilderMixin:
             if con_id:
                 instance.touched_conids.add(con_id)
             self._add_order(order)
-            if signal_bar_ts is not None:
-                instance.last_exit_bar_ts = signal_bar_ts
             set_status(f"Created order EXIT {action} {qty} {symbol} @ {limit:.2f}")
             return
 
@@ -392,8 +390,6 @@ class BotOrderBuilderMixin:
                     if signal_bar_ts is not None:
                         instance.last_entry_bar_ts = signal_bar_ts
                     _bump_entry_counters()
-                elif signal_bar_ts is not None:
-                    instance.last_exit_bar_ts = signal_bar_ts
                 _set_status(f"Created order {single.action} {single.ratio} {symbol} @ {limit:.2f}")
                 return
 
@@ -458,8 +454,6 @@ class BotOrderBuilderMixin:
                 if signal_bar_ts is not None:
                     instance.last_entry_bar_ts = signal_bar_ts
                 _bump_entry_counters()
-            elif signal_bar_ts is not None:
-                instance.last_exit_bar_ts = signal_bar_ts
             _set_status(f"Created order {order_action} BAG {symbol} @ {order_limit:.2f} ({len(leg_orders)} legs)")
 
         instrument_kind = "spot" if instrument == "spot" else "options"

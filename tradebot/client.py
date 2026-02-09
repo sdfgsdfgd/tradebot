@@ -150,10 +150,10 @@ class IBKRClient:
         self._detail_tickers: dict[int, tuple[IB, Ticker]] = {}
         self._ticker_owners: dict[int, set[str]] = {}
         self._historical_bar_cache: dict[
-            tuple[str, int, str, str, bool, str], tuple[list[tuple[datetime, float]], float]
+            tuple[str, int, str, str, bool, str, str], tuple[list[tuple[datetime, float]], float]
         ] = {}
         self._historical_bar_ohlcv_cache: dict[
-            tuple[str, int, str, str, bool, str], tuple[list[OhlcvBar], float]
+            tuple[str, int, str, str, bool, str, str], tuple[list[OhlcvBar], float]
         ] = {}
         self._front_future_cache: dict[tuple[str, str], tuple[Contract, float]] = {}
         self._update_callback: Callable[[], None] | None = None
@@ -491,9 +491,7 @@ class IBKRClient:
     @staticmethod
     def _historical_request_contract(contract: Contract, *, sec_type: str) -> Contract:
         req_contract = contract
-        if sec_type in ("STK", "OPT") and (
-            not getattr(contract, "exchange", "") or getattr(contract, "exchange", "") == "OVERNIGHT"
-        ):
+        if sec_type in ("STK", "OPT") and not getattr(contract, "exchange", ""):
             req_contract = copy.copy(contract)
             req_contract.exchange = "SMART"
         return req_contract
@@ -534,6 +532,83 @@ class IBKRClient:
             )
         except Exception:
             return []
+
+    @staticmethod
+    def _is_intraday_bar_size(bar_size: str) -> bool:
+        label = str(bar_size or "").strip().lower()
+        if not label:
+            return True
+        return not any(token in label for token in ("day", "week", "month"))
+
+    @staticmethod
+    def _bar_time_et(ts: datetime) -> dtime:
+        if getattr(ts, "tzinfo", None) is None:
+            return ts.time()
+        return ts.astimezone(_ET_ZONE).timetz().replace(tzinfo=None)
+
+    @classmethod
+    def _is_overnight_bar(cls, ts: datetime) -> bool:
+        current = cls._bar_time_et(ts)
+        return current >= _AFTER_END or current < _PREMARKET_START
+
+    @classmethod
+    def _merge_full24_raw_bars(cls, *, smart: list, overnight: list) -> list:
+        by_ts: dict[datetime, object] = {}
+        for bar in smart or []:
+            dt = cls._ib_bar_datetime(getattr(bar, "date", None))
+            if dt is None:
+                continue
+            by_ts[dt] = bar
+        for bar in overnight or []:
+            dt = cls._ib_bar_datetime(getattr(bar, "date", None))
+            if dt is None:
+                continue
+            if dt not in by_ts or cls._is_overnight_bar(dt):
+                by_ts[dt] = bar
+        return [by_ts[ts] for ts in sorted(by_ts.keys())]
+
+    async def _request_historical_data_for_stream(
+        self,
+        contract: Contract,
+        *,
+        duration_str: str,
+        bar_size: str,
+        what_to_show: str,
+        use_rth: bool,
+    ):
+        sec_type = str(getattr(contract, "secType", "") or "")
+        # For stocks, IBKR SMART full-session intraday misses OVERNIGHT. Stitch SMART+OVERNIGHT.
+        if bool(use_rth) or sec_type != "STK" or not self._is_intraday_bar_size(str(bar_size)):
+            return await self._request_historical_data(
+                contract,
+                duration_str=duration_str,
+                bar_size=bar_size,
+                what_to_show=what_to_show,
+                use_rth=use_rth,
+            )
+
+        smart_contract = copy.copy(contract)
+        smart_exchange = str(getattr(smart_contract, "exchange", "") or "").strip().upper()
+        if not smart_exchange or smart_exchange == "OVERNIGHT":
+            smart_contract.exchange = "SMART"
+
+        smart = await self._request_historical_data(
+            smart_contract,
+            duration_str=duration_str,
+            bar_size=bar_size,
+            what_to_show=what_to_show,
+            use_rth=False,
+        )
+        overnight_contract = copy.copy(contract)
+        overnight_contract.exchange = "OVERNIGHT"
+        overnight = await self._request_historical_data(
+            overnight_contract,
+            duration_str=duration_str,
+            bar_size=bar_size,
+            what_to_show=what_to_show,
+            use_rth=False,
+        )
+        return self._merge_full24_raw_bars(smart=smart, overnight=overnight)
 
     @staticmethod
     def _ib_bar_datetime(value) -> datetime | None:
@@ -622,6 +697,7 @@ class IBKRClient:
             sec_type,
             str(bar_size),
             bool(use_rth),
+            str(what_to_show),
             str(duration_str),
         )
         cached = self._historical_bar_cache.get(key)
@@ -638,7 +714,7 @@ class IBKRClient:
                 bars, cached_at = cached
                 if time.monotonic() - cached_at < float(cache_ttl_sec):
                     return list(bars)
-            raw = await self._request_historical_data(
+            raw = await self._request_historical_data_for_stream(
                 contract,
                 duration_str=str(duration_str),
                 bar_size=str(bar_size),
@@ -685,6 +761,7 @@ class IBKRClient:
             sec_type,
             str(bar_size),
             bool(use_rth),
+            str(what_to_show),
             str(duration_str),
         )
         cached = self._historical_bar_ohlcv_cache.get(key)
@@ -701,7 +778,7 @@ class IBKRClient:
                 bars, cached_at = cached
                 if time.monotonic() - cached_at < float(cache_ttl_sec):
                     return list(bars)
-            raw = await self._request_historical_data(
+            raw = await self._request_historical_data_for_stream(
                 contract,
                 duration_str=str(duration_str),
                 bar_size=str(bar_size),

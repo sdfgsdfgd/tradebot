@@ -27,6 +27,7 @@ _RTH_CLOSE = time(16, 0)
 _EXT_OPEN = time(4, 0)
 _EXT_CLOSE = time(20, 0)
 _DEFAULT_ORDER_STAGE_TIMEOUT_SEC = 20.0
+_DEFAULT_EXIT_RETRY_MAX_PER_BAR = 3
 _BID_TICK_TYPES = {1, 66}
 _ASK_TICK_TYPES = {2, 67}
 
@@ -99,6 +100,13 @@ class BotSignalRuntimeMixin:
                 continue
 
             risk = snap.risk
+            bar_health_raw = snap.bar_health if isinstance(snap.bar_health, dict) else None
+            bar_health = dict(bar_health_raw) if bar_health_raw is not None else None
+            if bar_health is not None:
+                last_bar_ts = bar_health.get("last_bar_ts")
+                if isinstance(last_bar_ts, datetime):
+                    bar_health["last_bar_ts"] = last_bar_ts.isoformat()
+            stale_signal = bool(bar_health_raw and bar_health_raw.get("stale"))
             ema_fast = float(snap.signal.ema_fast) if snap.signal.ema_fast is not None else None
             ema_slow = float(snap.signal.ema_slow) if snap.signal.ema_slow is not None else None
             prev_ema_fast = float(snap.signal.prev_ema_fast) if snap.signal.prev_ema_fast is not None else None
@@ -121,6 +129,13 @@ class BotSignalRuntimeMixin:
                 bool(getattr(risk, "riskoff", False)) if risk is not None else None,
                 bool(getattr(risk, "riskpanic", False)) if risk is not None else None,
                 bool(getattr(risk, "riskpop", False)) if risk is not None else None,
+                bool(bar_health_raw and bar_health_raw.get("stale")),
+                (
+                    bar_health_raw.get("last_bar_ts").isoformat()
+                    if isinstance(bar_health_raw, dict)
+                    and isinstance(bar_health_raw.get("last_bar_ts"), datetime)
+                    else None
+                ),
             )
             if instance.last_signal_fingerprint != signal_fingerprint:
                 instance.last_signal_fingerprint = signal_fingerprint
@@ -168,6 +183,7 @@ class BotSignalRuntimeMixin:
                         "volume": float(snap.volume) if snap.volume is not None else None,
                         "volume_ema": float(snap.volume_ema) if snap.volume_ema is not None else None,
                         "volume_ema_ready": bool(snap.volume_ema_ready),
+                        "bar_health": bar_health,
                         "meta": {
                             "entry_signal": str(instance.strategy.get("entry_signal") or "ema"),
                             "signal_bar_size": self._signal_bar_size(instance),
@@ -201,7 +217,29 @@ class BotSignalRuntimeMixin:
                     instance.spot_profit_target_price = None
                     instance.spot_stop_loss_price = None
                 self._clear_pending_exit(instance)
+                self._reset_exit_retry_state(instance)
                 self._spot_reset_exec_bar(instance)
+
+            if stale_signal and not open_items:
+                self._clear_pending_entry(instance)
+                _gate(
+                    "BLOCKED_STALE_SIGNAL",
+                    {
+                        "bar_ts": snap.bar_ts.isoformat(),
+                        "symbol": symbol,
+                        "bar_health": bar_health,
+                    },
+                )
+                continue
+            if stale_signal and open_items:
+                _gate(
+                    "STALE_SIGNAL_HOLDING",
+                    {
+                        "bar_ts": snap.bar_ts.isoformat(),
+                        "symbol": symbol,
+                        "bar_health": bar_health,
+                    },
+                )
 
             if self._auto_process_pending_next_open(
                 instance=instance,
@@ -637,6 +675,12 @@ class BotSignalRuntimeMixin:
         instance.pending_exit_signal_bar_ts = None
         instance.pending_exit_due_ts = None
 
+    @staticmethod
+    def _reset_exit_retry_state(instance: _BotInstance) -> None:
+        instance.exit_retry_bar_ts = None
+        instance.exit_retry_count = 0
+        instance.exit_retry_cooldown_until = None
+
     def _schedule_pending_entry_next_open(
         self,
         *,
@@ -846,6 +890,13 @@ class BotSignalRuntimeMixin:
         now_et: datetime,
         gate,
     ) -> bool:
+        if instance.exit_retry_bar_ts is not None and instance.exit_retry_bar_ts != snap.bar_ts:
+            instance.exit_retry_bar_ts = snap.bar_ts
+            instance.exit_retry_count = 0
+            instance.exit_retry_cooldown_until = None
+        elif instance.exit_retry_bar_ts is None:
+            instance.exit_retry_bar_ts = snap.bar_ts
+
         if instance.last_exit_bar_ts is not None and instance.last_exit_bar_ts == snap.bar_ts:
             gate(
                 "BLOCKED_EXIT_SAME_BAR",
@@ -856,6 +907,39 @@ class BotSignalRuntimeMixin:
                 },
             )
             return False
+
+        retry_count = max(0, int(instance.exit_retry_count or 0))
+        raw_retry_limit = instance.strategy.get("exit_retry_max_per_bar", _DEFAULT_EXIT_RETRY_MAX_PER_BAR)
+        try:
+            retry_limit = int(raw_retry_limit)
+        except (TypeError, ValueError):
+            retry_limit = _DEFAULT_EXIT_RETRY_MAX_PER_BAR
+        retry_limit = max(0, retry_limit)
+        hard_limit = max(1, retry_limit)
+        if retry_count >= hard_limit:
+            gate(
+                "BLOCKED_EXIT_RETRY_LIMIT",
+                {
+                    "bar_ts": snap.bar_ts.isoformat(),
+                    "retry_count": retry_count,
+                    "retry_limit": retry_limit,
+                },
+            )
+            return False
+
+        cooldown_until = instance.exit_retry_cooldown_until
+        if cooldown_until is not None:
+            now_wall = self._wall_time(now_et)
+            if now_wall < cooldown_until:
+                gate(
+                    "BLOCKED_EXIT_RETRY_COOLDOWN",
+                    {
+                        "bar_ts": snap.bar_ts.isoformat(),
+                        "retry_count": retry_count,
+                        "cooldown_until": cooldown_until.isoformat(),
+                    },
+                )
+                return False
 
         gate("HOLDING", {"direction": open_dir, "items": len(open_items)})
 

@@ -53,6 +53,9 @@ class _BotInstance:
     open_direction: str | None = None
     last_entry_bar_ts: datetime | None = None
     last_exit_bar_ts: datetime | None = None
+    exit_retry_bar_ts: datetime | None = None
+    exit_retry_count: int = 0
+    exit_retry_cooldown_until: datetime | None = None
     entries_today: int = 0
     entries_today_date: date | None = None
     error: str | None = None
@@ -157,3 +160,4 @@ class _SignalSnapshot:
     or_high: float | None = None
     or_low: float | None = None
     or_ready: bool = False
+    bar_health: dict | None = None
