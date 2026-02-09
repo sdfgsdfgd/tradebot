@@ -49,6 +49,12 @@ from .store import PortfolioSnapshot
 
 # region Positions UI
 class PositionsApp(App):
+    _SECTION_HEADER_STYLE_BY_TYPE = {
+        "OPT": "bold #d7e8ff on #232834",
+        "STK": "bold #d8f3e7 on #1f2d29",
+        "FUT": "bold #ffe7c7 on #2e2720",
+        "FOP": "bold #ece0ff on #2a2433",
+    }
 
     BINDINGS = [
         ("q", "quit", "Quit"),
@@ -71,6 +77,14 @@ class PositionsApp(App):
 
     #positions {
         height: 1fr;
+    }
+
+    #positions:focus {
+        border: solid #26567a;
+    }
+
+    #positions > .datatable--cursor {
+        background: #181b20;
     }
 
     #status {
@@ -328,11 +342,13 @@ class PositionsApp(App):
         self._row_keys = []
         self._row_item_by_key = {}
         items = list(self._snapshot.items)
-        self._row_count = sum(
-            1 for item in items if item.contract.secType in _SECTION_TYPES
-        )
+        section_rows_by_type = self._section_rows_by_type(items)
+        self._row_count = sum(len(rows) for rows in section_rows_by_type.values())
         for title, sec_type in _SECTION_ORDER:
-            self._add_section(title, sec_type, items)
+            rows = section_rows_by_type.get(sec_type, [])
+            if not rows:
+                continue
+            self._add_section(title, sec_type, rows)
         if self._buying_power[0] is not None:
             spacer_key = "spacer:buying_power"
             self._table.add_row(
@@ -393,12 +409,22 @@ class PositionsApp(App):
             return f"{base} | error: {self._snapshot.error}"
         return base
 
-    def _add_section(self, title: str, sec_type: str, items: list[PortfolioItem]) -> None:
+    def _section_rows_by_type(self, items: list[PortfolioItem]) -> dict[str, list[PortfolioItem]]:
+        rows_by_type: dict[str, list[PortfolioItem]] = {sec_type: [] for _, sec_type in _SECTION_ORDER}
+        for item in items:
+            sec_type = str(getattr(item.contract, "secType", "") or "").strip().upper()
+            if sec_type in rows_by_type:
+                rows_by_type[sec_type].append(item)
+        for rows in rows_by_type.values():
+            rows.sort(key=_portfolio_sort_key, reverse=True)
+        return rows_by_type
+
+    def _add_section(self, title: str, sec_type: str, rows: list[PortfolioItem]) -> None:
+        if not rows:
+            return
         header_key = f"header:{sec_type}"
-        self._table.add_row(*self._section_header_row(title), key=header_key)
+        self._table.add_row(*self._section_header_row(title, sec_type), key=header_key)
         self._row_keys.append(header_key)
-        rows = [item for item in items if item.contract.secType == sec_type]
-        rows.sort(key=_portfolio_sort_key, reverse=True)
         for item in rows:
             row_key = f"{sec_type}:{item.contract.conId}"
             change_text = self._contract_change_text(item)
@@ -417,8 +443,8 @@ class PositionsApp(App):
             self._row_keys.append(row_key)
             self._row_item_by_key[row_key] = item
 
-    def _section_header_row(self, title: str) -> list[Text]:
-        style = "bold white on #2b2b2b"
+    def _section_header_row(self, title: str, sec_type: str) -> list[Text]:
+        style = self._SECTION_HEADER_STYLE_BY_TYPE.get(sec_type, "bold white on #2b2b2b")
         row = [Text(f"— {title} —", style=style)]
         row.extend(Text("", style=style) for _ in range(self._column_count - 1))
         return row
