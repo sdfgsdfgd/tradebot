@@ -69,6 +69,13 @@ from .bot_signal_runtime import BotSignalRuntimeMixin
 
 # region Bot UI
 class BotConfigScreen(Screen[_BotConfigResult | None]):
+    _HOUR_FILTER_PATHS = {
+        "filters.entry_start_hour_et",
+        "filters.entry_end_hour_et",
+        "filters.entry_start_hour",
+        "filters.entry_end_hour",
+    }
+
     BINDINGS = [
         ("escape", "cancel", "Cancel"),
         ("q", "cancel", "Cancel"),
@@ -110,7 +117,7 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
         yield Static("", id="bot-config-header")
         yield DataTable(id="bot-config", zebra_stripes=True)
         yield Static(
-            "Enter=Save & start  Esc=Cancel  Type=Edit  e=Edit w/ current  Space=Toggle  ←/→=Cycle enum",
+            "Enter=Save & start  Esc=Cancel  Type=Edit  e=Edit w/ current  Space=Toggle  ←/→=Cycle enum  Hours: blank=off",
             id="bot-config-help",
         )
         yield Footer()
@@ -172,6 +179,20 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
                     "up": {"action": "BUY", "qty": 1},
                     "down": {"action": "SELL", "qty": 1},
                 }
+
+        if isinstance(self._filters, dict):
+            start_et = self._filters.get("entry_start_hour_et")
+            end_et = self._filters.get("entry_end_hour_et")
+            start_legacy = self._filters.get("entry_start_hour")
+            end_legacy = self._filters.get("entry_end_hour")
+            if start_et is None and start_legacy is not None:
+                self._filters["entry_start_hour_et"] = start_legacy
+            elif start_legacy is None and start_et is not None:
+                self._filters["entry_start_hour"] = start_et
+            if end_et is None and end_legacy is not None:
+                self._filters["entry_end_hour_et"] = end_legacy
+            elif end_legacy is None and end_et is not None:
+                self._filters["entry_end_hour"] = end_et
 
         self._fields = [
             _BotConfigField("Symbol", "text", "symbol"),
@@ -239,8 +260,6 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
             ),
             _BotConfigField("Entry start hour (ET)", "text", "filters.entry_start_hour_et"),
             _BotConfigField("Entry end hour (ET)", "text", "filters.entry_end_hour_et"),
-            _BotConfigField("Entry start hour", "text", "filters.entry_start_hour"),
-            _BotConfigField("Entry end hour", "text", "filters.entry_end_hour"),
             _BotConfigField("Volume ratio min", "float", "filters.volume_ratio_min"),
             _BotConfigField("Volume EMA period", "int", "filters.volume_ema_period"),
             _BotConfigField("Flip-exit", "bool", "exit_on_signal_flip"),
@@ -308,6 +327,20 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
             )
 
     def _refresh_table(self) -> None:
+        prev_row = 0
+        prev_col = 0
+        selected_path = None
+        if hasattr(self, "_table"):
+            try:
+                coord = self._table.cursor_coordinate
+                prev_row = int(getattr(coord, "row", 0) or 0)
+                prev_col = int(getattr(coord, "column", 0) or 0)
+            except Exception:
+                prev_row = 0
+                prev_col = 0
+            field = self._selected_field()
+            if field is not None:
+                selected_path = field.path
         self._table.clear()
         mode = "Create" if self._mode == "create" else "Update"
         legs_desc = _legs_label(self._strategy.get("legs", []))
@@ -322,10 +355,23 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
         self._header.update(Text("\n").join(lines))
         for field in self._fields:
             if self._editing and self._editing.path == field.path:
-                self._table.add_row(field.label, self._edit_buffer)
+                self._table.add_row(
+                    Text(field.label, style="bold #ffd166"),
+                    Text(self._edit_buffer, style="bold #ffd166"),
+                )
                 continue
             value = self._get_value(field)
             self._table.add_row(field.label, self._format_value(field, value))
+        if self._fields:
+            target_row = prev_row
+            if selected_path:
+                for idx, field in enumerate(self._fields):
+                    if field.path == selected_path:
+                        target_row = idx
+                        break
+            target_row = max(0, min(target_row, len(self._fields) - 1))
+            target_col = max(0, min(prev_col, 1))
+            self._table.cursor_coordinate = (target_row, target_col)
 
     def _format_value(self, field: _BotConfigField, value: object) -> str:
         if field.kind == "bool":
@@ -366,6 +412,21 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
             _set_path(self._filters, field.path[len("filters.") :], value)
             return
         _set_path(self._strategy, field.path, value)
+
+    @classmethod
+    def _is_hour_filter_field(cls, field: _BotConfigField | None) -> bool:
+        return bool(field and field.path in cls._HOUR_FILTER_PATHS)
+
+    def _set_hour_filter_value(self, field_path: str, value: int | None) -> None:
+        if self._filters is None:
+            self._filters = {}
+        if field_path in ("filters.entry_start_hour_et", "filters.entry_start_hour"):
+            _set_path(self._filters, "entry_start_hour_et", value)
+            _set_path(self._filters, "entry_start_hour", value)
+            return
+        if field_path in ("filters.entry_end_hour_et", "filters.entry_end_hour"):
+            _set_path(self._filters, "entry_end_hour_et", value)
+            _set_path(self._filters, "entry_end_hour", value)
 
     def action_cursor_down(self) -> None:
         if self._editing is not None:
@@ -426,6 +487,25 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
         self._refresh_table()
 
     def on_key(self, event: events.Key) -> None:
+        if self._editing and event.key == "enter":
+            self.action_save()
+            event.stop()
+            return
+        if self._editing and self._is_hour_filter_field(self._editing):
+            if event.key in ("escape", "e"):
+                self._editing = None
+                self._edit_buffer = ""
+                self._refresh_table()
+                event.stop()
+                return
+            if event.key in ("up", "k"):
+                self.action_cursor_up()
+                event.stop()
+                return
+            if event.key in ("down", "j"):
+                self.action_cursor_down()
+                event.stop()
+                return
         if not self._editing:
             field = self._selected_field()
             if not field or not event.character:
@@ -459,6 +539,9 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
         if event.key == "backspace":
             self._edit_buffer = self._edit_buffer[:-1]
             self._apply_edit_buffer()
+            if self._editing and self._is_hour_filter_field(self._editing) and not self._edit_buffer:
+                self._editing = None
+                self._refresh_table()
             event.stop()
             return
         if not event.character:
@@ -483,6 +566,8 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
             return
         if self._editing.kind == "text":
             if char:
+                if self._is_hour_filter_field(self._editing) and char not in "0123456789":
+                    return
                 self._edit_buffer += char
                 self._apply_edit_buffer()
                 event.stop()
@@ -496,13 +581,13 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
                 self._set_value(field, _parse_entry_days(self._edit_buffer))
                 self._refresh_table()
                 return
-            if field.path.startswith("filters."):
+            if self._is_hour_filter_field(field):
                 cleaned = self._edit_buffer.strip()
                 value = None
                 if cleaned.isdigit():
                     parsed = int(cleaned)
                     value = max(0, min(parsed, 23))
-                self._set_value(field, value)
+                self._set_hour_filter_value(field.path, value)
                 self._refresh_table()
                 return
             self._set_value(field, self._edit_buffer.strip())
@@ -541,6 +626,11 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
         self.dismiss(result)
 
     def action_cancel(self) -> None:
+        if self._editing is not None:
+            self._editing = None
+            self._edit_buffer = ""
+            self._refresh_table()
+            return
         self.dismiss(None)
 
 
@@ -646,10 +736,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         self._orders_table = self.query_one("#bot-orders", DataTable)
         self._instances_table = self.query_one("#bot-instances", DataTable)
         self._logs_table = self.query_one("#bot-logs", DataTable)
-        self._presets_table.border_title = "Presets"
-        self._instances_table.border_title = "Instances"
-        self._orders_table.border_title = "Orders / Positions"
-        self._logs_table.border_title = "Logs"
+        self._render_panel_titles()
         self._presets_table.cursor_type = "row"
         self._orders_table.cursor_type = "row"
         self._instances_table.cursor_type = "row"
@@ -736,6 +823,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             self._focus_panel("instances")
         elif self._presets_visible and self._active_panel != "presets":
             self._focus_panel("presets")
+        self._render_panel_titles()
         self._set_status(f"Presets: {'ON' if self._presets_visible else 'OFF'}")
         self.refresh(layout=True)
 
@@ -779,8 +867,21 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             "logs": self._logs_table,
         }.get(target, self._logs_table)
 
+    def _render_panel_titles(self) -> None:
+        labels = {
+            "presets": "Presets",
+            "instances": "Instances",
+            "orders": "Orders / Positions",
+            "logs": "Logs",
+        }
+        for panel in self._PANEL_ORDER:
+            table = self._panel_table(panel)
+            prefix = "▶ " if panel == self._active_panel else "  "
+            table.border_title = f"{prefix}{labels[panel]}"
+
     def _focus_panel(self, panel: str) -> None:
         self._active_panel = panel
+        self._render_panel_titles()
         self._panel_table(panel).focus()
         if panel == "logs" and self._log_rows:
             last_idx = len(self._log_rows) - 1
@@ -2978,14 +3079,22 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             else f"≥{int(self._filter_min_win_rate * 100)}%"
         )
         lines.append(Text(f"Filter: DTE={dte_label} (f)  Win={win_label} (w)", style="dim"))
-        lines.append(
-            Text(
-                f"Focus: {self._active_panel}  Presets: {'ON' if self._presets_visible else 'OFF'}  "
-                f"Scope: {'ALL' if self._scope_all else 'Instance'}  "
-                f"Instances: {len(self._instances)}  Orders: {len(self._order_rows)}",
-                style="dim",
-            )
+        focus_style = {
+            "presets": "bold #62b0ff",
+            "instances": "bold #66d19e",
+            "orders": "bold #f3b267",
+            "logs": "bold #b7a6ff",
+        }.get(self._active_panel, "bold")
+        focus_line = Text("Focus: ", style="dim")
+        focus_line.append(str(self._active_panel).upper(), style=focus_style)
+        focus_line.append(
+            f"  Presets: {'ON' if self._presets_visible else 'OFF'}  "
+            f"Scope: {'ALL' if self._scope_all else 'Instance'}  "
+            f"Instances: {len(self._instances)}  Orders: {len(self._order_rows)}",
+            style="dim",
         )
+        lines.append(focus_line)
+        lines.append(Text("Hours legend: R=RTH, F=24/5, cXX=cutoff hour ET", style="dim"))
 
         if self._active_panel == "presets":
             selected = self._selected_preset()

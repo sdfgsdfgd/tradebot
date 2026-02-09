@@ -129,8 +129,32 @@ class PositionsApp(App):
         border: solid #003054;
     }
 
-    DataTable > .datatable--cursor {
-        background: #2a2a2a;
+    #bot-presets:focus,
+    #bot-instances:focus,
+    #bot-orders:focus,
+    #bot-logs:focus,
+    #bot-config:focus {
+        border: solid #2c82c9;
+    }
+
+    #bot-presets > .datatable--cursor {
+        background: #1c3348;
+    }
+
+    #bot-instances > .datatable--cursor {
+        background: #1f3a33;
+    }
+
+    #bot-orders > .datatable--cursor {
+        background: #3d321f;
+    }
+
+    #bot-logs > .datatable--cursor {
+        background: #2f2f45;
+    }
+
+    #bot-config > .datatable--cursor {
+        background: #2a3a4a;
     }
     """
 
