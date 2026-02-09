@@ -95,6 +95,17 @@ class PositionsApp(App):
         text-style: bold;
     }
 
+    #positions > .datatable--header,
+    #bot-presets > .datatable--header,
+    #bot-instances > .datatable--header,
+    #bot-orders > .datatable--header,
+    #bot-logs > .datatable--header,
+    #bot-config > .datatable--header {
+        background: #121820;
+        color: #c6d4e1;
+        text-style: bold;
+    }
+
     #status {
         height: 1;
         padding: 0 1;
