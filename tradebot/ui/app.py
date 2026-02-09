@@ -50,10 +50,10 @@ from .store import PortfolioSnapshot
 # region Positions UI
 class PositionsApp(App):
     _SECTION_HEADER_STYLE_BY_TYPE = {
-        "OPT": "bold #d7e8ff on #232834",
-        "STK": "bold #d8f3e7 on #1f2d29",
-        "FUT": "bold #ffe7c7 on #2e2720",
-        "FOP": "bold #ece0ff on #2a2433",
+        "OPT": "bold #9fc7ff on #18243a",
+        "STK": "bold #8ee6b8 on #15251f",
+        "FUT": "bold #ffcf88 on #2b2215",
+        "FOP": "bold #d0b7ff on #211a33",
     }
 
     BINDINGS = [
@@ -84,7 +84,8 @@ class PositionsApp(App):
     }
 
     #positions > .datatable--cursor {
-        background: #181b20;
+        background: #11151b;
+        text-style: none;
     }
 
     #status {
