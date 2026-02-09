@@ -4,6 +4,8 @@
 Profiles:
 - hyper10: dual lane (RTH + FULL24), pnl-first ranking, TQQQ+SLV transfer overlays.
 - scalp10: FULL24-heavy aggressive lane, pnl-first ranking.
+- precision_guard: km50/km52-centered quality pocket with narrow crisis overlays.
+- hour_expansion: FULL24 hour-window expansion with selective protection overlays.
 
 This script intentionally calls canonical `spot_multitimeframe` so we keep
 cache/sharding/engine behavior identical to the main backtest stack.
@@ -1123,6 +1125,546 @@ def _island_bridge_stage_b(*, symbol: str, seed_groups: list[dict]) -> list[dict
     return groups
 
 
+def _precision_guard_stage_a(*, symbol: str, base_strategy: dict, base_filters: dict) -> list[dict]:
+    groups: list[dict] = []
+    rank = 0
+    symbol_u = str(symbol).strip().upper()
+    filters_base = dict(base_filters or {})
+    tod_specs: tuple[tuple[str, dict[str, object]], ...] = (
+        ("tod=8-14", {"entry_start_hour_et": 8, "entry_end_hour_et": 14, "risk_entry_cutoff_hour_et": 14}),
+        ("tod=8-15", {"entry_start_hour_et": 8, "entry_end_hour_et": 15, "risk_entry_cutoff_hour_et": 15}),
+        ("tod=9-15", {"entry_start_hour_et": 9, "entry_end_hour_et": 15, "risk_entry_cutoff_hour_et": 15}),
+    )
+    geom_specs: tuple[tuple[str, dict[str, object]], ...] = (
+        (
+            "geom=base",
+            {
+                "ema_spread_min_pct": 0.0015,
+                "ema_spread_min_pct_down": 0.02,
+                "ema_slope_min_pct": 0.01,
+            },
+        ),
+        (
+            "geom=tight",
+            {
+                "ema_spread_min_pct": 0.002,
+                "ema_spread_min_pct_down": 0.025,
+                "ema_slope_min_pct": 0.015,
+            },
+        ),
+    )
+
+    for confirm_bars in (1, 2):
+        for stop_loss in (0.018, 0.02):
+            for max_open in (2, 3):
+                for flip_hold in (0, 1):
+                    for tod_note, tod_over in tod_specs:
+                        for geom_note, geom_over in geom_specs:
+                            rank += 1
+                            strategy = dict(base_strategy)
+                            strategy.update(
+                                {
+                                    "instrument": "spot",
+                                    "symbol": symbol_u,
+                                    "signal_bar_size": "10 mins",
+                                    "signal_use_rth": False,
+                                    "spot_exec_bar_size": "5 mins",
+                                    "ema_entry_mode": "trend",
+                                    "ema_preset": "8/21",
+                                    "entry_confirm_bars": int(confirm_bars),
+                                    "spot_stop_loss_pct": float(stop_loss),
+                                    "max_open_trades": int(max_open),
+                                    "spot_close_eod": False,
+                                    "exit_on_signal_flip": True,
+                                    "flip_exit_mode": "entry",
+                                    "flip_exit_only_if_profit": True,
+                                    "flip_exit_min_hold_bars": int(flip_hold),
+                                    "regime_mode": "supertrend",
+                                    "regime_bar_size": "1 day",
+                                    "supertrend_atr_period": 7,
+                                    "supertrend_multiplier": 0.4,
+                                    "supertrend_source": "close",
+                                    "regime2_mode": "off",
+                                    "spot_short_risk_mult": 0.0,
+                                }
+                            )
+                            strategy.pop("regime2_bar_size", None)
+                            strategy.pop("regime2_supertrend_atr_period", None)
+                            strategy.pop("regime2_supertrend_multiplier", None)
+                            strategy.pop("regime2_supertrend_source", None)
+                            strategy.pop("regime2_ema_preset", None)
+
+                            filters = _merge_dict(filters_base, tod_over)
+                            filters = _merge_dict(filters, geom_over)
+                            note = (
+                                f"PGA #{rank:04d} FULL24 ema=8/21 confirm={confirm_bars} sl={stop_loss:g} "
+                                f"open={max_open} hold={flip_hold} {tod_note} {geom_note}"
+                            )
+                            groups.append(
+                                {
+                                    "name": note,
+                                    "filters": filters,
+                                    "entries": [{"symbol": symbol_u, "metrics": _blank_metrics(), "strategy": strategy}],
+                                    "_eval": {"stage": "A", "profile": "precision_guard", "note": note},
+                                }
+                            )
+    return groups
+
+
+def _precision_guard_stage_b(*, symbol: str, seed_groups: list[dict]) -> list[dict]:
+    seeds = [_seed_from_group(g) for g in seed_groups]
+    groups: list[dict] = []
+    rank = 0
+    symbol_u = str(symbol).strip().upper()
+
+    drawdown_specs: tuple[tuple[int, float, float, str], ...] = (
+        (10, 8.0, 0.05, "both"),
+        (15, 8.0, 0.08, "both"),
+        (10, 10.0, 0.05, "both"),
+        (20, 10.0, 0.08, "both"),
+    )
+    trratio_specs: tuple[tuple[int, int, float, float, float, float, float, str, str], ...] = (
+        (5, 50, 1.45, 1.35, 3.5, 10.0, 0.15, "both", "detect"),
+        (5, 50, 1.50, 1.40, 4.0, 12.0, 0.20, "both", "detect"),
+        (5, 50, 1.55, 1.45, 4.5, 12.0, 0.20, "both", "detect"),
+        (3, 50, 1.45, 1.35, 3.5, 10.0, 0.20, "both", "detect"),
+        (5, 34, 1.45, 1.35, 3.5, 10.0, 0.15, "both", "detect"),
+    )
+    risk_specs: tuple[tuple[float, float, float], ...] = (
+        (3.0, 0.5, 0.0),
+        (3.0, 0.75, 0.0),
+        (3.25, 0.5, 0.0),
+        (3.25, 0.75, 0.0),
+        (3.5, 0.5, 0.0),
+        (3.25, 0.5, 0.1),
+    )
+    cross_specs: tuple[
+        tuple[
+            int,
+            tuple[int, float, float, str],
+            tuple[int, int, float, float, float, float, float, str, str],
+            tuple[float, float, float],
+        ],
+        ...,
+    ] = (
+        (1, drawdown_specs[0], trratio_specs[0], risk_specs[0]),
+        (2, drawdown_specs[1], trratio_specs[1], risk_specs[2]),
+        (3, drawdown_specs[2], trratio_specs[2], risk_specs[3]),
+        (4, drawdown_specs[3], trratio_specs[3], risk_specs[4]),
+        (5, drawdown_specs[0], trratio_specs[4], risk_specs[5]),
+        (6, drawdown_specs[2], trratio_specs[1], risk_specs[1]),
+    )
+
+    def _over_dd(lb: int, target: float, min_mult: float, apply_to: str) -> dict[str, object]:
+        return {
+            "shock_gate_mode": "detect",
+            "shock_scale_detector": "daily_drawdown",
+            "shock_drawdown_lookback_days": int(lb),
+            "shock_risk_scale_target_atr_pct": float(target),
+            "shock_risk_scale_min_mult": float(min_mult),
+            "shock_risk_scale_apply_to": str(apply_to),
+            "shock_direction_source": "signal",
+            "shock_direction_lookback": 1,
+        }
+
+    def _over_trratio(
+        fast: int,
+        slow: int,
+        on_ratio: float,
+        off_ratio: float,
+        min_atr_pct: float,
+        target: float,
+        min_mult: float,
+        apply_to: str,
+        gate_mode: str,
+    ) -> dict[str, object]:
+        return {
+            "shock_gate_mode": str(gate_mode),
+            "shock_scale_detector": "tr_ratio",
+            "shock_atr_fast_period": int(fast),
+            "shock_atr_slow_period": int(slow),
+            "shock_on_ratio": float(on_ratio),
+            "shock_off_ratio": float(off_ratio),
+            "shock_min_atr_pct": float(min_atr_pct),
+            "shock_risk_scale_target_atr_pct": float(target),
+            "shock_risk_scale_min_mult": float(min_mult),
+            "shock_risk_scale_apply_to": str(apply_to),
+            "shock_direction_source": "signal",
+            "shock_direction_lookback": 1,
+        }
+
+    def _over_riskpanic(tr_med: float, tr_delta: float, long_factor: float) -> dict[str, object]:
+        return {
+            "riskoff_tr5_med_pct": None,
+            "riskpop_tr5_med_pct": None,
+            "riskpanic_tr5_med_pct": float(tr_med),
+            "riskpanic_neg_gap_ratio_min": 0.6,
+            "riskpanic_neg_gap_abs_pct_min": 0.005,
+            "riskpanic_lookback_days": 5,
+            "riskpanic_tr5_med_delta_min_pct": float(tr_delta),
+            "riskpanic_tr5_med_delta_lookback_days": 1,
+            "risk_entry_cutoff_hour_et": 15,
+            "riskpanic_long_risk_mult_factor": float(long_factor),
+            "riskpanic_short_risk_mult_factor": 1.0,
+            "riskpanic_long_scale_mode": "linear",
+            "riskpanic_long_scale_tr_delta_max_pct": None,
+        }
+
+    for seed_idx, (seed_name, seed_strategy, seed_filters) in enumerate(seeds, start=1):
+        for dd in drawdown_specs:
+            rank += 1
+            filters = _merge_dict(seed_filters, _over_dd(*dd))
+            note = f"PGB #{rank:04d} seed={seed_idx} dd={dd}"
+            groups.append(
+                {
+                    "name": note,
+                    "filters": filters,
+                    "entries": [{"symbol": symbol_u, "metrics": _blank_metrics(), "strategy": dict(seed_strategy)}],
+                    "_eval": {"stage": "B", "profile": "precision_guard", "seed": seed_name, "kind": "drawdown_only"},
+                }
+            )
+
+        for trr in trratio_specs:
+            rank += 1
+            filters = _merge_dict(seed_filters, _over_trratio(*trr))
+            note = f"PGB #{rank:04d} seed={seed_idx} trratio={trr}"
+            groups.append(
+                {
+                    "name": note,
+                    "filters": filters,
+                    "entries": [{"symbol": symbol_u, "metrics": _blank_metrics(), "strategy": dict(seed_strategy)}],
+                    "_eval": {"stage": "B", "profile": "precision_guard", "seed": seed_name, "kind": "trratio_only"},
+                }
+            )
+
+        for tr_med, tr_delta, long_factor in risk_specs:
+            for short_mult in (0.0, 0.001):
+                rank += 1
+                filters = _merge_dict(seed_filters, _over_riskpanic(tr_med, tr_delta, long_factor))
+                strategy = dict(seed_strategy)
+                strategy["spot_short_risk_mult"] = float(short_mult)
+                note = (
+                    f"PGB #{rank:04d} seed={seed_idx} panic(tr={tr_med:g},d={tr_delta:g},L={long_factor:g})"
+                    f" short={short_mult:g}"
+                )
+                groups.append(
+                    {
+                        "name": note,
+                        "filters": filters,
+                        "entries": [{"symbol": symbol_u, "metrics": _blank_metrics(), "strategy": strategy}],
+                        "_eval": {"stage": "B", "profile": "precision_guard", "seed": seed_name, "kind": "riskpanic_only"},
+                    }
+                )
+
+        for cross_idx, dd, trr, rp in cross_specs:
+            for short_mult in (0.0, 0.001):
+                rank += 1
+                filters = _merge_dict(seed_filters, _over_dd(*dd))
+                filters = _merge_dict(filters, _over_trratio(*trr))
+                filters = _merge_dict(filters, _over_riskpanic(*rp))
+                strategy = dict(seed_strategy)
+                strategy["spot_short_risk_mult"] = float(short_mult)
+                note = f"PGB #{rank:04d} seed={seed_idx} cross={cross_idx} short={short_mult:g}"
+                groups.append(
+                    {
+                        "name": note,
+                        "filters": filters,
+                        "entries": [{"symbol": symbol_u, "metrics": _blank_metrics(), "strategy": strategy}],
+                        "_eval": {"stage": "B", "profile": "precision_guard", "seed": seed_name, "kind": "cross"},
+                    }
+                )
+    return groups
+
+
+def _hour_expansion_stage_a(*, symbol: str, base_strategy: dict, base_filters: dict) -> list[dict]:
+    groups: list[dict] = []
+    rank = 0
+    symbol_u = str(symbol).strip().upper()
+    filters_base = dict(base_filters or {})
+    tod_specs: tuple[tuple[str, dict[str, object]], ...] = (
+        ("tod=6-14", {"entry_start_hour_et": 6, "entry_end_hour_et": 14, "risk_entry_cutoff_hour_et": 14}),
+        ("tod=6-15", {"entry_start_hour_et": 6, "entry_end_hour_et": 15, "risk_entry_cutoff_hour_et": 15}),
+        ("tod=6-16", {"entry_start_hour_et": 6, "entry_end_hour_et": 16, "risk_entry_cutoff_hour_et": 16}),
+        ("tod=7-14", {"entry_start_hour_et": 7, "entry_end_hour_et": 14, "risk_entry_cutoff_hour_et": 14}),
+        ("tod=7-15", {"entry_start_hour_et": 7, "entry_end_hour_et": 15, "risk_entry_cutoff_hour_et": 15}),
+        ("tod=7-16", {"entry_start_hour_et": 7, "entry_end_hour_et": 16, "risk_entry_cutoff_hour_et": 16}),
+        ("tod=8-15", {"entry_start_hour_et": 8, "entry_end_hour_et": 15, "risk_entry_cutoff_hour_et": 15}),
+        ("tod=8-16", {"entry_start_hour_et": 8, "entry_end_hour_et": 16, "risk_entry_cutoff_hour_et": 16}),
+        ("tod=9-16", {"entry_start_hour_et": 9, "entry_end_hour_et": 16, "risk_entry_cutoff_hour_et": 16}),
+    )
+    geom_specs: tuple[tuple[str, dict[str, object]], ...] = (
+        (
+            "geom=base",
+            {
+                "ema_spread_min_pct": 0.0015,
+                "ema_spread_min_pct_down": 0.02,
+                "ema_slope_min_pct": 0.01,
+            },
+        ),
+        (
+            "geom=tight",
+            {
+                "ema_spread_min_pct": 0.0025,
+                "ema_spread_min_pct_down": 0.03,
+                "ema_slope_min_pct": 0.02,
+            },
+        ),
+    )
+
+    for ema_preset in ("8/21", "5/13"):
+        for stop_loss in (0.02, 0.022):
+            for max_open in (3, 4):
+                for short_mult in (0.0, 0.0025):
+                    for tod_note, tod_over in tod_specs:
+                        for geom_note, geom_over in geom_specs:
+                            rank += 1
+                            strategy = dict(base_strategy)
+                            strategy.update(
+                                {
+                                    "instrument": "spot",
+                                    "symbol": symbol_u,
+                                    "signal_bar_size": "10 mins",
+                                    "signal_use_rth": False,
+                                    "spot_exec_bar_size": "5 mins",
+                                    "ema_entry_mode": "trend",
+                                    "ema_preset": str(ema_preset),
+                                    "entry_confirm_bars": 1,
+                                    "spot_stop_loss_pct": float(stop_loss),
+                                    "max_open_trades": int(max_open),
+                                    "spot_close_eod": False,
+                                    "exit_on_signal_flip": True,
+                                    "flip_exit_mode": "entry",
+                                    "flip_exit_only_if_profit": True,
+                                    "flip_exit_min_hold_bars": 0,
+                                    "regime_mode": "supertrend",
+                                    "regime_bar_size": "1 day",
+                                    "supertrend_atr_period": 7,
+                                    "supertrend_multiplier": 0.4,
+                                    "supertrend_source": "close",
+                                    "regime2_mode": "off",
+                                    "spot_short_risk_mult": float(short_mult),
+                                }
+                            )
+                            strategy.pop("regime2_bar_size", None)
+                            strategy.pop("regime2_supertrend_atr_period", None)
+                            strategy.pop("regime2_supertrend_multiplier", None)
+                            strategy.pop("regime2_supertrend_source", None)
+                            strategy.pop("regime2_ema_preset", None)
+
+                            filters = _merge_dict(filters_base, tod_over)
+                            filters = _merge_dict(filters, geom_over)
+                            note = (
+                                f"HEA #{rank:04d} FULL24 ema={ema_preset} sl={stop_loss:g} open={max_open} "
+                                f"short={short_mult:g} {tod_note} {geom_note}"
+                            )
+                            groups.append(
+                                {
+                                    "name": note,
+                                    "filters": filters,
+                                    "entries": [{"symbol": symbol_u, "metrics": _blank_metrics(), "strategy": strategy}],
+                                    "_eval": {"stage": "A", "profile": "hour_expansion", "note": note},
+                                }
+                            )
+    return groups
+
+
+def _hour_expansion_stage_b(*, symbol: str, seed_groups: list[dict]) -> list[dict]:
+    seeds = [_seed_from_group(g) for g in seed_groups]
+    groups: list[dict] = []
+    rank = 0
+    symbol_u = str(symbol).strip().upper()
+
+    drawdown_specs: tuple[tuple[int, float, float, str], ...] = (
+        (10, 8.0, 0.05, "both"),
+        (20, 8.0, 0.08, "both"),
+        (30, 10.0, 0.08, "both"),
+        (20, 12.0, 0.10, "both"),
+        (10, 10.0, 0.10, "cap"),
+        (20, 10.0, 0.15, "cap"),
+    )
+    tr_detect_specs: tuple[tuple[int, int, float, float, float, float, float, str, str], ...] = (
+        (5, 50, 1.45, 1.35, 4.0, 10.0, 0.15, "both", "detect"),
+        (5, 50, 1.50, 1.40, 4.0, 12.0, 0.20, "both", "detect"),
+        (5, 50, 1.55, 1.45, 5.0, 12.0, 0.25, "both", "detect"),
+        (3, 50, 1.45, 1.35, 4.0, 10.0, 0.20, "both", "detect"),
+        (3, 34, 1.45, 1.35, 3.5, 10.0, 0.20, "cap", "detect"),
+        (5, 34, 1.50, 1.40, 4.0, 12.0, 0.20, "cap", "detect"),
+        (5, 21, 1.45, 1.35, 3.5, 10.0, 0.20, "cap", "detect"),
+        (3, 21, 1.40, 1.30, 3.0, 8.0, 0.15, "cap", "detect"),
+    )
+    tr_surf_specs: tuple[tuple[int, int, float, float, float, float, float, str, str], ...] = (
+        (3, 21, 1.30, 1.20, 3.0, 8.0, 0.20, "both", "surf"),
+        (3, 21, 1.35, 1.25, 3.5, 10.0, 0.20, "both", "surf"),
+        (3, 34, 1.35, 1.25, 3.5, 10.0, 0.20, "cap", "surf"),
+        (5, 34, 1.40, 1.30, 4.0, 12.0, 0.25, "cap", "surf"),
+        (3, 50, 1.35, 1.25, 3.5, 10.0, 0.20, "both", "surf"),
+        (5, 50, 1.40, 1.30, 4.0, 12.0, 0.25, "cap", "surf"),
+    )
+    risk_specs: tuple[tuple[float, float, float], ...] = (
+        (2.75, 0.5, 0.2),
+        (2.75, 0.75, 0.0),
+        (3.0, 0.5, 0.2),
+        (3.0, 0.75, 0.0),
+        (3.25, 0.5, 0.2),
+        (3.25, 0.75, 0.0),
+        (3.5, 0.5, 0.2),
+        (3.5, 0.75, 0.0),
+    )
+    cross_specs: tuple[
+        tuple[
+            int,
+            tuple[int, float, float, str],
+            tuple[int, int, float, float, float, float, float, str, str],
+            tuple[float, float, float],
+            int,
+        ],
+        ...,
+    ] = (
+        (1, drawdown_specs[0], tr_detect_specs[0], risk_specs[0], 14),
+        (2, drawdown_specs[1], tr_detect_specs[1], risk_specs[3], 15),
+        (3, drawdown_specs[2], tr_detect_specs[2], risk_specs[5], 16),
+        (4, drawdown_specs[4], tr_surf_specs[1], risk_specs[2], 14),
+        (5, drawdown_specs[5], tr_surf_specs[3], risk_specs[4], 15),
+        (6, drawdown_specs[3], tr_detect_specs[5], risk_specs[7], 16),
+        (7, drawdown_specs[1], tr_surf_specs[4], risk_specs[6], 15),
+        (8, drawdown_specs[0], tr_detect_specs[7], risk_specs[1], 14),
+    )
+
+    def _over_dd(lb: int, target: float, min_mult: float, apply_to: str) -> dict[str, object]:
+        return {
+            "shock_gate_mode": "detect",
+            "shock_scale_detector": "daily_drawdown",
+            "shock_drawdown_lookback_days": int(lb),
+            "shock_risk_scale_target_atr_pct": float(target),
+            "shock_risk_scale_min_mult": float(min_mult),
+            "shock_risk_scale_apply_to": str(apply_to),
+            "shock_direction_source": "signal",
+            "shock_direction_lookback": 1,
+        }
+
+    def _over_trratio(
+        fast: int,
+        slow: int,
+        on_ratio: float,
+        off_ratio: float,
+        min_atr_pct: float,
+        target: float,
+        min_mult: float,
+        apply_to: str,
+        gate_mode: str,
+    ) -> dict[str, object]:
+        return {
+            "shock_gate_mode": str(gate_mode),
+            "shock_scale_detector": "tr_ratio",
+            "shock_atr_fast_period": int(fast),
+            "shock_atr_slow_period": int(slow),
+            "shock_on_ratio": float(on_ratio),
+            "shock_off_ratio": float(off_ratio),
+            "shock_min_atr_pct": float(min_atr_pct),
+            "shock_risk_scale_target_atr_pct": float(target),
+            "shock_risk_scale_min_mult": float(min_mult),
+            "shock_risk_scale_apply_to": str(apply_to),
+            "shock_direction_source": "signal",
+            "shock_direction_lookback": 1,
+        }
+
+    def _over_riskpanic(tr_med: float, tr_delta: float, long_factor: float) -> dict[str, object]:
+        return {
+            "riskoff_tr5_med_pct": None,
+            "riskpop_tr5_med_pct": None,
+            "riskpanic_tr5_med_pct": float(tr_med),
+            "riskpanic_neg_gap_ratio_min": 0.6,
+            "riskpanic_neg_gap_abs_pct_min": 0.005,
+            "riskpanic_lookback_days": 5,
+            "riskpanic_tr5_med_delta_min_pct": float(tr_delta),
+            "riskpanic_tr5_med_delta_lookback_days": 1,
+            "riskpanic_long_risk_mult_factor": float(long_factor),
+            "riskpanic_short_risk_mult_factor": 1.0,
+            "riskpanic_long_scale_mode": "linear",
+            "riskpanic_long_scale_tr_delta_max_pct": None,
+        }
+
+    for seed_idx, (seed_name, seed_strategy, seed_filters) in enumerate(seeds, start=1):
+        for dd in drawdown_specs:
+            rank += 1
+            filters = _merge_dict(seed_filters, _over_dd(*dd))
+            note = f"HEB #{rank:04d} seed={seed_idx} angle=dd cfg={dd}"
+            groups.append(
+                {
+                    "name": note,
+                    "filters": filters,
+                    "entries": [{"symbol": symbol_u, "metrics": _blank_metrics(), "strategy": dict(seed_strategy)}],
+                    "_eval": {"stage": "B", "profile": "hour_expansion", "seed": seed_name, "kind": "drawdown_only"},
+                }
+            )
+
+        for trr in tr_detect_specs:
+            rank += 1
+            filters = _merge_dict(seed_filters, _over_trratio(*trr))
+            note = f"HEB #{rank:04d} seed={seed_idx} angle=detect cfg={trr}"
+            groups.append(
+                {
+                    "name": note,
+                    "filters": filters,
+                    "entries": [{"symbol": symbol_u, "metrics": _blank_metrics(), "strategy": dict(seed_strategy)}],
+                    "_eval": {"stage": "B", "profile": "hour_expansion", "seed": seed_name, "kind": "tr_detect"},
+                }
+            )
+
+        for trr in tr_surf_specs:
+            rank += 1
+            filters = _merge_dict(seed_filters, _over_trratio(*trr))
+            note = f"HEB #{rank:04d} seed={seed_idx} angle=surf cfg={trr}"
+            groups.append(
+                {
+                    "name": note,
+                    "filters": filters,
+                    "entries": [{"symbol": symbol_u, "metrics": _blank_metrics(), "strategy": dict(seed_strategy)}],
+                    "_eval": {"stage": "B", "profile": "hour_expansion", "seed": seed_name, "kind": "tr_surf"},
+                }
+            )
+
+        for tr_med, tr_delta, long_factor in risk_specs:
+            for short_mult in (0.0, 0.0025):
+                rank += 1
+                filters = _merge_dict(seed_filters, _over_riskpanic(tr_med, tr_delta, long_factor))
+                strategy = dict(seed_strategy)
+                strategy["spot_short_risk_mult"] = float(short_mult)
+                note = (
+                    f"HEB #{rank:04d} seed={seed_idx} angle=risk panic(tr={tr_med:g},d={tr_delta:g},L={long_factor:g})"
+                    f" short={short_mult:g}"
+                )
+                groups.append(
+                    {
+                        "name": note,
+                        "filters": filters,
+                        "entries": [{"symbol": symbol_u, "metrics": _blank_metrics(), "strategy": strategy}],
+                        "_eval": {"stage": "B", "profile": "hour_expansion", "seed": seed_name, "kind": "riskpanic_only"},
+                    }
+                )
+
+        for cross_idx, dd, trr, rp, cutoff in cross_specs:
+            for short_mult in (0.0, 0.0025):
+                rank += 1
+                filters = _merge_dict(seed_filters, _over_dd(*dd))
+                filters = _merge_dict(filters, _over_trratio(*trr))
+                filters = _merge_dict(filters, _over_riskpanic(*rp))
+                filters = _merge_dict(filters, {"risk_entry_cutoff_hour_et": int(cutoff)})
+                strategy = dict(seed_strategy)
+                strategy["spot_short_risk_mult"] = float(short_mult)
+                note = f"HEB #{rank:04d} seed={seed_idx} angle=cross idx={cross_idx} cutoff={cutoff} short={short_mult:g}"
+                groups.append(
+                    {
+                        "name": note,
+                        "filters": filters,
+                        "entries": [{"symbol": symbol_u, "metrics": _blank_metrics(), "strategy": strategy}],
+                        "_eval": {"stage": "B", "profile": "hour_expansion", "seed": seed_name, "kind": "cross"},
+                    }
+                )
+
+    return groups
+
+
 def _windows_from_strings(raw_windows: list[str]) -> list[dict[str, str]]:
     out: list[dict[str, str]] = []
     for raw in raw_windows:
@@ -1260,6 +1802,16 @@ def _profile_run(
         stage_a_seed_top = 12
         stage_b_top_keep = 120
         stage_b_builder = _island_bridge_stage_b
+    elif profile == "precision_guard":
+        stage_a_groups = _precision_guard_stage_a(symbol=symbol, base_strategy=seed_strategy, base_filters=seed_filters)
+        stage_a_seed_top = 10
+        stage_b_top_keep = 160
+        stage_b_builder = _precision_guard_stage_b
+    elif profile == "hour_expansion":
+        stage_a_groups = _hour_expansion_stage_a(symbol=symbol, base_strategy=seed_strategy, base_filters=seed_filters)
+        stage_a_seed_top = 16
+        stage_b_top_keep = 160
+        stage_b_builder = _hour_expansion_stage_b
     else:
         raise SystemExit(f"Unknown profile: {profile}")
 
@@ -1395,7 +1947,7 @@ def _profile_run(
 
 def main() -> None:
     ap = argparse.ArgumentParser(
-        description="Temporary SLV 10m high-frequency attack runner (hyper10 + scalp10 + island_bridge)."
+        description="Temporary SLV 10m high-frequency attack runner (hyper10 + scalp10 + island_bridge + precision_guard + hour_expansion)."
     )
     ap.add_argument("--symbol", default="SLV")
     ap.add_argument("--seed-milestones", default="backtests/slv/slv_exec5m_v30_seed_v25_as_10m_rth_top80.json")
@@ -1412,7 +1964,11 @@ def main() -> None:
     ap.add_argument("--jobs", type=int, default=0)
     ap.add_argument("--offline", action=argparse.BooleanOptionalAction, default=True)
     ap.add_argument("--run-id", default=None)
-    ap.add_argument("--profiles", default="hyper10,scalp10", help="Comma list: hyper10, scalp10, island_bridge")
+    ap.add_argument(
+        "--profiles",
+        default="hyper10,scalp10",
+        help="Comma list: hyper10, scalp10, island_bridge, precision_guard, hour_expansion",
+    )
     ap.add_argument(
         "--lane-mode",
         default="all",
@@ -1470,9 +2026,11 @@ def main() -> None:
         print(f"  {s}:{e} pnl={pnl:.1f}")
 
     profiles_req = [p.strip().lower() for p in str(args.profiles).split(",") if p.strip()]
-    profiles = [p for p in profiles_req if p in ("hyper10", "scalp10", "island_bridge")]
+    profiles = [p for p in profiles_req if p in ("hyper10", "scalp10", "island_bridge", "precision_guard", "hour_expansion")]
     if not profiles:
-        raise SystemExit("No valid profiles selected. Use --profiles hyper10,scalp10,island_bridge")
+        raise SystemExit(
+            "No valid profiles selected. Use --profiles hyper10,scalp10,island_bridge,precision_guard,hour_expansion"
+        )
 
     for profile in profiles:
         print("")
