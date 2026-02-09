@@ -1278,6 +1278,58 @@ Interpretation:
 - The decade lift is real, but it comes from a regime family that does not improve recent-window execution quality.
 - Increasing turnover past the km50/km52 pocket degrades entry precision too sharply, which explains why recent pnl stalls or slips.
 
+### v36 — `opt13` hour-expansion + precision-guard passes (post-v35 follow-up)
+Status: **DONE** + **PARTIAL** (strong 10y pockets found; no all-window dethrone vs CURRENT v31)
+
+Goal:
+- Probe post-v35 pockets with two targeted profiles:
+  - `hour_expansion`: widen FULL24 entry-hour windows from the v35 lineage while adding selective crisis overlays.
+  - `precision_guard`: tighten around km50/km52-style quality pockets with narrower overlays.
+
+Runner:
+- `backtests/slv/slv_10m_attack_hf.py` profiles: `hour_expansion`, `precision_guard`
+
+Command pattern:
+```bash
+python backtests/slv/slv_10m_attack_hf.py \
+  --profiles hour_expansion,precision_guard \
+  --lane-mode full24 \
+  --seed-milestones backtests/slv/slv_full24_timegate_plus2_top80_promo_raw.json \
+  --seed-bar-size "10 mins" --seed-kingmaker-id <50|56|61> \
+  --champion-milestones backtests/slv/slv_full24_timegate_plus2_top80_promo_raw.json \
+  --champion-bar-size "10 mins" --champion-kingmaker-id <50|56|61> \
+  --stage-window 2016-01-08:2026-01-08 \
+  --stage-min-trades-per-year 100 --promotion-min-trades-per-year 100 \
+  --jobs 12 --offline --run-id slv_exec5m_opt13_<...>
+```
+
+Search matrix:
+- `hour_expansion` Stage A (288):
+  - entry windows from `6..9` start and `14..16` end, `risk_cutoff` aligned to end hour
+  - `ema_preset ∈ {"8/21","5/13"}`, `entry_confirm_bars=1`
+  - `spot_stop_loss_pct ∈ {0.020,0.022}`, `max_open_trades ∈ {3,4}`, `spot_short_risk_mult ∈ {0.0,0.0025}`
+  - geometry pocket: `(spread, spread_down, slope) ∈ {(0.0015,0.02,0.01),(0.0025,0.03,0.02)}`
+- `hour_expansion` Stage B (832):
+  - drawdown throttle + TR-ratio detect/surf + riskpanic velocity + tiny cross tuples
+  - includes `shock_scale_detector ∈ {"daily_drawdown","tr_ratio"}`, `shock_gate_mode ∈ {"detect","surf"}`
+- `precision_guard` Stage A (96):
+  - entry windows `{8,9}` to `{14,15}`, `ema_preset="8/21"`, `entry_confirm_bars ∈ {1,2}`
+  - `spot_stop_loss_pct ∈ {0.018,0.020}`, `max_open_trades ∈ {2,3}`, `spot_short_risk_mult=0.0`
+- `precision_guard` Stage B (330):
+  - narrow drawdown/TR-ratio/riskpanic overlays; `shock_gate_mode="detect"` only
+  - `spot_short_risk_mult ∈ {0.0,0.001}` in staged variants
+
+Outcome:
+- Best single-window (10y-only ranking) top tags reached `pnl ≈ +$846.3k` in hour-expansion promotion sets.
+- Full 10y/2y/1y checks on promoted sets remained mixed:
+  - best 10y pockets (`hourx56/61`) around `pnl ≈ +$825.7k`, but 1y floor around `pnl/dd ≈ 3.72`.
+  - best 1y floor pocket (`precision50`) around `pnl/dd ≈ 3.99`, but decade pnl materially below island-bridge leaders.
+- Net: no all-window dethrone over CURRENT v31 (`roi/dd`: `6.362 / 5.451 / 4.175` for 10y/2y/1y).
+
+Cleanup note:
+- Generated `opt13` artifacts were local exploration outputs only and were removed from workspace after logging
+  (JSON/log bundles for `hour_expansion` + `precision_guard`) to keep the repo lean.
+
 
 ## Notes
 
