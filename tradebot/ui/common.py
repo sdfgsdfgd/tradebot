@@ -49,20 +49,22 @@ def _portfolio_row(
     contract = item.contract
     symbol = Text(str(contract.symbol or ""), style="bold")
     if contract.secType in ("OPT", "FOP"):
+        sep_style = "grey35"
+        expiry_style = "grey58"
         expiry = _fmt_expiry(contract.lastTradeDateOrContractMonth or "")
         if expiry:
-            symbol.append(" · ", style="dim")
-            symbol.append(expiry, style="dim")
+            symbol.append(" · ", style=sep_style)
+            symbol.append(expiry, style=expiry_style)
         right = (contract.right or "").strip().upper()[:1]
         strike = _fmt_money(contract.strike) if contract.strike else ""
         if right and strike:
-            symbol.append(" · ", style="dim")
+            symbol.append(" · ", style=sep_style)
             right_style = "bold green" if right == "C" else "bold red" if right == "P" else "bold"
             symbol.append(right, style=right_style)
-            symbol.append(strike)
+            symbol.append(strike, style="bold")
         elif strike:
-            symbol.append(" · ", style="dim")
-            symbol.append(strike)
+            symbol.append(" · ", style=sep_style)
+            symbol.append(strike, style="bold")
     qty = _fmt_qty(float(item.position))
     avg_cost = _fmt_money(float(item.averageCost)) if item.averageCost else ""
     unreal = unreal_text or _pnl_text(item.unrealizedPNL)
