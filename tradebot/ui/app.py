@@ -50,7 +50,7 @@ from .store import PortfolioSnapshot
 
 # region Positions UI
 class PositionsApp(App):
-    _PX_24_72_COL_WIDTH = 30
+    _PX_24_72_COL_WIDTH = 32
     _QTY_COL_WIDTH = 7
     _UNREAL_COL_WIDTH = 22
     _REALIZED_COL_WIDTH = 12
@@ -294,7 +294,6 @@ class PositionsApp(App):
     def _setup_columns(self) -> None:
         self._columns = [
             "Symbol",
-            "Strike",
             "Qty",
             "AvgCost",
             "Px 24-72",
@@ -568,9 +567,9 @@ class PositionsApp(App):
                 unreal_text=unreal_text,
                 unreal_pct_text=unreal_pct_text,
             )
-            row_values[2] = self._center_cell(row_values[2], self._QTY_COL_WIDTH)
-            row_values[5] = self._center_cell(row_values[5], self._UNREAL_COL_WIDTH)
-            row_values[6] = self._center_cell(row_values[6], self._REALIZED_COL_WIDTH)
+            row_values[1] = self._center_cell(row_values[1], self._QTY_COL_WIDTH)
+            row_values[4] = self._center_cell(row_values[4], self._UNREAL_COL_WIDTH)
+            row_values[5] = self._center_cell(row_values[5], self._REALIZED_COL_WIDTH)
             self._table.add_row(
                 *row_values,
                 key=row_key,
@@ -617,7 +616,6 @@ class PositionsApp(App):
             blank,
             blank,
             blank,
-            blank,
             unreal_text,
             realized_text,
             blank,
@@ -637,7 +635,6 @@ class PositionsApp(App):
         daily_text = _pnl_text(float(daily))
         self._table.add_row(
             label,
-            blank,
             blank,
             blank,
             blank,
@@ -677,7 +674,6 @@ class PositionsApp(App):
             blank,
             blank,
             blank,
-            blank,
             amount_text,
             ts_text,
             est_text,
@@ -713,7 +709,6 @@ class PositionsApp(App):
             est_text = Text(f"~{est_amount}", style="yellow")
         self._table.add_row(
             label,
-            blank,
             blank,
             blank,
             blank,
@@ -839,6 +834,14 @@ class PositionsApp(App):
                 pct72,
                 separator="·",
             )
+            glyph = self._price_direction_glyph(pct24, pct72)
+            if glyph.plain:
+                with_glyph = Text()
+                with_glyph.append_text(glyph)
+                if text.plain:
+                    with_glyph.append(" ")
+                with_glyph.append_text(text)
+                text = with_glyph
             age_sec = self._quote_age_seconds(con_id, ticker, price)
             ribbon = self._quote_age_ribbon(age_sec)
             if ribbon.plain:
@@ -848,6 +851,17 @@ class PositionsApp(App):
             centered = self._center_cell(text, self._PX_24_72_COL_WIDTH)
             return centered if isinstance(centered, Text) else Text(str(centered))
         return _pct_dual_text(pct24, pct72)
+
+    @staticmethod
+    def _price_direction_glyph(pct24: float | None, pct72: float | None) -> Text:
+        ref = pct24 if pct24 is not None else pct72
+        if ref is None:
+            return Text("•", style="dim")
+        if ref > 0:
+            return Text("▲", style="bold green")
+        if ref < 0:
+            return Text("▼", style="bold red")
+        return Text("•", style="dim")
 
     def _quote_age_seconds(
         self,

@@ -48,11 +48,16 @@ def _portfolio_row(
 ) -> list[Text | str]:
     contract = item.contract
     symbol = contract.symbol
-    if contract.secType == "FOP":
+    if contract.secType in ("OPT", "FOP"):
         expiry = _fmt_expiry(contract.lastTradeDateOrContractMonth or "")
         if expiry:
             symbol = f"{symbol} {expiry}"
-    strike = _fmt_money(contract.strike) if contract.strike else ""
+        right = (contract.right or "").strip()
+        strike = _fmt_money(contract.strike) if contract.strike else ""
+        if right and strike:
+            symbol = f"{symbol} {right}{strike}"
+        elif strike:
+            symbol = f"{symbol} {strike}"
     qty = _fmt_qty(float(item.position))
     avg_cost = _fmt_money(float(item.averageCost)) if item.averageCost else ""
     unreal = unreal_text or _pnl_text(item.unrealizedPNL)
@@ -61,7 +66,6 @@ def _portfolio_row(
     realized = _pnl_text(item.realizedPNL)
     return [
         symbol,
-        strike,
         qty,
         avg_cost,
         contract_change,
