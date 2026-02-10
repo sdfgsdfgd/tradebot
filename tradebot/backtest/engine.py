@@ -26,13 +26,13 @@ from ..engine import (
     build_shock_engine,
     build_tr_pct_risk_overlay_engine,
     cooldown_ok_by_index,
+    flip_exit_gate_blocked,
     flip_exit_hit,
     normalize_shock_detector,
     normalize_shock_direction_source,
     normalize_shock_gate_mode,
     normalize_spot_entry_signal,
     parse_time_hhmm,
-    permission_gate_status,
     realized_vol_from_closes,
     resolve_spot_regime2_spec,
     resolve_spot_regime_spec,
@@ -4109,37 +4109,14 @@ def _spot_hit_flip_exit(
         if pnl <= 0:
             return False
 
-    gate_mode = str(getattr(cfg.strategy, "flip_exit_gate_mode", "off") or "off").strip().lower()
-    if gate_mode not in (
-        "off",
-        "regime",
-        "permission",
-        "regime_or_permission",
-        "regime_and_permission",
+    if flip_exit_gate_blocked(
+        gate_mode_raw=getattr(cfg.strategy, "flip_exit_gate_mode", "off"),
+        filters=cfg.strategy.filters,
+        close=float(bar.close),
+        signal=signal,
+        trade_dir=trade_dir,
     ):
-        gate_mode = "off"
-    if gate_mode != "off" and signal is not None:
-        # Optional "exit accuracy" gate: block flip exits while the current position
-        # is still supported by the bias and/or permission gates.
-        #
-        # This intentionally only gates the *flip* exit (signal reversal), not PT/SL,
-        # so realism and risk controls still apply.
-        bias_ok = bool(signal.regime_ready) and str(signal.regime_dir) == str(trade_dir)
-        f = cfg.strategy.filters
-        perm_active, perm_pass = permission_gate_status(f, close=float(bar.close), signal=signal, entry_dir=trade_dir)
-        perm_ok = bool(perm_active and perm_pass)
-
-        block = False
-        if gate_mode == "regime":
-            block = bias_ok
-        elif gate_mode == "permission":
-            block = perm_ok
-        elif gate_mode == "regime_or_permission":
-            block = bias_ok or perm_ok
-        elif gate_mode == "regime_and_permission":
-            block = bias_ok and perm_ok
-        if block:
-            return False
+        return False
     return True
 
 
