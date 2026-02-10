@@ -42,7 +42,7 @@ from .common import (
     _ticker_price,
 )
 
-_DETAIL_CHASE_MODE_BY_ORDER: dict[int, str] = {}
+_DETAIL_CHASE_STATE_BY_ORDER: dict[int, dict[str, object]] = {}
 
 class PositionDetailScreen(Screen):
     BINDINGS = [
@@ -764,7 +764,7 @@ class PositionDetailScreen(Screen):
         lines.append(self._box_row(head, inner, style="#d4922f"))
         lines.append(
             self._box_row(
-                "Plan: OPT 30s -> MID 30s -> AGG 30s -> CROSS 5m -> cancel",
+                "Plan: OPT 15s -> MID 15s -> AGG 15s -> CROSS 5m -> cancel",
                 inner,
                 style="#d4922f",
             )
@@ -901,6 +901,8 @@ class PositionDetailScreen(Screen):
         slip_row = Text(f"Slippage Dist {slip_spark}")
         slip_row.stylize("magenta")
         lines.append(self._box_row(slip_row, inner, style="#2f78c4"))
+        lines.append(self._box_row(self._armed_mode_line(), inner, style="#2f78c4"))
+        lines.append(self._box_row(self._active_chase_line(trades), inner, style="#2f78c4"))
 
         if not trades:
             self._orders_selected = 0
@@ -909,7 +911,7 @@ class PositionDetailScreen(Screen):
         else:
             if self._orders_selected >= len(trades):
                 self._orders_selected = len(trades) - 1
-            reserved_without_trades = 9  # top + 2 metrics + header + rule + 3 risk + bottom
+            reserved_without_trades = 11  # top + 4 metrics + header + risk header + 3 risk + bottom
             visible = len(trades)
             if available:
                 visible = max(available - reserved_without_trades, 1)
@@ -919,7 +921,7 @@ class PositionDetailScreen(Screen):
                 self._orders_scroll = self._orders_selected
             elif self._orders_selected >= self._orders_scroll + visible:
                 self._orders_scroll = self._orders_selected - visible + 1
-            header = Text("Label      Stat      M    S  Qty Type@Price   Fill/Rem  Id", style="dim")
+            header = Text("Label      Stat      Exec      S Qty Type@Price   Fill/Rem  Id", style="dim")
             lines.append(self._box_row(header, inner, style="#2f78c4"))
             start = self._orders_scroll
             end = min(start + visible, len(trades))
@@ -960,14 +962,61 @@ class PositionDetailScreen(Screen):
         lines.append(self._box_bottom(inner, style="#2f78c4"))
         self._detail_right.update(Text("\n").join(lines))
 
-    def _order_mode_for_trade(self, trade: Trade) -> str:
+    def _trade_order_id(self, trade: Trade) -> int:
         order_id = int(getattr(getattr(trade, "order", None), "orderId", 0) or 0)
         if not order_id:
             order_id = int(getattr(getattr(trade, "order", None), "permId", 0) or 0)
-        mode = _DETAIL_CHASE_MODE_BY_ORDER.get(order_id)
-        if not mode:
+        return order_id
+
+    def _armed_mode_line(self) -> Text:
+        selected = self._selected_exec_mode()
+        selected_label = self._exec_mode_label(selected)
+        buy = self._initial_exec_price("BUY", mode=selected)
+        sell = self._initial_exec_price("SELL", mode=selected)
+        line = Text("Armed ")
+        line.append(selected_label, style="yellow")
+        if selected == "AUTO":
+            line.append(" (OPT->MID->AGG->CROSS)", style="dim")
+        line.append("  B/S ")
+        line.append(f"{_fmt_quote(buy)}/{_fmt_quote(sell)}", style="bright_white")
+        return line
+
+    def _active_chase_line(self, trades: list[Trade]) -> Text:
+        for trade in trades:
+            order_id = self._trade_order_id(trade)
+            state = _DETAIL_CHASE_STATE_BY_ORDER.get(order_id)
+            if not isinstance(state, dict):
+                continue
+            selected = str(state.get("selected") or "-")
+            active = str(state.get("active") or "-")
+            target = _safe_num(state.get("target_price"))
+            try:
+                mods = int(state.get("mods") or 0)
+            except (TypeError, ValueError):
+                mods = 0
+            line = Text(f"Chase #{order_id} ")
+            line.append(selected, style="yellow")
+            if selected == "AUTO":
+                line.append("->", style="dim")
+                line.append(active, style="yellow")
+            line.append(" @ ")
+            line.append(_fmt_quote(target), style="bright_white")
+            line.append(f"  mods {mods}", style="dim")
+            return line
+        return Text("Chase idle", style="dim")
+
+    def _order_mode_for_trade(self, trade: Trade) -> str:
+        order_id = self._trade_order_id(trade)
+        state = _DETAIL_CHASE_STATE_BY_ORDER.get(order_id)
+        if not isinstance(state, dict):
             return "-"
-        return str(mode)[:4]
+        selected = str(state.get("selected") or "-")
+        active = str(state.get("active") or selected or "-")
+        if selected == "AUTO":
+            return f"A>{active}"[:9]
+        if active and active != selected:
+            return f"{selected}>{active}"[:9]
+        return selected[:9]
 
     def _format_order_line(self, trade: Trade, *, width: int) -> Text:
         contract = trade.contract
@@ -990,7 +1039,7 @@ class PositionDetailScreen(Screen):
         remaining = _fmt_qty(float(trade.orderStatus.remaining or 0))
         order_id = trade.order.orderId or trade.order.permId or 0
         line = (
-            f"{label:<10} {status:<9} {mode:<4} {side:<1} {qty:>4} "
+            f"{label:<10} {status:<9} {mode:<9} {side:<1} {qty:>3} "
             f"{type_label:<12} {filled:>4}/{remaining:<4} #{order_id}"
         )
         return Text(self._clip(line, width))
@@ -1084,7 +1133,12 @@ class PositionDetailScreen(Screen):
                 order_id = int(getattr(getattr(trade, "order", None), "permId", 0) or 0)
             if order_id:
                 seeded = "OPTIMISTIC" if mode == "AUTO" else mode
-                _DETAIL_CHASE_MODE_BY_ORDER[order_id] = self._exec_mode_label(seeded)
+                _DETAIL_CHASE_STATE_BY_ORDER[order_id] = {
+                    "selected": self._exec_mode_label(mode),
+                    "active": self._exec_mode_label(seeded),
+                    "target_price": float(price),
+                    "mods": 0,
+                }
             try:
                 loop = asyncio.get_running_loop()
             except RuntimeError:
@@ -1149,19 +1203,20 @@ class PositionDetailScreen(Screen):
         last_reprice_ts: float | None = None
         prev_mode: str | None = None
         prev_quote_sig: tuple[float | None, float | None, float | None] | None = None
+        selected_label = self._exec_mode_label(mode)
         try:
             while True:
                 try:
                     if trade.isDone():
                         if order_id:
-                            _DETAIL_CHASE_MODE_BY_ORDER.pop(order_id, None)
+                            _DETAIL_CHASE_STATE_BY_ORDER.pop(order_id, None)
                         return
                 except Exception:
                     pass
                 status_raw = str(getattr(getattr(trade, "orderStatus", None), "status", "") or "").strip()
                 if status_raw in ("Filled", "Cancelled", "ApiCancelled", "Inactive"):
                     if order_id:
-                        _DETAIL_CHASE_MODE_BY_ORDER.pop(order_id, None)
+                        _DETAIL_CHASE_STATE_BY_ORDER.pop(order_id, None)
                     return
 
                 loop_now = asyncio.get_running_loop().time()
@@ -1177,7 +1232,7 @@ class PositionDetailScreen(Screen):
                     except Exception as exc:
                         self._exec_status = f"Timeout cancel error: {exc}"
                     if order_id:
-                        _DETAIL_CHASE_MODE_BY_ORDER.pop(order_id, None)
+                        _DETAIL_CHASE_STATE_BY_ORDER.pop(order_id, None)
                     self._render_details_if_mounted(sample=False)
                     return
 
@@ -1198,7 +1253,10 @@ class PositionDetailScreen(Screen):
                 prev_mode = str(mode_now)
                 prev_quote_sig = quote_sig
                 if order_id:
-                    _DETAIL_CHASE_MODE_BY_ORDER[order_id] = self._exec_mode_label(str(mode_now))
+                    state = _DETAIL_CHASE_STATE_BY_ORDER.get(order_id) or {}
+                    state["selected"] = selected_label
+                    state["active"] = self._exec_mode_label(str(mode_now))
+                    _DETAIL_CHASE_STATE_BY_ORDER[order_id] = state
 
                 if should_reprice:
                     price = self._exec_price_for_mode(
@@ -1209,6 +1267,12 @@ class PositionDetailScreen(Screen):
                         last=last,
                         ticker=ticker,
                     )
+                    if order_id and price is not None:
+                        state = _DETAIL_CHASE_STATE_BY_ORDER.get(order_id) or {}
+                        state["selected"] = selected_label
+                        state["active"] = self._exec_mode_label(str(mode_now))
+                        state["target_price"] = float(price)
+                        _DETAIL_CHASE_STATE_BY_ORDER[order_id] = state
                 else:
                     price = None
                 if price is not None:
@@ -1216,16 +1280,29 @@ class PositionDetailScreen(Screen):
                         trade = await self._client.modify_limit_order(trade, float(price))
                         order_id = trade.order.orderId or trade.order.permId or 0
                         mode_label = self._exec_mode_label(str(mode_now))
-                        self._exec_status = f"Chasing #{order_id} [{mode_label}] @ {price:.2f}"
+                        mods = 1
+                        if order_id:
+                            state = _DETAIL_CHASE_STATE_BY_ORDER.get(order_id) or {}
+                            try:
+                                mods = int(state.get("mods") or 0) + 1
+                            except (TypeError, ValueError):
+                                mods = 1
+                            state["selected"] = selected_label
+                            state["active"] = mode_label
+                            state["target_price"] = float(price)
+                            state["mods"] = mods
+                            _DETAIL_CHASE_STATE_BY_ORDER[order_id] = state
+                        mode_view = f"{selected_label}->{mode_label}" if selected_label == "AUTO" else mode_label
+                        self._exec_status = f"Chasing #{order_id} [{mode_view}] @ {price:.2f} mod#{mods}"
                         last_reprice_ts = loop_now
                     except Exception as exc:
                         self._exec_status = f"Chase error: {exc}"
                     self._render_details_if_mounted(sample=False)
 
-                await asyncio.sleep(1.0)
+                await asyncio.sleep(0.25)
         finally:
             if order_id:
-                _DETAIL_CHASE_MODE_BY_ORDER.pop(order_id, None)
+                _DETAIL_CHASE_STATE_BY_ORDER.pop(order_id, None)
             if con_id:
                 try:
                     self._client.release_ticker(con_id, owner=chase_owner)
