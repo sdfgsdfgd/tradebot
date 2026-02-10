@@ -134,6 +134,12 @@ class PositionsApp(App):
         padding: 0 1;
     }
 
+    #detail-legend {
+        height: 1;
+        padding: 0 1;
+        color: #8aa0b6;
+    }
+
     #bot-body {
         height: 1fr;
         layout: vertical;
