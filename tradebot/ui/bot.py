@@ -738,6 +738,9 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         self._positions: list[PortfolioItem] = []
         self._log_events: list[dict] = []
         self._log_rows: list[dict] = []
+        self._log_row_keys: list[str] = []
+        self._log_seq = 0
+        self._log_max_rows = 200
         self._logs_follow_tail = True
         self._status: str | None = None
         self._refresh_task = None
@@ -840,7 +843,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         if len(self._log_events) > 500:
             self._log_events = self._log_events[-500:]
         if hasattr(self, "_logs_table"):
-            self._refresh_logs_table()
+            self._append_log_entry(entry)
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         # DataTable captures Enter and emits RowSelected; hook it so Enter arms/sends.
@@ -970,7 +973,50 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         for panel in self._PANEL_ORDER:
             table = self._panel_table(panel)
             prefix = "▶ " if panel == self._active_panel else "  "
-            table.border_title = f"{prefix}{labels[panel]}"
+            if panel != "logs":
+                table.border_title = f"{prefix}{labels[panel]}"
+                continue
+            title = Text(prefix)
+            title.append("Logs ", style="bold")
+            title.append("[", style="dim")
+            if self._logs_follow_tail:
+                title.append("FOLLOW", style="bold #73d89e")
+            else:
+                title.append("PAUSED", style="bold #f2b36f")
+            title.append("]", style="dim")
+            table.border_title = title
+
+    def _set_logs_follow_tail(self, follow_tail: bool) -> None:
+        next_value = bool(follow_tail)
+        if self._logs_follow_tail == next_value:
+            return
+        self._logs_follow_tail = next_value
+        self._render_panel_titles()
+
+    def _event_targets_logs_table(self, event: events.Event) -> bool:
+        if not getattr(self, "_logs_table", None):
+            return False
+        target = getattr(event, "control", None) or getattr(event, "widget", None)
+        while target is not None:
+            if target is self._logs_table:
+                return True
+            if str(getattr(target, "id", "") or "") == "bot-logs":
+                return True
+            target = getattr(target, "parent", None)
+        return False
+
+    def _sync_logs_follow_tail_from_viewport(self) -> None:
+        if not getattr(self, "_logs_table", None):
+            return
+        self._set_logs_follow_tail(self._logs_at_tail())
+
+    def on_mouse_scroll_up(self, event: events.MouseScrollUp) -> None:
+        if self._event_targets_logs_table(event):
+            self.call_after_refresh(self._sync_logs_follow_tail_from_viewport)
+
+    def on_mouse_scroll_down(self, event: events.MouseScrollDown) -> None:
+        if self._event_targets_logs_table(event):
+            self.call_after_refresh(self._sync_logs_follow_tail_from_viewport)
 
     def _focus_panel(self, panel: str) -> None:
         self._active_panel = panel
@@ -978,9 +1024,8 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         table = self._panel_table(panel)
         table.focus()
         self._sync_row_marker(table, force=True)
-        if panel == "logs" and self._log_rows:
-            last_idx = len(self._log_rows) - 1
-            self._logs_follow_tail = self._logs_table.cursor_coordinate.row >= last_idx
+        if panel == "logs":
+            self._set_logs_follow_tail(self._logs_at_tail())
         self._render_status()
 
     def _set_status(self, message: str, *, render_bot: bool = False) -> None:
@@ -1993,12 +2038,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         else:
             table.action_cursor_up()
         if self._active_panel == "logs":
-            if not self._log_rows:
-                self._logs_follow_tail = True
-            else:
-                self._logs_follow_tail = self._logs_table.cursor_coordinate.row >= (
-                    len(self._log_rows) - 1
-                )
+            self._set_logs_follow_tail(self._logs_at_tail())
         if self._active_panel == "instances" and not self._scope_all:
             self._refresh_orders_table()
             self._refresh_logs_table()
@@ -2059,15 +2099,134 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         self._positions.sort(key=_portfolio_sort_key, reverse=True)
         self._refresh_orders_table()
 
-    def _refresh_logs_table(self) -> None:
-        prev_count = len(self._log_rows)
-        prev_row = self._logs_table.cursor_coordinate.row
-        was_at_end = prev_count == 0 or prev_row >= (prev_count - 1)
+    @staticmethod
+    def _log_entry_identity(entry: dict) -> tuple[str, str, str, str, str]:
+        return (
+            str(entry.get("instance_id") or ""),
+            str(entry.get("symbol") or ""),
+            str(entry.get("event") or ""),
+            str(entry.get("reason") or ""),
+            str(entry.get("msg") or ""),
+        )
+
+    def _log_entry_visible(self, entry: dict) -> bool:
+        if not isinstance(entry, dict):
+            return False
+        inst_id = str(entry.get("instance_id") or "")
+        active_ids = {str(int(i.instance_id)) for i in self._instances}
+        if inst_id and inst_id not in active_ids:
+            return False
+        scope = self._scope_instance_id()
+        if scope is not None and not self._scope_all and inst_id and inst_id != str(int(scope)):
+            return False
+        return True
+
+    def _logs_at_tail(self) -> bool:
+        if not getattr(self, "_logs_table", None):
+            return True
+        if not self._log_rows:
+            return True
+        try:
+            return bool(getattr(self._logs_table, "is_vertical_scroll_end", False))
+        except Exception:
+            pass
+        return self._logs_table.cursor_coordinate.row >= (len(self._log_rows) - 1)
+
+    @staticmethod
+    def _log_row_cells(entry: dict) -> tuple[str, str, str, str, str, str]:
+        ts = entry.get("ts_et")
+        repeat = int(entry.get("_repeat") or 1)
+        msg = str(entry.get("msg") or "")
+        if repeat > 1:
+            msg = f"x{repeat} {msg}" if msg else f"x{repeat}"
+        when = ts.astimezone().strftime("%H:%M:%S") if isinstance(ts, datetime) else ""
+        return (
+            when,
+            str(entry.get("instance_id") or ""),
+            str(entry.get("symbol") or ""),
+            str(entry.get("event") or ""),
+            str(entry.get("reason") or ""),
+            msg,
+        )
+
+    def _scroll_logs_to_tail(self) -> None:
+        if not self._log_rows:
+            self._sync_row_marker(self._logs_table, force=True)
+            return
+        self._logs_table.cursor_coordinate = (len(self._log_rows) - 1, 0)
+        try:
+            self._logs_table.scroll_end(animate=False)
+        except Exception:
+            pass
+        self._set_logs_follow_tail(True)
+        self._sync_row_marker(self._logs_table, force=True)
+
+    def _append_log_entry(self, entry: dict) -> None:
+        if getattr(self, "_logs_table", None) is None:
+            return
+        if not self._log_entry_visible(entry):
+            return
         if self._active_panel == "logs":
-            self._logs_follow_tail = bool(was_at_end)
+            self._set_logs_follow_tail(self._logs_at_tail())
+        self._append_log_row(entry, follow_tail=bool(self._logs_follow_tail), sync_marker=False)
+
+    def _append_log_row(self, entry: dict, *, follow_tail: bool, sync_marker: bool) -> None:
+        if getattr(self, "_logs_table", None) is None:
+            return
+        row = dict(entry)
+        row["_repeat"] = int(row.get("_repeat") or 1)
+
+        if self._log_rows and self._log_entry_identity(self._log_rows[-1]) == self._log_entry_identity(row):
+            prev = self._log_rows[-1]
+            prev["_repeat"] = int(prev.get("_repeat") or 1) + int(row.get("_repeat") or 1)
+            prev["ts_et"] = row.get("ts_et")
+            when, _inst, _sym, _event, _reason, msg = self._log_row_cells(prev)
+            row_index = len(self._log_rows) - 1
+            try:
+                self._logs_table.update_cell_at((row_index, 0), when)
+                self._logs_table.update_cell_at((row_index, 5), msg)
+            except Exception:
+                return
+            if follow_tail:
+                self._scroll_logs_to_tail()
+            elif sync_marker:
+                self._sync_row_marker(self._logs_table, force=True)
+            return
+
+        self._log_seq += 1
+        row_key = f"log:{self._log_seq}"
+        try:
+            self._logs_table.add_row(*self._log_row_cells(row), key=row_key)
+        except Exception:
+            return
+        self._log_rows.append(row)
+        self._log_row_keys.append(row_key)
+
+        if len(self._log_rows) > int(self._log_max_rows):
+            old_key = self._log_row_keys.pop(0)
+            self._log_rows.pop(0)
+            try:
+                self._logs_table.remove_row(old_key)
+            except Exception:
+                self._refresh_logs_table()
+                return
+
+        if follow_tail:
+            self._scroll_logs_to_tail()
+        elif sync_marker:
+            self._sync_row_marker(self._logs_table, force=True)
+
+    def _refresh_logs_table(self) -> None:
+        if getattr(self, "_logs_table", None) is None:
+            return
+        prev_row = self._logs_table.cursor_coordinate.row
+        if self._active_panel == "logs":
+            self._set_logs_follow_tail(self._logs_at_tail())
+        follow_tail = bool(self._logs_follow_tail)
 
         self._logs_table.clear()
         self._log_rows = []
+        self._log_row_keys = []
 
         active_ids = {str(int(i.instance_id)) for i in self._instances}
         scope = self._scope_instance_id()
@@ -2102,28 +2261,13 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             compacted.append(row)
 
         for entry in compacted:
-            ts = entry.get("ts_et")
-            repeat = int(entry.get("_repeat") or 1)
-            msg = str(entry.get("msg") or "")
-            if repeat > 1:
-                msg = f"x{repeat} {msg}" if msg else f"x{repeat}"
-            when = ts.astimezone().strftime("%H:%M:%S") if isinstance(ts, datetime) else ""
-            self._logs_table.add_row(
-                when,
-                str(entry.get("instance_id") or ""),
-                str(entry.get("symbol") or ""),
-                str(entry.get("event") or ""),
-                str(entry.get("reason") or ""),
-                msg,
-            )
-            self._log_rows.append(entry)
+            self._append_log_row(entry, follow_tail=False, sync_marker=False)
 
         if not self._log_rows:
             self._sync_row_marker(self._logs_table, force=True)
             return
-        if self._logs_follow_tail:
-            self._logs_table.cursor_coordinate = (len(self._log_rows) - 1, 0)
-            self._sync_row_marker(self._logs_table, force=True)
+        if follow_tail:
+            self._scroll_logs_to_tail()
             return
         target_row = min(max(prev_row, 0), len(self._log_rows) - 1)
         self._logs_table.cursor_coordinate = (target_row, 0)

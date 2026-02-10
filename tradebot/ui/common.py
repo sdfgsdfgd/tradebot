@@ -47,8 +47,11 @@ def _portfolio_row(
     unreal_pct_text: Text | None = None,
 ) -> list[Text | str]:
     contract = item.contract
-    expiry = _fmt_expiry(contract.lastTradeDateOrContractMonth or "")
-    right = contract.right or ""
+    symbol = contract.symbol
+    if contract.secType == "FOP":
+        expiry = _fmt_expiry(contract.lastTradeDateOrContractMonth or "")
+        if expiry:
+            symbol = f"{symbol} {expiry}"
     strike = _fmt_money(contract.strike) if contract.strike else ""
     qty = _fmt_qty(float(item.position))
     avg_cost = _fmt_money(float(item.averageCost)) if item.averageCost else ""
@@ -57,9 +60,7 @@ def _portfolio_row(
     unreal_combined = _combined_value_pct(unreal, unreal_pct)
     realized = _pnl_text(item.realizedPNL)
     return [
-        contract.symbol,
-        expiry,
-        right,
+        symbol,
         strike,
         qty,
         avg_cost,
@@ -143,25 +144,47 @@ def _pct_change(price: float | None, baseline: float | None) -> float | None:
     return ((price - baseline) / baseline) * 100.0
 
 
-def _pct_dual_text(pct24: float | None, pct72: float | None) -> Text:
+def _pct_dual_text(
+    pct24: float | None,
+    pct72: float | None,
+    *,
+    separator: str = "-",
+) -> Text:
     text = Text("")
     if pct24 is not None:
         text.append(f"{pct24:.2f}%", style=_pct_style(pct24))
     if pct72 is not None:
         if pct24 is not None:
-            text.append("-", style="red")
+            sep_style = "red" if separator == "-" else "dim"
+            text.append(separator, style=sep_style)
         text.append(f"{pct72:.2f}%", style=_pct_style(pct72))
     return text
 
 
-def _price_pct_dual_text(price: float | None, pct24: float | None, pct72: float | None) -> Text:
+def _price_pct_dual_text(
+    price: float | None,
+    pct24: float | None,
+    pct72: float | None,
+    *,
+    separator: str = "·",
+    center_width: int | None = None,
+) -> Text:
     text = Text("")
     if price is not None:
         style = _pct_style(pct24) if pct24 is not None else ""
         text.append(f"{price:,.2f}", style=style)
         if pct24 is not None or pct72 is not None:
             text.append(" ")
-    text.append_text(_pct_dual_text(pct24, pct72))
+    text.append_text(_pct_dual_text(pct24, pct72, separator=separator))
+    if center_width and center_width > 0:
+        pad = int(center_width) - len(text.plain)
+        if pad > 0:
+            left = pad // 2
+            right = pad - left
+            centered = Text(" " * left)
+            centered.append_text(text)
+            centered.append(" " * right)
+            return centered
     return text
 
 

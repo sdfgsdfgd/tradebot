@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import math
+import time
 from datetime import datetime, timezone
 
 from ib_insync import PnL, PortfolioItem, Ticker
@@ -49,6 +50,11 @@ from .store import PortfolioSnapshot
 
 # region Positions UI
 class PositionsApp(App):
+    _PX_24_72_COL_WIDTH = 30
+    _QTY_COL_WIDTH = 7
+    _UNREAL_COL_WIDTH = 22
+    _REALIZED_COL_WIDTH = 12
+
     _SECTION_HEADER_STYLE_BY_TYPE = {
         "OPT": "bold #8fbfff",
         "STK": "bold #86dca9",
@@ -253,6 +259,10 @@ class PositionsApp(App):
         )
         self._buying_power_daily_anchor: float | None = None
         self._marker_row = -1
+        self._quote_signature_by_con_id: dict[
+            int, tuple[float | None, float | None, float | None, float | None]
+        ] = {}
+        self._quote_updated_mono_by_con_id: dict[int, float] = {}
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -284,8 +294,6 @@ class PositionsApp(App):
     def _setup_columns(self) -> None:
         self._columns = [
             "Symbol",
-            "Expiry",
-            "Right",
             "Strike",
             "Qty",
             "AvgCost",
@@ -295,7 +303,51 @@ class PositionsApp(App):
             "U 24-72",
         ]
         self._column_count = len(self._columns)
-        self._table.add_columns(*self._columns)
+        for label in self._columns:
+            if label == "Px 24-72":
+                self._table.add_column(
+                    label.center(self._PX_24_72_COL_WIDTH),
+                    width=self._PX_24_72_COL_WIDTH,
+                )
+            elif label == "Qty":
+                self._table.add_column(
+                    label.center(self._QTY_COL_WIDTH),
+                    width=self._QTY_COL_WIDTH,
+                )
+            elif label == "Unreal":
+                self._table.add_column(
+                    label.center(self._UNREAL_COL_WIDTH),
+                    width=self._UNREAL_COL_WIDTH,
+                )
+            elif label == "Realized":
+                self._table.add_column(
+                    label.center(self._REALIZED_COL_WIDTH),
+                    width=self._REALIZED_COL_WIDTH,
+                )
+            else:
+                self._table.add_column(label)
+
+    def _center_cell(self, value: Text | str, width: int) -> Text | str:
+        if width <= 0:
+            return value
+        if isinstance(value, Text):
+            plain = value.plain
+            pad = int(width) - len(plain)
+            if pad <= 0:
+                return value
+            left = pad // 2
+            right = pad - left
+            centered = Text(" " * left)
+            centered.append_text(value)
+            centered.append(" " * right)
+            return centered
+        raw = str(value or "")
+        pad = int(width) - len(raw)
+        if pad <= 0:
+            return raw
+        left = pad // 2
+        right = pad - left
+        return f"{' ' * left}{raw}{' ' * right}"
 
     async def action_refresh(self) -> None:
         await self.refresh_positions(hard=True)
@@ -471,6 +523,8 @@ class PositionsApp(App):
         self._md_session = session
         self._ticker_con_ids.clear()
         self._ticker_loading.clear()
+        self._quote_signature_by_con_id.clear()
+        self._quote_updated_mono_by_con_id.clear()
 
     def _status_text(self) -> str:
         conn = self._client.connection_state()
@@ -507,14 +561,18 @@ class PositionsApp(App):
             change_text = self._contract_change_text(item)
             underlying_change = self._underlying_change_text(item)
             unreal_text, unreal_pct_text = self._unreal_texts(item)
+            row_values = _portfolio_row(
+                item,
+                change_text,
+                underlying_change,
+                unreal_text=unreal_text,
+                unreal_pct_text=unreal_pct_text,
+            )
+            row_values[2] = self._center_cell(row_values[2], self._QTY_COL_WIDTH)
+            row_values[5] = self._center_cell(row_values[5], self._UNREAL_COL_WIDTH)
+            row_values[6] = self._center_cell(row_values[6], self._REALIZED_COL_WIDTH)
             self._table.add_row(
-                *_portfolio_row(
-                    item,
-                    change_text,
-                    underlying_change,
-                    unreal_text=unreal_text,
-                    unreal_pct_text=unreal_pct_text,
-                ),
+                *row_values,
                 key=row_key,
             )
             self._row_keys.append(row_key)
@@ -548,12 +606,14 @@ class PositionsApp(App):
         blank = Text("")
         pnl_text = _pnl_text(total_pnl)
         pct_text = _pnl_pct_value(pct)
-        unreal_text = _combined_value_pct(pnl_text, pct_text)
+        unreal_text = self._center_cell(
+            _combined_value_pct(pnl_text, pct_text),
+            self._UNREAL_COL_WIDTH,
+        )
         realized_text = _pnl_text(total_real)
+        realized_text = self._center_cell(realized_text, self._REALIZED_COL_WIDTH)
         self._table.add_row(
             label,
-            blank,
-            blank,
             blank,
             blank,
             blank,
@@ -577,8 +637,6 @@ class PositionsApp(App):
         daily_text = _pnl_text(float(daily))
         self._table.add_row(
             label,
-            blank,
-            blank,
             blank,
             blank,
             blank,
@@ -620,8 +678,6 @@ class PositionsApp(App):
             blank,
             blank,
             blank,
-            blank,
-            blank,
             amount_text,
             ts_text,
             est_text,
@@ -657,8 +713,6 @@ class PositionsApp(App):
             est_text = Text(f"~{est_amount}", style="yellow")
         self._table.add_row(
             label,
-            blank,
-            blank,
             blank,
             blank,
             blank,
@@ -779,13 +833,63 @@ class PositionsApp(App):
         pct24 = _pct_change(price, prev_close)
         pct72 = _pct_change(price, close_3ago)
         if include_price:
-            return _price_pct_dual_text(price, pct24, pct72)
+            text = _price_pct_dual_text(
+                price,
+                pct24,
+                pct72,
+                separator="·",
+            )
+            age_sec = self._quote_age_seconds(con_id, ticker, price)
+            ribbon = self._quote_age_ribbon(age_sec)
+            if ribbon.plain:
+                if text.plain:
+                    text.append(" ", style="dim")
+                text.append_text(ribbon)
+            centered = self._center_cell(text, self._PX_24_72_COL_WIDTH)
+            return centered if isinstance(centered, Text) else Text(str(centered))
         return _pct_dual_text(pct24, pct72)
 
+    def _quote_age_seconds(
+        self,
+        con_id: int,
+        ticker: Ticker | None,
+        price: float | None,
+    ) -> float | None:
+        if not con_id or not ticker:
+            return None
+        bid = _safe_num(getattr(ticker, "bid", None))
+        ask = _safe_num(getattr(ticker, "ask", None))
+        last = _safe_num(getattr(ticker, "last", None))
+        signature = (bid, ask, last, price)
+        if not any(value is not None for value in signature):
+            return None
+        now = time.monotonic()
+        previous = self._quote_signature_by_con_id.get(con_id)
+        if previous != signature:
+            self._quote_signature_by_con_id[con_id] = signature
+            self._quote_updated_mono_by_con_id[con_id] = now
+            return 0.0
+        updated = self._quote_updated_mono_by_con_id.get(con_id)
+        if updated is None:
+            self._quote_updated_mono_by_con_id[con_id] = now
+            return 0.0
+        return max(0.0, now - updated)
+
+    @staticmethod
+    def _quote_age_ribbon(age_sec: float | None) -> Text:
+        if age_sec is None:
+            return Text("")
+        if age_sec < 1.5:
+            return Text("▰▰▰▰", style="bold #73d89e")
+        if age_sec < 3.5:
+            return Text("▰▰▰▱", style="#6fc18f")
+        if age_sec < 6.0:
+            return Text("▰▰▱▱", style="#8fa2b3")
+        if age_sec < 10.0:
+            return Text("▰▱▱▱", style="#778797")
+        return Text("▱▱▱▱", style="#5e6a74")
+
     def _unreal_texts(self, item: PortfolioItem) -> tuple[Text, Text]:
-        session = _market_session_label()
-        if session == "MRKT":
-            return _pnl_text(item.unrealizedPNL), _pnl_pct_text(item)
         contract = item.contract
         if contract.secType not in _SECTION_TYPES:
             return Text(""), Text("")
@@ -819,12 +923,28 @@ class PositionsApp(App):
     def _option_estimated_mark(
         self, item: PortfolioItem, option_ticker: Ticker | None
     ) -> tuple[float | None, bool]:
+        bid = _safe_num(getattr(option_ticker, "bid", None)) if option_ticker else None
+        ask = _safe_num(getattr(option_ticker, "ask", None)) if option_ticker else None
+        direct_price = None
+        if (
+            bid is not None
+            and ask is not None
+            and bid > 0
+            and ask > 0
+            and bid <= ask
+        ):
+            direct_price = (float(bid) + float(ask)) / 2.0
+        else:
+            last = _safe_num(getattr(option_ticker, "last", None)) if option_ticker else None
+            if last is not None and last > 0:
+                direct_price = float(last)
+        if item.contract.secType == "FOP" and direct_price is not None:
+            return direct_price, False
+
         option_con_id = int(getattr(item.contract, "conId", 0) or 0)
         under_con_id = self._option_underlying_con_id.get(option_con_id)
         under_ticker = self._client.ticker_for_con_id(under_con_id) if under_con_id else None
         under_price = _ticker_price(under_ticker) if under_ticker else None
-        if under_price is None or under_price <= 0:
-            return None, False
         model = getattr(option_ticker, "modelGreeks", None) if option_ticker else None
         delta = _safe_num(getattr(model, "delta", None)) if model else None
         gamma = _safe_num(getattr(model, "gamma", None)) if model else None
@@ -838,7 +958,14 @@ class PositionsApp(App):
                 ref_price = float(item.marketPrice)
             except (TypeError, ValueError):
                 ref_price = None
-        if delta is not None and under_close is not None and under_close > 0 and ref_price is not None:
+        if (
+            under_price is not None
+            and under_price > 0
+            and delta is not None
+            and under_close is not None
+            and under_close > 0
+            and ref_price is not None
+        ):
             d_under = float(under_price) - float(under_close)
             estimated = float(ref_price) + (float(delta) * d_under)
             if gamma is not None:
@@ -847,6 +974,10 @@ class PositionsApp(App):
         model_price = _safe_num(getattr(model, "optPrice", None)) if model else None
         if model_price is not None and model_price > 0:
             return float(model_price), True
+        if direct_price is not None:
+            return float(direct_price), False
+        if ref_price is not None and ref_price > 0:
+            return float(ref_price), True
         return None, False
     def _render_ticker_bar(self) -> None:
         prefix = f"MKT:{_market_session_label()} | "
