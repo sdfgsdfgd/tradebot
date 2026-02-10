@@ -2500,6 +2500,41 @@ def flip_exit_hit(
     return state == "up"
 
 
+def flip_exit_gate_blocked(
+    *,
+    gate_mode_raw: str | None,
+    filters: Mapping[str, object] | object | None,
+    close: float,
+    signal: EmaDecisionSnapshot | None,
+    trade_dir: str | None,
+) -> bool:
+    gate_mode = str(gate_mode_raw or "off").strip().lower()
+    if gate_mode not in (
+        "off",
+        "regime",
+        "permission",
+        "regime_or_permission",
+        "regime_and_permission",
+    ):
+        gate_mode = "off"
+    if gate_mode == "off" or signal is None or trade_dir not in ("up", "down"):
+        return False
+
+    bias_ok = bool(signal.regime_ready) and str(signal.regime_dir) == str(trade_dir)
+    perm_active, perm_pass = permission_gate_status(filters, close=float(close), signal=signal, entry_dir=trade_dir)
+    perm_ok = bool(perm_active and perm_pass)
+
+    if gate_mode == "regime":
+        return bias_ok
+    if gate_mode == "permission":
+        return perm_ok
+    if gate_mode == "regime_or_permission":
+        return bias_ok or perm_ok
+    if gate_mode == "regime_and_permission":
+        return bias_ok and perm_ok
+    return False
+
+
 def _signal_filter_rv_ok(
     filters: Mapping[str, object] | object | None,
     *,
