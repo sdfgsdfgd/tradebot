@@ -177,6 +177,8 @@ class BotOrderBuilderMixin:
         leg_price,
         fail,
         set_status,
+        order_journal_with_attempt,
+        quote_failure_payload,
         finalize_leg_orders,
     ) -> None:
         if instrument == "spot":
@@ -211,7 +213,7 @@ class BotOrderBuilderMixin:
             if limit is None:
                 return fail(
                     "Quote: no bid/ask/last (cannot price)",
-                    quote_payload=_quote_failure_payload(ticker=ticker, bid=bid, ask=ask, last=last),
+                    quote_payload=quote_failure_payload(ticker=ticker, bid=bid, ask=ask, last=last),
                 )
             tick = _tick_size(contract, ticker, limit) or 0.01
             limit = _round_to_tick(float(limit), tick)
@@ -232,7 +234,7 @@ class BotOrderBuilderMixin:
                 direction=direction,
                 reason="exit",
                 signal_bar_ts=signal_bar_ts,
-                journal=_order_journal_with_attempt(),
+                journal=order_journal_with_attempt(),
                 exec_mode=mode,
             )
             if con_id:
@@ -596,6 +598,8 @@ class BotOrderBuilderMixin:
                 leg_price=_leg_price,
                 fail=_fail,
                 set_status=_set_status,
+                order_journal_with_attempt=_order_journal_with_attempt,
+                quote_failure_payload=_quote_failure_payload,
                 finalize_leg_orders=_finalize_leg_orders,
             )
             return
