@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections import deque
+from time import monotonic
 
 from ib_insync import PortfolioItem, Ticker, Trade
 from rich.text import Text
@@ -66,6 +67,7 @@ class PositionDetailScreen(Screen):
     _MOMENTUM_CHARS = "░▒▓█"
     _BAR_FILL = "█"
     _BAR_EMPTY = "░"
+    _POSITION_PULSE_SEC = 1.6
     _AURORA_PRESET_ORDER = ("calm", "normal", "feral")
     _AURORA_PRESETS = {
         "calm": {"buy_soft": 0.35, "buy_strong": 0.65, "sell_soft": -0.35, "sell_strong": -0.65, "burst_gain": 0.80},
@@ -103,6 +105,9 @@ class PositionDetailScreen(Screen):
         self._imbalance_samples: deque[float] = deque(maxlen=240)
         self._vol_burst_samples: deque[float] = deque(maxlen=240)
         self._aurora_preset = "normal"
+        self._pos_prev_qty: float | None = None
+        self._pos_delta: float = 0.0
+        self._pos_pulse_until: float = 0.0
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -284,6 +289,53 @@ class PositionDetailScreen(Screen):
         if value is None:
             return "dim"
         return "green" if value >= 0 else "red"
+
+    def _position_beacon_row(self, qty: float, notional: float | None) -> Text:
+        now = monotonic()
+        if self._pos_prev_qty is None:
+            self._pos_prev_qty = float(qty)
+        elif float(qty) != float(self._pos_prev_qty):
+            self._pos_delta = float(qty) - float(self._pos_prev_qty)
+            self._pos_prev_qty = float(qty)
+            self._pos_pulse_until = now + self._POSITION_PULSE_SEC
+
+        direction = "FLAT"
+        style = "dim"
+        if qty > 0:
+            direction = "LONG"
+            style = "bold green"
+        elif qty < 0:
+            direction = "SHORT"
+            style = "bold red"
+
+        qty_label = _fmt_qty(float(qty))
+        if qty > 0:
+            qty_label = f"+{qty_label}"
+
+        row = Text("POS ", style="bold")
+        row.append(f"{qty_label} sh", style=style)
+        if notional is not None:
+            signed = float(notional)
+            sign = "+" if signed > 0 else "-" if signed < 0 else ""
+            notional_style = "green" if signed > 0 else "red" if signed < 0 else "dim"
+            row.append(" (", style="dim")
+            row.append(f"{sign}${abs(signed):,.0f}", style=notional_style)
+            row.append(")", style="dim")
+        row.append("   ")
+        row.append(direction, style=style)
+
+        pulse_active = now < float(self._pos_pulse_until)
+        if pulse_active and self._pos_delta:
+            delta = self._pos_delta
+            delta_style = "green" if delta > 0 else "red"
+            delta_label = _fmt_qty(abs(delta))
+            sign = "+" if delta > 0 else "-"
+            row.append("   Δ ")
+            row.append(f"{sign}{delta_label}", style=f"bold {delta_style}")
+            row.append(" sh", style=delta_style)
+        if pulse_active:
+            row.stylize("bold on #2f2f2f")
+        return row
 
     @staticmethod
     def _panel_width(widget: Static, floor: int) -> int:
@@ -625,15 +677,16 @@ class PositionDetailScreen(Screen):
         spark_width = inner
         pnl_value = _safe_num(self._item.unrealizedPNL)
         pnl_label = _fmt_money(pnl_value) if pnl_value is not None else "n/a"
-        day_position = _fmt_qty(float(self._item.position))
+        position_qty = float(self._item.position or 0.0)
         avg_cost = (
             _fmt_money(float(self._item.averageCost))
             if self._item.averageCost is not None
             else "n/a"
         )
+        market_value_raw = _safe_num(self._item.marketValue)
         market_value = (
-            _fmt_money(float(self._item.marketValue))
-            if self._item.marketValue is not None
+            _fmt_money(float(market_value_raw))
+            if market_value_raw is not None
             else "n/a"
         )
         realized = (
@@ -676,6 +729,7 @@ class PositionDetailScreen(Screen):
         headline.append(_fmt_quote(spread), style="cyan")
         headline.append("   PnL ")
         headline.append(pnl_label, style=self._pnl_style(pnl_value))
+        position_row = self._position_beacon_row(position_qty, market_value_raw)
 
         aurora_label_row = Text("Aurora", style="#8aa0b6")
         aurora_row = self._mark_now(self._aurora_strip(spark_width))
@@ -688,7 +742,7 @@ class PositionDetailScreen(Screen):
         momentum_label_row = Text("Momentum", style="yellow")
         momentum_row = self._mark_now(Text(self._momentum_line(spark_width), style="yellow"))
 
-        detail_row = Text(f"Pos {day_position}   Avg {avg_cost}   MktVal {market_value}")
+        detail_row = Text(f"Avg {avg_cost}   MktVal {market_value}")
         pnl_prefix = "Unrealized "
         tail_row = Text(f"{pnl_prefix}{pnl_label}   Realized {realized}")
         tail_row.stylize(
@@ -702,6 +756,7 @@ class PositionDetailScreen(Screen):
             self._box_row(md_row, inner, style="#2d8fd5"),
             self._box_row(quote_status, inner, style="#2d8fd5"),
             self._box_row(headline, inner, style="#2d8fd5"),
+            self._box_row(position_row, inner, style="#2d8fd5"),
             self._box_row(aurora_label_row, inner, style="#2d8fd5"),
             self._box_row(aurora_row, inner, style="#2d8fd5"),
             self._box_row(trend_label_row, inner, style="#2d8fd5"),
