@@ -18,8 +18,10 @@ from .common import (
     _aggressive_price,
     _append_digit,
     _default_order_qty,
+    _exec_chase_mode,
+    _exec_chase_quote_signature,
+    _exec_chase_should_reprice,
     _EXEC_LADDER_TIMEOUT_SEC,
-    _exec_ladder_mode,
     _fmt_expiry,
     _fmt_money,
     _fmt_qty,
@@ -39,6 +41,8 @@ from .common import (
     _ticker_close,
     _ticker_price,
 )
+
+_DETAIL_CHASE_MODE_BY_ORDER: dict[int, str] = {}
 
 class PositionDetailScreen(Screen):
     BINDINGS = [
@@ -122,8 +126,6 @@ class PositionDetailScreen(Screen):
     async def on_unmount(self) -> None:
         if self._refresh_task:
             self._refresh_task.stop()
-        for task in list(self._chase_tasks):
-            task.cancel()
         con_id = int(self._item.contract.conId or 0)
         if con_id:
             self._client.release_ticker(con_id, owner="details")
@@ -260,6 +262,12 @@ class PositionDetailScreen(Screen):
         sec_type = getattr(underlying, "secType", "")
         if symbol or sec_type:
             self._underlying_label = " ".join(part for part in (symbol, sec_type) if part)
+
+    def _render_details_if_mounted(self, *, sample: bool = True) -> None:
+        widget = getattr(self, "_detail_left", None)
+        if widget is None or not bool(getattr(widget, "is_mounted", False)):
+            return
+        self._render_details(sample=sample)
 
     @staticmethod
     def _clip(text: str, width: int) -> str:
@@ -911,7 +919,7 @@ class PositionDetailScreen(Screen):
                 self._orders_scroll = self._orders_selected
             elif self._orders_selected >= self._orders_scroll + visible:
                 self._orders_scroll = self._orders_selected - visible + 1
-            header = Text("Label      Stat      S  Qty Type@Price   Fill/Rem  Id", style="dim")
+            header = Text("Label      Stat      M    S  Qty Type@Price   Fill/Rem  Id", style="dim")
             lines.append(self._box_row(header, inner, style="#2f78c4"))
             start = self._orders_scroll
             end = min(start + visible, len(trades))
@@ -952,6 +960,15 @@ class PositionDetailScreen(Screen):
         lines.append(self._box_bottom(inner, style="#2f78c4"))
         self._detail_right.update(Text("\n").join(lines))
 
+    def _order_mode_for_trade(self, trade: Trade) -> str:
+        order_id = int(getattr(getattr(trade, "order", None), "orderId", 0) or 0)
+        if not order_id:
+            order_id = int(getattr(getattr(trade, "order", None), "permId", 0) or 0)
+        mode = _DETAIL_CHASE_MODE_BY_ORDER.get(order_id)
+        if not mode:
+            return "-"
+        return str(mode)[:4]
+
     def _format_order_line(self, trade: Trade, *, width: int) -> Text:
         contract = trade.contract
         label = getattr(contract, "localSymbol", "") or getattr(contract, "symbol", "") or "?"
@@ -959,6 +976,7 @@ class PositionDetailScreen(Screen):
         status = trade.orderStatus.status or "n/a"
         status = status.replace("PreSubmitted", "PreSub")
         status = status[:9]
+        mode = self._order_mode_for_trade(trade)
         side = (trade.order.action or "?")[:1].upper()
         qty = _fmt_qty(float(trade.order.totalQuantity or 0))
         order_type = trade.order.orderType or ""
@@ -972,7 +990,7 @@ class PositionDetailScreen(Screen):
         remaining = _fmt_qty(float(trade.orderStatus.remaining or 0))
         order_id = trade.order.orderId or trade.order.permId or 0
         line = (
-            f"{label:<10} {status:<9} {side:<1} {qty:>4} "
+            f"{label:<10} {status:<9} {mode:<4} {side:<1} {qty:>4} "
             f"{type_label:<12} {filled:>4}/{remaining:<4} #{order_id}"
         )
         return Text(self._clip(line, width))
@@ -1061,6 +1079,12 @@ class PositionDetailScreen(Screen):
             )
             mode_label = self._exec_mode_label(mode)
             self._exec_status = f"Sent {action} {qty} @ {price:.2f} [{mode_label}]"
+            order_id = int(getattr(getattr(trade, "order", None), "orderId", 0) or 0)
+            if not order_id:
+                order_id = int(getattr(getattr(trade, "order", None), "permId", 0) or 0)
+            if order_id:
+                seeded = "OPTIMISTIC" if mode == "AUTO" else mode
+                _DETAIL_CHASE_MODE_BY_ORDER[order_id] = self._exec_mode_label(seeded)
             try:
                 loop = asyncio.get_running_loop()
             except RuntimeError:
@@ -1071,7 +1095,7 @@ class PositionDetailScreen(Screen):
                 task.add_done_callback(lambda t: self._chase_tasks.discard(t))
         except Exception as exc:
             self._exec_status = f"Exec error: {exc}"
-        self._render_details(sample=False)
+        self._render_details_if_mounted(sample=False)
 
     def _initial_exec_price(self, action: str, *, mode: str = "AUTO") -> float | None:
         bid = _safe_num(self._ticker.bid) if self._ticker else None
@@ -1090,56 +1114,120 @@ class PositionDetailScreen(Screen):
             return _round_to_tick(last_ref, tick) if last_ref is not None else None
         return _round_to_tick(float(value), tick)
 
-    def _exec_price_for_mode(self, mode: str, action: str) -> float | None:
-        bid = _safe_num(self._ticker.bid) if self._ticker else None
-        ask = _safe_num(self._ticker.ask) if self._ticker else None
-        last = _safe_num(self._ticker.last) if self._ticker else None
+    def _exec_price_for_mode(
+        self,
+        mode: str,
+        action: str,
+        *,
+        bid: float | None = None,
+        ask: float | None = None,
+        last: float | None = None,
+        ticker: Ticker | None = None,
+    ) -> float | None:
+        bid = bid if bid is not None else (_safe_num(self._ticker.bid) if self._ticker else None)
+        ask = ask if ask is not None else (_safe_num(self._ticker.ask) if self._ticker else None)
+        last = last if last is not None else (_safe_num(self._ticker.last) if self._ticker else None)
         mark = _mark_price(self._item)
         last_ref = last or mark
-        tick = _tick_size(self._item.contract, self._ticker, last_ref)
+        tick = _tick_size(self._item.contract, ticker or self._ticker, last_ref)
         value = _limit_price_for_mode(bid, ask, last_ref, action=action, mode=mode)
         if value is None:
             return _round_to_tick(last_ref, tick) if last_ref is not None else None
         return _round_to_tick(float(value), tick)
 
     async def _chase_until_filled(self, trade: Trade, action: str, *, mode: str = "AUTO") -> None:
+        order_id = int(getattr(getattr(trade, "order", None), "orderId", 0) or 0)
+        if not order_id:
+            order_id = int(getattr(getattr(trade, "order", None), "permId", 0) or 0)
+        con_id = int(getattr(getattr(trade, "contract", None), "conId", 0) or 0)
+        chase_owner = f"details-chase:{order_id or con_id or id(trade)}"
+        try:
+            await self._client.ensure_ticker(trade.contract, owner=chase_owner)
+        except Exception:
+            pass
         started = asyncio.get_running_loop().time()
-        while True:
-            try:
-                if trade.isDone():
+        last_reprice_ts: float | None = None
+        prev_mode: str | None = None
+        prev_quote_sig: tuple[float | None, float | None, float | None] | None = None
+        try:
+            while True:
+                try:
+                    if trade.isDone():
+                        if order_id:
+                            _DETAIL_CHASE_MODE_BY_ORDER.pop(order_id, None)
+                        return
+                except Exception:
+                    pass
+                status_raw = str(getattr(getattr(trade, "orderStatus", None), "status", "") or "").strip()
+                if status_raw in ("Filled", "Cancelled", "ApiCancelled", "Inactive"):
+                    if order_id:
+                        _DETAIL_CHASE_MODE_BY_ORDER.pop(order_id, None)
                     return
-            except Exception:
-                pass
-            status_raw = str(getattr(getattr(trade, "orderStatus", None), "status", "") or "").strip()
-            if status_raw in ("Filled", "Cancelled", "ApiCancelled", "Inactive"):
-                return
 
-            elapsed = asyncio.get_running_loop().time() - started
-            if mode == "AUTO":
-                mode_now = _exec_ladder_mode(elapsed)
-            else:
-                mode_now = mode if elapsed <= _EXEC_LADDER_TIMEOUT_SEC else None
-            if mode_now is None:
-                try:
-                    await self._client.cancel_trade(trade)
-                    order_id = trade.order.orderId or trade.order.permId or 0
-                    self._exec_status = (
-                        f"Timeout cancel sent #{order_id} (> {_EXEC_LADDER_TIMEOUT_SEC:.0f}s)"
+                loop_now = asyncio.get_running_loop().time()
+                elapsed = loop_now - started
+                mode_now = _exec_chase_mode(elapsed, selected_mode=mode)
+                if mode_now is None:
+                    try:
+                        await self._client.cancel_trade(trade)
+                        order_id = trade.order.orderId or trade.order.permId or 0
+                        self._exec_status = (
+                            f"Timeout cancel sent #{order_id} (> {_EXEC_LADDER_TIMEOUT_SEC:.0f}s)"
+                        )
+                    except Exception as exc:
+                        self._exec_status = f"Timeout cancel error: {exc}"
+                    if order_id:
+                        _DETAIL_CHASE_MODE_BY_ORDER.pop(order_id, None)
+                    self._render_details_if_mounted(sample=False)
+                    return
+
+                ticker = self._client.ticker_for_con_id(con_id) if con_id else None
+                bid = _safe_num(getattr(ticker, "bid", None)) if ticker else None
+                ask = _safe_num(getattr(ticker, "ask", None)) if ticker else None
+                last = _safe_num(getattr(ticker, "last", None)) if ticker else None
+                quote_sig = _exec_chase_quote_signature(bid, ask, last)
+                should_reprice = _exec_chase_should_reprice(
+                    now_sec=loop_now,
+                    last_reprice_sec=last_reprice_ts,
+                    mode_now=str(mode_now),
+                    prev_mode=prev_mode,
+                    quote_signature=quote_sig,
+                    prev_quote_signature=prev_quote_sig,
+                    min_interval_sec=5.0,
+                )
+                prev_mode = str(mode_now)
+                prev_quote_sig = quote_sig
+                if order_id:
+                    _DETAIL_CHASE_MODE_BY_ORDER[order_id] = self._exec_mode_label(str(mode_now))
+
+                if should_reprice:
+                    price = self._exec_price_for_mode(
+                        str(mode_now),
+                        action,
+                        bid=bid,
+                        ask=ask,
+                        last=last,
+                        ticker=ticker,
                     )
-                except Exception as exc:
-                    self._exec_status = f"Timeout cancel error: {exc}"
-                self._render_details(sample=False)
-                return
+                else:
+                    price = None
+                if price is not None:
+                    try:
+                        trade = await self._client.modify_limit_order(trade, float(price))
+                        order_id = trade.order.orderId or trade.order.permId or 0
+                        mode_label = self._exec_mode_label(str(mode_now))
+                        self._exec_status = f"Chasing #{order_id} [{mode_label}] @ {price:.2f}"
+                        last_reprice_ts = loop_now
+                    except Exception as exc:
+                        self._exec_status = f"Chase error: {exc}"
+                    self._render_details_if_mounted(sample=False)
 
-            price = self._exec_price_for_mode(str(mode_now), action)
-            if price is not None:
+                await asyncio.sleep(1.0)
+        finally:
+            if order_id:
+                _DETAIL_CHASE_MODE_BY_ORDER.pop(order_id, None)
+            if con_id:
                 try:
-                    trade = await self._client.modify_limit_order(trade, float(price))
-                    order_id = trade.order.orderId or trade.order.permId or 0
-                    mode_label = self._exec_mode_label(str(mode_now))
-                    self._exec_status = f"Chasing #{order_id} [{mode_label}] @ {price:.2f}"
-                except Exception as exc:
-                    self._exec_status = f"Chase error: {exc}"
-                self._render_details(sample=False)
-
-            await asyncio.sleep(5.0)
+                    self._client.release_ticker(con_id, owner=chase_owner)
+                except Exception:
+                    pass

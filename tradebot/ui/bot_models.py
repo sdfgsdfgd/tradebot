@@ -149,6 +149,8 @@ class _BotOrder:
     journal: dict | None = None
     sent_at: float | None = None  # asyncio loop time (monotonic)
     exec_mode: str | None = None  # OPTIMISTIC/MID/AGGRESSIVE/CROSS
+    chase_last_reprice_ts: float | None = None  # asyncio loop time (monotonic)
+    chase_quote_signature: tuple[float | None, float | None, float | None] | None = None
 
 
 @dataclass(frozen=True)

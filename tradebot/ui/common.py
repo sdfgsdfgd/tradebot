@@ -596,9 +596,9 @@ def _cross_price(bid: float | None, ask: float | None, action: str) -> float | N
     return bid
 
 
-_EXEC_LADDER_OPTIMISTIC_SEC = 30.0
-_EXEC_LADDER_MID_SEC = 30.0
-_EXEC_LADDER_AGGRESSIVE_SEC = 30.0
+_EXEC_LADDER_OPTIMISTIC_SEC = 15.0
+_EXEC_LADDER_MID_SEC = 15.0
+_EXEC_LADDER_AGGRESSIVE_SEC = 15.0
 _EXEC_LADDER_CROSS_SEC = 5 * 60.0
 _EXEC_LADDER_TIMEOUT_SEC = (
     _EXEC_LADDER_OPTIMISTIC_SEC
@@ -612,7 +612,7 @@ def _exec_ladder_mode(elapsed_sec: float) -> str | None:
     """Return current execution ladder phase for an order.
 
     Phases:
-      OPTIMISTIC (30s) -> MID (30s) -> AGGRESSIVE (30s) -> CROSS (5m) -> timeout.
+      OPTIMISTIC (15s) -> MID (15s) -> AGGRESSIVE (15s) -> CROSS (5m) -> timeout.
     """
     try:
         t = float(elapsed_sec)
@@ -636,6 +636,50 @@ def _exec_ladder_mode(elapsed_sec: float) -> str | None:
     if t < _EXEC_LADDER_CROSS_SEC:
         return "CROSS"
     return None
+
+
+def _exec_chase_mode(elapsed_sec: float, *, selected_mode: str | None = "AUTO") -> str | None:
+    cleaned = str(selected_mode or "AUTO").strip().upper()
+    try:
+        elapsed = float(elapsed_sec)
+    except (TypeError, ValueError):
+        elapsed = 0.0
+    if cleaned and cleaned not in ("AUTO", "LADDER"):
+        return cleaned if elapsed <= _EXEC_LADDER_TIMEOUT_SEC else None
+    return _exec_ladder_mode(elapsed)
+
+
+def _exec_chase_quote_signature(
+    bid: float | None,
+    ask: float | None,
+    last: float | None,
+) -> tuple[float | None, float | None, float | None]:
+    return (_safe_num(bid), _safe_num(ask), _safe_num(last))
+
+
+def _exec_chase_should_reprice(
+    *,
+    now_sec: float,
+    last_reprice_sec: float | None,
+    mode_now: str | None,
+    prev_mode: str | None,
+    quote_signature: tuple[float | None, float | None, float | None],
+    prev_quote_signature: tuple[float | None, float | None, float | None] | None,
+    min_interval_sec: float = 5.0,
+) -> bool:
+    if mode_now is None:
+        return False
+    if prev_mode is None:
+        return True
+    if str(mode_now) != str(prev_mode):
+        return True
+    if prev_quote_signature is None:
+        return True
+    if quote_signature != prev_quote_signature:
+        return True
+    if last_reprice_sec is None:
+        return True
+    return float(now_sec) - float(last_reprice_sec) >= float(min_interval_sec)
 
 
 def _limit_price_for_mode(

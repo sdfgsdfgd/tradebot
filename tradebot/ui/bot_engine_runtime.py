@@ -6,7 +6,14 @@ import asyncio
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from .common import _EXEC_LADDER_TIMEOUT_SEC, _exec_ladder_mode
+from .common import (
+    _EXEC_LADDER_TIMEOUT_SEC,
+    _exec_chase_mode,
+    _exec_chase_quote_signature,
+    _exec_chase_should_reprice,
+    _midpoint,
+    _safe_num,
+)
 
 _DEFAULT_EXIT_RETRY_COOLDOWN_SEC = 3.0
 
@@ -46,15 +53,65 @@ class BotEngineRuntimeMixin:
             return
         self._send_task = loop.create_task(self._send_order(order))
 
+    def _order_quote_signature(self, order) -> tuple[float | None, float | None, float | None]:
+        legs = list(getattr(order, "legs", []) or [])
+        sec_type = str(getattr(getattr(order, "order_contract", None), "secType", "") or "").upper()
+
+        if len(legs) == 1 and sec_type != "BAG":
+            con_id = int(getattr(getattr(legs[0], "contract", None), "conId", 0) or 0)
+            if not con_id:
+                con_id = int(getattr(getattr(order, "order_contract", None), "conId", 0) or 0)
+            ticker = self._client.ticker_for_con_id(con_id) if con_id else None
+            bid = _safe_num(getattr(ticker, "bid", None)) if ticker else _safe_num(getattr(order, "bid", None))
+            ask = _safe_num(getattr(ticker, "ask", None)) if ticker else _safe_num(getattr(order, "ask", None))
+            last = _safe_num(getattr(ticker, "last", None)) if ticker else _safe_num(getattr(order, "last", None))
+            return _exec_chase_quote_signature(bid, ask, last)
+
+        if legs:
+            debit_mid = 0.0
+            debit_bid = 0.0
+            debit_ask = 0.0
+            has_mid = True
+            has_bid = True
+            has_ask = True
+            for leg in legs:
+                con_id = int(getattr(getattr(leg, "contract", None), "conId", 0) or 0)
+                ticker = self._client.ticker_for_con_id(con_id) if con_id else None
+                bid = _safe_num(getattr(ticker, "bid", None)) if ticker else None
+                ask = _safe_num(getattr(ticker, "ask", None)) if ticker else None
+                last = _safe_num(getattr(ticker, "last", None)) if ticker else None
+                mid = _midpoint(bid, ask)
+                sign = 1.0 if str(getattr(leg, "action", "")).strip().upper() == "BUY" else -1.0
+                ratio = int(getattr(leg, "ratio", 1) or 1)
+                if mid is None and last is None:
+                    has_mid = False
+                else:
+                    debit_mid += sign * float(mid if mid is not None else last) * ratio
+                if bid is None and mid is None and last is None:
+                    has_bid = False
+                else:
+                    debit_bid += sign * float(bid if bid is not None else (mid if mid is not None else last)) * ratio
+                if ask is None and mid is None and last is None:
+                    has_ask = False
+                else:
+                    debit_ask += sign * float(ask if ask is not None else (mid if mid is not None else last)) * ratio
+            out_bid = float(debit_bid) if has_bid else _safe_num(getattr(order, "bid", None))
+            out_ask = float(debit_ask) if has_ask else _safe_num(getattr(order, "ask", None))
+            out_last = float(debit_mid) if has_mid else _safe_num(getattr(order, "last", None))
+            return _exec_chase_quote_signature(out_bid, out_ask, out_last)
+
+        return _exec_chase_quote_signature(
+            _safe_num(getattr(order, "bid", None)),
+            _safe_num(getattr(order, "ask", None)),
+            _safe_num(getattr(order, "last", None)),
+        )
+
     async def _chase_orders_tick(self) -> None:
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
             return
         now = loop.time()
-        if now - self._last_chase_ts < 5.0:
-            return
-        self._last_chase_ts = now
 
         updated = False
         for order in self._orders:
@@ -66,7 +123,21 @@ class BotEngineRuntimeMixin:
             if not instance:
                 continue
             if order.status == "STAGED":
-                changed = await self._reprice_order(order, mode="OPTIMISTIC")
+                mode_now = "OPTIMISTIC"
+                quote_sig = self._order_quote_signature(order)
+                if not _exec_chase_should_reprice(
+                    now_sec=now,
+                    last_reprice_sec=order.chase_last_reprice_ts,
+                    mode_now=mode_now,
+                    prev_mode=order.exec_mode,
+                    quote_signature=quote_sig,
+                    prev_quote_signature=order.chase_quote_signature,
+                    min_interval_sec=5.0,
+                ):
+                    continue
+                changed = await self._reprice_order(order, mode=mode_now)
+                order.chase_last_reprice_ts = float(now)
+                order.chase_quote_signature = self._order_quote_signature(order)
                 updated = updated or changed
                 continue
 
@@ -74,6 +145,8 @@ class BotEngineRuntimeMixin:
             if trade is None:
                 order.status = "ERROR"
                 order.error = "Missing IB trade handle for WORKING order"
+                order.chase_last_reprice_ts = None
+                order.chase_quote_signature = None
                 updated = True
                 continue
 
@@ -105,7 +178,7 @@ class BotEngineRuntimeMixin:
                     if order.sent_at is not None:
                         elapsed = now - float(order.sent_at)
                         done_data["exec_elapsed_sec"] = float(elapsed)
-                        mode_now = _exec_ladder_mode(elapsed)
+                        mode_now = _exec_chase_mode(elapsed, selected_mode="AUTO")
                         done_data["exec_mode_now"] = str(mode_now) if mode_now is not None else "TIMEOUT"
                     sec_type = str(getattr(order.order_contract, "secType", "") or "").strip().upper()
                     intent = str(order.intent or "").strip().lower()
@@ -218,6 +291,8 @@ class BotEngineRuntimeMixin:
                         reason=None,
                         data=done_data,
                     )
+                order.chase_last_reprice_ts = None
+                order.chase_quote_signature = None
                 updated = True
                 continue
 
@@ -227,7 +302,7 @@ class BotEngineRuntimeMixin:
             if order.sent_at is None:
                 order.sent_at = float(now)
             elapsed = now - float(order.sent_at)
-            mode = _exec_ladder_mode(elapsed)
+            mode = _exec_chase_mode(elapsed, selected_mode="AUTO")
             if mode is None:
                 # Timed out: cancel and give up.
                 try:
@@ -260,10 +335,27 @@ class BotEngineRuntimeMixin:
                         reason="timeout",
                         data={"elapsed_sec": float(elapsed), "exc": str(exc)},
                     )
+                order.chase_last_reprice_ts = None
+                order.chase_quote_signature = None
                 updated = True
                 continue
 
+            quote_sig = self._order_quote_signature(order)
+            should_reprice = _exec_chase_should_reprice(
+                now_sec=now,
+                last_reprice_sec=order.chase_last_reprice_ts,
+                mode_now=str(mode),
+                prev_mode=order.exec_mode,
+                quote_signature=quote_sig,
+                prev_quote_signature=order.chase_quote_signature,
+                min_interval_sec=5.0,
+            )
+            if not should_reprice:
+                continue
+
             changed = await self._reprice_order(order, mode=mode)
+            order.chase_last_reprice_ts = float(now)
+            order.chase_quote_signature = self._order_quote_signature(order)
             updated = updated or changed
             if not changed:
                 continue

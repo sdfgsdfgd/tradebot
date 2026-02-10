@@ -752,7 +752,6 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         self._marker_row_by_table: dict[str, int] = {}
         self._refresh_lock = asyncio.Lock()
         self._scope_all = False
-        self._last_chase_ts = 0.0
         self._journal = BotJournal(Path(__file__).resolve().parent / "out")
 
     def compose(self) -> ComposeResult:
