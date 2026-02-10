@@ -47,17 +47,22 @@ def _portfolio_row(
     unreal_pct_text: Text | None = None,
 ) -> list[Text | str]:
     contract = item.contract
-    symbol = contract.symbol
+    symbol = Text(str(contract.symbol or ""), style="bold")
     if contract.secType in ("OPT", "FOP"):
         expiry = _fmt_expiry(contract.lastTradeDateOrContractMonth or "")
         if expiry:
-            symbol = f"{symbol} {expiry}"
-        right = (contract.right or "").strip()
+            symbol.append(" · ", style="dim")
+            symbol.append(expiry, style="dim")
+        right = (contract.right or "").strip().upper()[:1]
         strike = _fmt_money(contract.strike) if contract.strike else ""
         if right and strike:
-            symbol = f"{symbol} {right}{strike}"
+            symbol.append(" · ", style="dim")
+            right_style = "bold green" if right == "C" else "bold red" if right == "P" else "bold"
+            symbol.append(right, style=right_style)
+            symbol.append(strike)
         elif strike:
-            symbol = f"{symbol} {strike}"
+            symbol.append(" · ", style="dim")
+            symbol.append(strike)
     qty = _fmt_qty(float(item.position))
     avg_cost = _fmt_money(float(item.averageCost)) if item.averageCost else ""
     unreal = unreal_text or _pnl_text(item.unrealizedPNL)
