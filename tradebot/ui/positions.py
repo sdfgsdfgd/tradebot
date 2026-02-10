@@ -443,6 +443,46 @@ class PositionDetailScreen(Screen):
             out.append(self._SPARK_LEVELS[idx])
         return "".join(out).rjust(width)
 
+    def _trend_bipolar(self, values: deque[float], width: int) -> tuple[str, str]:
+        width = max(width, 1)
+        points = self._resample(list(values), width)
+        if not points:
+            return (" " * width, " " * width)
+        if len(points) == 1:
+            return (self._SPARK_LEVELS[4].rjust(width), " " * width)
+
+        # Center around a short EMA so drift above/below baseline is visible.
+        ema_span = max(8.0, min(32.0, float(width) / 3.0))
+        alpha = 2.0 / (ema_span + 1.0)
+        ema = points[0]
+        devs: list[float] = []
+        for point in points:
+            ema = ema + alpha * (point - ema)
+            devs.append(point - ema)
+
+        max_abs = max((abs(dev) for dev in devs), default=0.0)
+        if max_abs <= 1e-12:
+            return (" " * width, " " * width)
+
+        top: list[str] = []
+        bottom: list[str] = []
+        err_pos = 0.0
+        err_neg = 0.0
+        for dev in devs:
+            if dev >= 0:
+                level = (abs(dev) / max_abs) * 8.0 + err_pos
+                idx = max(0, min(8, int(level)))
+                err_pos = level - float(idx)
+                top.append(self._SPARK_LEVELS[idx] if idx > 0 else " ")
+                bottom.append(" ")
+                continue
+            level = (abs(dev) / max_abs) * 8.0 + err_neg
+            idx = max(0, min(8, int(level)))
+            err_neg = level - float(idx)
+            top.append(" ")
+            bottom.append(self._SPARK_LEVELS[idx] if idx > 0 else " ")
+        return ("".join(top).rjust(width), "".join(bottom).rjust(width))
+
     @staticmethod
     def _mark_now(text: Text, *, style: str = "bold #f8fbff") -> Text:
         plain = text.plain
@@ -734,9 +774,9 @@ class PositionDetailScreen(Screen):
         aurora_label_row = Text("Aurora", style="#8aa0b6")
         aurora_row = self._mark_now(self._aurora_strip(spark_width))
         trend_label_row = Text("1m Trend", style="cyan")
-        trend_row = self._mark_now(
-            Text(self._sparkline_smooth(self._mid_samples, spark_width), style="cyan")
-        )
+        trend_up, trend_down = self._trend_bipolar(self._mid_samples, spark_width)
+        trend_up_row = self._mark_now(Text(trend_up, style="#6ed7ff"))
+        trend_down_row = self._mark_now(Text(trend_down, style="#2d8fd5"))
         vol_label_row = Text("Vol Histogram", style="magenta")
         vol_row = self._mark_now(Text(self._sparkline(self._size_samples, spark_width), style="magenta"))
         momentum_label_row = Text("Momentum", style="yellow")
@@ -760,7 +800,8 @@ class PositionDetailScreen(Screen):
             self._box_row(aurora_label_row, inner, style="#2d8fd5"),
             self._box_row(aurora_row, inner, style="#2d8fd5"),
             self._box_row(trend_label_row, inner, style="#2d8fd5"),
-            self._box_row(trend_row, inner, style="#2d8fd5"),
+            self._box_row(trend_up_row, inner, style="#2d8fd5"),
+            self._box_row(trend_down_row, inner, style="#2d8fd5"),
             self._box_row(vol_label_row, inner, style="#2d8fd5"),
             self._box_row(vol_row, inner, style="#2d8fd5"),
             self._box_row(momentum_label_row, inner, style="#2d8fd5"),
