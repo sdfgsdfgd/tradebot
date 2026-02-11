@@ -1381,7 +1381,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         tqqq_path: Path | None = None
         if backtest_readme:
             bullet = re.search(
-                r"^- CURRENT \(v(?P<ver>\d+)\): `(?P<path>backtests/out/[^`]+\.json)`",
+                r"^- CURRENT \(v(?P<ver>\d+(?:\.\d+)?)\): `(?P<path>backtests/out/[^`]+\.json)`",
                 backtest_readme,
                 flags=re.MULTILINE,
             )
@@ -1390,7 +1390,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                 tqqq_path = _resolve_existing_json(bullet.group("path"))
 
             if tqqq_ver is None:
-                head = re.search(r"^#### CURRENT \(v(?P<ver>\d+)\)", backtest_readme, flags=re.MULTILINE)
+                head = re.search(r"^#### CURRENT \(v(?P<ver>\d+(?:\.\d+)?)\)", backtest_readme, flags=re.MULTILINE)
                 if head:
                     tqqq_ver = head.group("ver")
                     tail = backtest_readme[head.end() :]
@@ -1419,7 +1419,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         slv_ver: str | None = None
         slv_path: Path | None = None
         if slv_readme:
-            head = re.search(r"^### CURRENT \(v(?P<ver>\d+)\)", slv_readme, flags=re.MULTILINE)
+            head = re.search(r"^### CURRENT \(v(?P<ver>\d+(?:\.\d+)?)\)", slv_readme, flags=re.MULTILINE)
             if head:
                 slv_ver = head.group("ver")
                 tail = slv_readme[head.end() :]
@@ -1791,12 +1791,12 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             if best is None:
                 return None
             raw = str(best.get("name") or "")
-            match = re.search(r"\bv(?P<ver>\d+)\b", raw, flags=re.IGNORECASE)
+            match = re.search(r"\bv(?P<ver>\d+(?:\.\d+)?)\b", raw, flags=re.IGNORECASE)
             if match:
                 return f"v{match.group('ver')}"
             preset = best.get("preset")
             group_name = getattr(preset, "group", "")
-            match = re.search(r"\bv(?P<ver>\d+)\b", str(group_name or ""), flags=re.IGNORECASE)
+            match = re.search(r"\bv(?P<ver>\d+(?:\.\d+)?)\b", str(group_name or ""), flags=re.IGNORECASE)
             return f"v{match.group('ver')}" if match else None
 
         def _label_with_version(label: str, best: dict | None) -> str:
