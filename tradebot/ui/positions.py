@@ -68,12 +68,15 @@ class PositionDetailScreen(Screen):
     _BAR_FILL = "█"
     _BAR_EMPTY = "░"
     _POSITION_PULSE_SEC = 1.6
-    _FERAL_COMET_BURST_THRESHOLD = 0.72
+    _AURORA_TAPE_BIAS = 0.15
+    _VOL_MAGENTA_STYLES = ("#4e1e57", "#6f2380", "#922aaa", "#b534d8", "#ff3dee")
+    _TREND_ROWS = 5
+    _TREND_LINE_STYLE_BY_PRESET = {"calm": "square", "normal": "rounded", "feral": "heavy"}
     _AURORA_PRESET_ORDER = ("calm", "normal", "feral")
     _AURORA_PRESETS = {
-        "calm": {"buy_soft": 0.35, "buy_strong": 0.65, "sell_soft": -0.35, "sell_strong": -0.65, "burst_gain": 0.80},
-        "normal": {"buy_soft": 0.22, "buy_strong": 0.48, "sell_soft": -0.22, "sell_strong": -0.48, "burst_gain": 1.00},
-        "feral": {"buy_soft": 0.12, "buy_strong": 0.30, "sell_soft": -0.12, "sell_strong": -0.30, "burst_gain": 1.30},
+        "calm": {"buy_soft": 0.28, "buy_strong": 0.56, "sell_soft": -0.28, "sell_strong": -0.56, "burst_gain": 0.80},
+        "normal": {"buy_soft": 0.16, "buy_strong": 0.34, "sell_soft": -0.16, "sell_strong": -0.34, "burst_gain": 1.00},
+        "feral": {"buy_soft": 0.08, "buy_strong": 0.22, "sell_soft": -0.08, "sell_strong": -0.22, "burst_gain": 1.30},
     }
 
     def __init__(
@@ -105,6 +108,7 @@ class PositionDetailScreen(Screen):
         self._slip_proxy_samples: deque[float] = deque(maxlen=96)
         self._imbalance_samples: deque[float] = deque(maxlen=240)
         self._vol_burst_samples: deque[float] = deque(maxlen=240)
+        self._trend_bins: list[float] = []
         self._aurora_preset = "normal"
         self._pos_prev_qty: float | None = None
         self._pos_delta: float = 0.0
@@ -445,70 +449,9 @@ class PositionDetailScreen(Screen):
         return "".join(out).rjust(width)
 
     @staticmethod
-    def _trend_level(
-        dev: float,
-        scale: float,
-        *,
-        positive: bool,
-        micro_gamma: float = 1.0,
-        micro_cutoff: float = 0.55,
-    ) -> int:
-        if scale <= 1e-12:
-            return 0
-        if positive and dev <= 0:
-            return 0
-        if (not positive) and dev >= 0:
-            return 0
-        ratio = min(max(abs(dev) / scale, 0.0), 1.0)
-        if micro_gamma != 1.0 and ratio <= micro_cutoff:
-            ratio = pow(ratio, micro_gamma)
-        return max(0, min(4, int(round(ratio * 4.0))))
-
-    @staticmethod
-    def _trend_scale(devs: list[float]) -> float:
-        mags = sorted(abs(float(dev)) for dev in devs if abs(float(dev)) > 1e-12)
-        if not mags:
-            return 0.0
-        last = len(mags) - 1
-        p90 = mags[int(round(last * 0.90))]
-        p99 = mags[int(round(last * 0.99))]
-        peak = mags[-1]
-        # Robust scale: preserve microstructure during spikes while still respecting extremes.
-        return max(p90, p99 * 0.6, peak * 0.18, 1e-12)
-
-    @staticmethod
     def _trend_pair_value(older: float, newer: float) -> float:
         # Weight recency so the right edge tracks the latest tape more tightly.
         return older * 0.38 + newer * 0.62
-
-    def _trend_local_scales(self, devs: list[float], chars: int) -> list[float]:
-        chars = max(chars, 1)
-        if not devs:
-            return [0.0] * chars
-        global_scale = self._trend_scale(devs)
-        if global_scale <= 1e-12:
-            return [0.0] * chars
-
-        window_chars = max(3, min(14, chars // 6 + 2))
-        floor = global_scale * 0.24
-        raw: list[float] = []
-        for idx in range(chars):
-            lo_char = max(0, idx - window_chars)
-            hi_char = min(chars, idx + window_chars + 1)
-            local = self._trend_scale(devs[lo_char * 4 : hi_char * 4])
-            raw.append(max(floor, local * 0.92))
-
-        alpha = 0.38
-        smooth = raw[:]
-        prev = smooth[0]
-        for idx in range(1, chars):
-            prev = prev + alpha * (smooth[idx] - prev)
-            smooth[idx] = prev
-        prev = smooth[-1]
-        for idx in range(chars - 2, -1, -1):
-            prev = prev + alpha * (smooth[idx] - prev)
-            smooth[idx] = max(floor, prev)
-        return smooth
 
     @staticmethod
     def _trend_braille_cell(left: int, right: int, *, top: bool) -> str:
@@ -524,100 +467,240 @@ class PositionDetailScreen(Screen):
             bits |= right_order[idx]
         return chr(0x2800 + bits) if bits else " "
 
-    def _trend_bipolar(self, values: deque[float], width: int) -> tuple[str, str]:
+    def _trend_continuity_rows(self, values: deque[float], width: int) -> tuple[list[str], int]:
         width = max(width, 1)
-        devs = self._trend_devs(values, width * 4)
-        if not devs:
-            return (" " * width, " " * width)
-        target = width * 4
-        if len(devs) < target:
-            devs.extend([devs[-1]] * (target - len(devs)))
-        elif len(devs) > target:
-            devs = devs[-target:]
-        scales = self._trend_local_scales(devs, width)
-        if not scales or max(scales) <= 1e-12:
-            return (" " * width, " " * width)
-        micro_gamma = 0.82 if self._aurora_preset == "feral" else 1.0
+        cols = width
+        rows = max(3, int(self._TREND_ROWS))
+        raw = list(values)[-cols:]
+        if not raw:
+            blank = " " * width
+            return ([blank for _ in range(rows)], rows // 2)
+        if len(raw) < width:
+            raw = ([raw[0]] * (width - len(raw))) + raw
 
-        top: list[str] = []
-        bottom: list[str] = []
-        for char_idx in range(width):
-            base = char_idx * 4
-            left = self._trend_pair_value(float(devs[base]), float(devs[base + 1]))
-            right = self._trend_pair_value(float(devs[base + 2]), float(devs[base + 3]))
-            scale = scales[char_idx]
-            top.append(
-                self._trend_braille_cell(
-                    self._trend_level(left, scale, positive=True, micro_gamma=micro_gamma),
-                    self._trend_level(right, scale, positive=True, micro_gamma=micro_gamma),
-                    top=True,
-                )
-            )
-            bottom.append(
-                self._trend_braille_cell(
-                    self._trend_level(left, scale, positive=False, micro_gamma=micro_gamma),
-                    self._trend_level(right, scale, positive=False, micro_gamma=micro_gamma),
-                    top=False,
-                )
-            )
-        return ("".join(top).rjust(width), "".join(bottom).rjust(width))
+        alpha = 0.22
+        smoothed: list[float] = [float(raw[0])]
+        for value in raw[1:]:
+            prev = smoothed[-1]
+            smoothed.append(prev + alpha * (float(value) - prev))
 
-    def _vol_histogram_braille(self, values: deque[float], width: int) -> str:
+        latest = smoothed[-1]
+        deltas = [value - latest for value in smoothed]
+        mags = sorted(abs(delta) for delta in deltas if abs(delta) > 1e-12)
+        if not mags:
+            y_points = [((rows - 1) * 0.5)] * cols
+        else:
+            last = len(mags) - 1
+            q80 = mags[int(round(last * 0.80))]
+            q92 = mags[int(round(last * 0.92))]
+            peak = mags[-1]
+            scale = max(q80, q92 * 0.75, peak * 0.30, 1e-12)
+            net = smoothed[-1] - smoothed[0]
+            net_norm = max(-1.0, min(net / (scale * max(cols * 0.16, 1.0)), 1.0))
+            if abs(net_norm) > 1e-12:
+                net_norm = pow(abs(net_norm), 0.82) * (1.0 if net_norm >= 0 else -1.0)
+            anchor = ((rows - 1) * 0.5) - (net_norm * 1.25)
+            gain = 1.55 + (abs(net_norm) * 0.75)
+            y_points = []
+            for idx, delta in enumerate(deltas):
+                progress = float(idx) / float(max(cols - 1, 1))
+                history_push = (1.0 - progress) * net_norm * 1.20
+                yy = anchor - ((delta / scale) * gain) + history_push
+                y_points.append(min(rows - 1.0, max(0.0, yy)))
+        self._trend_bins = self._resample(smoothed, width)
+
+        y_int = [max(0, min(rows - 1, int(round(value)))) for value in y_points]
+        links = [[0] * cols for _ in range(rows)]
+
+        UP, DOWN, LEFT, RIGHT = 1, 2, 4, 8
+
+        def add_link(r1: int, c1: int, r2: int, c2: int) -> None:
+            if not (0 <= r1 < rows and 0 <= c1 < cols and 0 <= r2 < rows and 0 <= c2 < cols):
+                return
+            if r1 == r2 and abs(c1 - c2) == 1:
+                if c2 > c1:
+                    links[r1][c1] |= RIGHT
+                    links[r2][c2] |= LEFT
+                else:
+                    links[r1][c1] |= LEFT
+                    links[r2][c2] |= RIGHT
+                return
+            if c1 == c2 and abs(r1 - r2) == 1:
+                if r2 > r1:
+                    links[r1][c1] |= DOWN
+                    links[r2][c2] |= UP
+                else:
+                    links[r1][c1] |= UP
+                    links[r2][c2] |= DOWN
+
+        for idx in range(1, cols):
+            prev_row = y_int[idx - 1]
+            curr_row = y_int[idx]
+            add_link(prev_row, idx - 1, prev_row, idx)
+            if curr_row != prev_row:
+                step = 1 if curr_row > prev_row else -1
+                row = prev_row
+                while row != curr_row:
+                    add_link(row, idx, row + step, idx)
+                    row += step
+
+        out_rows: list[list[str]] = [[" "] * width for _ in range(rows)]
+        square_map = {
+            LEFT | RIGHT: "─",
+            UP | DOWN: "│",
+            RIGHT | DOWN: "┌",
+            LEFT | DOWN: "┐",
+            RIGHT | UP: "└",
+            LEFT | UP: "┘",
+            UP | DOWN | RIGHT: "├",
+            UP | DOWN | LEFT: "┤",
+            LEFT | RIGHT | DOWN: "┬",
+            LEFT | RIGHT | UP: "┴",
+            UP | DOWN | LEFT | RIGHT: "┼",
+            LEFT: "─",
+            RIGHT: "─",
+            UP: "│",
+            DOWN: "│",
+            0: " ",
+        }
+        rounded_map = {
+            LEFT | RIGHT: "─",
+            UP | DOWN: "│",
+            RIGHT | DOWN: "╭",
+            LEFT | DOWN: "╮",
+            RIGHT | UP: "╰",
+            LEFT | UP: "╯",
+            UP | DOWN | RIGHT: "├",
+            UP | DOWN | LEFT: "┤",
+            LEFT | RIGHT | DOWN: "┬",
+            LEFT | RIGHT | UP: "┴",
+            UP | DOWN | LEFT | RIGHT: "┼",
+            LEFT: "─",
+            RIGHT: "─",
+            UP: "│",
+            DOWN: "│",
+            0: " ",
+        }
+        heavy_map = {
+            LEFT | RIGHT: "━",
+            UP | DOWN: "┃",
+            RIGHT | DOWN: "┏",
+            LEFT | DOWN: "┓",
+            RIGHT | UP: "┗",
+            LEFT | UP: "┛",
+            UP | DOWN | RIGHT: "┣",
+            UP | DOWN | LEFT: "┫",
+            LEFT | RIGHT | DOWN: "┳",
+            LEFT | RIGHT | UP: "┻",
+            UP | DOWN | LEFT | RIGHT: "╋",
+            LEFT: "━",
+            RIGHT: "━",
+            UP: "┃",
+            DOWN: "┃",
+            0: " ",
+        }
+        line_style = self._TREND_LINE_STYLE_BY_PRESET.get(self._aurora_preset, "rounded")
+        glyph_map = rounded_map
+        if line_style == "square":
+            glyph_map = square_map
+        elif line_style == "heavy":
+            glyph_map = heavy_map
+        for row_idx in range(rows):
+            for col_idx in range(cols):
+                out_rows[row_idx][col_idx] = glyph_map.get(links[row_idx][col_idx], "·")
+
+        now_row = max(0, min(rows - 1, y_int[-1]))
+        return (["".join(row).rjust(width) for row in out_rows], now_row)
+
+    @staticmethod
+    def _trend_with_price_tag(row: Text, price: float | None, *, color: str) -> Text:
+        if price is None:
+            return row
+        plain = row.plain
+        width = len(plain)
+        if width < 4:
+            return row
+        label = f" {_fmt_quote(price)}"
+        usable = min(len(label), width - 1)
+        start = width - 1 - usable
+        out = row[:start]
+        out.append(label[-usable:], style="bold #f8fbff")
+        out.append("▐", style=f"bold {color}")
+        return out
+
+    def _vol_histogram_braille(self, values: deque[float], width: int) -> Text:
         width = max(width, 1)
         points = self._resample(list(values), width * 4)
         if not points:
-            return " " * width
+            return Text(" " * width, style="dim")
         target = width * 4
         if len(points) < target:
             points.extend([points[-1]] * (target - len(points)))
         elif len(points) > target:
             points = points[-target:]
-        scales = self._trend_local_scales(points, width)
-        if not scales or max(scales) <= 1e-12:
-            return " " * width
-        micro_gamma = 0.86 if self._aurora_preset == "feral" else 0.93
-        out: list[str] = []
+        global_max = max(points)
+        if global_max <= 1e-12:
+            return Text(" " * width, style="dim")
+        global_lo = min(points)
+        global_hi = max(points)
+        global_span = global_hi - global_lo
+        if global_span <= 1e-12:
+            level = 4 if global_max > 1e-12 else 0
+            row = Text()
+            for _ in range(width):
+                cell = self._trend_braille_cell(level, level, top=True)
+                if cell == " ":
+                    row.append(" ", style="dim")
+                else:
+                    row.append(cell, style=self._VOL_MAGENTA_STYLES[min(level, len(self._VOL_MAGENTA_STYLES) - 1)])
+            return row
+        window_chars = max(3, min(14, width // 6 + 2))
+        floor_span = max(global_span * 0.08, 1e-12)
+        lows: list[float] = []
+        spans: list[float] = []
+        for idx in range(width):
+            lo_idx = max(0, (idx - window_chars) * 4)
+            hi_idx = min(target, (idx + window_chars + 1) * 4)
+            segment = points[lo_idx:hi_idx]
+            local_lo = min(segment)
+            local_hi = max(segment)
+            lows.append(local_lo)
+            spans.append(max(local_hi - local_lo, floor_span))
+        alpha = 0.32
+        for idx in range(1, width):
+            lows[idx] = lows[idx - 1] + alpha * (lows[idx] - lows[idx - 1])
+            spans[idx] = spans[idx - 1] + alpha * (spans[idx] - spans[idx - 1])
+        for idx in range(width - 2, -1, -1):
+            lows[idx] = lows[idx + 1] + alpha * (lows[idx] - lows[idx + 1])
+            spans[idx] = max(floor_span, spans[idx + 1] + alpha * (spans[idx] - spans[idx + 1]))
+        micro_gamma = 0.82 if self._aurora_preset == "feral" else 0.90
+        out = Text()
         for char_idx in range(width):
             base = char_idx * 4
             left = self._trend_pair_value(float(points[base]), float(points[base + 1]))
             right = self._trend_pair_value(float(points[base + 2]), float(points[base + 3]))
-            scale = scales[char_idx]
-            out.append(
-                self._trend_braille_cell(
-                    self._trend_level(
-                        left,
-                        scale,
-                        positive=True,
-                        micro_gamma=micro_gamma,
-                        micro_cutoff=0.70,
-                    ),
-                    self._trend_level(
-                        right,
-                        scale,
-                        positive=True,
-                        micro_gamma=micro_gamma,
-                        micro_cutoff=0.70,
-                    ),
-                    top=True,
-                )
-            )
-        return "".join(out).rjust(width)
-
-    def _trend_devs(self, values: deque[float], width: int) -> list[float]:
-        points = self._resample(list(values), max(width, 1))
-        if not points:
-            return []
-        if len(points) == 1:
-            return [0.0]
-        # Center around a short EMA so drift above/below baseline is visible.
-        ema_span = max(8.0, min(32.0, float(max(width, 1)) / 3.0))
-        alpha = 2.0 / (ema_span + 1.0)
-        ema = points[0]
-        devs: list[float] = []
-        for point in points:
-            ema = ema + alpha * (point - ema)
-            devs.append(point - ema)
-        return devs
+            local_lo = lows[char_idx]
+            local_span = spans[char_idx]
+            left_dyn = min(max((left - local_lo) / local_span, 0.0), 1.0)
+            right_dyn = min(max((right - local_lo) / local_span, 0.0), 1.0)
+            left_abs = min(max(left / global_max, 0.0), 1.0)
+            right_abs = min(max(right / global_max, 0.0), 1.0)
+            left_ratio = max(left_dyn, left_abs * 0.52)
+            right_ratio = max(right_dyn, right_abs * 0.52)
+            left_level = max(0, min(4, int(round(pow(left_ratio, micro_gamma) * 4.0))))
+            right_level = max(0, min(4, int(round(pow(right_ratio, micro_gamma) * 4.0))))
+            if left_level == 0 and left_ratio > 1e-3:
+                left_level = 1
+            if right_level == 0 and right_ratio > 1e-3:
+                right_level = 1
+            cell = self._trend_braille_cell(left_level, right_level, top=True)
+            if cell == " ":
+                out.append(" ", style="dim")
+                continue
+            intensity = max(left_level, right_level)
+            style_idx = max(0, min(len(self._VOL_MAGENTA_STYLES) - 1, intensity))
+            out.append(cell, style=self._VOL_MAGENTA_STYLES[style_idx])
+        return out
 
     @staticmethod
     def _mark_now(text: Text, *, style: str = "bold #f8fbff") -> Text:
@@ -628,97 +711,90 @@ class PositionDetailScreen(Screen):
         marked.append("▏", style=style)
         return marked
 
-    @staticmethod
-    def _mark_now_comet(text: Text, *, color: str, feral: bool) -> Text:
-        plain = text.plain
-        if not plain:
-            return text
-        marker = "··◆▐" if feral else "·◆▐"
-        marker = marker[-min(len(marker), len(plain)) :]
-        marked = text[: len(plain) - len(marker)]
-        for idx, char in enumerate(marker):
-            is_tail = idx < len(marker) - 2
-            if char == "▐":
-                style = f"bold {color}"
-            elif char == "◆":
-                style = color
-            elif is_tail:
-                style = f"dim {color}"
-            else:
-                style = color
-            marked.append(char, style=style)
-        return marked
-
     def _aurora_config(self) -> dict[str, float]:
         return self._AURORA_PRESETS.get(self._aurora_preset, self._AURORA_PRESETS["normal"])
 
+    @staticmethod
+    def _aurora_pressure(imbalance: float) -> float:
+        x = max(-1.0, min(float(imbalance), 1.0))
+        mag = abs(x)
+        if mag <= 1e-12:
+            return 0.0
+        # Lift mid-range imbalance so real pressure is easier to see in color.
+        boosted = pow(mag, 0.72)
+        return max(-1.0, min(boosted if x >= 0 else -boosted, 1.0))
+
+    def _aurora_drift_series(self, width: int) -> list[float]:
+        width = max(width, 1)
+        mids = list(self._mid_samples)
+        if len(mids) < 3:
+            return [0.0] * width
+        deltas = [float(mids[idx] - mids[idx - 1]) for idx in range(1, len(mids))]
+        mags = sorted(abs(delta) for delta in deltas if abs(delta) > 1e-12)
+        if not mags:
+            return [0.0] * width
+        last = len(mags) - 1
+        scale = max(mags[int(round(last * 0.85))], mags[-1] * 0.22, 1e-12)
+        norm = [max(-1.0, min(delta / scale, 1.0)) for delta in deltas]
+        alpha = 0.36
+        smooth: list[float] = [norm[0]]
+        for value in norm[1:]:
+            prev = smooth[-1]
+            smooth.append(prev + alpha * (value - prev))
+        return self._resample(smooth, width)
+
+    def _aurora_blended_imbalance(self, imbalance: float, drift: float) -> float:
+        bias = max(0.0, min(self._AURORA_TAPE_BIAS, 1.0))
+        return max(-1.0, min((float(imbalance) * (1.0 - bias)) + (float(drift) * bias), 1.0))
+
     def _aurora_style(self, imbalance: float, *, config: dict[str, float] | None = None) -> str:
         cfg = config or self._aurora_config()
+        pressure = self._aurora_pressure(imbalance)
         buy_soft = float(cfg.get("buy_soft", 0.22))
         buy_strong = float(cfg.get("buy_strong", 0.48))
         sell_soft = float(cfg.get("sell_soft", -0.22))
         sell_strong = float(cfg.get("sell_strong", -0.48))
-        if imbalance >= buy_strong:
-            return "#0f7a36"  # lots buy pressure (dark green)
-        if imbalance >= buy_soft:
+        if pressure >= buy_strong:
+            return "#18a63f"  # lots buy pressure (dark green, brightened for terminal contrast)
+        if pressure >= buy_soft:
             return "#e6d84e"  # slight buy pressure (yellow)
-        if imbalance <= sell_strong:
+        if pressure <= sell_strong:
             return "red"  # lots sell pressure (red)
-        if imbalance <= sell_soft:
+        if pressure <= sell_soft:
             return "#ffaf00"  # slight sell pressure (amber)
         return "#8aa0b6"
 
     def _aurora_now_style(self) -> str:
         if not self._imbalance_samples:
             return "#8aa0b6"
-        return self._aurora_style(float(self._imbalance_samples[-1]))
-
-    def _vol_burst_now_ratio(self) -> float:
-        if not self._vol_burst_samples:
-            return 0.0
-        top = max(float(value) for value in self._vol_burst_samples)
-        if top <= 1e-12:
-            return 0.0
-        return max(0.0, min(float(self._vol_burst_samples[-1]) / top, 1.0))
-
-    def _trend_now_sign(self, values: deque[float], width: int) -> int:
-        devs = self._trend_devs(values, max(width * 4, 8))
-        if not devs:
-            return 0
-        tail = devs[-6:]
-        weight_sum = float(sum(range(1, len(tail) + 1))) or 1.0
-        dev = 0.0
-        for idx, value in enumerate(tail, 1):
-            dev += float(value) * float(idx)
-        dev /= weight_sum
-        if dev > 1e-12:
-            return 1
-        if dev < -1e-12:
-            return -1
-        return 0
+        drift_now = self._aurora_drift_series(1)[0]
+        blended = self._aurora_blended_imbalance(float(self._imbalance_samples[-1]), drift_now)
+        return self._aurora_style(blended)
 
     def _aurora_strip(self, width: int) -> Text:
         width = max(width, 1)
         imbalances = self._resample(list(self._imbalance_samples), width)
+        drifts = self._aurora_drift_series(width)
         bursts = self._resample(list(self._vol_burst_samples), width)
-        if not imbalances or not bursts:
+        if not imbalances or not drifts or not bursts:
             return Text(" " * width, style="dim")
         config = self._aurora_config()
         top_burst = max(bursts) if bursts else 0.0
         if top_burst <= 1e-12:
             top_burst = 1.0
         strip = Text()
-        for imbalance, burst in zip(imbalances, bursts):
+        for imbalance, drift, burst in zip(imbalances, drifts, bursts):
             gain = float(config.get("burst_gain", 1.0))
             ratio = max(0.0, min((float(burst) / top_burst) * gain, 1.0))
             char = self._SPARK_LEVELS[int(round(ratio * 8.0))]
-            style = self._aurora_style(float(imbalance), config=config)
+            blended = self._aurora_blended_imbalance(float(imbalance), float(drift))
+            style = self._aurora_style(blended, config=config)
             strip.append(char, style=style)
         return strip
 
     def _render_aurora_legend(self) -> Text:
         legend = Text(f"Aurora[{self._aurora_preset}]  ")
-        legend.append("BUY+", style="#0f7a36")
+        legend.append("BUY+", style="#18a63f")
         legend.append("/", style="dim")
         legend.append("BUY", style="#e6d84e")
         legend.append(" -> ", style="dim")
@@ -727,7 +803,7 @@ class PositionDetailScreen(Screen):
         legend.append("SELL", style="#ffaf00")
         legend.append("/", style="dim")
         legend.append("SELL+", style="red")
-        legend.append("  |  height=vol burst  |  a preset", style="dim")
+        legend.append("  |  +tape 15%  |  height=vol burst  |  a preset", style="dim")
         return legend
 
     def _momentum_line(self, width: int) -> str:
@@ -963,25 +1039,17 @@ class PositionDetailScreen(Screen):
         aurora_label_row = Text("Aurora", style="#8aa0b6")
         aurora_row = self._mark_now(self._aurora_strip(spark_width))
         trend_label_row = Text("1m Trend", style="cyan")
-        trend_up, trend_down = self._trend_bipolar(self._mid_samples, spark_width)
-        trend_sign = self._trend_now_sign(self._mid_samples, spark_width)
+        trend_row_values, trend_now_row = self._trend_continuity_rows(
+            self._mid_samples, spark_width
+        )
         comet_color = self._aurora_now_style()
-        feral_comet = (
-            self._aurora_preset == "feral"
-            and self._vol_burst_now_ratio() >= self._FERAL_COMET_BURST_THRESHOLD
-        )
-        trend_up_row = (
-            self._mark_now_comet(Text(trend_up, style="#6ed7ff"), color=comet_color, feral=feral_comet)
-            if trend_sign >= 0
-            else Text(trend_up, style="#6ed7ff")
-        )
-        trend_down_row = (
-            self._mark_now_comet(Text(trend_down, style="#2d8fd5"), color=comet_color, feral=feral_comet)
-            if trend_sign < 0
-            else Text(trend_down, style="#2d8fd5")
+        trend_rows = [Text(row, style="#63d9ff") for row in trend_row_values]
+        trend_price = mid or price or mark
+        trend_rows[trend_now_row] = self._trend_with_price_tag(
+            trend_rows[trend_now_row], trend_price, color=comet_color
         )
         vol_label_row = Text("Vol Histogram", style="magenta")
-        vol_row = self._mark_now(Text(self._vol_histogram_braille(self._size_samples, spark_width), style="magenta"))
+        vol_row = self._mark_now(self._vol_histogram_braille(self._size_samples, spark_width))
         momentum_label_row = Text("Momentum", style="yellow")
         momentum_row = self._mark_now(Text(self._momentum_line(spark_width), style="yellow"))
 
@@ -1003,8 +1071,7 @@ class PositionDetailScreen(Screen):
             self._box_row(aurora_label_row, inner, style="#2d8fd5"),
             self._box_row(aurora_row, inner, style="#2d8fd5"),
             self._box_row(trend_label_row, inner, style="#2d8fd5"),
-            self._box_row(trend_up_row, inner, style="#2d8fd5"),
-            self._box_row(trend_down_row, inner, style="#2d8fd5"),
+            *[self._box_row(trend_row, inner, style="#2d8fd5") for trend_row in trend_rows],
             self._box_row(vol_label_row, inner, style="#2d8fd5"),
             self._box_row(vol_row, inner, style="#2d8fd5"),
             self._box_row(momentum_label_row, inner, style="#2d8fd5"),
