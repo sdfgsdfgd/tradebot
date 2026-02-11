@@ -75,8 +75,6 @@ class PositionDetailScreen(Screen):
     _TREND_BRAILLE_Y = 4
     _AURORA_TAPE_BIAS = 0.15
     _VOL_MAGENTA_STYLES = ("#4e1e57", "#6f2380", "#922aaa", "#b534d8", "#ff3dee")
-    _VOL_BUY_STYLES = ("#245626", "#2f7a34", "#3ea447", "#67c96f", "#9af0a1")
-    _VOL_SELL_STYLES = ("#6a1f1f", "#8d2525", "#b92f2f", "#e14a4a", "#ff7a7a")
     _TREND_ROWS = 5
     _AURORA_PRESET_ORDER = ("calm", "normal", "feral")
     _AURORA_PRESETS = {
@@ -884,10 +882,28 @@ class PositionDetailScreen(Screen):
             if window_start is not None and window_end is not None
             else self._trend_window_bounds()
         )
-        micro_width = width * 2
+        flow_events = sum(1 for ts, _value in self._vol_flow_tape if start <= ts <= end)
+        density = float(flow_events) / float(width)
+        micro_factor = 2
+        if density >= 1.2:
+            micro_factor = 3
+        if density >= 2.2:
+            micro_factor = 4
+        if density >= 3.5:
+            micro_factor = 5
+        micro_width = width * micro_factor
         flow_micro = self._tape_bin_sum(self._vol_flow_tape, width=micro_width, start=start, end=end)
 
         if not flow_micro:
+            size_events = sum(1 for ts, _value in self._size_tape if start <= ts <= end)
+            size_density = float(size_events) / float(width)
+            if size_density >= 1.2:
+                micro_factor = max(micro_factor, 3)
+            if size_density >= 2.2:
+                micro_factor = max(micro_factor, 4)
+            if size_density >= 3.5:
+                micro_factor = max(micro_factor, 5)
+            micro_width = width * micro_factor
             size_micro = self._tape_series(self._size_tape, width=micro_width, start=start, end=end)
             if not size_micro:
                 size_micro = self._resample(list(self._size_samples), micro_width)
@@ -903,40 +919,78 @@ class PositionDetailScreen(Screen):
                 direction = 1.0 if float(imbalance) >= 0 else -1.0
                 flow_micro.append(float(size) * direction)
 
+        if len(flow_micro) != micro_width:
+            flow_micro = self._resample([float(value) for value in flow_micro], micro_width)
+        if len(flow_micro) > 2:
+            smoothed = [float(flow_micro[0])]
+            for idx in range(1, len(flow_micro) - 1):
+                left = float(flow_micro[idx - 1])
+                center = float(flow_micro[idx])
+                right = float(flow_micro[idx + 1])
+                blended = (left * 0.18) + (center * 0.64) + (right * 0.18)
+                lo = min(left, center, right)
+                hi = max(left, center, right)
+                smoothed.append(max(lo, min(blended, hi)))
+            smoothed.append(float(flow_micro[-1]))
+            flow_micro = smoothed
+
         mags = sorted(abs(float(value)) for value in flow_micro if abs(float(value)) > 1e-12)
         if not mags:
             return Text(" " * width, style="dim")
-        last = len(mags) - 1
-        p90 = mags[int(round(last * 0.90))]
-        p98 = mags[int(round(last * 0.98))]
-        scale = max(p90, p98 * 0.7, mags[-1] * 0.28, 1e-9)
-        gamma = 0.84 if self._aurora_preset == "feral" else 0.92
+
+        def quantile(ratio: float) -> float:
+            ratio = max(0.0, min(float(ratio), 1.0))
+            if len(mags) == 1:
+                return mags[0]
+            pos = ratio * float(len(mags) - 1)
+            lo = int(pos)
+            hi = min(lo + 1, len(mags) - 1)
+            frac = pos - float(lo)
+            return mags[lo] + ((mags[hi] - mags[lo]) * frac)
+
+        p25 = quantile(0.25)
+        p90 = quantile(0.90)
+        p98 = quantile(0.98)
+        scale = max(p90, p98 * 0.72, mags[-1] * 0.26, 1e-9)
+        floor_ratio = max(0.012, min((p25 / scale) * 0.60, 0.18))
+        gamma = 0.84 if self._aurora_preset == "feral" else 0.90
 
         out = Text()
+        base_split = max(1, micro_factor // 2)
         for idx in range(width):
-            left = float(flow_micro[idx * 2])
-            right = float(flow_micro[idx * 2 + 1])
-            left_ratio = min(abs(left) / scale, 1.0)
-            right_ratio = min(abs(right) / scale, 1.0)
+            start_idx = idx * micro_factor
+            chunk = flow_micro[start_idx : start_idx + micro_factor]
+            if not chunk:
+                out.append(" ", style="dim")
+                continue
+            if len(chunk) == 1:
+                left_mag = abs(float(chunk[0]))
+                right_mag = left_mag
+            else:
+                split = max(1, min(len(chunk) - 1, base_split))
+                left_slice = chunk[:split]
+                right_slice = chunk[split:]
+                left_mag = sum(abs(float(value)) for value in left_slice) / float(len(left_slice))
+                right_mag = sum(abs(float(value)) for value in right_slice) / float(len(right_slice))
+            left_ratio = min(left_mag / scale, 1.0)
+            right_ratio = min(right_mag / scale, 1.0)
+            if left_ratio > 1e-12:
+                left_ratio = max(left_ratio, floor_ratio)
+            if right_ratio > 1e-12:
+                right_ratio = max(right_ratio, floor_ratio)
             left_level = max(0, min(4, int(round(pow(left_ratio, gamma) * 4.0))))
             right_level = max(0, min(4, int(round(pow(right_ratio, gamma) * 4.0))))
-            if left_level == 0 and left_ratio > 1e-3:
+            if left_level == 0 and left_ratio > 1e-12:
                 left_level = 1
-            if right_level == 0 and right_ratio > 1e-3:
+            if right_level == 0 and right_ratio > 1e-12:
                 right_level = 1
             cell = self._trend_braille_cell(left_level, right_level, top=True)
             if cell == " ":
                 out.append(" ", style="dim")
                 continue
             intensity = max(left_level, right_level)
-            if (left + right) > 1e-12:
-                palette = self._VOL_BUY_STYLES
-            elif (left + right) < -1e-12:
-                palette = self._VOL_SELL_STYLES
-            else:
-                palette = self._VOL_MAGENTA_STYLES
-            style_idx = max(0, min(len(palette) - 1, intensity))
-            out.append(cell, style=palette[style_idx])
+            style_idx = max(0, min(len(self._VOL_MAGENTA_STYLES) - 1, intensity))
+            out.append(cell, style=self._VOL_MAGENTA_STYLES[style_idx])
         return out
 
     @staticmethod
