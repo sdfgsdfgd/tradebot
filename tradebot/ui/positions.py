@@ -1070,6 +1070,10 @@ class PositionDetailScreen(Screen):
             self._box_row(quote_status, inner, style="#2d8fd5"),
             self._box_row(headline, inner, style="#2d8fd5"),
             self._box_row(position_row, inner, style="#2d8fd5"),
+            self._box_row(detail_row, inner, style="#2d8fd5"),
+            self._box_row(tail_row, inner, style="#2d8fd5"),
+            self._box_row(quote_row, inner, style="#2d8fd5"),
+            self._box_row(price_row, inner, style="#2d8fd5"),
             self._box_row(aurora_label_row, inner, style="#2d8fd5"),
             self._box_row(aurora_row, inner, style="#2d8fd5"),
             self._box_row(trend_label_row, inner, style="#2d8fd5"),
@@ -1078,10 +1082,6 @@ class PositionDetailScreen(Screen):
             self._box_row(vol_row, inner, style="#2d8fd5"),
             self._box_row(momentum_label_row, inner, style="#2d8fd5"),
             self._box_row(momentum_row, inner, style="#2d8fd5"),
-            self._box_row(detail_row, inner, style="#2d8fd5"),
-            self._box_row(tail_row, inner, style="#2d8fd5"),
-            self._box_row(quote_row, inner, style="#2d8fd5"),
-            self._box_row(price_row, inner, style="#2d8fd5"),
         ]
         if contract.lastTradeDateOrContractMonth:
             expiry = _fmt_expiry(contract.lastTradeDateOrContractMonth)
@@ -1245,19 +1245,6 @@ class PositionDetailScreen(Screen):
         cancel_meter = self._meter(cancel_replace_rate, 8)
         slip_spark = self._sparkline(self._slip_proxy_samples, max(min(inner - 21, 14), 8))
 
-        mark = _ticker_price(self._ticker) if self._ticker else None
-        if mark is None:
-            mark = _mark_price(self._item)
-        pnl_value, _ = _unrealized_pnl_values(self._item, mark_price=mark)
-        drawdown = self._drawdown_from(self._pnl_samples, pnl_value)
-        pnl_scale = max(max((abs(value) for value in self._pnl_samples), default=0.0), abs(pnl_value or 0.0), 1.0)
-        pnl_ratio = abs(pnl_value or 0.0) / pnl_scale
-        dd_scale = max(max(self._pnl_samples, default=0.0) - min(self._pnl_samples, default=0.0), 1.0)
-        drawdown_ratio = min(drawdown / dd_scale, 1.0)
-        exposure_qty = abs(float(self._item.position or 0.0))
-        exposure_scale = max(exposure_qty, float(self._exec_qty), 10.0)
-        exposure_ratio = min(exposure_qty / exposure_scale, 1.0)
-
         lines: list[Text] = [self._box_top("Orders", inner, style="#2f78c4")]
         metrics_row = Text("Fill Rate ")
         metrics_row.append(fill_meter, style="green")
@@ -1279,7 +1266,7 @@ class PositionDetailScreen(Screen):
         else:
             if self._orders_selected >= len(trades):
                 self._orders_selected = len(trades) - 1
-            reserved_without_trades = 11  # top + 4 metrics + header + risk header + 3 risk + bottom
+            reserved_without_trades = 7  # top + 4 metrics + header + bottom
             visible = len(trades)
             if available:
                 visible = max(available - reserved_without_trades, 1)
@@ -1309,24 +1296,6 @@ class PositionDetailScreen(Screen):
                     )
                 )
 
-        lines.append(self._box_rule("Risk", inner, style="#2f78c4"))
-        day_row = Text("Day PnL ")
-        day_row.append(
-            _fmt_money(pnl_value) if pnl_value is not None else "n/a",
-            style=self._pnl_style(pnl_value),
-        )
-        day_row.append(f"  [{self._meter(pnl_ratio, 9)}]")
-        lines.append(self._box_row(day_row, inner, style="#2f78c4"))
-
-        dd_row = Text("Drawdown ")
-        dd_row.append(_fmt_money(drawdown), style="yellow")
-        dd_row.append(f"  [{self._meter(drawdown_ratio, 9)}]")
-        lines.append(self._box_row(dd_row, inner, style="#2f78c4"))
-
-        exposure_row = Text("Exposure ")
-        exposure_row.append(f"{_fmt_qty(exposure_qty)} sh", style="bright_white")
-        exposure_row.append(f"  [{self._meter(exposure_ratio, 9)}]")
-        lines.append(self._box_row(exposure_row, inner, style="#2f78c4"))
         lines.append(self._box_bottom(inner, style="#2f78c4"))
         self._detail_right.update(Text("\n").join(lines))
 
