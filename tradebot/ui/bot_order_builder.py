@@ -353,6 +353,8 @@ class BotOrderBuilderMixin:
                 return "atr_not_ready"
             if text.startswith("order: spot sizing returned 0 qty"):
                 return "sizing_zero_qty"
+            if text.startswith("order: currency conversion unavailable"):
+                return "currency_conversion_unavailable"
             return "order_build_failed"
 
         def _quote_failure_payload(
@@ -664,6 +666,26 @@ class BotOrderBuilderMixin:
             last = _safe_num(getattr(ticker, "last", None))
             limit = _leg_price(bid, ask, last, action)
             if limit is None:
+                retry_window_ms_raw = strat.get("spot_quote_retry_window_ms", 600)
+                retry_interval_ms_raw = strat.get("spot_quote_retry_interval_ms", 120)
+                try:
+                    retry_window_ms = max(0, int(retry_window_ms_raw or 0))
+                except (TypeError, ValueError):
+                    retry_window_ms = 600
+                try:
+                    retry_interval_ms = max(50, int(retry_interval_ms_raw or 0))
+                except (TypeError, ValueError):
+                    retry_interval_ms = 120
+                retry_attempts = max(0, retry_window_ms // retry_interval_ms)
+                for _ in range(retry_attempts):
+                    await asyncio.sleep(retry_interval_ms / 1000.0)
+                    bid = _safe_num(getattr(ticker, "bid", None))
+                    ask = _safe_num(getattr(ticker, "ask", None))
+                    last = _safe_num(getattr(ticker, "last", None))
+                    limit = _leg_price(bid, ask, last, action)
+                    if limit is not None:
+                        break
+            if limit is None:
                 return _fail(
                     "Quote: no bid/ask/last (cannot price)",
                     quote_payload=_quote_failure_payload(ticker=ticker, bid=bid, ask=ask, last=last),
@@ -768,8 +790,18 @@ class BotOrderBuilderMixin:
                 profit_mult=1.0,
             )
 
-            net_liq_val, _currency, _updated = self._client.account_value("NetLiquidation")
-            buying_power_val, _bp_currency, _bp_updated = self._client.account_value("BuyingPower")
+            net_liq_val, net_liq_currency, _updated = self._client.account_value(
+                "NetLiquidation",
+                currency="USD",
+            )
+            if net_liq_val is None:
+                net_liq_val, net_liq_currency, _updated = self._client.account_value("NetLiquidation")
+            buying_power_val, buying_power_currency, _bp_updated = self._client.account_value(
+                "BuyingPower",
+                currency="USD",
+            )
+            if buying_power_val is None:
+                buying_power_val, buying_power_currency, _bp_updated = self._client.account_value("BuyingPower")
             try:
                 equity_ref = float(net_liq_val) if net_liq_val is not None else 0.0
             except (TypeError, ValueError):
@@ -778,6 +810,53 @@ class BotOrderBuilderMixin:
                 cash_ref = float(buying_power_val) if buying_power_val is not None else None
             except (TypeError, ValueError):
                 cash_ref = None
+            sizing_currency = str(getattr(contract, "currency", "") or "USD").strip().upper() or "USD"
+            net_liq_fx_rate = None
+            buying_power_fx_rate = None
+            net_liq_currency_clean = str(net_liq_currency or "").strip().upper() if net_liq_currency is not None else None
+            buying_power_currency_clean = (
+                str(buying_power_currency or "").strip().upper() if buying_power_currency is not None else None
+            )
+            if (
+                equity_ref > 0
+                and net_liq_currency_clean
+                and net_liq_currency_clean != sizing_currency
+            ):
+                converted_equity, fx_rate = await self._client.convert_currency_value(
+                    float(equity_ref),
+                    from_currency=net_liq_currency_clean,
+                    to_currency=sizing_currency,
+                )
+                if converted_equity is None:
+                    return _fail(
+                        "Order: currency conversion unavailable for NetLiquidation "
+                        f"{net_liq_currency_clean}->{sizing_currency}",
+                        retry_reason="currency_conversion_unavailable",
+                    )
+                equity_ref = float(converted_equity)
+                net_liq_fx_rate = float(fx_rate) if fx_rate is not None else None
+                net_liq_currency = sizing_currency
+            if (
+                cash_ref is not None
+                and cash_ref > 0
+                and buying_power_currency_clean
+                and buying_power_currency_clean != sizing_currency
+            ):
+                converted_cash, fx_rate = await self._client.convert_currency_value(
+                    float(cash_ref),
+                    from_currency=buying_power_currency_clean,
+                    to_currency=sizing_currency,
+                )
+                if converted_cash is None:
+                    return _fail(
+                        "Order: currency conversion unavailable for BuyingPower "
+                        f"{buying_power_currency_clean}->{sizing_currency}",
+                        retry_reason="currency_conversion_unavailable",
+                    )
+                cash_ref = float(converted_cash)
+                buying_power_fx_rate = float(fx_rate) if fx_rate is not None else None
+                buying_power_currency = sizing_currency
+            cash_ref = float(cash_ref) if cash_ref is not None else None
 
             riskoff = bool(snap.risk.riskoff) if snap.risk is not None else False
             riskpanic = bool(snap.risk.riskpanic) if snap.risk is not None else False
@@ -838,8 +917,17 @@ class BotOrderBuilderMixin:
                 "target_price": float(instance.spot_profit_target_price)
                 if instance.spot_profit_target_price is not None
                 else None,
+                "sizing_currency": sizing_currency,
                 "net_liq": float(equity_ref) if equity_ref is not None else None,
+                "net_liq_currency": str(net_liq_currency) if net_liq_currency is not None else None,
+                "net_liq_fx_rate": float(net_liq_fx_rate) if net_liq_fx_rate is not None else None,
                 "buying_power": float(cash_ref) if cash_ref is not None else None,
+                "buying_power_currency": str(buying_power_currency)
+                if buying_power_currency is not None
+                else None,
+                "buying_power_fx_rate": float(buying_power_fx_rate)
+                if buying_power_fx_rate is not None
+                else None,
                 "exec_policy": "LADDER",
                 "exec_mode": "OPTIMISTIC",
                 "chase_orders": bool(strat.get("chase_orders", True)),

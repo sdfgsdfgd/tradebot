@@ -987,6 +987,76 @@ def test_order_error_cache_pop_and_expiry() -> None:
     assert client.pop_order_error(1003) is None
 
 
+def test_account_value_currency_override_selects_requested_currency() -> None:
+    client = _new_client()
+
+    class _FakeIB:
+        @staticmethod
+        def accountValues(_account: str):
+            return [
+                SimpleNamespace(tag="BuyingPower", currency="BASE", value="7685.82"),
+                SimpleNamespace(tag="BuyingPower", currency="USD", value="5470.74"),
+            ]
+
+    client._ib = _FakeIB()  # type: ignore[assignment]
+
+    value_default, currency_default, _ = client.account_value("BuyingPower")
+    assert value_default == 7685.82
+    assert currency_default == "BASE"
+
+    value_usd, currency_usd, _ = client.account_value("BuyingPower", currency="usd")
+    assert value_usd == 5470.74
+    assert currency_usd == "USD"
+
+
+def test_convert_currency_value_uses_inverse_rate_when_direct_missing() -> None:
+    client = _new_client()
+
+    async def _fake_fx_rate(from_currency: str, to_currency: str, *, max_age_sec: float = 15.0):
+        assert max_age_sec > 0
+        if (str(from_currency).upper(), str(to_currency).upper()) == ("USD", "AUD"):
+            return 1.4
+        return None
+
+    client.fx_rate = _fake_fx_rate  # type: ignore[method-assign]
+
+    converted, rate = asyncio.run(
+        client.convert_currency_value(7686.0, from_currency="AUD", to_currency="USD")
+    )
+    assert converted is not None
+    assert rate is not None
+    assert abs(float(rate) - (1.0 / 1.4)) < 1e-9
+    assert abs(float(converted) - (7686.0 / 1.4)) < 1e-6
+
+
+def test_convert_currency_value_prefers_account_exchange_rate() -> None:
+    client = _new_client()
+
+    def _fake_account_value(tag: str, *, currency: str | None = None):
+        if str(tag) != "ExchangeRate":
+            return None, None, None
+        code = str(currency or "").strip().upper()
+        if code == "AUD":
+            return 1.0, "AUD", None
+        if code == "USD":
+            return 1.4, "USD", None
+        return None, code or None, None
+
+    async def _fx_should_not_be_used(*args, **kwargs):
+        raise AssertionError("fx_rate fallback should not be used when account ExchangeRate is available")
+
+    client.account_value = _fake_account_value  # type: ignore[method-assign]
+    client.fx_rate = _fx_should_not_be_used  # type: ignore[method-assign]
+
+    converted, rate = asyncio.run(
+        client.convert_currency_value(7686.0, from_currency="AUD", to_currency="USD")
+    )
+    assert converted is not None
+    assert rate is not None
+    assert abs(float(rate) - (1.0 / 1.4)) < 1e-9
+    assert abs(float(converted) - (7686.0 / 1.4)) < 1e-6
+
+
 def test_place_limit_order_overnight_uses_day_tif(monkeypatch) -> None:
     class _FakeIB:
         def __init__(self) -> None:

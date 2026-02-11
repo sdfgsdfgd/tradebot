@@ -14,6 +14,7 @@ from ib_insync import (
     AccountValue,
     ContFuture,
     Contract,
+    Forex,
     Future,
     IB,
     LimitOrder,
@@ -165,6 +166,7 @@ class IBKRClient:
         self._account_value_cache: dict[tuple[str, str], tuple[float, datetime]] = {}
         self._session_close_cache: dict[int, tuple[float | None, float | None, float]] = {}
         self._order_error_cache: dict[int, tuple[float, int, str]] = {}
+        self._fx_rate_cache: dict[tuple[str, str], tuple[float, float]] = {}
         self._farm_connectivity_lost = False
         self._reconnect_requested = False
         self._resubscribe_main_needed = False
@@ -272,6 +274,7 @@ class IBKRClient:
         self._pnl_account = None
         self._account_value_cache = {}
         self._session_close_cache = {}
+        self._fx_rate_cache = {}
         self._resubscribe_main_needed = False
         self._resubscribe_proxy_needed = False
 
@@ -1005,23 +1008,153 @@ class IBKRClient:
             delayed_task.cancel()
 
     def account_value(
-        self, tag: str
+        self,
+        tag: str,
+        *,
+        currency: str | None = None,
     ) -> tuple[float | None, str | None, datetime | None]:
+        desired_currency = str(currency or "").strip().upper() or None
         account = self._config.account or ""
-        cached = _pick_cached_value(self._account_value_cache, tag)
+        if desired_currency:
+            cached_exact = self._account_value_cache.get((tag, desired_currency))
+            if cached_exact:
+                value, updated_at = cached_exact
+                return value, desired_currency, updated_at
+            cached = None
+        else:
+            cached = _pick_cached_value(self._account_value_cache, tag)
         if cached:
             value, currency, updated_at = cached
             return value, currency, updated_at
         values = [v for v in self._ib.accountValues(account) if v.tag == tag]
         if not values:
             return None, None, None
-        chosen = _pick_account_value(values)
+        if desired_currency:
+            chosen = next(
+                (
+                    value
+                    for value in values
+                    if str(getattr(value, "currency", "") or "").strip().upper() == desired_currency
+                ),
+                None,
+            )
+        else:
+            chosen = _pick_account_value(values)
         if not chosen:
             return None, None, None
         try:
             return float(chosen.value), chosen.currency, None
         except (TypeError, ValueError):
             return None, chosen.currency, None
+
+    def account_exchange_rate(self, currency: str) -> float | None:
+        target = str(currency or "").strip().upper()
+        if not target:
+            return None
+        rate, _currency, _updated = self.account_value("ExchangeRate", currency=target)
+        try:
+            parsed = float(rate) if rate is not None else None
+        except (TypeError, ValueError):
+            parsed = None
+        if parsed is None or parsed <= 0:
+            return None
+        return float(parsed)
+
+    async def fx_rate(
+        self,
+        from_currency: str,
+        to_currency: str,
+        *,
+        max_age_sec: float = 15.0,
+    ) -> float | None:
+        src = str(from_currency or "").strip().upper()
+        dst = str(to_currency or "").strip().upper()
+        if not src or not dst:
+            return None
+        if src == dst:
+            return 1.0
+
+        key = (src, dst)
+        now = time.monotonic()
+        cached = self._fx_rate_cache.get(key)
+        if cached and (now - float(cached[1])) <= float(max_age_sec):
+            return float(cached[0])
+
+        await self.connect()
+        contract = Forex(f"{src}{dst}")
+        try:
+            qualified = await self._ib.qualifyContractsAsync(contract)
+        except Exception:
+            qualified = []
+        if qualified:
+            contract = qualified[0]
+
+        ticker = await self.ensure_ticker(contract, owner="fx")
+
+        def _as_pos_float(value: object) -> float | None:
+            try:
+                parsed = float(value) if value is not None else None
+            except (TypeError, ValueError):
+                parsed = None
+            if parsed is None or parsed <= 0:
+                return None
+            return parsed
+
+        bid = _as_pos_float(getattr(ticker, "bid", None))
+        ask = _as_pos_float(getattr(ticker, "ask", None))
+        last = _as_pos_float(getattr(ticker, "last", None))
+        close = _as_pos_float(getattr(ticker, "close", None))
+        market_price = None
+        market_price_fn = getattr(ticker, "marketPrice", None)
+        if callable(market_price_fn):
+            try:
+                market_price = _as_pos_float(market_price_fn())
+            except Exception:
+                market_price = None
+
+        rate = ((bid + ask) / 2.0) if bid is not None and ask is not None else (last or market_price or close)
+        if rate is not None and rate > 0:
+            self._fx_rate_cache[key] = (float(rate), now)
+
+        con_id = int(getattr(contract, "conId", 0) or 0)
+        if con_id:
+            self.release_ticker(con_id, owner="fx")
+        return float(rate) if rate is not None and rate > 0 else None
+
+    async def convert_currency_value(
+        self,
+        value: float,
+        *,
+        from_currency: str,
+        to_currency: str,
+    ) -> tuple[float | None, float | None]:
+        src = str(from_currency or "").strip().upper()
+        dst = str(to_currency or "").strip().upper()
+        if not src or not dst:
+            return None, None
+        try:
+            amount = float(value)
+        except (TypeError, ValueError):
+            return None, None
+        if src == dst:
+            return amount, 1.0
+
+        from_rate = self.account_exchange_rate(src)
+        to_rate = self.account_exchange_rate(dst)
+        if from_rate is not None and to_rate is not None and from_rate > 0 and to_rate > 0:
+            rate = float(from_rate) / float(to_rate)
+            return amount * float(rate), float(rate)
+
+        direct = await self.fx_rate(src, dst)
+        if direct is not None and direct > 0:
+            return amount * float(direct), float(direct)
+
+        inverse = await self.fx_rate(dst, src)
+        if inverse is not None and inverse > 0:
+            rate = 1.0 / float(inverse)
+            return amount * float(rate), float(rate)
+
+        return None, None
 
     async def hard_refresh(self) -> None:
         async with self._lock:
@@ -1262,6 +1395,7 @@ class IBKRClient:
         self._pnl = None
         self._pnl_account = None
         self._account_value_cache = {}
+        self._fx_rate_cache = {}
         self._index_tickers = {}
         self._index_task = None
         self._reconnect_requested = True

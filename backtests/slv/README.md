@@ -24,7 +24,7 @@ This is the current SLV dethroner under a **live-parity-first contract**:
 - Verified via single-process (`--jobs 1`) multiwindow sweeps with fixed windows
 
 **v31.2 kingmaker #01** (from `backtests/slv/slv_v31_2_singlepos_parity_eval_20260212_top1.json`)
-- `max_open_trades=1`, `spot_max_notional_pct=0.8`, `spot_risk_pct=0.016`, `spot_stop_loss_pct=0.016`
+- `max_open_trades=1`, `spot_max_notional_pct=0.7`, `spot_risk_pct=0.016`, `spot_stop_loss_pct=0.016`
 - Worst-window `roi/dd`: **4.546495578** (worst window is **1y**)
 - 10y: `roi/dd=6.541506284`, ROI ≈ **384.54%**, DD% ≈ **58.78%**, trades ≈ **798**
 - 2y:  `roi/dd=6.093215523`, ROI ≈ **183.52%**, DD% ≈ **30.12%**, trades ≈ **162**
@@ -37,7 +37,7 @@ Single-run delta vs prior v31.1 stacked champ (`max_open_trades=3`, same windows
 
 Defining delta vs v31.1:
 - Structural parity change: `max_open_trades: 3 -> 1` (single-position only)
-- Single-position sizing retune: `spot_max_notional_pct=0.8`, `spot_risk_pct=0.016`, `spot_stop_loss_pct=0.016`
+- Single-position sizing retune: `spot_max_notional_pct=0.7`, `spot_risk_pct=0.016`, `spot_stop_loss_pct=0.016`
 - Same lane core: `signal_bar_size="10 mins"`, `spot_exec_bar_size="5 mins"`, `signal_use_rth=false`, `ema_preset=5/13`, `supertrend @ 1 day`, `shock_on/off=1.35/1.25`
 
 ### Previous (v31.1) — FULL24 10m shock-hysteresis wall dethrone (stacked backtest)
@@ -1446,7 +1446,7 @@ Goal:
 What changed:
 - Forced single-position behavior in the promoted preset: `max_open_trades=1`
 - Retuned single-position sizing/exits:
-  - `spot_max_notional_pct=0.8`
+  - `spot_max_notional_pct=0.7`
   - `spot_risk_pct=0.016`
   - `spot_stop_loss_pct=0.016`
 - Kept the v31.1 shock wall core unchanged: `shock_on/off=1.35/1.25`
