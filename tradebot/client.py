@@ -159,6 +159,7 @@ class IBKRClient:
         ] = {}
         self._front_future_cache: dict[tuple[str, str], tuple[Contract, float]] = {}
         self._update_callback: Callable[[], None] | None = None
+        self._stream_listeners: set[Callable[[], None]] = set()
         self._pnl: PnL | None = None
         self._pnl_account: str | None = None
         self._account_value_cache: dict[tuple[str, str], tuple[float, datetime]] = {}
@@ -318,6 +319,12 @@ class IBKRClient:
 
     def set_update_callback(self, callback: Callable[[], None]) -> None:
         self._update_callback = callback
+
+    def add_stream_listener(self, callback: Callable[[], None]) -> None:
+        self._stream_listeners.add(callback)
+
+    def remove_stream_listener(self, callback: Callable[[], None]) -> None:
+        self._stream_listeners.discard(callback)
 
     def pnl(self) -> PnL | None:
         return self._pnl
@@ -1487,6 +1494,13 @@ class IBKRClient:
     def _on_stream_update(self, *_, **__) -> None:
         if self._update_callback:
             self._update_callback()
+        if not self._stream_listeners:
+            return
+        for callback in tuple(self._stream_listeners):
+            try:
+                callback()
+            except Exception:
+                continue
 
     def _on_account_value(self, value: AccountValue) -> None:
         if self._config.account and value.account != self._config.account:

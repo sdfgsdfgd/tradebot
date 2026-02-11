@@ -69,10 +69,13 @@ class PositionDetailScreen(Screen):
     _BAR_FILL = "█"
     _BAR_EMPTY = "░"
     _POSITION_PULSE_SEC = 1.6
+    _TREND_WINDOW_SEC = 60.0
+    _TREND_RETENTION_SEC = 180.0
+    _TREND_BRAILLE_X = 2
+    _TREND_BRAILLE_Y = 4
     _AURORA_TAPE_BIAS = 0.15
     _VOL_MAGENTA_STYLES = ("#4e1e57", "#6f2380", "#922aaa", "#b534d8", "#ff3dee")
     _TREND_ROWS = 5
-    _TREND_LINE_STYLE_BY_PRESET = {"calm": "square", "normal": "rounded", "feral": "heavy"}
     _AURORA_PRESET_ORDER = ("calm", "normal", "feral")
     _AURORA_PRESETS = {
         "calm": {"buy_soft": 0.28, "buy_strong": 0.56, "sell_soft": -0.28, "sell_strong": -0.56, "burst_gain": 0.80},
@@ -103,6 +106,7 @@ class PositionDetailScreen(Screen):
         self._refresh_task = None
         self._chase_tasks: set[asyncio.Task] = set()
         self._mid_samples: deque[float] = deque(maxlen=240)
+        self._mid_tape: deque[tuple[float, float]] = deque(maxlen=4096)
         self._spread_samples: deque[float] = deque(maxlen=96)
         self._size_samples: deque[float] = deque(maxlen=96)
         self._pnl_samples: deque[float] = deque(maxlen=96)
@@ -130,11 +134,13 @@ class PositionDetailScreen(Screen):
         self._detail_right = self.query_one("#detail-right", Static)
         self._detail_legend = self.query_one("#detail-legend", Static)
         self._ticker = await self._client.ensure_ticker(self._item.contract, owner="details")
+        self._client.add_stream_listener(self._capture_tick_mid)
         await self._load_underlying()
         self._refresh_task = self.set_interval(self._refresh_sec, self._render_details)
         self._render_details()
 
     async def on_unmount(self) -> None:
+        self._client.remove_stream_listener(self._capture_tick_mid)
         if self._refresh_task:
             self._refresh_task.stop()
         con_id = int(self._item.contract.conId or 0)
@@ -360,6 +366,37 @@ class PositionDetailScreen(Screen):
         peak = max(samples)
         return max(peak - current, 0.0)
 
+    def _record_mid_sample(self, mid: float) -> None:
+        now = monotonic()
+        mid_value = float(mid)
+        if self._mid_tape:
+            _last_ts, last_mid = self._mid_tape[-1]
+            tick = _tick_size(self._item.contract, self._ticker, mid_value)
+            eps = max(float(tick) * 0.01, 1e-9)
+            if abs(mid_value - float(last_mid)) <= eps:
+                self._mid_tape[-1] = (now, float(last_mid))
+                return
+        self._mid_samples.append(mid_value)
+        self._mid_tape.append((now, mid_value))
+        cutoff = now - max(float(self._TREND_RETENTION_SEC), float(self._TREND_WINDOW_SEC))
+        while self._mid_tape and self._mid_tape[0][0] < cutoff:
+            self._mid_tape.popleft()
+
+    def _capture_tick_mid(self) -> None:
+        ticker = self._ticker
+        if ticker is None:
+            return
+        bid = _safe_num(getattr(ticker, "bid", None))
+        ask = _safe_num(getattr(ticker, "ask", None))
+        mid = _midpoint(bid, ask)
+        if mid is None:
+            mid = _ticker_price(ticker)
+        if mid is None:
+            mid = _mark_price(self._item)
+        if mid is None:
+            return
+        self._record_mid_sample(float(mid))
+
     def _record_market_samples(
         self,
         *,
@@ -372,7 +409,7 @@ class PositionDetailScreen(Screen):
         vol_burst: float | None,
     ) -> None:
         if mid is not None:
-            self._mid_samples.append(float(mid))
+            self._record_mid_sample(float(mid))
         if spread is not None and spread >= 0:
             self._spread_samples.append(float(spread))
         if size is not None and size >= 0:
@@ -468,150 +505,99 @@ class PositionDetailScreen(Screen):
             bits |= right_order[idx]
         return chr(0x2800 + bits) if bits else " "
 
-    def _trend_continuity_rows(self, values: deque[float], width: int) -> tuple[list[str], int]:
+    def _trend_continuity_rows(self, width: int) -> tuple[list[str], int]:
         width = max(width, 1)
         cols = width
         rows = max(3, int(self._TREND_ROWS))
-        raw = list(values)[-cols:]
+        cutoff = monotonic() - float(self._TREND_WINDOW_SEC)
+        raw = [value for ts, value in self._mid_tape if ts >= cutoff]
+        if len(raw) < 2:
+            approx = max(2, int(round(self._TREND_WINDOW_SEC / max(self._refresh_sec, 0.1))))
+            raw = list(self._mid_samples)[-approx:]
         if not raw:
             blank = " " * width
             return ([blank for _ in range(rows)], rows // 2)
-        if len(raw) < width:
-            raw = ([raw[0]] * (width - len(raw))) + raw
+        series = self._resample([float(value) for value in raw], width)
+        self._trend_bins = list(series)
+        lo = min(series)
+        hi = max(series)
+        span = hi - lo
+        tick = _tick_size(self._item.contract, self._ticker, series[-1])
+        min_span = max(float(tick) * 2.0, 1e-9)
+        if span < min_span:
+            center = (hi + lo) * 0.5
+            lo = center - (min_span * 0.5)
+            hi = center + (min_span * 0.5)
+            span = hi - lo
+        pad = span * 0.03
+        lo -= pad
+        hi += pad
+        span = max(hi - lo, min_span)
 
-        alpha = 0.22
-        smoothed: list[float] = [float(raw[0])]
-        for value in raw[1:]:
-            prev = smoothed[-1]
-            smoothed.append(prev + alpha * (float(value) - prev))
+        hi_rows = rows * int(self._TREND_BRAILLE_Y)
+        hi_cols = cols * int(self._TREND_BRAILLE_X)
+        raster: list[list[bool]] = [[False] * hi_cols for _ in range(hi_rows)]
+        y_points: list[int] = []
+        for value in series:
+            ratio = (float(value) - lo) / span
+            ratio = max(0.0, min(ratio, 1.0))
+            y_points.append(int(round((1.0 - ratio) * float(hi_rows - 1))))
 
-        latest = smoothed[-1]
-        deltas = [value - latest for value in smoothed]
-        mags = sorted(abs(delta) for delta in deltas if abs(delta) > 1e-12)
-        if not mags:
-            y_points = [((rows - 1) * 0.5)] * cols
-        else:
-            last = len(mags) - 1
-            q80 = mags[int(round(last * 0.80))]
-            q92 = mags[int(round(last * 0.92))]
-            peak = mags[-1]
-            scale = max(q80, q92 * 0.75, peak * 0.30, 1e-12)
-            net = smoothed[-1] - smoothed[0]
-            net_norm = max(-1.0, min(net / (scale * max(cols * 0.16, 1.0)), 1.0))
-            if abs(net_norm) > 1e-12:
-                net_norm = pow(abs(net_norm), 0.82) * (1.0 if net_norm >= 0 else -1.0)
-            anchor = ((rows - 1) * 0.5) - (net_norm * 1.25)
-            gain = 1.55 + (abs(net_norm) * 0.75)
-            y_points = []
-            for idx, delta in enumerate(deltas):
-                progress = float(idx) / float(max(cols - 1, 1))
-                history_push = (1.0 - progress) * net_norm * 1.20
-                yy = anchor - ((delta / scale) * gain) + history_push
-                y_points.append(min(rows - 1.0, max(0.0, yy)))
-        self._trend_bins = self._resample(smoothed, width)
-
-        y_int = [max(0, min(rows - 1, int(round(value)))) for value in y_points]
-        links = [[0] * cols for _ in range(rows)]
-
-        UP, DOWN, LEFT, RIGHT = 1, 2, 4, 8
-
-        def add_link(r1: int, c1: int, r2: int, c2: int) -> None:
-            if not (0 <= r1 < rows and 0 <= c1 < cols and 0 <= r2 < rows and 0 <= c2 < cols):
-                return
-            if r1 == r2 and abs(c1 - c2) == 1:
-                if c2 > c1:
-                    links[r1][c1] |= RIGHT
-                    links[r2][c2] |= LEFT
-                else:
-                    links[r1][c1] |= LEFT
-                    links[r2][c2] |= RIGHT
-                return
-            if c1 == c2 and abs(r1 - r2) == 1:
-                if r2 > r1:
-                    links[r1][c1] |= DOWN
-                    links[r2][c2] |= UP
-                else:
-                    links[r1][c1] |= UP
-                    links[r2][c2] |= DOWN
+        def draw_segment(x0: int, y0: int, x1: int, y1: int) -> None:
+            dx = abs(x1 - x0)
+            sx = 1 if x0 < x1 else -1
+            dy = -abs(y1 - y0)
+            sy = 1 if y0 < y1 else -1
+            err = dx + dy
+            x = x0
+            y = y0
+            while True:
+                if 0 <= y < hi_rows and 0 <= x < hi_cols:
+                    raster[y][x] = True
+                if x == x1 and y == y1:
+                    break
+                e2 = err * 2
+                if e2 >= dy:
+                    err += dy
+                    x += sx
+                if e2 <= dx:
+                    err += dx
+                    y += sy
 
         for idx in range(1, cols):
-            prev_row = y_int[idx - 1]
-            curr_row = y_int[idx]
-            add_link(prev_row, idx - 1, prev_row, idx)
-            if curr_row != prev_row:
-                step = 1 if curr_row > prev_row else -1
-                row = prev_row
-                while row != curr_row:
-                    add_link(row, idx, row + step, idx)
-                    row += step
+            x0 = (idx - 1) * int(self._TREND_BRAILLE_X)
+            x1 = idx * int(self._TREND_BRAILLE_X)
+            draw_segment(x0, y_points[idx - 1], x1, y_points[idx])
+        raster[y_points[-1]][hi_cols - 1] = True
 
-        out_rows: list[list[str]] = [[" "] * width for _ in range(rows)]
-        square_map = {
-            LEFT | RIGHT: "─",
-            UP | DOWN: "│",
-            RIGHT | DOWN: "┌",
-            LEFT | DOWN: "┐",
-            RIGHT | UP: "└",
-            LEFT | UP: "┘",
-            UP | DOWN | RIGHT: "├",
-            UP | DOWN | LEFT: "┤",
-            LEFT | RIGHT | DOWN: "┬",
-            LEFT | RIGHT | UP: "┴",
-            UP | DOWN | LEFT | RIGHT: "┼",
-            LEFT: "─",
-            RIGHT: "─",
-            UP: "│",
-            DOWN: "│",
-            0: " ",
-        }
-        rounded_map = {
-            LEFT | RIGHT: "─",
-            UP | DOWN: "│",
-            RIGHT | DOWN: "╭",
-            LEFT | DOWN: "╮",
-            RIGHT | UP: "╰",
-            LEFT | UP: "╯",
-            UP | DOWN | RIGHT: "├",
-            UP | DOWN | LEFT: "┤",
-            LEFT | RIGHT | DOWN: "┬",
-            LEFT | RIGHT | UP: "┴",
-            UP | DOWN | LEFT | RIGHT: "┼",
-            LEFT: "─",
-            RIGHT: "─",
-            UP: "│",
-            DOWN: "│",
-            0: " ",
-        }
-        heavy_map = {
-            LEFT | RIGHT: "━",
-            UP | DOWN: "┃",
-            RIGHT | DOWN: "┏",
-            LEFT | DOWN: "┓",
-            RIGHT | UP: "┗",
-            LEFT | UP: "┛",
-            UP | DOWN | RIGHT: "┣",
-            UP | DOWN | LEFT: "┫",
-            LEFT | RIGHT | DOWN: "┳",
-            LEFT | RIGHT | UP: "┻",
-            UP | DOWN | LEFT | RIGHT: "╋",
-            LEFT: "━",
-            RIGHT: "━",
-            UP: "┃",
-            DOWN: "┃",
-            0: " ",
-        }
-        line_style = self._TREND_LINE_STYLE_BY_PRESET.get(self._aurora_preset, "rounded")
-        glyph_map = rounded_map
-        if line_style == "square":
-            glyph_map = square_map
-        elif line_style == "heavy":
-            glyph_map = heavy_map
+        out_rows: list[str] = []
         for row_idx in range(rows):
+            top = row_idx * int(self._TREND_BRAILLE_Y)
+            chars: list[str] = []
             for col_idx in range(cols):
-                out_rows[row_idx][col_idx] = glyph_map.get(links[row_idx][col_idx], "·")
+                left = col_idx * int(self._TREND_BRAILLE_X)
+                bits = 0
+                if raster[top + 0][left + 0]:
+                    bits |= 0x01
+                if raster[top + 1][left + 0]:
+                    bits |= 0x02
+                if raster[top + 2][left + 0]:
+                    bits |= 0x04
+                if raster[top + 3][left + 0]:
+                    bits |= 0x40
+                if raster[top + 0][left + 1]:
+                    bits |= 0x08
+                if raster[top + 1][left + 1]:
+                    bits |= 0x10
+                if raster[top + 2][left + 1]:
+                    bits |= 0x20
+                if raster[top + 3][left + 1]:
+                    bits |= 0x80
+                chars.append(chr(0x2800 + bits) if bits else " ")
+            out_rows.append("".join(chars))
 
-        now_row = max(0, min(rows - 1, y_int[-1]))
-        return (["".join(row).rjust(width) for row in out_rows], now_row)
+        now_row = max(0, min(rows - 1, int(y_points[-1] // int(self._TREND_BRAILLE_Y))))
+        return (out_rows, now_row)
 
     @staticmethod
     def _trend_with_price_tag(row: Text, price: float | None, *, color: str) -> Text:
@@ -1039,9 +1025,7 @@ class PositionDetailScreen(Screen):
         aurora_label_row = Text("Aurora", style="#8aa0b6")
         aurora_row = self._mark_now(self._aurora_strip(spark_width))
         trend_label_row = Text("1m Trend", style="cyan")
-        trend_row_values, trend_now_row = self._trend_continuity_rows(
-            self._mid_samples, spark_width
-        )
+        trend_row_values, trend_now_row = self._trend_continuity_rows(spark_width)
         comet_color = self._aurora_now_style()
         trend_rows = [Text(row, style="#63d9ff") for row in trend_row_values]
         trend_price = mid or price or mark
