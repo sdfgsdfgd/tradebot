@@ -41,7 +41,6 @@ def _portfolio_sort_key(item: PortfolioItem) -> float:
 def _portfolio_row(
     item: PortfolioItem,
     contract_change: Text,
-    underlying_change: Text,
     *,
     unreal_text: Text | None = None,
     unreal_pct_text: Text | None = None,
@@ -78,7 +77,6 @@ def _portfolio_row(
         contract_change,
         unreal_combined,
         realized,
-        underlying_change,
     ]
 
 

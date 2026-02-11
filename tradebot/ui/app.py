@@ -30,7 +30,6 @@ from .common import (
     _infer_multiplier,
     _market_session_label,
     _pct_change,
-    _pct_dual_text,
     _pnl_pct_text,
     _pnl_pct_value,
     _pnl_text,
@@ -52,7 +51,7 @@ from .store import PortfolioSnapshot
 class PositionsApp(App):
     _PX_24_72_COL_WIDTH = 32
     _QTY_COL_WIDTH = 7
-    _UNREAL_COL_WIDTH = 22
+    _UNREAL_COL_WIDTH = 30
     _REALIZED_COL_WIDTH = 12
 
     _SECTION_HEADER_STYLE_BY_TYPE = {
@@ -305,7 +304,6 @@ class PositionsApp(App):
             "Px 24-72",
             "Unreal",
             "Realized",
-            "U 24-72",
         ]
         self._column_count = len(self._columns)
         for label in self._columns:
@@ -564,12 +562,10 @@ class PositionsApp(App):
         for item in rows:
             row_key = f"{sec_type}:{item.contract.conId}"
             change_text = self._contract_change_text(item)
-            underlying_change = self._underlying_change_text(item)
             unreal_text, unreal_pct_text = self._unreal_texts(item)
             row_values = _portfolio_row(
                 item,
                 change_text,
-                underlying_change,
                 unreal_text=unreal_text,
                 unreal_pct_text=unreal_pct_text,
             )
@@ -624,7 +620,6 @@ class PositionsApp(App):
             blank,
             unreal_text,
             realized_text,
-            blank,
             key="total",
         )
         self._row_keys.append("total")
@@ -638,14 +633,13 @@ class PositionsApp(App):
         style = "bold white on #1f1f1f"
         label = Text("DAILY P&L", style=style)
         blank = Text("")
-        daily_text = _pnl_text(float(daily))
+        daily_text = self._center_cell(_pnl_text(float(daily)), self._UNREAL_COL_WIDTH)
         self._table.add_row(
             label,
             blank,
             blank,
             blank,
             daily_text,
-            blank,
             blank,
             key="daily",
         )
@@ -663,26 +657,23 @@ class PositionsApp(App):
         amount = _fmt_money(value)
         if currency:
             amount = f"{amount} {currency}"
-        amount_text = Text(amount)
-        ts_text = Text("")
+        unreal_cell = Text(amount)
         if updated_at:
-            local_ts = updated_at.astimezone().strftime("%H:%M:%S")
-            ts_text = Text(f"@ {local_ts}", style="dim")
-        est_text = Text("")
+            local_ts = updated_at.astimezone().strftime("%H:%M")
+            unreal_cell.append(" ", style="dim")
+            unreal_cell.append(f"@{local_ts}", style="dim")
         est_value = _estimate_net_liq(value, pnl, self._net_liq_daily_anchor)
         if est_value is not None:
-            est_amount = _fmt_money(est_value)
-            if currency:
-                est_amount = f"{est_amount} {currency}"
-            est_text = Text(f"~{est_amount}", style="yellow")
+            unreal_cell.append(" ", style="dim")
+            unreal_cell.append(f"~{_fmt_money(est_value)}", style="yellow")
+        amount_text = self._center_cell(unreal_cell, self._UNREAL_COL_WIDTH)
         self._table.add_row(
             label,
             blank,
             blank,
             blank,
             amount_text,
-            ts_text,
-            est_text,
+            blank,
             key="netliq",
         )
         self._row_keys.append("netliq")
@@ -701,26 +692,23 @@ class PositionsApp(App):
         amount = _fmt_money(value)
         if currency:
             amount = f"{amount} {currency}"
-        amount_text = Text(amount)
-        ts_text = Text("")
+        unreal_cell = Text(amount)
         if updated_at:
-            local_ts = updated_at.astimezone().strftime("%H:%M:%S")
-            ts_text = Text(f"@ {local_ts}", style="dim")
-        est_text = Text("")
+            local_ts = updated_at.astimezone().strftime("%H:%M")
+            unreal_cell.append(" ", style="dim")
+            unreal_cell.append(f"@{local_ts}", style="dim")
         est_value = _estimate_buying_power(value, pnl, self._buying_power_daily_anchor)
         if est_value is not None:
-            est_amount = _fmt_money(est_value)
-            if currency:
-                est_amount = f"{est_amount} {currency}"
-            est_text = Text(f"~{est_amount}", style="yellow")
+            unreal_cell.append(" ", style="dim")
+            unreal_cell.append(f"~{_fmt_money(est_value)}", style="yellow")
+        amount_text = self._center_cell(unreal_cell, self._UNREAL_COL_WIDTH)
         self._table.add_row(
             label,
             blank,
             blank,
             blank,
             amount_text,
-            ts_text,
-            est_text,
+            blank,
             key="buying_power",
         )
         self._row_keys.append("buying_power")
@@ -807,21 +795,9 @@ class PositionsApp(App):
     def _contract_change_text(self, item: PortfolioItem) -> Text:
         contract = item.contract
         con_id = int(getattr(contract, "conId", 0) or 0)
-        return self._change_text_for_con_id(con_id, include_price=True)
+        return self._change_text_for_con_id(con_id)
 
-    def _underlying_change_text(self, item: PortfolioItem) -> Text:
-        contract = item.contract
-        if contract.secType not in ("OPT", "FOP"):
-            return Text("")
-        option_con_id = int(getattr(contract, "conId", 0) or 0)
-        if not option_con_id:
-            return Text("")
-        under_con_id = self._option_underlying_con_id.get(option_con_id)
-        if not under_con_id:
-            return Text("")
-        return self._change_text_for_con_id(under_con_id, include_price=False)
-
-    def _change_text_for_con_id(self, con_id: int, *, include_price: bool) -> Text:
+    def _change_text_for_con_id(self, con_id: int) -> Text:
         if not con_id:
             return Text("")
         ticker = self._client.ticker_for_con_id(con_id)
@@ -833,30 +809,28 @@ class PositionsApp(App):
         close_3ago = cached[1] if cached else None
         pct24 = _pct_change(price, prev_close)
         pct72 = _pct_change(price, close_3ago)
-        if include_price:
-            text = _price_pct_dual_text(
-                price,
-                pct24,
-                pct72,
-                separator="·",
-            )
-            glyph = self._price_direction_glyph(pct24, pct72)
-            if glyph.plain:
-                with_glyph = Text()
-                with_glyph.append_text(glyph)
-                if text.plain:
-                    with_glyph.append(" ")
-                with_glyph.append_text(text)
-                text = with_glyph
-            age_sec = self._quote_age_seconds(con_id, ticker, price)
-            ribbon = self._quote_age_ribbon(age_sec)
-            if ribbon.plain:
-                if text.plain:
-                    text.append(" ", style="dim")
-                text.append_text(ribbon)
-            centered = self._center_cell(text, self._PX_24_72_COL_WIDTH)
-            return centered if isinstance(centered, Text) else Text(str(centered))
-        return _pct_dual_text(pct24, pct72)
+        text = _price_pct_dual_text(
+            price,
+            pct24,
+            pct72,
+            separator="·",
+        )
+        glyph = self._price_direction_glyph(pct24, pct72)
+        if glyph.plain:
+            with_glyph = Text()
+            with_glyph.append_text(glyph)
+            if text.plain:
+                with_glyph.append(" ")
+            with_glyph.append_text(text)
+            text = with_glyph
+        age_sec = self._quote_age_seconds(con_id, ticker, price)
+        ribbon = self._quote_age_ribbon(age_sec)
+        if ribbon.plain:
+            if text.plain:
+                text.append(" ", style="dim")
+            text.append_text(ribbon)
+        centered = self._center_cell(text, self._PX_24_72_COL_WIDTH)
+        return centered if isinstance(centered, Text) else Text(str(centered))
 
     @staticmethod
     def _price_direction_glyph(pct24: float | None, pct72: float | None) -> Text:
