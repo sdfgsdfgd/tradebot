@@ -322,6 +322,16 @@ class PositionDetailScreen(Screen):
             return "dim"
         return "green" if value >= 0 else "red"
 
+    @staticmethod
+    def _direction_glyph(value: float | None) -> Text:
+        if value is None:
+            return Text("•", style="dim")
+        if value > 0:
+            return Text("▲", style="bold green")
+        if value < 0:
+            return Text("▼", style="bold red")
+        return Text("•", style="dim")
+
     def _position_beacon_row(self, qty: float, notional: float | None) -> Text:
         now = monotonic()
         if self._pos_prev_qty is None:
@@ -332,39 +342,37 @@ class PositionDetailScreen(Screen):
             self._pos_pulse_until = now + self._POSITION_PULSE_SEC
 
         direction = "FLAT"
-        style = "dim"
+        direction_style = "dim"
         if qty > 0:
             direction = "LONG"
-            style = "bold green"
+            direction_style = "bold green"
         elif qty < 0:
             direction = "SHORT"
-            style = "bold red"
+            direction_style = "bold red"
 
         qty_label = _fmt_qty(float(qty))
         if qty > 0:
             qty_label = f"+{qty_label}"
 
         row = Text("POS ", style="bold")
-        row.append(f"{qty_label} sh", style=style)
+        row.append(f"{qty_label} sh")
         if notional is not None:
             signed = float(notional)
             sign = "+" if signed > 0 else "-" if signed < 0 else ""
-            notional_style = "green" if signed > 0 else "red" if signed < 0 else "dim"
             row.append(" (", style="dim")
-            row.append(f"{sign}${abs(signed):,.0f}", style=notional_style)
+            row.append(f"{sign}${abs(signed):,.0f}")
             row.append(")", style="dim")
         row.append("   ")
-        row.append(direction, style=style)
+        row.append(direction, style=direction_style)
 
         pulse_active = now < float(self._pos_pulse_until)
         if pulse_active and self._pos_delta:
             delta = self._pos_delta
-            delta_style = "green" if delta > 0 else "red"
             delta_label = _fmt_qty(abs(delta))
             sign = "+" if delta > 0 else "-"
             row.append("   Δ ")
-            row.append(f"{sign}{delta_label}", style=f"bold {delta_style}")
-            row.append(" sh", style=delta_style)
+            row.append(f"{sign}{delta_label}", style="bold")
+            row.append(" sh")
         if pulse_active:
             row.stylize("bold on #2f2f2f")
         return row
@@ -1404,13 +1412,34 @@ class PositionDetailScreen(Screen):
         momentum_row = self._mark_now(Text(self._momentum_line(spark_width), style="yellow"))
 
         detail_row = Text(f"Avg {avg_cost}   MktVal {market_value}")
-        pnl_prefix = "Unrealized "
-        tail_row = Text(f"{pnl_prefix}{pnl_label}   Realized {realized}")
-        tail_row.stylize(
-            self._pnl_style(pnl_value),
-            len(pnl_prefix),
-            len(pnl_prefix) + len(pnl_label),
+        ref_price = mid or price or mark
+        pct24 = (
+            ((float(ref_price) - float(close)) / float(close) * 100.0)
+            if ref_price is not None and close is not None and close > 0
+            else None
         )
+        if pct24 is not None and position_qty < 0:
+            pct24 *= -1.0
+        pct24_prefix = self._direction_glyph(pct24)
+        pct24_value = Text(" n/a", style="dim")
+        if pct24 is not None:
+            pct24_value = Text(f" {pct24:.2f}%")
+            if pct24 > 0:
+                pct24_value.stylize("green")
+            elif pct24 < 0:
+                pct24_value.stylize("red")
+        pnl_prefix = "Unrealized "
+        tail_row = Text("")
+        tail_row.append_text(pct24_prefix)
+        tail_row.append_text(pct24_value)
+        tail_row.append("   ")
+        tail_row.append(pnl_prefix)
+        pnl_start = len(tail_row.plain)
+        tail_row.append(pnl_label)
+        pnl_end = len(tail_row.plain)
+        tail_row.append("   Realized ")
+        tail_row.append(realized)
+        tail_row.stylize(self._pnl_style(pnl_value), pnl_start, pnl_end)
 
         lines: list[Text] = [
             self._box_top(f"{contract.symbol} {contract.secType}", inner, style="#2d8fd5"),
