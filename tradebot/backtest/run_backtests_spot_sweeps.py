@@ -173,7 +173,6 @@ def _bundle_base(
     spot_profit_target_pct: float | None = 0.015,
     spot_stop_loss_pct: float | None = 0.03,
     flip_exit_min_hold_bars: int = 4,
-    max_open_trades: int = 2,
     spot_close_eod: bool = False,
 ) -> ConfigBundle:
     backtest = BacktestConfig(
@@ -198,7 +197,8 @@ def _bundle_base(
         right="PUT",
         entry_days=(0, 1, 2, 3, 4),
         max_entries_per_day=0,
-        max_open_trades=int(max_open_trades),
+        # Spot parity with live runtime: one net position only.
+        max_open_trades=1,
         dte=0,
         otm_pct=0.0,
         width_pct=0.0,
@@ -2331,8 +2331,6 @@ def _milestone_entry_for(
                 continue
             if not bool(strategy.get("spot_intrabar_exits")):
                 continue
-            if int(strategy.get("max_open_trades") or 0) == 0:
-                continue
             try:
                 comm = float(strategy.get("spot_commission_per_share") or 0.0)
             except (TypeError, ValueError):
@@ -2511,8 +2509,8 @@ _AXIS_HELP_NOTES: dict[str, str] = {
     "skip_open": "Skip-first-bars-after-open sweep.",
     "shock": "Shock detector/mode/threshold sweep.",
     "risk_overlays": "Risk overlay family sweep (riskoff/riskpanic/riskpop).",
-    "loosen": "Loosenings sweep (stacking + EOD behavior).",
-    "loosen_atr": "Loosenings x ATR joint sweep.",
+    "loosen": "Loosenings sweep (single-position parity + EOD behavior).",
+    "loosen_atr": "Loosenings x ATR joint sweep (single-position parity).",
     "tick": "Raschke-style $TICK width gate sweep.",
     "gate_matrix": "Bounded cross-product matrix of permission gates.",
     "seeded_refine": "Seeded refinement bundle (champ_refine + overlay_family + st37_refine).",
@@ -2666,8 +2664,8 @@ def main() -> None:
     parser.add_argument(
         "--max-open-trades",
         type=int,
-        default=2,
-        help="Maximum simultaneous open positions. Use 0 for unlimited stacking.",
+        default=None,
+        help="Deprecated no-op for spot; kept only for CLI compatibility.",
     )
     parser.add_argument(
         "--close-eod",
@@ -2914,6 +2912,8 @@ def main() -> None:
     parser.add_argument("--shock-velocity-workers", type=int, default=None, help=argparse.SUPPRESS)
     parser.add_argument("--shock-velocity-out", default=None, help=argparse.SUPPRESS)
     args = parser.parse_args()
+    if args.max_open_trades is not None:
+        print("[compat] --max-open-trades is deprecated and ignored for spot backtests.", flush=True)
 
     def _default_jobs() -> int:
         detected = os.cpu_count()
@@ -2945,7 +2945,6 @@ def main() -> None:
     spot_exec_bar_size = str(args.spot_exec_bar_size).strip() if args.spot_exec_bar_size else None
     if spot_exec_bar_size and parse_bar_size(spot_exec_bar_size) is None:
         raise SystemExit(f"Invalid --spot-exec-bar-size: {spot_exec_bar_size!r}")
-    max_open_trades = int(args.max_open_trades)
     close_eod = bool(args.close_eod)
     long_only = bool(args.long_only)
     realism2 = bool(args.realism2)
@@ -4497,7 +4496,6 @@ def main() -> None:
             cache_dir=cache_dir,
             offline=offline,
             filters=filters,
-            max_open_trades=max_open_trades,
             spot_close_eod=close_eod,
         )
         if spot_exec_bar_size:
@@ -5800,7 +5798,7 @@ def main() -> None:
         Stage 1: stacked stop-loss + flip-profit (fast-runner-friendly baseline).
         Stage 2: sweep cadence knobs around the best stage-1 candidates (TOD, cooldown, skip-open, confirm).
         Stage 3: apply a small set of TQQQ v34-inspired stability overlays (shock/permission/regime interactions).
-        Stage 4: expand slower knobs (max_open_trades, spot_close_eod) on a tiny shortlist.
+        Stage 4: expand slower knobs (spot_close_eod) on a tiny shortlist.
         """
         bars_sig = _bars_cached(signal_bar_size)
 
@@ -5858,18 +5856,16 @@ def main() -> None:
                     f"roi={roi:6.2f}% dd%={dd_pct:6.2f}% {note}"
                 )
 
-        # Stage 1: stacked stop-loss + flip-profit baseline (keep it fast-runner-friendly).
+        # Stage 1: stop-loss + flip-profit baseline (keep it fast-runner-friendly).
         #
         # Note: v1 used very tight stops (sub-0.6%), which produced many 1y winners but was negative over 10y for
         # every candidate. v2 widens the stop grid + EMA presets to reduce whipsaw and improve decade stability.
         ema_presets = ["3/7", "4/9", "5/13", "8/21", "9/21", "21/50"]
         stop_only_vals = [0.0060, 0.0080, 0.0100, 0.0120, 0.0150, 0.0200]
         flip_hold_vals = [0, 2, 4]
-        # Keep stages 1-3 on the fast summary runner path (max_open_trades=1, close_eod=False),
-        # then expand the slow knobs on a tiny shortlist at the end.
-        stage_fast_max_open = 1
+        # Keep stages 1-3 on the fast summary runner path (single-position, close_eod=False),
+        # then expand close_eod on a tiny shortlist at the end.
         stage_fast_close_eod = False
-        expand_max_open_vals = [1, 2, 3, 5]
         expand_close_eod_vals = [False, True]
 
         base = _base_bundle(bar_size=signal_bar_size, filters=None)
@@ -5945,7 +5941,6 @@ def main() -> None:
                                     flip_exit_only_if_profit=True,
                                     flip_exit_min_hold_bars=int(hold),
                                     flip_exit_gate_mode="off",
-                                    max_open_trades=int(stage_fast_max_open),
                                     spot_close_eod=bool(stage_fast_close_eod),
                                     spot_short_risk_mult=0.01,
                                     filters=f,
@@ -5956,17 +5951,17 @@ def main() -> None:
                             if not row:
                                 continue
                             note = (
-                                f"stacked stop+flip | EMA={ema_preset} confirm=0 | {regime_note} | {perm_note} | "
+                                f"stop+flip | EMA={ema_preset} confirm=0 | {regime_note} | {perm_note} | "
                                 f"tod=9-16 ET skip=0 cd=0 close_eod={int(stage_fast_close_eod)} | "
-                                f"SL={sl:.4f} hold={hold} max_open={stage_fast_max_open}"
+                                f"SL={sl:.4f} hold={hold}"
                             )
                             row["note"] = note
                             _record_milestone(cfg, row, note)
                             stage1.append((cfg, row, note))
                             rows.append(row)
 
-        _print_leaderboards(rows, title="HF scalper: stage1 (stacked stop+flip)", top_n=int(args.top))
-        _print_top_trades(rows, title="HF scalper: stage1 (stacked stop+flip)", top_n=int(args.top))
+        _print_leaderboards(rows, title="HF scalper: stage1 (stop+flip)", top_n=int(args.top))
+        _print_top_trades(rows, title="HF scalper: stage1 (stop+flip)", top_n=int(args.top))
 
         if not stage1:
             print("HF scalper: stage1 produced 0 results; nothing to refine.", flush=True)
@@ -6188,7 +6183,7 @@ def main() -> None:
         _print_leaderboards(rows3, title="HF scalper: stage3 (v34-inspired overlays)", top_n=int(args.top))
         _print_top_trades(rows3, title="HF scalper: stage3 (v34-inspired overlays)", top_n=int(args.top))
 
-        # Stage 4: expand the slow knobs (max_open_trades / close_eod) on a tiny shortlist.
+        # Stage 4: expand close_eod on a tiny shortlist.
         if not stage3:
             return
         stage3_hi = [t for t in stage3 if int(t[1].get("trades") or 0) >= int(target_trades)] if target_trades else []
@@ -6199,26 +6194,24 @@ def main() -> None:
 
         rows4: list[dict] = []
         for seed_cfg, _, seed_note in shortlisted3:
-            for max_open in expand_max_open_vals:
-                for close_eod in expand_close_eod_vals:
-                    cfg = replace(
-                        seed_cfg,
-                        strategy=replace(
-                            seed_cfg.strategy,
-                            max_open_trades=int(max_open),
-                            spot_close_eod=bool(close_eod),
-                        ),
-                    )
-                    row = _run_cfg(cfg=cfg, bars=bars_sig)
-                    if not row:
-                        continue
-                    note = f"{seed_note} | expand close_eod={int(close_eod)} max_open={max_open}"
-                    row["note"] = note
-                    _record_milestone(cfg, row, note)
-                    rows4.append(row)
+            for close_eod in expand_close_eod_vals:
+                cfg = replace(
+                    seed_cfg,
+                    strategy=replace(
+                        seed_cfg.strategy,
+                        spot_close_eod=bool(close_eod),
+                    ),
+                )
+                row = _run_cfg(cfg=cfg, bars=bars_sig)
+                if not row:
+                    continue
+                note = f"{seed_note} | expand close_eod={int(close_eod)}"
+                row["note"] = note
+                _record_milestone(cfg, row, note)
+                rows4.append(row)
 
-        _print_leaderboards(rows4, title="HF scalper: expansion (close_eod/max_open)", top_n=int(args.top))
-        _print_top_trades(rows4, title="HF scalper: expansion (close_eod/max_open)", top_n=int(args.top))
+        _print_leaderboards(rows4, title="HF scalper: expansion (close_eod)", top_n=int(args.top))
+        _print_top_trades(rows4, title="HF scalper: expansion (close_eod)", top_n=int(args.top))
 
     def _sweep_hold() -> None:
         bars_sig = _bars_cached(signal_bar_size)
@@ -7353,30 +7346,28 @@ def main() -> None:
     def _sweep_loosen() -> None:
         bars_sig = _bars_cached(signal_bar_size)
         rows: list[dict] = []
-        for max_open in (1, 2, 3, 0):
-            for close_eod in (False, True):
-                cfg = _base_bundle(bar_size=signal_bar_size, filters=None)
-                cfg = replace(
-                    cfg,
-                    strategy=replace(
-                        cfg.strategy,
-                        max_open_trades=int(max_open),
-                        spot_close_eod=bool(close_eod),
-                    ),
-                )
-                row = _run_cfg(
-                    cfg=cfg, bars=bars_sig
-                )
-                if not row:
-                    continue
-                note = f"max_open={max_open} close_eod={int(close_eod)}"
-                row["note"] = note
-                _record_milestone(cfg, row, note)
-                rows.append(row)
-        _print_leaderboards(rows, title="Loosenings sweep (stacking + EOD exit)", top_n=int(args.top))
+        for close_eod in (False, True):
+            cfg = _base_bundle(bar_size=signal_bar_size, filters=None)
+            cfg = replace(
+                cfg,
+                strategy=replace(
+                    cfg.strategy,
+                    spot_close_eod=bool(close_eod),
+                ),
+            )
+            row = _run_cfg(
+                cfg=cfg, bars=bars_sig
+            )
+            if not row:
+                continue
+            note = f"close_eod={int(close_eod)}"
+            row["note"] = note
+            _record_milestone(cfg, row, note)
+            rows.append(row)
+        _print_leaderboards(rows, title="Loosenings sweep (single-position + EOD exit)", top_n=int(args.top))
 
     def _sweep_loosen_atr() -> None:
-        """Interaction hunt: stacking (max_open) × ATR exits (includes PTx < 1.0 pocket)."""
+        """Interaction hunt: close_eod × ATR exits under single-position parity."""
         bars_sig = _bars_cached(signal_bar_size)
         base = _base_bundle(bar_size=signal_bar_size, filters=None)
         base_row = _run_cfg(
@@ -7390,43 +7381,37 @@ def main() -> None:
         atr_periods = [10, 14, 21]
         pt_mults = [0.6, 0.65, 0.7, 0.75, 0.8]
         sl_mults = [1.2, 1.4, 1.6, 1.8, 2.0]
-        max_open_vals = [2, 3, 0]
         close_eod_vals = [False, True]
 
         rows: list[dict] = []
-        for max_open in max_open_vals:
-            for close_eod in close_eod_vals:
-                for atr_p in atr_periods:
-                    for pt_m in pt_mults:
-                        for sl_m in sl_mults:
-                            cfg = replace(
-                                base,
-                                strategy=replace(
-                                    base.strategy,
-                                    max_open_trades=int(max_open),
-                                    spot_close_eod=bool(close_eod),
-                                    spot_exit_mode="atr",
-                                    spot_atr_period=int(atr_p),
-                                    spot_pt_atr_mult=float(pt_m),
-                                    spot_sl_atr_mult=float(sl_m),
-                                    spot_profit_target_pct=None,
-                                    spot_stop_loss_pct=None,
-                                ),
-                            )
-                            row = _run_cfg(cfg=cfg)
-                            if not row:
-                                continue
-                            note = (
-                                f"max_open={max_open} close_eod={int(close_eod)} | "
-                                f"ATR({atr_p}) PTx{pt_m:.2f} SLx{sl_m:.2f}"
-                            )
-                            row["note"] = note
-                            _record_milestone(cfg, row, note)
-                            rows.append(row)
+        for close_eod in close_eod_vals:
+            for atr_p in atr_periods:
+                for pt_m in pt_mults:
+                    for sl_m in sl_mults:
+                        cfg = replace(
+                            base,
+                            strategy=replace(
+                                base.strategy,
+                                spot_close_eod=bool(close_eod),
+                                spot_exit_mode="atr",
+                                spot_atr_period=int(atr_p),
+                                spot_pt_atr_mult=float(pt_m),
+                                spot_sl_atr_mult=float(sl_m),
+                                spot_profit_target_pct=None,
+                                spot_stop_loss_pct=None,
+                            ),
+                        )
+                        row = _run_cfg(cfg=cfg)
+                        if not row:
+                            continue
+                        note = f"close_eod={int(close_eod)} | ATR({atr_p}) PTx{pt_m:.2f} SLx{sl_m:.2f}"
+                        row["note"] = note
+                        _record_milestone(cfg, row, note)
+                        rows.append(row)
 
         if base_row:
             rows.append(base_row)
-        _print_leaderboards(rows, title="Loosen × ATR joint sweep (stacking × exits)", top_n=int(args.top))
+        _print_leaderboards(rows, title="Loosen × ATR joint sweep (single-position × exits)", top_n=int(args.top))
 
     def _sweep_tick() -> None:
         """Permission layer: Raschke-style $TICK width gate (daily, RTH only)."""
@@ -7616,7 +7601,7 @@ def main() -> None:
         - direction layer interactions (EMA preset + entry mode)
         - regime sensitivity (Supertrend timeframe + params)
         - exits (pct vs ATR), including the PT<1.0 ATR pocket
-        - loosenings (stacking + EOD close)
+        - loosenings (single-position parity + EOD close)
         - optional regime2 confirm (small curated set)
         - a small set of quality gates (spread/slope/TOD/rv/exit-time/tick)
         """
@@ -7696,12 +7681,10 @@ def main() -> None:
                 )
             )
 
-        # Keep this small; we already have a dedicated loosenings axis. Here we only try
-        # a few representative "stacking vs risk trimming" variants.
-        loosen_variants: list[tuple[int, bool, str]] = [
-            (1, False, "max_open=1 close_eod=0"),
-            (2, False, "max_open=2 close_eod=0"),
-            (1, True, "max_open=1 close_eod=1"),
+        # Keep this small; in spot mode this axis only toggles close_eod.
+        loosen_variants: list[tuple[bool, str]] = [
+            (False, "close_eod=0"),
+            (True, "close_eod=1"),
         ]
 
         hold_vals = (0, 4)
@@ -7747,7 +7730,6 @@ def main() -> None:
             exit_over: dict,
             exit_note: str,
             hold: int,
-            max_open: int,
             close_eod: bool,
             loose_note: str,
             r2_over: dict,
@@ -7765,7 +7747,6 @@ def main() -> None:
                     spot_pt_atr_mult=float(exit_over["spot_pt_atr_mult"]),
                     spot_sl_atr_mult=float(exit_over["spot_sl_atr_mult"]),
                     flip_exit_min_hold_bars=int(hold),
-                    max_open_trades=int(max_open),
                     spot_close_eod=bool(close_eod),
                     regime2_mode=str(r2_over.get("regime2_mode") or "off"),
                     regime2_bar_size=r2_over.get("regime2_bar_size"),
@@ -7782,7 +7763,7 @@ def main() -> None:
             for base_idx, (base_cfg, base_note) in enumerate(shortlist_local):
                 for exit_idx, (exit_over, exit_note) in enumerate(exit_variants):
                     for hold in hold_vals:
-                        for loosen_idx, (max_open, close_eod, loose_note) in enumerate(loosen_variants):
+                        for loosen_idx, (close_eod, loose_note) in enumerate(loosen_variants):
                             for r2_idx, (r2_over, r2_note) in enumerate(regime2_variants):
                                 cfg, note = _mk_stage2_cfg(
                                     base_cfg,
@@ -7790,7 +7771,6 @@ def main() -> None:
                                     exit_over=exit_over,
                                     exit_note=exit_note,
                                     hold=int(hold),
-                                    max_open=int(max_open),
                                     close_eod=bool(close_eod),
                                     loose_note=loose_note,
                                     r2_over=r2_over,
@@ -8874,22 +8854,9 @@ def main() -> None:
             base_variants: list[ConfigBundle] = []
             for r_cfg in regime_variants[:2]:
                 for mult in top_short_mults:
-                    # SLV v4+ focus: keep high cadence by locking stacking (max_open=5).
-                    if is_slv:
-                        base_variants.append(
-                            replace(
-                                r_cfg,
-                                strategy=replace(
-                                    r_cfg.strategy,
-                                    spot_short_risk_mult=float(mult),
-                                    max_open_trades=5,
-                                ),
-                            )
-                        )
-                    else:
-                        base_variants.append(
-                            replace(r_cfg, strategy=replace(r_cfg.strategy, spot_short_risk_mult=float(mult)))
-                        )
+                    base_variants.append(
+                        replace(r_cfg, strategy=replace(r_cfg.strategy, spot_short_risk_mult=float(mult)))
+                    )
 
             # Stage 3A: lightweight micro over exit semantics + TOD/permission/signed-slope.
             #
@@ -10181,36 +10148,32 @@ def main() -> None:
         sl_vals: tuple[float, ...] = (0.003, 0.004, 0.006, 0.008, 0.01, 0.012)
         only_profit_vals: tuple[bool, ...] = (False, True)
         close_eod_vals: tuple[bool, ...] = (False, True)
-        max_open_vals: tuple[int, ...] = (1, 2)
-
         report_every = 100
-        total = len(seeds) * len(max_open_vals) * len(close_eod_vals) * len(only_profit_vals) * len(pt_vals) * len(sl_vals)
+        total = len(seeds) * len(close_eod_vals) * len(only_profit_vals) * len(pt_vals) * len(sl_vals)
 
         def _build_variants(cfg_seed: ConfigBundle, seed_note: str, _item: dict):
-            for max_open in max_open_vals:
-                for close_eod in close_eod_vals:
-                    for only_profit in only_profit_vals:
-                        for pt in pt_vals:
-                            for sl in sl_vals:
-                                cfg = replace(
-                                    cfg_seed,
-                                    strategy=replace(
-                                        cfg_seed.strategy,
-                                        spot_exit_mode="pct",
-                                        spot_profit_target_pct=pt,
-                                        spot_stop_loss_pct=float(sl),
-                                        exit_on_signal_flip=True,
-                                        flip_exit_only_if_profit=bool(only_profit),
-                                        spot_close_eod=bool(close_eod),
-                                        max_open_trades=int(max_open),
-                                    ),
-                                )
-                                pt_note = "None" if pt is None else f"{pt:g}"
-                                note = (
-                                    f"{seed_note} | max_open={max_open} close_eod={int(close_eod)} "
-                                    f"only_profit={int(only_profit)} | PT={pt_note} SL={sl:g}"
-                                )
-                                yield cfg, note, None
+            for close_eod in close_eod_vals:
+                for only_profit in only_profit_vals:
+                    for pt in pt_vals:
+                        for sl in sl_vals:
+                            cfg = replace(
+                                cfg_seed,
+                                strategy=replace(
+                                    cfg_seed.strategy,
+                                    spot_exit_mode="pct",
+                                    spot_profit_target_pct=pt,
+                                    spot_stop_loss_pct=float(sl),
+                                    exit_on_signal_flip=True,
+                                    flip_exit_only_if_profit=bool(only_profit),
+                                    spot_close_eod=bool(close_eod),
+                                ),
+                            )
+                            pt_note = "None" if pt is None else f"{pt:g}"
+                            note = (
+                                f"{seed_note} | close_eod={int(close_eod)} "
+                                f"only_profit={int(only_profit)} | PT={pt_note} SL={sl:g}"
+                            )
+                            yield cfg, note, None
 
         tested_total = _run_seeded_micro_grid(
             axis_tag=axis_tag,
@@ -12060,16 +12023,13 @@ def spot_multitimeframe_main() -> None:
         "--max-open",
         type=int,
         default=None,
-        help=(
-            "Require strategy.max_open_trades to be <= this value. "
-            "Note: 0 means unlimited stacking and is rejected unless --allow-unlimited-stacking is set."
-        ),
+        help="Deprecated no-op for spot; kept only for CLI compatibility.",
     )
     ap.add_argument(
         "--allow-unlimited-stacking",
         action="store_true",
         default=False,
-        help="Allow max_open_trades=0 strategies (unlimited stacking).",
+        help="Deprecated no-op for spot; kept only for CLI compatibility.",
     )
     ap.add_argument(
         "--require-close-eod",
@@ -12111,6 +12071,10 @@ def spot_multitimeframe_main() -> None:
     ap.add_argument("--multitimeframe-out", default=None, help=argparse.SUPPRESS)
 
     args = ap.parse_args()
+    if args.max_open is not None:
+        print("[compat] --max-open is deprecated and ignored for spot multitimeframe eval.", flush=True)
+    if bool(args.allow_unlimited_stacking):
+        print("[compat] --allow-unlimited-stacking is deprecated and ignored for spot multitimeframe eval.", flush=True)
     try:
         min_trades_per_year = float(args.min_trades_per_year) if args.min_trades_per_year is not None else None
     except (TypeError, ValueError):
@@ -12247,8 +12211,6 @@ def spot_multitimeframe_main() -> None:
             "min_trades": int(args.min_trades),
             "min_trades_per_year": float(min_trades_per_year) if min_trades_per_year is not None else None,
             "min_win": float(args.min_win),
-            "max_open": int(args.max_open) if args.max_open is not None else None,
-            "allow_unlimited_stacking": bool(args.allow_unlimited_stacking),
             "require_close_eod": bool(args.require_close_eod),
             "require_positive_pnl": bool(args.require_positive_pnl),
             "offline": bool(offline),
@@ -12530,12 +12492,6 @@ def spot_multitimeframe_main() -> None:
         strat_cfg = _strategy_from_payload(strategy_payload, filters=filters)
         if bool(args.require_close_eod) and not bool(getattr(strat_cfg, "spot_close_eod", False)):
             return _cache_and_return(None)
-        if args.max_open is not None:
-            max_open = int(getattr(strat_cfg, "max_open_trades", 0) or 0)
-            if max_open == 0 and not bool(args.allow_unlimited_stacking):
-                return _cache_and_return(None)
-            if max_open != 0 and max_open > int(args.max_open):
-                return _cache_and_return(None)
 
         sig_bar_size = str(strategy_payload.get("signal_bar_size") or args.bar_size)
         sig_use_rth = (

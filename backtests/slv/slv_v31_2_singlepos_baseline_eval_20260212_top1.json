@@ -1,0 +1,228 @@
+{
+  "name": "multitimeframe_top",
+  "generated_at": "2026-02-11T16:06:43.377446Z",
+  "source": "backtests/slv/slv_v31_2_singlepos_baseline_candidates_20260212_top1.json",
+  "windows": [
+    {
+      "start": "2016-01-08",
+      "end": "2026-01-08"
+    },
+    {
+      "start": "2024-01-08",
+      "end": "2026-01-08"
+    },
+    {
+      "start": "2025-01-08",
+      "end": "2026-01-08"
+    }
+  ],
+  "groups": [
+    {
+      "name": "Spot (SLV) KINGMAKER #01 roi/dd=5.47 roi=183.0% dd%=33.4% win=50.9% tr=798 pnl=182992.1",
+      "filters": {
+        "ema_slope_min_pct": 0.01,
+        "ema_spread_min_pct": 0.0015,
+        "ema_spread_min_pct_down": 0.02,
+        "entry_end_hour_et": 15,
+        "entry_start_hour_et": 10,
+        "risk_entry_cutoff_hour_et": 15,
+        "riskpanic_long_risk_mult_factor": 0.0,
+        "riskpanic_long_scale_mode": "linear",
+        "riskpanic_lookback_days": 5,
+        "riskpanic_neg_gap_abs_pct_min": 0.005,
+        "riskpanic_neg_gap_ratio_min": 0.6,
+        "riskpanic_short_risk_mult_factor": 1.0,
+        "riskpanic_tr5_med_delta_lookback_days": 1,
+        "riskpanic_tr5_med_delta_min_pct": 0.5,
+        "riskpanic_tr5_med_pct": 3.25,
+        "shock_atr_fast_period": 5,
+        "shock_atr_slow_period": 50,
+        "shock_daily_atr_period": 14,
+        "shock_daily_off_atr_pct": 4.0,
+        "shock_daily_on_atr_pct": 4.0,
+        "shock_daily_on_tr_pct": 4.0,
+        "shock_direction_lookback": 1,
+        "shock_direction_source": "signal",
+        "shock_drawdown_lookback_days": 10,
+        "shock_gate_mode": "detect",
+        "shock_long_risk_mult_factor": 1.0,
+        "shock_long_risk_mult_factor_down": 1.0,
+        "shock_min_atr_pct": 4.0,
+        "shock_off_drawdown_pct": -10.0,
+        "shock_off_ratio": 1.25,
+        "shock_on_drawdown_pct": -20.0,
+        "shock_on_ratio": 1.35,
+        "shock_profit_target_pct_mult": 1.0,
+        "shock_risk_scale_apply_to": "both",
+        "shock_risk_scale_min_mult": 0.2,
+        "shock_risk_scale_target_atr_pct": 12.0,
+        "shock_scale_detector": "tr_ratio",
+        "shock_short_risk_mult_factor": 1.0,
+        "shock_stop_loss_pct_mult": 0.75
+      },
+      "entries": [
+        {
+          "symbol": "SLV",
+          "metrics": {
+            "pnl": 182992.06552000256,
+            "roi": 1.8299206552000256,
+            "win_rate": 0.5087719298245614,
+            "trades": 798,
+            "max_drawdown": 33424.154599999514,
+            "max_drawdown_pct": 0.3342415459999951,
+            "pnl_over_dd": 5.4748449948829885,
+            "roi_over_dd_pct": 5.4748449948829885
+          },
+          "strategy": {
+            "direction_source": "ema",
+            "directional_legs": null,
+            "directional_spot": {
+              "down": {
+                "action": "SELL",
+                "qty": 1
+              },
+              "up": {
+                "action": "BUY",
+                "qty": 1
+              }
+            },
+            "dte": 0,
+            "ema_directional": false,
+            "ema_entry_mode": "trend",
+            "ema_preset": "5/13",
+            "entry_confirm_bars": 0,
+            "entry_days": [
+              "Mon",
+              "Tue",
+              "Wed",
+              "Thu",
+              "Fri"
+            ],
+            "entry_signal": "ema",
+            "exchange": null,
+            "exit_dte": 0,
+            "exit_on_signal_flip": true,
+            "filters": {
+              "shock_off_ratio": 1.25,
+              "shock_on_ratio": 1.35
+            },
+            "flip_exit_gate_mode": "regime_or_permission",
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_mode": "entry",
+            "flip_exit_only_if_profit": true,
+            "instrument": "spot",
+            "legs": null,
+            "max_entries_per_day": 0,
+            "max_open_trades": 1,
+            "min_credit": null,
+            "name": "spot_evolve",
+            "orb_open_time_et": null,
+            "orb_risk_reward": 2.0,
+            "orb_target_mode": "rr",
+            "orb_window_mins": 15,
+            "otm_pct": 0.0,
+            "profit_target": 0.0,
+            "quantity": 1,
+            "regime2_apply_to": "both",
+            "regime2_mode": "off",
+            "regime_bar_size": "1 day",
+            "regime_ema_preset": null,
+            "regime_mode": "supertrend",
+            "right": "PUT",
+            "signal_bar_size": "10 mins",
+            "signal_use_rth": false,
+            "spot_atr_period": 14,
+            "spot_close_eod": false,
+            "spot_commission_min": 1.0,
+            "spot_commission_per_share": 0.005,
+            "spot_drawdown_mode": "intrabar",
+            "spot_entry_fill_mode": "next_open",
+            "spot_exchange": "SMART",
+            "spot_exec_bar_size": "5 mins",
+            "spot_exit_mode": "pct",
+            "spot_exit_time_et": null,
+            "spot_flip_exit_fill_mode": "next_open",
+            "spot_intrabar_exits": true,
+            "spot_mark_to_market": "liquidation",
+            "spot_max_notional_pct": 0.5,
+            "spot_max_qty": 0,
+            "spot_min_qty": 1,
+            "spot_notional_pct": 0.0,
+            "spot_profit_target_pct": null,
+            "spot_pt_atr_mult": 1.5,
+            "spot_risk_pct": 0.01,
+            "spot_sec_type": "STK",
+            "spot_short_risk_mult": 1.0,
+            "spot_sizing_mode": "risk_pct",
+            "spot_sl_atr_mult": 1.0,
+            "spot_slippage_per_share": 0.0,
+            "spot_spread": 0.01,
+            "spot_stop_loss_pct": 0.016,
+            "stop_loss": 0.0,
+            "stop_loss_basis": "max_loss",
+            "supertrend_atr_period": 7,
+            "supertrend_multiplier": 0.4,
+            "supertrend_source": "close",
+            "symbol": "SLV",
+            "tick_band_ma_period": 10,
+            "tick_direction_policy": "both",
+            "tick_gate_exchange": "NYSE",
+            "tick_gate_mode": "off",
+            "tick_gate_symbol": "TICK-NYSE",
+            "tick_neutral_policy": "allow",
+            "tick_width_slope_lookback": 3,
+            "tick_width_z_enter": 1.0,
+            "tick_width_z_exit": 0.5,
+            "tick_width_z_lookback": 252,
+            "width_pct": 0.0
+          }
+        }
+      ],
+      "_eval": {
+        "stability_min_pnl_dd": 4.882582483494374,
+        "stability_min_pnl": 52684.43211999966,
+        "stability_min_roi_dd": 4.882582483494373,
+        "stability_min_roi": 0.5268443211999966,
+        "windows": [
+          {
+            "dd": 33424.154599999514,
+            "dd_pct": 0.3342415459999951,
+            "end": "2026-01-08",
+            "pnl": 182992.06552000256,
+            "pnl_over_dd": 5.4748449948829885,
+            "roi": 1.8299206552000256,
+            "roi_over_dd_pct": 5.4748449948829885,
+            "start": "2016-01-08",
+            "trades": 798,
+            "win_rate": 0.5087719298245614
+          },
+          {
+            "dd": 13719.599999999977,
+            "dd_pct": 0.13719599999999976,
+            "end": "2026-01-08",
+            "pnl": 94460.88740000014,
+            "pnl_over_dd": 6.885105061372073,
+            "roi": 0.9446088740000014,
+            "roi_over_dd_pct": 6.885105061372074,
+            "start": "2024-01-08",
+            "trades": 162,
+            "win_rate": 0.5740740740740741
+          },
+          {
+            "dd": 10790.279999999999,
+            "dd_pct": 0.1079028,
+            "end": "2026-01-08",
+            "pnl": 52684.43211999966,
+            "pnl_over_dd": 4.882582483494374,
+            "roi": 0.5268443211999966,
+            "roi_over_dd_pct": 4.882582483494373,
+            "start": "2025-01-08",
+            "trades": 69,
+            "win_rate": 0.5507246376811594
+          }
+        ]
+      },
+      "_key": "{\"direction_source\": \"ema\", \"directional_legs\": null, \"directional_spot\": {\"down\": {\"action\": \"SELL\", \"qty\": 1}, \"up\": {\"action\": \"BUY\", \"qty\": 1}}, \"dte\": 0, \"ema_directional\": false, \"ema_entry_mode\": \"trend\", \"ema_preset\": \"5/13\", \"entry_confirm_bars\": 0, \"entry_days\": [\"Mon\", \"Tue\", \"Wed\", \"Thu\", \"Fri\"], \"entry_signal\": \"ema\", \"exchange\": null, \"exit_dte\": 0, \"exit_on_signal_flip\": true, \"filters\": {\"ema_slope_min_pct\": 0.01, \"ema_spread_min_pct\": 0.0015, \"ema_spread_min_pct_down\": 0.02, \"entry_end_hour_et\": 15, \"entry_start_hour_et\": 10, \"risk_entry_cutoff_hour_et\": 15, \"riskpanic_long_risk_mult_factor\": 0.0, \"riskpanic_long_scale_mode\": \"linear\", \"riskpanic_lookback_days\": 5, \"riskpanic_neg_gap_abs_pct_min\": 0.005, \"riskpanic_neg_gap_ratio_min\": 0.6, \"riskpanic_short_risk_mult_factor\": 1.0, \"riskpanic_tr5_med_delta_lookback_days\": 1, \"riskpanic_tr5_med_delta_min_pct\": 0.5, \"riskpanic_tr5_med_pct\": 3.25, \"shock_atr_fast_period\": 5, \"shock_atr_slow_period\": 50, \"shock_daily_atr_period\": 14, \"shock_daily_off_atr_pct\": 4.0, \"shock_daily_on_atr_pct\": 4.0, \"shock_daily_on_tr_pct\": 4.0, \"shock_direction_lookback\": 1, \"shock_direction_source\": \"signal\", \"shock_drawdown_lookback_days\": 10, \"shock_gate_mode\": \"detect\", \"shock_long_risk_mult_factor\": 1.0, \"shock_long_risk_mult_factor_down\": 1.0, \"shock_min_atr_pct\": 4.0, \"shock_off_drawdown_pct\": -10.0, \"shock_off_ratio\": 1.25, \"shock_on_drawdown_pct\": -20.0, \"shock_on_ratio\": 1.35, \"shock_profit_target_pct_mult\": 1.0, \"shock_risk_scale_apply_to\": \"both\", \"shock_risk_scale_min_mult\": 0.2, \"shock_risk_scale_target_atr_pct\": 12.0, \"shock_scale_detector\": \"tr_ratio\", \"shock_short_risk_mult_factor\": 1.0, \"shock_stop_loss_pct_mult\": 0.75}, \"flip_exit_gate_mode\": \"regime_or_permission\", \"flip_exit_min_hold_bars\": 0, \"flip_exit_mode\": \"entry\", \"flip_exit_only_if_profit\": true, \"instrument\": \"spot\", \"legs\": null, \"max_entries_per_day\": 0, \"max_open_trades\": 1, \"min_credit\": null, \"name\": \"spot_evolve\", \"orb_open_time_et\": null, \"orb_risk_reward\": 2.0, \"orb_target_mode\": \"rr\", \"orb_window_mins\": 15, \"otm_pct\": 0.0, \"profit_target\": 0.0, \"quantity\": 1, \"regime2_apply_to\": \"both\", \"regime2_mode\": \"off\", \"regime_bar_size\": \"1 day\", \"regime_ema_preset\": null, \"regime_mode\": \"supertrend\", \"right\": \"PUT\", \"signal_bar_size\": \"10 mins\", \"signal_use_rth\": false, \"spot_atr_period\": 14, \"spot_close_eod\": false, \"spot_commission_min\": 1.0, \"spot_commission_per_share\": 0.005, \"spot_drawdown_mode\": \"intrabar\", \"spot_entry_fill_mode\": \"next_open\", \"spot_exchange\": \"SMART\", \"spot_exec_bar_size\": \"5 mins\", \"spot_exit_mode\": \"pct\", \"spot_exit_time_et\": null, \"spot_flip_exit_fill_mode\": \"next_open\", \"spot_intrabar_exits\": true, \"spot_mark_to_market\": \"liquidation\", \"spot_max_notional_pct\": 0.5, \"spot_max_qty\": 0, \"spot_min_qty\": 1, \"spot_notional_pct\": 0.0, \"spot_profit_target_pct\": null, \"spot_pt_atr_mult\": 1.5, \"spot_risk_pct\": 0.01, \"spot_sec_type\": \"STK\", \"spot_short_risk_mult\": 1.0, \"spot_sizing_mode\": \"risk_pct\", \"spot_sl_atr_mult\": 1.0, \"spot_slippage_per_share\": 0.0, \"spot_spread\": 0.01, \"spot_stop_loss_pct\": 0.016, \"stop_loss\": 0.0, \"stop_loss_basis\": \"max_loss\", \"supertrend_atr_period\": 7, \"supertrend_multiplier\": 0.4, \"supertrend_source\": \"close\", \"symbol\": \"SLV\", \"tick_band_ma_period\": 10, \"tick_direction_policy\": \"both\", \"tick_gate_exchange\": \"NYSE\", \"tick_gate_mode\": \"off\", \"tick_gate_symbol\": \"TICK-NYSE\", \"tick_neutral_policy\": \"allow\", \"tick_width_slope_lookback\": 3, \"tick_width_z_enter\": 1.0, \"tick_width_z_exit\": 0.5, \"tick_width_z_lookback\": 252, \"width_pct\": 0.0}"
+    }
+  ]
+}

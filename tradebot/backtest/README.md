@@ -138,7 +138,8 @@ See `backtest.sample.json`. Core fields:
 - `max_entries_per_day` (optional; defaults to `1`)
   - `0` means unlimited.
 - `max_open_trades` (optional; defaults to `1`)
-  - Limits concurrent open trades (stacking). `0` means unlimited.
+  - For `instrument="spot"`, this field is ignored; spot backtests always run single-position (live parity).
+  - For `instrument="options"`, this limits concurrent open trades; `0` means unlimited.
 - `dte` (0 for 0DTE)
 - `otm_pct` (percent OTM for short strike)
   - Negative values mean ITM (e.g., `-1.0` = 1% ITM).
@@ -348,7 +349,7 @@ Example:
 ## Leaderboard (SLV 1h sweeps)
 PnL is reported in **premium points * contract multiplier**.
 - Equity options use multiplier `100`, so values are approximately **USD per contract**.
-- When `max_entries_per_day=0` and `max_open_trades=0`, results reflect **stacking / pyramiding** subject to `starting_cash` and margin.
+- For options-style runs, `max_entries_per_day=0` and `max_open_trades=0` reflect **stacking / pyramiding** subject to `starting_cash` and margin.
 
 Full leaderboard is in `tradebot/backtest/LEADERBOARD.md`.
 Machine-readable presets are in `tradebot/backtest/leaderboard.json` (regenerate with `python -m tradebot.backtest options_leaderboard`; spot milestones are appended by default).
@@ -367,6 +368,7 @@ These spot presets are **12-month only** (no 6m snapshot entries) and are filter
 - trades `>= 200`
 - pnl/dd `>= 8`
 - sorted by pnl/dd (desc)
+- spot position mode is parity-locked to a single net position (the `max_open_trades` field is ignored for spot)
 
 Regenerate (offline, uses cached bars in `db/`; realism is default):
 ```bash
@@ -446,8 +448,8 @@ This is a **quick map of what the sweeps actually cover** (outer edges), so we c
 - Regime2×ATR joint (`--axis r2_atr`): regime2 Supertrend coarse scan (`ATR ∈ {7,10,11,14,21}`, `mult ∈ {0.6,0.8,1.0,1.2,1.5}`, `src ∈ {hl2,close}`, `bar ∈ {4h,1d}`) → exit micro-grid (`ATR ∈ {14,21}`, `PTx ∈ {0.6..1.0}`, `SLx ∈ {1.2..2.2}`)
 - Regime2×TOD joint (`--axis r2_tod`): shortlist regime2 settings (`ST2 @ {4h,1d}`; see `run_backtests_spot_sweeps.py`) → sweep TOD windows (RTH + overnight micro-grid)
 - Flip-exit semantics (`--axis flip_exit`): `exit_on_signal_flip ∈ {on,off}`, `flip_exit_mode ∈ {entry,state,cross}`, `hold ∈ {0,2,4,6}`, `only_if_profit ∈ {0,1}`
-- Loosenings (`--axis loosen`): `max_open_trades ∈ {1,2,3,0}`, `spot_close_eod ∈ {0,1}`
-- Loosen×ATR joint (`--axis loosen_atr`): `max_open_trades ∈ {2,3,0}`, `spot_close_eod ∈ {0,1}` × exits `ATR period ∈ {10,14,21}`, `PTx ∈ {0.60..0.80 step 0.05}`, `SLx ∈ {1.20..2.00 step 0.20}`
+- Loosenings (`--axis loosen`): `spot_close_eod ∈ {0,1}` (spot is always single-position)
+- Loosen×ATR joint (`--axis loosen_atr`): `spot_close_eod ∈ {0,1}` × exits `ATR period ∈ {10,14,21}`, `PTx ∈ {0.60..0.80 step 0.05}`, `SLx ∈ {1.20..2.00 step 0.20}` (spot is always single-position)
 - Exit-time flatten (`--axis exit_time`): `spot_exit_time_et ∈ {None, 04:00, 09:30, 10:00, 11:00, 16:00, 17:00}`
 - Short sizing multiplier (`--axis spot_short_risk_mult`): `spot_short_risk_mult ∈ {1.0,0.8,0.6,0.4,0.3,0.25,0.2,0.15,0.1,0.05,0.02,0.01,0.0}` (only affects `spot_sizing_mode=risk_pct`)
 

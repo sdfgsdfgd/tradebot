@@ -12,11 +12,36 @@ We are explicitly targeting the new contract:
 - **Goal:** dual-track optimization across **10y / 2y / 1y**
   - **Track A (pnl-first dethrone):** beat v25 on total PnL in all windows (and keep `pnl/dd` healthy)
   - **Track B (high-trade):** increase trade count while preserving all-window positivity and avoiding the high-churn negative basin
+  - **Parity rule (promotion gate):** promoted CURRENT must run `max_open_trades=1` to match live single-position behavior
 
 ## Current Champions (stack)
 
-### CURRENT (v31.1) — FULL24 10m shock-hysteresis wall dethrone (single-process verified)
-This is the current SLV dethroner under the **multiwindow pnl-first contract**:
+### CURRENT (v31.2) — FULL24 10m single-position parity dethrone (single-process verified)
+This is the current SLV dethroner under a **live-parity-first contract**:
+- Enforces single-position behavior: `max_open_trades=1` (matches live net-position handling)
+- Removes simultaneous-position holding from the promoted lane (no live parity)
+- Keeps the v31.1 shock wall core (`shock_on/off=1.35/1.25`) and retunes sizing for single-position mode
+- Verified via single-process (`--jobs 1`) multiwindow sweeps with fixed windows
+
+**v31.2 kingmaker #01** (from `backtests/slv/slv_v31_2_singlepos_parity_eval_20260212_top1.json`)
+- `max_open_trades=1`, `spot_max_notional_pct=0.8`, `spot_risk_pct=0.016`, `spot_stop_loss_pct=0.016`
+- Worst-window `roi/dd`: **4.546495578** (worst window is **1y**)
+- 10y: `roi/dd=6.541506284`, ROI ≈ **384.54%**, DD% ≈ **58.78%**, trades ≈ **798**
+- 2y:  `roi/dd=6.093215523`, ROI ≈ **183.52%**, DD% ≈ **30.12%**, trades ≈ **162**
+- 1y:  `roi/dd=4.546495578`, ROI ≈ **93.99%**, DD% ≈ **20.67%**, trades ≈ **69**
+
+Single-run delta vs prior v31.1 stacked champ (`max_open_trades=3`, same windows):
+- 10y: `pnl -158,849.52` (`543,388.44 -> 384,538.92`), `roi/dd +0.151931987`
+- 2y:  `pnl -80,142.10` (`263,658.96 -> 183,516.87`), `roi/dd +0.607742995`
+- 1y:  `pnl -31,623.56` (`125,609.17 -> 93,985.61`), `roi/dd +0.342315486`
+
+Defining delta vs v31.1:
+- Structural parity change: `max_open_trades: 3 -> 1` (single-position only)
+- Single-position sizing retune: `spot_max_notional_pct=0.8`, `spot_risk_pct=0.016`, `spot_stop_loss_pct=0.016`
+- Same lane core: `signal_bar_size="10 mins"`, `spot_exec_bar_size="5 mins"`, `signal_use_rth=false`, `ema_preset=5/13`, `supertrend @ 1 day`, `shock_on/off=1.35/1.25`
+
+### Previous (v31.1) — FULL24 10m shock-hysteresis wall dethrone (stacked backtest)
+This was the prior SLV dethroner under the **multiwindow pnl-first contract**:
 - Positive PnL across **10y / 2y / 1y**
 - Beats the prior v31 (`shock_on/off=1.50/1.40`) on `pnl` and worst-window `roi/dd`
 - Verified via single-process (`--jobs 1`) multiwindow sweeps with cache reset per pass
@@ -27,18 +52,6 @@ This is the current SLV dethroner under the **multiwindow pnl-first contract**:
 - 10y: `roi/dd=6.389574297`, ROI ≈ **543.39%**, DD% ≈ **85.04%**, trades ≈ **1,615**
 - 2y:  `roi/dd=5.485472528`, ROI ≈ **263.66%**, DD% ≈ **48.06%**, trades ≈ **316**
 - 1y:  `roi/dd=4.204180092`, ROI ≈ **125.61%**, DD% ≈ **29.88%**, trades ≈ **140**
-
-Single-run delta vs prior v31 hysteresis baseline (`1.50/1.40`, same runner/settings):
-- 10y pnl: `+14,716.11` (`528,672.33 -> 543,388.44`)
-- 2y pnl: `+5,895.07` (`257,763.89 -> 263,658.96`)
-- 1y pnl: `+4,117.02` (`121,492.15 -> 125,609.17`)
-- worst-window `roi/dd`: `4.142209046 -> 4.204180092`
-
-Defining delta vs prior v31:
-- Same lane and structure: `signal_bar_size="10 mins"`, `spot_exec_bar_size="5 mins"`, `signal_use_rth=false`
-- Same entry/regime core: `entry_start/end=10/15 ET`, `ema_preset=5/13`, `supertrend @ 1 day`
-- Optimization knob only: shock hysteresis (`shock_on_ratio`, `shock_off_ratio`)
-- Wall plateau (stable top): `shock_on_ratio ∈ [1.300, 1.355]`, `shock_off_ratio = shock_on_ratio - 0.10`
 
 ### Previous (v31) — Full24 time-windowed 10m dethroner (all-window `pnl` + `roi/dd` beat vs v25)
 This was the prior SLV dethroner under the same contract:
@@ -1422,6 +1435,44 @@ Outcome (wall map):
 Promoted king (canonical pick):
 - `shock_on_ratio=1.35`, `shock_off_ratio=1.25` (same top metrics as the whole plateau)
 - Worst-window `roi/dd=4.204180092` (1y), with all-window pnl lift vs the prior `1.50/1.40` baseline.
+
+### v38 — Single-position parity promotion (v31.2) + champ handoff
+Status: **DONE** + **CHAMPION DETHRONE (parity-first)**
+
+Goal:
+- Remove the non-live simultaneous-position holding behavior from the promoted SLV lane.
+- Promote a live-parity single-position config as CURRENT.
+
+What changed:
+- Forced single-position behavior in the promoted preset: `max_open_trades=1`
+- Retuned single-position sizing/exits:
+  - `spot_max_notional_pct=0.8`
+  - `spot_risk_pct=0.016`
+  - `spot_stop_loss_pct=0.016`
+- Kept the v31.1 shock wall core unchanged: `shock_on/off=1.35/1.25`
+
+Exact rerunnable command:
+```bash
+python -m tradebot.backtest spot_multitimeframe \
+  --milestones backtests/slv/slv_v31_2_singlepos_parity_candidates_20260212_top1.json \
+  --symbol SLV --bar-size "10 mins" --offline --cache-dir db \
+  --jobs 1 --top 1 --min-trades 0 \
+  --window 2016-01-08:2026-01-08 \
+  --window 2024-01-08:2026-01-08 \
+  --window 2025-01-08:2026-01-08 \
+  --write-top 1 --out backtests/slv/slv_v31_2_singlepos_parity_eval_20260212_top1.json
+```
+
+Persisted artifacts:
+- `backtests/slv/slv_v31_2_singlepos_baseline_candidates_20260212_top1.json`
+- `backtests/slv/slv_v31_2_singlepos_baseline_eval_20260212_top1.json`
+- `backtests/slv/slv_v31_2_singlepos_parity_candidates_20260212_top1.json`
+- `backtests/slv/slv_v31_2_singlepos_parity_eval_20260212_top1.json`
+
+Outcome:
+- New CURRENT is **v31.2** (single-position parity lane).
+- Simultaneous-position holding is de-promoted from CURRENT because it has no live parity.
+- Versus v31.1 stacked champ, all-window `roi/dd` improves, while total `pnl` and trade count are lower.
 
 
 ## Notes

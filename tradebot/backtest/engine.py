@@ -4,7 +4,7 @@ from __future__ import annotations
 import math
 from bisect import bisect_left, bisect_right
 from collections import deque
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime, time, timedelta
 from typing import NamedTuple
 
@@ -2186,14 +2186,14 @@ def _spot_next_open_entry_allowed(
 
 def _spot_entry_capacity_ok(
     *,
-    max_open_trades: int,
     open_count: int,
     max_entries_per_day: int,
     entries_today: int,
     weekday: int,
     entry_days: tuple[int, ...] | list[int],
 ) -> bool:
-    open_slots_ok = int(max_open_trades) == 0 or int(open_count) < int(max_open_trades)
+    # Spot parity with live runtime: one net position at a time.
+    open_slots_ok = int(open_count) < 1
     entries_ok = int(max_entries_per_day) == 0 or int(entries_today) < int(max_entries_per_day)
     return bool(open_slots_ok and entries_ok and int(weekday) in entry_days)
 
@@ -2851,7 +2851,6 @@ def _run_spot_backtest_exec_loop(
                 pending_entry_set_date = None
 
             can_fill_pending = _spot_entry_capacity_ok(
-                max_open_trades=int(cfg.strategy.max_open_trades),
                 open_count=len(open_trades),
                 max_entries_per_day=int(cfg.strategy.max_entries_per_day),
                 entries_today=int(entries_today),
@@ -3185,7 +3184,6 @@ def _run_spot_backtest_exec_loop(
         if pending_entry_dir is not None:
             effective_open += 1
         can_schedule_entry = _spot_entry_capacity_ok(
-            max_open_trades=int(cfg.strategy.max_open_trades),
             open_count=int(effective_open),
             max_entries_per_day=int(cfg.strategy.max_entries_per_day),
             entries_today=int(entries_today),
@@ -3326,9 +3324,6 @@ def _run_spot_backtest_exec_loop_summary_fast(
     base_pt_pct = strat.spot_profit_target_pct
 
     max_entries_per_day = int(getattr(strat, "max_entries_per_day", 0) or 0)
-    max_open_trades = int(getattr(strat, "max_open_trades", 1) or 0)
-    if max_open_trades != 1:
-        raise ValueError("fast summary runner currently requires max_open_trades=1")
 
     needs_direction = strat.directional_spot is not None
     signal_bar_hours = float(_bar_hours(str(cfg.backtest.bar_size)))
@@ -3591,7 +3586,6 @@ def _run_spot_backtest_exec_loop_summary_fast(
         if not bool(filters_ok):
             return False
         if not _spot_entry_capacity_ok(
-            max_open_trades=int(strat.max_open_trades),
             open_count=0,
             max_entries_per_day=int(max_entries_per_day),
             entries_today=int(entries_today),
@@ -3617,7 +3611,6 @@ def _run_spot_backtest_exec_loop_summary_fast(
 
         _set_day_for_exec_idx(entry_exec_idx)
         if not _spot_entry_capacity_ok(
-            max_open_trades=int(strat.max_open_trades),
             open_count=0,
             max_entries_per_day=int(max_entries_per_day),
             entries_today=int(entries_today),
@@ -4021,7 +4014,6 @@ def _can_use_fast_summary_path(
         and bool(tick_ok)
         and bool(flip_gate_ok)
         and bool(direction_ok)
-        and int(getattr(strat, "max_open_trades", 1) or 0) == 1
         and bool(signal_bars)
         and bool(exec_bars)
     )
