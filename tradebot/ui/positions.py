@@ -1034,8 +1034,6 @@ class PositionDetailScreen(Screen):
         headline.append(_fmt_quote(mid or price or mark), style="bright_cyan")
         headline.append("   SPRD ")
         headline.append(_fmt_quote(spread), style="cyan")
-        headline.append("   PnL ")
-        headline.append(pnl_label, style=self._pnl_style(pnl_value))
         position_row = self._position_beacon_row(position_qty, market_value_raw)
 
         aurora_label_row = Text("Aurora", style="#8aa0b6")
