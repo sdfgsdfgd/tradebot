@@ -1419,66 +1419,46 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         slv_ver: str | None = None
         slv_path: Path | None = None
         if slv_readme:
-            head = re.search(r"^### CURRENT \(v(?P<ver>\d+(?:\.\d+)?)\)", slv_readme, flags=re.MULTILINE)
+            head = re.search(
+                r"^###\s+CURRENT(?:\s+\(v(?P<ver>[^)]+)\))?",
+                slv_readme,
+                flags=re.MULTILINE | re.IGNORECASE,
+            )
             if head:
-                slv_ver = head.group("ver")
+                slv_ver = str(head.group("ver") or "").strip() or None
                 tail = slv_readme[head.end() :]
                 next_head = re.search(r"^###\s+", tail, flags=re.MULTILINE)
                 section = tail[: next_head.start()] if next_head else tail
                 match = re.search(r"`(?P<path>backtests/slv/[^`]+\.json)`", section)
+                if match is None:
+                    match = re.search(r"(?P<path>backtests/slv/[^\s)]+\.json)", section)
                 if match:
                     slv_path = _resolve_existing_json(match.group("path"))
 
-            if slv_ver and slv_path is None:
+            if slv_path is None:
                 slv_dir = repo_root / "backtests" / "slv"
-                candidates = sorted(slv_dir.glob(f"slv_exec5m_v{slv_ver}_*top*.json"))
+                candidates: list[Path] = []
+                ver_tokens: list[str] = []
+                if slv_ver:
+                    ver_tokens.append(slv_ver)
+                    major = slv_ver.split(".", 1)[0].strip()
+                    if major and major not in ver_tokens:
+                        ver_tokens.append(major)
+                patterns = [f"slv*v{token}_*top*.json" for token in ver_tokens] or ["slv*top*.json"]
+                for pattern in patterns:
+                    candidates.extend(sorted(slv_dir.glob(pattern)))
                 if candidates:
-                    slv_path = candidates[0]
+                    slv_path = max(candidates, key=lambda p: p.stat().st_mtime)
 
-        if slv_ver and slv_path:
-            group = _load_champion_group(symbol="SLV", version=slv_ver, path=slv_path)
+        if slv_path:
+            version_label = slv_ver or "?"
+            group = _load_champion_group(symbol="SLV", version=version_label, path=slv_path)
             if group is not None:
                 groups.append(group)
 
         has_champions = bool(groups)
         if not has_champions:
             self._set_status("No CURRENT champions found. Check README paths.")
-
-        # Debug / test preset (fast EMA crosses) to validate logging + auto-order behavior.
-        groups.append(
-            {
-                "name": "Spot (SLV) DEBUG FAST 1m EMA 1/2",
-                "_source": "debug:slv_fast_1m",
-                "entries": [
-                    {
-                        "symbol": "SLV",
-                        "metrics": {"pnl": 0.0, "win_rate": 0.0, "trades": 0},
-                        "strategy": {
-                            "instrument": "spot",
-                            "symbol": "SLV",
-                            "signal_bar_size": "1 min",
-                            "signal_use_rth": False,
-                            "entry_signal": "ema",
-                            "ema_preset": "1/2",
-                            "ema_entry_mode": "cross",
-                            "entry_confirm_bars": 0,
-                            "entry_days": ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"],
-                            "max_entries_per_day": 500,
-                            "exit_on_signal_flip": True,
-                            "flip_exit_min_hold_bars": 0,
-                            "flip_exit_only_if_profit": False,
-                            "spot_exit_mode": "pct",
-                            "spot_profit_target_pct": 0.002,
-                            "spot_stop_loss_pct": 0.002,
-                            "directional_spot": {
-                                "up": {"action": "BUY", "qty": 1},
-                                "down": {"action": "SELL", "qty": 1},
-                            },
-                        },
-                    }
-                ],
-            }
-        )
 
         self._payload = {"groups": groups}
         self._group_eval_by_name = {}
