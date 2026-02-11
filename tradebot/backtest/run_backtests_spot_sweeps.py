@@ -48,8 +48,8 @@ from .config import (
     ConfigBundle,
     FiltersConfig,
     LegConfig,
+    SpotStrategyConfig,
     SpotLegConfig,
-    StrategyConfig,
     SyntheticConfig,
     _parse_filters,
 )
@@ -189,7 +189,7 @@ def _bundle_base(
         offline=bool(offline),
     )
 
-    strategy = StrategyConfig(
+    strategy = SpotStrategyConfig(
         name="spot_evolve",
         instrument="spot",
         symbol=str(symbol).strip().upper(),
@@ -197,8 +197,6 @@ def _bundle_base(
         right="PUT",
         entry_days=(0, 1, 2, 3, 4),
         max_entries_per_day=0,
-        # Spot parity with live runtime: one net position only.
-        max_open_trades=1,
         dte=0,
         otm_pct=0.0,
         width_pct=0.0,
@@ -2411,7 +2409,6 @@ def _apply_milestone_base(
         "flip_exit_gate_mode",
         "flip_exit_min_hold_bars",
         "flip_exit_only_if_profit",
-        "max_open_trades",
         "tick_gate_mode",
         "tick_gate_symbol",
         "tick_gate_exchange",
@@ -11611,7 +11608,7 @@ def _filters_from_payload(raw) -> FiltersConfig | None:
     return _parse_filters(raw)
 
 
-def _strategy_from_payload(strategy: dict, *, filters: FiltersConfig | None) -> StrategyConfig:
+def _strategy_from_payload(strategy: dict, *, filters: FiltersConfig | None) -> SpotStrategyConfig:
     if not isinstance(strategy, dict):
         raise ValueError(f"strategy must be an object, got: {strategy!r}")
 
@@ -11620,6 +11617,7 @@ def _strategy_from_payload(strategy: dict, *, filters: FiltersConfig | None) -> 
     raw.pop("signal_use_rth", None)
     raw.pop("spot_sec_type", None)
     raw.pop("spot_exchange", None)
+    raw.pop("max_open_trades", None)
 
     entry_days = _weekdays_from_payload(raw.get("entry_days") or [])
     raw["entry_days"] = entry_days
@@ -11660,12 +11658,12 @@ def _strategy_from_payload(strategy: dict, *, filters: FiltersConfig | None) -> 
             raise ValueError(f"legs must be a list, got: {legs!r}")
         raw["legs"] = tuple(_leg_from_payload(l) for l in legs)
 
-    return StrategyConfig(**raw)
+    return SpotStrategyConfig(**raw)
 
 
 def _mk_bundle(
     *,
-    strategy: StrategyConfig,
+    strategy: SpotStrategyConfig,
     start: date,
     end: date,
     bar_size: str,

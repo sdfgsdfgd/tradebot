@@ -19,7 +19,7 @@ from .config import (
     ConfigBundle,
     FiltersConfig,
     LegConfig,
-    StrategyConfig,
+    OptionsStrategyConfig,
     SyntheticConfig,
 )
 from .engine import run_backtest
@@ -471,7 +471,7 @@ def _run_combo(
         )
         legs_for_display = legs
 
-    strategy = StrategyConfig(
+    strategy = OptionsStrategyConfig(
         name="credit_spread",
         instrument="options",
         symbol=symbol,

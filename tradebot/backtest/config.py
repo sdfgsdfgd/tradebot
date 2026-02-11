@@ -14,7 +14,9 @@ from ..knobs.models import (
     ConfigBundle,
     FiltersConfig,
     LegConfig,
+    OptionsStrategyConfig,
     SpotLegConfig,
+    SpotStrategyConfig,
     StrategyConfig,
     SyntheticConfig,
 )
@@ -63,7 +65,14 @@ def load_config(path: str | Path) -> ConfigBundle:
         synthetic_raw = {}
 
     backtest = BacktestConfig(**_parse_from_schema(backtest_raw, _backtest_schema()))
-    strategy = StrategyConfig(**_parse_from_schema(strategy_raw, _strategy_schema()))
+    instrument = _parse_instrument(strategy_raw.get("instrument"))
+    strategy_input = _translate_legacy_strategy_payload(strategy_raw, instrument=instrument)
+    if instrument == "spot":
+        strategy_payload = _parse_from_schema(strategy_input, _spot_strategy_schema())
+        strategy = SpotStrategyConfig(**strategy_payload)
+    else:
+        strategy_payload = _parse_from_schema(strategy_input, _options_strategy_schema())
+        strategy = OptionsStrategyConfig(**strategy_payload)
     synthetic = SyntheticConfig(**_parse_from_schema(synthetic_raw, _synthetic_schema()))
 
     return ConfigBundle(backtest=backtest, strategy=strategy, synthetic=synthetic)
@@ -86,6 +95,14 @@ def _parse_from_schema(
     return out
 
 
+def _translate_legacy_strategy_payload(raw: dict, *, instrument: str) -> dict:
+    payload = dict(raw)
+    # Compatibility shim: old spot payloads may still carry options-only fields.
+    if str(instrument) == "spot":
+        payload.pop("max_open_trades", None)
+    return payload
+
+
 def _backtest_schema() -> dict[str, _FieldSpec]:
     return {
         "start": _field(_parse_date),
@@ -102,7 +119,7 @@ def _backtest_schema() -> dict[str, _FieldSpec]:
     }
 
 
-def _strategy_schema() -> dict[str, _FieldSpec]:
+def _strategy_schema_common() -> dict[str, _FieldSpec]:
     return {
         "name": _field(_identity, "credit_spread"),
         "instrument": _field(_parse_instrument, "options"),
@@ -111,7 +128,6 @@ def _strategy_schema() -> dict[str, _FieldSpec]:
         "right": _field(lambda value: str(value or "PUT").upper(), "PUT"),
         "entry_days": _field(_parse_weekdays, []),
         "max_entries_per_day": _field(lambda value: _parse_non_negative_int(value, default=1), 1),
-        "max_open_trades": _field(lambda value: _parse_non_negative_int(value, default=1), 1),
         "dte": _field(int, 0),
         "otm_pct": _field(float, 2.5),
         "width_pct": _field(float, 1.0),
@@ -189,6 +205,16 @@ def _strategy_schema() -> dict[str, _FieldSpec]:
         "spot_min_qty": _field(lambda value: _parse_positive_int(value, default=1), 1),
         "spot_max_qty": _field(lambda value: _parse_non_negative_int(value, default=0), 0),
     }
+
+
+def _options_strategy_schema() -> dict[str, _FieldSpec]:
+    schema = _strategy_schema_common()
+    schema["max_open_trades"] = _field(lambda value: _parse_non_negative_int(value, default=1), 1)
+    return schema
+
+
+def _spot_strategy_schema() -> dict[str, _FieldSpec]:
+    return _strategy_schema_common()
 
 
 def _synthetic_schema() -> dict[str, _FieldSpec]:

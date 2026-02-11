@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
+from typing import Union
 
 
 @dataclass(frozen=True)
@@ -125,7 +126,7 @@ class FiltersConfig:
 
 
 @dataclass(frozen=True)
-class StrategyConfig:
+class StrategyConfigBase:
     name: str
     instrument: str
     symbol: str
@@ -133,7 +134,6 @@ class StrategyConfig:
     right: str
     entry_days: tuple[int, ...]
     max_entries_per_day: int
-    max_open_trades: int
     dte: int
     otm_pct: float
     width_pct: float
@@ -213,7 +213,28 @@ class StrategyConfig:
 
 
 @dataclass(frozen=True)
+class OptionsStrategyConfig(StrategyConfigBase):
+    max_open_trades: int = 1
+
+    def __post_init__(self) -> None:
+        if str(self.instrument or "").strip().lower() != "options":
+            raise ValueError("OptionsStrategyConfig requires instrument='options'")
+
+
+@dataclass(frozen=True)
+class SpotStrategyConfig(StrategyConfigBase):
+    def __post_init__(self) -> None:
+        if str(self.instrument or "").strip().lower() != "spot":
+            raise ValueError("SpotStrategyConfig requires instrument='spot'")
+
+
+# Backward-compatible alias for older options-only call sites.
+StrategyConfig = OptionsStrategyConfig
+AnyStrategyConfig = Union[OptionsStrategyConfig, SpotStrategyConfig]
+
+
+@dataclass(frozen=True)
 class ConfigBundle:
     backtest: BacktestConfig
-    strategy: StrategyConfig
+    strategy: AnyStrategyConfig
     synthetic: SyntheticConfig

@@ -6,7 +6,7 @@ from pathlib import Path
 from tradebot.backtest.data import ContractMeta
 from tradebot.backtest.engine import _run_spot_backtest_exec_loop_summary
 from tradebot.backtest.models import Bar
-from tradebot.knobs.models import BacktestConfig, ConfigBundle, SpotLegConfig, StrategyConfig, SyntheticConfig
+from tradebot.knobs.models import BacktestConfig, ConfigBundle, SpotLegConfig, SpotStrategyConfig, SyntheticConfig
 
 
 def _bars_5m(*, start: datetime, end: datetime, start_price: float, end_price: float) -> list[Bar]:
@@ -74,7 +74,7 @@ def test_spot_fast_summary_matches_slow_summary_on_flip_reentry_path() -> None:
         calibrate=False,
         offline=True,
     )
-    strategy = StrategyConfig(
+    strategy = SpotStrategyConfig(
         name="spot_test",
         instrument="spot",
         symbol="TQQQ",
@@ -82,7 +82,6 @@ def test_spot_fast_summary_matches_slow_summary_on_flip_reentry_path() -> None:
         right="PUT",
         entry_days=(0, 1, 2, 3, 4),
         max_entries_per_day=0,
-        max_open_trades=1,
         dte=0,
         otm_pct=0.0,
         width_pct=0.0,

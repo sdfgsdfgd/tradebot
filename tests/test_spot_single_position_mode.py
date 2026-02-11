@@ -1,13 +1,16 @@
 from __future__ import annotations
 
-from dataclasses import replace
+from dataclasses import asdict
 from datetime import date, datetime, timedelta
+import json
 from pathlib import Path
 
+from tradebot.backtest.config import load_config
 from tradebot.backtest.data import ContractMeta
 from tradebot.backtest.engine import _run_spot_backtest_summary
 from tradebot.backtest.models import Bar
-from tradebot.knobs.models import BacktestConfig, ConfigBundle, SpotLegConfig, StrategyConfig, SyntheticConfig
+from tradebot.backtest.run_backtests_spot_sweeps import _strategy_from_payload
+from tradebot.knobs.models import BacktestConfig, ConfigBundle, SpotLegConfig, SpotStrategyConfig, SyntheticConfig
 
 
 def _bars_5m(*, start: datetime, end: datetime, start_price: float, end_price: float) -> list[Bar]:
@@ -58,7 +61,7 @@ def _base_cfg(day: date) -> ConfigBundle:
         calibrate=False,
         offline=True,
     )
-    strategy = StrategyConfig(
+    strategy = SpotStrategyConfig(
         name="spot_test",
         instrument="spot",
         symbol="TQQQ",
@@ -66,7 +69,6 @@ def _base_cfg(day: date) -> ConfigBundle:
         right="PUT",
         entry_days=(0, 1, 2, 3, 4),
         max_entries_per_day=0,
-        max_open_trades=1,
         dte=0,
         otm_pct=0.0,
         width_pct=0.0,
@@ -122,7 +124,7 @@ def _base_cfg(day: date) -> ConfigBundle:
     return ConfigBundle(backtest=backtest, strategy=strategy, synthetic=synthetic)
 
 
-def test_spot_summary_ignores_max_open_for_spot_capacity() -> None:
+def test_spot_strategy_ignores_legacy_max_open_field() -> None:
     day = date(2024, 1, 1)
     base = datetime(day.year, day.month, day.day, 0, 0, 0)
     seg1 = _bars_5m(start=base, end=base + timedelta(minutes=60), start_price=100.0, end_price=102.0)
@@ -132,12 +134,124 @@ def test_spot_summary_ignores_max_open_for_spot_capacity() -> None:
     exec_bars = seg1 + seg2 + seg3 + seg4
     signal_bars = _extract_signal_bars(exec_bars, every_minutes=30)
 
-    cfg_single = _base_cfg(day)
-    cfg_three = replace(cfg_single, strategy=replace(cfg_single.strategy, max_open_trades=3))
+    cfg = _base_cfg(day)
+    assert not hasattr(cfg.strategy, "max_open_trades")
+
+    legacy_payload = asdict(cfg.strategy)
+    legacy_payload["max_open_trades"] = 9
+    parsed = _strategy_from_payload(legacy_payload, filters=None)
+    assert not hasattr(parsed, "max_open_trades")
+
     meta = ContractMeta(symbol="TQQQ", exchange="SMART", multiplier=1.0, min_tick=0.01)
 
-    single = _run_spot_backtest_summary(cfg_single, bars=signal_bars, meta=meta, exec_bars=exec_bars)
-    forced = _run_spot_backtest_summary(cfg_three, bars=signal_bars, meta=meta, exec_bars=exec_bars)
+    summary = _run_spot_backtest_summary(cfg, bars=signal_bars, meta=meta, exec_bars=exec_bars)
+    assert int(summary.trades) >= 1
 
-    assert single == forced
-    assert int(single.trades) >= 1
+
+def test_load_config_ignores_legacy_spot_max_open(tmp_path: Path) -> None:
+    raw = {
+        "backtest": {
+            "start": "2025-01-08",
+            "end": "2025-01-08",
+            "bar_size": "10 mins",
+            "use_rth": False,
+            "starting_cash": 100000,
+            "risk_free_rate": 0.02,
+            "cache_dir": "db",
+            "calibration_dir": "db/calibration",
+            "output_dir": "backtests/out",
+            "calibrate": False,
+            "offline": True,
+        },
+        "strategy": {
+            "name": "spot_test",
+            "instrument": "spot",
+            "symbol": "SLV",
+            "entry_days": ["Mon", "Tue", "Wed", "Thu", "Fri"],
+            "max_entries_per_day": 0,
+            "max_open_trades": 7,
+            "dte": 0,
+            "otm_pct": 0.0,
+            "width_pct": 0.0,
+            "profit_target": 0.0,
+            "stop_loss": 0.0,
+            "exit_dte": 0,
+            "quantity": 1,
+            "stop_loss_basis": "max_loss",
+            "ema_preset": "5/13",
+            "ema_entry_mode": "trend",
+            "entry_confirm_bars": 0,
+            "ema_directional": False,
+            "exit_on_signal_flip": True,
+            "flip_exit_mode": "entry",
+            "flip_exit_gate_mode": "off",
+            "flip_exit_min_hold_bars": 0,
+            "flip_exit_only_if_profit": True,
+            "direction_source": "ema",
+            "directional_spot": {"up": {"action": "BUY", "qty": 1}, "down": {"action": "SELL", "qty": 1}},
+            "spot_profit_target_pct": None,
+            "spot_stop_loss_pct": 0.016,
+            "spot_close_eod": False,
+            "entry_signal": "ema",
+            "spot_exit_mode": "pct",
+            "spot_atr_period": 14,
+            "spot_pt_atr_mult": 1.5,
+            "spot_sl_atr_mult": 1.0,
+            "spot_exec_bar_size": "5 mins",
+            "regime_mode": "supertrend",
+            "regime_bar_size": "1 day",
+            "supertrend_atr_period": 7,
+            "supertrend_multiplier": 0.4,
+            "supertrend_source": "close",
+            "spot_entry_fill_mode": "next_open",
+            "spot_flip_exit_fill_mode": "next_open",
+            "spot_intrabar_exits": True,
+            "spot_spread": 0.01,
+            "spot_commission_per_share": 0.005,
+            "spot_commission_min": 1.0,
+            "spot_slippage_per_share": 0.0,
+            "spot_mark_to_market": "liquidation",
+            "spot_drawdown_mode": "intrabar",
+            "spot_sizing_mode": "risk_pct",
+            "spot_notional_pct": 0.0,
+            "spot_risk_pct": 0.016,
+            "spot_short_risk_mult": 1.0,
+            "spot_max_notional_pct": 0.8,
+            "spot_min_qty": 1,
+            "spot_max_qty": 0,
+        },
+        "synthetic": {
+            "rv_lookback": 60,
+            "rv_ewma_lambda": 0.94,
+            "iv_risk_premium": 1.0,
+            "iv_floor": 0.0,
+            "term_slope": 0.0,
+            "skew": 0.0,
+            "min_spread_pct": 0.0,
+        },
+    }
+    cfg_path = tmp_path / "legacy_spot_max_open.json"
+    cfg_path.write_text(json.dumps(raw))
+    cfg = load_config(cfg_path)
+    assert cfg.strategy.instrument == "spot"
+    assert not hasattr(cfg.strategy, "max_open_trades")
+
+
+def test_load_config_options_keeps_max_open(tmp_path: Path) -> None:
+    raw = {
+        "backtest": {
+            "start": "2025-01-08",
+            "end": "2025-01-09",
+        },
+        "strategy": {
+            "instrument": "options",
+            "symbol": "SLV",
+            "max_open_trades": 3,
+        },
+    }
+    cfg_path = tmp_path / "options_with_max_open.json"
+    cfg_path.write_text(json.dumps(raw))
+    cfg = load_config(cfg_path)
+    assert cfg.strategy.instrument == "options"
+    assert hasattr(cfg.strategy, "max_open_trades")
+    assert int(getattr(cfg.strategy, "max_open_trades")) == 3
