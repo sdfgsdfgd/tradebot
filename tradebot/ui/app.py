@@ -24,13 +24,10 @@ from .common import (
     _SECTION_TYPES,
     _combined_value_pct,
     _fmt_money,
-    _cost_basis,
     _estimate_buying_power,
     _estimate_net_liq,
-    _infer_multiplier,
     _market_session_label,
     _pct_change,
-    _pnl_pct_text,
     _pnl_pct_value,
     _pnl_text,
     _pnl_value,
@@ -42,6 +39,7 @@ from .common import (
     _ticker_close,
     _ticker_line,
     _ticker_price,
+    _unrealized_pnl_values,
 )
 from .positions import PositionDetailScreen
 from .store import PortfolioSnapshot
@@ -593,7 +591,10 @@ class PositionsApp(App):
         for item in items:
             if item.contract.secType not in _SECTION_TYPES:
                 continue
-            total_unreal += float(item.unrealizedPNL or 0.0)
+            mark_price, _ = self._mark_price(item)
+            unreal, _ = _unrealized_pnl_values(item, mark_price=mark_price)
+            if unreal is not None:
+                total_unreal += float(unreal)
             total_real += float(item.realizedPNL or 0.0)
             if item.averageCost:
                 total_cost += abs(float(item.averageCost) * float(item.position))
@@ -607,10 +608,7 @@ class PositionsApp(App):
         blank = Text("")
         pnl_text = _pnl_text(total_pnl)
         pct_text = _pnl_pct_value(pct)
-        unreal_text = self._center_cell(
-            _combined_value_pct(pnl_text, pct_text),
-            self._UNREAL_COL_WIDTH,
-        )
+        unreal_text = _combined_value_pct(pnl_text, pct_text)
         realized_text = _pnl_text(total_real)
         realized_text = self._center_cell(realized_text, self._REALIZED_COL_WIDTH)
         self._table.add_row(
@@ -633,7 +631,7 @@ class PositionsApp(App):
         style = "bold white on #1f1f1f"
         label = Text("DAILY P&L", style=style)
         blank = Text("")
-        daily_text = self._center_cell(_pnl_text(float(daily)), self._UNREAL_COL_WIDTH)
+        daily_text = _pnl_text(float(daily))
         self._table.add_row(
             label,
             blank,
@@ -648,7 +646,7 @@ class PositionsApp(App):
     def _add_net_liq_row(
         self, net_liq: tuple[float | None, str | None, datetime | None], pnl: PnL | None
     ) -> None:
-        value, currency, updated_at = net_liq
+        value, currency, _updated_at = net_liq
         if value is None:
             return
         style = "bold white on #1f1f1f"
@@ -658,10 +656,6 @@ class PositionsApp(App):
         if currency:
             amount = f"{amount} {currency}"
         unreal_cell = Text(amount)
-        if updated_at:
-            local_ts = updated_at.astimezone().strftime("%H:%M")
-            unreal_cell.append(" ", style="dim")
-            unreal_cell.append(f"@{local_ts}", style="dim")
         est_value = _estimate_net_liq(value, pnl, self._net_liq_daily_anchor)
         if est_value is not None:
             unreal_cell.append(" ", style="dim")
@@ -683,7 +677,7 @@ class PositionsApp(App):
         buying_power: tuple[float | None, str | None, datetime | None],
         pnl: PnL | None,
     ) -> None:
-        value, currency, updated_at = buying_power
+        value, currency, _updated_at = buying_power
         if value is None:
             return
         style = "bold white on #1f1f1f"
@@ -693,10 +687,6 @@ class PositionsApp(App):
         if currency:
             amount = f"{amount} {currency}"
         unreal_cell = Text(amount)
-        if updated_at:
-            local_ts = updated_at.astimezone().strftime("%H:%M")
-            unreal_cell.append(" ", style="dim")
-            unreal_cell.append(f"@{local_ts}", style="dim")
         est_value = _estimate_buying_power(value, pnl, self._buying_power_daily_anchor)
         if est_value is not None:
             unreal_cell.append(" ", style="dim")
@@ -888,16 +878,8 @@ class PositionsApp(App):
         if contract.secType not in _SECTION_TYPES:
             return Text(""), Text("")
         mark_price, is_estimate = self._mark_price(item)
-        if mark_price is None:
-            return _pnl_text(item.unrealizedPNL), _pnl_pct_text(item)
-        multiplier = _infer_multiplier(item)
-        position = float(item.position or 0.0)
-        mark_value = mark_price * position * multiplier
-        cost_basis = _cost_basis(item)
-        pnl = mark_value - cost_basis
-        denom = abs(cost_basis) if cost_basis else abs(mark_value)
-        pct = (pnl / denom * 100.0) if denom > 0 else None
-        prefix = "~" if is_estimate else ""
+        pnl, pct = _unrealized_pnl_values(item, mark_price=mark_price)
+        prefix = "~" if is_estimate and mark_price is not None and pnl is not None else ""
         return _pnl_text(pnl, prefix=prefix), _pnl_pct_value(pct)
 
     def _mark_price(self, item: PortfolioItem) -> tuple[float | None, bool]:

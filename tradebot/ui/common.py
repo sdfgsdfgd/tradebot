@@ -66,8 +66,9 @@ def _portfolio_row(
             symbol.append(strike, style="bold")
     qty = _fmt_qty(float(item.position))
     avg_cost = _fmt_money(float(item.averageCost)) if item.averageCost else ""
-    unreal = unreal_text or _pnl_text(item.unrealizedPNL)
-    unreal_pct = unreal_pct_text or _pnl_pct_text(item)
+    live_unreal, live_pct = _unrealized_pnl_values(item)
+    unreal = unreal_text or _pnl_text(live_unreal)
+    unreal_pct = unreal_pct_text or _pnl_pct_value(live_pct)
     unreal_combined = _combined_value_pct(unreal, unreal_pct)
     realized = _pnl_text(item.realizedPNL)
     return [
@@ -102,23 +103,56 @@ def _pnl_text(value: float | None, *, prefix: str = "") -> Text:
     return Text(text)
 
 
-def _pnl_pct_text(item: PortfolioItem) -> Text:
-    value = item.unrealizedPNL
+def _unrealized_pnl_values(
+    item: PortfolioItem,
+    *,
+    mark_price: float | None = None,
+) -> tuple[float | None, float | None]:
+    raw_unreal = getattr(item, "unrealizedPNL", None)
+    if raw_unreal is None:
+        fallback_unreal = None
+    else:
+        try:
+            fallback_unreal = float(raw_unreal)
+        except (TypeError, ValueError):
+            fallback_unreal = None
+    if fallback_unreal is not None and math.isnan(fallback_unreal):
+        fallback_unreal = None
+
+    try:
+        position = float(getattr(item, "position", 0.0) or 0.0)
+    except (TypeError, ValueError):
+        position = 0.0
+
+    if mark_price is None:
+        mark_price = _mark_price(item)
+
+    cost_basis = _cost_basis(item)
+    if mark_price is not None and position:
+        multiplier = _infer_multiplier(item)
+        mark_value = float(mark_price) * float(position) * float(multiplier)
+        unreal = float(mark_value - cost_basis)
+        denom = abs(cost_basis) if cost_basis else abs(mark_value)
+        pct = (unreal / denom * 100.0) if denom > 0 else None
+        return unreal, pct
+
+    if fallback_unreal is None:
+        return None, None
+    market_value = getattr(item, "marketValue", None)
+    try:
+        market_value_f = float(market_value) if market_value is not None else 0.0
+    except (TypeError, ValueError):
+        market_value_f = 0.0
+    denom = abs(cost_basis) if cost_basis else abs(market_value_f)
+    pct = (fallback_unreal / denom * 100.0) if denom > 0 else None
+    return fallback_unreal, pct
+
+
+def _pnl_pct_text(item: PortfolioItem, *, mark_price: float | None = None) -> Text:
+    value, pct = _unrealized_pnl_values(item, mark_price=mark_price)
     if value is None:
         return Text("")
-    cost_basis = 0.0
-    if item.averageCost:
-        cost_basis = float(item.averageCost) * float(item.position)
-    denom = abs(cost_basis) if cost_basis else abs(float(item.marketValue or 0.0))
-    if denom <= 0:
-        return Text("")
-    pct = (float(value) / denom) * 100.0
-    text = f"{pct:.2f}%"
-    if pct > 0:
-        return Text(text, style="green")
-    if pct < 0:
-        return Text(text, style="red")
-    return Text(text)
+    return _pnl_pct_value(pct)
 
 
 def _pnl_pct_value(pct: float | None) -> Text:

@@ -55,6 +55,7 @@ from .common import (
     _tick_size,
     _ticker_price,
     _trade_sort_key,
+    _unrealized_pnl_values,
 )
 from .bot_journal import BotJournal
 from .bot_models import (
@@ -2150,17 +2151,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
     def _position_pnl_values(self, item: PortfolioItem) -> tuple[float | None, float | None]:
         realized = _safe_num(getattr(item, "realizedPNL", None))
         mark_price = self._position_mark_price(item)
-        try:
-            position = float(getattr(item, "position", 0.0) or 0.0)
-        except (TypeError, ValueError):
-            position = 0.0
-        if mark_price is None or not position:
-            unreal = _safe_num(getattr(item, "unrealizedPNL", None))
-            return unreal, realized
-        multiplier = _infer_multiplier(item)
-        mark_value = float(mark_price) * float(position) * float(multiplier)
-        cost_basis = _cost_basis(item)
-        unreal = float(mark_value - cost_basis)
+        unreal, _ = _unrealized_pnl_values(item, mark_price=mark_price)
         return unreal, realized
 
     @staticmethod
@@ -4205,7 +4196,7 @@ def _position_as_order_row(
     avg = _safe_num(getattr(item, "averageCost", None))
     mkt = _safe_num(getattr(item, "marketPrice", None))
     if unreal is None:
-        unreal = _safe_num(getattr(item, "unrealizedPNL", None))
+        unreal, _ = _unrealized_pnl_values(item)
     if realized is None:
         realized = _safe_num(getattr(item, "realizedPNL", None))
 
@@ -4250,10 +4241,10 @@ def _instance_pnl_cells(
             try:
                 unreal, realized = pnl_value_fn(item)
             except Exception:
-                unreal = _safe_num(getattr(item, "unrealizedPNL", None))
+                unreal, _ = _unrealized_pnl_values(item)
                 realized = _safe_num(getattr(item, "realizedPNL", None))
         else:
-            unreal = _safe_num(getattr(item, "unrealizedPNL", None))
+            unreal, _ = _unrealized_pnl_values(item)
             realized = _safe_num(getattr(item, "realizedPNL", None))
         if unreal is not None:
             unreal_total += float(unreal)

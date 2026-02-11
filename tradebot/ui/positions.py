@@ -41,6 +41,7 @@ from .common import (
     _quote_status_line,
     _ticker_close,
     _ticker_price,
+    _unrealized_pnl_values,
 )
 
 _DETAIL_CHASE_STATE_BY_ORDER: dict[int, dict[str, object]] = {}
@@ -907,12 +908,13 @@ class PositionDetailScreen(Screen):
             mid = _midpoint(bid, ask)
             close = _ticker_close(self._ticker) if self._ticker else None
             mark = _mark_price(self._item)
+            live_mark = price or mark
             spread = (ask - bid) if bid is not None and ask is not None and ask >= bid else None
             size = _safe_num(getattr(self._ticker, "lastSize", None)) if self._ticker else None
             bid_size = _safe_num(getattr(self._ticker, "bidSize", None)) if self._ticker else None
             ask_size = _safe_num(getattr(self._ticker, "askSize", None)) if self._ticker else None
-            pnl_value = _safe_num(self._item.unrealizedPNL)
-            ref_price = last or price or mark
+            pnl_value, _ = _unrealized_pnl_values(self._item, mark_price=live_mark)
+            ref_price = last or live_mark
             slip_proxy = (
                 abs(ref_price - mid)
                 if ref_price is not None and mid is not None
@@ -980,7 +982,7 @@ class PositionDetailScreen(Screen):
         contract = self._item.contract
         inner = max(panel_width - 2, 24)
         spark_width = inner
-        pnl_value = _safe_num(self._item.unrealizedPNL)
+        pnl_value, _ = _unrealized_pnl_values(self._item, mark_price=price or mark)
         pnl_label = _fmt_money(pnl_value) if pnl_value is not None else "n/a"
         position_qty = float(self._item.position or 0.0)
         avg_cost = (
@@ -1126,15 +1128,6 @@ class PositionDetailScreen(Screen):
         inner = max(panel_width - 2, 24)
         depth_width = max(min(inner - 26, 18), 8)
         lines: list[Text] = [self._box_top("Execution Ladder", inner, style="#d4922f")]
-        head = Text(f"Tick {tick:.{_tick_decimals(tick)}f}   Qty {qty}   B=Buy S=Sell")
-        lines.append(self._box_row(head, inner, style="#d4922f"))
-        lines.append(
-            self._box_row(
-                "Plan: OPT 15s -> MID 15s -> AGG 15s -> CROSS 5m -> cancel",
-                inner,
-                style="#d4922f",
-            )
-        )
         if self._exec_status:
             lines.append(self._box_row(Text(self._exec_status, style="yellow"), inner, style="#d4922f"))
 
@@ -1174,7 +1167,13 @@ class PositionDetailScreen(Screen):
             )
         )
 
-        lines.append(self._box_rule("Controls", inner, style="#d4922f"))
+        lines.append(
+            self._box_rule(
+                f"Controls · tick {tick:.{_tick_decimals(tick)}f} · qty {qty}",
+                inner,
+                style="#d4922f",
+            )
+        )
         rows = [
             (
                 "ladder",
@@ -1201,7 +1200,7 @@ class PositionDetailScreen(Screen):
             ),
             (
                 "qty",
-                f"Qty: {qty}",
+                f"Qty {qty}",
             ),
         ]
         for idx, (key, label) in enumerate(rows):
@@ -1246,7 +1245,10 @@ class PositionDetailScreen(Screen):
         cancel_meter = self._meter(cancel_replace_rate, 8)
         slip_spark = self._sparkline(self._slip_proxy_samples, max(min(inner - 21, 14), 8))
 
-        pnl_value = _safe_num(self._item.unrealizedPNL)
+        mark = _ticker_price(self._ticker) if self._ticker else None
+        if mark is None:
+            mark = _mark_price(self._item)
+        pnl_value, _ = _unrealized_pnl_values(self._item, mark_price=mark)
         drawdown = self._drawdown_from(self._pnl_samples, pnl_value)
         pnl_scale = max(max((abs(value) for value in self._pnl_samples), default=0.0), abs(pnl_value or 0.0), 1.0)
         pnl_ratio = abs(pnl_value or 0.0) / pnl_scale
