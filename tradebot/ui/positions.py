@@ -113,11 +113,16 @@ class PositionDetailScreen(Screen):
         self._slip_proxy_samples: deque[float] = deque(maxlen=96)
         self._imbalance_samples: deque[float] = deque(maxlen=240)
         self._vol_burst_samples: deque[float] = deque(maxlen=240)
+        self._imbalance_tape: deque[tuple[float, float]] = deque(maxlen=4096)
+        self._vol_burst_tape: deque[tuple[float, float]] = deque(maxlen=4096)
         self._trend_bins: list[float] = []
         self._aurora_preset = "normal"
         self._pos_prev_qty: float | None = None
         self._pos_delta: float = 0.0
         self._pos_pulse_until: float = 0.0
+        self._last_tick_signature: tuple[
+            float | None, float | None, float | None, float | None, float | None
+        ] | None = None
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -366,8 +371,14 @@ class PositionDetailScreen(Screen):
         peak = max(samples)
         return max(peak - current, 0.0)
 
-    def _record_mid_sample(self, mid: float) -> None:
-        now = monotonic()
+    def _trim_tapes(self, now: float) -> None:
+        cutoff = now - max(float(self._TREND_RETENTION_SEC), float(self._TREND_WINDOW_SEC))
+        for tape in (self._mid_tape, self._imbalance_tape, self._vol_burst_tape):
+            while tape and tape[0][0] < cutoff:
+                tape.popleft()
+
+    def _record_mid_sample(self, mid: float, *, ts: float | None = None) -> None:
+        now = monotonic() if ts is None else float(ts)
         mid_value = float(mid)
         if self._mid_tape:
             _last_ts, last_mid = self._mid_tape[-1]
@@ -375,12 +386,29 @@ class PositionDetailScreen(Screen):
             eps = max(float(tick) * 0.01, 1e-9)
             if abs(mid_value - float(last_mid)) <= eps:
                 self._mid_tape[-1] = (now, float(last_mid))
+                self._trim_tapes(now)
                 return
         self._mid_samples.append(mid_value)
         self._mid_tape.append((now, mid_value))
-        cutoff = now - max(float(self._TREND_RETENTION_SEC), float(self._TREND_WINDOW_SEC))
-        while self._mid_tape and self._mid_tape[0][0] < cutoff:
-            self._mid_tape.popleft()
+        self._trim_tapes(now)
+
+    def _record_aurora_sample(
+        self,
+        *,
+        imbalance: float | None,
+        vol_burst: float | None,
+        ts: float | None = None,
+    ) -> None:
+        now = monotonic() if ts is None else float(ts)
+        if imbalance is not None:
+            imbalance_value = max(min(float(imbalance), 1.0), -1.0)
+            self._imbalance_samples.append(imbalance_value)
+            self._imbalance_tape.append((now, imbalance_value))
+        if vol_burst is not None and vol_burst >= 0:
+            burst_value = float(vol_burst)
+            self._vol_burst_samples.append(burst_value)
+            self._vol_burst_tape.append((now, burst_value))
+        self._trim_tapes(now)
 
     def _capture_tick_mid(self) -> None:
         ticker = self._ticker
@@ -388,6 +416,14 @@ class PositionDetailScreen(Screen):
             return
         bid = _safe_num(getattr(ticker, "bid", None))
         ask = _safe_num(getattr(ticker, "ask", None))
+        last = _safe_num(getattr(ticker, "last", None))
+        bid_size = _safe_num(getattr(ticker, "bidSize", None))
+        ask_size = _safe_num(getattr(ticker, "askSize", None))
+        signature = (bid, ask, last, bid_size, ask_size)
+        if signature == self._last_tick_signature:
+            return
+        self._last_tick_signature = signature
+
         mid = _midpoint(bid, ask)
         if mid is None:
             mid = _ticker_price(ticker)
@@ -395,7 +431,19 @@ class PositionDetailScreen(Screen):
             mid = _mark_price(self._item)
         if mid is None:
             return
-        self._record_mid_sample(float(mid))
+        now = monotonic()
+        prev_mid = float(self._mid_tape[-1][1]) if self._mid_tape else None
+        mid_value = float(mid)
+        self._record_mid_sample(mid_value, ts=now)
+
+        imbalance = None
+        total_size = float((bid_size or 0.0) + (ask_size or 0.0))
+        if bid_size is not None or ask_size is not None:
+            imbalance = (
+                float((bid_size or 0.0) - (ask_size or 0.0)) / total_size if total_size > 0 else 0.0
+            )
+        vol_burst = abs(mid_value - prev_mid) if prev_mid is not None else 0.0
+        self._record_aurora_sample(imbalance=imbalance, vol_burst=vol_burst, ts=now)
 
     def _record_market_samples(
         self,
@@ -408,8 +456,9 @@ class PositionDetailScreen(Screen):
         imbalance: float | None,
         vol_burst: float | None,
     ) -> None:
+        now = monotonic()
         if mid is not None:
-            self._record_mid_sample(float(mid))
+            self._record_mid_sample(float(mid), ts=now)
         if spread is not None and spread >= 0:
             self._spread_samples.append(float(spread))
         if size is not None and size >= 0:
@@ -418,10 +467,7 @@ class PositionDetailScreen(Screen):
             self._pnl_samples.append(float(pnl))
         if slip_proxy is not None and slip_proxy >= 0:
             self._slip_proxy_samples.append(float(slip_proxy))
-        if imbalance is not None:
-            self._imbalance_samples.append(max(min(float(imbalance), 1.0), -1.0))
-        if vol_burst is not None and vol_burst >= 0:
-            self._vol_burst_samples.append(float(vol_burst))
+        self._record_aurora_sample(imbalance=imbalance, vol_burst=vol_burst, ts=now)
 
     def _sparkline(self, values: deque[float], width: int) -> str:
         width = max(width, 1)
@@ -460,6 +506,67 @@ class PositionDetailScreen(Screen):
             frac = pos - float(lo)
             out.append(points[lo] + (points[hi] - points[lo]) * frac)
         return out
+
+    def _trend_window_bounds(self) -> tuple[float, float]:
+        end = monotonic()
+        start = end - float(self._TREND_WINDOW_SEC)
+        return start, end
+
+    @staticmethod
+    def _tape_series(
+        tape: deque[tuple[float, float]], *, width: int, start: float, end: float
+    ) -> list[float]:
+        width = max(width, 1)
+        if not tape:
+            return []
+        points = list(tape)
+        if not points:
+            return []
+        start_idx = 0
+        while start_idx < len(points) and points[start_idx][0] < start:
+            start_idx += 1
+        if start_idx > 0:
+            window = [points[start_idx - 1], *points[start_idx:]]
+        else:
+            window = points
+        if not window:
+            return []
+        span = max(float(end - start), 1e-9)
+        step = span / float(width)
+        cursor = 0
+        out: list[float] = []
+        for idx in range(width):
+            target = float(start) + (step * float(idx + 1))
+            while cursor + 1 < len(window) and float(window[cursor + 1][0]) <= target:
+                cursor += 1
+            t0, v0 = window[cursor]
+            if cursor + 1 < len(window):
+                t1, v1 = window[cursor + 1]
+                if t1 > t0 and t0 <= target <= t1:
+                    frac = (target - t0) / (t1 - t0)
+                    out.append(float(v0) + ((float(v1) - float(v0)) * frac))
+                    continue
+            out.append(float(v0))
+        return out
+
+    @staticmethod
+    def _tape_bin_max(
+        tape: deque[tuple[float, float]], *, width: int, start: float, end: float
+    ) -> list[float]:
+        width = max(width, 1)
+        if not tape:
+            return []
+        span = max(float(end - start), 1e-9)
+        out = [0.0] * width
+        has_data = False
+        for ts, value in tape:
+            if ts < start or ts > end:
+                continue
+            ratio = (float(ts) - float(start)) / span
+            idx = max(0, min(width - 1, int(ratio * float(width))))
+            out[idx] = max(out[idx], float(value))
+            has_data = True
+        return out if has_data else []
 
     def _sparkline_smooth(self, values: deque[float], width: int) -> str:
         width = max(width, 1)
@@ -505,19 +612,29 @@ class PositionDetailScreen(Screen):
             bits |= right_order[idx]
         return chr(0x2800 + bits) if bits else " "
 
-    def _trend_continuity_rows(self, width: int) -> tuple[list[str], int]:
+    def _trend_continuity_rows(
+        self,
+        width: int,
+        *,
+        window_start: float | None = None,
+        window_end: float | None = None,
+    ) -> tuple[list[str], int]:
         width = max(width, 1)
         cols = width
         rows = max(3, int(self._TREND_ROWS))
-        cutoff = monotonic() - float(self._TREND_WINDOW_SEC)
-        raw = [value for ts, value in self._mid_tape if ts >= cutoff]
-        if len(raw) < 2:
+        start, end = (
+            (float(window_start), float(window_end))
+            if window_start is not None and window_end is not None
+            else self._trend_window_bounds()
+        )
+        series = self._tape_series(self._mid_tape, width=width, start=start, end=end)
+        if not series:
             approx = max(2, int(round(self._TREND_WINDOW_SEC / max(self._refresh_sec, 0.1))))
-            raw = list(self._mid_samples)[-approx:]
-        if not raw:
+            fallback = list(self._mid_samples)[-approx:]
+            series = self._resample([float(value) for value in fallback], width) if fallback else []
+        if not series:
             blank = " " * width
             return ([blank for _ in range(rows)], rows // 2)
-        series = self._resample([float(value) for value in raw], width)
         self._trend_bins = list(series)
         lo = min(series)
         hi = max(series)
@@ -711,10 +828,23 @@ class PositionDetailScreen(Screen):
         boosted = pow(mag, 0.72)
         return max(-1.0, min(boosted if x >= 0 else -boosted, 1.0))
 
-    def _aurora_drift_series(self, width: int) -> list[float]:
+    def _aurora_drift_series(
+        self,
+        width: int,
+        *,
+        window_start: float | None = None,
+        window_end: float | None = None,
+    ) -> list[float]:
         width = max(width, 1)
-        mids = list(self._mid_samples)
-        if len(mids) < 3:
+        start, end = (
+            (float(window_start), float(window_end))
+            if window_start is not None and window_end is not None
+            else self._trend_window_bounds()
+        )
+        mids = self._tape_series(self._mid_tape, width=width + 1, start=start, end=end)
+        if len(mids) < 2:
+            mids = self._resample(list(self._mid_samples), width + 1)
+        if len(mids) < 2:
             return [0.0] * width
         deltas = [float(mids[idx] - mids[idx - 1]) for idx in range(1, len(mids))]
         mags = sorted(abs(delta) for delta in deltas if abs(delta) > 1e-12)
@@ -728,7 +858,7 @@ class PositionDetailScreen(Screen):
         for value in norm[1:]:
             prev = smooth[-1]
             smooth.append(prev + alpha * (value - prev))
-        return self._resample(smooth, width)
+        return self._resample(smooth, width) if smooth else [0.0] * width
 
     def _aurora_blended_imbalance(self, imbalance: float, drift: float) -> float:
         bias = max(0.0, min(self._AURORA_TAPE_BIAS, 1.0))
@@ -752,19 +882,51 @@ class PositionDetailScreen(Screen):
         return "#8aa0b6"
 
     def _aurora_now_style(self) -> str:
-        if not self._imbalance_samples:
+        if self._imbalance_tape:
+            imbalance_now = float(self._imbalance_tape[-1][1])
+        elif self._imbalance_samples:
+            imbalance_now = float(self._imbalance_samples[-1])
+        else:
             return "#8aa0b6"
         drift_now = self._aurora_drift_series(1)[0]
-        blended = self._aurora_blended_imbalance(float(self._imbalance_samples[-1]), drift_now)
+        blended = self._aurora_blended_imbalance(imbalance_now, drift_now)
         return self._aurora_style(blended)
 
-    def _aurora_strip(self, width: int) -> Text:
+    def _aurora_strip(
+        self,
+        width: int,
+        *,
+        window_start: float | None = None,
+        window_end: float | None = None,
+    ) -> Text:
         width = max(width, 1)
-        imbalances = self._resample(list(self._imbalance_samples), width)
-        drifts = self._aurora_drift_series(width)
-        bursts = self._resample(list(self._vol_burst_samples), width)
-        if not imbalances or not drifts or not bursts:
-            return Text(" " * width, style="dim")
+        start, end = (
+            (float(window_start), float(window_end))
+            if window_start is not None and window_end is not None
+            else self._trend_window_bounds()
+        )
+        imbalances = self._tape_series(self._imbalance_tape, width=width, start=start, end=end)
+        if not imbalances:
+            imbalances = self._resample(list(self._imbalance_samples), width)
+        if not imbalances:
+            imbalances = [0.0] * width
+        elif len(imbalances) != width:
+            imbalances = self._resample(imbalances, width)
+
+        drifts = self._aurora_drift_series(width, window_start=start, window_end=end)
+        if not drifts:
+            drifts = [0.0] * width
+        elif len(drifts) != width:
+            drifts = self._resample(drifts, width)
+
+        bursts = self._tape_bin_max(self._vol_burst_tape, width=width, start=start, end=end)
+        if not bursts:
+            bursts = self._resample(list(self._vol_burst_samples), width)
+        if not bursts:
+            bursts = [0.0] * width
+        elif len(bursts) != width:
+            bursts = self._resample(bursts, width)
+
         config = self._aurora_config()
         top_burst = max(bursts) if bursts else 0.0
         if top_burst <= 1e-12:
@@ -1022,10 +1184,21 @@ class PositionDetailScreen(Screen):
         headline.append(_fmt_quote(spread), style="cyan")
         position_row = self._position_beacon_row(position_qty, market_value_raw)
 
+        trend_window_start, trend_window_end = self._trend_window_bounds()
         aurora_label_row = Text("Aurora", style="#8aa0b6")
-        aurora_row = self._mark_now(self._aurora_strip(spark_width))
+        aurora_row = self._mark_now(
+            self._aurora_strip(
+                spark_width,
+                window_start=trend_window_start,
+                window_end=trend_window_end,
+            )
+        )
         trend_label_row = Text("1m Trend", style="cyan")
-        trend_row_values, trend_now_row = self._trend_continuity_rows(spark_width)
+        trend_row_values, trend_now_row = self._trend_continuity_rows(
+            spark_width,
+            window_start=trend_window_start,
+            window_end=trend_window_end,
+        )
         comet_color = self._aurora_now_style()
         trend_rows = [Text(row, style="#63d9ff") for row in trend_row_values]
         trend_price = mid or price or mark
