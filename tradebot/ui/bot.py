@@ -36,7 +36,9 @@ from ..signals import (
 from ..utils.date_utils import business_days_until
 from .common import (
     _SECTION_TYPES,
+    _cost_basis,
     _fmt_quote,
+    _infer_multiplier,
     _limit_price_for_mode,
     _market_session_bucket,
     _market_session_label,
@@ -817,6 +819,12 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             self._client.release_ticker(con_id, owner="bot")
         self._tracked_conids.clear()
         self._journal_write(event="SHUTDOWN", reason=None, data=None)
+
+    async def on_screen_resume(self) -> None:
+        if self._refresh_lock.locked():
+            return
+        await self._refresh_positions()
+        self._render_status()
 
     def _journal_write(
         self,
@@ -2043,7 +2051,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             self._refresh_logs_table()
         self._render_status()
 
-    def _refresh_instances_table(self) -> None:
+    def _refresh_instances_table(self, *, refresh_dependents: bool = True) -> None:
         prev_row = self._instances_table.cursor_coordinate.row
         prev_id = None
         if 0 <= prev_row < len(self._instance_rows):
@@ -2063,7 +2071,11 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                     bt_pnl = _pnl_text(float(instance.metrics.get("pnl", 0.0)))
                 except (TypeError, ValueError):
                     bt_pnl = ""
-            unreal_cell, realized_cell = _instance_pnl_cells(instance, self._positions)
+            unreal_cell, realized_cell = _instance_pnl_cells(
+                instance,
+                self._positions,
+                pnl_value_fn=self._position_pnl_values,
+            )
             self._instances_table.add_row(
                 str(instance.instance_id),
                 instance.group[:24],
@@ -2084,7 +2096,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             self._instances_table.cursor_coordinate = (0, 0)
 
         self._sync_row_marker(self._instances_table, force=True)
-        if not self._scope_all:
+        if refresh_dependents and not self._scope_all:
             self._refresh_orders_table()
             self._refresh_logs_table()
 
@@ -2096,7 +2108,60 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             return
         self._positions = [item for item in items if item.contract.secType in _SECTION_TYPES]
         self._positions.sort(key=_portfolio_sort_key, reverse=True)
+        await self._prime_position_tickers()
+        self._refresh_instances_table(refresh_dependents=False)
         self._refresh_orders_table()
+
+    async def _prime_position_tickers(self) -> None:
+        watched_con_ids = set().union(*(instance.touched_conids for instance in self._instances))
+        if not watched_con_ids:
+            return
+        for item in self._positions:
+            contract = getattr(item, "contract", None)
+            if contract is None:
+                continue
+            try:
+                con_id = int(getattr(contract, "conId", 0) or 0)
+            except (TypeError, ValueError):
+                continue
+            if con_id <= 0 or con_id not in watched_con_ids or con_id in self._tracked_conids:
+                continue
+            try:
+                await self._client.ensure_ticker(contract, owner="bot")
+            except Exception:
+                continue
+            self._tracked_conids.add(con_id)
+
+    def _position_mark_price(self, item: PortfolioItem) -> float | None:
+        contract = getattr(item, "contract", None)
+        if contract is None:
+            return None
+        try:
+            con_id = int(getattr(contract, "conId", 0) or 0)
+        except (TypeError, ValueError):
+            con_id = 0
+        ticker = self._client.ticker_for_con_id(con_id) if con_id else None
+        price = _ticker_price(ticker) if ticker else None
+        if price is not None:
+            return float(price)
+        market_price = _safe_num(getattr(item, "marketPrice", None))
+        return float(market_price) if market_price is not None else None
+
+    def _position_pnl_values(self, item: PortfolioItem) -> tuple[float | None, float | None]:
+        realized = _safe_num(getattr(item, "realizedPNL", None))
+        mark_price = self._position_mark_price(item)
+        try:
+            position = float(getattr(item, "position", 0.0) or 0.0)
+        except (TypeError, ValueError):
+            position = 0.0
+        if mark_price is None or not position:
+            unreal = _safe_num(getattr(item, "unrealizedPNL", None))
+            return unreal, realized
+        multiplier = _infer_multiplier(item)
+        mark_value = float(mark_price) * float(position) * float(multiplier)
+        cost_basis = _cost_basis(item)
+        unreal = float(mark_value - cost_basis)
+        return unreal, realized
 
     @staticmethod
     def _log_entry_identity(entry: dict) -> tuple[str, str, str, str, str]:
@@ -3740,7 +3805,15 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                 con_id = 0
             if con_id not in con_ids:
                 continue
-            self._orders_table.add_row(*_position_as_order_row(item, scope=scope))
+            unreal, realized = self._position_pnl_values(item)
+            self._orders_table.add_row(
+                *_position_as_order_row(
+                    item,
+                    scope=scope,
+                    unreal=unreal,
+                    realized=realized,
+                )
+            )
         self._sync_row_marker(self._orders_table, force=True)
 
 
@@ -4088,7 +4161,11 @@ def _order_row(order: _BotOrder) -> tuple[str, str, str, str, str, str, str, str
 
 
 def _position_as_order_row(
-    item: PortfolioItem, *, scope: int | None
+    item: PortfolioItem,
+    *,
+    scope: int | None,
+    unreal: float | None = None,
+    realized: float | None = None,
 ) -> tuple[str, str, str, str, str, str, str, str, Text, Text]:
     contract = getattr(item, "contract", None)
     sec_type = str(getattr(contract, "secType", "") or "") if contract is not None else ""
@@ -4127,8 +4204,10 @@ def _position_as_order_row(
 
     avg = _safe_num(getattr(item, "averageCost", None))
     mkt = _safe_num(getattr(item, "marketPrice", None))
-    unreal = _safe_num(getattr(item, "unrealizedPNL", None))
-    realized = _safe_num(getattr(item, "realizedPNL", None))
+    if unreal is None:
+        unreal = _safe_num(getattr(item, "unrealizedPNL", None))
+    if realized is None:
+        realized = _safe_num(getattr(item, "realizedPNL", None))
 
     unreal_cell = _pnl_text(unreal) if unreal is not None else Text("")
     realized_cell = _pnl_text(realized) if realized is not None else Text("")
@@ -4147,7 +4226,12 @@ def _position_as_order_row(
     )
 
 
-def _instance_pnl_cells(instance: _BotInstance, positions: list[PortfolioItem]) -> tuple[Text | str, Text | str]:
+def _instance_pnl_cells(
+    instance: _BotInstance,
+    positions: list[PortfolioItem],
+    *,
+    pnl_value_fn=None,
+) -> tuple[Text | str, Text | str]:
     con_ids = set(instance.touched_conids)
     if not con_ids:
         return "", ""
@@ -4162,8 +4246,15 @@ def _instance_pnl_cells(instance: _BotInstance, positions: list[PortfolioItem]) 
         if con_id not in con_ids:
             continue
         has_match = True
-        unreal = _safe_num(getattr(item, "unrealizedPNL", None))
-        realized = _safe_num(getattr(item, "realizedPNL", None))
+        if callable(pnl_value_fn):
+            try:
+                unreal, realized = pnl_value_fn(item)
+            except Exception:
+                unreal = _safe_num(getattr(item, "unrealizedPNL", None))
+                realized = _safe_num(getattr(item, "realizedPNL", None))
+        else:
+            unreal = _safe_num(getattr(item, "unrealizedPNL", None))
+            realized = _safe_num(getattr(item, "realizedPNL", None))
         if unreal is not None:
             unreal_total += float(unreal)
         if realized is not None:
