@@ -15,10 +15,35 @@ We are explicitly targeting the new contract:
 
 ## Current Champions (stack)
 
-### CURRENT (v31) — Full24 time-windowed 10m dethroner (all-window `pnl` + `roi/dd` beat vs v25)
+### CURRENT (v31.1) — FULL24 10m shock-hysteresis wall dethrone (single-process verified)
 This is the current SLV dethroner under the **multiwindow pnl-first contract**:
 - Positive PnL across **10y / 2y / 1y**
-- Beats v25 on **both** `pnl` and `roi/dd` in all windows
+- Beats the prior v31 (`shock_on/off=1.50/1.40`) on `pnl` and worst-window `roi/dd`
+- Verified via single-process (`--jobs 1`) multiwindow sweeps with cache reset per pass
+
+**v31.1 kingmaker #01** (from `backtests/slv/slv_v31_shock_wall_eval_20260211_top12.json`)
+- `shock_on_ratio=1.35`, `shock_off_ratio=1.25` (canonical pick from the top plateau)
+- Worst-window `roi/dd`: **4.204180092** (worst window is **1y**)
+- 10y: `roi/dd=6.389574297`, ROI ≈ **543.39%**, DD% ≈ **85.04%**, trades ≈ **1,615**
+- 2y:  `roi/dd=5.485472528`, ROI ≈ **263.66%**, DD% ≈ **48.06%**, trades ≈ **316**
+- 1y:  `roi/dd=4.204180092`, ROI ≈ **125.61%**, DD% ≈ **29.88%**, trades ≈ **140**
+
+Single-run delta vs prior v31 hysteresis baseline (`1.50/1.40`, same runner/settings):
+- 10y pnl: `+14,716.11` (`528,672.33 -> 543,388.44`)
+- 2y pnl: `+5,895.07` (`257,763.89 -> 263,658.96`)
+- 1y pnl: `+4,117.02` (`121,492.15 -> 125,609.17`)
+- worst-window `roi/dd`: `4.142209046 -> 4.204180092`
+
+Defining delta vs prior v31:
+- Same lane and structure: `signal_bar_size="10 mins"`, `spot_exec_bar_size="5 mins"`, `signal_use_rth=false`
+- Same entry/regime core: `entry_start/end=10/15 ET`, `ema_preset=5/13`, `supertrend @ 1 day`
+- Optimization knob only: shock hysteresis (`shock_on_ratio`, `shock_off_ratio`)
+- Wall plateau (stable top): `shock_on_ratio ∈ [1.300, 1.355]`, `shock_off_ratio = shock_on_ratio - 0.10`
+
+### Previous (v31) — Full24 time-windowed 10m dethroner (all-window `pnl` + `roi/dd` beat vs v25)
+This was the prior SLV dethroner under the same contract:
+- Positive PnL across **10y / 2y / 1y**
+- Beat v25 on **both** `pnl` and `roi/dd` in all windows
 - Uses `signal_use_rth=false` (FULL24 bars), with entry-hour gating instead of RTH lane
 
 **v31 kingmaker #01** (from `backtests/slv/slv_full24_timegate_plus2_top80_promo_raw.json`)
@@ -26,14 +51,6 @@ This is the current SLV dethroner under the **multiwindow pnl-first contract**:
 - 10y: `roi/dd=6.362166024`, ROI ≈ **528.67%**, DD% ≈ **83.10%**, trades ≈ **1,616**
 - 2y:  `roi/dd=5.451136011`, ROI ≈ **257.76%**, DD% ≈ **47.29%**, trades ≈ **316**
 - 1y:  `roi/dd=4.174889507`, ROI ≈ **123.15%**, DD% ≈ **29.50%**, trades ≈ **152**
-
-Defining delta vs v25 baseline:
-- `signal_bar_size="10 mins"` with `spot_exec_bar_size="5 mins"`
-- FULL24 lane: `signal_use_rth=false`
-- Entry-hour gating: `entry_start_hour_et=10`, `entry_end_hour_et=15`
-- Signal/regime: `ema_preset=5/13`, `ema_entry_mode=trend`, `entry_confirm_bars=0`
-- Regime pocket: `supertrend @ 1 day` (`ST(7,0.4,close)`)
-- Risk shape: `spot_stop_loss_pct=0.016`, `spot_short_risk_mult=1.0`
 
 ### CURRENT-HIGH-TRADE (v31-HT) — Full24 all-window beater with higher turnover
 This is the trade-focused counterpart on the same winning family.
@@ -1329,6 +1346,82 @@ Outcome:
 Cleanup note:
 - Generated `opt13` artifacts were local exploration outputs only and were removed from workspace after logging
   (JSON/log bundles for `hour_expansion` + `precision_guard`) to keep the repo lean.
+
+### v37 — Shock-hysteresis wall sweep (single-process, cache-reset) + new king
+Status: **DONE** + **CHAMPION DETHRONE**
+
+Goal:
+- Validate whether the discovered `shock_on/off=1.35/1.25` pair is a true robust optimum (not a local bump),
+  and locate the upper/lower wall where quality degrades.
+
+Method guardrails (explicitly enforced):
+- `spot_multitimeframe` run in **single-process mode** only (`--jobs 1`)
+- eval cache reset before each pass (`rm -f db/spot_multiwindow_eval_cache.sqlite3*`)
+- fixed windows for every pass:
+  - `2016-01-08:2026-01-08`
+  - `2024-01-08:2026-01-08`
+  - `2025-01-08:2026-01-08`
+
+Pass ranges:
+- Pass A (`N=12`): coarse-tight around baseline + discovered duo:
+  - `(1.500,1.400)`, `(1.400,1.300)`, `(1.360,1.260)`, `(1.350,1.250)`,
+    `(1.345,1.245)`, `(1.340,1.240)`, `(1.335,1.235)`, `(1.330,1.230)`,
+    `(1.325,1.225)`, `(1.320,1.220)`, `(1.315,1.215)`, `(1.310,1.210)`
+- Pass B (`N=12`): lower-edge probe below `1.31`:
+  - `(1.315,1.215)` down to `(1.250,1.150)` (step `0.005` in the core)
+- Pass C (`N=11`): upper-edge micro probe:
+  - `(1.350,1.250)` to `(1.360,1.260)` at `0.001` increments
+
+Exact rerunnable commands (equivalent to executed run):
+```bash
+rm -f db/spot_multiwindow_eval_cache.sqlite3 db/spot_multiwindow_eval_cache.sqlite3-shm db/spot_multiwindow_eval_cache.sqlite3-wal
+python -u -m tradebot.backtest spot_multitimeframe \
+  --milestones backtests/slv/slv_v31_shock_wall_candidates_20260211_top12.json \
+  --symbol SLV --bar-size "10 mins" --offline --cache-dir db \
+  --jobs 1 --top 12 --min-trades 0 \
+  --window 2016-01-08:2026-01-08 \
+  --window 2024-01-08:2026-01-08 \
+  --window 2025-01-08:2026-01-08 \
+  --write-top 12 --out backtests/slv/slv_v31_shock_wall_eval_20260211_top12.json
+
+rm -f db/spot_multiwindow_eval_cache.sqlite3 db/spot_multiwindow_eval_cache.sqlite3-shm db/spot_multiwindow_eval_cache.sqlite3-wal
+python -u -m tradebot.backtest spot_multitimeframe \
+  --milestones backtests/slv/slv_v31_shock_wall_candidates_20260211_below131_top12.json \
+  --symbol SLV --bar-size "10 mins" --offline --cache-dir db \
+  --jobs 1 --top 12 --min-trades 0 \
+  --window 2016-01-08:2026-01-08 \
+  --window 2024-01-08:2026-01-08 \
+  --window 2025-01-08:2026-01-08 \
+  --write-top 12 --out backtests/slv/slv_v31_shock_wall_eval_20260211_below131_top12.json
+
+rm -f db/spot_multiwindow_eval_cache.sqlite3 db/spot_multiwindow_eval_cache.sqlite3-shm db/spot_multiwindow_eval_cache.sqlite3-wal
+python -u -m tradebot.backtest spot_multitimeframe \
+  --milestones backtests/slv/slv_v31_shock_wall_candidates_20260211_uppermicro_top11.json \
+  --symbol SLV --bar-size "10 mins" --offline --cache-dir db \
+  --jobs 1 --top 11 --min-trades 0 \
+  --window 2016-01-08:2026-01-08 \
+  --window 2024-01-08:2026-01-08 \
+  --window 2025-01-08:2026-01-08 \
+  --write-top 11 --out backtests/slv/slv_v31_shock_wall_eval_20260211_uppermicro_top11.json
+```
+
+Persisted artifacts:
+- `backtests/slv/slv_v31_shock_wall_candidates_20260211_top12.json`
+- `backtests/slv/slv_v31_shock_wall_candidates_20260211_below131_top12.json`
+- `backtests/slv/slv_v31_shock_wall_candidates_20260211_uppermicro_top11.json`
+- `backtests/slv/slv_v31_shock_wall_eval_20260211_top12.json`
+- `backtests/slv/slv_v31_shock_wall_eval_20260211_below131_top12.json`
+- `backtests/slv/slv_v31_shock_wall_eval_20260211_uppermicro_top11.json`
+
+Outcome (wall map):
+- **Top plateau:** `shock_on_ratio ∈ [1.300, 1.355]`, `shock_off_ratio = on - 0.10`
+- **Upper break:** starts at `1.356/1.256` (10y/2y soften), and from `>=1.357` 1y also softens.
+- **Lower break:** below `1.300/1.200` stability/1y quality drops.
+- **10y outlier:** `1.295/1.195` gives a higher 10y pnl pocket, but lower worst-window stability and lower 1y pnl.
+
+Promoted king (canonical pick):
+- `shock_on_ratio=1.35`, `shock_off_ratio=1.25` (same top metrics as the whole plateau)
+- Worst-window `roi/dd=4.204180092` (1y), with all-window pnl lift vs the prior `1.50/1.40` baseline.
 
 
 ## Notes
