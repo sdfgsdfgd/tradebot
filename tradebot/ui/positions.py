@@ -75,6 +75,8 @@ class PositionDetailScreen(Screen):
     _TREND_BRAILLE_Y = 4
     _AURORA_TAPE_BIAS = 0.15
     _VOL_MAGENTA_STYLES = ("#4e1e57", "#6f2380", "#922aaa", "#b534d8", "#ff3dee")
+    _VOL_BUY_STYLES = ("#245626", "#2f7a34", "#3ea447", "#67c96f", "#9af0a1")
+    _VOL_SELL_STYLES = ("#6a1f1f", "#8d2525", "#b92f2f", "#e14a4a", "#ff7a7a")
     _TREND_ROWS = 5
     _AURORA_PRESET_ORDER = ("calm", "normal", "feral")
     _AURORA_PRESETS = {
@@ -109,6 +111,8 @@ class PositionDetailScreen(Screen):
         self._mid_tape: deque[tuple[float, float]] = deque(maxlen=4096)
         self._spread_samples: deque[float] = deque(maxlen=96)
         self._size_samples: deque[float] = deque(maxlen=96)
+        self._size_tape: deque[tuple[float, float]] = deque(maxlen=4096)
+        self._vol_flow_tape: deque[tuple[float, float]] = deque(maxlen=4096)
         self._pnl_samples: deque[float] = deque(maxlen=96)
         self._slip_proxy_samples: deque[float] = deque(maxlen=96)
         self._imbalance_samples: deque[float] = deque(maxlen=240)
@@ -121,8 +125,21 @@ class PositionDetailScreen(Screen):
         self._pos_delta: float = 0.0
         self._pos_pulse_until: float = 0.0
         self._last_tick_signature: tuple[
-            float | None, float | None, float | None, float | None, float | None
+            float | None,
+            float | None,
+            float | None,
+            float | None,
+            float | None,
+            float | None,
+            float | None,
+            float | None,
+            float | None,
         ] | None = None
+        self._flow_cum_attr: str | None = None
+        self._flow_cum_prev: float | None = None
+        self._flow_prev_price: float | None = None
+        self._flow_last_size: float | None = None
+        self._flow_last_price: float | None = None
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -373,7 +390,13 @@ class PositionDetailScreen(Screen):
 
     def _trim_tapes(self, now: float) -> None:
         cutoff = now - max(float(self._TREND_RETENTION_SEC), float(self._TREND_WINDOW_SEC))
-        for tape in (self._mid_tape, self._imbalance_tape, self._vol_burst_tape):
+        for tape in (
+            self._mid_tape,
+            self._size_tape,
+            self._vol_flow_tape,
+            self._imbalance_tape,
+            self._vol_burst_tape,
+        ):
             while tape and tape[0][0] < cutoff:
                 tape.popleft()
 
@@ -410,6 +433,87 @@ class PositionDetailScreen(Screen):
             self._vol_burst_tape.append((now, burst_value))
         self._trim_tapes(now)
 
+    def _record_volume_size(self, size: float | None, *, ts: float | None = None) -> None:
+        if size is None or size < 0:
+            return
+        now = monotonic() if ts is None else float(ts)
+        size_value = float(size)
+        self._size_samples.append(size_value)
+        self._size_tape.append((now, size_value))
+        self._trim_tapes(now)
+
+    def _record_volume_flow(self, flow: float | None, *, ts: float | None = None) -> None:
+        if flow is None:
+            return
+        flow_value = float(flow)
+        if abs(flow_value) <= 1e-12:
+            return
+        now = monotonic() if ts is None else float(ts)
+        self._vol_flow_tape.append((now, flow_value))
+        self._trim_tapes(now)
+
+    def _trade_volume_delta(self, ticker: Ticker) -> float | None:
+        if self._flow_cum_attr:
+            value = _safe_num(getattr(ticker, self._flow_cum_attr, None))
+            if value is None or value < 0:
+                self._flow_cum_attr = None
+                self._flow_cum_prev = None
+                return None
+            prev = self._flow_cum_prev
+            self._flow_cum_prev = float(value)
+            if prev is None:
+                return None
+            delta = float(value) - float(prev)
+            if delta < 0:
+                return None
+            return delta
+
+        for attr in ("rtTradeVolume", "rtVolume", "volume"):
+            value = _safe_num(getattr(ticker, attr, None))
+            if value is None or value < 0:
+                continue
+            self._flow_cum_attr = attr
+            self._flow_cum_prev = float(value)
+            return None
+        return None
+
+    def _trade_volume_fallback(self, *, last_size: float | None, last_price: float | None) -> float | None:
+        if last_size is None or last_size <= 0:
+            return None
+        prev_size = self._flow_last_size
+        prev_price = self._flow_last_price
+        self._flow_last_size = float(last_size)
+        self._flow_last_price = float(last_price) if last_price is not None else None
+        if prev_size is None:
+            return None
+        price_changed = (
+            last_price is not None
+            and prev_price is not None
+            and abs(float(last_price) - float(prev_price)) > 1e-9
+        )
+        if abs(float(last_size) - float(prev_size)) <= 1e-9 and not price_changed:
+            return None
+        return float(last_size)
+
+    def _flow_direction(self, *, price: float | None, imbalance: float | None) -> float:
+        if price is not None:
+            current = float(price)
+            prev = self._flow_prev_price
+            self._flow_prev_price = current
+            if prev is not None:
+                tick = _tick_size(self._item.contract, self._ticker, current)
+                eps = max(float(tick) * 0.01, 1e-9)
+                delta = current - float(prev)
+                if delta > eps:
+                    return 1.0
+                if delta < -eps:
+                    return -1.0
+        if imbalance is not None and abs(float(imbalance)) >= 0.05:
+            return 1.0 if float(imbalance) > 0 else -1.0
+        if imbalance is not None:
+            return 1.0 if float(imbalance) >= 0 else -1.0
+        return 1.0
+
     def _capture_tick_mid(self) -> None:
         ticker = self._ticker
         if ticker is None:
@@ -417,9 +521,23 @@ class PositionDetailScreen(Screen):
         bid = _safe_num(getattr(ticker, "bid", None))
         ask = _safe_num(getattr(ticker, "ask", None))
         last = _safe_num(getattr(ticker, "last", None))
+        last_size = _safe_num(getattr(ticker, "lastSize", None))
         bid_size = _safe_num(getattr(ticker, "bidSize", None))
         ask_size = _safe_num(getattr(ticker, "askSize", None))
-        signature = (bid, ask, last, bid_size, ask_size)
+        rt_trade_volume = _safe_num(getattr(ticker, "rtTradeVolume", None))
+        rt_volume = _safe_num(getattr(ticker, "rtVolume", None))
+        total_volume = _safe_num(getattr(ticker, "volume", None))
+        signature = (
+            bid,
+            ask,
+            last,
+            last_size,
+            bid_size,
+            ask_size,
+            rt_trade_volume,
+            rt_volume,
+            total_volume,
+        )
         if signature == self._last_tick_signature:
             return
         self._last_tick_signature = signature
@@ -435,6 +553,7 @@ class PositionDetailScreen(Screen):
         prev_mid = float(self._mid_tape[-1][1]) if self._mid_tape else None
         mid_value = float(mid)
         self._record_mid_sample(mid_value, ts=now)
+        self._record_volume_size(last_size, ts=now)
 
         imbalance = None
         total_size = float((bid_size or 0.0) + (ask_size or 0.0))
@@ -444,6 +563,13 @@ class PositionDetailScreen(Screen):
             )
         vol_burst = abs(mid_value - prev_mid) if prev_mid is not None else 0.0
         self._record_aurora_sample(imbalance=imbalance, vol_burst=vol_burst, ts=now)
+
+        flow_qty = self._trade_volume_delta(ticker)
+        if flow_qty is None:
+            flow_qty = self._trade_volume_fallback(last_size=last_size, last_price=last)
+        if flow_qty is not None and flow_qty > 0:
+            direction = self._flow_direction(price=last or mid_value, imbalance=imbalance)
+            self._record_volume_flow(flow_qty * direction, ts=now)
 
     def _record_market_samples(
         self,
@@ -461,8 +587,7 @@ class PositionDetailScreen(Screen):
             self._record_mid_sample(float(mid), ts=now)
         if spread is not None and spread >= 0:
             self._spread_samples.append(float(spread))
-        if size is not None and size >= 0:
-            self._size_samples.append(float(size))
+        self._record_volume_size(size, ts=now)
         if pnl is not None:
             self._pnl_samples.append(float(pnl))
         if slip_proxy is not None and slip_proxy >= 0:
@@ -568,6 +693,25 @@ class PositionDetailScreen(Screen):
             has_data = True
         return out if has_data else []
 
+    @staticmethod
+    def _tape_bin_sum(
+        tape: deque[tuple[float, float]], *, width: int, start: float, end: float
+    ) -> list[float]:
+        width = max(width, 1)
+        if not tape:
+            return []
+        span = max(float(end - start), 1e-9)
+        out = [0.0] * width
+        has_data = False
+        for ts, value in tape:
+            if ts < start or ts > end:
+                continue
+            ratio = (float(ts) - float(start)) / span
+            idx = max(0, min(width - 1, int(ratio * float(width))))
+            out[idx] += float(value)
+            has_data = True
+        return out if has_data else []
+
     def _sparkline_smooth(self, values: deque[float], width: int) -> str:
         width = max(width, 1)
         points = self._resample(list(values), width)
@@ -592,11 +736,6 @@ class PositionDetailScreen(Screen):
             error = level - float(idx)
             out.append(self._SPARK_LEVELS[idx])
         return "".join(out).rjust(width)
-
-    @staticmethod
-    def _trend_pair_value(older: float, newer: float) -> float:
-        # Weight recency so the right edge tracks the latest tape more tightly.
-        return older * 0.38 + newer * 0.62
 
     @staticmethod
     def _trend_braille_cell(left: int, right: int, *, top: bool) -> str:
@@ -732,67 +871,55 @@ class PositionDetailScreen(Screen):
         out.append("▐", style=f"bold {color}")
         return out
 
-    def _vol_histogram_braille(self, values: deque[float], width: int) -> Text:
+    def _vol_histogram_braille(
+        self,
+        width: int,
+        *,
+        window_start: float | None = None,
+        window_end: float | None = None,
+    ) -> Text:
         width = max(width, 1)
-        points = self._resample(list(values), width * 4)
-        if not points:
+        start, end = (
+            (float(window_start), float(window_end))
+            if window_start is not None and window_end is not None
+            else self._trend_window_bounds()
+        )
+        micro_width = width * 2
+        flow_micro = self._tape_bin_sum(self._vol_flow_tape, width=micro_width, start=start, end=end)
+
+        if not flow_micro:
+            size_micro = self._tape_series(self._size_tape, width=micro_width, start=start, end=end)
+            if not size_micro:
+                size_micro = self._resample(list(self._size_samples), micro_width)
+            if not size_micro:
+                return Text(" " * width, style="dim")
+            imbalance_micro = self._tape_series(
+                self._imbalance_tape, width=micro_width, start=start, end=end
+            )
+            if not imbalance_micro:
+                imbalance_micro = [0.0] * micro_width
+            flow_micro = []
+            for size, imbalance in zip(size_micro, imbalance_micro):
+                direction = 1.0 if float(imbalance) >= 0 else -1.0
+                flow_micro.append(float(size) * direction)
+
+        mags = sorted(abs(float(value)) for value in flow_micro if abs(float(value)) > 1e-12)
+        if not mags:
             return Text(" " * width, style="dim")
-        target = width * 4
-        if len(points) < target:
-            points.extend([points[-1]] * (target - len(points)))
-        elif len(points) > target:
-            points = points[-target:]
-        global_max = max(points)
-        if global_max <= 1e-12:
-            return Text(" " * width, style="dim")
-        global_lo = min(points)
-        global_hi = max(points)
-        global_span = global_hi - global_lo
-        if global_span <= 1e-12:
-            level = 4 if global_max > 1e-12 else 0
-            row = Text()
-            for _ in range(width):
-                cell = self._trend_braille_cell(level, level, top=True)
-                if cell == " ":
-                    row.append(" ", style="dim")
-                else:
-                    row.append(cell, style=self._VOL_MAGENTA_STYLES[min(level, len(self._VOL_MAGENTA_STYLES) - 1)])
-            return row
-        window_chars = max(3, min(14, width // 6 + 2))
-        floor_span = max(global_span * 0.08, 1e-12)
-        lows: list[float] = []
-        spans: list[float] = []
-        for idx in range(width):
-            lo_idx = max(0, (idx - window_chars) * 4)
-            hi_idx = min(target, (idx + window_chars + 1) * 4)
-            segment = points[lo_idx:hi_idx]
-            local_lo = min(segment)
-            local_hi = max(segment)
-            lows.append(local_lo)
-            spans.append(max(local_hi - local_lo, floor_span))
-        alpha = 0.32
-        for idx in range(1, width):
-            lows[idx] = lows[idx - 1] + alpha * (lows[idx] - lows[idx - 1])
-            spans[idx] = spans[idx - 1] + alpha * (spans[idx] - spans[idx - 1])
-        for idx in range(width - 2, -1, -1):
-            lows[idx] = lows[idx + 1] + alpha * (lows[idx] - lows[idx + 1])
-            spans[idx] = max(floor_span, spans[idx + 1] + alpha * (spans[idx] - spans[idx + 1]))
-        micro_gamma = 0.82 if self._aurora_preset == "feral" else 0.90
+        last = len(mags) - 1
+        p90 = mags[int(round(last * 0.90))]
+        p98 = mags[int(round(last * 0.98))]
+        scale = max(p90, p98 * 0.7, mags[-1] * 0.28, 1e-9)
+        gamma = 0.84 if self._aurora_preset == "feral" else 0.92
+
         out = Text()
-        for char_idx in range(width):
-            base = char_idx * 4
-            left = self._trend_pair_value(float(points[base]), float(points[base + 1]))
-            right = self._trend_pair_value(float(points[base + 2]), float(points[base + 3]))
-            local_lo = lows[char_idx]
-            local_span = spans[char_idx]
-            left_dyn = min(max((left - local_lo) / local_span, 0.0), 1.0)
-            right_dyn = min(max((right - local_lo) / local_span, 0.0), 1.0)
-            left_abs = min(max(left / global_max, 0.0), 1.0)
-            right_abs = min(max(right / global_max, 0.0), 1.0)
-            left_ratio = max(left_dyn, left_abs * 0.52)
-            right_ratio = max(right_dyn, right_abs * 0.52)
-            left_level = max(0, min(4, int(round(pow(left_ratio, micro_gamma) * 4.0))))
-            right_level = max(0, min(4, int(round(pow(right_ratio, micro_gamma) * 4.0))))
+        for idx in range(width):
+            left = float(flow_micro[idx * 2])
+            right = float(flow_micro[idx * 2 + 1])
+            left_ratio = min(abs(left) / scale, 1.0)
+            right_ratio = min(abs(right) / scale, 1.0)
+            left_level = max(0, min(4, int(round(pow(left_ratio, gamma) * 4.0))))
+            right_level = max(0, min(4, int(round(pow(right_ratio, gamma) * 4.0))))
             if left_level == 0 and left_ratio > 1e-3:
                 left_level = 1
             if right_level == 0 and right_ratio > 1e-3:
@@ -802,8 +929,14 @@ class PositionDetailScreen(Screen):
                 out.append(" ", style="dim")
                 continue
             intensity = max(left_level, right_level)
-            style_idx = max(0, min(len(self._VOL_MAGENTA_STYLES) - 1, intensity))
-            out.append(cell, style=self._VOL_MAGENTA_STYLES[style_idx])
+            if (left + right) > 1e-12:
+                palette = self._VOL_BUY_STYLES
+            elif (left + right) < -1e-12:
+                palette = self._VOL_SELL_STYLES
+            else:
+                palette = self._VOL_MAGENTA_STYLES
+            style_idx = max(0, min(len(palette) - 1, intensity))
+            out.append(cell, style=palette[style_idx])
         return out
 
     @staticmethod
@@ -1206,7 +1339,13 @@ class PositionDetailScreen(Screen):
             trend_rows[trend_now_row], trend_price, color=comet_color
         )
         vol_label_row = Text("Vol Histogram", style="magenta")
-        vol_row = self._mark_now(self._vol_histogram_braille(self._size_samples, spark_width))
+        vol_row = self._mark_now(
+            self._vol_histogram_braille(
+                spark_width,
+                window_start=trend_window_start,
+                window_end=trend_window_end,
+            )
+        )
         momentum_label_row = Text("Momentum", style="yellow")
         momentum_row = self._mark_now(Text(self._momentum_line(spark_width), style="yellow"))
 
