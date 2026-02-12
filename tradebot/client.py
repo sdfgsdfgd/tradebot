@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import copy
 import math
+import re
 import time
 from dataclasses import dataclass
 from datetime import date, datetime, time as dtime, timezone
@@ -41,6 +42,47 @@ _RTH_START = dtime(9, 30)
 _RTH_END = dtime(16, 0)
 _AFTER_END = dtime(20, 0)
 _OVERNIGHT_END = dtime(3, 50)
+_SEARCH_TERM_ALIASES_BY_MODE: dict[str, dict[str, tuple[str, ...]]] = {
+    "STK": {
+        "SILVER": ("SLV",),
+        "XAG": ("SLV",),
+        "GOLD": ("GLD",),
+        "XAU": ("GLD",),
+    },
+    "OPT": {
+        "SILVER": ("SLV",),
+        "XAG": ("SLV",),
+        "GOLD": ("GLD",),
+        "XAU": ("GLD",),
+    },
+    "FUT": {
+        "SILVER": ("SI",),
+        "XAG": ("SI",),
+        "GOLD": ("GC",),
+        "XAU": ("GC",),
+    },
+    "FOP": {
+        "SILVER": ("SI",),
+        "XAG": ("SI",),
+        "GOLD": ("GC",),
+        "XAU": ("GC",),
+    },
+}
+_FUT_EXCHANGE_HINTS: dict[str, tuple[str, ...]] = {
+    "SI": ("COMEX", "NYMEX"),
+    "GC": ("COMEX", "NYMEX"),
+    "CL": ("NYMEX",),
+    "NG": ("NYMEX",),
+    "HG": ("COMEX",),
+    "ES": ("GLOBEX", "CME"),
+    "MES": ("GLOBEX", "CME"),
+    "NQ": ("GLOBEX", "CME"),
+    "MNQ": ("GLOBEX", "CME"),
+    "YM": ("CBOT", "ECBOT", "GLOBEX"),
+    "MYM": ("CBOT", "ECBOT", "GLOBEX"),
+    "RTY": ("GLOBEX", "CME"),
+    "M2K": ("GLOBEX", "CME"),
+}
 # endregion
 
 
@@ -860,6 +902,561 @@ class IBKRClient:
             self._historical_bar_ohlcv_cache[key] = (bars, time.monotonic(), cache_ttl)
             return list(bars)
 
+    @staticmethod
+    def _nearest_expiry(raw_expirations: Iterable[object]) -> str | None:
+        today = datetime.now(tz=_ET_ZONE).date()
+        options: list[tuple[date, str]] = []
+        for raw in raw_expirations or ():
+            text = str(raw or "").strip()
+            if len(text) < 8 or not text[:8].isdigit():
+                continue
+            try:
+                parsed = date(int(text[:4]), int(text[4:6]), int(text[6:8]))
+            except ValueError:
+                continue
+            options.append((parsed, text[:8]))
+        if not options:
+            return None
+        options.sort(key=lambda pair: pair[0])
+        for parsed, text in options:
+            if parsed >= today:
+                return text
+        return options[0][1]
+
+    @staticmethod
+    def _median_strike(raw_strikes: Iterable[object]) -> float | None:
+        values: list[float] = []
+        for raw in raw_strikes or ():
+            try:
+                strike = float(raw)
+            except (TypeError, ValueError):
+                continue
+            if strike > 0:
+                values.append(strike)
+        if not values:
+            return None
+        values.sort()
+        return values[len(values) // 2]
+
+    @staticmethod
+    def _search_terms(query: str, *, mode: str | None = None) -> list[str]:
+        cleaned = str(query or "").strip().upper()
+        if not cleaned:
+            return []
+        parts = [p for p in re.split(r"[^A-Z0-9]+", cleaned) if p]
+        terms: list[str] = []
+        mode_clean = str(mode or "").strip().upper()
+        aliases_by_seed = _SEARCH_TERM_ALIASES_BY_MODE.get(mode_clean, {})
+
+        def _add(term: str) -> None:
+            value = str(term or "").strip().upper()
+            if not value or value in terms:
+                return
+            terms.append(value)
+
+        _add(cleaned)
+        for part in parts:
+            _add(part)
+        # Alias expansion for both full query and individual words.
+        for seed in tuple(terms):
+            for alias in aliases_by_seed.get(seed, ()):
+                _add(alias)
+        return terms[:10]
+
+    @staticmethod
+    def _desc_text(desc: object) -> str:
+        chunks = [
+            str(getattr(desc, "description", "") or ""),
+            str(getattr(desc, "longName", "") or ""),
+            str(getattr(desc, "companyName", "") or ""),
+        ]
+        contract = getattr(desc, "contract", None)
+        if contract is not None:
+            chunks.extend(
+                [
+                    str(getattr(contract, "localSymbol", "") or ""),
+                    str(getattr(contract, "tradingClass", "") or ""),
+                ]
+            )
+        return " ".join(chunks).upper()
+
+    @staticmethod
+    def _future_exchange_candidates(symbol: str, preferred: Iterable[str]) -> list[str]:
+        sym = str(symbol or "").strip().upper()
+        out: list[str] = []
+
+        def _add(exchange: str) -> None:
+            value = str(exchange or "").strip().upper()
+            if not value:
+                return
+            if value in ("SMART", "IDEALPRO"):
+                return
+            if value in out:
+                return
+            out.append(value)
+
+        for exchange in preferred or ():
+            _add(exchange)
+        for exchange in _FUT_EXCHANGE_HINTS.get(sym, ()):
+            _add(exchange)
+        for exchange in ("COMEX", "NYMEX", "GLOBEX", "CME", "CBOT", "ECBOT"):
+            _add(exchange)
+        if not out:
+            out = ["CME"]
+        return out
+
+    async def _matching_symbols(self, query: str, *, use_proxy: bool, mode: str | None = None) -> list[object]:
+        terms = self._search_terms(query, mode=mode)
+        if not terms:
+            return []
+        search_terms = terms[:6]
+        lock = self._proxy_lock if use_proxy else self._lock
+        async with lock:
+            try:
+                if use_proxy:
+                    await self.connect_proxy()
+                    ib = self._ib_proxy
+                else:
+                    await self.connect()
+                    ib = self._ib
+            except Exception:
+                return []
+            out: list[object] = []
+            seen: set[tuple[int, str, str, str, str]] = set()
+            for term in search_terms:
+                try:
+                    matches = await ib.reqMatchingSymbolsAsync(term)
+                except Exception:
+                    continue
+                for desc in list(matches or []):
+                    contract = getattr(desc, "contract", None)
+                    if not contract:
+                        continue
+                    key = (
+                        int(getattr(contract, "conId", 0) or 0),
+                        str(getattr(contract, "secType", "") or "").strip().upper(),
+                        str(getattr(contract, "symbol", "") or "").strip().upper(),
+                        str(getattr(contract, "exchange", "") or "").strip().upper(),
+                        str(getattr(contract, "currency", "") or "").strip().upper(),
+                    )
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    out.append(desc)
+                if len(out) >= 160:
+                    break
+        return out
+
+    async def search_contracts(
+        self,
+        query: str,
+        *,
+        mode: str = "STK",
+        limit: int = 5,
+    ) -> list[Contract]:
+        token = str(query or "").strip().upper()
+        if not token:
+            return []
+        mode_clean = str(mode or "STK").strip().upper()
+        if mode_clean not in ("STK", "FUT", "OPT", "FOP"):
+            mode_clean = "STK"
+        terms = self._search_terms(token, mode=mode_clean)
+        if not terms:
+            return []
+        term_set = set(terms)
+        mode_aliases = _SEARCH_TERM_ALIASES_BY_MODE.get(mode_clean, {})
+        token_is_alias_seed = token in mode_aliases
+        max_rows = max(1, min(int(limit or 5), 20))
+        matches = await self._matching_symbols(
+            token,
+            use_proxy=mode_clean in ("STK", "OPT"),
+            mode=mode_clean,
+        )
+        if not matches:
+            return []
+
+        if mode_clean == "STK":
+            exact_symbols: list[str] = []
+            prefix_symbols: list[str] = []
+            contains_symbols: list[str] = []
+            desc_symbols: list[str] = []
+            seen_symbols: set[str] = set()
+            for desc in matches:
+                contract = getattr(desc, "contract", None)
+                if not contract:
+                    continue
+                if str(getattr(contract, "secType", "") or "").strip().upper() != "STK":
+                    continue
+                symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
+                if not symbol or symbol in seen_symbols:
+                    continue
+                seen_symbols.add(symbol)
+                desc_text = self._desc_text(desc)
+                if symbol in term_set and not (token_is_alias_seed and symbol == token):
+                    exact_symbols.append(symbol)
+                elif any(symbol.startswith(term) for term in term_set):
+                    prefix_symbols.append(symbol)
+                elif any(term in symbol for term in term_set):
+                    contains_symbols.append(symbol)
+                elif any(term in desc_text for term in term_set):
+                    desc_symbols.append(symbol)
+                if len(seen_symbols) >= max_rows * 6:
+                    break
+            symbols = [*exact_symbols, *prefix_symbols, *contains_symbols, *desc_symbols]
+            if not symbols:
+                return []
+            if exact_symbols:
+                symbols = exact_symbols
+            candidates = [Stock(symbol=symbol, exchange="SMART", currency="USD") for symbol in symbols]
+            qualified = await self.qualify_proxy_contracts(*candidates)
+            by_symbol = {
+                str(getattr(contract, "symbol", "") or "").strip().upper(): contract
+                for contract in qualified
+                if contract
+            }
+            out: list[Contract] = []
+            for candidate in candidates:
+                symbol = str(getattr(candidate, "symbol", "") or "").strip().upper()
+                resolved = by_symbol.get(symbol)
+                if resolved is None:
+                    continue
+                out.append(resolved)
+                if len(out) >= max_rows:
+                    break
+            return out
+
+        if mode_clean == "FUT":
+            exact_roots: list[tuple[str, str]] = []
+            prefix_roots: list[tuple[str, str]] = []
+            contains_roots: list[tuple[str, str]] = []
+            desc_roots: list[tuple[str, str]] = []
+            seen_roots: set[tuple[str, str]] = set()
+            for desc in matches:
+                contract = getattr(desc, "contract", None)
+                if not contract:
+                    continue
+                if str(getattr(contract, "secType", "") or "").strip().upper() != "FUT":
+                    continue
+                symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
+                if not symbol:
+                    continue
+                exchange = str(getattr(contract, "exchange", "") or "").strip().upper() or "CME"
+                key = (symbol, exchange)
+                if key in seen_roots:
+                    continue
+                seen_roots.add(key)
+                desc_text = self._desc_text(desc)
+                if symbol in term_set and not (token_is_alias_seed and symbol == token):
+                    exact_roots.append(key)
+                elif any(symbol.startswith(term) for term in term_set):
+                    prefix_roots.append(key)
+                elif any(term in symbol for term in term_set):
+                    contains_roots.append(key)
+                elif any(term in desc_text for term in term_set):
+                    desc_roots.append(key)
+                if len(seen_roots) >= max_rows * 6:
+                    break
+            ranked_roots = [*exact_roots, *prefix_roots, *contains_roots, *desc_roots]
+            symbol_exchange_map: dict[str, list[str]] = {}
+            for symbol, exchange in ranked_roots:
+                symbol_exchange_map.setdefault(symbol, [])
+                if exchange not in symbol_exchange_map[symbol]:
+                    symbol_exchange_map[symbol].append(exchange)
+
+            if exact_roots:
+                candidate_symbols: list[str] = []
+                for symbol, _exchange in exact_roots:
+                    if symbol not in candidate_symbols:
+                        candidate_symbols.append(symbol)
+            else:
+                candidate_symbols = []
+                for symbol, _exchange in ranked_roots:
+                    if symbol not in candidate_symbols:
+                        candidate_symbols.append(symbol)
+
+            # Hard fallback: derive plausible future roots directly from expanded terms.
+            if not candidate_symbols:
+                for term in terms:
+                    if not term:
+                        continue
+                    if len(term) > 6:
+                        continue
+                    if not term.isalnum():
+                        continue
+                    if term not in candidate_symbols:
+                        candidate_symbols.append(term)
+                    if len(candidate_symbols) >= (max_rows * 4):
+                        break
+
+            if not candidate_symbols:
+                return []
+            out: list[Contract] = []
+            seen_con_ids: set[int] = set()
+            for symbol in candidate_symbols:
+                preferred = symbol_exchange_map.get(symbol, [])
+                future = None
+                for exchange in self._future_exchange_candidates(symbol, preferred):
+                    future = await self.front_future(symbol, exchange=exchange, cache_ttl_sec=1800.0)
+                    if future is not None:
+                        break
+                if future is None:
+                    continue
+                con_id = int(getattr(future, "conId", 0) or 0)
+                if con_id and con_id in seen_con_ids:
+                    continue
+                if con_id:
+                    seen_con_ids.add(con_id)
+                out.append(future)
+                if len(out) >= max_rows:
+                    break
+            return out
+
+        if mode_clean == "OPT":
+            exact_symbols: list[str] = []
+            prefix_symbols: list[str] = []
+            contains_symbols: list[str] = []
+            desc_symbols: list[str] = []
+            seen_symbols: set[str] = set()
+            for desc in matches:
+                contract = getattr(desc, "contract", None)
+                if not contract:
+                    continue
+                if str(getattr(contract, "secType", "") or "").strip().upper() != "STK":
+                    continue
+                deriv = {
+                    str(sec).strip().upper()
+                    for sec in (getattr(desc, "derivativeSecTypes", None) or [])
+                }
+                if "OPT" not in deriv:
+                    continue
+                symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
+                if not symbol or symbol in seen_symbols:
+                    continue
+                seen_symbols.add(symbol)
+                desc_text = self._desc_text(desc)
+                if symbol in term_set and not (token_is_alias_seed and symbol == token):
+                    exact_symbols.append(symbol)
+                elif any(symbol.startswith(term) for term in term_set):
+                    prefix_symbols.append(symbol)
+                elif any(term in symbol for term in term_set):
+                    contains_symbols.append(symbol)
+                elif any(term in desc_text for term in term_set):
+                    desc_symbols.append(symbol)
+                if len(seen_symbols) >= max_rows * 6:
+                    break
+            ranked_symbols = [*exact_symbols, *prefix_symbols, *contains_symbols, *desc_symbols]
+            if not ranked_symbols:
+                return []
+            symbol = ranked_symbols[0]
+
+            chain_entry = await self.stock_option_chain(symbol)
+            if not chain_entry:
+                return []
+            underlying, chain = chain_entry
+            expiries_raw = getattr(chain, "expirations", ()) or ()
+            expiries: list[str] = []
+            for raw in expiries_raw:
+                text = str(raw or "").strip()
+                if len(text) >= 8 and text[:8].isdigit():
+                    expiries.append(text[:8])
+            expiries = sorted(set(expiries))
+            if not expiries:
+                return []
+            expiry_take = min(len(expiries), 3)
+            selected_expiries = expiries[:expiry_take]
+            strikes_raw = getattr(chain, "strikes", ()) or ()
+            strikes: list[float] = []
+            for raw in strikes_raw:
+                try:
+                    strike = float(raw)
+                except (TypeError, ValueError):
+                    continue
+                if strike > 0:
+                    strikes.append(strike)
+            if not strikes:
+                return []
+            strikes = sorted(set(strikes))
+            ref_price = None
+            try:
+                ticker = await self.ensure_ticker(underlying, owner="search")
+                bid = ticker.bid
+                ask = ticker.ask
+                last = ticker.last
+                close = ticker.close
+                try:
+                    bid_f = float(bid) if bid is not None else None
+                except (TypeError, ValueError):
+                    bid_f = None
+                try:
+                    ask_f = float(ask) if ask is not None else None
+                except (TypeError, ValueError):
+                    ask_f = None
+                try:
+                    last_f = float(last) if last is not None else None
+                except (TypeError, ValueError):
+                    last_f = None
+                try:
+                    close_f = float(close) if close is not None else None
+                except (TypeError, ValueError):
+                    close_f = None
+                if (
+                    bid_f is not None
+                    and ask_f is not None
+                    and bid_f > 0
+                    and ask_f > 0
+                    and bid_f <= ask_f
+                ):
+                    ref_price = (bid_f + ask_f) / 2.0
+                elif last_f is not None and last_f > 0:
+                    ref_price = last_f
+                elif close_f is not None and close_f > 0:
+                    ref_price = close_f
+            except Exception:
+                ref_price = None
+            finally:
+                under_con_id = int(getattr(underlying, "conId", 0) or 0)
+                if under_con_id:
+                    self.release_ticker(under_con_id, owner="search")
+
+            if ref_price is None:
+                ref_price = self._median_strike(strikes)
+            if ref_price is None:
+                return []
+            rows_per_expiry = max(1, int(max_rows) // max(1, (2 * len(selected_expiries))))
+
+            symbol_clean = str(getattr(underlying, "symbol", "") or symbol).strip().upper()
+            exchange = str(getattr(chain, "exchange", "") or "SMART").strip().upper() or "SMART"
+            currency = str(getattr(underlying, "currency", "") or "USD").strip().upper() or "USD"
+            multiplier = str(getattr(chain, "multiplier", "") or "")
+            trading_class = str(getattr(chain, "tradingClass", "") or "")
+            candidates: list[Contract] = []
+            for expiry in selected_expiries:
+                ordered_strikes = sorted(
+                    strikes,
+                    key=lambda value: (abs(float(value) - float(ref_price)), float(value)),
+                )
+                nearby = sorted(ordered_strikes[:rows_per_expiry])
+                for strike in nearby:
+                    for right in ("C", "P"):
+                        candidates.append(
+                            Contract(
+                                secType="OPT",
+                                symbol=symbol_clean,
+                                exchange=exchange,
+                                currency=currency,
+                                lastTradeDateOrContractMonth=expiry,
+                                strike=float(strike),
+                                right=right,
+                                multiplier=multiplier,
+                                tradingClass=trading_class,
+                            )
+                        )
+            if not candidates:
+                return []
+
+            qualified = await self.qualify_proxy_contracts(*candidates)
+            by_key: dict[tuple[str, str, str, float], Contract] = {}
+            for contract in qualified:
+                try:
+                    strike = float(getattr(contract, "strike", 0.0) or 0.0)
+                except (TypeError, ValueError):
+                    continue
+                key = (
+                    str(getattr(contract, "symbol", "") or "").strip().upper(),
+                    str(getattr(contract, "lastTradeDateOrContractMonth", "") or "").strip(),
+                    str(getattr(contract, "right", "") or "").strip().upper()[:1],
+                    round(strike, 6),
+                )
+                by_key[key] = contract
+
+            out: list[Contract] = []
+            for candidate in candidates:
+                key = (
+                    str(getattr(candidate, "symbol", "") or "").strip().upper(),
+                    str(getattr(candidate, "lastTradeDateOrContractMonth", "") or "").strip(),
+                    str(getattr(candidate, "right", "") or "").strip().upper()[:1],
+                    round(float(getattr(candidate, "strike", 0.0) or 0.0), 6),
+                )
+                out.append(by_key.get(key, candidate))
+            return out[:max_rows]
+
+        roots: list[tuple[str, str]] = []
+        for desc in matches:
+            contract = getattr(desc, "contract", None)
+            if not contract:
+                continue
+            if str(getattr(contract, "secType", "") or "").strip().upper() != "FUT":
+                continue
+            deriv = {
+                str(sec).strip().upper()
+                for sec in (getattr(desc, "derivativeSecTypes", None) or [])
+            }
+            if "FOP" not in deriv:
+                continue
+            symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
+            if not symbol:
+                continue
+            exchange = str(getattr(contract, "exchange", "") or "").strip().upper() or "CME"
+            key = (symbol, exchange)
+            if key in roots:
+                continue
+            roots.append(key)
+            if len(roots) >= max_rows * 3:
+                break
+        if not roots:
+            return []
+
+        out: list[Contract] = []
+        for symbol, exchange in roots:
+            future = await self.front_future(symbol, exchange=exchange, cache_ttl_sec=1800.0)
+            if future is None:
+                continue
+            try:
+                await self.connect()
+            except Exception:
+                continue
+            try:
+                chains = await self._ib.reqSecDefOptParamsAsync(
+                    str(getattr(future, "symbol", "") or symbol),
+                    "",
+                    str(getattr(future, "secType", "") or "FUT"),
+                    int(getattr(future, "conId", 0) or 0),
+                )
+            except Exception:
+                chains = []
+            if not chains:
+                continue
+            future_ex = str(getattr(future, "exchange", "") or "").strip().upper()
+            chain = next(
+                (
+                    value
+                    for value in chains
+                    if str(getattr(value, "exchange", "") or "").strip().upper() == future_ex
+                ),
+                chains[0],
+            )
+            expiry = self._nearest_expiry(getattr(chain, "expirations", ()) or ())
+            strike = self._median_strike(getattr(chain, "strikes", ()) or ())
+            if not expiry or strike is None:
+                continue
+            option = Contract(
+                secType="FOP",
+                symbol=str(getattr(future, "symbol", "") or symbol).strip().upper(),
+                exchange=str(getattr(chain, "exchange", "") or future_ex or "CME").strip().upper()
+                or "CME",
+                currency=str(getattr(future, "currency", "") or "USD").strip().upper() or "USD",
+                lastTradeDateOrContractMonth=expiry,
+                strike=float(strike),
+                right="C",
+                multiplier=str(getattr(chain, "multiplier", "") or getattr(future, "multiplier", "") or ""),
+                tradingClass=str(getattr(chain, "tradingClass", "") or ""),
+            )
+            qualified = await self._qualify_contract(option, use_proxy=False)
+            out.append(qualified or option)
+            if len(out) >= max_rows:
+                break
+        return out
+
     async def stock_option_chain(self, symbol: str):
         """Return (qualified_underlying, chain) for an equity option underlyer."""
         candidate = Stock(symbol=symbol, exchange="SMART", currency="USD")
@@ -868,12 +1465,15 @@ class IBKRClient:
             await self.connect_proxy()
         except Exception:
             return None
-        chains = self._ib_proxy.reqSecDefOptParams(
-            underlying.symbol,
-            "",
-            underlying.secType,
-            int(getattr(underlying, "conId", 0) or 0),
-        )
+        try:
+            chains = await self._ib_proxy.reqSecDefOptParamsAsync(
+                underlying.symbol,
+                "",
+                underlying.secType,
+                int(getattr(underlying, "conId", 0) or 0),
+            )
+        except Exception:
+            chains = []
         if not chains:
             return None
         chain = next((c for c in chains if getattr(c, "exchange", None) == "SMART"), chains[0])

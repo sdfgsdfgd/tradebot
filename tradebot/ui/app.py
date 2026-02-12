@@ -5,10 +5,13 @@ from __future__ import annotations
 import asyncio
 import math
 import time
+from dataclasses import dataclass
 from datetime import datetime, timezone
+from typing import cast
 
-from ib_insync import PnL, PortfolioItem, Ticker
+from ib_insync import Contract, PnL, PortfolioItem, Ticker
 from rich.text import Text
+from textual import events
 from textual.app import App, ComposeResult
 from textual.widgets import DataTable, Footer, Header, Static
 
@@ -45,12 +48,31 @@ from .positions import PositionDetailScreen
 from .store import PortfolioSnapshot
 
 
+@dataclass
+class _SyntheticPortfolioItem:
+    contract: Contract
+    position: float = 0.0
+    averageCost: float = 0.0
+    marketPrice: float = 0.0
+    marketValue: float = 0.0
+    unrealizedPNL: float = 0.0
+    realizedPNL: float = 0.0
+
+
+class _SearchDrawer(Static):
+    can_focus = True
+
+
 # region Positions UI
 class PositionsApp(App):
     _PX_24_72_COL_WIDTH = 32
     _QTY_COL_WIDTH = 7
     _UNREAL_COL_WIDTH = 30
     _REALIZED_COL_WIDTH = 12
+    _SEARCH_MODES = ("STK", "FUT", "OPT", "FOP")
+    _SEARCH_LIMIT = 5
+    _SEARCH_FETCH_LIMIT = 24
+    _SEARCH_DEBOUNCE_SEC = 0.18
 
     _SECTION_HEADER_STYLE_BY_TYPE = {
         "OPT": "bold #8fbfff",
@@ -65,6 +87,7 @@ class PositionsApp(App):
         ("j", "cursor_down", "Down"),
         ("k", "cursor_up", "Up"),
         ("l", "open_details", "Details"),
+        ("ctrl+f", "toggle_search", "Search"),
         ("ctrl+t", "toggle_bot", "Bot"),
     ]
 
@@ -112,6 +135,14 @@ class PositionsApp(App):
     #status {
         height: 1;
         padding: 0 1;
+    }
+
+    #search {
+        height: auto;
+        min-height: 1;
+        padding: 0 1;
+        border-top: solid #1b3650;
+        background: #0b1219;
     }
 
     #detail-body {
@@ -266,6 +297,18 @@ class PositionsApp(App):
             int, tuple[float | None, float | None, float | None, float | None]
         ] = {}
         self._quote_updated_mono_by_con_id: dict[int, float] = {}
+        self._search_active = False
+        self._search_query = ""
+        self._search_mode_index = 0
+        self._search_results: list[Contract] = []
+        self._search_selected = 0
+        self._search_scroll = 0
+        self._search_side = 0  # 0=CALL(left), 1=PUT(right) for OPT mode
+        self._search_opt_expiry_index = 0
+        self._search_loading = False
+        self._search_error: str | None = None
+        self._search_generation = 0
+        self._search_task: asyncio.Task | None = None
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -277,12 +320,15 @@ class PositionsApp(App):
             cursor_background_priority="css",
         )
         yield Static("Starting...", id="status")
+        yield _SearchDrawer("", id="search")
         yield Footer()
 
     async def on_mount(self) -> None:
         self._table = self.query_one(DataTable)
         self._ticker = self.query_one("#ticker", Static)
         self._status = self.query_one("#status", Static)
+        self._search = self.query_one("#search", Static)
+        self._search.display = False
         self._setup_columns()
         self._table.cursor_type = "row"
         self._table.focus()
@@ -292,6 +338,7 @@ class PositionsApp(App):
         await self.refresh_positions()
 
     async def on_unmount(self) -> None:
+        self._cancel_search_task()
         await self._client.disconnect()
 
     def _setup_columns(self) -> None:
@@ -354,12 +401,21 @@ class PositionsApp(App):
         await self.refresh_positions(hard=True)
 
     def action_cursor_down(self) -> None:
+        if self._search_active:
+            self._move_search_selection(1)
+            return
         self._table.action_cursor_down()
 
     def action_cursor_up(self) -> None:
+        if self._search_active:
+            self._move_search_selection(-1)
+            return
         self._table.action_cursor_up()
 
     def action_open_details(self) -> None:
+        if self._search_active:
+            self._open_search_selection()
+            return
         row_index = self._table.cursor_coordinate.row
         if row_index < 0 or row_index >= len(self._row_keys):
             return
@@ -375,9 +431,19 @@ class PositionsApp(App):
             )
 
     def action_toggle_bot(self) -> None:
+        if self._search_active:
+            self._close_search()
         self._bot_runtime.toggle(self)
 
+    def action_toggle_search(self) -> None:
+        if self._search_active:
+            self._close_search()
+            return
+        self._open_search()
+
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        if self._search_active:
+            return
         item = self._row_item_by_key.get(event.row_key.value)
         if item:
             self.push_screen(
@@ -389,8 +455,511 @@ class PositionsApp(App):
             )
 
     def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
+        if self._search_active:
+            return
         if event.control is self._table:
             self._sync_row_marker()
+
+    def on_key(self, event: events.Key) -> None:
+        if self._search_active:
+            if event.key == "escape":
+                self._close_search()
+                event.prevent_default()
+                event.stop()
+                return
+            if event.key == "enter":
+                self._open_search_selection()
+                event.prevent_default()
+                event.stop()
+                return
+            if event.key == "tab":
+                self._cycle_search_mode(1)
+                event.prevent_default()
+                event.stop()
+                return
+            if event.key in ("shift+tab", "backtab"):
+                self._cycle_search_mode(-1)
+                event.prevent_default()
+                event.stop()
+                return
+            if event.key in ("up", "k"):
+                self._move_search_selection(-1)
+                event.prevent_default()
+                event.stop()
+                return
+            if event.key in ("down", "j"):
+                self._move_search_selection(1)
+                event.prevent_default()
+                event.stop()
+                return
+            if event.key in ("left", "h"):
+                if self._search_mode() == "OPT":
+                    self._search_side = 0
+                    self._render_search()
+                    event.prevent_default()
+                    event.stop()
+                    return
+            if event.key in ("right", "l"):
+                if self._search_mode() == "OPT":
+                    self._search_side = 1
+                    self._render_search()
+                    event.prevent_default()
+                    event.stop()
+                    return
+            if event.character in ("[", "]"):
+                if self._search_mode() == "OPT":
+                    self._cycle_search_expiry(-1 if event.character == "[" else 1)
+                    event.prevent_default()
+                    event.stop()
+                    return
+            if event.key == "backspace":
+                if self._search_query:
+                    self._search_query = self._search_query[:-1]
+                    self._queue_search()
+                else:
+                    self._render_search()
+                event.prevent_default()
+                event.stop()
+                return
+            if event.character and event.character.isprintable():
+                char = event.character
+                if char.isalpha():
+                    char = char.upper()
+                self._search_query += char
+                self._queue_search()
+                event.prevent_default()
+                event.stop()
+                return
+            event.prevent_default()
+            event.stop()
+            return
+
+        if event.key in ("slash", "/") or event.character == "/":
+            self._open_search()
+            event.prevent_default()
+            event.stop()
+
+    def _open_search(self) -> None:
+        self._search_active = True
+        self._search_query = ""
+        self._search_mode_index = 0
+        self._search_results = []
+        self._search_selected = 0
+        self._search_scroll = 0
+        self._search_side = 0
+        self._search_opt_expiry_index = 0
+        self._search_loading = False
+        self._search_error = None
+        self._search_generation += 1
+        self._cancel_search_task()
+        self._search.display = True
+        self._search.focus()
+        self._render_search()
+
+    def _close_search(self) -> None:
+        self._search_active = False
+        self._search_query = ""
+        self._search_results = []
+        self._search_selected = 0
+        self._search_scroll = 0
+        self._search_side = 0
+        self._search_opt_expiry_index = 0
+        self._search_loading = False
+        self._search_error = None
+        self._search_generation += 1
+        self._cancel_search_task()
+        self._search.display = False
+        self._search.update("")
+        self._table.focus()
+
+    def _cancel_search_task(self) -> None:
+        if self._search_task and not self._search_task.done():
+            self._search_task.cancel()
+        self._search_task = None
+
+    def _cycle_search_mode(self, step: int) -> None:
+        count = len(self._SEARCH_MODES)
+        if count <= 0:
+            return
+        self._search_mode_index = (self._search_mode_index + int(step)) % count
+        self._search_selected = 0
+        self._search_scroll = 0
+        self._search_side = 0
+        self._search_opt_expiry_index = 0
+        self._queue_search()
+
+    def _move_search_selection(self, delta: int) -> None:
+        total = self._search_row_count()
+        if total <= 0:
+            self._render_search()
+            return
+        max_index = total - 1
+        self._search_selected = min(max(self._search_selected + int(delta), 0), max_index)
+        self._ensure_search_visible()
+        self._render_search()
+
+    def _search_mode(self) -> str:
+        return self._SEARCH_MODES[self._search_mode_index]
+
+    def _search_opt_expiries(self) -> list[str]:
+        expiries = {
+            str(getattr(contract, "lastTradeDateOrContractMonth", "") or "").strip()
+            for contract in self._search_results
+            if str(getattr(contract, "secType", "") or "").strip().upper() == "OPT"
+        }
+        cleaned = [value for value in expiries if value]
+        return sorted(cleaned)
+
+    def _current_opt_expiry(self) -> str | None:
+        expiries = self._search_opt_expiries()
+        if not expiries:
+            self._search_opt_expiry_index = 0
+            return None
+        self._search_opt_expiry_index = min(
+            max(int(self._search_opt_expiry_index), 0),
+            len(expiries) - 1,
+        )
+        return expiries[self._search_opt_expiry_index]
+
+    def _cycle_search_expiry(self, step: int) -> None:
+        if self._search_mode() != "OPT":
+            return
+        expiries = self._search_opt_expiries()
+        if not expiries:
+            return
+        count = len(expiries)
+        self._search_opt_expiry_index = (self._search_opt_expiry_index + int(step)) % count
+        self._search_selected = 0
+        self._search_scroll = 0
+        self._render_search()
+
+    def _option_pair_rows(self) -> list[tuple[Contract | None, Contract | None]]:
+        target_expiry = self._current_opt_expiry()
+        by_strike: dict[float, list[Contract | None]] = {}
+        for contract in self._search_results:
+            if str(getattr(contract, "secType", "") or "").strip().upper() != "OPT":
+                continue
+            expiry = str(getattr(contract, "lastTradeDateOrContractMonth", "") or "").strip()
+            if target_expiry and expiry != target_expiry:
+                continue
+            try:
+                strike = float(getattr(contract, "strike", 0.0) or 0.0)
+            except (TypeError, ValueError):
+                continue
+            if strike not in by_strike:
+                by_strike[strike] = [None, None]
+            right = str(getattr(contract, "right", "") or "").strip().upper()[:1]
+            if right == "P":
+                by_strike[strike][1] = contract
+            else:
+                by_strike[strike][0] = contract
+        rows: list[tuple[Contract | None, Contract | None]] = []
+        for strike in sorted(by_strike.keys()):
+            call, put = by_strike[strike]
+            rows.append((call, put))
+        return rows
+
+    def _search_row_count(self) -> int:
+        if self._search_mode() == "OPT":
+            return len(self._option_pair_rows())
+        return len(self._search_results)
+
+    def _ensure_search_visible(self) -> None:
+        total = self._search_row_count()
+        if total <= 0:
+            self._search_scroll = 0
+            return
+        max_scroll = max(0, total - self._SEARCH_LIMIT)
+        if self._search_selected < self._search_scroll:
+            self._search_scroll = self._search_selected
+        elif self._search_selected >= (self._search_scroll + self._SEARCH_LIMIT):
+            self._search_scroll = self._search_selected - self._SEARCH_LIMIT + 1
+        self._search_scroll = min(max(self._search_scroll, 0), max_scroll)
+
+    def _queue_search(self) -> None:
+        self._search_error = None
+        self._search_selected = 0
+        self._search_scroll = 0
+        self._search_opt_expiry_index = 0
+        self._cancel_search_task()
+        query = self._search_query.strip()
+        if not query:
+            self._search_results = []
+            self._search_loading = False
+            self._render_search()
+            return
+        self._search_loading = True
+        self._render_search()
+        self._search_generation += 1
+        generation = self._search_generation
+        mode = self._search_mode()
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            self._search_loading = False
+            self._render_search()
+            return
+        self._search_task = loop.create_task(
+            self._run_search(
+                generation,
+                query,
+                mode,
+                fetch_limit=self._SEARCH_FETCH_LIMIT if mode == "OPT" else self._SEARCH_LIMIT,
+            )
+        )
+
+    async def _run_search(self, generation: int, query: str, mode: str, *, fetch_limit: int) -> None:
+        try:
+            await asyncio.sleep(self._SEARCH_DEBOUNCE_SEC)
+            results = await self._client.search_contracts(query, mode=mode, limit=fetch_limit)
+        except asyncio.CancelledError:
+            return
+        except Exception as exc:
+            if generation != self._search_generation:
+                return
+            self._search_loading = False
+            self._search_results = []
+            self._search_error = str(exc)
+            self._render_search()
+            return
+        if generation != self._search_generation:
+            return
+        self._search_loading = False
+        self._search_results = list(results)
+        total = self._search_row_count()
+        self._search_selected = min(max(self._search_selected, 0), max(total - 1, 0))
+        self._ensure_search_visible()
+        self._render_search()
+
+    def _render_search(self) -> None:
+        if not hasattr(self, "_search"):
+            return
+        if not self._search_active:
+            self._search.display = False
+            return
+        self._search.display = True
+        line1 = Text("Search ", style="bold")
+        for index, mode in enumerate(self._SEARCH_MODES):
+            if index > 0:
+                line1.append(" ", style="dim")
+            if index == self._search_mode_index:
+                line1.append(f"[{mode}]", style="bold #0d1117 on #7ab6ff")
+            else:
+                line1.append(mode, style="dim")
+        line1.append("  > ", style="dim")
+        if self._search_query:
+            line1.append(self._search_query, style="bold white")
+        else:
+            line1.append("type symbol...", style="dim")
+        lines: list[Text] = [line1]
+        mode = self._search_mode()
+        if self._search_error:
+            lines.append(Text(f"Error: {self._search_error}", style="red"))
+        elif self._search_loading:
+            lines.append(Text("Searching...", style="yellow"))
+        elif not self._search_query.strip():
+            lines.append(
+                Text(
+                    "Tab/Shift+Tab mode | Up/Down scroll | Enter details | Esc close",
+                    style="dim",
+                )
+            )
+        elif not self._search_results:
+            lines.append(Text("No matches", style="dim"))
+        elif mode == "OPT":
+            expiries = self._search_opt_expiries()
+            expiry_line = Text("Expiry ", style="dim")
+            if expiries:
+                self._search_opt_expiry_index = min(
+                    max(self._search_opt_expiry_index, 0),
+                    len(expiries) - 1,
+                )
+                for idx, expiry in enumerate(expiries):
+                    if idx > 0:
+                        expiry_line.append(" ", style="dim")
+                    if idx == self._search_opt_expiry_index:
+                        expiry_line.append(f"[{expiry}]", style="bold #0d1117 on #ffcc84")
+                    else:
+                        expiry_line.append(expiry, style="bold #ffcc84")
+                expiry_line.append("  ([ / ])", style="dim")
+            else:
+                expiry_line.append("n/a", style="dim")
+            lines.append(expiry_line)
+            side_line = Text("Side ", style="dim")
+            if self._search_side == 0:
+                side_line.append("[CALL]", style="bold #0d1117 on #8fbfff")
+                side_line.append(" PUT", style="dim")
+            else:
+                side_line.append("CALL ", style="dim")
+                side_line.append("[PUT]", style="bold #0d1117 on #8fbfff")
+            side_line.append("  (left/right)", style="dim")
+            lines.append(side_line)
+            rows = self._option_pair_rows()
+            total = len(rows)
+            start = min(self._search_scroll, max(0, total - self._SEARCH_LIMIT))
+            end = min(start + self._SEARCH_LIMIT, total)
+            for idx in range(start, end):
+                call_contract, put_contract = rows[idx]
+                lines.append(
+                    self._search_option_pair_line(
+                        idx=idx,
+                        call_contract=call_contract,
+                        put_contract=put_contract,
+                        active=idx == self._search_selected,
+                    )
+                )
+            if total > self._SEARCH_LIMIT:
+                lines.append(Text(f"Rows {start + 1}-{end}/{total}", style="dim"))
+        else:
+            total = len(self._search_results)
+            start = min(self._search_scroll, max(0, total - self._SEARCH_LIMIT))
+            end = min(start + self._SEARCH_LIMIT, total)
+            for idx in range(start, end):
+                lines.append(
+                    self._search_result_line(
+                        self._search_results[idx],
+                        row=idx,
+                        active=idx == self._search_selected,
+                    )
+                )
+            if total > self._SEARCH_LIMIT:
+                lines.append(Text(f"Rows {start + 1}-{end}/{total}", style="dim"))
+        self._search.update(Text("\n").join(lines))
+
+    def _search_result_line(self, contract: Contract, *, row: int, active: bool) -> Text:
+        sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
+        symbol = str(getattr(contract, "symbol", "") or "?").strip().upper() or "?"
+        style = self._SECTION_HEADER_STYLE_BY_TYPE.get(sec_type, "bold white")
+        line = Text(f"{row + 1}. ", style="dim")
+        line.append(sec_type.ljust(3), style=style)
+        line.append(" ")
+        line.append(symbol, style="bold")
+        expiry = str(getattr(contract, "lastTradeDateOrContractMonth", "") or "").strip()
+        if sec_type in ("OPT", "FOP"):
+            right = str(getattr(contract, "right", "") or "").strip().upper()[:1]
+            strike = getattr(contract, "strike", None)
+            strike_text = ""
+            if strike not in (None, ""):
+                try:
+                    strike_text = f"{float(strike):.2f}"
+                except (TypeError, ValueError):
+                    strike_text = str(strike)
+            if expiry:
+                line.append(f" {expiry}", style="dim")
+            if right:
+                line.append(f" {right}", style="bold")
+            if strike_text:
+                line.append(f" {strike_text}", style="bold")
+        elif sec_type == "FUT" and expiry:
+            line.append(f" {expiry}", style="dim")
+        exchange = str(getattr(contract, "exchange", "") or "").strip().upper()
+        if exchange:
+            line.append(f"  {exchange}", style="dim")
+        if active:
+            line.stylize("bold on #1d2a38")
+        return line
+
+    @staticmethod
+    def _clip_cell(text: str, width: int) -> str:
+        if width <= 0:
+            return ""
+        if len(text) <= width:
+            return text.ljust(width)
+        if width == 1:
+            return "…"
+        return text[: width - 1] + "…"
+
+    def _search_option_pair_line(
+        self,
+        *,
+        idx: int,
+        call_contract: Contract | None,
+        put_contract: Contract | None,
+        active: bool,
+    ) -> Text:
+        search_widget = getattr(self, "_search", None)
+        size = getattr(search_widget, "size", None)
+        width = int(getattr(size, "width", 0) or 0)
+        inner = max(width - 4, 44)
+        side_width = max((inner - 18) // 2, 10)
+        strike = None
+        source = call_contract if call_contract is not None else put_contract
+        if source is not None:
+            try:
+                strike = float(getattr(source, "strike", 0.0) or 0.0)
+            except (TypeError, ValueError):
+                strike = None
+        strike_text = f"{strike:.2f}" if strike is not None and strike > 0 else "--"
+        symbol = (
+            str(getattr(source, "symbol", "") or "").strip().upper() if source is not None else ""
+        ) or "?"
+        exchange = (
+            str(getattr(source, "exchange", "") or "").strip().upper() if source is not None else ""
+        )
+
+        call_text = self._clip_cell(f"C {strike_text}" if call_contract else "C --", side_width)
+        put_text = self._clip_cell(f"P {strike_text}" if put_contract else "P --", side_width)
+        base_left = "bold #8fbfff" if call_contract else "dim"
+        base_right = "bold #ff9ac2" if put_contract else "dim"
+        left_style = f"{base_left} on #1d2a38" if active and self._search_side == 0 else base_left
+        right_style = f"{base_right} on #1d2a38" if active and self._search_side == 1 else base_right
+        line = Text(f"{idx + 1}. ", style="dim")
+        line.append(call_text, style=left_style)
+        line.append("  |  ", style="dim")
+        line.append(f"K={strike_text}", style="bold #ffcc84")
+        line.append("  |  ", style="dim")
+        line.append(put_text, style=right_style)
+        line.append(f"   {symbol}", style="dim")
+        if exchange:
+            line.append(f" {exchange}", style="dim")
+        return line
+
+    def _open_search_selection(self) -> None:
+        if not self._search_results:
+            return
+        contract: Contract | None = None
+        if self._search_mode() == "OPT":
+            rows = self._option_pair_rows()
+            if not rows:
+                return
+            index = min(max(self._search_selected, 0), len(rows) - 1)
+            call_contract, put_contract = rows[index]
+            contract = call_contract if self._search_side == 0 else put_contract
+            if contract is None:
+                contract = put_contract if self._search_side == 0 else call_contract
+        else:
+            index = min(max(self._search_selected, 0), len(self._search_results) - 1)
+            contract = self._search_results[index]
+        if contract is None:
+            return
+        item = self._portfolio_item_for_contract(contract)
+        self._close_search()
+        self.push_screen(
+            PositionDetailScreen(
+                self._client,
+                item,
+                self._config.detail_refresh_sec,
+            )
+        )
+
+    def _portfolio_item_for_contract(self, contract: Contract) -> PortfolioItem:
+        con_id = int(getattr(contract, "conId", 0) or 0)
+        if con_id:
+            for item in self._snapshot.items:
+                if int(getattr(getattr(item, "contract", None), "conId", 0) or 0) == con_id:
+                    return item
+        sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
+        symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
+        for item in self._snapshot.items:
+            existing = getattr(item, "contract", None)
+            if existing is None:
+                continue
+            if str(getattr(existing, "secType", "") or "").strip().upper() != sec_type:
+                continue
+            if str(getattr(existing, "symbol", "") or "").strip().upper() != symbol:
+                continue
+            return item
+        return cast(PortfolioItem, _SyntheticPortfolioItem(contract=contract))
 
     async def refresh_positions(self, hard: bool = False) -> None:
         if self._refresh_lock.locked():
