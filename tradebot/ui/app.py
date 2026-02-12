@@ -308,6 +308,8 @@ class PositionsApp(App):
         self._search_loading = False
         self._search_error: str | None = None
         self._search_generation = 0
+        self._search_ticker_con_ids: set[int] = set()
+        self._search_ticker_loading: set[int] = set()
         self._search_task: asyncio.Task | None = None
 
     def compose(self) -> ComposeResult:
@@ -339,6 +341,7 @@ class PositionsApp(App):
 
     async def on_unmount(self) -> None:
         self._cancel_search_task()
+        self._clear_search_tickers()
         await self._client.disconnect()
 
     def _setup_columns(self) -> None:
@@ -568,6 +571,7 @@ class PositionsApp(App):
         self._search_error = None
         self._search_generation += 1
         self._cancel_search_task()
+        self._clear_search_tickers()
         self._search.display = False
         self._search.update("")
         self._table.focus()
@@ -659,6 +663,91 @@ class PositionsApp(App):
             call, put = by_strike[strike]
             rows.append((call, put))
         return rows
+
+    def _search_option_contracts(self) -> dict[int, Contract]:
+        if not self._search_active or self._search_mode() != "OPT":
+            return {}
+        contracts: dict[int, Contract] = {}
+        for call_contract, put_contract in self._option_pair_rows():
+            for contract in (call_contract, put_contract):
+                if contract is None:
+                    continue
+                con_id = int(getattr(contract, "conId", 0) or 0)
+                if con_id and con_id not in contracts:
+                    contracts[con_id] = contract
+        return contracts
+
+    def _sync_search_option_tickers(self) -> None:
+        wanted = self._search_option_contracts()
+        wanted_ids = set(wanted.keys())
+        for con_id in list(self._search_ticker_con_ids):
+            if con_id in wanted_ids:
+                continue
+            self._client.release_ticker(con_id, owner="search")
+            self._search_ticker_con_ids.discard(con_id)
+            self._search_ticker_loading.discard(con_id)
+        for con_id, contract in wanted.items():
+            self._start_search_ticker_load(con_id, contract)
+
+    def _clear_search_tickers(self) -> None:
+        for con_id in list(self._search_ticker_con_ids):
+            self._client.release_ticker(con_id, owner="search")
+        self._search_ticker_con_ids.clear()
+        self._search_ticker_loading.clear()
+
+    def _start_search_ticker_load(self, con_id: int, contract: Contract) -> None:
+        if con_id in self._search_ticker_con_ids or con_id in self._search_ticker_loading:
+            return
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        self._search_ticker_loading.add(con_id)
+        loop.create_task(self._load_search_ticker(con_id, contract))
+
+    async def _load_search_ticker(self, con_id: int, contract: Contract) -> None:
+        try:
+            await self._client.ensure_ticker(contract, owner="search")
+        except Exception:
+            return
+        finally:
+            self._search_ticker_loading.discard(con_id)
+        wanted = self._search_option_contracts()
+        if con_id not in wanted:
+            self._client.release_ticker(con_id, owner="search")
+            return
+        self._search_ticker_con_ids.add(con_id)
+        self._render_search()
+
+    @staticmethod
+    def _option_quote_value(ticker: Ticker | None) -> float | None:
+        if ticker is None:
+            return None
+        bid = _safe_num(getattr(ticker, "bid", None))
+        ask = _safe_num(getattr(ticker, "ask", None))
+        if bid is not None and ask is not None and bid > 0 and ask > 0 and bid <= ask:
+            return (float(bid) + float(ask)) / 2.0
+        for value in (
+            _safe_num(getattr(ticker, "last", None)),
+            _safe_num(getattr(ticker, "close", None)),
+        ):
+            if value is not None and value > 0:
+                return float(value)
+        return None
+
+    def _search_option_cell_text(self, right: str, contract: Contract | None) -> str:
+        if contract is None:
+            return f"{right} --"
+        con_id = int(getattr(contract, "conId", 0) or 0)
+        if not con_id:
+            return f"{right} --"
+        ticker = self._client.ticker_for_con_id(con_id)
+        quote = self._option_quote_value(ticker)
+        if quote is not None:
+            return f"{right} {quote:.2f}"
+        if con_id in self._search_ticker_loading:
+            return f"{right} ..."
+        return f"{right} --"
 
     @staticmethod
     def _option_row_strike(
@@ -807,6 +896,10 @@ class PositionsApp(App):
             line1.append("type symbol...", style="dim")
         lines: list[Text] = [line1]
         mode = self._search_mode()
+        if mode == "OPT":
+            self._sync_search_option_tickers()
+        else:
+            self._clear_search_tickers()
         if self._search_error:
             lines.append(Text(f"Error: {self._search_error}", style="red"))
         elif self._search_loading:
@@ -943,12 +1036,14 @@ class PositionsApp(App):
         if active and self._search_side == 1:
             right_style = f"{right_style} on #1d2a38"
 
+        call_text = self._clip_cell(self._search_option_cell_text("C", call_contract), 10)
+        put_text = self._clip_cell(self._search_option_cell_text("P", put_contract), 10)
         line = Text(f"{idx + 1}. ", style="dim")
-        line.append("CALL", style=left_style)
+        line.append(call_text, style=left_style)
         line.append("  |  ", style="dim")
         line.append(f"K={strike_text}", style="bold #ffcc84")
         line.append("  |  ", style="dim")
-        line.append("PUT", style=right_style)
+        line.append(put_text, style=right_style)
         return line
 
     def _open_search_selection(self) -> None:

@@ -1066,7 +1066,8 @@ class IBKRClient:
         term_set = set(terms)
         mode_aliases = _SEARCH_TERM_ALIASES_BY_MODE.get(mode_clean, {})
         token_is_alias_seed = token in mode_aliases
-        max_rows = max(1, min(int(limit or 5), 20))
+        max_cap = 160 if mode_clean == "OPT" else 20
+        max_rows = max(1, min(int(limit or 5), max_cap))
         matches = await self._matching_symbols(
             token,
             use_proxy=mode_clean in ("STK", "OPT"),
