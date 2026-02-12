@@ -2597,16 +2597,13 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         source: str,
         bar_seconds: float,
     ) -> float:
-        threshold = 2.25
+        # Bars are timestamped at bar start and we trim the in-progress bar.
+        # Healthy "latest closed bar" lag therefore lives in [1.0, 2.0) bars.
+        # Treat >~2 bars as stale (more than one missed closed bar), with a
+        # small epsilon for publication/scheduling jitter.
+        threshold = 2.05
         if bar_seconds <= 0:
             return threshold
-        session = _market_session_bucket(now_ref)
-        sec = str(sec_type or "").strip().upper()
-        src = str(source or "").strip().upper()
-        # IBKR STK TRADES bars can publish late around PRE/RTH edges while still being contiguous.
-        # Allow a slightly wider freshness window in this stream/session profile.
-        if sec == "STK" and not bool(use_rth) and src == "TRADES" and session in ("PRE", "RTH"):
-            return 2.55
         return threshold
 
     def _signal_bar_health(
