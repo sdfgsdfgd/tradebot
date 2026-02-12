@@ -64,6 +64,7 @@ class _BotInstance:
     spot_entry_basis_price: float | None = None
     spot_entry_basis_source: str | None = None
     spot_entry_basis_set_ts: datetime | None = None
+    spot_entry_branch: str | None = None
     touched_conids: set[int] = field(default_factory=set)
     last_signal_fingerprint: tuple | None = None
     last_cross_bar_ts: datetime | None = None
@@ -171,4 +172,12 @@ class _SignalSnapshot:
     or_high: float | None = None
     or_low: float | None = None
     or_ready: bool = False
+    entry_dir: str | None = None
+    entry_branch: str | None = None
+    ratsv_side_rank: float | None = None
+    ratsv_tr_ratio: float | None = None
+    ratsv_fast_slope_pct: float | None = None
+    ratsv_fast_slope_med_pct: float | None = None
+    ratsv_fast_slope_vel_pct: float | None = None
+    ratsv_cross_age_bars: int | None = None
     bar_health: dict | None = None

@@ -883,6 +883,34 @@ class BotOrderBuilderMixin:
             )
             if signed_qty == 0:
                 return _fail("Order: spot sizing returned 0 qty")
+
+            entry_branch = str(getattr(snap, "entry_branch", "") or "")
+            branch_size_mult = 1.0
+            if bool(strat.get("spot_dual_branch_enabled")) and entry_branch in ("a", "b"):
+                key = "spot_branch_a_size_mult" if entry_branch == "a" else "spot_branch_b_size_mult"
+                try:
+                    branch_size_mult = float(strat.get(key, 1.0) or 1.0)
+                except (TypeError, ValueError):
+                    branch_size_mult = 1.0
+                if branch_size_mult > 0 and abs(branch_size_mult - 1.0) > 1e-12:
+                    sign = 1 if int(signed_qty) > 0 else -1
+                    scaled_abs = int(abs(int(signed_qty)) * float(branch_size_mult))
+                    if scaled_abs <= 0:
+                        scaled_abs = 1
+                    try:
+                        max_qty = int(strat.get("spot_max_qty", 0) or 0)
+                    except (TypeError, ValueError):
+                        max_qty = 0
+                    if max_qty > 0:
+                        scaled_abs = min(int(scaled_abs), int(max_qty))
+                    try:
+                        min_qty = int(strat.get("spot_min_qty", 1) or 1)
+                    except (TypeError, ValueError):
+                        min_qty = 1
+                    min_qty = max(1, int(min_qty))
+                    scaled_abs = max(int(min_qty), int(scaled_abs))
+                    signed_qty = int(sign) * int(scaled_abs)
+
             action = "BUY" if int(signed_qty) > 0 else "SELL"
             qty = int(abs(int(signed_qty)))
 
@@ -896,6 +924,17 @@ class BotOrderBuilderMixin:
                     "entry_dir": getattr(getattr(snap, "signal", None), "entry_dir", None),
                     "regime_dir": getattr(getattr(snap, "signal", None), "regime_dir", None),
                     "ema_ready": bool(getattr(getattr(snap, "signal", None), "ema_ready", False)),
+                },
+                "entry_dir": getattr(snap, "entry_dir", None),
+                "entry_branch": getattr(snap, "entry_branch", None),
+                "branch_size_mult": float(branch_size_mult) if branch_size_mult is not None else None,
+                "ratsv": {
+                    "side_rank": float(getattr(snap, "ratsv_side_rank", 0.0)) if getattr(snap, "ratsv_side_rank", None) is not None else None,
+                    "tr_ratio": float(getattr(snap, "ratsv_tr_ratio", 0.0)) if getattr(snap, "ratsv_tr_ratio", None) is not None else None,
+                    "fast_slope_pct": float(getattr(snap, "ratsv_fast_slope_pct", 0.0)) if getattr(snap, "ratsv_fast_slope_pct", None) is not None else None,
+                    "fast_slope_med_pct": float(getattr(snap, "ratsv_fast_slope_med_pct", 0.0)) if getattr(snap, "ratsv_fast_slope_med_pct", None) is not None else None,
+                    "fast_slope_vel_pct": float(getattr(snap, "ratsv_fast_slope_vel_pct", 0.0)) if getattr(snap, "ratsv_fast_slope_vel_pct", None) is not None else None,
+                    "cross_age_bars": int(getattr(snap, "ratsv_cross_age_bars", 0)) if getattr(snap, "ratsv_cross_age_bars", None) is not None else None,
                 },
                 "bars_in_day": int(snap.bars_in_day) if snap is not None else None,
                 "rv": float(snap.rv) if snap is not None and snap.rv is not None else None,

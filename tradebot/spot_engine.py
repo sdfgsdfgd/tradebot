@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import math
 from collections import deque
+from statistics import median
 from dataclasses import dataclass
 from datetime import datetime, time
 from collections.abc import Mapping
@@ -79,6 +80,14 @@ class SpotSignalSnapshot:
     or_high: float | None
     or_low: float | None
     or_ready: bool
+    entry_dir: str | None = None
+    entry_branch: str | None = None
+    ratsv_side_rank: float | None = None
+    ratsv_tr_ratio: float | None = None
+    ratsv_fast_slope_pct: float | None = None
+    ratsv_fast_slope_med_pct: float | None = None
+    ratsv_fast_slope_vel_pct: float | None = None
+    ratsv_cross_age_bars: int | None = None
 # endregion
 
 
@@ -157,7 +166,81 @@ class SpotSignalEvaluator:
 
         # Signal engines
         self._signal_engine: EmaDecisionEngine | None = None
+        self._signal_engine_a: EmaDecisionEngine | None = None
+        self._signal_engine_b: EmaDecisionEngine | None = None
         self._orb_engine: OrbDecisionEngine | None = None
+        self._dual_branch_enabled = False
+        self._dual_branch_priority = "b_then_a"
+        self._branch_a_min_signed_slope_pct: float | None = None
+        self._branch_a_max_signed_slope_pct: float | None = None
+        self._branch_b_min_signed_slope_pct: float | None = None
+        self._branch_b_max_signed_slope_pct: float | None = None
+
+        # RATS-V runtime state (default-off; only active when filters.ratsv_enabled=true).
+        self._ratsv_enabled = bool(_get(filters, "ratsv_enabled", False)) if filters is not None else False
+        self._ratsv_slope_window = max(1, int(_get(filters, "ratsv_slope_window_bars", 5) or 5)) if filters is not None else 5
+        self._ratsv_tr_fast = max(1, int(_get(filters, "ratsv_tr_fast_bars", 5) or 5)) if filters is not None else 5
+        self._ratsv_tr_slow = max(self._ratsv_tr_fast, int(_get(filters, "ratsv_tr_slow_bars", 20) or 20)) if filters is not None else 20
+        self._ratsv_tr_pct_hist: deque[float] = deque(maxlen=max(256, self._ratsv_tr_slow + 8))
+        self._ratsv_prev_tr_close: float | None = None
+        self._ratsv_branch_cross_age: dict[str, int | None] = {"single": None, "a": None, "b": None}
+        self._ratsv_branch_slope_hist: dict[str, deque[float]] = {
+            "single": deque(maxlen=max(16, self._ratsv_slope_window * 4)),
+            "a": deque(maxlen=max(16, self._ratsv_slope_window * 4)),
+            "b": deque(maxlen=max(16, self._ratsv_slope_window * 4)),
+        }
+        self._ratsv_branch_last_slope_med: dict[str, float | None] = {"single": None, "a": None, "b": None}
+        self._ratsv_last_candidate_metrics: dict[str, dict[str, float | int | None] | None] = {"single": None, "a": None, "b": None}
+
+        def _ratsv_pos_float(raw) -> float | None:
+            if raw is None:
+                return None
+            try:
+                v = float(raw)
+            except (TypeError, ValueError):
+                return None
+            if v <= 0:
+                return None
+            return float(v)
+
+        def _ratsv_ratio(raw) -> float | None:
+            if raw is None:
+                return None
+            try:
+                v = float(raw)
+            except (TypeError, ValueError):
+                return None
+            return float(max(0.0, min(1.0, v)))
+
+        def _ratsv_cross_age(raw) -> int | None:
+            if raw is None:
+                return None
+            try:
+                v = int(raw)
+            except (TypeError, ValueError):
+                return None
+            if v < 0:
+                return None
+            return int(v)
+
+        self._ratsv_rank_min = _ratsv_ratio(_get(filters, "ratsv_rank_min", None)) if filters is not None else None
+        self._ratsv_tr_ratio_min = _ratsv_pos_float(_get(filters, "ratsv_tr_ratio_min", None)) if filters is not None else None
+        self._ratsv_slope_med_min_pct = _ratsv_pos_float(_get(filters, "ratsv_slope_med_min_pct", None)) if filters is not None else None
+        self._ratsv_slope_vel_min_pct = _ratsv_pos_float(_get(filters, "ratsv_slope_vel_min_pct", None)) if filters is not None else None
+        self._ratsv_cross_age_max = _ratsv_cross_age(_get(filters, "ratsv_cross_age_max_bars", None)) if filters is not None else None
+
+        self._ratsv_branch_a_rank_min = _ratsv_ratio(_get(filters, "ratsv_branch_a_rank_min", None)) if filters is not None else None
+        self._ratsv_branch_a_tr_ratio_min = _ratsv_pos_float(_get(filters, "ratsv_branch_a_tr_ratio_min", None)) if filters is not None else None
+        self._ratsv_branch_a_slope_med_min_pct = _ratsv_pos_float(_get(filters, "ratsv_branch_a_slope_med_min_pct", None)) if filters is not None else None
+        self._ratsv_branch_a_slope_vel_min_pct = _ratsv_pos_float(_get(filters, "ratsv_branch_a_slope_vel_min_pct", None)) if filters is not None else None
+        self._ratsv_branch_a_cross_age_max = _ratsv_cross_age(_get(filters, "ratsv_branch_a_cross_age_max_bars", None)) if filters is not None else None
+
+        self._ratsv_branch_b_rank_min = _ratsv_ratio(_get(filters, "ratsv_branch_b_rank_min", None)) if filters is not None else None
+        self._ratsv_branch_b_tr_ratio_min = _ratsv_pos_float(_get(filters, "ratsv_branch_b_tr_ratio_min", None)) if filters is not None else None
+        self._ratsv_branch_b_slope_med_min_pct = _ratsv_pos_float(_get(filters, "ratsv_branch_b_slope_med_min_pct", None)) if filters is not None else None
+        self._ratsv_branch_b_slope_vel_min_pct = _ratsv_pos_float(_get(filters, "ratsv_branch_b_slope_vel_min_pct", None)) if filters is not None else None
+        self._ratsv_branch_b_cross_age_max = _ratsv_cross_age(_get(filters, "ratsv_branch_b_cross_age_max_bars", None)) if filters is not None else None
+
         if entry_signal == "ema":
             ema_preset = str(_get(strategy, "ema_preset", "") or "").strip()
             if not ema_preset:
@@ -166,12 +249,80 @@ class SpotSignalEvaluator:
             embedded_regime = None
             if (not self._use_mtf_regime) and self._regime_mode != "supertrend":
                 embedded_regime = regime_preset
-            self._signal_engine = EmaDecisionEngine(
-                ema_preset=ema_preset,
-                ema_entry_mode=_get(strategy, "ema_entry_mode", None),
-                entry_confirm_bars=int(_get(strategy, "entry_confirm_bars", 0) or 0),
-                regime_ema_preset=embedded_regime,
+            dual_enabled = bool(_get(strategy, "spot_dual_branch_enabled", False))
+            self._dual_branch_enabled = bool(dual_enabled)
+
+            raw_priority = str(_get(strategy, "spot_dual_branch_priority", "b_then_a") or "b_then_a").strip().lower()
+            if raw_priority in ("a_then_b", "a", "a_first", "a-first"):
+                self._dual_branch_priority = "a_then_b"
+            else:
+                self._dual_branch_priority = "b_then_a"
+
+            def _opt_slope_threshold(raw) -> float | None:
+                if raw is None:
+                    return None
+                try:
+                    v = float(raw)
+                except (TypeError, ValueError):
+                    return None
+                if v <= 0:
+                    return None
+                return float(v)
+
+            self._branch_a_min_signed_slope_pct = _opt_slope_threshold(
+                _get(strategy, "spot_branch_a_min_signed_slope_pct", None)
             )
+            self._branch_a_max_signed_slope_pct = _opt_slope_threshold(
+                _get(strategy, "spot_branch_a_max_signed_slope_pct", None)
+            )
+            self._branch_b_min_signed_slope_pct = _opt_slope_threshold(
+                _get(strategy, "spot_branch_b_min_signed_slope_pct", None)
+            )
+            self._branch_b_max_signed_slope_pct = _opt_slope_threshold(
+                _get(strategy, "spot_branch_b_max_signed_slope_pct", None)
+            )
+
+            if self._dual_branch_enabled:
+                branch_a_preset = str(_get(strategy, "spot_branch_a_ema_preset", ema_preset) or ema_preset).strip()
+                branch_b_preset = str(_get(strategy, "spot_branch_b_ema_preset", ema_preset) or ema_preset).strip()
+                if not branch_a_preset:
+                    branch_a_preset = ema_preset
+                if not branch_b_preset:
+                    branch_b_preset = ema_preset
+
+                base_confirm = int(_get(strategy, "entry_confirm_bars", 0) or 0)
+                raw_a_confirm = _get(strategy, "spot_branch_a_entry_confirm_bars", None)
+                raw_b_confirm = _get(strategy, "spot_branch_b_entry_confirm_bars", None)
+                try:
+                    branch_a_confirm = int(raw_a_confirm) if raw_a_confirm is not None else int(base_confirm)
+                except (TypeError, ValueError):
+                    branch_a_confirm = int(base_confirm)
+                try:
+                    branch_b_confirm = int(raw_b_confirm) if raw_b_confirm is not None else int(base_confirm)
+                except (TypeError, ValueError):
+                    branch_b_confirm = int(base_confirm)
+                branch_a_confirm = max(0, int(branch_a_confirm))
+                branch_b_confirm = max(0, int(branch_b_confirm))
+
+                self._signal_engine_a = EmaDecisionEngine(
+                    ema_preset=str(branch_a_preset),
+                    ema_entry_mode=_get(strategy, "ema_entry_mode", None),
+                    entry_confirm_bars=int(branch_a_confirm),
+                    regime_ema_preset=embedded_regime,
+                )
+                self._signal_engine_b = EmaDecisionEngine(
+                    ema_preset=str(branch_b_preset),
+                    ema_entry_mode=_get(strategy, "ema_entry_mode", None),
+                    entry_confirm_bars=int(branch_b_confirm),
+                    regime_ema_preset=embedded_regime,
+                )
+            else:
+                self._signal_engine = EmaDecisionEngine(
+                    ema_preset=ema_preset,
+                    ema_entry_mode=_get(strategy, "ema_entry_mode", None),
+                    entry_confirm_bars=int(_get(strategy, "entry_confirm_bars", 0) or 0),
+                    regime_ema_preset=embedded_regime,
+                )
         else:
             raw_window = _get(strategy, "orb_window_mins", None)
             try:
@@ -341,6 +492,295 @@ class SpotSignalEvaluator:
     def orb_engine(self) -> OrbDecisionEngine | None:
         return self._orb_engine
 
+    @staticmethod
+    def _signed_fast_slope_pct(signal: EmaDecisionSnapshot, close: float) -> float | None:
+        if signal.ema_fast is None or signal.prev_ema_fast is None:
+            return None
+        if close <= 0:
+            return None
+        return float(signal.ema_fast - signal.prev_ema_fast) / float(close)
+
+    @staticmethod
+    def _median(values: deque[float] | list[float]) -> float | None:
+        if not values:
+            return None
+        try:
+            return float(median(values))
+        except Exception:
+            return None
+
+    def _ratsv_tr_fast_slow(self) -> tuple[float | None, float | None]:
+        tr_hist = list(self._ratsv_tr_pct_hist)
+        if not tr_hist:
+            return None, None
+        fast = self._median(tr_hist[-int(self._ratsv_tr_fast) :])
+        slow = self._median(tr_hist[-int(self._ratsv_tr_slow) :])
+        return fast, slow
+
+    def _ratsv_update_bar_metrics(self, *, high: float, low: float, close: float) -> None:
+        prev_close = self._ratsv_prev_tr_close
+        self._ratsv_prev_tr_close = float(close)
+        if close <= 0:
+            return
+        if prev_close is None or prev_close <= 0:
+            tr = max(0.0, float(high) - float(low))
+        else:
+            tr = max(
+                0.0,
+                float(high) - float(low),
+                abs(float(high) - float(prev_close)),
+                abs(float(low) - float(prev_close)),
+            )
+        tr_pct = float(tr) / max(float(close), 1e-9)
+        self._ratsv_tr_pct_hist.append(float(tr_pct))
+
+    def _ratsv_side_rank(self, *, signal: EmaDecisionSnapshot, entry_dir: str, close: float) -> float | None:
+        if close <= 0:
+            return None
+        if signal.ema_fast is None or signal.ema_slow is None:
+            return None
+        tr_fast, _tr_slow = self._ratsv_tr_fast_slow()
+        if tr_fast is None or tr_fast <= 0:
+            return None
+        spread = (float(signal.ema_fast) - float(signal.ema_slow)) / float(close)
+        aligned = float(spread) if str(entry_dir) == "up" else -float(spread)
+        if aligned <= 0:
+            return 0.0
+        rank = float(aligned) / (float(aligned) + float(tr_fast))
+        return float(max(0.0, min(1.0, rank)))
+
+    def _ratsv_thresholds_for_branch(
+        self,
+        *,
+        branch_key: str,
+    ) -> tuple[float | None, float | None, float | None, float | None, int | None]:
+        rank_min = self._ratsv_rank_min
+        tr_ratio_min = self._ratsv_tr_ratio_min
+        slope_med_min = self._ratsv_slope_med_min_pct
+        slope_vel_min = self._ratsv_slope_vel_min_pct
+        cross_age_max = self._ratsv_cross_age_max
+        if branch_key == "a":
+            rank_min = self._ratsv_branch_a_rank_min if self._ratsv_branch_a_rank_min is not None else rank_min
+            tr_ratio_min = (
+                self._ratsv_branch_a_tr_ratio_min if self._ratsv_branch_a_tr_ratio_min is not None else tr_ratio_min
+            )
+            slope_med_min = (
+                self._ratsv_branch_a_slope_med_min_pct
+                if self._ratsv_branch_a_slope_med_min_pct is not None
+                else slope_med_min
+            )
+            slope_vel_min = (
+                self._ratsv_branch_a_slope_vel_min_pct
+                if self._ratsv_branch_a_slope_vel_min_pct is not None
+                else slope_vel_min
+            )
+            cross_age_max = (
+                self._ratsv_branch_a_cross_age_max
+                if self._ratsv_branch_a_cross_age_max is not None
+                else cross_age_max
+            )
+        elif branch_key == "b":
+            rank_min = self._ratsv_branch_b_rank_min if self._ratsv_branch_b_rank_min is not None else rank_min
+            tr_ratio_min = (
+                self._ratsv_branch_b_tr_ratio_min if self._ratsv_branch_b_tr_ratio_min is not None else tr_ratio_min
+            )
+            slope_med_min = (
+                self._ratsv_branch_b_slope_med_min_pct
+                if self._ratsv_branch_b_slope_med_min_pct is not None
+                else slope_med_min
+            )
+            slope_vel_min = (
+                self._ratsv_branch_b_slope_vel_min_pct
+                if self._ratsv_branch_b_slope_vel_min_pct is not None
+                else slope_vel_min
+            )
+            cross_age_max = (
+                self._ratsv_branch_b_cross_age_max
+                if self._ratsv_branch_b_cross_age_max is not None
+                else cross_age_max
+            )
+        return rank_min, tr_ratio_min, slope_med_min, slope_vel_min, cross_age_max
+
+    def _ratsv_branch_metrics(
+        self,
+        *,
+        branch_key: str,
+        signal: EmaDecisionSnapshot | None,
+        close: float,
+        entry_dir: str | None,
+    ) -> dict[str, float | int | None] | None:
+        if signal is None:
+            self._ratsv_last_candidate_metrics[branch_key] = None
+            return None
+
+        cross_age = self._ratsv_branch_cross_age.get(branch_key)
+        if bool(signal.cross_up) or bool(signal.cross_down):
+            cross_age = 0
+        elif cross_age is None:
+            cross_age = 1
+        else:
+            cross_age = int(cross_age) + 1
+        self._ratsv_branch_cross_age[branch_key] = int(cross_age)
+
+        slope_now = self._signed_fast_slope_pct(signal, float(close))
+        if slope_now is not None:
+            self._ratsv_branch_slope_hist[branch_key].append(float(slope_now))
+        window = list(self._ratsv_branch_slope_hist[branch_key])[-int(self._ratsv_slope_window) :]
+        slope_med = self._median(window)
+        prev_med = self._ratsv_branch_last_slope_med.get(branch_key)
+        slope_vel = None
+        if slope_med is not None and prev_med is not None:
+            slope_vel = float(slope_med) - float(prev_med)
+        if slope_med is not None:
+            self._ratsv_branch_last_slope_med[branch_key] = float(slope_med)
+
+        tr_fast, tr_slow = self._ratsv_tr_fast_slow()
+        tr_ratio = None
+        if tr_fast is not None and tr_slow is not None and tr_slow > 0:
+            tr_ratio = float(tr_fast) / float(tr_slow)
+
+        side_rank = None
+        if entry_dir in ("up", "down") and signal.ema_ready:
+            side_rank = self._ratsv_side_rank(signal=signal, entry_dir=str(entry_dir), close=float(close))
+
+        metrics = {
+            "side_rank": float(side_rank) if side_rank is not None else None,
+            "tr_ratio": float(tr_ratio) if tr_ratio is not None else None,
+            "slope_now": float(slope_now) if slope_now is not None else None,
+            "slope_med": float(slope_med) if slope_med is not None else None,
+            "slope_vel": float(slope_vel) if slope_vel is not None else None,
+            "cross_age": int(cross_age) if cross_age is not None else None,
+        }
+        self._ratsv_last_candidate_metrics[branch_key] = metrics
+        return metrics
+
+    def _ratsv_entry_ok(
+        self,
+        *,
+        branch_key: str,
+        entry_dir: str | None,
+        metrics: dict[str, float | int | None] | None,
+    ) -> bool:
+        if not bool(self._ratsv_enabled):
+            return True
+        if entry_dir not in ("up", "down"):
+            return False
+        if not isinstance(metrics, dict):
+            return False
+
+        rank_min, tr_ratio_min, slope_med_min, slope_vel_min, cross_age_max = self._ratsv_thresholds_for_branch(
+            branch_key=branch_key
+        )
+
+        side_rank = metrics.get("side_rank")
+        tr_ratio = metrics.get("tr_ratio")
+        slope_med = metrics.get("slope_med")
+        slope_vel = metrics.get("slope_vel")
+        cross_age = metrics.get("cross_age")
+
+        if rank_min is not None:
+            if side_rank is None or float(side_rank) < float(rank_min):
+                return False
+        if tr_ratio_min is not None:
+            if tr_ratio is None or float(tr_ratio) < float(tr_ratio_min):
+                return False
+
+        signed_med = None
+        if slope_med is not None:
+            signed_med = float(slope_med) if str(entry_dir) == "up" else -float(slope_med)
+        if slope_med_min is not None:
+            if signed_med is None or float(signed_med) < float(slope_med_min):
+                return False
+
+        signed_vel = None
+        if slope_vel is not None:
+            signed_vel = float(slope_vel) if str(entry_dir) == "up" else -float(slope_vel)
+        if slope_vel_min is not None:
+            if signed_vel is None or float(signed_vel) < float(slope_vel_min):
+                return False
+
+        if cross_age_max is not None:
+            if cross_age is None or int(cross_age) > int(cross_age_max):
+                return False
+        return True
+
+    def _branch_entry_dir(
+        self,
+        *,
+        branch_key: str,
+        signal: EmaDecisionSnapshot | None,
+        close: float,
+        min_signed_slope_pct: float | None,
+        max_signed_slope_pct: float | None,
+    ) -> str | None:
+        if signal is None or not bool(signal.ema_ready):
+            self._ratsv_branch_metrics(branch_key=branch_key, signal=signal, close=float(close), entry_dir=None)
+            return None
+        entry_dir = signal.entry_dir
+        if entry_dir not in ("up", "down"):
+            self._ratsv_branch_metrics(branch_key=branch_key, signal=signal, close=float(close), entry_dir=None)
+            return None
+
+        slope = self._signed_fast_slope_pct(signal, float(close))
+        if min_signed_slope_pct is not None or max_signed_slope_pct is not None:
+            if slope is None:
+                self._ratsv_branch_metrics(branch_key=branch_key, signal=signal, close=float(close), entry_dir=str(entry_dir))
+                return None
+            signed = float(slope) if entry_dir == "up" else -float(slope)
+            if min_signed_slope_pct is not None and signed < float(min_signed_slope_pct):
+                self._ratsv_branch_metrics(branch_key=branch_key, signal=signal, close=float(close), entry_dir=str(entry_dir))
+                return None
+            if max_signed_slope_pct is not None and signed > float(max_signed_slope_pct):
+                self._ratsv_branch_metrics(branch_key=branch_key, signal=signal, close=float(close), entry_dir=str(entry_dir))
+                return None
+
+        metrics = self._ratsv_branch_metrics(
+            branch_key=branch_key,
+            signal=signal,
+            close=float(close),
+            entry_dir=str(entry_dir),
+        )
+        if not self._ratsv_entry_ok(branch_key=branch_key, entry_dir=str(entry_dir), metrics=metrics):
+            return None
+        return str(entry_dir)
+
+    def _select_dual_signal(
+        self,
+        *,
+        close: float,
+        signal_a: EmaDecisionSnapshot,
+        signal_b: EmaDecisionSnapshot,
+    ) -> tuple[EmaDecisionSnapshot, str | None, str | None]:
+        """Return (signal_for_gate/flip, entry_dir_for_entries, entry_branch)."""
+        dir_a = self._branch_entry_dir(
+            branch_key="a",
+            signal=signal_a,
+            close=float(close),
+            min_signed_slope_pct=self._branch_a_min_signed_slope_pct,
+            max_signed_slope_pct=self._branch_a_max_signed_slope_pct,
+        )
+        dir_b = self._branch_entry_dir(
+            branch_key="b",
+            signal=signal_b,
+            close=float(close),
+            min_signed_slope_pct=self._branch_b_min_signed_slope_pct,
+            max_signed_slope_pct=self._branch_b_max_signed_slope_pct,
+        )
+
+        if self._dual_branch_priority == "a_then_b":
+            if dir_a in ("up", "down"):
+                return signal_a, str(dir_a), "a"
+            if dir_b in ("up", "down"):
+                return signal_b, str(dir_b), "b"
+            return signal_a, None, None
+
+        # default: b_then_a
+        if dir_b in ("up", "down"):
+            return signal_b, str(dir_b), "b"
+        if dir_a in ("up", "down"):
+            return signal_a, str(dir_a), "a"
+        return signal_b, None, None
+
     def update_exec_bar(self, bar: BarLike, *, is_last_bar: bool = False) -> None:
         """Update any exec-bar-driven detectors (daily engines + risk overlays)."""
         if self._risk_overlay is not None:
@@ -433,6 +873,8 @@ class SpotSignalEvaluator:
             self._sig_bars_in_day = 0
         self._sig_bars_in_day += 1
 
+        self._ratsv_update_bar_metrics(high=float(bar.high), low=float(bar.low), close=float(close))
+
         rv = None
         if self._rv_enabled:
             prev_close = self._prev_sig_close
@@ -458,8 +900,31 @@ class SpotSignalEvaluator:
             )
 
         signal = None
+        entry_dir_for_entries: str | None = None
+        entry_branch: str | None = None
+        ratsv_branch_key: str | None = None
         if self._signal_engine is not None:
             signal = self._signal_engine.update(close)
+            entry_dir_for_entries = self._branch_entry_dir(
+                branch_key="single",
+                signal=signal,
+                close=float(close),
+                min_signed_slope_pct=None,
+                max_signed_slope_pct=None,
+            )
+            ratsv_branch_key = "single"
+        elif self._signal_engine_a is not None and self._signal_engine_b is not None and bool(self._dual_branch_enabled):
+            signal_a = self._signal_engine_a.update(close)
+            signal_b = self._signal_engine_b.update(close)
+            signal, entry_dir_for_entries, entry_branch = self._select_dual_signal(
+                close=float(close),
+                signal_a=signal_a,
+                signal_b=signal_b,
+            )
+            if signal is signal_a:
+                ratsv_branch_key = "a"
+            elif signal is signal_b:
+                ratsv_branch_key = "b"
         elif self._orb_engine is not None:
             signal = self._orb_engine.update(
                 ts=bar.ts,
@@ -467,6 +932,7 @@ class SpotSignalEvaluator:
                 low=float(bar.low),
                 close=float(bar.close),
             )
+            entry_dir_for_entries = signal.entry_dir if signal is not None else None
 
         # Primary regime gating + shock updates.
         if self._supertrend_engine is not None:
@@ -695,12 +1161,29 @@ class SpotSignalEvaluator:
         if signal is None:
             return None
 
+        # Branch-selected entry direction is further constrained by regime gates above.
+        gated_dir = signal.entry_dir if getattr(signal, "entry_dir", None) in ("up", "down") else None
+        if self._dual_branch_enabled:
+            if entry_dir_for_entries not in ("up", "down"):
+                entry_dir_for_entries = None
+                entry_branch = None
+            elif gated_dir != entry_dir_for_entries:
+                entry_dir_for_entries = None
+                entry_branch = None
+        else:
+            if entry_dir_for_entries not in ("up", "down"):
+                entry_dir_for_entries = None
+            elif gated_dir != entry_dir_for_entries:
+                entry_dir_for_entries = None
+            entry_branch = None
+
         shock, shock_dir, shock_atr_pct = self._shock_view()
         atr = (
             float(self._last_exit_atr.atr)
             if self._last_exit_atr is not None and bool(self._last_exit_atr.ready) and self._last_exit_atr.atr is not None
             else None
         )
+        ratsv_metrics = self._ratsv_last_candidate_metrics.get(str(ratsv_branch_key)) if ratsv_branch_key else None
 
         snap = SpotSignalSnapshot(
             bar_ts=bar.ts,
@@ -719,6 +1202,38 @@ class SpotSignalEvaluator:
             or_high=self._orb_engine.or_high if self._orb_engine is not None else None,
             or_low=self._orb_engine.or_low if self._orb_engine is not None else None,
             or_ready=bool(self._orb_engine and self._orb_engine.or_ready),
+            entry_dir=str(entry_dir_for_entries) if entry_dir_for_entries in ("up", "down") else None,
+            entry_branch=str(entry_branch) if entry_branch in ("a", "b") else None,
+            ratsv_side_rank=(
+                float(ratsv_metrics.get("side_rank"))
+                if isinstance(ratsv_metrics, dict) and ratsv_metrics.get("side_rank") is not None
+                else None
+            ),
+            ratsv_tr_ratio=(
+                float(ratsv_metrics.get("tr_ratio"))
+                if isinstance(ratsv_metrics, dict) and ratsv_metrics.get("tr_ratio") is not None
+                else None
+            ),
+            ratsv_fast_slope_pct=(
+                float(ratsv_metrics.get("slope_now"))
+                if isinstance(ratsv_metrics, dict) and ratsv_metrics.get("slope_now") is not None
+                else None
+            ),
+            ratsv_fast_slope_med_pct=(
+                float(ratsv_metrics.get("slope_med"))
+                if isinstance(ratsv_metrics, dict) and ratsv_metrics.get("slope_med") is not None
+                else None
+            ),
+            ratsv_fast_slope_vel_pct=(
+                float(ratsv_metrics.get("slope_vel"))
+                if isinstance(ratsv_metrics, dict) and ratsv_metrics.get("slope_vel") is not None
+                else None
+            ),
+            ratsv_cross_age_bars=(
+                int(ratsv_metrics.get("cross_age"))
+                if isinstance(ratsv_metrics, dict) and ratsv_metrics.get("cross_age") is not None
+                else None
+            ),
         )
         self._last_signal = signal
         self._last_snapshot = snap

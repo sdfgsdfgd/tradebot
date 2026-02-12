@@ -2461,6 +2461,18 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             "use_rth": self._signal_use_rth(instance),
             "entry_mode_raw": strat.get("ema_entry_mode"),
             "entry_confirm_bars": strat.get("entry_confirm_bars", 0),
+            "spot_dual_branch_enabled_raw": strat.get("spot_dual_branch_enabled"),
+            "spot_dual_branch_priority_raw": strat.get("spot_dual_branch_priority"),
+            "spot_branch_a_ema_preset_raw": strat.get("spot_branch_a_ema_preset"),
+            "spot_branch_a_entry_confirm_bars_raw": strat.get("spot_branch_a_entry_confirm_bars"),
+            "spot_branch_a_min_signed_slope_pct_raw": strat.get("spot_branch_a_min_signed_slope_pct"),
+            "spot_branch_a_max_signed_slope_pct_raw": strat.get("spot_branch_a_max_signed_slope_pct"),
+            "spot_branch_a_size_mult_raw": strat.get("spot_branch_a_size_mult"),
+            "spot_branch_b_ema_preset_raw": strat.get("spot_branch_b_ema_preset"),
+            "spot_branch_b_entry_confirm_bars_raw": strat.get("spot_branch_b_entry_confirm_bars"),
+            "spot_branch_b_min_signed_slope_pct_raw": strat.get("spot_branch_b_min_signed_slope_pct"),
+            "spot_branch_b_max_signed_slope_pct_raw": strat.get("spot_branch_b_max_signed_slope_pct"),
+            "spot_branch_b_size_mult_raw": strat.get("spot_branch_b_size_mult"),
             "regime_ema_preset_raw": strat.get("regime_ema_preset"),
             "regime_bar_size_raw": strat.get("regime_bar_size"),
             "regime_mode_raw": strat.get("regime_mode"),
@@ -2949,6 +2961,18 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         ema_preset_raw: str | None,
         entry_mode_raw: str | None,
         entry_confirm_bars: int,
+        spot_dual_branch_enabled_raw: object | None,
+        spot_dual_branch_priority_raw: object | None,
+        spot_branch_a_ema_preset_raw: object | None,
+        spot_branch_a_entry_confirm_bars_raw: object | None,
+        spot_branch_a_min_signed_slope_pct_raw: object | None,
+        spot_branch_a_max_signed_slope_pct_raw: object | None,
+        spot_branch_a_size_mult_raw: object | None,
+        spot_branch_b_ema_preset_raw: object | None,
+        spot_branch_b_entry_confirm_bars_raw: object | None,
+        spot_branch_b_min_signed_slope_pct_raw: object | None,
+        spot_branch_b_max_signed_slope_pct_raw: object | None,
+        spot_branch_b_size_mult_raw: object | None,
         orb_window_mins_raw: int | None,
         orb_open_time_et_raw: str | None,
         spot_exit_mode_raw: str | None,
@@ -2969,6 +2993,18 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             "ema_preset": ema_preset_raw,
             "ema_entry_mode": entry_mode_raw,
             "entry_confirm_bars": entry_confirm_bars,
+            "spot_dual_branch_enabled": spot_dual_branch_enabled_raw,
+            "spot_dual_branch_priority": spot_dual_branch_priority_raw,
+            "spot_branch_a_ema_preset": spot_branch_a_ema_preset_raw,
+            "spot_branch_a_entry_confirm_bars": spot_branch_a_entry_confirm_bars_raw,
+            "spot_branch_a_min_signed_slope_pct": spot_branch_a_min_signed_slope_pct_raw,
+            "spot_branch_a_max_signed_slope_pct": spot_branch_a_max_signed_slope_pct_raw,
+            "spot_branch_a_size_mult": spot_branch_a_size_mult_raw,
+            "spot_branch_b_ema_preset": spot_branch_b_ema_preset_raw,
+            "spot_branch_b_entry_confirm_bars": spot_branch_b_entry_confirm_bars_raw,
+            "spot_branch_b_min_signed_slope_pct": spot_branch_b_min_signed_slope_pct_raw,
+            "spot_branch_b_max_signed_slope_pct": spot_branch_b_max_signed_slope_pct_raw,
+            "spot_branch_b_size_mult": spot_branch_b_size_mult_raw,
             "orb_window_mins": orb_window_mins_raw,
             "orb_open_time_et": orb_open_time_et_raw,
             "spot_exit_mode": spot_exit_mode_raw,
@@ -3014,6 +3050,26 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             or_high=float(snap.or_high) if snap.or_high is not None else None,
             or_low=float(snap.or_low) if snap.or_low is not None else None,
             or_ready=bool(snap.or_ready),
+            entry_dir=str(snap.entry_dir) if getattr(snap, "entry_dir", None) in ("up", "down") else None,
+            entry_branch=str(snap.entry_branch) if getattr(snap, "entry_branch", None) in ("a", "b") else None,
+            ratsv_side_rank=float(snap.ratsv_side_rank) if getattr(snap, "ratsv_side_rank", None) is not None else None,
+            ratsv_tr_ratio=float(snap.ratsv_tr_ratio) if getattr(snap, "ratsv_tr_ratio", None) is not None else None,
+            ratsv_fast_slope_pct=(
+                float(snap.ratsv_fast_slope_pct) if getattr(snap, "ratsv_fast_slope_pct", None) is not None else None
+            ),
+            ratsv_fast_slope_med_pct=(
+                float(snap.ratsv_fast_slope_med_pct)
+                if getattr(snap, "ratsv_fast_slope_med_pct", None) is not None
+                else None
+            ),
+            ratsv_fast_slope_vel_pct=(
+                float(snap.ratsv_fast_slope_vel_pct)
+                if getattr(snap, "ratsv_fast_slope_vel_pct", None) is not None
+                else None
+            ),
+            ratsv_cross_age_bars=(
+                int(snap.ratsv_cross_age_bars) if getattr(snap, "ratsv_cross_age_bars", None) is not None else None
+            ),
             bar_health=bar_health,
         )
 
@@ -3043,6 +3099,18 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         orb_open_time_et_raw: str | None = None,
         entry_mode_raw: str | None = None,
         entry_confirm_bars: int = 0,
+        spot_dual_branch_enabled_raw: object | None = None,
+        spot_dual_branch_priority_raw: object | None = None,
+        spot_branch_a_ema_preset_raw: object | None = None,
+        spot_branch_a_entry_confirm_bars_raw: object | None = None,
+        spot_branch_a_min_signed_slope_pct_raw: object | None = None,
+        spot_branch_a_max_signed_slope_pct_raw: object | None = None,
+        spot_branch_a_size_mult_raw: object | None = None,
+        spot_branch_b_ema_preset_raw: object | None = None,
+        spot_branch_b_entry_confirm_bars_raw: object | None = None,
+        spot_branch_b_min_signed_slope_pct_raw: object | None = None,
+        spot_branch_b_max_signed_slope_pct_raw: object | None = None,
+        spot_branch_b_size_mult_raw: object | None = None,
         spot_exit_mode_raw: str | None = None,
         spot_atr_period_raw: int | None = None,
         regime_ema_preset_raw: str | None = None,
@@ -3175,6 +3243,18 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             ema_preset_raw=ema_preset_raw,
             entry_mode_raw=entry_mode_raw,
             entry_confirm_bars=entry_confirm_bars,
+            spot_dual_branch_enabled_raw=spot_dual_branch_enabled_raw,
+            spot_dual_branch_priority_raw=spot_dual_branch_priority_raw,
+            spot_branch_a_ema_preset_raw=spot_branch_a_ema_preset_raw,
+            spot_branch_a_entry_confirm_bars_raw=spot_branch_a_entry_confirm_bars_raw,
+            spot_branch_a_min_signed_slope_pct_raw=spot_branch_a_min_signed_slope_pct_raw,
+            spot_branch_a_max_signed_slope_pct_raw=spot_branch_a_max_signed_slope_pct_raw,
+            spot_branch_a_size_mult_raw=spot_branch_a_size_mult_raw,
+            spot_branch_b_ema_preset_raw=spot_branch_b_ema_preset_raw,
+            spot_branch_b_entry_confirm_bars_raw=spot_branch_b_entry_confirm_bars_raw,
+            spot_branch_b_min_signed_slope_pct_raw=spot_branch_b_min_signed_slope_pct_raw,
+            spot_branch_b_max_signed_slope_pct_raw=spot_branch_b_max_signed_slope_pct_raw,
+            spot_branch_b_size_mult_raw=spot_branch_b_size_mult_raw,
             orb_window_mins_raw=orb_window_mins_raw,
             orb_open_time_et_raw=orb_open_time_et_raw,
             spot_exit_mode_raw=spot_exit_mode_raw,
@@ -3525,7 +3605,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         return True
 
     def _entry_direction_for_instance(self, instance: _BotInstance, snap: _SignalSnapshot) -> str | None:
-        entry_dir = snap.signal.entry_dir
+        entry_dir = snap.entry_dir if getattr(snap, "entry_dir", None) in ("up", "down") else snap.signal.entry_dir
         return str(entry_dir) if entry_dir in ("up", "down") else None
 
     def _allowed_entry_directions(self, instance: _BotInstance) -> set[str]:

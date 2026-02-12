@@ -641,6 +641,105 @@ class BotSignalRuntimeMixin:
                 return None
         return None
 
+    def _signal_bars_held_since_entry(self, *, instance: _BotInstance, bar_ts: datetime) -> int:
+        entry_ts = instance.last_entry_bar_ts
+        if entry_ts is None:
+            return 0
+        bar_def = parse_bar_size(self._signal_bar_size(instance))
+        if bar_def is None:
+            return 0
+        span_sec = float(bar_def.duration.total_seconds())
+        if span_sec <= 0:
+            return 0
+        held_sec = float((bar_ts - entry_ts).total_seconds())
+        if held_sec <= 0:
+            return 0
+        return max(0, int(held_sec / span_sec))
+
+    def _spot_ratsv_probe_cancel_hit(
+        self,
+        *,
+        instance: _BotInstance,
+        pos: float,
+        held_bars: int,
+        entry_branch: str | None,
+        tr_ratio: float | None,
+        slope_med: float | None,
+    ) -> bool:
+        if str(entry_branch or "") != "a":
+            return False
+        if pos == 0:
+            return False
+        filters = instance.filters
+        try:
+            max_bars = int(self._filters_get_value(filters, "ratsv_probe_cancel_max_bars") or 0)
+        except (TypeError, ValueError):
+            max_bars = 0
+        if max_bars <= 0 or held_bars > int(max_bars):
+            return False
+        try:
+            slope_min = float(self._filters_get_value(filters, "ratsv_probe_cancel_slope_adverse_min_pct") or 0.0)
+        except (TypeError, ValueError):
+            slope_min = 0.0
+        if slope_min <= 0 or slope_med is None:
+            return False
+        adverse = float(slope_med) <= -float(slope_min) if pos > 0 else float(slope_med) >= float(slope_min)
+        if not bool(adverse):
+            return False
+        tr_min_raw = self._filters_get_value(filters, "ratsv_probe_cancel_tr_ratio_min")
+        if tr_min_raw is not None:
+            try:
+                tr_min = float(tr_min_raw)
+            except (TypeError, ValueError):
+                tr_min = None
+            if tr_min is not None and tr_min > 0:
+                if tr_ratio is None or float(tr_ratio) < float(tr_min):
+                    return False
+        return True
+
+    def _spot_ratsv_adverse_release_hit(
+        self,
+        *,
+        instance: _BotInstance,
+        pos: float,
+        held_bars: int,
+        tr_ratio: float | None,
+        slope_med: float | None,
+        slope_vel: float | None,
+    ) -> bool:
+        if pos == 0:
+            return False
+        filters = instance.filters
+        try:
+            slope_min = float(self._filters_get_value(filters, "ratsv_adverse_release_slope_adverse_min_pct") or 0.0)
+        except (TypeError, ValueError):
+            slope_min = 0.0
+        if slope_min <= 0:
+            return False
+        try:
+            min_hold = int(self._filters_get_value(filters, "ratsv_adverse_release_min_hold_bars") or 0)
+        except (TypeError, ValueError):
+            min_hold = 0
+        if min_hold > 0 and held_bars < int(min_hold):
+            return False
+        adverse = False
+        if slope_med is not None:
+            adverse = float(slope_med) <= -float(slope_min) if pos > 0 else float(slope_med) >= float(slope_min)
+        if (not adverse) and slope_vel is not None:
+            adverse = float(slope_vel) <= -float(slope_min) if pos > 0 else float(slope_vel) >= float(slope_min)
+        if not bool(adverse):
+            return False
+        tr_min_raw = self._filters_get_value(filters, "ratsv_adverse_release_tr_ratio_min")
+        if tr_min_raw is not None:
+            try:
+                tr_min = float(tr_min_raw)
+            except (TypeError, ValueError):
+                tr_min = None
+            if tr_min is not None and tr_min > 0:
+                if tr_ratio is None or float(tr_ratio) < float(tr_min):
+                    return False
+        return True
+
     @staticmethod
     def _spot_pending_entry_should_cancel(
         *,
@@ -1632,6 +1731,21 @@ class BotSignalRuntimeMixin:
             if quote_starving:
                 market_price = None
                 market_price_source = None
+            held_bars = self._signal_bars_held_since_entry(instance=instance, bar_ts=snap.bar_ts)
+            entry_branch = str(instance.spot_entry_branch) if instance.spot_entry_branch in ("a", "b") else None
+            ratsv_tr_ratio = (
+                float(snap.ratsv_tr_ratio) if getattr(snap, "ratsv_tr_ratio", None) is not None else None
+            )
+            ratsv_slope_med = (
+                float(snap.ratsv_fast_slope_med_pct)
+                if getattr(snap, "ratsv_fast_slope_med_pct", None) is not None
+                else None
+            )
+            ratsv_slope_vel = (
+                float(snap.ratsv_fast_slope_vel_pct)
+                if getattr(snap, "ratsv_fast_slope_vel_pct", None) is not None
+                else None
+            )
             exec_prices = self._spot_exec_price_points(
                 instance=instance,
                 ticker=ticker,
@@ -1698,6 +1812,11 @@ class BotSignalRuntimeMixin:
                     "move": float(move) if move is not None else None,
                     "stop_level": float(stop_level) if stop_level is not None else None,
                     "profit_level": float(profit_level) if profit_level is not None else None,
+                    "entry_branch": entry_branch,
+                    "held_bars": int(held_bars),
+                    "ratsv_tr_ratio": float(ratsv_tr_ratio) if ratsv_tr_ratio is not None else None,
+                    "ratsv_slope_med_pct": float(ratsv_slope_med) if ratsv_slope_med is not None else None,
+                    "ratsv_slope_vel_pct": float(ratsv_slope_vel) if ratsv_slope_vel is not None else None,
                     "exec_bar_ts": exec_bar_ts.isoformat() if exec_bar_ts is not None else None,
                     "exec_bar_open": float(exec_bar_open) if exec_bar_open is not None else None,
                     "exec_bar_high": float(exec_bar_high) if exec_bar_high is not None else None,
@@ -1847,6 +1966,25 @@ class BotSignalRuntimeMixin:
                                     profit_level=profit_level,
                                 ),
                             )
+
+            if self._spot_ratsv_probe_cancel_hit(
+                instance=instance,
+                pos=pos,
+                held_bars=int(held_bars),
+                entry_branch=entry_branch,
+                tr_ratio=ratsv_tr_ratio,
+                slope_med=ratsv_slope_med,
+            ):
+                return _trigger_exit("ratsv_probe_cancel", mode="spot", calc=_spot_calc())
+            if self._spot_ratsv_adverse_release_hit(
+                instance=instance,
+                pos=pos,
+                held_bars=int(held_bars),
+                tr_ratio=ratsv_tr_ratio,
+                slope_med=ratsv_slope_med,
+                slope_vel=ratsv_slope_vel,
+            ):
+                return _trigger_exit("ratsv_adverse_release", mode="spot", calc=_spot_calc())
 
             exit_time = parse_time_hhmm(instance.strategy.get("spot_exit_time_et"))
             if exit_time is not None and now_et.time() >= exit_time:

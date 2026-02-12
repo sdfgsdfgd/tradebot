@@ -204,6 +204,24 @@ def _strategy_schema_common() -> dict[str, _FieldSpec]:
         "spot_max_notional_pct": _field(lambda value: _parse_non_negative_float(value, default=1.0), 1.0),
         "spot_min_qty": _field(lambda value: _parse_positive_int(value, default=1), 1),
         "spot_max_qty": _field(lambda value: _parse_non_negative_int(value, default=0), 0),
+        "spot_dual_branch_enabled": _field(bool, False),
+        "spot_dual_branch_priority": _field(_parse_spot_dual_branch_priority, None),
+        "spot_branch_a_ema_preset": _field(_parse_ema_preset, None),
+        "spot_branch_a_entry_confirm_bars": _field(
+            lambda value: None if value is None else _parse_non_negative_int(value, default=0),
+            None,
+        ),
+        "spot_branch_a_min_signed_slope_pct": _field(_parse_optional_float, None),
+        "spot_branch_a_max_signed_slope_pct": _field(_parse_optional_float, None),
+        "spot_branch_a_size_mult": _field(lambda value: _parse_positive_float(value, default=1.0), 1.0),
+        "spot_branch_b_ema_preset": _field(_parse_ema_preset, None),
+        "spot_branch_b_entry_confirm_bars": _field(
+            lambda value: None if value is None else _parse_non_negative_int(value, default=0),
+            None,
+        ),
+        "spot_branch_b_min_signed_slope_pct": _field(_parse_optional_float, None),
+        "spot_branch_b_max_signed_slope_pct": _field(_parse_optional_float, None),
+        "spot_branch_b_size_mult": _field(lambda value: _parse_positive_float(value, default=1.0), 1.0),
     }
 
 
@@ -344,6 +362,18 @@ def _parse_direction_source(value) -> str:
     raise ValueError(f"Invalid direction_source: {value!r} (expected 'ema')")
 
 
+def _parse_spot_dual_branch_priority(value) -> str:
+    if value is None:
+        return "b_then_a"
+    if isinstance(value, str):
+        cleaned = value.strip().lower()
+        if cleaned in ("a_then_b", "a", "a_first", "a-first"):
+            return "a_then_b"
+        if cleaned in ("b_then_a", "b", "b_first", "b-first", "default", ""):
+            return "b_then_a"
+    raise ValueError(f"Invalid spot_dual_branch_priority: {value!r} (expected 'a_then_b' or 'b_then_a')")
+
+
 def _parse_non_negative_int(value, *, default: int) -> int:
     if value is None:
         return default
@@ -408,6 +438,21 @@ def _parse_filters(raw) -> FiltersConfig | None:
         return None if val is None else float(val)
     def _i(val):
         return None if val is None else int(val)
+    def _pos_float_or_none(val):
+        out = _f(val)
+        if out is None or out <= 0:
+            return None
+        return float(out)
+    def _ratio01_or_none(val):
+        out = _f(val)
+        if out is None:
+            return None
+        return float(max(0.0, min(1.0, out)))
+    def _nonneg_int_default(val, default):
+        out = _i(val)
+        if out is None:
+            return int(default)
+        return max(0, int(out))
     volume_period = _i(raw.get("volume_ema_period"))
     if volume_period is not None and volume_period <= 0:
         volume_period = None
@@ -653,6 +698,52 @@ def _parse_filters(raw) -> FiltersConfig | None:
         riskpop_short_factor = 1.0
     if riskpop_short_factor < 0:
         riskpop_short_factor = 1.0
+
+    ratsv_enabled = bool(raw.get("ratsv_enabled", False))
+    ratsv_slope_window = _nonneg_int_default(raw.get("ratsv_slope_window_bars"), 5)
+    if ratsv_slope_window <= 0:
+        ratsv_slope_window = 5
+    ratsv_tr_fast = _nonneg_int_default(raw.get("ratsv_tr_fast_bars"), 5)
+    if ratsv_tr_fast <= 0:
+        ratsv_tr_fast = 5
+    ratsv_tr_slow = _nonneg_int_default(raw.get("ratsv_tr_slow_bars"), 20)
+    if ratsv_tr_slow <= 0:
+        ratsv_tr_slow = 20
+    if ratsv_tr_slow < ratsv_tr_fast:
+        ratsv_tr_slow = int(ratsv_tr_fast)
+
+    ratsv_rank_min = _ratio01_or_none(raw.get("ratsv_rank_min"))
+    ratsv_tr_ratio_min = _pos_float_or_none(raw.get("ratsv_tr_ratio_min"))
+    ratsv_slope_med_min_pct = _pos_float_or_none(raw.get("ratsv_slope_med_min_pct"))
+    ratsv_slope_vel_min_pct = _pos_float_or_none(raw.get("ratsv_slope_vel_min_pct"))
+    ratsv_cross_age_max = _i(raw.get("ratsv_cross_age_max_bars"))
+    if ratsv_cross_age_max is not None and ratsv_cross_age_max < 0:
+        ratsv_cross_age_max = None
+
+    ratsv_branch_a_rank_min = _ratio01_or_none(raw.get("ratsv_branch_a_rank_min"))
+    ratsv_branch_a_tr_ratio_min = _pos_float_or_none(raw.get("ratsv_branch_a_tr_ratio_min"))
+    ratsv_branch_a_slope_med_min_pct = _pos_float_or_none(raw.get("ratsv_branch_a_slope_med_min_pct"))
+    ratsv_branch_a_slope_vel_min_pct = _pos_float_or_none(raw.get("ratsv_branch_a_slope_vel_min_pct"))
+    ratsv_branch_a_cross_age_max = _i(raw.get("ratsv_branch_a_cross_age_max_bars"))
+    if ratsv_branch_a_cross_age_max is not None and ratsv_branch_a_cross_age_max < 0:
+        ratsv_branch_a_cross_age_max = None
+
+    ratsv_branch_b_rank_min = _ratio01_or_none(raw.get("ratsv_branch_b_rank_min"))
+    ratsv_branch_b_tr_ratio_min = _pos_float_or_none(raw.get("ratsv_branch_b_tr_ratio_min"))
+    ratsv_branch_b_slope_med_min_pct = _pos_float_or_none(raw.get("ratsv_branch_b_slope_med_min_pct"))
+    ratsv_branch_b_slope_vel_min_pct = _pos_float_or_none(raw.get("ratsv_branch_b_slope_vel_min_pct"))
+    ratsv_branch_b_cross_age_max = _i(raw.get("ratsv_branch_b_cross_age_max_bars"))
+    if ratsv_branch_b_cross_age_max is not None and ratsv_branch_b_cross_age_max < 0:
+        ratsv_branch_b_cross_age_max = None
+
+    ratsv_probe_cancel_max_bars = _nonneg_int_default(raw.get("ratsv_probe_cancel_max_bars"), 0)
+    ratsv_probe_cancel_slope_adverse_min_pct = _pos_float_or_none(raw.get("ratsv_probe_cancel_slope_adverse_min_pct"))
+    ratsv_probe_cancel_tr_ratio_min = _pos_float_or_none(raw.get("ratsv_probe_cancel_tr_ratio_min"))
+
+    ratsv_adverse_release_min_hold_bars = _nonneg_int_default(raw.get("ratsv_adverse_release_min_hold_bars"), 0)
+    ratsv_adverse_release_slope_adverse_min_pct = _pos_float_or_none(raw.get("ratsv_adverse_release_slope_adverse_min_pct"))
+    ratsv_adverse_release_tr_ratio_min = _pos_float_or_none(raw.get("ratsv_adverse_release_tr_ratio_min"))
+
     return FiltersConfig(
         rv_min=_f(raw.get("rv_min")),
         rv_max=_f(raw.get("rv_max")),
@@ -722,6 +813,31 @@ def _parse_filters(raw) -> FiltersConfig | None:
         riskpop_tr5_med_delta_lookback_days=int(riskpop_tr5_delta_lb),
         riskpop_long_risk_mult_factor=float(riskpop_long_factor),
         riskpop_short_risk_mult_factor=float(riskpop_short_factor),
+        ratsv_enabled=bool(ratsv_enabled),
+        ratsv_slope_window_bars=int(ratsv_slope_window),
+        ratsv_tr_fast_bars=int(ratsv_tr_fast),
+        ratsv_tr_slow_bars=int(ratsv_tr_slow),
+        ratsv_rank_min=ratsv_rank_min,
+        ratsv_tr_ratio_min=ratsv_tr_ratio_min,
+        ratsv_slope_med_min_pct=ratsv_slope_med_min_pct,
+        ratsv_slope_vel_min_pct=ratsv_slope_vel_min_pct,
+        ratsv_cross_age_max_bars=int(ratsv_cross_age_max) if ratsv_cross_age_max is not None else None,
+        ratsv_branch_a_rank_min=ratsv_branch_a_rank_min,
+        ratsv_branch_a_tr_ratio_min=ratsv_branch_a_tr_ratio_min,
+        ratsv_branch_a_slope_med_min_pct=ratsv_branch_a_slope_med_min_pct,
+        ratsv_branch_a_slope_vel_min_pct=ratsv_branch_a_slope_vel_min_pct,
+        ratsv_branch_a_cross_age_max_bars=int(ratsv_branch_a_cross_age_max) if ratsv_branch_a_cross_age_max is not None else None,
+        ratsv_branch_b_rank_min=ratsv_branch_b_rank_min,
+        ratsv_branch_b_tr_ratio_min=ratsv_branch_b_tr_ratio_min,
+        ratsv_branch_b_slope_med_min_pct=ratsv_branch_b_slope_med_min_pct,
+        ratsv_branch_b_slope_vel_min_pct=ratsv_branch_b_slope_vel_min_pct,
+        ratsv_branch_b_cross_age_max_bars=int(ratsv_branch_b_cross_age_max) if ratsv_branch_b_cross_age_max is not None else None,
+        ratsv_probe_cancel_max_bars=int(ratsv_probe_cancel_max_bars),
+        ratsv_probe_cancel_slope_adverse_min_pct=ratsv_probe_cancel_slope_adverse_min_pct,
+        ratsv_probe_cancel_tr_ratio_min=ratsv_probe_cancel_tr_ratio_min,
+        ratsv_adverse_release_min_hold_bars=int(ratsv_adverse_release_min_hold_bars),
+        ratsv_adverse_release_slope_adverse_min_pct=ratsv_adverse_release_slope_adverse_min_pct,
+        ratsv_adverse_release_tr_ratio_min=ratsv_adverse_release_tr_ratio_min,
     )
 
 

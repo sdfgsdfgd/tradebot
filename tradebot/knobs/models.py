@@ -123,6 +123,32 @@ class FiltersConfig:
     riskpop_tr5_med_delta_lookback_days: int = 1
     riskpop_long_risk_mult_factor: float = 1.0
     riskpop_short_risk_mult_factor: float = 1.0
+    # RATS-V (Reversal-Aware Two-Stage + anti-trap release) knobs; all default-off.
+    ratsv_enabled: bool = False
+    ratsv_slope_window_bars: int = 5
+    ratsv_tr_fast_bars: int = 5
+    ratsv_tr_slow_bars: int = 20
+    ratsv_rank_min: float | None = None
+    ratsv_tr_ratio_min: float | None = None
+    ratsv_slope_med_min_pct: float | None = None
+    ratsv_slope_vel_min_pct: float | None = None
+    ratsv_cross_age_max_bars: int | None = None
+    ratsv_branch_a_rank_min: float | None = None
+    ratsv_branch_a_tr_ratio_min: float | None = None
+    ratsv_branch_a_slope_med_min_pct: float | None = None
+    ratsv_branch_a_slope_vel_min_pct: float | None = None
+    ratsv_branch_a_cross_age_max_bars: int | None = None
+    ratsv_branch_b_rank_min: float | None = None
+    ratsv_branch_b_tr_ratio_min: float | None = None
+    ratsv_branch_b_slope_med_min_pct: float | None = None
+    ratsv_branch_b_slope_vel_min_pct: float | None = None
+    ratsv_branch_b_cross_age_max_bars: int | None = None
+    ratsv_probe_cancel_max_bars: int = 0
+    ratsv_probe_cancel_slope_adverse_min_pct: float | None = None
+    ratsv_probe_cancel_tr_ratio_min: float | None = None
+    ratsv_adverse_release_min_hold_bars: int = 0
+    ratsv_adverse_release_slope_adverse_min_pct: float | None = None
+    ratsv_adverse_release_tr_ratio_min: float | None = None
 
 
 @dataclass(frozen=True)
@@ -210,6 +236,18 @@ class StrategyConfigBase:
     spot_max_notional_pct: float = 1.0
     spot_min_qty: int = 1
     spot_max_qty: int = 0
+    spot_dual_branch_enabled: bool = False
+    spot_dual_branch_priority: str = "b_then_a"  # "a_then_b" | "b_then_a"
+    spot_branch_a_ema_preset: str | None = None
+    spot_branch_a_entry_confirm_bars: int | None = None
+    spot_branch_a_min_signed_slope_pct: float | None = None
+    spot_branch_a_max_signed_slope_pct: float | None = None
+    spot_branch_a_size_mult: float = 1.0
+    spot_branch_b_ema_preset: str | None = None
+    spot_branch_b_entry_confirm_bars: int | None = None
+    spot_branch_b_min_signed_slope_pct: float | None = None
+    spot_branch_b_max_signed_slope_pct: float | None = None
+    spot_branch_b_size_mult: float = 1.0
 
 
 @dataclass(frozen=True)

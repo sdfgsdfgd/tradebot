@@ -59,6 +59,7 @@ class SpotTrade:
     stop_loss_pct: float | None = None
     profit_target_price: float | None = None
     stop_loss_price: float | None = None
+    entry_branch: str | None = None
     margin_required: float = 0.0
     exit_time: datetime | None = None
     exit_price: float | None = None

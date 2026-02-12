@@ -255,10 +255,19 @@ class BotEngineRuntimeMixin:
                                 instance.spot_entry_basis_set_ts = datetime.now()
                                 done_data["entry_basis_price"] = float(basis_price)
                                 done_data["entry_basis_source"] = str(instance.spot_entry_basis_source)
+                            journal = getattr(order, "journal", None)
+                            entry_branch = None
+                            if isinstance(journal, dict):
+                                raw_branch = journal.get("entry_branch")
+                                if raw_branch in ("a", "b"):
+                                    entry_branch = str(raw_branch)
+                            instance.spot_entry_branch = entry_branch
+                            done_data["entry_branch"] = entry_branch
                         elif intent == "exit":
                             instance.spot_entry_basis_price = None
                             instance.spot_entry_basis_source = None
                             instance.spot_entry_basis_set_ts = None
+                            instance.spot_entry_branch = None
                             done_data["entry_basis_cleared"] = True
                     if status == "Inactive" and intent == "exit":
                         if signal_bar_ts is not None and instance.exit_retry_bar_ts != signal_bar_ts:

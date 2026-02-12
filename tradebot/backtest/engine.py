@@ -437,6 +437,8 @@ class _MaxFirstGtTree:
 class _SpotSignalSeries(NamedTuple):
     signal_by_sig_idx: list[EmaDecisionSnapshot | None]
     bars_in_day_by_sig_idx: list[int]
+    entry_dir_by_sig_idx: list[str | None]
+    entry_branch_by_sig_idx: list[str | None]
 
 
 class _SpotRvSeries(NamedTuple):
@@ -527,6 +529,28 @@ def _spot_signal_series(
         str(getattr(strat, "ema_preset", "") or ""),
         str(getattr(strat, "ema_entry_mode", "") or ""),
         int(getattr(strat, "entry_confirm_bars", 0) or 0),
+        bool(getattr(strat, "spot_dual_branch_enabled", False)),
+        str(getattr(strat, "spot_dual_branch_priority", "b_then_a") or "b_then_a"),
+        str(getattr(strat, "spot_branch_a_ema_preset", "") or ""),
+        int(getattr(strat, "spot_branch_a_entry_confirm_bars", 0) or 0)
+        if getattr(strat, "spot_branch_a_entry_confirm_bars", None) is not None
+        else None,
+        float(getattr(strat, "spot_branch_a_min_signed_slope_pct", 0.0) or 0.0)
+        if getattr(strat, "spot_branch_a_min_signed_slope_pct", None) is not None
+        else None,
+        float(getattr(strat, "spot_branch_a_max_signed_slope_pct", 0.0) or 0.0)
+        if getattr(strat, "spot_branch_a_max_signed_slope_pct", None) is not None
+        else None,
+        str(getattr(strat, "spot_branch_b_ema_preset", "") or ""),
+        int(getattr(strat, "spot_branch_b_entry_confirm_bars", 0) or 0)
+        if getattr(strat, "spot_branch_b_entry_confirm_bars", None) is not None
+        else None,
+        float(getattr(strat, "spot_branch_b_min_signed_slope_pct", 0.0) or 0.0)
+        if getattr(strat, "spot_branch_b_min_signed_slope_pct", None) is not None
+        else None,
+        float(getattr(strat, "spot_branch_b_max_signed_slope_pct", 0.0) or 0.0)
+        if getattr(strat, "spot_branch_b_max_signed_slope_pct", None) is not None
+        else None,
         str(getattr(strat, "regime_mode", "ema") or "ema"),
         str(getattr(strat, "regime_ema_preset", "") or ""),
         str(getattr(strat, "regime_bar_size", "") or ""),
@@ -558,16 +582,22 @@ def _spot_signal_series(
     )
     signal_by_sig_idx: list[EmaDecisionSnapshot | None] = [None] * len(signal_bars)
     bars_in_day_by_sig_idx: list[int] = [0] * len(signal_bars)
+    entry_dir_by_sig_idx: list[str | None] = [None] * len(signal_bars)
+    entry_branch_by_sig_idx: list[str | None] = [None] * len(signal_bars)
     for i, bar in enumerate(signal_bars):
         snap = evaluator.update_signal_bar(bar)
         if snap is None:
             continue
         signal_by_sig_idx[i] = snap.signal
         bars_in_day_by_sig_idx[i] = int(snap.bars_in_day)
+        entry_dir_by_sig_idx[i] = str(snap.entry_dir) if snap.entry_dir in ("up", "down") else None
+        entry_branch_by_sig_idx[i] = str(snap.entry_branch) if snap.entry_branch in ("a", "b") else None
 
     out = _SpotSignalSeries(
         signal_by_sig_idx=signal_by_sig_idx,
         bars_in_day_by_sig_idx=bars_in_day_by_sig_idx,
+        entry_dir_by_sig_idx=entry_dir_by_sig_idx,
+        entry_branch_by_sig_idx=entry_branch_by_sig_idx,
     )
     _SPOT_SIGNAL_SERIES_CACHE[key] = out
     return out
@@ -1799,6 +1829,23 @@ def _spot_entry_leg_for_direction(
     return None
 
 
+def _spot_branch_size_mult(*, strategy, entry_branch: str | None) -> float:
+    """Resolve optional branch-aware sizing multiplier (disabled by default)."""
+    if not bool(getattr(strategy, "spot_dual_branch_enabled", False)):
+        return 1.0
+    if entry_branch not in ("a", "b"):
+        return 1.0
+    key = "spot_branch_a_size_mult" if entry_branch == "a" else "spot_branch_b_size_mult"
+    raw = getattr(strategy, key, 1.0)
+    try:
+        mult = float(raw)
+    except (TypeError, ValueError):
+        return 1.0
+    if mult <= 0:
+        return 1.0
+    return float(mult)
+
+
 def _spot_next_open_entry_allowed(
     *,
     signal_ts: datetime,
@@ -1865,6 +1912,7 @@ def _spot_try_open_entry(
     meta: ContractMeta,
     entry_signal: str,
     entry_dir: str,
+    entry_branch: str | None,
     entry_leg: SpotLegConfig,
     entry_time: datetime,
     entry_ref_price: float,
@@ -2002,6 +2050,20 @@ def _spot_try_open_entry(
         )
         if signed_qty == 0:
             can_open = False
+        else:
+            size_mult = _spot_branch_size_mult(strategy=cfg.strategy, entry_branch=entry_branch)
+            if size_mult != 1.0:
+                q_sign = 1 if int(signed_qty) > 0 else -1
+                q_abs = abs(int(signed_qty))
+                scaled_abs = int(q_abs * float(size_mult))
+                if scaled_abs <= 0:
+                    scaled_abs = 1
+                max_qty = int(getattr(cfg.strategy, "spot_max_qty", 0) or 0)
+                if max_qty > 0:
+                    scaled_abs = min(int(scaled_abs), int(max_qty))
+                min_qty = max(1, int(getattr(cfg.strategy, "spot_min_qty", 1) or 1))
+                scaled_abs = max(int(min_qty), int(scaled_abs))
+                signed_qty = int(q_sign) * int(scaled_abs)
     else:
         signed_qty = 0
 
@@ -2072,6 +2134,7 @@ def _spot_try_open_entry(
         qty=int(signed_qty),
         entry_time=entry_time,
         entry_price=float(entry_price),
+        entry_branch=str(entry_branch) if entry_branch in ("a", "b") else None,
         base_profit_target_pct=base_profit_target_pct,
         base_stop_loss_pct=base_stop_loss_pct,
         profit_target_pct=profit_target_pct,
@@ -2408,6 +2471,7 @@ def _run_spot_backtest_exec_loop(
         )
 
     pending_entry_dir: str | None = None
+    pending_entry_branch: str | None = None
     pending_entry_set_date: date | None = None
     pending_exit_all = False
     pending_exit_reason = ""
@@ -2483,6 +2547,7 @@ def _run_spot_backtest_exec_loop(
                 riskoff_end_hour=riskoff_end_hour,
             ):
                 pending_entry_dir = None
+                pending_entry_branch = None
                 pending_entry_set_date = None
 
             can_fill_pending = _spot_entry_capacity_ok(
@@ -2494,7 +2559,9 @@ def _run_spot_backtest_exec_loop(
             )
             if pending_entry_dir is not None and can_fill_pending:
                 entry_dir = pending_entry_dir
+                entry_branch = pending_entry_branch if pending_entry_branch in ("a", "b") else None
                 pending_entry_dir = None
+                pending_entry_branch = None
                 pending_entry_set_date = None
 
                 entry_leg = _spot_entry_leg_for_direction(
@@ -2510,6 +2577,7 @@ def _run_spot_backtest_exec_loop(
                         meta=meta,
                         entry_signal=entry_signal,
                         entry_dir=entry_dir,
+                        entry_branch=entry_branch,
                         entry_leg=entry_leg,
                         entry_time=bar.ts,
                         entry_ref_price=float(bar.open),
@@ -2539,6 +2607,7 @@ def _run_spot_backtest_exec_loop(
                         entries_today += 1
             else:
                 pending_entry_dir = None
+                pending_entry_branch = None
 
         # Dynamic shock SL/PT: apply the shock multipliers to *open* trades using the shock
         # state from the prior execution bar (no lookahead within this bar).
@@ -2573,6 +2642,11 @@ def _run_spot_backtest_exec_loop(
         shock_atr_pct = None
         atr = None
         signal = None
+        entry_signal_dir = None
+        entry_signal_branch = None
+        ratsv_tr_ratio = None
+        ratsv_fast_slope_med = None
+        ratsv_fast_slope_vel = None
         ema_ready = False
         if sig_bar is not None:
             sig_snap = evaluator.update_signal_bar(sig_bar)
@@ -2587,6 +2661,11 @@ def _run_spot_backtest_exec_loop(
                 shock_atr_pct = sig_snap.shock_atr_pct
                 atr = sig_snap.atr
                 signal = sig_snap.signal
+                entry_signal_dir = sig_snap.entry_dir
+                entry_signal_branch = sig_snap.entry_branch
+                ratsv_tr_ratio = sig_snap.ratsv_tr_ratio
+                ratsv_fast_slope_med = sig_snap.ratsv_fast_slope_med_pct
+                ratsv_fast_slope_vel = sig_snap.ratsv_fast_slope_vel_pct
                 ema_ready = bool(ema_needed and signal is not None and signal.ema_ready)
 
             if tick_mode != "off" and tick_bars is not None:
@@ -2723,7 +2802,36 @@ def _run_spot_backtest_exec_loop(
                         exit_ref = float(bar.close)
 
                 is_signal_close = bar.ts in signal_by_ts
-                if not should_close and is_signal_close and _spot_hit_flip_exit(cfg, trade, bar, signal):
+                if (
+                    not should_close
+                    and is_signal_close
+                    and _spot_ratsv_probe_cancel_hit(
+                        cfg,
+                        trade=trade,
+                        bar=bar,
+                        tr_ratio=float(ratsv_tr_ratio) if ratsv_tr_ratio is not None else None,
+                        slope_med=float(ratsv_fast_slope_med) if ratsv_fast_slope_med is not None else None,
+                    )
+                ):
+                    should_close = True
+                    reason = "ratsv_probe_cancel"
+                    exit_ref = float(bar.close)
+                elif (
+                    not should_close
+                    and is_signal_close
+                    and _spot_ratsv_adverse_release_hit(
+                        cfg,
+                        trade=trade,
+                        bar=bar,
+                        tr_ratio=float(ratsv_tr_ratio) if ratsv_tr_ratio is not None else None,
+                        slope_med=float(ratsv_fast_slope_med) if ratsv_fast_slope_med is not None else None,
+                        slope_vel=float(ratsv_fast_slope_vel) if ratsv_fast_slope_vel is not None else None,
+                    )
+                ):
+                    should_close = True
+                    reason = "ratsv_adverse_release"
+                    exit_ref = float(bar.close)
+                elif not should_close and is_signal_close and _spot_hit_flip_exit(cfg, trade, bar, signal):
                     if spot_flip_exit_fill_mode == "next_open" and next_bar is not None:
                         pending_exit_all = True
                         pending_exit_reason = "flip"
@@ -2769,7 +2877,8 @@ def _run_spot_backtest_exec_loop(
             shock_prev, shock_dir_prev, shock_atr_pct_prev = evaluator.shock_view
             continue
 
-        entry_signal_dir = signal.entry_dir if signal is not None else None
+        if entry_signal_dir is None:
+            entry_signal_dir = signal.entry_dir if signal is not None else None
         if tick_mode != "off":
             if not tick_ready:
                 if tick_neutral_policy == "block":
@@ -2847,6 +2956,7 @@ def _run_spot_backtest_exec_loop(
                             atr_value=float(atr) if atr is not None else None,
                         ):
                             pending_entry_dir = direction
+                            pending_entry_branch = entry_signal_branch if entry_signal_branch in ("a", "b") else None
                             pending_entry_set_date = bar.ts.date()
                             last_entry_sig_idx = int(sig_idx)
                 else:
@@ -2856,6 +2966,7 @@ def _run_spot_backtest_exec_loop(
                         meta=meta,
                         entry_signal=entry_signal,
                         entry_dir=direction,
+                        entry_branch=entry_signal_branch if entry_signal_branch in ("a", "b") else None,
                         entry_leg=spot_leg,
                         entry_time=sig_bar.ts,
                         entry_ref_price=float(bar.close),
@@ -3182,7 +3293,8 @@ def _run_spot_backtest_exec_loop_summary_fast(
         _set_day_for_exec_idx(sig_exec_idx)
 
         sig = signal_series.signal_by_sig_idx[sig_idx]
-        entry_dir = sig.entry_dir if sig is not None else None
+        entry_dir = signal_series.entry_dir_by_sig_idx[sig_idx]
+        entry_branch = signal_series.entry_branch_by_sig_idx[sig_idx]
         if sig is None or not bool(sig.ema_ready):
             entry_dir = None
         if needs_direction:
@@ -3243,6 +3355,7 @@ def _run_spot_backtest_exec_loop_summary_fast(
         last_entry_sig_idx = int(sig_idx)
         pending_set_date = exec_bars[sig_exec_idx].ts.date()
         pending_dir = str(entry_dir)
+        pending_branch = str(entry_branch) if entry_branch in ("a", "b") else None
 
         _set_day_for_exec_idx(entry_exec_idx)
         if not _spot_entry_capacity_ok(
@@ -3276,6 +3389,7 @@ def _run_spot_backtest_exec_loop_summary_fast(
             meta=meta,
             entry_signal="ema",
             entry_dir=pending_dir,
+            entry_branch=pending_branch,
             entry_leg=entry_leg,
             entry_time=bar.ts,
             entry_ref_price=float(bar.open),
@@ -3621,6 +3735,39 @@ def _can_use_fast_summary_path(
     tick_bars: list[Bar] | None,
 ) -> bool:
     strat = cfg.strategy
+    filters = getattr(strat, "filters", None)
+    if filters is not None:
+        if bool(getattr(filters, "ratsv_enabled", False)):
+            return False
+        ratsv_keys = (
+            "ratsv_rank_min",
+            "ratsv_tr_ratio_min",
+            "ratsv_slope_med_min_pct",
+            "ratsv_slope_vel_min_pct",
+            "ratsv_cross_age_max_bars",
+            "ratsv_branch_a_rank_min",
+            "ratsv_branch_a_tr_ratio_min",
+            "ratsv_branch_a_slope_med_min_pct",
+            "ratsv_branch_a_slope_vel_min_pct",
+            "ratsv_branch_a_cross_age_max_bars",
+            "ratsv_branch_b_rank_min",
+            "ratsv_branch_b_tr_ratio_min",
+            "ratsv_branch_b_slope_med_min_pct",
+            "ratsv_branch_b_slope_vel_min_pct",
+            "ratsv_branch_b_cross_age_max_bars",
+            "ratsv_probe_cancel_max_bars",
+            "ratsv_probe_cancel_slope_adverse_min_pct",
+            "ratsv_probe_cancel_tr_ratio_min",
+            "ratsv_adverse_release_min_hold_bars",
+            "ratsv_adverse_release_slope_adverse_min_pct",
+            "ratsv_adverse_release_tr_ratio_min",
+        )
+        for key in ratsv_keys:
+            raw = getattr(filters, key, None)
+            if raw in (None, False, 0, 0.0, "", "0"):
+                continue
+            return False
+
     stop_loss_pct = getattr(strat, "spot_stop_loss_pct", None)
     stop_ok = stop_loss_pct is not None and float(stop_loss_pct or 0.0) > 0.0
     entry_fill_mode = str(getattr(strat, "spot_entry_fill_mode", "close") or "close").strip().lower()
@@ -3716,6 +3863,103 @@ def _flip_exit_base_checks(
         held = _bars_held(cfg.backtest.bar_size, entry_time, bar_ts)
         if held < cfg.strategy.flip_exit_min_hold_bars:
             return False
+    return True
+
+
+def _spot_ratsv_probe_cancel_hit(
+    cfg: ConfigBundle,
+    *,
+    trade: SpotTrade,
+    bar: Bar,
+    tr_ratio: float | None,
+    slope_med: float | None,
+) -> bool:
+    filters = getattr(cfg.strategy, "filters", None)
+    if filters is None:
+        return False
+    if str(getattr(trade, "entry_branch", None) or "") != "a":
+        return False
+    try:
+        max_bars = int(getattr(filters, "ratsv_probe_cancel_max_bars", 0) or 0)
+    except (TypeError, ValueError):
+        max_bars = 0
+    if max_bars <= 0:
+        return False
+    held = _bars_held(str(cfg.backtest.bar_size), trade.entry_time, bar.ts)
+    if held > int(max_bars):
+        return False
+
+    try:
+        slope_min = float(getattr(filters, "ratsv_probe_cancel_slope_adverse_min_pct", 0.0) or 0.0)
+    except (TypeError, ValueError):
+        slope_min = 0.0
+    if slope_min <= 0:
+        return False
+
+    if slope_med is None:
+        return False
+    adverse = float(slope_med) <= -float(slope_min) if int(trade.qty) > 0 else float(slope_med) >= float(slope_min)
+    if not bool(adverse):
+        return False
+
+    tr_min_raw = getattr(filters, "ratsv_probe_cancel_tr_ratio_min", None)
+    if tr_min_raw is not None:
+        try:
+            tr_min = float(tr_min_raw)
+        except (TypeError, ValueError):
+            tr_min = None
+        if tr_min is not None and tr_min > 0:
+            if tr_ratio is None or float(tr_ratio) < float(tr_min):
+                return False
+    return True
+
+
+def _spot_ratsv_adverse_release_hit(
+    cfg: ConfigBundle,
+    *,
+    trade: SpotTrade,
+    bar: Bar,
+    tr_ratio: float | None,
+    slope_med: float | None,
+    slope_vel: float | None,
+) -> bool:
+    filters = getattr(cfg.strategy, "filters", None)
+    if filters is None:
+        return False
+
+    try:
+        slope_min = float(getattr(filters, "ratsv_adverse_release_slope_adverse_min_pct", 0.0) or 0.0)
+    except (TypeError, ValueError):
+        slope_min = 0.0
+    if slope_min <= 0:
+        return False
+
+    try:
+        min_hold = int(getattr(filters, "ratsv_adverse_release_min_hold_bars", 0) or 0)
+    except (TypeError, ValueError):
+        min_hold = 0
+    if min_hold > 0:
+        held = _bars_held(str(cfg.backtest.bar_size), trade.entry_time, bar.ts)
+        if held < int(min_hold):
+            return False
+
+    adverse = False
+    if slope_med is not None:
+        adverse = float(slope_med) <= -float(slope_min) if int(trade.qty) > 0 else float(slope_med) >= float(slope_min)
+    if (not adverse) and slope_vel is not None:
+        adverse = float(slope_vel) <= -float(slope_min) if int(trade.qty) > 0 else float(slope_vel) >= float(slope_min)
+    if not bool(adverse):
+        return False
+
+    tr_min_raw = getattr(filters, "ratsv_adverse_release_tr_ratio_min", None)
+    if tr_min_raw is not None:
+        try:
+            tr_min = float(tr_min_raw)
+        except (TypeError, ValueError):
+            tr_min = None
+        if tr_min is not None and tr_min > 0:
+            if tr_ratio is None or float(tr_ratio) < float(tr_min):
+                return False
     return True
 
 
