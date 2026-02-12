@@ -71,7 +71,7 @@ class PositionsApp(App):
     _REALIZED_COL_WIDTH = 12
     _SEARCH_MODES = ("STK", "FUT", "OPT", "FOP")
     _SEARCH_LIMIT = 5
-    _SEARCH_FETCH_LIMIT = 24
+    _SEARCH_FETCH_LIMIT = 96
     _SEARCH_DEBOUNCE_SEC = 0.18
 
     _SECTION_HEADER_STYLE_BY_TYPE = {
@@ -629,8 +629,9 @@ class PositionsApp(App):
             return
         count = len(expiries)
         self._search_opt_expiry_index = (self._search_opt_expiry_index + int(step)) % count
-        self._search_selected = 0
+        self._search_selected = self._default_opt_row_index()
         self._search_scroll = 0
+        self._ensure_search_visible()
         self._render_search()
 
     def _option_pair_rows(self) -> list[tuple[Contract | None, Contract | None]]:
@@ -658,6 +659,56 @@ class PositionsApp(App):
             call, put = by_strike[strike]
             rows.append((call, put))
         return rows
+
+    @staticmethod
+    def _option_row_strike(
+        call_contract: Contract | None,
+        put_contract: Contract | None,
+    ) -> float | None:
+        source = call_contract if call_contract is not None else put_contract
+        if source is None:
+            return None
+        try:
+            strike = float(getattr(source, "strike", 0.0) or 0.0)
+        except (TypeError, ValueError):
+            return None
+        return strike if strike > 0 else None
+
+    def _default_opt_row_index(self) -> int:
+        rows = self._option_pair_rows()
+        if not rows:
+            return 0
+        strikes: list[float] = []
+        for call_contract, put_contract in rows:
+            strike = self._option_row_strike(call_contract, put_contract)
+            if strike is not None:
+                strikes.append(float(strike))
+        if not strikes:
+            return 0
+        target = strikes[len(strikes) // 2]
+        best_idx = 0
+        best_delta = float("inf")
+        for idx, (call_contract, put_contract) in enumerate(rows):
+            strike = self._option_row_strike(call_contract, put_contract)
+            if strike is None:
+                continue
+            delta = abs(float(strike) - float(target))
+            if delta < best_delta:
+                best_delta = delta
+                best_idx = idx
+        return best_idx
+
+    def _opt_underlyer_label(self) -> str:
+        for contract in self._search_results:
+            if str(getattr(contract, "secType", "") or "").strip().upper() != "OPT":
+                continue
+            symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
+            exchange = str(getattr(contract, "exchange", "") or "").strip().upper()
+            if symbol and exchange:
+                return f"{symbol} {exchange}"
+            if symbol:
+                return symbol
+        return ""
 
     def _search_row_count(self) -> int:
         if self._search_mode() == "OPT":
@@ -727,7 +778,10 @@ class PositionsApp(App):
         self._search_loading = False
         self._search_results = list(results)
         total = self._search_row_count()
-        self._search_selected = min(max(self._search_selected, 0), max(total - 1, 0))
+        if mode == "OPT":
+            self._search_selected = self._default_opt_row_index()
+        else:
+            self._search_selected = min(max(self._search_selected, 0), max(total - 1, 0))
         self._ensure_search_visible()
         self._render_search()
 
@@ -785,6 +839,9 @@ class PositionsApp(App):
             else:
                 expiry_line.append("n/a", style="dim")
             lines.append(expiry_line)
+            underlyer_label = self._opt_underlyer_label()
+            if underlyer_label:
+                lines.append(Text(f"Underlyer {underlyer_label}", style="dim"))
             side_line = Text("Side ", style="dim")
             if self._search_side == 0:
                 side_line.append("[CALL]", style="bold #0d1117 on #8fbfff")
@@ -877,41 +934,21 @@ class PositionsApp(App):
         put_contract: Contract | None,
         active: bool,
     ) -> Text:
-        search_widget = getattr(self, "_search", None)
-        size = getattr(search_widget, "size", None)
-        width = int(getattr(size, "width", 0) or 0)
-        inner = max(width - 4, 44)
-        side_width = max((inner - 18) // 2, 10)
-        strike = None
-        source = call_contract if call_contract is not None else put_contract
-        if source is not None:
-            try:
-                strike = float(getattr(source, "strike", 0.0) or 0.0)
-            except (TypeError, ValueError):
-                strike = None
-        strike_text = f"{strike:.2f}" if strike is not None and strike > 0 else "--"
-        symbol = (
-            str(getattr(source, "symbol", "") or "").strip().upper() if source is not None else ""
-        ) or "?"
-        exchange = (
-            str(getattr(source, "exchange", "") or "").strip().upper() if source is not None else ""
-        )
+        strike = self._option_row_strike(call_contract, put_contract)
+        strike_text = f"{strike:.2f}" if strike is not None else "--"
+        left_style = "bold #8fbfff" if call_contract else "dim"
+        right_style = "bold #ff9ac2" if put_contract else "dim"
+        if active and self._search_side == 0:
+            left_style = f"{left_style} on #1d2a38"
+        if active and self._search_side == 1:
+            right_style = f"{right_style} on #1d2a38"
 
-        call_text = self._clip_cell(f"C {strike_text}" if call_contract else "C --", side_width)
-        put_text = self._clip_cell(f"P {strike_text}" if put_contract else "P --", side_width)
-        base_left = "bold #8fbfff" if call_contract else "dim"
-        base_right = "bold #ff9ac2" if put_contract else "dim"
-        left_style = f"{base_left} on #1d2a38" if active and self._search_side == 0 else base_left
-        right_style = f"{base_right} on #1d2a38" if active and self._search_side == 1 else base_right
         line = Text(f"{idx + 1}. ", style="dim")
-        line.append(call_text, style=left_style)
+        line.append("CALL", style=left_style)
         line.append("  |  ", style="dim")
         line.append(f"K={strike_text}", style="bold #ffcc84")
         line.append("  |  ", style="dim")
-        line.append(put_text, style=right_style)
-        line.append(f"   {symbol}", style="dim")
-        if exchange:
-            line.append(f" {exchange}", style="dim")
+        line.append("PUT", style=right_style)
         return line
 
     def _open_search_selection(self) -> None:
