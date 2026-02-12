@@ -1262,7 +1262,7 @@ class IBKRClient:
             expiries = sorted(set(expiries))
             if not expiries:
                 return []
-            expiry_take = min(len(expiries), 3)
+            expiry_take = min(len(expiries), 8)
             selected_expiries = expiries[:expiry_take]
             strikes_raw = getattr(chain, "strikes", ()) or ()
             strikes: list[float] = []
@@ -1322,7 +1322,7 @@ class IBKRClient:
                 ref_price = self._median_strike(strikes)
             if ref_price is None:
                 return []
-            rows_per_expiry = max(1, int(max_rows) // max(1, (2 * len(selected_expiries))))
+            rows_per_expiry = max(5, int(max_rows) // max(1, (2 * len(selected_expiries))))
 
             symbol_clean = str(getattr(underlying, "symbol", "") or symbol).strip().upper()
             exchange = str(getattr(chain, "exchange", "") or "SMART").strip().upper() or "SMART"
