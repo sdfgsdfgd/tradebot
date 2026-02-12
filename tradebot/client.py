@@ -1263,7 +1263,10 @@ class IBKRClient:
             expiries = sorted(set(expiries))
             if not expiries:
                 return []
-            expiry_take = min(len(expiries), 8)
+            # Keep each expiry deep enough to show meaningful C/P ladders near ATM.
+            target_strikes_per_expiry = max(1, min(20, int(max_rows) // 2))
+            max_expiries = max(1, int(max_rows) // (2 * target_strikes_per_expiry))
+            expiry_take = min(len(expiries), max_expiries)
             selected_expiries = expiries[:expiry_take]
             strikes_raw = getattr(chain, "strikes", ()) or ()
             strikes: list[float] = []
@@ -1323,7 +1326,10 @@ class IBKRClient:
                 ref_price = self._median_strike(strikes)
             if ref_price is None:
                 return []
-            rows_per_expiry = max(5, int(max_rows) // max(1, (2 * len(selected_expiries))))
+            rows_per_expiry = max(
+                target_strikes_per_expiry,
+                int(max_rows) // max(1, (2 * len(selected_expiries))),
+            )
 
             symbol_clean = str(getattr(underlying, "symbol", "") or symbol).strip().upper()
             exchange = str(getattr(chain, "exchange", "") or "SMART").strip().upper() or "SMART"
