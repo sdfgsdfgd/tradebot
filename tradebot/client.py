@@ -72,6 +72,7 @@ _FUT_EXCHANGE_HINTS: dict[str, tuple[str, ...]] = {
     "SI": ("COMEX", "NYMEX"),
     "GC": ("COMEX", "NYMEX"),
     "CL": ("NYMEX",),
+    "MCL": ("NYMEX",),
     "NG": ("NYMEX",),
     "HG": ("COMEX",),
     "ES": ("GLOBEX", "CME"),
@@ -2464,7 +2465,14 @@ def _normalize_order_contract(contract: Contract) -> Contract:
     if contract.exchange:
         return contract
     normalized = copy.copy(contract)
-    if contract.secType in ("STK", "OPT", "FUT", "FOP"):
+    sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
+    if sec_type == "FOP":
+        symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
+        exchange_hints = _FUT_EXCHANGE_HINTS.get(symbol, ())
+        primary_exchange = str(getattr(contract, "primaryExchange", "") or "").strip().upper()
+        normalized.exchange = primary_exchange or (exchange_hints[0] if exchange_hints else "CME")
+        return normalized
+    if sec_type in ("STK", "OPT", "FUT"):
         normalized.exchange = "SMART"
     return normalized
 # endregion

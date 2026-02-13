@@ -622,7 +622,7 @@ def _tick_size(contract, ticker: Ticker | None, ref_price: float | None) -> floa
                 return tick
         except (TypeError, ValueError):
             pass
-    if contract.secType == "OPT":
+    if contract.secType in ("OPT", "FOP"):
         if ref_price is not None and ref_price >= 3:
             return 0.05
         return 0.01

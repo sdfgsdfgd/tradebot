@@ -1545,7 +1545,7 @@ class PositionDetailScreen(Screen):
 
     def _render_execution_block(self, *, panel_width: int) -> list[Text]:
         contract = self._item.contract
-        if contract.secType not in ("STK", "OPT"):
+        if contract.secType not in ("STK", "OPT", "FOP"):
             return []
         bid = self._quote_num(self._ticker.bid) if self._ticker else None
         ask = self._quote_num(self._ticker.ask) if self._ticker else None
@@ -1871,7 +1871,7 @@ class PositionDetailScreen(Screen):
 
     def _submit_order(self, action: str) -> None:
         contract = self._item.contract
-        if contract.secType not in ("STK", "OPT"):
+        if contract.secType not in ("STK", "OPT", "FOP"):
             self._exec_status = "Exec: unsupported contract"
             self._render_details(sample=False)
             return
