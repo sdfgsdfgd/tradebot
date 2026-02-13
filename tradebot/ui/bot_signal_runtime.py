@@ -1500,7 +1500,6 @@ class BotSignalRuntimeMixin:
                         if instance.pending_exit_signal_bar_ts is not None
                         else instance.pending_exit_due_ts.isoformat()
                     ),
-                    "now_wall_ts": now_wall.isoformat(),
                     "signal_bar_ts": (
                         instance.pending_exit_signal_bar_ts.isoformat()
                         if instance.pending_exit_signal_bar_ts is not None
@@ -1519,7 +1518,6 @@ class BotSignalRuntimeMixin:
                         if instance.pending_entry_signal_bar_ts is not None
                         else instance.pending_entry_due_ts.isoformat()
                     ),
-                    "now_wall_ts": now_wall.isoformat(),
                     "signal_bar_ts": (
                         instance.pending_entry_signal_bar_ts.isoformat()
                         if instance.pending_entry_signal_bar_ts is not None
@@ -2052,6 +2050,8 @@ class BotSignalRuntimeMixin:
             return False
         if instance.last_entry_bar_ts is not None and instance.last_entry_bar_ts == snap.bar_ts:
             gate("BLOCKED_ENTRY_SAME_BAR", {"bar_ts": snap.bar_ts.isoformat()})
+            return False
+        if instance.pending_exit_due_ts is not None or instance.pending_entry_due_ts is not None:
             return False
 
         instrument = self._strategy_instrument(instance.strategy)

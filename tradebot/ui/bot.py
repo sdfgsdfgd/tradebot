@@ -19,7 +19,7 @@ from textual.containers import Vertical
 from textual.screen import Screen
 from textual.widgets import DataTable, Footer, Header, Static
 
-from ..client import IBKRClient
+from ..client import IBKRClient, _session_flags
 from ..engine import (
     flip_exit_gate_blocked,
     flip_exit_hit,
@@ -2631,13 +2631,22 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         sec = str(sec_type or "").strip().upper()
         if sec not in ("STK", "OPT"):
             return weekday < 5
+
+        # Keep stale/gap expectations in parity with IBKR session handling:
+        # STK full-session has a maintenance gap between 03:50 and 04:00 ET.
         if weekday == 5:
             return False
         if weekday == 6:
             return current >= time(20, 0)
         if weekday == 4 and current >= time(20, 0):
             return False
-        return True
+
+        outside_rth, include_overnight = _session_flags(now_et)
+        if include_overnight:
+            return True
+        if outside_rth:
+            return True
+        return time(9, 30) <= current < time(16, 0)
 
     def _signal_stale_threshold_bars(
         self,

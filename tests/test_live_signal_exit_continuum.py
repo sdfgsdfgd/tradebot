@@ -12,7 +12,7 @@ from unittest.mock import patch
 
 from ib_insync import Future, Stock
 
-from tradebot.client import IBKRClient
+from tradebot.client import IBKRClient, _session_flags
 from tradebot.config import IBKRConfig
 from tradebot.engine import flip_exit_gate_blocked, signal_filter_checks
 
@@ -304,6 +304,12 @@ class _PendingNextOpenHarness(BotSignalRuntimeMixin):
         )
 
 
+class _PendingEntryGuardHarness(BotSignalRuntimeMixin):
+    @staticmethod
+    def _entry_limit_ok(instance: _BotInstance) -> bool:
+        return True
+
+
 def _new_instance(*, strategy: dict | None = None, filters: dict | None = None) -> _BotInstance:
     return _BotInstance(
         instance_id=1,
@@ -460,6 +466,25 @@ def test_pending_next_open_cancels_on_risk_overlay_date_roll() -> None:
     assert "CANCEL_PENDING_ENTRY_RISK_OVERLAY" in gates
 
 
+def test_auto_try_queue_entry_skips_recheck_when_pending_next_open_exists() -> None:
+    harness = _PendingEntryGuardHarness()
+    instance = _new_instance(strategy={"instrument": "spot"})
+    instance.pending_entry_due_ts = datetime(2026, 2, 9, 4, 0)
+    instance.pending_entry_direction = "down"
+    instance.pending_entry_signal_bar_ts = datetime(2026, 2, 9, 3, 42)
+    gates: list[str] = []
+
+    fired = harness._auto_try_queue_entry(
+        instance=instance,
+        snap=SimpleNamespace(bar_ts=datetime(2026, 2, 9, 3, 50)),
+        gate=lambda status, data=None: gates.append(str(status)),
+        now_et=datetime(2026, 2, 9, 3, 50),
+    )
+
+    assert fired is False
+    assert gates == []
+
+
 def test_pending_next_open_cancels_on_directional_shock_mismatch() -> None:
     harness = _PendingNextOpenHarness()
     instance = _new_instance(
@@ -514,6 +539,35 @@ def test_pending_next_open_triggers_when_directional_shock_matches() -> None:
     assert harness.queued[0]["direction"] == "up"
     assert instance.pending_entry_due_ts is None
     assert "TRIGGER_ENTRY" in gates
+
+
+def test_stock_session_flags_include_overnight_gap_between_0350_and_0400() -> None:
+    outside_rth, include_overnight = _session_flags(datetime(2026, 2, 10, 3, 45))
+    assert outside_rth is False
+    assert include_overnight is True
+
+    outside_rth, include_overnight = _session_flags(datetime(2026, 2, 10, 3, 55))
+    assert outside_rth is False
+    assert include_overnight is False
+
+    outside_rth, include_overnight = _session_flags(datetime(2026, 2, 10, 4, 1))
+    assert outside_rth is True
+    assert include_overnight is False
+
+
+def test_next_open_due_aligns_to_0400_after_stock_overnight_gap() -> None:
+    harness = _PendingNextOpenHarness()
+    instance = _new_instance(
+        strategy={
+            "instrument": "spot",
+            "signal_bar_size": "1 min",
+            "spot_exec_bar_size": "1 min",
+            "signal_use_rth": False,
+            "spot_sec_type": "STK",
+        }
+    )
+    due = harness._spot_next_open_due_ts(instance, datetime(2026, 2, 10, 3, 49))
+    assert due == datetime(2026, 2, 10, 4, 0)
 
 
 def test_schedule_next_open_emits_due_from_and_now_wall() -> None:
