@@ -6,35 +6,34 @@ This file is the dedicated SLV high-frequency evolution track, separate from `ba
 
 ## Current Champions (stack)
 
-### CURRENT (v3) — 1Y+2Y Dethrone Crown (1m/1m, high-trade)
-Promoted from the RATS stability hardening attack pass with trade floor preserved.
+### CURRENT (v4) — 1Y+2Y Dethrone Crown (1m/1m, high-trade)
+Promoted from the RATS ideal-plan v2 fast exploit with the trade floor preserved.
 
-**v3 kingmaker #01 [HF-1Y/2Y]**
-- Preset file: `backtests/slv/slv_hf_champions_v3.json`
-- Source eval: `backtests/slv/slv_hf_rats_attackpass_v2_20260213.json`
-- Forensic compare: `backtests/slv/slv_hf_attackpass_forensic_compare_v2top_20260213.json`
-- Variant id: `attackpass_v2_top1`
+**v4 kingmaker #01 [HF-1Y/2Y]**
+- Preset file: `backtests/slv/slv_hf_champions_v4.json`
+- Source eval: `backtests/slv/slv_hf_rats_idealplan_v2_fast_20260213.json`
+- Variant id: `idealplan_v2_fast_top1`
 - Timeframe: `signal=1 min`, `exec=1 min`, `full24/5`
-- Core deltas vs `rnd_016`: `ema_spread_min_pct=0.00075` (from `0.0008`), `ratsv_adverse_release_tr_ratio_min=1.0325` (from `1.03`), `spot_branch_a_size_mult=0.53` (from `0.60`)
-- 1y (`2025-01-08 -> 2026-01-08`): trades **746**, pnl **43,770.01**, dd **16,338.51**, pnl/dd **2.6789**
-- 2y (`2024-01-08 -> 2026-01-08`): trades **1,271**, pnl **27,696.87**, dd **23,622.59**, pnl/dd **1.1725**
-- 1y long pnl: **45,607.25**
-- 1y short pnl: **-1,837.24**
+- Core deltas vs prior HF crown (`v3 #01`): `spot_branch_a_size_mult=0.45` (from `0.53`), `spot_branch_b_size_mult=1.35` (from `1.40`), `flip_exit_mode=cross` (from `entry`), `flip_exit_min_hold_bars=0` (from `2`), probe cancel retuned (`max_bars=5`, `slope=0.0003`, `tr_ratio=0.95`)
+- 1y (`2025-01-08 -> 2026-01-08`): trades **751**, pnl **51,284.79**, dd **17,226.97**, pnl/dd **2.9770**
+- 2y (`2024-01-08 -> 2026-01-08`): trades **1,283**, pnl **45,578.79**, dd **17,197.81**, pnl/dd **2.6503**
+- 1y long pnl: **53,288.64**
+- 1y short pnl: **-2,003.86**
 
 Promotion contract check:
-- `1y trades >= 733`: **PASS** (`746`)
+- `1y trades >= 733`: **PASS** (`751`)
 - `beat prior crown on 1y pnl + pnl/dd`: **PASS**
 - `beat prior crown on 2y pnl + pnl/dd`: **PASS**
 
-Dethrone delta vs prior HF 1Y crown (`rnd_016`):
-- 1y: `trades +13`, `pnl +3,679.08`, `dd +821.15`, `pnl/dd +0.0953`
-- 2y: `trades +22`, `pnl +7,890.43`, `dd -2,815.60`, `pnl/dd +0.4233`
+Dethrone delta vs prior HF crown (`v3 #01`):
+- 1y: `trades +5`, `pnl +7,514.78`, `dd +888.46`, `pnl/dd +0.2981`
+- 2y: `trades +12`, `pnl +17,881.92`, `dd -6,424.78`, `pnl/dd +1.4778`
 
-### CURRENT 6M Crown (v3 reference) — quality anchor
+### CURRENT 6M Crown (v4 reference) — quality anchor
 Kept separately as 6M quality anchor (this is not the 1Y/2Y HF dethrone crown).
 
-**v3 kingmaker #02 [HF-6M]**
-- Preset file: `backtests/slv/slv_hf_champions_v3.json`
+**v4 kingmaker #02 [HF-6M]**
+- Preset file: `backtests/slv/slv_hf_champions_v4.json`
 - Source eval: `backtests/slv/slv_rand221_ultratight_eval_20260213.json`
 - Variant id: `rand_025`
 - Timeframe: `signal=10 mins`, `exec=5 mins`, `full24/5`
@@ -69,6 +68,12 @@ Decision:
 
 ## Previous Crowns (references)
 
+### v3 — `attackpass_v2_top1` 1Y/2Y dethrone crown
+- Preset file: `backtests/slv/slv_hf_champions_v3.json`
+- Source eval: `backtests/slv/slv_hf_rats_attackpass_v2_20260213.json`
+- 1y: trades **746**, pnl **43,770.01**, dd **16,338.51**, pnl/dd **2.6789**
+- 2y: trades **1,271**, pnl **27,696.87**, dd **23,622.59**, pnl/dd **1.1725**
+
 ### v2 — `rnd_016` 1Y PnL crown
 - Preset file: `backtests/slv/slv_hf_champions_v2.json`
 - Source eval: `backtests/slv/slv_rand025_1m_pnl_push_v4_eval_20260213.json`
@@ -92,6 +97,31 @@ Decision:
 - 1y: trades **639**, pnl **28,265.14**, dd **11,446.03**, pnl/dd **2.4694**
 
 ## Evolutions (stack)
+
+### v4.0 — RATS ideal-plan v2 fast exploit (PROMOTED)
+Status: **DONE (PROMOTED)**
+
+Command used:
+```bash
+PYTHONPATH=/Users/x/Desktop/py/tradebot python /tmp/hf_rats_idealplan_v2_fast.py
+```
+
+Search grid (staged, reliability-first):
+- Stage B: `ratsv_adverse_release_*` + `flip_exit_*` around the v3 crown core
+- Stage C: `ratsv_probe_cancel_*` around stage-B survivors
+- trade floor: `1y trades >= 733`
+- workers: `8`
+
+Artifacts:
+- `backtests/slv/slv_hf_rats_idealplan_v2_fast_20260213.json`
+- `backtests/slv/slv_hf_attackpass_v2top_rootcause_20260213.json`
+- `backtests/slv/slv_hf_champions_v4.json`
+
+Outcome:
+- Stage counts: `b_1y=576`, `b_2y_verified=80`, `c_1y=216`, `c_2y_verified=100`
+- Dethrone hits: **172**
+- Promoted `idealplan_v2_fast_top1` as new HF 1Y/2Y crown.
+- Notes: short-side/downturn monetization still needs targeted follow-up despite stronger aggregate continuity.
 
 ### v3.1 — RATS attackpass v2 exploit (PROMOTED)
 Status: **DONE (PROMOTED)**

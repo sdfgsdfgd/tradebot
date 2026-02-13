@@ -1,0 +1,5649 @@
+{
+  "name": "slv hf rats ideal plan v2 fast",
+  "generated_at": "2026-02-13T09:20:17.709714Z",
+  "source": "/Users/x/Desktop/py/tradebot/backtests/slv/slv_hf_attackpass_forensic_compare_v2top_20260213.json",
+  "baseline_variant": "attackpass_v2_top_candidate",
+  "workers": 8,
+  "baseline": {
+    "windows": [
+      {
+        "name": "1y",
+        "start": "2025-01-08",
+        "end": "2026-01-08",
+        "trades": 746,
+        "win_rate": 0.4222520107238606,
+        "pnl": 43770.00633999838,
+        "roi": 0.4377000633999838,
+        "dd": 16338.514999999345,
+        "dd_pct": 0.16338514999999346,
+        "pnl_over_dd": 2.678946424445559
+      },
+      {
+        "name": "2y",
+        "start": "2024-01-08",
+        "end": "2026-01-08",
+        "trades": 1271,
+        "win_rate": 0.4004720692368214,
+        "pnl": 27696.869090002194,
+        "roi": 0.27696869090002196,
+        "dd": 23622.58584999804,
+        "dd_pct": 0.23622585849998037,
+        "pnl_over_dd": 1.1724740579154036
+      }
+    ],
+    "forensics_1y": {
+      "trades": 746,
+      "pnl": 43770.00633999838,
+      "dd": 16338.514999999345,
+      "pnl_over_dd": 2.678946424445559,
+      "win_rate": 0.4222520107238606,
+      "long_pnl": 45607.2512999984,
+      "short_pnl": -1837.2449600000293,
+      "top1_loss_share": 0.015237181916113472,
+      "top5_loss_share": 0.06258599968735508,
+      "forced_like_exit_share": 0.0,
+      "trap_signature": {
+        "definition": "long & entry_ext_dist>0.006 & a37_fast_deg>0.8 & hold<=120",
+        "count": 20,
+        "loss_abs": 16040.069999999767,
+        "loss_share": 0.09828241587108329
+      },
+      "medians": {
+        "entry_ext_dist": 0.003264780838037767,
+        "loss_entry_ext_dist": 0.003347575320444628,
+        "hold_bars": 86.5,
+        "loss_hold_bars": 52.0,
+        "loss_a37_fast_deg": 0.4494616454467015
+      }
+    }
+  },
+  "grids": {
+    "seed": {
+      "ratsv_branch_a_cross_age_max_bars": [
+        3,
+        4
+      ],
+      "spot_branch_a_size_mult": [
+        0.45
+      ],
+      "spot_branch_b_size_mult": [
+        1.35,
+        1.4,
+        1.45
+      ],
+      "ema_spread_min_pct": [
+        0.0007,
+        0.00075
+      ]
+    },
+    "stage_b": {
+      "ratsv_adverse_release_tr_ratio_min": [
+        0.98,
+        1.0,
+        1.015,
+        1.0325
+      ],
+      "ratsv_adverse_release_slope_adverse_min_pct": [
+        0.0005,
+        0.0006,
+        0.0007
+      ],
+      "flip_exit_mode": [
+        "state",
+        "cross"
+      ],
+      "flip_exit_min_hold_bars": [
+        0,
+        1
+      ]
+    },
+    "stage_c": {
+      "ratsv_probe_cancel_max_bars": [
+        3,
+        4,
+        5
+      ],
+      "ratsv_probe_cancel_slope_adverse_min_pct": [
+        0.0002,
+        0.00025,
+        0.0003
+      ],
+      "ratsv_probe_cancel_tr_ratio_min": [
+        0.95,
+        0.98,
+        1.0
+      ]
+    }
+  },
+  "stage_counts": {
+    "b_1y": 576,
+    "b_2y_verified": 80,
+    "c_1y": 216,
+    "c_2y_verified": 100,
+    "pool_unique": 180,
+    "dethrone_count": 172
+  },
+  "stage_top": {
+    "b_full_top20": [
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 0,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.35
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 744,
+            "win_rate": 0.42338709677419356,
+            "pnl": 49968.363149998426,
+            "roi": 0.49968363149998424,
+            "dd": 17081.709999999235,
+            "dd_pct": 0.17081709999999234,
+            "pnl_over_dd": 2.9252553257256246
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1267,
+            "win_rate": 0.40410418310970797,
+            "pnl": 44182.337360001926,
+            "roi": 0.4418233736000193,
+            "dd": 17022.5843999997,
+            "dd_pct": 0.17022584399999702,
+            "pnl_over_dd": 2.595512897559944
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.24630890128006566,
+          "delta_1y_pnl": 6198.356810000048,
+          "delta_2y_pdd": 1.4230388396445404,
+          "delta_2y_pnl": 16485.468269999732,
+          "min_pdd_delta": 0.24630890128006566,
+          "min_pnl_delta": 6198.356810000048
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 1,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.35
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 744,
+            "win_rate": 0.42338709677419356,
+            "pnl": 49968.363149998426,
+            "roi": 0.49968363149998424,
+            "dd": 17081.709999999235,
+            "dd_pct": 0.17081709999999234,
+            "pnl_over_dd": 2.9252553257256246
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1267,
+            "win_rate": 0.40410418310970797,
+            "pnl": 44182.337360001926,
+            "roi": 0.4418233736000193,
+            "dd": 17022.5843999997,
+            "dd_pct": 0.17022584399999702,
+            "pnl_over_dd": 2.595512897559944
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.24630890128006566,
+          "delta_1y_pnl": 6198.356810000048,
+          "delta_2y_pdd": 1.4230388396445404,
+          "delta_2y_pnl": 16485.468269999732,
+          "min_pdd_delta": 0.24630890128006566,
+          "min_pnl_delta": 6198.356810000048
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 0,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.4
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 744,
+            "win_rate": 0.42338709677419356,
+            "pnl": 49968.363149998426,
+            "roi": 0.49968363149998424,
+            "dd": 17081.709999999235,
+            "dd_pct": 0.17081709999999234,
+            "pnl_over_dd": 2.9252553257256246
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1267,
+            "win_rate": 0.40410418310970797,
+            "pnl": 44182.337360001926,
+            "roi": 0.4418233736000193,
+            "dd": 17022.5843999997,
+            "dd_pct": 0.17022584399999702,
+            "pnl_over_dd": 2.595512897559944
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.24630890128006566,
+          "delta_1y_pnl": 6198.356810000048,
+          "delta_2y_pdd": 1.4230388396445404,
+          "delta_2y_pnl": 16485.468269999732,
+          "min_pdd_delta": 0.24630890128006566,
+          "min_pnl_delta": 6198.356810000048
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 1,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.4
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 744,
+            "win_rate": 0.42338709677419356,
+            "pnl": 49968.363149998426,
+            "roi": 0.49968363149998424,
+            "dd": 17081.709999999235,
+            "dd_pct": 0.17081709999999234,
+            "pnl_over_dd": 2.9252553257256246
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1267,
+            "win_rate": 0.40410418310970797,
+            "pnl": 44182.337360001926,
+            "roi": 0.4418233736000193,
+            "dd": 17022.5843999997,
+            "dd_pct": 0.17022584399999702,
+            "pnl_over_dd": 2.595512897559944
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.24630890128006566,
+          "delta_1y_pnl": 6198.356810000048,
+          "delta_2y_pdd": 1.4230388396445404,
+          "delta_2y_pnl": 16485.468269999732,
+          "min_pdd_delta": 0.24630890128006566,
+          "min_pnl_delta": 6198.356810000048
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 0,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.45
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 744,
+            "win_rate": 0.42338709677419356,
+            "pnl": 49968.363149998426,
+            "roi": 0.49968363149998424,
+            "dd": 17081.709999999235,
+            "dd_pct": 0.17081709999999234,
+            "pnl_over_dd": 2.9252553257256246
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1267,
+            "win_rate": 0.40410418310970797,
+            "pnl": 44182.337360001926,
+            "roi": 0.4418233736000193,
+            "dd": 17022.5843999997,
+            "dd_pct": 0.17022584399999702,
+            "pnl_over_dd": 2.595512897559944
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.24630890128006566,
+          "delta_1y_pnl": 6198.356810000048,
+          "delta_2y_pdd": 1.4230388396445404,
+          "delta_2y_pnl": 16485.468269999732,
+          "min_pdd_delta": 0.24630890128006566,
+          "min_pnl_delta": 6198.356810000048
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 1,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.45
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 744,
+            "win_rate": 0.42338709677419356,
+            "pnl": 49968.363149998426,
+            "roi": 0.49968363149998424,
+            "dd": 17081.709999999235,
+            "dd_pct": 0.17081709999999234,
+            "pnl_over_dd": 2.9252553257256246
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1267,
+            "win_rate": 0.40410418310970797,
+            "pnl": 44182.337360001926,
+            "roi": 0.4418233736000193,
+            "dd": 17022.5843999997,
+            "dd_pct": 0.17022584399999702,
+            "pnl_over_dd": 2.595512897559944
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.24630890128006566,
+          "delta_1y_pnl": 6198.356810000048,
+          "delta_2y_pdd": 1.4230388396445404,
+          "delta_2y_pnl": 16485.468269999732,
+          "min_pdd_delta": 0.24630890128006566,
+          "min_pnl_delta": 6198.356810000048
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 0,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 3,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.35
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 744,
+            "win_rate": 0.42338709677419356,
+            "pnl": 49947.64314999842,
+            "roi": 0.49947643149998416,
+            "dd": 17078.0149999992,
+            "dd_pct": 0.170780149999992,
+            "pnl_over_dd": 2.924674978327444
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1267,
+            "win_rate": 0.40410418310970797,
+            "pnl": 44125.31576000196,
+            "roi": 0.4412531576000196,
+            "dd": 17022.5843999997,
+            "dd_pct": 0.17022584399999702,
+            "pnl_over_dd": 2.592163135933856
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.24572855388188497,
+          "delta_1y_pnl": 6177.63681000004,
+          "delta_2y_pdd": 1.4196890780184523,
+          "delta_2y_pnl": 16428.44666999977,
+          "min_pdd_delta": 0.24572855388188497,
+          "min_pnl_delta": 6177.63681000004
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 1,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 3,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.35
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 744,
+            "win_rate": 0.42338709677419356,
+            "pnl": 49947.64314999842,
+            "roi": 0.49947643149998416,
+            "dd": 17078.0149999992,
+            "dd_pct": 0.170780149999992,
+            "pnl_over_dd": 2.924674978327444
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1267,
+            "win_rate": 0.40410418310970797,
+            "pnl": 44125.31576000196,
+            "roi": 0.4412531576000196,
+            "dd": 17022.5843999997,
+            "dd_pct": 0.17022584399999702,
+            "pnl_over_dd": 2.592163135933856
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.24572855388188497,
+          "delta_1y_pnl": 6177.63681000004,
+          "delta_2y_pdd": 1.4196890780184523,
+          "delta_2y_pnl": 16428.44666999977,
+          "min_pdd_delta": 0.24572855388188497,
+          "min_pnl_delta": 6177.63681000004
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 0,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 3,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.4
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 744,
+            "win_rate": 0.42338709677419356,
+            "pnl": 49947.64314999842,
+            "roi": 0.49947643149998416,
+            "dd": 17078.0149999992,
+            "dd_pct": 0.170780149999992,
+            "pnl_over_dd": 2.924674978327444
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1267,
+            "win_rate": 0.40410418310970797,
+            "pnl": 44125.31576000196,
+            "roi": 0.4412531576000196,
+            "dd": 17022.5843999997,
+            "dd_pct": 0.17022584399999702,
+            "pnl_over_dd": 2.592163135933856
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.24572855388188497,
+          "delta_1y_pnl": 6177.63681000004,
+          "delta_2y_pdd": 1.4196890780184523,
+          "delta_2y_pnl": 16428.44666999977,
+          "min_pdd_delta": 0.24572855388188497,
+          "min_pnl_delta": 6177.63681000004
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 1,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 3,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.4
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 744,
+            "win_rate": 0.42338709677419356,
+            "pnl": 49947.64314999842,
+            "roi": 0.49947643149998416,
+            "dd": 17078.0149999992,
+            "dd_pct": 0.170780149999992,
+            "pnl_over_dd": 2.924674978327444
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1267,
+            "win_rate": 0.40410418310970797,
+            "pnl": 44125.31576000196,
+            "roi": 0.4412531576000196,
+            "dd": 17022.5843999997,
+            "dd_pct": 0.17022584399999702,
+            "pnl_over_dd": 2.592163135933856
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.24572855388188497,
+          "delta_1y_pnl": 6177.63681000004,
+          "delta_2y_pdd": 1.4196890780184523,
+          "delta_2y_pnl": 16428.44666999977,
+          "min_pdd_delta": 0.24572855388188497,
+          "min_pnl_delta": 6177.63681000004
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 0,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 3,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.45
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 744,
+            "win_rate": 0.42338709677419356,
+            "pnl": 49947.64314999842,
+            "roi": 0.49947643149998416,
+            "dd": 17078.0149999992,
+            "dd_pct": 0.170780149999992,
+            "pnl_over_dd": 2.924674978327444
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1267,
+            "win_rate": 0.40410418310970797,
+            "pnl": 44125.31576000196,
+            "roi": 0.4412531576000196,
+            "dd": 17022.5843999997,
+            "dd_pct": 0.17022584399999702,
+            "pnl_over_dd": 2.592163135933856
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.24572855388188497,
+          "delta_1y_pnl": 6177.63681000004,
+          "delta_2y_pdd": 1.4196890780184523,
+          "delta_2y_pnl": 16428.44666999977,
+          "min_pdd_delta": 0.24572855388188497,
+          "min_pnl_delta": 6177.63681000004
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 1,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 3,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.45
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 744,
+            "win_rate": 0.42338709677419356,
+            "pnl": 49947.64314999842,
+            "roi": 0.49947643149998416,
+            "dd": 17078.0149999992,
+            "dd_pct": 0.170780149999992,
+            "pnl_over_dd": 2.924674978327444
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1267,
+            "win_rate": 0.40410418310970797,
+            "pnl": 44125.31576000196,
+            "roi": 0.4412531576000196,
+            "dd": 17022.5843999997,
+            "dd_pct": 0.17022584399999702,
+            "pnl_over_dd": 2.592163135933856
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.24572855388188497,
+          "delta_1y_pnl": 6177.63681000004,
+          "delta_2y_pdd": 1.4196890780184523,
+          "delta_2y_pnl": 16428.44666999977,
+          "min_pdd_delta": 0.24572855388188497,
+          "min_pnl_delta": 6177.63681000004
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 1,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.015,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.35
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 745,
+            "win_rate": 0.4228187919463087,
+            "pnl": 48276.005009998386,
+            "roi": 0.48276005009998385,
+            "dd": 16906.63999999914,
+            "dd_pct": 0.1690663999999914,
+            "pnl_over_dd": 2.855446440570145
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1268,
+            "win_rate": 0.4037854889589905,
+            "pnl": 42558.05439000188,
+            "roi": 0.4255805439000188,
+            "dd": 17022.5843999997,
+            "dd_pct": 0.17022584399999702,
+            "pnl_over_dd": 2.5000936044706954
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.176500016124586,
+          "delta_1y_pnl": 4505.998670000008,
+          "delta_2y_pdd": 1.3276195465552918,
+          "delta_2y_pnl": 14861.185299999688,
+          "min_pdd_delta": 0.176500016124586,
+          "min_pnl_delta": 4505.998670000008
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 0,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.015,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.35
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 745,
+            "win_rate": 0.4228187919463087,
+            "pnl": 48276.005009998386,
+            "roi": 0.48276005009998385,
+            "dd": 16906.63999999914,
+            "dd_pct": 0.1690663999999914,
+            "pnl_over_dd": 2.855446440570145
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1268,
+            "win_rate": 0.4037854889589905,
+            "pnl": 42558.05439000188,
+            "roi": 0.4255805439000188,
+            "dd": 17022.5843999997,
+            "dd_pct": 0.17022584399999702,
+            "pnl_over_dd": 2.5000936044706954
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.176500016124586,
+          "delta_1y_pnl": 4505.998670000008,
+          "delta_2y_pdd": 1.3276195465552918,
+          "delta_2y_pnl": 14861.185299999688,
+          "min_pdd_delta": 0.176500016124586,
+          "min_pnl_delta": 4505.998670000008
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 0,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.015,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.4
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 745,
+            "win_rate": 0.4228187919463087,
+            "pnl": 48276.005009998386,
+            "roi": 0.48276005009998385,
+            "dd": 16906.63999999914,
+            "dd_pct": 0.1690663999999914,
+            "pnl_over_dd": 2.855446440570145
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1268,
+            "win_rate": 0.4037854889589905,
+            "pnl": 42558.05439000188,
+            "roi": 0.4255805439000188,
+            "dd": 17022.5843999997,
+            "dd_pct": 0.17022584399999702,
+            "pnl_over_dd": 2.5000936044706954
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.176500016124586,
+          "delta_1y_pnl": 4505.998670000008,
+          "delta_2y_pdd": 1.3276195465552918,
+          "delta_2y_pnl": 14861.185299999688,
+          "min_pdd_delta": 0.176500016124586,
+          "min_pnl_delta": 4505.998670000008
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 1,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.015,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.4
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 745,
+            "win_rate": 0.4228187919463087,
+            "pnl": 48276.005009998386,
+            "roi": 0.48276005009998385,
+            "dd": 16906.63999999914,
+            "dd_pct": 0.1690663999999914,
+            "pnl_over_dd": 2.855446440570145
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1268,
+            "win_rate": 0.4037854889589905,
+            "pnl": 42558.05439000188,
+            "roi": 0.4255805439000188,
+            "dd": 17022.5843999997,
+            "dd_pct": 0.17022584399999702,
+            "pnl_over_dd": 2.5000936044706954
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.176500016124586,
+          "delta_1y_pnl": 4505.998670000008,
+          "delta_2y_pdd": 1.3276195465552918,
+          "delta_2y_pnl": 14861.185299999688,
+          "min_pdd_delta": 0.176500016124586,
+          "min_pnl_delta": 4505.998670000008
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 0,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.015,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.45
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 745,
+            "win_rate": 0.4228187919463087,
+            "pnl": 48276.005009998386,
+            "roi": 0.48276005009998385,
+            "dd": 16906.63999999914,
+            "dd_pct": 0.1690663999999914,
+            "pnl_over_dd": 2.855446440570145
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1268,
+            "win_rate": 0.4037854889589905,
+            "pnl": 42558.05439000188,
+            "roi": 0.4255805439000188,
+            "dd": 17022.5843999997,
+            "dd_pct": 0.17022584399999702,
+            "pnl_over_dd": 2.5000936044706954
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.176500016124586,
+          "delta_1y_pnl": 4505.998670000008,
+          "delta_2y_pdd": 1.3276195465552918,
+          "delta_2y_pnl": 14861.185299999688,
+          "min_pdd_delta": 0.176500016124586,
+          "min_pnl_delta": 4505.998670000008
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 1,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.015,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.45
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 745,
+            "win_rate": 0.4228187919463087,
+            "pnl": 48276.005009998386,
+            "roi": 0.48276005009998385,
+            "dd": 16906.63999999914,
+            "dd_pct": 0.1690663999999914,
+            "pnl_over_dd": 2.855446440570145
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1268,
+            "win_rate": 0.4037854889589905,
+            "pnl": 42558.05439000188,
+            "roi": 0.4255805439000188,
+            "dd": 17022.5843999997,
+            "dd_pct": 0.17022584399999702,
+            "pnl_over_dd": 2.5000936044706954
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.176500016124586,
+          "delta_1y_pnl": 4505.998670000008,
+          "delta_2y_pdd": 1.3276195465552918,
+          "delta_2y_pnl": 14861.185299999688,
+          "min_pdd_delta": 0.176500016124586,
+          "min_pnl_delta": 4505.998670000008
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 0,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.015,
+          "ratsv_branch_a_cross_age_max_bars": 3,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.35
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 745,
+            "win_rate": 0.4228187919463087,
+            "pnl": 48258.8350099984,
+            "roi": 0.482588350099984,
+            "dd": 16905.31999999922,
+            "dd_pct": 0.16905319999999222,
+            "pnl_over_dd": 2.8546537427271783
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1268,
+            "win_rate": 0.4037854889589905,
+            "pnl": 42491.41279000189,
+            "roi": 0.42491412790001887,
+            "dd": 17022.5843999997,
+            "dd_pct": 0.17022584399999702,
+            "pnl_over_dd": 2.4961787112656424
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.17570731828161934,
+          "delta_1y_pnl": 4488.828670000024,
+          "delta_2y_pdd": 1.3237046533502388,
+          "delta_2y_pnl": 14794.543699999693,
+          "min_pdd_delta": 0.17570731828161934,
+          "min_pnl_delta": 4488.828670000024
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 1,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.015,
+          "ratsv_branch_a_cross_age_max_bars": 3,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.35
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 745,
+            "win_rate": 0.4228187919463087,
+            "pnl": 48258.8350099984,
+            "roi": 0.482588350099984,
+            "dd": 16905.31999999922,
+            "dd_pct": 0.16905319999999222,
+            "pnl_over_dd": 2.8546537427271783
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1268,
+            "win_rate": 0.4037854889589905,
+            "pnl": 42491.41279000189,
+            "roi": 0.42491412790001887,
+            "dd": 17022.5843999997,
+            "dd_pct": 0.17022584399999702,
+            "pnl_over_dd": 2.4961787112656424
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.17570731828161934,
+          "delta_1y_pnl": 4488.828670000024,
+          "delta_2y_pdd": 1.3237046533502388,
+          "delta_2y_pnl": 14794.543699999693,
+          "min_pdd_delta": 0.17570731828161934,
+          "min_pnl_delta": 4488.828670000024
+        }
+      }
+    ],
+    "c_full_top20": [
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 0,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.95,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.35
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 751,
+            "win_rate": 0.4194407456724368,
+            "pnl": 51284.7869699985,
+            "roi": 0.512847869699985,
+            "dd": 17226.974999999133,
+            "dd_pct": 0.17226974999999134,
+            "pnl_over_dd": 2.977004782905942
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1283,
+            "win_rate": 0.3990646921278254,
+            "pnl": 45578.7895200021,
+            "roi": 0.455787895200021,
+            "dd": 17197.809399999707,
+            "dd_pct": 0.17197809399999708,
+            "pnl_over_dd": 2.6502671625144814
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.29805835846038287,
+          "delta_1y_pnl": 7514.780630000125,
+          "delta_2y_pdd": 1.4777931045990778,
+          "delta_2y_pnl": 17881.920429999907,
+          "min_pdd_delta": 0.29805835846038287,
+          "min_pnl_delta": 7514.780630000125
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 0,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.98,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.35
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 751,
+            "win_rate": 0.4194407456724368,
+            "pnl": 51284.7869699985,
+            "roi": 0.512847869699985,
+            "dd": 17226.974999999133,
+            "dd_pct": 0.17226974999999134,
+            "pnl_over_dd": 2.977004782905942
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1283,
+            "win_rate": 0.3990646921278254,
+            "pnl": 45578.7895200021,
+            "roi": 0.455787895200021,
+            "dd": 17197.809399999707,
+            "dd_pct": 0.17197809399999708,
+            "pnl_over_dd": 2.6502671625144814
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.29805835846038287,
+          "delta_1y_pnl": 7514.780630000125,
+          "delta_2y_pdd": 1.4777931045990778,
+          "delta_2y_pnl": 17881.920429999907,
+          "min_pdd_delta": 0.29805835846038287,
+          "min_pnl_delta": 7514.780630000125
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 1,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.95,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.35
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 751,
+            "win_rate": 0.4194407456724368,
+            "pnl": 51284.7869699985,
+            "roi": 0.512847869699985,
+            "dd": 17226.974999999133,
+            "dd_pct": 0.17226974999999134,
+            "pnl_over_dd": 2.977004782905942
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1283,
+            "win_rate": 0.3990646921278254,
+            "pnl": 45578.7895200021,
+            "roi": 0.455787895200021,
+            "dd": 17197.809399999707,
+            "dd_pct": 0.17197809399999708,
+            "pnl_over_dd": 2.6502671625144814
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.29805835846038287,
+          "delta_1y_pnl": 7514.780630000125,
+          "delta_2y_pdd": 1.4777931045990778,
+          "delta_2y_pnl": 17881.920429999907,
+          "min_pdd_delta": 0.29805835846038287,
+          "min_pnl_delta": 7514.780630000125
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 1,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.98,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.35
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 751,
+            "win_rate": 0.4194407456724368,
+            "pnl": 51284.7869699985,
+            "roi": 0.512847869699985,
+            "dd": 17226.974999999133,
+            "dd_pct": 0.17226974999999134,
+            "pnl_over_dd": 2.977004782905942
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1283,
+            "win_rate": 0.3990646921278254,
+            "pnl": 45578.7895200021,
+            "roi": 0.455787895200021,
+            "dd": 17197.809399999707,
+            "dd_pct": 0.17197809399999708,
+            "pnl_over_dd": 2.6502671625144814
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.29805835846038287,
+          "delta_1y_pnl": 7514.780630000125,
+          "delta_2y_pdd": 1.4777931045990778,
+          "delta_2y_pnl": 17881.920429999907,
+          "min_pdd_delta": 0.29805835846038287,
+          "min_pnl_delta": 7514.780630000125
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 0,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.98,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.4
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 751,
+            "win_rate": 0.4194407456724368,
+            "pnl": 51284.7869699985,
+            "roi": 0.512847869699985,
+            "dd": 17226.974999999133,
+            "dd_pct": 0.17226974999999134,
+            "pnl_over_dd": 2.977004782905942
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1283,
+            "win_rate": 0.3990646921278254,
+            "pnl": 45578.7895200021,
+            "roi": 0.455787895200021,
+            "dd": 17197.809399999707,
+            "dd_pct": 0.17197809399999708,
+            "pnl_over_dd": 2.6502671625144814
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.29805835846038287,
+          "delta_1y_pnl": 7514.780630000125,
+          "delta_2y_pdd": 1.4777931045990778,
+          "delta_2y_pnl": 17881.920429999907,
+          "min_pdd_delta": 0.29805835846038287,
+          "min_pnl_delta": 7514.780630000125
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 0,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.95,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.4
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 751,
+            "win_rate": 0.4194407456724368,
+            "pnl": 51284.7869699985,
+            "roi": 0.512847869699985,
+            "dd": 17226.974999999133,
+            "dd_pct": 0.17226974999999134,
+            "pnl_over_dd": 2.977004782905942
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1283,
+            "win_rate": 0.3990646921278254,
+            "pnl": 45578.7895200021,
+            "roi": 0.455787895200021,
+            "dd": 17197.809399999707,
+            "dd_pct": 0.17197809399999708,
+            "pnl_over_dd": 2.6502671625144814
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.29805835846038287,
+          "delta_1y_pnl": 7514.780630000125,
+          "delta_2y_pdd": 1.4777931045990778,
+          "delta_2y_pnl": 17881.920429999907,
+          "min_pdd_delta": 0.29805835846038287,
+          "min_pnl_delta": 7514.780630000125
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 1,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.95,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.4
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 751,
+            "win_rate": 0.4194407456724368,
+            "pnl": 51284.7869699985,
+            "roi": 0.512847869699985,
+            "dd": 17226.974999999133,
+            "dd_pct": 0.17226974999999134,
+            "pnl_over_dd": 2.977004782905942
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1283,
+            "win_rate": 0.3990646921278254,
+            "pnl": 45578.7895200021,
+            "roi": 0.455787895200021,
+            "dd": 17197.809399999707,
+            "dd_pct": 0.17197809399999708,
+            "pnl_over_dd": 2.6502671625144814
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.29805835846038287,
+          "delta_1y_pnl": 7514.780630000125,
+          "delta_2y_pdd": 1.4777931045990778,
+          "delta_2y_pnl": 17881.920429999907,
+          "min_pdd_delta": 0.29805835846038287,
+          "min_pnl_delta": 7514.780630000125
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 1,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.98,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.4
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 751,
+            "win_rate": 0.4194407456724368,
+            "pnl": 51284.7869699985,
+            "roi": 0.512847869699985,
+            "dd": 17226.974999999133,
+            "dd_pct": 0.17226974999999134,
+            "pnl_over_dd": 2.977004782905942
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1283,
+            "win_rate": 0.3990646921278254,
+            "pnl": 45578.7895200021,
+            "roi": 0.455787895200021,
+            "dd": 17197.809399999707,
+            "dd_pct": 0.17197809399999708,
+            "pnl_over_dd": 2.6502671625144814
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.29805835846038287,
+          "delta_1y_pnl": 7514.780630000125,
+          "delta_2y_pdd": 1.4777931045990778,
+          "delta_2y_pnl": 17881.920429999907,
+          "min_pdd_delta": 0.29805835846038287,
+          "min_pnl_delta": 7514.780630000125
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 0,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.95,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.45
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 751,
+            "win_rate": 0.4194407456724368,
+            "pnl": 51284.7869699985,
+            "roi": 0.512847869699985,
+            "dd": 17226.974999999133,
+            "dd_pct": 0.17226974999999134,
+            "pnl_over_dd": 2.977004782905942
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1283,
+            "win_rate": 0.3990646921278254,
+            "pnl": 45578.7895200021,
+            "roi": 0.455787895200021,
+            "dd": 17197.809399999707,
+            "dd_pct": 0.17197809399999708,
+            "pnl_over_dd": 2.6502671625144814
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.29805835846038287,
+          "delta_1y_pnl": 7514.780630000125,
+          "delta_2y_pdd": 1.4777931045990778,
+          "delta_2y_pnl": 17881.920429999907,
+          "min_pdd_delta": 0.29805835846038287,
+          "min_pnl_delta": 7514.780630000125
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 0,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.98,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.45
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 751,
+            "win_rate": 0.4194407456724368,
+            "pnl": 51284.7869699985,
+            "roi": 0.512847869699985,
+            "dd": 17226.974999999133,
+            "dd_pct": 0.17226974999999134,
+            "pnl_over_dd": 2.977004782905942
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1283,
+            "win_rate": 0.3990646921278254,
+            "pnl": 45578.7895200021,
+            "roi": 0.455787895200021,
+            "dd": 17197.809399999707,
+            "dd_pct": 0.17197809399999708,
+            "pnl_over_dd": 2.6502671625144814
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.29805835846038287,
+          "delta_1y_pnl": 7514.780630000125,
+          "delta_2y_pdd": 1.4777931045990778,
+          "delta_2y_pnl": 17881.920429999907,
+          "min_pdd_delta": 0.29805835846038287,
+          "min_pnl_delta": 7514.780630000125
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 1,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.95,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.45
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 751,
+            "win_rate": 0.4194407456724368,
+            "pnl": 51284.7869699985,
+            "roi": 0.512847869699985,
+            "dd": 17226.974999999133,
+            "dd_pct": 0.17226974999999134,
+            "pnl_over_dd": 2.977004782905942
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1283,
+            "win_rate": 0.3990646921278254,
+            "pnl": 45578.7895200021,
+            "roi": 0.455787895200021,
+            "dd": 17197.809399999707,
+            "dd_pct": 0.17197809399999708,
+            "pnl_over_dd": 2.6502671625144814
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.29805835846038287,
+          "delta_1y_pnl": 7514.780630000125,
+          "delta_2y_pdd": 1.4777931045990778,
+          "delta_2y_pnl": 17881.920429999907,
+          "min_pdd_delta": 0.29805835846038287,
+          "min_pnl_delta": 7514.780630000125
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 1,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.98,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.45
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 751,
+            "win_rate": 0.4194407456724368,
+            "pnl": 51284.7869699985,
+            "roi": 0.512847869699985,
+            "dd": 17226.974999999133,
+            "dd_pct": 0.17226974999999134,
+            "pnl_over_dd": 2.977004782905942
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1283,
+            "win_rate": 0.3990646921278254,
+            "pnl": 45578.7895200021,
+            "roi": 0.455787895200021,
+            "dd": 17197.809399999707,
+            "dd_pct": 0.17197809399999708,
+            "pnl_over_dd": 2.6502671625144814
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.29805835846038287,
+          "delta_1y_pnl": 7514.780630000125,
+          "delta_2y_pdd": 1.4777931045990778,
+          "delta_2y_pnl": 17881.920429999907,
+          "min_pdd_delta": 0.29805835846038287,
+          "min_pnl_delta": 7514.780630000125
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 0,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 3,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.95,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.35
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 751,
+            "win_rate": 0.4194407456724368,
+            "pnl": 51269.88696999849,
+            "roi": 0.5126988696999849,
+            "dd": 17226.039999999164,
+            "dd_pct": 0.17226039999999165,
+            "pnl_over_dd": 2.976301400089689
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1283,
+            "win_rate": 0.3990646921278254,
+            "pnl": 45513.81948000213,
+            "roi": 0.4551381948000213,
+            "dd": 17197.809399999707,
+            "dd_pct": 0.17197809399999708,
+            "pnl_over_dd": 2.6464893534639886
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.2973549756441298,
+          "delta_1y_pnl": 7499.880630000116,
+          "delta_2y_pdd": 1.474015295548585,
+          "delta_2y_pnl": 17816.950389999936,
+          "min_pdd_delta": 0.2973549756441298,
+          "min_pnl_delta": 7499.880630000116
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 0,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 3,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.98,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.35
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 751,
+            "win_rate": 0.4194407456724368,
+            "pnl": 51269.88696999849,
+            "roi": 0.5126988696999849,
+            "dd": 17226.039999999164,
+            "dd_pct": 0.17226039999999165,
+            "pnl_over_dd": 2.976301400089689
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1283,
+            "win_rate": 0.3990646921278254,
+            "pnl": 45513.81948000213,
+            "roi": 0.4551381948000213,
+            "dd": 17197.809399999707,
+            "dd_pct": 0.17197809399999708,
+            "pnl_over_dd": 2.6464893534639886
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.2973549756441298,
+          "delta_1y_pnl": 7499.880630000116,
+          "delta_2y_pdd": 1.474015295548585,
+          "delta_2y_pnl": 17816.950389999936,
+          "min_pdd_delta": 0.2973549756441298,
+          "min_pnl_delta": 7499.880630000116
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 1,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 3,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.95,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.35
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 751,
+            "win_rate": 0.4194407456724368,
+            "pnl": 51269.88696999849,
+            "roi": 0.5126988696999849,
+            "dd": 17226.039999999164,
+            "dd_pct": 0.17226039999999165,
+            "pnl_over_dd": 2.976301400089689
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1283,
+            "win_rate": 0.3990646921278254,
+            "pnl": 45513.81948000213,
+            "roi": 0.4551381948000213,
+            "dd": 17197.809399999707,
+            "dd_pct": 0.17197809399999708,
+            "pnl_over_dd": 2.6464893534639886
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.2973549756441298,
+          "delta_1y_pnl": 7499.880630000116,
+          "delta_2y_pdd": 1.474015295548585,
+          "delta_2y_pnl": 17816.950389999936,
+          "min_pdd_delta": 0.2973549756441298,
+          "min_pnl_delta": 7499.880630000116
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 1,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 3,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.98,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.35
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 751,
+            "win_rate": 0.4194407456724368,
+            "pnl": 51269.88696999849,
+            "roi": 0.5126988696999849,
+            "dd": 17226.039999999164,
+            "dd_pct": 0.17226039999999165,
+            "pnl_over_dd": 2.976301400089689
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1283,
+            "win_rate": 0.3990646921278254,
+            "pnl": 45513.81948000213,
+            "roi": 0.4551381948000213,
+            "dd": 17197.809399999707,
+            "dd_pct": 0.17197809399999708,
+            "pnl_over_dd": 2.6464893534639886
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.2973549756441298,
+          "delta_1y_pnl": 7499.880630000116,
+          "delta_2y_pdd": 1.474015295548585,
+          "delta_2y_pnl": 17816.950389999936,
+          "min_pdd_delta": 0.2973549756441298,
+          "min_pnl_delta": 7499.880630000116
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 0,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 1.0,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.35
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 748,
+            "win_rate": 0.42112299465240643,
+            "pnl": 50934.33459999843,
+            "roi": 0.5093433459999843,
+            "dd": 17184.179999999178,
+            "dd_pct": 0.17184179999999177,
+            "pnl_over_dd": 2.964024736705555
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1277,
+            "win_rate": 0.4009397024275646,
+            "pnl": 45305.380550002104,
+            "roi": 0.45305380550002106,
+            "dd": 17177.649399999675,
+            "dd_pct": 0.17177649399999675,
+            "pnl_over_dd": 2.637461010818102
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.285078312259996,
+          "delta_1y_pnl": 7164.328260000053,
+          "delta_2y_pdd": 1.4649869529026984,
+          "delta_2y_pnl": 17608.51145999991,
+          "min_pdd_delta": 0.285078312259996,
+          "min_pnl_delta": 7164.328260000053
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 1,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 1.0,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.35
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 748,
+            "win_rate": 0.42112299465240643,
+            "pnl": 50934.33459999843,
+            "roi": 0.5093433459999843,
+            "dd": 17184.179999999178,
+            "dd_pct": 0.17184179999999177,
+            "pnl_over_dd": 2.964024736705555
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1277,
+            "win_rate": 0.4009397024275646,
+            "pnl": 45305.380550002104,
+            "roi": 0.45305380550002106,
+            "dd": 17177.649399999675,
+            "dd_pct": 0.17177649399999675,
+            "pnl_over_dd": 2.637461010818102
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.285078312259996,
+          "delta_1y_pnl": 7164.328260000053,
+          "delta_2y_pdd": 1.4649869529026984,
+          "delta_2y_pnl": 17608.51145999991,
+          "min_pdd_delta": 0.285078312259996,
+          "min_pnl_delta": 7164.328260000053
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 0,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 1.0,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.4
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 748,
+            "win_rate": 0.42112299465240643,
+            "pnl": 50934.33459999843,
+            "roi": 0.5093433459999843,
+            "dd": 17184.179999999178,
+            "dd_pct": 0.17184179999999177,
+            "pnl_over_dd": 2.964024736705555
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1277,
+            "win_rate": 0.4009397024275646,
+            "pnl": 45305.380550002104,
+            "roi": 0.45305380550002106,
+            "dd": 17177.649399999675,
+            "dd_pct": 0.17177649399999675,
+            "pnl_over_dd": 2.637461010818102
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.285078312259996,
+          "delta_1y_pnl": 7164.328260000053,
+          "delta_2y_pdd": 1.4649869529026984,
+          "delta_2y_pnl": 17608.51145999991,
+          "min_pdd_delta": 0.285078312259996,
+          "min_pnl_delta": 7164.328260000053
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 1,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 1.0,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.4
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 748,
+            "win_rate": 0.42112299465240643,
+            "pnl": 50934.33459999843,
+            "roi": 0.5093433459999843,
+            "dd": 17184.179999999178,
+            "dd_pct": 0.17184179999999177,
+            "pnl_over_dd": 2.964024736705555
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1277,
+            "win_rate": 0.4009397024275646,
+            "pnl": 45305.380550002104,
+            "roi": 0.45305380550002106,
+            "dd": 17177.649399999675,
+            "dd_pct": 0.17177649399999675,
+            "pnl_over_dd": 2.637461010818102
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.285078312259996,
+          "delta_1y_pnl": 7164.328260000053,
+          "delta_2y_pdd": 1.4649869529026984,
+          "delta_2y_pnl": 17608.51145999991,
+          "min_pdd_delta": 0.285078312259996,
+          "min_pnl_delta": 7164.328260000053
+        }
+      }
+    ],
+    "pool_top30": [
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 0,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.95,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.35
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 751,
+            "win_rate": 0.4194407456724368,
+            "pnl": 51284.7869699985,
+            "roi": 0.512847869699985,
+            "dd": 17226.974999999133,
+            "dd_pct": 0.17226974999999134,
+            "pnl_over_dd": 2.977004782905942
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1283,
+            "win_rate": 0.3990646921278254,
+            "pnl": 45578.7895200021,
+            "roi": 0.455787895200021,
+            "dd": 17197.809399999707,
+            "dd_pct": 0.17197809399999708,
+            "pnl_over_dd": 2.6502671625144814
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.29805835846038287,
+          "delta_1y_pnl": 7514.780630000125,
+          "delta_2y_pdd": 1.4777931045990778,
+          "delta_2y_pnl": 17881.920429999907,
+          "min_pdd_delta": 0.29805835846038287,
+          "min_pnl_delta": 7514.780630000125
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 0,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.98,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.35
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 751,
+            "win_rate": 0.4194407456724368,
+            "pnl": 51284.7869699985,
+            "roi": 0.512847869699985,
+            "dd": 17226.974999999133,
+            "dd_pct": 0.17226974999999134,
+            "pnl_over_dd": 2.977004782905942
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1283,
+            "win_rate": 0.3990646921278254,
+            "pnl": 45578.7895200021,
+            "roi": 0.455787895200021,
+            "dd": 17197.809399999707,
+            "dd_pct": 0.17197809399999708,
+            "pnl_over_dd": 2.6502671625144814
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.29805835846038287,
+          "delta_1y_pnl": 7514.780630000125,
+          "delta_2y_pdd": 1.4777931045990778,
+          "delta_2y_pnl": 17881.920429999907,
+          "min_pdd_delta": 0.29805835846038287,
+          "min_pnl_delta": 7514.780630000125
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 1,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.95,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.35
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 751,
+            "win_rate": 0.4194407456724368,
+            "pnl": 51284.7869699985,
+            "roi": 0.512847869699985,
+            "dd": 17226.974999999133,
+            "dd_pct": 0.17226974999999134,
+            "pnl_over_dd": 2.977004782905942
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1283,
+            "win_rate": 0.3990646921278254,
+            "pnl": 45578.7895200021,
+            "roi": 0.455787895200021,
+            "dd": 17197.809399999707,
+            "dd_pct": 0.17197809399999708,
+            "pnl_over_dd": 2.6502671625144814
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.29805835846038287,
+          "delta_1y_pnl": 7514.780630000125,
+          "delta_2y_pdd": 1.4777931045990778,
+          "delta_2y_pnl": 17881.920429999907,
+          "min_pdd_delta": 0.29805835846038287,
+          "min_pnl_delta": 7514.780630000125
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 1,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.98,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.35
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 751,
+            "win_rate": 0.4194407456724368,
+            "pnl": 51284.7869699985,
+            "roi": 0.512847869699985,
+            "dd": 17226.974999999133,
+            "dd_pct": 0.17226974999999134,
+            "pnl_over_dd": 2.977004782905942
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1283,
+            "win_rate": 0.3990646921278254,
+            "pnl": 45578.7895200021,
+            "roi": 0.455787895200021,
+            "dd": 17197.809399999707,
+            "dd_pct": 0.17197809399999708,
+            "pnl_over_dd": 2.6502671625144814
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.29805835846038287,
+          "delta_1y_pnl": 7514.780630000125,
+          "delta_2y_pdd": 1.4777931045990778,
+          "delta_2y_pnl": 17881.920429999907,
+          "min_pdd_delta": 0.29805835846038287,
+          "min_pnl_delta": 7514.780630000125
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 0,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.98,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.4
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 751,
+            "win_rate": 0.4194407456724368,
+            "pnl": 51284.7869699985,
+            "roi": 0.512847869699985,
+            "dd": 17226.974999999133,
+            "dd_pct": 0.17226974999999134,
+            "pnl_over_dd": 2.977004782905942
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1283,
+            "win_rate": 0.3990646921278254,
+            "pnl": 45578.7895200021,
+            "roi": 0.455787895200021,
+            "dd": 17197.809399999707,
+            "dd_pct": 0.17197809399999708,
+            "pnl_over_dd": 2.6502671625144814
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.29805835846038287,
+          "delta_1y_pnl": 7514.780630000125,
+          "delta_2y_pdd": 1.4777931045990778,
+          "delta_2y_pnl": 17881.920429999907,
+          "min_pdd_delta": 0.29805835846038287,
+          "min_pnl_delta": 7514.780630000125
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 0,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.95,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.4
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 751,
+            "win_rate": 0.4194407456724368,
+            "pnl": 51284.7869699985,
+            "roi": 0.512847869699985,
+            "dd": 17226.974999999133,
+            "dd_pct": 0.17226974999999134,
+            "pnl_over_dd": 2.977004782905942
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1283,
+            "win_rate": 0.3990646921278254,
+            "pnl": 45578.7895200021,
+            "roi": 0.455787895200021,
+            "dd": 17197.809399999707,
+            "dd_pct": 0.17197809399999708,
+            "pnl_over_dd": 2.6502671625144814
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.29805835846038287,
+          "delta_1y_pnl": 7514.780630000125,
+          "delta_2y_pdd": 1.4777931045990778,
+          "delta_2y_pnl": 17881.920429999907,
+          "min_pdd_delta": 0.29805835846038287,
+          "min_pnl_delta": 7514.780630000125
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 1,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.95,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.4
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 751,
+            "win_rate": 0.4194407456724368,
+            "pnl": 51284.7869699985,
+            "roi": 0.512847869699985,
+            "dd": 17226.974999999133,
+            "dd_pct": 0.17226974999999134,
+            "pnl_over_dd": 2.977004782905942
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1283,
+            "win_rate": 0.3990646921278254,
+            "pnl": 45578.7895200021,
+            "roi": 0.455787895200021,
+            "dd": 17197.809399999707,
+            "dd_pct": 0.17197809399999708,
+            "pnl_over_dd": 2.6502671625144814
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.29805835846038287,
+          "delta_1y_pnl": 7514.780630000125,
+          "delta_2y_pdd": 1.4777931045990778,
+          "delta_2y_pnl": 17881.920429999907,
+          "min_pdd_delta": 0.29805835846038287,
+          "min_pnl_delta": 7514.780630000125
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 1,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.98,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.4
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 751,
+            "win_rate": 0.4194407456724368,
+            "pnl": 51284.7869699985,
+            "roi": 0.512847869699985,
+            "dd": 17226.974999999133,
+            "dd_pct": 0.17226974999999134,
+            "pnl_over_dd": 2.977004782905942
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1283,
+            "win_rate": 0.3990646921278254,
+            "pnl": 45578.7895200021,
+            "roi": 0.455787895200021,
+            "dd": 17197.809399999707,
+            "dd_pct": 0.17197809399999708,
+            "pnl_over_dd": 2.6502671625144814
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.29805835846038287,
+          "delta_1y_pnl": 7514.780630000125,
+          "delta_2y_pdd": 1.4777931045990778,
+          "delta_2y_pnl": 17881.920429999907,
+          "min_pdd_delta": 0.29805835846038287,
+          "min_pnl_delta": 7514.780630000125
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 0,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.95,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.45
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 751,
+            "win_rate": 0.4194407456724368,
+            "pnl": 51284.7869699985,
+            "roi": 0.512847869699985,
+            "dd": 17226.974999999133,
+            "dd_pct": 0.17226974999999134,
+            "pnl_over_dd": 2.977004782905942
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1283,
+            "win_rate": 0.3990646921278254,
+            "pnl": 45578.7895200021,
+            "roi": 0.455787895200021,
+            "dd": 17197.809399999707,
+            "dd_pct": 0.17197809399999708,
+            "pnl_over_dd": 2.6502671625144814
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.29805835846038287,
+          "delta_1y_pnl": 7514.780630000125,
+          "delta_2y_pdd": 1.4777931045990778,
+          "delta_2y_pnl": 17881.920429999907,
+          "min_pdd_delta": 0.29805835846038287,
+          "min_pnl_delta": 7514.780630000125
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 0,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.98,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.45
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 751,
+            "win_rate": 0.4194407456724368,
+            "pnl": 51284.7869699985,
+            "roi": 0.512847869699985,
+            "dd": 17226.974999999133,
+            "dd_pct": 0.17226974999999134,
+            "pnl_over_dd": 2.977004782905942
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1283,
+            "win_rate": 0.3990646921278254,
+            "pnl": 45578.7895200021,
+            "roi": 0.455787895200021,
+            "dd": 17197.809399999707,
+            "dd_pct": 0.17197809399999708,
+            "pnl_over_dd": 2.6502671625144814
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.29805835846038287,
+          "delta_1y_pnl": 7514.780630000125,
+          "delta_2y_pdd": 1.4777931045990778,
+          "delta_2y_pnl": 17881.920429999907,
+          "min_pdd_delta": 0.29805835846038287,
+          "min_pnl_delta": 7514.780630000125
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 1,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.95,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.45
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 751,
+            "win_rate": 0.4194407456724368,
+            "pnl": 51284.7869699985,
+            "roi": 0.512847869699985,
+            "dd": 17226.974999999133,
+            "dd_pct": 0.17226974999999134,
+            "pnl_over_dd": 2.977004782905942
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1283,
+            "win_rate": 0.3990646921278254,
+            "pnl": 45578.7895200021,
+            "roi": 0.455787895200021,
+            "dd": 17197.809399999707,
+            "dd_pct": 0.17197809399999708,
+            "pnl_over_dd": 2.6502671625144814
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.29805835846038287,
+          "delta_1y_pnl": 7514.780630000125,
+          "delta_2y_pdd": 1.4777931045990778,
+          "delta_2y_pnl": 17881.920429999907,
+          "min_pdd_delta": 0.29805835846038287,
+          "min_pnl_delta": 7514.780630000125
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 1,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.98,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.45
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 751,
+            "win_rate": 0.4194407456724368,
+            "pnl": 51284.7869699985,
+            "roi": 0.512847869699985,
+            "dd": 17226.974999999133,
+            "dd_pct": 0.17226974999999134,
+            "pnl_over_dd": 2.977004782905942
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1283,
+            "win_rate": 0.3990646921278254,
+            "pnl": 45578.7895200021,
+            "roi": 0.455787895200021,
+            "dd": 17197.809399999707,
+            "dd_pct": 0.17197809399999708,
+            "pnl_over_dd": 2.6502671625144814
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.29805835846038287,
+          "delta_1y_pnl": 7514.780630000125,
+          "delta_2y_pdd": 1.4777931045990778,
+          "delta_2y_pnl": 17881.920429999907,
+          "min_pdd_delta": 0.29805835846038287,
+          "min_pnl_delta": 7514.780630000125
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 0,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 3,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.95,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.35
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 751,
+            "win_rate": 0.4194407456724368,
+            "pnl": 51269.88696999849,
+            "roi": 0.5126988696999849,
+            "dd": 17226.039999999164,
+            "dd_pct": 0.17226039999999165,
+            "pnl_over_dd": 2.976301400089689
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1283,
+            "win_rate": 0.3990646921278254,
+            "pnl": 45513.81948000213,
+            "roi": 0.4551381948000213,
+            "dd": 17197.809399999707,
+            "dd_pct": 0.17197809399999708,
+            "pnl_over_dd": 2.6464893534639886
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.2973549756441298,
+          "delta_1y_pnl": 7499.880630000116,
+          "delta_2y_pdd": 1.474015295548585,
+          "delta_2y_pnl": 17816.950389999936,
+          "min_pdd_delta": 0.2973549756441298,
+          "min_pnl_delta": 7499.880630000116
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 0,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 3,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.98,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.35
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 751,
+            "win_rate": 0.4194407456724368,
+            "pnl": 51269.88696999849,
+            "roi": 0.5126988696999849,
+            "dd": 17226.039999999164,
+            "dd_pct": 0.17226039999999165,
+            "pnl_over_dd": 2.976301400089689
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1283,
+            "win_rate": 0.3990646921278254,
+            "pnl": 45513.81948000213,
+            "roi": 0.4551381948000213,
+            "dd": 17197.809399999707,
+            "dd_pct": 0.17197809399999708,
+            "pnl_over_dd": 2.6464893534639886
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.2973549756441298,
+          "delta_1y_pnl": 7499.880630000116,
+          "delta_2y_pdd": 1.474015295548585,
+          "delta_2y_pnl": 17816.950389999936,
+          "min_pdd_delta": 0.2973549756441298,
+          "min_pnl_delta": 7499.880630000116
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 1,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 3,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.95,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.35
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 751,
+            "win_rate": 0.4194407456724368,
+            "pnl": 51269.88696999849,
+            "roi": 0.5126988696999849,
+            "dd": 17226.039999999164,
+            "dd_pct": 0.17226039999999165,
+            "pnl_over_dd": 2.976301400089689
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1283,
+            "win_rate": 0.3990646921278254,
+            "pnl": 45513.81948000213,
+            "roi": 0.4551381948000213,
+            "dd": 17197.809399999707,
+            "dd_pct": 0.17197809399999708,
+            "pnl_over_dd": 2.6464893534639886
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.2973549756441298,
+          "delta_1y_pnl": 7499.880630000116,
+          "delta_2y_pdd": 1.474015295548585,
+          "delta_2y_pnl": 17816.950389999936,
+          "min_pdd_delta": 0.2973549756441298,
+          "min_pnl_delta": 7499.880630000116
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 1,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 3,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.98,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.35
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 751,
+            "win_rate": 0.4194407456724368,
+            "pnl": 51269.88696999849,
+            "roi": 0.5126988696999849,
+            "dd": 17226.039999999164,
+            "dd_pct": 0.17226039999999165,
+            "pnl_over_dd": 2.976301400089689
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1283,
+            "win_rate": 0.3990646921278254,
+            "pnl": 45513.81948000213,
+            "roi": 0.4551381948000213,
+            "dd": 17197.809399999707,
+            "dd_pct": 0.17197809399999708,
+            "pnl_over_dd": 2.6464893534639886
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.2973549756441298,
+          "delta_1y_pnl": 7499.880630000116,
+          "delta_2y_pdd": 1.474015295548585,
+          "delta_2y_pnl": 17816.950389999936,
+          "min_pdd_delta": 0.2973549756441298,
+          "min_pnl_delta": 7499.880630000116
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 0,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 1.0,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.35
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 748,
+            "win_rate": 0.42112299465240643,
+            "pnl": 50934.33459999843,
+            "roi": 0.5093433459999843,
+            "dd": 17184.179999999178,
+            "dd_pct": 0.17184179999999177,
+            "pnl_over_dd": 2.964024736705555
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1277,
+            "win_rate": 0.4009397024275646,
+            "pnl": 45305.380550002104,
+            "roi": 0.45305380550002106,
+            "dd": 17177.649399999675,
+            "dd_pct": 0.17177649399999675,
+            "pnl_over_dd": 2.637461010818102
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.285078312259996,
+          "delta_1y_pnl": 7164.328260000053,
+          "delta_2y_pdd": 1.4649869529026984,
+          "delta_2y_pnl": 17608.51145999991,
+          "min_pdd_delta": 0.285078312259996,
+          "min_pnl_delta": 7164.328260000053
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 1,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 1.0,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.35
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 748,
+            "win_rate": 0.42112299465240643,
+            "pnl": 50934.33459999843,
+            "roi": 0.5093433459999843,
+            "dd": 17184.179999999178,
+            "dd_pct": 0.17184179999999177,
+            "pnl_over_dd": 2.964024736705555
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1277,
+            "win_rate": 0.4009397024275646,
+            "pnl": 45305.380550002104,
+            "roi": 0.45305380550002106,
+            "dd": 17177.649399999675,
+            "dd_pct": 0.17177649399999675,
+            "pnl_over_dd": 2.637461010818102
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.285078312259996,
+          "delta_1y_pnl": 7164.328260000053,
+          "delta_2y_pdd": 1.4649869529026984,
+          "delta_2y_pnl": 17608.51145999991,
+          "min_pdd_delta": 0.285078312259996,
+          "min_pnl_delta": 7164.328260000053
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 0,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 1.0,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.4
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 748,
+            "win_rate": 0.42112299465240643,
+            "pnl": 50934.33459999843,
+            "roi": 0.5093433459999843,
+            "dd": 17184.179999999178,
+            "dd_pct": 0.17184179999999177,
+            "pnl_over_dd": 2.964024736705555
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1277,
+            "win_rate": 0.4009397024275646,
+            "pnl": 45305.380550002104,
+            "roi": 0.45305380550002106,
+            "dd": 17177.649399999675,
+            "dd_pct": 0.17177649399999675,
+            "pnl_over_dd": 2.637461010818102
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.285078312259996,
+          "delta_1y_pnl": 7164.328260000053,
+          "delta_2y_pdd": 1.4649869529026984,
+          "delta_2y_pnl": 17608.51145999991,
+          "min_pdd_delta": 0.285078312259996,
+          "min_pnl_delta": 7164.328260000053
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 1,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 1.0,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.4
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 748,
+            "win_rate": 0.42112299465240643,
+            "pnl": 50934.33459999843,
+            "roi": 0.5093433459999843,
+            "dd": 17184.179999999178,
+            "dd_pct": 0.17184179999999177,
+            "pnl_over_dd": 2.964024736705555
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1277,
+            "win_rate": 0.4009397024275646,
+            "pnl": 45305.380550002104,
+            "roi": 0.45305380550002106,
+            "dd": 17177.649399999675,
+            "dd_pct": 0.17177649399999675,
+            "pnl_over_dd": 2.637461010818102
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.285078312259996,
+          "delta_1y_pnl": 7164.328260000053,
+          "delta_2y_pdd": 1.4649869529026984,
+          "delta_2y_pnl": 17608.51145999991,
+          "min_pdd_delta": 0.285078312259996,
+          "min_pnl_delta": 7164.328260000053
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 0,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 1.0,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.45
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 748,
+            "win_rate": 0.42112299465240643,
+            "pnl": 50934.33459999843,
+            "roi": 0.5093433459999843,
+            "dd": 17184.179999999178,
+            "dd_pct": 0.17184179999999177,
+            "pnl_over_dd": 2.964024736705555
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1277,
+            "win_rate": 0.4009397024275646,
+            "pnl": 45305.380550002104,
+            "roi": 0.45305380550002106,
+            "dd": 17177.649399999675,
+            "dd_pct": 0.17177649399999675,
+            "pnl_over_dd": 2.637461010818102
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.285078312259996,
+          "delta_1y_pnl": 7164.328260000053,
+          "delta_2y_pdd": 1.4649869529026984,
+          "delta_2y_pnl": 17608.51145999991,
+          "min_pdd_delta": 0.285078312259996,
+          "min_pnl_delta": 7164.328260000053
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 1,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 1.0,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.45
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 748,
+            "win_rate": 0.42112299465240643,
+            "pnl": 50934.33459999843,
+            "roi": 0.5093433459999843,
+            "dd": 17184.179999999178,
+            "dd_pct": 0.17184179999999177,
+            "pnl_over_dd": 2.964024736705555
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1277,
+            "win_rate": 0.4009397024275646,
+            "pnl": 45305.380550002104,
+            "roi": 0.45305380550002106,
+            "dd": 17177.649399999675,
+            "dd_pct": 0.17177649399999675,
+            "pnl_over_dd": 2.637461010818102
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.285078312259996,
+          "delta_1y_pnl": 7164.328260000053,
+          "delta_2y_pdd": 1.4649869529026984,
+          "delta_2y_pnl": 17608.51145999991,
+          "min_pdd_delta": 0.285078312259996,
+          "min_pnl_delta": 7164.328260000053
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 0,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 3,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 1.0,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.35
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 748,
+            "win_rate": 0.42112299465240643,
+            "pnl": 50918.04459999843,
+            "roi": 0.5091804459999842,
+            "dd": 17183.489999999147,
+            "dd_pct": 0.17183489999999146,
+            "pnl_over_dd": 2.9631957535984226
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1277,
+            "win_rate": 0.4009397024275646,
+            "pnl": 45242.60649000205,
+            "roi": 0.4524260649000205,
+            "dd": 17177.649399999675,
+            "dd_pct": 0.17177649399999675,
+            "pnl_over_dd": 2.633806607439718
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.2842493291528636,
+          "delta_1y_pnl": 7148.038260000052,
+          "delta_2y_pdd": 1.4613325495243144,
+          "delta_2y_pnl": 17545.737399999856,
+          "min_pdd_delta": 0.2842493291528636,
+          "min_pnl_delta": 7148.038260000052
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 1,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 3,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 1.0,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.35
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 748,
+            "win_rate": 0.42112299465240643,
+            "pnl": 50918.04459999843,
+            "roi": 0.5091804459999842,
+            "dd": 17183.489999999147,
+            "dd_pct": 0.17183489999999146,
+            "pnl_over_dd": 2.9631957535984226
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1277,
+            "win_rate": 0.4009397024275646,
+            "pnl": 45242.60649000205,
+            "roi": 0.4524260649000205,
+            "dd": 17177.649399999675,
+            "dd_pct": 0.17177649399999675,
+            "pnl_over_dd": 2.633806607439718
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.2842493291528636,
+          "delta_1y_pnl": 7148.038260000052,
+          "delta_2y_pdd": 1.4613325495243144,
+          "delta_2y_pnl": 17545.737399999856,
+          "min_pdd_delta": 0.2842493291528636,
+          "min_pnl_delta": 7148.038260000052
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 0,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 4,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.95,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.35
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 745,
+            "win_rate": 0.4228187919463087,
+            "pnl": 50805.61290999835,
+            "roi": 0.5080561290999835,
+            "dd": 17175.29999999923,
+            "dd_pct": 0.17175299999999233,
+            "pnl_over_dd": 2.9580626195758226
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1273,
+            "win_rate": 0.40219952867242736,
+            "pnl": 44505.04111000209,
+            "roi": 0.44505041110002086,
+            "dd": 17178.39939999966,
+            "dd_pct": 0.1717839939999966,
+            "pnl_over_dd": 2.5907559880114888
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.27911619513026364,
+          "delta_1y_pnl": 7035.606569999974,
+          "delta_2y_pdd": 1.4182819300960852,
+          "delta_2y_pnl": 16808.172019999893,
+          "min_pdd_delta": 0.27911619513026364,
+          "min_pnl_delta": 7035.606569999974
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 0,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 4,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.98,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.35
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 745,
+            "win_rate": 0.4228187919463087,
+            "pnl": 50805.61290999835,
+            "roi": 0.5080561290999835,
+            "dd": 17175.29999999923,
+            "dd_pct": 0.17175299999999233,
+            "pnl_over_dd": 2.9580626195758226
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1273,
+            "win_rate": 0.40219952867242736,
+            "pnl": 44505.04111000209,
+            "roi": 0.44505041110002086,
+            "dd": 17178.39939999966,
+            "dd_pct": 0.1717839939999966,
+            "pnl_over_dd": 2.5907559880114888
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.27911619513026364,
+          "delta_1y_pnl": 7035.606569999974,
+          "delta_2y_pdd": 1.4182819300960852,
+          "delta_2y_pnl": 16808.172019999893,
+          "min_pdd_delta": 0.27911619513026364,
+          "min_pnl_delta": 7035.606569999974
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 1,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 4,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.95,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.35
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 745,
+            "win_rate": 0.4228187919463087,
+            "pnl": 50805.61290999835,
+            "roi": 0.5080561290999835,
+            "dd": 17175.29999999923,
+            "dd_pct": 0.17175299999999233,
+            "pnl_over_dd": 2.9580626195758226
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1273,
+            "win_rate": 0.40219952867242736,
+            "pnl": 44505.04111000209,
+            "roi": 0.44505041110002086,
+            "dd": 17178.39939999966,
+            "dd_pct": 0.1717839939999966,
+            "pnl_over_dd": 2.5907559880114888
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.27911619513026364,
+          "delta_1y_pnl": 7035.606569999974,
+          "delta_2y_pdd": 1.4182819300960852,
+          "delta_2y_pnl": 16808.172019999893,
+          "min_pdd_delta": 0.27911619513026364,
+          "min_pnl_delta": 7035.606569999974
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 1,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 4,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.98,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.35
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 745,
+            "win_rate": 0.4228187919463087,
+            "pnl": 50805.61290999835,
+            "roi": 0.5080561290999835,
+            "dd": 17175.29999999923,
+            "dd_pct": 0.17175299999999233,
+            "pnl_over_dd": 2.9580626195758226
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1273,
+            "win_rate": 0.40219952867242736,
+            "pnl": 44505.04111000209,
+            "roi": 0.44505041110002086,
+            "dd": 17178.39939999966,
+            "dd_pct": 0.1717839939999966,
+            "pnl_over_dd": 2.5907559880114888
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.27911619513026364,
+          "delta_1y_pnl": 7035.606569999974,
+          "delta_2y_pdd": 1.4182819300960852,
+          "delta_2y_pnl": 16808.172019999893,
+          "min_pdd_delta": 0.27911619513026364,
+          "min_pnl_delta": 7035.606569999974
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 0,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 4,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.95,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.4
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 745,
+            "win_rate": 0.4228187919463087,
+            "pnl": 50805.61290999835,
+            "roi": 0.5080561290999835,
+            "dd": 17175.29999999923,
+            "dd_pct": 0.17175299999999233,
+            "pnl_over_dd": 2.9580626195758226
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1273,
+            "win_rate": 0.40219952867242736,
+            "pnl": 44505.04111000209,
+            "roi": 0.44505041110002086,
+            "dd": 17178.39939999966,
+            "dd_pct": 0.1717839939999966,
+            "pnl_over_dd": 2.5907559880114888
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.27911619513026364,
+          "delta_1y_pnl": 7035.606569999974,
+          "delta_2y_pdd": 1.4182819300960852,
+          "delta_2y_pnl": 16808.172019999893,
+          "min_pdd_delta": 0.27911619513026364,
+          "min_pnl_delta": 7035.606569999974
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 0,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 4,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.98,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.4
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 745,
+            "win_rate": 0.4228187919463087,
+            "pnl": 50805.61290999835,
+            "roi": 0.5080561290999835,
+            "dd": 17175.29999999923,
+            "dd_pct": 0.17175299999999233,
+            "pnl_over_dd": 2.9580626195758226
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1273,
+            "win_rate": 0.40219952867242736,
+            "pnl": 44505.04111000209,
+            "roi": 0.44505041110002086,
+            "dd": 17178.39939999966,
+            "dd_pct": 0.1717839939999966,
+            "pnl_over_dd": 2.5907559880114888
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.27911619513026364,
+          "delta_1y_pnl": 7035.606569999974,
+          "delta_2y_pdd": 1.4182819300960852,
+          "delta_2y_pnl": 16808.172019999893,
+          "min_pdd_delta": 0.27911619513026364,
+          "min_pnl_delta": 7035.606569999974
+        }
+      }
+    ]
+  },
+  "final": {
+    "count": 25,
+    "top20": [
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 0,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.95,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.35
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 751,
+            "win_rate": 0.4194407456724368,
+            "pnl": 51284.7869699985,
+            "roi": 0.512847869699985,
+            "dd": 17226.974999999133,
+            "dd_pct": 0.17226974999999134,
+            "pnl_over_dd": 2.977004782905942
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1283,
+            "win_rate": 0.3990646921278254,
+            "pnl": 45578.7895200021,
+            "roi": 0.455787895200021,
+            "dd": 17197.809399999707,
+            "dd_pct": 0.17197809399999708,
+            "pnl_over_dd": 2.6502671625144814
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.29805835846038287,
+          "delta_1y_pnl": 7514.780630000125,
+          "delta_2y_pdd": 1.4777931045990778,
+          "delta_2y_pnl": 17881.920429999907,
+          "min_pdd_delta": 0.29805835846038287,
+          "min_pnl_delta": 7514.780630000125
+        },
+        "forensics_1y": {
+          "trades": 751,
+          "pnl": 51284.7869699985,
+          "dd": 17226.974999999133,
+          "pnl_over_dd": 2.977004782905942,
+          "win_rate": 0.4194407456724368,
+          "long_pnl": 53288.64271999853,
+          "short_pnl": -2003.8557500000265,
+          "top1_loss_share": 0.01525445664716884,
+          "top5_loss_share": 0.06476738873257842,
+          "forced_like_exit_share": 0.0,
+          "trap_signature": {
+            "definition": "long & entry_ext_dist>0.006 & a37_fast_deg>0.8 & hold<=120",
+            "count": 21,
+            "loss_abs": 16576.419999999736,
+            "loss_share": 0.10065108048425754
+          },
+          "medians": {
+            "entry_ext_dist": 0.0032837550705041856,
+            "loss_entry_ext_dist": 0.0033929934929010225,
+            "hold_bars": 83.0,
+            "loss_hold_bars": 50.0,
+            "loss_a37_fast_deg": 0.43307400531027346
+          }
+        },
+        "final_score": {
+          "composite": 10.305066778472213,
+          "trap_share": 0.10065108048425754,
+          "trap_share_delta_vs_base": 0.002368664613174254,
+          "short_pnl_delta_vs_base": -166.61078999999722
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 0,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.98,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.35
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 751,
+            "win_rate": 0.4194407456724368,
+            "pnl": 51284.7869699985,
+            "roi": 0.512847869699985,
+            "dd": 17226.974999999133,
+            "dd_pct": 0.17226974999999134,
+            "pnl_over_dd": 2.977004782905942
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1283,
+            "win_rate": 0.3990646921278254,
+            "pnl": 45578.7895200021,
+            "roi": 0.455787895200021,
+            "dd": 17197.809399999707,
+            "dd_pct": 0.17197809399999708,
+            "pnl_over_dd": 2.6502671625144814
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.29805835846038287,
+          "delta_1y_pnl": 7514.780630000125,
+          "delta_2y_pdd": 1.4777931045990778,
+          "delta_2y_pnl": 17881.920429999907,
+          "min_pdd_delta": 0.29805835846038287,
+          "min_pnl_delta": 7514.780630000125
+        },
+        "forensics_1y": {
+          "trades": 751,
+          "pnl": 51284.7869699985,
+          "dd": 17226.974999999133,
+          "pnl_over_dd": 2.977004782905942,
+          "win_rate": 0.4194407456724368,
+          "long_pnl": 53288.64271999853,
+          "short_pnl": -2003.8557500000265,
+          "top1_loss_share": 0.01525445664716884,
+          "top5_loss_share": 0.06476738873257842,
+          "forced_like_exit_share": 0.0,
+          "trap_signature": {
+            "definition": "long & entry_ext_dist>0.006 & a37_fast_deg>0.8 & hold<=120",
+            "count": 21,
+            "loss_abs": 16576.419999999736,
+            "loss_share": 0.10065108048425754
+          },
+          "medians": {
+            "entry_ext_dist": 0.0032837550705041856,
+            "loss_entry_ext_dist": 0.0033929934929010225,
+            "hold_bars": 83.0,
+            "loss_hold_bars": 50.0,
+            "loss_a37_fast_deg": 0.43307400531027346
+          }
+        },
+        "final_score": {
+          "composite": 10.305066778472213,
+          "trap_share": 0.10065108048425754,
+          "trap_share_delta_vs_base": 0.002368664613174254,
+          "short_pnl_delta_vs_base": -166.61078999999722
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 1,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.95,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.35
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 751,
+            "win_rate": 0.4194407456724368,
+            "pnl": 51284.7869699985,
+            "roi": 0.512847869699985,
+            "dd": 17226.974999999133,
+            "dd_pct": 0.17226974999999134,
+            "pnl_over_dd": 2.977004782905942
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1283,
+            "win_rate": 0.3990646921278254,
+            "pnl": 45578.7895200021,
+            "roi": 0.455787895200021,
+            "dd": 17197.809399999707,
+            "dd_pct": 0.17197809399999708,
+            "pnl_over_dd": 2.6502671625144814
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.29805835846038287,
+          "delta_1y_pnl": 7514.780630000125,
+          "delta_2y_pdd": 1.4777931045990778,
+          "delta_2y_pnl": 17881.920429999907,
+          "min_pdd_delta": 0.29805835846038287,
+          "min_pnl_delta": 7514.780630000125
+        },
+        "forensics_1y": {
+          "trades": 751,
+          "pnl": 51284.7869699985,
+          "dd": 17226.974999999133,
+          "pnl_over_dd": 2.977004782905942,
+          "win_rate": 0.4194407456724368,
+          "long_pnl": 53288.64271999853,
+          "short_pnl": -2003.8557500000265,
+          "top1_loss_share": 0.01525445664716884,
+          "top5_loss_share": 0.06476738873257842,
+          "forced_like_exit_share": 0.0,
+          "trap_signature": {
+            "definition": "long & entry_ext_dist>0.006 & a37_fast_deg>0.8 & hold<=120",
+            "count": 21,
+            "loss_abs": 16576.419999999736,
+            "loss_share": 0.10065108048425754
+          },
+          "medians": {
+            "entry_ext_dist": 0.0032837550705041856,
+            "loss_entry_ext_dist": 0.0033929934929010225,
+            "hold_bars": 83.0,
+            "loss_hold_bars": 50.0,
+            "loss_a37_fast_deg": 0.43307400531027346
+          }
+        },
+        "final_score": {
+          "composite": 10.305066778472213,
+          "trap_share": 0.10065108048425754,
+          "trap_share_delta_vs_base": 0.002368664613174254,
+          "short_pnl_delta_vs_base": -166.61078999999722
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 1,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.98,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.35
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 751,
+            "win_rate": 0.4194407456724368,
+            "pnl": 51284.7869699985,
+            "roi": 0.512847869699985,
+            "dd": 17226.974999999133,
+            "dd_pct": 0.17226974999999134,
+            "pnl_over_dd": 2.977004782905942
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1283,
+            "win_rate": 0.3990646921278254,
+            "pnl": 45578.7895200021,
+            "roi": 0.455787895200021,
+            "dd": 17197.809399999707,
+            "dd_pct": 0.17197809399999708,
+            "pnl_over_dd": 2.6502671625144814
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.29805835846038287,
+          "delta_1y_pnl": 7514.780630000125,
+          "delta_2y_pdd": 1.4777931045990778,
+          "delta_2y_pnl": 17881.920429999907,
+          "min_pdd_delta": 0.29805835846038287,
+          "min_pnl_delta": 7514.780630000125
+        },
+        "forensics_1y": {
+          "trades": 751,
+          "pnl": 51284.7869699985,
+          "dd": 17226.974999999133,
+          "pnl_over_dd": 2.977004782905942,
+          "win_rate": 0.4194407456724368,
+          "long_pnl": 53288.64271999853,
+          "short_pnl": -2003.8557500000265,
+          "top1_loss_share": 0.01525445664716884,
+          "top5_loss_share": 0.06476738873257842,
+          "forced_like_exit_share": 0.0,
+          "trap_signature": {
+            "definition": "long & entry_ext_dist>0.006 & a37_fast_deg>0.8 & hold<=120",
+            "count": 21,
+            "loss_abs": 16576.419999999736,
+            "loss_share": 0.10065108048425754
+          },
+          "medians": {
+            "entry_ext_dist": 0.0032837550705041856,
+            "loss_entry_ext_dist": 0.0033929934929010225,
+            "hold_bars": 83.0,
+            "loss_hold_bars": 50.0,
+            "loss_a37_fast_deg": 0.43307400531027346
+          }
+        },
+        "final_score": {
+          "composite": 10.305066778472213,
+          "trap_share": 0.10065108048425754,
+          "trap_share_delta_vs_base": 0.002368664613174254,
+          "short_pnl_delta_vs_base": -166.61078999999722
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 0,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.98,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.4
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 751,
+            "win_rate": 0.4194407456724368,
+            "pnl": 51284.7869699985,
+            "roi": 0.512847869699985,
+            "dd": 17226.974999999133,
+            "dd_pct": 0.17226974999999134,
+            "pnl_over_dd": 2.977004782905942
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1283,
+            "win_rate": 0.3990646921278254,
+            "pnl": 45578.7895200021,
+            "roi": 0.455787895200021,
+            "dd": 17197.809399999707,
+            "dd_pct": 0.17197809399999708,
+            "pnl_over_dd": 2.6502671625144814
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.29805835846038287,
+          "delta_1y_pnl": 7514.780630000125,
+          "delta_2y_pdd": 1.4777931045990778,
+          "delta_2y_pnl": 17881.920429999907,
+          "min_pdd_delta": 0.29805835846038287,
+          "min_pnl_delta": 7514.780630000125
+        },
+        "forensics_1y": {
+          "trades": 751,
+          "pnl": 51284.7869699985,
+          "dd": 17226.974999999133,
+          "pnl_over_dd": 2.977004782905942,
+          "win_rate": 0.4194407456724368,
+          "long_pnl": 53288.64271999853,
+          "short_pnl": -2003.8557500000265,
+          "top1_loss_share": 0.01525445664716884,
+          "top5_loss_share": 0.06476738873257842,
+          "forced_like_exit_share": 0.0,
+          "trap_signature": {
+            "definition": "long & entry_ext_dist>0.006 & a37_fast_deg>0.8 & hold<=120",
+            "count": 21,
+            "loss_abs": 16576.419999999736,
+            "loss_share": 0.10065108048425754
+          },
+          "medians": {
+            "entry_ext_dist": 0.0032837550705041856,
+            "loss_entry_ext_dist": 0.0033929934929010225,
+            "hold_bars": 83.0,
+            "loss_hold_bars": 50.0,
+            "loss_a37_fast_deg": 0.43307400531027346
+          }
+        },
+        "final_score": {
+          "composite": 10.305066778472213,
+          "trap_share": 0.10065108048425754,
+          "trap_share_delta_vs_base": 0.002368664613174254,
+          "short_pnl_delta_vs_base": -166.61078999999722
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 0,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.95,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.4
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 751,
+            "win_rate": 0.4194407456724368,
+            "pnl": 51284.7869699985,
+            "roi": 0.512847869699985,
+            "dd": 17226.974999999133,
+            "dd_pct": 0.17226974999999134,
+            "pnl_over_dd": 2.977004782905942
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1283,
+            "win_rate": 0.3990646921278254,
+            "pnl": 45578.7895200021,
+            "roi": 0.455787895200021,
+            "dd": 17197.809399999707,
+            "dd_pct": 0.17197809399999708,
+            "pnl_over_dd": 2.6502671625144814
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.29805835846038287,
+          "delta_1y_pnl": 7514.780630000125,
+          "delta_2y_pdd": 1.4777931045990778,
+          "delta_2y_pnl": 17881.920429999907,
+          "min_pdd_delta": 0.29805835846038287,
+          "min_pnl_delta": 7514.780630000125
+        },
+        "forensics_1y": {
+          "trades": 751,
+          "pnl": 51284.7869699985,
+          "dd": 17226.974999999133,
+          "pnl_over_dd": 2.977004782905942,
+          "win_rate": 0.4194407456724368,
+          "long_pnl": 53288.64271999853,
+          "short_pnl": -2003.8557500000265,
+          "top1_loss_share": 0.01525445664716884,
+          "top5_loss_share": 0.06476738873257842,
+          "forced_like_exit_share": 0.0,
+          "trap_signature": {
+            "definition": "long & entry_ext_dist>0.006 & a37_fast_deg>0.8 & hold<=120",
+            "count": 21,
+            "loss_abs": 16576.419999999736,
+            "loss_share": 0.10065108048425754
+          },
+          "medians": {
+            "entry_ext_dist": 0.0032837550705041856,
+            "loss_entry_ext_dist": 0.0033929934929010225,
+            "hold_bars": 83.0,
+            "loss_hold_bars": 50.0,
+            "loss_a37_fast_deg": 0.43307400531027346
+          }
+        },
+        "final_score": {
+          "composite": 10.305066778472213,
+          "trap_share": 0.10065108048425754,
+          "trap_share_delta_vs_base": 0.002368664613174254,
+          "short_pnl_delta_vs_base": -166.61078999999722
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 1,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.95,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.4
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 751,
+            "win_rate": 0.4194407456724368,
+            "pnl": 51284.7869699985,
+            "roi": 0.512847869699985,
+            "dd": 17226.974999999133,
+            "dd_pct": 0.17226974999999134,
+            "pnl_over_dd": 2.977004782905942
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1283,
+            "win_rate": 0.3990646921278254,
+            "pnl": 45578.7895200021,
+            "roi": 0.455787895200021,
+            "dd": 17197.809399999707,
+            "dd_pct": 0.17197809399999708,
+            "pnl_over_dd": 2.6502671625144814
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.29805835846038287,
+          "delta_1y_pnl": 7514.780630000125,
+          "delta_2y_pdd": 1.4777931045990778,
+          "delta_2y_pnl": 17881.920429999907,
+          "min_pdd_delta": 0.29805835846038287,
+          "min_pnl_delta": 7514.780630000125
+        },
+        "forensics_1y": {
+          "trades": 751,
+          "pnl": 51284.7869699985,
+          "dd": 17226.974999999133,
+          "pnl_over_dd": 2.977004782905942,
+          "win_rate": 0.4194407456724368,
+          "long_pnl": 53288.64271999853,
+          "short_pnl": -2003.8557500000265,
+          "top1_loss_share": 0.01525445664716884,
+          "top5_loss_share": 0.06476738873257842,
+          "forced_like_exit_share": 0.0,
+          "trap_signature": {
+            "definition": "long & entry_ext_dist>0.006 & a37_fast_deg>0.8 & hold<=120",
+            "count": 21,
+            "loss_abs": 16576.419999999736,
+            "loss_share": 0.10065108048425754
+          },
+          "medians": {
+            "entry_ext_dist": 0.0032837550705041856,
+            "loss_entry_ext_dist": 0.0033929934929010225,
+            "hold_bars": 83.0,
+            "loss_hold_bars": 50.0,
+            "loss_a37_fast_deg": 0.43307400531027346
+          }
+        },
+        "final_score": {
+          "composite": 10.305066778472213,
+          "trap_share": 0.10065108048425754,
+          "trap_share_delta_vs_base": 0.002368664613174254,
+          "short_pnl_delta_vs_base": -166.61078999999722
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 1,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.98,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.4
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 751,
+            "win_rate": 0.4194407456724368,
+            "pnl": 51284.7869699985,
+            "roi": 0.512847869699985,
+            "dd": 17226.974999999133,
+            "dd_pct": 0.17226974999999134,
+            "pnl_over_dd": 2.977004782905942
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1283,
+            "win_rate": 0.3990646921278254,
+            "pnl": 45578.7895200021,
+            "roi": 0.455787895200021,
+            "dd": 17197.809399999707,
+            "dd_pct": 0.17197809399999708,
+            "pnl_over_dd": 2.6502671625144814
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.29805835846038287,
+          "delta_1y_pnl": 7514.780630000125,
+          "delta_2y_pdd": 1.4777931045990778,
+          "delta_2y_pnl": 17881.920429999907,
+          "min_pdd_delta": 0.29805835846038287,
+          "min_pnl_delta": 7514.780630000125
+        },
+        "forensics_1y": {
+          "trades": 751,
+          "pnl": 51284.7869699985,
+          "dd": 17226.974999999133,
+          "pnl_over_dd": 2.977004782905942,
+          "win_rate": 0.4194407456724368,
+          "long_pnl": 53288.64271999853,
+          "short_pnl": -2003.8557500000265,
+          "top1_loss_share": 0.01525445664716884,
+          "top5_loss_share": 0.06476738873257842,
+          "forced_like_exit_share": 0.0,
+          "trap_signature": {
+            "definition": "long & entry_ext_dist>0.006 & a37_fast_deg>0.8 & hold<=120",
+            "count": 21,
+            "loss_abs": 16576.419999999736,
+            "loss_share": 0.10065108048425754
+          },
+          "medians": {
+            "entry_ext_dist": 0.0032837550705041856,
+            "loss_entry_ext_dist": 0.0033929934929010225,
+            "hold_bars": 83.0,
+            "loss_hold_bars": 50.0,
+            "loss_a37_fast_deg": 0.43307400531027346
+          }
+        },
+        "final_score": {
+          "composite": 10.305066778472213,
+          "trap_share": 0.10065108048425754,
+          "trap_share_delta_vs_base": 0.002368664613174254,
+          "short_pnl_delta_vs_base": -166.61078999999722
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 0,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.95,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.45
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 751,
+            "win_rate": 0.4194407456724368,
+            "pnl": 51284.7869699985,
+            "roi": 0.512847869699985,
+            "dd": 17226.974999999133,
+            "dd_pct": 0.17226974999999134,
+            "pnl_over_dd": 2.977004782905942
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1283,
+            "win_rate": 0.3990646921278254,
+            "pnl": 45578.7895200021,
+            "roi": 0.455787895200021,
+            "dd": 17197.809399999707,
+            "dd_pct": 0.17197809399999708,
+            "pnl_over_dd": 2.6502671625144814
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.29805835846038287,
+          "delta_1y_pnl": 7514.780630000125,
+          "delta_2y_pdd": 1.4777931045990778,
+          "delta_2y_pnl": 17881.920429999907,
+          "min_pdd_delta": 0.29805835846038287,
+          "min_pnl_delta": 7514.780630000125
+        },
+        "forensics_1y": {
+          "trades": 751,
+          "pnl": 51284.7869699985,
+          "dd": 17226.974999999133,
+          "pnl_over_dd": 2.977004782905942,
+          "win_rate": 0.4194407456724368,
+          "long_pnl": 53288.64271999853,
+          "short_pnl": -2003.8557500000265,
+          "top1_loss_share": 0.01525445664716884,
+          "top5_loss_share": 0.06476738873257842,
+          "forced_like_exit_share": 0.0,
+          "trap_signature": {
+            "definition": "long & entry_ext_dist>0.006 & a37_fast_deg>0.8 & hold<=120",
+            "count": 21,
+            "loss_abs": 16576.419999999736,
+            "loss_share": 0.10065108048425754
+          },
+          "medians": {
+            "entry_ext_dist": 0.0032837550705041856,
+            "loss_entry_ext_dist": 0.0033929934929010225,
+            "hold_bars": 83.0,
+            "loss_hold_bars": 50.0,
+            "loss_a37_fast_deg": 0.43307400531027346
+          }
+        },
+        "final_score": {
+          "composite": 10.305066778472213,
+          "trap_share": 0.10065108048425754,
+          "trap_share_delta_vs_base": 0.002368664613174254,
+          "short_pnl_delta_vs_base": -166.61078999999722
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 0,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.98,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.45
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 751,
+            "win_rate": 0.4194407456724368,
+            "pnl": 51284.7869699985,
+            "roi": 0.512847869699985,
+            "dd": 17226.974999999133,
+            "dd_pct": 0.17226974999999134,
+            "pnl_over_dd": 2.977004782905942
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1283,
+            "win_rate": 0.3990646921278254,
+            "pnl": 45578.7895200021,
+            "roi": 0.455787895200021,
+            "dd": 17197.809399999707,
+            "dd_pct": 0.17197809399999708,
+            "pnl_over_dd": 2.6502671625144814
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.29805835846038287,
+          "delta_1y_pnl": 7514.780630000125,
+          "delta_2y_pdd": 1.4777931045990778,
+          "delta_2y_pnl": 17881.920429999907,
+          "min_pdd_delta": 0.29805835846038287,
+          "min_pnl_delta": 7514.780630000125
+        },
+        "forensics_1y": {
+          "trades": 751,
+          "pnl": 51284.7869699985,
+          "dd": 17226.974999999133,
+          "pnl_over_dd": 2.977004782905942,
+          "win_rate": 0.4194407456724368,
+          "long_pnl": 53288.64271999853,
+          "short_pnl": -2003.8557500000265,
+          "top1_loss_share": 0.01525445664716884,
+          "top5_loss_share": 0.06476738873257842,
+          "forced_like_exit_share": 0.0,
+          "trap_signature": {
+            "definition": "long & entry_ext_dist>0.006 & a37_fast_deg>0.8 & hold<=120",
+            "count": 21,
+            "loss_abs": 16576.419999999736,
+            "loss_share": 0.10065108048425754
+          },
+          "medians": {
+            "entry_ext_dist": 0.0032837550705041856,
+            "loss_entry_ext_dist": 0.0033929934929010225,
+            "hold_bars": 83.0,
+            "loss_hold_bars": 50.0,
+            "loss_a37_fast_deg": 0.43307400531027346
+          }
+        },
+        "final_score": {
+          "composite": 10.305066778472213,
+          "trap_share": 0.10065108048425754,
+          "trap_share_delta_vs_base": 0.002368664613174254,
+          "short_pnl_delta_vs_base": -166.61078999999722
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 1,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.95,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.45
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 751,
+            "win_rate": 0.4194407456724368,
+            "pnl": 51284.7869699985,
+            "roi": 0.512847869699985,
+            "dd": 17226.974999999133,
+            "dd_pct": 0.17226974999999134,
+            "pnl_over_dd": 2.977004782905942
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1283,
+            "win_rate": 0.3990646921278254,
+            "pnl": 45578.7895200021,
+            "roi": 0.455787895200021,
+            "dd": 17197.809399999707,
+            "dd_pct": 0.17197809399999708,
+            "pnl_over_dd": 2.6502671625144814
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.29805835846038287,
+          "delta_1y_pnl": 7514.780630000125,
+          "delta_2y_pdd": 1.4777931045990778,
+          "delta_2y_pnl": 17881.920429999907,
+          "min_pdd_delta": 0.29805835846038287,
+          "min_pnl_delta": 7514.780630000125
+        },
+        "forensics_1y": {
+          "trades": 751,
+          "pnl": 51284.7869699985,
+          "dd": 17226.974999999133,
+          "pnl_over_dd": 2.977004782905942,
+          "win_rate": 0.4194407456724368,
+          "long_pnl": 53288.64271999853,
+          "short_pnl": -2003.8557500000265,
+          "top1_loss_share": 0.01525445664716884,
+          "top5_loss_share": 0.06476738873257842,
+          "forced_like_exit_share": 0.0,
+          "trap_signature": {
+            "definition": "long & entry_ext_dist>0.006 & a37_fast_deg>0.8 & hold<=120",
+            "count": 21,
+            "loss_abs": 16576.419999999736,
+            "loss_share": 0.10065108048425754
+          },
+          "medians": {
+            "entry_ext_dist": 0.0032837550705041856,
+            "loss_entry_ext_dist": 0.0033929934929010225,
+            "hold_bars": 83.0,
+            "loss_hold_bars": 50.0,
+            "loss_a37_fast_deg": 0.43307400531027346
+          }
+        },
+        "final_score": {
+          "composite": 10.305066778472213,
+          "trap_share": 0.10065108048425754,
+          "trap_share_delta_vs_base": 0.002368664613174254,
+          "short_pnl_delta_vs_base": -166.61078999999722
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 1,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.98,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.45
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 751,
+            "win_rate": 0.4194407456724368,
+            "pnl": 51284.7869699985,
+            "roi": 0.512847869699985,
+            "dd": 17226.974999999133,
+            "dd_pct": 0.17226974999999134,
+            "pnl_over_dd": 2.977004782905942
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1283,
+            "win_rate": 0.3990646921278254,
+            "pnl": 45578.7895200021,
+            "roi": 0.455787895200021,
+            "dd": 17197.809399999707,
+            "dd_pct": 0.17197809399999708,
+            "pnl_over_dd": 2.6502671625144814
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.29805835846038287,
+          "delta_1y_pnl": 7514.780630000125,
+          "delta_2y_pdd": 1.4777931045990778,
+          "delta_2y_pnl": 17881.920429999907,
+          "min_pdd_delta": 0.29805835846038287,
+          "min_pnl_delta": 7514.780630000125
+        },
+        "forensics_1y": {
+          "trades": 751,
+          "pnl": 51284.7869699985,
+          "dd": 17226.974999999133,
+          "pnl_over_dd": 2.977004782905942,
+          "win_rate": 0.4194407456724368,
+          "long_pnl": 53288.64271999853,
+          "short_pnl": -2003.8557500000265,
+          "top1_loss_share": 0.01525445664716884,
+          "top5_loss_share": 0.06476738873257842,
+          "forced_like_exit_share": 0.0,
+          "trap_signature": {
+            "definition": "long & entry_ext_dist>0.006 & a37_fast_deg>0.8 & hold<=120",
+            "count": 21,
+            "loss_abs": 16576.419999999736,
+            "loss_share": 0.10065108048425754
+          },
+          "medians": {
+            "entry_ext_dist": 0.0032837550705041856,
+            "loss_entry_ext_dist": 0.0033929934929010225,
+            "hold_bars": 83.0,
+            "loss_hold_bars": 50.0,
+            "loss_a37_fast_deg": 0.43307400531027346
+          }
+        },
+        "final_score": {
+          "composite": 10.305066778472213,
+          "trap_share": 0.10065108048425754,
+          "trap_share_delta_vs_base": 0.002368664613174254,
+          "short_pnl_delta_vs_base": -166.61078999999722
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 0,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 3,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.95,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.35
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 751,
+            "win_rate": 0.4194407456724368,
+            "pnl": 51269.88696999849,
+            "roi": 0.5126988696999849,
+            "dd": 17226.039999999164,
+            "dd_pct": 0.17226039999999165,
+            "pnl_over_dd": 2.976301400089689
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1283,
+            "win_rate": 0.3990646921278254,
+            "pnl": 45513.81948000213,
+            "roi": 0.4551381948000213,
+            "dd": 17197.809399999707,
+            "dd_pct": 0.17197809399999708,
+            "pnl_over_dd": 2.6464893534639886
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.2973549756441298,
+          "delta_1y_pnl": 7499.880630000116,
+          "delta_2y_pdd": 1.474015295548585,
+          "delta_2y_pnl": 17816.950389999936,
+          "min_pdd_delta": 0.2973549756441298,
+          "min_pnl_delta": 7499.880630000116
+        },
+        "forensics_1y": {
+          "trades": 751,
+          "pnl": 51269.88696999849,
+          "dd": 17226.039999999164,
+          "pnl_over_dd": 2.976301400089689,
+          "win_rate": 0.4194407456724368,
+          "long_pnl": 53292.64271999853,
+          "short_pnl": -2022.755750000027,
+          "top1_loss_share": 0.01525326929742639,
+          "top5_loss_share": 0.06476234748174206,
+          "forced_like_exit_share": 0.0,
+          "trap_signature": {
+            "definition": "long & entry_ext_dist>0.006 & a37_fast_deg>0.8 & hold<=120",
+            "count": 21,
+            "loss_abs": 16575.319999999738,
+            "loss_share": 0.10063656756369536
+          },
+          "medians": {
+            "entry_ext_dist": 0.0032837550705041856,
+            "loss_entry_ext_dist": 0.0033929934929010225,
+            "hold_bars": 83.0,
+            "loss_hold_bars": 50.0,
+            "loss_a37_fast_deg": 0.43307400531027346
+          }
+        },
+        "final_score": {
+          "composite": 10.264378079515295,
+          "trap_share": 0.10063656756369536,
+          "trap_share_delta_vs_base": 0.0023541516926120776,
+          "short_pnl_delta_vs_base": -185.51078999999777
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 0,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 3,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.98,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.35
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 751,
+            "win_rate": 0.4194407456724368,
+            "pnl": 51269.88696999849,
+            "roi": 0.5126988696999849,
+            "dd": 17226.039999999164,
+            "dd_pct": 0.17226039999999165,
+            "pnl_over_dd": 2.976301400089689
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1283,
+            "win_rate": 0.3990646921278254,
+            "pnl": 45513.81948000213,
+            "roi": 0.4551381948000213,
+            "dd": 17197.809399999707,
+            "dd_pct": 0.17197809399999708,
+            "pnl_over_dd": 2.6464893534639886
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.2973549756441298,
+          "delta_1y_pnl": 7499.880630000116,
+          "delta_2y_pdd": 1.474015295548585,
+          "delta_2y_pnl": 17816.950389999936,
+          "min_pdd_delta": 0.2973549756441298,
+          "min_pnl_delta": 7499.880630000116
+        },
+        "forensics_1y": {
+          "trades": 751,
+          "pnl": 51269.88696999849,
+          "dd": 17226.039999999164,
+          "pnl_over_dd": 2.976301400089689,
+          "win_rate": 0.4194407456724368,
+          "long_pnl": 53292.64271999853,
+          "short_pnl": -2022.755750000027,
+          "top1_loss_share": 0.01525326929742639,
+          "top5_loss_share": 0.06476234748174206,
+          "forced_like_exit_share": 0.0,
+          "trap_signature": {
+            "definition": "long & entry_ext_dist>0.006 & a37_fast_deg>0.8 & hold<=120",
+            "count": 21,
+            "loss_abs": 16575.319999999738,
+            "loss_share": 0.10063656756369536
+          },
+          "medians": {
+            "entry_ext_dist": 0.0032837550705041856,
+            "loss_entry_ext_dist": 0.0033929934929010225,
+            "hold_bars": 83.0,
+            "loss_hold_bars": 50.0,
+            "loss_a37_fast_deg": 0.43307400531027346
+          }
+        },
+        "final_score": {
+          "composite": 10.264378079515295,
+          "trap_share": 0.10063656756369536,
+          "trap_share_delta_vs_base": 0.0023541516926120776,
+          "short_pnl_delta_vs_base": -185.51078999999777
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 1,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 3,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.95,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.35
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 751,
+            "win_rate": 0.4194407456724368,
+            "pnl": 51269.88696999849,
+            "roi": 0.5126988696999849,
+            "dd": 17226.039999999164,
+            "dd_pct": 0.17226039999999165,
+            "pnl_over_dd": 2.976301400089689
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1283,
+            "win_rate": 0.3990646921278254,
+            "pnl": 45513.81948000213,
+            "roi": 0.4551381948000213,
+            "dd": 17197.809399999707,
+            "dd_pct": 0.17197809399999708,
+            "pnl_over_dd": 2.6464893534639886
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.2973549756441298,
+          "delta_1y_pnl": 7499.880630000116,
+          "delta_2y_pdd": 1.474015295548585,
+          "delta_2y_pnl": 17816.950389999936,
+          "min_pdd_delta": 0.2973549756441298,
+          "min_pnl_delta": 7499.880630000116
+        },
+        "forensics_1y": {
+          "trades": 751,
+          "pnl": 51269.88696999849,
+          "dd": 17226.039999999164,
+          "pnl_over_dd": 2.976301400089689,
+          "win_rate": 0.4194407456724368,
+          "long_pnl": 53292.64271999853,
+          "short_pnl": -2022.755750000027,
+          "top1_loss_share": 0.01525326929742639,
+          "top5_loss_share": 0.06476234748174206,
+          "forced_like_exit_share": 0.0,
+          "trap_signature": {
+            "definition": "long & entry_ext_dist>0.006 & a37_fast_deg>0.8 & hold<=120",
+            "count": 21,
+            "loss_abs": 16575.319999999738,
+            "loss_share": 0.10063656756369536
+          },
+          "medians": {
+            "entry_ext_dist": 0.0032837550705041856,
+            "loss_entry_ext_dist": 0.0033929934929010225,
+            "hold_bars": 83.0,
+            "loss_hold_bars": 50.0,
+            "loss_a37_fast_deg": 0.43307400531027346
+          }
+        },
+        "final_score": {
+          "composite": 10.264378079515295,
+          "trap_share": 0.10063656756369536,
+          "trap_share_delta_vs_base": 0.0023541516926120776,
+          "short_pnl_delta_vs_base": -185.51078999999777
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 1,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 3,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 0.98,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.35
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 751,
+            "win_rate": 0.4194407456724368,
+            "pnl": 51269.88696999849,
+            "roi": 0.5126988696999849,
+            "dd": 17226.039999999164,
+            "dd_pct": 0.17226039999999165,
+            "pnl_over_dd": 2.976301400089689
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1283,
+            "win_rate": 0.3990646921278254,
+            "pnl": 45513.81948000213,
+            "roi": 0.4551381948000213,
+            "dd": 17197.809399999707,
+            "dd_pct": 0.17197809399999708,
+            "pnl_over_dd": 2.6464893534639886
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.2973549756441298,
+          "delta_1y_pnl": 7499.880630000116,
+          "delta_2y_pdd": 1.474015295548585,
+          "delta_2y_pnl": 17816.950389999936,
+          "min_pdd_delta": 0.2973549756441298,
+          "min_pnl_delta": 7499.880630000116
+        },
+        "forensics_1y": {
+          "trades": 751,
+          "pnl": 51269.88696999849,
+          "dd": 17226.039999999164,
+          "pnl_over_dd": 2.976301400089689,
+          "win_rate": 0.4194407456724368,
+          "long_pnl": 53292.64271999853,
+          "short_pnl": -2022.755750000027,
+          "top1_loss_share": 0.01525326929742639,
+          "top5_loss_share": 0.06476234748174206,
+          "forced_like_exit_share": 0.0,
+          "trap_signature": {
+            "definition": "long & entry_ext_dist>0.006 & a37_fast_deg>0.8 & hold<=120",
+            "count": 21,
+            "loss_abs": 16575.319999999738,
+            "loss_share": 0.10063656756369536
+          },
+          "medians": {
+            "entry_ext_dist": 0.0032837550705041856,
+            "loss_entry_ext_dist": 0.0033929934929010225,
+            "hold_bars": 83.0,
+            "loss_hold_bars": 50.0,
+            "loss_a37_fast_deg": 0.43307400531027346
+          }
+        },
+        "final_score": {
+          "composite": 10.264378079515295,
+          "trap_share": 0.10063656756369536,
+          "trap_share_delta_vs_base": 0.0023541516926120776,
+          "short_pnl_delta_vs_base": -185.51078999999777
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 0,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 1.0,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.35
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 748,
+            "win_rate": 0.42112299465240643,
+            "pnl": 50934.33459999843,
+            "roi": 0.5093433459999843,
+            "dd": 17184.179999999178,
+            "dd_pct": 0.17184179999999177,
+            "pnl_over_dd": 2.964024736705555
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1277,
+            "win_rate": 0.4009397024275646,
+            "pnl": 45305.380550002104,
+            "roi": 0.45305380550002106,
+            "dd": 17177.649399999675,
+            "dd_pct": 0.17177649399999675,
+            "pnl_over_dd": 2.637461010818102
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.285078312259996,
+          "delta_1y_pnl": 7164.328260000053,
+          "delta_2y_pdd": 1.4649869529026984,
+          "delta_2y_pnl": 17608.51145999991,
+          "min_pdd_delta": 0.285078312259996,
+          "min_pnl_delta": 7164.328260000053
+        },
+        "forensics_1y": {
+          "trades": 748,
+          "pnl": 50934.33459999843,
+          "dd": 17184.179999999178,
+          "pnl_over_dd": 2.964024736705555,
+          "win_rate": 0.42112299465240643,
+          "long_pnl": 52897.72557999848,
+          "short_pnl": -1963.3909800000301,
+          "top1_loss_share": 0.015267111662266067,
+          "top5_loss_share": 0.06482321031328997,
+          "forced_like_exit_share": 0.0,
+          "trap_signature": {
+            "definition": "long & entry_ext_dist>0.006 & a37_fast_deg>0.8 & hold<=120",
+            "count": 21,
+            "loss_abs": 16535.709999999737,
+            "loss_share": 0.10073417015988453
+          },
+          "medians": {
+            "entry_ext_dist": 0.0032845000177545193,
+            "loss_entry_ext_dist": 0.0033927056827820967,
+            "hold_bars": 83.5,
+            "loss_hold_bars": 51.0,
+            "loss_a37_fast_deg": 0.4358531240749361
+          }
+        },
+        "final_score": {
+          "composite": 9.864447819712,
+          "trap_share": 0.10073417015988453,
+          "trap_share_delta_vs_base": 0.0024517542888012472,
+          "short_pnl_delta_vs_base": -126.14602000000082
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 1,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 1.0,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.35
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 748,
+            "win_rate": 0.42112299465240643,
+            "pnl": 50934.33459999843,
+            "roi": 0.5093433459999843,
+            "dd": 17184.179999999178,
+            "dd_pct": 0.17184179999999177,
+            "pnl_over_dd": 2.964024736705555
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1277,
+            "win_rate": 0.4009397024275646,
+            "pnl": 45305.380550002104,
+            "roi": 0.45305380550002106,
+            "dd": 17177.649399999675,
+            "dd_pct": 0.17177649399999675,
+            "pnl_over_dd": 2.637461010818102
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.285078312259996,
+          "delta_1y_pnl": 7164.328260000053,
+          "delta_2y_pdd": 1.4649869529026984,
+          "delta_2y_pnl": 17608.51145999991,
+          "min_pdd_delta": 0.285078312259996,
+          "min_pnl_delta": 7164.328260000053
+        },
+        "forensics_1y": {
+          "trades": 748,
+          "pnl": 50934.33459999843,
+          "dd": 17184.179999999178,
+          "pnl_over_dd": 2.964024736705555,
+          "win_rate": 0.42112299465240643,
+          "long_pnl": 52897.72557999848,
+          "short_pnl": -1963.3909800000301,
+          "top1_loss_share": 0.015267111662266067,
+          "top5_loss_share": 0.06482321031328997,
+          "forced_like_exit_share": 0.0,
+          "trap_signature": {
+            "definition": "long & entry_ext_dist>0.006 & a37_fast_deg>0.8 & hold<=120",
+            "count": 21,
+            "loss_abs": 16535.709999999737,
+            "loss_share": 0.10073417015988453
+          },
+          "medians": {
+            "entry_ext_dist": 0.0032845000177545193,
+            "loss_entry_ext_dist": 0.0033927056827820967,
+            "hold_bars": 83.5,
+            "loss_hold_bars": 51.0,
+            "loss_a37_fast_deg": 0.4358531240749361
+          }
+        },
+        "final_score": {
+          "composite": 9.864447819712,
+          "trap_share": 0.10073417015988453,
+          "trap_share_delta_vs_base": 0.0024517542888012472,
+          "short_pnl_delta_vs_base": -126.14602000000082
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 0,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 1.0,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.4
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 748,
+            "win_rate": 0.42112299465240643,
+            "pnl": 50934.33459999843,
+            "roi": 0.5093433459999843,
+            "dd": 17184.179999999178,
+            "dd_pct": 0.17184179999999177,
+            "pnl_over_dd": 2.964024736705555
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1277,
+            "win_rate": 0.4009397024275646,
+            "pnl": 45305.380550002104,
+            "roi": 0.45305380550002106,
+            "dd": 17177.649399999675,
+            "dd_pct": 0.17177649399999675,
+            "pnl_over_dd": 2.637461010818102
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.285078312259996,
+          "delta_1y_pnl": 7164.328260000053,
+          "delta_2y_pdd": 1.4649869529026984,
+          "delta_2y_pnl": 17608.51145999991,
+          "min_pdd_delta": 0.285078312259996,
+          "min_pnl_delta": 7164.328260000053
+        },
+        "forensics_1y": {
+          "trades": 748,
+          "pnl": 50934.33459999843,
+          "dd": 17184.179999999178,
+          "pnl_over_dd": 2.964024736705555,
+          "win_rate": 0.42112299465240643,
+          "long_pnl": 52897.72557999848,
+          "short_pnl": -1963.3909800000301,
+          "top1_loss_share": 0.015267111662266067,
+          "top5_loss_share": 0.06482321031328997,
+          "forced_like_exit_share": 0.0,
+          "trap_signature": {
+            "definition": "long & entry_ext_dist>0.006 & a37_fast_deg>0.8 & hold<=120",
+            "count": 21,
+            "loss_abs": 16535.709999999737,
+            "loss_share": 0.10073417015988453
+          },
+          "medians": {
+            "entry_ext_dist": 0.0032845000177545193,
+            "loss_entry_ext_dist": 0.0033927056827820967,
+            "hold_bars": 83.5,
+            "loss_hold_bars": 51.0,
+            "loss_a37_fast_deg": 0.4358531240749361
+          }
+        },
+        "final_score": {
+          "composite": 9.864447819712,
+          "trap_share": 0.10073417015988453,
+          "trap_share_delta_vs_base": 0.0024517542888012472,
+          "short_pnl_delta_vs_base": -126.14602000000082
+        }
+      },
+      {
+        "params": {
+          "ema_spread_min_pct": 0.00075,
+          "flip_exit_min_hold_bars": 1,
+          "flip_exit_mode": "cross",
+          "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+          "ratsv_adverse_release_tr_ratio_min": 1.0325,
+          "ratsv_branch_a_cross_age_max_bars": 4,
+          "ratsv_probe_cancel_max_bars": 5,
+          "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+          "ratsv_probe_cancel_tr_ratio_min": 1.0,
+          "spot_branch_a_size_mult": 0.45,
+          "spot_branch_b_size_mult": 1.4
+        },
+        "windows": [
+          {
+            "name": "1y",
+            "start": "2025-01-08",
+            "end": "2026-01-08",
+            "trades": 748,
+            "win_rate": 0.42112299465240643,
+            "pnl": 50934.33459999843,
+            "roi": 0.5093433459999843,
+            "dd": 17184.179999999178,
+            "dd_pct": 0.17184179999999177,
+            "pnl_over_dd": 2.964024736705555
+          },
+          {
+            "name": "2y",
+            "start": "2024-01-08",
+            "end": "2026-01-08",
+            "trades": 1277,
+            "win_rate": 0.4009397024275646,
+            "pnl": 45305.380550002104,
+            "roi": 0.45305380550002106,
+            "dd": 17177.649399999675,
+            "dd_pct": 0.17177649399999675,
+            "pnl_over_dd": 2.637461010818102
+          }
+        ],
+        "flags": {
+          "trades_lock_1y": true,
+          "beats_1y": true,
+          "beats_2y": true,
+          "dethrone": true
+        },
+        "score": {
+          "delta_1y_pdd": 0.285078312259996,
+          "delta_1y_pnl": 7164.328260000053,
+          "delta_2y_pdd": 1.4649869529026984,
+          "delta_2y_pnl": 17608.51145999991,
+          "min_pdd_delta": 0.285078312259996,
+          "min_pnl_delta": 7164.328260000053
+        },
+        "forensics_1y": {
+          "trades": 748,
+          "pnl": 50934.33459999843,
+          "dd": 17184.179999999178,
+          "pnl_over_dd": 2.964024736705555,
+          "win_rate": 0.42112299465240643,
+          "long_pnl": 52897.72557999848,
+          "short_pnl": -1963.3909800000301,
+          "top1_loss_share": 0.015267111662266067,
+          "top5_loss_share": 0.06482321031328997,
+          "forced_like_exit_share": 0.0,
+          "trap_signature": {
+            "definition": "long & entry_ext_dist>0.006 & a37_fast_deg>0.8 & hold<=120",
+            "count": 21,
+            "loss_abs": 16535.709999999737,
+            "loss_share": 0.10073417015988453
+          },
+          "medians": {
+            "entry_ext_dist": 0.0032845000177545193,
+            "loss_entry_ext_dist": 0.0033927056827820967,
+            "hold_bars": 83.5,
+            "loss_hold_bars": 51.0,
+            "loss_a37_fast_deg": 0.4358531240749361
+          }
+        },
+        "final_score": {
+          "composite": 9.864447819712,
+          "trap_share": 0.10073417015988453,
+          "trap_share_delta_vs_base": 0.0024517542888012472,
+          "short_pnl_delta_vs_base": -126.14602000000082
+        }
+      }
+    ]
+  }
+}
