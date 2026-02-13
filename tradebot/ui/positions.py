@@ -195,6 +195,22 @@ class PositionDetailScreen(Screen):
         self._render_details_if_mounted(sample=False)
 
     @staticmethod
+    def _flat_item_snapshot(item: PortfolioItem) -> PortfolioItem:
+        realized = _safe_num(getattr(item, "realizedPNL", None)) or 0.0
+        market_price = _safe_num(getattr(item, "marketPrice", None)) or 0.0
+        account = str(getattr(item, "account", "") or "")
+        return PortfolioItem(
+            contract=item.contract,
+            position=0.0,
+            marketPrice=float(market_price),
+            marketValue=0.0,
+            averageCost=0.0,
+            unrealizedPNL=0.0,
+            realizedPNL=float(realized),
+            account=account,
+        )
+
+    @staticmethod
     def _quote_num(value: float | None) -> float | None:
         num = _safe_num(value)
         if num is None or num <= 0:
@@ -1275,8 +1291,11 @@ class PositionDetailScreen(Screen):
         try:
             con_id = int(self._item.contract.conId or 0)
             latest = self._client.portfolio_item(con_id) if con_id else None
-            if latest:
+            if latest is not None:
                 self._item = latest
+            elif con_id and float(getattr(self._item, "position", 0.0) or 0.0) != 0.0:
+                # Filled-to-flat positions disappear from portfolio(); don't keep stale nonzero qty.
+                self._item = self._flat_item_snapshot(self._item)
             contract = self._item.contract
             bid = self._quote_num(self._ticker.bid) if self._ticker else None
             ask = self._quote_num(self._ticker.ask) if self._ticker else None
