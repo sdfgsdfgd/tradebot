@@ -44,6 +44,7 @@ from .common import (
     _ticker_price,
     _unrealized_pnl_values,
 )
+from .favorites import FavoritesScreen
 from .positions import PositionDetailScreen
 from .store import PortfolioSnapshot
 
@@ -68,7 +69,8 @@ class PositionsApp(App):
     _PX_24_72_COL_WIDTH = 32
     _QTY_COL_WIDTH = 7
     _UNREAL_COL_WIDTH = 30
-    _REALIZED_COL_WIDTH = 12
+    _REALIZED_COL_WIDTH = 14
+    _CLOSES_RETRY_SEC = 30.0
     _SEARCH_MODES = ("STK", "FUT", "OPT", "FOP")
     _SEARCH_LIMIT = 5
     _SEARCH_FETCH_LIMIT = 96
@@ -87,6 +89,7 @@ class PositionsApp(App):
         ("j", "cursor_down", "Down"),
         ("k", "cursor_up", "Up"),
         ("l", "open_details", "Details"),
+        ("f", "open_favorites", "Favorites"),
         ("ctrl+f", "toggle_search", "Search"),
         ("ctrl+t", "toggle_bot", "Bot"),
     ]
@@ -275,6 +278,7 @@ class PositionsApp(App):
         self._pnl: PnL | None = None
         self._ticker_con_ids: set[int] = set()
         self._session_closes_by_con_id: dict[int, tuple[float | None, float | None]] = {}
+        self._closes_retry_at_by_con_id: dict[int, float] = {}
         self._option_underlying_con_id: dict[int, int] = {}
         self._ticker_loading: set[int] = set()
         self._closes_loading: set[int] = set()
@@ -292,7 +296,6 @@ class PositionsApp(App):
             None,
         )
         self._buying_power_daily_anchor: float | None = None
-        self._marker_row = -1
         self._quote_signature_by_con_id: dict[
             int, tuple[float | None, float | None, float | None, float | None]
         ] = {}
@@ -318,6 +321,7 @@ class PositionsApp(App):
         yield DataTable(
             id="positions",
             zebra_stripes=True,
+            show_row_labels=False,
             cursor_foreground_priority="renderable",
             cursor_background_priority="css",
         )
@@ -334,7 +338,6 @@ class PositionsApp(App):
         self._setup_columns()
         self._table.cursor_type = "row"
         self._table.focus()
-        self._sync_row_marker(force=True)
         self._bot_runtime.install(self)
         self._client.set_update_callback(self._mark_dirty)
         await self.refresh_positions()
@@ -350,8 +353,8 @@ class PositionsApp(App):
             "Qty",
             "AvgCost",
             "Px 24-72",
-            "Unreal",
-            "Realized",
+            "Unreal (Pos)",
+            "Realized (Pos)",
         ]
         self._column_count = len(self._columns)
         for label in self._columns:
@@ -365,12 +368,12 @@ class PositionsApp(App):
                     label.center(self._QTY_COL_WIDTH),
                     width=self._QTY_COL_WIDTH,
                 )
-            elif label == "Unreal":
+            elif label.startswith("Unreal"):
                 self._table.add_column(
                     label.center(self._UNREAL_COL_WIDTH),
                     width=self._UNREAL_COL_WIDTH,
                 )
-            elif label == "Realized":
+            elif label.startswith("Realized"):
                 self._table.add_column(
                     label.center(self._REALIZED_COL_WIDTH),
                     width=self._REALIZED_COL_WIDTH,
@@ -425,11 +428,13 @@ class PositionsApp(App):
         row_key = self._row_keys[row_index]
         item = self._row_item_by_key.get(row_key)
         if item:
+            con_id = int(getattr(item.contract, "conId", 0) or 0)
             self.push_screen(
                 PositionDetailScreen(
                     self._client,
                     item,
                     self._config.detail_refresh_sec,
+                    session_closes=self._session_closes_by_con_id.get(con_id),
                 )
             )
 
@@ -437,6 +442,11 @@ class PositionsApp(App):
         if self._search_active:
             self._close_search()
         self._bot_runtime.toggle(self)
+
+    def action_open_favorites(self) -> None:
+        if self._search_active:
+            self._close_search()
+        self.push_screen(FavoritesScreen(self._client, self._config.detail_refresh_sec))
 
     def action_toggle_search(self) -> None:
         if self._search_active:
@@ -456,12 +466,6 @@ class PositionsApp(App):
                     self._config.detail_refresh_sec,
                 )
             )
-
-    def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
-        if self._search_active:
-            return
-        if event.control is self._table:
-            self._sync_row_marker()
 
     def on_key(self, event: events.Key) -> None:
         if self._search_active:
@@ -1131,12 +1135,12 @@ class PositionsApp(App):
         self._dirty_task = loop.create_task(self._flush_dirty())
 
     async def _flush_dirty(self) -> None:
-        while True:
-            await asyncio.sleep(self._config.refresh_sec)
-            if not self._dirty:
-                break
+        while self._dirty:
             self._dirty = False
             await self.refresh_positions()
+            if not self._dirty:
+                break
+            await asyncio.sleep(self._config.refresh_sec)
 
     def _render_table(self) -> None:
         prev_coord = self._table.cursor_coordinate
@@ -1171,51 +1175,38 @@ class PositionsApp(App):
         self._render_ticker_bar()
         self._status.update(self._status_text())
         self._restore_cursor(prev_row_key, prev_row_index, prev_column)
-        self._sync_row_marker(force=True)
-
-    def _sync_row_marker(self, *, force: bool = False) -> None:
-        if not hasattr(self, "_table"):
-            return
-        current_row = int(getattr(self._table.cursor_coordinate, "row", -1) or -1)
-        previous_row = -1 if force else int(self._marker_row)
-        if not force and previous_row == current_row:
-            return
-        self._set_row_marker(previous_row, active=False)
-        self._set_row_marker(current_row, active=True)
-        self._marker_row = current_row
-
-    def _set_row_marker(self, row_index: int, *, active: bool) -> None:
-        if row_index < 0 or row_index >= self._table.row_count:
-            return
-        row = self._table.ordered_rows[row_index]
-        marker = Text("▌", style="bold #2c82c9") if active else Text(" ")
-        prev = row.label if isinstance(row.label, Text) else Text(str(row.label or ""))
-        if prev.plain == marker.plain and str(prev.style or "") == str(marker.style or ""):
-            return
-        row.label = marker
-        self._table.refresh_row(row_index)
 
     def _maybe_update_netliq_anchor(self) -> None:
         value, _currency, updated_at = self._net_liq
-        if value is None or updated_at is None:
+        if value is None:
+            return
+        daily = _pnl_value(self._pnl)
+        if daily is None:
+            return
+        if self._net_liq_daily_anchor is None:
+            self._net_liq_daily_anchor = daily
+        if updated_at is None:
             return
         if not hasattr(self, "_net_liq_updated_at") or self._net_liq_updated_at != updated_at:
-            daily = _pnl_value(self._pnl)
-            if daily is not None:
-                self._net_liq_daily_anchor = daily
+            self._net_liq_daily_anchor = daily
             self._net_liq_updated_at = updated_at
 
     def _maybe_update_buying_power_anchor(self) -> None:
         value, _currency, updated_at = self._buying_power
-        if value is None or updated_at is None:
+        if value is None:
+            return
+        daily = _pnl_value(self._pnl)
+        if daily is None:
+            return
+        if self._buying_power_daily_anchor is None:
+            self._buying_power_daily_anchor = daily
+        if updated_at is None:
             return
         if (
             not hasattr(self, "_buying_power_updated_at")
             or self._buying_power_updated_at != updated_at
         ):
-            daily = _pnl_value(self._pnl)
-            if daily is not None:
-                self._buying_power_daily_anchor = daily
+            self._buying_power_daily_anchor = daily
             self._buying_power_updated_at = updated_at
 
     def _sync_session_tickers(self) -> None:
@@ -1238,6 +1229,7 @@ class PositionsApp(App):
         session = _market_session_label()
         base = f"IBKR {conn} | last update: {ts} | rows: {self._row_count}"
         base = f"{base} | MKT: {session} | MD: [L]=Live [D]=Delayed"
+        base = f"{base} | PnL rows=position(U/R), daily=account day move"
         if self._snapshot.error:
             return f"{base} | error: {self._snapshot.error}"
         return base
@@ -1256,7 +1248,10 @@ class PositionsApp(App):
         if not rows:
             return
         header_key = f"header:{sec_type}"
-        self._table.add_row(*self._section_header_row(title, sec_type), key=header_key)
+        self._table.add_row(
+            *self._section_header_row(title, sec_type),
+            key=header_key,
+        )
         self._row_keys.append(header_key)
         for item in rows:
             row_key = f"{sec_type}:{item.contract.conId}"
@@ -1310,6 +1305,7 @@ class PositionsApp(App):
         pnl_text = _pnl_text(total_pnl)
         pct_text = _pnl_pct_value(pct)
         unreal_text = _combined_value_pct(pnl_text, pct_text)
+        unreal_text = self._center_cell(unreal_text, self._UNREAL_COL_WIDTH)
         realized_text = _pnl_text(total_real)
         realized_text = self._center_cell(realized_text, self._REALIZED_COL_WIDTH)
         self._table.add_row(
@@ -1333,6 +1329,7 @@ class PositionsApp(App):
         label = Text("DAILY P&L", style=style)
         blank = Text("")
         daily_text = _pnl_text(float(daily))
+        daily_text = self._center_cell(daily_text, self._UNREAL_COL_WIDTH)
         self._table.add_row(
             label,
             blank,
@@ -1347,20 +1344,15 @@ class PositionsApp(App):
     def _add_net_liq_row(
         self, net_liq: tuple[float | None, str | None, datetime | None], pnl: PnL | None
     ) -> None:
-        value, currency, _updated_at = net_liq
+        value, _currency, _updated_at = net_liq
         if value is None:
             return
         style = "bold white on #1f1f1f"
         label = Text("NET LIQ", style=style)
         blank = Text("")
-        amount = _fmt_money(value)
-        if currency:
-            amount = f"{amount} {currency}"
-        unreal_cell = Text(amount)
         est_value = _estimate_net_liq(value, pnl, self._net_liq_daily_anchor)
-        if est_value is not None:
-            unreal_cell.append(" ", style="dim")
-            unreal_cell.append(f"~{_fmt_money(est_value)}", style="yellow")
+        shown_value = est_value if est_value is not None else value
+        unreal_cell = Text(_fmt_money(shown_value))
         amount_text = self._center_cell(unreal_cell, self._UNREAL_COL_WIDTH)
         self._table.add_row(
             label,
@@ -1378,20 +1370,15 @@ class PositionsApp(App):
         buying_power: tuple[float | None, str | None, datetime | None],
         pnl: PnL | None,
     ) -> None:
-        value, currency, _updated_at = buying_power
+        value, _currency, _updated_at = buying_power
         if value is None:
             return
         style = "bold white on #1f1f1f"
         label = Text("BUYING POWER", style=style)
         blank = Text("")
-        amount = _fmt_money(value)
-        if currency:
-            amount = f"{amount} {currency}"
-        unreal_cell = Text(amount)
         est_value = _estimate_buying_power(value, pnl, self._buying_power_daily_anchor)
-        if est_value is not None:
-            unreal_cell.append(" ", style="dim")
-            unreal_cell.append(f"~{_fmt_money(est_value)}", style="yellow")
+        shown_value = est_value if est_value is not None else value
+        unreal_cell = Text(_fmt_money(shown_value))
         amount_text = self._center_cell(unreal_cell, self._UNREAL_COL_WIDTH)
         self._table.add_row(
             label,
@@ -1437,8 +1424,19 @@ class PositionsApp(App):
         self._mark_dirty()
 
     def _start_closes_load(self, con_id: int, contract: Contract) -> None:
-        if con_id in self._session_closes_by_con_id or con_id in self._closes_loading:
+        cached = self._session_closes_by_con_id.get(con_id)
+        if cached is not None and cached[1] is not None:
             return
+        if con_id in self._closes_loading:
+            return
+        if cached is not None:
+            now = time.monotonic()
+            retry_at = self._closes_retry_at_by_con_id.get(con_id, 0.0)
+            if now < retry_at:
+                return
+            self._closes_retry_at_by_con_id[con_id] = now + self._CLOSES_RETRY_SEC
+        else:
+            self._closes_retry_at_by_con_id.pop(con_id, None)
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
@@ -1450,7 +1448,14 @@ class PositionsApp(App):
         try:
             prev_close, close_3ago = await self._client.session_closes(contract)
             self._session_closes_by_con_id[con_id] = (prev_close, close_3ago)
+            if close_3ago is not None:
+                self._closes_retry_at_by_con_id.pop(con_id, None)
+            else:
+                self._closes_retry_at_by_con_id[con_id] = (
+                    time.monotonic() + self._CLOSES_RETRY_SEC
+                )
         except Exception:
+            self._closes_retry_at_by_con_id[con_id] = time.monotonic() + self._CLOSES_RETRY_SEC
             return
         finally:
             self._closes_loading.discard(con_id)
@@ -1486,17 +1491,33 @@ class PositionsApp(App):
     def _contract_change_text(self, item: PortfolioItem) -> Text:
         contract = item.contract
         con_id = int(getattr(contract, "conId", 0) or 0)
-        return self._change_text_for_con_id(con_id)
+        return self._change_text_for_con_id(con_id, item=item)
 
-    def _change_text_for_con_id(self, con_id: int) -> Text:
+    def _change_text_for_con_id(self, con_id: int, *, item: PortfolioItem | None = None) -> Text:
         if not con_id:
             return Text("")
         ticker = self._client.ticker_for_con_id(con_id)
-        price = _ticker_price(ticker) if ticker else None
-        prev_close = _ticker_close(ticker) if ticker else None
+        bid = _safe_num(getattr(ticker, "bid", None)) if ticker else None
+        ask = _safe_num(getattr(ticker, "ask", None)) if ticker else None
+        last = _safe_num(getattr(ticker, "last", None)) if ticker else None
+        has_live_quote = bool(
+            (bid is not None and ask is not None and bid > 0 and ask > 0 and bid <= ask)
+            or (last is not None and last > 0)
+        )
+        quote_price = _ticker_price(ticker) if ticker else None
+        price = quote_price
+        if price is None and item is not None:
+            sec_type = str(getattr(item.contract, "secType", "") or "").strip().upper()
+            if sec_type in ("OPT", "FOP"):
+                mark_price, _is_estimate = self._mark_price(item)
+                if mark_price is not None:
+                    price = float(mark_price)
         cached = self._session_closes_by_con_id.get(con_id)
-        if prev_close is None and cached:
+        ticker_close = _ticker_close(ticker) if ticker else None
+        if (not has_live_quote) and cached and cached[0] is not None:
             prev_close = cached[0]
+        else:
+            prev_close = ticker_close if ticker_close is not None else (cached[0] if cached else None)
         close_3ago = cached[1] if cached else None
         pct24 = _pct_change(price, prev_close)
         pct72 = _pct_change(price, close_3ago)
@@ -1514,7 +1535,7 @@ class PositionsApp(App):
                 with_glyph.append(" ")
             with_glyph.append_text(text)
             text = with_glyph
-        age_sec = self._quote_age_seconds(con_id, ticker, price)
+        age_sec = self._quote_age_seconds(con_id, ticker, price if price is not None else quote_price)
         ribbon = self._quote_age_ribbon(age_sec)
         if ribbon.plain:
             if text.plain:
@@ -1580,7 +1601,14 @@ class PositionsApp(App):
             return Text(""), Text("")
         mark_price, is_estimate = self._mark_price(item)
         pnl, pct = _unrealized_pnl_values(item, mark_price=mark_price)
-        prefix = "~" if is_estimate and mark_price is not None and pnl is not None else ""
+        raw_unreal = _safe_num(getattr(item, "unrealizedPNL", None))
+        is_modeled = (
+            raw_unreal is None
+            and is_estimate
+            and mark_price is not None
+            and pnl is not None
+        )
+        prefix = "~" if is_modeled else ""
         return _pnl_text(pnl, prefix=prefix), _pnl_pct_value(pct)
 
     def _mark_price(self, item: PortfolioItem) -> tuple[float | None, bool]:
@@ -1602,6 +1630,7 @@ class PositionsApp(App):
     ) -> tuple[float | None, bool]:
         bid = _safe_num(getattr(option_ticker, "bid", None)) if option_ticker else None
         ask = _safe_num(getattr(option_ticker, "ask", None)) if option_ticker else None
+        portfolio_mark = _safe_num(getattr(item, "marketPrice", None))
         direct_price = None
         if (
             bid is not None
@@ -1615,8 +1644,12 @@ class PositionsApp(App):
             last = _safe_num(getattr(option_ticker, "last", None)) if option_ticker else None
             if last is not None and last > 0:
                 direct_price = float(last)
-        if item.contract.secType == "FOP" and direct_price is not None:
+        if direct_price is not None:
             return direct_price, False
+        if item.contract.secType == "FOP":
+            if portfolio_mark is not None and portfolio_mark > 0:
+                return float(portfolio_mark), False
+            return None, False
 
         option_con_id = int(getattr(item.contract, "conId", 0) or 0)
         under_con_id = self._option_underlying_con_id.get(option_con_id)
@@ -1631,10 +1664,7 @@ class PositionsApp(App):
             under_close = cached[0] if cached else None
         ref_price = _safe_num(getattr(option_ticker, "close", None)) if option_ticker else None
         if ref_price is None:
-            try:
-                ref_price = float(item.marketPrice)
-            except (TypeError, ValueError):
-                ref_price = None
+            ref_price = portfolio_mark
         if (
             under_price is not None
             and under_price > 0
@@ -1651,8 +1681,6 @@ class PositionsApp(App):
         model_price = _safe_num(getattr(model, "optPrice", None)) if model else None
         if model_price is not None and model_price > 0:
             return float(model_price), True
-        if direct_price is not None:
-            return float(direct_price), False
         if ref_price is not None and ref_price > 0:
             return float(ref_price), True
         return None, False

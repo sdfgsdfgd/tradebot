@@ -7,7 +7,7 @@ import math
 import re
 import time
 from dataclasses import dataclass
-from datetime import date, datetime, time as dtime, timezone
+from datetime import date, datetime, time as dtime, timedelta, timezone
 from typing import Callable, Iterable
 from zoneinfo import ZoneInfo
 
@@ -176,6 +176,8 @@ class IBKRClient:
         self._connect_proxy_lock = asyncio.Lock()
         self._lock = asyncio.Lock()
         self._proxy_lock = asyncio.Lock()
+        self._historical_lock = asyncio.Lock()
+        self._historical_proxy_lock = asyncio.Lock()
         self._account_updates_started = False
         self._index_contracts: dict[str, Contract] = {}
         self._index_tickers: dict[str, Ticker] = {}
@@ -417,11 +419,7 @@ class IBKRClient:
                 req_contract = copy.copy(contract)
                 req_contract.exchange = "OVERNIGHT"
             else:
-                primary_exchange = getattr(contract, "primaryExchange", "") or ""
-                if (not contract.exchange or contract.exchange == "SMART") and primary_exchange:
-                    req_contract = copy.copy(contract)
-                    req_contract.exchange = primary_exchange
-                elif not contract.exchange:
+                if not contract.exchange:
                     req_contract = copy.copy(contract)
                     req_contract.exchange = "SMART"
         elif contract.secType in ("OPT", "FOP"):
@@ -551,6 +549,10 @@ class IBKRClient:
         if sec_type in ("STK", "OPT") and not getattr(contract, "exchange", ""):
             req_contract = copy.copy(contract)
             req_contract.exchange = "SMART"
+        elif sec_type == "FOP" and not getattr(contract, "exchange", ""):
+            req_contract = copy.copy(contract)
+            primary_exchange = getattr(contract, "primaryExchange", "") or ""
+            req_contract.exchange = primary_exchange or "CME"
         return req_contract
 
     async def _request_historical_data(
@@ -688,42 +690,123 @@ class IBKRClient:
     ) -> tuple[float | None, float | None]:
         """Return (prev_close, close_3_sessions_ago) for the given contract.
 
-        Uses 1-day bars with useRTH=True and a small in-memory TTL cache to
+        Uses daily bars first, then falls back to intraday TRADES/MIDPOINT anchoring
+        for sparse option/FOP history, with a small in-memory TTL cache to
         avoid pacing issues.
         """
+        sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
         con_id = int(getattr(contract, "conId", 0) or 0)
         if not con_id:
             return None, None
         cached = self._session_close_cache.get(con_id)
         if cached:
             prev_close, close_3ago, cached_at = cached
-            if time.monotonic() - cached_at < cache_ttl_sec:
+            ttl = 30.0 if close_3ago is None else cache_ttl_sec
+            if time.monotonic() - cached_at < ttl:
                 return prev_close, close_3ago
         use_proxy = contract.secType in ("STK", "OPT")
-        lock = self._proxy_lock if use_proxy else self._lock
+        lock = self._historical_proxy_lock if use_proxy else self._historical_lock
         async with lock:
             cached = self._session_close_cache.get(con_id)
             if cached:
                 prev_close, close_3ago, cached_at = cached
-                if time.monotonic() - cached_at < cache_ttl_sec:
+                ttl = 30.0 if close_3ago is None else cache_ttl_sec
+                if time.monotonic() - cached_at < ttl:
                     return prev_close, close_3ago
+            duration_str = "1 M" if sec_type in ("OPT", "FOP") else "2 W"
+            use_rth = sec_type not in ("OPT", "FOP")
+
+            def _extract_closes(raw_bars: list | None) -> list[float]:
+                closes: list[float] = []
+                for bar in raw_bars or []:
+                    try:
+                        value = float(getattr(bar, "close", 0.0) or 0.0)
+                    except (TypeError, ValueError):
+                        continue
+                    if value > 0:
+                        closes.append(value)
+                return closes
+
             bars = await self._request_historical_data(
                 contract,
-                duration_str="2 W",
+                duration_str=duration_str,
                 bar_size="1 day",
                 what_to_show="TRADES",
-                use_rth=True,
+                use_rth=use_rth,
             )
-            closes: list[float] = []
-            for bar in bars or []:
-                try:
-                    value = float(getattr(bar, "close", 0.0) or 0.0)
-                except (TypeError, ValueError):
-                    continue
-                if value > 0:
-                    closes.append(value)
+            closes = _extract_closes(bars)
+            if sec_type in ("OPT", "FOP") and len(closes) < 4:
+                midpoint_bars = await self._request_historical_data(
+                    contract,
+                    duration_str=duration_str,
+                    bar_size="1 day",
+                    what_to_show="MIDPOINT",
+                    use_rth=use_rth,
+                )
+                midpoint_closes = _extract_closes(midpoint_bars)
+                if len(midpoint_closes) > len(closes):
+                    closes = midpoint_closes
             prev_close = closes[-1] if closes else None
             close_3ago = closes[-4] if len(closes) >= 4 else None
+            if close_3ago is None and sec_type in ("OPT", "FOP"):
+                intraday: list[tuple[datetime, float]] = []
+                best_intraday: list[tuple[datetime, float]] = []
+                best_days = 0
+                best_last: datetime | None = None
+                for what in ("TRADES", "MIDPOINT"):
+                    bars_1h = await self._request_historical_data(
+                        contract,
+                        duration_str="10 D",
+                        bar_size="1 hour",
+                        what_to_show=what,
+                        use_rth=False,
+                    )
+                    current: list[tuple[datetime, float]] = []
+                    for bar in bars_1h or []:
+                        dt = self._ib_bar_datetime(getattr(bar, "date", None))
+                        if dt is None:
+                            continue
+                        try:
+                            value = float(getattr(bar, "close", 0.0) or 0.0)
+                        except (TypeError, ValueError):
+                            continue
+                        if value > 0:
+                            current.append((dt, value))
+                    if not current:
+                        continue
+                    current.sort(key=lambda entry: entry[0])
+                    day_count = len({entry[0].date() for entry in current})
+                    last_dt = current[-1][0]
+                    if (
+                        day_count > best_days
+                        or (day_count == best_days and (best_last is None or last_dt > best_last))
+                    ):
+                        best_intraday = current
+                        best_days = day_count
+                        best_last = last_dt
+                intraday = best_intraday
+                if intraday:
+                    by_day: dict[date, float] = {}
+                    for dt, value in sorted(intraday, key=lambda entry: entry[0]):
+                        by_day[dt.date()] = value
+                    days = sorted(by_day.keys())
+                    values = [by_day[key] for key in days]
+                    ref_idx = len(days) - 1
+                    today_et = datetime.now(tz=_ET_ZONE).date()
+                    for idx in range(len(days) - 1, -1, -1):
+                        if days[idx] < today_et:
+                            ref_idx = idx
+                            break
+                    if prev_close is None and values:
+                        prev_close = values[ref_idx]
+                    target_idx = ref_idx - 3
+                    if target_idx >= 0:
+                        close_3ago = values[target_idx]
+                    else:
+                        # Keep 72h truthful: only use an observation at/before T-72h.
+                        target = datetime.now() - timedelta(hours=72)
+                        candidates = [entry for entry in intraday if entry[0] <= target]
+                        close_3ago = candidates[-1][1] if candidates else None
             self._session_close_cache[con_id] = (
                 prev_close,
                 close_3ago,
@@ -780,7 +863,7 @@ class IBKRClient:
             return cached_bars
 
         use_proxy = sec_type in ("STK", "OPT")
-        lock = self._proxy_lock if use_proxy else self._lock
+        lock = self._historical_proxy_lock if use_proxy else self._historical_lock
         async with lock:
             cached_bars = _cached_bars(self._historical_bar_cache.get(key))
             if cached_bars is not None:
@@ -859,7 +942,7 @@ class IBKRClient:
             return cached_bars
 
         use_proxy = sec_type in ("STK", "OPT")
-        lock = self._proxy_lock if use_proxy else self._lock
+        lock = self._historical_proxy_lock if use_proxy else self._historical_lock
         async with lock:
             cached_bars = _cached_bars(self._historical_bar_ohlcv_cache.get(key))
             if cached_bars is not None:
@@ -1877,9 +1960,6 @@ class IBKRClient:
                 continue
             if result:
                 contract = result[0]
-                primary_exchange = getattr(contract, "primaryExchange", "") or ""
-                if contract.exchange == "SMART" and primary_exchange:
-                    contract.exchange = primary_exchange
                 qualified[symbol] = contract
         return qualified
 
@@ -2065,7 +2145,7 @@ class IBKRClient:
                 num = float(value)
             except (TypeError, ValueError):
                 continue
-            if not math.isnan(num) and num != 0:
+            if not math.isnan(num) and num > 0:
                 return True
         return False
 
@@ -2126,11 +2206,7 @@ class IBKRClient:
                     req_contract = copy.copy(contract)
                     req_contract.exchange = "OVERNIGHT"
                 else:
-                    primary_exchange = getattr(contract, "primaryExchange", "") or ""
-                    if (not contract.exchange or contract.exchange == "SMART") and primary_exchange:
-                        req_contract = copy.copy(contract)
-                        req_contract.exchange = primary_exchange
-                    elif not contract.exchange:
+                    if not contract.exchange:
                         req_contract = copy.copy(contract)
                         req_contract.exchange = "SMART"
             elif contract.secType in ("OPT", "FOP"):

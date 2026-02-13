@@ -84,7 +84,12 @@ class PositionDetailScreen(Screen):
     }
 
     def __init__(
-        self, client: IBKRClient, item: PortfolioItem, refresh_sec: float
+        self,
+        client: IBKRClient,
+        item: PortfolioItem,
+        refresh_sec: float,
+        *,
+        session_closes: tuple[float | None, float | None] | None = None,
     ) -> None:
         super().__init__()
         self._client = client
@@ -138,6 +143,9 @@ class PositionDetailScreen(Screen):
         self._flow_prev_price: float | None = None
         self._flow_last_size: float | None = None
         self._flow_last_price: float | None = None
+        self._session_prev_close: float | None = session_closes[0] if session_closes else None
+        self._session_close_3ago: float | None = session_closes[1] if session_closes else None
+        self._closes_task: asyncio.Task | None = None
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -155,6 +163,11 @@ class PositionDetailScreen(Screen):
         self._detail_legend = self.query_one("#detail-legend", Static)
         self._ticker = await self._client.ensure_ticker(self._item.contract, owner="details")
         self._client.add_stream_listener(self._capture_tick_mid)
+        try:
+            loop = asyncio.get_running_loop()
+            self._closes_task = loop.create_task(self._load_session_closes())
+        except RuntimeError:
+            self._closes_task = None
         await self._load_underlying()
         self._refresh_task = self.set_interval(self._refresh_sec, self._render_details)
         self._render_details()
@@ -163,11 +176,29 @@ class PositionDetailScreen(Screen):
         self._client.remove_stream_listener(self._capture_tick_mid)
         if self._refresh_task:
             self._refresh_task.stop()
+        if self._closes_task and not self._closes_task.done():
+            self._closes_task.cancel()
         con_id = int(self._item.contract.conId or 0)
         if con_id:
             self._client.release_ticker(con_id, owner="details")
         if self._underlying_con_id:
             self._client.release_ticker(self._underlying_con_id, owner="details")
+
+    async def _load_session_closes(self) -> None:
+        try:
+            prev_close, close_3ago = await self._client.session_closes(self._item.contract)
+        except Exception:
+            return
+        self._session_prev_close = prev_close
+        self._session_close_3ago = close_3ago
+        self._render_details_if_mounted(sample=False)
+
+    @staticmethod
+    def _quote_num(value: float | None) -> float | None:
+        num = _safe_num(value)
+        if num is None or num <= 0:
+            return None
+        return num
 
     def on_key(self, event: events.Key) -> None:
         if event.key == "backspace":
@@ -524,9 +555,9 @@ class PositionDetailScreen(Screen):
         ticker = self._ticker
         if ticker is None:
             return
-        bid = _safe_num(getattr(ticker, "bid", None))
-        ask = _safe_num(getattr(ticker, "ask", None))
-        last = _safe_num(getattr(ticker, "last", None))
+        bid = self._quote_num(getattr(ticker, "bid", None))
+        ask = self._quote_num(getattr(ticker, "ask", None))
+        last = self._quote_num(getattr(ticker, "last", None))
         last_size = _safe_num(getattr(ticker, "lastSize", None))
         bid_size = _safe_num(getattr(ticker, "bidSize", None))
         ask_size = _safe_num(getattr(ticker, "askSize", None))
@@ -545,6 +576,7 @@ class PositionDetailScreen(Screen):
             total_volume,
         )
         if signature == self._last_tick_signature:
+            self._render_details_if_mounted(sample=False)
             return
         self._last_tick_signature = signature
 
@@ -576,6 +608,7 @@ class PositionDetailScreen(Screen):
         if flow_qty is not None and flow_qty > 0:
             direction = self._flow_direction(price=last or mid_value, imbalance=imbalance)
             self._record_volume_flow(flow_qty * direction, ts=now)
+        self._render_details_if_mounted(sample=False)
 
     def _record_market_samples(
         self,
@@ -1244,9 +1277,9 @@ class PositionDetailScreen(Screen):
             if latest:
                 self._item = latest
             contract = self._item.contract
-            bid = _safe_num(self._ticker.bid) if self._ticker else None
-            ask = _safe_num(self._ticker.ask) if self._ticker else None
-            last = _safe_num(self._ticker.last) if self._ticker else None
+            bid = self._quote_num(self._ticker.bid) if self._ticker else None
+            ask = self._quote_num(self._ticker.ask) if self._ticker else None
+            last = self._quote_num(self._ticker.last) if self._ticker else None
             price = _ticker_price(self._ticker) if self._ticker else None
             mid = _midpoint(bid, ask)
             close = _ticker_close(self._ticker) if self._ticker else None
@@ -1326,7 +1359,10 @@ class PositionDetailScreen(Screen):
         inner = max(panel_width - 2, 24)
         spark_width = inner
         pnl_value, _ = _unrealized_pnl_values(self._item, mark_price=price or mark)
+        raw_unreal = _safe_num(getattr(self._item, "unrealizedPNL", None))
         pnl_label = _fmt_money(pnl_value) if pnl_value is not None else "n/a"
+        if raw_unreal is None and pnl_value is not None:
+            pnl_label = f"~{pnl_label}"
         position_qty = float(self._item.position or 0.0)
         avg_cost = (
             _fmt_money(float(self._item.averageCost))
@@ -1357,6 +1393,16 @@ class PositionDetailScreen(Screen):
             if self._ticker
             else Text("MD Quotes: n/a", style="dim")
         )
+        close_only_badge_row: Text | None = None
+        if self._ticker:
+            md_type = getattr(self._ticker, "marketDataType", None)
+            is_delayed = md_type in (3, 4)
+            has_live_quote = bool(
+                (bid is not None and ask is not None and bid <= ask)
+                or (last is not None)
+            )
+            if is_delayed and (not has_live_quote) and close is not None and close > 0:
+                close_only_badge_row = Text("CLOSE-ONLY DELAYED FEED", style="bold black on yellow")
 
         quote_row = Text("Bid ")
         quote_row.append(_fmt_quote(bid), style="green")
@@ -1413,9 +1459,21 @@ class PositionDetailScreen(Screen):
 
         detail_row = Text(f"Avg {avg_cost}   MktVal {market_value}")
         ref_price = mid or price or mark
+        has_live_quote = bool(
+            (bid is not None and ask is not None and bid <= ask)
+            or (last is not None)
+        )
+        pct_baseline = close
+        if (
+            contract.secType in ("OPT", "FOP")
+            and not has_live_quote
+            and self._session_prev_close is not None
+            and self._session_prev_close > 0
+        ):
+            pct_baseline = float(self._session_prev_close)
         pct24 = (
-            ((float(ref_price) - float(close)) / float(close) * 100.0)
-            if ref_price is not None and close is not None and close > 0
+            ((float(ref_price) - float(pct_baseline)) / float(pct_baseline) * 100.0)
+            if ref_price is not None and pct_baseline is not None and pct_baseline > 0
             else None
         )
         if pct24 is not None and position_qty < 0:
@@ -1460,6 +1518,8 @@ class PositionDetailScreen(Screen):
             self._box_row(momentum_label_row, inner, style="#2d8fd5"),
             self._box_row(momentum_row, inner, style="#2d8fd5"),
         ]
+        if close_only_badge_row is not None:
+            lines.insert(3, self._box_row(close_only_badge_row, inner, style="#2d8fd5"))
         if contract.lastTradeDateOrContractMonth:
             expiry = _fmt_expiry(contract.lastTradeDateOrContractMonth)
             meta = Text(f"Expiry {expiry}")
@@ -1470,9 +1530,9 @@ class PositionDetailScreen(Screen):
             lines.append(self._box_row(meta, inner, style="#2d8fd5"))
         if self._underlying_ticker:
             label = self._underlying_label or "Underlying"
-            ubid = _safe_num(self._underlying_ticker.bid)
-            uask = _safe_num(self._underlying_ticker.ask)
-            ulast = _safe_num(self._underlying_ticker.last)
+            ubid = self._quote_num(self._underlying_ticker.bid)
+            uask = self._quote_num(self._underlying_ticker.ask)
+            ulast = self._quote_num(self._underlying_ticker.last)
             under_row = Text(f"{label}: ")
             under_row.append(f"{_fmt_quote(ubid)}/{_fmt_quote(uask)}/{_fmt_quote(ulast)}", style="cyan")
             lines.append(self._box_row(under_row, inner, style="#2d8fd5"))
@@ -1483,9 +1543,9 @@ class PositionDetailScreen(Screen):
         contract = self._item.contract
         if contract.secType not in ("STK", "OPT"):
             return []
-        bid = _safe_num(self._ticker.bid) if self._ticker else None
-        ask = _safe_num(self._ticker.ask) if self._ticker else None
-        last = _safe_num(self._ticker.last) if self._ticker else None
+        bid = self._quote_num(self._ticker.bid) if self._ticker else None
+        ask = self._quote_num(self._ticker.ask) if self._ticker else None
+        last = self._quote_num(self._ticker.last) if self._ticker else None
         mark = _mark_price(self._item)
         last_ref = last or mark
         tick = _tick_size(contract, self._ticker, last_ref)
@@ -1866,9 +1926,9 @@ class PositionDetailScreen(Screen):
         self._render_details_if_mounted(sample=False)
 
     def _initial_exec_price(self, action: str, *, mode: str = "AUTO") -> float | None:
-        bid = _safe_num(self._ticker.bid) if self._ticker else None
-        ask = _safe_num(self._ticker.ask) if self._ticker else None
-        last = _safe_num(self._ticker.last) if self._ticker else None
+        bid = self._quote_num(self._ticker.bid) if self._ticker else None
+        ask = self._quote_num(self._ticker.ask) if self._ticker else None
+        last = self._quote_num(self._ticker.last) if self._ticker else None
         mark = _mark_price(self._item)
         last_ref = last or mark
         tick = _tick_size(self._item.contract, self._ticker, last_ref)
@@ -1892,9 +1952,9 @@ class PositionDetailScreen(Screen):
         last: float | None = None,
         ticker: Ticker | None = None,
     ) -> float | None:
-        bid = bid if bid is not None else (_safe_num(self._ticker.bid) if self._ticker else None)
-        ask = ask if ask is not None else (_safe_num(self._ticker.ask) if self._ticker else None)
-        last = last if last is not None else (_safe_num(self._ticker.last) if self._ticker else None)
+        bid = bid if bid is not None else (self._quote_num(self._ticker.bid) if self._ticker else None)
+        ask = ask if ask is not None else (self._quote_num(self._ticker.ask) if self._ticker else None)
+        last = last if last is not None else (self._quote_num(self._ticker.last) if self._ticker else None)
         mark = _mark_price(self._item)
         last_ref = last or mark
         tick = _tick_size(self._item.contract, ticker or self._ticker, last_ref)
@@ -1951,9 +2011,9 @@ class PositionDetailScreen(Screen):
                     return
 
                 ticker = self._client.ticker_for_con_id(con_id) if con_id else None
-                bid = _safe_num(getattr(ticker, "bid", None)) if ticker else None
-                ask = _safe_num(getattr(ticker, "ask", None)) if ticker else None
-                last = _safe_num(getattr(ticker, "last", None)) if ticker else None
+                bid = self._quote_num(getattr(ticker, "bid", None)) if ticker else None
+                ask = self._quote_num(getattr(ticker, "ask", None)) if ticker else None
+                last = self._quote_num(getattr(ticker, "last", None)) if ticker else None
                 quote_sig = _exec_chase_quote_signature(bid, ask, last)
                 should_reprice = _exec_chase_should_reprice(
                     now_sec=loop_now,

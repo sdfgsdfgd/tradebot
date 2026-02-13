@@ -1326,6 +1326,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         Bot Hub presets are intentionally limited to promoted CURRENT champions documented in:
         - `tradebot/backtest/README.md` (TQQQ spot champ)
         - `backtests/slv/README.md` (SLV spot champ)
+        - `backtests/slv/readme-hf.md` (SLV HF spot champ)
         """
 
         repo_root = Path(__file__).resolve().parents[2]
@@ -1454,6 +1455,44 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             version_label = slv_ver or "?"
             group = _load_champion_group(symbol="SLV", version=version_label, path=slv_path)
             if group is not None:
+                groups.append(group)
+
+        # SLV HF CURRENT (from backtests/slv/readme-hf.md)
+        slv_hf_readme_path = repo_root / "backtests" / "slv" / "readme-hf.md"
+        slv_hf_readme = _read_text(slv_hf_readme_path)
+        slv_hf_ver: str | None = None
+        slv_hf_path: Path | None = None
+        if slv_hf_readme:
+            head = re.search(
+                r"^###\s+CURRENT(?:\s+\(v(?P<ver>[^)]+)\))?",
+                slv_hf_readme,
+                flags=re.MULTILINE | re.IGNORECASE,
+            )
+            if head:
+                slv_hf_ver = str(head.group("ver") or "").strip() or None
+                tail = slv_hf_readme[head.end() :]
+                next_head = re.search(r"^###\s+", tail, flags=re.MULTILINE)
+                section = tail[: next_head.start()] if next_head else tail
+                match = re.search(r"`(?P<path>backtests/slv/[^`]+\.json)`", section)
+                if match is None:
+                    match = re.search(r"(?P<path>backtests/slv/[^\s)]+\.json)", section)
+                if match:
+                    slv_hf_path = _resolve_existing_json(match.group("path"))
+
+            if slv_hf_path is None:
+                slv_dir = repo_root / "backtests" / "slv"
+                candidates = sorted(slv_dir.glob("slv_hf_champions_v*.json"))
+                if candidates:
+                    slv_hf_path = max(candidates, key=lambda p: p.stat().st_mtime)
+
+        if slv_hf_path:
+            version_label = f"HF{slv_hf_ver}" if slv_hf_ver else "HF?"
+            group = _load_champion_group(symbol="SLV", version=version_label, path=slv_hf_path)
+            if group is not None:
+                group["_source"] = f"champion:SLV:HF:v{slv_hf_ver or '?'}"
+                name = str(group.get("name") or "")
+                if name and "[HF]" not in name:
+                    group["name"] = f"{name} [HF]"
                 groups.append(group)
 
         has_champions = bool(groups)

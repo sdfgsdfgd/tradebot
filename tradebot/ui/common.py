@@ -119,15 +119,31 @@ def _unrealized_pnl_values(
     if fallback_unreal is not None and math.isnan(fallback_unreal):
         fallback_unreal = None
 
+    sec_type = str(getattr(getattr(item, "contract", None), "secType", "") or "").strip().upper()
+
     try:
         position = float(getattr(item, "position", 0.0) or 0.0)
     except (TypeError, ValueError):
         position = 0.0
 
+    cost_basis = _cost_basis(item)
+
+    def _fallback_pct() -> float | None:
+        market_value = getattr(item, "marketValue", None)
+        try:
+            market_value_f = float(market_value) if market_value is not None else 0.0
+        except (TypeError, ValueError):
+            market_value_f = 0.0
+        denom_local = abs(cost_basis) if cost_basis else abs(market_value_f)
+        return (fallback_unreal / denom_local * 100.0) if denom_local > 0 and fallback_unreal is not None else None
+
+    # FOP quotes are often sparse/noisy intraday; prefer broker-reported unrealized
+    # when available so homescreen/details stay sign-consistent.
+    if sec_type == "FOP" and fallback_unreal is not None:
+        return fallback_unreal, _fallback_pct()
+
     if mark_price is None:
         mark_price = _mark_price(item)
-
-    cost_basis = _cost_basis(item)
     if mark_price is not None and position:
         multiplier = _infer_multiplier(item)
         mark_value = float(mark_price) * float(position) * float(multiplier)
@@ -138,14 +154,7 @@ def _unrealized_pnl_values(
 
     if fallback_unreal is None:
         return None, None
-    market_value = getattr(item, "marketValue", None)
-    try:
-        market_value_f = float(market_value) if market_value is not None else 0.0
-    except (TypeError, ValueError):
-        market_value_f = 0.0
-    denom = abs(cost_basis) if cost_basis else abs(market_value_f)
-    pct = (fallback_unreal / denom * 100.0) if denom > 0 else None
-    return fallback_unreal, pct
+    return fallback_unreal, _fallback_pct()
 
 
 def _pnl_pct_text(item: PortfolioItem, *, mark_price: float | None = None) -> Text:
@@ -212,13 +221,30 @@ def _price_pct_dual_text(
     separator: str = "·",
     center_width: int | None = None,
 ) -> Text:
+    price_width = 9
+    pct_width = 7
+
+    def _pct_field(value: float | None) -> str:
+        if value is None:
+            return " " * pct_width
+        # Reserve a sign slot so positives and negatives align vertically.
+        return f"{value: .2f}%".rjust(pct_width)
+
     text = Text("")
     if price is not None:
         style = _pct_style(pct24) if pct24 is not None else ""
-        text.append(f"{price:,.2f}", style=style)
-        if pct24 is not None or pct72 is not None:
-            text.append(" ")
-    text.append_text(_pct_dual_text(pct24, pct72, separator=separator))
+        text.append(f"{price:,.2f}".rjust(price_width), style=style)
+    elif pct24 is not None or pct72 is not None:
+        text.append(" " * price_width, style="dim")
+
+    if pct24 is not None or pct72 is not None:
+        if price is not None:
+            text.append(" ¦ ", style="grey35")
+        text.append(_pct_field(pct24), style=_pct_style(pct24) if pct24 is not None else "dim")
+        sep_style = "red" if separator == "-" else "dim"
+        text.append(f" {separator} ", style=sep_style)
+        text.append(_pct_field(pct72), style=_pct_style(pct72) if pct72 is not None else "dim")
+
     if center_width and center_width > 0:
         pad = int(center_width) - len(text.plain)
         if pad > 0:
@@ -319,7 +345,7 @@ def _ticker_close(ticker: Ticker) -> float | None:
             num = float(value)
         except (TypeError, ValueError):
             continue
-        if math.isnan(num) or num == 0:
+        if math.isnan(num) or num <= 0:
             continue
         return num
     return None
@@ -347,8 +373,8 @@ def _quote_status_line(ticker: Ticker) -> Text:
     bid = _safe_num(getattr(ticker, "bid", None))
     ask = _safe_num(getattr(ticker, "ask", None))
     last = _safe_num(getattr(ticker, "last", None))
-    bid_ask = "ok" if bid is not None and ask is not None else "n/a"
-    last_label = "ok" if last is not None else "n/a"
+    bid_ask = "ok" if bid is not None and ask is not None and bid > 0 and ask > 0 and bid <= ask else "n/a"
+    last_label = "ok" if last is not None and last > 0 else "n/a"
     return Text(f"MD Quotes: bid/ask {bid_ask} · last {last_label}", style="dim")
 
 
@@ -537,6 +563,8 @@ def _cost_basis(item: PortfolioItem) -> float:
 
 def _midpoint(bid: float | None, ask: float | None) -> float | None:
     if bid is None or ask is None:
+        return None
+    if bid <= 0 or ask <= 0 or bid > ask:
         return None
     return (bid + ask) / 2.0
 
