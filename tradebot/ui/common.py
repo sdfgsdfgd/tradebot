@@ -119,8 +119,6 @@ def _unrealized_pnl_values(
     if fallback_unreal is not None and math.isnan(fallback_unreal):
         fallback_unreal = None
 
-    sec_type = str(getattr(getattr(item, "contract", None), "secType", "") or "").strip().upper()
-
     try:
         position = float(getattr(item, "position", 0.0) or 0.0)
     except (TypeError, ValueError):
@@ -137,9 +135,9 @@ def _unrealized_pnl_values(
         denom_local = abs(cost_basis) if cost_basis else abs(market_value_f)
         return (fallback_unreal / denom_local * 100.0) if denom_local > 0 and fallback_unreal is not None else None
 
-    # FOP quotes are often sparse/noisy intraday; prefer broker-reported unrealized
-    # when available so homescreen/details stay sign-consistent.
-    if sec_type == "FOP" and fallback_unreal is not None:
+    # Truth-first PnL: prefer broker-reported unrealized whenever available.
+    # Modeled mark-based unrealized is only a fallback when broker unrealized is missing.
+    if fallback_unreal is not None:
         return fallback_unreal, _fallback_pct()
 
     if mark_price is None:

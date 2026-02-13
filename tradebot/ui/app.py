@@ -1171,7 +1171,7 @@ class PositionsApp(App):
             self._row_keys.append(spacer_key)
             self._add_buying_power_row(self._buying_power, self._pnl)
         self._add_total_row(items)
-        self._add_daily_row(self._pnl)
+        self._add_daily_row(self._pnl, self._net_liq[1] or self._buying_power[1])
         self._add_net_liq_row(self._net_liq, self._pnl)
         self._render_ticker_bar()
         self._status.update(self._status_text())
@@ -1301,7 +1301,7 @@ class PositionsApp(App):
         denom = total_cost if total_cost > 0 else total_mkt
         pct = (total_pnl / denom * 100.0) if denom > 0 else None
         style = "bold white on #1f1f1f"
-        label = Text("TOTAL (U+R)", style=style)
+        label = Text("TOTAL (U+R, POS)", style=style)
         blank = Text("")
         pnl_text = _pnl_text(total_pnl)
         pct_text = _pnl_pct_value(pct)
@@ -1320,14 +1320,19 @@ class PositionsApp(App):
         )
         self._row_keys.append("total")
 
-    def _add_daily_row(self, pnl: PnL | None) -> None:
+    @staticmethod
+    def _account_label(base: str, currency: str | None) -> str:
+        curr = str(currency or "").strip().upper()
+        return f"{base} ({curr})" if curr else base
+
+    def _add_daily_row(self, pnl: PnL | None, currency: str | None = None) -> None:
         if not pnl:
             return
         daily = pnl.dailyPnL
         if daily is None or (isinstance(daily, float) and math.isnan(daily)):
             return
         style = "bold white on #1f1f1f"
-        label = Text("DAILY P&L", style=style)
+        label = Text(self._account_label("DAILY P&L", currency), style=style)
         blank = Text("")
         daily_text = _pnl_text(float(daily))
         daily_text = self._center_cell(daily_text, self._UNREAL_COL_WIDTH)
@@ -1345,11 +1350,11 @@ class PositionsApp(App):
     def _add_net_liq_row(
         self, net_liq: tuple[float | None, str | None, datetime | None], pnl: PnL | None
     ) -> None:
-        value, _currency, _updated_at = net_liq
+        value, currency, _updated_at = net_liq
         if value is None:
             return
         style = "bold white on #1f1f1f"
-        label = Text("NET LIQ", style=style)
+        label = Text(self._account_label("NET LIQ", currency), style=style)
         blank = Text("")
         est_value = _estimate_net_liq(value, pnl, self._net_liq_daily_anchor)
         shown_value = est_value if est_value is not None else value
@@ -1371,11 +1376,11 @@ class PositionsApp(App):
         buying_power: tuple[float | None, str | None, datetime | None],
         pnl: PnL | None,
     ) -> None:
-        value, _currency, _updated_at = buying_power
+        value, currency, _updated_at = buying_power
         if value is None:
             return
         style = "bold white on #1f1f1f"
-        label = Text("BUYING POWER", style=style)
+        label = Text(self._account_label("BUYING POWER", currency), style=style)
         blank = Text("")
         est_value = _estimate_buying_power(value, pnl, self._buying_power_daily_anchor)
         shown_value = est_value if est_value is not None else value
