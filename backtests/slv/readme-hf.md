@@ -6,34 +6,34 @@ This file is the dedicated SLV high-frequency evolution track, separate from `ba
 
 ## Current Champions (stack)
 
-### CURRENT (v8) — 1Y+2Y Dethrone Crown (1m/1m, high-trade)
-Promoted from the strict eq+ trade-floor round-3b corridor (`1y trades >= prior king trades`).
+### CURRENT (v10) — 1Y+2Y Dethrone Crown (1m/1m, high-trade)
+Promoted from the timing-true symmetric hardening round-2 corridor (timing-only knob pass from v9).
 
-**v8 kingmaker #01 [HF-1Y/2Y]**
-- Preset file: `backtests/slv/slv_hf_champions_v8.json`
-- Source eval: `backtests/slv/slv_hf_v7_round3b_tradefloor752_20260213.json`
-- Variant id: `overlay_probe_neutral`
+**v10 kingmaker #01 [HF-1Y/2Y]**
+- Preset file: `backtests/slv/slv_hf_champions_v10.json`
+- Source eval: `backtests/slv/slv_hf_v10_timing_true_symmetry_round2_20260213.json`
+- Variant id: `timing_symm_r0240_c4_m24_v12`
 - Timeframe: `signal=1 min`, `exec=1 min`, `full24/5`
-- Core deltas vs prior HF crown (`v7 #01`): `ratsv_branch_a_slope_med_min_pct=0.000023` (from `0.00002`), `ratsv_branch_a_slope_vel_min_pct=0.000011` (from `0.00001`), `ratsv_probe_cancel_slope_adverse_min_pct=0.00029` (from `0.00030`), with trades preserved.
-- 1y (`2025-01-08 -> 2026-01-08`): trades **752**, pnl **54,350.24**, dd **14,633.78**, pnl/dd **3.7140**
-- 2y (`2024-01-08 -> 2026-01-08`): trades **1,285**, pnl **51,263.25**, dd **17,066.21**, pnl/dd **3.0038**
-- 1y long pnl: **56,261.77**
-- 1y short pnl: **-1,911.53**
+- Core deltas vs prior HF crown (`v9 #01`): `ratsv_branch_a_rank_min=0.0240` (from `0.0245`), `ratsv_branch_a_cross_age_max_bars=4` (from `5`), `ratsv_branch_a_slope_med_min_pct=0.000024` (same), `ratsv_branch_a_slope_vel_min_pct=0.000012` (same).
+- 1y (`2025-01-08 -> 2026-01-08`): trades **752**, pnl **54,828.72**, dd **14,678.58**, pnl/dd **3.7353**
+- 2y (`2024-01-08 -> 2026-01-08`): trades **1,285**, pnl **51,685.81**, dd **17,066.21**, pnl/dd **3.0285**
+- 1y long pnl: **56,741.26**
+- 1y short pnl: **-1,912.54**
 
 Promotion contract check:
-- `1y trades >= prior king trades (752)`: **PASS** (`752`)
+- `1y trades >= 733`: **PASS** (`752`)
 - `beat prior crown on 1y pnl + pnl/dd`: **PASS**
 - `beat prior crown on 2y pnl + pnl/dd`: **PASS**
 
-Dethrone delta vs prior HF crown (`v7 #01`):
-- 1y: `trades +0`, `pnl +296.07`, `dd +28.94`, `pnl/dd +0.0129`
-- 2y: `trades +0`, `pnl +285.30`, `dd -0.10`, `pnl/dd +0.0167`
+Dethrone delta vs prior HF crown (`v9 #01`):
+- 1y: `trades +0`, `pnl +288.59`, `dd +28.67`, `pnl/dd +0.0124`
+- 2y: `trades +0`, `pnl +282.13`, `dd +0.00`, `pnl/dd +0.0165`
 
 ### CURRENT 6M Crown (v8 reference) — quality anchor
 Kept separately as 6M quality anchor (this is not the 1Y/2Y HF dethrone crown).
 
 **v8 kingmaker #02 [HF-6M]**
-- Preset file: `backtests/slv/slv_hf_champions_v8.json`
+- Preset file: `backtests/slv/slv_hf_champions_v10.json`
 - Source eval: `backtests/slv/slv_rand221_ultratight_eval_20260213.json`
 - Variant id: `rand_025`
 - Timeframe: `signal=10 mins`, `exec=5 mins`, `full24/5`
@@ -67,6 +67,18 @@ Decision:
 - Not promoted because absolute 1Y pnl was lower than the crown at the time.
 
 ## Previous Crowns (references)
+
+### v9 — `timing_symm_r0245_c5_m24_v12` 1Y/2Y dethrone crown
+- Preset file: `backtests/slv/slv_hf_champions_v9.json`
+- Source eval: `backtests/slv/slv_hf_v9_timing_true_symmetry_20260213.json`
+- 1y: trades **752**, pnl **54,540.13**, dd **14,649.91**, pnl/dd **3.7229**
+- 2y: trades **1,285**, pnl **51,403.67**, dd **17,066.21**, pnl/dd **3.0120**
+
+### v8 — `overlay_probe_neutral` 1Y/2Y dethrone crown
+- Preset file: `backtests/slv/slv_hf_champions_v8.json`
+- Source eval: `backtests/slv/slv_hf_v7_round3b_tradefloor752_20260213.json`
+- 1y: trades **752**, pnl **54,350.24**, dd **14,633.78**, pnl/dd **3.7140**
+- 2y: trades **1,285**, pnl **51,263.25**, dd **17,066.21**, pnl/dd **3.0038**
 
 ### v7 — `r2_slope_early_rank024` 1Y/2Y dethrone crown
 - Preset file: `backtests/slv/slv_hf_champions_v7.json`
@@ -122,6 +134,53 @@ Decision:
 - 1y: trades **639**, pnl **28,265.14**, dd **11,446.03**, pnl/dd **2.4694**
 
 ## Evolutions (stack)
+
+### v10.0 — timing-true symmetric hardening round2 promotion (PROMOTED)
+Status: **DONE (PROMOTED)**
+
+Command used:
+```bash
+PYTHONPATH=/Users/x/Desktop/py/tradebot python /tmp/hf_v10_timing_true_symmetry_round2.py
+```
+
+Promotion basis:
+- Continued the timing-only corridor from v9 (no sizing sweep).
+- Focused again on `ratsv_branch_a_rank_min`, `ratsv_branch_a_cross_age_max_bars`, `ratsv_branch_a_slope_med_min_pct`, `ratsv_branch_a_slope_vel_min_pct`, with probe/release overlays.
+- Hard gate preserved: `1y trades >= 733` and beat prior king on 1Y+2Y for pnl and pnl/dd.
+
+Artifacts:
+- `backtests/slv/slv_hf_v10_timing_true_symmetry_round2_20260213.json`
+- `backtests/slv/slv_hf_v10_prod_recheck_20260213.json`
+- `backtests/slv/slv_hf_champions_v10.json`
+
+Outcome:
+- New king: `timing_symm_r0240_c4_m24_v12`
+- 1y: trades **752**, pnl **54,828.72**, dd **14,678.58**, pnl/dd **3.7353**
+- 2y: trades **1,285**, pnl **51,685.81**, dd **17,066.21**, pnl/dd **3.0285**
+- Dethrone delta vs v9: 1y `+288.59 pnl`, `+0.0124 pnl/dd`; 2y `+282.13 pnl`, `+0.0165 pnl/dd`.
+
+### v9.0 — timing-true symmetric hardening promotion (PROMOTED)
+Status: **DONE (PROMOTED)**
+
+Command used:
+```bash
+PYTHONPATH=/Users/x/Desktop/py/tradebot python /tmp/hf_v9_timing_true_symmetry.py
+```
+
+Promotion basis:
+- Kept the timing-only corridor (branch sizing frozen during search, production-size verification).
+- Focused on `ratsv_branch_a_rank_min`, `ratsv_branch_a_cross_age_max_bars`, `ratsv_branch_a_slope_med_min_pct`, `ratsv_branch_a_slope_vel_min_pct`, plus mild probe/release overlays.
+- Hard gate preserved: `1y trades >= 733` and beat prior king on 1Y+2Y for pnl and pnl/dd.
+
+Artifacts:
+- `backtests/slv/slv_hf_v9_timing_true_symmetry_20260213.json`
+- `backtests/slv/slv_hf_champions_v9.json`
+
+Outcome:
+- New king: `timing_symm_r0245_c5_m24_v12`
+- 1y: trades **752**, pnl **54,540.13**, dd **14,649.91**, pnl/dd **3.7229**
+- 2y: trades **1,285**, pnl **51,403.67**, dd **17,066.21**, pnl/dd **3.0120**
+- Dethrone delta vs v8: 1y `+189.89 pnl`, `+0.0089 pnl/dd`; 2y `+140.42 pnl`, `+0.0082 pnl/dd`.
 
 ### v8.0 — strict eq+ trade-floor promotion (PROMOTED)
 Status: **DONE (PROMOTED)**

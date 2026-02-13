@@ -1,0 +1,45 @@
+{
+  "name": "slv hf v10 production recheck from stage2 top candidates",
+  "generated_at": "2026-02-13T19:41:16.616866Z",
+  "source_eval": "backtests/slv/slv_hf_v10_timing_true_symmetry_round2_20260213.json",
+  "king_source": "backtests/slv/slv_hf_champions_v9.json",
+  "candidate": {
+    "name": "slope_r0240_c4_m24_v12",
+    "patch": {
+      "ratsv_branch_a_rank_min": 0.024,
+      "ratsv_branch_a_cross_age_max_bars": 4,
+      "ratsv_branch_a_slope_med_min_pct": 2.4e-05,
+      "ratsv_branch_a_slope_vel_min_pct": 1.2e-05
+    },
+    "window_1y": {
+      "trades": 752,
+      "pnl": 54828.722259998445,
+      "dd": 14678.584999999119,
+      "pnl_over_dd": 3.7352866274236747,
+      "win_rate": 0.42021276595744683,
+      "long_pnl": 56741.25823999845,
+      "short_pnl": -1912.535980000009
+    },
+    "window_2y": {
+      "trades": 1285,
+      "pnl": 51685.806230002134,
+      "dd": 17066.205409999617,
+      "pnl_over_dd": 3.028547060597186,
+      "win_rate": 0.3992217898832685,
+      "long_pnl": 55123.99898000214,
+      "short_pnl": -3438.19274999997
+    },
+    "deltas_vs_v9_king": {
+      "delta_1y_trades": 0,
+      "delta_1y_pnl": 288.590049999897,
+      "delta_1y_pdd": 0.012389108222960132,
+      "delta_2y_trades": 0,
+      "delta_2y_pnl": 282.132860000027,
+      "delta_2y_pdd": 0.01653166906304282,
+      "trade_floor_pass": true,
+      "beat_1y": true,
+      "beat_2y": true,
+      "dethrone": true
+    }
+  }
+}
