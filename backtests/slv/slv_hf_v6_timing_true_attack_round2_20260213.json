@@ -1,0 +1,1810 @@
+{
+  "name": "slv hf v6 timing-true attack pass round2",
+  "generated_at": "2026-02-13T11:03:01.230441Z",
+  "source": "/Users/x/Desktop/py/tradebot/backtests/slv/slv_hf_champions_v6.json",
+  "freeze_mult": 0.9,
+  "trade_floor_1y": 733,
+  "acceptance_gates": {
+    "min_changed_any_1y": 25,
+    "min_changed_any_2y": 40,
+    "min_short_improve_1y": 100.0,
+    "min_short_improve_2y": 150.0,
+    "dethrone": "beat king on 1Y+2Y pnl and pnl/dd with trades>=733"
+  },
+  "variant_count_stage1": 20,
+  "variant_count_stage2_frozen": 12,
+  "variant_count_stage3_prod": 6,
+  "stage1_top": [
+    {
+      "name": "r2_base",
+      "variant": "r2_base",
+      "patch": {},
+      "window_1y": {
+        "trades": 751,
+        "win_rate": 0.422103861517976,
+        "pnl": 48841.1573599986,
+        "roi": 0.488411573599986,
+        "dd": 16694.189999999187,
+        "dd_pct": 0.16694189999999187,
+        "pnl_over_dd": 2.925638042935954,
+        "name": "1y",
+        "start": "2025-01-08",
+        "end": "2026-01-08"
+      },
+      "deltas_vs_king_1y": {
+        "delta_1y_pnl": -4499.975069999891,
+        "delta_1y_pdd": -0.7434098841029613,
+        "trades_lock": true
+      }
+    },
+    {
+      "name": "r2_slope_med3e5",
+      "variant": "r2_slope_med3e5",
+      "patch": {
+        "ratsv_branch_a_rank_min": 0.023,
+        "ratsv_branch_a_slope_med_min_pct": 3e-05,
+        "ratsv_branch_a_slope_vel_min_pct": 1e-05,
+        "ratsv_branch_a_cross_age_max_bars": 6
+      },
+      "window_1y": {
+        "trades": 751,
+        "win_rate": 0.422103861517976,
+        "pnl": 48836.49258999855,
+        "roi": 0.4883649258999855,
+        "dd": 16694.229999999254,
+        "dd_pct": 0.16694229999999255,
+        "pnl_over_dd": 2.9253516089092297,
+        "name": "1y",
+        "start": "2025-01-08",
+        "end": "2026-01-08"
+      },
+      "deltas_vs_king_1y": {
+        "delta_1y_pnl": -4504.639839999945,
+        "delta_1y_pdd": -0.7436963181296856,
+        "trades_lock": true
+      }
+    },
+    {
+      "name": "r2_slope_cross5",
+      "variant": "r2_slope_cross5",
+      "patch": {
+        "ratsv_branch_a_rank_min": 0.023,
+        "ratsv_branch_a_slope_med_min_pct": 2e-05,
+        "ratsv_branch_a_slope_vel_min_pct": 1e-05,
+        "ratsv_branch_a_cross_age_max_bars": 5
+      },
+      "window_1y": {
+        "trades": 752,
+        "win_rate": 0.42154255319148937,
+        "pnl": 48715.58323999851,
+        "roi": 0.48715583239998506,
+        "dd": 16680.734999999317,
+        "dd_pct": 0.16680734999999317,
+        "pnl_over_dd": 2.9204698258200557,
+        "name": "1y",
+        "start": "2025-01-08",
+        "end": "2026-01-08"
+      },
+      "deltas_vs_king_1y": {
+        "delta_1y_pnl": -4625.549189999983,
+        "delta_1y_pdd": -0.7485781012188597,
+        "trades_lock": true
+      }
+    },
+    {
+      "name": "r2_slope_early",
+      "variant": "r2_slope_early",
+      "patch": {
+        "ratsv_branch_a_rank_min": 0.023,
+        "ratsv_branch_a_slope_med_min_pct": 2e-05,
+        "ratsv_branch_a_slope_vel_min_pct": 1e-05,
+        "ratsv_branch_a_cross_age_max_bars": 6
+      },
+      "window_1y": {
+        "trades": 752,
+        "win_rate": 0.42154255319148937,
+        "pnl": 48715.58323999851,
+        "roi": 0.48715583239998506,
+        "dd": 16680.734999999317,
+        "dd_pct": 0.16680734999999317,
+        "pnl_over_dd": 2.9204698258200557,
+        "name": "1y",
+        "start": "2025-01-08",
+        "end": "2026-01-08"
+      },
+      "deltas_vs_king_1y": {
+        "delta_1y_pnl": -4625.549189999983,
+        "delta_1y_pdd": -0.7485781012188597,
+        "trades_lock": true
+      }
+    },
+    {
+      "name": "r2_slope_early_rank024",
+      "variant": "r2_slope_early_rank024",
+      "patch": {
+        "ratsv_branch_a_rank_min": 0.024,
+        "ratsv_branch_a_slope_med_min_pct": 2e-05,
+        "ratsv_branch_a_slope_vel_min_pct": 1e-05,
+        "ratsv_branch_a_cross_age_max_bars": 6
+      },
+      "window_1y": {
+        "trades": 752,
+        "win_rate": 0.42154255319148937,
+        "pnl": 48715.58323999851,
+        "roi": 0.48715583239998506,
+        "dd": 16680.734999999317,
+        "dd_pct": 0.16680734999999317,
+        "pnl_over_dd": 2.9204698258200557,
+        "name": "1y",
+        "start": "2025-01-08",
+        "end": "2026-01-08"
+      },
+      "deltas_vs_king_1y": {
+        "delta_1y_pnl": -4625.549189999983,
+        "delta_1y_pdd": -0.7485781012188597,
+        "trades_lock": true
+      }
+    },
+    {
+      "name": "r2_rel_mild_c",
+      "variant": "r2_rel_mild_c",
+      "patch": {
+        "ratsv_branch_a_rank_min": 0.024,
+        "ratsv_branch_a_slope_med_min_pct": 2e-05,
+        "ratsv_branch_a_slope_vel_min_pct": 1e-05,
+        "ratsv_branch_a_cross_age_max_bars": 5,
+        "ratsv_adverse_release_min_hold_bars": 1,
+        "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+        "ratsv_adverse_release_tr_ratio_min": 1.0325
+      },
+      "window_1y": {
+        "trades": 752,
+        "win_rate": 0.42154255319148937,
+        "pnl": 48715.58323999851,
+        "roi": 0.48715583239998506,
+        "dd": 16680.734999999317,
+        "dd_pct": 0.16680734999999317,
+        "pnl_over_dd": 2.9204698258200557,
+        "name": "1y",
+        "start": "2025-01-08",
+        "end": "2026-01-08"
+      },
+      "deltas_vs_king_1y": {
+        "delta_1y_pnl": -4625.549189999983,
+        "delta_1y_pdd": -0.7485781012188597,
+        "trades_lock": true
+      }
+    },
+    {
+      "name": "r2_slope_early_rank025",
+      "variant": "r2_slope_early_rank025",
+      "patch": {
+        "ratsv_branch_a_rank_min": 0.025,
+        "ratsv_branch_a_slope_med_min_pct": 2e-05,
+        "ratsv_branch_a_slope_vel_min_pct": 1e-05,
+        "ratsv_branch_a_cross_age_max_bars": 6
+      },
+      "window_1y": {
+        "trades": 752,
+        "win_rate": 0.42154255319148937,
+        "pnl": 48673.08323999856,
+        "roi": 0.4867308323999856,
+        "dd": 16675.949999999313,
+        "dd_pct": 0.16675949999999312,
+        "pnl_over_dd": 2.91875924550029,
+        "name": "1y",
+        "start": "2025-01-08",
+        "end": "2026-01-08"
+      },
+      "deltas_vs_king_1y": {
+        "delta_1y_pnl": -4668.049189999932,
+        "delta_1y_pdd": -0.7502886815386254,
+        "trades_lock": true
+      }
+    },
+    {
+      "name": "r2_combo_mild_3",
+      "variant": "r2_combo_mild_3",
+      "patch": {
+        "ratsv_branch_a_rank_min": 0.025,
+        "ratsv_branch_a_slope_med_min_pct": 2e-05,
+        "ratsv_branch_a_slope_vel_min_pct": 1e-05,
+        "ratsv_branch_a_cross_age_max_bars": 5,
+        "ratsv_probe_cancel_max_bars": 5,
+        "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+        "ratsv_probe_cancel_tr_ratio_min": 0.95,
+        "ratsv_adverse_release_min_hold_bars": 1,
+        "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+        "ratsv_adverse_release_tr_ratio_min": 1.0325
+      },
+      "window_1y": {
+        "trades": 752,
+        "win_rate": 0.42154255319148937,
+        "pnl": 48673.08323999856,
+        "roi": 0.4867308323999856,
+        "dd": 16675.949999999313,
+        "dd_pct": 0.16675949999999312,
+        "pnl_over_dd": 2.91875924550029,
+        "name": "1y",
+        "start": "2025-01-08",
+        "end": "2026-01-08"
+      },
+      "deltas_vs_king_1y": {
+        "delta_1y_pnl": -4668.049189999932,
+        "delta_1y_pdd": -0.7502886815386254,
+        "trades_lock": true
+      }
+    },
+    {
+      "name": "r2_slope_vel15e6",
+      "variant": "r2_slope_vel15e6",
+      "patch": {
+        "ratsv_branch_a_rank_min": 0.023,
+        "ratsv_branch_a_slope_med_min_pct": 2e-05,
+        "ratsv_branch_a_slope_vel_min_pct": 1.5e-05,
+        "ratsv_branch_a_cross_age_max_bars": 6
+      },
+      "window_1y": {
+        "trades": 752,
+        "win_rate": 0.42154255319148937,
+        "pnl": 48541.05213999856,
+        "roi": 0.4854105213999856,
+        "dd": 16659.89499999932,
+        "dd_pct": 0.1665989499999932,
+        "pnl_over_dd": 2.9136469431530356,
+        "name": "1y",
+        "start": "2025-01-08",
+        "end": "2026-01-08"
+      },
+      "deltas_vs_king_1y": {
+        "delta_1y_pnl": -4800.080289999933,
+        "delta_1y_pdd": -0.7554009838858797,
+        "trades_lock": true
+      }
+    },
+    {
+      "name": "r2_probe_mild_c",
+      "variant": "r2_probe_mild_c",
+      "patch": {
+        "ratsv_branch_a_rank_min": 0.025,
+        "ratsv_branch_a_slope_med_min_pct": 2e-05,
+        "ratsv_branch_a_slope_vel_min_pct": 1e-05,
+        "ratsv_branch_a_cross_age_max_bars": 6,
+        "ratsv_probe_cancel_max_bars": 5,
+        "ratsv_probe_cancel_slope_adverse_min_pct": 0.00028,
+        "ratsv_probe_cancel_tr_ratio_min": 0.95
+      },
+      "window_1y": {
+        "trades": 755,
+        "win_rate": 0.4198675496688742,
+        "pnl": 48054.103309998565,
+        "roi": 0.48054103309998564,
+        "dd": 16609.044999999227,
+        "dd_pct": 0.16609044999999226,
+        "pnl_over_dd": 2.893249028466164,
+        "name": "1y",
+        "start": "2025-01-08",
+        "end": "2026-01-08"
+      },
+      "deltas_vs_king_1y": {
+        "delta_1y_pnl": -5287.0291199999265,
+        "delta_1y_pdd": -0.7757988985727513,
+        "trades_lock": true
+      }
+    },
+    {
+      "name": "r2_combo_recover_2y_a",
+      "variant": "r2_combo_recover_2y_a",
+      "patch": {
+        "ratsv_branch_a_rank_min": 0.024,
+        "ratsv_branch_a_slope_med_min_pct": 3e-05,
+        "ratsv_branch_a_slope_vel_min_pct": 1.5e-05,
+        "ratsv_branch_a_cross_age_max_bars": 5,
+        "ratsv_probe_cancel_max_bars": 4,
+        "ratsv_probe_cancel_slope_adverse_min_pct": 0.00028,
+        "ratsv_probe_cancel_tr_ratio_min": 0.95
+      },
+      "window_1y": {
+        "trades": 746,
+        "win_rate": 0.4249329758713137,
+        "pnl": 47452.39944999843,
+        "roi": 0.47452399449998434,
+        "dd": 16549.544999999285,
+        "dd_pct": 0.16549544999999286,
+        "pnl_over_dd": 2.8672932971873535,
+        "name": "1y",
+        "start": "2025-01-08",
+        "end": "2026-01-08"
+      },
+      "deltas_vs_king_1y": {
+        "delta_1y_pnl": -5888.732980000059,
+        "delta_1y_pdd": -0.8017546298515619,
+        "trades_lock": true
+      }
+    },
+    {
+      "name": "r2_probe_mild_a",
+      "variant": "r2_probe_mild_a",
+      "patch": {
+        "ratsv_branch_a_rank_min": 0.023,
+        "ratsv_branch_a_slope_med_min_pct": 2e-05,
+        "ratsv_branch_a_slope_vel_min_pct": 1e-05,
+        "ratsv_branch_a_cross_age_max_bars": 6,
+        "ratsv_probe_cancel_max_bars": 4,
+        "ratsv_probe_cancel_slope_adverse_min_pct": 0.00028,
+        "ratsv_probe_cancel_tr_ratio_min": 0.94
+      },
+      "window_1y": {
+        "trades": 747,
+        "win_rate": 0.4243641231593039,
+        "pnl": 47329.596439998364,
+        "roi": 0.4732959643999836,
+        "dd": 16536.319999999192,
+        "dd_pct": 0.1653631999999919,
+        "pnl_over_dd": 2.862160168646995,
+        "name": "1y",
+        "start": "2025-01-08",
+        "end": "2026-01-08"
+      },
+      "deltas_vs_king_1y": {
+        "delta_1y_pnl": -6011.535990000128,
+        "delta_1y_pdd": -0.8068877583919205,
+        "trades_lock": true
+      }
+    },
+    {
+      "name": "r2_probe_mild_b",
+      "variant": "r2_probe_mild_b",
+      "patch": {
+        "ratsv_branch_a_rank_min": 0.024,
+        "ratsv_branch_a_slope_med_min_pct": 2e-05,
+        "ratsv_branch_a_slope_vel_min_pct": 1e-05,
+        "ratsv_branch_a_cross_age_max_bars": 6,
+        "ratsv_probe_cancel_max_bars": 4,
+        "ratsv_probe_cancel_slope_adverse_min_pct": 0.00028,
+        "ratsv_probe_cancel_tr_ratio_min": 0.95
+      },
+      "window_1y": {
+        "trades": 747,
+        "win_rate": 0.4243641231593039,
+        "pnl": 47329.596439998364,
+        "roi": 0.4732959643999836,
+        "dd": 16536.319999999192,
+        "dd_pct": 0.1653631999999919,
+        "pnl_over_dd": 2.862160168646995,
+        "name": "1y",
+        "start": "2025-01-08",
+        "end": "2026-01-08"
+      },
+      "deltas_vs_king_1y": {
+        "delta_1y_pnl": -6011.535990000128,
+        "delta_1y_pdd": -0.8068877583919205,
+        "trades_lock": true
+      }
+    },
+    {
+      "name": "r2_combo_recover_2y_d",
+      "variant": "r2_combo_recover_2y_d",
+      "patch": {
+        "ratsv_branch_a_rank_min": 0.024,
+        "ratsv_branch_a_slope_med_min_pct": 2e-05,
+        "ratsv_branch_a_slope_vel_min_pct": 1e-05,
+        "ratsv_branch_a_cross_age_max_bars": 5,
+        "ratsv_probe_cancel_max_bars": 4,
+        "ratsv_probe_cancel_slope_adverse_min_pct": 0.00028,
+        "ratsv_probe_cancel_tr_ratio_min": 0.95,
+        "ratsv_adverse_release_min_hold_bars": 1,
+        "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+        "ratsv_adverse_release_tr_ratio_min": 1.0325
+      },
+      "window_1y": {
+        "trades": 747,
+        "win_rate": 0.4243641231593039,
+        "pnl": 47329.596439998364,
+        "roi": 0.4732959643999836,
+        "dd": 16536.319999999192,
+        "dd_pct": 0.1653631999999919,
+        "pnl_over_dd": 2.862160168646995,
+        "name": "1y",
+        "start": "2025-01-08",
+        "end": "2026-01-08"
+      },
+      "deltas_vs_king_1y": {
+        "delta_1y_pnl": -6011.535990000128,
+        "delta_1y_pdd": -0.8068877583919205,
+        "trades_lock": true
+      }
+    },
+    {
+      "name": "r2_combo_recover_2y_b",
+      "variant": "r2_combo_recover_2y_b",
+      "patch": {
+        "ratsv_branch_a_rank_min": 0.024,
+        "ratsv_branch_a_slope_med_min_pct": 3e-05,
+        "ratsv_branch_a_slope_vel_min_pct": 1.5e-05,
+        "ratsv_branch_a_cross_age_max_bars": 5,
+        "ratsv_adverse_release_min_hold_bars": 0,
+        "ratsv_adverse_release_slope_adverse_min_pct": 0.00068,
+        "ratsv_adverse_release_tr_ratio_min": 1.03
+      },
+      "window_1y": {
+        "trades": 813,
+        "win_rate": 0.4194341943419434,
+        "pnl": 42385.75774999825,
+        "roi": 0.4238575774999825,
+        "dd": 16001.844999999244,
+        "dd_pct": 0.16001844999999246,
+        "pnl_over_dd": 2.6488044191154363,
+        "name": "1y",
+        "start": "2025-01-08",
+        "end": "2026-01-08"
+      },
+      "deltas_vs_king_1y": {
+        "delta_1y_pnl": -10955.374680000241,
+        "delta_1y_pdd": -1.020243507923479,
+        "trades_lock": true
+      }
+    },
+    {
+      "name": "r2_rel_mild_b",
+      "variant": "r2_rel_mild_b",
+      "patch": {
+        "ratsv_branch_a_rank_min": 0.024,
+        "ratsv_branch_a_slope_med_min_pct": 2e-05,
+        "ratsv_branch_a_slope_vel_min_pct": 1e-05,
+        "ratsv_branch_a_cross_age_max_bars": 6,
+        "ratsv_adverse_release_min_hold_bars": 0,
+        "ratsv_adverse_release_slope_adverse_min_pct": 0.00068,
+        "ratsv_adverse_release_tr_ratio_min": 1.03
+      },
+      "window_1y": {
+        "trades": 814,
+        "win_rate": 0.4189189189189189,
+        "pnl": 42257.349269998194,
+        "roi": 0.42257349269998196,
+        "dd": 15988.714999999269,
+        "dd_pct": 0.15988714999999268,
+        "pnl_over_dd": 2.642948433942323,
+        "name": "1y",
+        "start": "2025-01-08",
+        "end": "2026-01-08"
+      },
+      "deltas_vs_king_1y": {
+        "delta_1y_pnl": -11083.783160000297,
+        "delta_1y_pdd": -1.0260994930965923,
+        "trades_lock": true
+      }
+    },
+    {
+      "name": "r2_combo_recover_2y_c",
+      "variant": "r2_combo_recover_2y_c",
+      "patch": {
+        "ratsv_branch_a_rank_min": 0.024,
+        "ratsv_branch_a_slope_med_min_pct": 3e-05,
+        "ratsv_branch_a_slope_vel_min_pct": 1.5e-05,
+        "ratsv_branch_a_cross_age_max_bars": 5,
+        "ratsv_probe_cancel_max_bars": 4,
+        "ratsv_probe_cancel_slope_adverse_min_pct": 0.00028,
+        "ratsv_probe_cancel_tr_ratio_min": 0.95,
+        "ratsv_adverse_release_min_hold_bars": 0,
+        "ratsv_adverse_release_slope_adverse_min_pct": 0.00068,
+        "ratsv_adverse_release_tr_ratio_min": 1.03
+      },
+      "window_1y": {
+        "trades": 809,
+        "win_rate": 0.4215080346106304,
+        "pnl": 41054.94563999818,
+        "roi": 0.4105494563999818,
+        "dd": 15863.929999999236,
+        "dd_pct": 0.15863929999999235,
+        "pnl_over_dd": 2.5879429397381455,
+        "name": "1y",
+        "start": "2025-01-08",
+        "end": "2026-01-08"
+      },
+      "deltas_vs_king_1y": {
+        "delta_1y_pnl": -12286.186790000313,
+        "delta_1y_pdd": -1.0811049873007699,
+        "trades_lock": true
+      }
+    },
+    {
+      "name": "r2_combo_mild_2",
+      "variant": "r2_combo_mild_2",
+      "patch": {
+        "ratsv_branch_a_rank_min": 0.024,
+        "ratsv_branch_a_slope_med_min_pct": 2e-05,
+        "ratsv_branch_a_slope_vel_min_pct": 1e-05,
+        "ratsv_branch_a_cross_age_max_bars": 6,
+        "ratsv_probe_cancel_max_bars": 4,
+        "ratsv_probe_cancel_slope_adverse_min_pct": 0.00028,
+        "ratsv_probe_cancel_tr_ratio_min": 0.95,
+        "ratsv_adverse_release_min_hold_bars": 0,
+        "ratsv_adverse_release_slope_adverse_min_pct": 0.00068,
+        "ratsv_adverse_release_tr_ratio_min": 1.03
+      },
+      "window_1y": {
+        "trades": 810,
+        "win_rate": 0.42098765432098767,
+        "pnl": 40987.852839998166,
+        "roi": 0.4098785283999817,
+        "dd": 15856.619999999268,
+        "dd_pct": 0.1585661999999927,
+        "pnl_over_dd": 2.584904780463936,
+        "name": "1y",
+        "start": "2025-01-08",
+        "end": "2026-01-08"
+      },
+      "deltas_vs_king_1y": {
+        "delta_1y_pnl": -12353.279590000326,
+        "delta_1y_pdd": -1.0841431465749793,
+        "trades_lock": true
+      }
+    },
+    {
+      "name": "r2_rel_mild_a",
+      "variant": "r2_rel_mild_a",
+      "patch": {
+        "ratsv_branch_a_rank_min": 0.023,
+        "ratsv_branch_a_slope_med_min_pct": 2e-05,
+        "ratsv_branch_a_slope_vel_min_pct": 1e-05,
+        "ratsv_branch_a_cross_age_max_bars": 6,
+        "ratsv_adverse_release_min_hold_bars": 0,
+        "ratsv_adverse_release_slope_adverse_min_pct": 0.00065,
+        "ratsv_adverse_release_tr_ratio_min": 1.025
+      },
+      "window_1y": {
+        "trades": 899,
+        "win_rate": 0.41601779755283647,
+        "pnl": 28112.891859998308,
+        "roi": 0.28112891859998307,
+        "dd": 14448.084999999308,
+        "dd_pct": 0.14448084999999308,
+        "pnl_over_dd": 1.9457867156789053,
+        "name": "1y",
+        "start": "2025-01-08",
+        "end": "2026-01-08"
+      },
+      "deltas_vs_king_1y": {
+        "delta_1y_pnl": -25228.240570000184,
+        "delta_1y_pdd": -1.72326121136001,
+        "trades_lock": true
+      }
+    },
+    {
+      "name": "r2_combo_mild_1",
+      "variant": "r2_combo_mild_1",
+      "patch": {
+        "ratsv_branch_a_rank_min": 0.023,
+        "ratsv_branch_a_slope_med_min_pct": 2e-05,
+        "ratsv_branch_a_slope_vel_min_pct": 1e-05,
+        "ratsv_branch_a_cross_age_max_bars": 6,
+        "ratsv_probe_cancel_max_bars": 4,
+        "ratsv_probe_cancel_slope_adverse_min_pct": 0.00028,
+        "ratsv_probe_cancel_tr_ratio_min": 0.94,
+        "ratsv_adverse_release_min_hold_bars": 0,
+        "ratsv_adverse_release_slope_adverse_min_pct": 0.00065,
+        "ratsv_adverse_release_tr_ratio_min": 1.025
+      },
+      "window_1y": {
+        "trades": 897,
+        "win_rate": 0.4169453734671126,
+        "pnl": 27107.41593999828,
+        "roi": 0.2710741593999828,
+        "dd": 14345.359999999288,
+        "dd_pct": 0.14345359999999288,
+        "pnl_over_dd": 1.8896295345672485,
+        "name": "1y",
+        "start": "2025-01-08",
+        "end": "2026-01-08"
+      },
+      "deltas_vs_king_1y": {
+        "delta_1y_pnl": -26233.716490000214,
+        "delta_1y_pdd": -1.7794183924716669,
+        "trades_lock": true
+      }
+    }
+  ],
+  "stage2_frozen_top": [
+    {
+      "name": "r2_combo_recover_2y_a",
+      "variant": "r2_combo_recover_2y_a",
+      "patch": {
+        "ratsv_branch_a_rank_min": 0.024,
+        "ratsv_branch_a_slope_med_min_pct": 3e-05,
+        "ratsv_branch_a_slope_vel_min_pct": 1.5e-05,
+        "ratsv_branch_a_cross_age_max_bars": 5,
+        "ratsv_probe_cancel_max_bars": 4,
+        "ratsv_probe_cancel_slope_adverse_min_pct": 0.00028,
+        "ratsv_probe_cancel_tr_ratio_min": 0.95
+      },
+      "timing_vs_frozen_base": {
+        "1y": {
+          "aligned_n": 746,
+          "changed_entry_count": 711,
+          "changed_exit_count": 713,
+          "changed_reason_count": 137,
+          "changed_any_count": 713,
+          "changed_any_share": 0.9557640750670241,
+          "trade_count_delta": -5
+        },
+        "2y": {
+          "aligned_n": 1275,
+          "changed_entry_count": 1173,
+          "changed_exit_count": 1175,
+          "changed_reason_count": 275,
+          "changed_any_count": 1175,
+          "changed_any_share": 0.9215686274509803,
+          "trade_count_delta": -9
+        }
+      },
+      "short_delta_vs_frozen_base": {
+        "1y": 19.525470000008454,
+        "2y": 41.775270000010096
+      },
+      "accept_timing_true_frozen": false,
+      "window_1y": {
+        "trades": 746,
+        "win_rate": 0.4249329758713137,
+        "pnl": 47452.39944999843,
+        "roi": 0.47452399449998434,
+        "dd": 16549.544999999285,
+        "dd_pct": 0.16549544999999286,
+        "pnl_over_dd": 2.8672932971873535,
+        "name": "1y",
+        "start": "2025-01-08",
+        "end": "2026-01-08",
+        "short_pnl": -1990.0331700000233
+      },
+      "window_2y": {
+        "trades": 1275,
+        "win_rate": 0.4031372549019608,
+        "pnl": 39505.61730000263,
+        "roi": 0.3950561730000263,
+        "dd": 18660.949649999675,
+        "dd_pct": 0.18660949649999675,
+        "pnl_over_dd": 2.117020732650834,
+        "name": "2y",
+        "start": "2024-01-08",
+        "end": "2026-01-08",
+        "short_pnl": -3432.0204399999197
+      }
+    },
+    {
+      "name": "r2_probe_mild_a",
+      "variant": "r2_probe_mild_a",
+      "patch": {
+        "ratsv_branch_a_rank_min": 0.023,
+        "ratsv_branch_a_slope_med_min_pct": 2e-05,
+        "ratsv_branch_a_slope_vel_min_pct": 1e-05,
+        "ratsv_branch_a_cross_age_max_bars": 6,
+        "ratsv_probe_cancel_max_bars": 4,
+        "ratsv_probe_cancel_slope_adverse_min_pct": 0.00028,
+        "ratsv_probe_cancel_tr_ratio_min": 0.94
+      },
+      "timing_vs_frozen_base": {
+        "1y": {
+          "aligned_n": 747,
+          "changed_entry_count": 624,
+          "changed_exit_count": 626,
+          "changed_reason_count": 123,
+          "changed_any_count": 627,
+          "changed_any_share": 0.8393574297188755,
+          "trade_count_delta": -4
+        },
+        "2y": {
+          "aligned_n": 1276,
+          "changed_entry_count": 1174,
+          "changed_exit_count": 1176,
+          "changed_reason_count": 275,
+          "changed_any_count": 1176,
+          "changed_any_share": 0.9216300940438872,
+          "trade_count_delta": -8
+        }
+      },
+      "short_delta_vs_frozen_base": {
+        "1y": 39.33708000000729,
+        "2y": 60.545440000003964
+      },
+      "accept_timing_true_frozen": false,
+      "window_1y": {
+        "trades": 747,
+        "win_rate": 0.4243641231593039,
+        "pnl": 47329.596439998364,
+        "roi": 0.4732959643999836,
+        "dd": 16536.319999999192,
+        "dd_pct": 0.1653631999999919,
+        "pnl_over_dd": 2.862160168646995,
+        "name": "1y",
+        "start": "2025-01-08",
+        "end": "2026-01-08",
+        "short_pnl": -1970.2215600000245
+      },
+      "window_2y": {
+        "trades": 1276,
+        "win_rate": 0.40282131661442006,
+        "pnl": 38824.535250002664,
+        "roi": 0.3882453525000266,
+        "dd": 18660.949649999675,
+        "dd_pct": 0.18660949649999675,
+        "pnl_over_dd": 2.0805230161479664,
+        "name": "2y",
+        "start": "2024-01-08",
+        "end": "2026-01-08",
+        "short_pnl": -3413.250269999926
+      }
+    },
+    {
+      "name": "r2_probe_mild_c",
+      "variant": "r2_probe_mild_c",
+      "patch": {
+        "ratsv_branch_a_rank_min": 0.025,
+        "ratsv_branch_a_slope_med_min_pct": 2e-05,
+        "ratsv_branch_a_slope_vel_min_pct": 1e-05,
+        "ratsv_branch_a_cross_age_max_bars": 6,
+        "ratsv_probe_cancel_max_bars": 5,
+        "ratsv_probe_cancel_slope_adverse_min_pct": 0.00028,
+        "ratsv_probe_cancel_tr_ratio_min": 0.95
+      },
+      "timing_vs_frozen_base": {
+        "1y": {
+          "aligned_n": 751,
+          "changed_entry_count": 701,
+          "changed_exit_count": 702,
+          "changed_reason_count": 136,
+          "changed_any_count": 702,
+          "changed_any_share": 0.9347536617842876,
+          "trade_count_delta": 4
+        },
+        "2y": {
+          "aligned_n": 1284,
+          "changed_entry_count": 701,
+          "changed_exit_count": 703,
+          "changed_reason_count": 136,
+          "changed_any_count": 703,
+          "changed_any_share": 0.5475077881619937,
+          "trade_count_delta": 4
+        }
+      },
+      "short_delta_vs_frozen_base": {
+        "1y": 16.02160999999478,
+        "2y": 13.695810000003803
+      },
+      "accept_timing_true_frozen": false,
+      "window_1y": {
+        "trades": 755,
+        "win_rate": 0.4198675496688742,
+        "pnl": 48054.103309998565,
+        "roi": 0.48054103309998564,
+        "dd": 16609.044999999227,
+        "dd_pct": 0.16609044999999226,
+        "pnl_over_dd": 2.893249028466164,
+        "name": "1y",
+        "start": "2025-01-08",
+        "end": "2026-01-08",
+        "short_pnl": -1993.537030000037
+      },
+      "window_2y": {
+        "trades": 1288,
+        "win_rate": 0.39906832298136646,
+        "pnl": 40095.42094000269,
+        "roi": 0.4009542094000269,
+        "dd": 18665.774399999646,
+        "dd_pct": 0.18665774399999646,
+        "pnl_over_dd": 2.1480716567539493,
+        "name": "2y",
+        "start": "2024-01-08",
+        "end": "2026-01-08",
+        "short_pnl": -3460.099899999926
+      }
+    },
+    {
+      "name": "r2_slope_cross5",
+      "variant": "r2_slope_cross5",
+      "patch": {
+        "ratsv_branch_a_rank_min": 0.023,
+        "ratsv_branch_a_slope_med_min_pct": 2e-05,
+        "ratsv_branch_a_slope_vel_min_pct": 1e-05,
+        "ratsv_branch_a_cross_age_max_bars": 5
+      },
+      "timing_vs_frozen_base": {
+        "1y": {
+          "aligned_n": 751,
+          "changed_entry_count": 456,
+          "changed_exit_count": 457,
+          "changed_reason_count": 58,
+          "changed_any_count": 457,
+          "changed_any_share": 0.6085219707057257,
+          "trade_count_delta": 1
+        },
+        "2y": {
+          "aligned_n": 1284,
+          "changed_entry_count": 456,
+          "changed_exit_count": 457,
+          "changed_reason_count": 58,
+          "changed_any_count": 457,
+          "changed_any_share": 0.3559190031152648,
+          "trade_count_delta": 1
+        }
+      },
+      "short_delta_vs_frozen_base": {
+        "1y": 23.21451999999863,
+        "2y": 15.876740000002428
+      },
+      "accept_timing_true_frozen": false,
+      "window_1y": {
+        "trades": 752,
+        "win_rate": 0.42154255319148937,
+        "pnl": 48715.58323999851,
+        "roi": 0.48715583239998506,
+        "dd": 16680.734999999317,
+        "dd_pct": 0.16680734999999317,
+        "pnl_over_dd": 2.9204698258200557,
+        "name": "1y",
+        "start": "2025-01-08",
+        "end": "2026-01-08",
+        "short_pnl": -1986.3441200000332
+      },
+      "window_2y": {
+        "trades": 1285,
+        "win_rate": 0.4,
+        "pnl": 40152.8052700027,
+        "roi": 0.40152805270002695,
+        "dd": 18665.12939999964,
+        "dd_pct": 0.18665129399999641,
+        "pnl_over_dd": 2.1512203001391175,
+        "name": "2y",
+        "start": "2024-01-08",
+        "end": "2026-01-08",
+        "short_pnl": -3457.9189699999274
+      }
+    },
+    {
+      "name": "r2_slope_early",
+      "variant": "r2_slope_early",
+      "patch": {
+        "ratsv_branch_a_rank_min": 0.023,
+        "ratsv_branch_a_slope_med_min_pct": 2e-05,
+        "ratsv_branch_a_slope_vel_min_pct": 1e-05,
+        "ratsv_branch_a_cross_age_max_bars": 6
+      },
+      "timing_vs_frozen_base": {
+        "1y": {
+          "aligned_n": 751,
+          "changed_entry_count": 456,
+          "changed_exit_count": 457,
+          "changed_reason_count": 58,
+          "changed_any_count": 457,
+          "changed_any_share": 0.6085219707057257,
+          "trade_count_delta": 1
+        },
+        "2y": {
+          "aligned_n": 1284,
+          "changed_entry_count": 456,
+          "changed_exit_count": 457,
+          "changed_reason_count": 58,
+          "changed_any_count": 457,
+          "changed_any_share": 0.3559190031152648,
+          "trade_count_delta": 1
+        }
+      },
+      "short_delta_vs_frozen_base": {
+        "1y": 23.21451999999863,
+        "2y": 15.876740000002428
+      },
+      "accept_timing_true_frozen": false,
+      "window_1y": {
+        "trades": 752,
+        "win_rate": 0.42154255319148937,
+        "pnl": 48715.58323999851,
+        "roi": 0.48715583239998506,
+        "dd": 16680.734999999317,
+        "dd_pct": 0.16680734999999317,
+        "pnl_over_dd": 2.9204698258200557,
+        "name": "1y",
+        "start": "2025-01-08",
+        "end": "2026-01-08",
+        "short_pnl": -1986.3441200000332
+      },
+      "window_2y": {
+        "trades": 1285,
+        "win_rate": 0.4,
+        "pnl": 40152.8052700027,
+        "roi": 0.40152805270002695,
+        "dd": 18665.12939999964,
+        "dd_pct": 0.18665129399999641,
+        "pnl_over_dd": 2.1512203001391175,
+        "name": "2y",
+        "start": "2024-01-08",
+        "end": "2026-01-08",
+        "short_pnl": -3457.9189699999274
+      }
+    },
+    {
+      "name": "r2_slope_early_rank024",
+      "variant": "r2_slope_early_rank024",
+      "patch": {
+        "ratsv_branch_a_rank_min": 0.024,
+        "ratsv_branch_a_slope_med_min_pct": 2e-05,
+        "ratsv_branch_a_slope_vel_min_pct": 1e-05,
+        "ratsv_branch_a_cross_age_max_bars": 6
+      },
+      "timing_vs_frozen_base": {
+        "1y": {
+          "aligned_n": 751,
+          "changed_entry_count": 456,
+          "changed_exit_count": 457,
+          "changed_reason_count": 58,
+          "changed_any_count": 457,
+          "changed_any_share": 0.6085219707057257,
+          "trade_count_delta": 1
+        },
+        "2y": {
+          "aligned_n": 1284,
+          "changed_entry_count": 456,
+          "changed_exit_count": 457,
+          "changed_reason_count": 58,
+          "changed_any_count": 457,
+          "changed_any_share": 0.3559190031152648,
+          "trade_count_delta": 1
+        }
+      },
+      "short_delta_vs_frozen_base": {
+        "1y": 23.21451999999863,
+        "2y": 15.645809999999983
+      },
+      "accept_timing_true_frozen": false,
+      "window_1y": {
+        "trades": 752,
+        "win_rate": 0.42154255319148937,
+        "pnl": 48715.58323999851,
+        "roi": 0.48715583239998506,
+        "dd": 16680.734999999317,
+        "dd_pct": 0.16680734999999317,
+        "pnl_over_dd": 2.9204698258200557,
+        "name": "1y",
+        "start": "2025-01-08",
+        "end": "2026-01-08",
+        "short_pnl": -1986.3441200000332
+      },
+      "window_2y": {
+        "trades": 1285,
+        "win_rate": 0.4,
+        "pnl": 40708.21792000275,
+        "roi": 0.40708217920002754,
+        "dd": 18665.12939999964,
+        "dd_pct": 0.18665129399999641,
+        "pnl_over_dd": 2.1809769998167563,
+        "name": "2y",
+        "start": "2024-01-08",
+        "end": "2026-01-08",
+        "short_pnl": -3458.14989999993
+      }
+    },
+    {
+      "name": "r2_rel_mild_c",
+      "variant": "r2_rel_mild_c",
+      "patch": {
+        "ratsv_branch_a_rank_min": 0.024,
+        "ratsv_branch_a_slope_med_min_pct": 2e-05,
+        "ratsv_branch_a_slope_vel_min_pct": 1e-05,
+        "ratsv_branch_a_cross_age_max_bars": 5,
+        "ratsv_adverse_release_min_hold_bars": 1,
+        "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+        "ratsv_adverse_release_tr_ratio_min": 1.0325
+      },
+      "timing_vs_frozen_base": {
+        "1y": {
+          "aligned_n": 751,
+          "changed_entry_count": 456,
+          "changed_exit_count": 457,
+          "changed_reason_count": 58,
+          "changed_any_count": 457,
+          "changed_any_share": 0.6085219707057257,
+          "trade_count_delta": 1
+        },
+        "2y": {
+          "aligned_n": 1284,
+          "changed_entry_count": 456,
+          "changed_exit_count": 457,
+          "changed_reason_count": 58,
+          "changed_any_count": 457,
+          "changed_any_share": 0.3559190031152648,
+          "trade_count_delta": 1
+        }
+      },
+      "short_delta_vs_frozen_base": {
+        "1y": 23.21451999999863,
+        "2y": 15.645809999999983
+      },
+      "accept_timing_true_frozen": false,
+      "window_1y": {
+        "trades": 752,
+        "win_rate": 0.42154255319148937,
+        "pnl": 48715.58323999851,
+        "roi": 0.48715583239998506,
+        "dd": 16680.734999999317,
+        "dd_pct": 0.16680734999999317,
+        "pnl_over_dd": 2.9204698258200557,
+        "name": "1y",
+        "start": "2025-01-08",
+        "end": "2026-01-08",
+        "short_pnl": -1986.3441200000332
+      },
+      "window_2y": {
+        "trades": 1285,
+        "win_rate": 0.4,
+        "pnl": 40708.21792000275,
+        "roi": 0.40708217920002754,
+        "dd": 18665.12939999964,
+        "dd_pct": 0.18665129399999641,
+        "pnl_over_dd": 2.1809769998167563,
+        "name": "2y",
+        "start": "2024-01-08",
+        "end": "2026-01-08",
+        "short_pnl": -3458.14989999993
+      }
+    },
+    {
+      "name": "r2_combo_mild_3",
+      "variant": "r2_combo_mild_3",
+      "patch": {
+        "ratsv_branch_a_rank_min": 0.025,
+        "ratsv_branch_a_slope_med_min_pct": 2e-05,
+        "ratsv_branch_a_slope_vel_min_pct": 1e-05,
+        "ratsv_branch_a_cross_age_max_bars": 5,
+        "ratsv_probe_cancel_max_bars": 5,
+        "ratsv_probe_cancel_slope_adverse_min_pct": 0.0003,
+        "ratsv_probe_cancel_tr_ratio_min": 0.95,
+        "ratsv_adverse_release_min_hold_bars": 1,
+        "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+        "ratsv_adverse_release_tr_ratio_min": 1.0325
+      },
+      "timing_vs_frozen_base": {
+        "1y": {
+          "aligned_n": 751,
+          "changed_entry_count": 456,
+          "changed_exit_count": 457,
+          "changed_reason_count": 57,
+          "changed_any_count": 457,
+          "changed_any_share": 0.6085219707057257,
+          "trade_count_delta": 1
+        },
+        "2y": {
+          "aligned_n": 1284,
+          "changed_entry_count": 456,
+          "changed_exit_count": 457,
+          "changed_reason_count": 57,
+          "changed_any_count": 457,
+          "changed_any_share": 0.3559190031152648,
+          "trade_count_delta": 1
+        }
+      },
+      "short_delta_vs_frozen_base": {
+        "1y": 21.534520000001066,
+        "2y": 15.59581000000071
+      },
+      "accept_timing_true_frozen": false,
+      "window_1y": {
+        "trades": 752,
+        "win_rate": 0.42154255319148937,
+        "pnl": 48673.08323999856,
+        "roi": 0.4867308323999856,
+        "dd": 16675.949999999313,
+        "dd_pct": 0.16675949999999312,
+        "pnl_over_dd": 2.91875924550029,
+        "name": "1y",
+        "start": "2025-01-08",
+        "end": "2026-01-08",
+        "short_pnl": -1988.0241200000307
+      },
+      "window_2y": {
+        "trades": 1285,
+        "win_rate": 0.4,
+        "pnl": 40654.73792000271,
+        "roi": 0.40654737920002715,
+        "dd": 18665.12939999964,
+        "dd_pct": 0.18665129399999641,
+        "pnl_over_dd": 2.1781117638543397,
+        "name": "2y",
+        "start": "2024-01-08",
+        "end": "2026-01-08",
+        "short_pnl": -3458.199899999929
+      }
+    },
+    {
+      "name": "r2_slope_early_rank025",
+      "variant": "r2_slope_early_rank025",
+      "patch": {
+        "ratsv_branch_a_rank_min": 0.025,
+        "ratsv_branch_a_slope_med_min_pct": 2e-05,
+        "ratsv_branch_a_slope_vel_min_pct": 1e-05,
+        "ratsv_branch_a_cross_age_max_bars": 6
+      },
+      "timing_vs_frozen_base": {
+        "1y": {
+          "aligned_n": 751,
+          "changed_entry_count": 456,
+          "changed_exit_count": 457,
+          "changed_reason_count": 57,
+          "changed_any_count": 457,
+          "changed_any_share": 0.6085219707057257,
+          "trade_count_delta": 1
+        },
+        "2y": {
+          "aligned_n": 1284,
+          "changed_entry_count": 456,
+          "changed_exit_count": 457,
+          "changed_reason_count": 57,
+          "changed_any_count": 457,
+          "changed_any_share": 0.3559190031152648,
+          "trade_count_delta": 1
+        }
+      },
+      "short_delta_vs_frozen_base": {
+        "1y": 21.534520000001066,
+        "2y": 15.59581000000071
+      },
+      "accept_timing_true_frozen": false,
+      "window_1y": {
+        "trades": 752,
+        "win_rate": 0.42154255319148937,
+        "pnl": 48673.08323999856,
+        "roi": 0.4867308323999856,
+        "dd": 16675.949999999313,
+        "dd_pct": 0.16675949999999312,
+        "pnl_over_dd": 2.91875924550029,
+        "name": "1y",
+        "start": "2025-01-08",
+        "end": "2026-01-08",
+        "short_pnl": -1988.0241200000307
+      },
+      "window_2y": {
+        "trades": 1285,
+        "win_rate": 0.4,
+        "pnl": 40654.73792000271,
+        "roi": 0.40654737920002715,
+        "dd": 18665.12939999964,
+        "dd_pct": 0.18665129399999641,
+        "pnl_over_dd": 2.1781117638543397,
+        "name": "2y",
+        "start": "2024-01-08",
+        "end": "2026-01-08",
+        "short_pnl": -3458.199899999929
+      }
+    },
+    {
+      "name": "r2_slope_vel15e6",
+      "variant": "r2_slope_vel15e6",
+      "patch": {
+        "ratsv_branch_a_rank_min": 0.023,
+        "ratsv_branch_a_slope_med_min_pct": 2e-05,
+        "ratsv_branch_a_slope_vel_min_pct": 1.5e-05,
+        "ratsv_branch_a_cross_age_max_bars": 6
+      },
+      "timing_vs_frozen_base": {
+        "1y": {
+          "aligned_n": 751,
+          "changed_entry_count": 456,
+          "changed_exit_count": 457,
+          "changed_reason_count": 58,
+          "changed_any_count": 457,
+          "changed_any_share": 0.6085219707057257,
+          "trade_count_delta": 1
+        },
+        "2y": {
+          "aligned_n": 1284,
+          "changed_entry_count": 456,
+          "changed_exit_count": 457,
+          "changed_reason_count": 58,
+          "changed_any_count": 457,
+          "changed_any_share": 0.3559190031152648,
+          "trade_count_delta": 1
+        }
+      },
+      "short_delta_vs_frozen_base": {
+        "1y": 10.21477999999388,
+        "2y": 9.325760000003356
+      },
+      "accept_timing_true_frozen": false,
+      "window_1y": {
+        "trades": 752,
+        "win_rate": 0.42154255319148937,
+        "pnl": 48541.05213999856,
+        "roi": 0.4854105213999856,
+        "dd": 16659.89499999932,
+        "dd_pct": 0.1665989499999932,
+        "pnl_over_dd": 2.9136469431530356,
+        "name": "1y",
+        "start": "2025-01-08",
+        "end": "2026-01-08",
+        "short_pnl": -1999.343860000038
+      },
+      "window_2y": {
+        "trades": 1285,
+        "win_rate": 0.4,
+        "pnl": 39992.65735000275,
+        "roi": 0.3999265735000275,
+        "dd": 18665.12939999964,
+        "dd_pct": 0.18665129399999641,
+        "pnl_over_dd": 2.142640240683438,
+        "name": "2y",
+        "start": "2024-01-08",
+        "end": "2026-01-08",
+        "short_pnl": -3464.4699499999265
+      }
+    },
+    {
+      "name": "r2_slope_med3e5",
+      "variant": "r2_slope_med3e5",
+      "patch": {
+        "ratsv_branch_a_rank_min": 0.023,
+        "ratsv_branch_a_slope_med_min_pct": 3e-05,
+        "ratsv_branch_a_slope_vel_min_pct": 1e-05,
+        "ratsv_branch_a_cross_age_max_bars": 6
+      },
+      "timing_vs_frozen_base": {
+        "1y": {
+          "aligned_n": 751,
+          "changed_entry_count": 0,
+          "changed_exit_count": 0,
+          "changed_reason_count": 0,
+          "changed_any_count": 0,
+          "changed_any_share": 0.0,
+          "trade_count_delta": 0
+        },
+        "2y": {
+          "aligned_n": 1284,
+          "changed_entry_count": 0,
+          "changed_exit_count": 0,
+          "changed_reason_count": 0,
+          "changed_any_count": 0,
+          "changed_any_share": 0.0,
+          "trade_count_delta": 0
+        }
+      },
+      "short_delta_vs_frozen_base": {
+        "1y": -0.3347699999994802,
+        "2y": 2.8109300000023723
+      },
+      "accept_timing_true_frozen": false,
+      "window_1y": {
+        "trades": 751,
+        "win_rate": 0.422103861517976,
+        "pnl": 48836.49258999855,
+        "roi": 0.4883649258999855,
+        "dd": 16694.229999999254,
+        "dd_pct": 0.16694229999999255,
+        "pnl_over_dd": 2.9253516089092297,
+        "name": "1y",
+        "start": "2025-01-08",
+        "end": "2026-01-08",
+        "short_pnl": -2009.8934100000313
+      },
+      "window_2y": {
+        "trades": 1284,
+        "win_rate": 0.40031152647975077,
+        "pnl": 40281.84248000277,
+        "roi": 0.4028184248000277,
+        "dd": 18665.12939999964,
+        "dd_pct": 0.18665129399999641,
+        "pnl_over_dd": 2.1581335771507453,
+        "name": "2y",
+        "start": "2024-01-08",
+        "end": "2026-01-08",
+        "short_pnl": -3470.9847799999275
+      }
+    },
+    {
+      "name": "r2_base",
+      "variant": "r2_base",
+      "patch": {},
+      "timing_vs_frozen_base": {
+        "1y": {
+          "aligned_n": 751,
+          "changed_entry_count": 0,
+          "changed_exit_count": 0,
+          "changed_reason_count": 0,
+          "changed_any_count": 0,
+          "changed_any_share": 0.0,
+          "trade_count_delta": 0
+        },
+        "2y": {
+          "aligned_n": 1284,
+          "changed_entry_count": 0,
+          "changed_exit_count": 0,
+          "changed_reason_count": 0,
+          "changed_any_count": 0,
+          "changed_any_share": 0.0,
+          "trade_count_delta": 0
+        }
+      },
+      "short_delta_vs_frozen_base": {
+        "1y": 0.0,
+        "2y": 0.0
+      },
+      "accept_timing_true_frozen": false,
+      "window_1y": {
+        "trades": 751,
+        "win_rate": 0.422103861517976,
+        "pnl": 48841.1573599986,
+        "roi": 0.488411573599986,
+        "dd": 16694.189999999187,
+        "dd_pct": 0.16694189999999187,
+        "pnl_over_dd": 2.925638042935954,
+        "name": "1y",
+        "start": "2025-01-08",
+        "end": "2026-01-08",
+        "short_pnl": -2009.5586400000318
+      },
+      "window_2y": {
+        "trades": 1284,
+        "win_rate": 0.40031152647975077,
+        "pnl": 40848.15673000273,
+        "roi": 0.4084815673000273,
+        "dd": 18665.12939999964,
+        "dd_pct": 0.18665129399999641,
+        "pnl_over_dd": 2.1884743392137165,
+        "name": "2y",
+        "start": "2024-01-08",
+        "end": "2026-01-08",
+        "short_pnl": -3473.79570999993
+      }
+    }
+  ],
+  "stage3_prod_top": [
+    {
+      "name": "r2_slope_early_rank024",
+      "variant": "r2_slope_early_rank024",
+      "patch": {
+        "ratsv_branch_a_rank_min": 0.024,
+        "ratsv_branch_a_slope_med_min_pct": 2e-05,
+        "ratsv_branch_a_slope_vel_min_pct": 1e-05,
+        "ratsv_branch_a_cross_age_max_bars": 6
+      },
+      "timing_vs_prod_base": {
+        "1y": {
+          "aligned_n": 751,
+          "changed_entry_count": 456,
+          "changed_exit_count": 457,
+          "changed_reason_count": 58,
+          "changed_any_count": 457,
+          "changed_any_share": 0.6085219707057257,
+          "trade_count_delta": 1
+        },
+        "2y": {
+          "aligned_n": 1284,
+          "changed_entry_count": 456,
+          "changed_exit_count": 457,
+          "changed_reason_count": 58,
+          "changed_any_count": 457,
+          "changed_any_share": 0.3559190031152648,
+          "trade_count_delta": 1
+        }
+      },
+      "short_delta_vs_prod_base": {
+        "1y": 94.72976000000267,
+        "2y": 81.87854000000061
+      },
+      "deltas_vs_king": {
+        "delta_1y_pnl": 713.0397799999919,
+        "delta_1y_pdd": 0.03206442369139495,
+        "delta_2y_pnl": 676.1344999999274,
+        "delta_2y_pdd": 0.03961809447074316,
+        "delta_1y_trades": 1,
+        "trades_lock": true,
+        "beats_1y": true,
+        "beats_2y": true,
+        "dethrone": true
+      },
+      "accept_timing_true_prod": false,
+      "accept_full_contract": false,
+      "window_1y": {
+        "trades": 752,
+        "win_rate": 0.41888297872340424,
+        "pnl": 54054.17220999848,
+        "roi": 0.5405417220999849,
+        "dd": 14604.844999999099,
+        "dd_pct": 0.14604844999999098,
+        "pnl_over_dd": 3.7011123507303103,
+        "name": "1y",
+        "start": "2025-01-08",
+        "end": "2026-01-08",
+        "short_pnl": -1901.0660300000152
+      },
+      "window_2y": {
+        "trades": 1285,
+        "win_rate": 0.398443579766537,
+        "pnl": 50977.95341000204,
+        "roi": 0.5097795341000204,
+        "dd": 17066.30540999965,
+        "dd_pct": 0.17066305409999652,
+        "pnl_over_dd": 2.9870526857050472,
+        "name": "2y",
+        "start": "2024-01-08",
+        "end": "2026-01-08",
+        "short_pnl": -3402.505609999972
+      }
+    },
+    {
+      "name": "r2_probe_mild_a",
+      "variant": "r2_probe_mild_a",
+      "patch": {
+        "ratsv_branch_a_rank_min": 0.023,
+        "ratsv_branch_a_slope_med_min_pct": 2e-05,
+        "ratsv_branch_a_slope_vel_min_pct": 1e-05,
+        "ratsv_branch_a_cross_age_max_bars": 6,
+        "ratsv_probe_cancel_max_bars": 4,
+        "ratsv_probe_cancel_slope_adverse_min_pct": 0.00028,
+        "ratsv_probe_cancel_tr_ratio_min": 0.94
+      },
+      "timing_vs_prod_base": {
+        "1y": {
+          "aligned_n": 747,
+          "changed_entry_count": 624,
+          "changed_exit_count": 626,
+          "changed_reason_count": 123,
+          "changed_any_count": 627,
+          "changed_any_share": 0.8393574297188755,
+          "trade_count_delta": -4
+        },
+        "2y": {
+          "aligned_n": 1276,
+          "changed_entry_count": 1174,
+          "changed_exit_count": 1176,
+          "changed_reason_count": 275,
+          "changed_any_count": 1176,
+          "changed_any_share": 0.9216300940438872,
+          "trade_count_delta": -8
+        }
+      },
+      "short_delta_vs_prod_base": {
+        "1y": 131.60497999999575,
+        "2y": 203.43987999999354
+      },
+      "deltas_vs_king": {
+        "delta_1y_pnl": -362.9721800000698,
+        "delta_1y_pdd": -0.016997420418136677,
+        "delta_2y_pnl": -4231.586740000035,
+        "delta_2y_pdd": -0.2449229348444617,
+        "delta_1y_trades": -4,
+        "trades_lock": true,
+        "beats_1y": false,
+        "beats_2y": false,
+        "dethrone": false
+      },
+      "accept_timing_true_prod": true,
+      "accept_full_contract": false,
+      "window_1y": {
+        "trades": 747,
+        "win_rate": 0.42168674698795183,
+        "pnl": 52978.16024999842,
+        "roi": 0.5297816024999842,
+        "dd": 14506.414999999222,
+        "dd_pct": 0.14506414999999223,
+        "pnl_over_dd": 3.6520505066207787,
+        "name": "1y",
+        "start": "2025-01-08",
+        "end": "2026-01-08",
+        "short_pnl": -1864.190810000022
+      },
+      "window_2y": {
+        "trades": 1276,
+        "win_rate": 0.4012539184952978,
+        "pnl": 46070.23217000208,
+        "roi": 0.4607023217000208,
+        "dd": 17047.19091999963,
+        "dd_pct": 0.1704719091999963,
+        "pnl_over_dd": 2.7025116563898424,
+        "name": "2y",
+        "start": "2024-01-08",
+        "end": "2026-01-08",
+        "short_pnl": -3280.944269999979
+      }
+    },
+    {
+      "name": "r2_probe_mild_c",
+      "variant": "r2_probe_mild_c",
+      "patch": {
+        "ratsv_branch_a_rank_min": 0.025,
+        "ratsv_branch_a_slope_med_min_pct": 2e-05,
+        "ratsv_branch_a_slope_vel_min_pct": 1e-05,
+        "ratsv_branch_a_cross_age_max_bars": 6,
+        "ratsv_probe_cancel_max_bars": 5,
+        "ratsv_probe_cancel_slope_adverse_min_pct": 0.00028,
+        "ratsv_probe_cancel_tr_ratio_min": 0.95
+      },
+      "timing_vs_prod_base": {
+        "1y": {
+          "aligned_n": 751,
+          "changed_entry_count": 701,
+          "changed_exit_count": 702,
+          "changed_reason_count": 136,
+          "changed_any_count": 702,
+          "changed_any_share": 0.9347536617842876,
+          "trade_count_delta": 4
+        },
+        "2y": {
+          "aligned_n": 1284,
+          "changed_entry_count": 701,
+          "changed_exit_count": 703,
+          "changed_reason_count": 136,
+          "changed_any_count": 703,
+          "changed_any_share": 0.5475077881619937,
+          "trade_count_delta": 4
+        }
+      },
+      "short_delta_vs_prod_base": {
+        "1y": 86.51975999999854,
+        "2y": 79.91853999999876
+      },
+      "deltas_vs_king": {
+        "delta_1y_pnl": -77.56452000007994,
+        "delta_1y_pdd": -0.0032423909833552145,
+        "delta_2y_pnl": -92.04980000013893,
+        "delta_2y_pdd": -0.005376418151345597,
+        "delta_1y_trades": 4,
+        "trades_lock": true,
+        "beats_1y": false,
+        "beats_2y": false,
+        "dethrone": false
+      },
+      "accept_timing_true_prod": false,
+      "accept_full_contract": false,
+      "window_1y": {
+        "trades": 755,
+        "win_rate": 0.4185430463576159,
+        "pnl": 53263.56790999841,
+        "roi": 0.5326356790999841,
+        "dd": 14529.839999999152,
+        "dd_pct": 0.14529839999999153,
+        "pnl_over_dd": 3.66580553605556,
+        "name": "1y",
+        "start": "2025-01-08",
+        "end": "2026-01-08",
+        "short_pnl": -1909.2760300000193
+      },
+      "window_2y": {
+        "trades": 1288,
+        "win_rate": 0.3982919254658385,
+        "pnl": 50209.76911000197,
+        "roi": 0.5020976911000198,
+        "dd": 17066.205409999617,
+        "dd_pct": 0.17066205409999616,
+        "pnl_over_dd": 2.9420581730829585,
+        "name": "2y",
+        "start": "2024-01-08",
+        "end": "2026-01-08",
+        "short_pnl": -3404.465609999974
+      }
+    },
+    {
+      "name": "r2_combo_recover_2y_a",
+      "variant": "r2_combo_recover_2y_a",
+      "patch": {
+        "ratsv_branch_a_rank_min": 0.024,
+        "ratsv_branch_a_slope_med_min_pct": 3e-05,
+        "ratsv_branch_a_slope_vel_min_pct": 1.5e-05,
+        "ratsv_branch_a_cross_age_max_bars": 5,
+        "ratsv_probe_cancel_max_bars": 4,
+        "ratsv_probe_cancel_slope_adverse_min_pct": 0.00028,
+        "ratsv_probe_cancel_tr_ratio_min": 0.95
+      },
+      "timing_vs_prod_base": {
+        "1y": {
+          "aligned_n": 746,
+          "changed_entry_count": 711,
+          "changed_exit_count": 713,
+          "changed_reason_count": 137,
+          "changed_any_count": 713,
+          "changed_any_share": 0.9557640750670241,
+          "trade_count_delta": -5
+        },
+        "2y": {
+          "aligned_n": 1275,
+          "changed_entry_count": 1173,
+          "changed_exit_count": 1175,
+          "changed_reason_count": 275,
+          "changed_any_count": 1175,
+          "changed_any_share": 0.9215686274509803,
+          "trade_count_delta": -9
+        }
+      },
+      "short_delta_vs_prod_base": {
+        "1y": 32.797729999997046,
+        "2y": 91.01981999999225
+      },
+      "deltas_vs_king": {
+        "delta_1y_pnl": -1073.275070000076,
+        "delta_1y_pdd": -0.04909314820136146,
+        "delta_2y_pnl": -1680.745900000089,
+        "delta_2y_pdd": -0.09528884838583496,
+        "delta_1y_trades": -5,
+        "trades_lock": true,
+        "beats_1y": false,
+        "beats_2y": false,
+        "dethrone": false
+      },
+      "accept_timing_true_prod": false,
+      "accept_full_contract": false,
+      "window_1y": {
+        "trades": 746,
+        "win_rate": 0.4222520107238606,
+        "pnl": 52267.857359998416,
+        "roi": 0.5226785735999842,
+        "dd": 14438.814999999187,
+        "dd_pct": 0.14438814999999186,
+        "pnl_over_dd": 3.619954778837554,
+        "name": "1y",
+        "start": "2025-01-08",
+        "end": "2026-01-08",
+        "short_pnl": -1962.9980600000208
+      },
+      "window_2y": {
+        "trades": 1275,
+        "win_rate": 0.4015686274509804,
+        "pnl": 48621.07301000202,
+        "roi": 0.48621073010002025,
+        "dd": 17047.19091999963,
+        "dd_pct": 0.1704719091999963,
+        "pnl_over_dd": 2.852145742848469,
+        "name": "2y",
+        "start": "2024-01-08",
+        "end": "2026-01-08",
+        "short_pnl": -3393.3643299999803
+      }
+    },
+    {
+      "name": "r2_slope_cross5",
+      "variant": "r2_slope_cross5",
+      "patch": {
+        "ratsv_branch_a_rank_min": 0.023,
+        "ratsv_branch_a_slope_med_min_pct": 2e-05,
+        "ratsv_branch_a_slope_vel_min_pct": 1e-05,
+        "ratsv_branch_a_cross_age_max_bars": 5
+      },
+      "timing_vs_prod_base": {
+        "1y": {
+          "aligned_n": 751,
+          "changed_entry_count": 456,
+          "changed_exit_count": 457,
+          "changed_reason_count": 58,
+          "changed_any_count": 457,
+          "changed_any_share": 0.6085219707057257,
+          "trade_count_delta": 1
+        },
+        "2y": {
+          "aligned_n": 1284,
+          "changed_entry_count": 456,
+          "changed_exit_count": 457,
+          "changed_reason_count": 58,
+          "changed_any_count": 457,
+          "changed_any_share": 0.3559190031152648,
+          "trade_count_delta": 1
+        }
+      },
+      "short_delta_vs_prod_base": {
+        "1y": 94.72976000000267,
+        "2y": 114.91695999997773
+      },
+      "deltas_vs_king": {
+        "delta_1y_pnl": 713.0397799999919,
+        "delta_1y_pdd": 0.03206442369139495,
+        "delta_2y_pnl": -2586.694280000025,
+        "delta_2y_pdd": -0.15156732625237135,
+        "delta_1y_trades": 1,
+        "trades_lock": true,
+        "beats_1y": true,
+        "beats_2y": false,
+        "dethrone": false
+      },
+      "accept_timing_true_prod": false,
+      "accept_full_contract": false,
+      "window_1y": {
+        "trades": 752,
+        "win_rate": 0.41888297872340424,
+        "pnl": 54054.17220999848,
+        "roi": 0.5405417220999849,
+        "dd": 14604.844999999099,
+        "dd_pct": 0.14604844999999098,
+        "pnl_over_dd": 3.7011123507303103,
+        "name": "1y",
+        "start": "2025-01-08",
+        "end": "2026-01-08",
+        "short_pnl": -1901.0660300000152
+      },
+      "window_2y": {
+        "trades": 1285,
+        "win_rate": 0.398443579766537,
+        "pnl": 47715.12463000209,
+        "roi": 0.47715124630002087,
+        "dd": 17066.30540999965,
+        "dd_pct": 0.17066305409999652,
+        "pnl_over_dd": 2.7958672649819327,
+        "name": "2y",
+        "start": "2024-01-08",
+        "end": "2026-01-08",
+        "short_pnl": -3369.467189999995
+      }
+    },
+    {
+      "name": "r2_slope_early",
+      "variant": "r2_slope_early",
+      "patch": {
+        "ratsv_branch_a_rank_min": 0.023,
+        "ratsv_branch_a_slope_med_min_pct": 2e-05,
+        "ratsv_branch_a_slope_vel_min_pct": 1e-05,
+        "ratsv_branch_a_cross_age_max_bars": 6
+      },
+      "timing_vs_prod_base": {
+        "1y": {
+          "aligned_n": 751,
+          "changed_entry_count": 456,
+          "changed_exit_count": 457,
+          "changed_reason_count": 58,
+          "changed_any_count": 457,
+          "changed_any_share": 0.6085219707057257,
+          "trade_count_delta": 1
+        },
+        "2y": {
+          "aligned_n": 1284,
+          "changed_entry_count": 456,
+          "changed_exit_count": 457,
+          "changed_reason_count": 58,
+          "changed_any_count": 457,
+          "changed_any_share": 0.3559190031152648,
+          "trade_count_delta": 1
+        }
+      },
+      "short_delta_vs_prod_base": {
+        "1y": 94.72976000000267,
+        "2y": 114.91695999997773
+      },
+      "deltas_vs_king": {
+        "delta_1y_pnl": 713.0397799999919,
+        "delta_1y_pdd": 0.03206442369139495,
+        "delta_2y_pnl": -2586.694280000025,
+        "delta_2y_pdd": -0.15156732625237135,
+        "delta_1y_trades": 1,
+        "trades_lock": true,
+        "beats_1y": true,
+        "beats_2y": false,
+        "dethrone": false
+      },
+      "accept_timing_true_prod": false,
+      "accept_full_contract": false,
+      "window_1y": {
+        "trades": 752,
+        "win_rate": 0.41888297872340424,
+        "pnl": 54054.17220999848,
+        "roi": 0.5405417220999849,
+        "dd": 14604.844999999099,
+        "dd_pct": 0.14604844999999098,
+        "pnl_over_dd": 3.7011123507303103,
+        "name": "1y",
+        "start": "2025-01-08",
+        "end": "2026-01-08",
+        "short_pnl": -1901.0660300000152
+      },
+      "window_2y": {
+        "trades": 1285,
+        "win_rate": 0.398443579766537,
+        "pnl": 47715.12463000209,
+        "roi": 0.47715124630002087,
+        "dd": 17066.30540999965,
+        "dd_pct": 0.17066305409999652,
+        "pnl_over_dd": 2.7958672649819327,
+        "name": "2y",
+        "start": "2024-01-08",
+        "end": "2026-01-08",
+        "short_pnl": -3369.467189999995
+      }
+    }
+  ],
+  "accepted_timing_true_frozen": [],
+  "accepted_timing_true_prod": [
+    "r2_probe_mild_a"
+  ],
+  "accepted_full_contract": [],
+  "runtime_sec": 355.6711881160736
+}
