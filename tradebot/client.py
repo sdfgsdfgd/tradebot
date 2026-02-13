@@ -48,24 +48,34 @@ _SEARCH_TERM_ALIASES_BY_MODE: dict[str, dict[str, tuple[str, ...]]] = {
         "XAG": ("SLV",),
         "GOLD": ("GLD",),
         "XAU": ("GLD",),
+        "BITCOIN": ("BITU", "IBIT", "BITO", "FBTC", "BTC"),
+        "BTC": ("BITU", "IBIT", "BITO", "BITCOIN"),
     },
     "OPT": {
         "SILVER": ("SLV",),
         "XAG": ("SLV",),
         "GOLD": ("GLD",),
         "XAU": ("GLD",),
+        "BITCOIN": ("BITU", "IBIT", "BITO", "FBTC", "BTC"),
+        "BTC": ("BITU", "IBIT", "BITO", "BITCOIN"),
     },
     "FUT": {
         "SILVER": ("SI",),
         "XAG": ("SI",),
         "GOLD": ("GC",),
         "XAU": ("GC",),
+        "BITCOIN": ("MBT", "BTC"),
+        "BTC": ("MBT", "BITCOIN"),
+        "MICRO": ("MBT",),
     },
     "FOP": {
         "SILVER": ("SI",),
         "XAG": ("SI",),
         "GOLD": ("GC",),
         "XAU": ("GC",),
+        "BITCOIN": ("MBT", "BTC"),
+        "BTC": ("MBT", "BITCOIN"),
+        "MICRO": ("MBT",),
     },
 }
 _FUT_EXCHANGE_HINTS: dict[str, tuple[str, ...]] = {
@@ -184,6 +194,10 @@ class IBKRClient:
         self._index_tickers: dict[str, Ticker] = {}
         self._index_task: asyncio.Task | None = None
         self._index_error: str | None = None
+        # Index strip uses continuous futures (CONTFUT); on accounts without
+        # live futures subscriptions, forcing delayed avoids repeated gateway
+        # errors and keeps NASDAQ/S&P/DOW strip stable.
+        self._index_force_delayed = True
         self._proxy_contracts: dict[str, Contract] = {}
         self._proxy_tickers: dict[str, Ticker] = {}
         self._proxy_task: asyncio.Task | None = None
@@ -299,6 +313,7 @@ class IBKRClient:
         self._index_tickers = {}
         self._index_task = None
         self._index_error = None
+        self._index_force_delayed = True
         self._proxy_tickers = {}
         self._proxy_task = None
         self._proxy_error = None
@@ -404,10 +419,11 @@ class IBKRClient:
         contract_force_delayed = bool(
             use_proxy and con_id and con_id in self._proxy_contract_force_delayed
         )
+        proxy_md_type = 1
         if use_proxy:
             await self.connect_proxy()
-            md_type = 3 if self._proxy_force_delayed or contract_force_delayed else 1
-            self._ib_proxy.reqMarketDataType(md_type)
+            proxy_md_type = 3 if self._proxy_force_delayed or contract_force_delayed else 1
+            self._ib_proxy.reqMarketDataType(proxy_md_type)
             ib = self._ib_proxy
         else:
             await self.connect()
@@ -420,7 +436,12 @@ class IBKRClient:
                 req_contract = copy.copy(contract)
                 req_contract.exchange = "OVERNIGHT"
             else:
-                if not contract.exchange:
+                exchange = str(getattr(contract, "exchange", "") or "").strip().upper()
+                primary_exchange = str(getattr(contract, "primaryExchange", "") or "").strip().upper()
+                if use_proxy and proxy_md_type == 3 and exchange in ("", "SMART") and primary_exchange:
+                    req_contract = copy.copy(contract)
+                    req_contract.exchange = primary_exchange
+                elif not exchange:
                     req_contract = copy.copy(contract)
                     req_contract.exchange = "SMART"
         elif contract.secType in ("OPT", "FOP"):
@@ -1131,12 +1152,88 @@ class IBKRClient:
                     break
         return out
 
+    @staticmethod
+    def _rank_opt_underlyer_symbols(
+        matches: Iterable[object],
+        *,
+        term_set: set[str],
+        token: str,
+        token_is_alias_seed: bool,
+        max_symbols: int,
+    ) -> list[str]:
+        exact_symbols: list[str] = []
+        prefix_symbols: list[str] = []
+        contains_symbols: list[str] = []
+        desc_symbols: list[str] = []
+        seen_symbols: set[str] = set()
+        for desc in matches:
+            contract = getattr(desc, "contract", None)
+            if not contract:
+                continue
+            if str(getattr(contract, "secType", "") or "").strip().upper() != "STK":
+                continue
+            deriv = {
+                str(sec).strip().upper()
+                for sec in (getattr(desc, "derivativeSecTypes", None) or [])
+            }
+            if "OPT" not in deriv:
+                continue
+            symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
+            if not symbol or symbol in seen_symbols:
+                continue
+            seen_symbols.add(symbol)
+            desc_text = IBKRClient._desc_text(desc)
+            if symbol in term_set and not (token_is_alias_seed and symbol == token):
+                exact_symbols.append(symbol)
+            elif any(symbol.startswith(term) for term in term_set):
+                prefix_symbols.append(symbol)
+            elif any(term in symbol for term in term_set):
+                contains_symbols.append(symbol)
+            elif any(term in desc_text for term in term_set):
+                desc_symbols.append(symbol)
+            if len(seen_symbols) >= max_symbols:
+                break
+        return [*exact_symbols, *prefix_symbols, *contains_symbols, *desc_symbols]
+
+    async def search_option_underlyers(self, query: str, *, limit: int = 8) -> list[str]:
+        token = str(query or "").strip().upper()
+        if not token:
+            return []
+        terms = self._search_terms(token, mode="OPT")
+        if not terms:
+            return []
+        term_set = set(terms)
+        mode_aliases = _SEARCH_TERM_ALIASES_BY_MODE.get("OPT", {})
+        token_is_alias_seed = token in mode_aliases
+        max_rows = max(1, min(int(limit or 8), 20))
+        matches = await self._matching_symbols(token, use_proxy=True, mode="OPT")
+        if not matches:
+            return []
+        ranked_symbols = self._rank_opt_underlyer_symbols(
+            matches,
+            term_set=term_set,
+            token=token,
+            token_is_alias_seed=token_is_alias_seed,
+            max_symbols=max_rows * 6,
+        )
+        if not ranked_symbols:
+            return []
+        out: list[str] = []
+        for symbol in ranked_symbols:
+            if symbol in out:
+                continue
+            out.append(symbol)
+            if len(out) >= max_rows:
+                break
+        return out
+
     async def search_contracts(
         self,
         query: str,
         *,
         mode: str = "STK",
         limit: int = 5,
+        opt_underlyer_symbol: str | None = None,
     ) -> list[Contract]:
         token = str(query or "").strip().upper()
         if not token:
@@ -1152,13 +1249,18 @@ class IBKRClient:
         token_is_alias_seed = token in mode_aliases
         max_cap = 160 if mode_clean == "OPT" else 20
         max_rows = max(1, min(int(limit or 5), max_cap))
-        matches = await self._matching_symbols(
-            token,
-            use_proxy=mode_clean in ("STK", "OPT"),
-            mode=mode_clean,
-        )
-        if not matches:
-            return []
+        opt_symbol_override = ""
+        if mode_clean == "OPT":
+            opt_symbol_override = str(opt_underlyer_symbol or "").strip().upper()
+        matches: list[object] = []
+        if not (mode_clean == "OPT" and opt_symbol_override):
+            matches = await self._matching_symbols(
+                token,
+                use_proxy=mode_clean in ("STK", "OPT"),
+                mode=mode_clean,
+            )
+            if not matches:
+                return []
 
         if mode_clean == "STK":
             exact_symbols: list[str] = []
@@ -1297,42 +1399,18 @@ class IBKRClient:
             return out
 
         if mode_clean == "OPT":
-            exact_symbols: list[str] = []
-            prefix_symbols: list[str] = []
-            contains_symbols: list[str] = []
-            desc_symbols: list[str] = []
-            seen_symbols: set[str] = set()
-            for desc in matches:
-                contract = getattr(desc, "contract", None)
-                if not contract:
-                    continue
-                if str(getattr(contract, "secType", "") or "").strip().upper() != "STK":
-                    continue
-                deriv = {
-                    str(sec).strip().upper()
-                    for sec in (getattr(desc, "derivativeSecTypes", None) or [])
-                }
-                if "OPT" not in deriv:
-                    continue
-                symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
-                if not symbol or symbol in seen_symbols:
-                    continue
-                seen_symbols.add(symbol)
-                desc_text = self._desc_text(desc)
-                if symbol in term_set and not (token_is_alias_seed and symbol == token):
-                    exact_symbols.append(symbol)
-                elif any(symbol.startswith(term) for term in term_set):
-                    prefix_symbols.append(symbol)
-                elif any(term in symbol for term in term_set):
-                    contains_symbols.append(symbol)
-                elif any(term in desc_text for term in term_set):
-                    desc_symbols.append(symbol)
-                if len(seen_symbols) >= max_rows * 6:
-                    break
-            ranked_symbols = [*exact_symbols, *prefix_symbols, *contains_symbols, *desc_symbols]
-            if not ranked_symbols:
-                return []
-            symbol = ranked_symbols[0]
+            symbol = opt_symbol_override
+            if not symbol:
+                ranked_symbols = self._rank_opt_underlyer_symbols(
+                    matches,
+                    term_set=term_set,
+                    token=token,
+                    token_is_alias_seed=token_is_alias_seed,
+                    max_symbols=max_rows * 6,
+                )
+                if not ranked_symbols:
+                    return []
+                symbol = ranked_symbols[0]
 
             chain_entry = await self.stock_option_chain(symbol)
             if not chain_entry:
@@ -1468,7 +1546,13 @@ class IBKRClient:
                     str(getattr(candidate, "right", "") or "").strip().upper()[:1],
                     round(float(getattr(candidate, "strike", 0.0) or 0.0), 6),
                 )
-                out.append(by_key.get(key, candidate))
+                resolved = by_key.get(key)
+                if resolved is None:
+                    continue
+                con_id = int(getattr(resolved, "conId", 0) or 0)
+                if con_id <= 0:
+                    continue
+                out.append(resolved)
             return out[:max_rows]
 
         roots: list[tuple[str, str]] = []
@@ -1575,11 +1659,48 @@ class IBKRClient:
             await self.connect_proxy()
         except Exception:
             return []
-        try:
-            result = await self._ib_proxy.qualifyContractsAsync(*contracts)
-        except Exception:
+        if not contracts:
             return []
-        return list(result or [])
+
+        cleaned = [contract for contract in contracts if contract is not None]
+        if not cleaned:
+            return []
+
+        try:
+            result = await self._ib_proxy.qualifyContractsAsync(*cleaned)
+            if result:
+                return list(result)
+        except Exception:
+            pass
+
+        # Fallback path for market-open bursts/pacing: recover partial results
+        # via smaller batches and finally single-contract qualification.
+        resolved: list[Contract] = []
+        seen_con_ids: set[int] = set()
+        chunk_size = max(1, min(24, len(cleaned)))
+        for start in range(0, len(cleaned), chunk_size):
+            batch = cleaned[start : start + chunk_size]
+            try:
+                qualified = list(await self._ib_proxy.qualifyContractsAsync(*batch) or [])
+            except Exception:
+                qualified = []
+
+            if not qualified and len(batch) > 1:
+                for candidate in batch:
+                    try:
+                        single = list(await self._ib_proxy.qualifyContractsAsync(candidate) or [])
+                    except Exception:
+                        continue
+                    qualified.extend(single)
+
+            for contract in qualified:
+                con_id = int(getattr(contract, "conId", 0) or 0)
+                if con_id > 0:
+                    if con_id in seen_con_ids:
+                        continue
+                    seen_con_ids.add(con_id)
+                resolved.append(contract)
+        return resolved
 
     async def front_future(
         self,
@@ -1927,12 +2048,18 @@ class IBKRClient:
 
     async def _ensure_index_tickers(self) -> None:
         await self.connect()
-        # Allow delayed market data fallback when real-time is unavailable.
-        self._ib.reqMarketDataType(3)
+        md_type = 3 if self._index_force_delayed else 1
+        self._ib.reqMarketDataType(md_type)
         if not self._index_contracts:
             self._index_contracts = await self._qualify_index_contracts()
         if not self._index_tickers:
             for symbol, contract in self._index_contracts.items():
+                sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
+                req_md_type = 3 if (
+                    self._index_force_delayed
+                    or sec_type == "CONTFUT"
+                ) else 1
+                self._ib.reqMarketDataType(req_md_type)
                 self._index_tickers[symbol] = self._ib.reqMktData(contract)
 
     async def _ensure_proxy_tickers(self) -> None:
@@ -2207,7 +2334,12 @@ class IBKRClient:
                     req_contract = copy.copy(contract)
                     req_contract.exchange = "OVERNIGHT"
                 else:
-                    if not contract.exchange:
+                    exchange = str(getattr(contract, "exchange", "") or "").strip().upper()
+                    primary_exchange = str(getattr(contract, "primaryExchange", "") or "").strip().upper()
+                    if exchange in ("", "SMART") and primary_exchange:
+                        req_contract = copy.copy(contract)
+                        req_contract.exchange = primary_exchange
+                    elif not exchange:
                         req_contract = copy.copy(contract)
                         req_contract.exchange = "SMART"
             elif contract.secType in ("OPT", "FOP"):

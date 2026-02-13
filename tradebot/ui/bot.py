@@ -671,6 +671,7 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
 
 
 class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMixin, Screen):
+    _LOG_CAP = 99_999
     BINDINGS = [
         ("escape", "app.pop_screen", "Back"),
         ("q", "app.pop_screen", "Back"),
@@ -743,7 +744,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         self._log_rows: list[dict] = []
         self._log_row_keys: list[str] = []
         self._log_seq = 0
-        self._log_max_rows = 200
+        self._log_max_rows = int(self._LOG_CAP)
         self._logs_follow_tail = True
         self._status: str | None = None
         self._refresh_task = None
@@ -848,8 +849,8 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         except Exception:
             return
         self._log_events.append(entry)
-        if len(self._log_events) > 500:
-            self._log_events = self._log_events[-500:]
+        if len(self._log_events) > int(self._LOG_CAP):
+            self._log_events = self._log_events[-int(self._LOG_CAP) :]
         if hasattr(self, "_logs_table"):
             self._append_log_entry(entry)
 
@@ -2304,7 +2305,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
 
         active_ids = {str(int(i.instance_id)) for i in self._instances}
         scope = self._scope_instance_id()
-        tail = self._log_events[-200:]
+        tail = self._log_events[-int(self._log_max_rows) :]
         compacted: list[dict[str, object]] = []
         for entry in tail:
             if not isinstance(entry, dict):

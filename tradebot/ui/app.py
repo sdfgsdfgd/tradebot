@@ -26,9 +26,11 @@ from .common import (
     _SECTION_ORDER,
     _SECTION_TYPES,
     _combined_value_pct,
+    _cost_basis,
     _fmt_money,
     _estimate_buying_power,
     _estimate_net_liq,
+    _infer_multiplier,
     _market_session_label,
     _option_display_price,
     _pct_change,
@@ -37,7 +39,6 @@ from .common import (
     _pnl_value,
     _portfolio_row,
     _portfolio_sort_key,
-    _price_pct_dual_text,
     _quote_status_line,
     _safe_num,
     _ticker_close,
@@ -67,14 +68,15 @@ class _SearchDrawer(Static):
 
 # region Positions UI
 class PositionsApp(App):
-    _PX_24_72_COL_WIDTH = 32
+    _PX_24_72_COL_WIDTH = 36
     _QTY_COL_WIDTH = 7
-    _UNREAL_COL_WIDTH = 30
+    _UNREAL_COL_WIDTH = 36
     _REALIZED_COL_WIDTH = 14
     _CLOSES_RETRY_SEC = 30.0
     _SEARCH_MODES = ("STK", "FUT", "OPT", "FOP")
     _SEARCH_LIMIT = 5
     _SEARCH_FETCH_LIMIT = 96
+    _SEARCH_OPT_UNDERLYER_LIMIT = 8
     _SEARCH_DEBOUNCE_SEC = 0.18
 
     _SECTION_HEADER_STYLE_BY_TYPE = {
@@ -314,6 +316,9 @@ class PositionsApp(App):
         self._search_generation = 0
         self._search_ticker_con_ids: set[int] = set()
         self._search_ticker_loading: set[int] = set()
+        self._search_opt_underlyers: list[str] = []
+        self._search_opt_underlyer_index = 0
+        self._search_opt_chain_cache: dict[str, list[Contract]] = {}
         self._search_task: asyncio.Task | None = None
 
     def compose(self) -> ComposeResult:
@@ -514,9 +519,40 @@ class PositionsApp(App):
                     event.prevent_default()
                     event.stop()
                     return
-            if event.character in ("[", "]"):
+            if event.key in ("ctrl+left",):
                 if self._search_mode() == "OPT":
-                    self._cycle_search_expiry(-1 if event.character == "[" else 1)
+                    self._cycle_search_opt_underlyer(-1)
+                    event.prevent_default()
+                    event.stop()
+                    return
+            if event.key in ("ctrl+right",):
+                if self._search_mode() == "OPT":
+                    self._cycle_search_opt_underlyer(1)
+                    event.prevent_default()
+                    event.stop()
+                    return
+            if event.character in ("[", "]") or event.key in ("left_square_bracket", "right_square_bracket"):
+                if self._search_mode() == "OPT":
+                    bracket_char = event.character
+                    if bracket_char not in ("[", "]"):
+                        bracket_char = "[" if event.key == "left_square_bracket" else "]"
+                    self._cycle_search_expiry(-1 if bracket_char == "[" else 1)
+                    event.prevent_default()
+                    event.stop()
+                    return
+            if (
+                event.character in ("<", ">")
+                or event.key in ("less_than", "greater_than")
+                or (event.character is None and event.key in ("comma", "full_stop", "period"))
+            ):
+                if self._search_mode() == "OPT":
+                    angle_char = event.character
+                    if angle_char not in ("<", ">"):
+                        if event.key in ("less_than", "comma"):
+                            angle_char = "<"
+                        else:
+                            angle_char = ">"
+                    self._cycle_search_opt_underlyer(-1 if angle_char == "<" else 1)
                     event.prevent_default()
                     event.stop()
                     return
@@ -556,6 +592,9 @@ class PositionsApp(App):
         self._search_scroll = 0
         self._search_side = 0
         self._search_opt_expiry_index = 0
+        self._search_opt_underlyers = []
+        self._search_opt_underlyer_index = 0
+        self._search_opt_chain_cache = {}
         self._search_loading = False
         self._search_error = None
         self._search_generation += 1
@@ -572,6 +611,9 @@ class PositionsApp(App):
         self._search_scroll = 0
         self._search_side = 0
         self._search_opt_expiry_index = 0
+        self._search_opt_underlyers = []
+        self._search_opt_underlyer_index = 0
+        self._search_opt_chain_cache = {}
         self._search_loading = False
         self._search_error = None
         self._search_generation += 1
@@ -595,6 +637,9 @@ class PositionsApp(App):
         self._search_scroll = 0
         self._search_side = 0
         self._search_opt_expiry_index = 0
+        self._search_opt_underlyers = []
+        self._search_opt_underlyer_index = 0
+        self._search_opt_chain_cache = {}
         self._queue_search()
 
     def _move_search_selection(self, delta: int) -> None:
@@ -642,6 +687,72 @@ class PositionsApp(App):
         self._search_scroll = 0
         self._ensure_search_visible()
         self._render_search()
+
+    def _current_opt_underlyer(self) -> str | None:
+        if not self._search_opt_underlyers:
+            self._search_opt_underlyer_index = 0
+            return None
+        self._search_opt_underlyer_index = min(
+            max(int(self._search_opt_underlyer_index), 0),
+            len(self._search_opt_underlyers) - 1,
+        )
+        symbol = str(self._search_opt_underlyers[self._search_opt_underlyer_index] or "").strip().upper()
+        return symbol or None
+
+    def _cycle_search_opt_underlyer(self, step: int) -> None:
+        if self._search_mode() != "OPT":
+            return
+        count = len(self._search_opt_underlyers)
+        if count <= 1:
+            self._render_search()
+            return
+        self._search_generation += 1
+        self._cancel_search_task()
+        self._search_opt_underlyer_index = (self._search_opt_underlyer_index + int(step)) % count
+        self._search_selected = 0
+        self._search_scroll = 0
+        self._search_side = 0
+        self._search_opt_expiry_index = 0
+        self._queue_search_opt_underlyer_load()
+
+    def _queue_search_opt_underlyer_load(self) -> None:
+        if self._search_mode() != "OPT":
+            return
+        query = self._search_query.strip()
+        symbol = self._current_opt_underlyer()
+        if not query or not symbol:
+            self._search_results = []
+            self._search_loading = False
+            self._render_search()
+            return
+        cached = self._search_opt_chain_cache.get(symbol)
+        if cached is not None:
+            self._search_loading = False
+            self._search_error = None
+            self._search_results = list(cached)
+            self._search_selected = self._default_opt_row_index()
+            self._ensure_search_visible()
+            self._render_search()
+            return
+        self._search_loading = True
+        self._search_error = None
+        self._search_results = []
+        self._render_search()
+        generation = self._search_generation
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            self._search_loading = False
+            self._render_search()
+            return
+        self._search_task = loop.create_task(
+            self._run_search_opt_underlyer(
+                generation,
+                query,
+                symbol,
+                fetch_limit=self._SEARCH_FETCH_LIMIT,
+            )
+        )
 
     def _option_pair_rows(self) -> list[tuple[Contract | None, Contract | None]]:
         target_expiry = self._current_opt_expiry()
@@ -793,16 +904,17 @@ class PositionsApp(App):
         return best_idx
 
     def _opt_underlyer_label(self) -> str:
-        for contract in self._search_results:
-            if str(getattr(contract, "secType", "") or "").strip().upper() != "OPT":
-                continue
-            symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
-            exchange = str(getattr(contract, "exchange", "") or "").strip().upper()
-            if symbol and exchange:
-                return f"{symbol} {exchange}"
-            if symbol:
-                return symbol
-        return ""
+        symbol = self._current_opt_underlyer()
+        if not symbol:
+            return ""
+        total = len(self._search_opt_underlyers)
+        if total <= 0:
+            return symbol
+        index = min(
+            max(int(self._search_opt_underlyer_index), 0),
+            total - 1,
+        ) + 1
+        return f"[{index}/{total}] {symbol}"
 
     def _search_row_count(self) -> int:
         if self._search_mode() == "OPT":
@@ -826,6 +938,9 @@ class PositionsApp(App):
         self._search_selected = 0
         self._search_scroll = 0
         self._search_opt_expiry_index = 0
+        self._search_opt_underlyers = []
+        self._search_opt_underlyer_index = 0
+        self._search_opt_chain_cache = {}
         self._cancel_search_task()
         query = self._search_query.strip()
         if not query:
@@ -856,7 +971,39 @@ class PositionsApp(App):
     async def _run_search(self, generation: int, query: str, mode: str, *, fetch_limit: int) -> None:
         try:
             await asyncio.sleep(self._SEARCH_DEBOUNCE_SEC)
-            results = await self._client.search_contracts(query, mode=mode, limit=fetch_limit)
+            if mode == "OPT":
+                underlyers = await self._client.search_option_underlyers(
+                    query,
+                    limit=self._SEARCH_OPT_UNDERLYER_LIMIT,
+                )
+                if generation != self._search_generation:
+                    return
+                self._search_opt_underlyers = list(underlyers)
+                if not self._search_opt_underlyers:
+                    results: list[Contract] = []
+                else:
+                    self._search_opt_underlyer_index = min(
+                        max(int(self._search_opt_underlyer_index), 0),
+                        len(self._search_opt_underlyers) - 1,
+                    )
+                    symbol = self._search_opt_underlyers[self._search_opt_underlyer_index]
+                    cached = self._search_opt_chain_cache.get(symbol)
+                    if cached is None:
+                        results = await self._client.search_contracts(
+                            query,
+                            mode=mode,
+                            limit=fetch_limit,
+                            opt_underlyer_symbol=symbol,
+                        )
+                        if generation != self._search_generation:
+                            return
+                        self._search_opt_chain_cache[symbol] = list(results)
+                    else:
+                        results = list(cached)
+            else:
+                results = await self._client.search_contracts(query, mode=mode, limit=fetch_limit)
+                if generation != self._search_generation:
+                    return
         except asyncio.CancelledError:
             return
         except Exception as exc:
@@ -876,6 +1023,40 @@ class PositionsApp(App):
             self._search_selected = self._default_opt_row_index()
         else:
             self._search_selected = min(max(self._search_selected, 0), max(total - 1, 0))
+        self._ensure_search_visible()
+        self._render_search()
+
+    async def _run_search_opt_underlyer(
+        self,
+        generation: int,
+        query: str,
+        symbol: str,
+        *,
+        fetch_limit: int,
+    ) -> None:
+        try:
+            results = await self._client.search_contracts(
+                query,
+                mode="OPT",
+                limit=fetch_limit,
+                opt_underlyer_symbol=symbol,
+            )
+        except asyncio.CancelledError:
+            return
+        except Exception as exc:
+            if generation != self._search_generation:
+                return
+            self._search_loading = False
+            self._search_results = []
+            self._search_error = str(exc)
+            self._render_search()
+            return
+        if generation != self._search_generation:
+            return
+        self._search_opt_chain_cache[symbol] = list(results)
+        self._search_loading = False
+        self._search_results = list(results)
+        self._search_selected = self._default_opt_row_index()
         self._ensure_search_visible()
         self._render_search()
 
@@ -916,56 +1097,70 @@ class PositionsApp(App):
                     style="dim",
                 )
             )
-        elif not self._search_results:
-            lines.append(Text("No matches", style="dim"))
         elif mode == "OPT":
-            expiries = self._search_opt_expiries()
-            expiry_line = Text("Expiry ", style="dim")
-            if expiries:
-                self._search_opt_expiry_index = min(
-                    max(self._search_opt_expiry_index, 0),
-                    len(expiries) - 1,
-                )
-                for idx, expiry in enumerate(expiries):
-                    if idx > 0:
-                        expiry_line.append(" ", style="dim")
-                    if idx == self._search_opt_expiry_index:
-                        expiry_line.append(f"[{expiry}]", style="bold #0d1117 on #ffcc84")
-                    else:
-                        expiry_line.append(expiry, style="bold #ffcc84")
-                expiry_line.append("  ([ / ])", style="dim")
-            else:
-                expiry_line.append("n/a", style="dim")
-            lines.append(expiry_line)
             underlyer_label = self._opt_underlyer_label()
+            underlyer_line = Text("Underlyer ", style="dim")
             if underlyer_label:
-                lines.append(Text(f"Underlyer {underlyer_label}", style="dim"))
-            side_line = Text("Side ", style="dim")
-            if self._search_side == 0:
-                side_line.append("[CALL]", style="bold #0d1117 on #8fbfff")
-                side_line.append(" PUT", style="dim")
+                underlyer_line.append(underlyer_label, style="bold #86dca9")
+                if len(self._search_opt_underlyers) > 1:
+                    underlyer_line.append("  (< / > or Ctrl+Left/Right)", style="dim")
             else:
-                side_line.append("CALL ", style="dim")
-                side_line.append("[PUT]", style="bold #0d1117 on #8fbfff")
-            side_line.append("  (left/right)", style="dim")
-            lines.append(side_line)
-            rows = self._option_pair_rows()
-            total = len(rows)
-            start = min(self._search_scroll, max(0, total - self._SEARCH_LIMIT))
-            end = min(start + self._SEARCH_LIMIT, total)
-            for idx in range(start, end):
-                call_contract, put_contract = rows[idx]
-                lines.append(
-                    self._search_option_pair_line(
-                        idx=idx,
-                        call_contract=call_contract,
-                        put_contract=put_contract,
-                        active=idx == self._search_selected,
+                underlyer_line.append("n/a", style="dim")
+            lines.append(underlyer_line)
+
+            if not self._search_opt_underlyers:
+                lines.append(Text("No matches", style="dim"))
+            elif not self._search_results:
+                lines.append(Text("No option chain rows", style="dim"))
+            else:
+                expiries = self._search_opt_expiries()
+                expiry_line = Text("Expiry ", style="dim")
+                if expiries:
+                    self._search_opt_expiry_index = min(
+                        max(self._search_opt_expiry_index, 0),
+                        len(expiries) - 1,
                     )
-                )
-            if total > self._SEARCH_LIMIT:
-                lines.append(Text(f"Rows {start + 1}-{end}/{total}", style="dim"))
+                    for idx, expiry in enumerate(expiries):
+                        if idx > 0:
+                            expiry_line.append(" ", style="dim")
+                        if idx == self._search_opt_expiry_index:
+                            expiry_line.append(f"[{expiry}]", style="bold #0d1117 on #ffcc84")
+                        else:
+                            expiry_line.append(expiry, style="bold #ffcc84")
+                    expiry_line.append("  ([ / ])", style="dim")
+                else:
+                    expiry_line.append("n/a", style="dim")
+                lines.append(expiry_line)
+                side_line = Text("Side ", style="dim")
+                if self._search_side == 0:
+                    side_line.append("[CALL]", style="bold #0d1117 on #8fbfff")
+                    side_line.append(" PUT", style="dim")
+                else:
+                    side_line.append("CALL ", style="dim")
+                    side_line.append("[PUT]", style="bold #0d1117 on #8fbfff")
+                side_line.append("  (left/right)", style="dim")
+                lines.append(side_line)
+                rows = self._option_pair_rows()
+                total = len(rows)
+                start = min(self._search_scroll, max(0, total - self._SEARCH_LIMIT))
+                end = min(start + self._SEARCH_LIMIT, total)
+                for idx in range(start, end):
+                    call_contract, put_contract = rows[idx]
+                    lines.append(
+                        self._search_option_pair_line(
+                            idx=idx,
+                            call_contract=call_contract,
+                            put_contract=put_contract,
+                            active=idx == self._search_selected,
+                        )
+                    )
+                if total > self._SEARCH_LIMIT:
+                    lines.append(Text(f"Rows {start + 1}-{end}/{total}", style="dim"))
         else:
+            if not self._search_results:
+                lines.append(Text("No matches", style="dim"))
+                self._search.update(Text("\n").join(lines))
+                return
             total = len(self._search_results)
             start = min(self._search_scroll, max(0, total - self._SEARCH_LIMIT))
             end = min(start + self._SEARCH_LIMIT, total)
@@ -1124,6 +1319,8 @@ class PositionsApp(App):
             self._maybe_update_buying_power_anchor()
             self._prime_change_data(self._snapshot.items)
             self._render_table()
+            if self._search_active:
+                self._render_search()
 
     def _mark_dirty(self) -> None:
         self._dirty = True
@@ -1527,26 +1724,14 @@ class PositionsApp(App):
         close_3ago = cached[1] if cached else None
         pct24 = _pct_change(price, prev_close)
         pct72 = _pct_change(price, close_3ago)
-        text = _price_pct_dual_text(
-            price,
-            pct24,
-            pct72,
-            separator="·",
-        )
-        glyph = self._price_direction_glyph(pct24, pct72)
-        if glyph.plain:
-            with_glyph = Text()
-            with_glyph.append_text(glyph)
-            if text.plain:
-                with_glyph.append(" ")
-            with_glyph.append_text(text)
-            text = with_glyph
         age_sec = self._quote_age_seconds(con_id, ticker, price if price is not None else quote_price)
         ribbon = self._quote_age_ribbon(age_sec)
-        if ribbon.plain:
-            if text.plain:
-                text.append(" ", style="dim")
-            text.append_text(ribbon)
+        text = self._aligned_px_change_text(
+            price=price,
+            pct24=pct24,
+            pct72=pct72,
+            ribbon=ribbon,
+        )
         centered = self._center_cell(text, self._PX_24_72_COL_WIDTH)
         return centered if isinstance(centered, Text) else Text(str(centered))
 
@@ -1560,6 +1745,75 @@ class PositionsApp(App):
         if ref < 0:
             return Text("▼", style="bold red")
         return Text("•", style="dim")
+
+    @staticmethod
+    def _pct_text_style(value: float | None) -> str:
+        if value is None:
+            return "dim"
+        if value > 0:
+            return "green"
+        if value < 0:
+            return "red"
+        return "dim"
+
+    def _aligned_px_change_text(
+        self,
+        *,
+        price: float | None,
+        pct24: float | None,
+        pct72: float | None,
+        ribbon: Text | None = None,
+    ) -> Text:
+        # Fixed 3-column layout so left/mid/right stay centered and separators align vertically.
+        left_width = 9
+        mid_width = 8
+        right_width = 8
+        ribbon_width = 4
+
+        ref = pct24 if pct24 is not None else pct72
+        if ref is None:
+            glyph = Text("•", style="dim")
+        elif ref > 0:
+            glyph = Text("▲", style="bold green")
+        elif ref < 0:
+            glyph = Text("▼", style="bold red")
+        else:
+            glyph = Text("•", style="dim")
+
+        price_plain = f"{price:,.2f}" if price is not None else "n/a"
+        left_plain = f"{glyph.plain} {price_plain}"
+        mid_plain = f"{pct24:.2f}%" if pct24 is not None else "n/a"
+        right_plain = f"{pct72:.2f}%" if pct72 is not None else "n/a"
+
+        if len(left_plain) > left_width:
+            left_plain = left_plain[:left_width]
+        if len(mid_plain) > mid_width:
+            mid_plain = mid_plain[:mid_width]
+        if len(right_plain) > right_width:
+            right_plain = right_plain[:right_width]
+
+        left_block = left_plain.center(left_width)
+        mid_block = mid_plain.center(mid_width)
+        right_block = right_plain.center(right_width)
+
+        ribbon_text = Text(" " * ribbon_width)
+        if ribbon is not None and ribbon.plain:
+            trimmed_ribbon = ribbon[:ribbon_width]
+            left_pad = max((ribbon_width - len(trimmed_ribbon.plain)) // 2, 0)
+            right_pad = max(ribbon_width - len(trimmed_ribbon.plain) - left_pad, 0)
+            ribbon_text = Text(" " * left_pad)
+            ribbon_text.append_text(trimmed_ribbon)
+            ribbon_text.append(" " * right_pad)
+
+        text = Text("")
+        text.append(left_block, style=self._pct_text_style(pct24 if pct24 is not None else ref))
+        text.append(" ¦ ", style="grey35")
+        text.append(mid_block, style=self._pct_text_style(pct24))
+        text.append(" · ", style="dim")
+        text.append(right_block, style=self._pct_text_style(pct72))
+        text.append(" ", style="dim")
+        text.append_text(ribbon_text)
+        return text
 
     def _quote_age_seconds(
         self,
@@ -1601,21 +1855,121 @@ class PositionsApp(App):
             return Text("▰▱▱▱", style="#778797")
         return Text("▱▱▱▱", style="#5e6a74")
 
+    @staticmethod
+    def _float_or_none(value: object) -> float | None:
+        if value is None:
+            return None
+        try:
+            num = float(value)
+        except (TypeError, ValueError):
+            return None
+        if math.isnan(num):
+            return None
+        return float(num)
+
+    @staticmethod
+    def _pnl_style(value: float | None) -> str:
+        if value is None:
+            return "dim"
+        return "green" if value >= 0 else "red"
+
+    def _live_unrealized_metrics(
+        self,
+        item: PortfolioItem,
+        mark_price: float | None,
+    ) -> tuple[float | None, float | None]:
+        mark = self._float_or_none(mark_price)
+        if mark is None:
+            return None, None
+        qty = self._float_or_none(getattr(item, "position", None))
+        if qty is None:
+            return None, None
+        if abs(float(qty)) <= 1e-12:
+            return 0.0, 0.0
+        multiplier = _infer_multiplier(item)
+        cost_basis = _cost_basis(item)
+        mark_value = float(mark) * float(qty) * float(multiplier)
+        unreal = mark_value - float(cost_basis)
+        denom = abs(float(cost_basis)) if float(cost_basis) else abs(mark_value)
+        pct = (unreal / denom * 100.0) if denom > 0 else None
+        return unreal, pct
+
+    def _aligned_unreal_cell(
+        self,
+        official: float | None,
+        estimate: float | None,
+        pct: float | None,
+    ) -> Text:
+        width = max(int(self._UNREAL_COL_WIDTH), 12)
+        official_plain = _fmt_money(official) if official is not None else "n/a"
+        estimate_plain = _fmt_money(estimate) if estimate is not None else "n/a"
+        left_plain = f"{official_plain} ({estimate_plain})"
+        pct_plain = f"({pct:.2f}%)" if pct is not None else "n/a"
+
+        # Ordered layout:
+        # [outer pad][left value col][space|space][right pct col][outer pad]
+        outer_pad = 3
+        sep = " · "
+        right_width = 10
+        core_width = max(width - (outer_pad * 2), 1)
+        left_width = max(core_width - len(sep) - right_width, 1)
+
+        if len(left_plain) > left_width:
+            left_plain = left_plain[:left_width]
+        left_part = left_plain.center(left_width)
+        right_part = pct_plain.center(right_width)
+        core_plain = f"{left_part}{sep}{right_part}"
+
+        if len(core_plain) < core_width:
+            core_plain = f"{core_plain}{' ' * (core_width - len(core_plain))}"
+        elif len(core_plain) > core_width:
+            core_plain = core_plain[:core_width]
+
+        text = Text(f"{' ' * outer_pad}{core_plain}{' ' * outer_pad}")
+
+        official_idx = core_plain.find(official_plain)
+        if official_idx >= 0:
+            text.stylize(
+                self._pnl_style(official),
+                outer_pad + official_idx,
+                outer_pad + official_idx + len(official_plain),
+            )
+        est_idx = core_plain.find(estimate_plain)
+        if est_idx >= 0:
+            text.stylize(
+                self._pnl_style(estimate),
+                outer_pad + est_idx,
+                outer_pad + est_idx + len(estimate_plain),
+            )
+        sep_idx = core_plain.find("·")
+        if sep_idx >= 0:
+            text.stylize("dim", outer_pad + sep_idx, outer_pad + sep_idx + 1)
+
+        pct_idx = core_plain.rfind(pct_plain)
+        if pct_idx >= 0:
+            pct_style = "dim"
+            if pct is not None:
+                if pct > 0:
+                    pct_style = "green"
+                elif pct < 0:
+                    pct_style = "red"
+            text.stylize(
+                pct_style,
+                outer_pad + pct_idx,
+                outer_pad + pct_idx + len(pct_plain),
+            )
+        return text
+
     def _unreal_texts(self, item: PortfolioItem) -> tuple[Text, Text]:
         contract = item.contract
         if contract.secType not in _SECTION_TYPES:
             return Text(""), Text("")
-        mark_price, is_estimate = self._mark_price(item)
-        pnl, pct = _unrealized_pnl_values(item, mark_price=mark_price)
-        raw_unreal = _safe_num(getattr(item, "unrealizedPNL", None))
-        is_modeled = (
-            raw_unreal is None
-            and is_estimate
-            and mark_price is not None
-            and pnl is not None
-        )
-        prefix = "~" if is_modeled else ""
-        return _pnl_text(pnl, prefix=prefix), _pnl_pct_value(pct)
+        mark_price, _is_estimate = self._mark_price(item)
+        official_unreal = self._float_or_none(getattr(item, "unrealizedPNL", None))
+        est_unreal, est_pct = self._live_unrealized_metrics(item, mark_price)
+        _official_pnl, official_pct = _unrealized_pnl_values(item, mark_price=mark_price)
+        display_pct = est_pct if est_pct is not None else official_pct
+        return self._aligned_unreal_cell(official_unreal, est_unreal, display_pct), Text("")
 
     def _mark_price(self, item: PortfolioItem) -> tuple[float | None, bool]:
         contract = item.contract

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections import deque
+import math
 from time import monotonic
 
 from ib_insync import PortfolioItem, Ticker, Trade
@@ -18,6 +19,7 @@ from ..client import IBKRClient
 from .common import (
     _aggressive_price,
     _append_digit,
+    _cost_basis,
     _default_order_qty,
     _exec_chase_mode,
     _exec_chase_quote_signature,
@@ -27,6 +29,7 @@ from .common import (
     _fmt_money,
     _fmt_qty,
     _fmt_quote,
+    _infer_multiplier,
     _limit_price_for_mode,
     _market_data_label,
     _mark_price,
@@ -369,6 +372,31 @@ class PositionDetailScreen(Screen):
         if value is None:
             return "dim"
         return "green" if value >= 0 else "red"
+
+    @staticmethod
+    def _float_or_none(value: object) -> float | None:
+        if value is None:
+            return None
+        try:
+            num = float(value)
+        except (TypeError, ValueError):
+            return None
+        if math.isnan(num):
+            return None
+        return float(num)
+
+    def _live_unrealized(self, mark_price: float | None) -> float | None:
+        mark = self._float_or_none(mark_price)
+        if mark is None:
+            return None
+        qty = self._float_or_none(getattr(self._item, "position", None))
+        if qty is None:
+            return None
+        if abs(float(qty)) <= 1e-12:
+            return 0.0
+        multiplier = _infer_multiplier(self._item)
+        cost_basis = _cost_basis(self._item)
+        return (float(mark) * float(qty) * float(multiplier)) - float(cost_basis)
 
     @staticmethod
     def _direction_glyph(value: float | None) -> Text:
@@ -1312,7 +1340,9 @@ class PositionDetailScreen(Screen):
             size = _safe_num(getattr(self._ticker, "lastSize", None)) if self._ticker else None
             bid_size = _safe_num(getattr(self._ticker, "bidSize", None)) if self._ticker else None
             ask_size = _safe_num(getattr(self._ticker, "askSize", None)) if self._ticker else None
-            pnl_value, _ = _unrealized_pnl_values(self._item, mark_price=live_mark)
+            broker_pnl, _ = _unrealized_pnl_values(self._item, mark_price=live_mark)
+            fast_pnl = self._live_unrealized(live_mark)
+            pnl_value = fast_pnl if fast_pnl is not None else broker_pnl
             ref_price = last or live_mark
             slip_proxy = (
                 abs(ref_price - mid)
@@ -1381,11 +1411,11 @@ class PositionDetailScreen(Screen):
         contract = self._item.contract
         inner = max(panel_width - 2, 24)
         spark_width = inner
-        pnl_value, _ = _unrealized_pnl_values(self._item, mark_price=price or mark)
-        raw_unreal = _safe_num(getattr(self._item, "unrealizedPNL", None))
-        pnl_label = _fmt_money(pnl_value) if pnl_value is not None else "n/a"
-        if raw_unreal is None and pnl_value is not None:
-            pnl_label = f"~{pnl_label}"
+        official_unreal = self._float_or_none(getattr(self._item, "unrealizedPNL", None))
+        fast_unreal = self._live_unrealized(price or mark)
+        pnl_value = official_unreal if official_unreal is not None else fast_unreal
+        official_label = _fmt_money(official_unreal) if official_unreal is not None else "n/a"
+        fast_label = _fmt_money(fast_unreal) if fast_unreal is not None else "n/a"
         position_qty = float(self._item.position or 0.0)
         avg_cost = (
             _fmt_money(float(self._item.averageCost))
@@ -1516,11 +1546,19 @@ class PositionDetailScreen(Screen):
         tail_row.append("   ")
         tail_row.append(pnl_prefix)
         pnl_start = len(tail_row.plain)
-        tail_row.append(pnl_label)
+        tail_row.append(official_label)
         pnl_end = len(tail_row.plain)
+        tail_row.append(" (")
+        est_start = len(tail_row.plain)
+        tail_row.append(fast_label)
+        est_end = len(tail_row.plain)
+        tail_row.append(" est)")
+        est_suffix_end = len(tail_row.plain)
         tail_row.append("   Realized ")
         tail_row.append(realized)
         tail_row.stylize(self._pnl_style(pnl_value), pnl_start, pnl_end)
+        tail_row.stylize(self._pnl_style(fast_unreal), est_start, est_end)
+        tail_row.stylize("dim", est_end, est_suffix_end)
 
         lines: list[Text] = [
             self._box_top(f"{contract.symbol} {contract.secType}", inner, style="#2d8fd5"),
