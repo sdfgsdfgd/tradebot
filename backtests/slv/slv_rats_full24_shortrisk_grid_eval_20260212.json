@@ -1,0 +1,162 @@
+{
+  "name": "SLV RATS full24 shortrisk grid eval",
+  "generated_at": "2026-02-12T12:35:54.849696Z",
+  "results": [
+    {
+      "name": "grid_short_0.00",
+      "trades": 402,
+      "win_rate": 0.42786069651741293,
+      "pnl": 24868.913959997637,
+      "dd": 12175.555519999907,
+      "pnl_over_dd": 2.042528073495067,
+      "long_pnl": 24868.913959997637,
+      "short_pnl": 0.0,
+      "long_trades": 402,
+      "short_trades": 0
+    },
+    {
+      "name": "grid_short_0.10",
+      "trades": 641,
+      "win_rate": 0.3993759750390016,
+      "pnl": 15695.834059997693,
+      "dd": 15159.37124000187,
+      "pnl_over_dd": 1.0353881972743189,
+      "long_pnl": 20467.92259999786,
+      "short_pnl": -4772.088540000171,
+      "long_trades": 399,
+      "short_trades": 242
+    },
+    {
+      "name": "grid_short_0.25_spreaddown_0.04",
+      "trades": 623,
+      "win_rate": 0.4012841091492777,
+      "pnl": 9829.040119997597,
+      "dd": 19764.55620000203,
+      "pnl_over_dd": 0.49730639132674215,
+      "long_pnl": 20771.010959998,
+      "short_pnl": -10941.970840000407,
+      "long_trades": 398,
+      "short_trades": 225
+    },
+    {
+      "name": "grid_short_0.20",
+      "trades": 641,
+      "win_rate": 0.3993759750390016,
+      "pnl": 9767.107519997662,
+      "dd": 19908.555920001978,
+      "pnl_over_dd": 0.4905984923891301,
+      "long_pnl": 19119.443599997972,
+      "short_pnl": -9352.336080000336,
+      "long_trades": 399,
+      "short_trades": 242
+    },
+    {
+      "name": "grid_short_0.30_spreaddown_0.04",
+      "trades": 623,
+      "win_rate": 0.4012841091492777,
+      "pnl": 7115.337159997594,
+      "dd": 21890.733000002,
+      "pnl_over_dd": 0.3250387805651343,
+      "long_pnl": 20117.257039998058,
+      "short_pnl": -13001.919880000472,
+      "long_trades": 398,
+      "short_trades": 225
+    },
+    {
+      "name": "grid_short_0.25",
+      "trades": 641,
+      "win_rate": 0.3993759750390016,
+      "pnl": 6905.420159997638,
+      "dd": 22193.45020000216,
+      "pnl_over_dd": 0.3111467616692138,
+      "long_pnl": 18469.645359998027,
+      "short_pnl": -11564.225200000405,
+      "long_trades": 399,
+      "short_trades": 242
+    },
+    {
+      "name": "grid_short_0.30_spreaddown_0.03",
+      "trades": 634,
+      "win_rate": 0.4022082018927445,
+      "pnl": 5203.2606399976,
+      "dd": 23932.51920000196,
+      "pnl_over_dd": 0.2174138291299135,
+      "long_pnl": 17898.941479998073,
+      "short_pnl": -12695.680840000488,
+      "long_trades": 399,
+      "short_trades": 235
+    },
+    {
+      "name": "grid_short_0.30",
+      "trades": 641,
+      "win_rate": 0.3993759750390016,
+      "pnl": 4110.979119997633,
+      "dd": 24426.49504000222,
+      "pnl_over_dd": 0.16830000019508565,
+      "long_pnl": 17843.098559998092,
+      "short_pnl": -13732.119440000486,
+      "long_trades": 399,
+      "short_trades": 242
+    },
+    {
+      "name": "grid_short_0.35_spreaddown_0.03",
+      "trades": 634,
+      "win_rate": 0.4022082018927445,
+      "pnl": 2634.9028799975517,
+      "dd": 26281.47456000271,
+      "pnl_over_dd": 0.10025704128517818,
+      "long_pnl": 17307.512279998133,
+      "short_pnl": -14672.609400000549,
+      "long_trades": 399,
+      "short_trades": 235
+    },
+    {
+      "name": "grid_short_0.35",
+      "trades": 641,
+      "win_rate": 0.3993759750390016,
+      "pnl": 1379.4409999976226,
+      "dd": 26724.875160002688,
+      "pnl_over_dd": 0.05161636833619858,
+      "long_pnl": 17230.085399998145,
+      "short_pnl": -15850.644400000538,
+      "long_trades": 399,
+      "short_trades": 242
+    },
+    {
+      "name": "grid_short_0.40_spreaddown_0.03",
+      "trades": 634,
+      "win_rate": 0.4022082018927445,
+      "pnl": 126.36979999752447,
+      "dd": 28800.730360002635,
+      "pnl_over_dd": 0.004387729006102639,
+      "long_pnl": 16733.116399998173,
+      "short_pnl": -16606.74660000064,
+      "long_trades": 399,
+      "short_trades": 235
+    },
+    {
+      "name": "grid_short_0.40",
+      "trades": 641,
+      "win_rate": 0.3993759750390016,
+      "pnl": -1286.6567600024136,
+      "dd": 29286.520720002663,
+      "pnl_over_dd": -0.04393341128854642,
+      "long_pnl": 16633.141679998193,
+      "short_pnl": -17919.79844000061,
+      "long_trades": 399,
+      "short_trades": 242
+    },
+    {
+      "name": "grid_base",
+      "trades": 641,
+      "win_rate": 0.3993759750390016,
+      "pnl": -16441.495280002317,
+      "dd": 44727.7639200028,
+      "pnl_over_dd": -0.36759036980718546,
+      "long_pnl": 13315.888919998511,
+      "short_pnl": -29757.384200000834,
+      "long_trades": 399,
+      "short_trades": 242
+    }
+  ]
+}

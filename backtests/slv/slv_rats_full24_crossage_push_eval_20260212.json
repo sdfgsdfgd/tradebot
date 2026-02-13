@@ -1,0 +1,126 @@
+{
+  "name": "SLV full24 cross-age push eval",
+  "generated_at": "2026-02-12T12:39:31.944603Z",
+  "results": [
+    {
+      "name": "ca_cross_tight_3_2_short010",
+      "trades": 640,
+      "win_rate": 0.4,
+      "pnl": 15619.587719997662,
+      "dd": 15218.530920001853,
+      "pnl_over_dd": 1.026353187577961,
+      "long_pnl": 20434.175319997852,
+      "short_pnl": -4814.587600000177,
+      "long_trades": 398,
+      "short_trades": 242
+    },
+    {
+      "name": "ca_cross_tight_3_2_rank_up_short020",
+      "trades": 640,
+      "win_rate": 0.4,
+      "pnl": 9861.262519997588,
+      "dd": 19446.766560001954,
+      "pnl_over_dd": 0.5070900856227791,
+      "long_pnl": 19365.523159997945,
+      "short_pnl": -9504.26064000034,
+      "long_trades": 398,
+      "short_trades": 242
+    },
+    {
+      "name": "ca_cross_tight_3_2_tr_up_short020",
+      "trades": 640,
+      "win_rate": 0.4,
+      "pnl": 9769.204279997615,
+      "dd": 19526.933480002117,
+      "pnl_over_dd": 0.5002938269852987,
+      "long_pnl": 19255.067039997928,
+      "short_pnl": -9485.862760000335,
+      "long_trades": 398,
+      "short_trades": 242
+    },
+    {
+      "name": "ca_cross_tight_4_2_short020",
+      "trades": 640,
+      "win_rate": 0.4,
+      "pnl": 9848.684399997626,
+      "dd": 19854.784600002007,
+      "pnl_over_dd": 0.49603582201524515,
+      "long_pnl": 19272.17551999796,
+      "short_pnl": -9423.491120000335,
+      "long_trades": 398,
+      "short_trades": 242
+    },
+    {
+      "name": "ca_base_short020",
+      "trades": 641,
+      "win_rate": 0.3993759750390016,
+      "pnl": 9767.107519997662,
+      "dd": 19908.555920001978,
+      "pnl_over_dd": 0.4905984923891301,
+      "long_pnl": 19119.443599997972,
+      "short_pnl": -9352.336080000336,
+      "long_trades": 399,
+      "short_trades": 242
+    },
+    {
+      "name": "ca_cross_tight_3_1_short020",
+      "trades": 639,
+      "win_rate": 0.40062597809076683,
+      "pnl": 9711.611679997633,
+      "dd": 19955.977600002152,
+      "pnl_over_dd": 0.4866517629282459,
+      "long_pnl": 19140.428959997982,
+      "short_pnl": -9428.81728000034,
+      "long_trades": 397,
+      "short_trades": 242
+    },
+    {
+      "name": "ca_cross_tight_3_2_vel_up_short020",
+      "trades": 640,
+      "win_rate": 0.4,
+      "pnl": 9671.774399997621,
+      "dd": 19981.028200002154,
+      "pnl_over_dd": 0.484047882981146,
+      "long_pnl": 19056.98823999796,
+      "short_pnl": -9385.213840000337,
+      "long_trades": 398,
+      "short_trades": 242
+    },
+    {
+      "name": "ca_cross_tight_3_2_short020",
+      "trades": 640,
+      "win_rate": 0.4,
+      "pnl": 9661.99891999762,
+      "dd": 19989.12668000217,
+      "pnl_over_dd": 0.4833627338839083,
+      "long_pnl": 19086.474199997967,
+      "short_pnl": -9424.475280000339,
+      "long_trades": 398,
+      "short_trades": 242
+    },
+    {
+      "name": "ca_cross_tight_3_2_short025",
+      "trades": 640,
+      "win_rate": 0.4,
+      "pnl": 6792.378679997623,
+      "dd": 22287.54564000199,
+      "pnl_over_dd": 0.3047611787188702,
+      "long_pnl": 18452.33271999802,
+      "short_pnl": -11659.954040000406,
+      "long_trades": 398,
+      "short_trades": 242
+    },
+    {
+      "name": "ca_cross_tight_3_2_releasefast_short020",
+      "trades": 1157,
+      "win_rate": 0.36992221261884184,
+      "pnl": -28193.359320003063,
+      "dd": 40839.15752000275,
+      "pnl_over_dd": -0.6903511490459651,
+      "long_pnl": -17275.516600002564,
+      "short_pnl": -10917.842720000473,
+      "long_trades": 734,
+      "short_trades": 423
+    }
+  ]
+}

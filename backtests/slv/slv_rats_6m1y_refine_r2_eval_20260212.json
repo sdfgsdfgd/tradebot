@@ -1,0 +1,1085 @@
+{
+  "name": "SLV RATS refine round2 eval",
+  "generated_at": "2026-02-12T12:26:01.340407Z",
+  "source": "/Users/x/Desktop/py/tradebot/backtests/slv/slv_rats_6m1y_refine_r2_candidates_20260212.json",
+  "windows": [
+    "2025-07-08->2026-01-08",
+    "2025-01-08->2026-01-08"
+  ],
+  "results": [
+    {
+      "name": "b_strict_base",
+      "windows": [
+        {
+          "window": "2025-07-08->2026-01-08",
+          "trades": 134,
+          "win_rate": 0.47761194029850745,
+          "pnl": 40333.6561999979,
+          "roi": 0.403336561999979,
+          "dd": 8108.3348000003025,
+          "dd_pct": 0.08108334800000302,
+          "pnl_over_dd": 4.974345188607209,
+          "max_single_loss_share": 0.03455965049748805,
+          "top5_loss_share": 0.16855904241928316,
+          "extremum_entry_dist_median": 0.002874233630884536,
+          "ext_entry_loss_median": 0.002870715445565883,
+          "early_mae_5bar_median": 0.0013057879418893132,
+          "early_mae_loss_median": 0.001162543031120836,
+          "long_pnl": 41718.779039998604,
+          "short_pnl": -1385.1228400007033,
+          "long_trades": 90,
+          "short_trades": 44,
+          "long_win_rate": 0.5222222222222223,
+          "short_win_rate": 0.38636363636363635,
+          "exit_reason_counts": {
+            "ratsv_adverse_release": 112,
+            "stop": 17,
+            "flip": 5
+          }
+        },
+        {
+          "window": "2025-01-08->2026-01-08",
+          "trades": 263,
+          "win_rate": 0.4220532319391635,
+          "pnl": 32249.613439998473,
+          "roi": 0.32249613439998476,
+          "dd": 15600.121240001128,
+          "dd_pct": 0.15600121240001127,
+          "pnl_over_dd": 2.0672668464463895,
+          "max_single_loss_share": 0.01722026624835447,
+          "top5_loss_share": 0.08353515694560593,
+          "extremum_entry_dist_median": 0.002600472813238925,
+          "ext_entry_loss_median": 0.002593214939271642,
+          "early_mae_5bar_median": 0.0013277273733127302,
+          "early_mae_loss_median": 0.001313794515707702,
+          "long_pnl": 38148.01327999902,
+          "short_pnl": -5898.399840000552,
+          "long_trades": 173,
+          "short_trades": 90,
+          "long_win_rate": 0.45664739884393063,
+          "short_win_rate": 0.35555555555555557,
+          "exit_reason_counts": {
+            "ratsv_adverse_release": 225,
+            "stop": 29,
+            "flip": 9
+          }
+        }
+      ],
+      "score": {
+        "y1_pdd": 2.0672668464463895,
+        "y1_pnl": 32249.613439998473,
+        "y1_trades": 263,
+        "m6_pdd": 4.974345188607209,
+        "neg_y1_ext_loss": -0.002593214939271642,
+        "neg_y1_mae_loss": -0.001313794515707702
+      }
+    },
+    {
+      "name": "b_strict_probe_soft2",
+      "windows": [
+        {
+          "window": "2025-07-08->2026-01-08",
+          "trades": 135,
+          "win_rate": 0.4740740740740741,
+          "pnl": 39763.57047999788,
+          "roi": 0.3976357047999788,
+          "dd": 8108.3348000003025,
+          "dd_pct": 0.08108334800000302,
+          "pnl_over_dd": 4.904036582208765,
+          "max_single_loss_share": 0.03416460914741961,
+          "top5_loss_share": 0.1664422662126174,
+          "extremum_entry_dist_median": 0.0028347143480159103,
+          "ext_entry_loss_median": 0.0028276779773786045,
+          "early_mae_5bar_median": 0.0012903225806453632,
+          "early_mae_loss_median": 0.0011574074074073826,
+          "long_pnl": 41169.70983999858,
+          "short_pnl": -1406.1393600007034,
+          "long_trades": 91,
+          "short_trades": 44,
+          "long_win_rate": 0.5164835164835165,
+          "short_win_rate": 0.38636363636363635,
+          "exit_reason_counts": {
+            "ratsv_adverse_release": 112,
+            "stop": 17,
+            "flip": 5,
+            "ratsv_probe_cancel": 1
+          }
+        },
+        {
+          "window": "2025-01-08->2026-01-08",
+          "trades": 264,
+          "win_rate": 0.42045454545454547,
+          "pnl": 31713.85907999845,
+          "roi": 0.31713859079998447,
+          "dd": 15600.121240001128,
+          "dd_pct": 0.15600121240001127,
+          "pnl_over_dd": 2.0329238851477127,
+          "max_single_loss_share": 0.01713579179945784,
+          "top5_loss_share": 0.08306281317545741,
+          "extremum_entry_dist_median": 0.002593061228856022,
+          "ext_entry_loss_median": 0.002585649644473119,
+          "early_mae_5bar_median": 0.0013244903382229967,
+          "early_mae_loss_median": 0.0013063357282821408,
+          "long_pnl": 37632.27307999901,
+          "short_pnl": -5918.414000000554,
+          "long_trades": 174,
+          "short_trades": 90,
+          "long_win_rate": 0.4540229885057471,
+          "short_win_rate": 0.35555555555555557,
+          "exit_reason_counts": {
+            "ratsv_adverse_release": 225,
+            "stop": 29,
+            "flip": 9,
+            "ratsv_probe_cancel": 1
+          }
+        }
+      ],
+      "score": {
+        "y1_pdd": 2.0329238851477127,
+        "y1_pnl": 31713.85907999845,
+        "y1_trades": 264,
+        "m6_pdd": 4.904036582208765,
+        "neg_y1_ext_loss": -0.002585649644473119,
+        "neg_y1_mae_loss": -0.0013063357282821408
+      }
+    },
+    {
+      "name": "b_strict_perm_relax_qtr",
+      "windows": [
+        {
+          "window": "2025-07-08->2026-01-08",
+          "trades": 135,
+          "win_rate": 0.4740740740740741,
+          "pnl": 39346.69951999789,
+          "roi": 0.3934669951999789,
+          "dd": 8048.659280000269,
+          "dd_pct": 0.08048659280000268,
+          "pnl_over_dd": 4.888602952515164,
+          "max_single_loss_share": 0.03370617405063868,
+          "top5_loss_share": 0.16368768930938613,
+          "extremum_entry_dist_median": 0.0027614773904039297,
+          "ext_entry_loss_median": 0.0027614773904039297,
+          "early_mae_5bar_median": 0.0012033694344162215,
+          "early_mae_loss_median": 0.0011399908800730568,
+          "long_pnl": 41666.239919998596,
+          "short_pnl": -2319.5404000007156,
+          "long_trades": 90,
+          "short_trades": 45,
+          "long_win_rate": 0.5222222222222223,
+          "short_win_rate": 0.37777777777777777,
+          "exit_reason_counts": {
+            "ratsv_adverse_release": 113,
+            "stop": 18,
+            "flip": 4
+          }
+        },
+        {
+          "window": "2025-01-08->2026-01-08",
+          "trades": 266,
+          "win_rate": 0.42105263157894735,
+          "pnl": 31461.557319998366,
+          "roi": 0.3146155731999837,
+          "dd": 15515.523200001218,
+          "dd_pct": 0.1551552320000122,
+          "pnl_over_dd": 2.0277471094236703,
+          "max_single_loss_share": 0.01689414550647803,
+          "top5_loss_share": 0.08139146866966625,
+          "extremum_entry_dist_median": 0.002553762532983966,
+          "ext_entry_loss_median": 0.0025690878057326866,
+          "early_mae_5bar_median": 0.0013244903382229967,
+          "early_mae_loss_median": 0.0012995802752593503,
+          "long_pnl": 38227.70815999901,
+          "short_pnl": -6766.150840000645,
+          "long_trades": 173,
+          "short_trades": 93,
+          "long_win_rate": 0.45664739884393063,
+          "short_win_rate": 0.3548387096774194,
+          "exit_reason_counts": {
+            "ratsv_adverse_release": 226,
+            "stop": 31,
+            "flip": 9
+          }
+        }
+      ],
+      "score": {
+        "y1_pdd": 2.0277471094236703,
+        "y1_pnl": 31461.557319998366,
+        "y1_trades": 266,
+        "m6_pdd": 4.888602952515164,
+        "neg_y1_ext_loss": -0.0025690878057326866,
+        "neg_y1_mae_loss": -0.0012995802752593503
+      }
+    },
+    {
+      "name": "b_strict_flip_profit_false",
+      "windows": [
+        {
+          "window": "2025-07-08->2026-01-08",
+          "trades": 136,
+          "win_rate": 0.47794117647058826,
+          "pnl": 40826.86379999786,
+          "roi": 0.4082686379999786,
+          "dd": 8132.264440000363,
+          "dd_pct": 0.08132264440000363,
+          "pnl_over_dd": 5.020356150641363,
+          "max_single_loss_share": 0.03458583407322716,
+          "top5_loss_share": 0.16873424569448733,
+          "extremum_entry_dist_median": 0.0028649541630063418,
+          "ext_entry_loss_median": 0.0028951939779967733,
+          "early_mae_5bar_median": 0.0013057879418893132,
+          "early_mae_loss_median": 0.0011676786548342893,
+          "long_pnl": 42331.31559999862,
+          "short_pnl": -1504.451800000771,
+          "long_trades": 90,
+          "short_trades": 46,
+          "long_win_rate": 0.5222222222222223,
+          "short_win_rate": 0.391304347826087,
+          "exit_reason_counts": {
+            "ratsv_adverse_release": 111,
+            "flip": 8,
+            "stop": 17
+          }
+        },
+        {
+          "window": "2025-01-08->2026-01-08",
+          "trades": 265,
+          "win_rate": 0.41509433962264153,
+          "pnl": 32337.942959998425,
+          "roi": 0.3233794295999842,
+          "dd": 16146.800560001182,
+          "dd_pct": 0.16146800560001182,
+          "pnl_over_dd": 2.0027461688048533,
+          "max_single_loss_share": 0.01730214002941933,
+          "top5_loss_share": 0.08376148631214037,
+          "extremum_entry_dist_median": 0.002600472813238925,
+          "ext_entry_loss_median": 0.0026007802340701656,
+          "early_mae_5bar_median": 0.0013277273733127302,
+          "early_mae_loss_median": 0.0013277273733127302,
+          "long_pnl": 38420.60279999906,
+          "short_pnl": -6082.659840000619,
+          "long_trades": 173,
+          "short_trades": 92,
+          "long_win_rate": 0.4508670520231214,
+          "short_win_rate": 0.34782608695652173,
+          "exit_reason_counts": {
+            "ratsv_adverse_release": 220,
+            "flip": 16,
+            "stop": 29
+          }
+        }
+      ],
+      "score": {
+        "y1_pdd": 2.0027461688048533,
+        "y1_pnl": 32337.942959998425,
+        "y1_trades": 265,
+        "m6_pdd": 5.020356150641363,
+        "neg_y1_ext_loss": -0.0026007802340701656,
+        "neg_y1_mae_loss": -0.0013277273733127302
+      }
+    },
+    {
+      "name": "b_strict_plus_a_loose",
+      "windows": [
+        {
+          "window": "2025-07-08->2026-01-08",
+          "trades": 134,
+          "win_rate": 0.47761194029850745,
+          "pnl": 39845.274359997915,
+          "roi": 0.3984527435999792,
+          "dd": 8108.3348000003025,
+          "dd_pct": 0.08108334800000302,
+          "pnl_over_dd": 4.914113112349089,
+          "max_single_loss_share": 0.03454221551013515,
+          "top5_loss_share": 0.1683441741817349,
+          "extremum_entry_dist_median": 0.002874233630884536,
+          "ext_entry_loss_median": 0.002870715445565883,
+          "early_mae_5bar_median": 0.0013057879418893132,
+          "early_mae_loss_median": 0.001162543031120836,
+          "long_pnl": 41250.82135999862,
+          "short_pnl": -1405.5470000007022,
+          "long_trades": 90,
+          "short_trades": 44,
+          "long_win_rate": 0.5222222222222223,
+          "short_win_rate": 0.38636363636363635,
+          "exit_reason_counts": {
+            "ratsv_adverse_release": 112,
+            "stop": 17,
+            "flip": 5
+          }
+        },
+        {
+          "window": "2025-01-08->2026-01-08",
+          "trades": 263,
+          "win_rate": 0.4220532319391635,
+          "pnl": 31116.095679998456,
+          "roi": 0.31116095679998457,
+          "dd": 15981.504360001141,
+          "dd_pct": 0.15981504360001142,
+          "pnl_over_dd": 1.9470066759094657,
+          "max_single_loss_share": 0.017303376810451753,
+          "top5_loss_share": 0.08370080519556886,
+          "extremum_entry_dist_median": 0.002600472813238925,
+          "ext_entry_loss_median": 0.002593214939271642,
+          "early_mae_5bar_median": 0.0013277273733127302,
+          "early_mae_loss_median": 0.001313794515707702,
+          "long_pnl": 37032.59659999904,
+          "short_pnl": -5916.5009200005625,
+          "long_trades": 173,
+          "short_trades": 90,
+          "long_win_rate": 0.45664739884393063,
+          "short_win_rate": 0.35555555555555557,
+          "exit_reason_counts": {
+            "ratsv_adverse_release": 225,
+            "stop": 29,
+            "flip": 9
+          }
+        }
+      ],
+      "score": {
+        "y1_pdd": 1.9470066759094657,
+        "y1_pnl": 31116.095679998456,
+        "y1_trades": 263,
+        "m6_pdd": 4.914113112349089,
+        "neg_y1_ext_loss": -0.002593214939271642,
+        "neg_y1_mae_loss": -0.001313794515707702
+      }
+    },
+    {
+      "name": "b_strict_perm_relax_half",
+      "windows": [
+        {
+          "window": "2025-07-08->2026-01-08",
+          "trades": 138,
+          "win_rate": 0.463768115942029,
+          "pnl": 36377.145999997854,
+          "roi": 0.36377145999997856,
+          "dd": 7886.390640000245,
+          "dd_pct": 0.07886390640000245,
+          "pnl_over_dd": 4.612648251976106,
+          "max_single_loss_share": 0.03154013680354617,
+          "top5_loss_share": 0.15370470390163687,
+          "extremum_entry_dist_median": 0.0027757821877344513,
+          "ext_entry_loss_median": 0.0028240953989457965,
+          "early_mae_5bar_median": 0.0013244903382229967,
+          "early_mae_loss_median": 0.0012623113687747424,
+          "long_pnl": 41134.950279998615,
+          "short_pnl": -4757.804280000757,
+          "long_trades": 90,
+          "short_trades": 48,
+          "long_win_rate": 0.5222222222222223,
+          "short_win_rate": 0.3541666666666667,
+          "exit_reason_counts": {
+            "ratsv_adverse_release": 116,
+            "stop": 19,
+            "flip": 3
+          }
+        },
+        {
+          "window": "2025-01-08->2026-01-08",
+          "trades": 273,
+          "win_rate": 0.4175824175824176,
+          "pnl": 29668.19599999835,
+          "roi": 0.2966819599999835,
+          "dd": 15335.491280001384,
+          "dd_pct": 0.15335491280001384,
+          "pnl_over_dd": 1.9346100792146042,
+          "max_single_loss_share": 0.016242394556574793,
+          "top5_loss_share": 0.07745821537252148,
+          "extremum_entry_dist_median": 0.0025439898240408,
+          "ext_entry_loss_median": 0.0026007802340701656,
+          "early_mae_5bar_median": 0.0013284623048820706,
+          "early_mae_loss_median": 0.0013440860215053478,
+          "long_pnl": 38089.53059999903,
+          "short_pnl": -8421.334600000659,
+          "long_trades": 173,
+          "short_trades": 100,
+          "long_win_rate": 0.4624277456647399,
+          "short_win_rate": 0.34,
+          "exit_reason_counts": {
+            "ratsv_adverse_release": 234,
+            "stop": 31,
+            "flip": 8
+          }
+        }
+      ],
+      "score": {
+        "y1_pdd": 1.9346100792146042,
+        "y1_pnl": 29668.19599999835,
+        "y1_trades": 273,
+        "m6_pdd": 4.612648251976106,
+        "neg_y1_ext_loss": -0.0026007802340701656,
+        "neg_y1_mae_loss": -0.0013440860215053478
+      }
+    },
+    {
+      "name": "baseline_r2",
+      "windows": [
+        {
+          "window": "2025-07-08->2026-01-08",
+          "trades": 134,
+          "win_rate": 0.47761194029850745,
+          "pnl": 37746.40035999792,
+          "roi": 0.37746400359997917,
+          "dd": 7958.726000000257,
+          "dd_pct": 0.07958726000000257,
+          "pnl_over_dd": 4.742769176875382,
+          "max_single_loss_share": 0.0348882007308082,
+          "top5_loss_share": 0.16850122275018178,
+          "extremum_entry_dist_median": 0.002874233630884536,
+          "ext_entry_loss_median": 0.002870715445565883,
+          "early_mae_5bar_median": 0.0013057879418893132,
+          "early_mae_loss_median": 0.001162543031120836,
+          "long_pnl": 39148.80251999863,
+          "short_pnl": -1402.402160000695,
+          "long_trades": 90,
+          "short_trades": 44,
+          "long_win_rate": 0.5222222222222223,
+          "short_win_rate": 0.38636363636363635,
+          "exit_reason_counts": {
+            "ratsv_adverse_release": 112,
+            "stop": 17,
+            "flip": 5
+          }
+        },
+        {
+          "window": "2025-01-08->2026-01-08",
+          "trades": 263,
+          "win_rate": 0.4220532319391635,
+          "pnl": 29819.622519998487,
+          "roi": 0.2981962251999849,
+          "dd": 15600.121240001128,
+          "dd_pct": 0.15600121240001127,
+          "pnl_over_dd": 1.91149940832103,
+          "max_single_loss_share": 0.017309468148596126,
+          "top5_loss_share": 0.08366243575386408,
+          "extremum_entry_dist_median": 0.002600472813238925,
+          "ext_entry_loss_median": 0.002593214939271642,
+          "early_mae_5bar_median": 0.0013277273733127302,
+          "early_mae_loss_median": 0.001313794515707702,
+          "long_pnl": 35732.39131999903,
+          "short_pnl": -5912.768800000551,
+          "long_trades": 173,
+          "short_trades": 90,
+          "long_win_rate": 0.45664739884393063,
+          "short_win_rate": 0.35555555555555557,
+          "exit_reason_counts": {
+            "ratsv_adverse_release": 225,
+            "stop": 29,
+            "flip": 9
+          }
+        }
+      ],
+      "score": {
+        "y1_pdd": 1.91149940832103,
+        "y1_pnl": 29819.622519998487,
+        "y1_trades": 263,
+        "m6_pdd": 4.742769176875382,
+        "neg_y1_ext_loss": -0.002593214939271642,
+        "neg_y1_mae_loss": -0.001313794515707702
+      }
+    },
+    {
+      "name": "b_strict_tod_08_16",
+      "windows": [
+        {
+          "window": "2025-07-08->2026-01-08",
+          "trades": 166,
+          "win_rate": 0.5180722891566265,
+          "pnl": 35110.5255999975,
+          "roi": 0.351105255999975,
+          "dd": 9117.525880000481,
+          "dd_pct": 0.09117525880000481,
+          "pnl_over_dd": 3.850883020470861,
+          "max_single_loss_share": 0.026193675340938746,
+          "top5_loss_share": 0.12994208854133743,
+          "extremum_entry_dist_median": 0.003337246881785755,
+          "ext_entry_loss_median": 0.003576816238545965,
+          "early_mae_5bar_median": 0.0018220998175410008,
+          "early_mae_loss_median": 0.001802739503532724,
+          "long_pnl": 37687.9499999983,
+          "short_pnl": -2577.424400000803,
+          "long_trades": 112,
+          "short_trades": 54,
+          "long_win_rate": 0.5446428571428571,
+          "short_win_rate": 0.46296296296296297,
+          "exit_reason_counts": {
+            "ratsv_adverse_release": 133,
+            "stop": 26,
+            "flip": 7
+          }
+        },
+        {
+          "window": "2025-01-08->2026-01-08",
+          "trades": 322,
+          "win_rate": 0.46273291925465837,
+          "pnl": 24307.74907999813,
+          "roi": 0.2430774907999813,
+          "dd": 16695.0599200015,
+          "dd_pct": 0.16695059920001498,
+          "pnl_over_dd": 1.4559845365320467,
+          "max_single_loss_share": 0.013949500741769897,
+          "top5_loss_share": 0.0656181442155382,
+          "extremum_entry_dist_median": 0.002948906237922207,
+          "ext_entry_loss_median": 0.003025210084033489,
+          "early_mae_5bar_median": 0.0016784989858011218,
+          "early_mae_loss_median": 0.0016638935108153315,
+          "long_pnl": 34941.788639998806,
+          "short_pnl": -10634.03956000067,
+          "long_trades": 208,
+          "short_trades": 114,
+          "long_win_rate": 0.4951923076923077,
+          "short_win_rate": 0.40350877192982454,
+          "exit_reason_counts": {
+            "ratsv_adverse_release": 273,
+            "stop": 38,
+            "flip": 11
+          }
+        }
+      ],
+      "score": {
+        "y1_pdd": 1.4559845365320467,
+        "y1_pnl": 24307.74907999813,
+        "y1_trades": 322,
+        "m6_pdd": 3.850883020470861,
+        "neg_y1_ext_loss": -0.003025210084033489,
+        "neg_y1_mae_loss": -0.0016638935108153315
+      }
+    },
+    {
+      "name": "b_strict_perm_off",
+      "windows": [
+        {
+          "window": "2025-07-08->2026-01-08",
+          "trades": 141,
+          "win_rate": 0.48226950354609927,
+          "pnl": 35921.367319997786,
+          "roi": 0.3592136731999779,
+          "dd": 7682.355160000283,
+          "dd_pct": 0.07682355160000283,
+          "pnl_over_dd": 4.675827473719201,
+          "max_single_loss_share": 0.03208373871150527,
+          "top5_loss_share": 0.15652562614228294,
+          "extremum_entry_dist_median": 0.0027614773904039297,
+          "ext_entry_loss_median": 0.0028205128205129886,
+          "early_mae_5bar_median": 0.0013277273733127302,
+          "early_mae_loss_median": 0.0013212533031332634,
+          "long_pnl": 39072.51215999862,
+          "short_pnl": -3151.1448400008403,
+          "long_trades": 90,
+          "short_trades": 51,
+          "long_win_rate": 0.5222222222222223,
+          "short_win_rate": 0.4117647058823529,
+          "exit_reason_counts": {
+            "ratsv_adverse_release": 114,
+            "stop": 18,
+            "flip": 9
+          }
+        },
+        {
+          "window": "2025-01-08->2026-01-08",
+          "trades": 279,
+          "win_rate": 0.41935483870967744,
+          "pnl": 25122.29719999838,
+          "roi": 0.2512229719999838,
+          "dd": 18319.588600001254,
+          "dd_pct": 0.18319588600001255,
+          "pnl_over_dd": 1.3713352274732118,
+          "max_single_loss_share": 0.016335590148582015,
+          "top5_loss_share": 0.07635464963700385,
+          "extremum_entry_dist_median": 0.0025200458190150414,
+          "ext_entry_loss_median": 0.002527534105054974,
+          "early_mae_5bar_median": 0.0013440860215053478,
+          "early_mae_loss_median": 0.0013501623597581246,
+          "long_pnl": 34368.1770799991,
+          "short_pnl": -9245.879880000723,
+          "long_trades": 173,
+          "short_trades": 106,
+          "long_win_rate": 0.45664739884393063,
+          "short_win_rate": 0.3584905660377358,
+          "exit_reason_counts": {
+            "ratsv_adverse_release": 234,
+            "stop": 30,
+            "flip": 15
+          }
+        }
+      ],
+      "score": {
+        "y1_pdd": 1.3713352274732118,
+        "y1_pnl": 25122.29719999838,
+        "y1_trades": 279,
+        "m6_pdd": 4.675827473719201,
+        "neg_y1_ext_loss": -0.002527534105054974,
+        "neg_y1_mae_loss": -0.0013501623597581246
+      }
+    },
+    {
+      "name": "b_strict_tod09_16_perm_half",
+      "windows": [
+        {
+          "window": "2025-07-08->2026-01-08",
+          "trades": 165,
+          "win_rate": 0.5151515151515151,
+          "pnl": 36993.75879999746,
+          "roi": 0.36993758799997456,
+          "dd": 7366.463840000739,
+          "dd_pct": 0.07366463840000739,
+          "pnl_over_dd": 5.021915481226844,
+          "max_single_loss_share": 0.02621389179441481,
+          "top5_loss_share": 0.1289705145866314,
+          "extremum_entry_dist_median": 0.0029403902699814627,
+          "ext_entry_loss_median": 0.002927921082512618,
+          "early_mae_5bar_median": 0.0014333492594364398,
+          "early_mae_loss_median": 0.0014627887082977798,
+          "long_pnl": 37805.57763999834,
+          "short_pnl": -811.8188400008903,
+          "long_trades": 108,
+          "short_trades": 57,
+          "long_win_rate": 0.5555555555555556,
+          "short_win_rate": 0.43859649122807015,
+          "exit_reason_counts": {
+            "ratsv_adverse_release": 133,
+            "stop": 27,
+            "flip": 5
+          }
+        },
+        {
+          "window": "2025-01-08->2026-01-08",
+          "trades": 314,
+          "win_rate": 0.4681528662420382,
+          "pnl": 24214.197879998086,
+          "roi": 0.24214197879998087,
+          "dd": 19258.78412000164,
+          "dd_pct": 0.1925878412000164,
+          "pnl_over_dd": 1.2573066777798236,
+          "max_single_loss_share": 0.014127288695672114,
+          "top5_loss_share": 0.0667040484055647,
+          "extremum_entry_dist_median": 0.0026863679006999502,
+          "ext_entry_loss_median": 0.0026881720430106957,
+          "early_mae_5bar_median": 0.0014131398262919935,
+          "early_mae_loss_median": 0.0015831134564646277,
+          "long_pnl": 34115.89715999887,
+          "short_pnl": -9901.699280000772,
+          "long_trades": 196,
+          "short_trades": 118,
+          "long_win_rate": 0.5153061224489796,
+          "short_win_rate": 0.3898305084745763,
+          "exit_reason_counts": {
+            "ratsv_adverse_release": 264,
+            "stop": 40,
+            "flip": 10
+          }
+        }
+      ],
+      "score": {
+        "y1_pdd": 1.2573066777798236,
+        "y1_pnl": 24214.197879998086,
+        "y1_trades": 314,
+        "m6_pdd": 5.021915481226844,
+        "neg_y1_ext_loss": -0.0026881720430106957,
+        "neg_y1_mae_loss": -0.0015831134564646277
+      }
+    },
+    {
+      "name": "b_strict_tod_09_17",
+      "windows": [
+        {
+          "window": "2025-07-08->2026-01-08",
+          "trades": 161,
+          "win_rate": 0.5279503105590062,
+          "pnl": 32899.6175999976,
+          "roi": 0.328996175999976,
+          "dd": 8947.243520000527,
+          "dd_pct": 0.08947243520000528,
+          "pnl_over_dd": 3.6770674148361233,
+          "max_single_loss_share": 0.026918843062664732,
+          "top5_loss_share": 0.13280555561795387,
+          "extremum_entry_dist_median": 0.0029796011918405358,
+          "ext_entry_loss_median": 0.00294178218502472,
+          "early_mae_5bar_median": 0.0014970059880240088,
+          "early_mae_loss_median": 0.0015683888882968016,
+          "long_pnl": 37340.40915999837,
+          "short_pnl": -4440.791560000778,
+          "long_trades": 107,
+          "short_trades": 54,
+          "long_win_rate": 0.5607476635514018,
+          "short_win_rate": 0.46296296296296297,
+          "exit_reason_counts": {
+            "ratsv_adverse_release": 129,
+            "stop": 25,
+            "flip": 7
+          }
+        },
+        {
+          "window": "2025-01-08->2026-01-08",
+          "trades": 308,
+          "win_rate": 0.474025974025974,
+          "pnl": 22121.735919998195,
+          "roi": 0.22121735919998195,
+          "dd": 17975.211200001155,
+          "dd_pct": 0.17975211200001154,
+          "pnl_over_dd": 1.2306801669176923,
+          "max_single_loss_share": 0.014486213823651763,
+          "top5_loss_share": 0.06812921396600537,
+          "extremum_entry_dist_median": 0.0027562486245464126,
+          "ext_entry_loss_median": 0.0027009381246260785,
+          "early_mae_5bar_median": 0.001439479111105989,
+          "early_mae_loss_median": 0.0016372183585036098,
+          "long_pnl": 34498.03415999886,
+          "short_pnl": -12376.298240000657,
+          "long_trades": 197,
+          "short_trades": 111,
+          "long_win_rate": 0.5177664974619289,
+          "short_win_rate": 0.3963963963963964,
+          "exit_reason_counts": {
+            "ratsv_adverse_release": 259,
+            "stop": 37,
+            "flip": 12
+          }
+        }
+      ],
+      "score": {
+        "y1_pdd": 1.2306801669176923,
+        "y1_pnl": 22121.735919998195,
+        "y1_trades": 308,
+        "m6_pdd": 3.6770674148361233,
+        "neg_y1_ext_loss": -0.0027009381246260785,
+        "neg_y1_mae_loss": -0.0016372183585036098
+      }
+    },
+    {
+      "name": "b_strict_tod_09_16",
+      "windows": [
+        {
+          "window": "2025-07-08->2026-01-08",
+          "trades": 161,
+          "win_rate": 0.5279503105590062,
+          "pnl": 32899.6175999976,
+          "roi": 0.328996175999976,
+          "dd": 8947.243520000527,
+          "dd_pct": 0.08947243520000528,
+          "pnl_over_dd": 3.6770674148361233,
+          "max_single_loss_share": 0.026918843062664732,
+          "top5_loss_share": 0.13280555561795387,
+          "extremum_entry_dist_median": 0.0029796011918405358,
+          "ext_entry_loss_median": 0.00294178218502472,
+          "early_mae_5bar_median": 0.0014970059880240088,
+          "early_mae_loss_median": 0.0015683888882968016,
+          "long_pnl": 37340.40915999837,
+          "short_pnl": -4440.791560000778,
+          "long_trades": 107,
+          "short_trades": 54,
+          "long_win_rate": 0.5607476635514018,
+          "short_win_rate": 0.46296296296296297,
+          "exit_reason_counts": {
+            "ratsv_adverse_release": 129,
+            "stop": 25,
+            "flip": 7
+          }
+        },
+        {
+          "window": "2025-01-08->2026-01-08",
+          "trades": 304,
+          "win_rate": 0.47368421052631576,
+          "pnl": 22053.26071999817,
+          "roi": 0.2205326071999817,
+          "dd": 18025.171680001527,
+          "dd_pct": 0.18025171680001528,
+          "pnl_over_dd": 1.2234702177325558,
+          "max_single_loss_share": 0.014622704483577735,
+          "top5_loss_share": 0.06861615066902879,
+          "extremum_entry_dist_median": 0.0027562486245464126,
+          "ext_entry_loss_median": 0.0027009381246260785,
+          "early_mae_5bar_median": 0.001439479111105989,
+          "early_mae_loss_median": 0.0016372183585036098,
+          "long_pnl": 34234.994279998835,
+          "short_pnl": -12181.73356000067,
+          "long_trades": 195,
+          "short_trades": 109,
+          "long_win_rate": 0.517948717948718,
+          "short_win_rate": 0.3944954128440367,
+          "exit_reason_counts": {
+            "ratsv_adverse_release": 256,
+            "stop": 37,
+            "flip": 11
+          }
+        }
+      ],
+      "score": {
+        "y1_pdd": 1.2234702177325558,
+        "y1_pnl": 22053.26071999817,
+        "y1_trades": 304,
+        "m6_pdd": 3.6770674148361233,
+        "neg_y1_ext_loss": -0.0027009381246260785,
+        "neg_y1_mae_loss": -0.0016372183585036098
+      }
+    },
+    {
+      "name": "b_strict_tod09_16_perm_qtr",
+      "windows": [
+        {
+          "window": "2025-07-08->2026-01-08",
+          "trades": 162,
+          "win_rate": 0.5185185185185185,
+          "pnl": 31440.81247999758,
+          "roi": 0.3144081247999758,
+          "dd": 10062.492800000357,
+          "dd_pct": 0.10062492800000357,
+          "pnl_over_dd": 3.1245550287495827,
+          "max_single_loss_share": 0.026480745972961597,
+          "top5_loss_share": 0.13017621286213213,
+          "extremum_entry_dist_median": 0.0029421752853281352,
+          "ext_entry_loss_median": 0.0028715649362111885,
+          "early_mae_5bar_median": 0.001427575103651896,
+          "early_mae_loss_median": 0.0014590667078917931,
+          "long_pnl": 36816.244519998356,
+          "short_pnl": -5375.432040000787,
+          "long_trades": 108,
+          "short_trades": 54,
+          "long_win_rate": 0.5555555555555556,
+          "short_win_rate": 0.4444444444444444,
+          "exit_reason_counts": {
+            "ratsv_adverse_release": 130,
+            "stop": 26,
+            "flip": 6
+          }
+        },
+        {
+          "window": "2025-01-08->2026-01-08",
+          "trades": 308,
+          "win_rate": 0.474025974025974,
+          "pnl": 21123.930399998084,
+          "roi": 0.21123930399998084,
+          "dd": 18614.647200001564,
+          "dd_pct": 0.18614647200001563,
+          "pnl_over_dd": 1.1348015448821565,
+          "max_single_loss_share": 0.014460190741180096,
+          "top5_loss_share": 0.06850589161333057,
+          "extremum_entry_dist_median": 0.0026863679006999502,
+          "ext_entry_loss_median": 0.0026617867980068136,
+          "early_mae_5bar_median": 0.0013776477074631684,
+          "early_mae_loss_median": 0.0015134968740610293,
+          "long_pnl": 33732.79507999886,
+          "short_pnl": -12608.864680000761,
+          "long_trades": 196,
+          "short_trades": 112,
+          "long_win_rate": 0.5153061224489796,
+          "short_win_rate": 0.4017857142857143,
+          "exit_reason_counts": {
+            "ratsv_adverse_release": 258,
+            "stop": 39,
+            "flip": 11
+          }
+        }
+      ],
+      "score": {
+        "y1_pdd": 1.1348015448821565,
+        "y1_pnl": 21123.930399998084,
+        "y1_trades": 308,
+        "m6_pdd": 3.1245550287495827,
+        "neg_y1_ext_loss": -0.0026617867980068136,
+        "neg_y1_mae_loss": -0.0015134968740610293
+      }
+    },
+    {
+      "name": "b_strict_release_late7",
+      "windows": [
+        {
+          "window": "2025-07-08->2026-01-08",
+          "trades": 128,
+          "win_rate": 0.46875,
+          "pnl": 26659.299639997993,
+          "roi": 0.2665929963999799,
+          "dd": 8006.652600000583,
+          "dd_pct": 0.08006652600000583,
+          "pnl_over_dd": 3.3296436066173336,
+          "max_single_loss_share": 0.03166308976308526,
+          "top5_loss_share": 0.15382437751727787,
+          "extremum_entry_dist_median": 0.0030389371142289594,
+          "ext_entry_loss_median": 0.00318118980959803,
+          "early_mae_5bar_median": 0.0012304700406885912,
+          "early_mae_loss_median": 0.0011411629063376966,
+          "long_pnl": 33546.04743999866,
+          "short_pnl": -6886.74780000067,
+          "long_trades": 87,
+          "short_trades": 41,
+          "long_win_rate": 0.5057471264367817,
+          "short_win_rate": 0.3902439024390244,
+          "exit_reason_counts": {
+            "ratsv_adverse_release": 102,
+            "stop": 21,
+            "flip": 5
+          }
+        },
+        {
+          "window": "2025-01-08->2026-01-08",
+          "trades": 252,
+          "win_rate": 0.42063492063492064,
+          "pnl": 19358.55507999848,
+          "roi": 0.19358555079998482,
+          "dd": 17524.68676000119,
+          "dd_pct": 0.1752468676000119,
+          "pnl_over_dd": 1.1046448558603033,
+          "max_single_loss_share": 0.016329175835139736,
+          "top5_loss_share": 0.07871163685290493,
+          "extremum_entry_dist_median": 0.002611006106550127,
+          "ext_entry_loss_median": 0.002611006106550127,
+          "early_mae_5bar_median": 0.0013033629226586118,
+          "early_mae_loss_median": 0.0012450302397686206,
+          "long_pnl": 29808.103439999035,
+          "short_pnl": -10449.548360000563,
+          "long_trades": 167,
+          "short_trades": 85,
+          "long_win_rate": 0.4491017964071856,
+          "short_win_rate": 0.36470588235294116,
+          "exit_reason_counts": {
+            "ratsv_adverse_release": 208,
+            "stop": 34,
+            "flip": 10
+          }
+        }
+      ],
+      "score": {
+        "y1_pdd": 1.1046448558603033,
+        "y1_pnl": 19358.55507999848,
+        "y1_trades": 252,
+        "m6_pdd": 3.3296436066173336,
+        "neg_y1_ext_loss": -0.002611006106550127,
+        "neg_y1_mae_loss": -0.0012450302397686206
+      }
+    },
+    {
+      "name": "b_strict_flip_gate_off",
+      "windows": [
+        {
+          "window": "2025-07-08->2026-01-08",
+          "trades": 160,
+          "win_rate": 0.56875,
+          "pnl": 30450.405119997522,
+          "roi": 0.3045040511999752,
+          "dd": 7625.090280000455,
+          "dd_pct": 0.07625090280000454,
+          "pnl_over_dd": 3.993448471012163,
+          "max_single_loss_share": 0.040437100985557105,
+          "top5_loss_share": 0.19158316197593023,
+          "extremum_entry_dist_median": 0.0026798245861500624,
+          "ext_entry_loss_median": 0.0029137529137531616,
+          "early_mae_5bar_median": 0.0011747923627215364,
+          "early_mae_loss_median": 0.0014289797084882615,
+          "long_pnl": 29624.477119998326,
+          "short_pnl": 825.9279999991945,
+          "long_trades": 109,
+          "short_trades": 51,
+          "long_win_rate": 0.6330275229357798,
+          "short_win_rate": 0.43137254901960786,
+          "exit_reason_counts": {
+            "flip": 69,
+            "ratsv_adverse_release": 78,
+            "stop": 13
+          }
+        },
+        {
+          "window": "2025-01-08->2026-01-08",
+          "trades": 321,
+          "win_rate": 0.5420560747663551,
+          "pnl": 15107.550799998424,
+          "roi": 0.15107550799998423,
+          "dd": 15528.35300000105,
+          "dd_pct": 0.1552835300000105,
+          "pnl_over_dd": 0.972901041082554,
+          "max_single_loss_share": 0.018640027373642433,
+          "top5_loss_share": 0.09099063964373873,
+          "extremum_entry_dist_median": 0.002474372569812665,
+          "ext_entry_loss_median": 0.002579812963560087,
+          "early_mae_5bar_median": 0.0013003901170350828,
+          "early_mae_loss_median": 0.0014051522248244093,
+          "long_pnl": 22080.5810399991,
+          "short_pnl": -6973.030240000669,
+          "long_trades": 218,
+          "short_trades": 103,
+          "long_win_rate": 0.6100917431192661,
+          "short_win_rate": 0.39805825242718446,
+          "exit_reason_counts": {
+            "flip": 144,
+            "ratsv_adverse_release": 153,
+            "stop": 24
+          }
+        }
+      ],
+      "score": {
+        "y1_pdd": 0.972901041082554,
+        "y1_pnl": 15107.550799998424,
+        "y1_trades": 321,
+        "m6_pdd": 3.993448471012163,
+        "neg_y1_ext_loss": -0.002579812963560087,
+        "neg_y1_mae_loss": -0.0014051522248244093
+      }
+    },
+    {
+      "name": "b_strict_release_early5",
+      "windows": [
+        {
+          "window": "2025-07-08->2026-01-08",
+          "trades": 147,
+          "win_rate": 0.4421768707482993,
+          "pnl": 31844.6733999979,
+          "roi": 0.318446733999979,
+          "dd": 9291.922400000607,
+          "dd_pct": 0.09291922400000607,
+          "pnl_over_dd": 3.427135099621131,
+          "max_single_loss_share": 0.03691694743592615,
+          "top5_loss_share": 0.16372121817458893,
+          "extremum_entry_dist_median": 0.0028951939779967733,
+          "ext_entry_loss_median": 0.0026837690932363222,
+          "early_mae_5bar_median": 0.0013277273733127302,
+          "early_mae_loss_median": 0.0013244903382229967,
+          "long_pnl": 33774.517879998704,
+          "short_pnl": -1929.8444800008049,
+          "long_trades": 97,
+          "short_trades": 50,
+          "long_win_rate": 0.4845360824742268,
+          "short_win_rate": 0.36,
+          "exit_reason_counts": {
+            "ratsv_adverse_release": 127,
+            "flip": 3,
+            "stop": 17
+          }
+        },
+        {
+          "window": "2025-01-08->2026-01-08",
+          "trades": 286,
+          "win_rate": 0.3951048951048951,
+          "pnl": 14960.490279998627,
+          "roi": 0.14960490279998626,
+          "dd": 24186.507040000914,
+          "dd_pct": 0.24186507040000912,
+          "pnl_over_dd": 0.6185469549305397,
+          "max_single_loss_share": 0.017249947221249427,
+          "top5_loss_share": 0.08087909329770314,
+          "extremum_entry_dist_median": 0.002593061228856022,
+          "ext_entry_loss_median": 0.002579812963560087,
+          "early_mae_5bar_median": 0.0013280948390974004,
+          "early_mae_loss_median": 0.0013614703880190317,
+          "long_pnl": 26694.560719999237,
+          "short_pnl": -11734.070440000607,
+          "long_trades": 187,
+          "short_trades": 99,
+          "long_win_rate": 0.43315508021390375,
+          "short_win_rate": 0.32323232323232326,
+          "exit_reason_counts": {
+            "ratsv_adverse_release": 253,
+            "stop": 29,
+            "flip": 4
+          }
+        }
+      ],
+      "score": {
+        "y1_pdd": 0.6185469549305397,
+        "y1_pnl": 14960.490279998627,
+        "y1_trades": 286,
+        "m6_pdd": 3.427135099621131,
+        "neg_y1_ext_loss": -0.002579812963560087,
+        "neg_y1_mae_loss": -0.0013614703880190317
+      }
+    }
+  ]
+}

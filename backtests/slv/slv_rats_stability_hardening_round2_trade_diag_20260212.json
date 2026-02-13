@@ -1,0 +1,1996 @@
+{
+  "name": "SLV RATS round2 1Y trade diagnostics",
+  "generated_at": "2026-02-12T12:11:11.261602Z",
+  "source": "/Users/x/Desktop/py/tradebot/backtests/slv/slv_rats_stability_hardening_round2_candidates_20260212.json",
+  "window": "2025-01-08->2026-01-08",
+  "diag": {
+    "baseline_v31_2_immutable": {
+      "top_15_losses": [
+        {
+          "entry_time": "2026-01-05T15:05:00",
+          "exit_time": "2026-01-05T21:10:00",
+          "qty": -2350,
+          "entry_price": 68.97000000000001,
+          "exit_price": 69.80764,
+          "pnl": -1968.4539999999843,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-09-10T15:05:00",
+          "exit_time": "2025-09-11T21:45:00",
+          "qty": -2825,
+          "entry_price": 37.33,
+          "exit_price": 38.010000000000005,
+          "pnl": -1921.0000000000193,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2026-01-06T15:55:00",
+          "exit_time": "2026-01-06T20:40:00",
+          "qty": 2126,
+          "entry_price": 73.38999999999999,
+          "exit_price": 72.49932,
+          "pnl": -1893.5856799999767,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2026-01-07T15:05:00",
+          "exit_time": "2026-01-07T20:05:00",
+          "qty": 2171,
+          "entry_price": 71.14999999999999,
+          "exit_price": 70.2862,
+          "pnl": -1875.309799999995,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-06-12T14:05:00",
+          "exit_time": "2025-06-17T06:20:00",
+          "qty": -3332,
+          "entry_price": 32.91,
+          "exit_price": 33.446560000000005,
+          "pnl": -1787.8179200000286,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-06-20T16:25:00",
+          "exit_time": "2025-06-26T04:55:00",
+          "qty": -3272,
+          "entry_price": 32.709999999999994,
+          "exit_price": 33.24336,
+          "pnl": -1745.1539200000293,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-07-01T14:15:00",
+          "exit_time": "2025-07-03T02:00:00",
+          "qty": -3173,
+          "entry_price": 32.849999999999994,
+          "exit_price": 33.400000000000006,
+          "pnl": -1745.150000000036,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-08-12T14:45:00",
+          "exit_time": "2025-08-13T04:55:00",
+          "qty": -3016,
+          "entry_price": 34.379999999999995,
+          "exit_price": 34.95,
+          "pnl": -1719.1200000000222,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-06-18T14:25:00",
+          "exit_time": "2025-06-19T20:30:00",
+          "qty": 3040,
+          "entry_price": 33.59,
+          "exit_price": 33.029999999999994,
+          "pnl": -1702.4000000000285,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-08-26T14:05:00",
+          "exit_time": "2025-08-28T16:00:00",
+          "qty": -2975,
+          "entry_price": 34.959999999999994,
+          "exit_price": 35.52936,
+          "pnl": -1693.8460000000096,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-09-18T18:55:00",
+          "exit_time": "2025-09-19T10:35:00",
+          "qty": -2677,
+          "entry_price": 37.92999999999999,
+          "exit_price": 38.54688,
+          "pnl": -1651.387760000024,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-09-19T18:45:00",
+          "exit_time": "2025-09-22T01:40:00",
+          "qty": -2566,
+          "entry_price": 39.01,
+          "exit_price": 39.64416000000001,
+          "pnl": -1627.2545600000217,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-06-26T14:05:00",
+          "exit_time": "2025-06-27T04:05:00",
+          "qty": 2985,
+          "entry_price": 33.300000000000004,
+          "exit_price": 32.7572,
+          "pnl": -1620.2580000000205,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-09-12T14:25:00",
+          "exit_time": "2025-09-17T04:40:00",
+          "qty": 2568,
+          "entry_price": 38.38,
+          "exit_price": 37.755919999999996,
+          "pnl": -1602.6374400000163,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-07-18T14:05:00",
+          "exit_time": "2025-07-30T09:05:00",
+          "qty": 2823,
+          "entry_price": 34.78000000000001,
+          "exit_price": 34.21352,
+          "pnl": -1599.173040000016,
+          "exit_reason": "stop"
+        }
+      ],
+      "total_trades": 69,
+      "loss_trades": 31,
+      "win_trades": 38
+    },
+    "r2_base_conservative": {
+      "top_15_losses": [
+        {
+          "entry_time": "2025-04-04T16:35:00",
+          "exit_time": "2025-04-06T21:20:00",
+          "qty": -3201,
+          "entry_price": 26.900000000000002,
+          "exit_price": 27.3404,
+          "pnl": -1409.7203999999897,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-05-02T14:25:00",
+          "exit_time": "2025-05-05T03:00:00",
+          "qty": -2858,
+          "entry_price": 29.040000000000003,
+          "exit_price": 29.52,
+          "pnl": -1371.839999999991,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-09-11T14:35:00",
+          "exit_time": "2025-09-12T01:25:00",
+          "qty": -2125,
+          "entry_price": 37.66,
+          "exit_price": 38.300000000000004,
+          "pnl": -1360.0000000000164,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-05-05T18:05:00",
+          "exit_time": "2025-05-05T21:10:00",
+          "qty": -2775,
+          "entry_price": 29.48,
+          "exit_price": 29.961679999999998,
+          "pnl": -1336.6619999999923,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-12-03T19:45:00",
+          "exit_time": "2025-12-04T00:50:00",
+          "qty": 1551,
+          "entry_price": 53.120000000000005,
+          "exit_price": 52.26008,
+          "pnl": -1333.7359200000037,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-10-06T14:05:00",
+          "exit_time": "2025-10-07T03:25:00",
+          "qty": 1716,
+          "entry_price": 44.17,
+          "exit_price": 43.39999999999999,
+          "pnl": -1321.3200000000174,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-04-16T14:35:00",
+          "exit_time": "2025-04-16T21:30:00",
+          "qty": 2614,
+          "entry_price": 29.99,
+          "exit_price": 29.50016,
+          "pnl": -1280.441759999993,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-06-11T18:15:00",
+          "exit_time": "2025-06-12T03:40:00",
+          "qty": 2377,
+          "entry_price": 32.980000000000004,
+          "exit_price": 32.442319999999995,
+          "pnl": -1278.065360000021,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2026-01-05T15:05:00",
+          "exit_time": "2026-01-05T21:10:00",
+          "qty": -1521,
+          "entry_price": 68.97000000000001,
+          "exit_price": 69.80764,
+          "pnl": -1274.0504399999897,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-01-31T16:05:00",
+          "exit_time": "2025-02-02T21:10:00",
+          "qty": 2700,
+          "entry_price": 28.52,
+          "exit_price": 28.05368,
+          "pnl": -1259.063999999999,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-02-05T16:45:00",
+          "exit_time": "2025-02-06T03:25:00",
+          "qty": 2616,
+          "entry_price": 29.43,
+          "exit_price": 28.94912,
+          "pnl": -1257.9820799999975,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-08-12T14:45:00",
+          "exit_time": "2025-08-13T04:40:00",
+          "qty": -2319,
+          "entry_price": 34.379999999999995,
+          "exit_price": 34.92,
+          "pnl": -1252.2600000000145,
+          "exit_reason": "ratsv_adverse_release"
+        },
+        {
+          "entry_time": "2026-01-06T19:15:00",
+          "exit_time": "2026-01-06T20:10:00",
+          "qty": 1376,
+          "entry_price": 74.78999999999999,
+          "exit_price": 73.88252,
+          "pnl": -1248.6924799999897,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-06-18T16:45:00",
+          "exit_time": "2025-06-19T22:30:00",
+          "qty": 2294,
+          "entry_price": 33.38,
+          "exit_price": 32.835919999999994,
+          "pnl": -1248.1195200000186,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-09-19T18:35:00",
+          "exit_time": "2025-09-22T01:40:00",
+          "qty": -1968,
+          "entry_price": 39.01,
+          "exit_price": 39.64416000000001,
+          "pnl": -1248.0268800000167,
+          "exit_reason": "stop"
+        }
+      ],
+      "total_trades": 263,
+      "loss_trades": 152,
+      "win_trades": 111
+    },
+    "r2_disable_probe_cancel": {
+      "top_15_losses": [
+        {
+          "entry_time": "2025-04-04T16:35:00",
+          "exit_time": "2025-04-06T21:20:00",
+          "qty": -3201,
+          "entry_price": 26.900000000000002,
+          "exit_price": 27.3404,
+          "pnl": -1409.7203999999897,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-05-02T14:25:00",
+          "exit_time": "2025-05-05T03:00:00",
+          "qty": -2858,
+          "entry_price": 29.040000000000003,
+          "exit_price": 29.52,
+          "pnl": -1371.839999999991,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-09-11T14:35:00",
+          "exit_time": "2025-09-12T01:25:00",
+          "qty": -2125,
+          "entry_price": 37.66,
+          "exit_price": 38.300000000000004,
+          "pnl": -1360.0000000000164,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-05-05T18:05:00",
+          "exit_time": "2025-05-05T21:10:00",
+          "qty": -2775,
+          "entry_price": 29.48,
+          "exit_price": 29.961679999999998,
+          "pnl": -1336.6619999999923,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-12-03T19:45:00",
+          "exit_time": "2025-12-04T00:50:00",
+          "qty": 1551,
+          "entry_price": 53.120000000000005,
+          "exit_price": 52.26008,
+          "pnl": -1333.7359200000037,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-10-06T14:05:00",
+          "exit_time": "2025-10-07T03:25:00",
+          "qty": 1716,
+          "entry_price": 44.17,
+          "exit_price": 43.39999999999999,
+          "pnl": -1321.3200000000174,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-04-16T14:35:00",
+          "exit_time": "2025-04-16T21:30:00",
+          "qty": 2614,
+          "entry_price": 29.99,
+          "exit_price": 29.50016,
+          "pnl": -1280.441759999993,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-06-11T18:15:00",
+          "exit_time": "2025-06-12T03:40:00",
+          "qty": 2377,
+          "entry_price": 32.980000000000004,
+          "exit_price": 32.442319999999995,
+          "pnl": -1278.065360000021,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2026-01-05T15:05:00",
+          "exit_time": "2026-01-05T21:10:00",
+          "qty": -1521,
+          "entry_price": 68.97000000000001,
+          "exit_price": 69.80764,
+          "pnl": -1274.0504399999897,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-01-31T16:05:00",
+          "exit_time": "2025-02-02T21:10:00",
+          "qty": 2700,
+          "entry_price": 28.52,
+          "exit_price": 28.05368,
+          "pnl": -1259.063999999999,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-02-05T16:45:00",
+          "exit_time": "2025-02-06T03:25:00",
+          "qty": 2616,
+          "entry_price": 29.43,
+          "exit_price": 28.94912,
+          "pnl": -1257.9820799999975,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-08-12T14:45:00",
+          "exit_time": "2025-08-13T04:40:00",
+          "qty": -2319,
+          "entry_price": 34.379999999999995,
+          "exit_price": 34.92,
+          "pnl": -1252.2600000000145,
+          "exit_reason": "ratsv_adverse_release"
+        },
+        {
+          "entry_time": "2026-01-06T19:15:00",
+          "exit_time": "2026-01-06T20:10:00",
+          "qty": 1376,
+          "entry_price": 74.78999999999999,
+          "exit_price": 73.88252,
+          "pnl": -1248.6924799999897,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-06-18T16:45:00",
+          "exit_time": "2025-06-19T22:30:00",
+          "qty": 2294,
+          "entry_price": 33.38,
+          "exit_price": 32.835919999999994,
+          "pnl": -1248.1195200000186,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-09-19T18:35:00",
+          "exit_time": "2025-09-22T01:40:00",
+          "qty": -1968,
+          "entry_price": 39.01,
+          "exit_price": 39.64416000000001,
+          "pnl": -1248.0268800000167,
+          "exit_reason": "stop"
+        }
+      ],
+      "total_trades": 263,
+      "loss_trades": 152,
+      "win_trades": 111
+    },
+    "r2_looser_b_rank": {
+      "top_15_losses": [
+        {
+          "entry_time": "2025-04-04T16:35:00",
+          "exit_time": "2025-04-06T21:20:00",
+          "qty": -3201,
+          "entry_price": 26.900000000000002,
+          "exit_price": 27.3404,
+          "pnl": -1409.7203999999897,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-05-02T14:25:00",
+          "exit_time": "2025-05-05T03:00:00",
+          "qty": -2858,
+          "entry_price": 29.040000000000003,
+          "exit_price": 29.52,
+          "pnl": -1371.839999999991,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-09-11T14:35:00",
+          "exit_time": "2025-09-12T01:25:00",
+          "qty": -2125,
+          "entry_price": 37.66,
+          "exit_price": 38.300000000000004,
+          "pnl": -1360.0000000000164,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-05-05T18:05:00",
+          "exit_time": "2025-05-05T21:10:00",
+          "qty": -2775,
+          "entry_price": 29.48,
+          "exit_price": 29.961679999999998,
+          "pnl": -1336.6619999999923,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-12-03T19:45:00",
+          "exit_time": "2025-12-04T00:50:00",
+          "qty": 1551,
+          "entry_price": 53.120000000000005,
+          "exit_price": 52.26008,
+          "pnl": -1333.7359200000037,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-10-06T14:05:00",
+          "exit_time": "2025-10-07T03:25:00",
+          "qty": 1716,
+          "entry_price": 44.17,
+          "exit_price": 43.39999999999999,
+          "pnl": -1321.3200000000174,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-04-16T14:35:00",
+          "exit_time": "2025-04-16T21:30:00",
+          "qty": 2614,
+          "entry_price": 29.99,
+          "exit_price": 29.50016,
+          "pnl": -1280.441759999993,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-06-11T18:15:00",
+          "exit_time": "2025-06-12T03:40:00",
+          "qty": 2377,
+          "entry_price": 32.980000000000004,
+          "exit_price": 32.442319999999995,
+          "pnl": -1278.065360000021,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2026-01-05T15:05:00",
+          "exit_time": "2026-01-05T21:10:00",
+          "qty": -1521,
+          "entry_price": 68.97000000000001,
+          "exit_price": 69.80764,
+          "pnl": -1274.0504399999897,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-01-31T16:05:00",
+          "exit_time": "2025-02-02T21:10:00",
+          "qty": 2700,
+          "entry_price": 28.52,
+          "exit_price": 28.05368,
+          "pnl": -1259.063999999999,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-02-05T16:45:00",
+          "exit_time": "2025-02-06T03:25:00",
+          "qty": 2616,
+          "entry_price": 29.43,
+          "exit_price": 28.94912,
+          "pnl": -1257.9820799999975,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-08-12T14:45:00",
+          "exit_time": "2025-08-13T04:40:00",
+          "qty": -2319,
+          "entry_price": 34.379999999999995,
+          "exit_price": 34.92,
+          "pnl": -1252.2600000000145,
+          "exit_reason": "ratsv_adverse_release"
+        },
+        {
+          "entry_time": "2026-01-06T19:15:00",
+          "exit_time": "2026-01-06T20:10:00",
+          "qty": 1376,
+          "entry_price": 74.78999999999999,
+          "exit_price": 73.88252,
+          "pnl": -1248.6924799999897,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-06-18T16:45:00",
+          "exit_time": "2025-06-19T22:30:00",
+          "qty": 2294,
+          "entry_price": 33.38,
+          "exit_price": 32.835919999999994,
+          "pnl": -1248.1195200000186,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-09-19T18:35:00",
+          "exit_time": "2025-09-22T01:40:00",
+          "qty": -1968,
+          "entry_price": 39.01,
+          "exit_price": 39.64416000000001,
+          "pnl": -1248.0268800000167,
+          "exit_reason": "stop"
+        }
+      ],
+      "total_trades": 263,
+      "loss_trades": 152,
+      "win_trades": 111
+    },
+    "r2_looser_b_ratio": {
+      "top_15_losses": [
+        {
+          "entry_time": "2025-04-04T16:35:00",
+          "exit_time": "2025-04-06T21:20:00",
+          "qty": -3201,
+          "entry_price": 26.900000000000002,
+          "exit_price": 27.3404,
+          "pnl": -1409.7203999999897,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-05-02T14:25:00",
+          "exit_time": "2025-05-05T03:00:00",
+          "qty": -2858,
+          "entry_price": 29.040000000000003,
+          "exit_price": 29.52,
+          "pnl": -1371.839999999991,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-09-11T14:35:00",
+          "exit_time": "2025-09-12T01:25:00",
+          "qty": -2125,
+          "entry_price": 37.66,
+          "exit_price": 38.300000000000004,
+          "pnl": -1360.0000000000164,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-05-05T18:05:00",
+          "exit_time": "2025-05-05T21:10:00",
+          "qty": -2775,
+          "entry_price": 29.48,
+          "exit_price": 29.961679999999998,
+          "pnl": -1336.6619999999923,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-12-03T19:45:00",
+          "exit_time": "2025-12-04T00:50:00",
+          "qty": 1551,
+          "entry_price": 53.120000000000005,
+          "exit_price": 52.26008,
+          "pnl": -1333.7359200000037,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-10-06T14:05:00",
+          "exit_time": "2025-10-07T03:25:00",
+          "qty": 1716,
+          "entry_price": 44.17,
+          "exit_price": 43.39999999999999,
+          "pnl": -1321.3200000000174,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-04-16T14:35:00",
+          "exit_time": "2025-04-16T21:30:00",
+          "qty": 2614,
+          "entry_price": 29.99,
+          "exit_price": 29.50016,
+          "pnl": -1280.441759999993,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-06-11T18:15:00",
+          "exit_time": "2025-06-12T03:40:00",
+          "qty": 2377,
+          "entry_price": 32.980000000000004,
+          "exit_price": 32.442319999999995,
+          "pnl": -1278.065360000021,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2026-01-05T15:05:00",
+          "exit_time": "2026-01-05T21:10:00",
+          "qty": -1521,
+          "entry_price": 68.97000000000001,
+          "exit_price": 69.80764,
+          "pnl": -1274.0504399999897,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-01-31T16:05:00",
+          "exit_time": "2025-02-02T21:10:00",
+          "qty": 2700,
+          "entry_price": 28.52,
+          "exit_price": 28.05368,
+          "pnl": -1259.063999999999,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-02-05T16:45:00",
+          "exit_time": "2025-02-06T03:25:00",
+          "qty": 2616,
+          "entry_price": 29.43,
+          "exit_price": 28.94912,
+          "pnl": -1257.9820799999975,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-08-12T14:45:00",
+          "exit_time": "2025-08-13T04:40:00",
+          "qty": -2319,
+          "entry_price": 34.379999999999995,
+          "exit_price": 34.92,
+          "pnl": -1252.2600000000145,
+          "exit_reason": "ratsv_adverse_release"
+        },
+        {
+          "entry_time": "2026-01-06T19:15:00",
+          "exit_time": "2026-01-06T20:10:00",
+          "qty": 1376,
+          "entry_price": 74.78999999999999,
+          "exit_price": 73.88252,
+          "pnl": -1248.6924799999897,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-06-18T16:45:00",
+          "exit_time": "2025-06-19T22:30:00",
+          "qty": 2294,
+          "entry_price": 33.38,
+          "exit_price": 32.835919999999994,
+          "pnl": -1248.1195200000186,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-09-19T18:35:00",
+          "exit_time": "2025-09-22T01:40:00",
+          "qty": -1968,
+          "entry_price": 39.01,
+          "exit_price": 39.64416000000001,
+          "pnl": -1248.0268800000167,
+          "exit_reason": "stop"
+        }
+      ],
+      "total_trades": 263,
+      "loss_trades": 152,
+      "win_trades": 111
+    },
+    "r2_looser_b_both": {
+      "top_15_losses": [
+        {
+          "entry_time": "2025-04-04T16:35:00",
+          "exit_time": "2025-04-06T21:20:00",
+          "qty": -3201,
+          "entry_price": 26.900000000000002,
+          "exit_price": 27.3404,
+          "pnl": -1409.7203999999897,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-05-02T14:25:00",
+          "exit_time": "2025-05-05T03:00:00",
+          "qty": -2858,
+          "entry_price": 29.040000000000003,
+          "exit_price": 29.52,
+          "pnl": -1371.839999999991,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-09-11T14:35:00",
+          "exit_time": "2025-09-12T01:25:00",
+          "qty": -2125,
+          "entry_price": 37.66,
+          "exit_price": 38.300000000000004,
+          "pnl": -1360.0000000000164,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-05-05T18:05:00",
+          "exit_time": "2025-05-05T21:10:00",
+          "qty": -2775,
+          "entry_price": 29.48,
+          "exit_price": 29.961679999999998,
+          "pnl": -1336.6619999999923,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-12-03T19:45:00",
+          "exit_time": "2025-12-04T00:50:00",
+          "qty": 1551,
+          "entry_price": 53.120000000000005,
+          "exit_price": 52.26008,
+          "pnl": -1333.7359200000037,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-10-06T14:05:00",
+          "exit_time": "2025-10-07T03:25:00",
+          "qty": 1716,
+          "entry_price": 44.17,
+          "exit_price": 43.39999999999999,
+          "pnl": -1321.3200000000174,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-04-16T14:35:00",
+          "exit_time": "2025-04-16T21:30:00",
+          "qty": 2614,
+          "entry_price": 29.99,
+          "exit_price": 29.50016,
+          "pnl": -1280.441759999993,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-06-11T18:15:00",
+          "exit_time": "2025-06-12T03:40:00",
+          "qty": 2377,
+          "entry_price": 32.980000000000004,
+          "exit_price": 32.442319999999995,
+          "pnl": -1278.065360000021,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2026-01-05T15:05:00",
+          "exit_time": "2026-01-05T21:10:00",
+          "qty": -1521,
+          "entry_price": 68.97000000000001,
+          "exit_price": 69.80764,
+          "pnl": -1274.0504399999897,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-01-31T16:05:00",
+          "exit_time": "2025-02-02T21:10:00",
+          "qty": 2700,
+          "entry_price": 28.52,
+          "exit_price": 28.05368,
+          "pnl": -1259.063999999999,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-02-05T16:45:00",
+          "exit_time": "2025-02-06T03:25:00",
+          "qty": 2616,
+          "entry_price": 29.43,
+          "exit_price": 28.94912,
+          "pnl": -1257.9820799999975,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-08-12T14:45:00",
+          "exit_time": "2025-08-13T04:40:00",
+          "qty": -2319,
+          "entry_price": 34.379999999999995,
+          "exit_price": 34.92,
+          "pnl": -1252.2600000000145,
+          "exit_reason": "ratsv_adverse_release"
+        },
+        {
+          "entry_time": "2026-01-06T19:15:00",
+          "exit_time": "2026-01-06T20:10:00",
+          "qty": 1376,
+          "entry_price": 74.78999999999999,
+          "exit_price": 73.88252,
+          "pnl": -1248.6924799999897,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-06-18T16:45:00",
+          "exit_time": "2025-06-19T22:30:00",
+          "qty": 2294,
+          "entry_price": 33.38,
+          "exit_price": 32.835919999999994,
+          "pnl": -1248.1195200000186,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-09-19T18:35:00",
+          "exit_time": "2025-09-22T01:40:00",
+          "qty": -1968,
+          "entry_price": 39.01,
+          "exit_price": 39.64416000000001,
+          "pnl": -1248.0268800000167,
+          "exit_reason": "stop"
+        }
+      ],
+      "total_trades": 263,
+      "loss_trades": 152,
+      "win_trades": 111
+    },
+    "r2_looser_adverse_hold4": {
+      "top_15_losses": [
+        {
+          "entry_time": "2025-04-04T16:35:00",
+          "exit_time": "2025-04-06T21:20:00",
+          "qty": -3110,
+          "entry_price": 26.900000000000002,
+          "exit_price": 27.3404,
+          "pnl": -1369.64399999999,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-05-02T14:25:00",
+          "exit_time": "2025-05-05T03:00:00",
+          "qty": -2736,
+          "entry_price": 29.040000000000003,
+          "exit_price": 29.52,
+          "pnl": -1313.2799999999916,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-09-11T14:35:00",
+          "exit_time": "2025-09-12T01:25:00",
+          "qty": -2045,
+          "entry_price": 37.66,
+          "exit_price": 38.300000000000004,
+          "pnl": -1308.8000000000156,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-05-05T18:05:00",
+          "exit_time": "2025-05-05T21:10:00",
+          "qty": -2656,
+          "entry_price": 29.48,
+          "exit_price": 29.961679999999998,
+          "pnl": -1279.3420799999926,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-10-06T14:05:00",
+          "exit_time": "2025-10-07T03:25:00",
+          "qty": 1653,
+          "entry_price": 44.17,
+          "exit_price": 43.39999999999999,
+          "pnl": -1272.810000000017,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-01-31T16:05:00",
+          "exit_time": "2025-02-02T21:10:00",
+          "qty": 2700,
+          "entry_price": 28.52,
+          "exit_price": 28.05368,
+          "pnl": -1259.063999999999,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-02-05T16:45:00",
+          "exit_time": "2025-02-06T03:25:00",
+          "qty": 2616,
+          "entry_price": 29.43,
+          "exit_price": 28.94912,
+          "pnl": -1257.9820799999975,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-04-16T14:35:00",
+          "exit_time": "2025-04-16T21:30:00",
+          "qty": 2540,
+          "entry_price": 29.99,
+          "exit_price": 29.50016,
+          "pnl": -1244.1935999999935,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-01-22T15:25:00",
+          "exit_time": "2025-01-23T04:30:00",
+          "qty": 2740,
+          "entry_price": 28.139999999999997,
+          "exit_price": 27.69,
+          "pnl": -1232.9999999999884,
+          "exit_reason": "ratsv_adverse_release"
+        },
+        {
+          "entry_time": "2025-06-11T18:15:00",
+          "exit_time": "2025-06-12T03:40:00",
+          "qty": 2281,
+          "entry_price": 32.980000000000004,
+          "exit_price": 32.442319999999995,
+          "pnl": -1226.4480800000201,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-12-03T19:45:00",
+          "exit_time": "2025-12-04T00:50:00",
+          "qty": 1421,
+          "entry_price": 53.120000000000005,
+          "exit_price": 52.26008,
+          "pnl": -1221.9463200000034,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-09-19T18:35:00",
+          "exit_time": "2025-09-22T01:40:00",
+          "qty": -1901,
+          "entry_price": 39.01,
+          "exit_price": 39.64416000000001,
+          "pnl": -1205.5381600000162,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-08-12T14:45:00",
+          "exit_time": "2025-08-13T04:40:00",
+          "qty": -2232,
+          "entry_price": 34.379999999999995,
+          "exit_price": 34.92,
+          "pnl": -1205.2800000000138,
+          "exit_reason": "ratsv_adverse_release"
+        },
+        {
+          "entry_time": "2025-06-18T16:45:00",
+          "exit_time": "2025-06-19T22:30:00",
+          "qty": 2200,
+          "entry_price": 33.38,
+          "exit_price": 32.835919999999994,
+          "pnl": -1196.9760000000178,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-06-26T15:45:00",
+          "exit_time": "2025-06-27T04:05:00",
+          "qty": 2171,
+          "entry_price": 33.35000000000001,
+          "exit_price": 32.8,
+          "pnl": -1194.0500000000247,
+          "exit_reason": "stop"
+        }
+      ],
+      "total_trades": 272,
+      "loss_trades": 158,
+      "win_trades": 114
+    },
+    "r2_looser_adverse_slope": {
+      "top_15_losses": [
+        {
+          "entry_time": "2025-04-04T16:35:00",
+          "exit_time": "2025-04-06T21:20:00",
+          "qty": -3018,
+          "entry_price": 26.900000000000002,
+          "exit_price": 27.3404,
+          "pnl": -1329.1271999999904,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-05-02T14:25:00",
+          "exit_time": "2025-05-05T03:00:00",
+          "qty": -2693,
+          "entry_price": 29.040000000000003,
+          "exit_price": 29.52,
+          "pnl": -1292.6399999999917,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-05-05T18:05:00",
+          "exit_time": "2025-05-05T21:10:00",
+          "qty": -2615,
+          "entry_price": 29.48,
+          "exit_price": 29.961679999999998,
+          "pnl": -1259.5931999999927,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-01-31T16:05:00",
+          "exit_time": "2025-02-02T21:10:00",
+          "qty": 2685,
+          "entry_price": 28.52,
+          "exit_price": 28.05368,
+          "pnl": -1252.069199999999,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-02-05T16:45:00",
+          "exit_time": "2025-02-06T03:25:00",
+          "qty": 2598,
+          "entry_price": 29.43,
+          "exit_price": 28.94912,
+          "pnl": -1249.3262399999976,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-01-22T15:25:00",
+          "exit_time": "2025-01-23T04:30:00",
+          "qty": 2740,
+          "entry_price": 28.139999999999997,
+          "exit_price": 27.69,
+          "pnl": -1232.9999999999884,
+          "exit_reason": "ratsv_adverse_release"
+        },
+        {
+          "entry_time": "2025-12-03T19:45:00",
+          "exit_time": "2025-12-04T00:50:00",
+          "qty": 1431,
+          "entry_price": 53.120000000000005,
+          "exit_price": 52.26008,
+          "pnl": -1230.5455200000035,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-09-11T14:35:00",
+          "exit_time": "2025-09-12T01:25:00",
+          "qty": -1915,
+          "entry_price": 37.66,
+          "exit_price": 38.300000000000004,
+          "pnl": -1225.6000000000147,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-04-16T14:35:00",
+          "exit_time": "2025-04-16T21:30:00",
+          "qty": 2464,
+          "entry_price": 29.99,
+          "exit_price": 29.50016,
+          "pnl": -1206.9657599999937,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-06-11T18:15:00",
+          "exit_time": "2025-06-12T03:40:00",
+          "qty": 2244,
+          "entry_price": 32.980000000000004,
+          "exit_price": 32.442319999999995,
+          "pnl": -1206.5539200000198,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-10-06T14:05:00",
+          "exit_time": "2025-10-07T03:25:00",
+          "qty": 1541,
+          "entry_price": 44.17,
+          "exit_price": 43.39999999999999,
+          "pnl": -1186.5700000000159,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-06-18T16:45:00",
+          "exit_time": "2025-06-19T22:30:00",
+          "qty": 2153,
+          "entry_price": 33.38,
+          "exit_price": 32.835919999999994,
+          "pnl": -1171.4042400000176,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-06-26T15:45:00",
+          "exit_time": "2025-06-27T04:05:00",
+          "qty": 2124,
+          "entry_price": 33.35000000000001,
+          "exit_price": 32.8,
+          "pnl": -1168.2000000000241,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2026-01-05T15:05:00",
+          "exit_time": "2026-01-05T21:10:00",
+          "qty": -1386,
+          "entry_price": 68.97000000000001,
+          "exit_price": 69.80764,
+          "pnl": -1160.9690399999906,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-08-12T14:45:00",
+          "exit_time": "2025-08-13T04:40:00",
+          "qty": -2142,
+          "entry_price": 34.379999999999995,
+          "exit_price": 34.92,
+          "pnl": -1156.6800000000135,
+          "exit_reason": "ratsv_adverse_release"
+        }
+      ],
+      "total_trades": 274,
+      "loss_trades": 162,
+      "win_trades": 112
+    },
+    "r2_looser_adverse_both": {
+      "top_15_losses": [
+        {
+          "entry_time": "2025-04-04T16:35:00",
+          "exit_time": "2025-04-06T21:20:00",
+          "qty": -2890,
+          "entry_price": 26.900000000000002,
+          "exit_price": 27.3404,
+          "pnl": -1272.7559999999908,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-12-26T16:15:00",
+          "exit_time": "2025-12-28T20:05:00",
+          "qty": 1081,
+          "entry_price": 71.05,
+          "exit_price": 69.88000000000001,
+          "pnl": -1264.7699999999866,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-01-31T16:05:00",
+          "exit_time": "2025-02-02T21:10:00",
+          "qty": 2678,
+          "entry_price": 28.52,
+          "exit_price": 28.05368,
+          "pnl": -1248.804959999999,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-02-05T16:45:00",
+          "exit_time": "2025-02-06T03:25:00",
+          "qty": 2585,
+          "entry_price": 29.43,
+          "exit_price": 28.94912,
+          "pnl": -1243.0747999999976,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-01-22T15:25:00",
+          "exit_time": "2025-01-23T04:30:00",
+          "qty": 2743,
+          "entry_price": 28.139999999999997,
+          "exit_price": 27.69,
+          "pnl": -1234.3499999999883,
+          "exit_reason": "ratsv_adverse_release"
+        },
+        {
+          "entry_time": "2025-05-02T14:25:00",
+          "exit_time": "2025-05-05T03:00:00",
+          "qty": -2531,
+          "entry_price": 29.040000000000003,
+          "exit_price": 29.52,
+          "pnl": -1214.8799999999922,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-05-05T18:05:00",
+          "exit_time": "2025-05-05T21:10:00",
+          "qty": -2458,
+          "entry_price": 29.48,
+          "exit_price": 29.961679999999998,
+          "pnl": -1183.9694399999933,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-09-11T14:35:00",
+          "exit_time": "2025-09-12T01:25:00",
+          "qty": -1823,
+          "entry_price": 37.66,
+          "exit_price": 38.300000000000004,
+          "pnl": -1166.720000000014,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-04-16T17:15:00",
+          "exit_time": "2025-04-16T21:50:00",
+          "qty": 2356,
+          "entry_price": 29.819999999999997,
+          "exit_price": 29.33288,
+          "pnl": -1147.6547199999936,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-06-11T18:15:00",
+          "exit_time": "2025-06-12T03:40:00",
+          "qty": 2131,
+          "entry_price": 32.980000000000004,
+          "exit_price": 32.442319999999995,
+          "pnl": -1145.7960800000187,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-10-06T14:05:00",
+          "exit_time": "2025-10-07T03:25:00",
+          "qty": 1470,
+          "entry_price": 44.17,
+          "exit_price": 43.39999999999999,
+          "pnl": -1131.900000000015,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-06-18T16:45:00",
+          "exit_time": "2025-06-19T22:30:00",
+          "qty": 2029,
+          "entry_price": 33.38,
+          "exit_price": 32.835919999999994,
+          "pnl": -1103.9383200000166,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-06-26T15:45:00",
+          "exit_time": "2025-06-27T04:05:00",
+          "qty": 2002,
+          "entry_price": 33.35000000000001,
+          "exit_price": 32.8,
+          "pnl": -1101.1000000000226,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-08-12T14:45:00",
+          "exit_time": "2025-08-13T04:40:00",
+          "qty": -2038,
+          "entry_price": 34.379999999999995,
+          "exit_price": 34.92,
+          "pnl": -1100.5200000000127,
+          "exit_reason": "ratsv_adverse_release"
+        },
+        {
+          "entry_time": "2025-12-03T19:45:00",
+          "exit_time": "2025-12-04T00:50:00",
+          "qty": 1273,
+          "entry_price": 53.120000000000005,
+          "exit_price": 52.26008,
+          "pnl": -1094.6781600000031,
+          "exit_reason": "stop"
+        }
+      ],
+      "total_trades": 302,
+      "loss_trades": 183,
+      "win_trades": 119
+    },
+    "r2_size_a06_b10": {
+      "top_15_losses": [
+        {
+          "entry_time": "2025-04-04T16:35:00",
+          "exit_time": "2025-04-06T21:20:00",
+          "qty": -3205,
+          "entry_price": 26.900000000000002,
+          "exit_price": 27.3404,
+          "pnl": -1411.4819999999897,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-05-02T14:25:00",
+          "exit_time": "2025-05-05T03:00:00",
+          "qty": -2863,
+          "entry_price": 29.040000000000003,
+          "exit_price": 29.52,
+          "pnl": -1374.2399999999911,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-09-11T14:35:00",
+          "exit_time": "2025-09-12T01:25:00",
+          "qty": -2126,
+          "entry_price": 37.66,
+          "exit_price": 38.300000000000004,
+          "pnl": -1360.6400000000162,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-05-05T18:05:00",
+          "exit_time": "2025-05-05T21:10:00",
+          "qty": -2780,
+          "entry_price": 29.48,
+          "exit_price": 29.961679999999998,
+          "pnl": -1339.0703999999923,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-12-03T19:45:00",
+          "exit_time": "2025-12-04T00:50:00",
+          "qty": 1553,
+          "entry_price": 53.120000000000005,
+          "exit_price": 52.26008,
+          "pnl": -1335.455760000004,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-10-06T14:05:00",
+          "exit_time": "2025-10-07T03:25:00",
+          "qty": 1716,
+          "entry_price": 44.17,
+          "exit_price": 43.39999999999999,
+          "pnl": -1321.3200000000174,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-04-16T14:35:00",
+          "exit_time": "2025-04-16T21:30:00",
+          "qty": 2617,
+          "entry_price": 29.99,
+          "exit_price": 29.50016,
+          "pnl": -1281.9112799999932,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2026-01-05T15:05:00",
+          "exit_time": "2026-01-05T21:10:00",
+          "qty": -1530,
+          "entry_price": 68.97000000000001,
+          "exit_price": 69.80764,
+          "pnl": -1281.5891999999897,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-06-11T18:15:00",
+          "exit_time": "2025-06-12T03:40:00",
+          "qty": 2383,
+          "entry_price": 32.980000000000004,
+          "exit_price": 32.442319999999995,
+          "pnl": -1281.291440000021,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-01-31T16:05:00",
+          "exit_time": "2025-02-02T21:10:00",
+          "qty": 2705,
+          "entry_price": 28.52,
+          "exit_price": 28.05368,
+          "pnl": -1261.395599999999,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-02-05T16:45:00",
+          "exit_time": "2025-02-06T03:25:00",
+          "qty": 2621,
+          "entry_price": 29.43,
+          "exit_price": 28.94912,
+          "pnl": -1260.3864799999976,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2026-01-06T19:15:00",
+          "exit_time": "2026-01-06T20:10:00",
+          "qty": 1385,
+          "entry_price": 74.78999999999999,
+          "exit_price": 73.88252,
+          "pnl": -1256.8597999999897,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-08-12T14:45:00",
+          "exit_time": "2025-08-13T04:40:00",
+          "qty": -2320,
+          "entry_price": 34.379999999999995,
+          "exit_price": 34.92,
+          "pnl": -1252.8000000000145,
+          "exit_reason": "ratsv_adverse_release"
+        },
+        {
+          "entry_time": "2025-06-18T16:45:00",
+          "exit_time": "2025-06-19T22:30:00",
+          "qty": 2299,
+          "entry_price": 33.38,
+          "exit_price": 32.835919999999994,
+          "pnl": -1250.8399200000185,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-09-19T18:35:00",
+          "exit_time": "2025-09-22T01:40:00",
+          "qty": -1968,
+          "entry_price": 39.01,
+          "exit_price": 39.64416000000001,
+          "pnl": -1248.0268800000167,
+          "exit_reason": "stop"
+        }
+      ],
+      "total_trades": 263,
+      "loss_trades": 152,
+      "win_trades": 111
+    },
+    "r2_size_a07_b10": {
+      "top_15_losses": [
+        {
+          "entry_time": "2025-04-04T16:35:00",
+          "exit_time": "2025-04-06T21:20:00",
+          "qty": -3209,
+          "entry_price": 26.900000000000002,
+          "exit_price": 27.3404,
+          "pnl": -1413.2435999999898,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-05-02T14:25:00",
+          "exit_time": "2025-05-05T03:00:00",
+          "qty": -2868,
+          "entry_price": 29.040000000000003,
+          "exit_price": 29.52,
+          "pnl": -1376.639999999991,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-09-11T14:35:00",
+          "exit_time": "2025-09-12T01:25:00",
+          "qty": -2127,
+          "entry_price": 37.66,
+          "exit_price": 38.300000000000004,
+          "pnl": -1361.2800000000163,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-05-05T18:05:00",
+          "exit_time": "2025-05-05T21:10:00",
+          "qty": -2785,
+          "entry_price": 29.48,
+          "exit_price": 29.961679999999998,
+          "pnl": -1341.4787999999924,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-12-03T19:45:00",
+          "exit_time": "2025-12-04T00:50:00",
+          "qty": 1556,
+          "entry_price": 53.120000000000005,
+          "exit_price": 52.26008,
+          "pnl": -1338.0355200000038,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-10-06T14:05:00",
+          "exit_time": "2025-10-07T03:25:00",
+          "qty": 1716,
+          "entry_price": 44.17,
+          "exit_price": 43.39999999999999,
+          "pnl": -1321.3200000000174,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2026-01-05T15:05:00",
+          "exit_time": "2026-01-05T21:10:00",
+          "qty": -1540,
+          "entry_price": 68.97000000000001,
+          "exit_price": 69.80764,
+          "pnl": -1289.9655999999895,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-06-11T18:15:00",
+          "exit_time": "2025-06-12T03:40:00",
+          "qty": 2390,
+          "entry_price": 32.980000000000004,
+          "exit_price": 32.442319999999995,
+          "pnl": -1285.0552000000212,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-04-16T14:35:00",
+          "exit_time": "2025-04-16T21:30:00",
+          "qty": 2620,
+          "entry_price": 29.99,
+          "exit_price": 29.50016,
+          "pnl": -1283.380799999993,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2026-01-06T19:15:00",
+          "exit_time": "2026-01-06T20:10:00",
+          "qty": 1394,
+          "entry_price": 74.78999999999999,
+          "exit_price": 73.88252,
+          "pnl": -1265.0271199999895,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-01-31T16:05:00",
+          "exit_time": "2025-02-02T21:10:00",
+          "qty": 2710,
+          "entry_price": 28.52,
+          "exit_price": 28.05368,
+          "pnl": -1263.727199999999,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-02-05T16:45:00",
+          "exit_time": "2025-02-06T03:25:00",
+          "qty": 2625,
+          "entry_price": 29.43,
+          "exit_price": 28.94912,
+          "pnl": -1262.3099999999977,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-06-18T16:45:00",
+          "exit_time": "2025-06-19T22:30:00",
+          "qty": 2306,
+          "entry_price": 33.38,
+          "exit_price": 32.835919999999994,
+          "pnl": -1254.6484800000187,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-08-12T14:45:00",
+          "exit_time": "2025-08-13T04:40:00",
+          "qty": -2321,
+          "entry_price": 34.379999999999995,
+          "exit_price": 34.92,
+          "pnl": -1253.3400000000145,
+          "exit_reason": "ratsv_adverse_release"
+        },
+        {
+          "entry_time": "2025-06-26T15:45:00",
+          "exit_time": "2025-06-27T04:05:00",
+          "qty": 2275,
+          "entry_price": 33.35000000000001,
+          "exit_price": 32.8,
+          "pnl": -1251.250000000026,
+          "exit_reason": "stop"
+        }
+      ],
+      "total_trades": 263,
+      "loss_trades": 152,
+      "win_trades": 111
+    },
+    "r2_size_a05_b10": {
+      "top_15_losses": [
+        {
+          "entry_time": "2025-04-04T16:35:00",
+          "exit_time": "2025-04-06T21:20:00",
+          "qty": -3201,
+          "entry_price": 26.900000000000002,
+          "exit_price": 27.3404,
+          "pnl": -1409.7203999999897,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-05-02T14:25:00",
+          "exit_time": "2025-05-05T03:00:00",
+          "qty": -2858,
+          "entry_price": 29.040000000000003,
+          "exit_price": 29.52,
+          "pnl": -1371.839999999991,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-09-11T14:35:00",
+          "exit_time": "2025-09-12T01:25:00",
+          "qty": -2125,
+          "entry_price": 37.66,
+          "exit_price": 38.300000000000004,
+          "pnl": -1360.0000000000164,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-05-05T18:05:00",
+          "exit_time": "2025-05-05T21:10:00",
+          "qty": -2775,
+          "entry_price": 29.48,
+          "exit_price": 29.961679999999998,
+          "pnl": -1336.6619999999923,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-12-03T19:45:00",
+          "exit_time": "2025-12-04T00:50:00",
+          "qty": 1551,
+          "entry_price": 53.120000000000005,
+          "exit_price": 52.26008,
+          "pnl": -1333.7359200000037,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-10-06T14:05:00",
+          "exit_time": "2025-10-07T03:25:00",
+          "qty": 1716,
+          "entry_price": 44.17,
+          "exit_price": 43.39999999999999,
+          "pnl": -1321.3200000000174,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-04-16T14:35:00",
+          "exit_time": "2025-04-16T21:30:00",
+          "qty": 2614,
+          "entry_price": 29.99,
+          "exit_price": 29.50016,
+          "pnl": -1280.441759999993,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-06-11T18:15:00",
+          "exit_time": "2025-06-12T03:40:00",
+          "qty": 2377,
+          "entry_price": 32.980000000000004,
+          "exit_price": 32.442319999999995,
+          "pnl": -1278.065360000021,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2026-01-05T15:05:00",
+          "exit_time": "2026-01-05T21:10:00",
+          "qty": -1521,
+          "entry_price": 68.97000000000001,
+          "exit_price": 69.80764,
+          "pnl": -1274.0504399999897,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-01-31T16:05:00",
+          "exit_time": "2025-02-02T21:10:00",
+          "qty": 2700,
+          "entry_price": 28.52,
+          "exit_price": 28.05368,
+          "pnl": -1259.063999999999,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-02-05T16:45:00",
+          "exit_time": "2025-02-06T03:25:00",
+          "qty": 2616,
+          "entry_price": 29.43,
+          "exit_price": 28.94912,
+          "pnl": -1257.9820799999975,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-08-12T14:45:00",
+          "exit_time": "2025-08-13T04:40:00",
+          "qty": -2319,
+          "entry_price": 34.379999999999995,
+          "exit_price": 34.92,
+          "pnl": -1252.2600000000145,
+          "exit_reason": "ratsv_adverse_release"
+        },
+        {
+          "entry_time": "2026-01-06T19:15:00",
+          "exit_time": "2026-01-06T20:10:00",
+          "qty": 1376,
+          "entry_price": 74.78999999999999,
+          "exit_price": 73.88252,
+          "pnl": -1248.6924799999897,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-06-18T16:45:00",
+          "exit_time": "2025-06-19T22:30:00",
+          "qty": 2294,
+          "entry_price": 33.38,
+          "exit_price": 32.835919999999994,
+          "pnl": -1248.1195200000186,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-09-19T18:35:00",
+          "exit_time": "2025-09-22T01:40:00",
+          "qty": -1968,
+          "entry_price": 39.01,
+          "exit_price": 39.64416000000001,
+          "pnl": -1248.0268800000167,
+          "exit_reason": "stop"
+        }
+      ],
+      "total_trades": 263,
+      "loss_trades": 152,
+      "win_trades": 111
+    },
+    "r2_cross_age_relax": {
+      "top_15_losses": [
+        {
+          "entry_time": "2025-04-04T16:35:00",
+          "exit_time": "2025-04-06T21:20:00",
+          "qty": -3201,
+          "entry_price": 26.900000000000002,
+          "exit_price": 27.3404,
+          "pnl": -1409.7203999999897,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-05-02T14:25:00",
+          "exit_time": "2025-05-05T03:00:00",
+          "qty": -2858,
+          "entry_price": 29.040000000000003,
+          "exit_price": 29.52,
+          "pnl": -1371.839999999991,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-09-11T14:35:00",
+          "exit_time": "2025-09-12T01:25:00",
+          "qty": -2125,
+          "entry_price": 37.66,
+          "exit_price": 38.300000000000004,
+          "pnl": -1360.0000000000164,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-05-05T18:05:00",
+          "exit_time": "2025-05-05T21:10:00",
+          "qty": -2775,
+          "entry_price": 29.48,
+          "exit_price": 29.961679999999998,
+          "pnl": -1336.6619999999923,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-12-03T19:45:00",
+          "exit_time": "2025-12-04T00:50:00",
+          "qty": 1551,
+          "entry_price": 53.120000000000005,
+          "exit_price": 52.26008,
+          "pnl": -1333.7359200000037,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-10-06T14:05:00",
+          "exit_time": "2025-10-07T03:25:00",
+          "qty": 1716,
+          "entry_price": 44.17,
+          "exit_price": 43.39999999999999,
+          "pnl": -1321.3200000000174,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-04-16T14:35:00",
+          "exit_time": "2025-04-16T21:30:00",
+          "qty": 2614,
+          "entry_price": 29.99,
+          "exit_price": 29.50016,
+          "pnl": -1280.441759999993,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-06-11T18:15:00",
+          "exit_time": "2025-06-12T03:40:00",
+          "qty": 2377,
+          "entry_price": 32.980000000000004,
+          "exit_price": 32.442319999999995,
+          "pnl": -1278.065360000021,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2026-01-05T15:05:00",
+          "exit_time": "2026-01-05T21:10:00",
+          "qty": -1521,
+          "entry_price": 68.97000000000001,
+          "exit_price": 69.80764,
+          "pnl": -1274.0504399999897,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-01-31T16:05:00",
+          "exit_time": "2025-02-02T21:10:00",
+          "qty": 2700,
+          "entry_price": 28.52,
+          "exit_price": 28.05368,
+          "pnl": -1259.063999999999,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-02-05T16:45:00",
+          "exit_time": "2025-02-06T03:25:00",
+          "qty": 2616,
+          "entry_price": 29.43,
+          "exit_price": 28.94912,
+          "pnl": -1257.9820799999975,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-08-12T14:45:00",
+          "exit_time": "2025-08-13T04:40:00",
+          "qty": -2319,
+          "entry_price": 34.379999999999995,
+          "exit_price": 34.92,
+          "pnl": -1252.2600000000145,
+          "exit_reason": "ratsv_adverse_release"
+        },
+        {
+          "entry_time": "2026-01-06T19:15:00",
+          "exit_time": "2026-01-06T20:10:00",
+          "qty": 1376,
+          "entry_price": 74.78999999999999,
+          "exit_price": 73.88252,
+          "pnl": -1248.6924799999897,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-06-18T16:45:00",
+          "exit_time": "2025-06-19T22:30:00",
+          "qty": 2294,
+          "entry_price": 33.38,
+          "exit_price": 32.835919999999994,
+          "pnl": -1248.1195200000186,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-09-19T18:35:00",
+          "exit_time": "2025-09-22T01:40:00",
+          "qty": -1968,
+          "entry_price": 39.01,
+          "exit_price": 39.64416000000001,
+          "pnl": -1248.0268800000167,
+          "exit_reason": "stop"
+        }
+      ],
+      "total_trades": 263,
+      "loss_trades": 152,
+      "win_trades": 111
+    },
+    "r2_slope_relax": {
+      "top_15_losses": [
+        {
+          "entry_time": "2025-04-04T16:35:00",
+          "exit_time": "2025-04-06T21:20:00",
+          "qty": -3201,
+          "entry_price": 26.900000000000002,
+          "exit_price": 27.3404,
+          "pnl": -1409.7203999999897,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-05-02T14:25:00",
+          "exit_time": "2025-05-05T03:00:00",
+          "qty": -2858,
+          "entry_price": 29.040000000000003,
+          "exit_price": 29.52,
+          "pnl": -1371.839999999991,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-09-11T14:35:00",
+          "exit_time": "2025-09-12T01:25:00",
+          "qty": -2124,
+          "entry_price": 37.66,
+          "exit_price": 38.300000000000004,
+          "pnl": -1359.3600000000163,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-05-05T18:05:00",
+          "exit_time": "2025-05-05T21:10:00",
+          "qty": -2775,
+          "entry_price": 29.48,
+          "exit_price": 29.961679999999998,
+          "pnl": -1336.6619999999923,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-10-06T14:05:00",
+          "exit_time": "2025-10-07T03:25:00",
+          "qty": 1716,
+          "entry_price": 44.17,
+          "exit_price": 43.39999999999999,
+          "pnl": -1321.3200000000174,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-12-03T19:45:00",
+          "exit_time": "2025-12-04T00:50:00",
+          "qty": 1515,
+          "entry_price": 53.120000000000005,
+          "exit_price": 52.26008,
+          "pnl": -1302.7788000000037,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-04-16T14:35:00",
+          "exit_time": "2025-04-16T21:30:00",
+          "qty": 2614,
+          "entry_price": 29.99,
+          "exit_price": 29.50016,
+          "pnl": -1280.441759999993,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-06-11T18:15:00",
+          "exit_time": "2025-06-12T03:40:00",
+          "qty": 2377,
+          "entry_price": 32.980000000000004,
+          "exit_price": 32.442319999999995,
+          "pnl": -1278.065360000021,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-01-31T16:05:00",
+          "exit_time": "2025-02-02T21:10:00",
+          "qty": 2700,
+          "entry_price": 28.52,
+          "exit_price": 28.05368,
+          "pnl": -1259.063999999999,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-02-05T16:45:00",
+          "exit_time": "2025-02-06T03:25:00",
+          "qty": 2616,
+          "entry_price": 29.43,
+          "exit_price": 28.94912,
+          "pnl": -1257.9820799999975,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-08-12T14:45:00",
+          "exit_time": "2025-08-13T04:40:00",
+          "qty": -2318,
+          "entry_price": 34.379999999999995,
+          "exit_price": 34.92,
+          "pnl": -1251.7200000000146,
+          "exit_reason": "ratsv_adverse_release"
+        },
+        {
+          "entry_time": "2025-06-18T16:45:00",
+          "exit_time": "2025-06-19T22:30:00",
+          "qty": 2294,
+          "entry_price": 33.38,
+          "exit_price": 32.835919999999994,
+          "pnl": -1248.1195200000186,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-09-19T18:35:00",
+          "exit_time": "2025-09-22T01:40:00",
+          "qty": -1967,
+          "entry_price": 39.01,
+          "exit_price": 39.64416000000001,
+          "pnl": -1247.3927200000167,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2026-01-05T15:05:00",
+          "exit_time": "2026-01-05T21:10:00",
+          "qty": -1486,
+          "entry_price": 68.97000000000001,
+          "exit_price": 69.80764,
+          "pnl": -1244.73303999999,
+          "exit_reason": "stop"
+        },
+        {
+          "entry_time": "2025-06-26T15:45:00",
+          "exit_time": "2025-06-27T04:05:00",
+          "qty": 2263,
+          "entry_price": 33.35000000000001,
+          "exit_price": 32.8,
+          "pnl": -1244.6500000000258,
+          "exit_reason": "stop"
+        }
+      ],
+      "total_trades": 263,
+      "loss_trades": 152,
+      "win_trades": 111
+    }
+  }
+}
