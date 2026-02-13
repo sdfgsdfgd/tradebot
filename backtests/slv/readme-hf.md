@@ -6,34 +6,34 @@ This file is the dedicated SLV high-frequency evolution track, separate from `ba
 
 ## Current Champions (stack)
 
-### CURRENT (v7) — 1Y+2Y Dethrone Crown (1m/1m, high-trade)
-Promoted from the timing-true round-2 corridor with the updated crown contract.
+### CURRENT (v8) — 1Y+2Y Dethrone Crown (1m/1m, high-trade)
+Promoted from the strict eq+ trade-floor round-3b corridor (`1y trades >= prior king trades`).
 
-**v7 kingmaker #01 [HF-1Y/2Y]**
-- Preset file: `backtests/slv/slv_hf_champions_v7.json`
-- Source eval: `backtests/slv/slv_hf_v6_timing_true_attack_round2_20260213.json`
-- Variant id: `r2_slope_early_rank024`
+**v8 kingmaker #01 [HF-1Y/2Y]**
+- Preset file: `backtests/slv/slv_hf_champions_v8.json`
+- Source eval: `backtests/slv/slv_hf_v7_round3b_tradefloor752_20260213.json`
+- Variant id: `overlay_probe_neutral`
 - Timeframe: `signal=1 min`, `exec=1 min`, `full24/5`
-- Core deltas vs prior HF crown (`v6 #01`): `ratsv_branch_a_slope_med_min_pct=0.00002` (from `0.00003`), `ratsv_branch_a_slope_vel_min_pct=0.00001` (from `0.000015`), `ratsv_branch_a_cross_age_max_bars=6` (from `5`), `ratsv_branch_a_rank_min=0.024` unchanged.
-- 1y (`2025-01-08 -> 2026-01-08`): trades **752**, pnl **54,054.17**, dd **14,604.84**, pnl/dd **3.7011**
-- 2y (`2024-01-08 -> 2026-01-08`): trades **1,285**, pnl **50,977.95**, dd **17,066.31**, pnl/dd **2.9871**
-- 1y long pnl: **55,955.24**
-- 1y short pnl: **-1,901.07**
+- Core deltas vs prior HF crown (`v7 #01`): `ratsv_branch_a_slope_med_min_pct=0.000023` (from `0.00002`), `ratsv_branch_a_slope_vel_min_pct=0.000011` (from `0.00001`), `ratsv_probe_cancel_slope_adverse_min_pct=0.00029` (from `0.00030`), with trades preserved.
+- 1y (`2025-01-08 -> 2026-01-08`): trades **752**, pnl **54,350.24**, dd **14,633.78**, pnl/dd **3.7140**
+- 2y (`2024-01-08 -> 2026-01-08`): trades **1,285**, pnl **51,263.25**, dd **17,066.21**, pnl/dd **3.0038**
+- 1y long pnl: **56,261.77**
+- 1y short pnl: **-1,911.53**
 
 Promotion contract check:
-- `1y trades >= 733`: **PASS** (`752`)
+- `1y trades >= prior king trades (752)`: **PASS** (`752`)
 - `beat prior crown on 1y pnl + pnl/dd`: **PASS**
 - `beat prior crown on 2y pnl + pnl/dd`: **PASS**
 
-Dethrone delta vs prior HF crown (`v6 #01`):
-- 1y: `trades +1`, `pnl +713.04`, `dd +66.70`, `pnl/dd +0.0321`
-- 2y: `trades +1`, `pnl +676.13`, `dd +0.00`, `pnl/dd +0.0396`
+Dethrone delta vs prior HF crown (`v7 #01`):
+- 1y: `trades +0`, `pnl +296.07`, `dd +28.94`, `pnl/dd +0.0129`
+- 2y: `trades +0`, `pnl +285.30`, `dd -0.10`, `pnl/dd +0.0167`
 
-### CURRENT 6M Crown (v7 reference) — quality anchor
+### CURRENT 6M Crown (v8 reference) — quality anchor
 Kept separately as 6M quality anchor (this is not the 1Y/2Y HF dethrone crown).
 
-**v7 kingmaker #02 [HF-6M]**
-- Preset file: `backtests/slv/slv_hf_champions_v7.json`
+**v8 kingmaker #02 [HF-6M]**
+- Preset file: `backtests/slv/slv_hf_champions_v8.json`
 - Source eval: `backtests/slv/slv_rand221_ultratight_eval_20260213.json`
 - Variant id: `rand_025`
 - Timeframe: `signal=10 mins`, `exec=5 mins`, `full24/5`
@@ -67,6 +67,12 @@ Decision:
 - Not promoted because absolute 1Y pnl was lower than the crown at the time.
 
 ## Previous Crowns (references)
+
+### v7 — `r2_slope_early_rank024` 1Y/2Y dethrone crown
+- Preset file: `backtests/slv/slv_hf_champions_v7.json`
+- Source eval: `backtests/slv/slv_hf_v6_timing_true_attack_round2_20260213.json`
+- 1y: trades **752**, pnl **54,054.17**, dd **14,604.84**, pnl/dd **3.7011**
+- 2y: trades **1,285**, pnl **50,977.95**, dd **17,066.31**, pnl/dd **2.9871**
 
 ### v6 — `off_combo_04` 1Y/2Y dethrone crown
 - Preset file: `backtests/slv/slv_hf_champions_v6.json`
@@ -116,6 +122,31 @@ Decision:
 - 1y: trades **639**, pnl **28,265.14**, dd **11,446.03**, pnl/dd **2.4694**
 
 ## Evolutions (stack)
+
+### v8.0 — strict eq+ trade-floor promotion (PROMOTED)
+Status: **DONE (PROMOTED)**
+
+Command used:
+```bash
+PYTHONPATH=/Users/x/Desktop/py/tradebot python /tmp/hf_v7_round3b_tradefloor752.py
+```
+
+Promotion basis:
+- Follow-up to timing-true round3 where best candidates improved pnl/pnl-dd but dropped 1Y trades by 1.
+- Enforced strict crown contract against current king:
+  - `1y trades >= 752` (equal-or-higher vs prior king),
+  - beat prior king on 1Y and 2Y for pnl and pnl/dd.
+
+Artifacts:
+- `backtests/slv/slv_hf_v7_timing_true_round3_20260213.json`
+- `backtests/slv/slv_hf_v7_round3b_tradefloor752_20260213.json`
+- `backtests/slv/slv_hf_champions_v8.json`
+
+Outcome:
+- New king: `overlay_probe_neutral`
+- 1y: trades **752**, pnl **54,350.24**, dd **14,633.78**, pnl/dd **3.7140**
+- 2y: trades **1,285**, pnl **51,263.25**, dd **17,066.21**, pnl/dd **3.0038**
+- Notes: timing drift is material (`changed_any`: 1Y=388, 2Y=389); short pnl is slightly worse, but this remains a preference axis, not a hard gate.
 
 ### v7.0 — timing-true round2 dethrone promotion (PROMOTED)
 Status: **DONE (PROMOTED)**
