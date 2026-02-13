@@ -30,6 +30,7 @@ from .common import (
     _estimate_buying_power,
     _estimate_net_liq,
     _market_session_label,
+    _option_display_price,
     _pct_change,
     _pnl_pct_value,
     _pnl_text,
@@ -1506,12 +1507,12 @@ class PositionsApp(App):
         )
         quote_price = _ticker_price(ticker) if ticker else None
         price = quote_price
-        if price is None and item is not None:
+        if item is not None:
             sec_type = str(getattr(item.contract, "secType", "") or "").strip().upper()
             if sec_type in ("OPT", "FOP"):
-                mark_price, _is_estimate = self._mark_price(item)
-                if mark_price is not None:
-                    price = float(mark_price)
+                display_price = _option_display_price(item, ticker)
+                if display_price is not None:
+                    price = float(display_price)
         cached = self._session_closes_by_con_id.get(con_id)
         ticker_close = _ticker_close(ticker) if ticker else None
         if (not has_live_quote) and cached and cached[0] is not None:

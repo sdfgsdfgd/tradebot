@@ -336,6 +336,33 @@ def _ticker_price(ticker: Ticker) -> float | None:
     return _ticker_close(ticker)
 
 
+def _option_display_price(item: PortfolioItem, ticker: Ticker | None) -> float | None:
+    if ticker:
+        bid = _safe_num(getattr(ticker, "bid", None))
+        ask = _safe_num(getattr(ticker, "ask", None))
+        if bid is not None and ask is not None and bid > 0 and ask > 0 and bid <= ask:
+            return (bid + ask) / 2.0
+        last = _safe_num(getattr(ticker, "last", None))
+        if last is not None and last > 0:
+            return float(last)
+        model = getattr(ticker, "modelGreeks", None)
+        model_price = _safe_num(getattr(model, "optPrice", None)) if model else None
+        if model_price is not None and model_price > 0:
+            return float(model_price)
+        close = _ticker_close(ticker)
+        if close is not None and close > 0:
+            close_value = float(close)
+        else:
+            close_value = None
+    else:
+        close_value = None
+
+    portfolio_mark = _safe_num(getattr(item, "marketPrice", None))
+    if portfolio_mark is not None and portfolio_mark > 0:
+        return float(portfolio_mark)
+    return close_value
+
+
 def _ticker_close(ticker: Ticker) -> float | None:
     for attr in ("close", "prevLast"):
         value = getattr(ticker, attr, None)

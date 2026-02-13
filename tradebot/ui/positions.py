@@ -31,6 +31,7 @@ from .common import (
     _market_data_label,
     _mark_price,
     _midpoint,
+    _option_display_price,
     _optimistic_price,
     _parse_int,
     _round_to_tick,
@@ -1280,7 +1281,10 @@ class PositionDetailScreen(Screen):
             bid = self._quote_num(self._ticker.bid) if self._ticker else None
             ask = self._quote_num(self._ticker.ask) if self._ticker else None
             last = self._quote_num(self._ticker.last) if self._ticker else None
-            price = _ticker_price(self._ticker) if self._ticker else None
+            if contract.secType in ("OPT", "FOP"):
+                price = _option_display_price(self._item, self._ticker)
+            else:
+                price = _ticker_price(self._ticker) if self._ticker else None
             mid = _midpoint(bid, ask)
             close = _ticker_close(self._ticker) if self._ticker else None
             mark = _mark_price(self._item)
