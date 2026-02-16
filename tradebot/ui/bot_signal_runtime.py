@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import json
 from datetime import datetime, time, timedelta
-from zoneinfo import ZoneInfo
 
 from ..engine import (
     cooldown_ok_by_time,
@@ -15,14 +14,25 @@ from ..engine import (
     parse_time_hhmm,
     resolve_spot_regime2_spec,
     resolve_spot_regime_spec,
-    signal_filter_checks,
     spot_intrabar_exit,
+    spot_policy_config_view,
     spot_profit_level,
+    spot_riskoff_end_hour,
+    spot_riskoff_mode_from_filters,
+    spot_runtime_spec_view,
     spot_scale_exit_pcts,
     spot_shock_exit_pct_multipliers,
     spot_stop_level,
 )
 from ..signals import ema_periods, parse_bar_size
+from ..spot.lifecycle import (
+    decide_flat_position_intent,
+    decide_open_position_intent,
+    decide_pending_next_open,
+    signal_filter_checks,
+)
+from ..time_utils import now_et as _now_et
+from ..time_utils import to_et as _to_et_shared
 from .bot_models import _BotInstance
 from .common import _market_session_bucket, _safe_num, _ticker_price
 
@@ -30,7 +40,6 @@ _RTH_OPEN = time(9, 30)
 _RTH_CLOSE = time(16, 0)
 _EXT_OPEN = time(4, 0)
 _EXT_CLOSE = time(20, 0)
-_ET_ZONE = ZoneInfo("America/New_York")
 _DEFAULT_ORDER_STAGE_TIMEOUT_SEC = 20.0
 _DEFAULT_EXIT_RETRY_MAX_PER_BAR = 3
 _BID_TICK_TYPES = {1, 66}
@@ -45,7 +54,7 @@ def _weekday_num(label: str) -> int:
 
 class BotSignalRuntimeMixin:
     async def _auto_order_tick(self) -> None:
-        now_et = datetime.now(tz=_ET_ZONE)
+        now_et = _now_et()
         now_wall = self._wall_time(now_et)
         no_signal_watchdog_sec = 60.0
         self._check_order_trigger_watchdogs(now_et=now_et)
@@ -263,6 +272,7 @@ class BotSignalRuntimeMixin:
                     instance.open_direction = None
                     instance.spot_profit_target_price = None
                     instance.spot_stop_loss_price = None
+                instance.last_resize_bar_ts = None
                 self._clear_pending_exit(instance)
                 self._reset_exit_retry_state(instance)
                 self._spot_reset_exec_bar(instance)
@@ -357,6 +367,15 @@ class BotSignalRuntimeMixin:
                     open_items=open_items,
                     open_dir=open_dir,
                     now_et=now_et,
+                    gate=_gate,
+                ):
+                    break
+                if await self._auto_maybe_resize_open_positions(
+                    instance=instance,
+                    snap=snap,
+                    instrument=instrument,
+                    open_items=open_items,
+                    open_dir=open_dir,
                     gate=_gate,
                 ):
                     break
@@ -503,7 +522,8 @@ class BotSignalRuntimeMixin:
         elif str(strategy.get("instrument") or "spot").strip().lower() != "spot":
             strategy_instrument = "options"
         if strategy_instrument == "spot":
-            exit_mode = str(strategy.get("spot_exit_mode") or "pct").strip().lower()
+            runtime_spec = spot_runtime_spec_view(strategy=strategy, filters=filters)
+            exit_mode = str(runtime_spec.exit_mode)
             if exit_mode == "atr":
                 atr_period = self._int_from(strategy.get("spot_atr_period"), default=14, min_value=1)
                 _register("signal", "spot_exit_atr", atr_period)
@@ -602,7 +622,7 @@ class BotSignalRuntimeMixin:
     def _as_et_aware(ts: datetime) -> datetime:
         # Runtime signal bars are ET wall-clock timestamps with tz stripped at ingest.
         # Reattach ET here before shared-core filters that convert to ET.
-        return ts.replace(tzinfo=_ET_ZONE) if ts.tzinfo is None else ts.astimezone(_ET_ZONE)
+        return _to_et_shared(ts, naive_ts_mode="et", default_naive_ts_mode="et")
 
     @staticmethod
     def _filters_get_value(filters: dict | object | None, key: str) -> object | None:
@@ -611,35 +631,10 @@ class BotSignalRuntimeMixin:
         return getattr(filters, key, None) if filters is not None else None
 
     def _spot_riskoff_mode(self, instance: _BotInstance) -> str:
-        mode = str(self._filters_get_value(instance.filters, "riskoff_mode") or "hygiene").strip().lower()
-        if mode not in ("hygiene", "directional"):
-            return "hygiene"
-        return mode
+        return spot_riskoff_mode_from_filters(instance.filters)
 
     def _spot_riskoff_end_hour(self, instance: _BotInstance) -> int | None:
-        filters = instance.filters
-        raw_cutoff_et = self._filters_get_value(filters, "risk_entry_cutoff_hour_et")
-        if raw_cutoff_et is not None:
-            try:
-                return int(raw_cutoff_et)
-            except (TypeError, ValueError):
-                return None
-
-        raw_start_et = self._filters_get_value(filters, "entry_start_hour_et")
-        raw_end_et = self._filters_get_value(filters, "entry_end_hour_et")
-        raw_start = self._filters_get_value(filters, "entry_start_hour")
-        raw_end = self._filters_get_value(filters, "entry_end_hour")
-        if raw_start_et is None and raw_end_et is not None:
-            try:
-                return int(raw_end_et)
-            except (TypeError, ValueError):
-                return None
-        if raw_start is None and raw_end is not None:
-            try:
-                return int(raw_end)
-            except (TypeError, ValueError):
-                return None
-        return None
+        return spot_riskoff_end_hour(instance.filters)
 
     def _signal_bars_held_since_entry(self, *, instance: _BotInstance, bar_ts: datetime) -> int:
         entry_ts = instance.last_entry_bar_ts
@@ -739,32 +734,6 @@ class BotSignalRuntimeMixin:
                 if tr_ratio is None or float(tr_ratio) < float(tr_min):
                     return False
         return True
-
-    @staticmethod
-    def _spot_pending_entry_should_cancel(
-        *,
-        pending_dir: str,
-        pending_set_date,
-        exec_ts: datetime,
-        risk_overlay_enabled: bool,
-        riskoff_today: bool,
-        riskpanic_today: bool,
-        riskpop_today: bool,
-        riskoff_mode: str,
-        shock_dir_now: str | None,
-        riskoff_end_hour: int | None,
-    ) -> bool:
-        if not bool(risk_overlay_enabled):
-            return False
-        if not (bool(riskoff_today) or bool(riskpanic_today) or bool(riskpop_today)):
-            return False
-        if str(riskoff_mode) == "directional" and shock_dir_now in ("up", "down"):
-            return str(pending_dir) != str(shock_dir_now)
-        if pending_set_date is not None and pending_set_date != exec_ts.date():
-            return True
-        if riskoff_end_hour is not None and int(exec_ts.hour) >= int(riskoff_end_hour):
-            return True
-        return False
 
     def _order_stage_timeout_sec(self, instance: _BotInstance) -> float:
         raw = instance.strategy.get("order_stage_timeout_sec")
@@ -1366,129 +1335,129 @@ class BotSignalRuntimeMixin:
             self._clear_pending_entry(instance)
             self._clear_pending_exit(instance)
             return False
-
-        # Backtest parity: execute pending flip exits before pending entries.
         pending_exit_due = instance.pending_exit_due_ts
-        if pending_exit_due is not None and now_wall >= pending_exit_due:
-            if open_items:
-                pending_exit_signal_bar_ts = instance.pending_exit_signal_bar_ts
-                due_from_ts = (
-                    self._spot_signal_close_ts(instance, pending_exit_signal_bar_ts)
-                    if pending_exit_signal_bar_ts is not None
-                    else pending_exit_due
-                )
-                self._queue_order(
-                    instance,
-                    intent="exit",
-                    direction=open_dir,
-                    signal_bar_ts=pending_exit_signal_bar_ts,
-                    trigger_reason=str(instance.pending_exit_reason or "flip"),
-                    trigger_mode="spot",
-                )
-                gate(
-                    "TRIGGER_EXIT",
-                    {
-                        "mode": "spot",
-                        "reason": str(instance.pending_exit_reason or "flip"),
-                        "fill_mode": "next_open",
-                        "next_open_due": pending_exit_due.isoformat(),
-                        "next_open_due_from": due_from_ts.isoformat(),
-                        "now_wall_ts": now_wall.isoformat(),
-                        "signal_bar_ts": (
-                            pending_exit_signal_bar_ts.isoformat()
-                            if pending_exit_signal_bar_ts is not None
-                            else None
-                        ),
-                        **self._order_trigger_watch_payload(instance),
-                    },
-                )
-                self._clear_pending_exit(instance)
-                return True
-            self._clear_pending_exit(instance)
-
-        pending_direction = instance.pending_entry_direction
-        if pending_direction in ("up", "down") and instance.pending_entry_due_ts is not None:
-            risk = getattr(snap, "risk", None) if snap is not None else None
-            shock_dir_now = str(getattr(snap, "shock_dir", "") or "").strip().lower() if snap is not None else ""
-            if shock_dir_now not in ("up", "down"):
-                shock_dir_now = None
-            pending_set_date = (
-                instance.pending_entry_signal_bar_ts.date()
-                if instance.pending_entry_signal_bar_ts is not None
-                else None
-            )
-            riskoff_mode = self._spot_riskoff_mode(instance)
-            riskoff_end_hour = self._spot_riskoff_end_hour(instance)
-            if self._spot_pending_entry_should_cancel(
-                pending_dir=str(pending_direction),
-                pending_set_date=pending_set_date,
-                exec_ts=now_wall,
-                risk_overlay_enabled=bool(risk is not None),
-                riskoff_today=bool(getattr(risk, "riskoff", False)) if risk is not None else False,
-                riskpanic_today=bool(getattr(risk, "riskpanic", False)) if risk is not None else False,
-                riskpop_today=bool(getattr(risk, "riskpop", False)) if risk is not None else False,
-                riskoff_mode=riskoff_mode,
-                shock_dir_now=shock_dir_now,
-                riskoff_end_hour=riskoff_end_hour,
-            ):
-                gate(
-                    "CANCEL_PENDING_ENTRY_RISK_OVERLAY",
-                    {
-                        "direction": str(pending_direction),
-                        "next_open_due": instance.pending_entry_due_ts.isoformat(),
-                        "signal_bar_ts": (
-                            instance.pending_entry_signal_bar_ts.isoformat()
-                            if instance.pending_entry_signal_bar_ts is not None
-                            else None
-                        ),
-                        "riskoff_mode": riskoff_mode,
-                        "shock_dir": shock_dir_now,
-                        "riskoff": bool(getattr(risk, "riskoff", False)) if risk is not None else False,
-                        "riskpanic": bool(getattr(risk, "riskpanic", False)) if risk is not None else False,
-                        "riskpop": bool(getattr(risk, "riskpop", False)) if risk is not None else False,
-                        "riskoff_end_hour": riskoff_end_hour,
-                    },
-                )
-                self._clear_pending_entry(instance)
-
+        pending_exit_reason = str(instance.pending_exit_reason or "flip")
+        pending_exit_signal_bar_ts = instance.pending_exit_signal_bar_ts
         pending_entry_due = instance.pending_entry_due_ts
-        if pending_entry_due is not None and now_wall >= pending_entry_due:
-            direction = instance.pending_entry_direction
-            if direction in ("up", "down") and not open_items:
-                pending_entry_signal_bar_ts = instance.pending_entry_signal_bar_ts
-                due_from_ts = (
-                    self._spot_signal_close_ts(instance, pending_entry_signal_bar_ts)
-                    if pending_entry_signal_bar_ts is not None
-                    else pending_entry_due
-                )
-                self._queue_order(
-                    instance,
-                    intent="enter",
-                    direction=direction,
-                    signal_bar_ts=pending_entry_signal_bar_ts,
-                    trigger_reason="next_open",
-                    trigger_mode="spot",
-                )
-                gate(
-                    "TRIGGER_ENTRY",
-                    {
-                        "direction": direction,
-                        "fill_mode": "next_open",
-                        "next_open_due": pending_entry_due.isoformat(),
-                        "next_open_due_from": due_from_ts.isoformat(),
-                        "now_wall_ts": now_wall.isoformat(),
-                        "signal_bar_ts": (
-                            pending_entry_signal_bar_ts.isoformat()
-                            if pending_entry_signal_bar_ts is not None
-                            else None
-                        ),
-                        **self._order_trigger_watch_payload(instance),
-                    },
-                )
-                self._clear_pending_entry(instance)
-                return True
+        pending_entry_direction = instance.pending_entry_direction
+        pending_entry_signal_bar_ts = instance.pending_entry_signal_bar_ts
+        pending_entry_set_date = pending_entry_signal_bar_ts.date() if pending_entry_signal_bar_ts is not None else None
+
+        risk = getattr(snap, "risk", None) if snap is not None else None
+        shock_dir_now = str(getattr(snap, "shock_dir", "") or "").strip().lower() if snap is not None else ""
+        if shock_dir_now not in ("up", "down"):
+            shock_dir_now = None
+        riskoff_mode = self._spot_riskoff_mode(instance)
+        riskoff_end_hour = self._spot_riskoff_end_hour(instance)
+
+        decision = decide_pending_next_open(
+            now_ts=now_wall,
+            has_open=bool(open_items),
+            open_dir=open_dir,
+            pending_entry_dir=pending_entry_direction,
+            pending_entry_set_date=pending_entry_set_date,
+            pending_entry_due_ts=pending_entry_due,
+            pending_exit_reason=pending_exit_reason,
+            pending_exit_due_ts=pending_exit_due,
+            risk_overlay_enabled=bool(risk is not None),
+            riskoff_today=bool(getattr(risk, "riskoff", False)) if risk is not None else False,
+            riskpanic_today=bool(getattr(risk, "riskpanic", False)) if risk is not None else False,
+            riskpop_today=bool(getattr(risk, "riskpop", False)) if risk is not None else False,
+            riskoff_mode=riskoff_mode,
+            shock_dir_now=shock_dir_now,
+            riskoff_end_hour=riskoff_end_hour,
+            naive_ts_mode="et",
+        )
+
+        if decision.pending_clear_exit:
+            self._clear_pending_exit(instance)
+        if decision.pending_clear_entry:
             self._clear_pending_entry(instance)
-        if instance.pending_exit_due_ts is not None:
+
+        if decision.intent == "exit":
+            due_from_ts = (
+                self._spot_signal_close_ts(instance, pending_exit_signal_bar_ts)
+                if pending_exit_signal_bar_ts is not None
+                else (pending_exit_due or now_wall)
+            )
+            self._queue_order(
+                instance,
+                intent="exit",
+                direction=open_dir,
+                signal_bar_ts=pending_exit_signal_bar_ts,
+                trigger_reason=pending_exit_reason,
+                trigger_mode="spot",
+            )
+            gate(
+                "TRIGGER_EXIT",
+                {
+                    "mode": "spot",
+                    "reason": pending_exit_reason,
+                    "fill_mode": "next_open",
+                    "next_open_due": pending_exit_due.isoformat() if pending_exit_due is not None else None,
+                    "next_open_due_from": due_from_ts.isoformat(),
+                    "now_wall_ts": now_wall.isoformat(),
+                    "signal_bar_ts": pending_exit_signal_bar_ts.isoformat() if pending_exit_signal_bar_ts is not None else None,
+                    "spot_lifecycle": decision.as_payload(),
+                    **self._order_trigger_watch_payload(instance),
+                },
+            )
+            return True
+
+        if decision.intent == "enter":
+            due_from_ts = (
+                self._spot_signal_close_ts(instance, pending_entry_signal_bar_ts)
+                if pending_entry_signal_bar_ts is not None
+                else (pending_entry_due or now_wall)
+            )
+            self._queue_order(
+                instance,
+                intent="enter",
+                direction=pending_entry_direction,
+                signal_bar_ts=pending_entry_signal_bar_ts,
+                trigger_reason="next_open",
+                trigger_mode="spot",
+            )
+            gate(
+                "TRIGGER_ENTRY",
+                {
+                    "direction": pending_entry_direction,
+                    "fill_mode": "next_open",
+                    "next_open_due": pending_entry_due.isoformat() if pending_entry_due is not None else None,
+                    "next_open_due_from": due_from_ts.isoformat(),
+                    "now_wall_ts": now_wall.isoformat(),
+                    "signal_bar_ts": (
+                        pending_entry_signal_bar_ts.isoformat()
+                        if pending_entry_signal_bar_ts is not None
+                        else None
+                    ),
+                    "spot_lifecycle": decision.as_payload(),
+                    **self._order_trigger_watch_payload(instance),
+                },
+            )
+            return True
+
+        if decision.gate == "CANCEL_PENDING_ENTRY_RISK_OVERLAY":
+            gate(
+                "CANCEL_PENDING_ENTRY_RISK_OVERLAY",
+                {
+                    "direction": str(pending_entry_direction) if pending_entry_direction is not None else None,
+                    "next_open_due": pending_entry_due.isoformat() if pending_entry_due is not None else None,
+                    "signal_bar_ts": (
+                        pending_entry_signal_bar_ts.isoformat()
+                        if pending_entry_signal_bar_ts is not None
+                        else None
+                    ),
+                    "riskoff_mode": riskoff_mode,
+                    "shock_dir": shock_dir_now,
+                    "riskoff": bool(getattr(risk, "riskoff", False)) if risk is not None else False,
+                    "riskpanic": bool(getattr(risk, "riskpanic", False)) if risk is not None else False,
+                    "riskpop": bool(getattr(risk, "riskpop", False)) if risk is not None else False,
+                    "riskoff_end_hour": riskoff_end_hour,
+                    "spot_lifecycle": decision.as_payload(),
+                },
+            )
+        elif decision.gate == "PENDING_EXIT_NEXT_OPEN" and instance.pending_exit_due_ts is not None:
             gate(
                 "PENDING_EXIT_NEXT_OPEN",
                 {
@@ -1505,9 +1474,10 @@ class BotSignalRuntimeMixin:
                         if instance.pending_exit_signal_bar_ts is not None
                         else None
                     ),
+                    "spot_lifecycle": decision.as_payload(),
                 },
             )
-        elif instance.pending_entry_due_ts is not None:
+        elif decision.gate == "PENDING_ENTRY_NEXT_OPEN" and instance.pending_entry_due_ts is not None:
             gate(
                 "PENDING_ENTRY_NEXT_OPEN",
                 {
@@ -1523,6 +1493,7 @@ class BotSignalRuntimeMixin:
                         if instance.pending_entry_signal_bar_ts is not None
                         else None
                     ),
+                    "spot_lifecycle": decision.as_payload(),
                 },
             )
         return False
@@ -1591,7 +1562,13 @@ class BotSignalRuntimeMixin:
 
         gate("HOLDING", {"direction": open_dir, "items": len(open_items)})
 
-        def _trigger_exit(reason: str, *, mode: str = instrument, calc: dict | None = None) -> bool:
+        def _trigger_exit(
+            reason: str,
+            *,
+            mode: str = instrument,
+            calc: dict | None = None,
+            lifecycle=None,
+        ) -> bool:
             self._queue_order(
                 instance,
                 intent="exit",
@@ -1603,6 +1580,9 @@ class BotSignalRuntimeMixin:
             payload = {"mode": mode, "reason": reason}
             if calc:
                 payload["calc"] = calc
+            if lifecycle is not None:
+                as_payload = getattr(lifecycle, "as_payload", None)
+                payload["spot_lifecycle"] = as_payload() if callable(as_payload) else lifecycle
             payload.update(self._order_trigger_watch_payload(instance))
             gate("TRIGGER_EXIT", payload)
             return True
@@ -1688,10 +1668,8 @@ class BotSignalRuntimeMixin:
                 quote_liq = ask
                 quote_liq_source = "ask"
 
-            mark_to_market = str(instance.strategy.get("spot_mark_to_market", "liquidation") or "liquidation")
-            mark_to_market = mark_to_market.strip().lower()
-            if mark_to_market not in ("close", "liquidation"):
-                mark_to_market = "liquidation"
+            runtime_spec = spot_runtime_spec_view(strategy=instance.strategy, filters=instance.filters)
+            mark_to_market = str(runtime_spec.mark_to_market)
 
             if mark_to_market == "liquidation":
                 quote_market_price = quote_liq
@@ -1883,7 +1861,7 @@ class BotSignalRuntimeMixin:
                 )
             )
 
-            intrabar_enabled = bool(instance.strategy.get("spot_intrabar_exits", False))
+            intrabar_enabled = bool(runtime_spec.intrabar_exits)
             if (
                 pos
                 and intrabar_enabled
@@ -1965,33 +1943,109 @@ class BotSignalRuntimeMixin:
                                 ),
                             )
 
-            if self._spot_ratsv_probe_cancel_hit(
-                instance=instance,
-                pos=pos,
-                held_bars=int(held_bars),
-                entry_branch=entry_branch,
-                tr_ratio=ratsv_tr_ratio,
-                slope_med=ratsv_slope_med,
-            ):
-                return _trigger_exit("ratsv_probe_cancel", mode="spot", calc=_spot_calc())
-            if self._spot_ratsv_adverse_release_hit(
-                instance=instance,
-                pos=pos,
-                held_bars=int(held_bars),
-                tr_ratio=ratsv_tr_ratio,
-                slope_med=ratsv_slope_med,
-                slope_vel=ratsv_slope_vel,
-            ):
-                return _trigger_exit("ratsv_adverse_release", mode="spot", calc=_spot_calc())
+            exit_candidates: dict[str, bool] = {
+                "ratsv_probe_cancel": bool(
+                    self._spot_ratsv_probe_cancel_hit(
+                        instance=instance,
+                        pos=pos,
+                        held_bars=int(held_bars),
+                        entry_branch=entry_branch,
+                        tr_ratio=ratsv_tr_ratio,
+                        slope_med=ratsv_slope_med,
+                    )
+                ),
+                "ratsv_adverse_release": bool(
+                    self._spot_ratsv_adverse_release_hit(
+                        instance=instance,
+                        pos=pos,
+                        held_bars=int(held_bars),
+                        tr_ratio=ratsv_tr_ratio,
+                        slope_med=ratsv_slope_med,
+                        slope_vel=ratsv_slope_vel,
+                    )
+                ),
+            }
 
             exit_time = parse_time_hhmm(instance.strategy.get("spot_exit_time_et"))
             if exit_time is not None and now_et.time() >= exit_time:
-                return _trigger_exit("exit_time", mode="spot")
+                exit_candidates["exit_time"] = True
 
             if bool(instance.strategy.get("spot_close_eod")) and (
                 now_et.hour > 15 or now_et.hour == 15 and now_et.minute >= 55
             ):
-                return _trigger_exit("close_eod", mode="spot")
+                exit_candidates["close_eod"] = True
+
+            exit_candidates["flip"] = bool(self._should_exit_on_flip(instance, snap, open_dir, open_items))
+
+            lifecycle = decide_open_position_intent(
+                strategy=instance.strategy,
+                bar_ts=snap.bar_ts,
+                bar_size=self._signal_bar_size(instance),
+                open_dir=open_dir,
+                current_qty=int(pos),
+                exit_candidates=exit_candidates,
+                signal_entry_dir=getattr(getattr(snap, "signal", None), "entry_dir", None),
+                shock_atr_pct=float(snap.shock_atr_pct) if snap.shock_atr_pct is not None else None,
+                shock_atr_vel_pct=(
+                    float(getattr(snap, "shock_atr_vel_pct", 0.0))
+                    if getattr(snap, "shock_atr_vel_pct", None) is not None
+                    else None
+                ),
+                shock_atr_accel_pct=(
+                    float(getattr(snap, "shock_atr_accel_pct", 0.0))
+                    if getattr(snap, "shock_atr_accel_pct", None) is not None
+                    else None
+                ),
+                tr_ratio=ratsv_tr_ratio,
+                slope_med_pct=ratsv_slope_med,
+                slope_vel_pct=ratsv_slope_vel,
+                slope_med_slow_pct=(
+                    float(getattr(snap, "ratsv_slow_slope_med_pct", 0.0))
+                    if getattr(snap, "ratsv_slow_slope_med_pct", None) is not None
+                    else None
+                ),
+                slope_vel_slow_pct=(
+                    float(getattr(snap, "ratsv_slow_slope_vel_pct", 0.0))
+                    if getattr(snap, "ratsv_slow_slope_vel_pct", None) is not None
+                    else None
+                ),
+            )
+            if lifecycle.intent == "exit":
+                if lifecycle.fill_mode == "next_open":
+                    scheduled = self._schedule_pending_exit_next_open(
+                        instance=instance,
+                        reason=str(lifecycle.reason or "flip"),
+                        direction=open_dir,
+                        signal_bar_ts=snap.bar_ts,
+                        now_wall=self._wall_time(now_et),
+                        mode="spot",
+                        gate=gate,
+                    )
+                    if scheduled and lifecycle.queue_reentry_dir in ("up", "down"):
+                        if instance.pending_entry_due_ts is None:
+                            due_from_ts = self._spot_signal_close_ts(instance, snap.bar_ts)
+                            due_ts = self._spot_next_open_due_ts(instance, snap.bar_ts)
+                            instance.pending_entry_direction = str(lifecycle.queue_reentry_dir)
+                            instance.pending_entry_signal_bar_ts = snap.bar_ts
+                            instance.pending_entry_due_ts = due_ts
+                            gate(
+                                "PENDING_ENTRY_NEXT_OPEN",
+                                {
+                                    "direction": str(lifecycle.queue_reentry_dir),
+                                    "reason": "controlled_flip",
+                                    "next_open_due": due_ts.isoformat(),
+                                    "next_open_due_from": due_from_ts.isoformat(),
+                                    "signal_bar_ts": snap.bar_ts.isoformat(),
+                                    "spot_lifecycle": lifecycle.as_payload(),
+                                },
+                            )
+                    return bool(scheduled)
+                return _trigger_exit(
+                    str(lifecycle.reason or "flip"),
+                    mode="spot",
+                    calc=_spot_calc(),
+                    lifecycle=lifecycle,
+                )
 
         if instrument != "spot":
             if self._should_exit_on_dte(instance, open_items, now_et.date()):
@@ -2028,26 +2082,51 @@ class BotSignalRuntimeMixin:
                         if max_loss and loss >= float(max_loss) * stop_loss:
                             return _trigger_exit("stop_loss_max_loss", mode="options")
 
-        if self._should_exit_on_flip(instance, snap, open_dir, open_items):
-            if instrument == "spot":
-                flip_fill_mode = str(instance.strategy.get("spot_flip_exit_fill_mode", "close") or "close").strip().lower()
-                if flip_fill_mode == "next_open":
-                    return self._schedule_pending_exit_next_open(
-                        instance=instance,
-                        reason="flip",
-                        direction=open_dir,
-                        signal_bar_ts=snap.bar_ts,
-                        now_wall=self._wall_time(now_et),
-                        mode="spot",
-                        gate=gate,
-                    )
+        if instrument != "spot" and self._should_exit_on_flip(instance, snap, open_dir, open_items):
             return _trigger_exit("flip", mode=instrument)
         return False
 
-    def _auto_try_queue_entry(self, *, instance: _BotInstance, snap, gate, now_et: datetime) -> bool:
-        if not self._entry_limit_ok(instance):
-            gate("BLOCKED_ENTRY_LIMIT", {"entries_today": int(instance.entries_today)})
+    async def _auto_maybe_resize_open_positions(
+        self,
+        *,
+        instance: _BotInstance,
+        snap,
+        instrument: str,
+        open_items: list,
+        open_dir: str | None,
+        gate,
+    ) -> bool:
+        if str(instrument or "").strip().lower() != "spot":
             return False
+        if not open_items:
+            return False
+
+        policy = spot_policy_config_view(strategy=instance.strategy, filters=instance.filters)
+        resize_mode = str(getattr(policy, "spot_resize_mode", "off") or "off").strip().lower()
+        if resize_mode != "target":
+            return False
+
+        if instance.last_resize_bar_ts is not None and instance.last_resize_bar_ts == snap.bar_ts:
+            return False
+
+        self._queue_order(
+            instance,
+            intent="resize",
+            direction=open_dir,
+            signal_bar_ts=snap.bar_ts,
+            trigger_reason="resize_target",
+            trigger_mode="spot",
+        )
+        payload = {
+            "direction": open_dir,
+            "mode": "target",
+            "cooldown_bars": int(getattr(policy, "spot_resize_cooldown_bars", 0) or 0),
+        }
+        payload.update(self._order_trigger_watch_payload(instance))
+        gate("TRIGGER_RESIZE", payload)
+        return True
+
+    def _auto_try_queue_entry(self, *, instance: _BotInstance, snap, gate, now_et: datetime) -> bool:
         if instance.last_entry_bar_ts is not None and instance.last_entry_bar_ts == snap.bar_ts:
             gate("BLOCKED_ENTRY_SAME_BAR", {"bar_ts": snap.bar_ts.isoformat()})
             return False
@@ -2055,28 +2134,72 @@ class BotSignalRuntimeMixin:
             return False
 
         instrument = self._strategy_instrument(instance.strategy)
+        atr_ready = True
         if instrument == "spot":
-            exit_mode = str(instance.strategy.get("spot_exit_mode") or "pct").strip().lower()
+            runtime_spec = spot_runtime_spec_view(strategy=instance.strategy, filters=instance.filters)
+            exit_mode = str(runtime_spec.exit_mode)
             if exit_mode == "atr":
                 atr = float(snap.atr or 0.0) if snap.atr is not None else 0.0
                 if atr <= 0:
-                    gate("BLOCKED_ATR_NOT_READY", {"atr": float(atr)})
-                    return False
+                    atr_ready = False
 
         direction = self._entry_direction_for_instance(instance, snap)
-        if direction is None:
-            gate("WAITING_SIGNAL", {"bar_ts": snap.bar_ts.isoformat()})
-            return False
-        if direction not in self._allowed_entry_directions(instance):
-            gate("BLOCKED_DIRECTION", {"direction": direction})
+        allowed_directions = tuple(self._allowed_entry_directions(instance))
+        decision = decide_flat_position_intent(
+            strategy=instance.strategy,
+            bar_ts=snap.bar_ts,
+            entry_dir=direction,
+            allowed_directions=allowed_directions,
+            can_order_now=True,
+            preflight_ok=True,
+            filters_ok=True,
+            entry_capacity=bool(self._entry_limit_ok(instance)),
+            stale_signal=False,
+            gap_signal=False,
+            pending_exists=False,
+            atr_ready=bool(atr_ready),
+            next_open_allowed=True,
+            shock_atr_pct=float(snap.shock_atr_pct) if getattr(snap, "shock_atr_pct", None) is not None else None,
+            shock_atr_vel_pct=float(getattr(snap, "shock_atr_vel_pct", 0.0))
+            if getattr(snap, "shock_atr_vel_pct", None) is not None
+            else None,
+            shock_atr_accel_pct=float(getattr(snap, "shock_atr_accel_pct", 0.0))
+            if getattr(snap, "shock_atr_accel_pct", None) is not None
+            else None,
+            tr_ratio=float(getattr(snap, "ratsv_tr_ratio", 0.0))
+            if getattr(snap, "ratsv_tr_ratio", None) is not None
+            else None,
+            slope_med_pct=float(getattr(snap, "ratsv_fast_slope_med_pct", 0.0))
+            if getattr(snap, "ratsv_fast_slope_med_pct", None) is not None
+            else None,
+            slope_vel_pct=float(getattr(snap, "ratsv_fast_slope_vel_pct", 0.0))
+            if getattr(snap, "ratsv_fast_slope_vel_pct", None) is not None
+            else None,
+            slope_med_slow_pct=float(getattr(snap, "ratsv_slow_slope_med_pct", 0.0))
+            if getattr(snap, "ratsv_slow_slope_med_pct", None) is not None
+            else None,
+            slope_vel_slow_pct=float(getattr(snap, "ratsv_slow_slope_vel_pct", 0.0))
+            if getattr(snap, "ratsv_slow_slope_vel_pct", None) is not None
+            else None,
+        )
+        if decision.intent != "enter":
+            payload = {"spot_lifecycle": decision.as_payload()}
+            if decision.gate == "BLOCKED_ENTRY_LIMIT":
+                payload["entries_today"] = int(instance.entries_today)
+            if decision.gate == "BLOCKED_ATR_NOT_READY":
+                payload["atr"] = float(snap.atr or 0.0) if snap.atr is not None else 0.0
+            if decision.gate == "WAITING_SIGNAL":
+                payload["bar_ts"] = snap.bar_ts.isoformat()
+            if decision.gate == "BLOCKED_DIRECTION":
+                payload["direction"] = direction
+            gate(decision.gate, payload)
             return False
 
         if instrument == "spot":
-            entry_fill_mode = str(instance.strategy.get("spot_entry_fill_mode", "close") or "close").strip().lower()
-            if entry_fill_mode == "next_open":
+            if str(decision.fill_mode) == "next_open":
                 return self._schedule_pending_entry_next_open(
                     instance=instance,
-                    direction=direction,
+                    direction=str(decision.direction),
                     signal_bar_ts=snap.bar_ts,
                     now_wall=self._wall_time(now_et),
                     gate=gate,
@@ -2085,12 +2208,12 @@ class BotSignalRuntimeMixin:
         self._queue_order(
             instance,
             intent="enter",
-            direction=direction,
+            direction=str(decision.direction),
             signal_bar_ts=snap.bar_ts,
             trigger_reason="entry",
             trigger_mode=instrument,
         )
-        payload = {"direction": direction}
+        payload = {"direction": str(decision.direction), "spot_lifecycle": decision.as_payload()}
         payload.update(self._order_trigger_watch_payload(instance))
         gate("TRIGGER_ENTRY", payload)
         return True
@@ -2115,7 +2238,12 @@ class BotSignalRuntimeMixin:
             self._status = "Order: no loop"
             self._render_status()
             return
-        action = "Exiting" if intent == "exit" else "Creating order"
+        if intent == "exit":
+            action = "Exiting"
+        elif intent == "resize":
+            action = "Resizing"
+        else:
+            action = "Creating order"
         dir_note = f" ({direction})" if direction else ""
         self._status = f"{action} for instance {instance.instance_id}{dir_note}..."
         self._render_status()
@@ -2124,7 +2252,7 @@ class BotSignalRuntimeMixin:
             intent=str(intent),
             direction=direction,
             signal_bar_ts=signal_bar_ts,
-            now_et=datetime.now(tz=ZoneInfo("America/New_York")),
+            now_et=_now_et(),
             reason=trigger_reason,
             mode=trigger_mode,
         )
@@ -2181,7 +2309,7 @@ class BotSignalRuntimeMixin:
             allowed = {_weekday_num(day) for day in entry_days}
         else:
             allowed = {0, 1, 2, 3, 4, 5, 6}
-        now = now_et if now_et is not None else datetime.now(tz=_ET_ZONE)
+        now = now_et if now_et is not None else _now_et()
         if self._entry_weekday_for_ts(instance, now) not in allowed:
             return False
         return True

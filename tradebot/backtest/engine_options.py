@@ -15,19 +15,18 @@ from .data import ContractMeta, IBKRHistoricalData
 from .models import Bar, EquityPoint, OptionTrade
 from .strategy import CreditSpreadStrategy
 from .synth import IVSurfaceParams
+from ..spot.lifecycle import apply_regime_gate, signal_filters_ok
 from ..engine import (
     EmaDecisionEngine,
     SupertrendEngine,
-    apply_regime_gate,
+    _trade_date,
     annualized_ewma_vol,
     cooldown_ok_by_index,
-    signal_filters_ok,
 )
 from ..signals import ema_next
 
 if TYPE_CHECKING:
     from .engine import BacktestResult
-
 
 def run_options_backtest(
     *,
@@ -150,7 +149,7 @@ def run_options_backtest(
     last_date = None
     for idx, bar in enumerate(bars):
         next_bar = bars[idx + 1] if idx + 1 < len(bars) else None
-        is_last_bar = next_bar is None or next_bar.ts.date() != bar.ts.date()
+        is_last_bar = next_bar is None or _trade_date(next_bar.ts) != _trade_date(bar.ts)
         if prev_bar is not None and prev_bar.close > 0:
             returns.append(math.log(bar.close / prev_bar.close))
         rv = annualized_ewma_vol(
@@ -159,9 +158,9 @@ def run_options_backtest(
             bar_size=str(cfg.backtest.bar_size),
             use_rth=bool(cfg.backtest.use_rth),
         )
-        if last_date != bar.ts.date():
+        if last_date != _trade_date(bar.ts):
             bars_in_day = 0
-            last_date = bar.ts.date()
+            last_date = _trade_date(bar.ts)
             entries_today = 0
         bars_in_day += 1
 
@@ -204,7 +203,7 @@ def run_options_backtest(
         if open_trades and prev_bar:
             still_open: list[OptionTrade] = []
             for trade in open_trades:
-                if bar.ts.date() > trade.expiry:
+                if _trade_date(bar.ts) > trade.expiry:
                     exit_debit = _engine._trade_value_from_spec(
                         trade,
                         prev_bar,
@@ -246,7 +245,7 @@ def run_options_backtest(
                 elif _engine._hit_stop(trade, current_value, cfg.strategy.stop_loss_basis, bar.close):
                     should_close = True
                     reason = "stop"
-                elif _engine._hit_exit_dte(cfg, trade, bar.ts.date()):
+                elif _engine._hit_exit_dte(cfg, trade, _trade_date(bar.ts)):
                     should_close = True
                     reason = "exit_dte"
                 elif _engine._hit_flip_exit(cfg, trade, bar, current_value, signal):
@@ -336,7 +335,7 @@ def run_options_backtest(
             cooldown_ok=cooldown_ok,
         )
 
-        open_slots_ok = cfg.strategy.max_open_trades == 0 or len(open_trades) < cfg.strategy.max_open_trades
+        open_slots_ok = len(open_trades) < 1
         entries_ok = cfg.strategy.max_entries_per_day == 0 or entries_today < cfg.strategy.max_entries_per_day
         if open_slots_ok and entries_ok and strategy.should_enter(bar.ts) and ema_gate_ok and filters_ok:
             legs_override = None

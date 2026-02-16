@@ -52,6 +52,7 @@ class _BotInstance:
     last_order_date: date | None = None
     open_direction: str | None = None
     last_entry_bar_ts: datetime | None = None
+    last_resize_bar_ts: datetime | None = None
     last_exit_bar_ts: datetime | None = None
     exit_retry_bar_ts: datetime | None = None
     exit_retry_count: int = 0
@@ -179,5 +180,10 @@ class _SignalSnapshot:
     ratsv_fast_slope_pct: float | None = None
     ratsv_fast_slope_med_pct: float | None = None
     ratsv_fast_slope_vel_pct: float | None = None
+    ratsv_slow_slope_med_pct: float | None = None
+    ratsv_slow_slope_vel_pct: float | None = None
+    ratsv_slope_vel_consistency: float | None = None
     ratsv_cross_age_bars: int | None = None
+    shock_atr_vel_pct: float | None = None
+    shock_atr_accel_pct: float | None = None
     bar_health: dict | None = None

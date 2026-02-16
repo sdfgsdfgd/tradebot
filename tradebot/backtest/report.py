@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import csv
+import json
 from pathlib import Path
 
 from .engine import BacktestResult
@@ -43,6 +44,7 @@ def _write_trades(path: Path, result: BacktestResult) -> None:
                 "entry_price",
                 "exit_price",
                 "exit_reason",
+                "decision_trace_json",
             ]
         )
         for trade in result.trades:
@@ -71,6 +73,11 @@ def _write_trades(path: Path, result: BacktestResult) -> None:
                     f"{trade.entry_price:.4f}",
                     f"{trade.exit_price:.4f}" if trade.exit_price is not None else "",
                     trade.exit_reason or "",
+                    (
+                        json.dumps(getattr(trade, "decision_trace", None), sort_keys=True, default=str)
+                        if is_spot and getattr(trade, "decision_trace", None) is not None
+                        else ""
+                    ),
                 ]
             )
 

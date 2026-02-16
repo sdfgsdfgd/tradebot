@@ -25,21 +25,20 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import itertools
 import json
 import math
 import os
 import sqlite3
-import subprocess
 import sys
 import tempfile
 import threading
 import time as pytime
-from dataclasses import asdict, replace
+from dataclasses import asdict, dataclass, replace
 from datetime import date, datetime, time, timedelta
 from pathlib import Path
 
 from .cli_utils import (
-    expected_cache_path as _expected_cache_path,
     parse_date as _parse_date,
     parse_window as _parse_window,
 )
@@ -47,103 +46,89 @@ from .config import (
     BacktestConfig,
     ConfigBundle,
     FiltersConfig,
-    LegConfig,
     SpotStrategyConfig,
     SpotLegConfig,
     SyntheticConfig,
     _parse_filters,
 )
-from .data import ContractMeta, IBKRHistoricalData, _find_covering_cache_path
-from .engine import _run_spot_backtest_summary, _spot_multiplier
-from .sweeps import utc_now_iso_z, write_json
+from .spot_codec import (
+    filters_from_payload as _codec_filters_from_payload,
+    filters_payload as _codec_filters_payload,
+    make_bundle as _codec_make_bundle,
+    metrics_from_summary as _codec_metrics_from_summary,
+    spot_strategy_payload as _codec_spot_strategy_payload,
+    strategy_from_payload as _codec_strategy_from_payload,
+)
+from .data import ContractMeta, IBKRHistoricalData, ensure_offline_cached_window
+from .engine import (
+    _run_spot_backtest_summary,
+    _spot_multiplier,
+    _spot_prepare_summary_series_pack,
+    _spot_series_pack_cache_state,
+)
+from .sweep_fingerprint import (
+    _canonicalize_fingerprint_value,
+    _strategy_fingerprint,
+)
+from .sweep_parallel import (
+    _collect_parallel_payload_records,
+    _parse_worker_shard,
+    _progress_line,
+    _run_parallel_stage_kernel,
+    _run_parallel_worker_specs,
+    _strip_flags,
+)
+from .sweeps import (
+    utc_now_iso_z,
+    write_json,
+)
+from ..series import bars_list
+from ..series_cache import series_cache_service
+from ..time_utils import now_et as _now_et
 from ..signals import parse_bar_size
 
-
-# NOTE (worker orchestration): many axes in this file spawn sharded subprocess workers via CLI args
-# and need to strip/override flags from `sys.argv[1:]`. Keep the helpers centralized so new axes
-# can reuse them without copy/paste.
-def _strip_flag(argv: list[str], flag: str) -> list[str]:
-    return [arg for arg in argv if arg != flag]
-
-
-def _strip_flag_with_value(argv: list[str], flag: str) -> list[str]:
-    out: list[str] = []
-    idx = 0
-    while idx < len(argv):
-        arg = argv[idx]
-        if arg == flag:
-            idx += 2
-            continue
-        if arg.startswith(flag + "="):
-            idx += 1
-            continue
-        out.append(arg)
-        idx += 1
-    return out
-
-
-def _strip_flags(
-    argv: list[str],
-    *,
-    flags: tuple[str, ...] = (),
-    flags_with_values: tuple[str, ...] = (),
-) -> list[str]:
-    out = list(argv)
-    for flag in flags:
-        out = _strip_flag(out, str(flag))
-    for flag in flags_with_values:
-        out = _strip_flag_with_value(out, str(flag))
-    return out
-
-
-def _parse_worker_shard(raw_worker: object, raw_workers: object, *, label: str) -> tuple[int, int]:
-    try:
-        worker_id = int(raw_worker) if raw_worker is not None else 0
-    except (TypeError, ValueError):
-        worker_id = 0
-    try:
-        workers = int(raw_workers) if raw_workers is not None else 1
-    except (TypeError, ValueError):
-        workers = 1
-    workers = max(1, int(workers))
-    worker_id = max(0, int(worker_id))
-    if worker_id >= workers:
-        raise SystemExit(f"Invalid {label} worker shard: worker={worker_id} workers={workers} (worker must be < workers).")
-    return worker_id, workers
+_SERIES_CACHE = series_cache_service()
+_SWEEP_BARS_NAMESPACE = "spot.sweeps.bars"
+_SWEEP_TICK_NAMESPACE = "spot.sweeps.tick"
 
 
 # region Cache Helpers
 def _require_offline_cache_or_die(
     *,
+    data: IBKRHistoricalData,
     cache_dir: Path,
     symbol: str,
+    exchange: str | None,
     start_dt: datetime,
     end_dt: datetime,
     bar_size: str,
     use_rth: bool,
 ) -> None:
-    covering = _find_covering_cache_path(
+    cache_ok, expected, _resolved, missing_ranges, err = ensure_offline_cached_window(
+        data=data,
         cache_dir=cache_dir,
         symbol=str(symbol),
+        exchange=exchange,
         start=start_dt,
         end=end_dt,
         bar_size=str(bar_size),
         use_rth=bool(use_rth),
     )
-    if covering is not None:
+    if cache_ok:
         return
-    expected = _expected_cache_path(
-        cache_dir=cache_dir,
-        symbol=str(symbol),
-        start_dt=start_dt,
-        end_dt=end_dt,
-        bar_size=str(bar_size),
-        use_rth=bool(use_rth),
-    )
     tag = "rth" if use_rth else "full24"
+    missing_fmt: list[str] = []
+    for s, e in missing_ranges:
+        if s == e:
+            missing_fmt.append(s.isoformat())
+        else:
+            missing_fmt.append(f"{s.isoformat()}..{e.isoformat()}")
+    missing_note = f" missing={';'.join(missing_fmt)}" if missing_fmt else ""
+    detail = f" detail={err}" if str(err or "").strip() else ""
     raise SystemExit(
         f"--offline was requested, but cached bars are missing for {symbol} {bar_size} {tag} "
-        f"{start_dt.date().isoformat()}→{end_dt.date().isoformat()} (expected: {expected}). "
+        f"{start_dt.date().isoformat()}→{end_dt.date().isoformat()} "
+        f"(expected: {expected}{missing_note}{detail}). "
         "Re-run without --offline to fetch via IBKR (or prefetch the cache first)."
     )
 # endregion
@@ -292,115 +277,412 @@ def _mk_filters(
     return f
 
 
-_WDAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
-_AXIS_SPECS: tuple[tuple[str, bool, bool], ...] = (
-    # (axis_name, include_in_axis_all, include_in_combo_full)
-    ("ema", True, True),
-    ("entry_mode", False, True),
-    ("combo_fast", False, True),
-    ("combo_full", False, False),
-    ("squeeze", False, True),
-    ("volume", True, True),
-    ("rv", True, True),
-    ("tod", True, True),
-    ("tod_interaction", False, True),
-    ("perm_joint", False, True),
-    ("weekday", False, True),
-    ("exit_time", False, True),
-    ("atr", True, True),
-    ("atr_fine", False, True),
-    ("atr_ultra", False, True),
-    ("r2_atr", False, True),
-    ("r2_tod", False, True),
-    ("ema_perm_joint", False, True),
-    ("tick_perm_joint", False, True),
-    ("regime_atr", False, True),
-    ("ema_regime", False, True),
-    ("chop_joint", False, True),
-    ("ema_atr", False, True),
-    ("tick_ema", False, True),
-    ("ptsl", True, True),
-    ("hf_scalp", False, True),
-    ("hold", True, True),
-    ("spot_short_risk_mult", True, True),
-    ("orb", True, True),
-    ("orb_joint", False, True),
-    ("frontier", False, True),
-    ("regime", True, True),
-    ("regime2", True, True),
-    ("regime2_ema", False, True),
-    ("joint", True, True),
-    ("micro_st", False, True),
-    ("flip_exit", True, True),
-    ("confirm", True, True),
-    ("spread", True, True),
-    ("spread_fine", False, True),
-    ("spread_down", False, True),
-    ("slope", True, True),
-    ("slope_signed", True, True),
-    ("cooldown", True, True),
-    ("skip_open", True, True),
-    ("shock", True, True),
-    ("risk_overlays", True, True),
-    ("loosen", True, True),
-    ("loosen_atr", False, True),
-    ("tick", True, True),
-    ("gate_matrix", False, True),
-    ("seeded_refine", False, False),
-    ("champ_refine", False, False),
-    ("st37_refine", False, False),
-    ("shock_alpha_refine", False, False),
-    ("shock_velocity_refine", False, False),
-    ("shock_velocity_refine_wide", False, False),
-    ("shock_throttle_refine", False, False),
-    ("shock_throttle_tr_ratio", False, False),
-    ("shock_throttle_drawdown", False, False),
-    ("riskpanic_micro", False, False),
-    ("overlay_family", False, False),
-    ("exit_pivot", False, False),
-)
-_AXIS_ALL_PLAN = tuple(name for name, in_all, _in_combo in _AXIS_SPECS if bool(in_all))
-_COMBO_FULL_PLAN = tuple(name for name, _in_all, in_combo in _AXIS_SPECS if bool(in_combo))
-_AXIS_CHOICES = tuple(name for name, _in_all, _in_combo in _AXIS_SPECS)
-_AXIS_PLAN_BY_MODE: dict[str, tuple[str, ...]] = {
-    "axis_all": _AXIS_ALL_PLAN,
-    "combo_full": _COMBO_FULL_PLAN,
-}
-_AXIS_PARALLEL_PROFILE_BY_MODE: dict[str, dict[str, str]] = {
-    "axis_all": {
-        "risk_overlays": "scaled",
-    },
-    "combo_full": {
-        "risk_overlays": "scaled",
-        "combo_fast": "scaled",
-        "gate_matrix": "scaled",
-        "seeded_refine": "scaled",
-    },
-}
-_COMBO_FULL_SEEDED_AXES: tuple[str, ...] = (
-    "seeded_refine",
-)
-_SEEDED_REFINEMENT_MEMBER_AXES: tuple[str, ...] = (
-    "champ_refine",
-    "overlay_family",
-    "st37_refine",
-)
+@dataclass(frozen=True)
+class AxisSurfaceSpec:
+    name: str
+    include_in_axis_all: bool = False
+    help_text: str = "See source."
+    fast_path: str = "yes"
+    sharding_class: str = "none"
+    coverage_note: str = ""
+    parallel_profile_axis_all: str = "single"
+    dimensional_cost_source: str = ""
+    total_hint_mode: str = ""
+    total_hint_static: int | None = None
+    total_hint_dims: tuple[str, ...] = ()
 
 
-def _axis_mode_plan(
-    *,
-    mode: str,
-    include_seeded: bool = False,
-) -> tuple[tuple[str, str, bool], ...]:
+_AXIS_SURFACE_SPECS: tuple[AxisSurfaceSpec, ...] = (
+    AxisSurfaceSpec("ema", True, "EMA preset timing sweep (direction speed).", total_hint_static=6),
+    AxisSurfaceSpec("entry_mode", False, "Entry semantics sweep (cross vs trend) with directional rules.", total_hint_static=6),
+    AxisSurfaceSpec(
+        "combo_full",
+        False,
+        "Unified tight Cartesian sweep over centralized combo dimensions.",
+        fast_path="partial",
+        sharding_class="stage",
+        coverage_note="unified Cartesian core (mixed-radix shard ranges)",
+        dimensional_cost_source="combo_full_cartesian_tight",
+        total_hint_mode="combo_full",
+    ),
+    AxisSurfaceSpec("volume", True, "Volume gate sweep (ratio threshold x EMA period).", total_hint_static=13),
+    AxisSurfaceSpec("rv", True, "Realized volatility gate sweep.", total_hint_static=29),
+    AxisSurfaceSpec("tod", True, "Time-of-day gate sweep (ET entry windows).", total_hint_static=29),
+    AxisSurfaceSpec("weekday", False, "Weekday entry gating sweep."),
+    AxisSurfaceSpec("exit_time", False, "Fixed ET flatten-time sweep.", total_hint_static=7),
+    AxisSurfaceSpec("atr", True, "Core ATR exits sweep.", fast_path="no", total_hint_mode="atr_profile"),
+    AxisSurfaceSpec("atr_fine", False, "Fine ATR PT/SL pocket sweep.", fast_path="no", total_hint_mode="atr_profile"),
+    AxisSurfaceSpec("atr_ultra", False, "Ultra-fine ATR PT/SL micro-grid.", fast_path="no", total_hint_mode="atr_profile"),
+    AxisSurfaceSpec("chop_joint", False, "Chop-killer joint sweep (slope x cooldown x skip-open)."),
+    AxisSurfaceSpec("ptsl", True, "Fixed-percent PT/SL exits sweep with flip/close_eod semantics (non-ATR)."),
+    AxisSurfaceSpec("hf_scalp", False, "HF scalp cadence sweep.", fast_path="partial"),
+    AxisSurfaceSpec("hold", True, "Flip-exit minimum-hold-bars sweep.", total_hint_static=7),
+    AxisSurfaceSpec("spot_short_risk_mult", True, "Short-side risk multiplier sweep.", total_hint_static=13),
+    AxisSurfaceSpec("orb", True, "ORB sweep (open-time, window, target semantics).", fast_path="no"),
+    AxisSurfaceSpec("orb_joint", False, "ORB x regime x TICK joint sweep.", fast_path="no"),
+    AxisSurfaceSpec("frontier", False, "Frontier sweep over shortlist dimensions.", fast_path="partial"),
+    AxisSurfaceSpec("regime", True, "Primary Supertrend regime params/timeframe sweep.", total_hint_mode="regime_profile"),
+    AxisSurfaceSpec("regime2", True, "Secondary (regime2) Supertrend params/timeframe sweep.", total_hint_mode="regime2_profile"),
+    AxisSurfaceSpec("regime2_ema", False, "Regime2 EMA confirm sweep.", total_hint_static=12),
+    AxisSurfaceSpec("joint", True, "Targeted regime x regime2 interaction hunt."),
+    AxisSurfaceSpec("micro_st", False, "Micro sweep around current ST/ST2 neighborhood."),
+    AxisSurfaceSpec("flip_exit", True, "Flip-exit semantics/gating sweep.", fast_path="partial", total_hint_static=48),
+    AxisSurfaceSpec("confirm", True, "Entry confirmation bars sweep.", total_hint_static=4),
+    AxisSurfaceSpec("spread", True, "EMA spread quality gate sweep.", total_hint_mode="spread_profile"),
+    AxisSurfaceSpec("spread_fine", False, "Fine EMA spread threshold sweep.", total_hint_mode="spread_profile"),
+    AxisSurfaceSpec("spread_down", False, "Directional down-side EMA spread gate sweep.", total_hint_mode="spread_profile"),
+    AxisSurfaceSpec("slope", True, "EMA slope quality gate sweep.", total_hint_static=6),
+    AxisSurfaceSpec("slope_signed", True, "Signed directional EMA slope gate sweep."),
+    AxisSurfaceSpec("cooldown", True, "Entry cooldown bars sweep.", total_hint_static=7),
+    AxisSurfaceSpec("skip_open", True, "Skip-first-bars-after-open sweep.", total_hint_static=6),
+    AxisSurfaceSpec(
+        "shock",
+        True,
+        "Shock detector/mode/threshold sweep (+ monetization and throttle pocket).",
+        dimensional_cost_source="shock",
+        total_hint_mode="shock_profile",
+    ),
+    AxisSurfaceSpec("loosen", True, "Loosenings sweep (single-position parity + EOD behavior)."),
+    AxisSurfaceSpec("tick", True, "Raschke-style $TICK width gate sweep.", fast_path="no"),
+)
+_AXIS_CHOICES = tuple(spec.name for spec in _AXIS_SURFACE_SPECS)
+_AXIS_ALL_PLAN = tuple(spec.name for spec in _AXIS_SURFACE_SPECS if bool(spec.include_in_axis_all))
+_AXIS_INCLUDE_IN_AXIS_ALL_DEFAULTS = frozenset(_AXIS_ALL_PLAN)
+_COMBO_FULL_CARTESIAN_DIM_ORDER: tuple[str, ...] = (
+    "timing_profile",
+    "direction",
+    "confirm",
+    "perm",
+    "tod",
+    "vol",
+    "cadence",
+    "regime",
+    "regime2",
+    "exit",
+    "tick",
+    "shock",
+    "slope",
+    "risk",
+    "short_mult",
+)
+_COMBO_FULL_PAIR_DIM_VARIANT_SPECS: tuple[tuple[str, str], ...] = (
+    ("direction", "direction_variants"),
+    ("perm", "perm_variants"),
+    ("tod", "tod_variants"),
+    ("vol", "vol_variants"),
+    ("cadence", "cadence_variants"),
+    ("regime", "regime_variants"),
+    ("regime2", "regime2_variants"),
+    ("exit", "exit_variants"),
+    ("tick", "tick_variants"),
+    ("shock", "shock_variants"),
+    ("slope", "slope_variants"),
+    ("risk", "risk_variants"),
+)
+_COMBO_FULL_NOTE_PAIR_DIM_ORDER: tuple[str, ...] = (
+    "perm",
+    "tod",
+    "vol",
+    "cadence",
+    "regime",
+    "regime2",
+    "exit",
+    "tick",
+    "shock",
+    "slope",
+    "risk",
+)
+_COMBO_FULL_COVERAGE_TIER_REGISTRY: dict[str, dict[str, object]] = {
+    "full": {"freeze_dims": (), "hint_axis": "combo_full", "hint_mode": "combo_full"},
+    "profile": {
+        "freeze_dims": (
+            "direction",
+            "confirm",
+            "perm",
+            "tod",
+            "vol",
+            "cadence",
+            "regime",
+            "regime2",
+            "exit",
+            "tick",
+            "shock",
+            "slope",
+            "risk",
+            "short_mult",
+        ),
+        "customizer": "hf_timing_sniper",
+        "hint_axis": "hf_timing_sniper",
+        "hint_mode": "combo_subset",
+        "hint_dims": ("timing_profile",),
+        "hint_static": 6,
+    },
+    "gate": {
+        "freeze_dims": (
+            "timing_profile",
+            "direction",
+            "confirm",
+            "regime",
+            "regime2",
+            "exit",
+            "tick",
+            "shock",
+            "slope",
+            "risk",
+            "short_mult",
+        ),
+        "hint_axis": "perm_joint",
+        "hint_mode": "combo_subset",
+        "hint_dims": ("perm", "tod", "vol", "cadence"),
+    },
+    "ema": {
+        "freeze_dims": (
+            "timing_profile",
+            "confirm",
+            "cadence",
+            "regime",
+            "regime2",
+            "exit",
+            "tick",
+            "shock",
+            "slope",
+            "risk",
+            "short_mult",
+        ),
+        "hint_axis": "ema_perm_joint",
+        "hint_mode": "combo_subset",
+        "hint_dims": ("direction", "perm", "tod", "vol"),
+    },
+    "tick": {
+        "freeze_dims": (
+            "timing_profile",
+            "direction",
+            "confirm",
+            "cadence",
+            "regime",
+            "regime2",
+            "exit",
+            "shock",
+            "slope",
+            "risk",
+            "short_mult",
+        ),
+        "hint_axis": "tick_perm_joint",
+        "hint_mode": "combo_subset",
+        "hint_dims": ("tick", "perm", "tod", "vol"),
+    },
+    "regime": {
+        "freeze_dims": (
+            "timing_profile",
+            "direction",
+            "confirm",
+            "perm",
+            "tod",
+            "vol",
+            "cadence",
+            "regime2",
+            "tick",
+            "shock",
+            "slope",
+            "risk",
+            "short_mult",
+        ),
+        "hint_axis": "regime_atr",
+        "hint_mode": "combo_subset",
+        "hint_dims": ("regime", "exit"),
+    },
+    "risk": {
+        "freeze_dims": (
+            "timing_profile",
+            "direction",
+            "confirm",
+            "perm",
+            "tod",
+            "vol",
+            "cadence",
+            "regime",
+            "regime2",
+            "exit",
+            "tick",
+            "shock",
+            "slope",
+            "short_mult",
+        ),
+        "customizer": "risk_overlays",
+        "hint_axis": "risk_overlays",
+        "hint_mode": "combo_subset",
+        "hint_dims": ("risk",),
+    },
+}
+_COMBO_FULL_PRESET_ALIAS_REGISTRY: dict[str, dict[str, object]] = {
+    "squeeze": {
+        "tier": "regime",
+        "customizer": "squeeze",
+        "freeze_dims": ("timing_profile", "direction", "perm", "cadence", "regime", "exit", "tick", "shock", "slope", "risk", "short_mult"),
+        "hint_static": 23130,
+    },
+    "tod_interaction": {
+        "tier": "gate",
+        "customizer": "tod_interaction",
+        "freeze_dims": ("timing_profile", "direction", "confirm", "perm", "vol", "regime", "regime2", "exit", "tick", "shock", "slope", "risk", "short_mult"),
+        "hint_static": 81,
+    },
+    "perm_joint": {"tier": "gate"},
+    "ema_perm_joint": {"tier": "ema"},
+    "tick_perm_joint": {"tier": "tick"},
+    "regime_atr": {"tier": "regime"},
+    "ema_regime": {
+        "tier": "ema",
+        "customizer": "ema_regime",
+        "freeze_dims": ("timing_profile", "confirm", "perm", "tod", "vol", "cadence", "regime2", "exit", "tick", "shock", "slope", "risk", "short_mult"),
+        "hint_dims": ("direction", "regime"),
+        "hint_static": 22,
+    },
+    "tick_ema": {
+        "tier": "tick",
+        "customizer": "tick_ema",
+        "freeze_dims": ("timing_profile", "confirm", "perm", "tod", "vol", "cadence", "regime", "regime2", "exit", "shock", "slope", "risk", "short_mult"),
+        "hint_dims": ("direction", "tick"),
+        "hint_static": 505,
+    },
+    "ema_atr": {
+        "tier": "ema",
+        "customizer": "ema_atr",
+        "freeze_dims": ("timing_profile", "confirm", "perm", "tod", "vol", "cadence", "regime", "regime2", "tick", "shock", "slope", "risk", "short_mult"),
+        "hint_dims": ("direction", "exit"),
+        "hint_static": 1009,
+    },
+    "r2_atr": {
+        "tier": "regime",
+        "customizer": "r2_atr",
+        "freeze_dims": ("timing_profile", "direction", "confirm", "perm", "tod", "vol", "cadence", "regime", "tick", "shock", "slope", "risk", "short_mult"),
+        "hint_dims": ("regime2", "exit"),
+        "hint_static": 289,
+    },
+    "r2_tod": {
+        "tier": "regime",
+        "customizer": "r2_tod",
+        "freeze_dims": ("timing_profile", "direction", "confirm", "perm", "vol", "cadence", "regime", "exit", "tick", "shock", "slope", "risk", "short_mult"),
+        "hint_dims": ("regime2", "tod"),
+        "hint_static": 29,
+    },
+    "loosen_atr": {
+        "tier": "risk",
+        "customizer": "loosen_atr",
+        "freeze_dims": ("timing_profile", "direction", "confirm", "perm", "tod", "vol", "cadence", "regime", "regime2", "tick", "shock", "slope", "risk", "short_mult"),
+        "hint_dims": ("exit",),
+        "hint_static": 151,
+    },
+    "risk_overlays": {"tier": "risk", "customizer": "risk_overlays"},
+    "gate_matrix": {
+        "tier": "gate",
+        "customizer": "gate_matrix",
+        "freeze_dims": ("timing_profile", "direction", "confirm", "regime", "exit", "slope", "vol", "cadence"),
+        "hint_mode": "gate_matrix",
+    },
+    "lf_shock_sniper": {
+        "tier": "risk",
+        "customizer": "lf_shock_sniper",
+        "freeze_dims": (
+            "timing_profile",
+            "confirm",
+            "perm",
+            "tod",
+            "vol",
+            "cadence",
+            "regime",
+            "regime2",
+            "exit",
+            "tick",
+            "slope",
+            "risk",
+            "short_mult",
+        ),
+        "hint_dims": ("direction", "shock"),
+        "hint_static": 10,
+    },
+    "hf_timing_sniper": {
+        "tier": "profile",
+        "customizer": "hf_timing_sniper",
+        "hint_dims": ("timing_profile",),
+        "hint_static": 6,
+    },
+}
+_COMBO_FULL_PRESET_TIER_NAMES: tuple[str, ...] = tuple(_COMBO_FULL_COVERAGE_TIER_REGISTRY.keys())
+_COMBO_FULL_PRESET_ALIAS_NAMES: tuple[str, ...] = tuple(_COMBO_FULL_PRESET_ALIAS_REGISTRY.keys())
+_COMBO_FULL_PRESET_AXES: tuple[str, ...] = tuple(_COMBO_FULL_PRESET_TIER_NAMES + _COMBO_FULL_PRESET_ALIAS_NAMES)
+_AXIS_HANDLER_NAME_OVERRIDES: dict[str, str] = {
+    "weekday": "_sweep_weekdays",
+    "atr": "_sweep_atr_exits",
+    "atr_fine": "_sweep_atr_exits_fine",
+    "atr_ultra": "_sweep_atr_exits_ultra",
+}
+_UNKNOWN_AXIS_HANDLER_OVERRIDE_KEYS = sorted(set(_AXIS_HANDLER_NAME_OVERRIDES) - set(_AXIS_CHOICES))
+if _UNKNOWN_AXIS_HANDLER_OVERRIDE_KEYS:
+    raise ValueError(f"Unknown axis handler override keys: {_UNKNOWN_AXIS_HANDLER_OVERRIDE_KEYS}")
+
+
+def _dedupe_axis_names(names) -> tuple[str, ...]:
+    out: list[str] = []
+    seen: set[str] = set()
+    for raw in names:
+        key = str(raw).strip().lower()
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        out.append(key)
+    return tuple(out)
+
+
+def _axis_handler_name(axis_name: str) -> str:
+    key = str(axis_name).strip().lower()
+    if not key:
+        raise ValueError("axis_name must be non-empty")
+    override = _AXIS_HANDLER_NAME_OVERRIDES.get(key)
+    if override:
+        return str(override)
+    return f"_sweep_{key}"
+
+
+def _build_axis_registry_from_scope(local_scope: dict[str, object]) -> dict[str, object]:
+    registry: dict[str, object] = {}
+    missing: list[str] = []
+    for axis_name in _AXIS_CHOICES:
+        handler_name = _axis_handler_name(str(axis_name))
+        fn_obj = local_scope.get(handler_name)
+        if callable(fn_obj):
+            registry[str(axis_name)] = fn_obj
+        else:
+            missing.append(f"{axis_name}->{handler_name}")
+    if missing:
+        raise RuntimeError(f"Axis handlers missing: {', '.join(missing)}")
+    return registry
+
+
+def _axis_mode_plan(*, mode: str) -> tuple[tuple[str, str, bool], ...]:
     mode_key = str(mode).strip().lower()
-    axes_base = _AXIS_PLAN_BY_MODE.get(mode_key)
-    if axes_base is None:
+    if mode_key != "axis_all":
         raise ValueError(f"Unknown axis mode: {mode!r}")
-    axes = list(axes_base)
-    if mode_key == "combo_full" and bool(include_seeded):
-        axes.extend(_COMBO_FULL_SEEDED_AXES)
-    profile_map = _AXIS_PARALLEL_PROFILE_BY_MODE.get(mode_key, {})
-    return tuple((axis_name, str(profile_map.get(axis_name, "single")), True) for axis_name in axes)
+
+    def _profile_for_axis(axis_name: str) -> str:
+        spec_map = globals().get("_AXIS_EXECUTION_SPEC_BY_NAME")
+        if not isinstance(spec_map, dict):
+            return "single"
+        spec = spec_map.get(str(axis_name))
+        if spec is None:
+            return "single"
+        return str(getattr(spec, "parallel_profile_axis_all", "single") or "single")
+
+    spec_map = globals().get("_AXIS_EXECUTION_SPEC_BY_NAME")
+    if not isinstance(spec_map, dict):
+        return tuple((axis_name, "single", True) for axis_name in _AXIS_ALL_PLAN)
+    out: list[tuple[str, str, bool]] = []
+    for axis_name in _AXIS_CHOICES:
+        spec = spec_map.get(str(axis_name))
+        if not isinstance(spec, AxisExecutionSpec) or not bool(spec.include_in_axis_all):
+            continue
+        out.append((str(axis_name), _profile_for_axis(str(axis_name)), True))
+    return tuple(out)
 _ATR_EXIT_PROFILE_REGISTRY: dict[str, dict[str, object]] = {
     "atr": {
         "atr_periods": (7, 10, 14, 21),
@@ -447,47 +729,965 @@ _SPREAD_PROFILE_REGISTRY: dict[str, dict[str, object]] = {
         "decimals": 4,
     },
 }
+_AXIS_DIMENSION_REGISTRY: dict[str, dict[str, object]] = {
+    "perm_joint": {
+        "tod_windows": (
+            (None, None, "tod=base", {}),
+            (None, None, "tod=off", {"entry_start_hour_et": None, "entry_end_hour_et": None}),
+            (9, 16, "tod=09-16 ET", {"entry_start_hour_et": 9, "entry_end_hour_et": 16}),
+            (10, 15, "tod=10-15 ET", {"entry_start_hour_et": 10, "entry_end_hour_et": 15}),
+            (11, 16, "tod=11-16 ET", {"entry_start_hour_et": 11, "entry_end_hour_et": 16}),
+            (17, 3, "tod=17-03 ET", {"entry_start_hour_et": 17, "entry_end_hour_et": 3}),
+            (17, 4, "tod=17-04 ET", {"entry_start_hour_et": 17, "entry_end_hour_et": 4}),
+            (17, 5, "tod=17-05 ET", {"entry_start_hour_et": 17, "entry_end_hour_et": 5}),
+            (18, 3, "tod=18-03 ET", {"entry_start_hour_et": 18, "entry_end_hour_et": 3}),
+            (18, 4, "tod=18-04 ET", {"entry_start_hour_et": 18, "entry_end_hour_et": 4}),
+            (18, 5, "tod=18-05 ET", {"entry_start_hour_et": 18, "entry_end_hour_et": 5}),
+            (19, 3, "tod=19-03 ET", {"entry_start_hour_et": 19, "entry_end_hour_et": 3}),
+            (19, 4, "tod=19-04 ET", {"entry_start_hour_et": 19, "entry_end_hour_et": 4}),
+            (19, 5, "tod=19-05 ET", {"entry_start_hour_et": 19, "entry_end_hour_et": 5}),
+        ),
+        "perm_variants": (
+            ("perm=base", {}),
+            (
+                "perm=off",
+                {
+                    "ema_spread_min_pct": None,
+                    "ema_slope_min_pct": None,
+                    "ema_spread_min_pct_down": None,
+                    "ema_slope_signed_min_pct_up": None,
+                    "ema_slope_signed_min_pct_down": None,
+                },
+            ),
+            (
+                "perm=loose 0.0015/0.01/0.02",
+                {"ema_spread_min_pct": 0.0015, "ema_slope_min_pct": 0.01, "ema_spread_min_pct_down": 0.02},
+            ),
+            (
+                "perm=loose_slope 0.0015/0.03/0.02",
+                {"ema_spread_min_pct": 0.0015, "ema_slope_min_pct": 0.03, "ema_spread_min_pct_down": 0.02},
+            ),
+            (
+                "perm=mid 0.003/0.03/0.04",
+                {"ema_spread_min_pct": 0.003, "ema_slope_min_pct": 0.03, "ema_spread_min_pct_down": 0.04},
+            ),
+            (
+                "perm=spready 0.006/0.03/0.08",
+                {"ema_spread_min_pct": 0.006, "ema_slope_min_pct": 0.03, "ema_spread_min_pct_down": 0.08},
+            ),
+            (
+                "perm=tight_slope 0.003/0.06/0.08",
+                {"ema_spread_min_pct": 0.003, "ema_slope_min_pct": 0.06, "ema_spread_min_pct_down": 0.08},
+            ),
+            (
+                "perm=tight 0.006/0.06/0.08",
+                {"ema_spread_min_pct": 0.006, "ema_slope_min_pct": 0.06, "ema_spread_min_pct_down": 0.08},
+            ),
+            (
+                "perm=signed_down",
+                {
+                    "ema_spread_min_pct": 0.003,
+                    "ema_slope_min_pct": 0.03,
+                    "ema_spread_min_pct_down": 0.04,
+                    "ema_slope_signed_min_pct_down": 0.005,
+                },
+            ),
+            (
+                "perm=signed_both",
+                {
+                    "ema_spread_min_pct": 0.003,
+                    "ema_slope_min_pct": 0.03,
+                    "ema_spread_min_pct_down": 0.04,
+                    "ema_slope_signed_min_pct_up": 0.005,
+                    "ema_slope_signed_min_pct_down": 0.005,
+                },
+            ),
+            ("perm=fine spread>=0.002", {"ema_spread_min_pct": 0.002}),
+            ("perm=fine spread>=0.004", {"ema_spread_min_pct": 0.004}),
+            ("perm=fine spread>=0.007", {"ema_spread_min_pct": 0.007}),
+        ),
+        "vol_variants": (
+            ("vol=base", {}),
+            ("vol=off", {"volume_ratio_min": None, "volume_ema_period": None}),
+            ("vol>=1.0@20", {"volume_ratio_min": 1.0, "volume_ema_period": 20}),
+            ("vol>=1.1@20", {"volume_ratio_min": 1.1, "volume_ema_period": 20}),
+            ("vol>=1.2@20", {"volume_ratio_min": 1.2, "volume_ema_period": 20}),
+            ("vol>=1.5@20", {"volume_ratio_min": 1.5, "volume_ema_period": 20}),
+        ),
+        "cadence_variants": (
+            ("cad=base", {}),
+            ("cad=skip1 cd2", {"skip_first_bars": 1, "cooldown_bars": 2}),
+            ("cad=skip2 cd2", {"skip_first_bars": 2, "cooldown_bars": 2}),
+        ),
+        "cost_hints": {"tod_windows": 1.2, "perm_variants": 1.0, "vol_variants": 0.6, "cadence_variants": 0.4},
+    },
+    "gate_matrix": {
+        "perm_variants": (
+            ("perm=off", {}),
+            (
+                "perm=core",
+                {
+                    "ema_spread_min_pct": 0.003,
+                    "ema_slope_min_pct": 0.01,
+                    "ema_spread_min_pct_down": 0.03,
+                    "ema_slope_signed_min_pct_down": 0.005,
+                    "rv_min": 0.15,
+                    "rv_max": 1.0,
+                    "volume_ratio_min": 1.2,
+                    "volume_ema_period": 20,
+                },
+            ),
+            (
+                "perm=loose",
+                {
+                    "ema_spread_min_pct": 0.0015,
+                    "ema_slope_min_pct": 0.03,
+                    "ema_spread_min_pct_down": 0.02,
+                    "rv_min": 0.15,
+                    "rv_max": 1.0,
+                    "volume_ratio_min": 1.0,
+                    "volume_ema_period": 20,
+                },
+            ),
+            (
+                "perm=tight",
+                {
+                    "ema_spread_min_pct": 0.006,
+                    "ema_slope_min_pct": 0.06,
+                    "ema_spread_min_pct_down": 0.08,
+                    "ema_slope_signed_min_pct_up": 0.005,
+                    "ema_slope_signed_min_pct_down": 0.005,
+                    "rv_min": 0.15,
+                    "rv_max": 1.0,
+                    "volume_ratio_min": 1.2,
+                    "volume_ema_period": 20,
+                },
+            ),
+        ),
+        "tod_variants": (
+            ("tod=off", None, None),
+            ("tod=09-16 ET", 9, 16),
+            ("tod=10-15 ET", 10, 15),
+            ("tod=18-04 ET", 18, 4),
+        ),
+        "short_mults": (1.0, 0.2, 0.05, 0.02, 0.01, 0.0),
+        "cost_hints": {"perm_variants": 1.0, "tod_variants": 0.8, "short_mults": 0.4},
+    },
+    "shock": {
+        "modes": ("detect", "block", "block_longs", "block_shorts", "surf"),
+        "dir_variants": (("regime", 2, "dir=regime@2"), ("signal", 1, "dir=signal@1")),
+        "sl_mults": (1.0, 0.75),
+        "pt_mults": (1.0, 0.75),
+        "short_risk_factors": (1.0, 0.5),
+        "ratio_rows": (
+            ("atr_ratio", 5, 30, 1.35, 1.20, 6.0),
+            ("atr_ratio", 7, 50, 1.55, 1.30, 7.0),
+            ("atr_ratio", 10, 80, 1.45, 1.25, 7.0),
+            ("atr_ratio", 14, 120, 1.35, 1.20, 9.0),
+            ("atr_ratio", 7, 30, 1.70, 1.40, 7.0),
+            ("tr_ratio", 5, 30, 1.35, 1.20, 6.0),
+            ("tr_ratio", 7, 50, 1.55, 1.30, 7.0),
+            ("tr_ratio", 10, 80, 1.45, 1.25, 7.0),
+            ("tr_ratio", 14, 120, 1.35, 1.20, 9.0),
+            ("tr_ratio", 7, 30, 1.70, 1.40, 7.0),
+        ),
+        "daily_atr_rows": (
+            (14, 13.0, 11.0, None),
+            (14, 13.5, 13.0, None),
+            (14, 14.0, 13.0, None),
+            (14, 14.0, 13.0, 9.0),
+            (10, 13.0, 11.0, 9.0),
+            (21, 14.0, 13.0, 10.0),
+        ),
+        "drawdown_rows": (
+            (10, -15.0, -8.0),
+            (20, -20.0, -10.0),
+            (20, -25.0, -15.0),
+            (30, -25.0, -15.0),
+            (60, -30.0, -20.0),
+        ),
+        "advanced_modes": ("detect", "surf", "block_longs"),
+        "advanced_detectors": (
+            (
+                {
+                    "shock_detector": "tr_ratio",
+                    "shock_atr_fast_period": 3,
+                    "shock_atr_slow_period": 21,
+                    "shock_on_ratio": 1.30,
+                    "shock_off_ratio": 1.20,
+                    "shock_min_atr_pct": 5.0,
+                },
+                "det=tr_ratio 3/21 on=1.30 off=1.20 min=5",
+            ),
+            (
+                {
+                    "shock_detector": "tr_ratio",
+                    "shock_atr_fast_period": 5,
+                    "shock_atr_slow_period": 50,
+                    "shock_on_ratio": 1.35,
+                    "shock_off_ratio": 1.25,
+                    "shock_min_atr_pct": 7.0,
+                },
+                "det=tr_ratio 5/50 on=1.35 off=1.25 min=7",
+            ),
+            (
+                {
+                    "shock_detector": "daily_atr_pct",
+                    "shock_daily_atr_period": 14,
+                    "shock_daily_on_atr_pct": 13.5,
+                    "shock_daily_off_atr_pct": 13.0,
+                    "shock_daily_on_tr_pct": 9.0,
+                },
+                "det=daily_atr p14 on=13.5 off=13 tr_on=9",
+            ),
+        ),
+        "advanced_short_risk_factors": (1.0, 2.0, 5.0, 12.0),
+        "advanced_long_down_factors": (1.0, 0.7, 0.4, 0.0),
+        "advanced_scales": (
+            ({}, "scale=off"),
+            (
+                {"shock_risk_scale_target_atr_pct": 12.0, "shock_risk_scale_min_mult": 0.2},
+                "scale=atr12 min=0.2",
+            ),
+            (
+                {
+                    "shock_scale_detector": "tr_ratio",
+                    "shock_atr_fast_period": 3,
+                    "shock_atr_slow_period": 21,
+                    "shock_risk_scale_target_atr_pct": 0.45,
+                    "shock_risk_scale_min_mult": 0.2,
+                    "shock_risk_scale_apply_to": "both",
+                },
+                "scale=tr_ratio 3/21 target=0.45 min=0.2 both",
+            ),
+            (
+                {
+                    "shock_scale_detector": "daily_drawdown",
+                    "shock_drawdown_lookback_days": 20,
+                    "shock_risk_scale_target_atr_pct": 8.0,
+                    "shock_risk_scale_min_mult": 0.2,
+                    "shock_risk_scale_apply_to": "both",
+                },
+                "scale=daily_drawdown lb=20 target=8 min=0.2 both",
+            ),
+        ),
+        "cost_hints": {"modes": 1.0, "detectors": 1.2, "advanced": 1.4},
+    },
+    "risk_overlays": {
+        "riskoff_trs": (6.0, 7.0, 8.0, 9.0, 10.0, 12.0),
+        "riskoff_lbs": (3, 5, 7, 10),
+        "riskoff_modes": ("hygiene", "directional"),
+        "riskoff_cutoffs_et": (None, 15, 16),
+        "panic_trs": (2.75, 3.0, 3.25, 8.0, 9.0, 10.0, 12.0),
+        "panic_neg_ratios": (0.5, 0.6, 0.8),
+        "panic_lbs": (5, 10),
+        "panic_short_factors": (1.0, 0.5, 0.2, 0.0),
+        "panic_long_factors": (None, 1.0, 0.4, 0.0),
+        "panic_cutoffs_et": (None, 15, 16),
+        "panic_neg_gap_abs_pcts": (None, 0.005, 0.01, 0.02),
+        "panic_tr_delta_variants": (
+            (None, 1, "trΔ=off"),
+            (0.25, 1, "trΔ>=0.25@1d"),
+            (0.5, 1, "trΔ>=0.5@1d"),
+            (0.5, 5, "trΔ>=0.5@5d"),
+            (0.75, 1, "trΔ>=0.75@1d"),
+            (1.0, 1, "trΔ>=1.0@1d"),
+            (1.0, 5, "trΔ>=1.0@5d"),
+        ),
+        "pop_trs": (7.0, 8.0, 9.0, 10.0, 12.0),
+        "pop_pos_ratios": (0.5, 0.6, 0.8),
+        "pop_lbs": (5, 10),
+        "pop_long_factors": (0.6, 0.8, 1.0, 1.2, 1.5),
+        "pop_short_factors": (1.0, 0.5, 0.2, 0.0),
+        "pop_cutoffs_et": (None, 15),
+        "pop_modes": ("hygiene", "directional"),
+        "pop_pos_gap_abs_pcts": (None, 0.01, 0.02),
+        "pop_tr_delta_variants": (
+            (None, 1, "trΔ=off"),
+            (0.5, 1, "trΔ>=0.5@1d"),
+            (0.5, 5, "trΔ>=0.5@5d"),
+            (1.0, 1, "trΔ>=1.0@1d"),
+            (1.0, 5, "trΔ>=1.0@5d"),
+        ),
+        "cost_hints": {"riskoff": 1.0, "riskpanic": 1.3, "riskpop": 1.2},
+    },
+    "combo_full_cartesian_tight": {
+        # Unified tight Cartesian for combo_full: all dimensions are crossed in one core.
+        "direction_variants": (
+            ("ema=2/4 cross", {"entry_signal": "ema", "ema_preset": "2/4", "ema_entry_mode": "cross"}),
+            ("ema=4/9 cross", {"entry_signal": "ema", "ema_preset": "4/9", "ema_entry_mode": "cross"}),
+        ),
+        "confirm_bars": (0, 1),
+        "perm_variants": (
+            (
+                "perm=off",
+                {
+                    "ema_spread_min_pct": None,
+                    "ema_slope_min_pct": None,
+                    "ema_spread_min_pct_down": None,
+                    "ema_slope_signed_min_pct_up": None,
+                    "ema_slope_signed_min_pct_down": None,
+                },
+            ),
+            (
+                "perm=mid 0.003/0.03/0.04",
+                {"ema_spread_min_pct": 0.003, "ema_slope_min_pct": 0.03, "ema_spread_min_pct_down": 0.04},
+            ),
+            (
+                "perm=tight 0.006/0.06/0.08",
+                {"ema_spread_min_pct": 0.006, "ema_slope_min_pct": 0.06, "ema_spread_min_pct_down": 0.08},
+            ),
+        ),
+        "tod_variants": (
+            ("tod=off", {"entry_start_hour_et": None, "entry_end_hour_et": None}),
+            ("tod=10-15 ET", {"entry_start_hour_et": 10, "entry_end_hour_et": 15}),
+            ("tod=18-04 ET", {"entry_start_hour_et": 18, "entry_end_hour_et": 4}),
+        ),
+        "vol_variants": (
+            ("vol=off", {"volume_ratio_min": None, "volume_ema_period": None}),
+            ("vol>=1.1@20", {"volume_ratio_min": 1.1, "volume_ema_period": 20}),
+        ),
+        "cadence_variants": (
+            ("cad=base", {}),
+            ("cad=skip1 cd2", {"skip_first_bars": 1, "cooldown_bars": 2}),
+        ),
+        "regime_variants": (
+            (
+                "regime=ST(4h:7,0.5,hl2)",
+                {
+                    "regime_mode": "supertrend",
+                    "regime_bar_size": "4 hours",
+                    "supertrend_atr_period": 7,
+                    "supertrend_multiplier": 0.5,
+                    "supertrend_source": "hl2",
+                },
+            ),
+            (
+                "regime=ST(1d:14,1.0,hl2)",
+                {
+                    "regime_mode": "supertrend",
+                    "regime_bar_size": "1 day",
+                    "supertrend_atr_period": 14,
+                    "supertrend_multiplier": 1.0,
+                    "supertrend_source": "hl2",
+                },
+            ),
+            (
+                "regime=ST(4h:10,0.8,close)",
+                {
+                    "regime_mode": "supertrend",
+                    "regime_bar_size": "4 hours",
+                    "supertrend_atr_period": 10,
+                    "supertrend_multiplier": 0.8,
+                    "supertrend_source": "close",
+                },
+            ),
+        ),
+        "regime2_variants": (
+            ("r2=off", {"regime2_mode": "off", "regime2_bar_size": None}),
+            (
+                "r2=ST(4h:3,0.25,close)",
+                {
+                    "regime2_mode": "supertrend",
+                    "regime2_bar_size": "4 hours",
+                    "regime2_supertrend_atr_period": 3,
+                    "regime2_supertrend_multiplier": 0.25,
+                    "regime2_supertrend_source": "close",
+                },
+            ),
+        ),
+        "exit_variants": (
+            (
+                "exit=pct(0.015,0.03)",
+                {
+                    "spot_exit_mode": "pct",
+                    "spot_profit_target_pct": 0.015,
+                    "spot_stop_loss_pct": 0.03,
+                    "spot_pt_atr_mult": None,
+                    "spot_sl_atr_mult": None,
+                },
+            ),
+            (
+                "exit=stop_only(0.03)",
+                {
+                    "spot_exit_mode": "pct",
+                    "spot_profit_target_pct": None,
+                    "spot_stop_loss_pct": 0.03,
+                    "spot_pt_atr_mult": None,
+                    "spot_sl_atr_mult": None,
+                },
+            ),
+            (
+                "exit=atr(14,0.8,1.6)",
+                {
+                    "spot_exit_mode": "atr",
+                    "spot_profit_target_pct": None,
+                    "spot_stop_loss_pct": None,
+                    "spot_atr_period": 14,
+                    "spot_pt_atr_mult": 0.8,
+                    "spot_sl_atr_mult": 1.6,
+                },
+            ),
+        ),
+        "tick_variants": (
+            ("tick=off", {"tick_gate_mode": "off"}),
+            (
+                "tick=raschke",
+                {
+                    "tick_gate_mode": "raschke",
+                    "tick_gate_symbol": "TICK-AMEX",
+                    "tick_gate_exchange": "AMEX",
+                    "tick_neutral_policy": "allow",
+                    "tick_direction_policy": "both",
+                    "tick_band_ma_period": 10,
+                    "tick_width_z_lookback": 252,
+                    "tick_width_z_enter": 1.0,
+                    "tick_width_z_exit": 0.5,
+                    "tick_width_slope_lookback": 3,
+                },
+            ),
+        ),
+        "shock_variants": (
+            ("shock=off", {"shock_gate_mode": "off"}),
+            (
+                "shock=surf_daily",
+                {
+                    "shock_gate_mode": "surf",
+                    "shock_detector": "daily_atr_pct",
+                    "shock_daily_atr_period": 14,
+                    "shock_daily_on_atr_pct": 13.5,
+                    "shock_daily_off_atr_pct": 13.0,
+                    "shock_daily_on_tr_pct": 9.0,
+                    "shock_direction_source": "signal",
+                    "shock_direction_lookback": 1,
+                    "shock_stop_loss_pct_mult": 0.75,
+                    "shock_profit_target_pct_mult": 1.0,
+                },
+            ),
+            (
+                "shock=surf_atr_ratio",
+                {
+                    "shock_gate_mode": "surf",
+                    "shock_detector": "atr_ratio",
+                    "shock_atr_fast_period": 7,
+                    "shock_atr_slow_period": 50,
+                    "shock_on_ratio": 1.55,
+                    "shock_off_ratio": 1.30,
+                    "shock_min_atr_pct": 7.0,
+                    "shock_direction_source": "signal",
+                    "shock_direction_lookback": 1,
+                    "shock_stop_loss_pct_mult": 0.75,
+                    "shock_profit_target_pct_mult": 1.0,
+                },
+            ),
+            (
+                "shock=surf_tr_ratio",
+                {
+                    "shock_gate_mode": "surf",
+                    "shock_detector": "tr_ratio",
+                    "shock_atr_fast_period": 7,
+                    "shock_atr_slow_period": 50,
+                    "shock_on_ratio": 1.55,
+                    "shock_off_ratio": 1.30,
+                    "shock_min_atr_pct": 7.0,
+                    "shock_direction_source": "signal",
+                    "shock_direction_lookback": 1,
+                    "shock_stop_loss_pct_mult": 0.75,
+                    "shock_profit_target_pct_mult": 1.0,
+                },
+            ),
+        ),
+        "slope_variants": (
+            ("slope=off", {}),
+            ("slope>=0.01", {"ema_slope_min_pct": 0.01}),
+        ),
+        "risk_variants": (
+            ("risk=off", {}),
+            (
+                "risk=riskoff9",
+                {
+                    "riskoff_tr5_med_pct": 9.0,
+                    "riskoff_lookback_days": 5,
+                    "riskoff_mode": "hygiene",
+                    "risk_entry_cutoff_hour_et": 15,
+                    "riskpanic_tr5_med_pct": None,
+                    "riskpanic_neg_gap_ratio_min": None,
+                },
+            ),
+            (
+                "risk=riskpanic9",
+                {
+                    "riskoff_tr5_med_pct": None,
+                    "riskpanic_tr5_med_pct": 9.0,
+                    "riskpanic_neg_gap_ratio_min": 0.6,
+                    "riskpanic_lookback_days": 5,
+                    "riskpanic_short_risk_mult_factor": 0.5,
+                    "risk_entry_cutoff_hour_et": 15,
+                },
+            ),
+            (
+                "risk=riskpop9",
+                {
+                    "riskoff_tr5_med_pct": None,
+                    "riskpanic_tr5_med_pct": None,
+                    "riskpanic_neg_gap_ratio_min": None,
+                    "riskpop_tr5_med_pct": 9.0,
+                    "riskpop_pos_gap_ratio_min": 0.6,
+                    "riskpop_lookback_days": 5,
+                    "riskpop_long_risk_mult_factor": 1.2,
+                    "riskpop_short_risk_mult_factor": 0.5,
+                    "risk_entry_cutoff_hour_et": 15,
+                    "riskoff_mode": "hygiene",
+                },
+            ),
+        ),
+        # Timing/rats profiles: base by default; HF presets can expand this dimension.
+        "timing_profile_variants": (
+            (
+                "timing=base",
+                {
+                    "strategy_overrides": {},
+                    "filter_overrides": {},
+                },
+            ),
+        ),
+        "hf_profile_variants": (
+            (
+                "timing=hf_symm_v10",
+                {
+                    "strategy_overrides": {
+                        "ema_preset": "3/7",
+                        "ema_entry_mode": "trend",
+                        "entry_confirm_bars": 0,
+                        "flip_exit_mode": "cross",
+                        "flip_exit_gate_mode": "regime_or_permission",
+                        "flip_exit_min_hold_bars": 0,
+                        "flip_exit_only_if_profit": False,
+                        "spot_exit_mode": "pct",
+                        "spot_profit_target_pct": None,
+                        "spot_stop_loss_pct": 0.026,
+                        "regime_mode": "supertrend",
+                        "regime_bar_size": "1 day",
+                        "supertrend_atr_period": 7,
+                        "supertrend_multiplier": 0.4,
+                        "supertrend_source": "close",
+                        "tick_gate_mode": "off",
+                        "spot_exec_bar_size": "1 min",
+                    },
+                    "filter_overrides": {
+                        "ema_spread_min_pct": 0.00075,
+                        "ema_spread_min_pct_down": 0.014,
+                        "ema_slope_min_pct": 0.004,
+                        "shock_gate_mode": "detect",
+                        "shock_direction_source": "signal",
+                        "shock_direction_lookback": 1,
+                        "shock_short_risk_mult_factor": 1.0,
+                        "shock_long_risk_mult_factor": 1.0,
+                        "shock_long_risk_mult_factor_down": 1.0,
+                        "shock_stop_loss_pct_mult": 1.0,
+                        "shock_profit_target_pct_mult": 1.0,
+                        "shock_daily_atr_period": 14,
+                        "shock_daily_on_atr_pct": 4.0,
+                        "shock_daily_off_atr_pct": 4.0,
+                        "shock_daily_on_tr_pct": 4.0,
+                        "shock_on_drawdown_pct": -20.0,
+                        "shock_off_drawdown_pct": -10.0,
+                        "shock_scale_detector": "tr_ratio",
+                        "shock_drawdown_lookback_days": 10,
+                        "shock_risk_scale_target_atr_pct": 12.0,
+                        "shock_risk_scale_min_mult": 0.2,
+                        "shock_risk_scale_apply_to": "both",
+                        "shock_atr_fast_period": 5,
+                        "shock_atr_slow_period": 50,
+                        "shock_on_ratio": 1.30,
+                        "shock_off_ratio": 1.25,
+                        "shock_min_atr_pct": 4.0,
+                        "riskpanic_tr5_med_pct": 2.25,
+                        "riskpanic_neg_gap_ratio_min": 0.65,
+                        "riskpanic_neg_gap_abs_pct_min": 0.005,
+                        "riskpanic_lookback_days": 6,
+                        "riskpanic_tr5_med_delta_min_pct": 0.5,
+                        "riskpanic_tr5_med_delta_lookback_days": 1,
+                        "riskpanic_long_risk_mult_factor": 0.0,
+                        "riskpanic_short_risk_mult_factor": 1.0,
+                        "riskpanic_long_scale_mode": "linear",
+                        "riskpanic_long_scale_tr_delta_max_pct": None,
+                        "entry_permission_mode": "off",
+                        "entry_time_gate_mode": "off",
+                        "ratsv_enabled": True,
+                        "ratsv_slope_window_bars": 5,
+                        "ratsv_tr_fast_bars": 5,
+                        "ratsv_tr_slow_bars": 20,
+                        "ratsv_branch_a_rank_min": 0.0240,
+                        "ratsv_branch_a_tr_ratio_min": 0.96,
+                        "ratsv_branch_a_slope_med_min_pct": 0.000024,
+                        "ratsv_branch_a_slope_vel_min_pct": 0.000012,
+                        "ratsv_branch_a_cross_age_max_bars": 4,
+                        "ratsv_branch_b_rank_min": 0.22,
+                        "ratsv_branch_b_tr_ratio_min": 1.12,
+                        "ratsv_branch_b_slope_med_min_pct": 0.00085,
+                        "ratsv_branch_b_slope_vel_min_pct": 0.00006,
+                        "ratsv_branch_b_cross_age_max_bars": 4,
+                        "ratsv_probe_cancel_max_bars": 5,
+                        "ratsv_probe_cancel_slope_adverse_min_pct": 0.00029,
+                        "ratsv_probe_cancel_tr_ratio_min": 0.95,
+                        "ratsv_adverse_release_min_hold_bars": 1,
+                        "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+                        "ratsv_adverse_release_tr_ratio_min": 1.0325,
+                    },
+                },
+            ),
+            (
+                "timing=hf_symm_v9",
+                {
+                    "strategy_overrides": {
+                        "ema_preset": "3/7",
+                        "ema_entry_mode": "trend",
+                        "entry_confirm_bars": 0,
+                        "flip_exit_mode": "cross",
+                        "flip_exit_gate_mode": "regime_or_permission",
+                        "flip_exit_min_hold_bars": 0,
+                        "flip_exit_only_if_profit": False,
+                        "spot_exit_mode": "pct",
+                        "spot_profit_target_pct": None,
+                        "spot_stop_loss_pct": 0.026,
+                        "regime_mode": "supertrend",
+                        "regime_bar_size": "1 day",
+                        "supertrend_atr_period": 7,
+                        "supertrend_multiplier": 0.4,
+                        "supertrend_source": "close",
+                        "tick_gate_mode": "off",
+                        "spot_exec_bar_size": "1 min",
+                    },
+                    "filter_overrides": {
+                        "ema_spread_min_pct": 0.00075,
+                        "ema_spread_min_pct_down": 0.014,
+                        "ema_slope_min_pct": 0.004,
+                        "shock_gate_mode": "detect",
+                        "shock_direction_source": "signal",
+                        "shock_direction_lookback": 1,
+                        "shock_short_risk_mult_factor": 1.0,
+                        "shock_long_risk_mult_factor": 1.0,
+                        "shock_long_risk_mult_factor_down": 1.0,
+                        "shock_stop_loss_pct_mult": 1.0,
+                        "shock_profit_target_pct_mult": 1.0,
+                        "shock_daily_atr_period": 14,
+                        "shock_daily_on_atr_pct": 4.0,
+                        "shock_daily_off_atr_pct": 4.0,
+                        "shock_daily_on_tr_pct": 4.0,
+                        "shock_on_drawdown_pct": -20.0,
+                        "shock_off_drawdown_pct": -10.0,
+                        "shock_scale_detector": "tr_ratio",
+                        "shock_drawdown_lookback_days": 10,
+                        "shock_risk_scale_target_atr_pct": 12.0,
+                        "shock_risk_scale_min_mult": 0.2,
+                        "shock_risk_scale_apply_to": "both",
+                        "shock_atr_fast_period": 5,
+                        "shock_atr_slow_period": 50,
+                        "shock_on_ratio": 1.30,
+                        "shock_off_ratio": 1.25,
+                        "shock_min_atr_pct": 4.0,
+                        "riskpanic_tr5_med_pct": 2.25,
+                        "riskpanic_neg_gap_ratio_min": 0.65,
+                        "riskpanic_neg_gap_abs_pct_min": 0.005,
+                        "riskpanic_lookback_days": 6,
+                        "riskpanic_tr5_med_delta_min_pct": 0.5,
+                        "riskpanic_tr5_med_delta_lookback_days": 1,
+                        "riskpanic_long_risk_mult_factor": 0.0,
+                        "riskpanic_short_risk_mult_factor": 1.0,
+                        "riskpanic_long_scale_mode": "linear",
+                        "riskpanic_long_scale_tr_delta_max_pct": None,
+                        "entry_permission_mode": "off",
+                        "entry_time_gate_mode": "off",
+                        "ratsv_enabled": True,
+                        "ratsv_slope_window_bars": 5,
+                        "ratsv_tr_fast_bars": 5,
+                        "ratsv_tr_slow_bars": 20,
+                        "ratsv_branch_a_rank_min": 0.0245,
+                        "ratsv_branch_a_tr_ratio_min": 0.96,
+                        "ratsv_branch_a_slope_med_min_pct": 0.000024,
+                        "ratsv_branch_a_slope_vel_min_pct": 0.000012,
+                        "ratsv_branch_a_cross_age_max_bars": 5,
+                        "ratsv_branch_b_rank_min": 0.22,
+                        "ratsv_branch_b_tr_ratio_min": 1.12,
+                        "ratsv_branch_b_slope_med_min_pct": 0.00085,
+                        "ratsv_branch_b_slope_vel_min_pct": 0.00006,
+                        "ratsv_branch_b_cross_age_max_bars": 4,
+                        "ratsv_probe_cancel_max_bars": 5,
+                        "ratsv_probe_cancel_slope_adverse_min_pct": 0.00029,
+                        "ratsv_probe_cancel_tr_ratio_min": 0.95,
+                        "ratsv_adverse_release_min_hold_bars": 1,
+                        "ratsv_adverse_release_slope_adverse_min_pct": 0.0007,
+                        "ratsv_adverse_release_tr_ratio_min": 1.0325,
+                    },
+                },
+            ),
+        ),
+        "short_mults": (1.0, 0.2),
+        # Dominant ordering used by mixed-radix shard ranges.
+        "dominant_dims": ("timing_profile", "tick", "regime", "regime2", "risk", "shock", "exit", "slope"),
+        "cost_hints": {
+            "timing_profile": 1.8,
+            "tick": 1.4,
+            "regime": 1.3,
+            "regime2": 1.2,
+            "risk": 1.5,
+            "shock": 1.3,
+            "exit": 1.2,
+            "direction": 1.0,
+            "perm": 1.1,
+            "tod": 1.0,
+            "vol": 0.8,
+            "cadence": 0.7,
+            "confirm": 0.8,
+            "slope": 0.9,
+            "short_mult": 0.7,
+        },
+    },
+    "cost_model": {
+        "base": 1.0,
+        "regime_cross_tf": 0.5,
+        "regime2_cross_tf": 0.5,
+        "tick_gate_on": 0.75,
+        "exec_cross_tf": 0.75,
+        "perm_gate_on": 0.15,
+        "tod_gate_on": 0.12,
+        "volume_gate_on": 0.08,
+        "cadence_gate_on": 0.05,
+        "shock_gate_on": 0.4,
+        "riskoff_overlay_on": 0.2,
+        "riskpanic_overlay_on": 0.35,
+        "riskpop_overlay_on": 0.3,
+    },
+    "cache": {
+        "dimension_keys": (
+            "ema_entry_mode",
+            "entry_confirm_bars",
+            "spot_short_risk_mult",
+            "spot_exit_mode",
+            "spot_profit_target_pct",
+            "spot_stop_loss_pct",
+            "spot_atr_period",
+            "spot_pt_atr_mult",
+            "spot_sl_atr_mult",
+            "spot_close_eod",
+            "exit_on_signal_flip",
+            "flip_exit_mode",
+            "flip_exit_only_if_profit",
+            "flip_exit_min_hold_bars",
+            "flip_exit_gate_mode",
+            "regime_mode",
+            "regime_bar_size",
+            "supertrend_atr_period",
+            "supertrend_multiplier",
+            "supertrend_source",
+            "regime2_mode",
+            "regime2_bar_size",
+            "regime2_supertrend_atr_period",
+            "regime2_supertrend_multiplier",
+            "regime2_supertrend_source",
+            "tick_gate_mode",
+            "tick_gate_symbol",
+            "tick_gate_exchange",
+            "tick_neutral_policy",
+            "tick_direction_policy",
+            "tick_width_z_lookback",
+            "tick_width_z_enter",
+            "tick_width_z_exit",
+            "tick_width_slope_lookback",
+            "ema_spread_min_pct",
+            "ema_spread_min_pct_down",
+            "ema_slope_min_pct",
+            "ema_slope_signed_min_pct_up",
+            "ema_slope_signed_min_pct_down",
+            "volume_ratio_min",
+            "volume_ema_period",
+            "entry_start_hour_et",
+            "entry_end_hour_et",
+            "cooldown_bars",
+            "skip_first_bars",
+            "shock_gate_mode",
+            "shock_detector",
+            "shock_direction_source",
+            "shock_direction_lookback",
+            "shock_scale_detector",
+            "shock_stop_loss_pct_mult",
+            "shock_profit_target_pct_mult",
+            "shock_short_risk_mult_factor",
+            "shock_long_risk_mult_factor",
+            "shock_long_risk_mult_factor_down",
+            "shock_risk_scale_target_atr_pct",
+            "shock_risk_scale_min_mult",
+            "shock_risk_scale_apply_to",
+            "riskoff_tr5_med_pct",
+            "riskoff_tr5_lookback_days",
+            "riskoff_mode",
+            "riskoff_long_risk_mult_factor",
+            "riskoff_short_risk_mult_factor",
+            "riskpanic_tr5_med_pct",
+            "riskpanic_neg_gap_ratio_min",
+            "riskpanic_neg_gap_abs_pct_min",
+            "riskpanic_lookback_days",
+            "riskpanic_tr5_med_delta_min_pct",
+            "riskpanic_tr5_med_delta_lookback_days",
+            "riskpanic_long_risk_mult_factor",
+            "riskpanic_short_risk_mult_factor",
+            "riskpanic_long_scale_mode",
+            "risk_entry_cutoff_hour_et",
+            "riskpop_tr5_med_pct",
+            "riskpop_pos_gap_ratio_min",
+            "riskpop_pos_gap_abs_pct_min",
+            "riskpop_lookback_days",
+            "riskpop_tr5_med_delta_min_pct",
+            "riskpop_tr5_med_delta_lookback_days",
+            "riskpop_long_risk_mult_factor",
+            "riskpop_short_risk_mult_factor",
+            "entry_permission_mode",
+            "entry_time_gate_mode",
+            "ratsv_enabled",
+            "ratsv_slope_window_bars",
+            "ratsv_tr_fast_bars",
+            "ratsv_tr_slow_bars",
+            "ratsv_branch_a_rank_min",
+            "ratsv_branch_a_tr_ratio_min",
+            "ratsv_branch_a_slope_med_min_pct",
+            "ratsv_branch_a_slope_vel_min_pct",
+            "ratsv_branch_a_cross_age_max_bars",
+            "ratsv_branch_b_rank_min",
+            "ratsv_branch_b_tr_ratio_min",
+            "ratsv_branch_b_slope_med_min_pct",
+            "ratsv_branch_b_slope_vel_min_pct",
+            "ratsv_branch_b_cross_age_max_bars",
+            "ratsv_probe_cancel_max_bars",
+            "ratsv_probe_cancel_slope_adverse_min_pct",
+            "ratsv_probe_cancel_tr_ratio_min",
+            "ratsv_adverse_release_min_hold_bars",
+            "ratsv_adverse_release_slope_adverse_min_pct",
+            "ratsv_adverse_release_tr_ratio_min",
+            "spot_exec_bar_size",
+        ),
+        "stage_frontier": {
+            # Conservative dominance rule: require repeated misses before pruning.
+            "min_eval_count": 3,
+            "max_keep_count": 0,
+            "max_best_pnl": 0.0,
+            "max_best_pnl_over_dd": 0.0,
+        },
+        "winner_projection": {
+            # Run-min-trades agnostic dominance envelope.
+            "min_eval_count": 8,
+            "max_keep_count": 0,
+            "max_best_pnl": 0.0,
+            "max_best_pnl_over_dd": 0.0,
+        },
+        "dimension_value_utility": {
+            # Minimum sample count before treating a dimension-value row as predictive.
+            "min_eval_count": 6,
+            # Weights for utility scoring used by cartesian planning/sharding.
+            "weight_keep_rate": 0.70,
+            "weight_hit_rate": 0.20,
+            "weight_confidence": 0.10,
+            # Confidence normalizer in eval-count units.
+            "confidence_eval_scale": 24.0,
+            # Floor for eval seconds in utility denominator.
+            "eval_sec_floor": 0.01,
+            # Skip low-cardinality stage writes; utility hints are noisy there.
+            "write_min_total": 128,
+            # Sampling factor for very large stages (1 = write every eval).
+            "write_sample_mod": 1,
+        },
+        "dimension_upper_bound": {
+            # Minimum observations before an upper-bound row can influence ordering.
+            "min_eval_count": 6,
+            # Low-ceiling frontier (<= both) gets deferred toward tail.
+            "low_ceiling_max_keep_count": 0,
+            "low_ceiling_max_best_pnl": 0.0,
+            "low_ceiling_max_best_pnl_over_dd": 0.0,
+            # Confidence normalization for scoring.
+            "confidence_eval_scale": 24.0,
+            # Skip low-cardinality stage writes; upper-bound stats are low-signal there.
+            "write_min_total": 96,
+            # Sampling factor for very large stages (1 = write every eval).
+            "write_sample_mod": 1,
+        },
+        "run_cfg_persistent": {
+            # Enable RAM-first batching in worker-stage processes.
+            "ram_first_worker": 1,
+            # Flush when pending batch reaches this size.
+            "batch_write_size": 256,
+            # Flush at least this often (seconds), even under low throughput.
+            "batch_write_interval_sec": 2.0,
+        },
+        "series_pack_prewarm": {
+            # Build/reuse summary series packs once per unique key in worker loops.
+            "enabled": 1,
+            # Only activate prewarm logic for meaningful stage sizes.
+            "min_total": 128,
+            # Guardrail for unique per-stage pack contexts.
+            "max_unique": 4096,
+        },
+        "planner_heartbeat": {
+            # Parent monitor cadence for worker-heartbeat aggregation output.
+            "monitor_interval_sec": 30.0,
+            # Mark worker stale if heartbeat age exceeds this threshold.
+            "stale_after_sec": 180.0,
+            # Grace period for workers that have not written their first heartbeat row.
+            "bootstrap_grace_sec": 180.0,
+            # How many stale recycle attempts to allow before failing stage.
+            "max_stale_retries": 1,
+        },
+        "claim_first_planner": {
+            # Force serial runs of large stages into worker-claim mode.
+            "enabled": 1,
+            "serial_force_worker": 1,
+            "min_total": 512,
+            "stage_labels": ("combo_full_cartesian", "shock"),
+        },
+        "jobs_tuner": {
+            # Auto-downshift worker fanout for tiny stages to reduce spawn overhead.
+            "enabled": 1,
+            "min_items_per_worker": 64,
+            # 0 means "no explicit max", only clamp by detected CPUs and stage size.
+            "max_workers": 0,
+            # Soft caps discovered from local benchmarks:
+            # <=256 items scales best around 3 workers; <=4096 around 8 workers.
+            # Larger stages are unconstrained (except by CPU count / explicit max_workers).
+            "soft_max_workers_by_total": ((256, 3), (4096, 8)),
+        },
+        "claim_span_tuner": {
+            # Adaptive claim span for dynamic-claim workers (balance overhead vs stragglers).
+            "enabled": 1,
+            "target_claims_per_worker": 24,
+            "min_claim_span": 32,
+            "max_claim_span": 2048,
+            "max_batch_multiple": 8,
+        },
+        "cartesian_rank_manifest": {
+            # Trigger compaction only when row volume is meaningful.
+            "compact_min_rows": 1024,
+            # Avoid repeated compaction churn on the same stage/window key.
+            "compact_min_interval_sec": 120.0,
+        },
+        "stage_unresolved_summary": {
+            # Recompute unresolved spans when summary row is older than this TTL.
+            "ttl_sec": 21600.0,
+        },
+        "rank_dominance_stamp": {
+            # Trigger stamp compaction only when signature/range rows are meaningful.
+            "compact_min_rows": 512,
+            # Avoid repeated stamp compaction churn on the same stage/window key.
+            "compact_min_interval_sec": 120.0,
+            # Discard stale stamp rows older than this TTL window.
+            "ttl_sec": 1209600.0,
+        },
+    },
+}
+
 _PERM_JOINT_PROFILE: dict[str, tuple] = {
-    "tod_windows": (
-        (None, None, "tod=base", {}),
-        (None, None, "tod=off", {"entry_start_hour_et": None, "entry_end_hour_et": None}),
-        (9, 16, "tod=09-16 ET", {"entry_start_hour_et": 9, "entry_end_hour_et": 16}),
-        (10, 15, "tod=10-15 ET", {"entry_start_hour_et": 10, "entry_end_hour_et": 15}),
-        (11, 16, "tod=11-16 ET", {"entry_start_hour_et": 11, "entry_end_hour_et": 16}),
-        (17, 3, "tod=17-03 ET", {"entry_start_hour_et": 17, "entry_end_hour_et": 3}),
-        (17, 4, "tod=17-04 ET", {"entry_start_hour_et": 17, "entry_end_hour_et": 4}),
-        (17, 5, "tod=17-05 ET", {"entry_start_hour_et": 17, "entry_end_hour_et": 5}),
-        (18, 3, "tod=18-03 ET", {"entry_start_hour_et": 18, "entry_end_hour_et": 3}),
-        (18, 4, "tod=18-04 ET", {"entry_start_hour_et": 18, "entry_end_hour_et": 4}),
-        (18, 5, "tod=18-05 ET", {"entry_start_hour_et": 18, "entry_end_hour_et": 5}),
-        (19, 3, "tod=19-03 ET", {"entry_start_hour_et": 19, "entry_end_hour_et": 3}),
-        (19, 4, "tod=19-04 ET", {"entry_start_hour_et": 19, "entry_end_hour_et": 4}),
-        (19, 5, "tod=19-05 ET", {"entry_start_hour_et": 19, "entry_end_hour_et": 5}),
-    ),
-    "spread_variants": (
-        ("spread=base", {}),
-        ("spread=off", {"ema_spread_min_pct": None}),
-        ("spread>=0.0020", {"ema_spread_min_pct": 0.002}),
-        ("spread>=0.0030", {"ema_spread_min_pct": 0.003}),
-        ("spread>=0.0040", {"ema_spread_min_pct": 0.004}),
-        ("spread>=0.0050", {"ema_spread_min_pct": 0.005}),
-        ("spread>=0.0060", {"ema_spread_min_pct": 0.006}),
-        ("spread>=0.0070", {"ema_spread_min_pct": 0.007}),
-        ("spread>=0.0080", {"ema_spread_min_pct": 0.008}),
-        ("spread>=0.0100", {"ema_spread_min_pct": 0.01}),
-    ),
-    "vol_variants": (
-        ("vol=base", {}),
-        ("vol=off", {"volume_ratio_min": None, "volume_ema_period": None}),
-        ("vol>=1.0@10", {"volume_ratio_min": 1.0, "volume_ema_period": 10}),
-        ("vol>=1.0@20", {"volume_ratio_min": 1.0, "volume_ema_period": 20}),
-        ("vol>=1.1@10", {"volume_ratio_min": 1.1, "volume_ema_period": 10}),
-        ("vol>=1.1@20", {"volume_ratio_min": 1.1, "volume_ema_period": 20}),
-        ("vol>=1.2@10", {"volume_ratio_min": 1.2, "volume_ema_period": 10}),
-        ("vol>=1.2@20", {"volume_ratio_min": 1.2, "volume_ema_period": 20}),
-        ("vol>=1.5@10", {"volume_ratio_min": 1.5, "volume_ema_period": 10}),
-        ("vol>=1.5@20", {"volume_ratio_min": 1.5, "volume_ema_period": 20}),
-    ),
+    "tod_windows": tuple(_AXIS_DIMENSION_REGISTRY.get("perm_joint", {}).get("tod_windows") or ()),
+    "perm_variants": tuple(_AXIS_DIMENSION_REGISTRY.get("perm_joint", {}).get("perm_variants") or ()),
+    "vol_variants": tuple(_AXIS_DIMENSION_REGISTRY.get("perm_joint", {}).get("vol_variants") or ()),
+    "cadence_variants": tuple(_AXIS_DIMENSION_REGISTRY.get("perm_joint", {}).get("cadence_variants") or ()),
 }
 _REGIME_ST_PROFILE: dict[str, tuple] = {
     "bars": ("4 hours", "1 day"),
@@ -501,78 +1701,232 @@ _REGIME2_ST_PROFILE: dict[str, tuple] = {
     "sources": ("close", "hl2"),
 }
 _SHOCK_SWEEP_PROFILE: dict[str, tuple] = {
-    "modes": ("detect", "block", "block_longs", "block_shorts", "surf"),
-    "dir_variants": (("regime", 2, "dir=regime@2"), ("signal", 1, "dir=signal@1")),
-    "sl_mults": (1.0, 0.75),
-    "pt_mults": (1.0, 0.75),
-    "short_risk_factors": (1.0, 0.5),
-    "ratio_rows": (
-        ("atr_ratio", 5, 30, 1.35, 1.20, 6.0),
-        ("atr_ratio", 7, 50, 1.55, 1.30, 7.0),
-        ("atr_ratio", 10, 80, 1.45, 1.25, 7.0),
-        ("atr_ratio", 14, 120, 1.35, 1.20, 9.0),
-        ("atr_ratio", 7, 30, 1.70, 1.40, 7.0),
-        ("tr_ratio", 5, 30, 1.35, 1.20, 6.0),
-        ("tr_ratio", 7, 50, 1.55, 1.30, 7.0),
-        ("tr_ratio", 10, 80, 1.45, 1.25, 7.0),
-        ("tr_ratio", 14, 120, 1.35, 1.20, 9.0),
-        ("tr_ratio", 7, 30, 1.70, 1.40, 7.0),
-    ),
-    "daily_atr_rows": (
-        (14, 13.0, 11.0, None),
-        (14, 13.5, 13.0, None),
-        (14, 14.0, 13.0, None),
-        (14, 14.0, 13.0, 9.0),
-        (10, 13.0, 11.0, 9.0),
-        (21, 14.0, 13.0, 10.0),
-    ),
-    "drawdown_rows": (
-        (10, -15.0, -8.0),
-        (20, -20.0, -10.0),
-        (20, -25.0, -15.0),
-        (30, -25.0, -15.0),
-        (60, -30.0, -20.0),
-    ),
+    "modes": tuple(_AXIS_DIMENSION_REGISTRY.get("shock", {}).get("modes") or ()),
+    "dir_variants": tuple(_AXIS_DIMENSION_REGISTRY.get("shock", {}).get("dir_variants") or ()),
+    "sl_mults": tuple(_AXIS_DIMENSION_REGISTRY.get("shock", {}).get("sl_mults") or ()),
+    "pt_mults": tuple(_AXIS_DIMENSION_REGISTRY.get("shock", {}).get("pt_mults") or ()),
+    "short_risk_factors": tuple(_AXIS_DIMENSION_REGISTRY.get("shock", {}).get("short_risk_factors") or ()),
+    "ratio_rows": tuple(_AXIS_DIMENSION_REGISTRY.get("shock", {}).get("ratio_rows") or ()),
+    "daily_atr_rows": tuple(_AXIS_DIMENSION_REGISTRY.get("shock", {}).get("daily_atr_rows") or ()),
+    "drawdown_rows": tuple(_AXIS_DIMENSION_REGISTRY.get("shock", {}).get("drawdown_rows") or ()),
 }
-_SHOCK_THROTTLE_TR_RATIO_PROFILE: dict[str, tuple] = {
-    "periods": ((2, 50), (3, 50), (5, 50), (3, 21)),
-    "targets": (0.25, 0.35, 0.45, 0.55, 0.7, 0.9, 1.1),
-    "min_mults": (0.05, 0.1, 0.2),
-    "apply_tos": ("cap", "both"),
-}
-_SHOCK_THROTTLE_DRAWDOWN_PROFILE: dict[str, tuple] = {
-    "lookbacks": (10, 20, 40),
-    "targets": (3.0, 4.0, 6.0, 8.0, 10.0, 12.0, 15.0),
-    "min_mults": (0.05, 0.1, 0.2, 0.3),
-    "apply_tos": ("cap", "both"),
-}
-_RISKPANIC_MICRO_PROFILE: dict[str, tuple] = {
-    "cutoffs_et": (None, 15),
-    "panic_tr_meds": (2.75, 3.0, 3.25),
-    "neg_gap_ratios": (0.5, 0.6),
-    "neg_gap_abs_pcts": (None, 0.005),
-    "tr_delta_mins": (None, 0.25, 0.5, 0.75),
-    "long_factors": (1.0, 0.4, 0.0),
-    "scale_modes": (None, "linear"),
-}
-_RUN_CFG_CACHE_ENGINE_VERSION = "spot_summary_v1"
-_MULTIWINDOW_CACHE_ENGINE_VERSION = "spot_multiwindow_v1"
+_RUN_CFG_CACHE_ENGINE_VERSION = "spot_stage_v8"
+_RANK_BIN_SIZE = 2048
+_AXIS_DIMENSION_FINGERPRINT_KEYS: tuple[str, ...] = tuple(
+    str(k)
+    for k in (tuple(_AXIS_DIMENSION_REGISTRY.get("cache", {}).get("dimension_keys") or ()))
+    if str(k).strip()
+)
 
 
-def _strategy_fingerprint(
-    strategy: dict,
+def _axis_dimension_fingerprint(cfg: ConfigBundle) -> str:
+    # Use a full strategy+filters fingerprint to avoid false cache collisions
+    # when new knobs are introduced but not yet mirrored in narrow dimension key lists.
+    strategy = asdict(cfg.strategy)
+    filters_payload = _filters_payload(cfg.strategy.filters) or {}
+    strategy.pop("filters", None)
+    dims = {
+        "strategy": _canonicalize_fingerprint_value(strategy),
+        "filters": _canonicalize_fingerprint_value(filters_payload),
+    }
+    return json.dumps(dims, sort_keys=True, default=str)
+
+
+def _window_signature(
     *,
-    filters: dict | None,
-    signal_bar_size: str | None = None,
-    signal_use_rth: bool | None = None,
+    bars_sig: tuple[int, object | None, object | None],
+    regime_sig: tuple[int, object | None, object | None],
+    regime2_sig: tuple[int, object | None, object | None],
 ) -> str:
-    raw = dict(strategy)
-    raw["filters"] = filters
-    if signal_bar_size is not None:
-        raw["signal_bar_size"] = str(signal_bar_size)
-    if signal_use_rth is not None:
-        raw["signal_use_rth"] = bool(signal_use_rth)
-    return json.dumps(raw, sort_keys=True, default=str)
+    raw = {
+        "bars": tuple(bars_sig),
+        "regime": tuple(regime_sig),
+        "regime2": tuple(regime2_sig),
+    }
+    return json.dumps(_canonicalize_fingerprint_value(raw), sort_keys=True, default=str)
+
+
+def _combo_full_dimension_space_signature(
+    *,
+    ordered_dims: tuple[str, ...] | list[str],
+    size_by_dim: dict[str, int],
+    timing_profile_variants: list[tuple[str, dict[str, object], dict[str, object]]],
+    confirm_bars: list[int],
+    pair_variants_by_dim: dict[str, list[tuple[str, dict[str, object]]]],
+    short_mults: list[float],
+) -> str:
+    """Stable fingerprint for combo_full Cartesian variant space.
+
+    Rank-manifest cache keys must change when variant payload values change, even
+    if dimension cardinalities stay constant.
+    """
+    dim_rows: list[tuple[str, tuple[object, ...]]] = []
+    for dim_name in _COMBO_FULL_CARTESIAN_DIM_ORDER:
+        key = str(dim_name)
+        if key == "timing_profile":
+            rows = tuple(
+                (
+                    str(label),
+                    _canonicalize_fingerprint_value(dict(strat_over) if isinstance(strat_over, dict) else {}),
+                    _canonicalize_fingerprint_value(dict(filt_over) if isinstance(filt_over, dict) else {}),
+                )
+                for label, strat_over, filt_over in tuple(timing_profile_variants or ())
+            )
+        elif key == "confirm":
+            rows = tuple(int(v) for v in tuple(confirm_bars or ()))
+        elif key == "short_mult":
+            rows = tuple(float(v) for v in tuple(short_mults or ()))
+        else:
+            rows = tuple(
+                (
+                    str(label),
+                    _canonicalize_fingerprint_value(dict(payload) if isinstance(payload, dict) else {}),
+                )
+                for label, payload in tuple(pair_variants_by_dim.get(str(key)) or ())
+            )
+        dim_rows.append((str(key), tuple(rows)))
+    raw = {
+        "ordered_dims": tuple(str(v) for v in tuple(ordered_dims or ())),
+        "size_by_dim": tuple(
+            (str(dim_name), int(size_by_dim.get(str(dim_name), 0) or 0))
+            for dim_name in _COMBO_FULL_CARTESIAN_DIM_ORDER
+        ),
+        "dim_rows": tuple(dim_rows),
+    }
+    return hashlib.sha1(
+        json.dumps(_canonicalize_fingerprint_value(raw), sort_keys=True, default=str).encode("utf-8")
+    ).hexdigest()
+
+
+def _registry_float(raw: object, default: float) -> float:
+    try:
+        return float(raw)
+    except (TypeError, ValueError):
+        return float(default)
+
+
+def _cache_config(section: str) -> dict[str, object]:
+    cache_cfg = _AXIS_DIMENSION_REGISTRY.get("cache", {})
+    if not isinstance(cache_cfg, dict):
+        return {}
+    raw = cache_cfg.get(str(section))
+    return dict(raw) if isinstance(raw, dict) else {}
+
+
+def _cfg_label_set(raw: object) -> set[str]:
+    if not isinstance(raw, (tuple, list, set)):
+        return set()
+    out: set[str] = set()
+    for item in raw:
+        key = str(item or "").strip().lower()
+        if key:
+            out.add(str(key))
+    return out
+
+
+def _claim_first_stage_enabled(*, stage_label: str, total: int) -> bool:
+    cfg = _cache_config("claim_first_planner")
+    if not bool(_registry_float(cfg.get("enabled"), 1.0) > 0.0):
+        return False
+    min_total = max(1, int(_registry_float(cfg.get("min_total"), 512.0)))
+    if int(total) < int(min_total):
+        return False
+    labels = _cfg_label_set(cfg.get("stage_labels"))
+    if not labels:
+        return True
+    return str(stage_label or "").strip().lower() in labels
+
+
+def _claim_first_serial_force_worker_enabled() -> bool:
+    cfg = _cache_config("claim_first_planner")
+    return bool(_registry_float(cfg.get("serial_force_worker"), 1.0) > 0.0)
+
+
+def _tuned_parallel_jobs(
+    *,
+    stage_label: str,
+    jobs_requested: int,
+    total: int,
+    default_jobs: int,
+) -> int:
+    jobs_req_i = max(1, int(jobs_requested))
+    total_i = max(0, int(total))
+    default_i = max(1, int(default_jobs))
+    jobs_eff = min(int(jobs_req_i), int(default_i), int(total_i)) if int(total_i) > 0 else 1
+    jobs_eff = max(1, int(jobs_eff))
+    cfg = _cache_config("jobs_tuner")
+    if not bool(_registry_float(cfg.get("enabled"), 1.0) > 0.0):
+        return int(jobs_eff)
+    min_items = max(1, int(_registry_float(cfg.get("min_items_per_worker"), 64.0)))
+    max_workers_cfg = max(0, int(_registry_float(cfg.get("max_workers"), 0.0)))
+    if int(max_workers_cfg) > 0:
+        jobs_eff = min(int(jobs_eff), int(max_workers_cfg))
+    soft_caps_raw = cfg.get("soft_max_workers_by_total")
+    if isinstance(soft_caps_raw, (tuple, list)):
+        soft_caps: list[tuple[int, int]] = []
+        for row in soft_caps_raw:
+            if not (isinstance(row, (tuple, list)) and len(row) >= 2):
+                continue
+            try:
+                max_total_i = int(row[0])
+                cap_i = int(row[1])
+            except (TypeError, ValueError):
+                continue
+            if int(max_total_i) <= 0 or int(cap_i) <= 0:
+                continue
+            soft_caps.append((int(max_total_i), int(cap_i)))
+        if soft_caps and int(total_i) > 0:
+            matching = [entry for entry in soft_caps if int(total_i) <= int(entry[0])]
+            if matching:
+                _, cap_soft = min(matching, key=lambda row: int(row[0]))
+                jobs_eff = min(int(jobs_eff), max(1, int(cap_soft)))
+    if int(total_i) > 0 and int(min_items) > 0:
+        cap = int(math.ceil(float(total_i) / float(min_items)))
+        jobs_eff = min(int(jobs_eff), max(1, int(cap)))
+    _ = stage_label  # keep signature explicit; stage-specific tuning can be added without API changes.
+    return max(1, int(jobs_eff))
+
+
+def _axis_cost_hint(axis_name: str, key: str, default: float) -> float:
+    axis_dims = _AXIS_DIMENSION_REGISTRY.get(str(axis_name), {})
+    hints = axis_dims.get("cost_hints")
+    if isinstance(hints, dict):
+        return _registry_float(hints.get(str(key)), default)
+    return float(default)
+
+
+def _cost_model_weight(name: str, default: float) -> float:
+    dims = _AXIS_DIMENSION_REGISTRY.get("cost_model", {})
+    if isinstance(dims, dict):
+        return _registry_float(dims.get(str(name)), default)
+    return float(default)
+
+
+def _combo_full_dim_size_from_registry(*, dims: dict[str, object], dim_key: str) -> int:
+    key = str(dim_key).strip()
+    if not key:
+        return 0
+    if key == "confirm":
+        return int(len(tuple(dims.get("confirm_bars") or ())))
+    if key == "short_mult":
+        return int(len(tuple(dims.get("short_mults") or ())))
+    variants_raw = dims.get(f"{key}_variants")
+    if isinstance(variants_raw, (list, tuple)):
+        return int(len(tuple(variants_raw)))
+    return 0
+
+
+def _cardinality(*sizes: object) -> int:
+    total = 1
+    for raw in sizes:
+        try:
+            n = int(raw)
+        except (TypeError, ValueError):
+            return 0
+        if n <= 0:
+            return 0
+        total *= n
+    return int(total)
 
 
 def _milestone_metrics_from_row(row: dict) -> dict:
@@ -791,245 +2145,6 @@ def _merge_and_write_milestones(
     return len(groups)
 
 
-def _pump_subprocess_output(prefix: str, stream) -> None:
-    for line in iter(stream.readline, ""):
-        print(f"[{prefix}] {line.rstrip()}", flush=True)
-
-
-def _run_parallel_worker_specs(
-    *,
-    specs: list[tuple[str, list[str]]],
-    jobs: int,
-    capture_error: str,
-    failure_label: str,
-) -> None:
-    if not specs:
-        return
-    jobs_eff = max(1, min(int(jobs), len(specs)))
-    pending = list(specs)
-    running: list[tuple[str, subprocess.Popen, threading.Thread, float]] = []
-    failures: list[tuple[str, int]] = []
-
-    while pending or running:
-        while pending and len(running) < jobs_eff and not failures:
-            worker_name, cmd = pending.pop(0)
-            print(f"START {worker_name}", flush=True)
-            proc = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.STDOUT,
-                text=True,
-                bufsize=1,
-            )
-            if proc.stdout is None:
-                raise RuntimeError(str(capture_error))
-            t = threading.Thread(target=_pump_subprocess_output, args=(worker_name, proc.stdout), daemon=True)
-            t.start()
-            running.append((worker_name, proc, t, pytime.perf_counter()))
-
-        finished = False
-        for idx, (worker_name, proc, t, started_at) in enumerate(running):
-            rc = proc.poll()
-            if rc is None:
-                continue
-            finished = True
-            elapsed = pytime.perf_counter() - float(started_at)
-            print(f"DONE  {worker_name} exit={rc} elapsed={elapsed:0.1f}s", flush=True)
-            try:
-                proc.wait(timeout=1.0)
-            except subprocess.TimeoutExpired:
-                proc.kill()
-                proc.wait(timeout=5.0)
-            try:
-                t.join(timeout=1.0)
-            except Exception:
-                pass
-            if rc != 0:
-                failures.append((worker_name, int(rc)))
-            running.pop(idx)
-            break
-
-        if failures:
-            for _worker_name, proc, _t, _started_at in running:
-                try:
-                    proc.terminate()
-                except Exception:
-                    pass
-            for _worker_name, proc, _t, _started_at in running:
-                try:
-                    proc.wait(timeout=5.0)
-                except subprocess.TimeoutExpired:
-                    try:
-                        proc.kill()
-                    except Exception:
-                        pass
-            break
-
-        if not finished:
-            pytime.sleep(0.05)
-
-    if failures:
-        worker_name, rc = failures[0]
-        raise SystemExit(f"{failure_label} failed: {worker_name} (exit={rc})")
-
-
-def _run_parallel_json_worker_plan(
-    *,
-    jobs_eff: int,
-    tmp_prefix: str,
-    worker_tag: str,
-    out_prefix: str,
-    build_cmd,
-    capture_error: str,
-    failure_label: str,
-    missing_label: str,
-    invalid_label: str,
-) -> dict[int, dict]:
-    with tempfile.TemporaryDirectory(prefix=tmp_prefix) as tmpdir:
-        tmp_root = Path(tmpdir)
-        specs: list[tuple[str, list[str]]] = []
-        out_paths: dict[int, Path] = {}
-        for worker_id in range(max(1, int(jobs_eff))):
-            out_path = tmp_root / f"{out_prefix}_{worker_id}.json"
-            out_paths[worker_id] = out_path
-            specs.append((f"{worker_tag}:{worker_id}", list(build_cmd(int(worker_id), int(jobs_eff), out_path))))
-
-        _run_parallel_worker_specs(
-            specs=specs,
-            jobs=int(jobs_eff),
-            capture_error=str(capture_error),
-            failure_label=str(failure_label),
-        )
-
-        payloads: dict[int, dict] = {}
-        for worker_id, out_path in out_paths.items():
-            if not out_path.exists():
-                raise SystemExit(f"Missing {missing_label} output: {worker_tag}:{worker_id} ({out_path})")
-            try:
-                payload = json.loads(out_path.read_text())
-            except json.JSONDecodeError as exc:
-                raise SystemExit(f"Invalid {invalid_label} output JSON: {worker_tag}:{worker_id} ({out_path})") from exc
-            if isinstance(payload, dict):
-                payloads[int(worker_id)] = payload
-    return payloads
-
-
-def _run_parallel_stage_kernel(
-    *,
-    stage_label: str,
-    jobs: int,
-    total: int,
-    default_jobs: int,
-    offline: bool,
-    offline_error: str,
-    tmp_prefix: str,
-    worker_tag: str,
-    out_prefix: str,
-    build_cmd,
-    capture_error: str,
-    failure_label: str,
-    missing_label: str,
-    invalid_label: str,
-) -> tuple[int, dict[int, dict]]:
-    if not bool(offline):
-        raise SystemExit(str(offline_error))
-    jobs_eff = min(int(jobs), int(default_jobs), int(total)) if int(total) > 0 else 1
-    jobs_eff = max(1, int(jobs_eff))
-    print(f"{stage_label} parallel: workers={jobs_eff} total={int(total)}", flush=True)
-    payloads = _run_parallel_json_worker_plan(
-        jobs_eff=int(jobs_eff),
-        tmp_prefix=str(tmp_prefix),
-        worker_tag=str(worker_tag),
-        out_prefix=str(out_prefix),
-        build_cmd=build_cmd,
-        capture_error=str(capture_error),
-        failure_label=str(failure_label),
-        missing_label=str(missing_label),
-        invalid_label=str(invalid_label),
-    )
-    return int(jobs_eff), payloads
-
-
-def _collect_parallel_payload_records(
-    *,
-    payloads: dict[int, dict],
-    records_key: str = "records",
-    tested_key: str = "tested",
-    decode_record=None,
-    on_record=None,
-    dedupe_key=None,
-) -> int:
-    tested_total = 0
-    seen: set[str] | None = set() if callable(dedupe_key) else None
-    for payload in payloads.values():
-        if not isinstance(payload, dict):
-            continue
-        tested_total += int(payload.get(tested_key) or 0)
-        records = payload.get(records_key) or []
-        if not isinstance(records, list):
-            continue
-        for rec in records:
-            if not isinstance(rec, dict):
-                continue
-            rec_obj = decode_record(rec) if callable(decode_record) else rec
-            if rec_obj is None:
-                continue
-            if seen is not None:
-                try:
-                    rec_key = dedupe_key(rec_obj)
-                except Exception:
-                    rec_key = None
-                if rec_key is not None:
-                    rec_key_s = str(rec_key)
-                    if rec_key_s in seen:
-                        continue
-                    seen.add(rec_key_s)
-            if callable(on_record):
-                on_record(rec_obj)
-    return int(tested_total)
-
-
-def _progress_snapshot(
-    *,
-    tested: int,
-    total: int | None,
-    started_at: float,
-) -> tuple[float, float, float, float, float]:
-    elapsed = max(0.0, float(pytime.perf_counter()) - float(started_at))
-    rate = (float(tested) / elapsed) if elapsed > 0 else 0.0
-    total_i = int(total) if total is not None else 0
-    remaining = max(0, int(total_i) - int(tested)) if total is not None else 0
-    eta_sec = (float(remaining) / rate) if rate > 0 else 0.0
-    pct = ((float(tested) / float(total_i)) * 100.0) if total is not None and total_i > 0 else 0.0
-    return elapsed, rate, float(remaining), float(eta_sec), float(pct)
-
-
-def _progress_line(
-    *,
-    label: str,
-    tested: int,
-    total: int | None,
-    kept: int,
-    started_at: float,
-    rate_unit: str = "s",
-) -> str:
-    elapsed, rate, _remaining, eta_sec, pct = _progress_snapshot(
-        tested=int(tested),
-        total=(int(total) if total is not None else None),
-        started_at=float(started_at),
-    )
-    total_i = int(total) if total is not None else 0
-    if total is not None and total_i > 0:
-        return (
-            f"{label} {int(tested)}/{total_i} ({pct:0.1f}%) kept={int(kept)} "
-            f"elapsed={elapsed:0.1f}s eta={eta_sec/60.0:0.1f}m rate={rate:0.2f}/{rate_unit}"
-        )
-    return (
-        f"{label} tested={int(tested)} kept={int(kept)} "
-        f"elapsed={elapsed:0.1f}s rate={rate:0.2f}/{rate_unit}"
-    )
-
-
 def _run_axis_subprocess_plan(
     *,
     label: str,
@@ -1089,234 +2204,12 @@ def _run_axis_subprocess_plan(
     return milestone_payloads
 
 
-def _entry_days_labels(days: tuple[int, ...]) -> list[str]:
-    out: list[str] = []
-    for d in days:
-        try:
-            idx = int(d)
-        except (TypeError, ValueError):
-            continue
-        if 0 <= idx < len(_WDAYS):
-            out.append(_WDAYS[idx])
-    return out
-
-
 def _filters_payload(filters: FiltersConfig | None) -> dict | None:
-    if filters is None:
-        return None
-    raw = asdict(filters)
-    out: dict[str, object] = {}
-    for key in (
-        "rv_min",
-        "rv_max",
-        "ema_spread_min_pct",
-        "ema_spread_min_pct_down",
-        "ema_slope_min_pct",
-        "ema_slope_signed_min_pct_up",
-        "ema_slope_signed_min_pct_down",
-        "volume_ratio_min",
-    ):
-        if raw.get(key) is not None:
-            out[key] = raw[key]
-    if raw.get("volume_ratio_min") is not None and raw.get("volume_ema_period") is not None:
-        out["volume_ema_period"] = raw["volume_ema_period"]
-    if raw.get("entry_start_hour_et") is not None and raw.get("entry_end_hour_et") is not None:
-        out["entry_start_hour_et"] = raw["entry_start_hour_et"]
-        out["entry_end_hour_et"] = raw["entry_end_hour_et"]
-    if raw.get("entry_start_hour") is not None and raw.get("entry_end_hour") is not None:
-        out["entry_start_hour"] = raw["entry_start_hour"]
-        out["entry_end_hour"] = raw["entry_end_hour"]
-    if int(raw.get("skip_first_bars") or 0) > 0:
-        out["skip_first_bars"] = int(raw["skip_first_bars"])
-    if int(raw.get("cooldown_bars") or 0) > 0:
-        out["cooldown_bars"] = int(raw["cooldown_bars"])
-    if raw.get("risk_entry_cutoff_hour_et") is not None:
-        out["risk_entry_cutoff_hour_et"] = int(raw["risk_entry_cutoff_hour_et"])
-
-    # Shock overlay (engine feature). Only include when enabled.
-    shock_gate_mode = str(raw.get("shock_gate_mode") or "off").strip().lower()
-    if shock_gate_mode in ("", "0", "false", "none", "null"):
-        shock_gate_mode = "off"
-    if shock_gate_mode not in ("off", "detect", "block", "block_longs", "block_shorts", "surf"):
-        shock_gate_mode = "off"
-    if shock_gate_mode != "off":
-        out["shock_gate_mode"] = shock_gate_mode
-        detector = str(raw.get("shock_detector") or "atr_ratio").strip().lower()
-        if detector in ("daily", "daily_atr", "daily_atr_pct", "daily_atr14", "daily_atr%"):
-            detector = "daily_atr_pct"
-        elif detector in ("drawdown", "daily_drawdown", "daily-dd", "dd", "peak_dd", "peak_drawdown"):
-            detector = "daily_drawdown"
-        elif detector in ("tr_ratio", "tr-ratio", "tr_ratio_pct", "tr_ratio%"):
-            detector = "tr_ratio"
-        elif detector in ("atr_ratio", "ratio", "atr-ratio", "atr_ratio_pct", "atr_ratio%"):
-            detector = "atr_ratio"
-        else:
-            detector = "atr_ratio"
-        out["shock_detector"] = detector
-
-        scale_detector = raw.get("shock_scale_detector")
-        if scale_detector is not None:
-            scale_detector = str(scale_detector).strip().lower()
-        if scale_detector in ("", "0", "false", "none", "null", "off"):
-            scale_detector = None
-        if scale_detector is not None:
-            if scale_detector in ("daily", "daily_atr", "daily_atr_pct", "daily_atr14", "daily_atr%"):
-                scale_detector = "daily_atr_pct"
-            elif scale_detector in ("drawdown", "daily_drawdown", "daily-dd", "dd", "peak_dd", "peak_drawdown"):
-                scale_detector = "daily_drawdown"
-            elif scale_detector in ("tr_ratio", "tr-ratio", "tr_ratio_pct", "tr_ratio%"):
-                scale_detector = "tr_ratio"
-            elif scale_detector in ("atr_ratio", "ratio", "atr-ratio", "atr_ratio_pct", "atr_ratio%"):
-                scale_detector = "atr_ratio"
-            else:
-                scale_detector = None
-        if scale_detector is not None:
-            out["shock_scale_detector"] = scale_detector
-
-        out["shock_direction_source"] = str(raw.get("shock_direction_source") or "regime").strip().lower()
-        out["shock_direction_lookback"] = int(raw.get("shock_direction_lookback") or 2)
-        if bool(raw.get("shock_regime_override_dir")):
-            out["shock_regime_override_dir"] = True
-        for key in (
-            "shock_regime_supertrend_multiplier",
-            "shock_cooling_regime_supertrend_multiplier",
-            "shock_daily_cooling_atr_pct",
-            "shock_risk_scale_target_atr_pct",
-        ):
-            if raw.get(key) is not None:
-                out[key] = raw[key]
-        if raw.get("shock_risk_scale_target_atr_pct") is not None:
-            out["shock_risk_scale_min_mult"] = float(raw.get("shock_risk_scale_min_mult") or 0.2)
-            apply_to = raw.get("shock_risk_scale_apply_to")
-            if apply_to is not None:
-                apply_to = str(apply_to).strip().lower()
-            if apply_to in ("", "0", "false", "none", "null"):
-                apply_to = None
-            if apply_to in ("cap", "notional_cap", "max_notional", "cap_only", "cap-only"):
-                apply_to = "cap"
-            elif apply_to in ("both", "all", "cap_and_risk", "risk_and_cap", "cap+risk"):
-                apply_to = "both"
-            else:
-                apply_to = "risk"
-            if apply_to != "risk":
-                out["shock_risk_scale_apply_to"] = str(apply_to)
-        for key in (
-            "shock_short_risk_mult_factor",
-            "shock_long_risk_mult_factor",
-            "shock_long_risk_mult_factor_down",
-            "shock_stop_loss_pct_mult",
-            "shock_profit_target_pct_mult",
-        ):
-            if raw.get(key) is not None:
-                out[key] = raw[key]
-
-        if detector == "daily_atr_pct" or scale_detector == "daily_atr_pct":
-            out["shock_daily_atr_period"] = int(raw.get("shock_daily_atr_period") or 14)
-            out["shock_daily_on_atr_pct"] = float(raw.get("shock_daily_on_atr_pct") or 0.0)
-            out["shock_daily_off_atr_pct"] = float(raw.get("shock_daily_off_atr_pct") or 0.0)
-            if raw.get("shock_daily_on_tr_pct") is not None:
-                out["shock_daily_on_tr_pct"] = float(raw.get("shock_daily_on_tr_pct") or 0.0)
-        if detector == "daily_drawdown" or scale_detector == "daily_drawdown":
-            out["shock_drawdown_lookback_days"] = int(raw.get("shock_drawdown_lookback_days") or 20)
-            out["shock_on_drawdown_pct"] = float(raw.get("shock_on_drawdown_pct") or 0.0)
-            out["shock_off_drawdown_pct"] = float(raw.get("shock_off_drawdown_pct") or 0.0)
-        if detector in ("atr_ratio", "tr_ratio") or scale_detector in ("atr_ratio", "tr_ratio"):
-            # "atr_ratio" and "tr_ratio" share this main ratio knob family (TR uses these as fallback too).
-            out["shock_atr_fast_period"] = int(raw.get("shock_atr_fast_period") or 7)
-            out["shock_atr_slow_period"] = int(raw.get("shock_atr_slow_period") or 50)
-            out["shock_on_ratio"] = float(raw.get("shock_on_ratio") or 0.0)
-            out["shock_off_ratio"] = float(raw.get("shock_off_ratio") or 0.0)
-            out["shock_min_atr_pct"] = float(raw.get("shock_min_atr_pct") or 0.0)
-
-    # TR% risk overlays (engine feature). Include only when enabled.
-    overlay_any = False
-    if raw.get("riskoff_tr5_med_pct") is not None:
-        out["riskoff_tr5_med_pct"] = float(raw.get("riskoff_tr5_med_pct") or 0.0)
-        out["riskoff_tr5_lookback_days"] = int(raw.get("riskoff_tr5_lookback_days") or 5)
-        out["riskoff_short_risk_mult_factor"] = float(
-            1.0 if raw.get("riskoff_short_risk_mult_factor") is None else raw.get("riskoff_short_risk_mult_factor")
-        )
-        out["riskoff_long_risk_mult_factor"] = float(
-            1.0 if raw.get("riskoff_long_risk_mult_factor") is None else raw.get("riskoff_long_risk_mult_factor")
-        )
-        overlay_any = True
-
-    if raw.get("riskpanic_tr5_med_pct") is not None and raw.get("riskpanic_neg_gap_ratio_min") is not None:
-        out["riskpanic_tr5_med_pct"] = float(raw.get("riskpanic_tr5_med_pct") or 0.0)
-        out["riskpanic_neg_gap_ratio_min"] = float(raw.get("riskpanic_neg_gap_ratio_min") or 0.0)
-        if raw.get("riskpanic_neg_gap_abs_pct_min") is not None:
-            out["riskpanic_neg_gap_abs_pct_min"] = float(raw.get("riskpanic_neg_gap_abs_pct_min") or 0.0)
-        out["riskpanic_lookback_days"] = int(raw.get("riskpanic_lookback_days") or 5)
-        if raw.get("riskpanic_tr5_med_delta_min_pct") is not None:
-            out["riskpanic_tr5_med_delta_min_pct"] = float(raw.get("riskpanic_tr5_med_delta_min_pct") or 0.0)
-            out["riskpanic_tr5_med_delta_lookback_days"] = int(raw.get("riskpanic_tr5_med_delta_lookback_days") or 1)
-        out["riskpanic_long_risk_mult_factor"] = float(
-            1.0
-            if raw.get("riskpanic_long_risk_mult_factor") is None
-            else raw.get("riskpanic_long_risk_mult_factor")
-        )
-        scale_mode = str(raw.get("riskpanic_long_scale_mode") or "off").strip().lower()
-        if scale_mode in ("linear", "lin", "delta", "linear_delta", "linear_tr_delta"):
-            scale_mode = "linear"
-        elif scale_mode in ("", "0", "false", "none", "null", "off"):
-            scale_mode = "off"
-        else:
-            scale_mode = "off"
-        if scale_mode != "off":
-            out["riskpanic_long_scale_mode"] = scale_mode
-            if raw.get("riskpanic_long_scale_tr_delta_max_pct") is not None:
-                try:
-                    delta_max = float(raw.get("riskpanic_long_scale_tr_delta_max_pct"))
-                except (TypeError, ValueError):
-                    delta_max = 0.0
-                if delta_max > 0:
-                    out["riskpanic_long_scale_tr_delta_max_pct"] = float(delta_max)
-        out["riskpanic_short_risk_mult_factor"] = float(
-            1.0
-            if raw.get("riskpanic_short_risk_mult_factor") is None
-            else raw.get("riskpanic_short_risk_mult_factor")
-        )
-        overlay_any = True
-
-    if raw.get("riskpop_tr5_med_pct") is not None and raw.get("riskpop_pos_gap_ratio_min") is not None:
-        out["riskpop_tr5_med_pct"] = float(raw.get("riskpop_tr5_med_pct") or 0.0)
-        out["riskpop_pos_gap_ratio_min"] = float(raw.get("riskpop_pos_gap_ratio_min") or 0.0)
-        if raw.get("riskpop_pos_gap_abs_pct_min") is not None:
-            out["riskpop_pos_gap_abs_pct_min"] = float(raw.get("riskpop_pos_gap_abs_pct_min") or 0.0)
-        out["riskpop_lookback_days"] = int(raw.get("riskpop_lookback_days") or 5)
-        if raw.get("riskpop_tr5_med_delta_min_pct") is not None:
-            out["riskpop_tr5_med_delta_min_pct"] = float(raw.get("riskpop_tr5_med_delta_min_pct") or 0.0)
-            out["riskpop_tr5_med_delta_lookback_days"] = int(raw.get("riskpop_tr5_med_delta_lookback_days") or 1)
-        out["riskpop_long_risk_mult_factor"] = float(
-            1.0 if raw.get("riskpop_long_risk_mult_factor") is None else raw.get("riskpop_long_risk_mult_factor")
-        )
-        out["riskpop_short_risk_mult_factor"] = float(
-            1.0 if raw.get("riskpop_short_risk_mult_factor") is None else raw.get("riskpop_short_risk_mult_factor")
-        )
-        overlay_any = True
-
-    if overlay_any:
-        out["riskoff_mode"] = str(raw.get("riskoff_mode") or "hygiene").strip().lower()
-
-    return out or None
+    return _codec_filters_payload(filters)
 
 
 def _spot_strategy_payload(cfg: ConfigBundle, *, meta: ContractMeta) -> dict:
-    strategy = asdict(cfg.strategy)
-    strategy["entry_days"] = _entry_days_labels(cfg.strategy.entry_days)
-    strategy["signal_bar_size"] = str(cfg.backtest.bar_size)
-    strategy["signal_use_rth"] = bool(cfg.backtest.use_rth)
-    strategy.pop("filters", None)
-
-    # Ensure MNQ presets load as futures in the UI (otherwise `spot_sec_type` may default to STK).
-    sym = str(cfg.strategy.symbol or "").strip().upper()
-    if sym in {"MNQ", "MES", "ES", "NQ", "YM", "RTY", "M2K"}:
-        strategy.setdefault("spot_sec_type", "FUT")
-        strategy.setdefault("spot_exchange", str(meta.exchange or "CME"))
-    else:
-        strategy.setdefault("spot_sec_type", "STK")
-        strategy.setdefault("spot_exchange", "SMART")
-    return strategy
+    return _codec_spot_strategy_payload(cfg, meta=meta)
 
 
 def _milestone_key(cfg: ConfigBundle) -> str:
@@ -1498,478 +2391,75 @@ def _risk_overlay_off_template(*, extended: bool = False) -> dict[str, object]:
     return out
 
 
-def _build_champ_refine_risk_variants(*, is_slv: bool) -> list[tuple[dict[str, object], str]]:
-    risk_off = _risk_overlay_off_template()
-    if bool(is_slv):
-        return [(dict(risk_off), "risk=off")]
-    registry: list[tuple[dict[str, object], str]] = [
-        (
-            {
-                "riskoff_tr5_med_pct": 9.0,
-                "riskoff_lookback_days": 5,
-                "riskoff_mode": "hygiene",
-                "riskoff_long_risk_mult_factor": 0.7,
-                "riskoff_short_risk_mult_factor": 0.7,
-                "risk_entry_cutoff_hour_et": 15,
-            },
-            "riskoff TRmed5>=9 both=0.7 cutoff<15",
-        ),
-        (
-            {
-                "riskoff_tr5_med_pct": 10.0,
-                "riskoff_lookback_days": 5,
-                "riskoff_mode": "hygiene",
-                "riskoff_long_risk_mult_factor": 0.5,
-                "riskoff_short_risk_mult_factor": 0.5,
-                "risk_entry_cutoff_hour_et": 15,
-            },
-            "riskoff TRmed5>=10 both=0.5 cutoff<15",
-        ),
-        (
-            {
-                "riskpanic_tr5_med_pct": 9.0,
-                "riskpanic_neg_gap_ratio_min": 0.6,
-                "riskpanic_lookback_days": 5,
-                "riskpanic_short_risk_mult_factor": 0.5,
-                "risk_entry_cutoff_hour_et": 15,
-            },
-            "riskpanic TRmed5>=9 gap>=0.6 short=0.5 cutoff<15",
-        ),
-        (
-            {
-                "riskpanic_tr5_med_pct": 9.0,
-                "riskpanic_neg_gap_ratio_min": 0.6,
-                "riskpanic_lookback_days": 5,
-                "riskpanic_short_risk_mult_factor": 0.0,
-                "risk_entry_cutoff_hour_et": 15,
-            },
-            "riskpanic TRmed5>=9 gap>=0.6 short=0 cutoff<15",
-        ),
-        (
-            {
-                "riskpanic_tr5_med_pct": 10.0,
-                "riskpanic_neg_gap_ratio_min": 0.7,
-                "riskpanic_lookback_days": 5,
-                "riskpanic_short_risk_mult_factor": 0.5,
-                "risk_entry_cutoff_hour_et": 15,
-            },
-            "riskpanic TRmed5>=10 gap>=0.7 short=0.5 cutoff<15",
-        ),
-        (
-            {
-                "riskpop_tr5_med_pct": 9.0,
-                "riskpop_pos_gap_ratio_min": 0.6,
-                "riskpop_lookback_days": 5,
-                "riskpop_long_risk_mult_factor": 1.2,
-                "riskpop_short_risk_mult_factor": 0.0,
-                "risk_entry_cutoff_hour_et": 15,
-            },
-            "riskpop TRmed5>=9 gap+=0.6 long=1.2 short=0 cutoff<15",
-        ),
-        (
-            {
-                "riskpop_tr5_med_pct": 9.0,
-                "riskpop_pos_gap_ratio_min": 0.6,
-                "riskpop_lookback_days": 5,
-                "riskpop_long_risk_mult_factor": 1.5,
-                "riskpop_short_risk_mult_factor": 0.0,
-                "risk_entry_cutoff_hour_et": 15,
-            },
-            "riskpop TRmed5>=9 gap+=0.6 long=1.5 short=0 cutoff<15",
-        ),
-        (
-            {
-                "riskpop_tr5_med_pct": 10.0,
-                "riskpop_pos_gap_ratio_min": 0.7,
-                "riskpop_lookback_days": 5,
-                "riskpop_long_risk_mult_factor": 1.5,
-                "riskpop_short_risk_mult_factor": 0.0,
-                "risk_entry_cutoff_hour_et": 15,
-            },
-            "riskpop TRmed5>=10 gap+=0.7 long=1.5 short=0 cutoff<15",
-        ),
-    ]
-    out: list[tuple[dict[str, object], str]] = [(dict(risk_off), "risk=off")]
-    for over, note in registry:
-        payload = dict(risk_off)
-        payload.update(over)
-        out.append((payload, str(note)))
+def _risk_pack_riskoff(
+    *,
+    tr_med: float,
+    lookback_days: int = 5,
+    mode: str = "hygiene",
+    long_factor: float | None = None,
+    short_factor: float | None = None,
+    cutoff_hour_et: int | None = 15,
+) -> dict[str, object]:
+    out: dict[str, object] = {
+        "riskoff_tr5_med_pct": float(tr_med),
+        "riskoff_tr5_lookback_days": int(lookback_days),
+        "riskoff_mode": str(mode),
+        "risk_entry_cutoff_hour_et": int(cutoff_hour_et) if cutoff_hour_et is not None else None,
+    }
+    if long_factor is not None:
+        out["riskoff_long_risk_mult_factor"] = float(long_factor)
+    if short_factor is not None:
+        out["riskoff_short_risk_mult_factor"] = float(short_factor)
     return out
 
 
-def _build_champ_refine_shock_variants(*, is_slv: bool) -> list[tuple[dict[str, object], str]]:
-    out: list[tuple[dict[str, object], str]] = [({"shock_gate_mode": "off"}, "shock=off")]
-    if not bool(is_slv):
-        for on_atr, off_atr in ((12.5, 12.0), (13.0, 12.5), (13.5, 13.0), (14.0, 13.5), (14.5, 14.0)):
-            for sl_mult in (0.75, 1.0):
-                out.append(
-                    (
-                        {
-                            "shock_gate_mode": "surf",
-                            "shock_detector": "daily_atr_pct",
-                            "shock_daily_atr_period": 14,
-                            "shock_daily_on_atr_pct": float(on_atr),
-                            "shock_daily_off_atr_pct": float(off_atr),
-                            "shock_direction_source": "signal",
-                            "shock_direction_lookback": 1,
-                            "shock_stop_loss_pct_mult": float(sl_mult),
-                        },
-                        f"shock=surf daily_atr on={on_atr:g} off={off_atr:g} sl_mult={sl_mult:g}",
-                    )
-                )
-        for on_tr in (9.0, 11.0, 14.0):
-            out.append(
-                (
-                    {
-                        "shock_gate_mode": "surf",
-                        "shock_detector": "daily_atr_pct",
-                        "shock_daily_atr_period": 14,
-                        "shock_daily_on_atr_pct": 13.5,
-                        "shock_daily_off_atr_pct": 13.0,
-                        "shock_daily_on_tr_pct": float(on_tr),
-                        "shock_direction_source": "signal",
-                        "shock_direction_lookback": 1,
-                        "shock_stop_loss_pct_mult": 0.75,
-                    },
-                    f"shock=surf daily_atr on=13.5 off=13.0 on_tr>={on_tr:g} sl_mult=0.75",
-                )
-            )
-        out.extend(
-            [
-                (
-                    {
-                        "shock_gate_mode": "block_longs",
-                        "shock_detector": "daily_atr_pct",
-                        "shock_daily_atr_period": 14,
-                        "shock_daily_on_atr_pct": 13.5,
-                        "shock_daily_off_atr_pct": 13.0,
-                        "shock_direction_source": "signal",
-                        "shock_direction_lookback": 1,
-                        "shock_stop_loss_pct_mult": 0.75,
-                    },
-                    "shock=block_longs daily_atr on=13.5 off=13.0 sl_mult=0.75",
-                ),
-                (
-                    {
-                        "shock_gate_mode": "block",
-                        "shock_detector": "daily_atr_pct",
-                        "shock_daily_atr_period": 14,
-                        "shock_daily_on_atr_pct": 13.5,
-                        "shock_daily_off_atr_pct": 13.0,
-                        "shock_direction_source": "signal",
-                        "shock_direction_lookback": 1,
-                    },
-                    "shock=block daily_atr on=13.5 off=13.0",
-                ),
-            ]
-        )
-        for detector in ("tr_ratio", "atr_ratio"):
-            for on_ratio, off_ratio in ((1.35, 1.25), (1.45, 1.30), (1.55, 1.30)):
-                out.append(
-                    (
-                        {
-                            "shock_gate_mode": "surf",
-                            "shock_detector": str(detector),
-                            "shock_atr_fast_period": 7,
-                            "shock_atr_slow_period": 50,
-                            "shock_on_ratio": float(on_ratio),
-                            "shock_off_ratio": float(off_ratio),
-                            "shock_min_atr_pct": 7.0,
-                            "shock_direction_source": "signal",
-                            "shock_direction_lookback": 1,
-                            "shock_stop_loss_pct_mult": 0.75,
-                        },
-                        f"shock=surf {detector} on={on_ratio:g} off={off_ratio:g} min_atr=7 sl_mult=0.75",
-                    )
-                )
-        out.append(
-            (
-                {
-                    "shock_gate_mode": "surf",
-                    "shock_detector": "daily_atr_pct",
-                    "shock_daily_atr_period": 14,
-                    "shock_daily_on_atr_pct": 13.5,
-                    "shock_daily_off_atr_pct": 13.0,
-                    "shock_direction_source": "regime",
-                    "shock_direction_lookback": 2,
-                    "shock_stop_loss_pct_mult": 0.75,
-                },
-                "shock=surf daily_atr dir=regime lb=2 on=13.5 off=13.0 sl_mult=0.75",
-            )
-        )
-        return out
-
-    for on_atr, off_atr in ((3.0, 2.5), (3.5, 3.0), (4.0, 3.5), (4.5, 4.0), (5.0, 4.5), (6.0, 5.0)):
-        for sl_mult in (0.75, 1.0):
-            out.append(
-                (
-                    {
-                        "shock_gate_mode": "surf",
-                        "shock_detector": "daily_atr_pct",
-                        "shock_daily_atr_period": 14,
-                        "shock_daily_on_atr_pct": float(on_atr),
-                        "shock_daily_off_atr_pct": float(off_atr),
-                        "shock_direction_source": "signal",
-                        "shock_direction_lookback": 1,
-                        "shock_stop_loss_pct_mult": float(sl_mult),
-                    },
-                    f"shock=surf daily_atr on={on_atr:g} off={off_atr:g} sl_mult={sl_mult:g}",
-                )
-            )
-    for on_tr in (4.0, 5.0, 6.0):
-        out.append(
-            (
-                {
-                    "shock_gate_mode": "surf",
-                    "shock_detector": "daily_atr_pct",
-                    "shock_daily_atr_period": 14,
-                    "shock_daily_on_atr_pct": 4.5,
-                    "shock_daily_off_atr_pct": 4.0,
-                    "shock_daily_on_tr_pct": float(on_tr),
-                    "shock_direction_source": "signal",
-                    "shock_direction_lookback": 1,
-                    "shock_stop_loss_pct_mult": 0.75,
-                },
-                f"shock=surf daily_atr on=4.5 off=4.0 on_tr>={on_tr:g} sl_mult=0.75",
-            )
-        )
-    for det, fast_p, slow_p, on_r, off_r, min_atr, dir_src, dir_lb, target_atr, min_mult, down_mult in (
-        ("tr_ratio", 3, 21, 1.25, 1.15, 0.8, "signal", 1, 3.0, 0.10, 0.60),
-        ("tr_ratio", 3, 21, 1.30, 1.20, 1.0, "signal", 1, 3.5, 0.20, 0.70),
-        ("tr_ratio", 5, 30, 1.25, 1.15, 1.0, "signal", 2, 3.5, 0.20, 0.60),
-        ("tr_ratio", 7, 50, 1.35, 1.25, 1.2, "regime", 2, 4.0, 0.20, 0.60),
-        ("tr_ratio", 7, 50, 1.45, 1.30, 1.5, "regime", 2, 4.0, 0.20, 0.50),
-        ("atr_ratio", 3, 21, 1.25, 1.15, 0.8, "signal", 1, 3.0, 0.10, 0.60),
-        ("atr_ratio", 7, 50, 1.35, 1.25, 1.2, "regime", 2, 4.0, 0.20, 0.60),
-    ):
-        out.append(
-            (
-                {
-                    "shock_gate_mode": "detect",
-                    "shock_detector": str(det),
-                    "shock_atr_fast_period": int(fast_p),
-                    "shock_atr_slow_period": int(slow_p),
-                    "shock_on_ratio": float(on_r),
-                    "shock_off_ratio": float(off_r),
-                    "shock_min_atr_pct": float(min_atr),
-                    "shock_direction_source": str(dir_src),
-                    "shock_direction_lookback": int(dir_lb),
-                    "shock_risk_scale_target_atr_pct": float(target_atr),
-                    "shock_risk_scale_min_mult": float(min_mult),
-                    "shock_long_risk_mult_factor_down": float(down_mult),
-                },
-                f"shock=detect {det}({fast_p}/{slow_p}) {on_r:g}/{off_r:g} min_atr%={min_atr:g} "
-                f"dir={dir_src} lb={dir_lb} scale@{target_atr:g}->{min_mult:g} down={down_mult:g}",
-            )
-        )
-    for on_atr, off_atr, target_atr, min_mult, down_mult in (
-        (4.0, 3.5, 3.0, 0.20, 0.70),
-        (4.0, 3.5, 3.0, 0.10, 0.60),
-        (4.5, 4.0, 3.5, 0.20, 0.60),
-        (5.0, 4.5, 4.0, 0.20, 0.60),
-    ):
-        out.append(
-            (
-                {
-                    "shock_gate_mode": "detect",
-                    "shock_detector": "daily_atr_pct",
-                    "shock_daily_atr_period": 14,
-                    "shock_daily_on_atr_pct": float(on_atr),
-                    "shock_daily_off_atr_pct": float(off_atr),
-                    "shock_direction_source": "signal",
-                    "shock_direction_lookback": 1,
-                    "shock_risk_scale_target_atr_pct": float(target_atr),
-                    "shock_risk_scale_min_mult": float(min_mult),
-                    "shock_long_risk_mult_factor_down": float(down_mult),
-                },
-                f"shock=detect daily_atr on={on_atr:g} off={off_atr:g} scale@{target_atr:g}->{min_mult:g} down={down_mult:g}",
-            )
-        )
-    for dd_lb, dd_on, dd_off, down_mult in (
-        (40, -10.0, -6.0, 0.60),
-        (20, -7.0, -4.0, 0.70),
-    ):
-        out.append(
-            (
-                {
-                    "shock_gate_mode": "detect",
-                    "shock_detector": "daily_drawdown",
-                    "shock_drawdown_lookback_days": int(dd_lb),
-                    "shock_on_drawdown_pct": float(dd_on),
-                    "shock_off_drawdown_pct": float(dd_off),
-                    "shock_direction_source": "signal",
-                    "shock_direction_lookback": 2,
-                    "shock_long_risk_mult_factor_down": float(down_mult),
-                },
-                f"shock=detect dd lb={dd_lb} on={dd_on:g}% off={dd_off:g}% down={down_mult:g}",
-            )
-        )
+def _risk_pack_riskpanic(
+    *,
+    tr_med: float,
+    neg_gap_ratio: float,
+    lookback_days: int = 5,
+    short_factor: float | None = 0.5,
+    long_factor: float | None = None,
+    mode: str | None = None,
+    cutoff_hour_et: int | None = 15,
+) -> dict[str, object]:
+    out: dict[str, object] = {
+        "riskpanic_tr5_med_pct": float(tr_med),
+        "riskpanic_neg_gap_ratio_min": float(neg_gap_ratio),
+        "riskpanic_lookback_days": int(lookback_days),
+        "risk_entry_cutoff_hour_et": int(cutoff_hour_et) if cutoff_hour_et is not None else None,
+    }
+    if short_factor is not None:
+        out["riskpanic_short_risk_mult_factor"] = float(short_factor)
+    if long_factor is not None:
+        out["riskpanic_long_risk_mult_factor"] = float(long_factor)
+    if mode is not None:
+        out["riskoff_mode"] = str(mode)
     return out
 
 
-def _build_st37_refine_risk_variants() -> list[tuple[dict[str, object], str]]:
-    risk_off = _risk_overlay_off_template(extended=True)
-    out: list[tuple[dict[str, object], str]] = [(dict(risk_off), "risk=off")]
-
-    panic_base = {
-        **risk_off,
-        "risk_entry_cutoff_hour_et": 15,
-        "riskpanic_tr5_med_pct": 9.0,
-        "riskpanic_neg_gap_ratio_min": 0.6,
-        "riskpanic_lookback_days": 5,
-        "riskpanic_short_risk_mult_factor": 0.5,
-        "riskoff_mode": "hygiene",
+def _risk_pack_riskpop(
+    *,
+    tr_med: float,
+    pos_gap_ratio: float,
+    lookback_days: int = 5,
+    long_factor: float | None = 1.2,
+    short_factor: float | None = 0.5,
+    mode: str | None = None,
+    cutoff_hour_et: int | None = 15,
+) -> dict[str, object]:
+    out: dict[str, object] = {
+        "riskpop_tr5_med_pct": float(tr_med),
+        "riskpop_pos_gap_ratio_min": float(pos_gap_ratio),
+        "riskpop_lookback_days": int(lookback_days),
+        "risk_entry_cutoff_hour_et": int(cutoff_hour_et) if cutoff_hour_et is not None else None,
     }
-    out.append((panic_base, "riskpanic base (TRmed>=9 gap>=0.6 short=0.5 cutoff<15)"))
-    for v in (1.0, 0.5, 0.2, 0.0):
-        out.append(({**panic_base, "riskpanic_short_risk_mult_factor": float(v)}, f"riskpanic short={v:g}"))
-    for tr in (8.0, 9.0, 10.0, 11.0):
-        out.append(({**panic_base, "riskpanic_tr5_med_pct": float(tr)}, f"riskpanic TRmed>={tr:g}"))
-    for ratio in (0.5, 0.6, 0.7):
-        out.append(({**panic_base, "riskpanic_neg_gap_ratio_min": float(ratio)}, f"riskpanic gap>={ratio:g}"))
-    for lb in (3, 5, 7):
-        out.append(({**panic_base, "riskpanic_lookback_days": int(lb)}, f"riskpanic lookback={lb}d"))
-    for cutoff in (None, 15, 16):
-        out.append(({**panic_base, "risk_entry_cutoff_hour_et": int(cutoff) if cutoff is not None else None}, f"riskpanic cutoff<{cutoff or '-'}"))
-    for mode in ("hygiene", "directional"):
-        out.append(({**panic_base, "riskoff_mode": str(mode)}, f"riskpanic mode={mode}"))
-
-    riskoff_base = {
-        **risk_off,
-        "risk_entry_cutoff_hour_et": 15,
-        "riskoff_tr5_med_pct": 9.0,
-        "riskoff_tr5_lookback_days": 5,
-        "riskoff_mode": "directional",
-        "riskoff_long_risk_mult_factor": 0.8,
-        "riskoff_short_risk_mult_factor": 0.5,
-    }
-    out.append((riskoff_base, "riskoff base (TRmed>=9 long=0.8 short=0.5 cutoff<15)"))
-    for tr in (8.0, 9.0, 10.0, 11.0):
-        out.append(({**riskoff_base, "riskoff_tr5_med_pct": float(tr)}, f"riskoff TRmed>={tr:g}"))
-    for lb in (3, 5, 7):
-        out.append(({**riskoff_base, "riskoff_tr5_lookback_days": int(lb)}, f"riskoff lookback={lb}d"))
-    for long_f in (0.6, 0.8, 1.0):
-        out.append(({**riskoff_base, "riskoff_long_risk_mult_factor": float(long_f)}, f"riskoff long={long_f:g}"))
-    for short_f in (1.0, 0.5, 0.2, 0.0):
-        out.append(({**riskoff_base, "riskoff_short_risk_mult_factor": float(short_f)}, f"riskoff short={short_f:g}"))
-    for cutoff in (None, 15, 16):
-        out.append(({**riskoff_base, "risk_entry_cutoff_hour_et": int(cutoff) if cutoff is not None else None}, f"riskoff cutoff<{cutoff or '-'}"))
-    for mode in ("hygiene", "directional"):
-        out.append(({**riskoff_base, "riskoff_mode": str(mode)}, f"riskoff mode={mode}"))
-
-    pop_base = {
-        **risk_off,
-        "risk_entry_cutoff_hour_et": 15,
-        "riskpop_tr5_med_pct": 9.0,
-        "riskpop_pos_gap_ratio_min": 0.6,
-        "riskpop_lookback_days": 5,
-        "riskpop_long_risk_mult_factor": 1.2,
-        "riskpop_short_risk_mult_factor": 0.5,
-        "riskoff_mode": "hygiene",
-    }
-    out.append((pop_base, "riskpop base (TRmed>=9 gap>=0.6 long=1.2 short=0.5 cutoff<15)"))
-    for tr in (8.0, 9.0, 10.0, 11.0):
-        out.append(({**pop_base, "riskpop_tr5_med_pct": float(tr)}, f"riskpop TRmed>={tr:g}"))
-    for ratio in (0.5, 0.6, 0.7):
-        out.append(({**pop_base, "riskpop_pos_gap_ratio_min": float(ratio)}, f"riskpop gap>={ratio:g}"))
-    for lb in (3, 5, 7):
-        out.append(({**pop_base, "riskpop_lookback_days": int(lb)}, f"riskpop lookback={lb}d"))
-    for long_f in (0.6, 0.8, 1.0, 1.2, 1.5):
-        out.append(({**pop_base, "riskpop_long_risk_mult_factor": float(long_f), "riskpop_short_risk_mult_factor": 1.0}, f"riskpop long={long_f:g} short=1.0"))
-    for short_f in (1.0, 0.5, 0.2, 0.0):
-        out.append(({**pop_base, "riskpop_long_risk_mult_factor": 1.2, "riskpop_short_risk_mult_factor": float(short_f)}, f"riskpop long=1.2 short={short_f:g}"))
-    out.append(({**pop_base, "riskpop_long_risk_mult_factor": 1.5, "riskpop_short_risk_mult_factor": 0.0}, "riskpop long=1.5 short=0.0"))
-    for cutoff in (None, 15, 16):
-        out.append(({**pop_base, "risk_entry_cutoff_hour_et": int(cutoff) if cutoff is not None else None}, f"riskpop cutoff<{cutoff or '-'}"))
-    for mode in ("hygiene", "directional"):
-        out.append(({**pop_base, "riskoff_mode": str(mode)}, f"riskpop mode={mode}"))
-
-    out.append(
-        (
-            {
-                **risk_off,
-                **panic_base,
-                "riskoff_tr5_med_pct": riskoff_base.get("riskoff_tr5_med_pct"),
-                "riskoff_tr5_lookback_days": riskoff_base.get("riskoff_tr5_lookback_days"),
-                "riskoff_mode": riskoff_base.get("riskoff_mode"),
-                "riskoff_long_risk_mult_factor": riskoff_base.get("riskoff_long_risk_mult_factor"),
-                "riskoff_short_risk_mult_factor": riskoff_base.get("riskoff_short_risk_mult_factor"),
-            },
-            "riskoff+panic base",
-        )
-    )
-    out.append(
-        (
-            {
-                **risk_off,
-                **pop_base,
-                "riskoff_tr5_med_pct": riskoff_base.get("riskoff_tr5_med_pct"),
-                "riskoff_tr5_lookback_days": riskoff_base.get("riskoff_tr5_lookback_days"),
-                "riskoff_mode": riskoff_base.get("riskoff_mode"),
-                "riskoff_long_risk_mult_factor": riskoff_base.get("riskoff_long_risk_mult_factor"),
-                "riskoff_short_risk_mult_factor": riskoff_base.get("riskoff_short_risk_mult_factor"),
-            },
-            "riskoff+pop base",
-        )
-    )
-    return out
-
-
-def _build_st37_refine_shock_variants() -> list[tuple[dict[str, object], str]]:
-    out: list[tuple[dict[str, object], str]] = [({}, "shock=off")]
-    for on_atr, off_atr in ((13.5, 13.0), (14.0, 13.5), (14.5, 14.0)):
-        base = {
-            "shock_gate_mode": "surf",
-            "shock_detector": "daily_atr_pct",
-            "shock_daily_atr_period": 14,
-            "shock_daily_on_atr_pct": float(on_atr),
-            "shock_daily_off_atr_pct": float(off_atr),
-            "shock_direction_source": "signal",
-            "shock_direction_lookback": 1,
-            "shock_stop_loss_pct_mult": 0.75,
-        }
-        out.append((base, f"shock=surf daily_atr on={on_atr:g} off={off_atr:g}"))
-        for tr_on in (9.0, 10.0, 11.0):
-            out.append(({**base, "shock_daily_on_tr_pct": float(tr_on)}, f"shock=surf daily_atr on={on_atr:g} off={off_atr:g} tr_on={tr_on:g}"))
-    for detector in ("atr_ratio", "tr_ratio"):
-        for on_ratio, off_ratio in ((1.35, 1.25), (1.45, 1.30), (1.55, 1.30)):
-            out.append(
-                (
-                    {
-                        "shock_gate_mode": "surf",
-                        "shock_detector": str(detector),
-                        "shock_atr_fast_period": 7,
-                        "shock_atr_slow_period": 50,
-                        "shock_on_ratio": float(on_ratio),
-                        "shock_off_ratio": float(off_ratio),
-                        "shock_min_atr_pct": 7.0,
-                        "shock_direction_source": "signal",
-                        "shock_direction_lookback": 1,
-                        "shock_stop_loss_pct_mult": 0.75,
-                    },
-                    f"shock=surf {detector} on={on_ratio:g} off={off_ratio:g}",
-                )
-            )
-    for lb, on_dd, off_dd in (
-        (20, -15.0, -10.0),
-        (20, -20.0, -10.0),
-        (30, -20.0, -15.0),
-    ):
-        out.append(
-            (
-                {
-                    "shock_gate_mode": "surf",
-                    "shock_detector": "daily_drawdown",
-                    "shock_drawdown_lookback_days": int(lb),
-                    "shock_on_drawdown_pct": float(on_dd),
-                    "shock_off_drawdown_pct": float(off_dd),
-                    "shock_direction_source": "signal",
-                    "shock_direction_lookback": 1,
-                    "shock_stop_loss_pct_mult": 0.75,
-                },
-                f"shock=surf daily_dd lb={lb} on={on_dd:g} off={off_dd:g}",
-            )
-        )
+    if long_factor is not None:
+        out["riskpop_long_risk_mult_factor"] = float(long_factor)
+    if short_factor is not None:
+        out["riskpop_short_risk_mult_factor"] = float(short_factor)
+    if mode is not None:
+        out["riskoff_mode"] = str(mode)
     return out
 
 
@@ -1997,291 +2487,6 @@ def _print_top(rows: list[dict], *, title: str, top_n: int, sort_key) -> None:
 def _print_leaderboards(rows: list[dict], *, title: str, top_n: int) -> None:
     _print_top(rows, title=f"{title} — Top by pnl/dd", top_n=top_n, sort_key=_score_row_pnl_dd)
     _print_top(rows, title=f"{title} — Top by pnl", top_n=top_n, sort_key=_score_row_pnl)
-
-
-def _seed_groups_from_path(seed_path: Path) -> list[dict]:
-    try:
-        payload = json.loads(seed_path.read_text())
-    except json.JSONDecodeError as exc:
-        raise SystemExit(f"Invalid seed milestones payload: {seed_path}") from exc
-    if not isinstance(payload, dict):
-        raise SystemExit(f"Invalid seed milestones payload: {seed_path}")
-    raw_groups = payload.get("groups") or []
-    if not isinstance(raw_groups, list):
-        raise SystemExit(f"Invalid seed milestones groups: {seed_path}")
-    return raw_groups
-
-
-def _seed_sort_key_default(item: dict) -> tuple:
-    m = item.get("metrics") or {}
-    return (
-        float(m.get("pnl_over_dd") or float("-inf")),
-        float(m.get("pnl") or float("-inf")),
-        float(m.get("win_rate") or 0.0),
-        int(m.get("trades") or 0),
-    )
-
-
-_SEED_SCORE_REGISTRY: dict[str, object] = {
-    "pnl_dd": lambda item: _score_row_pnl_dd(item.get("metrics") or {}),
-    "pnl": lambda item: _score_row_pnl(item.get("metrics") or {}),
-    "roi": lambda item: float((item.get("metrics") or {}).get("roi") or 0.0),
-    "win": lambda item: float((item.get("metrics") or {}).get("win_rate") or 0.0),
-    "trades": lambda item: (
-        int((item.get("metrics") or {}).get("trades") or 0),
-        float((item.get("metrics") or {}).get("pnl") or float("-inf")),
-        float((item.get("metrics") or {}).get("pnl_over_dd") or float("-inf")),
-    ),
-    "roi_dd": lambda item: float((item.get("metrics") or {}).get("roi_over_dd_pct") or 0.0),
-    "stability_roi_dd": lambda item: (
-        float((item.get("eval") or {}).get("stability_min_roi_dd") or 0.0),
-        float((item.get("metrics") or {}).get("roi_over_dd_pct") or 0.0),
-        float((item.get("metrics") or {}).get("pnl_over_dd") or 0.0),
-        float((item.get("metrics") or {}).get("roi") or 0.0),
-        float((item.get("metrics") or {}).get("pnl") or 0.0),
-    ),
-}
-
-
-def _seed_candidate_key(item: dict) -> str:
-    raw = {
-        "strategy": item.get("strategy") if isinstance(item.get("strategy"), dict) else {},
-        "filters": item.get("filters") if isinstance(item.get("filters"), dict) else None,
-    }
-    return json.dumps(raw, sort_keys=True, default=str)
-
-
-def _seed_rank_slice(
-    candidates: list[dict],
-    *,
-    scorer: str,
-    top_n: int,
-) -> list[dict]:
-    score_fn = _SEED_SCORE_REGISTRY.get(str(scorer))
-    n = max(0, int(top_n))
-    if n <= 0 or not callable(score_fn):
-        return []
-    return sorted(candidates, key=lambda item, fn=score_fn: fn(item), reverse=True)[:n]
-
-
-def _seed_dedupe_candidates(
-    candidates: list[dict],
-    *,
-    limit: int | None = None,
-    key_fn=_seed_candidate_key,
-) -> list[dict]:
-    out: list[dict] = []
-    seen: set[str] = set()
-    max_items = None if limit is None else max(0, int(limit))
-    for item in candidates:
-        key = str(key_fn(item))
-        if key in seen:
-            continue
-        seen.add(key)
-        out.append(item)
-        if max_items is not None and len(out) >= max_items:
-            break
-    return out
-
-
-def _seed_best_by_family(
-    candidates: list[dict],
-    *,
-    family_key_fn,
-    scorer: str = "pnl_dd",
-) -> list[dict]:
-    score_fn = _SEED_SCORE_REGISTRY.get(str(scorer))
-    if not callable(score_fn):
-        return []
-    best_by_family: dict[object, dict] = {}
-    for item in candidates:
-        fam = family_key_fn(item)
-        prev = best_by_family.get(fam)
-        if prev is None or score_fn(item) > score_fn(prev):
-            best_by_family[fam] = item
-    return sorted(best_by_family.values(), key=lambda item, fn=score_fn: fn(item), reverse=True)
-
-
-def _seed_candidates_for_context(
-    *,
-    raw_groups: list[dict],
-    symbol: str,
-    signal_bar_size: str,
-    use_rth: bool,
-    min_trades: int = 0,
-    predicate: Callable[[dict, dict, dict, dict], bool] | None = None,
-) -> list[dict]:
-    out: list[dict] = []
-    symbol_norm = str(symbol).strip().upper()
-    bar_norm = str(signal_bar_size).strip().lower()
-    for group in raw_groups:
-        if not isinstance(group, dict):
-            continue
-        entries = group.get("entries") or []
-        if not isinstance(entries, list) or not entries:
-            continue
-        entry = entries[0]
-        if not isinstance(entry, dict):
-            continue
-        strat = entry.get("strategy") or {}
-        metrics = entry.get("metrics") or {}
-        if not isinstance(strat, dict) or not isinstance(metrics, dict):
-            continue
-        if str(strat.get("instrument", "spot") or "spot").strip().lower() != "spot":
-            continue
-        if str(entry.get("symbol") or strat.get("symbol") or "").strip().upper() != symbol_norm:
-            continue
-        if str(strat.get("signal_bar_size") or "").strip().lower() != bar_norm:
-            continue
-        if bool(strat.get("signal_use_rth")) != bool(use_rth):
-            continue
-        if int(min_trades) > 0:
-            try:
-                trades = int(metrics.get("trades") or 0)
-            except (TypeError, ValueError):
-                trades = 0
-            if int(trades) < int(min_trades):
-                continue
-        if predicate is not None and not bool(predicate(group, entry, strat, metrics)):
-            continue
-        candidate = {
-            "group_name": str(group.get("name") or ""),
-            "strategy": strat,
-            "filters": group.get("filters") if isinstance(group.get("filters"), dict) else None,
-            "metrics": metrics,
-        }
-        eval_payload = group.get("_eval")
-        if isinstance(eval_payload, dict):
-            candidate["eval"] = dict(eval_payload)
-        out.append(candidate)
-    return out
-
-
-def _resolve_seed_milestones_path(
-    *,
-    seed_milestones: str | None,
-    axis_tag: str,
-    default_path: str | None = None,
-) -> Path:
-    if seed_milestones:
-        seed_path = Path(str(seed_milestones))
-    elif default_path:
-        seed_path = Path(str(default_path))
-    else:
-        raise SystemExit(f"--axis {axis_tag} requires --seed-milestones <milestones.json>")
-    if not seed_path.exists():
-        raise SystemExit(f"--axis {axis_tag} requires --seed-milestones (missing {seed_path})")
-    return seed_path
-
-
-def _load_seed_candidates(
-    *,
-    seed_milestones: str | None,
-    axis_tag: str,
-    symbol: str,
-    signal_bar_size: str,
-    use_rth: bool,
-    default_path: str | None = None,
-    min_trades: int = 0,
-    predicate: Callable[[dict, dict, dict, dict], bool] | None = None,
-) -> tuple[Path, list[dict]]:
-    seed_path = _resolve_seed_milestones_path(
-        seed_milestones=seed_milestones,
-        axis_tag=axis_tag,
-        default_path=default_path,
-    )
-    candidates = _seed_candidates_for_context(
-        raw_groups=_seed_groups_from_path(seed_path),
-        symbol=symbol,
-        signal_bar_size=signal_bar_size,
-        use_rth=use_rth,
-        min_trades=int(min_trades),
-        predicate=predicate,
-    )
-    return seed_path, candidates
-
-
-def _seed_top_candidates(
-    candidates: list[dict],
-    *,
-    seed_top: int,
-    sort_key: Callable[[dict], tuple] = _seed_sort_key_default,
-) -> list[dict]:
-    return sorted(candidates, key=sort_key, reverse=True)[: max(1, int(seed_top))]
-
-
-def _select_seed_candidates_default(candidates: list[dict], *, seed_top: int) -> list[dict]:
-    return _seed_top_candidates(candidates, seed_top=int(seed_top))
-
-
-def _select_seed_candidates_champ_refine(candidates: list[dict], *, seed_top: int) -> list[dict]:
-    def _family_key(item: dict) -> tuple:
-        st = item.get("strategy") or {}
-        return (
-            str(st.get("ema_preset") or ""),
-            str(st.get("ema_entry_mode") or ""),
-            str(st.get("regime_mode") or ""),
-            str(st.get("regime_bar_size") or ""),
-            str(st.get("spot_exit_mode") or ""),
-        )
-
-    family_winners = _seed_best_by_family(
-        candidates,
-        family_key_fn=_family_key,
-        scorer="pnl_dd",
-    )
-    seed_pool = list(family_winners[: max(1, int(seed_top))])
-    seed_pool.extend(_seed_rank_slice(candidates, scorer="pnl", top_n=max(5, int(seed_top) // 4)))
-    seed_pool.extend(_seed_rank_slice(candidates, scorer="roi", top_n=max(5, int(seed_top) // 4)))
-    seed_pool.extend(_seed_rank_slice(candidates, scorer="win", top_n=max(5, int(seed_top) // 4)))
-    return _seed_dedupe_candidates(seed_pool, limit=int(seed_top), key_fn=_seed_candidate_key)
-
-
-def _select_seed_candidates_exit_pivot(candidates: list[dict], *, seed_top: int) -> list[dict]:
-    seed_pool = []
-    seed_pool.extend(_seed_rank_slice(candidates, scorer="pnl", top_n=max(1, int(seed_top))))
-    seed_pool.extend(_seed_rank_slice(candidates, scorer="trades", top_n=max(1, min(int(seed_top), 5))))
-    return _seed_dedupe_candidates(seed_pool, limit=None, key_fn=_seed_candidate_key)
-
-
-def _select_seed_candidates_st37_refine(candidates: list[dict], *, seed_top: int) -> list[dict]:
-    cand_sorted = _seed_rank_slice(
-        candidates,
-        scorer="stability_roi_dd",
-        top_n=len(candidates),
-    )
-    return _seed_dedupe_candidates(
-        cand_sorted,
-        limit=int(seed_top),
-        key_fn=_seed_candidate_key,
-    )
-
-
-_SEED_SELECTION_POLICY_REGISTRY: dict[str, Callable[..., list[dict]]] = {
-    "default": _select_seed_candidates_default,
-    "champ_refine": _select_seed_candidates_champ_refine,
-    "exit_pivot": _select_seed_candidates_exit_pivot,
-    "st37_refine": _select_seed_candidates_st37_refine,
-}
-
-
-def _seed_select_candidates(
-    candidates: list[dict],
-    *,
-    seed_top: int,
-    policy: str = "default",
-) -> list[dict]:
-    seed_top_i = max(1, int(seed_top))
-    selector = _SEED_SELECTION_POLICY_REGISTRY.get(str(policy).strip().lower() or "default")
-    if not callable(selector):
-        selector = _select_seed_candidates_default
-    try:
-        selected = selector(candidates, seed_top=seed_top_i)  # type: ignore[misc]
-    except TypeError:
-        selected = selector(candidates, seed_top_i)  # type: ignore[misc]
-    if not isinstance(selected, list):
-        return []
-    return [item for item in selected if isinstance(item, dict)]
 
 
 def _load_spot_milestones() -> dict | None:
@@ -2339,7 +2544,11 @@ def _milestone_entry_for(
                 comm_min = 0.0
             if comm <= 0.0 and comm_min <= 0.0:
                 continue
-        filters = group.get("filters")
+        # Prefer strategy-embedded filters (newer milestones); fall back to group-level
+        # filters for legacy payloads.
+        filters = strategy.get("filters")
+        if not isinstance(filters, dict):
+            filters = group.get("filters")
         candidates.append((strategy, filters if isinstance(filters, dict) else None, metrics))
 
     if not candidates:
@@ -2357,84 +2566,25 @@ def _milestone_entry_for(
 def _apply_milestone_base(
     cfg: ConfigBundle, *, strategy: dict, filters: dict | None
 ) -> ConfigBundle:
-    # Milestone strategies come from `asdict(StrategyConfig)` which flattens nested dataclasses.
-    # Only copy scalar knobs we know are safe/needed for backtest reproduction/sweeps.
-    keep_keys = (
-        "ema_preset",
-        "ema_entry_mode",
-        "entry_confirm_bars",
-        "entry_signal",
-        "orb_window_mins",
-        "orb_risk_reward",
-        "orb_target_mode",
-        "orb_open_time_et",
-        "regime_mode",
-        "regime_bar_size",
-        "regime_ema_preset",
-        "supertrend_atr_period",
-        "supertrend_multiplier",
-        "supertrend_source",
-        "regime2_mode",
-        "regime2_bar_size",
-        "regime2_ema_preset",
-        "regime2_supertrend_atr_period",
-        "regime2_supertrend_multiplier",
-        "regime2_supertrend_source",
-        "spot_exit_mode",
-        "spot_atr_period",
-        "spot_pt_atr_mult",
-        "spot_sl_atr_mult",
-        "spot_profit_target_pct",
-        "spot_stop_loss_pct",
-        "spot_exit_time_et",
-        "spot_close_eod",
-        "spot_entry_fill_mode",
-        "spot_flip_exit_fill_mode",
-        "spot_intrabar_exits",
-        "spot_spread",
-        "spot_commission_per_share",
-        "spot_commission_min",
-        "spot_slippage_per_share",
-        "spot_mark_to_market",
-        "spot_drawdown_mode",
-        "spot_sizing_mode",
-        "spot_notional_pct",
-        "spot_risk_pct",
-        "spot_short_risk_mult",
-        "spot_max_notional_pct",
-        "spot_min_qty",
-        "spot_max_qty",
-        "exit_on_signal_flip",
-        "flip_exit_mode",
-        "flip_exit_gate_mode",
-        "flip_exit_min_hold_bars",
-        "flip_exit_only_if_profit",
-        "tick_gate_mode",
-        "tick_gate_symbol",
-        "tick_gate_exchange",
-        "tick_band_ma_period",
-        "tick_width_z_lookback",
-        "tick_width_z_enter",
-        "tick_width_z_exit",
-        "tick_width_slope_lookback",
-        "tick_neutral_policy",
-        "tick_direction_policy",
-    )
+    # Decode milestone payload through the shared codec so sweep baselines inherit
+    # the same shape as runtime/backtest payloads (including dual-branch/rats filters).
+    merged_filters: dict[str, object] | None = None
+    if isinstance(filters, dict):
+        merged_filters = dict(filters)
+    nested_filters = strategy.get("filters") if isinstance(strategy, dict) else None
+    if isinstance(nested_filters, dict):
+        if merged_filters is None:
+            merged_filters = {}
+        merged_filters.update(nested_filters)
 
-    strat_over: dict[str, object] = {}
-    for key in keep_keys:
-        if key in strategy:
-            strat_over[key] = strategy[key]
+    parsed_filters: FiltersConfig | None = None
+    if isinstance(merged_filters, dict):
+        parsed_filters = _codec_filters_from_payload(merged_filters)
+        if _filters_payload(parsed_filters) is None:
+            parsed_filters = None
 
-    out = replace(cfg, strategy=replace(cfg.strategy, **strat_over))
-
-    if not filters:
-        return replace(out, strategy=replace(out.strategy, filters=None))
-
-    f = _parse_filters(filters)
-    if _filters_payload(f) is None:
-        f = None
-    return replace(out, strategy=replace(out.strategy, filters=f))
+    parsed_strategy = _codec_strategy_from_payload(strategy, filters=parsed_filters)
+    return replace(cfg, strategy=parsed_strategy)
 # endregion
 
 
@@ -2458,101 +2608,370 @@ _BASE_HELP_NOTES: dict[str, str] = {
     "dual_regime": "Regime + regime2 baseline profile used for dual-regime refinement flows.",
 }
 
-_AXIS_HELP_NOTES: dict[str, str] = {
-    "ema": "EMA preset timing sweep (direction speed).",
-    "entry_mode": "Entry semantics sweep (cross vs trend) with directional rules.",
-    "combo_fast": "Bounded 3-stage multi-axis funnel for fast corner hunting.",
-    "combo_full": "Full suite run: one-axis sweeps + joint sweeps + bounded funnels (very slow).",
-    "squeeze": "Regime2 squeeze flow then small vol/TOD/confirm pocket.",
-    "volume": "Volume gate sweep (ratio threshold x EMA period).",
-    "rv": "Realized volatility gate sweep.",
-    "tod": "Time-of-day gate sweep (ET entry windows).",
-    "tod_interaction": "TOD interaction micro-grid (overnight-heavy windows).",
-    "perm_joint": "Joint permissions sweep: TOD x spread x volume.",
-    "weekday": "Weekday entry gating sweep.",
-    "exit_time": "Fixed ET flatten-time sweep.",
-    "atr": "Core ATR exits sweep.",
-    "atr_fine": "Fine ATR PT/SL pocket sweep.",
-    "atr_ultra": "Ultra-fine ATR PT/SL micro-grid.",
-    "r2_atr": "Regime2 x ATR joint sweep.",
-    "r2_tod": "Regime2 x TOD joint sweep.",
-    "ema_perm_joint": "EMA x permission gates joint sweep.",
-    "tick_perm_joint": "TICK gate x permission gates joint sweep.",
-    "regime_atr": "Regime (ST) x ATR joint sweep.",
-    "ema_regime": "EMA x regime bias joint sweep.",
-    "chop_joint": "Chop-killer joint sweep (slope x cooldown x skip-open).",
-    "ema_atr": "EMA x ATR exits joint sweep.",
-    "tick_ema": "TICK width x EMA joint sweep.",
-    "ptsl": "Fixed-percent PT/SL exits sweep (non-ATR).",
-    "hf_scalp": "HF scalp cadence sweep.",
-    "hold": "Flip-exit minimum-hold-bars sweep.",
-    "spot_short_risk_mult": "Short-side risk multiplier sweep.",
-    "orb": "ORB sweep (open-time, window, target semantics).",
-    "orb_joint": "ORB x regime x TICK joint sweep.",
-    "frontier": "Frontier sweep over shortlist dimensions.",
-    "regime": "Primary Supertrend regime params/timeframe sweep.",
-    "regime2": "Secondary (regime2) Supertrend params/timeframe sweep.",
-    "regime2_ema": "Regime2 EMA confirm sweep.",
-    "joint": "Targeted regime x regime2 interaction hunt.",
-    "micro_st": "Micro sweep around current ST/ST2 neighborhood.",
-    "flip_exit": "Flip-exit semantics/gating sweep.",
-    "confirm": "Entry confirmation bars sweep.",
-    "spread": "EMA spread quality gate sweep.",
-    "spread_fine": "Fine EMA spread threshold sweep.",
-    "spread_down": "Directional down-side EMA spread gate sweep.",
-    "slope": "EMA slope quality gate sweep.",
-    "slope_signed": "Signed directional EMA slope gate sweep.",
-    "cooldown": "Entry cooldown bars sweep.",
-    "skip_open": "Skip-first-bars-after-open sweep.",
-    "shock": "Shock detector/mode/threshold sweep.",
-    "risk_overlays": "Risk overlay family sweep (riskoff/riskpanic/riskpop).",
-    "loosen": "Loosenings sweep (single-position parity + EOD behavior).",
-    "loosen_atr": "Loosenings x ATR joint sweep (single-position parity).",
-    "tick": "Raschke-style $TICK width gate sweep.",
-    "gate_matrix": "Bounded cross-product matrix of permission gates.",
-    "seeded_refine": "Seeded refinement bundle (champ_refine + overlay_family + st37_refine).",
-    "champ_refine": "Champion-centered refinement around interaction edges.",
-    "st37_refine": "v31/st37-style refinement stages (permissions, overlays, exits).",
-    "shock_alpha_refine": "Shock alpha refinement pocket around winning detectors.",
-    "shock_velocity_refine": "Shock velocity refinement (narrow grid).",
-    "shock_velocity_refine_wide": "Shock velocity refinement (wide grid).",
-    "shock_throttle_refine": "Overlay family member: shock throttle core refine.",
-    "shock_throttle_tr_ratio": "Overlay family member: TR-ratio throttle sweep.",
-    "shock_throttle_drawdown": "Overlay family member: drawdown throttle sweep.",
-    "riskpanic_micro": "Overlay family member: riskpanic micro-grid.",
-    "overlay_family": "Run one/all seeded overlay families (see --overlay-family-kind).",
-    "exit_pivot": "Exit-style pivot sweep around active champion semantics.",
-}
-
-_INTERNAL_FLAG_HELP_LINES: tuple[str, ...] = (
-    "--gate-matrix-stage2 PATH: gate_matrix stage2 worker payload JSON.",
-    "--gate-matrix-worker INT / --gate-matrix-workers INT / --gate-matrix-out PATH: gate_matrix shard controls.",
-    "--gate-matrix-run-min-trades INT: stage-specific min trades override for gate_matrix.",
-    "--combo-fast-stage1 PATH / --combo-fast-stage2 PATH / --combo-fast-stage3 PATH: combo_fast stage payloads.",
-    "--combo-fast-worker INT / --combo-fast-workers INT / --combo-fast-out PATH: combo_fast shard controls.",
-    "--combo-fast-run-min-trades INT: stage-specific min trades override for combo_fast.",
-    "--risk-overlays-worker INT / --risk-overlays-workers INT / --risk-overlays-out PATH: risk_overlays shard controls.",
-    "--risk-overlays-run-min-trades INT: stage-specific min trades override for risk_overlays.",
-    "--seeded-micro-stage PATH / --seeded-micro-worker INT / --seeded-micro-workers INT / --seeded-micro-out PATH.",
-    "--seeded-micro-run-min-trades INT: stage-specific min trades override for seeded micro stages.",
-    "--champ-refine-stage3a PATH / --champ-refine-stage3b PATH: champ_refine stage payloads.",
-    "--champ-refine-worker INT / --champ-refine-workers INT / --champ-refine-out PATH: champ_refine shard controls.",
-    "--champ-refine-run-min-trades INT: stage-specific min trades override for champ_refine.",
-    "--st37-refine-stage1 PATH / --st37-refine-stage2 PATH: st37_refine stage payloads.",
-    "--st37-refine-worker INT / --st37-refine-workers INT / --st37-refine-out PATH: st37_refine shard controls.",
-    "--st37-refine-run-min-trades INT: stage-specific min trades override for st37_refine.",
-    "--shock-velocity-worker INT / --shock-velocity-workers INT / --shock-velocity-out PATH: shock_velocity shard controls.",
-)
+@dataclass(frozen=True)
+class AxisExecutionSpec:
+    include_in_axis_all: bool
+    help_text: str
+    fast_path: str = "yes"
+    sharding_class: str = "none"
+    coverage_note: str = ""
+    parallel_profile_axis_all: str = "single"
+    dimensional_cost_priors: tuple[tuple[str, float], ...] = ()
+    total_hint_mode: str = ""
+    total_hint_static: int | None = None
+    total_hint_dims: tuple[str, ...] = ()
 
 
-def _spot_sweeps_help_epilog() -> str:
-    axis_lines: list[str] = [
+_AXIS_SURFACE_SPEC_BY_NAME: dict[str, AxisSurfaceSpec] = {}
+_AXIS_SURFACE_SPEC_DUPLICATES: list[str] = []
+for _spec in _AXIS_SURFACE_SPECS:
+    _key = str(_spec.name).strip()
+    if not _key:
+        raise ValueError("AxisSurfaceSpec name must be non-empty.")
+    if _key in _AXIS_SURFACE_SPEC_BY_NAME:
+        _AXIS_SURFACE_SPEC_DUPLICATES.append(_key)
+        continue
+    _AXIS_SURFACE_SPEC_BY_NAME[_key] = _spec
+if _AXIS_SURFACE_SPEC_DUPLICATES:
+    raise ValueError(f"Duplicate AxisSurfaceSpec keys: {sorted(set(_AXIS_SURFACE_SPEC_DUPLICATES))}")
+
+_AXIS_SURFACE_SPEC_MISSING_KEYS = sorted(set(_AXIS_CHOICES) - set(_AXIS_SURFACE_SPEC_BY_NAME))
+if _AXIS_SURFACE_SPEC_MISSING_KEYS:
+    raise ValueError(f"Missing AxisSurfaceSpec keys: {_AXIS_SURFACE_SPEC_MISSING_KEYS}")
+
+
+def _build_axis_surface_maps() -> tuple[dict[str, str], dict[str, int], dict[str, str], dict[str, tuple[str, ...]]]:
+    help_map: dict[str, str] = {}
+    hint_static: dict[str, int] = {}
+    hint_mode: dict[str, str] = {}
+    hint_dims: dict[str, tuple[str, ...]] = {}
+    for spec in _AXIS_SURFACE_SPECS:
+        key = str(spec.name).strip()
+        if not key:
+            continue
+        help_map[key] = str(spec.help_text or "See source.")
+        if spec.total_hint_static is not None:
+            try:
+                hint_static[key] = int(spec.total_hint_static)
+            except (TypeError, ValueError):
+                pass
+        mode = str(spec.total_hint_mode or "").strip()
+        if mode:
+            hint_mode[key] = str(mode)
+        dims = tuple(str(dim).strip() for dim in tuple(spec.total_hint_dims or ()) if str(dim).strip())
+        if dims:
+            hint_dims[key] = tuple(dims)
+    return help_map, hint_static, hint_mode, hint_dims
+
+
+(
+    _AXIS_HELP_TEXT_BY_NAME,
+    _AXIS_TOTAL_HINT_STATIC_BY_NAME,
+    _AXIS_TOTAL_HINT_MODE_BY_NAME,
+    _AXIS_TOTAL_HINT_DIMS_BY_NAME,
+) = _build_axis_surface_maps()
+
+
+def _axis_dimensional_cost_priors(axis_name: str, *, source: str | None = None) -> tuple[tuple[str, float], ...]:
+    source_key = str(source or axis_name).strip()
+    if not source_key:
+        return ()
+    dims = _AXIS_DIMENSION_REGISTRY.get(source_key, {})
+    if not isinstance(dims, dict):
+        return ()
+    priors_raw = dims.get("cost_hints")
+    if not isinstance(priors_raw, dict):
+        return ()
+    priors: list[tuple[str, float]] = []
+    for key, val in priors_raw.items():
+        key_s = str(key).strip()
+        if not key_s:
+            continue
+        try:
+            priors.append((key_s, float(val)))
+        except (TypeError, ValueError):
+            continue
+    return tuple(sorted(priors, key=lambda row: row[0]))
+
+
+def _build_axis_execution_specs() -> dict[str, AxisExecutionSpec]:
+    out: dict[str, AxisExecutionSpec] = {}
+    for axis_name in _AXIS_CHOICES:
+        axis_key = str(axis_name)
+        surface_spec = _AXIS_SURFACE_SPEC_BY_NAME.get(str(axis_key))
+        in_all = bool(surface_spec.include_in_axis_all) if isinstance(surface_spec, AxisSurfaceSpec) else (str(axis_key) in _AXIS_INCLUDE_IN_AXIS_ALL_DEFAULTS)
+        dim_source = (
+            str(surface_spec.dimensional_cost_source).strip()
+            if isinstance(surface_spec, AxisSurfaceSpec) and str(surface_spec.dimensional_cost_source).strip()
+            else str(axis_name)
+        )
+        hint_dims = tuple(
+            str(dim).strip()
+            for dim in (
+                tuple(surface_spec.total_hint_dims)
+                if isinstance(surface_spec, AxisSurfaceSpec) and isinstance(surface_spec.total_hint_dims, tuple)
+                else tuple(_AXIS_TOTAL_HINT_DIMS_BY_NAME.get(str(axis_name), ()))
+            )
+            if str(dim).strip()
+        )
+        hint_mode = (
+            str(surface_spec.total_hint_mode or "").strip()
+            if isinstance(surface_spec, AxisSurfaceSpec) and str(surface_spec.total_hint_mode or "").strip()
+            else str(_AXIS_TOTAL_HINT_MODE_BY_NAME.get(str(axis_name), "")).strip()
+        )
+        hint_static = (
+            int(surface_spec.total_hint_static)
+            if isinstance(surface_spec, AxisSurfaceSpec) and isinstance(surface_spec.total_hint_static, int)
+            else (
+                int(_AXIS_TOTAL_HINT_STATIC_BY_NAME.get(str(axis_name)))
+                if isinstance(_AXIS_TOTAL_HINT_STATIC_BY_NAME.get(str(axis_name)), int)
+                else None
+            )
+        )
+        out[str(axis_name)] = AxisExecutionSpec(
+            include_in_axis_all=bool(in_all),
+            help_text=(
+                str(surface_spec.help_text or "See source.")
+                if isinstance(surface_spec, AxisSurfaceSpec)
+                else str(_AXIS_HELP_TEXT_BY_NAME.get(str(axis_name)) or "See source.")
+            ),
+            fast_path=(
+                str(surface_spec.fast_path or "yes")
+                if isinstance(surface_spec, AxisSurfaceSpec)
+                else "yes"
+            ),
+            sharding_class=(
+                str(surface_spec.sharding_class or "none")
+                if isinstance(surface_spec, AxisSurfaceSpec)
+                else "none"
+            ),
+            coverage_note=(
+                str(surface_spec.coverage_note or "")
+                if isinstance(surface_spec, AxisSurfaceSpec)
+                else ""
+            ),
+            parallel_profile_axis_all=(
+                str(surface_spec.parallel_profile_axis_all or "single")
+                if isinstance(surface_spec, AxisSurfaceSpec)
+                else "single"
+            ),
+            dimensional_cost_priors=_axis_dimensional_cost_priors(str(axis_name), source=dim_source),
+            total_hint_mode=str(hint_mode),
+            total_hint_static=(int(hint_static) if isinstance(hint_static, int) else None),
+            total_hint_dims=tuple(hint_dims),
+        )
+    return out
+
+
+_AXIS_EXECUTION_SPEC_BY_NAME: dict[str, AxisExecutionSpec] = _build_axis_execution_specs()
+
+
+def _combo_full_preset_key(name: str) -> str:
+    key = str(name or "").strip().lower()
+    if key == "none":
+        return ""
+    return str(key)
+
+
+def _combo_full_preset_axes(
+    *,
+    include_tiers: bool = True,
+    include_aliases: bool = True,
+) -> tuple[str, ...]:
+    out: list[str] = []
+    if bool(include_tiers):
+        out.extend(str(name) for name in _COMBO_FULL_PRESET_TIER_NAMES)
+    if bool(include_aliases):
+        out.extend(str(name) for name in _COMBO_FULL_PRESET_ALIAS_NAMES)
+    return tuple(out)
+
+
+def _combo_full_preset_spec(name: str) -> dict[str, object]:
+    key = _combo_full_preset_key(str(name))
+    if not key:
+        return {}
+    if key in _COMBO_FULL_COVERAGE_TIER_REGISTRY:
+        tier_key = str(key)
+        tier_spec = _COMBO_FULL_COVERAGE_TIER_REGISTRY.get(tier_key) or {}
+        raw_dims = tier_spec.get("freeze_dims")
+        freeze_dims = tuple(str(dim).strip() for dim in tuple(raw_dims or ()) if str(dim).strip())
+        customizer = str(tier_spec.get("customizer") or "").strip().lower()
+        hint_axis = str(tier_spec.get("hint_axis") or "").strip().lower()
+        return {
+            "name": str(tier_key),
+            "tier": str(tier_key),
+            "freeze_dims": tuple(freeze_dims),
+            "customizer": str(customizer),
+            "hint_axis": str(hint_axis),
+            "is_alias": False,
+        }
+    alias_spec = _COMBO_FULL_PRESET_ALIAS_REGISTRY.get(str(key))
+    if not isinstance(alias_spec, dict):
+        return {}
+    tier_key = str(alias_spec.get("tier") or "").strip().lower()
+    tier_spec = _COMBO_FULL_COVERAGE_TIER_REGISTRY.get(str(tier_key)) or {}
+    raw_dims = alias_spec.get("freeze_dims")
+    if not isinstance(raw_dims, (tuple, list)):
+        raw_dims = tier_spec.get("freeze_dims")
+    freeze_dims = tuple(str(dim).strip() for dim in tuple(raw_dims or ()) if str(dim).strip())
+    customizer = str(alias_spec.get("customizer") or tier_spec.get("customizer") or "").strip().lower()
+    hint_axis = str(alias_spec.get("hint_axis") or "").strip().lower()
+    if not hint_axis:
+        hint_axis = str(key) if str(key) in _AXIS_TOTAL_HINT_MODE_BY_NAME or str(key) in _AXIS_TOTAL_HINT_STATIC_BY_NAME else str(tier_spec.get("hint_axis") or "")
+    return {
+        "name": str(key),
+        "tier": str(tier_key or "custom"),
+        "freeze_dims": tuple(freeze_dims),
+        "customizer": str(customizer),
+        "hint_axis": str(hint_axis).strip().lower(),
+        "is_alias": True,
+    }
+
+
+def _combo_full_preset_tier(name: str) -> str:
+    spec = _combo_full_preset_spec(str(name))
+    tier = str(spec.get("tier") or "").strip().lower()
+    return tier or "custom"
+
+
+def _combo_full_preset_hint_axis(name: str) -> str:
+    spec = _combo_full_preset_spec(str(name))
+    return str(spec.get("hint_axis") or "").strip().lower()
+
+
+def _combo_full_preset_customizer(name: str) -> str:
+    spec = _combo_full_preset_spec(str(name))
+    return str(spec.get("customizer") or "").strip().lower()
+
+
+def _combo_full_preset_hint_spec(name: str) -> dict[str, object]:
+    spec = _combo_full_preset_spec(str(name))
+    tier = str(spec.get("tier") or "").strip().lower()
+    tier_base = _COMBO_FULL_COVERAGE_TIER_REGISTRY.get(str(tier), {})
+    out: dict[str, object] = {}
+    if isinstance(tier_base, dict):
+        if tier_base.get("hint_mode") is not None:
+            out["mode"] = tier_base.get("hint_mode")
+        if tier_base.get("hint_dims") is not None:
+            out["dims"] = tier_base.get("hint_dims")
+        if tier_base.get("hint_static") is not None:
+            out["static"] = tier_base.get("hint_static")
+    preset_key = _combo_full_preset_key(str(name))
+    alias_override = _COMBO_FULL_PRESET_ALIAS_REGISTRY.get(str(preset_key), {})
+    if isinstance(alias_override, dict):
+        if alias_override.get("hint_mode") is not None:
+            out["mode"] = alias_override.get("hint_mode")
+        if alias_override.get("hint_dims") is not None:
+            out["dims"] = alias_override.get("hint_dims")
+        if alias_override.get("hint_static") is not None:
+            out["static"] = alias_override.get("hint_static")
+    return out
+
+
+def _combo_full_preset_freeze_dims(name: str) -> tuple[str, ...]:
+    spec = _combo_full_preset_spec(str(name))
+    raw = spec.get("freeze_dims")
+    if not isinstance(raw, (tuple, list)):
+        return ()
+    return tuple(str(dim).strip() for dim in tuple(raw) if str(dim).strip())
+
+
+def _combo_full_preset_choices(
+    *,
+    include_empty: bool = True,
+    include_none: bool = True,
+    include_aliases: bool = True,
+) -> tuple[str, ...]:
+    out: list[str] = []
+    if bool(include_empty):
+        out.append("")
+    if bool(include_none):
+        out.append("none")
+    out.extend(str(axis_name) for axis_name in _combo_full_preset_axes(include_tiers=True, include_aliases=bool(include_aliases)))
+    return tuple(out)
+
+
+def _axis_catalog_lines() -> list[str]:
+    lines: list[str] = [
         "Axis Catalog:",
         "  all                        Serial axis_all plan (or parallel when --jobs > 1 with --offline).",
     ]
     for axis_name in _AXIS_CHOICES:
-        axis_desc = str(_AXIS_HELP_NOTES.get(axis_name) or "See source.")
-        axis_lines.append(f"  {axis_name:<26} {axis_desc}")
+        spec = _AXIS_EXECUTION_SPEC_BY_NAME.get(str(axis_name))
+        axis_desc = str(spec.help_text if isinstance(spec, AxisExecutionSpec) else "See source.")
+        lines.append(f"  {axis_name:<26} {axis_desc}")
+    return lines
+
+
+def _combo_full_preset_catalog_lines() -> list[str]:
+    lines: list[str] = ["combo_full Coverage Tiers:"]
+    for tier in _combo_full_preset_axes(include_tiers=True, include_aliases=False):
+        freeze_dims = _combo_full_preset_freeze_dims(str(tier))
+        alias_count = sum(
+            1
+            for alias in _combo_full_preset_axes(include_tiers=False, include_aliases=True)
+            if _combo_full_preset_tier(str(alias)) == str(tier)
+        )
+        lines.append(f"  {tier:<10} frozen_dims={len(freeze_dims):<3} aliases={int(alias_count)}")
+    aliases = _combo_full_preset_axes(include_tiers=False, include_aliases=True)
+    if aliases:
+        lines.append(f"  preset_aliases(hidden): {', '.join(aliases)}")
+    return lines
+
+
+def _axis_coverage_row(axis_name: str) -> tuple[str, str, str, str]:
+    axis_key = str(axis_name).strip().lower()
+    spec = _AXIS_EXECUTION_SPEC_BY_NAME.get(axis_key)
+    sharded = "yes" if isinstance(spec, AxisExecutionSpec) and str(spec.sharding_class) != "none" else "no"
+    cached = "yes"
+    fast_path = str(spec.fast_path if isinstance(spec, AxisExecutionSpec) else "yes")
+    notes = str(spec.coverage_note if isinstance(spec, AxisExecutionSpec) else "")
+    return sharded, cached, fast_path, notes
+
+
+def _spot_sweep_coverage_map_markdown(*, generated_on: date | None = None) -> str:
+    generated = generated_on if generated_on is not None else _now_et().date()
+    lines: list[str] = [
+        "# Spot Sweep Coverage Map",
+        "",
+        f"Generated: {generated.isoformat()}",
+        "",
+        "Legend: `sharded` = stage-level worker sharding inside the axis; `cached` = run_cfg+context cache applies; `fast_path` = expected fast-summary eligibility (`yes`/`partial`/`no`).",
+        "",
+        "| axis | sharded | cached | fast_path | notes |",
+        "|---|---|---|---|---|",
+    ]
+    for axis_name in _AXIS_CHOICES:
+        sharded, cached, fast_path, notes = _axis_coverage_row(axis_name)
+        lines.append(f"| `{axis_name}` | {sharded} | {cached} | {fast_path} | {notes} |")
+    lines.extend(
+        (
+            "",
+            "## Notes",
+            "- `combo_full` and `--axis all` additionally support axis-level subprocess orchestration.",
+            "- Persistent cross-process run_cfg cache is enabled via sqlite (`spot_sweeps_run_cfg_cache.sqlite3`).",
+            "- Fast-path labels are conservative and reflect the current gate in `_can_use_fast_summary_path`.",
+        )
+    )
+    return "\n".join(lines) + "\n"
+
+
+def _write_spot_sweep_coverage_map(path: Path, *, generated_on: date | None = None) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(_spot_sweep_coverage_map_markdown(generated_on=generated_on))
+
+
+_INTERNAL_FLAG_HELP_LINES: tuple[str, ...] = (
+    "--combo-full-cartesian-stage VALUE: combo_full Cartesian worker stage marker.",
+    "--combo-full-cartesian-worker INT / --combo-full-cartesian-workers INT / --combo-full-cartesian-out PATH: combo_full Cartesian shard controls.",
+    "--combo-full-cartesian-run-min-trades INT: stage-specific min trades override for combo_full Cartesian.",
+    f"--combo-full-preset {{{','.join(_combo_full_preset_choices(include_empty=False, include_none=True, include_aliases=False))}}}: "
+    "optional combo_full range preset selector.",
+)
+
+
+def _spot_sweeps_help_epilog() -> str:
+    axis_lines = _axis_catalog_lines()
 
     base_lines = ["Base Profiles:"]
     for key in ("default", "champion", "champion_pnl", "dual_regime"):
@@ -2568,7 +2987,7 @@ def _spot_sweeps_help_epilog() -> str:
             "  python -m tradebot.backtest spot --offline --axis all --start 2025-01-08 --end 2026-01-08",
             "  python -m tradebot.backtest spot --axis regime --symbol MNQ --bar-size '1 hour'",
             "  python -m tradebot.backtest spot --axis combo_full --offline --jobs 8",
-            "  python -m tradebot.backtest spot --axis champ_refine --seed-milestones my_pool.json --seed-top 30",
+            "  python -m tradebot.backtest spot --axis combo_full --combo-full-preset profile --offline",
             "",
             "Execution Notes:",
             "  - --start/--end are inclusive dates (YYYY-MM-DD).",
@@ -2583,6 +3002,8 @@ def _spot_sweeps_help_epilog() -> str:
             *base_lines,
             "",
             *axis_lines,
+            "",
+            *_combo_full_preset_catalog_lines(),
             "",
             *internal_lines,
         )
@@ -2648,8 +3069,8 @@ def main() -> None:
         type=int,
         default=None,
         help=(
-            "Parallelism for --axis all/combo_full (spawns per-axis worker processes), plus internal sharding for "
-            "risk_overlays and gate_matrix stage2. 0/omitted = auto (CPU count). Use --offline."
+            "Parallelism for --axis all/combo_full (spawns per-axis worker processes). "
+            "0/omitted = auto (CPU count). Use --offline."
         ),
     )
     parser.add_argument(
@@ -2657,12 +3078,6 @@ def main() -> None:
         default="champion",
         choices=("default", "champion", "champion_pnl", "dual_regime"),
         help="Base profile to mutate before running the selected axis (see Base Profiles below).",
-    )
-    parser.add_argument(
-        "--max-open-trades",
-        type=int,
-        default=None,
-        help="Deprecated no-op for spot; kept only for CLI compatibility.",
     )
     parser.add_argument(
         "--close-eod",
@@ -2818,15 +3233,8 @@ def main() -> None:
         "--seed-milestones",
         default=None,
         help=(
-            "Optional milestones JSON used as a seed pool for seeded refine sweeps "
-            "(e.g. --axis champ_refine). Also used as champion source override for --base champion/champion_pnl."
+            "Optional milestones JSON used as champion source override for --base champion/champion_pnl."
         ),
-    )
-    parser.add_argument(
-        "--seed-top",
-        type=int,
-        default=20,
-        help="How many seeds to take from --seed-milestones (after filtering).",
     )
     parser.add_argument(
         "--axis",
@@ -2835,35 +3243,11 @@ def main() -> None:
         metavar="AXIS",
         help="Axis to execute. Use 'all' for the axis_all plan. See Axis Catalog below.",
     )
+    parser.add_argument("--sync-axis-docs", action="store_true", default=False, help=argparse.SUPPRESS)
     parser.add_argument(
-        "--overlay-family-kind",
-        default="all",
-        choices=("all", "shock_throttle_refine", "shock_throttle_tr_ratio", "shock_throttle_drawdown", "riskpanic_micro"),
-        metavar="FAMILY",
-        help=(
-            "Used by --axis overlay_family. "
-            "'all' runs all seeded overlay families; otherwise runs only the selected family."
-        ),
-    )
-    parser.add_argument(
-        "--risk-overlays-riskoff-trs",
-        default=None,
-        help="CSV float override for risk_overlays riskoff TR%% median thresholds.",
-    )
-    parser.add_argument(
-        "--risk-overlays-riskpanic-trs",
-        default=None,
-        help="CSV float override for risk_overlays riskpanic TR%% median thresholds.",
-    )
-    parser.add_argument(
-        "--risk-overlays-riskpanic-long-factors",
-        default=None,
-        help="CSV float override for riskpanic_long_risk_mult_factor (e.g. 1,0.8,0.6,0.4).",
-    )
-    parser.add_argument(
-        "--risk-overlays-riskpop-trs",
-        default=None,
-        help="CSV float override for risk_overlays riskpop TR%% median thresholds.",
+        "--axis-docs-out",
+        default="tradebot/backtest/spot_sweep_coverage_map.md",
+        help=argparse.SUPPRESS,
     )
     parser.add_argument(
         "--risk-overlays-skip-pop",
@@ -2871,46 +3255,37 @@ def main() -> None:
         default=False,
         help="risk_overlays: skip riskpop stage (riskoff+riskpanic only).",
     )
-    # Internal flags (used by combo_full/gate_matrix parallel sharding).
-    parser.add_argument("--gate-matrix-stage2", default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--gate-matrix-worker", type=int, default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--gate-matrix-workers", type=int, default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--gate-matrix-out", default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--gate-matrix-run-min-trades", type=int, default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--combo-fast-stage1", default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--combo-fast-stage2", default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--combo-fast-stage3", default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--combo-fast-worker", type=int, default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--combo-fast-workers", type=int, default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--combo-fast-out", default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--combo-fast-run-min-trades", type=int, default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--risk-overlays-worker", type=int, default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--risk-overlays-workers", type=int, default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--risk-overlays-out", default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--risk-overlays-run-min-trades", type=int, default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--seeded-micro-stage", default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--seeded-micro-worker", type=int, default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--seeded-micro-workers", type=int, default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--seeded-micro-out", default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--seeded-micro-run-min-trades", type=int, default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--champ-refine-stage3a", default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--champ-refine-stage3b", default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--champ-refine-worker", type=int, default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--champ-refine-workers", type=int, default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--champ-refine-out", default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--champ-refine-run-min-trades", type=int, default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--st37-refine-stage1", default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--st37-refine-stage2", default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--st37-refine-worker", type=int, default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--st37-refine-workers", type=int, default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--st37-refine-out", default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--st37-refine-run-min-trades", type=int, default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--shock-velocity-worker", type=int, default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--shock-velocity-workers", type=int, default=None, help=argparse.SUPPRESS)
-    parser.add_argument("--shock-velocity-out", default=None, help=argparse.SUPPRESS)
+    # Internal flags (used by combo_full parallel sharding).
+    parser.add_argument("--combo-full-cartesian-stage", default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--combo-full-cartesian-worker", type=int, default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--combo-full-cartesian-workers", type=int, default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--combo-full-cartesian-out", default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--combo-full-cartesian-run-min-trades", type=int, default=None, help=argparse.SUPPRESS)
+    parser.add_argument(
+        "--combo-full-include-tick",
+        action="store_true",
+        default=False,
+        help=(
+            "combo_full: include $TICK gate variants. "
+            "Default keeps tick fixed off for faster/offline-friendly runs."
+        ),
+    )
+    parser.add_argument(
+        "--combo-full-preset",
+        default="",
+        choices=_combo_full_preset_choices(include_empty=True, include_none=True),
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument("--cfg-stage", default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--cfg-worker", type=int, default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--cfg-workers", type=int, default=None, help=argparse.SUPPRESS)
+    parser.add_argument("--cfg-out", default=None, help=argparse.SUPPRESS)
     args = parser.parse_args()
-    if args.max_open_trades is not None:
-        print("[compat] --max-open-trades is deprecated and ignored for spot backtests.", flush=True)
+    if bool(args.sync_axis_docs):
+        out_path = Path(str(args.axis_docs_out or "tradebot/backtest/spot_sweep_coverage_map.md"))
+        _write_spot_sweep_coverage_map(out_path, generated_on=_now_et().date())
+        print(f"Wrote {out_path}")
+        return
 
     def _default_jobs() -> int:
         detected = os.cpu_count()
@@ -2958,60 +3333,71 @@ def main() -> None:
     )
     spot_slippage = float(args.spot_slippage) if args.spot_slippage is not None else 0.0
 
+    sizing_mode_arg_explicit = args.spot_sizing_mode is not None
     sizing_mode = (
         str(args.spot_sizing_mode).strip().lower()
-        if args.spot_sizing_mode is not None
+        if sizing_mode_arg_explicit
         else ("risk_pct" if realism2 else "fixed")
     )
     if sizing_mode not in ("fixed", "notional_pct", "risk_pct"):
         sizing_mode = "fixed"
-    spot_risk_pct = float(args.spot_risk_pct) if args.spot_risk_pct is not None else (0.01 if realism2 else 0.0)
+    spot_risk_pct_arg_explicit = args.spot_risk_pct is not None
+    spot_risk_pct = float(args.spot_risk_pct) if spot_risk_pct_arg_explicit else (0.01 if realism2 else 0.0)
+    spot_notional_pct_arg_explicit = args.spot_notional_pct is not None
     spot_notional_pct = (
-        float(args.spot_notional_pct) if args.spot_notional_pct is not None else 0.0
+        float(args.spot_notional_pct) if spot_notional_pct_arg_explicit else 0.0
     )
+    spot_max_notional_pct_arg_explicit = args.spot_max_notional_pct is not None
     spot_max_notional_pct = (
-        float(args.spot_max_notional_pct) if args.spot_max_notional_pct is not None else (0.50 if realism2 else 1.0)
+        float(args.spot_max_notional_pct) if spot_max_notional_pct_arg_explicit else (0.50 if realism2 else 1.0)
     )
-    spot_min_qty = int(args.spot_min_qty) if args.spot_min_qty is not None else 1
-    spot_max_qty = int(args.spot_max_qty) if args.spot_max_qty is not None else 0
-    run_min_trades = int(args.min_trades)
-    if args.gate_matrix_run_min_trades is not None:
-        try:
-            run_min_trades = int(args.gate_matrix_run_min_trades)
-        except (TypeError, ValueError):
-            run_min_trades = int(args.min_trades)
-    if args.combo_fast_run_min_trades is not None:
-        try:
-            run_min_trades = int(args.combo_fast_run_min_trades)
-        except (TypeError, ValueError):
-            run_min_trades = int(args.min_trades)
-    if args.risk_overlays_run_min_trades is not None:
-        try:
-            run_min_trades = int(args.risk_overlays_run_min_trades)
-        except (TypeError, ValueError):
-            run_min_trades = int(args.min_trades)
-    if args.seeded_micro_run_min_trades is not None:
-        try:
-            run_min_trades = int(args.seeded_micro_run_min_trades)
-        except (TypeError, ValueError):
-            run_min_trades = int(args.min_trades)
-    if args.champ_refine_run_min_trades is not None:
-        try:
-            run_min_trades = int(args.champ_refine_run_min_trades)
-        except (TypeError, ValueError):
-            run_min_trades = int(args.min_trades)
-    if args.st37_refine_run_min_trades is not None:
-        try:
-            run_min_trades = int(args.st37_refine_run_min_trades)
-        except (TypeError, ValueError):
-            run_min_trades = int(args.min_trades)
+    spot_min_qty_arg_explicit = args.spot_min_qty is not None
+    spot_max_qty_arg_explicit = args.spot_max_qty is not None
+    spot_min_qty = int(args.spot_min_qty) if spot_min_qty_arg_explicit else 1
+    spot_max_qty = int(args.spot_max_qty) if spot_max_qty_arg_explicit else 0
+
+    def _resolve_run_min_trades() -> int:
+        base = int(args.min_trades)
+        out = int(base)
+        for attr in (
+            "combo_full_cartesian_run_min_trades",
+        ):
+            raw = getattr(args, attr, None)
+            if raw is None:
+                continue
+            try:
+                out = int(raw)
+            except (TypeError, ValueError):
+                out = int(base)
+        return int(out)
+
+    run_min_trades = _resolve_run_min_trades()
     if bool(args.write_milestones):
         run_min_trades = min(run_min_trades, int(args.milestone_min_trades))
+    axis = str(args.axis).strip().lower()
 
+    def _stage_cache_scope(stage_label: str) -> str:
+        stage_key = str(stage_label).strip().lower()
+        if not stage_key:
+            return ""
+        return f"{stage_key}|m{int(run_min_trades)}"
+
+    def _default_seed_milestones_path() -> str | None:
+        raw = str(getattr(args, "milestones_path", "") or "").strip()
+        if not raw:
+            return None
+        p = Path(raw)
+        if not p.exists():
+            return None
+        return str(p)
+
+    data = IBKRHistoricalData()
     if offline:
         _require_offline_cache_or_die(
+            data=data,
             cache_dir=cache_dir,
             symbol=symbol,
+            exchange=None,
             start_dt=start_dt,
             end_dt=end_dt,
             bar_size=signal_bar_size,
@@ -3019,15 +3405,16 @@ def main() -> None:
         )
         if spot_exec_bar_size and str(spot_exec_bar_size) != str(signal_bar_size):
             _require_offline_cache_or_die(
+                data=data,
                 cache_dir=cache_dir,
                 symbol=symbol,
+                exchange=None,
                 start_dt=start_dt,
                 end_dt=end_dt,
                 bar_size=spot_exec_bar_size,
                 use_rth=use_rth,
             )
 
-    data = IBKRHistoricalData()
     if offline:
         is_future = symbol in ("MNQ", "MBT")
         exchange = "CME" if is_future else "SMART"
@@ -3076,12 +3463,98 @@ def main() -> None:
     run_cfg_fingerprint_hits = 0
     run_cfg_persistent_hits = 0
     run_cfg_persistent_writes = 0
+    run_cfg_dim_index_writes = 0
+    worker_plan_cache_hits = 0
+    worker_plan_cache_writes = 0
+    stage_cell_status_reads = 0
+    stage_cell_status_writes = 0
+    cartesian_manifest_reads = 0
+    cartesian_manifest_writes = 0
+    cartesian_manifest_hits = 0
+    cartesian_rank_manifest_reads = 0
+    cartesian_rank_manifest_writes = 0
+    cartesian_rank_manifest_hits = 0
+    cartesian_rank_manifest_compactions = 0
+    cartesian_rank_manifest_pending_ttl_prunes = 0
+    stage_rank_manifest_reads = 0
+    stage_rank_manifest_writes = 0
+    stage_rank_manifest_hits = 0
+    stage_rank_manifest_compactions = 0
+    stage_rank_manifest_pending_ttl_prunes = 0
+    stage_unresolved_summary_reads = 0
+    stage_unresolved_summary_writes = 0
+    stage_unresolved_summary_hits = 0
+    rank_dominance_stamp_reads = 0
+    rank_dominance_stamp_writes = 0
+    rank_dominance_stamp_hits = 0
+    rank_dominance_manifest_applies = 0
+    rank_dominance_stamp_compactions = 0
+    rank_dominance_stamp_ttl_prunes = 0
+    rank_bin_runtime_reads = 0
+    rank_bin_runtime_writes = 0
+    stage_frontier_reads = 0
+    stage_frontier_writes = 0
+    stage_frontier_hits = 0
+    winner_projection_reads = 0
+    winner_projection_writes = 0
+    winner_projection_hits = 0
+    dimension_utility_reads = 0
+    dimension_utility_writes = 0
+    dimension_utility_hint_hits = 0
+    dimension_upper_bound_reads = 0
+    dimension_upper_bound_writes = 0
+    dimension_upper_bound_deferred = 0
+    planner_heartbeat_reads = 0
+    planner_heartbeat_writes = 0
+    planner_heartbeat_stale_candidates = 0
+    series_pack_mmap_hint_hits = 0
+    series_pack_pickle_hint_hits = 0
+    series_pack_state_manifest_reads = 0
+    series_pack_state_manifest_writes = 0
+    series_pack_state_manifest_hits = 0
     run_cfg_fingerprint_cache: dict[str, tuple[tuple[tuple[int, object | None, object | None], tuple[int, object | None, object | None], tuple[int, object | None, object | None]], dict | None]] = {}
+    run_cfg_axis_fp_cache: dict[str, str] = {}
+    run_cfg_dim_index_seen: set[str] = set()
+    run_cfg_dim_index_loaded: dict[str, float] = {}
+    run_cfg_dim_index_loaded_once = False
+    run_cfg_window_sig_cache: dict[
+        tuple[
+            tuple[int, object | None, object | None],
+            tuple[int, object | None, object | None],
+            tuple[int, object | None, object | None],
+        ],
+        str,
+    ] = {}
+    run_cfg_series_pack_state_cache: dict[tuple[str, str], str] = {}
+    status_span_manifest_compact_seen: dict[tuple[str, str, str, str], float] = {}
+    rank_dominance_stamp_compact_seen: dict[tuple[str, str], float] = {}
+    rank_dominance_manifest_applied_seen: set[tuple[str, str]] = set()
     _RUN_CFG_CACHE_MISS = object()
+    _RUN_CFG_CACHE_UNSET = object()
+    run_cfg_persistent_payload_cache: dict[str, dict | None | object] = {}
     run_cfg_persistent_path = cache_dir / "spot_sweeps_run_cfg_cache.sqlite3"
     run_cfg_persistent_conn: sqlite3.Connection | None = None
     run_cfg_persistent_enabled = True
     run_cfg_persistent_lock = threading.Lock()
+    run_cfg_persistent_pending: dict[str, tuple[str, dict | None]] = {}
+    run_cfg_persistent_last_flush_ts = float(pytime.perf_counter())
+    run_cfg_persistent_cfg = _cache_config("run_cfg_persistent")
+    run_cfg_persistent_batch_write_size = max(
+        1, int(_registry_float(run_cfg_persistent_cfg.get("batch_write_size"), 256.0))
+    )
+    run_cfg_persistent_batch_write_interval_sec = max(
+        0.0, float(_registry_float(run_cfg_persistent_cfg.get("batch_write_interval_sec"), 2.0))
+    )
+    run_cfg_stage_worker_mode = bool(getattr(args, "combo_full_cartesian_stage", None) or getattr(args, "cfg_stage", None))
+    run_cfg_persistent_ram_first_enabled = bool(
+        _registry_float(run_cfg_persistent_cfg.get("ram_first_worker"), 1.0) > 0.0
+        and bool(offline)
+        and bool(run_cfg_stage_worker_mode)
+    )
+    _STAGE_CELL_STATUS_VALUES = frozenset(("pending", "cached_hit", "evaluated"))
+    _CARTESIAN_CELL_STATUS_VALUES = frozenset(("pending", "cached_hit", "evaluated", "dominated"))
+    _CARTESIAN_RANK_STATUS_VALUES = frozenset(("pending", "cached_hit", "evaluated", "dominated"))
+    _STAGE_RANK_STATUS_VALUES = frozenset(("pending", "cached_hit", "evaluated", "dominated"))
 
     def _run_cfg_persistent_conn() -> sqlite3.Connection | None:
         nonlocal run_cfg_persistent_conn, run_cfg_persistent_enabled
@@ -3103,6 +3576,176 @@ def main() -> None:
                 "payload_json TEXT NOT NULL, "
                 "updated_at REAL NOT NULL)"
             )
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS axis_dimension_fingerprint_index ("
+                "fingerprint TEXT PRIMARY KEY, "
+                "payload_json TEXT NOT NULL, "
+                "est_cost REAL NOT NULL, "
+                "updated_at REAL NOT NULL)"
+            )
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS worker_plan_cache ("
+                "cache_key TEXT PRIMARY KEY, "
+                "payload_json TEXT NOT NULL, "
+                "updated_at REAL NOT NULL)"
+            )
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS stage_cell_status ("
+                "stage_label TEXT NOT NULL, "
+                "strategy_fingerprint TEXT NOT NULL, "
+                "axis_dimension_fingerprint TEXT NOT NULL, "
+                "window_signature TEXT NOT NULL, "
+                "status TEXT NOT NULL, "
+                "updated_at REAL NOT NULL, "
+                "PRIMARY KEY(stage_label, strategy_fingerprint, axis_dimension_fingerprint, window_signature))"
+            )
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS cartesian_cell_manifest ("
+                "stage_label TEXT NOT NULL, "
+                "dimension_vector_fingerprint TEXT NOT NULL, "
+                "window_signature TEXT NOT NULL, "
+                "strategy_fingerprint TEXT NOT NULL, "
+                "status TEXT NOT NULL, "
+                "updated_at REAL NOT NULL, "
+                "PRIMARY KEY(stage_label, dimension_vector_fingerprint, window_signature))"
+            )
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS cartesian_rank_manifest ("
+                "stage_label TEXT NOT NULL, "
+                "window_signature TEXT NOT NULL, "
+                "rank_lo INTEGER NOT NULL, "
+                "rank_hi INTEGER NOT NULL, "
+                "status TEXT NOT NULL, "
+                "updated_at REAL NOT NULL, "
+                "PRIMARY KEY(stage_label, window_signature, rank_lo, rank_hi))"
+            )
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS cartesian_rank_cursor ("
+                "stage_label TEXT NOT NULL, "
+                "window_signature TEXT NOT NULL, "
+                "next_rank INTEGER NOT NULL, "
+                "updated_at REAL NOT NULL, "
+                "PRIMARY KEY(stage_label, window_signature))"
+            )
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS stage_rank_manifest ("
+                "stage_label TEXT NOT NULL, "
+                "plan_signature TEXT NOT NULL, "
+                "window_signature TEXT NOT NULL, "
+                "rank_lo INTEGER NOT NULL, "
+                "rank_hi INTEGER NOT NULL, "
+                "status TEXT NOT NULL, "
+                "updated_at REAL NOT NULL, "
+                "PRIMARY KEY(stage_label, plan_signature, window_signature, rank_lo, rank_hi))"
+            )
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS stage_unresolved_summary ("
+                "manifest_name TEXT NOT NULL, "
+                "stage_label TEXT NOT NULL, "
+                "plan_signature TEXT NOT NULL, "
+                "window_signature TEXT NOT NULL, "
+                "total INTEGER NOT NULL, "
+                "unresolved_count INTEGER NOT NULL, "
+                "resolved_count INTEGER NOT NULL, "
+                "updated_at REAL NOT NULL, "
+                "PRIMARY KEY(manifest_name, stage_label, plan_signature, window_signature, total))"
+            )
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS rank_dominance_stamp ("
+                "stage_label TEXT NOT NULL, "
+                "window_signature TEXT NOT NULL, "
+                "dominance_signature TEXT NOT NULL, "
+                "rank_lo INTEGER NOT NULL, "
+                "rank_hi INTEGER NOT NULL, "
+                "updated_at REAL NOT NULL, "
+                "PRIMARY KEY(stage_label, window_signature, dominance_signature, rank_lo, rank_hi))"
+            )
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS stage_frontier ("
+                "stage_label TEXT NOT NULL, "
+                "axis_dimension_fingerprint TEXT NOT NULL, "
+                "window_signature TEXT NOT NULL, "
+                "run_min_trades INTEGER NOT NULL, "
+                "eval_count INTEGER NOT NULL, "
+                "keep_count INTEGER NOT NULL, "
+                "best_pnl_over_dd REAL, "
+                "best_pnl REAL, "
+                "best_win_rate REAL, "
+                "best_trades INTEGER, "
+                "updated_at REAL NOT NULL, "
+                "PRIMARY KEY(stage_label, axis_dimension_fingerprint, window_signature, run_min_trades))"
+            )
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS stage_winner_projection ("
+                "stage_label TEXT NOT NULL, "
+                "axis_dimension_fingerprint TEXT NOT NULL, "
+                "window_signature TEXT NOT NULL, "
+                "eval_count INTEGER NOT NULL, "
+                "keep_count INTEGER NOT NULL, "
+                "best_pnl_over_dd REAL, "
+                "best_pnl REAL, "
+                "best_win_rate REAL, "
+                "best_trades INTEGER, "
+                "updated_at REAL NOT NULL, "
+                "PRIMARY KEY(stage_label, axis_dimension_fingerprint, window_signature))"
+            )
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS rank_bin_runtime ("
+                "stage_label TEXT NOT NULL, "
+                "window_signature TEXT NOT NULL, "
+                "rank_bin INTEGER NOT NULL, "
+                "eval_count INTEGER NOT NULL, "
+                "total_eval_sec REAL NOT NULL, "
+                "cache_hits INTEGER NOT NULL, "
+                "updated_at REAL NOT NULL, "
+                "PRIMARY KEY(stage_label, window_signature, rank_bin))"
+            )
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS dimension_value_utility ("
+                "stage_label TEXT NOT NULL, "
+                "window_signature TEXT NOT NULL, "
+                "dimension_key TEXT NOT NULL, "
+                "dimension_value TEXT NOT NULL, "
+                "eval_count INTEGER NOT NULL, "
+                "keep_count INTEGER NOT NULL, "
+                "cache_hits INTEGER NOT NULL, "
+                "total_eval_sec REAL NOT NULL, "
+                "updated_at REAL NOT NULL, "
+                "PRIMARY KEY(stage_label, window_signature, dimension_key, dimension_value))"
+            )
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS dimension_upper_bound ("
+                "stage_label TEXT NOT NULL, "
+                "axis_dimension_fingerprint TEXT NOT NULL, "
+                "window_signature TEXT NOT NULL, "
+                "eval_count INTEGER NOT NULL, "
+                "keep_count INTEGER NOT NULL, "
+                "best_pnl_over_dd REAL, "
+                "best_pnl REAL, "
+                "updated_at REAL NOT NULL, "
+                "PRIMARY KEY(stage_label, axis_dimension_fingerprint, window_signature))"
+            )
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS planner_heartbeat ("
+                "stage_label TEXT NOT NULL, "
+                "worker_id INTEGER NOT NULL, "
+                "last_seen REAL NOT NULL, "
+                "tested INTEGER NOT NULL, "
+                "cached_hits INTEGER NOT NULL, "
+                "total INTEGER NOT NULL, "
+                "eta_sec REAL, "
+                "status TEXT NOT NULL, "
+                "updated_at REAL NOT NULL, "
+                "PRIMARY KEY(stage_label, worker_id))"
+            )
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS series_pack_state_manifest ("
+                "strategy_fingerprint TEXT NOT NULL, "
+                "window_signature TEXT NOT NULL, "
+                "state TEXT NOT NULL, "
+                "updated_at REAL NOT NULL, "
+                "PRIMARY KEY(strategy_fingerprint, window_signature))"
+            )
             run_cfg_persistent_conn = conn
             return conn
         except Exception:
@@ -3110,55 +3753,2669 @@ def main() -> None:
             run_cfg_persistent_conn = None
             return None
 
-    def _run_cfg_persistent_key(*, cfg_key: str, ctx_sig: tuple) -> str:
+    def _run_cfg_persistent_key(
+        *,
+        strategy_fingerprint: str,
+        axis_dimension_fingerprint: str,
+        window_signature: str,
+    ) -> str:
         raw = {
             "version": str(_RUN_CFG_CACHE_ENGINE_VERSION),
-            "cfg_key": str(cfg_key),
-            "ctx_sig": ctx_sig,
+            "strategy_fingerprint": str(strategy_fingerprint),
+            "axis_dimension_fingerprint": str(axis_dimension_fingerprint),
+            "window_signature": str(window_signature),
             "run_min_trades": int(run_min_trades),
         }
         return hashlib.sha1(json.dumps(raw, sort_keys=True, default=str).encode("utf-8")).hexdigest()
 
-    def _run_cfg_persistent_get(*, cache_key: str) -> dict | None | object:
-        conn = _run_cfg_persistent_conn()
-        if conn is None:
-            return _RUN_CFG_CACHE_MISS
+    def _run_cfg_persistent_cached_lookup(*, cache_key: str) -> dict | None | object:
+        key = str(cache_key)
+        if key not in run_cfg_persistent_payload_cache:
+            return _RUN_CFG_CACHE_UNSET
+        cached_payload = run_cfg_persistent_payload_cache.get(key)
+        if isinstance(cached_payload, dict):
+            return dict(cached_payload)
+        if cached_payload is None:
+            return None
+        return _RUN_CFG_CACHE_MISS
+
+    def _run_cfg_persistent_cached_store(*, cache_key: str, payload: dict | None | object) -> dict | None | object:
+        key = str(cache_key)
+        if isinstance(payload, dict):
+            payload_out = dict(payload)
+            run_cfg_persistent_payload_cache[key] = payload_out
+            return dict(payload_out)
+        if payload is None:
+            run_cfg_persistent_payload_cache[key] = None
+            return None
+        run_cfg_persistent_payload_cache[key] = _RUN_CFG_CACHE_MISS
+        return _RUN_CFG_CACHE_MISS
+
+    def _run_cfg_persistent_decode_payload(*, payload_json_raw: object) -> dict | None | object:
         try:
-            with run_cfg_persistent_lock:
-                row = conn.execute(
-                    "SELECT payload_json FROM run_cfg_cache WHERE cache_key=?",
-                    (str(cache_key),),
-                ).fetchone()
-        except Exception:
-            return _RUN_CFG_CACHE_MISS
-        if row is None:
-            return _RUN_CFG_CACHE_MISS
-        try:
-            payload = json.loads(str(row[0]))
+            payload = json.loads(str(payload_json_raw))
         except Exception:
             return _RUN_CFG_CACHE_MISS
         if payload is None:
             return None
-        return dict(payload) if isinstance(payload, dict) else _RUN_CFG_CACHE_MISS
+        if isinstance(payload, dict):
+            return dict(payload)
+        return _RUN_CFG_CACHE_MISS
+
+    def _run_cfg_persistent_get(*, cache_key: str) -> dict | None | object:
+        key = str(cache_key)
+        cached = _run_cfg_persistent_cached_lookup(cache_key=str(key))
+        if cached is not _RUN_CFG_CACHE_UNSET:
+            return cached
+        conn = _run_cfg_persistent_conn()
+        if conn is None:
+            return _run_cfg_persistent_cached_store(cache_key=str(key), payload=_RUN_CFG_CACHE_MISS)
+        try:
+            with run_cfg_persistent_lock:
+                row = conn.execute(
+                    "SELECT payload_json FROM run_cfg_cache WHERE cache_key=?",
+                    (key,),
+                ).fetchone()
+        except Exception:
+            return _run_cfg_persistent_cached_store(cache_key=str(key), payload=_RUN_CFG_CACHE_MISS)
+        if row is None:
+            return _run_cfg_persistent_cached_store(cache_key=str(key), payload=_RUN_CFG_CACHE_MISS)
+        decoded = _run_cfg_persistent_decode_payload(payload_json_raw=row[0])
+        return _run_cfg_persistent_cached_store(cache_key=str(key), payload=decoded)
+
+    def _run_cfg_persistent_get_many(*, cache_keys: list[str]) -> dict[str, dict | None]:
+        out: dict[str, dict | None] = {}
+        missing_db_keys: list[str] = []
+        seen: set[str] = set()
+        for raw_key in cache_keys:
+            key = str(raw_key or "").strip()
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            cached = _run_cfg_persistent_cached_lookup(cache_key=str(key))
+            if cached is not _RUN_CFG_CACHE_UNSET:
+                if cached is not _RUN_CFG_CACHE_MISS:
+                    out[key] = cached if isinstance(cached, dict) else None
+                continue
+            missing_db_keys.append(key)
+
+        if not missing_db_keys:
+            return out
+
+        conn = _run_cfg_persistent_conn()
+        if conn is None:
+            for key in missing_db_keys:
+                _run_cfg_persistent_cached_store(cache_key=str(key), payload=_RUN_CFG_CACHE_MISS)
+            return out
+
+        found: set[str] = set()
+        chunk_size = 400
+        try:
+            with run_cfg_persistent_lock:
+                for start_i in range(0, len(missing_db_keys), chunk_size):
+                    chunk = missing_db_keys[start_i : start_i + chunk_size]
+                    if not chunk:
+                        continue
+                    placeholders = ",".join("?" for _ in chunk)
+                    rows = conn.execute(
+                        f"SELECT cache_key, payload_json FROM run_cfg_cache WHERE cache_key IN ({placeholders})",
+                        tuple(chunk),
+                    ).fetchall()
+                    for cache_key_raw, payload_json_raw in rows:
+                        key = str(cache_key_raw or "").strip()
+                        if not key:
+                            continue
+                        found.add(key)
+                        decoded = _run_cfg_persistent_decode_payload(payload_json_raw=payload_json_raw)
+                        stored = _run_cfg_persistent_cached_store(cache_key=str(key), payload=decoded)
+                        if stored is _RUN_CFG_CACHE_MISS:
+                            continue
+                        out[key] = stored if isinstance(stored, dict) else None
+        except Exception:
+            for key in missing_db_keys:
+                if key not in run_cfg_persistent_payload_cache:
+                    _run_cfg_persistent_cached_store(cache_key=str(key), payload=_RUN_CFG_CACHE_MISS)
+            return out
+
+        for key in missing_db_keys:
+            if key not in found:
+                _run_cfg_persistent_cached_store(cache_key=str(key), payload=_RUN_CFG_CACHE_MISS)
+        return out
+
+    def _run_cfg_persistent_flush_pending(*, force: bool = False) -> None:
+        nonlocal run_cfg_persistent_last_flush_ts
+        if not run_cfg_persistent_pending:
+            return
+        conn = _run_cfg_persistent_conn()
+        if conn is None:
+            run_cfg_persistent_pending.clear()
+            run_cfg_persistent_last_flush_ts = float(pytime.perf_counter())
+            return
+        now = float(pytime.perf_counter())
+        if not bool(force):
+            if len(run_cfg_persistent_pending) < int(run_cfg_persistent_batch_write_size):
+                if (now - float(run_cfg_persistent_last_flush_ts)) < float(run_cfg_persistent_batch_write_interval_sec):
+                    return
+        payload = list(run_cfg_persistent_pending.items())
+        if not payload:
+            run_cfg_persistent_last_flush_ts = float(now)
+            return
+        try:
+            wall_ts = float(pytime.time())
+            rows = [
+                (str(cache_key), str(payload_json), float(wall_ts))
+                for cache_key, (payload_json, _payload_obj) in payload
+            ]
+            with run_cfg_persistent_lock:
+                conn.executemany(
+                    "INSERT OR REPLACE INTO run_cfg_cache(cache_key, payload_json, updated_at) VALUES(?,?,?)",
+                    rows,
+                )
+            for cache_key, (_payload_json, payload_obj) in payload:
+                _run_cfg_persistent_cached_store(
+                    cache_key=str(cache_key),
+                    payload=(dict(payload_obj) if isinstance(payload_obj, dict) else None),
+                )
+            run_cfg_persistent_pending.clear()
+            run_cfg_persistent_last_flush_ts = float(now)
+        except Exception:
+            return
 
     def _run_cfg_persistent_set(*, cache_key: str, payload: dict | None) -> None:
+        key = str(cache_key)
         conn = _run_cfg_persistent_conn()
         if conn is None:
             return
         try:
-            payload_json = json.dumps(payload, sort_keys=True, default=str)
+            payload_obj = dict(payload) if isinstance(payload, dict) else None
+            payload_json = json.dumps(payload_obj, sort_keys=True, default=str)
+            if bool(run_cfg_persistent_ram_first_enabled):
+                run_cfg_persistent_pending[str(key)] = (str(payload_json), payload_obj if isinstance(payload_obj, dict) else None)
+                _run_cfg_persistent_cached_store(
+                    cache_key=str(key),
+                    payload=(dict(payload_obj) if isinstance(payload_obj, dict) else None),
+                )
+                _run_cfg_persistent_flush_pending(force=False)
+                return
             with run_cfg_persistent_lock:
                 conn.execute(
                     "INSERT OR REPLACE INTO run_cfg_cache(cache_key, payload_json, updated_at) VALUES(?,?,?)",
-                    (str(cache_key), payload_json, float(pytime.time())),
+                    (key, payload_json, float(pytime.time())),
                 )
+            _run_cfg_persistent_cached_store(cache_key=str(key), payload=(dict(payload_obj) if isinstance(payload_obj, dict) else None))
+        except Exception:
+            return
+
+    def _stage_cell_status_get_many(
+        *,
+        stage_label: str,
+        cells: list[tuple[str, str, str]],
+    ) -> dict[tuple[str, str, str], str]:
+        nonlocal stage_cell_status_reads
+        conn = _run_cfg_persistent_conn()
+        if conn is None:
+            return {}
+        stage_key = _stage_cache_scope(stage_label)
+        if not stage_key:
+            return {}
+        deduped: list[tuple[str, str, str]] = []
+        seen: set[tuple[str, str, str]] = set()
+        for strategy_fp, axis_dim_fp, window_sig in cells:
+            cell_key = (str(strategy_fp), str(axis_dim_fp), str(window_sig))
+            if cell_key in seen:
+                continue
+            seen.add(cell_key)
+            deduped.append(cell_key)
+        if not deduped:
+            return {}
+        out: dict[tuple[str, str, str], str] = {}
+        chunk_size = 120
+        try:
+            with run_cfg_persistent_lock:
+                for start_i in range(0, len(deduped), chunk_size):
+                    chunk = deduped[start_i : start_i + chunk_size]
+                    if not chunk:
+                        continue
+                    where = " OR ".join(
+                        "(strategy_fingerprint=? AND axis_dimension_fingerprint=? AND window_signature=?)"
+                        for _ in chunk
+                    )
+                    params: list[object] = [str(stage_key)]
+                    for strategy_fp, axis_dim_fp, window_sig in chunk:
+                        params.extend((str(strategy_fp), str(axis_dim_fp), str(window_sig)))
+                    rows = conn.execute(
+                        "SELECT strategy_fingerprint, axis_dimension_fingerprint, window_signature, status "
+                        "FROM stage_cell_status WHERE stage_label=? AND (" + where + ")",
+                        tuple(params),
+                    ).fetchall()
+                    for row in rows:
+                        cell = (str(row[0] or ""), str(row[1] or ""), str(row[2] or ""))
+                        status = str(row[3] or "").strip().lower()
+                        if not cell[0] or not cell[1] or not cell[2] or status not in _STAGE_CELL_STATUS_VALUES:
+                            continue
+                        out[cell] = status
+            stage_cell_status_reads += len(out)
+        except Exception:
+            return {}
+        return out
+
+    def _stage_cell_status_set_many(
+        *,
+        stage_label: str,
+        rows: list[tuple[str, str, str, str]],
+    ) -> None:
+        nonlocal stage_cell_status_writes
+        conn = _run_cfg_persistent_conn()
+        if conn is None:
+            return
+        stage_key = _stage_cache_scope(stage_label)
+        if not stage_key or not rows:
+            return
+        status_priority = {"pending": 0, "cached_hit": 1, "evaluated": 2}
+        merged: dict[tuple[str, str, str], str] = {}
+        for strategy_fp, axis_dim_fp, window_sig, status_raw in rows:
+            strategy_key = str(strategy_fp).strip()
+            axis_key = str(axis_dim_fp).strip()
+            window_key = str(window_sig).strip()
+            status = str(status_raw or "").strip().lower()
+            if not strategy_key or not axis_key or not window_key:
+                continue
+            if status not in _STAGE_CELL_STATUS_VALUES:
+                continue
+            cell_key = (strategy_key, axis_key, window_key)
+            prev = merged.get(cell_key)
+            if prev is None or status_priority.get(status, -1) >= status_priority.get(prev, -1):
+                merged[cell_key] = status
+        if not merged:
+            return
+        payload = [
+            (
+                str(stage_key),
+                str(strategy_fp),
+                str(axis_dim_fp),
+                str(window_sig),
+                str(status),
+                float(pytime.time()),
+            )
+            for (strategy_fp, axis_dim_fp, window_sig), status in merged.items()
+        ]
+        try:
+            with run_cfg_persistent_lock:
+                conn.executemany(
+                    "INSERT OR REPLACE INTO stage_cell_status("
+                    "stage_label, strategy_fingerprint, axis_dimension_fingerprint, window_signature, status, updated_at"
+                    ") VALUES(?,?,?,?,?,?)",
+                    payload,
+                )
+                conn.execute(
+                    "DELETE FROM stage_unresolved_summary WHERE manifest_name='stage_cell' AND stage_label=?",
+                    (str(stage_key),),
+                )
+            stage_cell_status_writes += len(payload)
+        except Exception:
+            return
+
+    def _cartesian_cell_manifest_get_many(
+        *,
+        stage_label: str,
+        cells: list[tuple[str, str]],
+    ) -> dict[tuple[str, str], tuple[str, str]]:
+        nonlocal cartesian_manifest_reads
+        conn = _run_cfg_persistent_conn()
+        if conn is None:
+            return {}
+        stage_key = _stage_cache_scope(stage_label)
+        if not stage_key:
+            return {}
+        deduped: list[tuple[str, str]] = []
+        seen: set[tuple[str, str]] = set()
+        for dim_vec_fp, window_sig in cells:
+            key = (str(dim_vec_fp).strip(), str(window_sig).strip())
+            if not key[0] or not key[1] or key in seen:
+                continue
+            seen.add(key)
+            deduped.append(key)
+        if not deduped:
+            return {}
+        out: dict[tuple[str, str], tuple[str, str]] = {}
+        chunk_size = 160
+        try:
+            with run_cfg_persistent_lock:
+                for start_i in range(0, len(deduped), chunk_size):
+                    chunk = deduped[start_i : start_i + chunk_size]
+                    if not chunk:
+                        continue
+                    where = " OR ".join(
+                        "(dimension_vector_fingerprint=? AND window_signature=?)"
+                        for _ in chunk
+                    )
+                    params: list[object] = [str(stage_key)]
+                    for dim_vec_fp, window_sig in chunk:
+                        params.extend((str(dim_vec_fp), str(window_sig)))
+                    rows_db = conn.execute(
+                        "SELECT dimension_vector_fingerprint, window_signature, strategy_fingerprint, status "
+                        "FROM cartesian_cell_manifest WHERE stage_label=? AND (" + where + ")",
+                        tuple(params),
+                    ).fetchall()
+                    for row in rows_db:
+                        dim_vec_fp = str(row[0] or "").strip()
+                        window_sig = str(row[1] or "").strip()
+                        strategy_fp = str(row[2] or "").strip()
+                        status = str(row[3] or "").strip().lower()
+                        if not dim_vec_fp or not window_sig or status not in _CARTESIAN_CELL_STATUS_VALUES:
+                            continue
+                        out[(dim_vec_fp, window_sig)] = (status, strategy_fp)
+            cartesian_manifest_reads += len(out)
+        except Exception:
+            return {}
+        return out
+
+    def _cartesian_cell_manifest_set_many(
+        *,
+        stage_label: str,
+        rows: list[tuple[str, str, str, str]],
+    ) -> None:
+        nonlocal cartesian_manifest_writes
+        conn = _run_cfg_persistent_conn()
+        if conn is None:
+            return
+        stage_key = _stage_cache_scope(stage_label)
+        if not stage_key or not rows:
+            return
+        status_priority = {"pending": 0, "cached_hit": 1, "evaluated": 2, "dominated": 3}
+        merged: dict[tuple[str, str], tuple[str, str]] = {}
+        for dim_vec_fp, window_sig, strategy_fp, status_raw in rows:
+            dim_key = str(dim_vec_fp).strip()
+            window_key = str(window_sig).strip()
+            strategy_key = str(strategy_fp).strip()
+            status = str(status_raw or "").strip().lower()
+            if not dim_key or not window_key:
+                continue
+            if status not in _CARTESIAN_CELL_STATUS_VALUES:
+                continue
+            key = (dim_key, window_key)
+            prev = merged.get(key)
+            prev_status = prev[1] if isinstance(prev, tuple) and len(prev) == 2 else ""
+            if prev is None or status_priority.get(status, -1) >= status_priority.get(str(prev_status), -1):
+                merged[key] = (strategy_key, status)
+        if not merged:
+            return
+        payload = [
+            (
+                str(stage_key),
+                str(dim_vec_fp),
+                str(window_sig),
+                str(strategy_fp),
+                str(status),
+                float(pytime.time()),
+            )
+            for (dim_vec_fp, window_sig), (strategy_fp, status) in merged.items()
+        ]
+        try:
+            with run_cfg_persistent_lock:
+                conn.executemany(
+                    "INSERT OR REPLACE INTO cartesian_cell_manifest("
+                    "stage_label, dimension_vector_fingerprint, window_signature, strategy_fingerprint, status, updated_at"
+                    ") VALUES(?,?,?,?,?,?)",
+                    payload,
+                )
+            cartesian_manifest_writes += len(payload)
+        except Exception:
+            return
+
+    def _status_span_manifest_spec(manifest_name: str) -> dict[str, object]:
+        key = str(manifest_name or "").strip().lower()
+        if key == "cartesian":
+            return {
+                "key": "cartesian",
+                "table": "cartesian_rank_manifest",
+                "cfg_key": "cartesian_rank_manifest",
+                "status_values": _CARTESIAN_RANK_STATUS_VALUES,
+                "has_plan_signature": False,
+                "compact_min_rows": 1024.0,
+                "compact_min_interval_sec": 120.0,
+                "pending_ttl_sec": 86400.0,
+            }
+        if key == "stage":
+            return {
+                "key": "stage",
+                "table": "stage_rank_manifest",
+                "cfg_key": "stage_rank_manifest",
+                "status_values": _STAGE_RANK_STATUS_VALUES,
+                "has_plan_signature": True,
+                "compact_min_rows": 512.0,
+                "compact_min_interval_sec": 60.0,
+                "pending_ttl_sec": 21600.0,
+            }
+        return {}
+
+    def _status_span_manifest_counter_add(*, manifest_name: str, field: str, value: int) -> None:
+        nonlocal cartesian_rank_manifest_reads, cartesian_rank_manifest_writes, cartesian_rank_manifest_compactions
+        nonlocal cartesian_rank_manifest_pending_ttl_prunes, stage_rank_manifest_reads, stage_rank_manifest_writes
+        nonlocal stage_rank_manifest_compactions, stage_rank_manifest_pending_ttl_prunes
+        delta = int(max(0, int(value)))
+        if delta <= 0:
+            return
+        key = str(manifest_name).strip().lower()
+        field_key = str(field).strip().lower()
+        if key == "cartesian":
+            if field_key == "reads":
+                cartesian_rank_manifest_reads += delta
+            elif field_key == "writes":
+                cartesian_rank_manifest_writes += delta
+            elif field_key == "compactions":
+                cartesian_rank_manifest_compactions += delta
+            elif field_key == "pending_ttl_prunes":
+                cartesian_rank_manifest_pending_ttl_prunes += delta
+        elif key == "stage":
+            if field_key == "reads":
+                stage_rank_manifest_reads += delta
+            elif field_key == "writes":
+                stage_rank_manifest_writes += delta
+            elif field_key == "compactions":
+                stage_rank_manifest_compactions += delta
+            elif field_key == "pending_ttl_prunes":
+                stage_rank_manifest_pending_ttl_prunes += delta
+
+    def _status_span_manifest_counter_add_hits(*, manifest_name: str, covered: int) -> None:
+        nonlocal cartesian_rank_manifest_hits, stage_rank_manifest_hits
+        delta = int(max(0, int(covered)))
+        if delta <= 0:
+            return
+        key = str(manifest_name).strip().lower()
+        if key == "cartesian":
+            cartesian_rank_manifest_hits += delta
+        elif key == "stage":
+            stage_rank_manifest_hits += delta
+
+    def _stage_unresolved_summary_get(
+        *,
+        manifest_name: str,
+        stage_label: str,
+        window_signature: str,
+        total: int,
+        plan_signature: str = "",
+    ) -> tuple[int, int] | None:
+        nonlocal stage_unresolved_summary_reads, stage_unresolved_summary_hits
+        conn = _run_cfg_persistent_conn()
+        if conn is None:
+            return None
+        manifest_key = str(manifest_name or "").strip().lower()
+        if manifest_key not in ("cartesian", "stage", "stage_cell"):
+            return None
+        stage_key = _stage_cache_scope(stage_label)
+        window_key = str(window_signature).strip()
+        plan_key = str(plan_signature).strip() if manifest_key in ("stage", "stage_cell") else ""
+        try:
+            total_i = int(total)
+        except (TypeError, ValueError):
+            return None
+        if total_i <= 0 or not stage_key or not window_key or (manifest_key in ("stage", "stage_cell") and not plan_key):
+            return None
+        cfg = _cache_config("stage_unresolved_summary")
+        ttl_sec = max(0.0, float(_registry_float(cfg.get("ttl_sec"), 21600.0)))
+        now_ts = float(pytime.time())
+        row = None
+        try:
+            with run_cfg_persistent_lock:
+                row = conn.execute(
+                    "SELECT unresolved_count, resolved_count, updated_at "
+                    "FROM stage_unresolved_summary "
+                    "WHERE manifest_name=? AND stage_label=? AND plan_signature=? AND window_signature=? AND total=?",
+                    (str(manifest_key), str(stage_key), str(plan_key), str(window_key), int(total_i)),
+                ).fetchone()
+        except Exception:
+            return None
+        if row is None:
+            return None
+        stage_unresolved_summary_reads += 1
+        try:
+            unresolved_i = int(row[0] or 0)
+            resolved_i = int(row[1] or 0)
+            updated_at = float(row[2] or 0.0)
+        except Exception:
+            return None
+        unresolved_i = int(max(0, min(int(total_i), int(unresolved_i))))
+        resolved_i = int(max(0, min(int(total_i), int(resolved_i))))
+        if float(ttl_sec) > 0.0 and float(updated_at) > 0.0 and (float(now_ts) - float(updated_at)) > float(ttl_sec):
+            try:
+                with run_cfg_persistent_lock:
+                    conn.execute(
+                        "DELETE FROM stage_unresolved_summary "
+                        "WHERE manifest_name=? AND stage_label=? AND plan_signature=? AND window_signature=? AND total=?",
+                        (str(manifest_key), str(stage_key), str(plan_key), str(window_key), int(total_i)),
+                    )
+            except Exception:
+                pass
+            return None
+        stage_unresolved_summary_hits += 1
+        return int(unresolved_i), int(resolved_i)
+
+    def _stage_unresolved_summary_invalidate(
+        *,
+        manifest_name: str,
+        stage_label: str,
+        window_signature: str,
+        plan_signature: str = "",
+    ) -> None:
+        conn = _run_cfg_persistent_conn()
+        if conn is None:
+            return
+        manifest_key = str(manifest_name or "").strip().lower()
+        if manifest_key not in ("cartesian", "stage", "stage_cell"):
+            return
+        stage_key = _stage_cache_scope(stage_label)
+        window_key = str(window_signature).strip()
+        plan_key = str(plan_signature).strip() if manifest_key in ("stage", "stage_cell") else ""
+        if not stage_key or not window_key or (manifest_key in ("stage", "stage_cell") and not plan_key):
+            return
+        try:
+            with run_cfg_persistent_lock:
+                conn.execute(
+                    "DELETE FROM stage_unresolved_summary "
+                    "WHERE manifest_name=? AND stage_label=? AND plan_signature=? AND window_signature=?",
+                    (str(manifest_key), str(stage_key), str(plan_key), str(window_key)),
+                )
+        except Exception:
+            return
+
+    def _stage_unresolved_summary_set(
+        *,
+        manifest_name: str,
+        stage_label: str,
+        window_signature: str,
+        total: int,
+        unresolved_count: int,
+        resolved_count: int,
+        plan_signature: str = "",
+    ) -> None:
+        nonlocal stage_unresolved_summary_writes
+        conn = _run_cfg_persistent_conn()
+        if conn is None:
+            return
+        manifest_key = str(manifest_name or "").strip().lower()
+        if manifest_key not in ("cartesian", "stage", "stage_cell"):
+            return
+        stage_key = _stage_cache_scope(stage_label)
+        window_key = str(window_signature).strip()
+        plan_key = str(plan_signature).strip() if manifest_key in ("stage", "stage_cell") else ""
+        if not stage_key or not window_key or (manifest_key in ("stage", "stage_cell") and not plan_key):
+            return
+        try:
+            total_i = int(max(0, int(total)))
+            unresolved_i = int(max(0, int(unresolved_count)))
+            resolved_i = int(max(0, int(resolved_count)))
+        except (TypeError, ValueError):
+            return
+        if total_i <= 0:
+            return
+        unresolved_i = int(max(0, min(int(total_i), int(unresolved_i))))
+        resolved_i = int(max(0, min(int(total_i), int(resolved_i))))
+        now_ts = float(pytime.time())
+        try:
+            with run_cfg_persistent_lock:
+                conn.execute(
+                    "INSERT INTO stage_unresolved_summary("
+                    "manifest_name, stage_label, plan_signature, window_signature, total, unresolved_count, resolved_count, updated_at"
+                    ") VALUES(?,?,?,?,?,?,?,?) "
+                    "ON CONFLICT(manifest_name, stage_label, plan_signature, window_signature, total) DO UPDATE SET "
+                    "unresolved_count=excluded.unresolved_count, "
+                    "resolved_count=excluded.resolved_count, "
+                    "updated_at=excluded.updated_at",
+                    (
+                        str(manifest_key),
+                        str(stage_key),
+                        str(plan_key),
+                        str(window_key),
+                        int(total_i),
+                        int(unresolved_i),
+                        int(resolved_i),
+                        float(now_ts),
+                    ),
+                )
+            stage_unresolved_summary_writes += 1
+        except Exception:
+            return
+
+    def _status_span_rows_compact(
+        *,
+        rows: list[tuple[int, int, str]],
+        status_values: frozenset[str],
+    ) -> list[tuple[int, int, str]]:
+        status_priority = {"pending": 0, "cached_hit": 1, "evaluated": 2, "dominated": 3}
+        merged: dict[tuple[int, int], str] = {}
+        for rank_lo_raw, rank_hi_raw, status_raw in rows:
+            try:
+                rank_lo = int(rank_lo_raw)
+                rank_hi = int(rank_hi_raw)
+            except (TypeError, ValueError):
+                continue
+            status = str(status_raw or "").strip().lower()
+            if rank_lo < 0 or rank_hi < rank_lo or status not in status_values:
+                continue
+            key = (int(rank_lo), int(rank_hi))
+            prev = merged.get(key)
+            if prev is None or status_priority.get(status, -1) >= status_priority.get(str(prev), -1):
+                merged[key] = str(status)
+        if not merged:
+            return []
+        ordered = sorted(
+            ((int(lo), int(hi), str(status)) for (lo, hi), status in merged.items()),
+            key=lambda row: (int(row[0]), int(row[1])),
+        )
+        out: list[tuple[int, int, str]] = []
+        for rank_lo, rank_hi, status in ordered:
+            if out:
+                prev_lo, prev_hi, prev_status = out[-1]
+                if str(prev_status) == str(status) and int(rank_lo) <= int(prev_hi) + 1:
+                    out[-1] = (int(prev_lo), max(int(prev_hi), int(rank_hi)), str(status))
+                    continue
+            out.append((int(rank_lo), int(rank_hi), str(status)))
+        return out
+
+    def _status_span_manifest_set_many(
+        *,
+        manifest_name: str,
+        stage_label: str,
+        window_signature: str,
+        rows: list[tuple[int, int, str]],
+        plan_signature: str = "",
+        replace_scope: bool = False,
+    ) -> None:
+        spec = _status_span_manifest_spec(str(manifest_name))
+        if not isinstance(spec, dict) or not spec:
+            return
+        conn = _run_cfg_persistent_conn()
+        if conn is None:
+            return
+        stage_key = _stage_cache_scope(stage_label)
+        window_key = str(window_signature).strip()
+        has_plan_signature = bool(spec.get("has_plan_signature"))
+        plan_key = str(plan_signature).strip()
+        if not stage_key or not window_key:
+            return
+        if has_plan_signature and not plan_key:
+            return
+        status_values = spec.get("status_values")
+        if not isinstance(status_values, frozenset):
+            return
+        compact_rows = _status_span_rows_compact(rows=list(rows or ()), status_values=status_values)
+        did_mutate = bool(replace_scope) or bool(compact_rows)
+        now_ts = float(pytime.time())
+        try:
+            with run_cfg_persistent_lock:
+                if bool(replace_scope):
+                    if has_plan_signature:
+                        conn.execute(
+                            "DELETE FROM stage_rank_manifest WHERE stage_label=? AND plan_signature=? AND window_signature=?",
+                            (str(stage_key), str(plan_key), str(window_key)),
+                        )
+                    else:
+                        conn.execute(
+                            "DELETE FROM cartesian_rank_manifest WHERE stage_label=? AND window_signature=?",
+                            (str(stage_key), str(window_key)),
+                        )
+                if compact_rows:
+                    if has_plan_signature:
+                        payload = [
+                            (
+                                str(stage_key),
+                                str(plan_key),
+                                str(window_key),
+                                int(rank_lo),
+                                int(rank_hi),
+                                str(status),
+                                float(now_ts),
+                            )
+                            for rank_lo, rank_hi, status in compact_rows
+                        ]
+                        conn.executemany(
+                            "INSERT OR REPLACE INTO stage_rank_manifest("
+                            "stage_label, plan_signature, window_signature, rank_lo, rank_hi, status, updated_at"
+                            ") VALUES(?,?,?,?,?,?,?)",
+                            payload,
+                        )
+                    else:
+                        payload = [
+                            (
+                                str(stage_key),
+                                str(window_key),
+                                int(rank_lo),
+                                int(rank_hi),
+                                str(status),
+                                float(now_ts),
+                            )
+                            for rank_lo, rank_hi, status in compact_rows
+                        ]
+                        conn.executemany(
+                            "INSERT OR REPLACE INTO cartesian_rank_manifest("
+                            "stage_label, window_signature, rank_lo, rank_hi, status, updated_at"
+                            ") VALUES(?,?,?,?,?,?)",
+                            payload,
+                        )
+            if bool(did_mutate):
+                _stage_unresolved_summary_invalidate(
+                    manifest_name=str(spec.get("key") or ""),
+                    stage_label=str(stage_key),
+                    plan_signature=(str(plan_key) if has_plan_signature else ""),
+                    window_signature=str(window_key),
+                )
+            _status_span_manifest_counter_add(
+                manifest_name=str(spec.get("key") or ""),
+                field="writes",
+                value=len(compact_rows),
+            )
+        except Exception:
+            return
+
+    def _status_span_manifest_get_many(
+        *,
+        manifest_name: str,
+        stage_label: str,
+        window_signature: str,
+        plan_signature: str = "",
+    ) -> list[tuple[int, int, str]]:
+        spec = _status_span_manifest_spec(str(manifest_name))
+        if not isinstance(spec, dict) or not spec:
+            return []
+        conn = _run_cfg_persistent_conn()
+        if conn is None:
+            return []
+        stage_key = _stage_cache_scope(stage_label)
+        window_key = str(window_signature).strip()
+        has_plan_signature = bool(spec.get("has_plan_signature"))
+        plan_key = str(plan_signature).strip()
+        if not stage_key or not window_key:
+            return []
+        if has_plan_signature and not plan_key:
+            return []
+        status_values = spec.get("status_values")
+        if not isinstance(status_values, frozenset):
+            return []
+        cfg = _cache_config(str(spec.get("cfg_key") or ""))
+        compact_min_rows = max(64, int(_registry_float(cfg.get("compact_min_rows"), float(spec.get("compact_min_rows") or 512.0))))
+        compact_min_interval = max(
+            5.0,
+            float(_registry_float(cfg.get("compact_min_interval_sec"), float(spec.get("compact_min_interval_sec") or 120.0))),
+        )
+        pending_ttl_sec = max(0.0, float(_registry_float(cfg.get("pending_ttl_sec"), float(spec.get("pending_ttl_sec") or 0.0))))
+        now_ts = float(pytime.time())
+        out: list[tuple[int, int, str]] = []
+        stale_pending = 0
+        try:
+            with run_cfg_persistent_lock:
+                if has_plan_signature:
+                    rows_db = conn.execute(
+                        "SELECT rank_lo, rank_hi, status, updated_at FROM stage_rank_manifest "
+                        "WHERE stage_label=? AND plan_signature=? AND window_signature=?",
+                        (str(stage_key), str(plan_key), str(window_key)),
+                    ).fetchall()
+                else:
+                    rows_db = conn.execute(
+                        "SELECT rank_lo, rank_hi, status, updated_at FROM cartesian_rank_manifest "
+                        "WHERE stage_label=? AND window_signature=?",
+                        (str(stage_key), str(window_key)),
+                    ).fetchall()
+            for row in rows_db:
+                try:
+                    rank_lo = int(row[0])
+                    rank_hi = int(row[1])
+                except (TypeError, ValueError):
+                    continue
+                status = str(row[2] or "").strip().lower()
+                try:
+                    updated_at = float(row[3] or 0.0)
+                except (TypeError, ValueError):
+                    updated_at = 0.0
+                if rank_lo < 0 or rank_hi < rank_lo or status not in status_values:
+                    continue
+                if (
+                    status == "pending"
+                    and float(pending_ttl_sec) > 0.0
+                    and float(updated_at) > 0.0
+                    and (float(now_ts) - float(updated_at)) > float(pending_ttl_sec)
+                ):
+                    stale_pending += 1
+                    continue
+                out.append((int(rank_lo), int(rank_hi), str(status)))
+        except Exception:
+            return []
+        _status_span_manifest_counter_add(
+            manifest_name=str(spec.get("key") or ""),
+            field="reads",
+            value=len(out),
+        )
+        if not out:
+            if int(stale_pending) > 0:
+                _status_span_manifest_set_many(
+                    manifest_name=str(spec.get("key") or ""),
+                    stage_label=str(stage_key),
+                    plan_signature=str(plan_key),
+                    window_signature=str(window_key),
+                    rows=[],
+                    replace_scope=True,
+                )
+                _status_span_manifest_counter_add(
+                    manifest_name=str(spec.get("key") or ""),
+                    field="pending_ttl_prunes",
+                    value=int(stale_pending),
+                )
+            return []
+
+        compacted = _status_span_rows_compact(rows=list(out), status_values=status_values)
+        compact_key = (
+            str(spec.get("key") or ""),
+            str(stage_key),
+            str(plan_key if has_plan_signature else ""),
+            str(window_key),
+        )
+        last_ts = float(status_span_manifest_compact_seen.get(compact_key, 0.0) or 0.0)
+        interval_ok = (float(now_ts) - float(last_ts)) >= float(compact_min_interval)
+        should_rewrite = bool(
+            int(stale_pending) > 0
+            or (
+                interval_ok
+                and len(out) >= int(compact_min_rows)
+                and len(compacted) < len(out)
+            )
+        )
+        if should_rewrite:
+            _status_span_manifest_set_many(
+                manifest_name=str(spec.get("key") or ""),
+                stage_label=str(stage_key),
+                plan_signature=str(plan_key),
+                window_signature=str(window_key),
+                rows=list(compacted),
+                replace_scope=True,
+            )
+            if len(compacted) < len(out):
+                _status_span_manifest_counter_add(
+                    manifest_name=str(spec.get("key") or ""),
+                    field="compactions",
+                    value=1,
+                )
+            if int(stale_pending) > 0:
+                _status_span_manifest_counter_add(
+                    manifest_name=str(spec.get("key") or ""),
+                    field="pending_ttl_prunes",
+                    value=int(stale_pending),
+                )
+            out = list(compacted)
+        status_span_manifest_compact_seen[compact_key] = float(now_ts)
+        return out
+
+    def _status_span_manifest_unresolved_ranges(
+        *,
+        manifest_name: str,
+        stage_label: str,
+        window_signature: str,
+        total: int,
+        plan_signature: str = "",
+    ) -> tuple[tuple[int, int], ...]:
+        total_i = int(total)
+        if total_i <= 0:
+            return ()
+        spec = _status_span_manifest_spec(str(manifest_name))
+        manifest_key = str(spec.get("key") or str(manifest_name)).strip().lower()
+        has_plan_signature = bool(spec.get("has_plan_signature"))
+        plan_key = str(plan_signature).strip() if has_plan_signature else ""
+        if has_plan_signature and not plan_key:
+            return ((0, int(total_i - 1)),)
+        summary = _stage_unresolved_summary_get(
+            manifest_name=str(manifest_key),
+            stage_label=str(stage_label),
+            plan_signature=str(plan_key),
+            window_signature=str(window_signature),
+            total=int(total_i),
+        )
+        if isinstance(summary, tuple) and len(summary) == 2:
+            try:
+                unresolved_count = int(summary[0])
+                resolved_count = int(summary[1])
+            except (TypeError, ValueError):
+                unresolved_count = -1
+                resolved_count = -1
+            if unresolved_count == 0:
+                if resolved_count > 0:
+                    _status_span_manifest_counter_add_hits(
+                        manifest_name=str(manifest_key),
+                        covered=int(resolved_count),
+                    )
+                return ()
+            if unresolved_count >= int(total_i):
+                return ((0, int(total_i - 1)),)
+        rows = _status_span_manifest_get_many(
+            manifest_name=str(manifest_name),
+            stage_label=str(stage_label),
+            window_signature=str(window_signature),
+            plan_signature=str(plan_signature),
+        )
+        if not rows:
+            _stage_unresolved_summary_set(
+                manifest_name=str(manifest_key),
+                stage_label=str(stage_label),
+                plan_signature=str(plan_key),
+                window_signature=str(window_signature),
+                total=int(total_i),
+                unresolved_count=int(total_i),
+                resolved_count=0,
+            )
+            return ((0, int(total_i - 1)),)
+        resolved_ranges: list[tuple[int, int]] = []
+        for rank_lo, rank_hi, status in rows:
+            if str(status) not in ("cached_hit", "evaluated", "dominated"):
+                continue
+            lo = max(0, int(rank_lo))
+            hi = min(int(total_i - 1), int(rank_hi))
+            if hi < lo:
+                continue
+            resolved_ranges.append((int(lo), int(hi)))
+        if not resolved_ranges:
+            _stage_unresolved_summary_set(
+                manifest_name=str(manifest_key),
+                stage_label=str(stage_label),
+                plan_signature=str(plan_key),
+                window_signature=str(window_signature),
+                total=int(total_i),
+                unresolved_count=int(total_i),
+                resolved_count=0,
+            )
+            return ((0, int(total_i - 1)),)
+        resolved_ranges.sort(key=lambda row: (int(row[0]), int(row[1])))
+        merged: list[tuple[int, int]] = []
+        for lo, hi in resolved_ranges:
+            if not merged:
+                merged.append((int(lo), int(hi)))
+                continue
+            prev_lo, prev_hi = merged[-1]
+            if int(lo) <= int(prev_hi) + 1:
+                merged[-1] = (int(prev_lo), max(int(prev_hi), int(hi)))
+            else:
+                merged.append((int(lo), int(hi)))
+        unresolved: list[tuple[int, int]] = []
+        cursor = 0
+        covered = 0
+        for lo, hi in merged:
+            lo_i = max(0, int(lo))
+            hi_i = min(int(total_i - 1), int(hi))
+            if hi_i < lo_i:
+                continue
+            if cursor < lo_i:
+                unresolved.append((int(cursor), int(lo_i - 1)))
+            covered += max(0, int(hi_i - lo_i + 1))
+            cursor = int(max(cursor, hi_i + 1))
+        if cursor < total_i:
+            unresolved.append((int(cursor), int(total_i - 1)))
+        if covered > 0:
+            _status_span_manifest_counter_add_hits(
+                manifest_name=str(manifest_key),
+                covered=int(covered),
+            )
+        unresolved_count = sum(max(0, int(hi) - int(lo) + 1) for lo, hi in unresolved)
+        _stage_unresolved_summary_set(
+            manifest_name=str(manifest_key),
+            stage_label=str(stage_label),
+            plan_signature=str(plan_key),
+            window_signature=str(window_signature),
+            total=int(total_i),
+            unresolved_count=int(unresolved_count),
+            resolved_count=int(max(0, int(total_i) - int(unresolved_count))),
+        )
+        return tuple(unresolved)
+
+    def _cartesian_rank_manifest_get_many(
+        *,
+        stage_label: str,
+        window_signature: str,
+    ) -> list[tuple[int, int, str]]:
+        return _status_span_manifest_get_many(
+            manifest_name="cartesian",
+            stage_label=str(stage_label),
+            window_signature=str(window_signature),
+        )
+
+    def _cartesian_rank_manifest_set_many(
+        *,
+        stage_label: str,
+        window_signature: str,
+        rows: list[tuple[int, int, str]],
+    ) -> None:
+        _status_span_manifest_set_many(
+            manifest_name="cartesian",
+            stage_label=str(stage_label),
+            window_signature=str(window_signature),
+            rows=list(rows or ()),
+        )
+
+    def _stage_rank_manifest_set_many(
+        *,
+        stage_label: str,
+        plan_signature: str,
+        window_signature: str,
+        rows: list[tuple[int, int, str]],
+    ) -> None:
+        _status_span_manifest_set_many(
+            manifest_name="stage",
+            stage_label=str(stage_label),
+            plan_signature=str(plan_signature),
+            window_signature=str(window_signature),
+            rows=list(rows or ()),
+        )
+
+    def _stage_rank_manifest_unresolved_ranges(
+        *,
+        stage_label: str,
+        plan_signature: str,
+        window_signature: str,
+        total: int,
+    ) -> tuple[tuple[int, int], ...]:
+        return _status_span_manifest_unresolved_ranges(
+            manifest_name="stage",
+            stage_label=str(stage_label),
+            plan_signature=str(plan_signature),
+            window_signature=str(window_signature),
+            total=int(total),
+        )
+
+    def _rank_dominance_stamp_get_many(
+        *,
+        stage_label: str,
+        window_signature: str,
+    ) -> list[tuple[str, int, int]]:
+        nonlocal rank_dominance_stamp_reads, rank_dominance_stamp_compactions, rank_dominance_stamp_ttl_prunes
+        conn = _run_cfg_persistent_conn()
+        if conn is None:
+            return []
+        stage_key = _stage_cache_scope(stage_label)
+        window_key = str(window_signature).strip()
+        if not stage_key or not window_key:
+            return []
+        cfg = _cache_config("rank_dominance_stamp")
+        compact_min_rows = max(64, int(_registry_float(cfg.get("compact_min_rows"), 512.0)))
+        compact_min_interval = max(5.0, float(_registry_float(cfg.get("compact_min_interval_sec"), 120.0)))
+        ttl_sec = max(0.0, float(_registry_float(cfg.get("ttl_sec"), 1209600.0)))
+        now_ts = float(pytime.time())
+        compact_key = (str(stage_key), str(window_key))
+        out: list[tuple[str, int, int]] = []
+        stale_rows = 0
+        should_consider_compact = False
+        try:
+            with run_cfg_persistent_lock:
+                rows_db = conn.execute(
+                    "SELECT dominance_signature, rank_lo, rank_hi, updated_at FROM rank_dominance_stamp "
+                    "WHERE stage_label=? AND window_signature=?",
+                    (str(stage_key), str(window_key)),
+                ).fetchall()
+            for row in rows_db:
+                sig = str(row[0] or "").strip().lower()
+                try:
+                    rank_lo = int(row[1])
+                    rank_hi = int(row[2])
+                except (TypeError, ValueError):
+                    continue
+                try:
+                    updated_at = float(row[3] or 0.0)
+                except (TypeError, ValueError):
+                    updated_at = 0.0
+                if not sig or rank_lo < 0 or rank_hi < rank_lo:
+                    continue
+                if float(ttl_sec) > 0.0 and float(updated_at) > 0.0 and (float(now_ts) - float(updated_at)) > float(ttl_sec):
+                    stale_rows += 1
+                    continue
+                out.append((str(sig), int(rank_lo), int(rank_hi)))
+            rank_dominance_stamp_reads += len(out)
+            should_consider_compact = (
+                len(out) >= int(compact_min_rows)
+                or int(stale_rows) > 0
+            )
+        except Exception:
+            return []
+        if not out:
+            if int(stale_rows) > 0:
+                try:
+                    with run_cfg_persistent_lock:
+                        conn.execute(
+                            "DELETE FROM rank_dominance_stamp WHERE stage_label=? AND window_signature=?",
+                            (str(stage_key), str(window_key)),
+                        )
+                except Exception:
+                    pass
+                rank_dominance_stamp_ttl_prunes += int(stale_rows)
+            return []
+        last_compact_ts = float(rank_dominance_stamp_compact_seen.get(compact_key, 0.0) or 0.0)
+        should_compact_now = bool(should_consider_compact and (float(now_ts) - float(last_compact_ts)) >= float(compact_min_interval))
+        if not should_compact_now:
+            return out
+        grouped: dict[str, list[tuple[int, int]]] = {}
+        for sig, rank_lo, rank_hi in out:
+            grouped.setdefault(str(sig), []).append((int(rank_lo), int(rank_hi)))
+        compacted: list[tuple[str, int, int]] = []
+        for sig, ranges in grouped.items():
+            ordered = sorted(ranges, key=lambda row: (int(row[0]), int(row[1])))
+            if not ordered:
+                continue
+            cur_lo = int(ordered[0][0])
+            cur_hi = int(ordered[0][1])
+            for rank_lo, rank_hi in ordered[1:]:
+                if int(rank_lo) <= int(cur_hi) + 1:
+                    cur_hi = max(int(cur_hi), int(rank_hi))
+                else:
+                    compacted.append((str(sig), int(cur_lo), int(cur_hi)))
+                    cur_lo = int(rank_lo)
+                    cur_hi = int(rank_hi)
+            compacted.append((str(sig), int(cur_lo), int(cur_hi)))
+        rewrite_needed = bool(int(stale_rows) > 0 or len(compacted) < len(out))
+        if rewrite_needed:
+            try:
+                with run_cfg_persistent_lock:
+                    conn.execute(
+                        "DELETE FROM rank_dominance_stamp WHERE stage_label=? AND window_signature=?",
+                        (str(stage_key), str(window_key)),
+                    )
+                _rank_dominance_stamp_set_many(
+                    stage_label=str(stage_key),
+                    window_signature=str(window_key),
+                    rows=list(compacted),
+                )
+                out = list(compacted)
+                rank_dominance_stamp_compactions += 1
+            except Exception:
+                pass
+        if int(stale_rows) > 0:
+            rank_dominance_stamp_ttl_prunes += int(stale_rows)
+        rank_dominance_stamp_compact_seen[compact_key] = float(now_ts)
+        return out
+
+    def _rank_dominance_stamp_set_many(
+        *,
+        stage_label: str,
+        window_signature: str,
+        rows: list[tuple[str, int, int]],
+    ) -> None:
+        nonlocal rank_dominance_stamp_writes
+        conn = _run_cfg_persistent_conn()
+        if conn is None:
+            return
+        stage_key = _stage_cache_scope(stage_label)
+        window_key = str(window_signature).strip()
+        if not stage_key or not window_key or not rows:
+            return
+        grouped: dict[str, list[tuple[int, int]]] = {}
+        for sig_raw, rank_lo_raw, rank_hi_raw in rows:
+            sig = str(sig_raw or "").strip().lower()
+            try:
+                rank_lo = int(rank_lo_raw)
+                rank_hi = int(rank_hi_raw)
+            except (TypeError, ValueError):
+                continue
+            if not sig or rank_lo < 0 or rank_hi < rank_lo:
+                continue
+            grouped.setdefault(str(sig), []).append((int(rank_lo), int(rank_hi)))
+        if not grouped:
+            return
+        payload: list[tuple[str, str, str, int, int, float]] = []
+        now_ts = float(pytime.time())
+        for sig, ranges in grouped.items():
+            ordered = sorted(ranges, key=lambda row: (int(row[0]), int(row[1])))
+            if not ordered:
+                continue
+            cur_lo = int(ordered[0][0])
+            cur_hi = int(ordered[0][1])
+            for rank_lo, rank_hi in ordered[1:]:
+                if int(rank_lo) <= int(cur_hi) + 1:
+                    cur_hi = max(int(cur_hi), int(rank_hi))
+                else:
+                    payload.append((str(stage_key), str(window_key), str(sig), int(cur_lo), int(cur_hi), float(now_ts)))
+                    cur_lo = int(rank_lo)
+                    cur_hi = int(rank_hi)
+            payload.append((str(stage_key), str(window_key), str(sig), int(cur_lo), int(cur_hi), float(now_ts)))
+        if not payload:
+            return
+        try:
+            with run_cfg_persistent_lock:
+                conn.executemany(
+                    "INSERT OR REPLACE INTO rank_dominance_stamp("
+                    "stage_label, window_signature, dominance_signature, rank_lo, rank_hi, updated_at"
+                    ") VALUES(?,?,?,?,?,?)",
+                    payload,
+                )
+            rank_dominance_stamp_writes += len(payload)
+        except Exception:
+            return
+
+    def _apply_rank_dominance_stamps_to_manifest(
+        *,
+        stage_label: str,
+        window_signature: str,
+        total: int,
+    ) -> None:
+        nonlocal rank_dominance_stamp_hits, rank_dominance_manifest_applies
+        total_i = int(total)
+        if total_i <= 0:
+            return
+        stage_key = _stage_cache_scope(stage_label)
+        window_key = str(window_signature).strip()
+        if not stage_key or not window_key:
+            return
+        seen_key = (str(stage_key), str(window_key))
+        if seen_key in rank_dominance_manifest_applied_seen:
+            return
+        stamp_rows = _rank_dominance_stamp_get_many(
+            stage_label=str(stage_key),
+            window_signature=str(window_key),
+        )
+        rank_dominance_manifest_applied_seen.add(seen_key)
+        if not stamp_rows:
+            return
+        manifest_rows: list[tuple[int, int, str]] = []
+        covered = 0
+        for _sig, rank_lo, rank_hi in stamp_rows:
+            lo_i = max(0, int(rank_lo))
+            hi_i = min(int(total_i - 1), int(rank_hi))
+            if hi_i < lo_i:
+                continue
+            manifest_rows.append((int(lo_i), int(hi_i), "dominated"))
+            covered += max(0, int(hi_i - lo_i + 1))
+        if not manifest_rows:
+            return
+        _cartesian_rank_manifest_set_many(
+            stage_label=str(stage_key),
+            window_signature=str(window_key),
+            rows=manifest_rows,
+        )
+        rank_dominance_manifest_applies += len(manifest_rows)
+        rank_dominance_stamp_hits += int(covered)
+
+    def _cartesian_rank_manifest_unresolved_ranges(
+        *,
+        stage_label: str,
+        window_signature: str,
+        total: int,
+    ) -> tuple[tuple[int, int], ...]:
+        total_i = int(total)
+        if total_i <= 0:
+            return ()
+        stage_key = _stage_cache_scope(stage_label)
+        window_key = str(window_signature).strip()
+        _apply_rank_dominance_stamps_to_manifest(
+            stage_label=str(stage_key),
+            window_signature=str(window_key),
+            total=int(total_i),
+        )
+        return _status_span_manifest_unresolved_ranges(
+            manifest_name="cartesian",
+            stage_label=str(stage_key),
+            window_signature=str(window_key),
+            total=int(total_i),
+        )
+
+    def _cartesian_rank_manifest_claim_next_range(
+        *,
+        stage_label: str,
+        window_signature: str,
+        total: int,
+        max_span: int,
+    ) -> tuple[int, int] | None:
+        total_i = int(total)
+        if total_i <= 0:
+            return None
+        max_span_i = max(1, int(max_span))
+        conn = _run_cfg_persistent_conn()
+        if conn is None:
+            return None
+        stage_key = _stage_cache_scope(stage_label)
+        window_key = str(window_signature).strip()
+        if not stage_key or not window_key:
+            return None
+        cfg = _cache_config("cartesian_rank_manifest")
+        pending_ttl_sec = max(0.0, float(_registry_float(cfg.get("pending_ttl_sec"), 86400.0)))
+        now_ts = float(pytime.time())
+        stale_pending_pruned = 0
+        reads_seen = 0
+        claim_row: tuple[int, int] | None = None
+        attempts = 6
+        status_values = ("pending", "cached_hit", "evaluated", "dominated")
+        status_placeholders = ",".join("?" for _ in status_values)
+        for attempt_idx in range(attempts):
+            try:
+                with run_cfg_persistent_lock:
+                    conn.execute("BEGIN IMMEDIATE")
+                    try:
+                        if float(pending_ttl_sec) > 0.0:
+                            stale_pending_pruned = int(
+                                conn.execute(
+                                    "SELECT COUNT(*) FROM cartesian_rank_manifest "
+                                    "WHERE stage_label=? AND window_signature=? AND status='pending' "
+                                    "AND updated_at>0 AND (? - updated_at) > ?",
+                                    (str(stage_key), str(window_key), float(now_ts), float(pending_ttl_sec)),
+                                ).fetchone()[0]
+                                or 0
+                            )
+                            if int(stale_pending_pruned) > 0:
+                                conn.execute(
+                                    "DELETE FROM cartesian_rank_manifest "
+                                    "WHERE stage_label=? AND window_signature=? AND status='pending' "
+                                    "AND updated_at>0 AND (? - updated_at) > ?",
+                                    (str(stage_key), str(window_key), float(now_ts), float(pending_ttl_sec)),
+                                )
+
+                        cursor_row = conn.execute(
+                            "SELECT next_rank FROM cartesian_rank_cursor "
+                            "WHERE stage_label=? AND window_signature=?",
+                            (str(stage_key), str(window_key)),
+                        ).fetchone()
+                        reads_seen += 1
+                        cursor = 0
+                        if isinstance(cursor_row, tuple) and len(cursor_row) >= 1:
+                            try:
+                                cursor = int(cursor_row[0])
+                            except (TypeError, ValueError):
+                                cursor = 0
+                        cursor = max(0, min(int(total_i), int(cursor)))
+                        if int(stale_pending_pruned) > 0 and int(cursor) > 0:
+                            # Pending TTL pruning can reopen gaps behind the persisted cursor.
+                            cursor = 0
+
+                        while int(cursor) < int(total_i):
+                            cover_row = conn.execute(
+                                "SELECT rank_lo, rank_hi FROM cartesian_rank_manifest "
+                                "WHERE stage_label=? AND window_signature=? "
+                                "AND rank_lo<=? AND rank_hi>=? "
+                                f"AND status IN ({status_placeholders}) "
+                                "ORDER BY rank_hi DESC LIMIT 1",
+                                (
+                                    str(stage_key),
+                                    str(window_key),
+                                    int(cursor),
+                                    int(cursor),
+                                    *status_values,
+                                ),
+                            ).fetchone()
+                            reads_seen += 1
+                            if not (isinstance(cover_row, tuple) and len(cover_row) >= 2):
+                                break
+                            try:
+                                cover_hi = int(cover_row[1])
+                            except (TypeError, ValueError):
+                                break
+                            if int(cover_hi) < int(cursor):
+                                break
+                            cursor = int(min(int(total_i), int(cover_hi) + 1))
+
+                        if int(cursor) < int(total_i):
+                            next_row = conn.execute(
+                                "SELECT rank_lo, rank_hi FROM cartesian_rank_manifest "
+                                "WHERE stage_label=? AND window_signature=? AND rank_lo>=? "
+                                f"AND status IN ({status_placeholders}) "
+                                "ORDER BY rank_lo ASC LIMIT 1",
+                                (
+                                    str(stage_key),
+                                    str(window_key),
+                                    int(cursor),
+                                    *status_values,
+                                ),
+                            ).fetchone()
+                            reads_seen += 1
+                            next_lo = int(total_i)
+                            next_hi = None
+                            if isinstance(next_row, tuple) and len(next_row) >= 2:
+                                try:
+                                    next_lo = int(next_row[0])
+                                    next_hi = int(next_row[1])
+                                except (TypeError, ValueError):
+                                    next_lo = int(total_i)
+                                    next_hi = None
+                            if int(next_lo) <= int(cursor):
+                                if isinstance(next_hi, int) and int(next_hi) >= int(cursor):
+                                    cursor = int(min(int(total_i), int(next_hi) + 1))
+                                else:
+                                    cursor = int(min(int(total_i), int(cursor) + 1))
+                            else:
+                                claim_lo = int(cursor)
+                                gap_hi = int(min(int(total_i - 1), int(next_lo) - 1))
+                                claim_hi = int(min(int(gap_hi), int(claim_lo + int(max_span_i) - 1)))
+                                if int(claim_hi) >= int(claim_lo):
+                                    conn.execute(
+                                        "INSERT OR REPLACE INTO cartesian_rank_manifest("
+                                        "stage_label, window_signature, rank_lo, rank_hi, status, updated_at"
+                                        ") VALUES(?,?,?,?,?,?)",
+                                        (
+                                            str(stage_key),
+                                            str(window_key),
+                                            int(claim_lo),
+                                            int(claim_hi),
+                                            "pending",
+                                            float(now_ts),
+                                        ),
+                                    )
+                                    claim_row = (int(claim_lo), int(claim_hi))
+                                    cursor = int(min(int(total_i), int(claim_hi) + 1))
+
+                        conn.execute(
+                            "INSERT OR REPLACE INTO cartesian_rank_cursor("
+                            "stage_label, window_signature, next_rank, updated_at"
+                            ") VALUES(?,?,?,?)",
+                            (str(stage_key), str(window_key), int(cursor), float(now_ts)),
+                        )
+                        conn.execute("COMMIT")
+                    except Exception:
+                        try:
+                            conn.execute("ROLLBACK")
+                        except Exception:
+                            pass
+                        raise
+                break
+            except sqlite3.OperationalError as exc:
+                msg = str(exc or "").lower()
+                if "locked" in msg and int(attempt_idx) < int(attempts - 1):
+                    pytime.sleep(min(0.1, 0.01 * float(attempt_idx + 1)))
+                    continue
+                return None
+            except Exception:
+                return None
+
+        if int(reads_seen) > 0:
+            _status_span_manifest_counter_add(manifest_name="cartesian", field="reads", value=int(reads_seen))
+        if int(stale_pending_pruned) > 0:
+            _status_span_manifest_counter_add(
+                manifest_name="cartesian",
+                field="pending_ttl_prunes",
+                value=int(stale_pending_pruned),
+            )
+        _status_span_manifest_counter_add(manifest_name="cartesian", field="writes", value=1)
+        if isinstance(claim_row, tuple):
+            _status_span_manifest_counter_add(manifest_name="cartesian", field="writes", value=1)
+        return claim_row
+
+    def _series_pack_state_manifest_get_many(
+        *,
+        cells: list[tuple[str, str]],
+    ) -> dict[tuple[str, str], str]:
+        nonlocal series_pack_state_manifest_reads, series_pack_state_manifest_hits
+        conn = _run_cfg_persistent_conn()
+        if conn is None:
+            return {}
+        deduped: list[tuple[str, str]] = []
+        seen: set[tuple[str, str]] = set()
+        for strategy_fp, window_sig in cells:
+            key = (str(strategy_fp).strip(), str(window_sig).strip())
+            if not key[0] or not key[1] or key in seen:
+                continue
+            seen.add(key)
+            deduped.append(key)
+        if not deduped:
+            return {}
+        out: dict[tuple[str, str], str] = {}
+        chunk_size = 140
+        try:
+            with run_cfg_persistent_lock:
+                for start_i in range(0, len(deduped), chunk_size):
+                    chunk = deduped[start_i : start_i + chunk_size]
+                    if not chunk:
+                        continue
+                    where = " OR ".join("(strategy_fingerprint=? AND window_signature=?)" for _ in chunk)
+                    params: list[object] = []
+                    for strategy_fp, window_sig in chunk:
+                        params.extend((str(strategy_fp), str(window_sig)))
+                    rows_db = conn.execute(
+                        "SELECT strategy_fingerprint, window_signature, state "
+                        "FROM series_pack_state_manifest WHERE " + where,
+                        tuple(params),
+                    ).fetchall()
+                    for row in rows_db:
+                        strategy_fp = str(row[0] or "").strip()
+                        window_sig = str(row[1] or "").strip()
+                        state = str(row[2] or "").strip().lower()
+                        if not strategy_fp or not window_sig:
+                            continue
+                        if state not in ("mmap", "pickle", "none"):
+                            continue
+                        out[(str(strategy_fp), str(window_sig))] = str(state)
+            series_pack_state_manifest_reads += len(out)
+            series_pack_state_manifest_hits += len(out)
+        except Exception:
+            return {}
+        return out
+
+    def _series_pack_state_manifest_set_many(
+        *,
+        rows: list[tuple[str, str, str]],
+    ) -> None:
+        nonlocal series_pack_state_manifest_writes
+        conn = _run_cfg_persistent_conn()
+        if conn is None:
+            return
+        if not rows:
+            return
+        merged: dict[tuple[str, str], str] = {}
+        state_priority = {"none": 0, "pickle": 1, "mmap": 2}
+        for strategy_fp_raw, window_sig_raw, state_raw in rows:
+            strategy_fp = str(strategy_fp_raw).strip()
+            window_sig = str(window_sig_raw).strip()
+            state = str(state_raw or "").strip().lower()
+            if not strategy_fp or not window_sig or state not in state_priority:
+                continue
+            key = (str(strategy_fp), str(window_sig))
+            prev = merged.get(key)
+            if prev is None or state_priority.get(state, -1) >= state_priority.get(str(prev), -1):
+                merged[key] = str(state)
+        if not merged:
+            return
+        payload = [
+            (str(strategy_fp), str(window_sig), str(state), float(pytime.time()))
+            for (strategy_fp, window_sig), state in merged.items()
+        ]
+        try:
+            with run_cfg_persistent_lock:
+                conn.executemany(
+                    "INSERT INTO series_pack_state_manifest("
+                    "strategy_fingerprint, window_signature, state, updated_at"
+                    ") VALUES(?,?,?,?) "
+                    "ON CONFLICT(strategy_fingerprint, window_signature) DO UPDATE SET "
+                    "state=excluded.state, updated_at=excluded.updated_at",
+                    payload,
+                )
+            series_pack_state_manifest_writes += len(payload)
+        except Exception:
+            return
+
+    def _rank_bin_from_rank(rank: int) -> int:
+        return int(max(0, int(rank)) // int(max(1, int(_RANK_BIN_SIZE))))
+
+    def _rank_bin_runtime_get_many(
+        *,
+        stage_label: str,
+        cells: list[tuple[str, int]],
+    ) -> dict[tuple[str, int], dict[str, float]]:
+        nonlocal rank_bin_runtime_reads
+        conn = _run_cfg_persistent_conn()
+        if conn is None:
+            return {}
+        stage_key = _stage_cache_scope(stage_label)
+        if not stage_key:
+            return {}
+        deduped: list[tuple[str, int]] = []
+        seen: set[tuple[str, int]] = set()
+        for window_sig, rank_bin in cells:
+            window_key = str(window_sig).strip()
+            try:
+                bin_i = int(rank_bin)
+            except (TypeError, ValueError):
+                continue
+            key = (window_key, int(bin_i))
+            if not window_key or key in seen:
+                continue
+            seen.add(key)
+            deduped.append(key)
+        if not deduped:
+            return {}
+        out: dict[tuple[str, int], dict[str, float]] = {}
+        chunk_size = 160
+        try:
+            with run_cfg_persistent_lock:
+                for start_i in range(0, len(deduped), chunk_size):
+                    chunk = deduped[start_i : start_i + chunk_size]
+                    if not chunk:
+                        continue
+                    where = " OR ".join("(window_signature=? AND rank_bin=?)" for _ in chunk)
+                    params: list[object] = [str(stage_key)]
+                    for window_sig, rank_bin in chunk:
+                        params.extend((str(window_sig), int(rank_bin)))
+                    rows_db = conn.execute(
+                        "SELECT window_signature, rank_bin, eval_count, total_eval_sec, cache_hits "
+                        "FROM rank_bin_runtime WHERE stage_label=? AND (" + where + ")",
+                        tuple(params),
+                    ).fetchall()
+                    for row in rows_db:
+                        window_sig = str(row[0] or "").strip()
+                        try:
+                            rank_bin = int(row[1])
+                            eval_count = int(row[2] or 0)
+                            total_eval_sec = float(row[3] or 0.0)
+                            cache_hits = int(row[4] or 0)
+                        except Exception:
+                            continue
+                        if not window_sig or eval_count <= 0:
+                            continue
+                        avg_eval_sec = float(total_eval_sec) / float(max(1, int(eval_count)))
+                        hit_rate = float(cache_hits) / float(max(1, int(eval_count)))
+                        out[(window_sig, int(rank_bin))] = {
+                            "avg_eval_sec": float(avg_eval_sec),
+                            "hit_rate": float(max(0.0, min(1.0, hit_rate))),
+                            "eval_count": float(eval_count),
+                        }
+            rank_bin_runtime_reads += len(out)
+        except Exception:
+            return {}
+        return out
+
+    def _rank_bin_runtime_set_many(
+        *,
+        stage_label: str,
+        rows: list[tuple[str, int, int, float, int]],
+    ) -> None:
+        nonlocal rank_bin_runtime_writes
+        conn = _run_cfg_persistent_conn()
+        if conn is None:
+            return
+        stage_key = _stage_cache_scope(stage_label)
+        if not stage_key or not rows:
+            return
+        merged: dict[tuple[str, int], tuple[int, float, int]] = {}
+        for window_sig, rank_bin, eval_count, total_eval_sec, cache_hits in rows:
+            window_key = str(window_sig).strip()
+            try:
+                bin_i = int(rank_bin)
+                eval_i = int(eval_count)
+                sec_f = float(total_eval_sec)
+                hit_i = int(cache_hits)
+            except Exception:
+                continue
+            if not window_key or eval_i <= 0 or sec_f < 0.0:
+                continue
+            key = (window_key, int(bin_i))
+            prev = merged.get(key)
+            if prev is None:
+                merged[key] = (int(eval_i), float(sec_f), int(max(0, hit_i)))
+            else:
+                merged[key] = (
+                    int(prev[0]) + int(eval_i),
+                    float(prev[1]) + float(sec_f),
+                    int(prev[2]) + int(max(0, hit_i)),
+                )
+        if not merged:
+            return
+        now_ts = float(pytime.time())
+        payload = [
+            (
+                str(stage_key),
+                str(window_sig),
+                int(rank_bin),
+                int(rec[0]),
+                float(rec[1]),
+                int(rec[2]),
+                now_ts,
+            )
+            for (window_sig, rank_bin), rec in merged.items()
+        ]
+        try:
+            with run_cfg_persistent_lock:
+                conn.executemany(
+                    "INSERT INTO rank_bin_runtime("
+                    "stage_label, window_signature, rank_bin, eval_count, total_eval_sec, cache_hits, updated_at"
+                    ") VALUES(?,?,?,?,?,?,?) "
+                    "ON CONFLICT(stage_label, window_signature, rank_bin) DO UPDATE SET "
+                    "eval_count=rank_bin_runtime.eval_count + excluded.eval_count, "
+                    "total_eval_sec=rank_bin_runtime.total_eval_sec + excluded.total_eval_sec, "
+                    "cache_hits=rank_bin_runtime.cache_hits + excluded.cache_hits, "
+                    "updated_at=excluded.updated_at",
+                    payload,
+                )
+            rank_bin_runtime_writes += len(payload)
+        except Exception:
+            return
+
+    def _dimension_value_utility_get_many(
+        *,
+        stage_label: str,
+        cells: list[tuple[str, str, str]],
+    ) -> dict[tuple[str, str, str], dict[str, float]]:
+        nonlocal dimension_utility_reads
+        conn = _run_cfg_persistent_conn()
+        if conn is None:
+            return {}
+        stage_key = _stage_cache_scope(stage_label)
+        if not stage_key:
+            return {}
+        deduped: list[tuple[str, str, str]] = []
+        seen: set[tuple[str, str, str]] = set()
+        for window_sig, dim_key, dim_value in cells:
+            key = (str(window_sig).strip(), str(dim_key).strip(), str(dim_value).strip())
+            if not key[0] or not key[1] or key in seen:
+                continue
+            seen.add(key)
+            deduped.append(key)
+        if not deduped:
+            return {}
+        out: dict[tuple[str, str, str], dict[str, float]] = {}
+        chunk_size = 120
+        try:
+            with run_cfg_persistent_lock:
+                for start_i in range(0, len(deduped), chunk_size):
+                    chunk = deduped[start_i : start_i + chunk_size]
+                    if not chunk:
+                        continue
+                    where = " OR ".join(
+                        "(window_signature=? AND dimension_key=? AND dimension_value=?)"
+                        for _ in chunk
+                    )
+                    params: list[object] = [str(stage_key)]
+                    for window_sig, dim_key, dim_value in chunk:
+                        params.extend((str(window_sig), str(dim_key), str(dim_value)))
+                    rows_db = conn.execute(
+                        "SELECT window_signature, dimension_key, dimension_value, eval_count, keep_count, cache_hits, total_eval_sec "
+                        "FROM dimension_value_utility WHERE stage_label=? AND (" + where + ")",
+                        tuple(params),
+                    ).fetchall()
+                    for row in rows_db:
+                        window_sig = str(row[0] or "").strip()
+                        dim_key = str(row[1] or "").strip()
+                        dim_value = str(row[2] or "").strip()
+                        try:
+                            eval_count = int(row[3] or 0)
+                            keep_count = int(row[4] or 0)
+                            cache_hits = int(row[5] or 0)
+                            total_eval_sec = float(row[6] or 0.0)
+                        except Exception:
+                            continue
+                        if not window_sig or not dim_key or eval_count <= 0:
+                            continue
+                        out[(window_sig, dim_key, dim_value)] = {
+                            "eval_count": float(eval_count),
+                            "keep_rate": float(max(0.0, min(1.0, float(keep_count) / float(max(1, eval_count))))),
+                            "hit_rate": float(max(0.0, min(1.0, float(cache_hits) / float(max(1, eval_count))))),
+                            "avg_eval_sec": float(total_eval_sec) / float(max(1, eval_count)),
+                        }
+            dimension_utility_reads += len(out)
+        except Exception:
+            return {}
+        return out
+
+    def _dimension_value_utility_set_many(
+        *,
+        stage_label: str,
+        rows: list[tuple[str, str, str, int, int, int, float]],
+    ) -> None:
+        nonlocal dimension_utility_writes
+        conn = _run_cfg_persistent_conn()
+        if conn is None:
+            return
+        stage_key = _stage_cache_scope(stage_label)
+        if not stage_key or not rows:
+            return
+        merged: dict[tuple[str, str, str], tuple[int, int, int, float]] = {}
+        for window_sig, dim_key, dim_value, eval_count, keep_count, cache_hits, total_eval_sec in rows:
+            window_key = str(window_sig).strip()
+            dim_key_s = str(dim_key).strip()
+            dim_value_s = str(dim_value).strip()
+            try:
+                eval_i = int(eval_count)
+                keep_i = int(keep_count)
+                hit_i = int(cache_hits)
+                sec_f = float(total_eval_sec)
+            except Exception:
+                continue
+            if not window_key or not dim_key_s or eval_i <= 0 or sec_f < 0.0:
+                continue
+            key = (window_key, dim_key_s, dim_value_s)
+            prev = merged.get(key)
+            keep_i = int(max(0, min(eval_i, keep_i)))
+            hit_i = int(max(0, min(eval_i, hit_i)))
+            if prev is None:
+                merged[key] = (int(eval_i), int(keep_i), int(hit_i), float(sec_f))
+            else:
+                merged[key] = (
+                    int(prev[0]) + int(eval_i),
+                    int(prev[1]) + int(keep_i),
+                    int(prev[2]) + int(hit_i),
+                    float(prev[3]) + float(sec_f),
+                )
+        if not merged:
+            return
+        now_ts = float(pytime.time())
+        payload = [
+            (
+                str(stage_key),
+                str(window_sig),
+                str(dim_key),
+                str(dim_value),
+                int(rec[0]),
+                int(rec[1]),
+                int(rec[2]),
+                float(rec[3]),
+                now_ts,
+            )
+            for (window_sig, dim_key, dim_value), rec in merged.items()
+        ]
+        try:
+            with run_cfg_persistent_lock:
+                conn.executemany(
+                    "INSERT INTO dimension_value_utility("
+                    "stage_label, window_signature, dimension_key, dimension_value, eval_count, keep_count, cache_hits, total_eval_sec, updated_at"
+                    ") VALUES(?,?,?,?,?,?,?,?,?) "
+                    "ON CONFLICT(stage_label, window_signature, dimension_key, dimension_value) DO UPDATE SET "
+                    "eval_count=dimension_value_utility.eval_count + excluded.eval_count, "
+                    "keep_count=dimension_value_utility.keep_count + excluded.keep_count, "
+                    "cache_hits=dimension_value_utility.cache_hits + excluded.cache_hits, "
+                    "total_eval_sec=dimension_value_utility.total_eval_sec + excluded.total_eval_sec, "
+                    "updated_at=excluded.updated_at",
+                    payload,
+                )
+            dimension_utility_writes += len(payload)
+        except Exception:
+            return
+
+    def _dimension_upper_bound_get_many(
+        *,
+        stage_label: str,
+        cells: list[tuple[str, str]],
+    ) -> dict[tuple[str, str], dict[str, object]]:
+        nonlocal dimension_upper_bound_reads
+        conn = _run_cfg_persistent_conn()
+        if conn is None:
+            return {}
+        stage_key = _stage_cache_scope(stage_label)
+        if not stage_key:
+            return {}
+        deduped: list[tuple[str, str]] = []
+        seen: set[tuple[str, str]] = set()
+        for axis_dim_fp, window_sig in cells:
+            key = (str(axis_dim_fp).strip(), str(window_sig).strip())
+            if not key[0] or not key[1] or key in seen:
+                continue
+            seen.add(key)
+            deduped.append(key)
+        if not deduped:
+            return {}
+        out: dict[tuple[str, str], dict[str, object]] = {}
+        chunk_size = 140
+        try:
+            with run_cfg_persistent_lock:
+                for start_i in range(0, len(deduped), chunk_size):
+                    chunk = deduped[start_i : start_i + chunk_size]
+                    if not chunk:
+                        continue
+                    where = " OR ".join("(axis_dimension_fingerprint=? AND window_signature=?)" for _ in chunk)
+                    params: list[object] = [str(stage_key)]
+                    for axis_dim_fp, window_sig in chunk:
+                        params.extend((str(axis_dim_fp), str(window_sig)))
+                    rows_db = conn.execute(
+                        "SELECT axis_dimension_fingerprint, window_signature, eval_count, keep_count, best_pnl_over_dd, best_pnl "
+                        "FROM dimension_upper_bound WHERE stage_label=? AND (" + where + ")",
+                        tuple(params),
+                    ).fetchall()
+                    for row in rows_db:
+                        axis_dim_fp = str(row[0] or "").strip()
+                        window_sig = str(row[1] or "").strip()
+                        if not axis_dim_fp or not window_sig:
+                            continue
+                        out[(axis_dim_fp, window_sig)] = {
+                            "eval_count": int(row[2] or 0),
+                            "keep_count": int(row[3] or 0),
+                            "best_pnl_over_dd": (None if row[4] is None else float(row[4])),
+                            "best_pnl": (None if row[5] is None else float(row[5])),
+                        }
+            dimension_upper_bound_reads += len(out)
+        except Exception:
+            return {}
+        return out
+
+    def _dimension_upper_bound_upsert_many(
+        *,
+        stage_label: str,
+        rows: list[tuple[str, str, dict | None]],
+    ) -> None:
+        nonlocal dimension_upper_bound_writes
+        conn = _run_cfg_persistent_conn()
+        if conn is None:
+            return
+        stage_key = _stage_cache_scope(stage_label)
+        if not stage_key or not rows:
+            return
+        merged: dict[tuple[str, str], dict[str, object]] = {}
+        for axis_dim_fp, window_sig, row in rows:
+            axis_key = str(axis_dim_fp).strip()
+            window_key = str(window_sig).strip()
+            if not axis_key or not window_key:
+                continue
+            key = (axis_key, window_key)
+            rec = merged.get(key)
+            if rec is None:
+                rec = {
+                    "eval_count": 0,
+                    "keep_count": 0,
+                    "best_pnl_over_dd": None,
+                    "best_pnl": None,
+                }
+                merged[key] = rec
+            rec["eval_count"] = int(rec.get("eval_count") or 0) + 1
+            if not isinstance(row, dict):
+                continue
+            rec["keep_count"] = int(rec.get("keep_count") or 0) + 1
+            for metric_key, rec_key, caster in (
+                ("pnl_over_dd", "best_pnl_over_dd", float),
+                ("pnl", "best_pnl", float),
+            ):
+                raw_val = row.get(metric_key)
+                if raw_val is None:
+                    continue
+                try:
+                    val = caster(raw_val)
+                except (TypeError, ValueError):
+                    continue
+                prev = rec.get(rec_key)
+                if prev is None or float(val) > float(prev):
+                    rec[rec_key] = val
+        if not merged:
+            return
+        now_ts = float(pytime.time())
+        payload = [
+            (
+                str(stage_key),
+                str(axis_dim_fp),
+                str(window_sig),
+                int(rec.get("eval_count") or 0),
+                int(rec.get("keep_count") or 0),
+                rec.get("best_pnl_over_dd"),
+                rec.get("best_pnl"),
+                now_ts,
+            )
+            for (axis_dim_fp, window_sig), rec in merged.items()
+        ]
+        try:
+            with run_cfg_persistent_lock:
+                conn.executemany(
+                    "INSERT INTO dimension_upper_bound("
+                    "stage_label, axis_dimension_fingerprint, window_signature, eval_count, keep_count, best_pnl_over_dd, best_pnl, updated_at"
+                    ") VALUES(?,?,?,?,?,?,?,?) "
+                    "ON CONFLICT(stage_label, axis_dimension_fingerprint, window_signature) DO UPDATE SET "
+                    "eval_count=dimension_upper_bound.eval_count + excluded.eval_count, "
+                    "keep_count=dimension_upper_bound.keep_count + excluded.keep_count, "
+                    "best_pnl_over_dd=CASE "
+                    "WHEN dimension_upper_bound.best_pnl_over_dd IS NULL THEN excluded.best_pnl_over_dd "
+                    "WHEN excluded.best_pnl_over_dd IS NULL THEN dimension_upper_bound.best_pnl_over_dd "
+                    "WHEN excluded.best_pnl_over_dd > dimension_upper_bound.best_pnl_over_dd THEN excluded.best_pnl_over_dd "
+                    "ELSE dimension_upper_bound.best_pnl_over_dd END, "
+                    "best_pnl=CASE "
+                    "WHEN dimension_upper_bound.best_pnl IS NULL THEN excluded.best_pnl "
+                    "WHEN excluded.best_pnl IS NULL THEN dimension_upper_bound.best_pnl "
+                    "WHEN excluded.best_pnl > dimension_upper_bound.best_pnl THEN excluded.best_pnl "
+                    "ELSE dimension_upper_bound.best_pnl END, "
+                    "updated_at=excluded.updated_at",
+                    payload,
+                )
+            dimension_upper_bound_writes += len(payload)
+        except Exception:
+            return
+
+    def _dimension_upper_bound_score(frontier_row: dict[str, object] | None) -> float:
+        if not isinstance(frontier_row, dict):
+            return 0.0
+        cfg = _cache_config("dimension_upper_bound")
+        min_eval_count = max(1, int(_registry_float(cfg.get("min_eval_count"), 6.0)))
+        low_ceiling_max_keep_count = max(0, int(_registry_float(cfg.get("low_ceiling_max_keep_count"), 0.0)))
+        low_ceiling_max_best_pnl = float(_registry_float(cfg.get("low_ceiling_max_best_pnl"), 0.0))
+        low_ceiling_max_best_pnl_dd = float(_registry_float(cfg.get("low_ceiling_max_best_pnl_over_dd"), 0.0))
+        confidence_eval_scale = max(1.0, float(_registry_float(cfg.get("confidence_eval_scale"), 24.0)))
+        eval_count = int(frontier_row.get("eval_count") or 0)
+        keep_count = int(frontier_row.get("keep_count") or 0)
+        if eval_count < int(min_eval_count):
+            return 0.0
+        best_pnl_raw = frontier_row.get("best_pnl")
+        best_pnl_dd_raw = frontier_row.get("best_pnl_over_dd")
+        best_pnl = float(best_pnl_raw) if best_pnl_raw is not None else float("-inf")
+        best_pnl_dd = float(best_pnl_dd_raw) if best_pnl_dd_raw is not None else float("-inf")
+        is_low_ceiling = bool(
+            keep_count <= int(low_ceiling_max_keep_count)
+            and best_pnl <= float(low_ceiling_max_best_pnl)
+            and best_pnl_dd <= float(low_ceiling_max_best_pnl_dd)
+        )
+        if is_low_ceiling:
+            return -1.0
+        confidence = float(min(1.0, float(eval_count) / float(confidence_eval_scale)))
+        keep_rate = float(max(0.0, min(1.0, float(keep_count) / float(max(1, eval_count)))))
+        upside = (0.65 * max(0.0, float(best_pnl_dd if math.isfinite(best_pnl_dd) else 0.0))) + (
+            0.35 * max(0.0, float(best_pnl if math.isfinite(best_pnl) else 0.0))
+        )
+        return float((confidence * upside) + (0.25 * keep_rate))
+
+    def _upper_bound_dominance_signature(frontier_row: dict[str, object] | None) -> str:
+        if not isinstance(frontier_row, dict):
+            return ""
+        score = float(_dimension_upper_bound_score(frontier_row))
+        if score >= 0.0:
+            return ""
+        eval_count = int(frontier_row.get("eval_count") or 0)
+        keep_count = int(frontier_row.get("keep_count") or 0)
+        best_pnl_raw = frontier_row.get("best_pnl")
+        best_pnl_dd_raw = frontier_row.get("best_pnl_over_dd")
+        try:
+            best_pnl = None if best_pnl_raw is None else round(float(best_pnl_raw), 6)
+        except (TypeError, ValueError):
+            best_pnl = None
+        try:
+            best_pnl_dd = None if best_pnl_dd_raw is None else round(float(best_pnl_dd_raw), 6)
+        except (TypeError, ValueError):
+            best_pnl_dd = None
+        raw = {
+            "rule": "upper_bound_low_ceiling",
+            "eval_count": int(eval_count),
+            "keep_count": int(keep_count),
+            "best_pnl": best_pnl,
+            "best_pnl_over_dd": best_pnl_dd,
+        }
+        return hashlib.sha1(json.dumps(raw, sort_keys=True, default=str).encode("utf-8")).hexdigest()
+
+    def _planner_heartbeat_set(
+        *,
+        stage_label: str,
+        worker_id: int,
+        tested: int,
+        cached_hits: int,
+        total: int,
+        eta_sec: float | None,
+        status: str,
+    ) -> None:
+        nonlocal planner_heartbeat_writes
+        conn = _run_cfg_persistent_conn()
+        if conn is None:
+            return
+        stage_key = _stage_cache_scope(stage_label)
+        if not stage_key:
+            return
+        try:
+            worker_i = int(worker_id)
+            tested_i = int(max(0, int(tested)))
+            cached_i = int(max(0, int(cached_hits)))
+            total_i = int(max(0, int(total)))
+            eta_f = None if eta_sec is None else float(max(0.0, float(eta_sec)))
+            status_s = str(status or "").strip().lower() or "running"
+        except Exception:
+            return
+        now_ts = float(pytime.time())
+        try:
+            with run_cfg_persistent_lock:
+                conn.execute(
+                    "INSERT INTO planner_heartbeat("
+                    "stage_label, worker_id, last_seen, tested, cached_hits, total, eta_sec, status, updated_at"
+                    ") VALUES(?,?,?,?,?,?,?,?,?) "
+                    "ON CONFLICT(stage_label, worker_id) DO UPDATE SET "
+                    "last_seen=excluded.last_seen, "
+                    "tested=excluded.tested, "
+                    "cached_hits=excluded.cached_hits, "
+                    "total=excluded.total, "
+                    "eta_sec=excluded.eta_sec, "
+                    "status=excluded.status, "
+                    "updated_at=excluded.updated_at",
+                    (
+                        str(stage_key),
+                        int(worker_i),
+                        float(now_ts),
+                        int(tested_i),
+                        int(cached_i),
+                        int(total_i),
+                        (float(eta_f) if eta_f is not None else None),
+                        str(status_s),
+                        float(now_ts),
+                    ),
+                )
+            planner_heartbeat_writes += 1
+        except Exception:
+            return
+
+    def _planner_heartbeat_clear_stage(*, stage_label: str) -> None:
+        conn = _run_cfg_persistent_conn()
+        if conn is None:
+            return
+        stage_key = _stage_cache_scope(stage_label)
+        if not stage_key:
+            return
+        try:
+            with run_cfg_persistent_lock:
+                conn.execute(
+                    "DELETE FROM planner_heartbeat WHERE stage_label=?",
+                    (str(stage_key),),
+                )
+        except Exception:
+            return
+
+    def _planner_heartbeat_get_many(
+        *,
+        stage_label: str,
+        worker_ids: list[int],
+    ) -> dict[int, dict[str, float | int | str | None]]:
+        nonlocal planner_heartbeat_reads
+        conn = _run_cfg_persistent_conn()
+        if conn is None:
+            return {}
+        stage_key = _stage_cache_scope(stage_label)
+        if not stage_key:
+            return {}
+        worker_ids_clean: list[int] = []
+        seen: set[int] = set()
+        for raw in worker_ids:
+            try:
+                worker_i = int(raw)
+            except (TypeError, ValueError):
+                continue
+            if worker_i < 0 or worker_i in seen:
+                continue
+            seen.add(worker_i)
+            worker_ids_clean.append(int(worker_i))
+        if not worker_ids_clean:
+            return {}
+        out: dict[int, dict[str, float | int | str | None]] = {}
+        chunk_size = 160
+        try:
+            with run_cfg_persistent_lock:
+                for start_i in range(0, len(worker_ids_clean), chunk_size):
+                    chunk = worker_ids_clean[start_i : start_i + chunk_size]
+                    if not chunk:
+                        continue
+                    placeholders = ",".join("?" for _ in chunk)
+                    rows = conn.execute(
+                        "SELECT worker_id, last_seen, tested, cached_hits, total, eta_sec, status "
+                        "FROM planner_heartbeat WHERE stage_label=? AND worker_id IN (" + placeholders + ")",
+                        tuple([str(stage_key), *[int(worker_i) for worker_i in chunk]]),
+                    ).fetchall()
+                    for row in rows:
+                        try:
+                            worker_i = int(row[0])
+                            last_seen = float(row[1] or 0.0)
+                            tested_i = int(row[2] or 0)
+                            cached_i = int(row[3] or 0)
+                            total_i = int(row[4] or 0)
+                            eta_raw = row[5]
+                            eta_f = None if eta_raw is None else float(max(0.0, float(eta_raw)))
+                            status_s = str(row[6] or "").strip().lower()
+                        except Exception:
+                            continue
+                        out[int(worker_i)] = {
+                            "last_seen": float(last_seen),
+                            "tested": int(tested_i),
+                            "cached_hits": int(cached_i),
+                            "total": int(total_i),
+                            "eta_sec": (float(eta_f) if eta_f is not None else None),
+                            "status": str(status_s),
+                        }
+            planner_heartbeat_reads += len(out)
+        except Exception:
+            return {}
+        return out
+
+    def _stage_frontier_get_many(
+        *,
+        stage_label: str,
+        cells: list[tuple[str, str]],
+    ) -> dict[tuple[str, str], dict[str, object]]:
+        nonlocal stage_frontier_reads
+        conn = _run_cfg_persistent_conn()
+        if conn is None:
+            return {}
+        stage_key = _stage_cache_scope(stage_label)
+        if not stage_key:
+            return {}
+        run_min = int(run_min_trades)
+        deduped: list[tuple[str, str]] = []
+        seen: set[tuple[str, str]] = set()
+        for axis_dim_fp, window_sig in cells:
+            key = (str(axis_dim_fp).strip(), str(window_sig).strip())
+            if not key[0] or not key[1] or key in seen:
+                continue
+            seen.add(key)
+            deduped.append(key)
+        if not deduped:
+            return {}
+        out: dict[tuple[str, str], dict[str, object]] = {}
+        chunk_size = 140
+        try:
+            with run_cfg_persistent_lock:
+                for start_i in range(0, len(deduped), chunk_size):
+                    chunk = deduped[start_i : start_i + chunk_size]
+                    if not chunk:
+                        continue
+                    where = " OR ".join(
+                        "(axis_dimension_fingerprint=? AND window_signature=?)"
+                        for _ in chunk
+                    )
+                    params: list[object] = [str(stage_key), int(run_min)]
+                    for axis_dim_fp, window_sig in chunk:
+                        params.extend((str(axis_dim_fp), str(window_sig)))
+                    rows_db = conn.execute(
+                        "SELECT axis_dimension_fingerprint, window_signature, eval_count, keep_count, "
+                        "best_pnl_over_dd, best_pnl, best_win_rate, best_trades "
+                        "FROM stage_frontier WHERE stage_label=? AND run_min_trades=? AND (" + where + ")",
+                        tuple(params),
+                    ).fetchall()
+                    for row in rows_db:
+                        axis_dim_fp = str(row[0] or "").strip()
+                        window_sig = str(row[1] or "").strip()
+                        if not axis_dim_fp or not window_sig:
+                            continue
+                        out[(axis_dim_fp, window_sig)] = {
+                            "eval_count": int(row[2] or 0),
+                            "keep_count": int(row[3] or 0),
+                            "best_pnl_over_dd": (None if row[4] is None else float(row[4])),
+                            "best_pnl": (None if row[5] is None else float(row[5])),
+                            "best_win_rate": (None if row[6] is None else float(row[6])),
+                            "best_trades": (None if row[7] is None else int(row[7])),
+                        }
+            stage_frontier_reads += len(out)
+        except Exception:
+            return {}
+        return out
+
+    def _stage_frontier_upsert_many(
+        *,
+        stage_label: str,
+        rows: list[tuple[str, str, dict | None]],
+    ) -> None:
+        nonlocal stage_frontier_writes
+        conn = _run_cfg_persistent_conn()
+        if conn is None:
+            return
+        stage_key = _stage_cache_scope(stage_label)
+        if not stage_key or not rows:
+            return
+        run_min = int(run_min_trades)
+        merged: dict[tuple[str, str], dict[str, object]] = {}
+        for axis_dim_fp, window_sig, row in rows:
+            axis_key = str(axis_dim_fp).strip()
+            window_key = str(window_sig).strip()
+            if not axis_key or not window_key:
+                continue
+            key = (axis_key, window_key)
+            rec = merged.get(key)
+            if rec is None:
+                rec = {
+                    "eval_count": 0,
+                    "keep_count": 0,
+                    "best_pnl_over_dd": None,
+                    "best_pnl": None,
+                    "best_win_rate": None,
+                    "best_trades": None,
+                }
+                merged[key] = rec
+            rec["eval_count"] = int(rec.get("eval_count") or 0) + 1
+            if not isinstance(row, dict):
+                continue
+            rec["keep_count"] = int(rec.get("keep_count") or 0) + 1
+            for metric_key, rec_key, caster in (
+                ("pnl_over_dd", "best_pnl_over_dd", float),
+                ("pnl", "best_pnl", float),
+                ("win_rate", "best_win_rate", float),
+                ("trades", "best_trades", int),
+            ):
+                raw_val = row.get(metric_key)
+                if raw_val is None:
+                    continue
+                try:
+                    val = caster(raw_val)
+                except (TypeError, ValueError):
+                    continue
+                prev = rec.get(rec_key)
+                if prev is None or float(val) > float(prev):
+                    rec[rec_key] = val
+        if not merged:
+            return
+        now_ts = float(pytime.time())
+        payload = [
+            (
+                str(stage_key),
+                str(axis_dim_fp),
+                str(window_sig),
+                int(run_min),
+                int(rec.get("eval_count") or 0),
+                int(rec.get("keep_count") or 0),
+                rec.get("best_pnl_over_dd"),
+                rec.get("best_pnl"),
+                rec.get("best_win_rate"),
+                rec.get("best_trades"),
+                now_ts,
+            )
+            for (axis_dim_fp, window_sig), rec in merged.items()
+        ]
+        try:
+            with run_cfg_persistent_lock:
+                conn.executemany(
+                    "INSERT INTO stage_frontier("
+                    "stage_label, axis_dimension_fingerprint, window_signature, run_min_trades, "
+                    "eval_count, keep_count, best_pnl_over_dd, best_pnl, best_win_rate, best_trades, updated_at"
+                    ") VALUES(?,?,?,?,?,?,?,?,?,?,?) "
+                    "ON CONFLICT(stage_label, axis_dimension_fingerprint, window_signature, run_min_trades) DO UPDATE SET "
+                    "eval_count=stage_frontier.eval_count + excluded.eval_count, "
+                    "keep_count=stage_frontier.keep_count + excluded.keep_count, "
+                    "best_pnl_over_dd=CASE "
+                    "WHEN stage_frontier.best_pnl_over_dd IS NULL THEN excluded.best_pnl_over_dd "
+                    "WHEN excluded.best_pnl_over_dd IS NULL THEN stage_frontier.best_pnl_over_dd "
+                    "WHEN excluded.best_pnl_over_dd > stage_frontier.best_pnl_over_dd THEN excluded.best_pnl_over_dd "
+                    "ELSE stage_frontier.best_pnl_over_dd END, "
+                    "best_pnl=CASE "
+                    "WHEN stage_frontier.best_pnl IS NULL THEN excluded.best_pnl "
+                    "WHEN excluded.best_pnl IS NULL THEN stage_frontier.best_pnl "
+                    "WHEN excluded.best_pnl > stage_frontier.best_pnl THEN excluded.best_pnl "
+                    "ELSE stage_frontier.best_pnl END, "
+                    "best_win_rate=CASE "
+                    "WHEN stage_frontier.best_win_rate IS NULL THEN excluded.best_win_rate "
+                    "WHEN excluded.best_win_rate IS NULL THEN stage_frontier.best_win_rate "
+                    "WHEN excluded.best_win_rate > stage_frontier.best_win_rate THEN excluded.best_win_rate "
+                    "ELSE stage_frontier.best_win_rate END, "
+                    "best_trades=CASE "
+                    "WHEN stage_frontier.best_trades IS NULL THEN excluded.best_trades "
+                    "WHEN excluded.best_trades IS NULL THEN stage_frontier.best_trades "
+                    "WHEN excluded.best_trades > stage_frontier.best_trades THEN excluded.best_trades "
+                    "ELSE stage_frontier.best_trades END, "
+                    "updated_at=excluded.updated_at",
+                    payload,
+                )
+            stage_frontier_writes += len(payload)
+        except Exception:
+            return
+
+    def _stage_frontier_is_dominated(frontier_row: dict[str, object] | None) -> bool:
+        if not isinstance(frontier_row, dict):
+            return False
+        cfg = _cache_config("stage_frontier")
+        min_eval_count = max(1, int(_registry_float(cfg.get("min_eval_count"), 3.0)))
+        max_keep_count = max(0, int(_registry_float(cfg.get("max_keep_count"), 0.0)))
+        max_best_pnl = float(_registry_float(cfg.get("max_best_pnl"), 0.0))
+        max_best_pnl_dd = float(_registry_float(cfg.get("max_best_pnl_over_dd"), 0.0))
+        eval_count = int(frontier_row.get("eval_count") or 0)
+        keep_count = int(frontier_row.get("keep_count") or 0)
+        if eval_count < int(min_eval_count):
+            return False
+        if keep_count > int(max_keep_count):
+            return False
+        best_pnl = frontier_row.get("best_pnl")
+        best_pnl_dd = frontier_row.get("best_pnl_over_dd")
+        best_pnl_f = float(best_pnl) if best_pnl is not None else float("-inf")
+        best_pnl_dd_f = float(best_pnl_dd) if best_pnl_dd is not None else float("-inf")
+        return bool(best_pnl_f <= float(max_best_pnl) and best_pnl_dd_f <= float(max_best_pnl_dd))
+
+    def _winner_projection_get_many(
+        *,
+        stage_label: str,
+        cells: list[tuple[str, str]],
+    ) -> dict[tuple[str, str], dict[str, object]]:
+        nonlocal winner_projection_reads
+        conn = _run_cfg_persistent_conn()
+        if conn is None:
+            return {}
+        stage_key = _stage_cache_scope(stage_label)
+        if not stage_key:
+            return {}
+        deduped: list[tuple[str, str]] = []
+        seen: set[tuple[str, str]] = set()
+        for axis_dim_fp, window_sig in cells:
+            key = (str(axis_dim_fp).strip(), str(window_sig).strip())
+            if not key[0] or not key[1] or key in seen:
+                continue
+            seen.add(key)
+            deduped.append(key)
+        if not deduped:
+            return {}
+        out: dict[tuple[str, str], dict[str, object]] = {}
+        chunk_size = 140
+        try:
+            with run_cfg_persistent_lock:
+                for start_i in range(0, len(deduped), chunk_size):
+                    chunk = deduped[start_i : start_i + chunk_size]
+                    if not chunk:
+                        continue
+                    where = " OR ".join(
+                        "(axis_dimension_fingerprint=? AND window_signature=?)"
+                        for _ in chunk
+                    )
+                    params: list[object] = [str(stage_key)]
+                    for axis_dim_fp, window_sig in chunk:
+                        params.extend((str(axis_dim_fp), str(window_sig)))
+                    rows_db = conn.execute(
+                        "SELECT axis_dimension_fingerprint, window_signature, eval_count, keep_count, "
+                        "best_pnl_over_dd, best_pnl, best_win_rate, best_trades "
+                        "FROM stage_winner_projection WHERE stage_label=? AND (" + where + ")",
+                        tuple(params),
+                    ).fetchall()
+                    for row in rows_db:
+                        axis_dim_fp = str(row[0] or "").strip()
+                        window_sig = str(row[1] or "").strip()
+                        if not axis_dim_fp or not window_sig:
+                            continue
+                        out[(axis_dim_fp, window_sig)] = {
+                            "eval_count": int(row[2] or 0),
+                            "keep_count": int(row[3] or 0),
+                            "best_pnl_over_dd": (None if row[4] is None else float(row[4])),
+                            "best_pnl": (None if row[5] is None else float(row[5])),
+                            "best_win_rate": (None if row[6] is None else float(row[6])),
+                            "best_trades": (None if row[7] is None else int(row[7])),
+                        }
+            winner_projection_reads += len(out)
+        except Exception:
+            return {}
+        return out
+
+    def _winner_projection_upsert_many(
+        *,
+        stage_label: str,
+        rows: list[tuple[str, str, dict | None]],
+    ) -> None:
+        nonlocal winner_projection_writes
+        conn = _run_cfg_persistent_conn()
+        if conn is None:
+            return
+        stage_key = _stage_cache_scope(stage_label)
+        if not stage_key or not rows:
+            return
+        merged: dict[tuple[str, str], dict[str, object]] = {}
+        for axis_dim_fp, window_sig, row in rows:
+            axis_key = str(axis_dim_fp).strip()
+            window_key = str(window_sig).strip()
+            if not axis_key or not window_key:
+                continue
+            key = (axis_key, window_key)
+            rec = merged.get(key)
+            if rec is None:
+                rec = {
+                    "eval_count": 0,
+                    "keep_count": 0,
+                    "best_pnl_over_dd": None,
+                    "best_pnl": None,
+                    "best_win_rate": None,
+                    "best_trades": None,
+                }
+                merged[key] = rec
+            rec["eval_count"] = int(rec.get("eval_count") or 0) + 1
+            if not isinstance(row, dict):
+                continue
+            rec["keep_count"] = int(rec.get("keep_count") or 0) + 1
+            for metric_key, rec_key, caster in (
+                ("pnl_over_dd", "best_pnl_over_dd", float),
+                ("pnl", "best_pnl", float),
+                ("win_rate", "best_win_rate", float),
+                ("trades", "best_trades", int),
+            ):
+                raw_val = row.get(metric_key)
+                if raw_val is None:
+                    continue
+                try:
+                    val = caster(raw_val)
+                except (TypeError, ValueError):
+                    continue
+                prev = rec.get(rec_key)
+                if prev is None or float(val) > float(prev):
+                    rec[rec_key] = val
+        if not merged:
+            return
+        now_ts = float(pytime.time())
+        payload = [
+            (
+                str(stage_key),
+                str(axis_dim_fp),
+                str(window_sig),
+                int(rec.get("eval_count") or 0),
+                int(rec.get("keep_count") or 0),
+                rec.get("best_pnl_over_dd"),
+                rec.get("best_pnl"),
+                rec.get("best_win_rate"),
+                rec.get("best_trades"),
+                now_ts,
+            )
+            for (axis_dim_fp, window_sig), rec in merged.items()
+        ]
+        try:
+            with run_cfg_persistent_lock:
+                conn.executemany(
+                    "INSERT INTO stage_winner_projection("
+                    "stage_label, axis_dimension_fingerprint, window_signature, "
+                    "eval_count, keep_count, best_pnl_over_dd, best_pnl, best_win_rate, best_trades, updated_at"
+                    ") VALUES(?,?,?,?,?,?,?,?,?,?) "
+                    "ON CONFLICT(stage_label, axis_dimension_fingerprint, window_signature) DO UPDATE SET "
+                    "eval_count=stage_winner_projection.eval_count + excluded.eval_count, "
+                    "keep_count=stage_winner_projection.keep_count + excluded.keep_count, "
+                    "best_pnl_over_dd=CASE "
+                    "WHEN stage_winner_projection.best_pnl_over_dd IS NULL THEN excluded.best_pnl_over_dd "
+                    "WHEN excluded.best_pnl_over_dd IS NULL THEN stage_winner_projection.best_pnl_over_dd "
+                    "WHEN excluded.best_pnl_over_dd > stage_winner_projection.best_pnl_over_dd THEN excluded.best_pnl_over_dd "
+                    "ELSE stage_winner_projection.best_pnl_over_dd END, "
+                    "best_pnl=CASE "
+                    "WHEN stage_winner_projection.best_pnl IS NULL THEN excluded.best_pnl "
+                    "WHEN excluded.best_pnl IS NULL THEN stage_winner_projection.best_pnl "
+                    "WHEN excluded.best_pnl > stage_winner_projection.best_pnl THEN excluded.best_pnl "
+                    "ELSE stage_winner_projection.best_pnl END, "
+                    "best_win_rate=CASE "
+                    "WHEN stage_winner_projection.best_win_rate IS NULL THEN excluded.best_win_rate "
+                    "WHEN excluded.best_win_rate IS NULL THEN stage_winner_projection.best_win_rate "
+                    "WHEN excluded.best_win_rate > stage_winner_projection.best_win_rate THEN excluded.best_win_rate "
+                    "ELSE stage_winner_projection.best_win_rate END, "
+                    "best_trades=CASE "
+                    "WHEN stage_winner_projection.best_trades IS NULL THEN excluded.best_trades "
+                    "WHEN excluded.best_trades IS NULL THEN stage_winner_projection.best_trades "
+                    "WHEN excluded.best_trades > stage_winner_projection.best_trades THEN excluded.best_trades "
+                    "ELSE stage_winner_projection.best_trades END, "
+                    "updated_at=excluded.updated_at",
+                    payload,
+                )
+            winner_projection_writes += len(payload)
+        except Exception:
+            return
+
+    def _winner_projection_is_dominated(frontier_row: dict[str, object] | None) -> bool:
+        if not isinstance(frontier_row, dict):
+            return False
+        cfg = _cache_config("winner_projection")
+        min_eval_count = max(1, int(_registry_float(cfg.get("min_eval_count"), 8.0)))
+        max_keep_count = max(0, int(_registry_float(cfg.get("max_keep_count"), 0.0)))
+        max_best_pnl = float(_registry_float(cfg.get("max_best_pnl"), 0.0))
+        max_best_pnl_dd = float(_registry_float(cfg.get("max_best_pnl_over_dd"), 0.0))
+        eval_count = int(frontier_row.get("eval_count") or 0)
+        keep_count = int(frontier_row.get("keep_count") or 0)
+        if eval_count < int(min_eval_count):
+            return False
+        if keep_count > int(max_keep_count):
+            return False
+        best_pnl = frontier_row.get("best_pnl")
+        best_pnl_dd = frontier_row.get("best_pnl_over_dd")
+        best_pnl_f = float(best_pnl) if best_pnl is not None else float("-inf")
+        best_pnl_dd_f = float(best_pnl_dd) if best_pnl_dd is not None else float("-inf")
+        return bool(best_pnl_f <= float(max_best_pnl) and best_pnl_dd_f <= float(max_best_pnl_dd))
+
+    def _run_cfg_dimension_index_set(*, fingerprint: str, payload_json: str, est_cost: float) -> None:
+        nonlocal run_cfg_dim_index_writes
+        conn = _run_cfg_persistent_conn()
+        if conn is None:
+            return
+        try:
+            with run_cfg_persistent_lock:
+                conn.execute(
+                    "INSERT OR REPLACE INTO axis_dimension_fingerprint_index(fingerprint, payload_json, est_cost, updated_at) "
+                    "VALUES(?,?,?,?)",
+                    (str(fingerprint), str(payload_json), float(est_cost), float(pytime.time())),
+                )
+            if float(est_cost) > 0.0:
+                run_cfg_dim_index_loaded[str(fingerprint)] = float(est_cost)
+            run_cfg_dim_index_writes += 1
+        except Exception:
+            return
+
+    def _run_cfg_dimension_index_load(*, limit: int = 50000) -> dict[str, float]:
+        conn = _run_cfg_persistent_conn()
+        if conn is None:
+            return {}
+        try:
+            with run_cfg_persistent_lock:
+                rows = conn.execute(
+                    "SELECT fingerprint, est_cost FROM axis_dimension_fingerprint_index "
+                    "WHERE est_cost > 0 ORDER BY updated_at DESC LIMIT ?",
+                    (int(max(1, int(limit))),),
+                ).fetchall()
+        except Exception:
+            return {}
+        out: dict[str, float] = {}
+        for row in rows:
+            try:
+                fp = str(row[0] or "")
+                est = float(row[1] or 0.0)
+            except Exception:
+                continue
+            if not fp or est <= 0.0 or fp in out:
+                continue
+            out[fp] = est
+        return out
+
+    def _worker_plan_cache_key(*, stage_label: str, workers: int, plan_all) -> str:
+        hasher = hashlib.sha1()
+        hasher.update(str(_RUN_CFG_CACHE_ENGINE_VERSION).encode("utf-8"))
+        hasher.update(str(stage_label).strip().lower().encode("utf-8"))
+        hasher.update(str(int(workers)).encode("utf-8"))
+        hasher.update(str(len(plan_all)).encode("utf-8"))
+        for item in plan_all:
+            cfg = item[0] if isinstance(item, tuple) and len(item) >= 1 and isinstance(item[0], ConfigBundle) else None
+            if cfg is None:
+                hasher.update(str(item).encode("utf-8"))
+                continue
+            hasher.update(hashlib.sha1(_milestone_key(cfg).encode("utf-8")).digest())
+            hasher.update(hashlib.sha1(_axis_dimension_fingerprint(cfg).encode("utf-8")).digest())
+        return hasher.hexdigest()
+
+    def _worker_plan_cache_get(*, cache_key: str) -> list[list[int]] | None:
+        conn = _run_cfg_persistent_conn()
+        if conn is None:
+            return None
+        try:
+            with run_cfg_persistent_lock:
+                row = conn.execute(
+                    "SELECT payload_json FROM worker_plan_cache WHERE cache_key=?",
+                    (str(cache_key),),
+                ).fetchone()
+        except Exception:
+            return None
+        if row is None:
+            return None
+        try:
+            payload = json.loads(str(row[0]))
+        except Exception:
+            return None
+        if not isinstance(payload, list):
+            return None
+        out: list[list[int]] = []
+        try:
+            for bucket in payload:
+                if not isinstance(bucket, list):
+                    return None
+                out.append([int(idx) for idx in bucket if int(idx) >= 0])
+        except Exception:
+            return None
+        return out
+
+    def _worker_plan_cache_set(*, cache_key: str, buckets: list[list[int]]) -> None:
+        nonlocal worker_plan_cache_writes
+        conn = _run_cfg_persistent_conn()
+        if conn is None:
+            return
+        try:
+            payload_json = json.dumps(buckets, sort_keys=False, default=str)
+            with run_cfg_persistent_lock:
+                conn.execute(
+                    "INSERT OR REPLACE INTO worker_plan_cache(cache_key, payload_json, updated_at) VALUES(?,?,?)",
+                    (str(cache_key), str(payload_json), float(pytime.time())),
+                )
+            worker_plan_cache_writes += 1
         except Exception:
             return
 
     def _merge_filters(base_filters: FiltersConfig | None, overrides: dict[str, object]) -> FiltersConfig | None:
         """Merge base filters with overrides, where `None` deletes a key.
 
-        Used to build joint permission sweeps without being constrained by the combo_fast funnel.
+        Used to build joint permission sweeps without being constrained by the compact preset funnel.
         """
         merged: dict[str, object] = dict(_filters_payload(base_filters) or {})
         for key, val in overrides.items():
@@ -3206,7 +6463,7 @@ def main() -> None:
 
     def _bars(bar_size: str) -> list:
         if offline:
-            return data.load_cached_bars(
+            series = data.load_cached_bar_series(
                 symbol=symbol,
                 exchange=None,
                 start=start_dt,
@@ -3215,7 +6472,8 @@ def main() -> None:
                 use_rth=use_rth,
                 cache_dir=cache_dir,
             )
-        return data.load_or_fetch_bars(
+            return bars_list(series)
+        series = data.load_or_fetch_bar_series(
             symbol=symbol,
             exchange=None,
             start=start_dt,
@@ -3224,16 +6482,22 @@ def main() -> None:
             use_rth=use_rth,
             cache_dir=cache_dir,
         )
-
-    bar_cache: dict[str, list] = {}
+        return bars_list(series)
 
     def _bars_cached(bar_size: str) -> list:
-        key = str(bar_size)
-        cached = bar_cache.get(key)
-        if cached is not None:
+        key = (
+            str(symbol).upper(),
+            start_dt.isoformat(),
+            end_dt.isoformat(),
+            str(bar_size),
+            bool(use_rth),
+            bool(offline),
+        )
+        cached = _SERIES_CACHE.get(namespace=_SWEEP_BARS_NAMESPACE, key=key)
+        if isinstance(cached, list):
             return cached
-        loaded = _bars(key)
-        bar_cache[key] = loaded
+        loaded = _bars(str(bar_size))
+        _SERIES_CACHE.set(namespace=_SWEEP_BARS_NAMESPACE, key=key, value=loaded)
         return loaded
 
     regime_bars_1d = _bars_cached("1 day")
@@ -3260,8 +6524,6 @@ def main() -> None:
         if not bars:
             raise SystemExit(f"No {regime_bar} regime2 bars returned (IBKR).")
         return bars
-
-    tick_cache: dict[tuple[str, str], tuple[datetime, list]] = {}
 
     def _tick_bars_for(cfg: ConfigBundle) -> list | None:
         tick_mode = str(getattr(cfg.strategy, "tick_gate_mode", "off") or "off").strip().lower()
@@ -3293,7 +6555,7 @@ def main() -> None:
         def _load_tick_daily(symbol: str, exchange: str) -> list:
             try:
                 if offline:
-                    return data.load_cached_bars(
+                    series = data.load_cached_bar_series(
                         symbol=symbol,
                         exchange=exchange,
                         start=tick_start_dt,
@@ -3302,7 +6564,8 @@ def main() -> None:
                         use_rth=tick_use_rth,
                         cache_dir=cache_dir,
                     )
-                return data.load_or_fetch_bars(
+                    return bars_list(series)
+                series = data.load_or_fetch_bar_series(
                     symbol=symbol,
                     exchange=exchange,
                     start=tick_start_dt,
@@ -3311,14 +6574,18 @@ def main() -> None:
                     use_rth=tick_use_rth,
                     cache_dir=cache_dir,
                 )
+                return bars_list(series)
             except FileNotFoundError:
                 return []
 
         def _from_cache(symbol: str, exchange: str) -> list | None:
-            cached = tick_cache.get((symbol, exchange))
-            if cached is None:
+            cache_key = (str(symbol), str(exchange), bool(offline))
+            cached = _SERIES_CACHE.get(namespace=_SWEEP_TICK_NAMESPACE, key=cache_key)
+            if not isinstance(cached, tuple) or len(cached) != 2:
                 return None
             cached_start, cached_bars = cached
+            if not isinstance(cached_start, datetime) or not isinstance(cached_bars, list):
+                return None
             if cached_start <= tick_start_dt:
                 return cached_bars
             return None
@@ -3353,7 +6620,8 @@ def main() -> None:
             )
             extra = " (try TICK-AMEX/AMEX if available)" if tick_symbol.upper() == "TICK-NYSE" else ""
             raise SystemExit(f"No $TICK bars available for {tick_symbol} ({tick_exchange}){hint}{extra}.")
-        tick_cache[(used_symbol, used_exchange)] = (tick_start_dt, tick_bars)
+        cache_key = (str(used_symbol), str(used_exchange), bool(offline))
+        _SERIES_CACHE.set(namespace=_SWEEP_TICK_NAMESPACE, key=cache_key, value=(tick_start_dt, tick_bars))
         return tick_bars
 
     def _context_bars_for_cfg(
@@ -3410,73 +6678,164 @@ def main() -> None:
 
     def _axis_total_hint(axis_name: str) -> int | None:
         axis = str(axis_name).strip().lower()
-        static_simple: dict[str, int] = {
-            "ema": 6,
-            "entry_mode": 6,
-            "volume": 13,
-            "rv": 29,
-            "tod": 29,
-            "tod_interaction": 81,
-            "exit_time": 7,
-            "regime2_ema": 12,
-            "flip_exit": 48,
-            "confirm": 4,
-            "hold": 7,
-            "spot_short_risk_mult": 13,
-            "slope": 6,
-            "cooldown": 7,
-            "skip_open": 6,
-        }
-        static_val = static_simple.get(axis)
-        if isinstance(static_val, int) and static_val > 0:
-            return int(static_val)
-        if axis in _ATR_EXIT_PROFILE_REGISTRY:
-            profile = _ATR_EXIT_PROFILE_REGISTRY.get(axis) or {}
-            return int(
-                len(tuple(profile.get("atr_periods") or ()))
-                * len(tuple(profile.get("pt_mults") or ()))
-                * len(tuple(profile.get("sl_mults") or ()))
+        include_combo_baseline = not bool(getattr(args, "combo_full_cartesian_stage", None))
+        spec = _AXIS_EXECUTION_SPEC_BY_NAME.get(str(axis))
+        hint_static = int(spec.total_hint_static) if isinstance(spec, AxisExecutionSpec) and isinstance(spec.total_hint_static, int) else None
+        hint_mode = str(spec.total_hint_mode or "").strip().lower() if isinstance(spec, AxisExecutionSpec) else ""
+        hint_dims = tuple(spec.total_hint_dims or ()) if isinstance(spec, AxisExecutionSpec) else ()
+        if hint_static is None:
+            raw_static = _AXIS_TOTAL_HINT_STATIC_BY_NAME.get(str(axis))
+            if raw_static is not None:
+                try:
+                    hint_static = int(raw_static)
+                except (TypeError, ValueError):
+                    hint_static = None
+        if not hint_mode:
+            hint_mode = str(_AXIS_TOTAL_HINT_MODE_BY_NAME.get(str(axis), "")).strip().lower()
+        if not hint_dims:
+            hint_dims = tuple(_AXIS_TOTAL_HINT_DIMS_BY_NAME.get(str(axis), ()))
+        if str(axis) in set(_combo_full_preset_axes(include_tiers=True, include_aliases=True)):
+            preset_hint = _combo_full_preset_hint_spec(str(axis))
+            raw_static = preset_hint.get("static")
+            if hint_static is None and raw_static is not None:
+                try:
+                    hint_static = int(raw_static)
+                except (TypeError, ValueError):
+                    hint_static = None
+            if not hint_mode:
+                hint_mode = str(preset_hint.get("mode") or "").strip().lower()
+            if not hint_dims:
+                raw_dims = preset_hint.get("dims")
+                if isinstance(raw_dims, (tuple, list)):
+                    hint_dims = tuple(str(dim).strip() for dim in tuple(raw_dims) if str(dim).strip())
+        if isinstance(hint_static, int) and hint_static > 0:
+            return int(hint_static)
+
+        def _combo_dim_labels(dim_key: str) -> tuple[str, ...]:
+            combo_dims = _AXIS_DIMENSION_REGISTRY.get("combo_full_cartesian_tight", {})
+            if not isinstance(combo_dims, dict):
+                return ()
+            raw_variants = combo_dims.get(f"{dim_key}_variants")
+            labels_from_variants: list[str] = []
+            if isinstance(raw_variants, (list, tuple)):
+                for row in raw_variants:
+                    if not (isinstance(row, (list, tuple)) and len(row) >= 1):
+                        continue
+                    label = str(row[0] or "").strip()
+                    if label:
+                        labels_from_variants.append(label)
+            return tuple(labels_from_variants)
+
+        if hint_mode == "atr_profile":
+            profile = _ATR_EXIT_PROFILE_REGISTRY.get(str(axis)) or {}
+            total = _cardinality(
+                len(tuple(profile.get("atr_periods") or ())),
+                len(tuple(profile.get("pt_mults") or ())),
+                len(tuple(profile.get("sl_mults") or ())),
             )
-        if axis in _SPREAD_PROFILE_REGISTRY:
-            profile = _SPREAD_PROFILE_REGISTRY.get(axis) or {}
-            return int(len(tuple(profile.get("values") or ())))
-        if axis == "perm_joint":
-            profile = _PERM_JOINT_PROFILE
-            return int(
-                len(tuple(profile.get("tod_windows") or ()))
-                * len(tuple(profile.get("spread_variants") or ()))
-                * len(tuple(profile.get("vol_variants") or ()))
-            )
-        if axis == "regime":
+            if total > 0:
+                return int(total)
+        if hint_mode == "spread_profile":
+            profile = _SPREAD_PROFILE_REGISTRY.get(str(axis)) or {}
+            total = len(tuple(profile.get("values") or ()))
+            if total > 0:
+                return int(total)
+        if hint_mode == "regime_profile":
             profile = _REGIME_ST_PROFILE
-            return int(
-                len(tuple(profile.get("bars") or ()))
-                * len(tuple(profile.get("atr_periods") or ()))
-                * len(tuple(profile.get("multipliers") or ()))
-                * len(tuple(profile.get("sources") or ()))
+            total = _cardinality(
+                len(tuple(profile.get("bars") or ())),
+                len(tuple(profile.get("atr_periods") or ())),
+                len(tuple(profile.get("multipliers") or ())),
+                len(tuple(profile.get("sources") or ())),
             )
-        if axis == "regime2":
+            if total > 0:
+                return int(total)
+        if hint_mode == "regime2_profile":
             profile = _REGIME2_ST_PROFILE
-            return int(
-                len(tuple(profile.get("atr_periods") or ()))
-                * len(tuple(profile.get("multipliers") or ()))
-                * len(tuple(profile.get("sources") or ()))
+            total = _cardinality(
+                len(tuple(profile.get("atr_periods") or ())),
+                len(tuple(profile.get("multipliers") or ())),
+                len(tuple(profile.get("sources") or ())),
             )
-        if axis == "shock":
+            if total > 0:
+                return int(total)
+        if hint_mode == "shock_profile":
             profile = _SHOCK_SWEEP_PROFILE
             preset_count = int(
                 len(tuple(profile.get("ratio_rows") or ()))
                 + len(tuple(profile.get("daily_atr_rows") or ()))
                 + len(tuple(profile.get("drawdown_rows") or ()))
             )
-            return int(
-                preset_count
-                * len(tuple(profile.get("modes") or ()))
-                * len(tuple(profile.get("dir_variants") or ()))
-                * len(tuple(profile.get("sl_mults") or ()))
-                * len(tuple(profile.get("pt_mults") or ()))
-                * len(tuple(profile.get("short_risk_factors") or ()))
+            total = _cardinality(
+                int(preset_count),
+                len(tuple(profile.get("modes") or ())),
+                len(tuple(profile.get("dir_variants") or ())),
+                len(tuple(profile.get("sl_mults") or ())),
+                len(tuple(profile.get("pt_mults") or ())),
+                len(tuple(profile.get("short_risk_factors") or ())),
             )
+            if total > 0:
+                return int(total)
+        if hint_mode == "combo_subset" and hint_dims:
+            sizes: list[int] = []
+            risk_tier_hint = str(axis) == "risk_overlays" or _combo_full_preset_tier(str(axis)) == "risk"
+            for dim_key in hint_dims:
+                labels = list(_combo_dim_labels(str(dim_key)))
+                if risk_tier_hint and str(dim_key) == "risk" and bool(getattr(args, "risk_overlays_skip_pop", False)):
+                    labels = [lbl for lbl in labels if "riskpop" not in str(lbl).lower()]
+                sizes.append(max(1, len(labels)))
+            total = _cardinality(*sizes)
+            if total > 0:
+                return int(total) + (1 if include_combo_baseline else 0)
+        if hint_mode == "gate_matrix":
+            combo_dims = _AXIS_DIMENSION_REGISTRY.get("combo_full_cartesian_tight", {})
+            gate_dims = _AXIS_DIMENSION_REGISTRY.get("gate_matrix", {})
+            if isinstance(combo_dims, dict):
+                perm_total = len(tuple(gate_dims.get("perm_variants") or ())) if isinstance(gate_dims, dict) else 0
+                if perm_total <= 0:
+                    perm_total = len(_combo_dim_labels("perm"))
+                tod_total = len(tuple(gate_dims.get("tod_variants") or ())) if isinstance(gate_dims, dict) else 0
+                if tod_total <= 0:
+                    tod_total = len(_combo_dim_labels("tod"))
+                short_total = len(tuple(gate_dims.get("short_mults") or ())) if isinstance(gate_dims, dict) else 0
+                if short_total <= 0:
+                    short_total = len(tuple(combo_dims.get("short_mults") or ()))
+                total = _cardinality(
+                    max(1, int(perm_total)),
+                    max(1, int(tod_total)),
+                    max(1, len(_combo_dim_labels("regime2"))),
+                    max(1, len(_combo_dim_labels("tick"))),
+                    max(1, len(_combo_dim_labels("shock"))),
+                    max(1, len(_combo_dim_labels("risk"))),
+                    max(1, int(short_total)),
+                )
+                if total > 0:
+                    return int(total) + (1 if include_combo_baseline else 0)
+        if hint_mode == "combo_full":
+            combo_preset = _combo_full_preset_key(str(getattr(args, "combo_full_preset", "") or ""))
+            if combo_preset in set(_combo_full_preset_axes()):
+                preset_hint_axis = _combo_full_preset_hint_axis(combo_preset)
+                preset_total = None
+                if preset_hint_axis and preset_hint_axis != "combo_full":
+                    preset_total = _axis_total_hint(str(preset_hint_axis))
+                if isinstance(preset_total, int) and preset_total > 0:
+                    return int(preset_total)
+            dims = _AXIS_DIMENSION_REGISTRY.get("combo_full_cartesian_tight", {})
+            if isinstance(dims, dict):
+                size_by_dim = {
+                    str(dim_name): _combo_full_dim_size_from_registry(dims=dims, dim_key=str(dim_name))
+                    for dim_name in _COMBO_FULL_CARTESIAN_DIM_ORDER
+                }
+                total = _cardinality(
+                    *[
+                        max(1, int(size_by_dim.get(str(dim_name), 0) or 0))
+                        if str(dim_name) == "slope"
+                        else int(size_by_dim.get(str(dim_name), 0) or 0)
+                        for dim_name in _COMBO_FULL_CARTESIAN_DIM_ORDER
+                    ]
+                )
+                if total > 0:
+                    return int(total) + (1 if include_combo_baseline else 0)
         hist = axis_progress_history.get(str(axis))
         if isinstance(hist, int) and hist > 0:
             return int(hist)
@@ -3571,11 +6930,19 @@ def main() -> None:
         axis_progress_state["last_reported_tested"] = 0
         axis_progress_state["suppress"] = False
 
-    def _run_cfg(
-        *, cfg: ConfigBundle, bars: list | None = None, regime_bars: list | None = None, regime2_bars: list | None = None
-    ) -> dict | None:
-        nonlocal run_calls_total, run_cfg_cache_hits, run_cfg_fingerprint_hits, run_cfg_persistent_hits, run_cfg_persistent_writes
-        run_calls_total += 1
+    def _run_cfg_cache_coords(
+        *,
+        cfg: ConfigBundle,
+        bars: list | None = None,
+        regime_bars: list | None = None,
+        regime2_bars: list | None = None,
+        update_dim_index: bool = True,
+    ) -> tuple[
+        tuple[tuple[int, object | None, object | None], tuple[int, object | None, object | None], tuple[int, object | None, object | None]],
+        tuple[str, str, str],
+        str,
+        str,
+    ]:
         bars_eff, regime_eff, regime2_eff = _context_bars_for_cfg(
             cfg=cfg,
             bars=bars,
@@ -3587,26 +6954,470 @@ def main() -> None:
         regime_sig = _bars_signature(regime_eff)
         regime2_sig = _bars_signature(regime2_eff)
         ctx_sig = (bars_sig, regime_sig, regime2_sig)
+
+        axis_dim_fp = run_cfg_axis_fp_cache.get(cfg_key)
+        if axis_dim_fp is None:
+            axis_dim_fp = _axis_dimension_fingerprint(cfg)
+            run_cfg_axis_fp_cache[cfg_key] = str(axis_dim_fp)
+        if bool(update_dim_index) and axis_dim_fp not in run_cfg_dim_index_seen:
+            run_cfg_dim_index_seen.add(str(axis_dim_fp))
+            est_cost = 1.0
+            try:
+                est_cost = float(_cfg_eval_cost_hint(cfg))
+            except Exception:
+                est_cost = 1.0
+            _run_cfg_dimension_index_set(
+                fingerprint=str(axis_dim_fp),
+                payload_json=str(axis_dim_fp),
+                est_cost=float(est_cost),
+            )
+
+        window_sig = run_cfg_window_sig_cache.get(ctx_sig)
+        if window_sig is None:
+            window_sig = _window_signature(
+                bars_sig=bars_sig,
+                regime_sig=regime_sig,
+                regime2_sig=regime2_sig,
+            )
+            run_cfg_window_sig_cache[ctx_sig] = str(window_sig)
+
+        cache_key = (
+            str(cfg_key),
+            str(axis_dim_fp),
+            str(window_sig),
+        )
+        persistent_key = _run_cfg_persistent_key(
+            strategy_fingerprint=str(cfg_key),
+            axis_dimension_fingerprint=str(axis_dim_fp),
+            window_signature=str(window_sig),
+        )
+        return ctx_sig, cache_key, str(axis_dim_fp), str(persistent_key)
+
+    def _stage_partition_plan_by_cache(
+        *,
+        stage_label: str,
+        plan_all,
+        bars: list | None,
+    ) -> tuple[
+        list[tuple[ConfigBundle, str, dict | None]],
+        list[tuple[tuple[str, str, str], ConfigBundle, dict | None, str, dict | None]],
+        dict[int, tuple[str, str, str]],
+        int,
+    ]:
+        nonlocal run_calls_total, run_cfg_cache_hits, run_cfg_fingerprint_hits, run_cfg_persistent_hits
+        nonlocal stage_frontier_hits, cartesian_manifest_hits, winner_projection_hits
+
+        pending_plan: list[tuple[ConfigBundle, str, dict | None]] = []
+        pending_cell_map: dict[int, tuple[str, str, str]] = {}
+        cached_hits: list[tuple[tuple[str, str, str], ConfigBundle, dict | None, str, dict | None]] = []
+        prefetched_tested = 0
+        status_updates: list[tuple[str, str, str, str]] = []
+        manifest_updates: list[tuple[str, str, str, str]] = []
+        planner_started = float(pytime.perf_counter())
+        planner_last = float(planner_started)
+        planner_heartbeat_sec = 15.0
+        try:
+            planner_total = int(len(plan_all))
+        except Exception:
+            planner_total = None
+
+        def _planner_progress(*, phase: str, processed: int, force: bool = False) -> None:
+            nonlocal planner_last
+            now = float(pytime.perf_counter())
+            if not bool(force) and (now - planner_last) < float(planner_heartbeat_sec):
+                return
+            total_s = str(planner_total) if isinstance(planner_total, int) and planner_total > 0 else "?"
+            print(
+                f"{stage_label} planner[{phase}] processed={int(processed)}/{total_s} "
+                f"pending={len(pending_plan)} unresolved={len(unresolved)} "
+                f"cached={len(cached_hits)} elapsed={now - planner_started:0.1f}s",
+                flush=True,
+            )
+            planner_last = float(now)
+
+        unresolved: list[
+            tuple[
+                ConfigBundle,
+                str,
+                dict | None,
+                tuple[
+                    tuple[int, object | None, object | None],
+                    tuple[int, object | None, object | None],
+                    tuple[int, object | None, object | None],
+                ],
+                tuple[str, str, str],
+                str,
+                tuple[str, str, str],
+            ]
+        ] = []
+        persistent_keys: list[str] = []
+        cell_keys_for_status: list[tuple[str, str, str]] = []
+        stage_cell_hasher = hashlib.sha1()
+        stage_cell_window_set: set[str] = set()
+        stage_cell_window_hasher = hashlib.sha1()
+
+        for idx, item in enumerate(plan_all, start=1):
+            if not (isinstance(item, tuple) and len(item) >= 2):
+                _planner_progress(phase="scan", processed=int(idx))
+                continue
+            cfg = item[0] if isinstance(item[0], ConfigBundle) else None
+            if cfg is None:
+                _planner_progress(phase="scan", processed=int(idx))
+                continue
+            note_s = str(item[1] or "")
+            meta_item = item[2] if len(item) >= 3 and isinstance(item[2], dict) else None
+            ctx_sig, cache_key, axis_dim_fp, persistent_key = _run_cfg_cache_coords(
+                cfg=cfg,
+                bars=bars,
+                update_dim_index=True,
+            )
+            cfg_key = str(cache_key[0])
+            cell_key = (str(cache_key[0]), str(axis_dim_fp), str(cache_key[2]))
+            cell_keys_for_status.append(cell_key)
+            stage_cell_hasher.update(str(cell_key[0]).encode("utf-8"))
+            stage_cell_hasher.update(b"\x1f")
+            stage_cell_hasher.update(str(cell_key[1]).encode("utf-8"))
+            stage_cell_hasher.update(b"\x1f")
+            stage_cell_hasher.update(str(cell_key[2]).encode("utf-8"))
+            stage_cell_hasher.update(b"\x1e")
+            window_sig = str(cell_key[2]).strip()
+            if window_sig:
+                stage_cell_window_set.add(str(window_sig))
+                stage_cell_window_hasher.update(str(window_sig).encode("utf-8"))
+                stage_cell_window_hasher.update(b"\x1f")
+
+            fp_cached = run_cfg_fingerprint_cache.get(cfg_key)
+            if fp_cached is not None and fp_cached[0] == ctx_sig:
+                prefetched_tested += 1
+                run_calls_total += 1
+                run_cfg_cache_hits += 1
+                run_cfg_fingerprint_hits += 1
+                fp_row = fp_cached[1]
+                row = dict(fp_row) if isinstance(fp_row, dict) else None
+                _axis_progress_record(kept=bool(row))
+                status_updates.append((cell_key[0], cell_key[1], cell_key[2], "cached_hit"))
+                manifest_updates.append((cell_key[1], cell_key[2], cell_key[0], "cached_hit"))
+                if isinstance(row, dict):
+                    row["note"] = note_s
+                cached_hits.append((cell_key, cfg, row if isinstance(row, dict) else None, note_s, meta_item))
+                _planner_progress(phase="scan", processed=int(idx))
+                continue
+
+            cached = run_cfg_cache.get(cache_key, _RUN_CFG_CACHE_MISS)
+            if cached is not _RUN_CFG_CACHE_MISS:
+                prefetched_tested += 1
+                run_calls_total += 1
+                run_cfg_cache_hits += 1
+                run_cfg_fingerprint_cache[cfg_key] = (ctx_sig, cached if isinstance(cached, dict) else None)
+                row = dict(cached) if isinstance(cached, dict) else None
+                _axis_progress_record(kept=bool(row))
+                status_updates.append((cell_key[0], cell_key[1], cell_key[2], "cached_hit"))
+                manifest_updates.append((cell_key[1], cell_key[2], cell_key[0], "cached_hit"))
+                if isinstance(row, dict):
+                    row["note"] = note_s
+                cached_hits.append((cell_key, cfg, row if isinstance(row, dict) else None, note_s, meta_item))
+                _planner_progress(phase="scan", processed=int(idx))
+                continue
+
+            unresolved.append((cfg, note_s, meta_item, ctx_sig, cache_key, str(persistent_key), cell_key))
+            persistent_keys.append(str(persistent_key))
+            _planner_progress(phase="scan", processed=int(idx))
+
+        _planner_progress(
+            phase="scan",
+            processed=(int(planner_total) if isinstance(planner_total, int) and planner_total > 0 else len(unresolved)),
+            force=True,
+        )
+
+        stage_cell_total = int(len(cell_keys_for_status))
+        stage_cell_plan_signature = str(stage_cell_hasher.hexdigest()) if int(stage_cell_total) > 0 else ""
+        if int(stage_cell_total) <= 0:
+            stage_cell_window_signature = ""
+        elif len(stage_cell_window_set) == 1:
+            stage_cell_window_signature = next(iter(stage_cell_window_set))
+        else:
+            stage_cell_window_signature = "multi:" + str(stage_cell_window_hasher.hexdigest())
+        stage_cell_summary_all_resolved = False
+        if int(stage_cell_total) > 0 and stage_cell_plan_signature and stage_cell_window_signature:
+            stage_summary = _stage_unresolved_summary_get(
+                manifest_name="stage_cell",
+                stage_label=str(stage_label),
+                plan_signature=str(stage_cell_plan_signature),
+                window_signature=str(stage_cell_window_signature),
+                total=int(stage_cell_total),
+            )
+            if isinstance(stage_summary, tuple) and len(stage_summary) == 2:
+                try:
+                    stage_cell_summary_all_resolved = int(stage_summary[0]) <= 0
+                except (TypeError, ValueError):
+                    stage_cell_summary_all_resolved = False
+
+        persisted_by_key = _run_cfg_persistent_get_many(cache_keys=persistent_keys) if persistent_keys else {}
+        frontier_by_dim_window: dict[tuple[str, str], dict[str, object]] = {}
+        upper_bound_by_dim_window: dict[tuple[str, str], dict[str, object]] = {}
+        winner_projection_by_dim_window: dict[tuple[str, str], dict[str, object]] = {}
+        manifest_by_dim_window: dict[tuple[str, str], tuple[str, str]] = {}
+        if not bool(stage_cell_summary_all_resolved):
+            frontier_by_dim_window = _stage_frontier_get_many(
+                stage_label=str(stage_label),
+                cells=[(axis_dim_fp, window_sig) for _, axis_dim_fp, window_sig in cell_keys_for_status],
+            )
+            upper_bound_by_dim_window = _dimension_upper_bound_get_many(
+                stage_label=str(stage_label),
+                cells=[(axis_dim_fp, window_sig) for _, axis_dim_fp, window_sig in cell_keys_for_status],
+            )
+            winner_projection_by_dim_window = _winner_projection_get_many(
+                stage_label=str(stage_label),
+                cells=[(axis_dim_fp, window_sig) for _, axis_dim_fp, window_sig in cell_keys_for_status],
+            )
+            manifest_by_dim_window = _cartesian_cell_manifest_get_many(
+                stage_label=str(stage_label),
+                cells=[(axis_dim_fp, window_sig) for _, axis_dim_fp, window_sig in cell_keys_for_status],
+            )
+        prior_status = (
+            {(strategy_fp, axis_dim_fp, window_sig): "cached_hit" for strategy_fp, axis_dim_fp, window_sig in cell_keys_for_status}
+            if bool(stage_cell_summary_all_resolved)
+            else _stage_cell_status_get_many(stage_label=str(stage_label), cells=cell_keys_for_status)
+        )
+        rank_dominance_stamp_rows_by_window: dict[str, list[tuple[str, int, int]]] = {}
+
+        unresolved_total = len(unresolved)
+        for idx_u, (cfg, note_s, meta_item, ctx_sig, cache_key, persistent_key, cell_key) in enumerate(unresolved, start=1):
+            persisted = persisted_by_key.get(str(persistent_key), _RUN_CFG_CACHE_MISS)
+            cfg_key = str(cache_key[0])
+            if persisted is not _RUN_CFG_CACHE_MISS:
+                prefetched_tested += 1
+                run_calls_total += 1
+                run_cfg_cache_hits += 1
+                run_cfg_persistent_hits += 1
+                run_cfg_cache[cache_key] = persisted if isinstance(persisted, dict) else None
+                run_cfg_fingerprint_cache[cfg_key] = (ctx_sig, persisted if isinstance(persisted, dict) else None)
+                row = dict(persisted) if isinstance(persisted, dict) else None
+                _axis_progress_record(kept=bool(row))
+                status_updates.append((cell_key[0], cell_key[1], cell_key[2], "cached_hit"))
+                manifest_updates.append((cell_key[1], cell_key[2], cell_key[0], "cached_hit"))
+                if isinstance(row, dict):
+                    row["note"] = note_s
+                cached_hits.append((cell_key, cfg, row if isinstance(row, dict) else None, note_s, meta_item))
+                _planner_progress(phase="resolve", processed=int(idx_u))
+                continue
+
+            prev_cell_status = str(prior_status.get(cell_key) or "").strip().lower()
+            if prev_cell_status in ("cached_hit", "evaluated"):
+                prefetched_tested += 1
+                run_calls_total += 1
+                _axis_progress_record(kept=False)
+                status_updates.append((cell_key[0], cell_key[1], cell_key[2], "cached_hit"))
+                manifest_updates.append((cell_key[1], cell_key[2], cell_key[0], "cached_hit"))
+                cached_hits.append((cell_key, cfg, None, note_s, meta_item))
+                _planner_progress(phase="resolve", processed=int(idx_u))
+                continue
+
+            frontier_key = (str(cell_key[1]), str(cell_key[2]))
+            upper_bound_row = upper_bound_by_dim_window.get(frontier_key)
+            upper_bound_sig = _upper_bound_dominance_signature(upper_bound_row)
+            if upper_bound_sig:
+                prefetched_tested += 1
+                run_calls_total += 1
+                _axis_progress_record(kept=False)
+                status_updates.append((cell_key[0], cell_key[1], cell_key[2], "cached_hit"))
+                manifest_updates.append((cell_key[1], cell_key[2], cell_key[0], "dominated"))
+                if isinstance(meta_item, dict):
+                    try:
+                        rank_i = int(meta_item.get("_mr_rank"))
+                    except (TypeError, ValueError):
+                        rank_i = None
+                    if rank_i is not None and int(rank_i) >= 0:
+                        window_key = str(cell_key[2]).strip()
+                        if window_key:
+                            rank_dominance_stamp_rows_by_window.setdefault(str(window_key), []).append(
+                                (str(upper_bound_sig), int(rank_i), int(rank_i))
+                            )
+                cached_hits.append((cell_key, cfg, None, note_s, meta_item))
+                _planner_progress(phase="resolve", processed=int(idx_u))
+                continue
+
+            frontier_row = frontier_by_dim_window.get(frontier_key)
+            if _stage_frontier_is_dominated(frontier_row):
+                prefetched_tested += 1
+                run_calls_total += 1
+                stage_frontier_hits += 1
+                _axis_progress_record(kept=False)
+                status_updates.append((cell_key[0], cell_key[1], cell_key[2], "cached_hit"))
+                manifest_updates.append((cell_key[1], cell_key[2], cell_key[0], "dominated"))
+                cached_hits.append((cell_key, cfg, None, note_s, meta_item))
+                _planner_progress(phase="resolve", processed=int(idx_u))
+                continue
+
+            winner_projection_row = winner_projection_by_dim_window.get(frontier_key)
+            if _winner_projection_is_dominated(winner_projection_row):
+                prefetched_tested += 1
+                run_calls_total += 1
+                winner_projection_hits += 1
+                _axis_progress_record(kept=False)
+                status_updates.append((cell_key[0], cell_key[1], cell_key[2], "cached_hit"))
+                manifest_updates.append((cell_key[1], cell_key[2], cell_key[0], "dominated"))
+                cached_hits.append((cell_key, cfg, None, note_s, meta_item))
+                _planner_progress(phase="resolve", processed=int(idx_u))
+                continue
+
+            manifest_state = manifest_by_dim_window.get(frontier_key)
+            manifest_status = str(manifest_state[0]).strip().lower() if isinstance(manifest_state, tuple) else ""
+            manifest_strategy_fp = str(manifest_state[1]).strip() if isinstance(manifest_state, tuple) and len(manifest_state) >= 2 else ""
+            if manifest_status in ("cached_hit", "evaluated", "dominated"):
+                prefetched_tested += 1
+                run_calls_total += 1
+                cartesian_manifest_hits += 1
+                resolved_row: dict | None = None
+                if manifest_status in ("cached_hit", "evaluated"):
+                    probe_strategy_fp = manifest_strategy_fp or str(cell_key[0])
+                    probe_key = _run_cfg_persistent_key(
+                        strategy_fingerprint=str(probe_strategy_fp),
+                        axis_dimension_fingerprint=str(cell_key[1]),
+                        window_signature=str(cell_key[2]),
+                    )
+                    probe_cached = _run_cfg_persistent_get(cache_key=str(probe_key))
+                    if probe_cached is not _RUN_CFG_CACHE_MISS:
+                        run_cfg_cache_hits += 1
+                        run_cfg_persistent_hits += 1
+                        run_cfg_cache[cache_key] = probe_cached if isinstance(probe_cached, dict) else None
+                        run_cfg_fingerprint_cache[cfg_key] = (ctx_sig, probe_cached if isinstance(probe_cached, dict) else None)
+                        resolved_row = dict(probe_cached) if isinstance(probe_cached, dict) else None
+
+                _axis_progress_record(kept=bool(resolved_row))
+                status_updates.append((cell_key[0], cell_key[1], cell_key[2], "cached_hit"))
+                manifest_updates.append(
+                    (
+                        cell_key[1],
+                        cell_key[2],
+                        manifest_strategy_fp or cell_key[0],
+                        "dominated" if manifest_status == "dominated" else "cached_hit",
+                    )
+                )
+                if isinstance(resolved_row, dict):
+                    resolved_row["note"] = note_s
+                cached_hits.append((cell_key, cfg, resolved_row if isinstance(resolved_row, dict) else None, note_s, meta_item))
+                _planner_progress(phase="resolve", processed=int(idx_u))
+                continue
+
+            pending_idx = len(pending_plan)
+            pending_plan.append((cfg, note_s, meta_item))
+            pending_cell_map[pending_idx] = cell_key
+            status_updates.append((cell_key[0], cell_key[1], cell_key[2], "pending"))
+            manifest_updates.append((cell_key[1], cell_key[2], cell_key[0], "pending"))
+            _planner_progress(phase="resolve", processed=int(idx_u))
+
+        if unresolved_total > 0:
+            _planner_progress(phase="resolve", processed=int(unresolved_total), force=True)
+
+        status_updates_filtered: list[tuple[str, str, str, str]] = []
+        for strategy_fp, axis_dim_fp, window_sig, status in status_updates:
+            prev = prior_status.get((strategy_fp, axis_dim_fp, window_sig))
+            if str(prev or "") == str(status):
+                continue
+            status_updates_filtered.append((strategy_fp, axis_dim_fp, window_sig, status))
+        if status_updates_filtered:
+            _stage_cell_status_set_many(stage_label=str(stage_label), rows=status_updates_filtered)
+
+        manifest_updates_filtered: list[tuple[str, str, str, str]] = []
+        manifest_priority = {"pending": 0, "cached_hit": 1, "evaluated": 2, "dominated": 3}
+        for axis_dim_fp, window_sig, strategy_fp, status in manifest_updates:
+            prev_state = manifest_by_dim_window.get((str(axis_dim_fp), str(window_sig)))
+            prev_status = str(prev_state[0]).strip().lower() if isinstance(prev_state, tuple) else ""
+            if prev_status == str(status):
+                continue
+            if manifest_priority.get(str(status), -1) < manifest_priority.get(str(prev_status), -1):
+                continue
+            manifest_updates_filtered.append((axis_dim_fp, window_sig, strategy_fp, status))
+        if manifest_updates_filtered:
+            _cartesian_cell_manifest_set_many(stage_label=str(stage_label), rows=manifest_updates_filtered)
+
+        if rank_dominance_stamp_rows_by_window:
+            for window_sig, stamp_rows in rank_dominance_stamp_rows_by_window.items():
+                _rank_dominance_stamp_set_many(
+                    stage_label=str(stage_label),
+                    window_signature=str(window_sig),
+                    rows=list(stamp_rows),
+                )
+
+        if int(stage_cell_total) > 0 and stage_cell_plan_signature and stage_cell_window_signature:
+            unresolved_count = int(len(pending_plan))
+            _stage_unresolved_summary_set(
+                manifest_name="stage_cell",
+                stage_label=str(stage_label),
+                plan_signature=str(stage_cell_plan_signature),
+                window_signature=str(stage_cell_window_signature),
+                total=int(stage_cell_total),
+                unresolved_count=int(unresolved_count),
+                resolved_count=int(max(0, int(stage_cell_total) - int(unresolved_count))),
+            )
+
+        return pending_plan, cached_hits, pending_cell_map, int(prefetched_tested)
+
+    def _run_cfg(
+        *,
+        cfg: ConfigBundle,
+        bars: list | None = None,
+        regime_bars: list | None = None,
+        regime2_bars: list | None = None,
+        prepared_context: tuple[list, list | None, list | None, list | None, list | None, object | None] | None = None,
+        progress_callback=None,
+    ) -> dict | None:
+        nonlocal run_calls_total, run_cfg_cache_hits, run_cfg_fingerprint_hits, run_cfg_persistent_hits, run_cfg_persistent_writes
+        run_calls_total += 1
+
+        def _emit_cfg_progress(**payload: object) -> None:
+            if not callable(progress_callback):
+                return
+            try:
+                progress_callback(dict(payload))
+            except Exception:
+                return
+
+        prepared_pack = None
+        tick_bars = None
+        exec_bars = None
+        if (
+            isinstance(prepared_context, tuple)
+            and len(prepared_context) >= 6
+            and isinstance(prepared_context[0], list)
+        ):
+            bars_eff = prepared_context[0]
+            regime_eff = prepared_context[1] if isinstance(prepared_context[1], list) else None
+            regime2_eff = prepared_context[2] if isinstance(prepared_context[2], list) else None
+            tick_bars = prepared_context[3] if isinstance(prepared_context[3], list) else None
+            exec_bars = prepared_context[4] if isinstance(prepared_context[4], list) else None
+            prepared_pack = prepared_context[5]
+        else:
+            bars_eff, regime_eff, regime2_eff = _context_bars_for_cfg(
+                cfg=cfg,
+                bars=bars,
+                regime_bars=regime_bars,
+                regime2_bars=regime2_bars,
+            )
+        ctx_sig, cache_key, axis_dim_fp, persistent_key = _run_cfg_cache_coords(
+            cfg=cfg,
+            bars=bars_eff,
+            regime_bars=regime_eff,
+            regime2_bars=regime2_eff,
+            update_dim_index=True,
+        )
+        cfg_key = str(cache_key[0])
         fp_cached = run_cfg_fingerprint_cache.get(cfg_key)
         if fp_cached is not None and fp_cached[0] == ctx_sig:
             run_cfg_cache_hits += 1
             run_cfg_fingerprint_hits += 1
             fp_row = fp_cached[1]
             row = dict(fp_row) if isinstance(fp_row, dict) else None
+            _emit_cfg_progress(phase="cfg.cache_hit", cached=True, kept=bool(row))
             _axis_progress_record(kept=bool(row))
             return row
-        cache_key = (
-            cfg_key,
-            bars_sig,
-            regime_sig,
-            regime2_sig,
-        )
-        persistent_key = _run_cfg_persistent_key(cfg_key=cfg_key, ctx_sig=ctx_sig)
         cached = run_cfg_cache.get(cache_key, _RUN_CFG_CACHE_MISS)
         if cached is not _RUN_CFG_CACHE_MISS:
             run_cfg_cache_hits += 1
             run_cfg_fingerprint_cache[cfg_key] = (ctx_sig, cached if isinstance(cached, dict) else None)
             row = dict(cached) if isinstance(cached, dict) else None
+            _emit_cfg_progress(phase="cfg.cache_hit", cached=True, kept=bool(row))
             _axis_progress_record(kept=bool(row))
             return row
         persisted = _run_cfg_persistent_get(cache_key=str(persistent_key))
@@ -3616,13 +7427,25 @@ def main() -> None:
             run_cfg_cache[cache_key] = persisted if isinstance(persisted, dict) else None
             run_cfg_fingerprint_cache[cfg_key] = (ctx_sig, persisted if isinstance(persisted, dict) else None)
             row = dict(persisted) if isinstance(persisted, dict) else None
+            _emit_cfg_progress(phase="cfg.cache_hit", cached=True, kept=bool(row))
             _axis_progress_record(kept=bool(row))
             return row
-        tick_bars = _tick_bars_for(cfg)
-        exec_bars = None
-        exec_size = str(getattr(cfg.strategy, "spot_exec_bar_size", "") or "").strip()
-        if exec_size and str(exec_size) != str(cfg.backtest.bar_size):
-            exec_bars = _bars_cached(exec_size)
+        if tick_bars is None:
+            tick_bars = _tick_bars_for(cfg)
+        if exec_bars is None:
+            exec_size = str(getattr(cfg.strategy, "spot_exec_bar_size", "") or "").strip()
+            if exec_size and str(exec_size) != str(cfg.backtest.bar_size):
+                exec_bars = _bars_cached(exec_size)
+        _emit_cfg_progress(
+            phase="cfg.context_ready",
+            cached=False,
+            signal_total=int(len(bars_eff) if isinstance(bars_eff, list) else 0),
+            regime_total=int(len(regime_eff) if isinstance(regime_eff, list) else 0),
+            regime2_total=int(len(regime2_eff) if isinstance(regime2_eff, list) else 0),
+            tick_total=int(len(tick_bars) if isinstance(tick_bars, list) else 0),
+            exec_total=int(len(exec_bars) if isinstance(exec_bars, list) else int(len(bars_eff) if isinstance(bars_eff, list) else 0)),
+        )
+        eval_started = pytime.perf_counter()
         s = _run_spot_backtest_summary(
             cfg,
             bars_eff,
@@ -3631,6 +7454,19 @@ def main() -> None:
             regime2_bars=regime2_eff,
             tick_bars=tick_bars,
             exec_bars=exec_bars,
+            prepared_series_pack=prepared_pack,
+            progress_callback=progress_callback,
+        )
+        eval_elapsed = max(1e-6, float(pytime.perf_counter()) - float(eval_started))
+        _emit_cfg_progress(
+            phase="cfg.engine_done",
+            elapsed_sec=float(eval_elapsed),
+            trades=int(getattr(s, "trades", 0) or 0),
+        )
+        _run_cfg_dimension_index_set(
+            fingerprint=str(axis_dim_fp),
+            payload_json=str(axis_dim_fp),
+            est_cost=float(eval_elapsed),
         )
         if int(s.trades) < int(run_min_trades):
             run_cfg_cache[cache_key] = None
@@ -3668,15 +7504,178 @@ def main() -> None:
         report_every: int = 0,
         heartbeat_sec: float = 0.0,
         record_milestones: bool = True,
+        frontier_stage_label: str | None = None,
+        progress_callback=None,
     ) -> tuple[int, list[tuple[ConfigBundle, dict, str, dict | None]]]:
         tested = 0
         kept: list[tuple[ConfigBundle, dict, str, dict | None]] = []
+        frontier_updates: list[tuple[str, str, dict | None]] = []
+        winner_projection_updates: list[tuple[str, str, dict | None]] = []
+        dimension_upper_bound_updates: list[tuple[str, str, dict | None]] = []
+        rank_runtime_updates: dict[tuple[str, int], tuple[int, float, int]] = {}
+        dimension_utility_updates: dict[tuple[str, str, str], tuple[int, int, int, float]] = {}
         t0 = pytime.perf_counter()
         last = float(t0)
         total_i = int(total) if total is not None else None
         suppress_prev = bool(axis_progress_state.get("suppress"))
+        heartbeat_eff = float(heartbeat_sec) if float(heartbeat_sec) > 0.0 else 0.0
+        heartbeat_eff = max(5.0, float(heartbeat_eff)) if float(heartbeat_eff) > 0.0 else 0.0
+        eval_inflight_started_at = 0.0
+        eval_inflight_active = False
+        eval_phase_state: dict[str, object] = {}
+        eval_phase_lock = threading.Lock()
+        sweep_heartbeat_stop = threading.Event()
+        sweep_heartbeat_thread: threading.Thread | None = None
+        dim_util_cfg = _cache_config("dimension_value_utility")
+        dim_upper_cfg = _cache_config("dimension_upper_bound")
+        dim_util_write_min_total = max(0, int(_registry_float(dim_util_cfg.get("write_min_total"), 128.0)))
+        dim_upper_write_min_total = max(0, int(_registry_float(dim_upper_cfg.get("write_min_total"), 96.0)))
+        dim_util_write_sample_mod = max(1, int(_registry_float(dim_util_cfg.get("write_sample_mod"), 1.0)))
+        dim_upper_write_sample_mod = max(1, int(_registry_float(dim_upper_cfg.get("write_sample_mod"), 1.0)))
+        allow_dim_util_writes = bool(
+            frontier_stage_label
+            and (total_i is None or int(total_i) >= int(dim_util_write_min_total))
+        )
+        allow_dim_upper_writes = bool(
+            frontier_stage_label
+            and (total_i is None or int(total_i) >= int(dim_upper_write_min_total))
+        )
+        series_pack_prewarm_cfg = _cache_config("series_pack_prewarm")
+        series_pack_prewarm_enabled = bool(_registry_float(series_pack_prewarm_cfg.get("enabled"), 1.0) > 0.0)
+        series_pack_prewarm_min_total = max(0, int(_registry_float(series_pack_prewarm_cfg.get("min_total"), 32.0)))
+        series_pack_prewarm_max_unique = max(1, int(_registry_float(series_pack_prewarm_cfg.get("max_unique"), 4096.0)))
+        use_prepared_context = bool(
+            series_pack_prewarm_enabled
+            and (total_i is None or int(total_i) >= int(series_pack_prewarm_min_total))
+        )
+        prepared_context_by_cache_key: dict[
+            tuple[str, str, str],
+            tuple[list, list | None, list | None, list | None, list | None, object | None],
+        ] = {}
+        prepared_series_pack_by_hash: dict[str, object | None] = {}
         if progress_label:
             axis_progress_state["suppress"] = True
+
+        def _emit_progress(done: bool = False) -> None:
+            if not callable(progress_callback):
+                return
+            try:
+                progress_callback(
+                    tested=int(tested),
+                    total=(int(total_i) if total_i is not None else None),
+                    kept=int(len(kept)),
+                    elapsed=max(0.0, float(pytime.perf_counter()) - float(t0)),
+                    done=bool(done),
+                )
+            except Exception:
+                return
+
+        def _emit_sweep_heartbeat() -> None:
+            nonlocal last
+            if not progress_label and not callable(progress_callback):
+                return
+            now = float(pytime.perf_counter())
+            if progress_label:
+                line = _progress_line(
+                    label=str(progress_label),
+                    tested=int(tested),
+                    total=total_i,
+                    kept=len(kept),
+                    started_at=t0,
+                    rate_unit="s",
+                )
+                if bool(eval_inflight_active) and float(eval_inflight_started_at) > 0.0:
+                    line += f" inflight={max(0.0, now - float(eval_inflight_started_at)):0.1f}s"
+                with eval_phase_lock:
+                    phase_snap = dict(eval_phase_state)
+                phase_name = str(phase_snap.get("phase") or "").strip()
+                if phase_name:
+                    line += f" stage={phase_name}"
+                exec_idx = phase_snap.get("exec_idx")
+                exec_total = phase_snap.get("exec_total")
+                if isinstance(exec_idx, int) and isinstance(exec_total, int) and int(exec_total) > 0:
+                    line += f" exec={int(exec_idx)}/{int(exec_total)}"
+                sig_idx = phase_snap.get("sig_idx")
+                sig_total = phase_snap.get("sig_total")
+                if isinstance(sig_idx, int) and isinstance(sig_total, int) and int(sig_total) > 0:
+                    line += f" sig={int(sig_idx)}/{int(sig_total)}"
+                trades_live = phase_snap.get("trades")
+                if isinstance(trades_live, int):
+                    line += f" trades={int(trades_live)}"
+                window_idx = phase_snap.get("window_idx")
+                window_total = phase_snap.get("window_total")
+                if isinstance(window_idx, int) and isinstance(window_total, int) and int(window_total) > 0:
+                    line += f" window={int(window_idx)}/{int(window_total)}"
+                print(line, flush=True)
+            last = float(now)
+            _emit_progress(done=False)
+
+        def _update_eval_phase(event: dict | None) -> None:
+            if not isinstance(event, dict):
+                return
+            with eval_phase_lock:
+                for key in (
+                    "phase",
+                    "path",
+                    "window_idx",
+                    "window_total",
+                    "signal_total",
+                    "regime_total",
+                    "regime2_total",
+                    "tick_total",
+                    "exec_total",
+                    "sig_idx",
+                    "exec_idx",
+                    "open_count",
+                    "trades",
+                    "cached",
+                    "kept",
+                ):
+                    if key in event:
+                        eval_phase_state[str(key)] = event.get(key)
+
+        def _sweep_heartbeat_worker() -> None:
+            if float(heartbeat_eff) <= 0.0:
+                return
+            while not sweep_heartbeat_stop.wait(float(heartbeat_eff)):
+                if bool(eval_inflight_active):
+                    _emit_sweep_heartbeat()
+
+        if float(heartbeat_eff) > 0.0 and (progress_label or callable(progress_callback)):
+            sweep_heartbeat_thread = threading.Thread(target=_sweep_heartbeat_worker, daemon=True)
+            sweep_heartbeat_thread.start()
+
+        def _flush_rank_runtime_updates() -> None:
+            if not frontier_stage_label or not rank_runtime_updates:
+                return
+            rows_to_set = [
+                (str(window_sig), int(rank_bin), int(rec[0]), float(rec[1]), int(rec[2]))
+                for (window_sig, rank_bin), rec in rank_runtime_updates.items()
+                if str(window_sig) and int(rec[0]) > 0
+            ]
+            rank_runtime_updates.clear()
+            if rows_to_set:
+                _rank_bin_runtime_set_many(stage_label=str(frontier_stage_label), rows=rows_to_set)
+
+        def _flush_dimension_utility_updates() -> None:
+            if not frontier_stage_label or not dimension_utility_updates:
+                return
+            rows_to_set = [
+                (
+                    str(window_sig),
+                    str(dim_key),
+                    str(dim_value),
+                    int(rec[0]),
+                    int(rec[1]),
+                    int(rec[2]),
+                    float(rec[3]),
+                )
+                for (window_sig, dim_key, dim_value), rec in dimension_utility_updates.items()
+                if str(window_sig) and str(dim_key) and int(rec[0]) > 0
+            ]
+            dimension_utility_updates.clear()
+            if rows_to_set:
+                _dimension_value_utility_set_many(stage_label=str(frontier_stage_label), rows=rows_to_set)
 
         try:
             for cfg, note, meta_item in plan:
@@ -3699,8 +7698,146 @@ def main() -> None:
                             flush=True,
                         )
                         last = float(now)
+                        _emit_progress(done=False)
 
-                row = _run_cfg(cfg=cfg, bars=bars)
+                prepared_context = None
+                if bool(use_prepared_context):
+                    _ctx_sig_pc, cache_key_pc, _axis_dim_fp_pc, _persistent_key_pc = _run_cfg_cache_coords(
+                        cfg=cfg,
+                        bars=bars,
+                        update_dim_index=False,
+                    )
+                    prepared_context = prepared_context_by_cache_key.get(cache_key_pc)
+                    if prepared_context is None and len(prepared_context_by_cache_key) < int(series_pack_prewarm_max_unique):
+                        bars_eff_pc, regime_eff_pc, regime2_eff_pc = _context_bars_for_cfg(
+                            cfg=cfg,
+                            bars=bars,
+                            regime_bars=None,
+                            regime2_bars=None,
+                        )
+                        tick_bars_pc = _tick_bars_for(cfg)
+                        exec_bars_pc = None
+                        exec_size_pc = str(getattr(cfg.strategy, "spot_exec_bar_size", "") or "").strip()
+                        if exec_size_pc and str(exec_size_pc) != str(cfg.backtest.bar_size):
+                            exec_bars_pc = _bars_cached(exec_size_pc)
+                        pack_hash, prepared_pack = _spot_prepare_summary_series_pack(
+                            cfg=cfg,
+                            signal_bars=bars_eff_pc,
+                            regime_bars=regime_eff_pc,
+                            regime2_bars=regime2_eff_pc,
+                            tick_bars=tick_bars_pc,
+                            exec_bars=exec_bars_pc,
+                        )
+                        if pack_hash:
+                            if pack_hash in prepared_series_pack_by_hash:
+                                prepared_pack = prepared_series_pack_by_hash.get(pack_hash)
+                            elif len(prepared_series_pack_by_hash) < int(series_pack_prewarm_max_unique):
+                                prepared_series_pack_by_hash[str(pack_hash)] = prepared_pack
+                        prepared_context = (
+                            bars_eff_pc,
+                            regime_eff_pc,
+                            regime2_eff_pc,
+                            tick_bars_pc,
+                            exec_bars_pc,
+                            prepared_pack,
+                        )
+                        prepared_context_by_cache_key[cache_key_pc] = prepared_context
+
+                cache_hits_before = int(run_cfg_cache_hits)
+                eval_started = pytime.perf_counter()
+                eval_inflight_started_at = float(eval_started)
+                eval_inflight_active = True
+                try:
+                    row = _run_cfg(
+                        cfg=cfg,
+                        bars=bars,
+                        prepared_context=prepared_context,
+                        progress_callback=_update_eval_phase,
+                    )
+                finally:
+                    eval_inflight_active = False
+                    eval_inflight_started_at = 0.0
+                eval_elapsed = max(1e-6, float(pytime.perf_counter()) - float(eval_started))
+                cache_hit_eval = 1 if int(run_cfg_cache_hits) > int(cache_hits_before) else 0
+                if frontier_stage_label:
+                    _ctx_sig, cache_key, axis_dim_fp, _persistent_key = _run_cfg_cache_coords(
+                        cfg=cfg,
+                        bars=bars,
+                        update_dim_index=False,
+                    )
+                    window_sig = str(cache_key[2])
+                    frontier_updates.append((str(axis_dim_fp), str(window_sig), row if isinstance(row, dict) else None))
+                    if len(frontier_updates) >= 200:
+                        _stage_frontier_upsert_many(
+                            stage_label=str(frontier_stage_label),
+                            rows=frontier_updates,
+                        )
+                        frontier_updates.clear()
+                    winner_projection_updates.append((str(axis_dim_fp), str(window_sig), row if isinstance(row, dict) else None))
+                    if len(winner_projection_updates) >= 200:
+                        _winner_projection_upsert_many(
+                            stage_label=str(frontier_stage_label),
+                            rows=winner_projection_updates,
+                        )
+                        winner_projection_updates.clear()
+                    if bool(allow_dim_upper_writes) and (
+                        int(dim_upper_write_sample_mod) <= 1
+                        or (int(tested) % int(dim_upper_write_sample_mod) == 0)
+                    ):
+                        dimension_upper_bound_updates.append((str(axis_dim_fp), str(window_sig), row if isinstance(row, dict) else None))
+                        if len(dimension_upper_bound_updates) >= 200:
+                            _dimension_upper_bound_upsert_many(
+                                stage_label=str(frontier_stage_label),
+                                rows=dimension_upper_bound_updates,
+                            )
+                            dimension_upper_bound_updates.clear()
+                    rank_raw = meta_item.get("_mr_rank") if isinstance(meta_item, dict) else None
+                    try:
+                        rank_i = int(rank_raw)
+                    except (TypeError, ValueError):
+                        rank_i = -1
+                    if rank_i >= 0 and window_sig:
+                        rank_bin = int(_rank_bin_from_rank(rank_i))
+                        cell = (str(window_sig), int(rank_bin))
+                        prev = rank_runtime_updates.get(cell)
+                        if prev is None:
+                            rank_runtime_updates[cell] = (1, float(eval_elapsed), int(cache_hit_eval))
+                        else:
+                            rank_runtime_updates[cell] = (
+                                int(prev[0]) + 1,
+                                float(prev[1]) + float(eval_elapsed),
+                                int(prev[2]) + int(cache_hit_eval),
+                            )
+                        if len(rank_runtime_updates) >= 256:
+                            _flush_rank_runtime_updates()
+                    if (
+                        window_sig
+                        and isinstance(meta_item, dict)
+                        and bool(allow_dim_util_writes)
+                        and (
+                            int(dim_util_write_sample_mod) <= 1
+                            or (int(tested) % int(dim_util_write_sample_mod) == 0)
+                        )
+                    ):
+                        keep_i = 1 if isinstance(row, dict) else 0
+                        for raw_dim_key, raw_dim_value in meta_item.items():
+                            dim_key = str(raw_dim_key or "").strip()
+                            if not dim_key or dim_key.startswith("_"):
+                                continue
+                            dim_value = str(raw_dim_value)
+                            cell = (str(window_sig), str(dim_key), str(dim_value))
+                            prev = dimension_utility_updates.get(cell)
+                            if prev is None:
+                                dimension_utility_updates[cell] = (1, int(keep_i), int(cache_hit_eval), float(eval_elapsed))
+                            else:
+                                dimension_utility_updates[cell] = (
+                                    int(prev[0]) + 1,
+                                    int(prev[1]) + int(keep_i),
+                                    int(prev[2]) + int(cache_hit_eval),
+                                    float(prev[3]) + float(eval_elapsed),
+                                )
+                        if len(dimension_utility_updates) >= 768:
+                            _flush_dimension_utility_updates()
                 if not row:
                     continue
 
@@ -3712,6 +7849,31 @@ def main() -> None:
                         _record_milestone(cfg, row, note_s)
                 kept.append((cfg, row, note_s, meta_item))
         finally:
+            sweep_heartbeat_stop.set()
+            if sweep_heartbeat_thread is not None:
+                try:
+                    sweep_heartbeat_thread.join(timeout=1.0)
+                except Exception:
+                    pass
+            if frontier_updates and frontier_stage_label:
+                _stage_frontier_upsert_many(
+                    stage_label=str(frontier_stage_label),
+                    rows=frontier_updates,
+                )
+            if winner_projection_updates and frontier_stage_label:
+                _winner_projection_upsert_many(
+                    stage_label=str(frontier_stage_label),
+                    rows=winner_projection_updates,
+                )
+            if dimension_upper_bound_updates and frontier_stage_label:
+                _dimension_upper_bound_upsert_many(
+                    stage_label=str(frontier_stage_label),
+                    rows=dimension_upper_bound_updates,
+                )
+            _flush_rank_runtime_updates()
+            _flush_dimension_utility_updates()
+            _run_cfg_persistent_flush_pending(force=True)
+            _emit_progress(done=True)
             axis_progress_state["suppress"] = suppress_prev
 
         return tested, kept
@@ -3720,11 +7882,11 @@ def main() -> None:
         if not isinstance(strategy_payload, dict):
             return None
         try:
-            filters_obj = _filters_from_payload(filters_payload if isinstance(filters_payload, dict) else None)
-            strategy_obj = _strategy_from_payload(strategy_payload, filters=filters_obj)
+            filters_obj = _codec_filters_from_payload(filters_payload if isinstance(filters_payload, dict) else None)
+            strategy_obj = _codec_strategy_from_payload(strategy_payload, filters=filters_obj)
         except Exception:
             return None
-        return _mk_bundle(
+        return _codec_make_bundle(
             strategy=strategy_obj,
             start=start,
             end=end,
@@ -3762,10 +7924,20 @@ def main() -> None:
         *,
         note_key: str = "note",
         default_note: str = "",
+        cfg_catalog: dict[str, tuple[dict, dict | None]] | None = None,
     ) -> tuple[ConfigBundle, str] | None:
         if not isinstance(payload, dict):
             return None
-        cfg = _cfg_from_strategy_filters_payload(payload.get("strategy"), payload.get("filters"))
+        strategy_payload = payload.get("strategy")
+        filters_payload = payload.get("filters")
+        if filters_payload is not None and not isinstance(filters_payload, dict):
+            filters_payload = None
+        cfg_ref = str(payload.get("cfg_ref") or "").strip()
+        if cfg_ref and isinstance(cfg_catalog, dict):
+            resolved = cfg_catalog.get(cfg_ref)
+            if isinstance(resolved, tuple) and len(resolved) == 2:
+                strategy_payload, filters_payload = resolved
+        cfg = _cfg_from_strategy_filters_payload(strategy_payload, filters_payload)
         if cfg is None:
             return None
         note = str(payload.get(note_key) or "").strip() or str(default_note)
@@ -3783,110 +7955,1393 @@ def main() -> None:
         if not isinstance(payload, dict):
             raise SystemExit(f"Invalid {schema_name} payload: expected object ({payload_path})")
 
+        cfg_catalog: dict[str, tuple[dict, dict | None]] = {}
+        cfg_catalog_raw = payload.get("_cfg_catalog")
+        if isinstance(cfg_catalog_raw, list):
+            for item in cfg_catalog_raw:
+                if not isinstance(item, dict):
+                    continue
+                cfg_ref = str(item.get("cfg_ref") or "").strip()
+                strategy_payload = item.get("strategy")
+                filters_payload = item.get("filters")
+                if not cfg_ref or not isinstance(strategy_payload, dict):
+                    continue
+                if filters_payload is not None and not isinstance(filters_payload, dict):
+                    filters_payload = None
+                cfg_catalog[cfg_ref] = (dict(strategy_payload), dict(filters_payload) if isinstance(filters_payload, dict) else None)
+
         def _require_list(key: str) -> list:
             raw = payload.get(key)
             if not isinstance(raw, list):
                 raise SystemExit(f"{schema_name} payload missing '{key}' list: {payload_path}")
             return raw
 
-        def _decode_cfg_list(*, key: str, note_key: str, seed_prefix: bool = False) -> list[tuple[ConfigBundle, str]]:
+        def _decode_cfg_list(*, key: str, note_key: str) -> list[tuple[ConfigBundle, str]]:
             out: list[tuple[ConfigBundle, str]] = []
             for item in _require_list(key):
-                decoded = _decode_cfg_payload(item, note_key=note_key)
+                decoded = _decode_cfg_payload(item, note_key=note_key, cfg_catalog=cfg_catalog)
                 if decoded is None:
                     continue
                 cfg_obj, note = decoded
-                if bool(seed_prefix):
-                    seed_tag = str(item.get("seed_tag") or "seed") if isinstance(item, dict) else "seed"
-                    note = f"{seed_tag} | {note}"
                 out.append((cfg_obj, str(note)))
             return out
 
-        def _decode_overrides_list(*, key: str) -> list[tuple[dict[str, object], str]]:
-            out: list[tuple[dict[str, object], str]] = []
-            for item in _require_list(key):
-                if not isinstance(item, dict):
-                    continue
-                over = item.get("overrides")
-                if not isinstance(over, dict):
-                    continue
-                out.append((over, str(item.get("note") or "")))
-            if not out:
-                raise SystemExit(f"{schema_name} payload '{key}' empty/invalid: {payload_path}")
-            return out
-
         name = str(schema_name).strip().lower()
-        if name == "champ_refine_stage3a":
-            return {
-                "seed_tag": str(payload.get("seed_tag") or "seed"),
-                "cfg_pairs": _decode_cfg_list(key="base_exit_variants", note_key="exit_note"),
-            }
-        if name == "champ_refine_stage3b":
-            return {
-                "seed_tag": str(payload.get("seed_tag") or "seed"),
-                "cfg_pairs": _decode_cfg_list(key="shortlist", note_key="base_note"),
-            }
-        if name == "st37_refine_stage1":
-            seeds_local: list[dict] = []
-            for item in _require_list("seeds"):
-                if not isinstance(item, dict):
-                    continue
-                strategy = item.get("strategy")
-                if not isinstance(strategy, dict):
-                    continue
-                filters_payload = item.get("filters")
-                if filters_payload is not None and not isinstance(filters_payload, dict):
-                    filters_payload = None
-                seeds_local.append(
-                    {
-                        "strategy": strategy,
-                        "filters": filters_payload,
-                        "group_name": str(item.get("group_name") or ""),
-                    }
-                )
-            return {"seeds": seeds_local}
-        if name == "st37_refine_stage2":
-            return {
-                "cfg_pairs": _decode_cfg_list(key="shortlist", note_key="base_note", seed_prefix=True),
-                "risk_variants": _decode_overrides_list(key="risk_variants"),
-                "shock_variants": _decode_overrides_list(key="shock_variants"),
-            }
-        if name == "combo_fast_stage2":
-            return {
-                "cfg_pairs": _decode_cfg_list(key="shortlist", note_key="base_note"),
-            }
-        if name == "combo_fast_stage3":
-            return {
-                "cfg_pairs": _decode_cfg_list(key="bases", note_key="base_note"),
-            }
-        if name == "seeded_micro_stage":
+        if name == "cfg_stage":
             return {
                 "axis_tag": str(payload.get("axis_tag") or ""),
                 "cfg_pairs": _decode_cfg_list(key="cfgs", note_key="note"),
             }
-        if name == "gate_matrix_stage2":
-            seeds_local: list[tuple[ConfigBundle, str, str]] = []
-            for item in _require_list("seeds"):
-                if not isinstance(item, dict):
-                    continue
-                cfg_seed = _cfg_from_strategy_filters_payload(item.get("strategy"), item.get("filters"))
-                if cfg_seed is None:
-                    continue
-                seeds_local.append(
-                    (
-                        cfg_seed,
-                        str(item.get("seed_note") or ""),
-                        str(item.get("family") or ""),
-                    )
-                )
-            return {"seed_triples": seeds_local}
         raise SystemExit(f"Unknown worker payload schema: {schema_name!r}")
+
+    def _cfg_catalog_from_payload(payload: dict) -> dict[str, tuple[dict, dict | None]]:
+        out: dict[str, tuple[dict, dict | None]] = {}
+        cfg_catalog_raw = payload.get("_cfg_catalog")
+        if not isinstance(cfg_catalog_raw, list):
+            return out
+        for item in cfg_catalog_raw:
+            if not isinstance(item, dict):
+                continue
+            cfg_ref = str(item.get("cfg_ref") or "").strip()
+            strategy_payload = item.get("strategy")
+            filters_payload = item.get("filters")
+            if not cfg_ref or not isinstance(strategy_payload, dict):
+                continue
+            if filters_payload is not None and not isinstance(filters_payload, dict):
+                filters_payload = None
+            out[cfg_ref] = (dict(strategy_payload), dict(filters_payload) if isinstance(filters_payload, dict) else None)
+        return out
+
+    def _cfg_stage_payload_signature(*, axis_tag: str, cfg_records: list[dict], cfg_catalog: dict[str, tuple[dict, dict | None]]) -> str:
+        hasher = hashlib.sha1()
+        hasher.update(str(_RUN_CFG_CACHE_ENGINE_VERSION).encode("utf-8"))
+        hasher.update(str(axis_tag).strip().lower().encode("utf-8"))
+        hasher.update(str(int(run_min_trades)).encode("utf-8"))
+        hasher.update(str(len(cfg_records)).encode("utf-8"))
+        hasher.update(str(len(cfg_catalog)).encode("utf-8"))
+        for rec in cfg_records:
+            if not isinstance(rec, dict):
+                hasher.update(str(rec).encode("utf-8"))
+                continue
+            cfg_ref = str(rec.get("cfg_ref") or "").strip()
+            if cfg_ref:
+                hasher.update(str(cfg_ref).encode("utf-8"))
+                continue
+            payload_sig = hashlib.sha1(json.dumps(rec, sort_keys=True, default=str).encode("utf-8")).digest()
+            hasher.update(payload_sig)
+        return hasher.hexdigest()
 
     def _worker_records_from_kept(kept: list[tuple[ConfigBundle, dict, str, dict | None]]) -> list[dict]:
         records: list[dict] = []
         for cfg, row, note, _meta in kept:
             records.append(_encode_cfg_payload(cfg, note=note, extra={"row": row}))
         return records
+
+    def _plan_item_cfg(item) -> ConfigBundle | None:
+        if isinstance(item, tuple) and len(item) >= 1 and isinstance(item[0], ConfigBundle):
+            return item[0]
+        return None
+
+    def _plan_item_meta(item) -> dict | None:
+        if isinstance(item, tuple) and len(item) >= 3 and isinstance(item[2], dict):
+            return item[2]
+        return None
+
+    def _plan_item_mixed_radix_rank(item) -> int | None:
+        meta_item = _plan_item_meta(item)
+        if not isinstance(meta_item, dict):
+            return None
+        raw = meta_item.get("_mr_rank")
+        try:
+            out = int(raw)
+        except (TypeError, ValueError):
+            return None
+        if out < 0:
+            return None
+        return int(out)
+
+    def _plan_item_stage_rank(item) -> int | None:
+        meta_item = _plan_item_meta(item)
+        if not isinstance(meta_item, dict):
+            return None
+        raw = meta_item.get("_stage_rank")
+        try:
+            out = int(raw)
+        except (TypeError, ValueError):
+            return None
+        if out < 0:
+            return None
+        return int(out)
+
+    def _plan_items_with_stage_ranks(plan_all) -> list:
+        out: list = []
+        for rank_i, item in enumerate(list(plan_all or ())):
+            if not isinstance(item, tuple):
+                out.append(item)
+                continue
+            if len(item) < 2:
+                out.append(item)
+                continue
+            meta_item = item[2] if len(item) >= 3 and isinstance(item[2], dict) else {}
+            meta_out = dict(meta_item) if isinstance(meta_item, dict) else {}
+            meta_out["_stage_rank"] = int(rank_i)
+            prefix = [item[0], item[1], meta_out]
+            if len(item) > 3:
+                prefix.extend(item[3:])
+            out.append(tuple(prefix))
+        return out
+
+    def _stage_rank_manifest_plan_signature(*, stage_label: str, plan_all) -> str:
+        hasher = hashlib.sha1()
+        hasher.update(str(_RUN_CFG_CACHE_ENGINE_VERSION).encode("utf-8"))
+        hasher.update(str(stage_label).strip().lower().encode("utf-8"))
+        items = list(plan_all or ())
+        hasher.update(str(len(items)).encode("utf-8"))
+        for item in items:
+            cfg = _plan_item_cfg(item)
+            if cfg is None:
+                hasher.update(str(item).encode("utf-8"))
+                continue
+            hasher.update(hashlib.sha1(_milestone_key(cfg).encode("utf-8")).digest())
+            hasher.update(hashlib.sha1(_axis_dimension_fingerprint(cfg).encode("utf-8")).digest())
+        return hasher.hexdigest()
+
+    def _stage_rank_manifest_window_signature(*, bars: list | None) -> str:
+        bars_sig = _bars_signature(bars)
+        return _window_signature(
+            bars_sig=bars_sig,
+            regime_sig=(0, None, None),
+            regime2_sig=(0, None, None),
+        )
+
+    def _plan_item_dimension_values(item) -> tuple[tuple[str, str], ...]:
+        meta_item = _plan_item_meta(item)
+        if not isinstance(meta_item, dict):
+            return ()
+        out: list[tuple[str, str]] = []
+        for raw_key, raw_val in meta_item.items():
+            key = str(raw_key or "").strip()
+            if not key or key.startswith("_"):
+                continue
+            out.append((str(key), str(raw_val)))
+        out.sort(key=lambda row: row[0])
+        return tuple(out)
+
+    def _mixed_radix_warm_ranges(
+        *,
+        plan_all,
+        max_bins: int = 24,
+    ) -> tuple[tuple[int, int, int], ...]:
+        ranks: list[int] = []
+        for item in plan_all:
+            rank = _plan_item_mixed_radix_rank(item)
+            if rank is None:
+                continue
+            ranks.append(int(rank))
+        if not ranks:
+            return ()
+        r_min = int(min(ranks))
+        r_max = int(max(ranks))
+        span_total = max(1, int(r_max - r_min + 1))
+        bins_target = max(1, min(int(max_bins), max(1, int(math.sqrt(len(ranks))))))
+        bin_span = max(1, int(math.ceil(float(span_total) / float(bins_target))))
+        bin_counts: dict[int, int] = {}
+        for rank in ranks:
+            b = int((int(rank) - int(r_min)) // int(bin_span))
+            bin_counts[b] = int(bin_counts.get(b, 0)) + 1
+        ordered_bins = sorted(bin_counts.items(), key=lambda row: (-int(row[1]), int(row[0])))
+        out: list[tuple[int, int, int]] = []
+        for b, count in ordered_bins:
+            lo = int(r_min + (int(b) * int(bin_span)))
+            hi = int(min(int(r_max), int(lo + int(bin_span) - 1)))
+            out.append((int(lo), int(hi), int(count)))
+        return tuple(out)
+
+    def _compress_rank_status_rows(rank_status: dict[int, str]) -> list[tuple[int, int, str]]:
+        rows = [
+            (int(rank), str(status))
+            for rank, status in rank_status.items()
+            if str(status) in ("cached_hit", "evaluated", "dominated")
+        ]
+        if not rows:
+            return []
+        rows.sort(key=lambda row: int(row[0]))
+        out: list[tuple[int, int, str]] = []
+        cur_lo = int(rows[0][0])
+        cur_hi = int(rows[0][0])
+        cur_status = str(rows[0][1])
+        for rank, status in rows[1:]:
+            rank_i = int(rank)
+            status_s = str(status)
+            if status_s == cur_status and rank_i == (int(cur_hi) + 1):
+                cur_hi = int(rank_i)
+                continue
+            out.append((int(cur_lo), int(cur_hi), str(cur_status)))
+            cur_lo = int(rank_i)
+            cur_hi = int(rank_i)
+            cur_status = str(status_s)
+        out.append((int(cur_lo), int(cur_hi), str(cur_status)))
+        return out
+
+    def _partition_rank_ranges_for_workers(
+        *,
+        ranges: tuple[tuple[int, int], ...],
+        workers: int,
+    ) -> list[list[tuple[int, int]]]:
+        workers_n = max(1, int(workers))
+        out: list[list[tuple[int, int]]] = [[] for _ in range(workers_n)]
+        if workers_n <= 1:
+            out[0] = list(ranges)
+            return out
+        loads: list[int] = [0 for _ in range(workers_n)]
+        ordered = sorted(
+            [(int(lo), int(hi)) for lo, hi in ranges if int(hi) >= int(lo)],
+            key=lambda row: (-(int(row[1]) - int(row[0]) + 1), int(row[0])),
+        )
+        total_span = sum(int(rank_hi) - int(rank_lo) + 1 for rank_lo, rank_hi in ordered)
+        # Split into finer chunks than worker count so each worker receives multiple disjoint
+        # ranges; this reduces straggler risk when rank-local cost is non-uniform.
+        target_chunk_span = max(1, int(math.ceil(float(total_span) / float(max(1, workers_n * 4)))))
+        chunks: list[tuple[int, int]] = []
+        for rank_lo, rank_hi in ordered:
+            cursor = int(rank_lo)
+            hi_i = int(rank_hi)
+            while int(cursor) <= int(hi_i):
+                chunk_hi = min(int(hi_i), int(cursor) + int(target_chunk_span) - 1)
+                chunks.append((int(cursor), int(chunk_hi)))
+                cursor = int(chunk_hi) + 1
+        for rank_lo, rank_hi in chunks:
+            span = int(rank_hi) - int(rank_lo) + 1
+            target = min(range(workers_n), key=lambda wid: (int(loads[wid]), int(wid)))
+            out[int(target)].append((int(rank_lo), int(rank_hi)))
+            loads[int(target)] += int(span)
+        for bucket in out:
+            bucket.sort(key=lambda row: int(row[0]))
+        return out
+
+    def _cfg_eval_cost_hint(cfg: ConfigBundle) -> float:
+        strat = cfg.strategy
+        signal_bar = str(cfg.backtest.bar_size)
+        filters_payload = _filters_payload(strat.filters) or {}
+        axis_fp = _axis_dimension_fingerprint(cfg)
+        persisted_cost = float(run_cfg_dim_index_loaded.get(str(axis_fp), 0.0) or 0.0)
+        cost = _cost_model_weight("base", 1.0)
+
+        regime_mode = str(getattr(strat, "regime_mode", "ema") or "ema").strip().lower()
+        regime_bar = str(getattr(strat, "regime_bar_size", "") or "").strip() or signal_bar
+        if regime_bar != signal_bar and (
+            regime_mode == "supertrend" or bool(getattr(strat, "regime_ema_preset", None))
+        ):
+            cost += _cost_model_weight("regime_cross_tf", 0.5)
+
+        regime2_mode = str(getattr(strat, "regime2_mode", "off") or "off").strip().lower()
+        regime2_bar = str(getattr(strat, "regime2_bar_size", "") or "").strip() or signal_bar
+        if regime2_mode != "off" and regime2_bar != signal_bar:
+            cost += _cost_model_weight("regime2_cross_tf", 0.5)
+
+        if str(getattr(strat, "tick_gate_mode", "off") or "off").strip().lower() != "off":
+            cost += _cost_model_weight("tick_gate_on", 0.75)
+
+        exec_size = str(getattr(strat, "spot_exec_bar_size", "") or "").strip()
+        if exec_size and exec_size != signal_bar:
+            cost += _cost_model_weight("exec_cross_tf", 0.75)
+
+        perm_on = any(
+            filters_payload.get(k) is not None
+            for k in (
+                "ema_spread_min_pct",
+                "ema_spread_min_pct_down",
+                "ema_slope_min_pct",
+                "ema_slope_signed_min_pct_up",
+                "ema_slope_signed_min_pct_down",
+            )
+        )
+        if perm_on:
+            cost += _cost_model_weight("perm_gate_on", 0.15) * _axis_cost_hint("perm_joint", "perm_variants", 1.0)
+
+        if filters_payload.get("entry_start_hour_et") is not None and filters_payload.get("entry_end_hour_et") is not None:
+            cost += _cost_model_weight("tod_gate_on", 0.12) * _axis_cost_hint("perm_joint", "tod_windows", 1.0)
+
+        if filters_payload.get("volume_ratio_min") is not None:
+            cost += _cost_model_weight("volume_gate_on", 0.08) * _axis_cost_hint("perm_joint", "vol_variants", 1.0)
+
+        cooldown_raw = filters_payload.get("cooldown_bars")
+        skip_raw = filters_payload.get("skip_first_bars")
+        try:
+            cooldown_on = float(cooldown_raw or 0.0) > 0.0
+        except (TypeError, ValueError):
+            cooldown_on = bool(cooldown_raw)
+        try:
+            skip_on = float(skip_raw or 0.0) > 0.0
+        except (TypeError, ValueError):
+            skip_on = bool(skip_raw)
+        if cooldown_on or skip_on:
+            cost += _cost_model_weight("cadence_gate_on", 0.05) * _axis_cost_hint("perm_joint", "cadence_variants", 1.0)
+
+        if str(filters_payload.get("shock_gate_mode") or "off").strip().lower() != "off":
+            cost += _cost_model_weight("shock_gate_on", 0.4) * _axis_cost_hint("shock", "modes", 1.0)
+        if filters_payload.get("riskoff_tr5_med_pct") is not None:
+            cost += _cost_model_weight("riskoff_overlay_on", 0.2) * _axis_cost_hint("risk_overlays", "riskoff", 1.0)
+        if filters_payload.get("riskpanic_tr5_med_pct") is not None and filters_payload.get("riskpanic_neg_gap_ratio_min") is not None:
+            cost += _cost_model_weight("riskpanic_overlay_on", 0.35) * _axis_cost_hint("risk_overlays", "riskpanic", 1.0)
+        if filters_payload.get("riskpop_tr5_med_pct") is not None and filters_payload.get("riskpop_pos_gap_ratio_min") is not None:
+            cost += _cost_model_weight("riskpop_overlay_on", 0.3) * _axis_cost_hint("risk_overlays", "riskpop", 1.0)
+        if persisted_cost > 0.0:
+            return float((0.65 * float(persisted_cost)) + (0.35 * float(cost)))
+        return float(cost)
+
+    def _cfg_locality_bucket_key(cfg: ConfigBundle) -> str:
+        strat = cfg.strategy
+        signal_bar = str(cfg.backtest.bar_size)
+        regime_mode = str(getattr(strat, "regime_mode", "ema") or "ema").strip().lower()
+        regime_bar = str(getattr(strat, "regime_bar_size", "") or "").strip() or signal_bar
+        regime2_mode = str(getattr(strat, "regime2_mode", "off") or "off").strip().lower()
+        regime2_bar = str(getattr(strat, "regime2_bar_size", "") or "").strip() or signal_bar
+        tick_mode = str(getattr(strat, "tick_gate_mode", "off") or "off").strip().lower()
+        exec_size = str(getattr(strat, "spot_exec_bar_size", "") or "").strip() or signal_bar
+        filters_payload = _filters_payload(strat.filters) or {}
+        raw = {
+            "signal_bar": signal_bar,
+            "regime": (regime_mode, regime_bar),
+            "regime2": (regime2_mode, regime2_bar),
+            "tick_mode": tick_mode,
+            "exec_size": exec_size,
+            "shock_mode": str(filters_payload.get("shock_gate_mode") or "off").strip().lower(),
+            "risk_profile": (
+                filters_payload.get("riskoff_tr5_med_pct") is not None,
+                filters_payload.get("riskpanic_tr5_med_pct") is not None,
+                filters_payload.get("riskpop_tr5_med_pct") is not None,
+            ),
+            "axis_dim_fp": _axis_dimension_fingerprint(cfg),
+        }
+        return json.dumps(raw, sort_keys=True, default=str)
+
+    def _dimension_value_utility_score(
+        row: dict[str, float] | None,
+        *,
+        cfg: dict[str, object] | None = None,
+    ) -> float:
+        if not isinstance(row, dict):
+            return 0.0
+        cfg_eff = cfg if isinstance(cfg, dict) else _cache_config("dimension_value_utility")
+        min_eval_count = int(_registry_float(cfg_eff.get("min_eval_count"), 6.0))
+        weight_keep = float(_registry_float(cfg_eff.get("weight_keep_rate"), 0.70))
+        weight_hit = float(_registry_float(cfg_eff.get("weight_hit_rate"), 0.20))
+        weight_conf = float(_registry_float(cfg_eff.get("weight_confidence"), 0.10))
+        confidence_eval_scale = float(_registry_float(cfg_eff.get("confidence_eval_scale"), 24.0))
+        eval_floor = float(_registry_float(cfg_eff.get("eval_sec_floor"), 0.01))
+
+        eval_count = float(max(0.0, float(row.get("eval_count", 0.0) or 0.0)))
+        if eval_count < float(max(1, min_eval_count)):
+            return 0.0
+        keep_rate = float(max(0.0, min(1.0, float(row.get("keep_rate", 0.0) or 0.0))))
+        hit_rate = float(max(0.0, min(1.0, float(row.get("hit_rate", 0.0) or 0.0))))
+        avg_eval_sec = float(max(eval_floor, float(row.get("avg_eval_sec", 0.0) or 0.0)))
+        confidence = float(min(1.0, eval_count / float(max(1.0, confidence_eval_scale))))
+        numerator = (weight_keep * keep_rate) + (weight_hit * hit_rate) + (weight_conf * confidence)
+        return float(max(0.0, numerator) / max(eval_floor, avg_eval_sec))
+
+    def _worker_bucketed_indices(
+        *,
+        plan_all,
+        workers: int,
+        bars: list | None = None,
+        stage_label: str = "",
+        warm_ranges: tuple[tuple[int, int, int], ...] | None = None,
+    ) -> list[list[int]]:
+        nonlocal run_cfg_dim_index_loaded_once, series_pack_mmap_hint_hits, series_pack_pickle_hint_hits
+        nonlocal dimension_utility_hint_hits
+        if not bool(run_cfg_dim_index_loaded_once):
+            loaded = _run_cfg_dimension_index_load()
+            if loaded:
+                run_cfg_dim_index_loaded.update(loaded)
+            run_cfg_dim_index_loaded_once = True
+        workers_n = max(1, int(workers))
+        total = len(plan_all)
+        if workers_n <= 1:
+            return [list(range(total))]
+        if total <= 1:
+            out_small: list[list[int]] = [[] for _ in range(workers_n)]
+            if total == 1:
+                out_small[0].append(0)
+            return out_small
+
+        grouped: dict[str, list[tuple[int, float, float]]] = {}
+        stage_key = _stage_cache_scope(stage_label)
+        plan_items: list[
+            tuple[
+                int,
+                str,
+                float,
+                tuple[str, str, str] | None,
+                str | None,
+                tuple[str, str] | None,
+                str | None,
+                tuple[tuple[str, str], ...],
+                int | None,
+                ConfigBundle | None,
+            ]
+        ] = []
+        persistent_keys: list[str] = []
+        state_keys_pending_fetch: list[tuple[str, str]] = []
+        for idx, item in enumerate(plan_all):
+            cfg = _plan_item_cfg(item)
+            mixed_radix_rank = _plan_item_mixed_radix_rank(item)
+            dimension_pairs = _plan_item_dimension_values(item)
+            if cfg is None:
+                cost = 1.0
+                bucket_key = "default"
+                plan_items.append((int(idx), str(bucket_key), float(cost), None, None, None, None, dimension_pairs, mixed_radix_rank, None))
+            else:
+                cost = _cfg_eval_cost_hint(cfg)
+                bucket_key = _cfg_locality_bucket_key(cfg)
+                _ctx_sig, cache_key, _axis_dim_fp, persistent_key = _run_cfg_cache_coords(
+                    cfg=cfg,
+                    bars=bars,
+                    update_dim_index=False,
+                )
+                state_key = (str(cache_key[0]), str(cache_key[2]))
+                plan_items.append(
+                    (
+                        int(idx),
+                        str(bucket_key),
+                        float(cost),
+                        cache_key,
+                        str(persistent_key),
+                        state_key,
+                        str(cache_key[2]),
+                        dimension_pairs,
+                        mixed_radix_rank,
+                        cfg,
+                    )
+                )
+                persistent_keys.append(str(persistent_key))
+                if state_key not in run_cfg_series_pack_state_cache:
+                    state_keys_pending_fetch.append((str(state_key[0]), str(state_key[1])))
+
+        if state_keys_pending_fetch:
+            persisted_states = _series_pack_state_manifest_get_many(cells=list(state_keys_pending_fetch))
+            for state_key, state_val in persisted_states.items():
+                run_cfg_series_pack_state_cache[(str(state_key[0]), str(state_key[1]))] = str(state_val)
+
+        state_manifest_updates: list[tuple[str, str, str]] = []
+        plan_items_resolved: list[
+            tuple[
+                int,
+                str,
+                float,
+                tuple[str, str, str] | None,
+                str | None,
+                str,
+                str | None,
+                tuple[tuple[str, str], ...],
+                int | None,
+            ]
+        ] = []
+        for (
+            idx,
+            bucket_key,
+            cost,
+            cache_key,
+            persistent_key,
+            state_key,
+            window_sig,
+            dimension_pairs,
+            mixed_radix_rank,
+            cfg,
+        ) in plan_items:
+            series_pack_state = "none"
+            if state_key is not None and isinstance(cfg, ConfigBundle):
+                series_pack_state = str(run_cfg_series_pack_state_cache.get(state_key) or "").strip().lower()
+                if series_pack_state not in ("mmap", "pickle", "none"):
+                    bars_eff, regime_eff, regime2_eff = _context_bars_for_cfg(
+                        cfg=cfg,
+                        bars=bars,
+                    )
+                    exec_bars_eff = bars_eff
+                    exec_size = str(getattr(cfg.strategy, "spot_exec_bar_size", "") or "").strip()
+                    if exec_size and str(exec_size) != str(cfg.backtest.bar_size):
+                        exec_bars_eff = _bars_cached(exec_size)
+                    tick_mode = str(getattr(cfg.strategy, "tick_gate_mode", "off") or "off").strip().lower()
+                    tick_bars_eff = _tick_bars_for(cfg) if tick_mode != "off" else None
+                    filters_obj = cfg.strategy.filters
+                    needs_rv = filters_obj is not None and (
+                        getattr(filters_obj, "rv_min", None) is not None or getattr(filters_obj, "rv_max", None) is not None
+                    )
+                    needs_volume = filters_obj is not None and getattr(filters_obj, "volume_ratio_min", None) is not None
+                    series_pack_state = str(
+                        _spot_series_pack_cache_state(
+                            cfg=cfg,
+                            signal_bars=bars_eff,
+                            exec_bars=exec_bars_eff,
+                            regime_bars=regime_eff,
+                            regime2_bars=regime2_eff,
+                            tick_bars=tick_bars_eff,
+                            include_rv=bool(needs_rv),
+                            include_volume=bool(needs_volume),
+                            include_tick=(tick_mode != "off"),
+                        )
+                    ).strip().lower()
+                    if series_pack_state not in ("mmap", "pickle", "none"):
+                        series_pack_state = "none"
+                    run_cfg_series_pack_state_cache[(str(state_key[0]), str(state_key[1]))] = str(series_pack_state)
+                    state_manifest_updates.append((str(state_key[0]), str(state_key[1]), str(series_pack_state)))
+            plan_items_resolved.append(
+                (
+                    int(idx),
+                    str(bucket_key),
+                    float(cost),
+                    cache_key,
+                    str(persistent_key) if persistent_key is not None else None,
+                    str(series_pack_state or "none"),
+                    str(window_sig) if window_sig is not None else None,
+                    dimension_pairs,
+                    mixed_radix_rank,
+                )
+            )
+        if state_manifest_updates:
+            _series_pack_state_manifest_set_many(rows=state_manifest_updates)
+        plan_items = plan_items_resolved
+
+        persisted_by_key = _run_cfg_persistent_get_many(cache_keys=persistent_keys) if persistent_keys else {}
+        runtime_cells: list[tuple[str, int]] = []
+        utility_cells: list[tuple[str, str, str]] = []
+        if stage_key:
+            for (
+                _idx,
+                _bucket_key,
+                _cost,
+                cache_key,
+                _persistent_key,
+                _series_pack_state,
+                window_sig,
+                dimension_pairs,
+                mixed_radix_rank,
+            ) in plan_items:
+                if cache_key is None or window_sig is None or mixed_radix_rank is None:
+                    if window_sig is not None and dimension_pairs:
+                        for dim_key, dim_value in dimension_pairs:
+                            utility_cells.append((str(window_sig), str(dim_key), str(dim_value)))
+                    continue
+                runtime_cells.append((str(window_sig), int(_rank_bin_from_rank(int(mixed_radix_rank)))))
+                if dimension_pairs:
+                    for dim_key, dim_value in dimension_pairs:
+                        utility_cells.append((str(window_sig), str(dim_key), str(dim_value)))
+        runtime_by_cell = (
+            _rank_bin_runtime_get_many(stage_label=str(stage_key), cells=runtime_cells)
+            if runtime_cells
+            else {}
+        )
+        dim_utility_cfg = _cache_config("dimension_value_utility")
+        dim_utility_by_cell = (
+            _dimension_value_utility_get_many(stage_label=str(stage_key), cells=utility_cells)
+            if utility_cells
+            else {}
+        )
+        prepared_items: list[tuple[int, str, float, int | None, float]] = []
+        for (
+            idx,
+            bucket_key,
+            cost,
+            cache_key,
+            persistent_key,
+            series_pack_state,
+            window_sig,
+            dimension_pairs,
+            mixed_radix_rank,
+        ) in plan_items:
+            adjusted_cost = float(cost)
+            utility_score = 0.0
+            utility_scores: list[float] = []
+            if window_sig is not None and dimension_pairs:
+                for dim_key, dim_value in dimension_pairs:
+                    utility_row = dim_utility_by_cell.get((str(window_sig), str(dim_key), str(dim_value)))
+                    utility = _dimension_value_utility_score(utility_row, cfg=dim_utility_cfg)
+                    if utility > 0.0:
+                        utility_scores.append(float(utility))
+                if utility_scores:
+                    utility_score = float(sum(float(v) for v in utility_scores) / float(max(1, len(utility_scores))))
+                    dimension_utility_hint_hits += len(utility_scores)
+            if cache_key is not None and persistent_key is not None:
+                cached = run_cfg_cache.get(cache_key, _RUN_CFG_CACHE_MISS)
+                if cached is _RUN_CFG_CACHE_MISS:
+                    persisted = persisted_by_key.get(str(persistent_key), _RUN_CFG_CACHE_MISS)
+                    if persisted is not _RUN_CFG_CACHE_MISS:
+                        run_cfg_cache[cache_key] = persisted if isinstance(persisted, dict) else None
+                        cached = persisted
+                if cached is not _RUN_CFG_CACHE_MISS:
+                    adjusted_cost = max(0.001, float(adjusted_cost) * 0.03)
+                else:
+                    if window_sig is not None and mixed_radix_rank is not None:
+                        hint = runtime_by_cell.get((str(window_sig), int(_rank_bin_from_rank(int(mixed_radix_rank)))))
+                        if isinstance(hint, dict):
+                            avg_eval_sec = float(hint.get("avg_eval_sec", 0.0) or 0.0)
+                            hit_rate = float(hint.get("hit_rate", 0.0) or 0.0)
+                            if avg_eval_sec > 0.0:
+                                adjusted_cost = max(
+                                    0.001,
+                                    (0.45 * float(adjusted_cost)) + (0.55 * float(avg_eval_sec)),
+                                )
+                            if hit_rate > 0.0:
+                                adjusted_cost = max(
+                                    0.001,
+                                    float(adjusted_cost) * (1.0 - (0.55 * max(0.0, min(1.0, hit_rate)))),
+                                )
+                    if str(series_pack_state) == "mmap":
+                        adjusted_cost = max(0.001, float(adjusted_cost) * 0.20)
+                        series_pack_mmap_hint_hits += 1
+                    elif str(series_pack_state) == "pickle":
+                        adjusted_cost = max(0.001, float(adjusted_cost) * 0.45)
+                        series_pack_pickle_hint_hits += 1
+            prepared_items.append((int(idx), str(bucket_key), float(adjusted_cost), mixed_radix_rank, float(utility_score)))
+            grouped.setdefault(str(bucket_key), []).append((int(idx), float(adjusted_cost), float(utility_score)))
+
+        mixed_radix_ready = (
+            len(prepared_items) > 0
+            and all((row[3] is not None) for row in prepared_items)
+        )
+        if bool(mixed_radix_ready):
+            warm_ranges_eff = tuple(warm_ranges or ())
+
+            def _range_rank_key(rank: int) -> tuple[int, int]:
+                if not warm_ranges_eff:
+                    return (0, int(rank))
+                for idx_r, (lo, hi, _count) in enumerate(warm_ranges_eff):
+                    if int(lo) <= int(rank) <= int(hi):
+                        return (int(idx_r), int(rank))
+                return (len(warm_ranges_eff), int(rank))
+
+            sorted_items = sorted(
+                prepared_items,
+                key=lambda row: (*_range_rank_key(int(row[3] or 0)), -float(row[4]), int(row[0])),
+            )
+            total_cost = sum(float(row[2]) for row in sorted_items)
+            target_cost = max(0.001, float(total_cost) / float(max(1, workers_n)))
+            out_ranges: list[list[int]] = [[] for _ in range(workers_n)]
+            worker_id = 0
+            worker_cost = 0.0
+            for pos, (idx, _bucket_key, adjusted_cost, _rank, _utility_score) in enumerate(sorted_items):
+                remaining_items = int(len(sorted_items) - int(pos))
+                remaining_workers = int(workers_n - int(worker_id))
+                if (
+                    int(worker_id) < int(workers_n - 1)
+                    and float(worker_cost) >= float(target_cost)
+                    and int(remaining_items) > int(remaining_workers - 1)
+                ):
+                    worker_id += 1
+                    worker_cost = 0.0
+                out_ranges[int(worker_id)].append(int(idx))
+                worker_cost += float(adjusted_cost)
+            return out_ranges
+
+        locality_buckets: list[tuple[str, float, list[tuple[int, float, float]]]] = []
+        for bucket_key, items in grouped.items():
+            items_sorted = sorted(items, key=lambda row: (-float(row[2]), -float(row[1]), int(row[0])))
+            bucket_cost = sum(float(cost) for _idx, cost, _utility_score in items_sorted)
+            locality_buckets.append((str(bucket_key), float(bucket_cost), items_sorted))
+        locality_buckets.sort(key=lambda row: (-float(row[1]), str(row[0])))
+
+        loads = [0.0] * workers_n
+        counts = [0] * workers_n
+        out: list[list[int]] = [[] for _ in range(workers_n)]
+        for _bucket_key, bucket_cost, items in locality_buckets:
+            target = min(range(workers_n), key=lambda wid: (loads[wid], counts[wid], wid))
+            out[target].extend(int(idx) for idx, _cost, _utility_score in items)
+            loads[target] += float(bucket_cost)
+            counts[target] += len(items)
+        return out
+
+    def _ordered_plan_indices_by_dimension_utility(
+        *,
+        stage_label: str,
+        plan_all,
+        bars: list | None = None,
+    ) -> list[int]:
+        stage_key = _stage_cache_scope(stage_label)
+        total = len(plan_all)
+        if total <= 1 or not stage_key:
+            return list(range(total))
+        utility_cfg = _cache_config("dimension_value_utility")
+        utility_cells: list[tuple[str, str, str]] = []
+        item_meta: list[tuple[int, str, tuple[tuple[str, str], ...], int | None]] = []
+        for idx, item in enumerate(plan_all):
+            cfg = _plan_item_cfg(item)
+            if cfg is None:
+                continue
+            dim_pairs = _plan_item_dimension_values(item)
+            if not dim_pairs:
+                continue
+            _ctx_sig, cache_key, _axis_dim_fp, _persistent_key = _run_cfg_cache_coords(
+                cfg=cfg,
+                bars=bars,
+                update_dim_index=False,
+            )
+            window_sig = str(cache_key[2])
+            if not window_sig:
+                continue
+            for dim_key, dim_value in dim_pairs:
+                utility_cells.append((str(window_sig), str(dim_key), str(dim_value)))
+            item_meta.append((int(idx), str(window_sig), dim_pairs, _plan_item_mixed_radix_rank(item)))
+        if not item_meta:
+            return list(range(total))
+        utility_by_cell = _dimension_value_utility_get_many(stage_label=str(stage_key), cells=utility_cells)
+        score_by_idx: dict[int, float] = {}
+        rank_by_idx: dict[int, int] = {}
+        for idx, window_sig, dim_pairs, mr_rank in item_meta:
+            scores: list[float] = []
+            for dim_key, dim_value in dim_pairs:
+                row = utility_by_cell.get((str(window_sig), str(dim_key), str(dim_value)))
+                score = _dimension_value_utility_score(row, cfg=utility_cfg)
+                if score > 0.0:
+                    scores.append(float(score))
+            if scores:
+                score_by_idx[int(idx)] = float(sum(float(v) for v in scores) / float(max(1, len(scores))))
+            if isinstance(mr_rank, int):
+                rank_by_idx[int(idx)] = int(mr_rank)
+        if not score_by_idx:
+            return list(range(total))
+        sentinel_rank = int(10**18)
+        return sorted(
+            list(range(total)),
+            key=lambda idx: (
+                -float(score_by_idx.get(int(idx), 0.0)),
+                int(rank_by_idx.get(int(idx), sentinel_rank)),
+                int(idx),
+            ),
+        )
+
+    def _ordered_plan_indices_by_upper_bound(
+        *,
+        stage_label: str,
+        plan_all,
+        bars: list | None = None,
+    ) -> tuple[list[int], int]:
+        nonlocal dimension_upper_bound_deferred
+        stage_key = _stage_cache_scope(stage_label)
+        total = len(plan_all)
+        if total <= 1 or not stage_key:
+            return list(range(total)), 0
+        bound_cells: list[tuple[str, str]] = []
+        item_meta: list[tuple[int, str, str, int | None]] = []
+        for idx, item in enumerate(plan_all):
+            cfg = _plan_item_cfg(item)
+            if cfg is None:
+                continue
+            _ctx_sig, cache_key, axis_dim_fp, _persistent_key = _run_cfg_cache_coords(
+                cfg=cfg,
+                bars=bars,
+                update_dim_index=False,
+            )
+            window_sig = str(cache_key[2])
+            axis_fp = str(axis_dim_fp)
+            if not window_sig or not axis_fp:
+                continue
+            bound_cells.append((axis_fp, window_sig))
+            item_meta.append((int(idx), axis_fp, window_sig, _plan_item_mixed_radix_rank(item)))
+        if not item_meta:
+            return list(range(total)), 0
+        bound_by_cell = _dimension_upper_bound_get_many(stage_label=str(stage_key), cells=bound_cells)
+        score_by_idx: dict[int, float] = {}
+        rank_by_idx: dict[int, int] = {}
+        deferred = 0
+        for idx, axis_fp, window_sig, mr_rank in item_meta:
+            row = bound_by_cell.get((str(axis_fp), str(window_sig)))
+            score = float(_dimension_upper_bound_score(row))
+            score_by_idx[int(idx)] = float(score)
+            if score < 0.0:
+                deferred += 1
+            if isinstance(mr_rank, int):
+                rank_by_idx[int(idx)] = int(mr_rank)
+        if not score_by_idx:
+            return list(range(total)), 0
+        if deferred > 0:
+            dimension_upper_bound_deferred += int(deferred)
+        sentinel_rank = int(10**18)
+        ordered = sorted(
+            list(range(total)),
+            key=lambda idx: (
+                -(max(0.0, float(score_by_idx.get(int(idx), 0.0)))),
+                1 if float(score_by_idx.get(int(idx), 0.0)) < 0.0 else 0,
+                int(rank_by_idx.get(int(idx), sentinel_rank)),
+                int(idx),
+            ),
+        )
+        return ordered, int(deferred)
+
+    def _run_sharded_stage_worker_kernel(
+        *,
+        stage_label: str,
+        worker_raw,
+        workers_raw,
+        out_path_raw: str,
+        out_flag_name: str,
+        plan_all,
+        bars: list,
+        report_every: int,
+        heartbeat_sec: float = 0.0,
+        plan_total: int | None = None,
+        plan_item_from_rank=None,
+        rank_manifest_window_signature: str = "",
+        rank_batch_size: int = 384,
+    ) -> None:
+        def _run_sharded_stage_worker_lazy_rank(
+            *,
+            total_ranks: int,
+            item_from_rank,
+            manifest_window_signature: str,
+            batch_size: int,
+        ) -> None:
+            if not offline:
+                raise SystemExit(f"{stage_label} worker mode requires --offline (avoid parallel IBKR sessions).")
+            out_path_str = str(out_path_raw or "").strip()
+            if not out_path_str:
+                raise SystemExit(f"--{out_flag_name} is required for {stage_label} worker mode.")
+            out_path = Path(out_path_str)
+            worker_id, workers = _parse_worker_shard(worker_raw, workers_raw, label=str(stage_label))
+            unresolved_ranges = _cartesian_rank_manifest_unresolved_ranges(
+                stage_label=str(stage_label),
+                window_signature=str(manifest_window_signature),
+                total=int(total_ranks),
+            )
+            unresolved_total = sum(max(0, int(rank_hi) - int(rank_lo) + 1) for rank_lo, rank_hi in unresolved_ranges)
+            dynamic_claim_mode = _run_cfg_persistent_conn() is not None
+            worker_ranges: list[tuple[int, int]] = []
+            local_total = 0
+            if not bool(dynamic_claim_mode):
+                range_buckets = _partition_rank_ranges_for_workers(
+                    ranges=tuple(unresolved_ranges),
+                    workers=int(workers),
+                )
+                if int(worker_id) >= len(range_buckets):
+                    raise SystemExit(f"Invalid {stage_label} worker shard: worker={worker_id} workers={workers}.")
+                worker_ranges = list(range_buckets[int(worker_id)])
+                local_total = sum(max(0, int(rank_hi) - int(rank_lo) + 1) for rank_lo, rank_hi in worker_ranges)
+            if unresolved_ranges:
+                preview = ", ".join(
+                    f"{int(rank_lo)}-{int(rank_hi)}"
+                    for rank_lo, rank_hi in tuple(unresolved_ranges[:8])
+                )
+                if preview:
+                    print(
+                        f"{stage_label} unresolved rank ranges total={int(unresolved_total)}/{int(total_ranks)} {preview}",
+                        flush=True,
+                    )
+            if worker_ranges:
+                assigned_preview = ", ".join(
+                    f"{int(rank_lo)}-{int(rank_hi)}"
+                    for rank_lo, rank_hi in tuple(worker_ranges[:8])
+                )
+                if assigned_preview:
+                    print(
+                        f"{stage_label} worker {int(worker_id)+1}/{int(workers)} ranges {assigned_preview}",
+                        flush=True,
+                    )
+            _planner_heartbeat_set(
+                stage_label=str(stage_label),
+                worker_id=int(worker_id),
+                tested=0,
+                cached_hits=0,
+                total=(0 if bool(dynamic_claim_mode) else int(local_total)),
+                eta_sec=(0.0 if int(unresolved_total) <= 0 else None),
+                status=("done" if int(unresolved_total) <= 0 else "starting"),
+            )
+            if int(unresolved_total) <= 0:
+                write_json(out_path, {"tested": 0, "kept": 0, "records": []}, sort_keys=False)
+                print(
+                    f"{stage_label} worker done tested=0 kept=0 out={out_path} (no unresolved ranks)",
+                    flush=True,
+                )
+                return
+            if not bool(dynamic_claim_mode) and int(local_total) <= 0:
+                write_json(out_path, {"tested": 0, "kept": 0, "records": []}, sort_keys=False)
+                print(
+                    f"{stage_label} worker done tested=0 kept=0 out={out_path} (no shard assignment)",
+                    flush=True,
+                )
+                return
+
+            worker_started_at = float(pytime.perf_counter())
+            tested_eval_total = 0
+            cached_hits_total = 0
+            processed_ranks = 0
+            claimed_ranks = 0
+            records: list[dict] = []
+            batch_size_i = max(1, int(batch_size))
+            small_total_threshold = int(max(1, int(workers) * int(batch_size_i) * 2))
+            if int(total_ranks) <= int(small_total_threshold):
+                claim_span_default = max(
+                    4,
+                    int(
+                        math.ceil(
+                            float(max(1, int(total_ranks)))
+                            / float(max(1, int(workers) * 3))
+                        )
+                    ),
+                )
+                claim_span_default = min(int(batch_size_i), int(claim_span_default))
+            else:
+                claim_span_default = max(
+                    int(batch_size_i),
+                    min(
+                        int(batch_size_i * 8),
+                        int(
+                            math.ceil(
+                                float(max(1, int(total_ranks)))
+                                / float(max(1, int(workers) * 64))
+                            )
+                        ),
+                    ),
+                )
+            claim_span_i = int(claim_span_default)
+            claim_cfg = _cache_config("claim_span_tuner")
+            if bool(_registry_float(claim_cfg.get("enabled"), 1.0) > 0.0):
+                target_claims = max(2, int(_registry_float(claim_cfg.get("target_claims_per_worker"), 24.0)))
+                min_claim_span = max(1, int(_registry_float(claim_cfg.get("min_claim_span"), 32.0)))
+                max_claim_span = max(int(min_claim_span), int(_registry_float(claim_cfg.get("max_claim_span"), 2048.0)))
+                max_batch_multiple = max(1, int(_registry_float(claim_cfg.get("max_batch_multiple"), 8.0)))
+                tuned_span = int(
+                    math.ceil(
+                        float(max(1, int(total_ranks)))
+                        / float(max(1, int(workers) * int(target_claims)))
+                    )
+                )
+                tuned_span = max(int(min_claim_span), min(int(max_claim_span), int(tuned_span)))
+                tuned_span = min(int(tuned_span), int(max(1, int(batch_size_i)) * int(max_batch_multiple)))
+                claim_span_i = max(1, int(tuned_span))
+            claim_span_i = max(1, int(claim_span_i))
+            if bool(dynamic_claim_mode):
+                print(
+                    f"{stage_label} worker {int(worker_id)+1}/{int(workers)} dynamic-claim enabled "
+                    f"(claim_span={int(claim_span_i)}, batch={int(batch_size_i)})",
+                    flush=True,
+                )
+            heartbeat_eff = float(heartbeat_sec) if float(heartbeat_sec) > 0.0 else 30.0
+            last_progress_ts = float(worker_started_at)
+
+            def _emit_worker_heartbeat(*, done: bool = False, tested_override: int | None = None) -> None:
+                nonlocal claimed_ranks
+                elapsed = max(0.0, float(pytime.perf_counter()) - float(worker_started_at))
+                processed = (
+                    int(max(0, int(tested_override)))
+                    if tested_override is not None
+                    else int(max(0, int(processed_ranks)))
+                )
+                total_i = int(max(0, int(claimed_ranks))) if bool(dynamic_claim_mode) else int(max(0, int(local_total)))
+                if total_i <= 0:
+                    eta_f: float | None = 0.0
+                else:
+                    remaining = max(0, int(total_i) - int(processed))
+                    rate = (float(processed) / elapsed) if elapsed > 0 else 0.0
+                    eta_f = float(remaining) / float(rate) if rate > 0.0 else None
+                    if done:
+                        eta_f = 0.0
+                _planner_heartbeat_set(
+                    stage_label=str(stage_label),
+                    worker_id=int(worker_id),
+                    tested=int(processed),
+                    cached_hits=int(cached_hits_total),
+                    total=int(total_i),
+                    eta_sec=eta_f,
+                    status=("done" if bool(done) else "running"),
+                )
+
+            _emit_worker_heartbeat(done=False)
+
+            def _process_rank_batch(batch_ranks: list[int]) -> None:
+                nonlocal tested_eval_total, cached_hits_total, processed_ranks, records, last_progress_ts
+                if not batch_ranks:
+                    return
+                plan_batch: list[tuple[ConfigBundle, str, dict | None]] = []
+                for rank in batch_ranks:
+                    item = item_from_rank(int(rank))
+                    if not (isinstance(item, tuple) and len(item) >= 2):
+                        raise SystemExit(f"{stage_label} rank decoder returned invalid item for rank={int(rank)}")
+                    cfg = item[0] if isinstance(item[0], ConfigBundle) else None
+                    note = str(item[1] or "")
+                    meta_item = item[2] if len(item) >= 3 and isinstance(item[2], dict) else None
+                    if cfg is None:
+                        raise SystemExit(f"{stage_label} rank decoder returned invalid cfg for rank={int(rank)}")
+                    if not isinstance(meta_item, dict):
+                        meta_item = {}
+                    if "_mr_rank" not in meta_item:
+                        meta_item = dict(meta_item)
+                        meta_item["_mr_rank"] = int(rank)
+                    plan_batch.append((cfg, note, meta_item))
+                pending_plan, cached_hits, pending_cell_map, _prefetched = _stage_partition_plan_by_cache(
+                    stage_label=str(stage_label),
+                    plan_all=plan_batch,
+                    bars=bars,
+                )
+                if pending_plan:
+                    ordered_indices = _ordered_plan_indices_by_dimension_utility(
+                        stage_label=str(stage_label),
+                        plan_all=pending_plan,
+                        bars=bars,
+                    )
+                    if ordered_indices and ordered_indices != list(range(len(pending_plan))):
+                        pending_plan = [pending_plan[int(i)] for i in ordered_indices]
+                        if pending_cell_map:
+                            pending_cell_map = {
+                                int(new_idx): pending_cell_map.get(int(old_idx), ("", "", ""))
+                                for new_idx, old_idx in enumerate(ordered_indices)
+                                if isinstance(pending_cell_map.get(int(old_idx)), tuple)
+                                and len(pending_cell_map.get(int(old_idx)) or ()) == 3
+                            }
+                    bound_indices, deferred_count = _ordered_plan_indices_by_upper_bound(
+                        stage_label=str(stage_label),
+                        plan_all=pending_plan,
+                        bars=bars,
+                    )
+                    if bound_indices and bound_indices != list(range(len(pending_plan))):
+                        pending_plan = [pending_plan[int(i)] for i in bound_indices]
+                        if pending_cell_map:
+                            pending_cell_map = {
+                                int(new_idx): pending_cell_map.get(int(old_idx), ("", "", ""))
+                                for new_idx, old_idx in enumerate(bound_indices)
+                                if isinstance(pending_cell_map.get(int(old_idx)), tuple)
+                                and len(pending_cell_map.get(int(old_idx)) or ()) == 3
+                            }
+                    if int(deferred_count) > 0:
+                        print(
+                            f"{stage_label} upper-bound prepass deferred={int(deferred_count)}",
+                            flush=True,
+                        )
+                tested_batch = 0
+                kept_batch: list[tuple[ConfigBundle, dict, str, dict | None]] = []
+                if pending_plan:
+                    tested_batch, kept_batch = _run_sweep(
+                        plan=(pending_plan[idx] for idx in range(len(pending_plan))),
+                        bars=bars,
+                        total=len(pending_plan),
+                        progress_label=f"{stage_label} worker {int(worker_id)+1}/{int(workers)}",
+                        report_every=0,
+                        heartbeat_sec=float(heartbeat_eff),
+                        record_milestones=False,
+                        frontier_stage_label=str(stage_label),
+                        progress_callback=lambda tested, _total, _kept, _elapsed, done: _emit_worker_heartbeat(
+                            done=bool(done),
+                            tested_override=int(processed_ranks) + int(tested),
+                        ),
+                    )
+                if pending_cell_map:
+                    evaluated_rows = [
+                        (strategy_fp, axis_dim_fp, window_sig, "evaluated")
+                        for idx, (strategy_fp, axis_dim_fp, window_sig) in pending_cell_map.items()
+                        if int(idx) < len(pending_plan)
+                    ]
+                    if evaluated_rows:
+                        _stage_cell_status_set_many(stage_label=str(stage_label), rows=evaluated_rows)
+                        _cartesian_cell_manifest_set_many(
+                            stage_label=str(stage_label),
+                            rows=[
+                                (axis_dim_fp, window_sig, strategy_fp, "evaluated")
+                                for strategy_fp, axis_dim_fp, window_sig, _status in evaluated_rows
+                            ],
+                        )
+                tested_eval_total += int(tested_batch)
+                cached_hits_total += int(len(cached_hits))
+                processed_ranks += int(len(batch_ranks))
+                for rec in _worker_records_from_kept(kept_batch):
+                    records.append(rec)
+                for _cell_key, cfg_cached, row_cached, note_cached, _meta_cached in cached_hits:
+                    if isinstance(row_cached, dict):
+                        records.append(_encode_cfg_payload(cfg_cached, note=note_cached, extra={"row": row_cached}))
+
+                rank_status: dict[int, str] = {int(rank): "pending" for rank in batch_ranks}
+                cached_manifest_cells: list[tuple[str, str, int]] = []
+                for cell_key, _cfg, _row, _note, meta_item in cached_hits:
+                    rank_i = None
+                    if isinstance(meta_item, dict):
+                        try:
+                            rank_i = int(meta_item.get("_mr_rank"))
+                        except (TypeError, ValueError):
+                            rank_i = None
+                    if rank_i is None or rank_i not in rank_status:
+                        continue
+                    rank_status[int(rank_i)] = "cached_hit"
+                    if isinstance(cell_key, tuple) and len(cell_key) == 3:
+                        axis_dim_fp = str(cell_key[1] or "").strip()
+                        window_sig = str(cell_key[2] or "").strip()
+                        if axis_dim_fp and window_sig:
+                            cached_manifest_cells.append((axis_dim_fp, window_sig, int(rank_i)))
+                if cached_manifest_cells:
+                    manifest_lookup = _cartesian_cell_manifest_get_many(
+                        stage_label=str(stage_label),
+                        cells=[(axis_dim_fp, window_sig) for axis_dim_fp, window_sig, _rank in cached_manifest_cells],
+                    )
+                    for axis_dim_fp, window_sig, rank_i in cached_manifest_cells:
+                        manifest_state = manifest_lookup.get((str(axis_dim_fp), str(window_sig)))
+                        manifest_status = (
+                            str(manifest_state[0]).strip().lower()
+                            if isinstance(manifest_state, tuple) and len(manifest_state) >= 1
+                            else ""
+                        )
+                        if manifest_status == "dominated":
+                            rank_status[int(rank_i)] = "dominated"
+                for item in pending_plan:
+                    meta_item = item[2] if isinstance(item, tuple) and len(item) >= 3 and isinstance(item[2], dict) else None
+                    if not isinstance(meta_item, dict):
+                        continue
+                    try:
+                        rank_i = int(meta_item.get("_mr_rank"))
+                    except (TypeError, ValueError):
+                        continue
+                    if rank_i in rank_status:
+                        rank_status[int(rank_i)] = "evaluated"
+                rank_rows = _compress_rank_status_rows(rank_status)
+                if rank_rows:
+                    _cartesian_rank_manifest_set_many(
+                        stage_label=str(stage_label),
+                        window_signature=str(manifest_window_signature),
+                        rows=rank_rows,
+                    )
+                now = float(pytime.perf_counter())
+                if (now - float(last_progress_ts)) >= float(max(5.0, heartbeat_eff)):
+                    progress_total = int(max(0, int(claimed_ranks))) if bool(dynamic_claim_mode) else int(local_total)
+                    print(
+                        f"{stage_label} worker {int(worker_id)+1}/{int(workers)} "
+                        f"processed={int(processed_ranks)}/{int(progress_total)} "
+                        f"eval={int(tested_eval_total)} cached={int(cached_hits_total)} kept={len(records)}",
+                        flush=True,
+                    )
+                    last_progress_ts = float(now)
+                _emit_worker_heartbeat(done=False)
+
+            if bool(dynamic_claim_mode):
+                claim_count = 0
+                while True:
+                    claimed = _cartesian_rank_manifest_claim_next_range(
+                        stage_label=str(stage_label),
+                        window_signature=str(manifest_window_signature),
+                        total=int(total_ranks),
+                        max_span=int(claim_span_i),
+                    )
+                    if not (isinstance(claimed, tuple) and len(claimed) == 2):
+                        break
+                    claim_lo = int(claimed[0])
+                    claim_hi = int(claimed[1])
+                    if int(claim_hi) < int(claim_lo):
+                        continue
+                    claim_count += 1
+                    claimed_ranks += max(0, int(claim_hi) - int(claim_lo) + 1)
+                    if int(claim_count) <= 6:
+                        print(
+                            f"{stage_label} worker {int(worker_id)+1}/{int(workers)} claim {int(claim_lo)}-{int(claim_hi)}",
+                            flush=True,
+                        )
+                    rank_cursor = int(claim_lo)
+                    batch_span_eff = max(int(batch_size_i), int(claim_span_i))
+                    while int(rank_cursor) <= int(claim_hi):
+                        batch_hi = min(int(claim_hi), int(rank_cursor) + int(batch_span_eff) - 1)
+                        _process_rank_batch(list(range(int(rank_cursor), int(batch_hi) + 1)))
+                        rank_cursor = int(batch_hi) + 1
+            else:
+                for rank_lo, rank_hi in worker_ranges:
+                    lo_i = int(rank_lo)
+                    hi_i = int(rank_hi)
+                    rank_cursor = int(lo_i)
+                    while int(rank_cursor) <= int(hi_i):
+                        batch_hi = min(int(hi_i), int(rank_cursor) + int(batch_size_i) - 1)
+                        _process_rank_batch(list(range(int(rank_cursor), int(batch_hi) + 1)))
+                        rank_cursor = int(batch_hi) + 1
+
+            _emit_worker_heartbeat(done=True)
+            tested_total = int(tested_eval_total) + int(cached_hits_total)
+            write_json(out_path, {"tested": int(tested_total), "kept": len(records), "records": records}, sort_keys=False)
+            print(
+                f"{stage_label} worker done tested={int(tested_total)} kept={len(records)} out={out_path}",
+                flush=True,
+            )
+
+        if callable(plan_item_from_rank):
+            total_i = int(plan_total or 0)
+            window_sig = str(rank_manifest_window_signature or "").strip()
+            if total_i <= 0:
+                raise SystemExit(f"{stage_label} lazy-rank worker requires positive total rank count.")
+            if not window_sig:
+                raise SystemExit(f"{stage_label} lazy-rank worker requires rank manifest window signature.")
+            _run_sharded_stage_worker_lazy_rank(
+                total_ranks=int(total_i),
+                item_from_rank=plan_item_from_rank,
+                manifest_window_signature=str(window_sig),
+                batch_size=int(rank_batch_size),
+            )
+            return
+
+        if plan_all is None:
+            raise SystemExit(f"{stage_label} worker mode requires plan_all when lazy-rank mode is not active.")
+        nonlocal worker_plan_cache_hits
+        if not offline:
+            raise SystemExit(f"{stage_label} worker mode requires --offline (avoid parallel IBKR sessions).")
+        out_path_str = str(out_path_raw or "").strip()
+        if not out_path_str:
+            raise SystemExit(f"--{out_flag_name} is required for {stage_label} worker mode.")
+        out_path = Path(out_path_str)
+
+        worker_id, workers = _parse_worker_shard(worker_raw, workers_raw, label=str(stage_label))
+        _planner_heartbeat_set(
+            stage_label=str(stage_label),
+            worker_id=int(worker_id),
+            tested=0,
+            cached_hits=0,
+            total=0,
+            eta_sec=None,
+            status="starting",
+        )
+        pending_plan, cached_hits, pending_cell_map, _prefetched_total = _stage_partition_plan_by_cache(
+            stage_label=str(stage_label),
+            plan_all=plan_all,
+            bars=bars,
+        )
+        if pending_plan:
+            bound_ordered_indices, deferred_count = _ordered_plan_indices_by_upper_bound(
+                stage_label=str(stage_label),
+                plan_all=pending_plan,
+                bars=bars,
+            )
+            if bound_ordered_indices and bound_ordered_indices != list(range(len(pending_plan))):
+                pending_plan = [pending_plan[int(i)] for i in bound_ordered_indices]
+                if pending_cell_map:
+                    pending_cell_map = {
+                        int(new_idx): pending_cell_map.get(int(old_idx), ("", "", ""))
+                        for new_idx, old_idx in enumerate(bound_ordered_indices)
+                        if isinstance(pending_cell_map.get(int(old_idx)), tuple)
+                        and len(pending_cell_map.get(int(old_idx)) or ()) == 3
+                    }
+            if int(deferred_count) > 0:
+                print(
+                    f"{stage_label} upper-bound prepass deferred={int(deferred_count)}",
+                    flush=True,
+                )
+        total = len(pending_plan)
+        warm_ranges = _mixed_radix_warm_ranges(plan_all=pending_plan)
+        if warm_ranges:
+            preview = ", ".join(
+                f"{int(lo)}-{int(hi)}:{int(count)}"
+                for lo, hi, count in tuple(warm_ranges[:6])
+            )
+            if preview:
+                print(f"{stage_label} warm unresolved rank bins {preview}", flush=True)
+        cache_key = _worker_plan_cache_key(stage_label=str(stage_label), workers=int(workers), plan_all=pending_plan)
+        worker_buckets = _worker_plan_cache_get(cache_key=str(cache_key))
+
+        def _is_valid_worker_buckets(raw_buckets) -> bool:
+            if not isinstance(raw_buckets, list):
+                return False
+            if len(raw_buckets) != int(workers):
+                return False
+            flat: list[int] = []
+            for bucket in raw_buckets:
+                if not isinstance(bucket, list):
+                    return False
+                for idx in bucket:
+                    try:
+                        i = int(idx)
+                    except (TypeError, ValueError):
+                        return False
+                    if i < 0 or i >= int(total):
+                        return False
+                    flat.append(i)
+            if len(flat) != int(total):
+                return False
+            return len(set(flat)) == int(total)
+
+        if not _is_valid_worker_buckets(worker_buckets):
+            worker_buckets = _worker_bucketed_indices(
+                plan_all=pending_plan,
+                workers=int(workers),
+                bars=bars,
+                stage_label=str(stage_label),
+                warm_ranges=warm_ranges,
+            )
+            if _is_valid_worker_buckets(worker_buckets):
+                _worker_plan_cache_set(cache_key=str(cache_key), buckets=worker_buckets)
+        else:
+            worker_plan_cache_hits += 1
+        if int(worker_id) >= len(worker_buckets):
+            raise SystemExit(f"Invalid {stage_label} worker shard: worker={worker_id} workers={workers}.")
+
+        def _cached_owner(cell_key: tuple[str, str, str], workers_n: int) -> int:
+            raw = "\x1f".join((str(cell_key[0]), str(cell_key[1]), str(cell_key[2])))
+            h = hashlib.sha1(raw.encode("utf-8")).digest()
+            return int.from_bytes(h[:4], byteorder="big", signed=False) % max(1, int(workers_n))
+
+        cached_hits_local = [
+            (cell_key, cfg, row, note, meta_item)
+            for cell_key, cfg, row, note, meta_item in cached_hits
+            if int(_cached_owner(cell_key, int(workers))) == int(worker_id)
+        ]
+        heartbeat_eff = float(heartbeat_sec) if float(heartbeat_sec) > 0.0 else 30.0
+        worker_indices = worker_buckets[int(worker_id)]
+        local_total = len(worker_indices)
+        cached_hits_total = int(len(cached_hits_local))
+        worker_started_at = float(pytime.perf_counter())
+
+        def _emit_worker_heartbeat(*, tested_live: int, done: bool = False) -> None:
+            elapsed = max(0.0, float(pytime.perf_counter()) - float(worker_started_at))
+            tested_i = int(max(0, int(tested_live)))
+            total_i = int(max(0, int(local_total)))
+            if total_i <= 0:
+                eta_f: float | None = 0.0
+            else:
+                remaining = max(0, int(total_i) - int(tested_i))
+                rate = (float(tested_i) / elapsed) if elapsed > 0 else 0.0
+                eta_f = float(remaining) / float(rate) if rate > 0.0 else None
+                if done:
+                    eta_f = 0.0
+            _planner_heartbeat_set(
+                stage_label=str(stage_label),
+                worker_id=int(worker_id),
+                tested=int(tested_i),
+                cached_hits=int(cached_hits_total),
+                total=int(total_i),
+                eta_sec=eta_f,
+                status=("done" if bool(done) else "running"),
+            )
+
+        _emit_worker_heartbeat(tested_live=0, done=False)
+        shard_plan = (pending_plan[idx] for idx in worker_indices)
+        tested, kept = _run_sweep(
+            plan=shard_plan,
+            bars=bars,
+            total=local_total,
+            progress_label=f"{stage_label} worker {worker_id+1}/{workers}",
+            report_every=int(report_every),
+            heartbeat_sec=float(heartbeat_eff),
+            record_milestones=False,
+            frontier_stage_label=str(stage_label),
+            progress_callback=lambda tested, total, kept, elapsed, done: _emit_worker_heartbeat(
+                tested_live=int(tested),
+                done=bool(done),
+            ),
+        )
+        _emit_worker_heartbeat(tested_live=int(tested), done=True)
+        if pending_cell_map:
+            evaluated_rows = [
+                (strategy_fp, axis_dim_fp, window_sig, "evaluated")
+                for idx in worker_indices
+                for strategy_fp, axis_dim_fp, window_sig in (
+                    (pending_cell_map.get(int(idx)) or ("", "", "")),
+                )
+                if strategy_fp and axis_dim_fp and window_sig
+            ]
+            if evaluated_rows:
+                _stage_cell_status_set_many(stage_label=str(stage_label), rows=evaluated_rows)
+                _cartesian_cell_manifest_set_many(
+                    stage_label=str(stage_label),
+                    rows=[
+                        (axis_dim_fp, window_sig, strategy_fp, "evaluated")
+                        for strategy_fp, axis_dim_fp, window_sig, _status in evaluated_rows
+                    ],
+                )
+        records = _worker_records_from_kept(kept)
+        for _cell_key, cfg, row, note, _meta in cached_hits_local:
+            if isinstance(row, dict):
+                records.append(_encode_cfg_payload(cfg, note=note, extra={"row": row}))
+        tested_total = int(tested) + len(cached_hits_local)
+        out_payload = {"tested": int(tested_total), "kept": len(records), "records": records}
+        write_json(out_path, out_payload, sort_keys=False)
+        print(f"{stage_label} worker done tested={tested_total} kept={len(records)} out={out_path}", flush=True)
 
     def _run_sharded_stage_worker(
         *,
@@ -3899,31 +9354,26 @@ def main() -> None:
         bars: list,
         report_every: int,
         heartbeat_sec: float = 0.0,
+        plan_total: int | None = None,
+        plan_item_from_rank=None,
+        rank_manifest_window_signature: str = "",
+        rank_batch_size: int = 384,
     ) -> None:
-        if not offline:
-            raise SystemExit(f"{stage_label} worker mode requires --offline (avoid parallel IBKR sessions).")
-        out_path_str = str(out_path_raw or "").strip()
-        if not out_path_str:
-            raise SystemExit(f"--{out_flag_name} is required for {stage_label} worker mode.")
-        out_path = Path(out_path_str)
-
-        worker_id, workers = _parse_worker_shard(worker_raw, workers_raw, label=str(stage_label))
-        total = len(plan_all)
-        local_total = (total // workers) + (1 if worker_id < (total % workers) else 0)
-        shard_plan = (item for combo_idx, item in enumerate(plan_all) if (combo_idx % int(workers)) == int(worker_id))
-        tested, kept = _run_sweep(
-            plan=shard_plan,
+        _run_sharded_stage_worker_kernel(
+            stage_label=str(stage_label),
+            worker_raw=worker_raw,
+            workers_raw=workers_raw,
+            out_path_raw=str(out_path_raw or ""),
+            out_flag_name=str(out_flag_name),
+            plan_all=plan_all,
             bars=bars,
-            total=local_total,
-            progress_label=f"{stage_label} worker {worker_id+1}/{workers}",
             report_every=int(report_every),
             heartbeat_sec=float(heartbeat_sec),
-            record_milestones=False,
+            plan_total=(int(plan_total) if plan_total is not None else None),
+            plan_item_from_rank=plan_item_from_rank,
+            rank_manifest_window_signature=str(rank_manifest_window_signature or ""),
+            rank_batch_size=int(rank_batch_size),
         )
-        records = _worker_records_from_kept(kept)
-        out_payload = {"tested": int(tested), "kept": len(records), "records": records}
-        write_json(out_path, out_payload, sort_keys=False)
-        print(f"{stage_label} worker done tested={tested} kept={len(records)} out={out_path}", flush=True)
 
     def _decode_payload_schema_cfg_row(
         rec: dict,
@@ -4003,8 +9453,133 @@ def main() -> None:
             report_every=int(report_every),
             heartbeat_sec=float(heartbeat_sec),
             record_milestones=bool(record_milestones),
+            frontier_stage_label=str(stage_label),
         )
         return int(tested), _rows_from_kept(kept)
+
+    def _prune_pending_plan_by_manifest(
+        *,
+        stage_label: str,
+        pending_plan: list[tuple[ConfigBundle, str, dict | None]],
+        pending_cell_map: dict[int, tuple[str, str, str]],
+    ) -> tuple[list[tuple[ConfigBundle, str, dict | None]], dict[int, tuple[str, str, str]], int, dict[int, str]]:
+        nonlocal run_calls_total, winner_projection_hits
+        if not pending_plan or not pending_cell_map:
+            return pending_plan, pending_cell_map, 0, {}
+
+        cells: list[tuple[str, str, str]] = []
+        for idx in range(len(pending_plan)):
+            cell_key = pending_cell_map.get(int(idx))
+            if isinstance(cell_key, tuple) and len(cell_key) == 3:
+                cells.append((str(cell_key[0]), str(cell_key[1]), str(cell_key[2])))
+        if not cells:
+            return pending_plan, pending_cell_map, 0, {}
+
+        prior_status = _stage_cell_status_get_many(stage_label=str(stage_label), cells=cells)
+        frontier_by_dim_window = _stage_frontier_get_many(
+            stage_label=str(stage_label),
+            cells=[(axis_dim_fp, window_sig) for _strategy_fp, axis_dim_fp, window_sig in cells],
+        )
+        winner_projection_by_dim_window = _winner_projection_get_many(
+            stage_label=str(stage_label),
+            cells=[(axis_dim_fp, window_sig) for _strategy_fp, axis_dim_fp, window_sig in cells],
+        )
+        manifest_by_dim_window = _cartesian_cell_manifest_get_many(
+            stage_label=str(stage_label),
+            cells=[(axis_dim_fp, window_sig) for _strategy_fp, axis_dim_fp, window_sig in cells],
+        )
+
+        kept_plan: list[tuple[ConfigBundle, str, dict | None]] = []
+        kept_cell_map: dict[int, tuple[str, str, str]] = {}
+        status_updates: list[tuple[str, str, str, str]] = []
+        manifest_updates: list[tuple[str, str, str, str]] = []
+        pruned_rank_status: dict[int, str] = {}
+        skipped = 0
+
+        for idx, item in enumerate(pending_plan):
+            cell_key = pending_cell_map.get(int(idx))
+            if not (isinstance(cell_key, tuple) and len(cell_key) == 3):
+                kept_plan.append(item)
+                continue
+
+            strategy_fp = str(cell_key[0])
+            axis_dim_fp = str(cell_key[1])
+            window_sig = str(cell_key[2])
+            dim_window_key = (axis_dim_fp, window_sig)
+            prune_manifest_status = ""
+            prune_strategy_fp = strategy_fp
+
+            prev_cell_status = str(prior_status.get((strategy_fp, axis_dim_fp, window_sig)) or "").strip().lower()
+            if prev_cell_status in ("cached_hit", "evaluated"):
+                prune_manifest_status = "cached_hit"
+            else:
+                frontier_row = frontier_by_dim_window.get(dim_window_key)
+                if _stage_frontier_is_dominated(frontier_row):
+                    prune_manifest_status = "dominated"
+                else:
+                    winner_projection_row = winner_projection_by_dim_window.get(dim_window_key)
+                    if _winner_projection_is_dominated(winner_projection_row):
+                        winner_projection_hits += 1
+                        prune_manifest_status = "dominated"
+                    else:
+                        manifest_state = manifest_by_dim_window.get(dim_window_key)
+                        manifest_status = (
+                            str(manifest_state[0]).strip().lower()
+                            if isinstance(manifest_state, tuple) and len(manifest_state) >= 1
+                            else ""
+                        )
+                        manifest_strategy_fp = (
+                            str(manifest_state[1]).strip()
+                            if isinstance(manifest_state, tuple) and len(manifest_state) >= 2
+                            else ""
+                        )
+                        if manifest_status in ("dominated", "cached_hit", "evaluated"):
+                            prune_manifest_status = "dominated" if manifest_status == "dominated" else "cached_hit"
+                            if manifest_strategy_fp:
+                                prune_strategy_fp = str(manifest_strategy_fp)
+
+            if prune_manifest_status:
+                skipped += 1
+                run_calls_total += 1
+                _axis_progress_record(kept=False)
+                status_updates.append((strategy_fp, axis_dim_fp, window_sig, "cached_hit"))
+                manifest_updates.append((axis_dim_fp, window_sig, prune_strategy_fp, prune_manifest_status))
+                rank_i = _plan_item_stage_rank(item)
+                if isinstance(rank_i, int):
+                    rank_status = "dominated" if str(prune_manifest_status) == "dominated" else "cached_hit"
+                    prev_status = str(pruned_rank_status.get(int(rank_i), "")).strip().lower()
+                    priority = {"pending": 0, "cached_hit": 1, "evaluated": 2, "dominated": 3}
+                    if priority.get(str(rank_status), -1) >= priority.get(str(prev_status), -1):
+                        pruned_rank_status[int(rank_i)] = str(rank_status)
+                continue
+
+            new_idx = len(kept_plan)
+            kept_plan.append(item)
+            kept_cell_map[new_idx] = (strategy_fp, axis_dim_fp, window_sig)
+
+        if status_updates:
+            _stage_cell_status_set_many(stage_label=str(stage_label), rows=status_updates)
+
+        if manifest_updates:
+            manifest_priority = {"pending": 0, "cached_hit": 1, "evaluated": 2, "dominated": 3}
+            filtered_updates: list[tuple[str, str, str, str]] = []
+            for axis_dim_fp, window_sig, strategy_fp, status in manifest_updates:
+                prev_state = manifest_by_dim_window.get((str(axis_dim_fp), str(window_sig)))
+                prev_status = str(prev_state[0]).strip().lower() if isinstance(prev_state, tuple) else ""
+                if prev_status == str(status):
+                    continue
+                if manifest_priority.get(str(status), -1) < manifest_priority.get(str(prev_status), -1):
+                    continue
+                filtered_updates.append((axis_dim_fp, window_sig, strategy_fp, status))
+            if filtered_updates:
+                _cartesian_cell_manifest_set_many(stage_label=str(stage_label), rows=filtered_updates)
+
+        if skipped > 0:
+            print(
+                f"{stage_label} pre-shard prune skipped={int(skipped)} remaining={len(kept_plan)}",
+                flush=True,
+            )
+        return kept_plan, kept_cell_map, int(skipped), dict(pruned_rank_status)
 
     def _run_stage_cfg_rows(
         *,
@@ -4018,36 +9593,224 @@ def main() -> None:
         serial_plan_builder=None,
         heartbeat_sec: float = 0.0,
         parallel_payloads_builder=None,
+        parallel_payload_supports_plan: bool = False,
         parallel_default_note: str = "",
         parallel_dedupe_by_milestone_key: bool = True,
         record_milestones: bool = True,
     ) -> int:
+        nonlocal run_calls_total
+
         def _on_row_local(cfg: ConfigBundle, row: dict, note: str) -> None:
             if bool(record_milestones):
                 _record_milestone(cfg, row, note)
             on_row(cfg, row, note)
 
-        if int(jobs_req) > 1 and int(total) > 0 and callable(parallel_payloads_builder):
-            payloads = parallel_payloads_builder()
-            return _collect_stage_rows_from_payloads(
+        claim_first_serial_worker = bool(
+            int(jobs_req) <= 1
+            and bool(offline)
+            and callable(parallel_payloads_builder)
+            and _claim_first_serial_force_worker_enabled()
+            and _claim_first_stage_enabled(stage_label=str(stage_label), total=int(total))
+        )
+        if bool(claim_first_serial_worker):
+            print(
+                f"{stage_label} claim-first planner: using worker-claim path for serial run "
+                f"(total={int(total)})",
+                flush=True,
+            )
+
+        needs_serial_plan = (
+            (int(jobs_req) <= 1 and not bool(claim_first_serial_worker))
+            or bool(parallel_payload_supports_plan)
+            or not callable(parallel_payloads_builder)
+        )
+        serial_plan_eff_raw = (
+            (serial_plan_builder() if callable(serial_plan_builder) else serial_plan)
+            if bool(needs_serial_plan)
+            else None
+        )
+        serial_plan_eff = _plan_items_with_stage_ranks(serial_plan_eff_raw) if bool(needs_serial_plan) else []
+
+        prefilter_here = bool(
+            (int(jobs_req) <= 1 and not bool(claim_first_serial_worker))
+            or bool(parallel_payload_supports_plan)
+        )
+        prefetched_tested = 0
+        pending_plan = serial_plan_eff
+        pending_cell_map: dict[int, tuple[str, str, str]] = {}
+        stage_manifest_plan_signature = ""
+        stage_manifest_window_signature = ""
+        stage_rank_status_updates: dict[int, str] = {}
+        stage_rank_status_priority = {"pending": 0, "cached_hit": 1, "evaluated": 2, "dominated": 3}
+
+        def _mark_stage_rank_status(rank_raw, status_raw: str) -> None:
+            try:
+                rank_i = int(rank_raw)
+            except (TypeError, ValueError):
+                return
+            if rank_i < 0:
+                return
+            status = str(status_raw or "").strip().lower()
+            if status not in _STAGE_RANK_STATUS_VALUES:
+                return
+            prev = str(stage_rank_status_updates.get(int(rank_i), "")).strip().lower()
+            if stage_rank_status_priority.get(status, -1) >= stage_rank_status_priority.get(prev, -1):
+                stage_rank_status_updates[int(rank_i)] = str(status)
+
+        def _flush_stage_rank_status_manifest() -> None:
+            if not stage_manifest_plan_signature or not stage_manifest_window_signature:
+                return
+            rank_rows = _compress_rank_status_rows(stage_rank_status_updates)
+            if not rank_rows:
+                return
+            _stage_rank_manifest_set_many(
+                stage_label=str(stage_label),
+                plan_signature=str(stage_manifest_plan_signature),
+                window_signature=str(stage_manifest_window_signature),
+                rows=list(rank_rows),
+            )
+
+        if prefilter_here and serial_plan_eff:
+            stage_manifest_plan_signature = _stage_rank_manifest_plan_signature(
+                stage_label=str(stage_label),
+                plan_all=serial_plan_eff,
+            )
+            stage_manifest_window_signature = _stage_rank_manifest_window_signature(bars=bars)
+            unresolved_ranges = _stage_rank_manifest_unresolved_ranges(
+                stage_label=str(stage_label),
+                plan_signature=str(stage_manifest_plan_signature),
+                window_signature=str(stage_manifest_window_signature),
+                total=len(serial_plan_eff),
+            )
+            if unresolved_ranges and not (
+                len(unresolved_ranges) == 1
+                and int(unresolved_ranges[0][0]) == 0
+                and int(unresolved_ranges[0][1]) >= int(len(serial_plan_eff) - 1)
+            ):
+                keep_indices: list[int] = []
+                for rank_lo, rank_hi in unresolved_ranges:
+                    lo_i = max(0, int(rank_lo))
+                    hi_i = min(int(len(serial_plan_eff) - 1), int(rank_hi))
+                    if hi_i < lo_i:
+                        continue
+                    keep_indices.extend(range(int(lo_i), int(hi_i) + 1))
+                pending_plan = [serial_plan_eff[int(i)] for i in keep_indices]
+                skipped_by_rank_manifest = max(0, int(len(serial_plan_eff) - len(pending_plan)))
+                if skipped_by_rank_manifest > 0:
+                    prefetched_tested += int(skipped_by_rank_manifest)
+                    run_calls_total += int(skipped_by_rank_manifest)
+                    print(
+                        f"{stage_label} stage-rank manifest skipped={int(skipped_by_rank_manifest)} "
+                        f"remaining={len(pending_plan)}",
+                        flush=True,
+                    )
+            else:
+                pending_plan = list(serial_plan_eff)
+            pending_plan, cached_hits, pending_cell_map, prefetched_cache_tested = _stage_partition_plan_by_cache(
+                stage_label=str(stage_label),
+                plan_all=pending_plan,
+                bars=bars,
+            )
+            prefetched_tested += int(prefetched_cache_tested)
+            for _cell_key, cfg, row, note, meta_item in cached_hits:
+                if isinstance(meta_item, dict):
+                    _mark_stage_rank_status(meta_item.get("_stage_rank"), "cached_hit")
+                if isinstance(row, dict):
+                    _on_row_local(cfg, row, note)
+            pending_plan, pending_cell_map, pruned_here, pruned_rank_status = _prune_pending_plan_by_manifest(
+                stage_label=str(stage_label),
+                pending_plan=list(pending_plan),
+                pending_cell_map=dict(pending_cell_map),
+            )
+            for rank_i, status in pruned_rank_status.items():
+                _mark_stage_rank_status(rank_i, str(status))
+            prefetched_tested += int(pruned_here)
+            if pending_plan:
+                ordered_indices = _ordered_plan_indices_by_dimension_utility(
+                    stage_label=str(stage_label),
+                    plan_all=pending_plan,
+                    bars=bars,
+                )
+                if ordered_indices and ordered_indices != list(range(len(pending_plan))):
+                    pending_plan = [pending_plan[int(i)] for i in ordered_indices]
+                    if pending_cell_map:
+                        pending_cell_map = {
+                            int(new_idx): pending_cell_map.get(int(old_idx), ("", "", ""))
+                            for new_idx, old_idx in enumerate(ordered_indices)
+                            if isinstance(pending_cell_map.get(int(old_idx)), tuple)
+                            and len(pending_cell_map.get(int(old_idx)) or ()) == 3
+                        }
+            if pending_plan:
+                bound_ordered_indices, deferred_count = _ordered_plan_indices_by_upper_bound(
+                    stage_label=str(stage_label),
+                    plan_all=pending_plan,
+                    bars=bars,
+                )
+                if bound_ordered_indices and bound_ordered_indices != list(range(len(pending_plan))):
+                    pending_plan = [pending_plan[int(i)] for i in bound_ordered_indices]
+                    if pending_cell_map:
+                        pending_cell_map = {
+                            int(new_idx): pending_cell_map.get(int(old_idx), ("", "", ""))
+                            for new_idx, old_idx in enumerate(bound_ordered_indices)
+                            if isinstance(pending_cell_map.get(int(old_idx)), tuple)
+                            and len(pending_cell_map.get(int(old_idx)) or ()) == 3
+                        }
+                if int(deferred_count) > 0:
+                    print(
+                        f"{stage_label} upper-bound prepass deferred={int(deferred_count)}",
+                        flush=True,
+                    )
+
+        parallel_total = len(pending_plan) if bool(parallel_payload_supports_plan) else (
+            len(serial_plan_eff) if bool(needs_serial_plan) else int(total)
+        )
+        if (int(jobs_req) > 1 or bool(claim_first_serial_worker)) and int(parallel_total) > 0 and callable(parallel_payloads_builder):
+            if bool(parallel_payload_supports_plan):
+                payloads = parallel_payloads_builder(pending_plan)
+            else:
+                payloads = parallel_payloads_builder()
+            tested_parallel = _collect_stage_rows_from_payloads(
                 payloads=payloads,
                 default_note=str(parallel_default_note or stage_label),
                 on_row=_on_row_local,
                 dedupe_by_milestone_key=bool(parallel_dedupe_by_milestone_key),
             )
-        serial_plan_eff = serial_plan_builder() if callable(serial_plan_builder) else serial_plan
+            for item in pending_plan:
+                _mark_stage_rank_status(_plan_item_stage_rank(item), "evaluated")
+            _flush_stage_rank_status_manifest()
+            run_calls_total += int(tested_parallel)
+            return int(prefetched_tested) + int(tested_parallel)
+
         tested, serial_rows = _run_stage_serial(
             stage_label=str(stage_label),
-            plan=serial_plan_eff,
+            plan=pending_plan,
             bars=bars,
-            total=int(total),
+            total=len(pending_plan),
             report_every=int(report_every),
             heartbeat_sec=float(heartbeat_sec),
             record_milestones=bool(record_milestones),
         )
+        if pending_cell_map:
+            evaluated_rows = [
+                (strategy_fp, axis_dim_fp, window_sig, "evaluated")
+                for idx, (strategy_fp, axis_dim_fp, window_sig) in pending_cell_map.items()
+                if int(idx) < len(pending_plan)
+            ]
+            if evaluated_rows:
+                _stage_cell_status_set_many(stage_label=str(stage_label), rows=evaluated_rows)
+                _cartesian_cell_manifest_set_many(
+                    stage_label=str(stage_label),
+                    rows=[
+                        (axis_dim_fp, window_sig, strategy_fp, "evaluated")
+                        for strategy_fp, axis_dim_fp, window_sig, _status in evaluated_rows
+                    ],
+                )
+        for item in pending_plan:
+            _mark_stage_rank_status(_plan_item_stage_rank(item), "evaluated")
+        _flush_stage_rank_status_manifest()
         for cfg, row, note in serial_rows:
             on_row(cfg, row, note)
-        return int(tested)
+        return int(prefetched_tested) + int(tested)
 
     def _stage_parallel_base_cli(*, flags_with_values: tuple[str, ...]) -> list[str]:
         return _strip_flags(
@@ -4055,6 +9818,140 @@ def main() -> None:
             flags=("--write-milestones", "--merge-milestones"),
             flags_with_values=("--axis", "--jobs", "--milestones-out", *flags_with_values),
         )
+
+    def _compact_parallel_payload_cfg_refs(payload: dict) -> dict:
+        catalog: dict[str, dict[str, object]] = {}
+
+        def _compact(node):
+            if isinstance(node, list):
+                return [_compact(item) for item in node]
+            if not isinstance(node, dict):
+                return node
+            strategy_payload = node.get("strategy")
+            filters_payload = node.get("filters")
+            if isinstance(strategy_payload, dict):
+                filters_payload_norm = dict(filters_payload) if isinstance(filters_payload, dict) else None
+                cfg_ref = _strategy_fingerprint(
+                    strategy_payload,
+                    filters=filters_payload_norm,
+                    signal_bar_size=str(signal_bar_size),
+                    signal_use_rth=bool(use_rth),
+                )
+                if cfg_ref not in catalog:
+                    cfg_obj = _cfg_from_strategy_filters_payload(strategy_payload, filters_payload_norm)
+                    est_cost = 1.0
+                    axis_dim_fp: str | None = None
+                    if cfg_obj is not None:
+                        est_cost = float(_cfg_eval_cost_hint(cfg_obj))
+                        axis_dim_fp = _axis_dimension_fingerprint(cfg_obj)
+                    catalog[cfg_ref] = {
+                        "cfg_ref": str(cfg_ref),
+                        "strategy": dict(strategy_payload),
+                        "filters": dict(filters_payload_norm) if isinstance(filters_payload_norm, dict) else None,
+                        "est_cost": float(est_cost),
+                        "axis_dim_fp": axis_dim_fp,
+                    }
+                out_item = {k: _compact(v) for k, v in node.items() if k not in ("strategy", "filters", "cfg_ref")}
+                out_item["cfg_ref"] = str(cfg_ref)
+                return out_item
+            return {k: _compact(v) for k, v in node.items()}
+
+        compact_payload = _compact(dict(payload))
+        if catalog:
+            compact_payload["_cfg_catalog"] = list(catalog.values())
+        return compact_payload
+
+    def _worker_name_to_worker_id(worker_name: str) -> int | None:
+        raw = str(worker_name or "").strip()
+        if not raw:
+            return None
+        token = raw.rsplit(":", 1)[-1]
+        try:
+            out = int(token)
+        except (TypeError, ValueError):
+            return None
+        if out < 0:
+            return None
+        return int(out)
+
+    def _planner_parallel_status_probe(
+        *,
+        stage_label: str,
+        stage_total: int,
+    ):
+        nonlocal planner_heartbeat_stale_candidates
+        cfg = _cache_config("planner_heartbeat")
+        stale_after_sec = max(30.0, float(_registry_float(cfg.get("stale_after_sec"), 180.0)))
+        bootstrap_grace_sec = max(30.0, float(_registry_float(cfg.get("bootstrap_grace_sec"), stale_after_sec)))
+        stage_started_at = float(pytime.time())
+
+        def _probe(running_workers, pending_count: int) -> dict[str, object]:
+            worker_ids: list[int] = []
+            worker_id_by_name: dict[str, int] = {}
+            elapsed_by_name: dict[str, float] = {}
+            for item in list(running_workers or ()):
+                if not (isinstance(item, tuple) and len(item) >= 2):
+                    continue
+                worker_name = str(item[0] or "").strip()
+                if not worker_name:
+                    continue
+                try:
+                    elapsed_sec = float(item[1] or 0.0)
+                except (TypeError, ValueError):
+                    elapsed_sec = 0.0
+                worker_id = _worker_name_to_worker_id(worker_name)
+                if worker_id is None:
+                    continue
+                worker_ids.append(int(worker_id))
+                worker_id_by_name[str(worker_name)] = int(worker_id)
+                elapsed_by_name[str(worker_name)] = float(max(0.0, elapsed_sec))
+
+            hb_rows = _planner_heartbeat_get_many(stage_label=str(stage_label), worker_ids=worker_ids)
+            tested_sum = 0
+            cached_sum = 0
+            eta_vals: list[float] = []
+            stale_names: list[str] = []
+            now_ts = float(pytime.time())
+            for worker_name, worker_id in worker_id_by_name.items():
+                row = hb_rows.get(int(worker_id))
+                if isinstance(row, dict):
+                    tested_sum += int(row.get("tested") or 0)
+                    cached_sum += int(row.get("cached_hits") or 0)
+                    eta_raw = row.get("eta_sec")
+                    if eta_raw is not None:
+                        try:
+                            eta_f = float(eta_raw)
+                        except (TypeError, ValueError):
+                            eta_f = -1.0
+                        if eta_f >= 0.0:
+                            eta_vals.append(float(eta_f))
+                    status_s = str(row.get("status") or "").strip().lower()
+                    try:
+                        last_seen = float(row.get("last_seen") or 0.0)
+                    except (TypeError, ValueError):
+                        last_seen = 0.0
+                    age = max(0.0, float(now_ts - float(last_seen)))
+                    if status_s != "done" and age >= float(stale_after_sec):
+                        stale_names.append(str(worker_name))
+                    continue
+
+                elapsed_sec = float(elapsed_by_name.get(str(worker_name), 0.0))
+                if elapsed_sec >= float(bootstrap_grace_sec) or (now_ts - stage_started_at) >= float(bootstrap_grace_sec):
+                    stale_names.append(str(worker_name))
+
+            if stale_names:
+                planner_heartbeat_stale_candidates += int(len(stale_names))
+            total_eff = max(0, int(stage_total))
+            eta_max = max(eta_vals) if eta_vals else 0.0
+            line = (
+                f"{stage_label} planner heartbeat running={len(worker_id_by_name)} "
+                f"pending={int(pending_count)} hb_rows={len(hb_rows)} "
+                f"tested={int(tested_sum)}/{int(total_eff)} cached_hits={int(cached_sum)} "
+                f"eta~{float(eta_max)/60.0:0.1f}m stale={len(stale_names)}"
+            )
+            return {"line": line, "stale": tuple(stale_names)}
+
+        return _probe
 
     def _run_parallel_stage_with_payload(
         *,
@@ -4079,16 +9976,51 @@ def main() -> None:
         failure_label: str,
         missing_label: str,
         invalid_label: str,
+        planner_stage_label: str | None = None,
+        prefetched_tested_if_empty: int = 0,
     ) -> dict[int, dict]:
         base_cli = _stage_parallel_base_cli(flags_with_values=strip_flags_with_values)
+        planner_stage_key = str(planner_stage_label or stage_label).strip().lower()
+        planner_cfg = _cache_config("planner_heartbeat")
+        monitor_interval_sec = max(5.0, float(_registry_float(planner_cfg.get("monitor_interval_sec"), 30.0)))
+        max_stale_retries = max(0, int(_registry_float(planner_cfg.get("max_stale_retries"), 1.0)))
+        probe = _planner_parallel_status_probe(
+            stage_label=str(planner_stage_key),
+            stage_total=int(total),
+        )
+        _planner_heartbeat_clear_stage(stage_label=str(planner_stage_key))
+        if int(total) <= 0:
+            prefetched_i = max(0, int(prefetched_tested_if_empty))
+            print(
+                f"{stage_label} parallel: unresolved=0 skip worker launch"
+                + (f" prefetched={int(prefetched_i)}" if int(prefetched_i) > 0 else ""),
+                flush=True,
+            )
+            if int(prefetched_i) <= 0:
+                return {}
+            return {0: {"tested": int(prefetched_i), "kept": 0, "records": []}}
+        default_jobs_i = int(_default_jobs())
+        jobs_tuned = _tuned_parallel_jobs(
+            stage_label=str(stage_label),
+            jobs_requested=int(jobs),
+            total=int(total),
+            default_jobs=int(default_jobs_i),
+        )
+        if int(jobs_tuned) != int(max(1, int(jobs))):
+            print(
+                f"{stage_label} jobs tuner: requested={int(max(1, int(jobs)))} "
+                f"tuned={int(jobs_tuned)} total={int(total)}",
+                flush=True,
+            )
         with tempfile.TemporaryDirectory(prefix=temp_prefix) as tmpdir:
             payload_path = Path(tmpdir) / str(payload_filename)
-            write_json(payload_path, payload, sort_keys=False)
+            payload_compact = _compact_parallel_payload_cfg_refs(payload)
+            write_json(payload_path, payload_compact, sort_keys=False)
             _jobs_eff, payloads = _run_parallel_stage_kernel(
                 stage_label=str(stage_label),
-                jobs=int(jobs),
+                jobs=int(jobs_tuned),
                 total=int(total),
-                default_jobs=int(_default_jobs()),
+                default_jobs=int(default_jobs_i),
                 offline=bool(offline),
                 offline_error=f"--jobs>1 for {axis_name} requires --offline (avoid parallel IBKR sessions).",
                 tmp_prefix=str(worker_tmp_prefix),
@@ -4123,6 +10055,9 @@ def main() -> None:
                 failure_label=str(failure_label),
                 missing_label=str(missing_label),
                 invalid_label=str(invalid_label),
+                status_heartbeat_sec=float(monitor_interval_sec),
+                worker_status_probe=probe,
+                max_stale_retries=int(max_stale_retries),
             )
             return payloads
 
@@ -4149,13 +10084,47 @@ def main() -> None:
         stage_value: str | None = None,
         stage_args: tuple[str, ...] = (),
         entrypoint: tuple[str, ...] = ("-m", "tradebot.backtest", "spot"),
+        planner_stage_label: str | None = None,
+        prefetched_tested_if_empty: int = 0,
     ) -> dict[int, dict]:
         base_cli = _stage_parallel_base_cli(flags_with_values=strip_flags_with_values)
+        planner_stage_key = str(planner_stage_label or stage_label).strip().lower()
+        planner_cfg = _cache_config("planner_heartbeat")
+        monitor_interval_sec = max(5.0, float(_registry_float(planner_cfg.get("monitor_interval_sec"), 30.0)))
+        max_stale_retries = max(0, int(_registry_float(planner_cfg.get("max_stale_retries"), 1.0)))
+        probe = _planner_parallel_status_probe(
+            stage_label=str(planner_stage_key),
+            stage_total=int(total),
+        )
+        _planner_heartbeat_clear_stage(stage_label=str(planner_stage_key))
+        if int(total) <= 0:
+            prefetched_i = max(0, int(prefetched_tested_if_empty))
+            print(
+                f"{stage_label} parallel: unresolved=0 skip worker launch"
+                + (f" prefetched={int(prefetched_i)}" if int(prefetched_i) > 0 else ""),
+                flush=True,
+            )
+            if int(prefetched_i) <= 0:
+                return {}
+            return {0: {"tested": int(prefetched_i), "kept": 0, "records": []}}
+        default_jobs_i = int(_default_jobs())
+        jobs_tuned = _tuned_parallel_jobs(
+            stage_label=str(stage_label),
+            jobs_requested=int(jobs),
+            total=int(total),
+            default_jobs=int(default_jobs_i),
+        )
+        if int(jobs_tuned) != int(max(1, int(jobs))):
+            print(
+                f"{stage_label} jobs tuner: requested={int(max(1, int(jobs)))} "
+                f"tuned={int(jobs_tuned)} total={int(total)}",
+                flush=True,
+            )
         _jobs_eff, payloads = _run_parallel_stage_kernel(
             stage_label=str(stage_label),
-            jobs=int(jobs),
+            jobs=int(jobs_tuned),
             total=int(total),
-            default_jobs=int(_default_jobs()),
+            default_jobs=int(default_jobs_i),
             offline=bool(offline),
             offline_error=f"--jobs>1 for {axis_name or stage_label} requires --offline (avoid parallel IBKR sessions).",
             tmp_prefix=str(worker_tmp_prefix),
@@ -4191,6 +10160,9 @@ def main() -> None:
             failure_label=str(failure_label),
             missing_label=str(missing_label),
             invalid_label=str(invalid_label),
+            status_heartbeat_sec=float(monitor_interval_sec),
+            worker_status_probe=probe,
+            max_stale_retries=int(max_stale_retries),
         )
         return payloads
 
@@ -4303,20 +10275,76 @@ def main() -> None:
         *,
         timed: bool = False,
     ) -> None:
+        worker_stage_mode = bool(
+            args.cfg_worker is not None
+            or args.combo_full_cartesian_worker is not None
+        )
+        if bool(worker_stage_mode):
+            print(
+                "worker-stage mode: axis-level progress disabled; using worker/stage heartbeats.",
+                flush=True,
+            )
+
         def _run_axis_callable(axis_name: str, fn, *, timed_local: bool) -> None:
             before_calls = int(run_calls_total)
             t0 = pytime.perf_counter()
             total_hint = _axis_total_hint(str(axis_name))
             total_hint_s = str(total_hint) if total_hint is not None else "?"
+            axis_watchdog_stop = threading.Event()
+            axis_watchdog_thread: threading.Thread | None = None
+            axis_watchdog_sec = 30.0
             if bool(timed_local):
                 print(f"START {axis_name} total={total_hint_s}", flush=True)
             else:
                 print(f"START {axis_name} total={total_hint_s}", flush=True)
-            _axis_progress_begin(axis_name=str(axis_name))
+            axis_progress_enabled = not bool(worker_stage_mode)
+
+            def _axis_watchdog() -> None:
+                cadence = max(5.0, float(axis_watchdog_sec))
+                while not axis_watchdog_stop.wait(cadence):
+                    now = float(pytime.perf_counter())
+                    if bool(axis_progress_enabled):
+                        last_report = float(axis_progress_state.get("last_report") or 0.0)
+                        # If inner axis progress already reported recently, suppress watchdog noise.
+                        if float(last_report) > 0.0 and (now - float(last_report)) < float(cadence * 0.8):
+                            continue
+                    tested_live = max(0, int(run_calls_total) - int(before_calls))
+                    if bool(axis_progress_enabled):
+                        kept_live = int(axis_progress_state.get("kept") or 0)
+                        total_live = (
+                            int(axis_progress_state.get("total"))
+                            if isinstance(axis_progress_state.get("total"), int)
+                            else (int(total_hint) if isinstance(total_hint, int) else None)
+                        )
+                    else:
+                        kept_live = 0
+                        total_live = int(total_hint) if isinstance(total_hint, int) else None
+                    line = _progress_line(
+                        label=f"{axis_name} watchdog",
+                        tested=int(tested_live),
+                        total=total_live,
+                        kept=int(kept_live),
+                        started_at=float(t0),
+                        rate_unit="cfg/s",
+                    )
+                    line += " heartbeat=axis"
+                    print(line, flush=True)
+
+            axis_watchdog_thread = threading.Thread(target=_axis_watchdog, daemon=True)
+            axis_watchdog_thread.start()
+            if bool(axis_progress_enabled):
+                _axis_progress_begin(axis_name=str(axis_name))
             try:
                 fn()
             finally:
-                _axis_progress_end()
+                axis_watchdog_stop.set()
+                if axis_watchdog_thread is not None:
+                    try:
+                        axis_watchdog_thread.join(timeout=1.0)
+                    except Exception:
+                        pass
+                if bool(axis_progress_enabled):
+                    _axis_progress_end()
             elapsed = pytime.perf_counter() - t0
             tested = int(run_calls_total) - int(before_calls)
             print(f"DONE  {axis_name} tested={tested} elapsed={elapsed:0.1f}s", flush=True)
@@ -4332,11 +10360,11 @@ def main() -> None:
     def _iter_seed_bundles(seeds: list[dict]):
         for seed_i, item in enumerate(seeds, start=1):
             try:
-                filters_obj = _filters_from_payload(item.get("filters"))
-                strategy_obj = _strategy_from_payload(item.get("strategy") or {}, filters=filters_obj)
+                filters_obj = _codec_filters_from_payload(item.get("filters"))
+                strategy_obj = _codec_strategy_from_payload(item.get("strategy") or {}, filters=filters_obj)
             except Exception:
                 continue
-            cfg_seed = _mk_bundle(
+            cfg_seed = _codec_make_bundle(
                 strategy=strategy_obj,
                 start=start,
                 end=end,
@@ -4347,7 +10375,7 @@ def main() -> None:
             )
             yield seed_i, item, cfg_seed, str(item.get("group_name") or f"seed#{seed_i:02d}")
 
-    def _iter_seed_micro_plan(
+    def _iter_cfg_stage_plan(
         *,
         seeds: list[dict],
         include_base_note: str | None = None,
@@ -4369,87 +10397,117 @@ def main() -> None:
         heartbeat_sec: float = 0.0,
     ) -> int:
         nonlocal run_calls_total
-        if args.seeded_micro_stage:
-            payload_path = Path(str(args.seeded_micro_stage))
-            payload_decoded = _load_worker_stage_payload(
-                schema_name="seeded_micro_stage",
-                payload_path=payload_path,
-            )
-            payload_axis = str(payload_decoded.get("axis_tag") or "").strip().lower()
+        if args.cfg_stage:
+            payload_path = Path(str(args.cfg_stage))
+            try:
+                payload_raw = json.loads(payload_path.read_text())
+            except json.JSONDecodeError as exc:
+                raise SystemExit(f"Invalid cfg_stage payload JSON: {payload_path}") from exc
+            if not isinstance(payload_raw, dict):
+                raise SystemExit(f"Invalid cfg_stage payload: expected object ({payload_path})")
+            payload_axis = str(payload_raw.get("axis_tag") or "").strip().lower()
             if payload_axis and payload_axis != str(axis_tag).strip().lower():
                 raise SystemExit(
                     f"cfg_pairs worker payload axis mismatch: expected {axis_tag} got {payload_axis} ({payload_path})"
                 )
-            plan_all = [
-                (cfg, note, None)
-                for cfg, note in (payload_decoded.get("cfg_pairs") or [])
-                if isinstance(note, str)
-            ]
+            cfg_records_raw = payload_raw.get("cfgs")
+            if not isinstance(cfg_records_raw, list):
+                raise SystemExit(f"cfg_stage payload missing 'cfgs' list: {payload_path}")
+            cfg_records = [dict(rec) for rec in cfg_records_raw if isinstance(rec, dict)]
+            cfg_catalog = _cfg_catalog_from_payload(payload_raw)
+            rank_window_signature = _cfg_stage_payload_signature(
+                axis_tag=str(payload_axis or axis_tag),
+                cfg_records=list(cfg_records),
+                cfg_catalog=dict(cfg_catalog),
+            )
+
+            def _cfg_item_from_rank(rank: int) -> tuple[ConfigBundle, str, dict]:
+                rank_i = int(rank)
+                if rank_i < 0 or rank_i >= len(cfg_records):
+                    raise SystemExit(f"cfg_stage rank out of bounds: rank={rank_i} total={len(cfg_records)}")
+                decoded = _decode_cfg_payload(
+                    cfg_records[rank_i],
+                    note_key="note",
+                    cfg_catalog=cfg_catalog,
+                )
+                if decoded is None:
+                    raise SystemExit(f"cfg_stage rank decode failed: rank={rank_i}")
+                cfg_obj, note = decoded
+                return cfg_obj, str(note), {"_mr_rank": int(rank_i)}
+
             _run_sharded_stage_worker(
                 stage_label=str(axis_tag),
-                worker_raw=args.seeded_micro_worker,
-                workers_raw=args.seeded_micro_workers,
-                out_path_raw=str(args.seeded_micro_out or ""),
-                out_flag_name="seeded-micro-out",
-                plan_all=plan_all,
+                worker_raw=args.cfg_worker,
+                workers_raw=args.cfg_workers,
+                out_path_raw=str(args.cfg_out or ""),
+                out_flag_name="cfg-out",
+                plan_all=None,
                 bars=_bars_cached(signal_bar_size),
                 report_every=max(1, int(report_every)),
                 heartbeat_sec=float(heartbeat_sec),
+                plan_total=len(cfg_records),
+                plan_item_from_rank=_cfg_item_from_rank,
+                rank_manifest_window_signature=str(rank_window_signature),
+                rank_batch_size=256,
             )
             return -1
 
-        plan_all = [(cfg, str(note), None) for cfg, note in cfg_pairs]
-        total_eff = len(plan_all)
-        tested_total = _run_stage_cfg_rows(
-            stage_label=str(axis_tag),
-            total=int(total_eff),
-            jobs_req=int(jobs),
-            bars=_bars_cached(signal_bar_size),
-            report_every=max(1, int(report_every)),
-            heartbeat_sec=float(heartbeat_sec),
-            on_row=lambda _cfg, row, _note: rows.append(row),
-            serial_plan=plan_all,
-            parallel_payloads_builder=lambda: _run_parallel_stage_with_payload(
+        bars_stage = _bars_cached(signal_bar_size)
+        plan_all: list[tuple[ConfigBundle, str, None]] = [(cfg, str(note), None) for cfg, note in cfg_pairs]
+
+        def _cfg_pairs_parallel_payloads(pending_plan_items) -> dict[int, dict]:
+            pending_cfgs = list(pending_plan_items or ())
+            return _run_parallel_stage_with_payload(
                 axis_name=str(axis_tag),
                 stage_label=str(axis_tag),
-                total=int(total_eff),
+                total=len(pending_cfgs),
                 jobs=int(jobs),
                 payload={
                     "axis_tag": str(axis_tag),
-                    "cfgs": [_encode_cfg_payload(cfg, note=note) for cfg, note, _meta in plan_all],
+                    "cfgs": [_encode_cfg_payload(cfg, note=note) for cfg, note, _meta in pending_cfgs],
                 },
                 payload_filename="cfg_pairs_payload.json",
                 temp_prefix=f"tradebot_{str(axis_tag)}_cfgpairs_",
                 worker_tmp_prefix=f"tradebot_{str(axis_tag)}_cfgpairs_worker_",
                 worker_tag=f"cfgpairs:{str(axis_tag)}",
                 out_prefix="cfg_pairs_out",
-                stage_flag="--seeded-micro-stage",
-                worker_flag="--seeded-micro-worker",
-                workers_flag="--seeded-micro-workers",
-                out_flag="--seeded-micro-out",
+                stage_flag="--cfg-stage",
+                worker_flag="--cfg-worker",
+                workers_flag="--cfg-workers",
+                out_flag="--cfg-out",
                 strip_flags_with_values=(
-                    "--seeded-micro-stage",
-                    "--seeded-micro-worker",
-                    "--seeded-micro-workers",
-                    "--seeded-micro-out",
-                    "--seeded-micro-run-min-trades",
+                    "--cfg-stage",
+                    "--cfg-worker",
+                    "--cfg-workers",
+                    "--cfg-out",
+                    "--combo-full-cartesian-run-min-trades",
                 ),
-                run_min_trades_flag="--seeded-micro-run-min-trades",
+                run_min_trades_flag="--combo-full-cartesian-run-min-trades",
                 run_min_trades=int(run_min_trades),
                 capture_error=f"Failed to capture {axis_tag} worker stdout.",
                 failure_label=f"{axis_tag} worker",
                 missing_label=str(axis_tag),
                 invalid_label=str(axis_tag),
-            ),
+            )
+
+        tested_total = _run_stage_cfg_rows(
+            stage_label=str(axis_tag),
+            total=len(plan_all),
+            jobs_req=int(jobs),
+            bars=bars_stage,
+            report_every=max(1, int(report_every)),
+            heartbeat_sec=float(heartbeat_sec),
+            on_row=lambda _cfg, row, _note: rows.append(row),
+            serial_plan=plan_all,
+            parallel_payloads_builder=_cfg_pairs_parallel_payloads,
+            parallel_payload_supports_plan=True,
             parallel_default_note=str(axis_tag),
             parallel_dedupe_by_milestone_key=True,
             record_milestones=True,
         )
-        if jobs > 1 and int(tested_total) > 0:
-            run_calls_total += int(tested_total)
         return int(tested_total)
 
-    def _run_seeded_micro_grid(
+    def _run_cfg_stage_grid(
         *,
         axis_tag: str,
         seeds: list[dict],
@@ -4461,7 +10519,7 @@ def main() -> None:
         include_base_note: str | None = None,
     ) -> int:
         plan_all = list(
-            _iter_seed_micro_plan(
+            _iter_cfg_stage_plan(
                 seeds=seeds,
                 include_base_note=include_base_note,
                 build_variants=build_variants,
@@ -4546,6 +10604,37 @@ def main() -> None:
 
         # Realism overrides (backtest only).
         if realism2:
+            champion_like = base_name in ("champion", "champion_pnl")
+            sizing_mode_eff = (
+                str(sizing_mode)
+                if (not champion_like) or sizing_mode_arg_explicit
+                else str(getattr(cfg.strategy, "spot_sizing_mode", sizing_mode) or sizing_mode)
+            )
+            spot_notional_pct_eff = (
+                float(spot_notional_pct)
+                if (not champion_like) or spot_notional_pct_arg_explicit
+                else float(getattr(cfg.strategy, "spot_notional_pct", spot_notional_pct) or 0.0)
+            )
+            spot_risk_pct_eff = (
+                float(spot_risk_pct)
+                if (not champion_like) or spot_risk_pct_arg_explicit
+                else float(getattr(cfg.strategy, "spot_risk_pct", spot_risk_pct) or 0.0)
+            )
+            spot_max_notional_pct_eff = (
+                float(spot_max_notional_pct)
+                if (not champion_like) or spot_max_notional_pct_arg_explicit
+                else float(getattr(cfg.strategy, "spot_max_notional_pct", spot_max_notional_pct) or 1.0)
+            )
+            spot_min_qty_eff = (
+                int(spot_min_qty)
+                if (not champion_like) or spot_min_qty_arg_explicit
+                else int(getattr(cfg.strategy, "spot_min_qty", spot_min_qty) or 1)
+            )
+            spot_max_qty_eff = (
+                int(spot_max_qty)
+                if (not champion_like) or spot_max_qty_arg_explicit
+                else int(getattr(cfg.strategy, "spot_max_qty", spot_max_qty) or 0)
+            )
             cfg = replace(
                 cfg,
                 strategy=replace(
@@ -4559,12 +10648,12 @@ def main() -> None:
                     spot_slippage_per_share=float(spot_slippage),
                     spot_mark_to_market="liquidation",
                     spot_drawdown_mode="intrabar",
-                    spot_sizing_mode=str(sizing_mode),
-                    spot_notional_pct=float(spot_notional_pct),
-                    spot_risk_pct=float(spot_risk_pct),
-                    spot_max_notional_pct=float(spot_max_notional_pct),
-                    spot_min_qty=int(spot_min_qty),
-                    spot_max_qty=int(spot_max_qty),
+                    spot_sizing_mode=str(sizing_mode_eff),
+                    spot_notional_pct=float(spot_notional_pct_eff),
+                    spot_risk_pct=float(spot_risk_pct_eff),
+                    spot_max_notional_pct=float(spot_max_notional_pct_eff),
+                    spot_min_qty=int(spot_min_qty_eff),
+                    spot_max_qty=int(spot_max_qty_eff),
                 ),
             )
         return cfg
@@ -4721,380 +10810,6 @@ def main() -> None:
             rows.append(row)
         _print_leaderboards(rows, title="B) Time-of-day gate sweep (ET)", top_n=int(args.top))
 
-    def _sweep_tod_interaction() -> None:
-        """Small interaction grid around the proven overnight TOD gate."""
-        bars_sig = _bars_cached(signal_bar_size)
-        base = _base_bundle(bar_size=signal_bar_size, filters=None)
-        base_row = _run_cfg(
-            cfg=base, bars=bars_sig
-        )
-        if base_row:
-            base_row["note"] = "base"
-            _record_milestone(base, base_row, "base")
-
-        rows: list[dict] = []
-        tod_starts = [17, 18, 19]
-        tod_ends = [3, 4, 5]
-        skip_vals = [0, 1, 2]
-        cooldown_vals = [0, 1, 2]
-        for start_h in tod_starts:
-            for end_h in tod_ends:
-                for skip in skip_vals:
-                    for cooldown in cooldown_vals:
-                        f = _mk_filters(
-                            entry_start_hour_et=int(start_h),
-                            entry_end_hour_et=int(end_h),
-                            skip_first_bars=int(skip),
-                            cooldown_bars=int(cooldown),
-                        )
-                        cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
-                        row = _run_cfg(cfg=cfg)
-                        if not row:
-                            continue
-                        note = f"tod={start_h:02d}-{end_h:02d} ET skip={skip} cd={cooldown}"
-                        row["note"] = note
-                        _record_milestone(cfg, row, note)
-                        rows.append(row)
-        if base_row:
-            rows.append(base_row)
-        _print_leaderboards(rows, title="TOD interaction sweep (overnight micro-grid)", top_n=int(args.top))
-
-    def _sweep_perm_joint() -> None:
-        """Joint permission sweep: TOD × spread × volume (no funnel pruning)."""
-        base = _base_bundle(bar_size=signal_bar_size, filters=None)
-        base_row = _run_cfg(cfg=base)
-        if base_row:
-            base_row["note"] = "base"
-            _record_milestone(base, base_row, "base")
-
-        base_filters = base.strategy.filters
-        profile = _PERM_JOINT_PROFILE
-        tod_windows: tuple = tuple(profile.get("tod_windows") or ())
-        spread_variants: tuple = tuple(profile.get("spread_variants") or ())
-        vol_variants: tuple = tuple(profile.get("vol_variants") or ())
-        rows: list[dict] = []
-        cfg_pairs: list[tuple[ConfigBundle, str]] = []
-        for _, _, tod_note, tod_over in tod_windows:
-            for spread_note, spread_over in spread_variants:
-                for vol_note, vol_over in vol_variants:
-                    overrides: dict[str, object] = {}
-                    overrides.update(tod_over)
-                    overrides.update(spread_over)
-                    overrides.update(vol_over)
-                    f = _merge_filters(base_filters, overrides=overrides)
-                    cfg = replace(base, strategy=replace(base.strategy, filters=f))
-                    note = f"{tod_note} | {spread_note} | {vol_note}"
-                    cfg_pairs.append((cfg, note))
-        tested_total = _run_cfg_pairs_grid(
-            axis_tag="perm_joint",
-            cfg_pairs=cfg_pairs,
-            rows=rows,
-            report_every=200,
-            heartbeat_sec=20.0,
-        )
-        if int(tested_total) < 0:
-            return
-        if base_row:
-            rows.append(base_row)
-        _print_leaderboards(rows, title="Permission joint sweep (TOD × spread × volume)", top_n=int(args.top))
-
-    def _sweep_ema_perm_joint() -> None:
-        """Joint sweep: EMA preset × (TOD/spread/volume) permission gates."""
-        bars_sig = _bars_cached(signal_bar_size)
-        base = _base_bundle(bar_size=signal_bar_size, filters=None)
-        base_row = _run_cfg(
-            cfg=base, bars=bars_sig
-        )
-        if base_row:
-            base_row["note"] = "base"
-            _record_milestone(base, base_row, "base")
-
-        base_filters = base.strategy.filters
-        presets = ["2/4", "3/7", "4/9", "5/10", "8/21", "9/21", "21/50"]
-
-        # Stage 1: evaluate presets with base filters only.
-        best_by_ema: dict[str, dict] = {}
-        for preset in presets:
-            cfg = replace(base, strategy=replace(base.strategy, ema_preset=str(preset), entry_signal="ema"))
-            row = _run_cfg(cfg=cfg)
-            if not row:
-                continue
-            best_by_ema[str(preset)] = {"row": row}
-
-        shortlisted = _ranked_keys_by_row_scores(best_by_ema, top_pnl=5, top_pnl_dd=5)
-        if not shortlisted:
-            print("No eligible EMA presets (try lowering --min-trades).")
-            return
-        print("")
-        print(f"EMA×Perm: stage1 shortlisted ema={len(shortlisted)} (from {len(best_by_ema)})")
-
-        tod_variants = [
-            ("tod=base", {}),
-            ("tod=off", {"entry_start_hour_et": None, "entry_end_hour_et": None}),
-            ("tod=18-04 ET", {"entry_start_hour_et": 18, "entry_end_hour_et": 4}),
-            ("tod=18-05 ET", {"entry_start_hour_et": 18, "entry_end_hour_et": 5}),
-            ("tod=18-06 ET", {"entry_start_hour_et": 18, "entry_end_hour_et": 6}),
-            ("tod=17-04 ET", {"entry_start_hour_et": 17, "entry_end_hour_et": 4}),
-            ("tod=19-04 ET", {"entry_start_hour_et": 19, "entry_end_hour_et": 4}),
-            ("tod=09-16 ET", {"entry_start_hour_et": 9, "entry_end_hour_et": 16}),
-        ]
-        spread_variants: list[tuple[str, dict[str, object]]] = [
-            ("spread=base", {}),
-            ("spread=off", {"ema_spread_min_pct": None}),
-            ("spread>=0.0030", {"ema_spread_min_pct": 0.003}),
-            ("spread>=0.0040", {"ema_spread_min_pct": 0.004}),
-            ("spread>=0.0050", {"ema_spread_min_pct": 0.005}),
-            ("spread>=0.0070", {"ema_spread_min_pct": 0.007}),
-            ("spread>=0.0100", {"ema_spread_min_pct": 0.01}),
-        ]
-        vol_variants: list[tuple[str, dict[str, object]]] = [
-            ("vol=base", {}),
-            ("vol=off", {"volume_ratio_min": None, "volume_ema_period": None}),
-            ("vol>=1.2@20", {"volume_ratio_min": 1.2, "volume_ema_period": 20}),
-        ]
-
-        rows: list[dict] = []
-        for preset in shortlisted:
-            for tod_note, tod_over in tod_variants:
-                for spread_note, spread_over in spread_variants:
-                    for vol_note, vol_over in vol_variants:
-                        overrides: dict[str, object] = {}
-                        overrides.update(tod_over)
-                        overrides.update(spread_over)
-                        overrides.update(vol_over)
-                        f = _merge_filters(base_filters, overrides=overrides)
-                        cfg = replace(
-                            base,
-                            strategy=replace(
-                                base.strategy,
-                                ema_preset=str(preset),
-                                entry_signal="ema",
-                                filters=f,
-                            ),
-                        )
-                        row = _run_cfg(cfg=cfg)
-                        if not row:
-                            continue
-                        note = f"ema={preset} | {tod_note} | {spread_note} | {vol_note}"
-                        row["note"] = note
-                        _record_milestone(cfg, row, note)
-                        rows.append(row)
-
-        if base_row:
-            rows.append(base_row)
-        _print_leaderboards(rows, title="EMA × permission joint sweep", top_n=int(args.top))
-
-    def _sweep_tick_perm_joint() -> None:
-        """Joint sweep: Raschke $TICK gate × (TOD/spread/volume) permission gates."""
-        bars_sig = _bars_cached(signal_bar_size)
-        base = _base_bundle(bar_size=signal_bar_size, filters=None)
-        base_row = _run_cfg(
-            cfg=base, bars=bars_sig
-        )
-        if base_row:
-            base_row["note"] = "base"
-            _record_milestone(base, base_row, "base")
-
-        base_filters = base.strategy.filters
-
-        # Stage 1: scan tick params using base permission filters (cheap shortlist).
-        best_by_tick: dict[tuple, dict] = {}
-        z_enters = [0.8, 1.0, 1.2]
-        z_exits = [0.4, 0.5, 0.6]
-        slope_lbs = [3, 5]
-        lookbacks = [126, 252]
-        policies = ["allow", "block"]
-        dir_policies = ["both", "wide_only"]
-        for dir_policy in dir_policies:
-            for policy in policies:
-                for z_enter in z_enters:
-                    for z_exit in z_exits:
-                        for slope_lb in slope_lbs:
-                            for lookback in lookbacks:
-                                cfg = replace(
-                                    base,
-                                    strategy=replace(
-                                        base.strategy,
-                                        tick_gate_mode="raschke",
-                                        tick_gate_symbol="TICK-AMEX",
-                                        tick_gate_exchange="AMEX",
-                                        tick_neutral_policy=str(policy),
-                                        tick_direction_policy=str(dir_policy),
-                                        tick_band_ma_period=10,
-                                        tick_width_z_lookback=int(lookback),
-                                        tick_width_z_enter=float(z_enter),
-                                        tick_width_z_exit=float(z_exit),
-                                        tick_width_slope_lookback=int(slope_lb),
-                                    ),
-                                )
-                                row = _run_cfg(cfg=cfg)
-                                if not row:
-                                    continue
-                                tick_key = (
-                                    str(dir_policy),
-                                    str(policy),
-                                    float(z_enter),
-                                    float(z_exit),
-                                    int(slope_lb),
-                                    int(lookback),
-                                )
-                                current = best_by_tick.get(tick_key)
-                                if current is None or _score_row_pnl(row) > _score_row_pnl(current["row"]):
-                                    best_by_tick[tick_key] = {"row": row}
-
-        shortlisted = _ranked_keys_by_row_scores(best_by_tick, top_pnl=8, top_pnl_dd=8)
-        if not shortlisted:
-            print("No eligible tick candidates (check $TICK cache/permissions, or lower --min-trades).")
-            return
-        print("")
-        print(f"TICK×Perm: stage1 shortlisted tick={len(shortlisted)} (from {len(best_by_tick)})")
-
-        tod_variants = [
-            ("tod=base", {}),
-            ("tod=off", {"entry_start_hour_et": None, "entry_end_hour_et": None}),
-            ("tod=18-04 ET", {"entry_start_hour_et": 18, "entry_end_hour_et": 4}),
-            ("tod=18-05 ET", {"entry_start_hour_et": 18, "entry_end_hour_et": 5}),
-            ("tod=18-06 ET", {"entry_start_hour_et": 18, "entry_end_hour_et": 6}),
-            ("tod=17-04 ET", {"entry_start_hour_et": 17, "entry_end_hour_et": 4}),
-            ("tod=19-04 ET", {"entry_start_hour_et": 19, "entry_end_hour_et": 4}),
-        ]
-        spread_variants: list[tuple[str, dict[str, object]]] = [
-            ("spread=base", {}),
-            ("spread=off", {"ema_spread_min_pct": None}),
-            ("spread>=0.0030", {"ema_spread_min_pct": 0.003}),
-            ("spread>=0.0040", {"ema_spread_min_pct": 0.004}),
-            ("spread>=0.0050", {"ema_spread_min_pct": 0.005}),
-            ("spread>=0.0070", {"ema_spread_min_pct": 0.007}),
-        ]
-        vol_variants: list[tuple[str, dict[str, object]]] = [
-            ("vol=base", {}),
-            ("vol=off", {"volume_ratio_min": None, "volume_ema_period": None}),
-            ("vol>=1.2@20", {"volume_ratio_min": 1.2, "volume_ema_period": 20}),
-        ]
-
-        rows: list[dict] = []
-        tested = 0
-        total = len(shortlisted) * len(tod_variants) * len(spread_variants) * len(vol_variants)
-        t0 = pytime.perf_counter()
-        report_every = 200
-        for tick_key in shortlisted:
-            dir_policy, policy, z_enter, z_exit, slope_lb, lookback = tick_key
-            for tod_note, tod_over in tod_variants:
-                for spread_note, spread_over in spread_variants:
-                    for vol_note, vol_over in vol_variants:
-                        tested += 1
-                        if tested % report_every == 0 or tested == total:
-                            print(
-                                _progress_line(
-                                    label="tick_perm_joint stage2",
-                                    tested=int(tested),
-                                    total=int(total),
-                                    kept=len(rows),
-                                    started_at=t0,
-                                    rate_unit="s",
-                                ),
-                                flush=True,
-                            )
-                        overrides: dict[str, object] = {}
-                        overrides.update(tod_over)
-                        overrides.update(spread_over)
-                        overrides.update(vol_over)
-                        f = _merge_filters(base_filters, overrides=overrides)
-                        cfg = replace(
-                            base,
-                            strategy=replace(
-                                base.strategy,
-                                filters=f,
-                                tick_gate_mode="raschke",
-                                tick_gate_symbol="TICK-AMEX",
-                                tick_gate_exchange="AMEX",
-                                tick_neutral_policy=str(policy),
-                                tick_direction_policy=str(dir_policy),
-                                tick_band_ma_period=10,
-                                tick_width_z_lookback=int(lookback),
-                                tick_width_z_enter=float(z_enter),
-                                tick_width_z_exit=float(z_exit),
-                                tick_width_slope_lookback=int(slope_lb),
-                            ),
-                        )
-                        row = _run_cfg(cfg=cfg)
-                        if not row:
-                            continue
-                        note = (
-                            f"tick=raschke dir={dir_policy} policy={policy} z_in={z_enter:g} z_out={z_exit:g} "
-                            f"slope={slope_lb} lb={lookback} | {tod_note} | {spread_note} | {vol_note}"
-                        )
-                        row["note"] = note
-                        _record_milestone(cfg, row, note)
-                        rows.append(row)
-
-        if base_row:
-            rows.append(base_row)
-        _print_leaderboards(rows, title="Tick × permission joint sweep", top_n=int(args.top))
-
-    def _sweep_ema_regime() -> None:
-        """Joint interaction hunt: direction (EMA preset) × regime1 (Supertrend bias)."""
-        bars_sig = _bars_cached(signal_bar_size)
-
-        base = _base_bundle(bar_size=signal_bar_size, filters=None)
-        base_row = _run_cfg(
-            cfg=base, bars=bars_sig
-        )
-        if base_row:
-            base_row["note"] = "base"
-            _record_milestone(base, base_row, "base")
-
-        presets = ["2/4", "3/7", "4/9", "5/10", "8/21", "9/21", "21/50"]
-
-        # Keep this bounded but broad enough to catch the interaction pockets:
-        # - 4h: micro + macro ST params
-        # - 1d: smaller curated set (heavier and less likely, but still worth checking)
-        regimes: list[tuple[str, int, float, str]] = []
-
-        rbar = "4 hours"
-        atr_ps_4h = [2, 3, 4, 5, 6, 7, 10, 14, 21]
-        mults_4h = [0.2, 0.3, 0.4, 0.6, 0.8, 1.0, 1.2, 1.5]
-        for atr_p in atr_ps_4h:
-            for mult in mults_4h:
-                for src in ("hl2", "close"):
-                    regimes.append((rbar, int(atr_p), float(mult), str(src)))
-
-        rbar = "1 day"
-        atr_ps_1d = [7, 10, 14, 21]
-        mults_1d = [0.4, 0.6, 0.8, 1.0, 1.2]
-        for atr_p in atr_ps_1d:
-            for mult in mults_1d:
-                for src in ("hl2", "close"):
-                    regimes.append((rbar, int(atr_p), float(mult), str(src)))
-
-        rows: list[dict] = []
-        for preset in presets:
-            for rbar, atr_p, mult, src in regimes:
-                cfg = replace(
-                    base,
-                    strategy=replace(
-                        base.strategy,
-                        ema_preset=str(preset),
-                        entry_signal="ema",
-                        regime_mode="supertrend",
-                        regime_bar_size=str(rbar),
-                        supertrend_atr_period=int(atr_p),
-                        supertrend_multiplier=float(mult),
-                        supertrend_source=str(src),
-                    ),
-                )
-                row = _run_cfg(cfg=cfg)
-                if not row:
-                    continue
-                note = f"ema={preset} | ST({atr_p},{mult:g},{src})@{rbar}"
-                row["note"] = note
-                _record_milestone(cfg, row, note)
-                rows.append(row)
-
-        if base_row:
-            rows.append(base_row)
-        _print_leaderboards(rows, title="EMA × regime joint sweep (direction × bias)", top_n=int(args.top))
-
     def _sweep_chop_joint() -> None:
         """Joint chop filter stack: slope × cooldown × skip-open (keeps everything else fixed)."""
         bars_sig = _bars_cached(signal_bar_size)
@@ -5134,128 +10849,6 @@ def main() -> None:
         if base_row:
             rows.append(base_row)
         _print_leaderboards(rows, title="Chop joint sweep (slope × cooldown × skip-open)", top_n=int(args.top))
-
-    def _sweep_tick_ema() -> None:
-        """Joint interaction hunt: Raschke $TICK (wide-only bias) × EMA preset."""
-        bars_sig = _bars_cached(signal_bar_size)
-        base = _base_bundle(bar_size=signal_bar_size, filters=None)
-        base_row = _run_cfg(
-            cfg=base, bars=bars_sig
-        )
-        if base_row:
-            base_row["note"] = "base"
-            _record_milestone(base, base_row, "base")
-
-        presets = ["2/4", "3/7", "4/9", "5/10", "8/21", "9/21", "21/50"]
-        policies = ["allow", "block"]
-        z_enters = [0.8, 1.0, 1.2]
-        z_exits = [0.4, 0.5, 0.6]
-        slope_lbs = [3, 5]
-        lookbacks = [126, 252]
-
-        rows: list[dict] = []
-        for preset in presets:
-            for policy in policies:
-                for z_enter in z_enters:
-                    for z_exit in z_exits:
-                        for slope_lb in slope_lbs:
-                            for lookback in lookbacks:
-                                cfg = replace(
-                                    base,
-                                    strategy=replace(
-                                        base.strategy,
-                                        entry_signal="ema",
-                                        ema_preset=str(preset),
-                                        tick_gate_mode="raschke",
-                                        tick_gate_symbol="TICK-AMEX",
-                                        tick_gate_exchange="AMEX",
-                                        tick_neutral_policy=str(policy),
-                                        tick_direction_policy="wide_only",
-                                        tick_band_ma_period=10,
-                                        tick_width_z_lookback=int(lookback),
-                                        tick_width_z_enter=float(z_enter),
-                                        tick_width_z_exit=float(z_exit),
-                                        tick_width_slope_lookback=int(slope_lb),
-                                    ),
-                                )
-                                row = _run_cfg(cfg=cfg)
-                                if not row:
-                                    continue
-                                note = (
-                                    f"ema={preset} | tick=wide_only policy={policy} z_in={z_enter:g} "
-                                    f"z_out={z_exit:g} slope={slope_lb} lb={lookback}"
-                                )
-                                row["note"] = note
-                                _record_milestone(cfg, row, note)
-                                rows.append(row)
-
-        if base_row:
-            rows.append(base_row)
-        _print_leaderboards(rows, title="Tick × EMA joint sweep (Raschke wide-only bias)", top_n=int(args.top))
-
-    def _sweep_ema_atr() -> None:
-        """Joint interaction hunt: direction (EMA preset) × ATR exits (includes PTx < 1.0)."""
-        bars_sig = _bars_cached(signal_bar_size)
-        base = _base_bundle(bar_size=signal_bar_size, filters=None)
-        base_row = _run_cfg(
-            cfg=base, bars=bars_sig
-        )
-        if base_row:
-            base_row["note"] = "base"
-            _record_milestone(base, base_row, "base")
-
-        presets = ["2/4", "3/7", "4/9", "5/10", "8/21", "9/21", "21/50"]
-
-        # Stage 1: shortlist EMA presets against the base bias/permissions.
-        best_by_ema: dict[str, dict] = {}
-        for preset in presets:
-            cfg = replace(base, strategy=replace(base.strategy, ema_preset=str(preset), entry_signal="ema"))
-            row = _run_cfg(cfg=cfg)
-            if not row:
-                continue
-            best_by_ema[str(preset)] = {"row": row}
-
-        shortlisted = _ranked_keys_by_row_scores(best_by_ema, top_pnl=5, top_pnl_dd=5)
-        if not shortlisted:
-            print("No eligible EMA presets (try lowering --min-trades).")
-            return
-        print("")
-        print(f"EMA×ATR: stage1 shortlisted ema={len(shortlisted)} (from {len(best_by_ema)})")
-
-        atr_periods = [10, 14, 21]
-        pt_mults = [0.6, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.0]
-        sl_mults = [1.2, 1.4, 1.5, 1.6, 1.8, 2.0]
-
-        rows: list[dict] = []
-        for preset in shortlisted:
-            for atr_p in atr_periods:
-                for pt_m in pt_mults:
-                    for sl_m in sl_mults:
-                        cfg = replace(
-                            base,
-                            strategy=replace(
-                                base.strategy,
-                                ema_preset=str(preset),
-                                entry_signal="ema",
-                                spot_exit_mode="atr",
-                                spot_atr_period=int(atr_p),
-                                spot_pt_atr_mult=float(pt_m),
-                                spot_sl_atr_mult=float(sl_m),
-                                spot_profit_target_pct=None,
-                                spot_stop_loss_pct=None,
-                            ),
-                        )
-                        row = _run_cfg(cfg=cfg)
-                        if not row:
-                            continue
-                        note = f"ema={preset} | ATR({atr_p}) PTx{pt_m:.2f} SLx{sl_m:.2f}"
-                        row["note"] = note
-                        _record_milestone(cfg, row, note)
-                        rows.append(row)
-
-        if base_row:
-            rows.append(base_row)
-        _print_leaderboards(rows, title="EMA × ATR joint sweep (direction × exits)", top_n=int(args.top))
 
     def _sweep_weekdays() -> None:
         """Gate exploration: which UTC weekdays contribute to the edge."""
@@ -5387,405 +10980,104 @@ def main() -> None:
         """Ultra-fine ATR exit sweep around the current best PT neighborhood."""
         _run_atr_exit_profile("atr_ultra")
 
-    def _sweep_r2_atr() -> None:
-        """Joint interaction hunt: regime2 confirm × ATR exits (includes PTx < 1.0)."""
-        bars_sig = _bars_cached(signal_bar_size)
-        base = _base_bundle(bar_size=signal_bar_size, filters=None)
-        base_row = _run_cfg(
-            cfg=base, bars=bars_sig
-        )
-        if base_row:
-            base_row["note"] = "base"
-            _record_milestone(base, base_row, "base")
-
-        # Stage 1: coarse scan to shortlist promising regime2 settings.
-        r2_variants: list[tuple[dict, str]] = [
-            ({"regime2_mode": "off", "regime2_bar_size": None}, "r2=off"),
-        ]
-        r2_bar_sizes = ["4 hours", "1 day"]
-        r2_atr_periods = [7, 10, 11, 14, 21]
-        r2_multipliers = [0.6, 0.8, 1.0, 1.2, 1.5]
-        r2_sources = ["hl2", "close"]
-        for r2_bar in r2_bar_sizes:
-            for atr_p in r2_atr_periods:
-                for mult in r2_multipliers:
-                    for src in r2_sources:
-                        r2_variants.append(
-                            (
-                                {
-                                    "regime2_mode": "supertrend",
-                                    "regime2_bar_size": str(r2_bar),
-                                    "regime2_supertrend_atr_period": int(atr_p),
-                                    "regime2_supertrend_multiplier": float(mult),
-                                    "regime2_supertrend_source": str(src),
-                                },
-                                f"r2=ST2({r2_bar}:{atr_p},{mult},{src})",
-                            )
-                        )
-
-        exit_stage1: list[tuple[dict, str]] = [
-            (
-                {
-                    "spot_exit_mode": "atr",
-                    "spot_atr_period": 14,
-                    "spot_pt_atr_mult": 0.8,
-                    "spot_sl_atr_mult": 1.6,
-                    "spot_profit_target_pct": None,
-                    "spot_stop_loss_pct": None,
-                },
-                "ATR(14) PTx0.80 SLx1.60",
-            ),
-            (
-                {
-                    "spot_exit_mode": "atr",
-                    "spot_atr_period": 14,
-                    "spot_pt_atr_mult": 0.9,
-                    "spot_sl_atr_mult": 1.6,
-                    "spot_profit_target_pct": None,
-                    "spot_stop_loss_pct": None,
-                },
-                "ATR(14) PTx0.90 SLx1.60",
-            ),
-            (
-                {
-                    "spot_exit_mode": "atr",
-                    "spot_atr_period": 21,
-                    "spot_pt_atr_mult": 0.9,
-                    "spot_sl_atr_mult": 1.4,
-                    "spot_profit_target_pct": None,
-                    "spot_stop_loss_pct": None,
-                },
-                "ATR(21) PTx0.90 SLx1.40",
-            ),
-            (
-                {
-                    "spot_exit_mode": "atr",
-                    "spot_atr_period": 14,
-                    "spot_pt_atr_mult": 1.0,
-                    "spot_sl_atr_mult": 1.5,
-                    "spot_profit_target_pct": None,
-                    "spot_stop_loss_pct": None,
-                },
-                "ATR(14) PTx1.00 SLx1.50",
-            ),
-        ]
-
-        stage1: list[tuple[tuple, dict, str]] = []
-        for r2_over, r2_note in r2_variants:
-            for exit_over, exit_note in exit_stage1:
-                cfg = replace(
-                    base,
-                    strategy=replace(
-                        base.strategy,
-                        regime2_mode=str(r2_over.get("regime2_mode") or "off"),
-                        regime2_bar_size=r2_over.get("regime2_bar_size"),
-                        regime2_supertrend_atr_period=int(r2_over.get("regime2_supertrend_atr_period") or 10),
-                        regime2_supertrend_multiplier=float(r2_over.get("regime2_supertrend_multiplier") or 3.0),
-                        regime2_supertrend_source=str(r2_over.get("regime2_supertrend_source") or "hl2"),
-                        spot_exit_mode=str(exit_over["spot_exit_mode"]),
-                        spot_atr_period=int(exit_over["spot_atr_period"]),
-                        spot_pt_atr_mult=float(exit_over["spot_pt_atr_mult"]),
-                        spot_sl_atr_mult=float(exit_over["spot_sl_atr_mult"]),
-                        spot_profit_target_pct=exit_over["spot_profit_target_pct"],
-                        spot_stop_loss_pct=exit_over["spot_stop_loss_pct"],
-                    ),
-                )
-                row = _run_cfg(cfg=cfg)
-                if not row:
-                    continue
-                r2_key = (
-                    str(getattr(cfg.strategy, "regime2_mode", "off") or "off"),
-                    str(getattr(cfg.strategy, "regime2_bar_size", "") or ""),
-                    int(getattr(cfg.strategy, "regime2_supertrend_atr_period", 0) or 0),
-                    float(getattr(cfg.strategy, "regime2_supertrend_multiplier", 0.0) or 0.0),
-                    str(getattr(cfg.strategy, "regime2_supertrend_source", "") or ""),
-                )
-                note = f"{r2_note} | {exit_note}"
-                row["note"] = note
-                stage1.append((r2_key, row, note))
-
-        if not stage1:
-            print("No eligible results in stage1 (try lowering --min-trades).")
-            return
-
-        # Shortlist by best observed metrics per regime2 key.
-        best_by_r2: dict[tuple, dict] = {}
-        for r2_key, row, note in stage1:
-            current = best_by_r2.get(r2_key)
-            if current is None or _score_row_pnl(row) > _score_row_pnl(current["row"]):
-                best_by_r2[r2_key] = {"row": row, "note": note}
-
-        shortlisted_keys = _ranked_keys_by_row_scores(best_by_r2, top_pnl=8, top_pnl_dd=8)
-
-        print("")
-        print(f"R2×ATR: stage1 shortlisted r2={len(shortlisted_keys)} (from {len(best_by_r2)})")
-
-        # Stage 2: exit microgrid for shortlisted regime2 settings.
-        pt_mults = [0.6, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.0]
-        sl_mults = [1.2, 1.4, 1.5, 1.6, 1.8, 2.0, 2.2]
-        atr_periods = [14, 21]
-
-        rows: list[dict] = []
-        for r2_key in shortlisted_keys:
-            r2_mode, r2_bar, r2_atr, r2_mult, r2_src = r2_key
-            for atr_p in atr_periods:
-                for pt_m in pt_mults:
-                    for sl_m in sl_mults:
-                        cfg = replace(
-                            base,
-                            strategy=replace(
-                                base.strategy,
-                                regime2_mode=str(r2_mode),
-                                regime2_bar_size=str(r2_bar) or None,
-                                regime2_supertrend_atr_period=int(r2_atr or 10),
-                                regime2_supertrend_multiplier=float(r2_mult or 3.0),
-                                regime2_supertrend_source=str(r2_src or "hl2"),
-                                spot_exit_mode="atr",
-                                spot_atr_period=int(atr_p),
-                                spot_pt_atr_mult=float(pt_m),
-                                spot_sl_atr_mult=float(sl_m),
-                                spot_profit_target_pct=None,
-                                spot_stop_loss_pct=None,
-                            ),
-                        )
-                        row = _run_cfg(cfg=cfg)
-                        if not row:
-                            continue
-                        if str(r2_mode).strip().lower() == "off":
-                            r2_note = "r2=off"
-                        else:
-                            r2_note = f"r2=ST2({r2_bar}:{r2_atr},{r2_mult:g},{r2_src})"
-                        note = f"{r2_note} | ATR({atr_p}) PTx{pt_m:.2f} SLx{sl_m:.2f}"
-                        row["note"] = note
-                        _record_milestone(cfg, row, note)
-                        rows.append(row)
-
-        if base_row:
-            rows.append(base_row)
-        _print_leaderboards(rows, title="Regime2 × ATR joint sweep (PT<1.0 pocket)", top_n=int(args.top))
-
-    def _sweep_r2_tod() -> None:
-        """Joint interaction hunt: regime2 confirm × TOD window (keeps exits fixed)."""
-        bars_sig = _bars_cached(signal_bar_size)
-        base = _base_bundle(bar_size=signal_bar_size, filters=None)
-        base_row = _run_cfg(
-            cfg=base, bars=bars_sig
-        )
-        if base_row:
-            base_row["note"] = "base"
-            _record_milestone(base, base_row, "base")
-
-        base_filters = base.strategy.filters
-
-        # Stage 1: scan regime2 settings with the current base TOD.
-        r2_variants: list[tuple[dict, str]] = [({"regime2_mode": "off", "regime2_bar_size": None}, "r2=off")]
-        for r2_bar in ("4 hours", "1 day"):
-            for atr_p in (3, 5, 7, 10, 11, 14, 21):
-                for mult in (0.6, 0.8, 1.0, 1.2, 1.5):
-                    for src in ("hl2", "close"):
-                        r2_variants.append(
-                            (
-                                {
-                                    "regime2_mode": "supertrend",
-                                    "regime2_bar_size": str(r2_bar),
-                                    "regime2_supertrend_atr_period": int(atr_p),
-                                    "regime2_supertrend_multiplier": float(mult),
-                                    "regime2_supertrend_source": str(src),
-                                },
-                                f"r2=ST2({r2_bar}:{atr_p},{mult:g},{src})",
-                            )
-                        )
-
-        best_by_r2: dict[tuple, dict] = {}
-        for r2_over, r2_note in r2_variants:
-            cfg = replace(
-                base,
-                strategy=replace(
-                    base.strategy,
-                    regime2_mode=str(r2_over.get("regime2_mode") or "off"),
-                    regime2_bar_size=r2_over.get("regime2_bar_size"),
-                    regime2_supertrend_atr_period=int(r2_over.get("regime2_supertrend_atr_period") or 10),
-                    regime2_supertrend_multiplier=float(r2_over.get("regime2_supertrend_multiplier") or 3.0),
-                    regime2_supertrend_source=str(r2_over.get("regime2_supertrend_source") or "hl2"),
-                ),
-            )
-            row = _run_cfg(cfg=cfg)
-            if not row:
-                continue
-            r2_key = (
-                str(getattr(cfg.strategy, "regime2_mode", "off") or "off"),
-                str(getattr(cfg.strategy, "regime2_bar_size", "") or ""),
-                int(getattr(cfg.strategy, "regime2_supertrend_atr_period", 0) or 0),
-                float(getattr(cfg.strategy, "regime2_supertrend_multiplier", 0.0) or 0.0),
-                str(getattr(cfg.strategy, "regime2_supertrend_source", "") or ""),
-            )
-            current = best_by_r2.get(r2_key)
-            if current is None or _score_row_pnl(row) > _score_row_pnl(current["row"]):
-                best_by_r2[r2_key] = {"row": row, "note": r2_note}
-
-        shortlisted = _ranked_keys_by_row_scores(best_by_r2, top_pnl=10, top_pnl_dd=10)
-        if not shortlisted:
-            print("No eligible regime2 candidates (try lowering --min-trades).")
-            return
-        print("")
-        print(f"R2×TOD: stage1 shortlisted r2={len(shortlisted)} (from {len(best_by_r2)})")
-
-        tod_variants: list[tuple[str, dict[str, object]]] = [
-            ("tod=base", {}),
-            ("tod=off", {"entry_start_hour_et": None, "entry_end_hour_et": None}),
-            ("tod=09-16 ET", {"entry_start_hour_et": 9, "entry_end_hour_et": 16}),
-            ("tod=10-15 ET", {"entry_start_hour_et": 10, "entry_end_hour_et": 15}),
-            ("tod=11-16 ET", {"entry_start_hour_et": 11, "entry_end_hour_et": 16}),
-        ]
-        for start_h in (16, 17, 18, 19, 20):
-            for end_h in (2, 3, 4, 5, 6):
-                tod_variants.append((f"tod={start_h:02d}-{end_h:02d} ET", {"entry_start_hour_et": start_h, "entry_end_hour_et": end_h}))
-
-        rows: list[dict] = []
-        for r2_key in shortlisted:
-            r2_mode, r2_bar, r2_atr, r2_mult, r2_src = r2_key
-            for tod_note, tod_over in tod_variants:
-                f = _merge_filters(base_filters, overrides=tod_over)
-                cfg = replace(
-                    base,
-                    strategy=replace(
-                        base.strategy,
-                        filters=f,
-                        regime2_mode=str(r2_mode),
-                        regime2_bar_size=str(r2_bar) or None,
-                        regime2_supertrend_atr_period=int(r2_atr or 10),
-                        regime2_supertrend_multiplier=float(r2_mult or 3.0),
-                        regime2_supertrend_source=str(r2_src or "hl2"),
-                    ),
-                )
-                row = _run_cfg(cfg=cfg)
-                if not row:
-                    continue
-                if str(r2_mode).strip().lower() == "off":
-                    r2_note = "r2=off"
-                else:
-                    r2_note = f"r2=ST2({r2_bar}:{r2_atr},{r2_mult:g},{r2_src})"
-                note = f"{r2_note} | {tod_note}"
-                row["note"] = note
-                _record_milestone(cfg, row, note)
-                rows.append(row)
-
-        if base_row:
-            rows.append(base_row)
-        _print_leaderboards(rows, title="Regime2 × TOD joint sweep", top_n=int(args.top))
-
-    def _sweep_regime_atr() -> None:
-        """Joint interaction hunt: regime (bias) × ATR exits (includes PTx < 1.0)."""
-        bars_sig = _bars_cached(signal_bar_size)
-        base = _base_bundle(bar_size=signal_bar_size, filters=None)
-        base_row = _run_cfg(
-            cfg=base, bars=bars_sig
-        )
-        if base_row:
-            base_row["note"] = "base"
-            _record_milestone(base, base_row, "base")
-
-        # Stage 1: scan regime settings using a representative low-PT exit.
-        best_by_regime: dict[tuple, dict] = {}
-        for rbar in ("4 hours", "1 day"):
-            for atr_p in (3, 5, 6, 7, 10, 14, 21):
-                for mult in (0.4, 0.6, 0.8, 1.0, 1.2, 1.5):
-                    for src in ("hl2", "close"):
-                        cfg = replace(
-                            base,
-                            strategy=replace(
-                                base.strategy,
-                                regime_mode="supertrend",
-                                regime_bar_size=str(rbar),
-                                supertrend_atr_period=int(atr_p),
-                                supertrend_multiplier=float(mult),
-                                supertrend_source=str(src),
-                                regime2_mode="off",
-                                regime2_bar_size=None,
-                                spot_exit_mode="atr",
-                                spot_atr_period=14,
-                                spot_pt_atr_mult=0.7,
-                                spot_sl_atr_mult=1.6,
-                                spot_profit_target_pct=None,
-                                spot_stop_loss_pct=None,
-                            ),
-                        )
-                        row = _run_cfg(cfg=cfg, bars=bars_sig)
-                        if not row:
-                            continue
-                        key = (str(rbar), int(atr_p), float(mult), str(src))
-                        current = best_by_regime.get(key)
-                        if current is None or _score_row_pnl(row) > _score_row_pnl(current["row"]):
-                            best_by_regime[key] = {"row": row}
-
-        shortlisted = _ranked_keys_by_row_scores(best_by_regime, top_pnl=10, top_pnl_dd=10)
-        if not shortlisted:
-            print("No eligible regime candidates (try lowering --min-trades).")
-            return
-        print("")
-        print(f"Regime×ATR: stage1 shortlisted regimes={len(shortlisted)} (from {len(best_by_regime)})")
-
-        atr_periods = [10, 14, 21]
-        pt_mults = [0.6, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.0]
-        sl_mults = [1.2, 1.4, 1.5, 1.6, 1.8, 2.0]
-
-        plan: list[tuple[ConfigBundle, str, dict | None]] = []
-        for rbar, atr_p, mult, src in shortlisted:
-            for exit_atr in atr_periods:
-                for pt_m in pt_mults:
-                    for sl_m in sl_mults:
-                        cfg = replace(
-                            base,
-                            strategy=replace(
-                                base.strategy,
-                                regime_mode="supertrend",
-                                regime_bar_size=str(rbar),
-                                supertrend_atr_period=int(atr_p),
-                                supertrend_multiplier=float(mult),
-                                supertrend_source=str(src),
-                                regime2_mode="off",
-                                regime2_bar_size=None,
-                                spot_exit_mode="atr",
-                                spot_atr_period=int(exit_atr),
-                                spot_pt_atr_mult=float(pt_m),
-                                spot_sl_atr_mult=float(sl_m),
-                                spot_profit_target_pct=None,
-                                spot_stop_loss_pct=None,
-                            ),
-                        )
-                        note = (
-                            f"ST({atr_p},{mult:g},{src})@{rbar} | "
-                            f"ATR({exit_atr}) PTx{pt_m:.2f} SLx{sl_m:.2f} | r2=off"
-                        )
-                        plan.append((cfg, note, None))
-        _tested, kept = _run_sweep(plan=plan, bars=bars_sig, total=len(plan), progress_label="Regime×ATR stage2")
-        rows = [row for _cfg, row, _note, _meta in kept]
-
-        if base_row:
-            rows.append(base_row)
-        _print_leaderboards(rows, title="Regime × ATR joint sweep (PT<1.0 pocket)", top_n=int(args.top))
-
     def _sweep_ptsl() -> None:
         bars_sig = _bars_cached(signal_bar_size)
-        pt_vals = [0.005, 0.01, 0.015, 0.02]
-        sl_vals = [0.015, 0.02, 0.03]
+        base_cfg = _base_bundle(bar_size=signal_bar_size, filters=None)
+        base_strat = base_cfg.strategy
+        base_mode = str(getattr(args, "base", "") or "").strip().lower()
+        seeded_local = bool(str(getattr(args, "seed_milestones", "") or "").strip()) or base_mode in (
+            "champion",
+            "champion_pnl",
+        )
+        # Seeded runs should mutate around the current champion neighborhood (tight, high-value).
+        # Unseeded runs keep the broad legacy PT/SL surface.
+        if seeded_local:
+            base_pt_raw = getattr(base_strat, "spot_profit_target_pct", None)
+            base_pt = float(base_pt_raw) if base_pt_raw is not None and float(base_pt_raw) > 0 else None
+            base_sl_raw = getattr(base_strat, "spot_stop_loss_pct", None)
+            base_sl = float(base_sl_raw) if base_sl_raw is not None and float(base_sl_raw) > 0 else 0.01
+            base_only_profit = bool(getattr(base_strat, "flip_exit_only_if_profit", False))
+            base_close_eod = bool(getattr(base_strat, "spot_close_eod", False))
+            base_hold = max(0, int(getattr(base_strat, "flip_exit_min_hold_bars", 0) or 0))
+            base_gate = str(getattr(base_strat, "flip_exit_gate_mode", "regime_or_permission") or "regime_or_permission")
+            base_flip_mode = str(getattr(base_strat, "flip_exit_mode", "entry") or "entry")
+
+            pt_vals: list[float | None]
+            if base_pt is None:
+                pt_vals = [None, 0.0015, 0.0025]
+            else:
+                pt_vals = sorted(
+                    {
+                        round(max(0.0005, min(0.05, float(base_pt) * 0.8)), 6),
+                        round(max(0.0005, min(0.05, float(base_pt))), 6),
+                        round(max(0.0005, min(0.05, float(base_pt) * 1.2)), 6),
+                    }
+                )
+            sl_vals = sorted(
+                {
+                    round(max(0.001, min(0.08, float(base_sl) * 0.8)), 6),
+                    round(max(0.001, min(0.08, float(base_sl))), 6),
+                    round(max(0.001, min(0.08, float(base_sl) * 1.2)), 6),
+                }
+            )
+            only_profit_vals = list(dict.fromkeys([base_only_profit, not base_only_profit]))
+            close_eod_vals = list(dict.fromkeys([base_close_eod, not base_close_eod]))
+            hold_vals = sorted({int(base_hold), int(max(0, base_hold + 2))})
+            alt_gate = "off" if str(base_gate).strip().lower() != "off" else "regime_or_permission"
+            gate_modes = list(dict.fromkeys([str(base_gate), str(alt_gate)]))
+            flip_modes = [str(base_flip_mode)]
+            run_title = "PT/SL sweep (seeded-local mutation)"
+        else:
+            # Unified fixed-percent exit pocket:
+            # combines PT/SL and exit-pivot neighborhoods in one core sweep.
+            pt_vals = [None, 0.0015, 0.002, 0.003, 0.004, 0.005, 0.006, 0.01, 0.015, 0.02]
+            sl_vals = [0.003, 0.004, 0.006, 0.008, 0.01, 0.012, 0.015, 0.02, 0.03]
+            only_profit_vals = [False, True]
+            close_eod_vals = [False, True]
+            hold_vals = [0, 2]
+            gate_modes = ["off", "regime_or_permission"]
+            flip_modes = ["entry"]
+            run_title = "PT/SL sweep (fixed pct exits + flip/close_eod semantics)"
         plan = []
         for pt in pt_vals:
             for sl in sl_vals:
-                cfg = _base_bundle(bar_size=signal_bar_size, filters=None)
-                cfg = replace(
-                    cfg,
-                    strategy=replace(
-                        cfg.strategy,
-                        spot_profit_target_pct=float(pt),
-                        spot_stop_loss_pct=float(sl),
-                        spot_exit_mode="pct",
-                    ),
-                )
-                plan.append((cfg, f"PT={pt:.3f} SL={sl:.3f}", None))
-        _tested, kept = _run_sweep(plan=plan, bars=bars_sig)
+                for only_profit in only_profit_vals:
+                    for close_eod in close_eod_vals:
+                        for hold in hold_vals:
+                            for gate_mode in gate_modes:
+                                for flip_mode in flip_modes:
+                                    cfg = replace(
+                                        base_cfg,
+                                        strategy=replace(
+                                            base_cfg.strategy,
+                                            spot_profit_target_pct=(float(pt) if pt is not None else None),
+                                            spot_stop_loss_pct=float(sl),
+                                            spot_exit_mode="pct",
+                                            exit_on_signal_flip=True,
+                                            flip_exit_mode=str(flip_mode),
+                                            flip_exit_only_if_profit=bool(only_profit),
+                                            flip_exit_min_hold_bars=int(hold),
+                                            flip_exit_gate_mode=str(gate_mode),
+                                            spot_close_eod=bool(close_eod),
+                                        ),
+                                    )
+                                    pt_note = "None" if pt is None else f"{float(pt):.4f}"
+                                    note = (
+                                        f"PT={pt_note} SL={float(sl):.4f} "
+                                        f"flip={str(flip_mode)} hold={int(hold)} only_profit={int(only_profit)} "
+                                        f"gate={gate_mode} close_eod={int(close_eod)}"
+                                    )
+                                    plan.append((cfg, note, None))
+        _tested, kept = _run_sweep(
+            plan=plan,
+            bars=bars_sig,
+            total=len(plan),
+            progress_label="ptsl axis",
+            report_every=50,
+            heartbeat_sec=15.0,
+        )
         rows = [row for _, row, _note, _meta in kept]
-        _print_leaderboards(rows, title="PT/SL sweep (fixed pct exits)", top_n=int(args.top))
+        _print_leaderboards(rows, title=run_title, top_n=int(args.top))
 
     def _sweep_hf_scalp() -> None:
         """High-frequency spot axis (stacked stop+flip + cadence knobs + stability overlays).
@@ -6647,7 +11939,7 @@ def main() -> None:
             base_row["note"] = "base"
             _record_milestone(base, base_row, "base")
 
-        # Keep this tight and focused; the point is to cover interaction edges that the combo_fast funnel can miss.
+        # Keep this tight and focused; the point is to cover interaction edges that compact preset funnels can miss.
         regime_bar_sizes = ["4 hours"]
         regime_atr_periods = [10, 14, 21]
         regime_multipliers = [0.4, 0.5, 0.6]
@@ -7015,6 +12307,42 @@ def main() -> None:
                                     f"sl_mult={sl_mult:g} pt_mult={pt_mult:g} short_factor={short_factor:g}"
                                 )
                                 cfg_pairs.append((cfg, note))
+
+        # Unified advanced pocket from centralized axis dimensions.
+        shock_dims = _AXIS_DIMENSION_REGISTRY.get("shock", {})
+        advanced_modes = tuple(shock_dims.get("advanced_modes") or ())
+        advanced_detectors: tuple[tuple[dict[str, object], str], ...] = tuple(
+            shock_dims.get("advanced_detectors") or ()
+        )
+        advanced_short_factors = tuple(shock_dims.get("advanced_short_risk_factors") or ())
+        advanced_long_down_factors = tuple(shock_dims.get("advanced_long_down_factors") or ())
+        advanced_scales: tuple[tuple[dict[str, object], str], ...] = tuple(shock_dims.get("advanced_scales") or ())
+        for mode in advanced_modes:
+            for det_over, det_note in advanced_detectors:
+                for dir_src, dir_lb, dir_note in dir_variants:
+                    for sl_mult in sl_mults:
+                        for short_factor in advanced_short_factors:
+                            for long_down in advanced_long_down_factors:
+                                for scale_over, scale_note in advanced_scales:
+                                    overrides = {
+                                        "shock_gate_mode": str(mode),
+                                        "shock_direction_source": str(dir_src),
+                                        "shock_direction_lookback": int(dir_lb),
+                                        "shock_stop_loss_pct_mult": float(sl_mult),
+                                        "shock_profit_target_pct_mult": 1.0,
+                                        "shock_short_risk_mult_factor": float(short_factor),
+                                        "shock_long_risk_mult_factor_down": float(long_down),
+                                    }
+                                    overrides.update(det_over)
+                                    overrides.update(scale_over)
+                                    f = _mk_filters(overrides=overrides)
+                                    cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
+                                    note = (
+                                        f"shock_adv={mode} {det_note} | {dir_note} | "
+                                        f"sl_mult={sl_mult:g} short_factor={short_factor:g} "
+                                        f"long_down={long_down:g} | {scale_note}"
+                                    )
+                                    cfg_pairs.append((cfg, note))
         tested_total = _run_cfg_pairs_grid(
             axis_tag="shock",
             cfg_pairs=cfg_pairs,
@@ -7028,317 +12356,6 @@ def main() -> None:
         if base_row:
             rows.append(base_row)
         _print_leaderboards(rows, title="Shock sweep (modes × detectors × thresholds)", top_n=int(args.top))
-
-    def _sweep_risk_overlays() -> None:
-        """Risk-off / risk-panic / risk-pop TR% overlays (TR median + gap pressure + optional TR-velocity)."""
-        nonlocal run_calls_total
-        bars_sig = _bars_cached(signal_bar_size)
-        skip_pop = bool(getattr(args, "risk_overlays_skip_pop", False))
-
-        def _parse_tr_thresholds(flag: str, raw: object | None) -> list[float] | None:
-            s = str(raw or "").strip()
-            if not s:
-                return None
-            out: list[float] = []
-            for part in s.split(","):
-                part = str(part or "").strip()
-                if not part:
-                    continue
-                try:
-                    v = float(part)
-                except (TypeError, ValueError) as exc:
-                    raise SystemExit(f"Invalid {flag}: {part!r}") from exc
-                if v <= 0:
-                    continue
-                out.append(float(v))
-            if not out:
-                return None
-            out = sorted(set(out))
-            return out
-
-        def _parse_nonneg_factors(flag: str, raw: object | None) -> list[float] | None:
-            s = str(raw or "").strip()
-            if not s:
-                return None
-            out: list[float] = []
-            for part in s.split(","):
-                part = str(part or "").strip()
-                if not part:
-                    continue
-                try:
-                    v = float(part)
-                except (TypeError, ValueError) as exc:
-                    raise SystemExit(f"Invalid {flag}: {part!r}") from exc
-                if v < 0:
-                    continue
-                out.append(float(v))
-            if not out:
-                return None
-            return sorted(set(out))
-
-        # Risk-off: TR% median above threshold (no gap condition).
-        riskoff_trs = [6.0, 7.0, 8.0, 9.0, 10.0, 12.0]
-        riskoff_trs_over = _parse_tr_thresholds("--risk-overlays-riskoff-trs", args.risk_overlays_riskoff_trs)
-        if riskoff_trs_over is not None:
-            riskoff_trs = riskoff_trs_over
-        riskoff_lbs = [3, 5, 7, 10]
-        riskoff_modes = ["hygiene", "directional"]
-        # Optional late-day cutoff (ET hour). When set, this only matters on risk-off days.
-        riskoff_cutoffs_et = [None, 15, 16]
-        riskoff_total = len(riskoff_trs) * len(riskoff_lbs) * len(riskoff_modes) * len(riskoff_cutoffs_et)
-
-        # Risk-panic: TR% median + negative gap ratio.
-        panic_trs = [8.0, 9.0, 10.0, 12.0]
-        panic_trs_over = _parse_tr_thresholds("--risk-overlays-riskpanic-trs", args.risk_overlays_riskpanic_trs)
-        if panic_trs_over is not None:
-            panic_trs = panic_trs_over
-        panic_long_factors_raw = _parse_nonneg_factors(
-            "--risk-overlays-riskpanic-long-factors", args.risk_overlays_riskpanic_long_factors
-        )
-        panic_long_factors: list[float | None] = [None]
-        if panic_long_factors_raw is not None:
-            panic_long_factors = [float(v) for v in panic_long_factors_raw]
-        neg_ratios = [0.5, 0.6, 0.8]
-        panic_lbs = [5, 10]
-        panic_short_factors = [1.0, 0.5, 0.2, 0.0]
-        panic_cutoffs_et = [None, 15, 16]
-        # Optional stricter definition of "gap day": require |gap| >= threshold.
-        panic_neg_gap_abs_pcts = [None, 0.01, 0.02]
-        # Optional TR median "velocity": require TRmed(today)-TRmed(prev) >= delta, or over a wider lookback.
-        panic_tr_delta_variants: list[tuple[float | None, int, str]] = [
-            (None, 1, "trΔ=off"),
-            (0.25, 1, "trΔ>=0.25@1d"),
-            (0.5, 1, "trΔ>=0.5@1d"),
-            (0.5, 5, "trΔ>=0.5@5d"),
-            (0.75, 1, "trΔ>=0.75@1d"),
-            (1.0, 1, "trΔ>=1.0@1d"),
-            (1.0, 5, "trΔ>=1.0@5d"),
-        ]
-        panic_total = (
-            len(panic_trs)
-            * len(neg_ratios)
-            * len(panic_lbs)
-            * len(panic_long_factors)
-            * len(panic_short_factors)
-            * len(panic_cutoffs_et)
-            * len(panic_neg_gap_abs_pcts)
-            * len(panic_tr_delta_variants)
-        )
-
-        # Risk-pop: TR% median + positive gap ratio.
-        pop_trs = [7.0, 8.0, 9.0, 10.0, 12.0]
-        pop_trs_over = _parse_tr_thresholds("--risk-overlays-riskpop-trs", args.risk_overlays_riskpop_trs)
-        if pop_trs_over is not None:
-            pop_trs = pop_trs_over
-        pos_ratios = [0.5, 0.6, 0.8]
-        pop_lbs = [5, 10]
-        pop_long_factors = [0.6, 0.8, 1.0, 1.2, 1.5]
-        pop_short_factors = [1.0, 0.5, 0.2, 0.0]
-        pop_cutoffs_et = [None, 15]
-        pop_modes = ["hygiene", "directional"]
-        pop_pos_gap_abs_pcts = [None, 0.01, 0.02]
-        pop_tr_delta_variants: list[tuple[float | None, int, str]] = [
-            (None, 1, "trΔ=off"),
-            (0.5, 1, "trΔ>=0.5@1d"),
-            (0.5, 5, "trΔ>=0.5@5d"),
-            (1.0, 1, "trΔ>=1.0@1d"),
-            (1.0, 5, "trΔ>=1.0@5d"),
-        ]
-
-        pop_total = (
-            len(pop_trs)
-            * len(pos_ratios)
-            * len(pop_lbs)
-            * len(pop_long_factors)
-            * len(pop_short_factors)
-            * len(pop_cutoffs_et)
-            * len(pop_modes)
-            * len(pop_pos_gap_abs_pcts)
-            * len(pop_tr_delta_variants)
-        )
-        if skip_pop:
-            pop_total = 0
-        total = riskoff_total + panic_total + pop_total
-
-        def _iter_risk_overlay_specs():
-            for tr_med in riskoff_trs:
-                for lb in riskoff_lbs:
-                    for mode in riskoff_modes:
-                        for cutoff in riskoff_cutoffs_et:
-                            overrides = {
-                                "riskoff_tr5_med_pct": float(tr_med),
-                                "riskoff_tr5_lookback_days": int(lb),
-                                "riskoff_mode": str(mode),
-                                "risk_entry_cutoff_hour_et": int(cutoff) if cutoff is not None else None,
-                                "riskpanic_tr5_med_pct": None,
-                                "riskpanic_neg_gap_ratio_min": None,
-                            }
-                            cut_note = "-" if cutoff is None else f"cutoff<{cutoff:02d} ET"
-                            note = f"riskoff TRmed{lb}>={tr_med:g} mode={mode} {cut_note}"
-                            yield overrides, note, None
-
-            for tr_med in panic_trs:
-                for neg_ratio in neg_ratios:
-                    for lb in panic_lbs:
-                        for long_factor in panic_long_factors:
-                            for short_factor in panic_short_factors:
-                                for cutoff in panic_cutoffs_et:
-                                    for abs_gap in panic_neg_gap_abs_pcts:
-                                        for tr_delta_min, tr_delta_lb, tr_delta_note in panic_tr_delta_variants:
-                                            overrides = {
-                                                "riskoff_tr5_med_pct": None,
-                                                "riskpanic_tr5_med_pct": float(tr_med),
-                                                "riskpanic_neg_gap_ratio_min": float(neg_ratio),
-                                                "riskpanic_neg_gap_abs_pct_min": (
-                                                    float(abs_gap) if abs_gap is not None else None
-                                                ),
-                                                "riskpanic_lookback_days": int(lb),
-                                                "riskpanic_tr5_med_delta_min_pct": (
-                                                    float(tr_delta_min) if tr_delta_min is not None else None
-                                                ),
-                                                "riskpanic_tr5_med_delta_lookback_days": int(tr_delta_lb),
-                                                "riskpanic_short_risk_mult_factor": float(short_factor),
-                                                "risk_entry_cutoff_hour_et": int(cutoff) if cutoff is not None else None,
-                                            }
-                                            if long_factor is not None:
-                                                overrides["riskpanic_long_risk_mult_factor"] = float(long_factor)
-                                            if (
-                                                long_factor is not None
-                                                and float(long_factor) < 1.0
-                                                and tr_delta_min is not None
-                                            ):
-                                                overrides["riskpanic_long_scale_mode"] = "linear"
-                                            cut_note = "-" if cutoff is None else f"cutoff<{cutoff:02d} ET"
-                                            gap_note = "-" if abs_gap is None else f"|gap|>={abs_gap*100:0.0f}%"
-                                            long_note = "" if long_factor is None else f" long_factor={long_factor:g}"
-                                            scale_note = ""
-                                            if overrides.get("riskpanic_long_scale_mode") == "linear":
-                                                scale_note = " scale=lin"
-                                            note = (
-                                                f"riskpanic TRmed{lb}>={tr_med:g} neg_gap>={neg_ratio:g} {gap_note} "
-                                                f"{tr_delta_note}{scale_note} short_factor={short_factor:g}{long_note} {cut_note}"
-                                            )
-                                            yield overrides, note, None
-
-            if not skip_pop:
-                for tr_med in pop_trs:
-                    for pos_ratio in pos_ratios:
-                        for lb in pop_lbs:
-                            for long_factor in pop_long_factors:
-                                for short_factor in pop_short_factors:
-                                    for cutoff in pop_cutoffs_et:
-                                        for mode in pop_modes:
-                                            for abs_gap in pop_pos_gap_abs_pcts:
-                                                for tr_delta_min, tr_delta_lb, tr_delta_note in pop_tr_delta_variants:
-                                                    overrides = {
-                                                        "riskoff_tr5_med_pct": None,
-                                                        "riskpanic_tr5_med_pct": None,
-                                                        "riskpanic_neg_gap_ratio_min": None,
-                                                        "riskpop_tr5_med_pct": float(tr_med),
-                                                        "riskpop_pos_gap_ratio_min": float(pos_ratio),
-                                                        "riskpop_pos_gap_abs_pct_min": (
-                                                            float(abs_gap) if abs_gap is not None else None
-                                                        ),
-                                                        "riskpop_lookback_days": int(lb),
-                                                        "riskpop_tr5_med_delta_min_pct": (
-                                                            float(tr_delta_min) if tr_delta_min is not None else None
-                                                        ),
-                                                        "riskpop_tr5_med_delta_lookback_days": int(tr_delta_lb),
-                                                        "riskpop_long_risk_mult_factor": float(long_factor),
-                                                        "riskpop_short_risk_mult_factor": float(short_factor),
-                                                        "risk_entry_cutoff_hour_et": (
-                                                            int(cutoff) if cutoff is not None else None
-                                                        ),
-                                                        "riskoff_mode": str(mode),
-                                                    }
-                                                    cut_note = "-" if cutoff is None else f"cutoff<{cutoff:02d} ET"
-                                                    gap_note = "-" if abs_gap is None else f"|gap|>={abs_gap*100:0.0f}%"
-                                                    note = (
-                                                        f"riskpop TRmed{lb}>={tr_med:g} pos_gap>={pos_ratio:g} {gap_note} "
-                                                        f"{tr_delta_note} mode={mode} long_factor={long_factor:g} "
-                                                        f"short_factor={short_factor:g} {cut_note}"
-                                                    )
-                                                    yield overrides, note, None
-
-        def _iter_risk_overlay_plan():
-            for overrides, note, meta_item in _iter_risk_overlay_specs():
-                f = _mk_filters(overrides=overrides)
-                cfg = _base_bundle(bar_size=signal_bar_size, filters=f)
-                yield cfg, note, meta_item
-
-        if args.risk_overlays_worker is not None:
-            plan_all = list(_iter_risk_overlay_plan())
-            if len(plan_all) != int(total):
-                raise SystemExit(f"risk_overlays worker internal error: combos={len(plan_all)} expected={total}")
-            _run_sharded_stage_worker(
-                stage_label="risk_overlays",
-                worker_raw=args.risk_overlays_worker,
-                workers_raw=args.risk_overlays_workers,
-                out_path_raw=str(args.risk_overlays_out or ""),
-                out_flag_name="risk-overlays-out",
-                plan_all=plan_all,
-                bars=bars_sig,
-                report_every=50,
-                heartbeat_sec=50.0,
-            )
-            return
-
-        base = _base_bundle(bar_size=signal_bar_size, filters=None)
-        base_row = _run_cfg(
-            cfg=base, bars=bars_sig
-        )
-        if base_row:
-            base_row["note"] = "base"
-            _record_milestone(base, base_row, "base")
-
-        rows: list[dict] = []
-
-        def _on_risk_overlay_row(_cfg: ConfigBundle, row: dict, _note: str) -> None:
-            rows.append(row)
-
-        tested_total = _run_stage_cfg_rows(
-            stage_label="risk_overlays",
-            total=total,
-            jobs_req=int(jobs),
-            bars=bars_sig,
-            report_every=50,
-            heartbeat_sec=50.0,
-            on_row=_on_risk_overlay_row,
-            serial_plan_builder=_iter_risk_overlay_plan,
-            parallel_payloads_builder=lambda: _run_parallel_stage(
-                axis_name="risk_overlays",
-                stage_label="risk_overlays",
-                total=total,
-                jobs=int(jobs),
-                worker_tmp_prefix="tradebot_risk_overlays_",
-                worker_tag="ro",
-                out_prefix="risk_overlays_out",
-                worker_flag="--risk-overlays-worker",
-                workers_flag="--risk-overlays-workers",
-                out_flag="--risk-overlays-out",
-                strip_flags_with_values=(
-                    "--risk-overlays-worker",
-                    "--risk-overlays-workers",
-                    "--risk-overlays-out",
-                    "--risk-overlays-run-min-trades",
-                ),
-                run_min_trades_flag="--risk-overlays-run-min-trades",
-                run_min_trades=int(run_min_trades),
-                capture_error="Failed to capture risk_overlays worker stdout.",
-                failure_label="risk_overlays worker",
-                missing_label="risk_overlays",
-                invalid_label="risk_overlays",
-            ),
-            parallel_default_note="risk_overlays",
-            parallel_dedupe_by_milestone_key=False,
-            record_milestones=True,
-        )
-        if jobs > 1 and total > 0:
-            run_calls_total += int(tested_total)
-
-        if base_row:
-            rows.append(base_row)
-        _print_leaderboards(rows, title="TR% risk overlay sweep (riskoff + riskpanic + riskpop)", top_n=int(args.top))
 
     def _sweep_loosen() -> None:
         bars_sig = _bars_cached(signal_bar_size)
@@ -7362,53 +12379,6 @@ def main() -> None:
             _record_milestone(cfg, row, note)
             rows.append(row)
         _print_leaderboards(rows, title="Loosenings sweep (single-position + EOD exit)", top_n=int(args.top))
-
-    def _sweep_loosen_atr() -> None:
-        """Interaction hunt: close_eod × ATR exits under single-position parity."""
-        bars_sig = _bars_cached(signal_bar_size)
-        base = _base_bundle(bar_size=signal_bar_size, filters=None)
-        base_row = _run_cfg(
-            cfg=base, bars=bars_sig
-        )
-        if base_row:
-            base_row["note"] = "base"
-            _record_milestone(base, base_row, "base")
-
-        # Keep the grid tight around the post-fix high-PnL neighborhood.
-        atr_periods = [10, 14, 21]
-        pt_mults = [0.6, 0.65, 0.7, 0.75, 0.8]
-        sl_mults = [1.2, 1.4, 1.6, 1.8, 2.0]
-        close_eod_vals = [False, True]
-
-        rows: list[dict] = []
-        for close_eod in close_eod_vals:
-            for atr_p in atr_periods:
-                for pt_m in pt_mults:
-                    for sl_m in sl_mults:
-                        cfg = replace(
-                            base,
-                            strategy=replace(
-                                base.strategy,
-                                spot_close_eod=bool(close_eod),
-                                spot_exit_mode="atr",
-                                spot_atr_period=int(atr_p),
-                                spot_pt_atr_mult=float(pt_m),
-                                spot_sl_atr_mult=float(sl_m),
-                                spot_profit_target_pct=None,
-                                spot_stop_loss_pct=None,
-                            ),
-                        )
-                        row = _run_cfg(cfg=cfg)
-                        if not row:
-                            continue
-                        note = f"close_eod={int(close_eod)} | ATR({atr_p}) PTx{pt_m:.2f} SLx{sl_m:.2f}"
-                        row["note"] = note
-                        _record_milestone(cfg, row, note)
-                        rows.append(row)
-
-        if base_row:
-            rows.append(base_row)
-        _print_leaderboards(rows, title="Loosen × ATR joint sweep (single-position × exits)", top_n=int(args.top))
 
     def _sweep_tick() -> None:
         """Permission layer: Raschke-style $TICK width gate (daily, RTH only)."""
@@ -7590,746 +12560,944 @@ def main() -> None:
                 f"win={best['win_rate']*100:.1f}% tr={best['trades']} note={best.get('note')}"
             )
 
-    def _sweep_combo_fast() -> None:
-        """A constrained multi-axis sweep to find "corner" winners (fast bounded funnel).
+    def _sweep_combo_full() -> None:
+        """Unified tight Cartesian sweep over centralized combo dimensions."""
 
-        Keep this computationally bounded and reproducible. The intent is to combine
-        the highest-leverage levers we’ve found so far:
-        - direction layer interactions (EMA preset + entry mode)
-        - regime sensitivity (Supertrend timeframe + params)
-        - exits (pct vs ATR), including the PT<1.0 ATR pocket
-        - loosenings (single-position parity + EOD close)
-        - optional regime2 confirm (small curated set)
-        - a small set of quality gates (spread/slope/TOD/rv/exit-time/tick)
-        """
-        nonlocal run_calls_total
         bars_sig = _bars_cached(signal_bar_size)
+        dims = _AXIS_DIMENSION_REGISTRY.get("combo_full_cartesian_tight", {})
+        if not isinstance(dims, dict):
+            raise SystemExit("combo_full dimension registry missing: combo_full_cartesian_tight")
+        combo_full_preset = _combo_full_preset_key(str(getattr(args, "combo_full_preset", "") or ""))
+        valid_combo_presets = set(_combo_full_preset_axes())
+        if combo_full_preset and combo_full_preset not in valid_combo_presets:
+            raise SystemExit(f"Unknown combo_full preset: {combo_full_preset!r}")
 
-        # Stage 2 variants are constant and are also used by the stage2 worker/sharding mode.
-        exit_variants: list[tuple[dict, str]] = []
-        for pt, sl in (
-            (0.005, 0.02),
-            (0.005, 0.03),
-            (0.01, 0.03),
-            (0.015, 0.03),
-            # Higher RR pocket (PT > SL): helps when stop-first intrabar tie-break punishes low-RR setups.
-            (0.02, 0.015),
-            (0.03, 0.015),
-            # Bigger PT/SL pocket: trend systems often need a wider profit capture window.
-            (0.05, 0.03),
-            (0.08, 0.04),
-        ):
-            exit_variants.append(
-                (
-                    {
-                        "spot_exit_mode": "pct",
-                        "spot_profit_target_pct": float(pt),
-                        "spot_stop_loss_pct": float(sl),
-                        "spot_atr_period": 14,
-                        "spot_pt_atr_mult": 1.5,
-                        "spot_sl_atr_mult": 1.0,
-                    },
-                    f"PT={pt:.3f} SL={sl:.3f}",
-                )
-            )
-        # Stop-only (no PT): "exit on next cross / regime flip" families.
-        for sl in (0.03, 0.05):
-            exit_variants.append(
-                (
-                    {
-                        "spot_exit_mode": "pct",
-                        "spot_profit_target_pct": None,
-                        "spot_stop_loss_pct": float(sl),
-                        "spot_atr_period": 14,
-                        "spot_pt_atr_mult": 1.5,
-                        "spot_sl_atr_mult": 1.0,
-                    },
-                    f"PT=off SL={sl:.3f}",
-                )
-            )
-        for atr_p, pt_m, sl_m in (
-            # Risk-adjusted champ neighborhood.
-            (7, 1.0, 1.0),
-            (7, 1.0, 1.5),
-            (7, 1.12, 1.5),
-            # Net-PnL pocket (PTx<1.0).
-            (10, 0.80, 1.80),
-            (10, 0.90, 1.80),
-            (14, 0.70, 1.60),
-            (14, 0.75, 1.60),
-            (14, 0.80, 1.60),
-            (21, 0.65, 1.60),
-            (21, 0.70, 1.80),
-            # Higher RR pocket (PTx > SLx): try to counter stop-first intrabar ambiguity.
-            (14, 2.00, 1.00),
-            (21, 2.00, 1.00),
-        ):
-            exit_variants.append(
-                (
-                    {
-                        "spot_exit_mode": "atr",
-                        "spot_profit_target_pct": None,
-                        "spot_stop_loss_pct": None,
-                        "spot_atr_period": int(atr_p),
-                        "spot_pt_atr_mult": float(pt_m),
-                        "spot_sl_atr_mult": float(sl_m),
-                    },
-                    f"ATR({atr_p}) PTx{pt_m} SLx{sl_m}",
-                )
-            )
-
-        # Keep this small; in spot mode this axis only toggles close_eod.
-        loosen_variants: list[tuple[bool, str]] = [
-            (False, "close_eod=0"),
-            (True, "close_eod=1"),
-        ]
-
-        hold_vals = (0, 4)
-
-        regime2_variants: list[tuple[dict, str]] = [
-            ({"regime2_mode": "off", "regime2_bar_size": None}, "no_r2"),
-            (
-                {
-                    "regime2_mode": "supertrend",
-                    "regime2_bar_size": "4 hours",
-                    "regime2_supertrend_atr_period": 3,
-                    "regime2_supertrend_multiplier": 0.25,
-                    "regime2_supertrend_source": "close",
-                },
-                "ST2(4h:3,0.25,close)",
+        direction_catalog_default: dict[str, dict[str, object]] = {
+            "ema=2/4 cross": {
+                "entry_signal": "ema",
+                "ema_preset": "2/4",
+                "ema_entry_mode": "cross",
+            },
+            "ema=4/9 cross": {
+                "entry_signal": "ema",
+                "ema_preset": "4/9",
+                "ema_entry_mode": "cross",
+            },
+        }
+        regime_catalog_default: dict[str, dict[str, object]] = {
+            "regime=ST(4h:7,0.5,hl2)": {
+                "regime_mode": "supertrend",
+                "regime_bar_size": "4 hours",
+                "supertrend_atr_period": 7,
+                "supertrend_multiplier": 0.5,
+                "supertrend_source": "hl2",
+            },
+            "regime=ST(1d:14,1.0,hl2)": {
+                "regime_mode": "supertrend",
+                "regime_bar_size": "1 day",
+                "supertrend_atr_period": 14,
+                "supertrend_multiplier": 1.0,
+                "supertrend_source": "hl2",
+            },
+            "regime=ST(4h:10,0.8,close)": {
+                "regime_mode": "supertrend",
+                "regime_bar_size": "4 hours",
+                "supertrend_atr_period": 10,
+                "supertrend_multiplier": 0.8,
+                "supertrend_source": "close",
+            },
+        }
+        regime2_catalog_default: dict[str, dict[str, object]] = {
+            "r2=off": {"regime2_mode": "off", "regime2_bar_size": None},
+            "r2=ST(4h:3,0.25,close)": {
+                "regime2_mode": "supertrend",
+                "regime2_bar_size": "4 hours",
+                "regime2_supertrend_atr_period": 3,
+                "regime2_supertrend_multiplier": 0.25,
+                "regime2_supertrend_source": "close",
+            },
+        }
+        exit_catalog_default: dict[str, dict[str, object]] = {
+            "exit=pct(0.015,0.03)": {
+                "spot_exit_mode": "pct",
+                "spot_profit_target_pct": 0.015,
+                "spot_stop_loss_pct": 0.03,
+                "spot_pt_atr_mult": None,
+                "spot_sl_atr_mult": None,
+            },
+            "exit=stop_only(0.03)": {
+                "spot_exit_mode": "pct",
+                "spot_profit_target_pct": None,
+                "spot_stop_loss_pct": 0.03,
+                "spot_pt_atr_mult": None,
+                "spot_sl_atr_mult": None,
+            },
+            "exit=atr(14,0.8,1.6)": {
+                "spot_exit_mode": "atr",
+                "spot_profit_target_pct": None,
+                "spot_stop_loss_pct": None,
+                "spot_atr_period": 14,
+                "spot_pt_atr_mult": 0.8,
+                "spot_sl_atr_mult": 1.6,
+            },
+        }
+        tick_catalog_default: dict[str, dict[str, object]] = {
+            "tick=off": {"tick_gate_mode": "off"},
+            "tick=raschke": {
+                "tick_gate_mode": "raschke",
+                "tick_gate_symbol": "TICK-AMEX",
+                "tick_gate_exchange": "AMEX",
+                "tick_neutral_policy": "allow",
+                "tick_direction_policy": "both",
+                "tick_band_ma_period": 10,
+                "tick_width_z_lookback": 252,
+                "tick_width_z_enter": 1.0,
+                "tick_width_z_exit": 0.5,
+                "tick_width_slope_lookback": 3,
+            },
+        }
+        shock_catalog_default: dict[str, dict[str, object]] = {
+            "shock=off": {"shock_gate_mode": "off"},
+            "shock=surf_daily": {
+                "shock_gate_mode": "surf",
+                "shock_detector": "daily_atr_pct",
+                "shock_daily_atr_period": 14,
+                "shock_daily_on_atr_pct": 13.5,
+                "shock_daily_off_atr_pct": 13.0,
+                "shock_daily_on_tr_pct": 9.0,
+                "shock_direction_source": "signal",
+                "shock_direction_lookback": 1,
+                "shock_stop_loss_pct_mult": 0.75,
+                "shock_profit_target_pct_mult": 1.0,
+            },
+            "shock=surf_atr_ratio": {
+                "shock_gate_mode": "surf",
+                "shock_detector": "atr_ratio",
+                "shock_atr_fast_period": 7,
+                "shock_atr_slow_period": 50,
+                "shock_on_ratio": 1.55,
+                "shock_off_ratio": 1.30,
+                "shock_min_atr_pct": 7.0,
+                "shock_direction_source": "signal",
+                "shock_direction_lookback": 1,
+                "shock_stop_loss_pct_mult": 0.75,
+                "shock_profit_target_pct_mult": 1.0,
+            },
+            "shock=surf_tr_ratio": {
+                "shock_gate_mode": "surf",
+                "shock_detector": "tr_ratio",
+                "shock_atr_fast_period": 7,
+                "shock_atr_slow_period": 50,
+                "shock_on_ratio": 1.55,
+                "shock_off_ratio": 1.30,
+                "shock_min_atr_pct": 7.0,
+                "shock_direction_source": "signal",
+                "shock_direction_lookback": 1,
+                "shock_stop_loss_pct_mult": 0.75,
+                "shock_profit_target_pct_mult": 1.0,
+            },
+        }
+        slope_catalog_default: dict[str, dict[str, object]] = {
+            "slope=off": {},
+            "slope>=0.01": {"ema_slope_min_pct": 0.01},
+        }
+        risk_catalog_default: dict[str, dict[str, object]] = {
+            "risk=off": {},
+            "risk=riskoff9": _risk_pack_riskoff(tr_med=9.0, lookback_days=5, mode="hygiene", cutoff_hour_et=15),
+            "risk=riskpanic9": _risk_pack_riskpanic(
+                tr_med=9.0,
+                neg_gap_ratio=0.6,
+                lookback_days=5,
+                short_factor=0.5,
+                cutoff_hour_et=15,
             ),
-            (
-                {
-                    "regime2_mode": "supertrend",
-                    "regime2_bar_size": "4 hours",
-                    "regime2_supertrend_atr_period": 5,
-                    "regime2_supertrend_multiplier": 0.2,
-                    "regime2_supertrend_source": "close",
-                },
-                "ST2(4h:5,0.2,close)",
+            "risk=riskpop9": _risk_pack_riskpop(
+                tr_med=9.0,
+                pos_gap_ratio=0.6,
+                lookback_days=5,
+                long_factor=1.2,
+                short_factor=0.5,
+                cutoff_hour_et=15,
             ),
-            (
-                {
-                    "regime2_mode": "supertrend",
-                    "regime2_bar_size": "1 day",
-                    "regime2_supertrend_atr_period": 7,
-                    "regime2_supertrend_multiplier": 0.4,
-                    "regime2_supertrend_source": "close",
-                },
-                "ST2(1d:7,0.4,close)",
-            ),
-        ]
+        }
 
-        def _mk_stage2_cfg(
-            base_cfg: ConfigBundle,
-            base_note: str,
+        def _pairs_from_registry(
             *,
-            exit_over: dict,
-            exit_note: str,
-            hold: int,
-            close_eod: bool,
-            loose_note: str,
-            r2_over: dict,
-            r2_note: str,
-        ) -> tuple[ConfigBundle, str]:
-            strat = base_cfg.strategy
-            cfg = replace(
-                base_cfg,
+            dim_name: str,
+            variants_key: str,
+            fallback_catalog: dict[str, dict[str, object]],
+        ) -> list[tuple[str, dict[str, object]]]:
+            out: list[tuple[str, dict[str, object]]] = []
+            raw_variants = dims.get(str(variants_key))
+            if isinstance(raw_variants, (list, tuple)):
+                for row in tuple(raw_variants):
+                    if not (isinstance(row, (list, tuple)) and len(row) >= 2):
+                        continue
+                    label = str(row[0] or "").strip()
+                    payload = row[1]
+                    if not label or not isinstance(payload, dict):
+                        continue
+                    out.append((label, dict(payload)))
+            if out:
+                return out
+            fallback_rows = [
+                (str(label), dict(payload))
+                for label, payload in tuple(fallback_catalog.items())
+                if isinstance(label, str) and isinstance(payload, dict)
+            ]
+            if not fallback_rows:
+                raise SystemExit(f"combo_full requires at least one {dim_name} variant.")
+            return fallback_rows
+
+        def _timing_profiles_from_registry(
+            *,
+            variants_key: str,
+        ) -> list[tuple[str, dict[str, object], dict[str, object]]]:
+            out: list[tuple[str, dict[str, object], dict[str, object]]] = []
+            raw_variants = dims.get(str(variants_key))
+            if isinstance(raw_variants, (list, tuple)):
+                for row in tuple(raw_variants):
+                    if not (isinstance(row, (list, tuple)) and len(row) >= 2):
+                        continue
+                    label = str(row[0] or "").strip()
+                    payload = row[1]
+                    if not label or not isinstance(payload, dict):
+                        continue
+                    strat_over = payload.get("strategy_overrides")
+                    filt_over = payload.get("filter_overrides")
+                    strat_dict = dict(strat_over) if isinstance(strat_over, dict) else {}
+                    filt_dict = dict(filt_over) if isinstance(filt_over, dict) else {}
+                    out.append((str(label), strat_dict, filt_dict))
+            return out
+
+        perm_catalog_default = {
+            str(note): dict(over)
+            for note, over in tuple(_PERM_JOINT_PROFILE.get("perm_variants") or ())
+            if isinstance(note, str) and isinstance(over, dict)
+        }
+        tod_catalog_default = {
+            str(note): dict(over)
+            for _start_h, _end_h, note, over in tuple(_PERM_JOINT_PROFILE.get("tod_windows") or ())
+            if isinstance(note, str) and isinstance(over, dict)
+        }
+        vol_catalog_default = {
+            str(note): dict(over)
+            for note, over in tuple(_PERM_JOINT_PROFILE.get("vol_variants") or ())
+            if isinstance(note, str) and isinstance(over, dict)
+        }
+        cadence_catalog_default = {
+            str(note): dict(over)
+            for note, over in tuple(_PERM_JOINT_PROFILE.get("cadence_variants") or ())
+            if isinstance(note, str) and isinstance(over, dict)
+        }
+        pair_catalog_by_dim: dict[str, dict[str, dict[str, object]]] = {
+            "direction": direction_catalog_default,
+            "perm": perm_catalog_default,
+            "tod": tod_catalog_default,
+            "vol": vol_catalog_default,
+            "cadence": cadence_catalog_default,
+            "regime": regime_catalog_default,
+            "regime2": regime2_catalog_default,
+            "exit": exit_catalog_default,
+            "tick": tick_catalog_default,
+            "shock": shock_catalog_default,
+            "slope": slope_catalog_default,
+            "risk": risk_catalog_default,
+        }
+        pair_variants_by_dim: dict[str, list[tuple[str, dict[str, object]]]] = {
+            str(dim_name): _pairs_from_registry(
+                dim_name=str(dim_name),
+                variants_key=str(variants_key),
+                fallback_catalog=pair_catalog_by_dim[str(dim_name)],
+            )
+            for dim_name, variants_key in _COMBO_FULL_PAIR_DIM_VARIANT_SPECS
+        }
+        if not bool(getattr(args, "combo_full_include_tick", False)):
+            tick_rows = [
+                (str(label), dict(payload))
+                for label, payload in tuple(pair_variants_by_dim.get("tick") or ())
+                if str((payload or {}).get("tick_gate_mode") or "off").strip().lower() in ("off", "", "none", "false", "0")
+            ]
+            if not tick_rows:
+                tick_rows = [("tick=off", {"tick_gate_mode": "off"})]
+            pair_variants_by_dim["tick"] = tick_rows
+        confirm_bars = [int(v) for v in tuple(dims.get("confirm_bars") or ())]
+        timing_profile_variants = _timing_profiles_from_registry(variants_key="timing_profile_variants")
+        if not timing_profile_variants:
+            timing_profile_variants = [("timing=base", {}, {})]
+        short_mults = [float(v) for v in tuple(dims.get("short_mults") or ())]
+        if not confirm_bars or not short_mults:
+            raise SystemExit("combo_full requires non-empty confirm_bars and short_mults.")
+
+        dim_state: dict[str, list[object]] = {
+            "timing_profile": list(timing_profile_variants),
+            "confirm": list(confirm_bars),
+            **{str(dim_name): list(rows) for dim_name, rows in pair_variants_by_dim.items()},
+            "short_mult": list(short_mults),
+        }
+
+        def _freeze_dims(*dim_names: str) -> None:
+            for dim_name in dim_names:
+                rows = list(dim_state.get(str(dim_name)) or ())
+                if not rows:
+                    raise SystemExit(f"combo_full preset requires non-empty {dim_name} variants.")
+                dim_state[str(dim_name)] = [rows[0]]
+
+        def _set_dim_rows(dim_name: str, rows: list[object]) -> None:
+            values = list(rows or ())
+            if not values:
+                raise SystemExit(f"combo_full preset generated empty {dim_name} variants.")
+            dim_state[str(dim_name)] = list(values)
+
+        def _combo_full_base_bundle() -> ConfigBundle:
+            root = _base_bundle(bar_size=signal_bar_size, filters=None)
+            return replace(
+                root,
                 strategy=replace(
-                    strat,
-                    spot_exit_mode=str(exit_over["spot_exit_mode"]),
-                    spot_profit_target_pct=exit_over["spot_profit_target_pct"],
-                    spot_stop_loss_pct=exit_over["spot_stop_loss_pct"],
-                    spot_atr_period=int(exit_over["spot_atr_period"]),
-                    spot_pt_atr_mult=float(exit_over["spot_pt_atr_mult"]),
-                    spot_sl_atr_mult=float(exit_over["spot_sl_atr_mult"]),
-                    flip_exit_min_hold_bars=int(hold),
-                    spot_close_eod=bool(close_eod),
-                    regime2_mode=str(r2_over.get("regime2_mode") or "off"),
-                    regime2_bar_size=r2_over.get("regime2_bar_size"),
-                    regime2_supertrend_atr_period=int(r2_over.get("regime2_supertrend_atr_period") or 10),
-                    regime2_supertrend_multiplier=float(r2_over.get("regime2_supertrend_multiplier") or 3.0),
-                    regime2_supertrend_source=str(r2_over.get("regime2_supertrend_source") or "hl2"),
+                    root.strategy,
+                    filters=None,
+                    tick_gate_mode="off",
+                    regime2_mode="off",
+                    regime2_bar_size=None,
+                    spot_exit_time_et=None,
                 ),
             )
-            note = f"{base_note} | {exit_note} | hold={hold} | {loose_note} | {r2_note}"
-            return cfg, note
 
-        def _build_stage2_plan(shortlist_local: list[tuple[ConfigBundle, str]]) -> list[tuple[ConfigBundle, str, dict]]:
-            plan: list[tuple[ConfigBundle, str, dict]] = []
-            for base_idx, (base_cfg, base_note) in enumerate(shortlist_local):
-                for exit_idx, (exit_over, exit_note) in enumerate(exit_variants):
-                    for hold in hold_vals:
-                        for loosen_idx, (close_eod, loose_note) in enumerate(loosen_variants):
-                            for r2_idx, (r2_over, r2_note) in enumerate(regime2_variants):
-                                cfg, note = _mk_stage2_cfg(
-                                    base_cfg,
-                                    base_note,
-                                    exit_over=exit_over,
-                                    exit_note=exit_note,
-                                    hold=int(hold),
-                                    close_eod=bool(close_eod),
-                                    loose_note=loose_note,
-                                    r2_over=r2_over,
-                                    r2_note=r2_note,
+        def _ema_direction_rows() -> list[tuple[str, dict[str, object]]]:
+            rows: list[tuple[str, dict[str, object]]] = []
+            for preset in ("2/4", "3/7", "4/9", "5/10", "8/21", "9/21", "21/50"):
+                rows.append(
+                    (
+                        f"ema={preset} cross",
+                        {"entry_signal": "ema", "ema_preset": str(preset), "ema_entry_mode": "cross"},
+                    )
+                )
+            return rows
+
+        def _atr_exit_rows(*, with_close_eod: bool = False) -> list[tuple[str, dict[str, object]]]:
+            rows: list[tuple[str, dict[str, object]]] = []
+            atr_periods = (10, 14, 21)
+            if with_close_eod:
+                pt_mults = (0.6, 0.65, 0.7, 0.75, 0.8)
+                sl_mults = (1.2, 1.4, 1.6, 1.8, 2.0)
+                close_eod_vals = (False, True)
+            else:
+                pt_mults = (0.6, 0.7, 0.75, 0.8, 0.85, 0.9, 0.95, 1.0)
+                sl_mults = (1.2, 1.4, 1.5, 1.6, 1.8, 2.0)
+                close_eod_vals = (False,)
+            for close_eod in close_eod_vals:
+                for atr_p in atr_periods:
+                    for pt_m in pt_mults:
+                        for sl_m in sl_mults:
+                            label = (
+                                f"exit=atr({int(atr_p)},{float(pt_m):.2f},{float(sl_m):.2f})"
+                                + (f" close_eod={int(bool(close_eod))}" if with_close_eod else "")
+                            )
+                            payload = {
+                                "spot_exit_mode": "atr",
+                                "spot_atr_period": int(atr_p),
+                                "spot_pt_atr_mult": float(pt_m),
+                                "spot_sl_atr_mult": float(sl_m),
+                                "spot_profit_target_pct": None,
+                                "spot_stop_loss_pct": None,
+                            }
+                            if with_close_eod:
+                                payload["spot_close_eod"] = bool(close_eod)
+                            rows.append((label, payload))
+            return rows
+
+        def _preset_squeeze() -> None:
+            regime2_rows: list[tuple[str, dict[str, object]]] = [("r2=off", {"regime2_mode": "off", "regime2_bar_size": None})]
+            atr_periods = (2, 3, 4, 5, 6, 7, 10, 11)
+            multipliers = (0.05, 0.075, 0.1, 0.125, 0.15, 0.2, 0.25, 0.3)
+            for r2_bar in ("4 hours", "1 day"):
+                for atr_p in atr_periods:
+                    for mult in multipliers:
+                        for src in ("close", "hl2"):
+                            regime2_rows.append(
+                                (
+                                    f"r2=ST({int(atr_p)},{float(mult):g},{str(src)})@{str(r2_bar)}",
+                                    {
+                                        "regime2_mode": "supertrend",
+                                        "regime2_bar_size": str(r2_bar),
+                                        "regime2_supertrend_atr_period": int(atr_p),
+                                        "regime2_supertrend_multiplier": float(mult),
+                                        "regime2_supertrend_source": str(src),
+                                    },
                                 )
-                                plan.append(
+                            )
+            vol_rows: list[tuple[str, dict[str, object]]] = [
+                ("vol=-", {"volume_ratio_min": None, "volume_ema_period": None}),
+                ("vol>=1.0@20", {"volume_ratio_min": 1.0, "volume_ema_period": 20}),
+                ("vol>=1.1@20", {"volume_ratio_min": 1.1, "volume_ema_period": 20}),
+                ("vol>=1.2@20", {"volume_ratio_min": 1.2, "volume_ema_period": 20}),
+                ("vol>=1.5@10", {"volume_ratio_min": 1.5, "volume_ema_period": 10}),
+                ("vol>=1.5@20", {"volume_ratio_min": 1.5, "volume_ema_period": 20}),
+            ]
+            tod_rows: list[tuple[str, dict[str, object]]] = [
+                ("tod=base", {"entry_start_hour_et": None, "entry_end_hour_et": None}),
+                ("tod=18-03 ET", {"entry_start_hour_et": 18, "entry_end_hour_et": 3}),
+                ("tod=09-16 ET", {"entry_start_hour_et": 9, "entry_end_hour_et": 16}),
+                ("tod=10-15 ET", {"entry_start_hour_et": 10, "entry_end_hour_et": 15}),
+                ("tod=11-16 ET", {"entry_start_hour_et": 11, "entry_end_hour_et": 16}),
+            ]
+            _set_dim_rows("regime2", regime2_rows)
+            _set_dim_rows("vol", vol_rows)
+            _set_dim_rows("tod", tod_rows)
+            _set_dim_rows("confirm", [0, 1, 2])
+            _set_dim_rows("short_mult", [1.0])
+
+        def _preset_tod_interaction() -> None:
+            tod_rows: list[tuple[str, dict[str, object]]] = []
+            for start_h in (17, 18, 19):
+                for end_h in (3, 4, 5):
+                    tod_rows.append(
+                        (
+                            f"tod={int(start_h):02d}-{int(end_h):02d} ET",
+                            {"entry_start_hour_et": int(start_h), "entry_end_hour_et": int(end_h)},
+                        )
+                    )
+            cadence_rows: list[tuple[str, dict[str, object]]] = []
+            for skip in (0, 1, 2):
+                for cooldown in (0, 1, 2):
+                    cadence_rows.append(
+                        (
+                            f"cad=skip{int(skip)} cd{int(cooldown)}",
+                            {"skip_first_bars": int(skip), "cooldown_bars": int(cooldown)},
+                        )
+                    )
+            _set_dim_rows("tod", tod_rows)
+            _set_dim_rows("cadence", cadence_rows)
+            _set_dim_rows("short_mult", [1.0])
+
+        def _preset_risk_overlays() -> None:
+            if bool(getattr(args, "risk_overlays_skip_pop", False)):
+                filtered = [row for row in list(dim_state.get("risk") or ()) if "riskpop" not in str(row[0]).lower()]
+                _set_dim_rows("risk", filtered)
+            _set_dim_rows("short_mult", [1.0])
+
+        def _preset_gate_matrix() -> None:
+            gate_dims = _AXIS_DIMENSION_REGISTRY.get("gate_matrix", {})
+            if isinstance(gate_dims, dict):
+                perm_raw = tuple(gate_dims.get("perm_variants") or ())
+                if perm_raw:
+                    _set_dim_rows(
+                        "perm",
+                        [
+                            (str(label), dict(payload))
+                            for label, payload in perm_raw
+                            if isinstance(label, str) and isinstance(payload, dict)
+                        ],
+                    )
+                tod_raw = tuple(gate_dims.get("tod_variants") or ())
+                if tod_raw:
+                    _set_dim_rows(
+                        "tod",
+                        [
+                            (
+                                str(label),
+                                {
+                                    "entry_start_hour_et": (int(start_h) if start_h is not None else None),
+                                    "entry_end_hour_et": (int(end_h) if end_h is not None else None),
+                                },
+                            )
+                            for label, start_h, end_h in tod_raw
+                            if isinstance(label, str)
+                        ],
+                    )
+                short_raw = tuple(gate_dims.get("short_mults") or ())
+                if short_raw:
+                    _set_dim_rows("short_mult", [float(v) for v in short_raw])
+
+        def _preset_ema_regime() -> None:
+            _set_dim_rows("direction", _ema_direction_rows())
+            _set_dim_rows("short_mult", [1.0])
+
+        def _preset_tick_ema() -> None:
+            _set_dim_rows("direction", _ema_direction_rows())
+            tick_rows: list[tuple[str, dict[str, object]]] = []
+            for policy in ("allow", "block"):
+                for z_enter in (0.8, 1.0, 1.2):
+                    for z_exit in (0.4, 0.5, 0.6):
+                        for slope_lb in (3, 5):
+                            for lookback in (126, 252):
+                                tick_rows.append(
                                     (
-                                        cfg,
-                                        note,
+                                        f"tick=wide policy={policy} z_in={float(z_enter):g} "
+                                        f"z_out={float(z_exit):g} slope={int(slope_lb)} lb={int(lookback)}",
                                         {
-                                            "base_idx": int(base_idx),
-                                            "exit_idx": int(exit_idx),
-                                            "hold": int(hold),
-                                            "loosen_idx": int(loosen_idx),
-                                            "r2_idx": int(r2_idx),
+                                            "tick_gate_mode": "raschke",
+                                            "tick_gate_symbol": "TICK-AMEX",
+                                            "tick_gate_exchange": "AMEX",
+                                            "tick_neutral_policy": str(policy),
+                                            "tick_direction_policy": "wide_only",
+                                            "tick_band_ma_period": 10,
+                                            "tick_width_z_lookback": int(lookback),
+                                            "tick_width_z_enter": float(z_enter),
+                                            "tick_width_z_exit": float(z_exit),
+                                            "tick_width_slope_lookback": int(slope_lb),
                                         },
                                     )
                                 )
-            return plan
+            if bool(getattr(args, "combo_full_include_tick", False)):
+                _set_dim_rows("tick", tick_rows)
+            else:
+                _set_dim_rows("tick", [("tick=off", {"tick_gate_mode": "off"})])
+            _set_dim_rows("short_mult", [1.0])
 
-        if args.combo_fast_stage2:
-            payload_path = Path(str(args.combo_fast_stage2))
-            payload_decoded = _load_worker_stage_payload(
-                schema_name="combo_fast_stage2",
-                payload_path=payload_path,
-            )
-            shortlist_local = [
-                (cfg, note)
-                for cfg, note in (payload_decoded.get("cfg_pairs") or [])
-                if isinstance(note, str)
+        def _preset_ema_atr() -> None:
+            _set_dim_rows("direction", _ema_direction_rows())
+            _set_dim_rows("exit", _atr_exit_rows(with_close_eod=False))
+            _set_dim_rows("short_mult", [1.0])
+
+        def _preset_r2_atr() -> None:
+            _set_dim_rows("exit", _atr_exit_rows(with_close_eod=False))
+            _set_dim_rows("short_mult", [1.0])
+
+        def _preset_r2_tod() -> None:
+            tod_rows = [
+                (str(note), dict(over))
+                for _start_h, _end_h, note, over in tuple(_PERM_JOINT_PROFILE.get("tod_windows") or ())
+                if isinstance(note, str) and isinstance(over, dict)
             ]
+            if tod_rows:
+                _set_dim_rows("tod", tod_rows)
+            _set_dim_rows("short_mult", [1.0])
 
-            stage2_plan_all = _build_stage2_plan(shortlist_local)
-            _run_sharded_stage_worker(
-                stage_label="combo_fast stage2",
-                worker_raw=args.combo_fast_worker,
-                workers_raw=args.combo_fast_workers,
-                out_path_raw=str(args.combo_fast_out or ""),
-                out_flag_name="combo-fast-out",
-                plan_all=stage2_plan_all,
-                bars=bars_sig,
-                report_every=100,
-                heartbeat_sec=0.0,
+        def _preset_loosen_atr() -> None:
+            _set_dim_rows("exit", _atr_exit_rows(with_close_eod=True))
+            _set_dim_rows("short_mult", [1.0])
+
+        def _preset_lf_shock_sniper() -> None:
+            _set_dim_rows(
+                "regime",
+                [
+                    (
+                        "regime=ST(1d:14,1.0,hl2)",
+                        {
+                            "regime_mode": "supertrend",
+                            "regime_bar_size": "1 day",
+                            "supertrend_atr_period": 14,
+                            "supertrend_multiplier": 1.0,
+                            "supertrend_source": "hl2",
+                        },
+                    )
+                ],
             )
-            return
-
-        # Stage 3 variants are constant and are also used by the stage3 worker/sharding mode.
-        tick_variants: list[tuple[dict, str]] = [
-            ({"tick_gate_mode": "off"}, "tick=off"),
-            (
-                {
-                    "tick_gate_mode": "raschke",
-                    "tick_gate_symbol": "TICK-AMEX",
-                    "tick_gate_exchange": "AMEX",
-                    "tick_neutral_policy": "block",
-                    "tick_direction_policy": "wide_only",
-                    "tick_band_ma_period": 10,
-                    "tick_width_z_lookback": 252,
-                    "tick_width_z_enter": 1.0,
-                    "tick_width_z_exit": 0.5,
-                    "tick_width_slope_lookback": 3,
-                },
-                "tick=raschke(wide_only block z=1.0/0.5 slope=3 lb=252)",
-            ),
-        ]
-
-        quality_variants: list[tuple[float | None, float | None, float | None, str]] = [
-            # (spread_min, spread_min_down, slope_min, note)
-            (None, None, None, "qual=off"),
-            (0.003, None, None, "spread>=0.003"),
-            (0.003, 0.006, None, "spread>=0.003 down>=0.006"),
-            (0.003, 0.008, None, "spread>=0.003 down>=0.008"),
-            (0.003, 0.010, None, "spread>=0.003 down>=0.010"),
-            (0.003, 0.015, None, "spread>=0.003 down>=0.015"),
-            (0.003, 0.030, None, "spread>=0.003 down>=0.030"),
-            (0.003, 0.050, None, "spread>=0.003 down>=0.050"),
-            (0.005, None, None, "spread>=0.005"),
-            (0.005, 0.010, None, "spread>=0.005 down>=0.010"),
-            (0.005, 0.012, None, "spread>=0.005 down>=0.012"),
-            (0.005, 0.015, None, "spread>=0.005 down>=0.015"),
-            (0.005, 0.030, None, "spread>=0.005 down>=0.030"),
-            (0.005, 0.050, None, "spread>=0.005 down>=0.050"),
-            (0.005, 0.010, 0.01, "spread>=0.005 down>=0.010 slope>=0.01"),
-        ]
-
-        rv_variants: list[tuple[float | None, float | None, str]] = [
-            (None, None, "rv=off"),
-            (0.25, 0.8, "rv=0.25..0.80"),
-        ]
-
-        exit_time_variants: list[tuple[str | None, str]] = [
-            (None, "exit_time=off"),
-            ("17:00", "exit_time=17:00 ET"),
-        ]
-
-        tod_variants: list[tuple[int | None, int | None, int, int, str]] = [
-            (None, None, 0, 0, "tod=any"),
-            (18, 4, 0, 0, "tod=18-04 ET"),
-            (18, 4, 1, 2, "tod=18-04 ET (skip=1 cd=2)"),
-            (10, 15, 0, 0, "tod=10-15 ET"),
-        ]
-
-        def _mk_stage3_cfg(
-            base_cfg: ConfigBundle,
-            *,
-            tick_over: dict,
-            spread_min: float | None,
-            spread_min_down: float | None,
-            slope_min: float | None,
-            rv_min: float | None,
-            rv_max: float | None,
-            exit_time: str | None,
-            tod_s: int | None,
-            tod_e: int | None,
-            skip: int,
-            cooldown: int,
-        ) -> ConfigBundle:
-            f = _mk_filters(
-                rv_min=rv_min,
-                rv_max=rv_max,
-                ema_spread_min_pct=spread_min,
-                ema_spread_min_pct_down=spread_min_down,
-                ema_slope_min_pct=slope_min,
-                cooldown_bars=int(cooldown),
-                skip_first_bars=int(skip),
-                entry_start_hour_et=tod_s,
-                entry_end_hour_et=tod_e,
+            _set_dim_rows("regime2", [("r2=off", {"regime2_mode": "off", "regime2_bar_size": None})])
+            _set_dim_rows("perm", [("perm=off", {"ema_spread_min_pct": None, "ema_slope_min_pct": None})])
+            _set_dim_rows("tod", [("tod=off", {"entry_start_hour_et": None, "entry_end_hour_et": None})])
+            _set_dim_rows("vol", [("vol=off", {"volume_ratio_min": None, "volume_ema_period": None})])
+            _set_dim_rows("cadence", [("cad=base", {})])
+            _set_dim_rows("tick", [("tick=off", {"tick_gate_mode": "off"})])
+            _set_dim_rows("risk", [("risk=off", {})])
+            _set_dim_rows(
+                "shock",
+                [
+                    ("shock=off", {"shock_gate_mode": "off"}),
+                    (
+                        "shock=tr_ratio on=1.300 off=1.200",
+                        {
+                            "shock_gate_mode": "surf",
+                            "shock_detector": "tr_ratio",
+                            "shock_atr_fast_period": 7,
+                            "shock_atr_slow_period": 50,
+                            "shock_on_ratio": 1.300,
+                            "shock_off_ratio": 1.200,
+                            "shock_min_atr_pct": 7.0,
+                            "shock_direction_source": "signal",
+                            "shock_direction_lookback": 1,
+                            "shock_stop_loss_pct_mult": 0.75,
+                            "shock_profit_target_pct_mult": 1.0,
+                        },
+                    ),
+                    (
+                        "shock=tr_ratio on=1.325 off=1.225",
+                        {
+                            "shock_gate_mode": "surf",
+                            "shock_detector": "tr_ratio",
+                            "shock_atr_fast_period": 7,
+                            "shock_atr_slow_period": 50,
+                            "shock_on_ratio": 1.325,
+                            "shock_off_ratio": 1.225,
+                            "shock_min_atr_pct": 7.0,
+                            "shock_direction_source": "signal",
+                            "shock_direction_lookback": 1,
+                            "shock_stop_loss_pct_mult": 0.75,
+                            "shock_profit_target_pct_mult": 1.0,
+                        },
+                    ),
+                    (
+                        "shock=tr_ratio on=1.350 off=1.250",
+                        {
+                            "shock_gate_mode": "surf",
+                            "shock_detector": "tr_ratio",
+                            "shock_atr_fast_period": 7,
+                            "shock_atr_slow_period": 50,
+                            "shock_on_ratio": 1.350,
+                            "shock_off_ratio": 1.250,
+                            "shock_min_atr_pct": 7.0,
+                            "shock_direction_source": "signal",
+                            "shock_direction_lookback": 1,
+                            "shock_stop_loss_pct_mult": 0.75,
+                            "shock_profit_target_pct_mult": 1.0,
+                        },
+                    ),
+                    (
+                        "shock=tr_ratio on=1.355 off=1.255",
+                        {
+                            "shock_gate_mode": "surf",
+                            "shock_detector": "tr_ratio",
+                            "shock_atr_fast_period": 7,
+                            "shock_atr_slow_period": 50,
+                            "shock_on_ratio": 1.355,
+                            "shock_off_ratio": 1.255,
+                            "shock_min_atr_pct": 7.0,
+                            "shock_direction_source": "signal",
+                            "shock_direction_lookback": 1,
+                            "shock_stop_loss_pct_mult": 0.75,
+                            "shock_profit_target_pct_mult": 1.0,
+                        },
+                    ),
+                ],
             )
-            return replace(
-                base_cfg,
-                strategy=replace(
-                    base_cfg.strategy,
-                    filters=f,
-                    spot_exit_time_et=exit_time,
-                    tick_gate_mode=str(tick_over.get("tick_gate_mode") or "off"),
-                    tick_gate_symbol=str(tick_over.get("tick_gate_symbol") or "TICK-NYSE"),
-                    tick_gate_exchange=str(tick_over.get("tick_gate_exchange") or "NYSE"),
-                    tick_neutral_policy=str(tick_over.get("tick_neutral_policy") or "allow"),
-                    tick_direction_policy=str(tick_over.get("tick_direction_policy") or "both"),
-                    tick_band_ma_period=int(tick_over.get("tick_band_ma_period") or 10),
-                    tick_width_z_lookback=int(tick_over.get("tick_width_z_lookback") or 252),
-                    tick_width_z_enter=float(tick_over.get("tick_width_z_enter") or 1.0),
-                    tick_width_z_exit=float(tick_over.get("tick_width_z_exit") or 0.5),
-                    tick_width_slope_lookback=int(tick_over.get("tick_width_slope_lookback") or 3),
+            _set_dim_rows("short_mult", [1.0])
+
+        def _preset_hf_timing_sniper() -> None:
+            base = _combo_full_base_bundle()
+            hf_profiles = _timing_profiles_from_registry(variants_key="hf_profile_variants")
+            if not hf_profiles:
+                _set_dim_rows("short_mult", [1.0])
+                return
+            base_filters_payload = _filters_payload(getattr(base.strategy, "filters", None)) or {}
+            base_filter_row = ("base_filters", dict(base_filters_payload))
+            _set_dim_rows(
+                "direction",
+                [
+                    (
+                        "direction=base",
+                        {
+                            "entry_signal": str(getattr(base.strategy, "entry_signal", "ema") or "ema"),
+                            "ema_preset": str(getattr(base.strategy, "ema_preset", "3/7") or "3/7"),
+                            "ema_entry_mode": str(getattr(base.strategy, "ema_entry_mode", "trend") or "trend"),
+                        },
+                    )
+                ],
+            )
+            _set_dim_rows("confirm", [int(getattr(base.strategy, "entry_confirm_bars", 0) or 0)])
+            _set_dim_rows("perm", [base_filter_row])
+            _set_dim_rows("tod", [base_filter_row])
+            _set_dim_rows("vol", [base_filter_row])
+            _set_dim_rows("cadence", [base_filter_row])
+            _set_dim_rows(
+                "regime",
+                [
+                    (
+                        "regime=base",
+                        {
+                            "regime_mode": str(getattr(base.strategy, "regime_mode", "supertrend") or "supertrend"),
+                            "regime_bar_size": str(getattr(base.strategy, "regime_bar_size", "1 day") or "1 day"),
+                            "supertrend_atr_period": int(getattr(base.strategy, "supertrend_atr_period", 7) or 7),
+                            "supertrend_multiplier": float(getattr(base.strategy, "supertrend_multiplier", 0.4) or 0.4),
+                            "supertrend_source": str(getattr(base.strategy, "supertrend_source", "close") or "close"),
+                        },
+                    )
+                ],
+            )
+            _set_dim_rows(
+                "regime2",
+                [
+                    (
+                        "regime2=base",
+                        {
+                            "regime2_mode": str(getattr(base.strategy, "regime2_mode", "off") or "off"),
+                            "regime2_bar_size": getattr(base.strategy, "regime2_bar_size", None),
+                            "regime2_ema_preset": getattr(base.strategy, "regime2_ema_preset", None),
+                            "regime2_supertrend_atr_period": int(
+                                getattr(base.strategy, "regime2_supertrend_atr_period", 10) or 10
+                            ),
+                            "regime2_supertrend_multiplier": float(
+                                getattr(base.strategy, "regime2_supertrend_multiplier", 3.0) or 3.0
+                            ),
+                            "regime2_supertrend_source": str(
+                                getattr(base.strategy, "regime2_supertrend_source", "hl2") or "hl2"
+                            ),
+                        },
+                    )
+                ],
+            )
+            _set_dim_rows(
+                "exit",
+                [
+                    (
+                        "exit=base",
+                        {
+                            "spot_exit_mode": str(getattr(base.strategy, "spot_exit_mode", "pct") or "pct"),
+                            "spot_profit_target_pct": getattr(base.strategy, "spot_profit_target_pct", None),
+                            "spot_stop_loss_pct": getattr(base.strategy, "spot_stop_loss_pct", None),
+                            "spot_atr_period": int(getattr(base.strategy, "spot_atr_period", 14) or 14),
+                            "spot_pt_atr_mult": float(getattr(base.strategy, "spot_pt_atr_mult", 1.5) or 1.5),
+                            "spot_sl_atr_mult": float(getattr(base.strategy, "spot_sl_atr_mult", 1.0) or 1.0),
+                            "spot_close_eod": bool(getattr(base.strategy, "spot_close_eod", False)),
+                        },
+                    )
+                ],
+            )
+            _set_dim_rows(
+                "tick",
+                [
+                    (
+                        "tick=base",
+                        {
+                            "tick_gate_mode": str(getattr(base.strategy, "tick_gate_mode", "off") or "off"),
+                            "tick_gate_symbol": str(getattr(base.strategy, "tick_gate_symbol", "TICK-NYSE") or "TICK-NYSE"),
+                            "tick_gate_exchange": str(getattr(base.strategy, "tick_gate_exchange", "NYSE") or "NYSE"),
+                            "tick_neutral_policy": str(getattr(base.strategy, "tick_neutral_policy", "allow") or "allow"),
+                            "tick_direction_policy": str(getattr(base.strategy, "tick_direction_policy", "both") or "both"),
+                            "tick_band_ma_period": int(getattr(base.strategy, "tick_band_ma_period", 10) or 10),
+                            "tick_width_z_lookback": int(getattr(base.strategy, "tick_width_z_lookback", 252) or 252),
+                            "tick_width_z_enter": float(getattr(base.strategy, "tick_width_z_enter", 1.0) or 1.0),
+                            "tick_width_z_exit": float(getattr(base.strategy, "tick_width_z_exit", 0.5) or 0.5),
+                            "tick_width_slope_lookback": int(getattr(base.strategy, "tick_width_slope_lookback", 3) or 3),
+                        },
+                    )
+                ],
+            )
+            _set_dim_rows("shock", [base_filter_row])
+            _set_dim_rows("slope", [base_filter_row])
+            _set_dim_rows("risk", [base_filter_row])
+            _set_dim_rows("short_mult", [float(getattr(base.strategy, "spot_short_risk_mult", 1.0) or 1.0)])
+            base_rows = [row for row in hf_profiles if "hf_symm" in str(row[0]).lower()]
+            # Keep this preset intentionally tight: one HF symm anchor, then mutate
+            # only the highest-value timing/slope/velocity/branch-size pockets.
+            if base_rows:
+                base_rows = [base_rows[0]]
+            if not base_rows:
+                base_rows = list(hf_profiles[:1])
+            if not base_rows:
+                base_rows = list(hf_profiles[:1])
+            timing_rows: list[tuple[str, dict[str, object], dict[str, object]]] = []
+            seen_labels: set[str] = set()
+            base_mode_profiles: tuple[tuple[str, dict[str, object], dict[str, object]], ...] = (
+                (
+                    "overlay_only_hybrid_baseline",
+                    {
+                        "ratsv_enabled": True,
+                        "ratsv_slope_slow_window_bars": 11,
+                    },
+                    {
+                        "regime_mode": "supertrend",
+                        "regime_bar_size": "1 day",
+                        "supertrend_atr_period": 14,
+                        "supertrend_multiplier": 0.6,
+                        "supertrend_source": "hl2",
+                        "regime2_mode": "off",
+                        "regime2_bar_size": None,
+                        "spot_policy_graph": "aggressive",
+                        "spot_risk_overlay_policy": "trend_bias",
+                        "spot_resize_mode": "target",
+                        "spot_resize_min_delta_qty": 3,
+                        "spot_resize_max_step_qty": 2,
+                        "spot_resize_cooldown_bars": 6,
+                        "spot_resize_adaptive_mode": "hybrid",
+                        "spot_resize_adaptive_min_mult": 0.90,
+                        "spot_resize_adaptive_max_mult": 1.40,
+                        "spot_resize_adaptive_slope_ref_pct": 0.06,
+                        "spot_resize_adaptive_vel_ref_pct": 0.04,
+                        "spot_resize_adaptive_tr_ratio_ref": 1.00,
+                        "spot_graph_overlay_atr_hi_pct": 8.0,
+                        "spot_graph_overlay_atr_hi_min_mult": 0.85,
+                        "spot_graph_overlay_trend_boost_max": 1.35,
+                        "spot_graph_overlay_slope_ref_pct": 0.06,
+                        "spot_graph_overlay_tr_ratio_ref": 1.05,
+                        "spot_graph_overlay_trend_floor_mult": 0.90,
+                        "exit_on_signal_flip": True,
+                        "flip_exit_mode": "cross",
+                        "flip_exit_gate_mode": "regime_or_permission",
+                        "flip_exit_min_hold_bars": 0,
+                        "flip_exit_only_if_profit": False,
+                    },
+                ),
+                (
+                    "overlay_only_hybrid_predref",
+                    {
+                        "ratsv_enabled": True,
+                        "ratsv_slope_slow_window_bars": 11,
+                    },
+                    {
+                        "regime_mode": "supertrend",
+                        "regime_bar_size": "1 day",
+                        "supertrend_atr_period": 14,
+                        "supertrend_multiplier": 0.6,
+                        "supertrend_source": "hl2",
+                        "regime2_mode": "off",
+                        "regime2_bar_size": None,
+                        "spot_policy_graph": "aggressive",
+                        "spot_risk_overlay_policy": "trend_bias",
+                        "spot_resize_mode": "target",
+                        "spot_resize_min_delta_qty": 3,
+                        "spot_resize_max_step_qty": 2,
+                        "spot_resize_cooldown_bars": 6,
+                        "spot_resize_adaptive_mode": "hybrid",
+                        "spot_resize_adaptive_min_mult": 0.90,
+                        "spot_resize_adaptive_max_mult": 1.60,
+                        "spot_resize_adaptive_atr_target_pct": 8.0,
+                        "spot_resize_adaptive_atr_vel_ref_pct": 0.25,
+                        "spot_resize_adaptive_slope_ref_pct": 0.055,
+                        "spot_resize_adaptive_vel_ref_pct": 0.032,
+                        "spot_resize_adaptive_tr_ratio_ref": 0.98,
+                        "spot_exit_flip_hold_tr_ratio_min": 1.00,
+                        "spot_exit_flip_hold_slow_slope_min_pct": 0.000002,
+                        "spot_exit_flip_hold_slow_slope_vel_min_pct": 0.000001,
+                        "spot_graph_overlay_atr_hi_pct": 8.0,
+                        "spot_graph_overlay_atr_hi_min_mult": 0.84,
+                        "spot_graph_overlay_atr_vel_ref_pct": 0.25,
+                        "spot_graph_overlay_trend_boost_max": 1.75,
+                        "spot_graph_overlay_slope_ref_pct": 0.055,
+                        "spot_graph_overlay_tr_ratio_ref": 1.00,
+                        "spot_graph_overlay_trend_floor_mult": 0.88,
+                        "exit_on_signal_flip": True,
+                        "flip_exit_mode": "cross",
+                        "flip_exit_gate_mode": "regime_or_permission",
+                        "flip_exit_min_hold_bars": 0,
+                        "flip_exit_only_if_profit": False,
+                    },
                 ),
             )
-
-        def _build_stage3_plan(bases_local: list[tuple[ConfigBundle, str]]) -> list[tuple[ConfigBundle, str, dict]]:
-            plan: list[tuple[ConfigBundle, str, dict]] = []
-            for base_idx, (base_cfg, base_note) in enumerate(bases_local):
-                for tick_idx, (tick_over, tick_note) in enumerate(tick_variants):
-                    for qual_idx, (spread_min, spread_min_down, slope_min, qual_note) in enumerate(quality_variants):
-                        for rv_idx, (rv_min, rv_max, rv_note) in enumerate(rv_variants):
-                            for exit_time_idx, (exit_time, exit_time_note) in enumerate(exit_time_variants):
-                                for tod_idx, (tod_s, tod_e, skip, cooldown, tod_note) in enumerate(tod_variants):
-                                    cfg = _mk_stage3_cfg(
-                                        base_cfg,
-                                        tick_over=tick_over,
-                                        spread_min=spread_min,
-                                        spread_min_down=spread_min_down,
-                                        slope_min=slope_min,
-                                        rv_min=rv_min,
-                                        rv_max=rv_max,
-                                        exit_time=exit_time,
-                                        tod_s=tod_s,
-                                        tod_e=tod_e,
-                                        skip=int(skip),
-                                        cooldown=int(cooldown),
-                                    )
-                                    note = (
-                                        f"{base_note} | {tick_note} | {qual_note} | "
-                                        f"{rv_note} | {exit_time_note} | {tod_note}"
-                                    )
-                                    plan.append(
-                                        (
-                                            cfg,
-                                            note,
-                                            {
-                                                "base_idx": int(base_idx),
-                                                "tick_idx": int(tick_idx),
-                                                "qual_idx": int(qual_idx),
-                                                "rv_idx": int(rv_idx),
-                                                "exit_time_idx": int(exit_time_idx),
-                                                "tod_idx": int(tod_idx),
-                                            },
-                                        )
-                                    )
-            return plan
-
-        if args.combo_fast_stage3:
-            payload_path = Path(str(args.combo_fast_stage3))
-            payload_decoded = _load_worker_stage_payload(
-                schema_name="combo_fast_stage3",
-                payload_path=payload_path,
+            bridge_only = str(os.environ.get("TB_HF_TIMING_SNIPER_BRIDGE", "") or "").strip().lower() in (
+                "1",
+                "true",
+                "yes",
+                "on",
             )
-            bases_local = [
-                (cfg, note)
-                for cfg, note in (payload_decoded.get("cfg_pairs") or [])
-                if isinstance(note, str)
-            ]
-
-            stage3_plan_all = _build_stage3_plan(bases_local)
-            _run_sharded_stage_worker(
-                stage_label="combo_fast stage3",
-                worker_raw=args.combo_fast_worker,
-                workers_raw=args.combo_fast_workers,
-                out_path_raw=str(args.combo_fast_out or ""),
-                out_flag_name="combo-fast-out",
-                plan_all=stage3_plan_all,
-                bars=bars_sig,
-                report_every=200,
-                heartbeat_sec=0.0,
+            mode_profiles: tuple[tuple[str, dict[str, object], dict[str, object]], ...]
+            if bridge_only:
+                predref_filter_over = dict(base_mode_profiles[1][1])
+                predref_strategy_over = dict(base_mode_profiles[1][2])
+                bridge_rows: list[tuple[str, dict[str, object], dict[str, object]]] = []
+                for flip_hold_tr_ratio in (0.97, 0.99):
+                    for trend_floor_mult in (0.84, 0.86):
+                        strat_over = dict(predref_strategy_over)
+                        strat_over["spot_exit_flip_hold_tr_ratio_min"] = float(flip_hold_tr_ratio)
+                        strat_over["spot_graph_overlay_trend_floor_mult"] = float(trend_floor_mult)
+                        tag = (
+                            f"overlay_only_hybrid_predref_bridge_tr{float(flip_hold_tr_ratio):0.2f}"
+                            f"_floor{float(trend_floor_mult):0.2f}"
+                        )
+                        bridge_rows.append((str(tag), dict(predref_filter_over), strat_over))
+                mode_profiles = tuple(bridge_rows)
+            else:
+                mode_profiles = tuple(base_mode_profiles)
+            rank_values = (0.0035,) if bridge_only else (0.0035, 0.0185)
+            cross_age_values = (4, 6) if bridge_only else (6, 10)
+            slope_pairs = (
+                (0.000002, 0.000001),
+                (0.000006, 0.000002),
             )
-            return
-
-        # Stage 1: direction × regime sensitivity (bounded) and keep a small diverse shortlist.
-        stage1: list[tuple[ConfigBundle, dict, str]] = []
-        base = _base_bundle(bar_size=signal_bar_size, filters=None)
-        # Ensure stage1 isn't silently gated by whatever the current milestone base uses.
-        base = replace(
-            base,
-            strategy=replace(
-                base.strategy,
-                filters=None,
-                tick_gate_mode="off",
-                spot_exit_time_et=None,
-            ),
-        )
-
-        direction_variants: list[tuple[str, str, int, str]] = []
-        base_preset = str(base.strategy.ema_preset or "").strip()
-        base_mode = str(base.strategy.ema_entry_mode or "trend").strip().lower()
-        base_confirm = int(base.strategy.entry_confirm_bars or 0)
-        if base_preset and base_mode in ("cross", "trend"):
-            direction_variants.append((base_preset, base_mode, base_confirm, f"ema={base_preset} {base_mode}"))
-
-        for preset, mode in (
-            ("2/4", "cross"),
-            ("3/7", "cross"),
-            ("3/7", "trend"),
-            ("4/9", "cross"),
-            ("4/9", "trend"),
-            ("5/10", "cross"),
-            ("9/21", "cross"),
-            ("9/21", "trend"),
-        ):
-            direction_variants.append((preset, mode, 0, f"ema={preset} {mode}"))
-
-        seen_dir: set[tuple[str, str, int]] = set()
-        direction_variants = [
-            v
-            for v in direction_variants
-            if (v[0], v[1], v[2]) not in seen_dir and not seen_dir.add((v[0], v[1], v[2]))
-        ]
-
-        regime_bar_sizes = ["4 hours", "1 day"]
-        atr_periods = [3, 7, 10, 14, 21]
-        multipliers = [0.05, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.8, 1.0]
-        sources = ["close", "hl2"]
-        stage1_exit_variants: list[tuple[dict, str]] = [
-            (
-                {"spot_exit_mode": "pct", "spot_profit_target_pct": 0.015, "spot_stop_loss_pct": 0.03},
-                "PT=0.015 SL=0.030",
-            ),
-            (
-                {"spot_exit_mode": "pct", "spot_profit_target_pct": None, "spot_stop_loss_pct": 0.03},
-                "PT=off SL=0.030",
-            ),
-        ]
-
-        def _mk_stage1_cfg(
-            *,
-            ema_preset: str,
-            entry_mode: str,
-            confirm: int,
-            rbar: str,
-            atr_p: int,
-            mult: float,
-            src: str,
-            exit_over: dict,
-            dir_note: str,
-            exit_note: str,
-        ) -> tuple[ConfigBundle, str]:
-            cfg = replace(
-                base,
-                strategy=replace(
-                    base.strategy,
-                    entry_signal="ema",
-                    ema_preset=str(ema_preset),
-                    ema_entry_mode=str(entry_mode),
-                    entry_confirm_bars=int(confirm),
-                    regime_mode="supertrend",
-                    regime_bar_size=rbar,
-                    supertrend_atr_period=int(atr_p),
-                    supertrend_multiplier=float(mult),
-                    supertrend_source=str(src),
-                    regime2_mode="off",
-                    spot_exit_mode=str(exit_over["spot_exit_mode"]),
-                    spot_profit_target_pct=exit_over.get("spot_profit_target_pct"),
-                    spot_stop_loss_pct=exit_over.get("spot_stop_loss_pct"),
-                ),
-            )
-            note = f"{dir_note} c={confirm} | ST({atr_p},{mult},{src}) @{rbar} | {exit_note}"
-            return cfg, note
-
-        def _build_stage1_plan() -> list[tuple[ConfigBundle, str, dict]]:
-            plan: list[tuple[ConfigBundle, str, dict]] = []
-            for dir_idx, (ema_preset, entry_mode, confirm, dir_note) in enumerate(direction_variants):
-                for rbar_idx, rbar in enumerate(regime_bar_sizes):
-                    for atr_idx, atr_p in enumerate(atr_periods):
-                        for mult_idx, mult in enumerate(multipliers):
-                            for src_idx, src in enumerate(sources):
-                                for exit_idx, (exit_over, exit_note) in enumerate(stage1_exit_variants):
-                                    cfg, note = _mk_stage1_cfg(
-                                        ema_preset=str(ema_preset),
-                                        entry_mode=str(entry_mode),
-                                        confirm=int(confirm),
-                                        rbar=str(rbar),
-                                        atr_p=int(atr_p),
-                                        mult=float(mult),
-                                        src=str(src),
-                                        exit_over=exit_over,
-                                        dir_note=str(dir_note),
-                                        exit_note=str(exit_note),
+            branch_b_mult_values = (1.20, 1.60)
+            variants: list[tuple[float, int, float, float, float, str, dict[str, object], dict[str, object]]] = []
+            for tag, filt_extra, strat_extra in mode_profiles:
+                for rank_min in rank_values:
+                    for cross_age in cross_age_values:
+                        for slope_med, slope_vel in slope_pairs:
+                            for branch_b_mult in branch_b_mult_values:
+                                variants.append(
+                                    (
+                                        float(rank_min),
+                                        int(cross_age),
+                                        float(slope_med),
+                                        float(slope_vel),
+                                        float(branch_b_mult),
+                                        str(tag),
+                                        dict(filt_extra),
+                                        dict(strat_extra),
                                     )
-                                    plan.append(
-                                        (
-                                            cfg,
-                                            note,
-                                            {
-                                                "dir_idx": int(dir_idx),
-                                                "rbar_idx": int(rbar_idx),
-                                                "atr_idx": int(atr_idx),
-                                                "mult_idx": int(mult_idx),
-                                                "src_idx": int(src_idx),
-                                                "exit_idx": int(exit_idx),
-                                            },
-                                        )
-                                    )
-            return plan
+                                )
+            for label, strat_over, filt_over in tuple(base_rows):
+                for rank_min, cross_age, slope_med, slope_vel, branch_b_mult, tag, filt_extra, strat_extra in variants:
+                    filt = dict(filt_over)
+                    filt["ratsv_branch_a_rank_min"] = float(rank_min)
+                    filt["ratsv_branch_a_cross_age_max_bars"] = int(cross_age)
+                    filt["ratsv_branch_a_slope_med_min_pct"] = float(slope_med)
+                    filt["ratsv_branch_a_slope_vel_min_pct"] = float(slope_vel)
+                    filt.update(dict(filt_extra))
+                    strat = dict(strat_over)
+                    strat["spot_branch_b_size_mult"] = float(branch_b_mult)
+                    strat.update(dict(strat_extra))
+                    custom_label = (
+                        f"{str(label)} | sniper rank={float(rank_min):0.4f} "
+                        f"cross={int(cross_age)} "
+                        f"slope={float(slope_med):0.6f}/{float(slope_vel):0.6f} "
+                        f"b_mult={float(branch_b_mult):0.2f} tag={tag}"
+                    )
+                    if custom_label in seen_labels:
+                        continue
+                    seen_labels.add(custom_label)
+                    timing_rows.append((str(custom_label), strat, filt))
+            if timing_rows:
+                _set_dim_rows("timing_profile", list(timing_rows))
+            _set_dim_rows("short_mult", [1.0])
 
-        stage1_plan_all = _build_stage1_plan()
-        stage1_total = len(stage1_plan_all)
-        if args.combo_fast_stage1:
-            _run_sharded_stage_worker(
-                stage_label="combo_fast stage1",
-                worker_raw=args.combo_fast_worker,
-                workers_raw=args.combo_fast_workers,
-                out_path_raw=str(args.combo_fast_out or ""),
-                out_flag_name="combo-fast-out",
-                plan_all=stage1_plan_all,
-                bars=bars_sig,
-                report_every=200,
-                heartbeat_sec=0.0,
+        preset_customizers: dict[str, object] = {
+            "squeeze": _preset_squeeze,
+            "tod_interaction": _preset_tod_interaction,
+            "risk_overlays": _preset_risk_overlays,
+            "gate_matrix": _preset_gate_matrix,
+            "lf_shock_sniper": _preset_lf_shock_sniper,
+            "hf_timing_sniper": _preset_hf_timing_sniper,
+            "ema_regime": _preset_ema_regime,
+            "tick_ema": _preset_tick_ema,
+            "ema_atr": _preset_ema_atr,
+            "r2_atr": _preset_r2_atr,
+            "r2_tod": _preset_r2_tod,
+            "loosen_atr": _preset_loosen_atr,
+        }
+        required_customizer_keys = {
+            str(_combo_full_preset_customizer(name))
+            for name in _combo_full_preset_axes(include_tiers=True, include_aliases=True)
+            if str(_combo_full_preset_customizer(name)).strip()
+        }
+        unknown_preset_customizers = sorted(required_customizer_keys - set(preset_customizers))
+        if unknown_preset_customizers:
+            raise SystemExit(
+                f"Unknown combo_full preset customizers: {', '.join(unknown_preset_customizers)}"
             )
-            return
 
-        stage1_tested = 0
-        report_every_stage1 = 200
-        print(f"combo_fast sweep: stage1 total={stage1_total} (progress every {report_every_stage1})", flush=True)
-        stage1_tested = _run_stage_cfg_rows(
-            stage_label="combo_fast sweep: stage1",
-            total=stage1_total,
-            jobs_req=int(jobs),
-            bars=bars_sig,
-            report_every=report_every_stage1,
-            on_row=lambda cfg, row, note: stage1.append((cfg, row, note)),
-            serial_plan=stage1_plan_all,
-            parallel_payloads_builder=lambda: _run_parallel_stage(
-                axis_name="combo_fast",
-                stage_label="combo_fast stage1",
-                total=stage1_total,
-                jobs=int(jobs),
-                worker_tmp_prefix="tradebot_combo_fast1_",
-                worker_tag="cf1",
-                out_prefix="stage1_out",
-                stage_flag="--combo-fast-stage1",
-                stage_value="1",
-                worker_flag="--combo-fast-worker",
-                workers_flag="--combo-fast-workers",
-                out_flag="--combo-fast-out",
-                strip_flags_with_values=(
-                    "--combo-fast-stage1",
-                    "--combo-fast-stage2",
-                    "--combo-fast-stage3",
-                    "--combo-fast-worker",
-                    "--combo-fast-workers",
-                    "--combo-fast-out",
-                    "--combo-fast-run-min-trades",
-                ),
-                run_min_trades_flag="--combo-fast-run-min-trades",
-                run_min_trades=int(run_min_trades),
-                capture_error="Failed to capture combo_fast stage1 worker stdout.",
-                failure_label="combo_fast stage1 worker",
-                missing_label="combo_fast stage1",
-                invalid_label="combo_fast stage1",
-            ),
-            parallel_default_note="combo_fast stage1",
-            parallel_dedupe_by_milestone_key=True,
-            record_milestones=False,
+        if combo_full_preset:
+            preset_spec = _combo_full_preset_spec(str(combo_full_preset))
+            freeze_dims = tuple(preset_spec.get("freeze_dims") or ())
+            if not freeze_dims:
+                raise SystemExit(f"Unknown combo_full preset: {combo_full_preset!r}")
+            _freeze_dims(*freeze_dims)
+            customizer_key = str(preset_spec.get("customizer") or "").strip().lower()
+            customizer = preset_customizers.get(str(customizer_key))
+            if callable(customizer):
+                customizer()
+
+        timing_profile_variants = list(dim_state["timing_profile"])
+        confirm_bars = [int(v) for v in list(dim_state["confirm"])]
+        pair_variants_by_dim = {
+            str(dim_name): list(dim_state[str(dim_name)])
+            for dim_name, _variants_key in _COMBO_FULL_PAIR_DIM_VARIANT_SPECS
+        }
+        short_mults = [float(v) for v in list(dim_state["short_mult"])]
+        filter_override_dims = ("perm", "tod", "vol", "cadence", "shock", "slope", "risk")
+        strategy_override_dims = ("direction", "regime", "regime2", "exit", "tick")
+
+        requires_tick_daily = any(
+            str((payload or {}).get("tick_gate_mode") or "off").strip().lower() != "off"
+            for _label, payload in pair_variants_by_dim["tick"]
         )
-        if jobs > 1 and stage1_total > 0:
-            run_calls_total += int(stage1_tested)
-
-        shortlist = _rank_cfg_rows(
-            stage1,
-            scorers=[(_score_row_pnl_dd, 15), (_score_row_pnl, 7)],
-        )
-        print("")
-        print(f"combo_fast sweep: shortlist regimes={len(shortlist)} (from stage1={len(stage1)})")
-
-        # Stage 2: for each shortlisted regime, sweep exits + loosenings, and (optionally) a small regime2 set.
-        stage2: list[tuple[ConfigBundle, dict, str]] = []
-        report_every = 200
-        stage2_plan_all = _build_stage2_plan([(cfg, note) for cfg, _row, note in shortlist])
-        stage2_total = len(stage2_plan_all)
-        print(f"combo_fast sweep: stage2 total={stage2_total} (progress every {report_every})", flush=True)
-        tested = _run_stage_cfg_rows(
-            stage_label="combo_fast sweep: stage2",
-            total=stage2_total,
-            jobs_req=int(jobs),
-            bars=bars_sig,
-            report_every=report_every,
-            on_row=lambda cfg, row, note: stage2.append((cfg, row, note)),
-            serial_plan=stage2_plan_all,
-            parallel_payloads_builder=lambda: _run_parallel_stage_with_payload(
-                axis_name="combo_fast",
-                stage_label="combo_fast stage2",
-                total=stage2_total,
-                jobs=int(jobs),
-                payload={
-                    "shortlist": [
-                        _encode_cfg_payload(base_cfg, note=base_note, note_key="base_note")
-                        for base_cfg, _row, base_note in shortlist
-                    ],
-                },
-                payload_filename="stage2_payload.json",
-                temp_prefix="tradebot_combo_fast_",
-                worker_tmp_prefix="tradebot_combo_fast2_",
-                worker_tag="cf2",
-                out_prefix="stage2_out",
-                stage_flag="--combo-fast-stage2",
-                worker_flag="--combo-fast-worker",
-                workers_flag="--combo-fast-workers",
-                out_flag="--combo-fast-out",
-                strip_flags_with_values=(
-                    "--combo-fast-stage1",
-                    "--combo-fast-stage2",
-                    "--combo-fast-stage3",
-                    "--combo-fast-worker",
-                    "--combo-fast-workers",
-                    "--combo-fast-out",
-                    "--combo-fast-run-min-trades",
-                ),
-                run_min_trades_flag="--combo-fast-run-min-trades",
-                run_min_trades=int(run_min_trades),
-                capture_error="Failed to capture combo_fast stage2 worker stdout.",
-                failure_label="combo_fast stage2 worker",
-                missing_label="combo_fast stage2",
-                invalid_label="combo_fast stage2",
-            ),
-            parallel_default_note="combo_fast stage2",
-            parallel_dedupe_by_milestone_key=True,
-            record_milestones=True,
-        )
-        if jobs > 1 and stage2_total > 0:
-            run_calls_total += int(tested)
-
-        print(f"combo_fast sweep: stage2 tested={tested} kept={len(stage2)} (min_trades={run_min_trades})")
-
-        # Stage 3: apply a small set of quality gates on the top stage2 candidates.
-        top_stage2 = _rank_cfg_rows(
-            stage2,
-            scorers=[(_score_row_pnl_dd, 15), (_score_row_pnl, 7)],
-        )
-
-        stage3_plan_all = _build_stage3_plan([(cfg, base_note) for cfg, _row, base_note in top_stage2])
-        stage3_total = len(stage3_plan_all)
-        stage3_tested = 0
-        report_every_stage3 = 200
-        print(f"combo_fast sweep: stage3 total={stage3_total} (progress every {report_every_stage3})", flush=True)
-
-        stage3: list[dict] = []
-        stage3_tested = _run_stage_cfg_rows(
-            stage_label="combo_fast sweep: stage3",
-            total=stage3_total,
-            jobs_req=int(jobs),
-            bars=bars_sig,
-            report_every=report_every_stage3,
-            on_row=lambda _cfg, row, _note: stage3.append(row),
-            serial_plan=stage3_plan_all,
-            parallel_payloads_builder=lambda: _run_parallel_stage_with_payload(
-                axis_name="combo_fast",
-                stage_label="combo_fast stage3",
-                total=stage3_total,
-                jobs=int(jobs),
-                payload={
-                    "bases": [
-                        _encode_cfg_payload(base_cfg, note=base_note, note_key="base_note")
-                        for base_cfg, _row, base_note in top_stage2
-                    ],
-                },
-                payload_filename="stage3_payload.json",
-                temp_prefix="tradebot_combo_fast3_",
-                worker_tmp_prefix="tradebot_combo_fast3_",
-                worker_tag="cf3",
-                out_prefix="stage3_out",
-                stage_flag="--combo-fast-stage3",
-                worker_flag="--combo-fast-worker",
-                workers_flag="--combo-fast-workers",
-                out_flag="--combo-fast-out",
-                strip_flags_with_values=(
-                    "--combo-fast-stage1",
-                    "--combo-fast-stage2",
-                    "--combo-fast-stage3",
-                    "--combo-fast-worker",
-                    "--combo-fast-workers",
-                    "--combo-fast-out",
-                    "--combo-fast-run-min-trades",
-                ),
-                run_min_trades_flag="--combo-fast-run-min-trades",
-                run_min_trades=int(run_min_trades),
-                capture_error="Failed to capture combo_fast stage3 worker stdout.",
-                failure_label="combo_fast stage3 worker",
-                missing_label="combo_fast stage3",
-                invalid_label="combo_fast stage3",
-            ),
-            parallel_default_note="combo_fast stage3",
-            parallel_dedupe_by_milestone_key=True,
-            record_milestones=True,
-        )
-        if jobs > 1 and stage3_total > 0:
-            run_calls_total += int(stage3_tested)
-
-        _print_leaderboards(stage3, title="combo_fast sweep (multi-axis, constrained)", top_n=int(args.top))
-
-    def _sweep_combo_full() -> None:
-        """An extremely comprehensive run that executes the full spot sweep suite.
-
-        This intentionally leans toward "do everything we can" rather than a single funnel:
-        it runs the one-axis sweeps, the named joint sweeps, and then the bounded
-        `combo_fast` funnel. Use this when you want coverage, not turnaround time.
-        """
-        nonlocal milestones_written
-        if offline:
-            # ORB sweeps always use 15m bars; preflight early so we fail fast rather than hours in.
-            _require_offline_cache_or_die(
-                cache_dir=cache_dir,
-                symbol=symbol,
-                start_dt=start_dt,
-                end_dt=end_dt,
-                bar_size="15 mins",
-                use_rth=use_rth,
-            )
-            # Tick sweeps use daily $TICK bars (RTH only). Allow either AMEX or NYSE cache.
+        if offline and requires_tick_daily:
             tick_warm_start = start_dt - timedelta(days=400)
             tick_ok = False
             for tick_sym in ("TICK-AMEX", "TICK-NYSE"):
                 try:
                     _require_offline_cache_or_die(
+                        data=data,
                         cache_dir=cache_dir,
                         symbol=tick_sym,
+                        exchange=None,
                         start_dt=tick_warm_start,
                         end_dt=end_dt,
                         bar_size="1 day",
@@ -8342,3065 +13510,276 @@ def main() -> None:
             if not tick_ok:
                 raise SystemExit(
                     "combo_full requires cached daily $TICK bars when running with --offline "
-                    "(expected under db/TICK-AMEX or db/TICK-NYSE). Run once without --offline to fetch, "
-                    "or skip tick-based sweeps by running --axis combo_fast instead."
+                    "(expected under db/TICK-AMEX or db/TICK-NYSE). Run once without --offline to fetch."
                 )
 
-        print("")
-        print("=== combo_full: running full sweep suite (very slow) ===")
-        print("")
-
-        axis_plan = list(_axis_mode_plan(mode="combo_full", include_seeded=False))
-        seed_path_raw = str(getattr(args, "seed_milestones", "") or "").strip()
-        if seed_path_raw:
-            seed_path = Path(seed_path_raw)
-            if seed_path.exists():
-                axis_plan = list(_axis_mode_plan(mode="combo_full", include_seeded=True))
-            else:
-                print(
-                    f"SKIP seeded_refine bundle ({','.join(_SEEDED_REFINEMENT_MEMBER_AXES)}): "
-                    f"--seed-milestones not found ({seed_path})",
-                    flush=True,
-                )
-        if _run_axis_plan_parallel_if_requested(
-            axis_plan=axis_plan,
-            jobs_req=int(jobs),
-            label="combo_full parallel",
-            tmp_prefix="tradebot_combo_full_",
-            offline_error="--jobs>1 for combo_full requires --offline (avoid parallel IBKR sessions).",
-        ):
-            return
-
-        _run_axis_plan_serial(axis_plan, timed=True)
-
-    def _sweep_champ_refine() -> None:
-        """Seeded, champ-focused refinement around a top-K candidate pool.
-
-        Intent:
-        - Avoid the full `combo_full` suite when you already have a promising pool.
-        - Run only the high-leverage "champ discovery" levers we've learned:
-          short asymmetry (`spot_short_risk_mult`), TOD/permission micro, signed slope,
-          and a small shock + TR overlay pocket.
-
-        This is intentionally bounded and should finish in a reasonable overnight window.
-        """
-        seed_path, candidates = _load_seed_candidates(
-            seed_milestones=args.seed_milestones,
-            axis_tag="champ_refine",
-            symbol=symbol,
-            signal_bar_size=signal_bar_size,
-            use_rth=use_rth,
-            min_trades=int(run_min_trades),
-        )
-
-        if not candidates:
-            print(f"No matching seed candidates found in {seed_path} for {symbol} {signal_bar_size} rth={use_rth}.")
-            return
-
-        seed_top = max(1, int(args.seed_top or 0))
-        family_winners = _seed_best_by_family(
-            candidates,
-            family_key_fn=lambda item: (
-                str((item.get("strategy") or {}).get("ema_preset") or ""),
-                str((item.get("strategy") or {}).get("ema_entry_mode") or ""),
-                str((item.get("strategy") or {}).get("regime_mode") or ""),
-                str((item.get("strategy") or {}).get("regime_bar_size") or ""),
-                str((item.get("strategy") or {}).get("spot_exit_mode") or ""),
-            ),
-            scorer="pnl_dd",
-        )
-        seeds = _seed_select_candidates(
-            candidates,
-            seed_top=seed_top,
-            policy="champ_refine",
-        )
-
-        print("")
-        print("=== champ_refine: seeded refinement (bounded) ===")
-        print(f"- seeds_in_file={len(candidates)} families={len(family_winners)} selected={len(seeds)} seed_top={seed_top}")
-        print(f"- seed_path={seed_path}")
-        print("")
-
-        bars_sig = _bars_cached(signal_bar_size)
-        rows: list[dict] = []
-        tested_total = 0
-        t0_all = pytime.perf_counter()
-        heartbeat_sec = 50.0
-        last_progress = float(t0_all)
-
-        short_grid_base = [1.0, 0.2, 0.05, 0.02, 0.01, 0.0]
-        is_slv = str(symbol).strip().upper() == "SLV"
-
-        # Joint permission micro grid (cross-product) around the CURRENT champ.
-        #
-        # This covers interaction edges that "one-axis-at-a-time" sweeps can miss, and it
-        # explicitly includes the tiny-delta winners we already observed:
-        # - ema_spread_min_pct=0.0025 (better 10y+2y)
-        # - ema_slope_min_pct=0.02 (better 10y+1y)
-        # - ema_spread_min_pct_down=0.06 (better 10y+2y but slightly hurts 1y)
-        perm_variants: list[tuple[dict[str, object], str]] = [({}, "perm=seed")]
-        if is_slv:
-            # Keep stage3a bounded for 10y runs (speed), but still probe a few distinct permission regimes.
-            for spread, slope, down, note in (
-                (0.0015, 0.01, 0.02, "perm=loose (0.0015/0.01/0.02)"),
-                (0.0015, 0.03, 0.02, "perm=loose_slope (0.0015/0.03/0.02)"),
-                (0.0030, 0.03, 0.04, "perm=mid (0.003/0.03/0.04)"),
-                (0.0060, 0.03, 0.08, "perm=spready (0.006/0.03/0.08)"),
-                (0.0030, 0.06, 0.08, "perm=tight_slope (0.003/0.06/0.08)"),
-                (0.0060, 0.06, 0.08, "perm=tight (0.006/0.06/0.08)"),
-            ):
-                perm_variants.append(
-                    (
-                        {
-                            "ema_spread_min_pct": float(spread),
-                            "ema_slope_min_pct": float(slope),
-                            "ema_spread_min_pct_down": float(down),
-                        },
-                        str(note),
-                    )
-                )
-        else:
-            spread_vals = [0.0025, 0.003, 0.004]
-            slope_vals = [0.02, 0.03, 0.04]
-            down_vals = [0.04, 0.05, 0.06]
-            for spread in spread_vals:
-                for slope in slope_vals:
-                    for down in down_vals:
-                        perm_variants.append(
-                            (
-                                {
-                                    "ema_spread_min_pct": float(spread),
-                                    "ema_slope_min_pct": float(slope),
-                                    "ema_spread_min_pct_down": float(down),
-                                },
-                                f"perm spread={spread:g} slope={slope:g} down={down:g}",
-                            )
-                        )
-        signed_slope_variants: list[tuple[dict[str, object], str]] = (
-            [
-                ({}, "sslope=off"),
-            ]
-            if is_slv
-            else [
-                ({}, "sslope=off"),
-                (
-                    {"ema_slope_signed_min_pct_up": 0.003, "ema_slope_signed_min_pct_down": 0.003},
-                    "sslope=0.003/0.003",
-                ),
-                (
-                    {"ema_slope_signed_min_pct_up": 0.005, "ema_slope_signed_min_pct_down": 0.005},
-                    "sslope=0.005/0.005",
-                ),
-                (
-                    {"ema_slope_signed_min_pct_up": 0.003, "ema_slope_signed_min_pct_down": 0.006},
-                    "sslope=0.003/0.006",
-                ),
-            ]
-        )
-        if is_slv:
-            # SLV legacy champs were discovered with full RTH-only cadence.
-            #
-            # For FULL24 runs, we explicitly probe a small "all-hours vs RTH" pocket so
-            # a 24/5 seed can compete fairly (and so we can find an actually-all-hours champ).
-            tod_variants: list[tuple[int | None, int | None, int, int, str]]
-            if use_rth:
-                tod_variants = [(9, 16, 0, 0, "tod=09-16")]
-            else:
-                tod_variants = [
-                    (None, None, 0, 0, "tod=off"),
-                    (9, 16, 0, 0, "tod=09-16"),
-                ]
-        else:
-            tod_variants = [
-                (None, None, 0, 0, "tod=seed"),
-                (10, 15, 0, 0, "tod=10-15"),
-                (10, 15, 1, 2, "tod=10-15 (skip=1 cd=2)"),
-                (9, 16, 0, 0, "tod=09-16"),
-                (10, 16, 0, 0, "tod=10-16"),
-            ]
-
-        # Shock + risk overlay pockets are centralized in helper registries.
-        shock_variants = _build_champ_refine_shock_variants(is_slv=is_slv)
-        risk_variants = _build_champ_refine_risk_variants(is_slv=is_slv)
-
-        def _entry_variants_for_cfg(base_cfg: ConfigBundle) -> list[tuple[str, int, str]]:
-            seed_mode = str(getattr(base_cfg.strategy, "ema_entry_mode", "cross") or "cross").strip().lower()
-            if seed_mode not in ("cross", "trend"):
-                seed_mode = "cross"
-            try:
-                seed_confirm = int(getattr(base_cfg.strategy, "entry_confirm_bars", 0) or 0)
-            except (TypeError, ValueError):
-                seed_confirm = 0
-            other_mode = "trend" if seed_mode == "cross" else "cross"
-            return [
-                (seed_mode, seed_confirm, f"entry=seed({seed_mode} c={seed_confirm})"),
-                (other_mode, 0, f"entry={other_mode} c=0"),
-            ]
-
-        def _build_stage3a_plan(
-            base_exit_local: list[tuple[ConfigBundle, str]],
-            *,
-            seed_tag_local: str,
-        ) -> list[tuple[ConfigBundle, str, dict]]:
-            plan: list[tuple[ConfigBundle, str, dict]] = []
-            for base_idx, (base_cfg, exit_note) in enumerate(base_exit_local):
-                entry_variants = _entry_variants_for_cfg(base_cfg)
-                for tod_idx, (tod_s, tod_e, skip, cooldown, tod_note) in enumerate(tod_variants):
-                    for perm_idx, (perm_over, perm_note) in enumerate(perm_variants):
-                        for ss_idx, (ss_over, ss_note) in enumerate(signed_slope_variants):
-                            for entry_idx, (entry_mode, entry_confirm, entry_note) in enumerate(entry_variants):
-                                over: dict[str, object] = {}
-                                over.update(perm_over)
-                                over.update(ss_over)
-                                over["skip_first_bars"] = int(skip)
-                                over["cooldown_bars"] = int(cooldown)
-                                over["entry_start_hour_et"] = tod_s
-                                over["entry_end_hour_et"] = tod_e
-                                f = _merge_filters(base_cfg.strategy.filters, over)
-                                cfg = replace(
-                                    base_cfg,
-                                    strategy=replace(
-                                        base_cfg.strategy,
-                                        filters=f,
-                                        ema_entry_mode=str(entry_mode),
-                                        entry_confirm_bars=int(entry_confirm),
-                                    ),
-                                )
-                                note = (
-                                    f"{seed_tag_local} | short_mult={getattr(cfg.strategy,'spot_short_risk_mult', 1.0):g} | "
-                                    f"{exit_note} | {entry_note} | {tod_note} | {perm_note} | {ss_note}"
-                                )
-                                plan.append(
-                                    (
-                                        cfg,
-                                        note,
-                                        {
-                                            "base_idx": int(base_idx),
-                                            "tod_idx": int(tod_idx),
-                                            "perm_idx": int(perm_idx),
-                                            "ss_idx": int(ss_idx),
-                                            "entry_idx": int(entry_idx),
-                                        },
-                                    )
-                                )
-            return plan
-
-        def _build_stage3b_plan(
-            shortlist_local: list[tuple[ConfigBundle, str]],
-        ) -> list[tuple[ConfigBundle, str, dict]]:
-            plan: list[tuple[ConfigBundle, str, dict]] = []
-            for base_idx, (base_cfg, base_note) in enumerate(shortlist_local):
-                for shock_idx, (shock_over, shock_note) in enumerate(shock_variants):
-                    for risk_idx, (risk_over, risk_note) in enumerate(risk_variants):
-                        over: dict[str, object] = {}
-                        over.update(shock_over)
-                        over.update(risk_over)
-                        f = _merge_filters(base_cfg.strategy.filters, over)
-                        cfg = replace(base_cfg, strategy=replace(base_cfg.strategy, filters=f))
-                        note = f"{base_note} | {shock_note} | {risk_note}"
-                        plan.append(
-                            (
-                                cfg,
-                                note,
-                                {
-                                    "base_idx": int(base_idx),
-                                    "shock_idx": int(shock_idx),
-                                    "risk_idx": int(risk_idx),
-                                },
-                            )
-                        )
-            return plan
-
-        report_every = 200
-
-        if args.champ_refine_stage3a:
-            payload_path = Path(str(args.champ_refine_stage3a))
-            payload_decoded = _load_worker_stage_payload(
-                schema_name="champ_refine_stage3a",
-                payload_path=payload_path,
-            )
-            seed_tag = str(payload_decoded.get("seed_tag") or "seed")
-            base_exit_local = [
-                (cfg, note)
-                for cfg, note in (payload_decoded.get("cfg_pairs") or [])
-                if isinstance(note, str)
-            ]
-
-            stage3a_plan_all = _build_stage3a_plan(base_exit_local, seed_tag_local=seed_tag)
-            stage3a_total = len(stage3a_plan_all)
-            if len(stage3a_plan_all) != int(stage3a_total):
-                raise SystemExit(
-                    f"champ_refine stage3a worker internal error: combos={len(stage3a_plan_all)} expected={stage3a_total}"
-                )
-
-            _run_sharded_stage_worker(
-                stage_label="champ_refine stage3a",
-                worker_raw=args.champ_refine_worker,
-                workers_raw=args.champ_refine_workers,
-                out_path_raw=str(args.champ_refine_out or ""),
-                out_flag_name="champ-refine-out",
-                plan_all=stage3a_plan_all,
-                bars=bars_sig,
-                report_every=report_every,
-                heartbeat_sec=heartbeat_sec,
-            )
-            return
-
-        if args.champ_refine_stage3b:
-            payload_path = Path(str(args.champ_refine_stage3b))
-            payload_decoded = _load_worker_stage_payload(
-                schema_name="champ_refine_stage3b",
-                payload_path=payload_path,
-            )
-            shortlist_local = [
-                (cfg, note)
-                for cfg, note in (payload_decoded.get("cfg_pairs") or [])
-                if isinstance(note, str)
-            ]
-
-            stage3b_plan_all = _build_stage3b_plan(shortlist_local)
-            stage3b_total = len(stage3b_plan_all)
-            if len(stage3b_plan_all) != int(stage3b_total):
-                raise SystemExit(
-                    f"champ_refine stage3b worker internal error: combos={len(stage3b_plan_all)} expected={stage3b_total}"
-                )
-
-            _run_sharded_stage_worker(
-                stage_label="champ_refine stage3b",
-                worker_raw=args.champ_refine_worker,
-                workers_raw=args.champ_refine_workers,
-                out_path_raw=str(args.champ_refine_out or ""),
-                out_flag_name="champ-refine-out",
-                plan_all=stage3b_plan_all,
-                bars=bars_sig,
-                report_every=report_every,
-                heartbeat_sec=heartbeat_sec,
-            )
-            return
-
-        for seed_idx, seed in enumerate(seeds, start=1):
-            seed_metrics = seed.get("metrics") or {}
-            try:
-                seed_pnl_dd = float(seed_metrics.get("pnl_over_dd") or 0.0)
-            except (TypeError, ValueError):
-                seed_pnl_dd = 0.0
-            try:
-                seed_pnl = float(seed_metrics.get("pnl") or 0.0)
-            except (TypeError, ValueError):
-                seed_pnl = 0.0
-            seed_name = str(seed.get("group_name") or "").strip() or f"seed_{seed_idx:02d}"
-            st = seed.get("strategy") or {}
-            seed_tag = (
-                f"seed#{seed_idx:02d} "
-                f"ema={st.get('ema_preset')} {st.get('ema_entry_mode')} "
-                f"regime={st.get('regime_mode')}@{st.get('regime_bar_size')} "
-                f"exit={st.get('spot_exit_mode')}"
-            )
-            print(f"champ_refine seed {seed_idx}/{len(seeds)}: pnl/dd={seed_pnl_dd:.2f} pnl={seed_pnl:.0f} {seed_tag}")
-
-            base = _base_bundle(bar_size=signal_bar_size, filters=None)
-            cfg_seed = _apply_milestone_base(base, strategy=seed["strategy"], filters=seed.get("filters"))
-
-            base_row = _run_cfg(cfg=cfg_seed)
-            if base_row:
-                note = f"{seed_tag} | base"
-                base_row["note"] = note
-                _record_milestone(cfg_seed, base_row, note)
-                rows.append(base_row)
-
-            # Stage 1: short asymmetry scan (find a good multiplier pocket for this seed).
-            seed_short_raw = getattr(cfg_seed.strategy, "spot_short_risk_mult", 1.0)
-            try:
-                seed_short = float(1.0 if seed_short_raw is None else seed_short_raw)
-            except (TypeError, ValueError):
-                seed_short = 1.0
-            short_grid = [seed_short, *short_grid_base]
-            short_vals: list[float] = []
-            for v in short_grid:
-                try:
-                    f = float(v)
-                except (TypeError, ValueError):
-                    continue
-                if f < 0.0:
-                    continue
-                if f not in short_vals:
-                    short_vals.append(f)
-
-            stage1: list[tuple[float, ConfigBundle, dict]] = []
-            for mult in short_vals:
-                cfg = replace(cfg_seed, strategy=replace(cfg_seed.strategy, spot_short_risk_mult=float(mult)))
-                row = _run_cfg(cfg=cfg)
-                tested_total += 1
-                now = pytime.perf_counter()
-                if tested_total % report_every == 0 or (now - last_progress) >= heartbeat_sec:
-                    print(
-                        _progress_line(
-                            label="champ_refine progress",
-                            tested=int(tested_total),
-                            total=None,
-                            kept=len(rows),
-                            started_at=t0_all,
-                            rate_unit="cfg/s",
-                        ),
-                        flush=True,
-                    )
-                    last_progress = float(now)
-                if not row:
-                    continue
-                note = f"{seed_tag} | short_mult={mult:g}"
-                row["note"] = note
-                _record_milestone(cfg, row, note)
-                rows.append(row)
-                stage1.append((float(mult), cfg, row))
-
-            if not stage1:
-                continue
-
-            stage1_sorted = sorted(stage1, key=lambda t: _score_row_pnl_dd(t[2]), reverse=True)
-            top_short_mults: list[float] = []
-            for mult, _, _ in stage1_sorted:
-                if mult not in top_short_mults:
-                    top_short_mults.append(mult)
-                if len(top_short_mults) >= 2:
-                    break
-            if 0.01 not in top_short_mults:
-                top_short_mults.append(0.01)
-            top_short_mults = top_short_mults[:3]
-
-            best_short_mult = top_short_mults[0]
-
-            # Stage 2: micro bias neighborhood (Supertrend only), evaluated using the best short-mult from stage1.
-            base_for_regime = replace(cfg_seed, strategy=replace(cfg_seed.strategy, spot_short_risk_mult=best_short_mult))
-            regime_variants: list[ConfigBundle] = [base_for_regime]
-            if str(getattr(base_for_regime.strategy, "regime_mode", "") or "").strip().lower() == "supertrend":
-                try:
-                    seed_atr = int(getattr(base_for_regime.strategy, "supertrend_atr_period", 10) or 10)
-                except (TypeError, ValueError):
-                    seed_atr = 10
-                try:
-                    seed_mult = float(getattr(base_for_regime.strategy, "supertrend_multiplier", 3.0) or 3.0)
-                except (TypeError, ValueError):
-                    seed_mult = 3.0
-                seed_src = str(getattr(base_for_regime.strategy, "supertrend_source", "hl2") or "hl2").strip().lower()
-
-                atr_vals = []
-                atr_candidates = (seed_atr, 7, 10, 14) if not is_slv else (seed_atr, 5, 7, 10, 14)
-                for v in atr_candidates:
-                    if v not in atr_vals:
-                        atr_vals.append(v)
-                mult_vals: list[float] = []
-                mult_candidates = (
-                    (seed_mult - 0.05, seed_mult, seed_mult + 0.05, 0.45, 0.50, 0.55, 0.60)
-                    if not is_slv
-                    else (seed_mult - 0.05, seed_mult, seed_mult + 0.05, seed_mult + 0.10)
-                )
-                for v in mult_candidates:
-                    if v <= 0:
-                        continue
-                    fv = float(v)
-                    if fv not in mult_vals:
-                        mult_vals.append(fv)
-                src_vals: list[str] = []
-                for v in (seed_src, "hl2", "close"):
-                    sv = str(v).strip().lower()
-                    if sv and sv not in src_vals:
-                        src_vals.append(sv)
-
-                stage2: list[tuple[ConfigBundle, dict]] = []
-                atr_pick = atr_vals[:4] if is_slv else atr_vals[:3]
-                for atr_p in atr_pick:
-                    for mult in mult_vals[:4]:
-                        for src in src_vals[:2]:
-                            cfg = replace(
-                                base_for_regime,
-                                strategy=replace(
-                                    base_for_regime.strategy,
-                                    supertrend_atr_period=int(atr_p),
-                                    supertrend_multiplier=float(mult),
-                                    supertrend_source=str(src),
-                                ),
-                            )
-                            row = _run_cfg(cfg=cfg)
-                            tested_total += 1
-                            now = pytime.perf_counter()
-                            if tested_total % report_every == 0 or (now - last_progress) >= heartbeat_sec:
-                                print(
-                                    _progress_line(
-                                        label="champ_refine progress",
-                                        tested=int(tested_total),
-                                        total=None,
-                                        kept=len(rows),
-                                        started_at=t0_all,
-                                        rate_unit="cfg/s",
-                                    ),
-                                    flush=True,
-                                )
-                                last_progress = float(now)
-                            if not row:
-                                continue
-                            note = f"{seed_tag} | ST({atr_p},{mult:g},{src}) short_mult={best_short_mult:g}"
-                            row["note"] = note
-                            _record_milestone(cfg, row, note)
-                            rows.append(row)
-                            stage2.append((cfg, row))
-                if stage2:
-                    stage2_sorted = sorted(stage2, key=lambda t: _score_row_pnl_dd(t[1]), reverse=True)[:2]
-                    regime_variants = [t[0] for t in stage2_sorted]
-
-            # Expand the shortlist: top regimes × top short mults.
-            base_variants: list[ConfigBundle] = []
-            for r_cfg in regime_variants[:2]:
-                for mult in top_short_mults:
-                    base_variants.append(
-                        replace(r_cfg, strategy=replace(r_cfg.strategy, spot_short_risk_mult=float(mult)))
-                    )
-
-            # Stage 3A: lightweight micro over exit semantics + TOD/permission/signed-slope.
-            #
-            # The CURRENT champ family unlocked on:
-            # - stop-only exits + reversal exits
-            # - flip exits gated to profit-only
-            # so we include a tiny exit pocket here (still bounded).
-            base_exit_variants: list[tuple[ConfigBundle, str]] = []
-            for base_cfg in base_variants:
-                seen_exit: set[str] = set()
-
-                def _add_exit(cfg: ConfigBundle, note: str) -> None:
-                    key = _milestone_key(cfg)
-                    if key in seen_exit:
-                        return
-                    seen_exit.add(key)
-                    base_exit_variants.append((cfg, note))
-
-                _add_exit(base_cfg, "exit=seed")
-                if is_slv:
-                    _add_exit(
-                        replace(base_cfg, strategy=replace(base_cfg.strategy, spot_close_eod=True)),
-                        "exit=seed close_eod=1",
-                    )
-                _add_exit(
-                    replace(base_cfg, strategy=replace(base_cfg.strategy, flip_exit_min_hold_bars=2)),
-                    "exit=seed hold=2",
-                )
-
-                # Champ-style stop-only + reversal exit (works even if the seed used ATR exits).
-                sl_vals = (0.03, 0.04, 0.045) if not is_slv else (0.008, 0.010, 0.012, 0.015, 0.020)
-                hold_vals = (2,) if not is_slv else (0, 2, 4)
-                for sl in sl_vals:
-                    for hold in hold_vals:
-                        _add_exit(
-                            replace(
-                                base_cfg,
-                                strategy=replace(
-                                    base_cfg.strategy,
-                                    spot_exit_mode="pct",
-                                    spot_profit_target_pct=None,
-                                    spot_stop_loss_pct=float(sl),
-                                    exit_on_signal_flip=True,
-                                    flip_exit_mode="entry",
-                                    flip_exit_only_if_profit=True,
-                                    flip_exit_min_hold_bars=int(hold),
-                                    flip_exit_gate_mode="off",
-                                ),
-                            ),
-                            f"exit=stop{sl:g} flipprofit hold={hold}",
-                        )
-                        if is_slv and float(sl) == 0.010 and hold in (0, 2):
-                            _add_exit(
-                                replace(
-                                    base_cfg,
-                                    strategy=replace(
-                                        base_cfg.strategy,
-                                        spot_exit_mode="pct",
-                                        spot_profit_target_pct=None,
-                                        spot_stop_loss_pct=float(sl),
-                                        exit_on_signal_flip=True,
-                                        flip_exit_mode="entry",
-                                        flip_exit_only_if_profit=True,
-                                        flip_exit_min_hold_bars=int(hold),
-                                        flip_exit_gate_mode="off",
-                                        spot_close_eod=True,
-                                    ),
-                                ),
-                                f"exit=stop{sl:g} flipprofit hold={hold} close_eod=1",
-                            )
-
-                # Explicit "exit on the next flip" (no profit gate). Useful for reducing
-                # long-hold drawdowns / improving stability.
-                sl_flip_any = 0.04 if not is_slv else 0.012
-                _add_exit(
-                    replace(
-                        base_cfg,
-                        strategy=replace(
-                            base_cfg.strategy,
-                            spot_exit_mode="pct",
-                            spot_profit_target_pct=None,
-                            spot_stop_loss_pct=float(sl_flip_any),
-                            exit_on_signal_flip=True,
-                            flip_exit_mode="cross",
-                            flip_exit_only_if_profit=False,
-                            flip_exit_min_hold_bars=0,
-                            flip_exit_gate_mode="off",
-                        ),
-                    ),
-                    f"exit=stop{sl_flip_any:g} flipany cross hold=0",
-                )
-
-                # "Exit accuracy" gate (re-test in the modern shock/risk context).
-                sl_accuracy = 0.04 if not is_slv else 0.012
-                _add_exit(
-                    replace(
-                        base_cfg,
-                        strategy=replace(
-                            base_cfg.strategy,
-                            spot_exit_mode="pct",
-                            spot_profit_target_pct=None,
-                            spot_stop_loss_pct=float(sl_accuracy),
-                            exit_on_signal_flip=True,
-                            flip_exit_mode="entry",
-                            flip_exit_only_if_profit=True,
-                            flip_exit_min_hold_bars=2,
-                            flip_exit_gate_mode="regime_or_permission",
-                        ),
-                    ),
-                    f"exit=stop{sl_accuracy:g} flipprofit hold=2 gate=reg_or_perm",
-                )
-
-                # Trend confirm micro (very small): sometimes improves stability by reducing noise.
-                if str(getattr(base_cfg.strategy, "ema_entry_mode", "") or "").strip().lower() == "trend":
-                    try:
-                        seed_confirm = int(getattr(base_cfg.strategy, "entry_confirm_bars", 0) or 0)
-                    except (TypeError, ValueError):
-                        seed_confirm = 0
-                    if seed_confirm == 0:
-                        sl_confirm = 0.04 if not is_slv else 0.012
-                        _add_exit(
-                            replace(
-                                base_cfg,
-                                strategy=replace(
-                                    base_cfg.strategy,
-                                    entry_confirm_bars=1,
-                                    spot_exit_mode="pct",
-                                    spot_profit_target_pct=None,
-                                    spot_stop_loss_pct=float(sl_confirm),
-                                    exit_on_signal_flip=True,
-                                    flip_exit_mode="entry",
-                                    flip_exit_only_if_profit=True,
-                                    flip_exit_min_hold_bars=2,
-                                    flip_exit_gate_mode="off",
-                                ),
-                            ),
-                            f"exit=stop{sl_confirm:g} flipprofit hold=2 confirm=1",
-                        )
-
-            stage3a: list[tuple[ConfigBundle, dict, str]] = []
-            total_3a = len(base_exit_variants) * 2 * len(tod_variants) * len(perm_variants) * len(signed_slope_variants)
-            print(f"  stage3a micro: total={total_3a}", flush=True)
-
-            def _on_stage3a_row(cfg: ConfigBundle, row: dict, note: str) -> None:
-                rows.append(row)
-                stage3a.append((cfg, row, note))
-
-            tested_total += _run_stage_cfg_rows(
-                stage_label="  stage3a",
-                total=total_3a,
-                jobs_req=int(jobs),
-                serial_plan_builder=lambda: _build_stage3a_plan(base_exit_variants, seed_tag_local=seed_tag),
-                bars=bars_sig,
-                report_every=report_every,
-                heartbeat_sec=heartbeat_sec,
-                on_row=_on_stage3a_row,
-                parallel_payloads_builder=lambda: _run_parallel_stage_with_payload(
-                    axis_name="champ_refine",
-                    stage_label="  stage3a",
-                    total=total_3a,
-                    jobs=int(jobs),
-                    payload={
-                        "seed_tag": seed_tag,
-                        "base_exit_variants": [
-                            _encode_cfg_payload(base_cfg, note=exit_note, note_key="exit_note")
-                            for base_cfg, exit_note in base_exit_variants
-                        ],
-                    },
-                    payload_filename="stage3a_payload.json",
-                    temp_prefix="tradebot_champ_refine_3a_",
-                    worker_tmp_prefix="tradebot_champ_refine_3a_run_",
-                    worker_tag="cr3a",
-                    out_prefix="stage3a_out",
-                    stage_flag="--champ-refine-stage3a",
-                    worker_flag="--champ-refine-worker",
-                    workers_flag="--champ-refine-workers",
-                    out_flag="--champ-refine-out",
-                    strip_flags_with_values=(
-                        "--champ-refine-stage3a",
-                        "--champ-refine-stage3b",
-                        "--champ-refine-worker",
-                        "--champ-refine-workers",
-                        "--champ-refine-out",
-                        "--champ-refine-run-min-trades",
-                    ),
-                    run_min_trades_flag="--champ-refine-run-min-trades",
-                    run_min_trades=int(run_min_trades),
-                    capture_error="Failed to capture champ_refine stage3a worker stdout.",
-                    failure_label="champ_refine stage3a worker",
-                    missing_label="champ_refine stage3a",
-                    invalid_label="champ_refine stage3a",
-                ),
-                parallel_default_note="stage3a",
-                parallel_dedupe_by_milestone_key=True,
-                record_milestones=True,
-            )
-
-            if not stage3a:
-                continue
-
-            shortlist = _rank_cfg_rows(
-                stage3a,
-                scorers=[(_score_row_pnl_dd, 6), (_score_row_pnl, 4), (_score_row_roi, 3), (_score_row_win_rate, 3)],
-                limit=10,
-            )
-
-            # Stage 3B: apply shock + TR-overlay pockets to the shortlist.
-            total_3b = len(shortlist) * len(shock_variants) * len(risk_variants)
-            print(f"  stage3b shock+risk: shortlist={len(shortlist)} total={total_3b}", flush=True)
-
-            def _on_stage3b_row(_cfg: ConfigBundle, row: dict, _note: str) -> None:
-                rows.append(row)
-
-            tested_total += _run_stage_cfg_rows(
-                stage_label="  stage3b",
-                total=total_3b,
-                jobs_req=int(jobs),
-                serial_plan_builder=lambda: _build_stage3b_plan([(cfg, note) for cfg, _row, note in shortlist]),
-                bars=bars_sig,
-                report_every=report_every,
-                heartbeat_sec=heartbeat_sec,
-                on_row=_on_stage3b_row,
-                parallel_payloads_builder=lambda: _run_parallel_stage_with_payload(
-                    axis_name="champ_refine",
-                    stage_label="  stage3b",
-                    total=total_3b,
-                    jobs=int(jobs),
-                    payload={
-                        "seed_tag": seed_tag,
-                        "shortlist": [
-                            _encode_cfg_payload(base_cfg, note=base_note, note_key="base_note")
-                            for base_cfg, _row, base_note in shortlist
-                        ],
-                    },
-                    payload_filename="stage3b_payload.json",
-                    temp_prefix="tradebot_champ_refine_3b_",
-                    worker_tmp_prefix="tradebot_champ_refine_3b_run_",
-                    worker_tag="cr3b",
-                    out_prefix="stage3b_out",
-                    stage_flag="--champ-refine-stage3b",
-                    worker_flag="--champ-refine-worker",
-                    workers_flag="--champ-refine-workers",
-                    out_flag="--champ-refine-out",
-                    strip_flags_with_values=(
-                        "--champ-refine-stage3a",
-                        "--champ-refine-stage3b",
-                        "--champ-refine-worker",
-                        "--champ-refine-workers",
-                        "--champ-refine-out",
-                        "--champ-refine-run-min-trades",
-                    ),
-                    run_min_trades_flag="--champ-refine-run-min-trades",
-                    run_min_trades=int(run_min_trades),
-                    capture_error="Failed to capture champ_refine stage3b worker stdout.",
-                    failure_label="champ_refine stage3b worker",
-                    missing_label="champ_refine stage3b",
-                    invalid_label="champ_refine stage3b",
-                ),
-                parallel_default_note="stage3b",
-                parallel_dedupe_by_milestone_key=True,
-                record_milestones=True,
-            )
-
-        print("")
-        _print_leaderboards(rows, title="champ_refine (seeded, bounded)", top_n=int(args.top))
-
-    def _sweep_shock_alpha_refine() -> None:
-        """Seeded shock monetization micro grid (down-shock alpha, bounded).
-
-        Goal: explore "stronger shock detection + monetization" without changing the base signal family,
-        by sweeping:
-        - earlier detectors (daily ATR% + optional TR%-trigger; TR-ratio "velocity"),
-        - down-shock asymmetry (scale shorts up; scale longs down/zero),
-        - risk scaling under extreme ATR% (so we don't nuke stability).
-        """
-        nonlocal run_calls_total
-
-        seed_path, candidates = _load_seed_candidates(
-            seed_milestones=args.seed_milestones,
-            axis_tag="shock_alpha_refine",
-            symbol=symbol,
-            signal_bar_size=signal_bar_size,
-            use_rth=use_rth,
-            default_path="backtests/out/tqqq_exec5m_v34_champ_only_milestone.json",
-        )
-
-        if not candidates:
-            print(f"No matching seed candidates found in {seed_path} for {symbol} {signal_bar_size} rth={use_rth}.")
-            return
-
-        seed_top = max(1, int(args.seed_top or 0))
-        seeds = _seed_top_candidates(candidates, seed_top=seed_top)
-
-        print("")
-        print("=== shock_alpha_refine: seeded shock monetization micro grid ===")
-        print(f"- seeds_in_file={len(candidates)} selected={len(seeds)} seed_top={seed_top}")
-        print(f"- seed_path={seed_path}")
-        print("")
-
-        rows: list[dict] = []
-        bars_sig = _bars_cached(signal_bar_size)
-        report_every = 100
-
-        gate_modes = ["detect", "surf", "block_longs"]
-        regime_override_dirs = [False, True]
-
-        # "Monetize down-shocks" knobs (only active when shock=True and direction=down).
-        short_risk_factors = [1.0, 2.0, 5.0, 12.0]
-        long_down_factors = [1.0, 0.7, 0.4, 0.0]
-
-        # When ATR% explodes, clamp the risk-dollars (prevents over-leverage in the worst regime).
-        risk_scale_variants: list[tuple[float | None, float | None, str]] = [
-            (None, None, "risk_scale=off"),
-            (12.0, 0.2, "risk_scale=atr12 min=0.2"),
-            (12.0, 0.3, "risk_scale=atr12 min=0.3"),
-            (14.0, 0.2, "risk_scale=atr14 min=0.2"),
-        ]
-
-        detector_variants: list[tuple[dict[str, object], str]] = []
-        # Daily ATR% family (v25/v31/v32 core), plus TR%-triggered early ON.
-        for on_atr, off_atr in ((13.5, 13.0), (14.0, 13.5)):
-            for on_tr in (None, 11.0, 14.0):
-                over: dict[str, object] = {
-                    "shock_detector": "daily_atr_pct",
-                    "shock_daily_atr_period": 14,
-                    "shock_daily_on_atr_pct": float(on_atr),
-                    "shock_daily_off_atr_pct": float(off_atr),
-                }
-                note = f"det=daily_atr on={on_atr:g} off={off_atr:g}"
-                if on_tr is not None:
-                    over["shock_daily_on_tr_pct"] = float(on_tr)
-                    note += f" tr>={on_tr:g}"
-                detector_variants.append((over, note))
-
-        # TR-ratio shock (vol acceleration / velocity).
-        # We include more-sensitive variants intended to trigger earlier in crash ramps.
-        for fast, slow, on_ratio, off_ratio, min_tr in (
-            # Baseline (v34 champ)
-            (3, 21, 1.30, 1.20, 5.0),
-            # Baseline (v33 champ)
-            (5, 50, 1.45, 1.30, 7.0),
-            # Moderate: lower on-ratio (still fairly strict minTR%)
-            (5, 50, 1.35, 1.25, 7.0),
-            # Moderate: allow slightly lower baseline TR%
-            (5, 50, 1.35, 1.25, 5.0),
-            (5, 21, 1.35, 1.25, 5.0),
-            (3, 21, 1.35, 1.25, 5.0),
-            # Aggressive: very early "vol velocity" triggers
-            (5, 50, 1.30, 1.20, 5.0),
-            (5, 21, 1.30, 1.20, 5.0),
-        ):
-            detector_variants.append(
-                (
-                    {
-                        "shock_detector": "tr_ratio",
-                        "shock_atr_fast_period": int(fast),
-                        "shock_atr_slow_period": int(slow),
-                        "shock_on_ratio": float(on_ratio),
-                        "shock_off_ratio": float(off_ratio),
-                        "shock_min_atr_pct": float(min_tr),
-                    },
-                    f"det=tr_ratio {fast}/{slow} on={on_ratio:g} off={off_ratio:g} minTR%={min_tr:g}",
-                )
-            )
-
-        total = (
-            len(seeds)
-            * len(gate_modes)
-            * len(detector_variants)
-            * len(regime_override_dirs)
-            * len(short_risk_factors)
-            * len(long_down_factors)
-            * len(risk_scale_variants)
-        )
-
-        def _build_variants(cfg_seed: ConfigBundle, seed_note: str, _item: dict):
-            for gate_mode in gate_modes:
-                for det_over, det_note in detector_variants:
-                    for override_dir in regime_override_dirs:
-                        for short_factor in short_risk_factors:
-                            for long_down in long_down_factors:
-                                for target_atr, min_mult, scale_note in risk_scale_variants:
-                                    f_over: dict[str, object] = {
-                                        "shock_gate_mode": str(gate_mode),
-                                        "shock_direction_source": "signal",
-                                        "shock_direction_lookback": 1,
-                                        "shock_regime_override_dir": bool(override_dir),
-                                        "shock_short_risk_mult_factor": float(short_factor),
-                                        "shock_long_risk_mult_factor_down": float(long_down),
-                                    }
-                                    if target_atr is None:
-                                        f_over["shock_risk_scale_target_atr_pct"] = None
-                                    else:
-                                        f_over["shock_risk_scale_target_atr_pct"] = float(target_atr)
-                                        if min_mult is not None:
-                                            f_over["shock_risk_scale_min_mult"] = float(min_mult)
-                                    f_over.update(det_over)
-                                    f_obj = _merge_filters(cfg_seed.strategy.filters, f_over)
-                                    cfg = replace(cfg_seed, strategy=replace(cfg_seed.strategy, filters=f_obj))
-                                    note = (
-                                        f"{seed_note} | gate={gate_mode} {det_note} | "
-                                        f"override_dir={int(override_dir)} | "
-                                        f"short_factor={short_factor:g} long_down={long_down:g} | {scale_note}"
-                                    )
-                                    yield cfg, note, None
-
-        tested_total = _run_seeded_micro_grid(
-            axis_tag="shock_alpha_refine",
-            seeds=seeds,
-            rows=rows,
-            build_variants=_build_variants,
-            total=total,
-            report_every=report_every,
-        )
-        if int(tested_total) < 0:
-            return
-        if jobs > 1 and int(tested_total) > 0:
-            run_calls_total += int(tested_total)
-
-        _print_leaderboards(rows, title="shock_alpha_refine (seeded shock alpha micro)", top_n=int(args.top))
-
-    def _sweep_shock_velocity_refine(*, wide: bool = False) -> None:
-        """Seeded joint micro grid: TR-ratio shock sensitivity × TR% overlays (gap magnitude + TR velocity).
-
-        Intent: dethrone the CURRENT champ by improving "pre-shock ramp" behavior while staying inside the
-        same base strategy family (seeded from a champ milestone JSON).
-        """
-        nonlocal run_calls_total
-
-        axis_tag = "shock_velocity_refine_wide" if wide else "shock_velocity_refine"
-
-        seed_path, candidates = _load_seed_candidates(
-            seed_milestones=args.seed_milestones,
-            axis_tag=axis_tag,
-            symbol=symbol,
-            signal_bar_size=signal_bar_size,
-            use_rth=use_rth,
-            default_path="backtests/out/tqqq_exec5m_v37_champ_only_milestone.json",
-        )
-
-        if not candidates:
-            print(f"No matching seed candidates found in {seed_path} for {symbol} {signal_bar_size} rth={use_rth}.")
-            return
-
-        seed_top = max(1, int(args.seed_top or 0))
-        seeds = _seed_top_candidates(candidates, seed_top=seed_top)
-
-        print("")
-        print(f"=== {axis_tag}: seeded TR-ratio × TR-velocity overlays ===")
-        print(f"- seeds_in_file={len(candidates)} selected={len(seeds)} seed_top={seed_top}")
-        print(f"- seed_path={seed_path}")
-        print("")
-
-        rows: list[dict] = []
-        bars_sig = _bars_cached(signal_bar_size)
-        report_every = 100
-
-        shock_variants: list[tuple[dict[str, object], str]] = []
-        shock_fast_slow = ((3, 21), (5, 21), (5, 50))
-        shock_on_off = ((1.25, 1.15), (1.30, 1.20), (1.35, 1.25), (1.40, 1.30))
-        shock_min_tr = (4.0, 5.0, 6.0, 7.0)
-        if wide:
-            shock_fast_slow = (*shock_fast_slow, (3, 50))
-            shock_on_off = ((1.20, 1.10), *shock_on_off)
-            shock_min_tr = (3.0, *shock_min_tr)
-
-        for fast, slow in shock_fast_slow:
-            for on_ratio, off_ratio in shock_on_off:
-                for min_tr in shock_min_tr:
-                    shock_variants.append(
-                        (
-                            {
-                                "shock_gate_mode": "detect",
-                                "shock_detector": "tr_ratio",
-                                "shock_direction_source": "signal",
-                                "shock_direction_lookback": 1,
-                                "shock_atr_fast_period": int(fast),
-                                "shock_atr_slow_period": int(slow),
-                                "shock_on_ratio": float(on_ratio),
-                                "shock_off_ratio": float(off_ratio),
-                                "shock_min_atr_pct": float(min_tr),
-                            },
-                            f"shock=detect tr_ratio {fast}/{slow} on={on_ratio:g} off={off_ratio:g} minTR%={min_tr:g}",
-                        )
-                    )
-
-        def _risk_off_overrides() -> dict[str, object]:
-            return {
-                "risk_entry_cutoff_hour_et": None,
-                "riskoff_tr5_med_pct": None,
-                "riskpanic_tr5_med_pct": None,
-                "riskpanic_neg_gap_ratio_min": None,
-                "riskpanic_neg_gap_abs_pct_min": None,
-                "riskpanic_tr5_med_delta_min_pct": None,
-                "riskpanic_long_scale_mode": "off",
-                "riskpanic_long_scale_tr_delta_max_pct": None,
-                "riskpop_tr5_med_pct": None,
-                "riskpop_pos_gap_ratio_min": None,
-                "riskpop_pos_gap_abs_pct_min": None,
-                "riskpop_tr5_med_delta_min_pct": None,
-                "riskoff_mode": "hygiene",
-            }
-
-        risk_variants: list[tuple[dict[str, object], str]] = [(_risk_off_overrides(), "risk=off")]
-
-        # Riskpanic: defensive overlay (neg gaps + TR-median + optional acceleration gate).
-        panic_tr = 9.0
-        panic_gap = 0.6
-        panic_lb = 5
-        panic_cutoffs = (None, 15)
-        panic_short_factors = (1.0, 0.5)
-        panic_abs_gap = (None, 0.01, 0.02)
-        panic_long_extra = (0.8, 0.6, 0.0)
-        panic_tr_delta_variants: tuple[tuple[float | None, int, str], ...] = (
-            (None, 1, "trΔ=off"),
-            (0.5, 1, "trΔ>=0.5@1d"),
-            (0.5, 5, "trΔ>=0.5@5d"),
-            (1.0, 1, "trΔ>=1.0@1d"),
-        )
-        if wide:
-            panic_short_factors = (1.0, 0.5, 0.2)
-            panic_abs_gap = (None, 0.01)
-            panic_tr_delta_variants = (
-                (None, 1, "trΔ=off"),
-                (0.25, 1, "trΔ>=0.25@1d"),
-                (0.5, 1, "trΔ>=0.5@1d"),
-                (0.75, 1, "trΔ>=0.75@1d"),
-                (1.0, 1, "trΔ>=1.0@1d"),
-            )
-            panic_long_extra = (0.8, 0.6, 0.4, 0.0)
-
-        panic_scale_delta_max = (None, 0.5, 1.0, 2.0)
-        if wide:
-            panic_scale_delta_max = (None, 0.25, 0.5, 1.0, 2.0, 4.0)
-
-        for cutoff in panic_cutoffs:
-            for short_factor in panic_short_factors:
-                for abs_gap in panic_abs_gap:
-                    for tr_delta_min, tr_delta_lb, tr_delta_note in panic_tr_delta_variants:
-                        long_factors = (1.0,)
-                        if float(short_factor) == 1.0:
-                            long_factors = (*long_factors, *panic_long_extra)
-
-                        for long_factor in long_factors:
-                            cut_note = "-" if cutoff is None else f"cutoff<{cutoff:02d} ET"
-                            gap_note = "-" if abs_gap is None else f"|gap|>={abs_gap*100:0.0f}%"
-                            base_over = {
-                                **_risk_off_overrides(),
-                                "riskpanic_tr5_med_pct": float(panic_tr),
-                                "riskpanic_neg_gap_ratio_min": float(panic_gap),
-                                "riskpanic_neg_gap_abs_pct_min": float(abs_gap) if abs_gap is not None else None,
-                                "riskpanic_lookback_days": int(panic_lb),
-                                "riskpanic_tr5_med_delta_min_pct": float(tr_delta_min) if tr_delta_min is not None else None,
-                                "riskpanic_tr5_med_delta_lookback_days": int(tr_delta_lb),
-                                "riskpanic_long_risk_mult_factor": float(long_factor),
-                                "riskpanic_short_risk_mult_factor": float(short_factor),
-                                "risk_entry_cutoff_hour_et": int(cutoff) if cutoff is not None else None,
-                                "riskoff_mode": "hygiene",
-                            }
-                            base_note = (
-                                f"riskpanic TRmed{panic_lb}>=9 gap>={panic_gap:g} {gap_note} {tr_delta_note} "
-                                f"long={long_factor:g} short={short_factor:g} {cut_note}"
-                            )
-                            risk_variants.append((base_over, base_note))
-
-                            # Candidate-3 policy: pre-panic continuous scaling (only meaningful when long_factor<1 and trΔ is in play).
-                            if tr_delta_min is not None and float(long_factor) < 1.0:
-                                for delta_max in panic_scale_delta_max:
-                                    dm_note = "Δmax=Δmin" if delta_max is None else f"Δmax={delta_max:g}"
-                                    over = dict(base_over)
-                                    over["riskpanic_long_scale_mode"] = "linear"
-                                    over["riskpanic_long_scale_tr_delta_max_pct"] = (
-                                        float(delta_max) if delta_max is not None else None
-                                    )
-                                    risk_variants.append((over, f"{base_note} | scale=lin {dm_note}"))
-
-        # Riskpop: controlled "momentum-on" vs defensive variants (keep this tight: pop can destabilize).
-        pop_tr = 8.0
-        pop_gap = 0.6
-        pop_lb = 5
-        for abs_gap in (None, 0.01):
-            for tr_delta_min, tr_delta_lb, tr_delta_note in (
-                (None, 1, "trΔ=off"),
-                (0.5, 5, "trΔ>=0.5@5d"),
-            ):
-                for long_factor, short_factor, mode_note in (
-                    (0.8, 1.0, "defensive"),
-                    (1.2, 0.0, "aggressive"),
-                ):
-                    gap_note = "-" if abs_gap is None else f"|gap|>={abs_gap*100:0.0f}%"
-                    risk_variants.append(
-                        (
-                            {
-                                **_risk_off_overrides(),
-                                "riskpop_tr5_med_pct": float(pop_tr),
-                                "riskpop_pos_gap_ratio_min": float(pop_gap),
-                                "riskpop_pos_gap_abs_pct_min": float(abs_gap) if abs_gap is not None else None,
-                                "riskpop_lookback_days": int(pop_lb),
-                                "riskpop_tr5_med_delta_min_pct": (
-                                    float(tr_delta_min) if tr_delta_min is not None else None
-                                ),
-                                "riskpop_tr5_med_delta_lookback_days": int(tr_delta_lb),
-                                "riskpop_long_risk_mult_factor": float(long_factor),
-                                "riskpop_short_risk_mult_factor": float(short_factor),
-                                "risk_entry_cutoff_hour_et": 15,
-                                "riskoff_mode": "hygiene",
-                            },
-                            f"riskpop({mode_note}) TRmed{pop_lb}>=8 gap+>={pop_gap:g} {gap_note} {tr_delta_note} "
-                            f"long={long_factor:g} short={short_factor:g} cutoff<15",
-                        )
-                    )
-
-        def _build_variants(cfg_seed: ConfigBundle, seed_note: str, _item: dict):
-            for shock_over, shock_note in shock_variants:
-                for risk_over, risk_note in risk_variants:
-                    over: dict[str, object] = {}
-                    over.update(shock_over)
-                    over.update(risk_over)
-                    f_obj = _merge_filters(cfg_seed.strategy.filters, over)
-                    cfg = replace(cfg_seed, strategy=replace(cfg_seed.strategy, filters=f_obj))
-                    note = f"{seed_note} | {shock_note} | {risk_note}"
-                    yield cfg, note, None
-
-        plan_all = list(_iter_seed_micro_plan(seeds=seeds, build_variants=_build_variants))
-        total = len(plan_all)
-        print(f"- shock_variants={len(shock_variants)} risk_variants={len(risk_variants)} total={total}", flush=True)
-
-        if args.shock_velocity_worker is not None:
-            if not offline:
-                raise SystemExit("shock_velocity_refine worker mode requires --offline (avoid parallel IBKR sessions).")
-            out_path_raw = str(args.shock_velocity_out or "").strip()
-            if not out_path_raw:
-                raise SystemExit("--shock-velocity-out is required for shock_velocity_refine worker mode.")
-            out_path = Path(out_path_raw)
-
-            worker_id, workers = _parse_worker_shard(
-                args.shock_velocity_worker,
-                args.shock_velocity_workers,
-                label="shock_velocity_refine",
-            )
-
-            local_total = (total // workers) + (1 if worker_id < (total % workers) else 0)
-            shard_plan = (item for combo_idx, item in enumerate(plan_all) if (combo_idx % int(workers)) == int(worker_id))
-            tested, kept = _run_sweep(
-                plan=shard_plan,
-                total=local_total,
-                progress_label=f"{axis_tag} worker {worker_id+1}/{workers}",
-                report_every=max(1, int(report_every)),
-                heartbeat_sec=50.0,
-                record_milestones=False,
-            )
-            records: list[dict] = []
-            for cfg, row, note, _meta in kept:
-                records.append(
-                    {
-                        "strategy": _spot_strategy_payload(cfg, meta=meta),
-                        "filters": _filters_payload(cfg.strategy.filters),
-                        "note": str(note),
-                        "row": row,
-                    }
-                )
-            out_payload = {"tested": int(tested), "kept": len(records), "records": records}
-            write_json(out_path, out_payload, sort_keys=False)
-            print(f"{axis_tag} worker done tested={tested} kept={len(records)} out={out_path}", flush=True)
-            return
-
-        tested_total = _run_stage_cfg_rows(
-            stage_label=str(axis_tag),
-            total=total,
-            jobs_req=int(jobs),
-            bars=bars_sig,
-            report_every=max(1, int(report_every)),
-            heartbeat_sec=50.0,
-            on_row=lambda _cfg, row, _note: rows.append(row),
-            serial_plan=plan_all,
-            parallel_payloads_builder=lambda: _run_parallel_stage(
-                axis_name=str(axis_tag),
-                stage_label=str(axis_tag),
-                total=total,
-                jobs=int(jobs),
-                worker_tmp_prefix="tradebot_shock_velocity_",
-                worker_tag="sv",
-                out_prefix="shock_velocity_out",
-                worker_flag="--shock-velocity-worker",
-                workers_flag="--shock-velocity-workers",
-                out_flag="--shock-velocity-out",
-                strip_flags_with_values=(
-                    "--shock-velocity-worker",
-                    "--shock-velocity-workers",
-                    "--shock-velocity-out",
-                ),
-                capture_error=f"Failed to capture {axis_tag} worker stdout.",
-                failure_label=f"{axis_tag} worker",
-                missing_label=str(axis_tag),
-                invalid_label=str(axis_tag),
-            ),
-            parallel_default_note=str(axis_tag),
-            parallel_dedupe_by_milestone_key=False,
-            record_milestones=True,
-        )
-        if jobs > 1 and total > 0:
-            run_calls_total += int(tested_total)
-
-        _print_leaderboards(
-            rows,
-            title=f"{axis_tag} (seeded tr_ratio × TR-velocity overlays)",
-            top_n=int(args.top),
-        )
-
-    def _sweep_shock_throttle_refine() -> None:
-        """Seeded micro-grid: shock risk scaling target/min-mult × a tiny stop-loss pocket.
-
-        Intent: improve the CURRENT champ by shrinking risk in "moderate vol" conditions where
-        the default risk scaling (target_atr_pct≈12) rarely engages.
-        """
-        nonlocal run_calls_total
-
-        axis_tag = "shock_throttle_refine"
-
-        seed_path, candidates = _load_seed_candidates(
-            seed_milestones=args.seed_milestones,
-            axis_tag=axis_tag,
-            symbol=symbol,
-            signal_bar_size=signal_bar_size,
-            use_rth=use_rth,
-            default_path="backtests/out/tqqq_exec5m_v37_champ_only_milestone.json",
-        )
-
-        if not candidates:
-            print(f"No matching seed candidates found in {seed_path} for {symbol} {signal_bar_size} rth={use_rth}.")
-            return
-
-        seed_top = max(1, int(args.seed_top or 0))
-        seeds = _seed_top_candidates(candidates, seed_top=seed_top)
-
-        print("")
-        print(f"=== {axis_tag}: seeded shock scaling target × min-mult pocket ===")
-        print(f"- seeds_in_file={len(candidates)} selected={len(seeds)} seed_top={seed_top}")
-        print(f"- seed_path={seed_path}")
-        print("")
-
-        rows: list[dict] = []
-        report_every = 50
-
-        def _shock_mode(filters: FiltersConfig | None) -> str:
-            if filters is None:
-                return "off"
-            mode = str(getattr(filters, "shock_gate_mode", None) or "off").strip().lower()
-            if mode in ("", "0", "false", "none", "null"):
-                mode = "off"
-            if mode not in ("off", "detect", "block", "block_longs", "block_shorts", "surf"):
-                mode = "off"
-            return mode
-
-        def _shock_detector(filters: FiltersConfig | None) -> str:
-            if filters is None:
-                return "atr_ratio"
-            raw = str(getattr(filters, "shock_detector", None) or "atr_ratio").strip().lower()
-            if raw in ("daily", "daily_atr", "daily_atr_pct", "daily_atr14", "daily_atr%"):
-                return "daily_atr_pct"
-            if raw in ("drawdown", "daily_drawdown", "daily-dd", "dd", "peak_dd", "peak_drawdown"):
-                return "daily_drawdown"
-            if raw in ("tr_ratio", "tr-ratio", "tr_ratio_pct", "tr_ratio%"):
-                return "tr_ratio"
-            if raw in ("atr_ratio", "ratio", "atr-ratio", "atr_ratio_pct", "atr_ratio%"):
-                return "atr_ratio"
-            return "atr_ratio"
-
-        def _ensure_shock_detect_overrides(filters: FiltersConfig | None) -> dict[str, object]:
-            if _shock_mode(filters) != "off":
-                return {}
-            # Needed so shock_atr_pct is available (no entry gating change).
-            return {"shock_gate_mode": "detect", "shock_detector": "daily_atr_pct"}
-
-        def _stop_pocket(seed_stop_pct: float | None) -> tuple[float, ...]:
-            try:
-                base = float(seed_stop_pct) if seed_stop_pct is not None else 0.0
-            except (TypeError, ValueError):
-                base = 0.0
-            if base <= 0:
-                base = 0.045
-            pocket = (
-                base * 0.70,
-                base * 0.85,
-                base * 0.925,
-                base,
-                base * 1.075,
-                base * 1.15,
-                base * 1.30,
-            )
-            # Guardrails: keep stops >0 and dedupe.
-            out = sorted({float(round(p, 6)) for p in pocket if p > 0})
-            if not out:
-                return (float(base),)
-            return tuple(out)
-
-        def _targets_pocket(
-            filters: FiltersConfig | None, *, detector: str, shock_missing: bool
-        ) -> tuple[float, ...]:
-            # Key insight: risk scaling applies whenever shock_atr_pct is available (not only when shock==True),
-            # so lowering target_atr_pct can throttle sizing in moderate-vol chop without changing the detector.
-            if detector == "daily_atr_pct":
-                if bool(shock_missing):
-                    pocket = (2.0, 3.0, 4.0, 4.5, 5.0, 6.0)
-                else:
-                    try:
-                        on_raw = getattr(filters, "shock_daily_on_atr_pct", None) if filters is not None else None
-                        off_raw = getattr(filters, "shock_daily_off_atr_pct", None) if filters is not None else None
-                        on = float(on_raw) if on_raw is not None else None
-                        off = float(off_raw) if off_raw is not None else None
-                    except (TypeError, ValueError):
-                        on = None
-                        off = None
-                    if on is not None and off is not None and on > 0 and off > 0:
-                        base = min(on, off)
-                        pocket = (
-                            base * 0.50,
-                            base * 0.75,
-                            base,
-                            max(on, off),
-                            max(on, off) * 1.25,
-                            max(on, off) * 1.50,
-                        )
-                    else:
-                        pocket = (2.0, 3.0, 4.0, 4.5, 5.0, 6.0)
-            else:
-                try:
-                    min_atr = float(getattr(filters, "shock_min_atr_pct", None) or 0.0) if filters is not None else 0.0
-                except (TypeError, ValueError):
-                    min_atr = 0.0
-                anchor = min_atr if min_atr > 0 else 7.0
-                pocket = (
-                    anchor,
-                    anchor * 1.5,
-                    anchor * 2.0,
-                    anchor * 2.5,
-                    anchor * 3.0,
-                    anchor * 4.0,
-                )
-            out = sorted({float(round(v, 6)) for v in pocket if v > 0})
-            return tuple(out) if out else (12.0,)
-
-        def _daily_threshold_pocket(filters: FiltersConfig | None, *, mode: str, detector: str) -> tuple[tuple[float | None, float | None], ...]:
-            if mode != "surf" or detector != "daily_atr_pct" or filters is None:
-                return ((None, None),)
-            try:
-                on = float(getattr(filters, "shock_daily_on_atr_pct"))
-                off = float(getattr(filters, "shock_daily_off_atr_pct"))
-            except (TypeError, ValueError):
-                return ((None, None),)
-            if on <= 0 or off <= 0:
-                return ((None, None),)
-            on_vals = sorted({max(0.1, on - 1.5), max(0.1, on - 0.5), on, on + 0.5})
-            off_vals = sorted({max(0.1, off - 1.5), max(0.1, off - 0.5), off})
-            pairs: list[tuple[float | None, float | None]] = []
-            for off_v in off_vals:
-                for on_v in on_vals:
-                    if off_v > on_v:
-                        continue
-                    pairs.append((float(off_v), float(on_v)))
-            return tuple(pairs) if pairs else ((None, None),)
-
-        min_mults = (0.05, 0.1, 0.2)
-
-        def _seed_variant_count(cfg_seed: ConfigBundle) -> int:
-            base_filters = cfg_seed.strategy.filters
-            mode = _shock_mode(base_filters)
-            detect_over = _ensure_shock_detect_overrides(base_filters)
-            detector_eff = _shock_detector(base_filters) if not detect_over else "daily_atr_pct"
-
-            targets_f = _targets_pocket(base_filters, detector=detector_eff, shock_missing=bool(detect_over))
-            targets: tuple[float | None, ...] = (None,) + targets_f
-            stops = _stop_pocket(getattr(cfg_seed.strategy, "spot_stop_loss_pct", None))
-            daily_pairs = _daily_threshold_pocket(base_filters, mode=mode, detector=detector_eff)
-
-            targets_variants = sum((len(min_mults) if t is not None else 1) for t in targets)
-            variants = int(targets_variants) * len(stops) * len(daily_pairs)
-            return int(max(0, variants))
-
-        total = 0
-        for _seed_i, _item, cfg_seed, _seed_note in _iter_seed_bundles(seeds):
-            total += _seed_variant_count(cfg_seed)
-
+        size_by_dim = {
+            str(dim_name): len(tuple(dim_state.get(str(dim_name)) or ()))
+            for dim_name in _COMBO_FULL_CARTESIAN_DIM_ORDER
+        }
+        total = _cardinality(*tuple(size_by_dim.values()))
         if total <= 0:
-            print("No usable seeds after parsing/filtering.", flush=True)
-            return
-
-        print(
-            f"- variants: seed-aware pockets (min_mult={min_mults}); total={total} "
-            f"(note: auto-enables shock_gate_mode=detect when missing)",
-            flush=True,
-        )
-
-        def _build_variants(cfg_seed: ConfigBundle, seed_note: str, _item: dict):
-            base_filters = cfg_seed.strategy.filters
-            mode = _shock_mode(base_filters)
-            detect_over = _ensure_shock_detect_overrides(base_filters)
-            detector_eff = _shock_detector(base_filters) if not detect_over else "daily_atr_pct"
-            targets_f = _targets_pocket(base_filters, detector=detector_eff, shock_missing=bool(detect_over))
-            targets: tuple[float | None, ...] = (None,) + targets_f
-            stops = _stop_pocket(getattr(cfg_seed.strategy, "spot_stop_loss_pct", None))
-            daily_pairs = _daily_threshold_pocket(base_filters, mode=mode, detector=detector_eff)
-
-            for off_v, on_v in daily_pairs:
-                daily_over: dict[str, object] = {}
-                if off_v is not None and on_v is not None:
-                    daily_over = {"shock_daily_off_atr_pct": float(off_v), "shock_daily_on_atr_pct": float(on_v)}
-                for target_atr in targets:
-                    min_mult_iter = (None,) if target_atr is None else min_mults
-                    for min_mult in min_mult_iter:
-                        base_over: dict[str, object] = {}
-                        if target_atr is not None:
-                            base_over["shock_risk_scale_target_atr_pct"] = float(target_atr)
-                            base_over["shock_risk_scale_min_mult"] = float(min_mult) if min_mult is not None else 0.2
-                            base_over["shock_risk_scale_apply_to"] = "cap"
-                        base_over.update(detect_over)
-                        base_over.update(daily_over)
-                        f_obj = _merge_filters(cfg_seed.strategy.filters, base_over)
-                        for stop_pct in stops:
-                            cfg = replace(
-                                cfg_seed,
-                                strategy=replace(
-                                    cfg_seed.strategy,
-                                    filters=f_obj,
-                                    spot_stop_loss_pct=float(stop_pct),
-                                ),
-                            )
-                            surf_note = ""
-                            if off_v is not None and on_v is not None:
-                                surf_note = f" surf(off={off_v:g},on={on_v:g})"
-                            if target_atr is None:
-                                scale_note = " shock_scale=off"
-                            else:
-                                scale_note = f" shock_scale target_atr%={target_atr:g} min_mult={min_mult:g} apply_to=cap"
-                            note = f"{seed_note} |{scale_note}{surf_note} | stop%={stop_pct:g}"
-                            yield cfg, note, None
-
-        tested_total = _run_seeded_micro_grid(
-            axis_tag=axis_tag,
-            seeds=seeds,
-            rows=rows,
-            build_variants=_build_variants,
-            total=total,
-            report_every=report_every,
-        )
-        if int(tested_total) < 0:
-            return
-        if jobs > 1 and int(tested_total) > 0:
-            run_calls_total += int(tested_total)
-        _print_leaderboards(rows, title=f"{axis_tag} (seeded shock risk scaling micro)", top_n=int(args.top))
-
-    def _sweep_shock_throttle_tr_ratio() -> None:
-        """Seeded micro-grid: keep the base strategy identical, but compute shock risk scaling off TR-ratio ATR%.
-
-        This is a pure "throttle" lever:
-        - gate shock config (e.g. daily_atr_pct surf + stop tightening) stays unchanged
-        - sizing is throttled using `shock_risk_scale_*` with `shock_scale_detector=tr_ratio` (detect-only)
-        """
-        nonlocal run_calls_total
-
-        axis_tag = "shock_throttle_tr_ratio"
-
-        seed_path, candidates = _load_seed_candidates(
-            seed_milestones=args.seed_milestones,
-            axis_tag=axis_tag,
-            symbol=symbol,
-            signal_bar_size=signal_bar_size,
-            use_rth=use_rth,
-        )
-
-        if not candidates:
-            print(f"No matching seed candidates found in {seed_path} for {symbol} {signal_bar_size} rth={use_rth}.")
-            return
-
-        seed_top = max(1, int(args.seed_top or 0))
-        seeds = _seed_top_candidates(candidates, seed_top=seed_top)
-
-        print("")
-        print(f"=== {axis_tag}: seeded TR-ratio throttle micro-grid ===")
-        print(f"- seeds_in_file={len(candidates)} selected={len(seeds)} seed_top={seed_top}")
-        print(f"- seed_path={seed_path}")
-        print("")
-
-        rows: list[dict] = []
-
-        profile = _SHOCK_THROTTLE_TR_RATIO_PROFILE
-        scale_periods: tuple[tuple[int, int], ...] = tuple(profile.get("periods") or ())
-        # Telemetry (SLV 1h FULL24 tr_fast_pct): p75≈0.71%, p85≈0.90%, p92≈1.14% (1y window).
-        # Include a few aggressive "surprise" targets to actually touch cap-bound trades.
-        targets: tuple[float, ...] = tuple(profile.get("targets") or ())
-        min_mults: tuple[float, ...] = tuple(profile.get("min_mults") or ())
-        apply_tos: tuple[str, ...] = tuple(profile.get("apply_tos") or ())
-
-        report_every = 50
-        total = len(seeds) * len(scale_periods) * len(targets) * len(min_mults) * len(apply_tos)
-
-        def _build_variants(cfg_seed: ConfigBundle, seed_note: str, _item: dict):
-            for fast_p, slow_p in scale_periods:
-                for target_atr in targets:
-                    for min_mult in min_mults:
-                        for apply_to in apply_tos:
-                            over = {
-                                "shock_scale_detector": "tr_ratio",
-                                "shock_atr_fast_period": int(fast_p),
-                                "shock_atr_slow_period": int(slow_p),
-                                "shock_risk_scale_target_atr_pct": float(target_atr),
-                                "shock_risk_scale_min_mult": float(min_mult),
-                                "shock_risk_scale_apply_to": str(apply_to),
-                            }
-                            f_obj = _merge_filters(cfg_seed.strategy.filters, over)
-                            if f_obj is None:
-                                continue
-                            cfg = replace(cfg_seed, strategy=replace(cfg_seed.strategy, filters=f_obj))
-                            note = (
-                                f"{seed_note} | shock_scale=tr_ratio {fast_p}/{slow_p} "
-                                f"target_atr%={target_atr:g} min_mult={min_mult:g} apply_to={apply_to}"
-                            )
-                            yield cfg, note, None
-
-        tested_total = _run_seeded_micro_grid(
-            axis_tag=axis_tag,
-            seeds=seeds,
-            rows=rows,
-            build_variants=_build_variants,
-            total=total,
-            report_every=report_every,
-            include_base_note="shock_scale=off (base)",
-        )
-        if int(tested_total) < 0:
-            return
-        if jobs > 1 and int(tested_total) > 0:
-            run_calls_total += int(tested_total)
-        _print_leaderboards(rows, title=f"{axis_tag} (seeded tr_ratio throttle micro)", top_n=int(args.top))
-
-    def _sweep_shock_throttle_drawdown() -> None:
-        """Seeded micro-grid: compute shock risk scaling off daily drawdown magnitude (detect-only).
-
-        This is a pure throttle lever:
-        - primary shock config (e.g. daily_atr_pct surf + stop tightening) stays unchanged
-        - sizing is throttled using `shock_risk_scale_*` with `shock_scale_detector=daily_drawdown`
-        """
-        nonlocal run_calls_total
-
-        axis_tag = "shock_throttle_drawdown"
-
-        seed_path, candidates = _load_seed_candidates(
-            seed_milestones=args.seed_milestones,
-            axis_tag=axis_tag,
-            symbol=symbol,
-            signal_bar_size=signal_bar_size,
-            use_rth=use_rth,
-        )
-
-        if not candidates:
-            print(f"No matching seed candidates found in {seed_path} for {symbol} {signal_bar_size} rth={use_rth}.")
-            return
-
-        seed_top = max(1, int(args.seed_top or 0))
-        seeds = _seed_top_candidates(candidates, seed_top=seed_top)
-
-        print("")
-        print(f"=== {axis_tag}: seeded daily_drawdown throttle micro-grid ===")
-        print(f"- seeds_in_file={len(candidates)} selected={len(seeds)} seed_top={seed_top}")
-        print(f"- seed_path={seed_path}")
-        print("")
-
-        rows: list[dict] = []
-
-        profile = _SHOCK_THROTTLE_DRAWDOWN_PROFILE
-        lookbacks: tuple[int, ...] = tuple(profile.get("lookbacks") or ())
-        # SLV 1y FULL24 stop-entries drawdown magnitude (20d peak):
-        # p50≈1.17%, p75≈3.12%, p90≈9.70%, p95≈10.59%, max≈12.30%.
-        targets: tuple[float, ...] = tuple(profile.get("targets") or ())
-        min_mults: tuple[float, ...] = tuple(profile.get("min_mults") or ())
-        apply_tos: tuple[str, ...] = tuple(profile.get("apply_tos") or ())
-
-        report_every = 50
-        total = len(seeds) * len(lookbacks) * len(targets) * len(min_mults) * len(apply_tos)
-
-        def _build_variants(cfg_seed: ConfigBundle, seed_note: str, _item: dict):
-            for lb in lookbacks:
-                for target_dd in targets:
-                    for min_mult in min_mults:
-                        for apply_to in apply_tos:
-                            over = {
-                                "shock_scale_detector": "daily_drawdown",
-                                "shock_drawdown_lookback_days": int(lb),
-                                "shock_risk_scale_target_atr_pct": float(target_dd),
-                                "shock_risk_scale_min_mult": float(min_mult),
-                                "shock_risk_scale_apply_to": str(apply_to),
-                            }
-                            f_obj = _merge_filters(cfg_seed.strategy.filters, over)
-                            if f_obj is None:
-                                continue
-                            cfg = replace(cfg_seed, strategy=replace(cfg_seed.strategy, filters=f_obj))
-                            note = (
-                                f"{seed_note} | shock_scale=daily_drawdown lb={lb} "
-                                f"target_dd%={target_dd:g} min_mult={min_mult:g} apply_to={apply_to}"
-                            )
-                            yield cfg, note, None
-
-        tested_total = _run_seeded_micro_grid(
-            axis_tag=axis_tag,
-            seeds=seeds,
-            rows=rows,
-            build_variants=_build_variants,
-            total=total,
-            report_every=report_every,
-            include_base_note="shock_scale=off (base)",
-        )
-        if int(tested_total) < 0:
-            return
-        if jobs > 1 and int(tested_total) > 0:
-            run_calls_total += int(tested_total)
-        _print_leaderboards(rows, title=f"{axis_tag} (seeded daily_drawdown throttle micro)", top_n=int(args.top))
-
-    def _sweep_riskpanic_micro() -> None:
-        """Seeded micro-grid: riskpanic overlay knobs inspired by the TQQQ v37→v39 needle-thread.
-
-        Keeps strategy identical and focuses on the small set of knobs that moved the TQQQ stability champ:
-        - risk_entry_cutoff_hour_et (late-day entry cutoff on risk days)
-        - riskpanic_long_risk_mult_factor + riskpanic_long_scale_mode ("linear" pre-panic de-risking)
-        - riskpanic_neg_gap_abs_pct_min (count all neg gaps vs only big gaps)
-        - riskpanic_tr5_med_delta_min_pct (TR-velocity gate)
-
-        Note: riskpanic detection requires (riskpanic_tr5_med_pct, riskpanic_neg_gap_ratio_min).
-        For SLV FULL24, med(TR% last 5d) is on a ~2–3% scale, not TQQQ's ~9–10%.
-        """
-        nonlocal run_calls_total
-
-        axis_tag = "riskpanic_micro"
-
-        seed_path, candidates = _load_seed_candidates(
-            seed_milestones=args.seed_milestones,
-            axis_tag=axis_tag,
-            symbol=symbol,
-            signal_bar_size=signal_bar_size,
-            use_rth=use_rth,
-        )
-
-        if not candidates:
-            print(f"No matching seed candidates found in {seed_path} for {symbol} {signal_bar_size} rth={use_rth}.")
-            return
-
-        seed_top = max(1, int(args.seed_top or 0))
-        seeds = _seed_top_candidates(candidates, seed_top=seed_top)
-
-        print("")
-        print(f"=== {axis_tag}: seeded riskpanic micro-grid ===")
-        print(f"- seeds_in_file={len(candidates)} selected={len(seeds)} seed_top={seed_top}")
-        print(f"- seed_path={seed_path}")
-        print("")
-
-        rows: list[dict] = []
-
-        profile = _RISKPANIC_MICRO_PROFILE
-        cutoffs_et: tuple[int | None, ...] = tuple(profile.get("cutoffs_et") or ())
-        panic_tr_meds: tuple[float, ...] = tuple(profile.get("panic_tr_meds") or ())
-        neg_gap_ratios: tuple[float, ...] = tuple(profile.get("neg_gap_ratios") or ())
-        neg_gap_abs_pcts: tuple[float | None, ...] = tuple(profile.get("neg_gap_abs_pcts") or ())
-        tr_delta_mins: tuple[float | None, ...] = tuple(profile.get("tr_delta_mins") or ())
-        long_factors: tuple[float, ...] = tuple(profile.get("long_factors") or ())
-        scale_modes: tuple[str | None, ...] = tuple(profile.get("scale_modes") or ())
-
-        report_every = 50
-        total = (
-            len(seeds)
-            * len(cutoffs_et)
-            * len(panic_tr_meds)
-            * len(neg_gap_ratios)
-            * len(neg_gap_abs_pcts)
-            * len(tr_delta_mins)
-            * len(long_factors)
-            * len(scale_modes)
-        )
-
-        def _build_variants(cfg_seed: ConfigBundle, seed_note: str, _item: dict):
-            for cutoff in cutoffs_et:
-                for tr_med in panic_tr_meds:
-                    for neg_ratio in neg_gap_ratios:
-                        for abs_gap in neg_gap_abs_pcts:
-                            for tr_delta_min in tr_delta_mins:
-                                for long_factor in long_factors:
-                                    for scale_mode in scale_modes:
-                                        over: dict[str, object] = {
-                                            # Disable other overlay families unless they exist in the seed.
-                                            "riskoff_tr5_med_pct": None,
-                                            "riskpop_tr5_med_pct": None,
-                                            # Panic detector (enables overlay engine).
-                                            "riskpanic_tr5_med_pct": float(tr_med),
-                                            "riskpanic_neg_gap_ratio_min": float(neg_ratio),
-                                            "riskpanic_neg_gap_abs_pct_min": abs_gap,
-                                            "riskpanic_lookback_days": 5,
-                                            "riskpanic_tr5_med_delta_min_pct": tr_delta_min,
-                                            "riskpanic_tr5_med_delta_lookback_days": 1,
-                                            # Panic policy.
-                                            "risk_entry_cutoff_hour_et": int(cutoff) if cutoff is not None else None,
-                                            "riskpanic_long_risk_mult_factor": float(long_factor),
-                                            "riskpanic_short_risk_mult_factor": 1.0,
-                                            "riskpanic_long_scale_mode": scale_mode,
-                                        }
-                                        f_obj = _merge_filters(cfg_seed.strategy.filters, over)
-                                        if f_obj is None:
-                                            continue
-                                        cfg = replace(cfg_seed, strategy=replace(cfg_seed.strategy, filters=f_obj))
-                                        cut_note = "-" if cutoff is None else str(cutoff)
-                                        abs_note = "None" if abs_gap is None else f"{abs_gap:g}"
-                                        delta_note = "=off" if tr_delta_min is None else f">={tr_delta_min:g}"
-                                        mode_note = "off" if not scale_mode else str(scale_mode)
-                                        note = (
-                                            f"{seed_note} | cutoff<{cut_note} | panic med5>={tr_med:g} gap>={neg_ratio:g} abs>={abs_note} "
-                                            f"trΔ{delta_note} | long={long_factor:g} scale={mode_note}"
-                                        )
-                                        yield cfg, note, None
-
-        tested_total = _run_seeded_micro_grid(
-            axis_tag=axis_tag,
-            seeds=seeds,
-            rows=rows,
-            build_variants=_build_variants,
-            total=total,
-            report_every=report_every,
-            include_base_note="base",
-        )
-        if int(tested_total) < 0:
-            return
-        if jobs > 1 and int(tested_total) > 0:
-            run_calls_total += int(tested_total)
-        _print_leaderboards(rows, title=f"{axis_tag} (seeded riskpanic micro)", top_n=int(args.top))
-
-    def _sweep_overlay_family(*, family: str | None = None) -> None:
-        family_registry = {
-            "shock_throttle_refine": _sweep_shock_throttle_refine,
-            "shock_throttle_tr_ratio": _sweep_shock_throttle_tr_ratio,
-            "shock_throttle_drawdown": _sweep_shock_throttle_drawdown,
-            "riskpanic_micro": _sweep_riskpanic_micro,
-        }
-        family_req = str(family or getattr(args, "overlay_family_kind", "all") or "all").strip().lower()
-        if family_req == "all":
-            selected = tuple(family_registry.keys())
-            print("")
-            print("=== overlay_family: running all seeded overlay families ===")
-            print("")
-        else:
-            if family_req not in family_registry:
-                valid = ", ".join(family_registry.keys())
-                raise SystemExit(f"Unknown overlay family: {family_req!r} (expected one of: {valid}, all)")
-            selected = (family_req,)
-
-        for family_name in selected:
-            fn = family_registry.get(str(family_name))
-            if callable(fn):
-                fn()
-
-    def _sweep_exit_pivot() -> None:
-        """Seeded micro-grid: exit-model pivot for higher-cadence lanes (PT/SL + flip semantics + close_eod)."""
-        nonlocal run_calls_total
-
-        axis_tag = "exit_pivot"
-
-        seed_path, candidates = _load_seed_candidates(
-            seed_milestones=args.seed_milestones,
-            axis_tag=axis_tag,
-            symbol=symbol,
-            signal_bar_size=signal_bar_size,
-            use_rth=use_rth,
-        )
-
-        if not candidates:
-            print(f"No matching seed candidates found in {seed_path} for {symbol} {signal_bar_size} rth={use_rth}.")
-            return
-
-        seed_top = max(1, int(args.seed_top or 0))
-        seeds = _seed_select_candidates(
-            candidates,
-            seed_top=seed_top,
-            policy="exit_pivot",
-        )
-
-        print("")
-        print(f"=== {axis_tag}: seeded exit pivot micro-grid ===")
-        print(f"- seeds_in_file={len(candidates)} selected={len(seeds)} seed_top={seed_top}")
-        print(f"- seed_path={seed_path}")
-        print("")
-
-        rows: list[dict] = []
-
-        pt_vals: tuple[float | None, ...] = (None, 0.0015, 0.002, 0.003, 0.004, 0.006)
-        sl_vals: tuple[float, ...] = (0.003, 0.004, 0.006, 0.008, 0.01, 0.012)
-        only_profit_vals: tuple[bool, ...] = (False, True)
-        close_eod_vals: tuple[bool, ...] = (False, True)
-        report_every = 100
-        total = len(seeds) * len(close_eod_vals) * len(only_profit_vals) * len(pt_vals) * len(sl_vals)
-
-        def _build_variants(cfg_seed: ConfigBundle, seed_note: str, _item: dict):
-            for close_eod in close_eod_vals:
-                for only_profit in only_profit_vals:
-                    for pt in pt_vals:
-                        for sl in sl_vals:
-                            cfg = replace(
-                                cfg_seed,
-                                strategy=replace(
-                                    cfg_seed.strategy,
-                                    spot_exit_mode="pct",
-                                    spot_profit_target_pct=pt,
-                                    spot_stop_loss_pct=float(sl),
-                                    exit_on_signal_flip=True,
-                                    flip_exit_only_if_profit=bool(only_profit),
-                                    spot_close_eod=bool(close_eod),
-                                ),
-                            )
-                            pt_note = "None" if pt is None else f"{pt:g}"
-                            note = (
-                                f"{seed_note} | close_eod={int(close_eod)} "
-                                f"only_profit={int(only_profit)} | PT={pt_note} SL={sl:g}"
-                            )
-                            yield cfg, note, None
-
-        tested_total = _run_seeded_micro_grid(
-            axis_tag=axis_tag,
-            seeds=seeds,
-            rows=rows,
-            build_variants=_build_variants,
-            total=total,
-            report_every=report_every,
-            include_base_note="base",
-        )
-        if int(tested_total) < 0:
-            return
-        if jobs > 1 and int(tested_total) > 0:
-            run_calls_total += int(tested_total)
-        _print_leaderboards(rows, title=f"{axis_tag} (seeded exit pivot)", top_n=int(args.top))
-
-    def _sweep_st37_refine() -> None:
-        """Refine the 3/7 trend + SuperTrend(4h) cluster (seeded) with v31-style gates + overlays.
-
-        High-level goal:
-        - Take the strong 3/7 trend + ST(4h) winners (which can have monster 2y roi/dd),
-          then sweep the missing v31-style "permission" gates (spread/slope), TOD windows,
-          and (separately) tighten the riskpanic + shock pockets.
-        - Finally, sweep a small exit/flip semantics pocket anchored on the current v31 exit style.
-
-        Intended usage:
-        - seed with a kingmaker output (spot_multitimeframe --write-top) or another milestones file
-          that contains the 3/7 ST4h family you want to explore.
-        """
-        seed_path = _resolve_seed_milestones_path(
-            seed_milestones=args.seed_milestones,
-            axis_tag="st37_refine",
-        )
-        raw_groups = _seed_groups_from_path(seed_path)
-
-        def _st37_seed_predicate(_group: dict, _entry: dict, strat: dict, _metrics: dict) -> bool:
-            # Lock to the 3/7 trend + ST(4h) neighborhood by default.
-            if str(strat.get("ema_preset") or "").strip() != "3/7":
-                return False
-            if str(strat.get("ema_entry_mode") or "").strip().lower() != "trend":
-                return False
-            if str(strat.get("regime_mode") or "").strip().lower() != "supertrend":
-                return False
-            if str(strat.get("regime_bar_size") or "").strip().lower() != "4 hours":
-                return False
-            try:
-                st_atr = int(strat.get("supertrend_atr_period") or 0)
-            except (TypeError, ValueError):
-                st_atr = 0
-            try:
-                st_mult = float(strat.get("supertrend_multiplier") or 0.0)
-            except (TypeError, ValueError):
-                st_mult = 0.0
-            st_src = str(strat.get("supertrend_source") or "").strip().lower()
-            return st_atr == 7 and abs(st_mult - 0.5) <= 1e-9 and st_src == "hl2"
-
-        candidates = _seed_candidates_for_context(
-            raw_groups=raw_groups,
-            symbol=symbol,
-            signal_bar_size=signal_bar_size,
-            use_rth=use_rth,
-            predicate=_st37_seed_predicate,
-        )
-
-        if not candidates:
-            print(f"No matching 3/7 trend + ST(4h) seeds found in {seed_path} for {symbol} {signal_bar_size} rth={use_rth}.")
-            return
-
-        seed_top = max(1, int(args.seed_top or 0))
-        seeds = _seed_select_candidates(
-            candidates,
-            seed_top=seed_top,
-            policy="st37_refine",
-        )
-
-        print("")
-        print("=== st37_refine: 3/7 trend + ST(4h) refinement (seeded) ===")
-        print(f"- seeds_in_file={len(candidates)} selected={len(seeds)} seed_top={seed_top}")
-        print(f"- seed_path={seed_path}")
-        print("")
-
-        # Inspect the current v31-like kingmaker champ exit semantics (for anchoring stage3).
-        v31_exit = None
-        try:
-            champ_path = Path(__file__).resolve().parent / "spot_champions.json"
-            if champ_path.exists():
-                champs = json.loads(champ_path.read_text())
-                for g in champs.get("groups") or []:
-                    if not isinstance(g, dict):
-                        continue
-                    entries = g.get("entries") or []
-                    if not entries:
-                        continue
-                    entry = entries[0]
-                    if not isinstance(entry, dict):
-                        continue
-                    st = entry.get("strategy") or {}
-                    if not isinstance(st, dict):
-                        continue
-                    if str(entry.get("symbol") or "").strip().upper() != str(symbol).strip().upper():
-                        continue
-                    if str(st.get("signal_bar_size") or "").strip().lower() != str(signal_bar_size).strip().lower():
-                        continue
-                    if bool(st.get("signal_use_rth")) != bool(use_rth):
-                        continue
-                    v31_exit = {
-                        "spot_exit_mode": st.get("spot_exit_mode"),
-                        "spot_profit_target_pct": st.get("spot_profit_target_pct"),
-                        "spot_stop_loss_pct": st.get("spot_stop_loss_pct"),
-                        "spot_atr_period": st.get("spot_atr_period"),
-                        "spot_pt_atr_mult": st.get("spot_pt_atr_mult"),
-                        "spot_sl_atr_mult": st.get("spot_sl_atr_mult"),
-                        "spot_exit_time_et": st.get("spot_exit_time_et"),
-                        "exit_on_signal_flip": st.get("exit_on_signal_flip"),
-                        "flip_exit_mode": st.get("flip_exit_mode"),
-                        "flip_exit_only_if_profit": st.get("flip_exit_only_if_profit"),
-                        "flip_exit_min_hold_bars": st.get("flip_exit_min_hold_bars"),
-                        "flip_exit_gate_mode": st.get("flip_exit_gate_mode"),
-                    }
-                    break
-        except Exception:
-            v31_exit = None
-
-        if v31_exit:
-            print("v31 (kingmaker champ) exit semantics (as stored in spot_champions.json):")
-            for k, v in v31_exit.items():
-                print(f"- {k}={v!r}")
-            print("")
-
-        bars_sig = _bars_cached(signal_bar_size)
-        heartbeat_sec = 50.0
-
-        def _mk_stage2_cfg(base_cfg: ConfigBundle, *, risk_over: dict[str, object], shock_over: dict[str, object]) -> ConfigBundle:
-            over: dict[str, object] = {}
-            over.update(risk_over)
-            over.update(shock_over)
-            f = _merge_filters(base_cfg.strategy.filters, overrides=over)
-            return replace(base_cfg, strategy=replace(base_cfg.strategy, filters=f))
-
-        def _build_stage2_plan(
-            shortlist_local: list[tuple[ConfigBundle, str]],
+            raise SystemExit("combo_full has empty Cartesian dimensions.")
+
+        dominant_dims_raw = tuple(dims.get("dominant_dims") or ())
+        dominant_dims = [str(name).strip() for name in dominant_dims_raw if str(name).strip() in size_by_dim]
+        ordered_dims = list(dominant_dims)
+        for dim_name in size_by_dim:
+            if dim_name not in ordered_dims:
+                ordered_dims.append(dim_name)
+
+        def _mixed_radix_rank(dim_indices: dict[str, int]) -> int:
+            rank = 0
+            for dim_name in ordered_dims:
+                rank = (int(rank) * int(size_by_dim[dim_name])) + int(dim_indices.get(dim_name, 0))
+            return int(rank)
+
+        def _mixed_radix_indices_from_rank(rank: int) -> dict[str, int]:
+            rank_i = int(rank)
+            if rank_i < 0 or rank_i >= int(total):
+                raise ValueError(f"rank out of range: {rank_i} not in [0,{int(total)-1}]")
+            out: dict[str, int] = {}
+            rem = int(rank_i)
+            for dim_name in reversed(ordered_dims):
+                size_i = int(size_by_dim.get(str(dim_name), 0) or 0)
+                if size_i <= 0:
+                    raise ValueError(f"invalid dimension cardinality: {dim_name}={size_i}")
+                out[str(dim_name)] = int(rem % size_i)
+                rem //= size_i
+            return out
+
+        base = _combo_full_base_bundle()
+
+        def _combo_full_cfg_note_meta_from_dim_indices(
+            dim_indices: dict[str, int],
             *,
-            risk_variants_local: list[tuple[dict[str, object], str]],
-            shock_variants_local: list[tuple[dict[str, object], str]],
-        ) -> list[tuple[ConfigBundle, str, dict]]:
-            plan: list[tuple[ConfigBundle, str, dict]] = []
-            for base_idx, (base_cfg, base_note) in enumerate(shortlist_local):
-                for risk_idx, (risk_over, risk_note) in enumerate(risk_variants_local):
-                    for shock_idx, (shock_over, shock_note) in enumerate(shock_variants_local):
-                        cfg = _mk_stage2_cfg(base_cfg, risk_over=risk_over, shock_over=shock_over)
-                        note = f"{base_note} | {risk_note} | {shock_note}"
-                        plan.append(
-                            (
-                                cfg,
-                                note,
-                                {
-                                    "base_idx": int(base_idx),
-                                    "risk_idx": int(risk_idx),
-                                    "shock_idx": int(shock_idx),
-                                },
-                            )
-                        )
-            return plan
+            rank_override: int | None = None,
+        ) -> tuple[ConfigBundle, str, dict]:
+            dim_index_by_name = {
+                str(dim_name): int(dim_indices.get(str(dim_name), 0))
+                for dim_name in _COMBO_FULL_CARTESIAN_DIM_ORDER
+            }
+            timing_i = int(dim_index_by_name["timing_profile"])
+            conf_i = int(dim_index_by_name["confirm"])
+            short_i = int(dim_index_by_name["short_mult"])
+            timing_label, timing_strat_over, timing_filter_over = timing_profile_variants[timing_i]
+            pair_variant_row_by_dim = {
+                str(dim_name): pair_variants_by_dim[str(dim_name)][int(dim_index_by_name[str(dim_name)])]
+                for dim_name, _variants_key in _COMBO_FULL_PAIR_DIM_VARIANT_SPECS
+            }
+            pair_label_by_dim = {
+                str(dim_name): str(row[0])
+                for dim_name, row in pair_variant_row_by_dim.items()
+            }
+            pair_overrides_by_dim = {
+                str(dim_name): dict(row[1])
+                for dim_name, row in pair_variant_row_by_dim.items()
+            }
+            confirm = int(confirm_bars[conf_i])
+            short_mult = float(short_mults[short_i])
 
-        # Stage2 worker mode must early-exit before stage1 runs; this is invoked by the stage2
-        # sharded runner when --jobs>1.
-        if args.st37_refine_stage2:
-            payload_path = Path(str(args.st37_refine_stage2))
-            payload_decoded = _load_worker_stage_payload(
-                schema_name="st37_refine_stage2",
-                payload_path=payload_path,
-            )
-            shortlist_local = [
-                (cfg, note)
-                for cfg, note in (payload_decoded.get("cfg_pairs") or [])
-                if isinstance(note, str)
-            ]
-            risk_variants_local = [
-                (over, note)
-                for over, note in (payload_decoded.get("risk_variants") or [])
-                if isinstance(over, dict)
-            ]
-            shock_variants_local = [
-                (over, note)
-                for over, note in (payload_decoded.get("shock_variants") or [])
-                if isinstance(over, dict)
-            ]
-
-            stage2_plan_all = _build_stage2_plan(
-                shortlist_local,
-                risk_variants_local=risk_variants_local,
-                shock_variants_local=shock_variants_local,
-            )
-            _run_sharded_stage_worker(
-                stage_label="st37_refine stage2",
-                worker_raw=args.st37_refine_worker,
-                workers_raw=args.st37_refine_workers,
-                out_path_raw=str(args.st37_refine_out or ""),
-                out_flag_name="st37-refine-out",
-                plan_all=stage2_plan_all,
-                bars=bars_sig,
-                report_every=200,
-                heartbeat_sec=heartbeat_sec,
-            )
-            return
-
-        # Stage 1: sweep v31-style permission gates + TOD window + (SL, short_mult).
-        perm_spread_vals = [None, 0.0025, 0.0030, 0.0035, 0.0040]
-        perm_spread_down_vals = [None, 0.04, 0.05, 0.06]
-        perm_slope_vals = [None, 0.02, 0.03, 0.04]
-        signed_slope_variants: list[tuple[dict[str, object], str]] = [
-            ({}, "signed=off"),
-            ({"ema_slope_signed_min_pct_down": 0.005}, "signed_down>=0.005"),
-            ({"ema_slope_signed_min_pct_up": 0.005, "ema_slope_signed_min_pct_down": 0.005}, "signed_both>=0.005"),
-        ]
-        perm_variants: list[tuple[dict[str, object], str]] = []
-        for spread in perm_spread_vals:
-            for spread_down in perm_spread_down_vals:
-                for slope in perm_slope_vals:
-                    for signed_over, signed_note in signed_slope_variants:
-                        if spread is None and spread_down is None and slope is None and not signed_over:
-                            perm_variants.append(({}, "perm=off"))
-                            continue
-                        over: dict[str, object] = {
-                            "ema_spread_min_pct": spread,
-                            "ema_spread_min_pct_down": spread_down,
-                            "ema_slope_min_pct": slope,
-                        }
-                        over.update(signed_over)
-                        perm_variants.append((over, f"perm spread={spread} down={spread_down} slope={slope} {signed_note}"))
-
-        tod_variants: list[tuple[int | None, int | None, str]] = [
-            (9, 15, "tod=09-15"),
-            (9, 16, "tod=09-16"),
-            (10, 15, "tod=10-15"),
-            (10, 16, "tod=10-16"),
-        ]
-
-        sl_vals = (0.03, 0.04)
-        short_mult_vals = (0.01, 0.02, 0.05, 0.1, 0.2, 0.3)
-
-        def _mk_seed_cfg(seed: dict) -> tuple[ConfigBundle, str]:
-            base = _base_bundle(bar_size=signal_bar_size, filters=None)
-            cfg_seed = _apply_milestone_base(base, strategy=seed["strategy"], filters=seed.get("filters"))
-            seed_tag = str(seed.get("group_name") or "").strip() or "seed"
-            return cfg_seed, seed_tag
-
-        def _mk_stage1_cfg(
-            cfg_seed: ConfigBundle,
-            seed_tag: str,
-            *,
-            perm_over: dict[str, object],
-            perm_note: str,
-            tod_s: int | None,
-            tod_e: int | None,
-            tod_note: str,
-            sl_pct: float,
-            short_mult: float,
-        ) -> tuple[ConfigBundle, str]:
-            cfg = replace(
-                cfg_seed,
-                strategy=replace(cfg_seed.strategy, spot_stop_loss_pct=float(sl_pct), spot_short_risk_mult=float(short_mult)),
-            )
-            over: dict[str, object] = {}
-            over.update(perm_over)
-            over["entry_start_hour_et"] = tod_s
-            over["entry_end_hour_et"] = tod_e
-            f = _merge_filters(cfg_seed.strategy.filters, overrides=over)
-            cfg = replace(cfg, strategy=replace(cfg.strategy, filters=f))
-            note = f"st37 {seed_tag} | {perm_note} | {tod_note} | SL={sl_pct:g} short={short_mult:g}"
-            return cfg, note
-
-        def _build_stage1_plan(seed_items: list[dict]) -> list[tuple[ConfigBundle, str, dict]]:
-            plan: list[tuple[ConfigBundle, str, dict]] = []
-            for seed_idx, seed in enumerate(seed_items):
-                cfg_seed, seed_tag = _mk_seed_cfg(seed)
-                for perm_idx, (perm_over, perm_note) in enumerate(perm_variants):
-                    for tod_idx, (tod_s, tod_e, tod_note) in enumerate(tod_variants):
-                        for sl_idx, sl_pct in enumerate(sl_vals):
-                            for short_idx, short_mult in enumerate(short_mult_vals):
-                                cfg, note = _mk_stage1_cfg(
-                                    cfg_seed,
-                                    seed_tag,
-                                    perm_over=perm_over,
-                                    perm_note=perm_note,
-                                    tod_s=tod_s,
-                                    tod_e=tod_e,
-                                    tod_note=tod_note,
-                                    sl_pct=float(sl_pct),
-                                    short_mult=float(short_mult),
-                                )
-                                plan.append(
-                                    (
-                                        cfg,
-                                        note,
-                                        {
-                                            "seed_idx": int(seed_idx),
-                                            "perm_idx": int(perm_idx),
-                                            "tod_idx": int(tod_idx),
-                                            "sl_idx": int(sl_idx),
-                                            "short_idx": int(short_idx),
-                                        },
-                                    )
-                                )
-            return plan
-
-        if args.st37_refine_stage1:
-            payload_path = Path(str(args.st37_refine_stage1))
-            payload_decoded = _load_worker_stage_payload(
-                schema_name="st37_refine_stage1",
-                payload_path=payload_path,
-            )
-            seeds_local = list(payload_decoded.get("seeds") or [])
-
-            stage1_plan_all = _build_stage1_plan(seeds_local)
-            _run_sharded_stage_worker(
-                stage_label="st37_refine stage1",
-                worker_raw=args.st37_refine_worker,
-                workers_raw=args.st37_refine_workers,
-                out_path_raw=str(args.st37_refine_out or ""),
-                out_flag_name="st37-refine-out",
-                plan_all=stage1_plan_all,
-                bars=bars_sig,
-                report_every=200,
-                heartbeat_sec=heartbeat_sec,
-            )
-            return
-
-        stage1_rows: list[tuple[ConfigBundle, dict, str]] = []
-        stage1_total = len(seeds) * len(perm_variants) * len(tod_variants) * len(sl_vals) * len(short_mult_vals)
-        print(f"st37_refine: stage1 total={stage1_total} (perm×tod×sl×short)", flush=True)
-        report_every = 200
-
-        def _on_stage1_row(cfg: ConfigBundle, row: dict, note: str) -> None:
-            stage1_rows.append((cfg, row, note))
-
-        tested_1 = _run_stage_cfg_rows(
-            stage_label="st37_refine stage1",
-            total=stage1_total,
-            jobs_req=int(jobs),
-            serial_plan_builder=lambda: _build_stage1_plan(seeds),
-            bars=bars_sig,
-            report_every=report_every,
-            heartbeat_sec=heartbeat_sec,
-            on_row=_on_stage1_row,
-            parallel_payloads_builder=lambda: _run_parallel_stage_with_payload(
-                axis_name="st37_refine",
-                stage_label="st37_refine stage1",
-                total=stage1_total,
-                jobs=int(jobs),
-                payload={
-                    "seeds": [
-                        {
-                            "group_name": str(s.get("group_name") or ""),
-                            "strategy": s["strategy"],
-                            "filters": s.get("filters"),
-                        }
-                        for s in seeds
-                    ],
-                },
-                payload_filename="stage1_payload.json",
-                temp_prefix="tradebot_st37_refine_1_",
-                worker_tmp_prefix="tradebot_st37_refine_stage1_",
-                worker_tag="st37:1",
-                out_prefix="stage1_out",
-                stage_flag="--st37-refine-stage1",
-                worker_flag="--st37-refine-worker",
-                workers_flag="--st37-refine-workers",
-                out_flag="--st37-refine-out",
-                strip_flags_with_values=(
-                    "--st37-refine-stage1",
-                    "--st37-refine-stage2",
-                    "--st37-refine-worker",
-                    "--st37-refine-workers",
-                    "--st37-refine-out",
-                    "--st37-refine-run-min-trades",
-                ),
-                run_min_trades_flag="--st37-refine-run-min-trades",
-                run_min_trades=int(run_min_trades),
-                capture_error="Failed to capture st37_refine stage1 worker stdout.",
-                failure_label="st37_refine stage1 worker",
-                missing_label="st37_refine stage1",
-                invalid_label="st37_refine stage1",
-            ),
-            parallel_default_note="st37 stage1",
-            parallel_dedupe_by_milestone_key=True,
-            record_milestones=True,
-        )
-
-        print(f"st37_refine: stage1 kept={len(stage1_rows)} tested={tested_1}", flush=True)
-        if not stage1_rows:
-            return
-
-        stage1_shortlist = _rank_cfg_rows(
-            stage1_rows,
-            scorers=[(_score_row_roi_dd, 30), (_score_row_pnl_dd, 20)],
-            limit=30,
-        )
-
-        print(f"st37_refine: stage1 shortlist={len(stage1_shortlist)}", flush=True)
-
-        # Stage 2: risk overlays + shock pocket sweeps around the shortlisted configs.
-        #
-        # Goal: aggressively explore the TR-median + gap-ratio overlays (riskpanic + riskpop),
-        # plus plain TR-median hygiene overlays (riskoff), with the full aggressive/defensive
-        # sizing ends included (notably riskpop_short_factor=0.0 to hard-block shorts).
-        risk_variants = _build_st37_refine_risk_variants()
-        shock_variants = _build_st37_refine_shock_variants()
-
-        # st37_refine stage2 worker mode is handled at the top of this sweep (before stage1).
-
-        stage2_rows: list[tuple[ConfigBundle, dict, str]] = []
-        stage2_plan = _build_stage2_plan(
-            [(cfg, note) for cfg, _row, note in stage1_shortlist],
-            risk_variants_local=risk_variants,
-            shock_variants_local=shock_variants,
-        )
-        stage2_total = len(stage2_plan)
-        print(f"st37_refine: stage2 total={stage2_total} (risk×shock)", flush=True)
-
-        def _on_stage2_row(cfg: ConfigBundle, row: dict, note: str) -> None:
-            stage2_rows.append((cfg, row, note))
-
-        tested_2 = _run_stage_cfg_rows(
-            stage_label="st37_refine stage2",
-            total=stage2_total,
-            jobs_req=int(jobs),
-            serial_plan=stage2_plan,
-            bars=bars_sig,
-            report_every=report_every,
-            heartbeat_sec=heartbeat_sec,
-            on_row=_on_stage2_row,
-            parallel_payloads_builder=lambda: _run_parallel_stage_with_payload(
-                axis_name="st37_refine",
-                stage_label="st37_refine stage2",
-                total=stage2_total,
-                jobs=int(jobs),
-                payload={
-                    "shortlist": [
-                        _encode_cfg_payload(
-                            cfg,
-                            note=note,
-                            note_key="base_note",
-                            extra={"seed_tag": str(note.split("|", 1)[0]).strip()},
-                        )
-                        for cfg, _row, note in stage1_shortlist
-                    ],
-                    "risk_variants": [{"overrides": risk_over, "note": risk_note} for risk_over, risk_note in risk_variants],
-                    "shock_variants": [
-                        {"overrides": shock_over, "note": shock_note} for shock_over, shock_note in shock_variants
-                    ],
-                },
-                payload_filename="stage2_payload.json",
-                temp_prefix="tradebot_st37_refine_2_",
-                worker_tmp_prefix="tradebot_st37_refine_stage2_",
-                worker_tag="st37:2",
-                out_prefix="stage2_out",
-                stage_flag="--st37-refine-stage2",
-                worker_flag="--st37-refine-worker",
-                workers_flag="--st37-refine-workers",
-                out_flag="--st37-refine-out",
-                strip_flags_with_values=(
-                    "--st37-refine-stage1",
-                    "--st37-refine-stage2",
-                    "--st37-refine-worker",
-                    "--st37-refine-workers",
-                    "--st37-refine-out",
-                    "--st37-refine-run-min-trades",
-                ),
-                run_min_trades_flag="--st37-refine-run-min-trades",
-                run_min_trades=int(run_min_trades),
-                capture_error="Failed to capture st37_refine stage2 worker stdout.",
-                failure_label="st37_refine stage2 worker",
-                missing_label="st37_refine stage2",
-                invalid_label="st37_refine stage2",
-            ),
-            parallel_default_note="st37 stage2",
-            parallel_dedupe_by_milestone_key=True,
-            record_milestones=True,
-        )
-
-        print(f"st37_refine: stage2 kept={len(stage2_rows)} tested={tested_2}", flush=True)
-        if not stage2_rows:
-            return
-
-        stage2_shortlist = _rank_cfg_rows(
-            stage2_rows,
-            scorers=[(_score_row_roi_dd, 25), (_score_row_pnl_dd, 15)],
-            limit=25,
-        )
-
-        print(f"st37_refine: stage2 shortlist={len(stage2_shortlist)} (for exit sweep)", flush=True)
-
-        # Stage 3: exit semantics pocket (anchored on v31, plus a small ATR-exit family).
-        v31_exit_mode = "pct"
-        v31_pt = None
-        v31_sl = 0.04
-        v31_atr_p = 14
-        v31_ptx = 1.5
-        v31_slx = 1.0
-        v31_exit_time = None
-        v31_exit_on_flip = True
-        v31_flip_mode = "entry"
-        v31_only_profit = True
-        v31_hold = 2
-        v31_gate_mode = "off"
-        if v31_exit:
-            try:
-                v31_exit_mode = str(v31_exit.get("spot_exit_mode") or "pct").strip().lower()
-            except Exception:
-                v31_exit_mode = "pct"
-            if v31_exit_mode not in ("pct", "atr"):
-                v31_exit_mode = "pct"
-            v31_pt = v31_exit.get("spot_profit_target_pct")
-            try:
-                v31_sl = float(v31_exit.get("spot_stop_loss_pct") or v31_sl)
-            except (TypeError, ValueError):
-                pass
-            try:
-                v31_atr_p = int(v31_exit.get("spot_atr_period") or v31_atr_p)
-            except (TypeError, ValueError):
-                pass
-            if "spot_pt_atr_mult" in v31_exit and v31_exit.get("spot_pt_atr_mult") is not None:
-                try:
-                    v31_ptx = float(v31_exit.get("spot_pt_atr_mult"))
-                except (TypeError, ValueError):
-                    pass
-            if "spot_sl_atr_mult" in v31_exit and v31_exit.get("spot_sl_atr_mult") is not None:
-                try:
-                    v31_slx = float(v31_exit.get("spot_sl_atr_mult"))
-                except (TypeError, ValueError):
-                    pass
-            v31_exit_time = v31_exit.get("spot_exit_time_et")
-            v31_exit_on_flip = bool(v31_exit.get("exit_on_signal_flip")) if "exit_on_signal_flip" in v31_exit else True
-            v31_flip_mode = str(v31_exit.get("flip_exit_mode") or v31_flip_mode)
-            v31_only_profit = (
-                bool(v31_exit.get("flip_exit_only_if_profit"))
-                if "flip_exit_only_if_profit" in v31_exit
-                else v31_only_profit
-            )
-            try:
-                v31_hold = int(v31_exit.get("flip_exit_min_hold_bars") or v31_hold)
-            except (TypeError, ValueError):
-                pass
-            v31_gate_mode = str(v31_exit.get("flip_exit_gate_mode") or v31_gate_mode)
-
-        sl_sweep = sorted({max(0.01, v31_sl - 0.01), v31_sl, v31_sl + 0.01})
-        hold_sweep = sorted({max(0, int(v31_hold) - 1), int(v31_hold), int(v31_hold) + 1})
-        exit_variants: list[tuple[dict[str, object], str]] = []
-        exit_variants.append(
-            (
-                {
-                    "spot_exit_mode": v31_exit_mode,
-                    "spot_profit_target_pct": v31_pt,
-                    "spot_stop_loss_pct": v31_sl,
-                    "spot_atr_period": v31_atr_p,
-                    "spot_pt_atr_mult": v31_ptx,
-                    "spot_sl_atr_mult": v31_slx,
-                    "spot_exit_time_et": v31_exit_time,
-                    "exit_on_signal_flip": v31_exit_on_flip,
-                    "flip_exit_mode": v31_flip_mode,
-                    "flip_exit_only_if_profit": v31_only_profit,
-                    "flip_exit_min_hold_bars": v31_hold,
-                    "flip_exit_gate_mode": v31_gate_mode,
-                },
-                f"exit=v31 {v31_exit_mode} stop{v31_sl:g} flip={int(v31_exit_on_flip)} "
-                f"mode={v31_flip_mode} only_profit={int(v31_only_profit)} hold={v31_hold}",
-            )
-        )
-        for sl in sl_sweep:
-            if abs(float(sl) - float(v31_sl)) < 1e-9:
-                continue
-            exit_variants.append(
-                (
-                    {
-                        "spot_exit_mode": "pct",
-                        "spot_profit_target_pct": None,
-                        "spot_stop_loss_pct": float(sl),
-                        "exit_on_signal_flip": v31_exit_on_flip,
-                        "flip_exit_mode": v31_flip_mode,
-                        "flip_exit_only_if_profit": v31_only_profit,
-                        "flip_exit_min_hold_bars": int(v31_hold),
-                        "flip_exit_gate_mode": v31_gate_mode,
-                    },
-                    f"exit=pct stop{sl:g} mode={v31_flip_mode} only_profit={int(v31_only_profit)} hold={v31_hold}",
-                )
-            )
-        for hold in hold_sweep:
-            if int(hold) == int(v31_hold):
-                continue
-            exit_variants.append(
-                (
-                    {
-                        "spot_exit_mode": "pct",
-                        "spot_profit_target_pct": None,
-                        "spot_stop_loss_pct": float(v31_sl),
-                        "exit_on_signal_flip": v31_exit_on_flip,
-                        "flip_exit_mode": v31_flip_mode,
-                        "flip_exit_only_if_profit": v31_only_profit,
-                        "flip_exit_min_hold_bars": int(hold),
-                        "flip_exit_gate_mode": v31_gate_mode,
-                    },
-                    f"exit=pct stop{v31_sl:g} mode={v31_flip_mode} only_profit={int(v31_only_profit)} hold={hold}",
-                )
-            )
-        # ATR exit pocket (no pct PT/SL; uses ATR multipliers). Keeps flip-exit on to limit long holds.
-        for atr_p, pt_m, sl_m in (
-            (10, 0.90, 1.80),
-            (14, 0.75, 1.60),
-            (14, 0.80, 1.60),
-            (21, 0.70, 1.80),
-        ):
-            exit_variants.append(
-                (
-                    {
-                        "spot_exit_mode": "atr",
-                        "spot_profit_target_pct": None,
-                        "spot_stop_loss_pct": None,
-                        "spot_atr_period": int(atr_p),
-                        "spot_pt_atr_mult": float(pt_m),
-                        "spot_sl_atr_mult": float(sl_m),
-                        "exit_on_signal_flip": True,
-                        "flip_exit_mode": "entry",
-                        "flip_exit_only_if_profit": True,
-                        "flip_exit_min_hold_bars": 2,
-                    },
-                    f"exit=ATR({atr_p}) PTx{pt_m:g} SLx{sl_m:g} flipprofit hold=2",
-                )
-            )
-
-        def _mk_stage3_cfg(base_cfg: ConfigBundle, *, exit_over: dict[str, object]) -> ConfigBundle:
-            ptx_raw = (
-                exit_over.get("spot_pt_atr_mult")
-                if "spot_pt_atr_mult" in exit_over
-                else getattr(base_cfg.strategy, "spot_pt_atr_mult", 1.5)
-            )
-            slx_raw = (
-                exit_over.get("spot_sl_atr_mult")
-                if "spot_sl_atr_mult" in exit_over
-                else getattr(base_cfg.strategy, "spot_sl_atr_mult", 1.0)
-            )
-            return replace(
-                base_cfg,
-                strategy=replace(
-                    base_cfg.strategy,
-                    spot_exit_mode=str(exit_over.get("spot_exit_mode") or base_cfg.strategy.spot_exit_mode),
-                    spot_profit_target_pct=exit_over.get("spot_profit_target_pct"),
-                    spot_stop_loss_pct=exit_over.get("spot_stop_loss_pct"),
-                    spot_atr_period=int(exit_over.get("spot_atr_period") or getattr(base_cfg.strategy, "spot_atr_period", 14)),
-                    spot_pt_atr_mult=float(1.5 if ptx_raw is None else ptx_raw),
-                    spot_sl_atr_mult=float(1.0 if slx_raw is None else slx_raw),
-                    spot_exit_time_et=(
-                        exit_over.get("spot_exit_time_et")
-                        if "spot_exit_time_et" in exit_over
-                        else getattr(base_cfg.strategy, "spot_exit_time_et", None)
-                    ),
-                    exit_on_signal_flip=bool(
-                        exit_over.get("exit_on_signal_flip")
-                        if "exit_on_signal_flip" in exit_over
-                        else getattr(base_cfg.strategy, "exit_on_signal_flip", True)
-                    ),
-                    flip_exit_mode=str(exit_over.get("flip_exit_mode") or getattr(base_cfg.strategy, "flip_exit_mode", "entry")),
-                    flip_exit_only_if_profit=bool(
-                        exit_over.get("flip_exit_only_if_profit")
-                        if "flip_exit_only_if_profit" in exit_over
-                        else getattr(base_cfg.strategy, "flip_exit_only_if_profit", False)
-                    ),
-                    flip_exit_min_hold_bars=int(
-                        exit_over.get("flip_exit_min_hold_bars") or getattr(base_cfg.strategy, "flip_exit_min_hold_bars", 2)
-                    ),
-                    flip_exit_gate_mode=str(exit_over.get("flip_exit_gate_mode") or getattr(base_cfg.strategy, "flip_exit_gate_mode", "off")),
-                ),
-            )
-
-        stage3_plan: list[tuple[ConfigBundle, str, dict]] = []
-        for base_idx, (base_cfg, _row, base_note) in enumerate(stage2_shortlist):
-            for exit_idx, (exit_over, exit_note) in enumerate(exit_variants):
-                cfg = _mk_stage3_cfg(base_cfg, exit_over=exit_over)
-                note = f"{base_note} | {exit_note}"
-                stage3_plan.append((cfg, note, {"base_idx": int(base_idx), "exit_idx": int(exit_idx)}))
-
-        stage3_rows: list[tuple[ConfigBundle, dict, str]] = []
-        stage3_total = len(stage3_plan)
-        print(f"st37_refine: stage3 total={stage3_total} (exit pocket)", flush=True)
-        tested_3, stage3_rows_new = _run_stage_serial(
-            stage_label="st37_refine stage3",
-            plan=stage3_plan,
-            bars=bars_sig,
-            total=stage3_total,
-            report_every=report_every,
-            heartbeat_sec=heartbeat_sec,
-        )
-        stage3_rows.extend(stage3_rows_new)
-
-        print(f"st37_refine: stage3 kept={len(stage3_rows)} tested={tested_3}", flush=True)
-        final_rows = stage3_rows or stage2_rows or stage1_rows
-        rows_only = [r for _, r, _ in final_rows]
-
-        def _score_roi_dd(row: dict) -> tuple:
-            return (
-                _roi_dd(row),
-                float(row.get("pnl") or 0.0),
-                float(row.get("win_rate") or 0.0),
-                int(row.get("trades") or 0),
-            )
-
-        _print_top(rows_only, title="st37_refine — Top by roi/dd%", top_n=int(args.top), sort_key=_score_roi_dd)
-        _print_leaderboards(rows_only, title="st37_refine", top_n=int(args.top))
-
-    def _sweep_seeded_refine_bundle() -> None:
-        _resolve_seed_milestones_path(
-            seed_milestones=args.seed_milestones,
-            axis_tag="seeded_refine",
-        )
-        print("")
-        print("=== seeded_refine: unified seeded refinement bundle ===")
-        print(
-            f"- members={','.join(_SEEDED_REFINEMENT_MEMBER_AXES)}",
-            flush=True,
-        )
-        print("")
-        _sweep_champ_refine()
-        _sweep_overlay_family()
-        _sweep_st37_refine()
-
-    def _sweep_gate_matrix() -> None:
-        """Bounded cross-product of major gates (overnight-capable exhaustive discovery)."""
-        nonlocal run_calls_total
-        perm_pack = {
-            "ema_spread_min_pct": 0.003,
-            "ema_slope_min_pct": 0.01,
-            "ema_spread_min_pct_down": 0.03,
-            "ema_slope_signed_min_pct_down": 0.005,
-            "rv_min": 0.15,
-            "rv_max": 1.0,
-            "volume_ratio_min": 1.2,
-            "volume_ema_period": 20,
-        }
-
-        tick_pack = {
-            "tick_gate_mode": "raschke",
-            "tick_gate_symbol": "TICK-AMEX",
-            "tick_gate_exchange": "AMEX",
-            "tick_neutral_policy": "allow",
-            "tick_direction_policy": "both",
-            "tick_band_ma_period": 10,
-            "tick_width_z_lookback": 252,
-            "tick_width_z_enter": 1.0,
-            "tick_width_z_exit": 0.5,
-            "tick_width_slope_lookback": 3,
-        }
-
-        shock_pack = {
-            "shock_gate_mode": "surf",
-            "shock_detector": "daily_atr_pct",
-            "shock_daily_atr_period": 14,
-            "shock_daily_on_atr_pct": 13.5,
-            "shock_daily_off_atr_pct": 13.0,
-            "shock_daily_on_tr_pct": 9.0,
-            "shock_direction_source": "signal",
-            "shock_direction_lookback": 1,
-            "shock_stop_loss_pct_mult": 0.75,
-        }
-
-        riskoff_pack = {
-            "riskoff_tr5_med_pct": 9.0,
-            "riskoff_tr5_lookback_days": 5,
-            "riskoff_mode": "hygiene",
-            "risk_entry_cutoff_hour_et": 15,
-        }
-        riskpanic_pack = {
-            "riskpanic_tr5_med_pct": 9.0,
-            "riskpanic_neg_gap_ratio_min": 0.6,
-            "riskpanic_lookback_days": 5,
-            "riskpanic_short_risk_mult_factor": 0.5,
-            "risk_entry_cutoff_hour_et": 15,
-        }
-        riskpop_pack = {
-            "riskpop_tr5_med_pct": 9.0,
-            "riskpop_pos_gap_ratio_min": 0.6,
-            "riskpop_lookback_days": 5,
-            "riskpop_long_risk_mult_factor": 1.2,
-            "riskpop_short_risk_mult_factor": 0.5,
-            "risk_entry_cutoff_hour_et": 15,
-        }
-
-        regime2_pack = {
-            "regime2_mode": "supertrend",
-            "regime2_bar_size": "4 hours",
-            "regime2_supertrend_atr_period": 2,
-            "regime2_supertrend_multiplier": 0.3,
-            "regime2_supertrend_source": "close",
-        }
-
-        short_mults = [1.0, 0.2, 0.05, 0.02, 0.01, 0.0]
-
-        def _mk_stage2_cfg(
-            seed_cfg: ConfigBundle,
-            seed_note: str,
-            family: str,
-            *,
-            perm_on: bool,
-            tick_on: bool,
-            shock_on: bool,
-            riskoff_on: bool,
-            riskpanic_on: bool,
-            riskpop_on: bool,
-            regime2_on: bool,
-            short_mult: float,
-        ) -> tuple[ConfigBundle, str]:
-            filt_over: dict[str, object] = {}
-            if perm_on:
-                filt_over.update(perm_pack)
-            if shock_on:
-                filt_over.update(shock_pack)
-            if riskoff_on:
-                filt_over.update(riskoff_pack)
-            if riskpanic_on:
-                filt_over.update(riskpanic_pack)
-            if riskpop_on:
-                filt_over.update(riskpop_pack)
-            f = _mk_filters(overrides=filt_over) if filt_over else None
-
-            strat = seed_cfg.strategy
+            filters_overrides: dict[str, object] = {}
+            for dim_name in filter_override_dims:
+                over = pair_overrides_by_dim.get(str(dim_name))
+                if over:
+                    filters_overrides.update(over)
+            if timing_filter_over:
+                filters_overrides.update(timing_filter_over)
+            filters_obj = _mk_filters(overrides=filters_overrides) if filters_overrides else None
+            strat = base.strategy
+            strategy_overrides: dict[str, object] = {}
+            for dim_name in strategy_override_dims:
+                over = pair_overrides_by_dim.get(str(dim_name))
+                if over:
+                    strategy_overrides.update(over)
+            if timing_strat_over:
+                strategy_overrides.update(timing_strat_over)
+            strategy_overrides.pop("entry_confirm_bars", None)
+            strategy_overrides.pop("spot_short_risk_mult", None)
+            strategy_overrides.pop("filters", None)
             strat = replace(
                 strat,
-                filters=f,
+                filters=filters_obj,
+                entry_confirm_bars=int(confirm),
                 spot_short_risk_mult=float(short_mult),
-                tick_gate_mode="off" if not tick_on else str(tick_pack["tick_gate_mode"]),
-                tick_gate_symbol=str(tick_pack["tick_gate_symbol"]),
-                tick_gate_exchange=str(tick_pack["tick_gate_exchange"]),
-                tick_neutral_policy=str(tick_pack["tick_neutral_policy"]),
-                tick_direction_policy=str(tick_pack["tick_direction_policy"]),
-                tick_band_ma_period=int(tick_pack["tick_band_ma_period"]),
-                tick_width_z_lookback=int(tick_pack["tick_width_z_lookback"]),
-                tick_width_z_enter=float(tick_pack["tick_width_z_enter"]),
-                tick_width_z_exit=float(tick_pack["tick_width_z_exit"]),
-                tick_width_slope_lookback=int(tick_pack["tick_width_slope_lookback"]),
+                **strategy_overrides,
             )
-            if not regime2_on:
-                strat = replace(strat, regime2_mode="off", regime2_bar_size=None)
-            else:
-                strat = replace(
-                    strat,
-                    regime2_mode=str(regime2_pack["regime2_mode"]),
-                    regime2_bar_size=str(regime2_pack["regime2_bar_size"]),
-                    regime2_supertrend_atr_period=int(regime2_pack["regime2_supertrend_atr_period"]),
-                    regime2_supertrend_multiplier=float(regime2_pack["regime2_supertrend_multiplier"]),
-                    regime2_supertrend_source=str(regime2_pack["regime2_supertrend_source"]),
-                )
+            cfg = replace(base, strategy=strat)
+            meta_item = {str(dim_name): int(dim_index_by_name[str(dim_name)]) for dim_name in _COMBO_FULL_CARTESIAN_DIM_ORDER}
+            meta_item["_mr_rank"] = int(_mixed_radix_rank(dim_indices)) if rank_override is None else int(rank_override)
+            note_parts = [
+                str(timing_label),
+                str(pair_label_by_dim["direction"]),
+                f"c={int(confirm)}",
+                *[str(pair_label_by_dim[str(dim_name)]) for dim_name in _COMBO_FULL_NOTE_PAIR_DIM_ORDER],
+                f"short_mult={float(short_mult):g}",
+            ]
+            note = " | ".join(note_parts)
+            return cfg, str(note), meta_item
 
-            cfg = replace(seed_cfg, strategy=strat)
-            note = (
-                f"{seed_note} | gates="
-                f"perm={int(perm_on)} tick={int(tick_on)} shock={int(shock_on)} "
-                f"riskoff={int(riskoff_on)} riskpanic={int(riskpanic_on)} riskpop={int(riskpop_on)} "
-                f"r2={int(regime2_on)} short_mult={short_mult:g} family={family}"
-            )
-            return cfg, note
+        def _combo_full_cfg_note_meta_from_rank(rank: int) -> tuple[ConfigBundle, str, dict]:
+            dim_indices = _mixed_radix_indices_from_rank(int(rank))
+            return _combo_full_cfg_note_meta_from_dim_indices(dim_indices, rank_override=int(rank))
 
-        def _build_stage2_plan(
-            seed_triples: list[tuple[ConfigBundle, str, str]],
-        ) -> list[tuple[ConfigBundle, str, dict]]:
-            plan: list[tuple[ConfigBundle, str, dict]] = []
-            for seed_idx, (seed_cfg, seed_note, family) in enumerate(seed_triples):
-                for perm_on in (False, True):
-                    for tick_on in (False, True):
-                        for shock_on in (False, True):
-                            for riskoff_on in (False, True):
-                                for riskpanic_on in (False, True):
-                                    for riskpop_on in (False, True):
-                                        for regime2_on in (False, True):
-                                            for short_mult in short_mults:
-                                                cfg, note = _mk_stage2_cfg(
-                                                    seed_cfg,
-                                                    seed_note,
-                                                    family,
-                                                    perm_on=perm_on,
-                                                    tick_on=tick_on,
-                                                    shock_on=shock_on,
-                                                    riskoff_on=riskoff_on,
-                                                    riskpanic_on=riskpanic_on,
-                                                    riskpop_on=riskpop_on,
-                                                    regime2_on=regime2_on,
-                                                    short_mult=float(short_mult),
-                                                )
-                                                plan.append(
-                                                    (
-                                                        cfg,
-                                                        note,
-                                                        {
-                                                            "seed_idx": int(seed_idx),
-                                                            "perm_on": bool(perm_on),
-                                                            "tick_on": bool(tick_on),
-                                                            "shock_on": bool(shock_on),
-                                                            "riskoff_on": bool(riskoff_on),
-                                                            "riskpanic_on": bool(riskpanic_on),
-                                                            "riskpop_on": bool(riskpop_on),
-                                                            "regime2_on": bool(regime2_on),
-                                                            "short_mult": float(short_mult),
-                                                        },
-                                                    )
-                                                )
-            return plan
+        def _iter_combo_full_cartesian_plan():
+            index_ranges = tuple(range(int(size_by_dim[str(dim_name)])) for dim_name in _COMBO_FULL_CARTESIAN_DIM_ORDER)
+            for raw_indices in itertools.product(*index_ranges):
+                dim_indices = {
+                    str(dim_name): int(idx)
+                    for dim_name, idx in zip(_COMBO_FULL_CARTESIAN_DIM_ORDER, raw_indices)
+                }
+                yield _combo_full_cfg_note_meta_from_dim_indices(dim_indices)
 
-        if args.gate_matrix_stage2:
-            payload_path = Path(str(args.gate_matrix_stage2))
-            payload_decoded = _load_worker_stage_payload(
-                schema_name="gate_matrix_stage2",
-                payload_path=payload_path,
-            )
-            seeds_local = list(payload_decoded.get("seed_triples") or [])
-            stage2_plan_all = _build_stage2_plan(seeds_local)
-            total = len(seeds_local) * 2 * 2 * 2 * 2 * 2 * 2 * 2 * len(short_mults)
-            if len(stage2_plan_all) != int(total):
-                raise SystemExit(
-                    f"gate_matrix stage2 worker internal error: combos={len(stage2_plan_all)} expected={total}"
-                )
+        combo_dim_space_sig = _combo_full_dimension_space_signature(
+            ordered_dims=tuple(ordered_dims),
+            size_by_dim=size_by_dim,
+            timing_profile_variants=timing_profile_variants,
+            confirm_bars=confirm_bars,
+            pair_variants_by_dim=pair_variants_by_dim,
+            short_mults=short_mults,
+        )
+
+        def _combo_full_worker_stage_window_signature() -> str:
+            raw = {
+                "version": str(_RUN_CFG_CACHE_ENGINE_VERSION),
+                "stage": "combo_full_cartesian",
+                "symbol": str(symbol),
+                "start": start.isoformat(),
+                "end": end.isoformat(),
+                "signal_bar_size": str(signal_bar_size),
+                "use_rth": bool(use_rth),
+                "run_min_trades": int(run_min_trades),
+                "preset": str(combo_full_preset or ""),
+                "ordered_dims": tuple(str(v) for v in ordered_dims),
+                "size_by_dim": tuple((str(k), int(v)) for k, v in size_by_dim.items()),
+                "dim_space_sig": str(combo_dim_space_sig),
+                "bars_sig": _bars_signature(bars_sig),
+            }
+            return hashlib.sha1(json.dumps(raw, sort_keys=True, default=str).encode("utf-8")).hexdigest()
+
+        if args.combo_full_cartesian_stage:
             _run_sharded_stage_worker(
-                stage_label="gate_matrix stage2",
-                worker_raw=args.gate_matrix_worker,
-                workers_raw=args.gate_matrix_workers,
-                out_path_raw=str(args.gate_matrix_out or ""),
-                out_flag_name="gate-matrix-out",
-                plan_all=stage2_plan_all,
+                stage_label="combo_full_cartesian",
+                worker_raw=args.combo_full_cartesian_worker,
+                workers_raw=args.combo_full_cartesian_workers,
+                out_path_raw=str(args.combo_full_cartesian_out or ""),
+                out_flag_name="combo-full-cartesian-out",
+                plan_all=None,
                 bars=bars_sig,
-                report_every=100,
-                heartbeat_sec=0.0,
+                report_every=0,
+                heartbeat_sec=30.0,
+                plan_total=int(total),
+                plan_item_from_rank=_combo_full_cfg_note_meta_from_rank,
+                rank_manifest_window_signature=_combo_full_worker_stage_window_signature(),
+                rank_batch_size=2048,
             )
             return
 
-        bars_sig = _bars_cached(signal_bar_size)
-
-        # Stage 1: seed scan (direction × bias × exit family), with gates OFF.
-        base = _base_bundle(bar_size=signal_bar_size, filters=None)
-        base = replace(
-            base,
-            strategy=replace(
-                base.strategy,
-                filters=None,
-                tick_gate_mode="off",
-                regime2_mode="off",
-                regime2_bar_size=None,
-                spot_exit_time_et=None,
-            ),
-        )
-
-        direction_variants: list[tuple[str, str, int, str]] = []
-        base_preset = str(base.strategy.ema_preset or "").strip()
-        base_mode = str(base.strategy.ema_entry_mode or "trend").strip().lower()
-        base_confirm = int(base.strategy.entry_confirm_bars or 0)
-        if base_preset and base_mode in ("cross", "trend"):
-            direction_variants.append((base_preset, base_mode, base_confirm, f"ema={base_preset} {base_mode}"))
-        for preset, mode in (
-            ("2/4", "cross"),
-            ("3/7", "cross"),
-            ("3/7", "trend"),
-            ("4/9", "cross"),
-            ("4/9", "trend"),
-            ("5/10", "trend"),
-            ("8/21", "trend"),
-        ):
-            if base_preset and str(base_preset) == str(preset) and str(base_mode) == str(mode):
-                continue
-            direction_variants.append((str(preset), str(mode), 0, f"ema={preset} {mode}"))
-
-        regimes: list[tuple[str, int, float, str, str]] = []
-        for rbar, atr_p, mult, src in (
-            ("4 hours", 2, 0.3, "close"),
-            ("4 hours", 5, 0.4, "hl2"),
-            ("4 hours", 10, 0.8, "hl2"),
-            ("4 hours", 14, 1.0, "hl2"),
-            ("1 day", 10, 1.0, "hl2"),
-            ("1 day", 14, 1.5, "hl2"),
-        ):
-            regimes.append((str(rbar), int(atr_p), float(mult), str(src), f"ST({atr_p},{mult:g},{src})@{rbar}"))
-
-        exit_variants: list[tuple[str, dict[str, object]]] = [
-            (
-                "pct",
-                {"spot_exit_mode": "pct", "spot_profit_target_pct": 0.01, "spot_stop_loss_pct": 0.03},
-            ),
-            (
-                "pct",
-                {"spot_exit_mode": "pct", "spot_profit_target_pct": 0.015, "spot_stop_loss_pct": 0.04},
-            ),
-            (
-                "pct_stop",
-                {"spot_exit_mode": "pct", "spot_profit_target_pct": None, "spot_stop_loss_pct": 0.03},
-            ),
-            (
-                "atr",
-                {
-                    "spot_exit_mode": "atr",
-                    "spot_atr_period": 14,
-                    "spot_pt_atr_mult": 0.9,
-                    "spot_sl_atr_mult": 1.5,
-                    "spot_profit_target_pct": None,
-                    "spot_stop_loss_pct": None,
-                },
-            ),
-            (
-                "atr",
-                {
-                    "spot_exit_mode": "atr",
-                    "spot_atr_period": 14,
-                    "spot_pt_atr_mult": 0.75,
-                    "spot_sl_atr_mult": 1.8,
-                    "spot_profit_target_pct": None,
-                    "spot_stop_loss_pct": None,
-                },
-            ),
-        ]
-
-        stage1_plan: list[tuple[ConfigBundle, str, dict]] = []
-        for preset, mode, confirm, dir_note in direction_variants:
-            for rbar, atr_p, mult, src, reg_note in regimes:
-                for exit_family, exit_over in exit_variants:
-                    cfg = replace(
-                        base,
-                        strategy=replace(
-                            base.strategy,
-                            ema_preset=str(preset),
-                            ema_entry_mode=str(mode),
-                            entry_confirm_bars=int(confirm),
-                            filters=None,
-                            tick_gate_mode="off",
-                            regime2_mode="off",
-                            regime2_bar_size=None,
-                            regime_mode="supertrend",
-                            regime_bar_size=str(rbar),
-                            supertrend_atr_period=int(atr_p),
-                            supertrend_multiplier=float(mult),
-                            supertrend_source=str(src),
-                            **exit_over,
-                        ),
-                    )
-                    note = f"{dir_note} | {reg_note} | exit={exit_family}"
-                    stage1_plan.append((cfg, note, {"exit_family": str(exit_family)}))
-
-        total = len(stage1_plan)
-        _tested, kept = _run_sweep(
-            plan=stage1_plan,
-            bars=bars_sig,
-            total=total,
-            progress_label="gate_matrix stage1",
-            report_every=50,
-        )
-        stage1: list[tuple[ConfigBundle, dict, str, str]] = []
-        for cfg, row, note, meta_item in kept:
-            family = str(meta_item.get("exit_family") or "") if isinstance(meta_item, dict) else ""
-            stage1.append((cfg, row, note, family))
-
-        if not stage1:
-            print("Gate-matrix: no stage1 seeds eligible (try lowering --min-trades).")
-            return
-
-        families = sorted({t[3] for t in stage1})
-        seeds: list[tuple[ConfigBundle, dict, str, str]] = []
-        for fam in families:
-            ranked_family = _rank_cfg_rows_with_meta(
-                [t for t in stage1 if t[3] == fam],
-                scorers=[(_score_row_pnl_dd, 3), (_score_row_pnl, 2)],
-                limit=None,
-            )
-            for cfg, row, note, meta_family in ranked_family:
-                seeds.append((cfg, row, note, str(meta_family or fam)))
-        # Keep this bounded.
-        max_seeds = 8
-        seeds = seeds[:max_seeds]
         print("")
-        print(f"Gate-matrix: stage1 candidates={len(stage1)} seeds={len(seeds)} families={families}")
-
-        # Stage 2: gate cross-product around the shortlist.
-        rows: list[dict] = []
-        total = len(seeds) * 2 * 2 * 2 * 2 * 2 * 2 * 2 * len(short_mults)
-        seed_triples = [(seed_cfg, str(seed_note), str(family)) for seed_cfg, _row, seed_note, family in seeds]
-        tested_total = _run_stage_cfg_rows(
-            stage_label="gate_matrix stage2",
-            total=total,
-            jobs_req=int(jobs),
-            bars=bars_sig,
-            report_every=200,
-            on_row=lambda _cfg, row, _note: rows.append(row),
-            serial_plan_builder=lambda: _build_stage2_plan(seed_triples),
-            parallel_payloads_builder=lambda: _run_parallel_stage_with_payload(
-                axis_name="gate_matrix",
-                stage_label="gate_matrix stage2",
-                total=total,
-                jobs=int(jobs),
-                payload={
-                    "seeds": [
-                        {
-                            "strategy": _spot_strategy_payload(seed_cfg, meta=meta),
-                            "filters": _filters_payload(seed_cfg.strategy.filters),
-                            "seed_note": str(seed_note),
-                            "family": str(family),
-                        }
-                        for seed_cfg, _row, seed_note, family in seeds
-                    ],
-                },
-                payload_filename="stage2_payload.json",
-                temp_prefix="tradebot_gate_matrix_",
-                worker_tmp_prefix="tradebot_gate_matrix2_",
-                worker_tag="gm2",
-                out_prefix="stage2_out",
-                stage_flag="--gate-matrix-stage2",
-                worker_flag="--gate-matrix-worker",
-                workers_flag="--gate-matrix-workers",
-                out_flag="--gate-matrix-out",
-                strip_flags_with_values=(
-                    "--gate-matrix-stage2",
-                    "--gate-matrix-worker",
-                    "--gate-matrix-workers",
-                    "--gate-matrix-out",
-                    "--gate-matrix-run-min-trades",
-                ),
-                run_min_trades_flag="--gate-matrix-run-min-trades",
-                run_min_trades=int(run_min_trades),
-                capture_error="Failed to capture gate_matrix worker stdout.",
-                failure_label="gate_matrix stage2 worker",
-                missing_label="gate_matrix stage2",
-                invalid_label="gate_matrix stage2",
+        print("=== combo_full: unified tight Cartesian core ===")
+        if combo_full_preset:
+            print(
+                f"combo_full preset active: {combo_full_preset} (tier={_combo_full_preset_tier(str(combo_full_preset))})",
+                flush=True,
+            )
+        print(
+            "combo_full dimensions: total="
+            f"{int(total)} "
+            + " ".join(
+                f"{str(dim_name)}={int(size_by_dim.get(str(dim_name), 0) or 0)}"
+                for dim_name in _COMBO_FULL_CARTESIAN_DIM_ORDER
             ),
-            parallel_default_note="gate_matrix stage2",
-            parallel_dedupe_by_milestone_key=False,
-            record_milestones=True,
+            flush=True,
         )
-        if jobs > 1:
-            run_calls_total += int(tested_total)
-
-        _print_leaderboards(rows, title="Gate-matrix sweep (bounded cross-product)", top_n=int(args.top))
-
-    def _sweep_squeeze() -> None:
-        """Squeeze a few high-leverage axes from the current champion baseline.
-
-        Targeted (fast): regime2 timeframe, volume gate, and time-of-day windows,
-        including small combinations of these axes.
-        """
-        bars_sig = _bars_cached(signal_bar_size)
-        base = _base_bundle(bar_size=signal_bar_size, filters=None)
-        base_row = _run_cfg(
-            cfg=base, bars=bars_sig
+        print(
+            f"combo_full sharding order: {','.join(ordered_dims)}",
+            flush=True,
         )
+        print("")
+
+        base_row = _run_cfg(cfg=base, bars=bars_sig)
         if base_row:
             base_row["note"] = "base"
             _record_milestone(base, base_row, "base")
 
-        # Stage 1: sweep regime2 timeframe + params (bounded), with no extra filters.
-        stage1: list[tuple[ConfigBundle, dict, str]] = []
-        stage1.append((base, base_row, "base") if base_row else (base, {}, "base"))
-        atr_periods = [2, 3, 4, 5, 6, 7, 10, 11]
-        multipliers = [0.05, 0.075, 0.1, 0.125, 0.15, 0.2, 0.25, 0.3]
-        sources = ["close", "hl2"]
-        for r2_bar in ("4 hours", "1 day"):
-            for atr_p in atr_periods:
-                for mult in multipliers:
-                    for src in sources:
-                        cfg = replace(
-                            base,
-                            strategy=replace(
-                                base.strategy,
-                                regime2_mode="supertrend",
-                                regime2_bar_size=r2_bar,
-                                regime2_supertrend_atr_period=int(atr_p),
-                                regime2_supertrend_multiplier=float(mult),
-                                regime2_supertrend_source=str(src),
-                                filters=None,
-                                entry_confirm_bars=0,
-                            ),
-                        )
-                        row = _run_cfg(cfg=cfg)
-                        if not row:
-                            continue
-                        note = f"r2=ST({atr_p},{mult},{src})@{r2_bar}"
-                        row["note"] = note
-                        stage1.append((cfg, row, note))
-
-        stage1 = [t for t in stage1 if t[1]]
-        shortlisted = _rank_cfg_rows(
-            stage1,
-            scorers=[(_score_row_pnl_dd, 15), (_score_row_pnl, 10)],
-        )
-        print("")
-        print(f"Squeeze sweep: stage1 candidates={len(stage1)} shortlist={len(shortlisted)} (min_trades={run_min_trades})")
-
-        # Stage 2: apply volume + TOD + confirm gates on the shortlist (small combos).
-        vol_variants = [
-            (None, None, "vol=-"),
-            (1.0, 20, "vol>=1.0@20"),
-            (1.1, 20, "vol>=1.1@20"),
-            (1.2, 20, "vol>=1.2@20"),
-            (1.5, 10, "vol>=1.5@10"),
-            (1.5, 20, "vol>=1.5@20"),
-        ]
-        tod_variants = [
-            (None, None, "tod=base"),
-            (18, 3, "tod=18-03 ET"),
-            (9, 16, "tod=9-16 ET"),
-            (10, 15, "tod=10-15 ET"),
-            (11, 16, "tod=11-16 ET"),
-        ]
-        confirm_variants = [(0, "confirm=0"), (1, "confirm=1"), (2, "confirm=2")]
-
         rows: list[dict] = []
-        for base_cfg, _, base_note in shortlisted:
-            for vratio, vema, v_note in vol_variants:
-                for tod_s, tod_e, tod_note in tod_variants:
-                    for confirm, confirm_note in confirm_variants:
-                        f = _mk_filters(
-                            volume_ratio_min=vratio,
-                            volume_ema_period=vema,
-                            entry_start_hour_et=tod_s,
-                            entry_end_hour_et=tod_e,
-                        )
-                        cfg = replace(
-                            base_cfg,
-                            strategy=replace(base_cfg.strategy, filters=f, entry_confirm_bars=int(confirm)),
-                        )
-                        row = _run_cfg(cfg=cfg)
-                        if not row:
-                            continue
-                        note = f"{base_note} | {v_note} | {tod_note} | {confirm_note}"
-                        row["note"] = note
-                        _record_milestone(cfg, row, note)
-                        rows.append(row)
+        combo_stage_args = tuple(
+            ("--combo-full-preset", str(combo_full_preset))
+            if combo_full_preset
+            else ()
+        )
+        combo_manifest_window_sig = _combo_full_worker_stage_window_signature()
 
+        def _combo_full_parallel_totals() -> tuple[int, int]:
+            try:
+                unresolved_ranges = _cartesian_rank_manifest_unresolved_ranges(
+                    stage_label="combo_full_cartesian",
+                    window_signature=str(combo_manifest_window_sig),
+                    total=int(total),
+                )
+                unresolved_total = sum(
+                    max(0, int(rank_hi) - int(rank_lo) + 1)
+                    for rank_lo, rank_hi in tuple(unresolved_ranges)
+                )
+            except Exception:
+                unresolved_total = int(total)
+            unresolved_i = max(0, int(unresolved_total))
+            prefetched_i = max(0, int(total) - int(unresolved_i))
+            return int(unresolved_i), int(prefetched_i)
+
+        tested_total = _run_stage_cfg_rows(
+            stage_label="combo_full_cartesian",
+            total=int(total),
+            jobs_req=int(jobs),
+            bars=bars_sig,
+            report_every=200,
+            heartbeat_sec=30.0,
+            on_row=lambda _cfg, row, _note: rows.append(row),
+            serial_plan_builder=_iter_combo_full_cartesian_plan,
+            parallel_payloads_builder=lambda: (
+                lambda unresolved_i, prefetched_i: _run_parallel_stage(
+                    axis_name="combo_full",
+                    stage_label="combo_full Cartesian",
+                    total=int(unresolved_i),
+                    jobs=int(jobs),
+                    worker_tmp_prefix="tradebot_combo_full_cartesian_",
+                    worker_tag="cfc",
+                    out_prefix="combo_full_cartesian_out",
+                    stage_flag="--combo-full-cartesian-stage",
+                    stage_value="1",
+                    worker_flag="--combo-full-cartesian-worker",
+                    workers_flag="--combo-full-cartesian-workers",
+                    out_flag="--combo-full-cartesian-out",
+                    strip_flags_with_values=(
+                        "--combo-full-cartesian-stage",
+                        "--combo-full-cartesian-worker",
+                        "--combo-full-cartesian-workers",
+                        "--combo-full-cartesian-out",
+                        "--combo-full-cartesian-run-min-trades",
+                        "--combo-full-preset",
+                    ),
+                    run_min_trades_flag="--combo-full-cartesian-run-min-trades",
+                    run_min_trades=int(run_min_trades),
+                    stage_args=combo_stage_args,
+                    capture_error="Failed to capture combo_full Cartesian worker stdout.",
+                    failure_label="combo_full Cartesian worker",
+                    missing_label="combo_full Cartesian",
+                    invalid_label="combo_full Cartesian",
+                    planner_stage_label="combo_full_cartesian",
+                    prefetched_tested_if_empty=int(prefetched_i),
+                )
+            )(*_combo_full_parallel_totals()),
+            parallel_default_note="combo_full Cartesian",
+            parallel_dedupe_by_milestone_key=True,
+            record_milestones=True,
+        )
         if base_row:
             rows.append(base_row)
-        _print_leaderboards(rows, title="Squeeze sweep (regime2 tf+params → vol/TOD/confirm)", top_n=int(args.top))
+        print(
+            f"combo_full Cartesian tested={int(tested_total)} kept={len(rows)} min_trades={int(run_min_trades)}",
+            flush=True,
+        )
+        _print_leaderboards(rows, title="combo_full sweep (unified tight Cartesian)", top_n=int(args.top))
 
     axis = str(args.axis).strip().lower()
     print(
@@ -11413,7 +13792,7 @@ def main() -> None:
     )
 
     if axis == "all" and jobs > 1:
-        axis_plan = _axis_mode_plan(mode="axis_all", include_seeded=False)
+        axis_plan = _axis_mode_plan(mode="axis_all")
         _run_axis_plan_parallel_if_requested(
             axis_plan=list(axis_plan),
             jobs_req=int(jobs),
@@ -11423,76 +13802,10 @@ def main() -> None:
         )
         return
 
-    axis_registry.update(
-        {
-        "ema": _sweep_ema,
-        "entry_mode": _sweep_entry_mode,
-        "combo_fast": _sweep_combo_fast,
-        "combo_full": _sweep_combo_full,
-        "squeeze": _sweep_squeeze,
-        "volume": _sweep_volume,
-        "rv": _sweep_rv,
-        "tod": _sweep_tod,
-        "tod_interaction": _sweep_tod_interaction,
-        "perm_joint": _sweep_perm_joint,
-        "weekday": _sweep_weekdays,
-        "exit_time": _sweep_exit_time,
-        "atr": _sweep_atr_exits,
-        "atr_fine": _sweep_atr_exits_fine,
-        "atr_ultra": _sweep_atr_exits_ultra,
-        "r2_atr": _sweep_r2_atr,
-        "r2_tod": _sweep_r2_tod,
-        "ema_perm_joint": _sweep_ema_perm_joint,
-        "tick_perm_joint": _sweep_tick_perm_joint,
-        "regime_atr": _sweep_regime_atr,
-        "ema_regime": _sweep_ema_regime,
-        "chop_joint": _sweep_chop_joint,
-        "ema_atr": _sweep_ema_atr,
-        "tick_ema": _sweep_tick_ema,
-        "ptsl": _sweep_ptsl,
-        "hf_scalp": _sweep_hf_scalp,
-        "hold": _sweep_hold,
-        "spot_short_risk_mult": _sweep_spot_short_risk_mult,
-        "orb": _sweep_orb,
-        "orb_joint": _sweep_orb_joint,
-        "frontier": _sweep_frontier,
-        "regime": _sweep_regime,
-        "regime2": _sweep_regime2,
-        "regime2_ema": _sweep_regime2_ema,
-        "joint": _sweep_joint,
-        "micro_st": _sweep_micro_st,
-        "flip_exit": _sweep_flip_exit,
-        "confirm": _sweep_confirm,
-        "spread": _sweep_spread,
-        "spread_fine": _sweep_spread_fine,
-        "spread_down": _sweep_spread_down,
-        "slope": _sweep_slope,
-        "slope_signed": _sweep_slope_signed,
-        "cooldown": _sweep_cooldown,
-        "skip_open": _sweep_skip_open,
-        "shock": _sweep_shock,
-        "risk_overlays": _sweep_risk_overlays,
-        "loosen": _sweep_loosen,
-        "loosen_atr": _sweep_loosen_atr,
-        "tick": _sweep_tick,
-        "gate_matrix": _sweep_gate_matrix,
-        "seeded_refine": _sweep_seeded_refine_bundle,
-        "champ_refine": _sweep_champ_refine,
-        "st37_refine": _sweep_st37_refine,
-        "shock_alpha_refine": _sweep_shock_alpha_refine,
-        "shock_velocity_refine": lambda: _sweep_shock_velocity_refine(wide=False),
-        "shock_velocity_refine_wide": lambda: _sweep_shock_velocity_refine(wide=True),
-        "shock_throttle_refine": lambda: _sweep_overlay_family(family="shock_throttle_refine"),
-        "shock_throttle_tr_ratio": lambda: _sweep_overlay_family(family="shock_throttle_tr_ratio"),
-        "shock_throttle_drawdown": lambda: _sweep_overlay_family(family="shock_throttle_drawdown"),
-        "riskpanic_micro": lambda: _sweep_overlay_family(family="riskpanic_micro"),
-        "overlay_family": _sweep_overlay_family,
-        "exit_pivot": _sweep_exit_pivot,
-        }
-    )
+    axis_registry = _build_axis_registry_from_scope(locals())
 
     if axis == "all":
-        _run_axis_plan_serial(list(_axis_mode_plan(mode="axis_all", include_seeded=False)), timed=False)
+        _run_axis_plan_serial(list(_axis_mode_plan(mode="axis_all")), timed=False)
     else:
         fn_obj = axis_registry.get(str(axis))
         fn = fn_obj if callable(fn_obj) else None
@@ -11502,14 +13815,60 @@ def main() -> None:
     if int(run_cfg_cache_hits) > 0 and int(run_calls_total) > 0:
         hit_rate = float(run_cfg_cache_hits) / float(run_calls_total)
         print(
-            f"run_cfg cache: entries={len(run_cfg_cache)} hits={run_cfg_cache_hits}/{run_calls_total} "
+            f"run_cfg cache (strategy+axis_dims+window): entries={len(run_cfg_cache)} hits={run_cfg_cache_hits}/{run_calls_total} "
             f"({hit_rate*100.0:0.1f}%) fp_hits={int(run_cfg_fingerprint_hits)}",
             flush=True,
         )
     if bool(run_cfg_persistent_enabled):
         print(
-            f"run_cfg persistent cache: path={run_cfg_persistent_path} "
-            f"hits={int(run_cfg_persistent_hits)} writes={int(run_cfg_persistent_writes)}",
+            f"run_cfg persistent cache (strategy+axis_dims+window): path={run_cfg_persistent_path} "
+            f"hits={int(run_cfg_persistent_hits)} writes={int(run_cfg_persistent_writes)} "
+            f"dim_index_writes={int(run_cfg_dim_index_writes)} "
+            f"worker_plan_hits={int(worker_plan_cache_hits)} worker_plan_writes={int(worker_plan_cache_writes)} "
+            f"stage_status_reads={int(stage_cell_status_reads)} stage_status_writes={int(stage_cell_status_writes)} "
+            f"cartesian_manifest_reads={int(cartesian_manifest_reads)} "
+            f"cartesian_manifest_writes={int(cartesian_manifest_writes)} "
+            f"cartesian_manifest_hits={int(cartesian_manifest_hits)} "
+            f"cartesian_rank_manifest_reads={int(cartesian_rank_manifest_reads)} "
+            f"cartesian_rank_manifest_writes={int(cartesian_rank_manifest_writes)} "
+            f"cartesian_rank_manifest_hits={int(cartesian_rank_manifest_hits)} "
+            f"cartesian_rank_manifest_compactions={int(cartesian_rank_manifest_compactions)} "
+            f"cartesian_rank_manifest_pending_ttl_prunes={int(cartesian_rank_manifest_pending_ttl_prunes)} "
+            f"stage_rank_manifest_reads={int(stage_rank_manifest_reads)} "
+            f"stage_rank_manifest_writes={int(stage_rank_manifest_writes)} "
+            f"stage_rank_manifest_hits={int(stage_rank_manifest_hits)} "
+            f"stage_rank_manifest_compactions={int(stage_rank_manifest_compactions)} "
+            f"stage_rank_manifest_pending_ttl_prunes={int(stage_rank_manifest_pending_ttl_prunes)} "
+            f"stage_unresolved_summary_reads={int(stage_unresolved_summary_reads)} "
+            f"stage_unresolved_summary_writes={int(stage_unresolved_summary_writes)} "
+            f"stage_unresolved_summary_hits={int(stage_unresolved_summary_hits)} "
+            f"rank_dominance_stamp_reads={int(rank_dominance_stamp_reads)} "
+            f"rank_dominance_stamp_writes={int(rank_dominance_stamp_writes)} "
+            f"rank_dominance_stamp_hits={int(rank_dominance_stamp_hits)} "
+            f"rank_dominance_manifest_applies={int(rank_dominance_manifest_applies)} "
+            f"rank_dominance_stamp_compactions={int(rank_dominance_stamp_compactions)} "
+            f"rank_dominance_stamp_ttl_prunes={int(rank_dominance_stamp_ttl_prunes)} "
+            f"rank_bin_runtime_reads={int(rank_bin_runtime_reads)} "
+            f"rank_bin_runtime_writes={int(rank_bin_runtime_writes)} "
+            f"stage_frontier_reads={int(stage_frontier_reads)} stage_frontier_writes={int(stage_frontier_writes)} "
+            f"stage_frontier_hits={int(stage_frontier_hits)} "
+            f"winner_projection_reads={int(winner_projection_reads)} "
+            f"winner_projection_writes={int(winner_projection_writes)} "
+            f"winner_projection_hits={int(winner_projection_hits)} "
+            f"dimension_utility_reads={int(dimension_utility_reads)} "
+            f"dimension_utility_writes={int(dimension_utility_writes)} "
+            f"dimension_utility_hint_hits={int(dimension_utility_hint_hits)} "
+            f"dimension_upper_bound_reads={int(dimension_upper_bound_reads)} "
+            f"dimension_upper_bound_writes={int(dimension_upper_bound_writes)} "
+            f"dimension_upper_bound_deferred={int(dimension_upper_bound_deferred)} "
+            f"planner_heartbeat_reads={int(planner_heartbeat_reads)} "
+            f"planner_heartbeat_writes={int(planner_heartbeat_writes)} "
+            f"planner_heartbeat_stale_candidates={int(planner_heartbeat_stale_candidates)} "
+            f"series_pack_mmap_hints={int(series_pack_mmap_hint_hits)} "
+            f"series_pack_pickle_hints={int(series_pack_pickle_hint_hits)} "
+            f"series_pack_state_manifest_reads={int(series_pack_state_manifest_reads)} "
+            f"series_pack_state_manifest_writes={int(series_pack_state_manifest_writes)} "
+            f"series_pack_state_manifest_hits={int(series_pack_state_manifest_hits)}",
             flush=True,
         )
 
@@ -11545,1320 +13904,6 @@ def main() -> None:
 
 # endregion
 
-
-# region Multiwindow (stability eval / kingmaker)
-# NOTE: this code used to live in tradebot/backtest/run_backtest_multitimeframe.py.
-# It is consolidated here so spot backtesting has one canonical module.
-
-# region Constants
-_MW_WDAYS = {"MON": 0, "TUE": 1, "WED": 2, "THU": 3, "FRI": 4, "SAT": 5, "SUN": 6}
-# endregion
-
-
-# region Parse Helpers
-def _weekdays_from_payload(value) -> tuple[int, ...]:
-    if not value:
-        return (0, 1, 2, 3, 4)
-    out: list[int] = []
-    for item in value:
-        if isinstance(item, int):
-            out.append(item)
-            continue
-        key = str(item).strip().upper()[:3]
-        if key in _MW_WDAYS:
-            out.append(_MW_WDAYS[key])
-    return tuple(out) if out else (0, 1, 2, 3, 4)
-# endregion
-
-
-# region Payload Conversion
-def _spot_leg_from_payload(raw) -> SpotLegConfig:
-    if not isinstance(raw, dict):
-        raise ValueError(f"directional_spot leg must be an object, got: {raw!r}")
-    action = str(raw.get("action") or "").strip().upper()
-    if action not in ("BUY", "SELL"):
-        raise ValueError(f"directional_spot.action must be BUY/SELL, got: {action!r}")
-    qty = int(raw.get("qty") or 1)
-    if qty <= 0:
-        raise ValueError(f"directional_spot.qty must be positive, got: {qty!r}")
-    return SpotLegConfig(action=action, qty=qty)
-
-
-def _leg_from_payload(raw) -> LegConfig:
-    if not isinstance(raw, dict):
-        raise ValueError(f"leg must be an object, got: {raw!r}")
-    action = str(raw.get("action") or "").strip().upper()
-    right = str(raw.get("right") or "").strip().upper()
-    if action not in ("BUY", "SELL"):
-        raise ValueError(f"leg.action must be BUY/SELL, got: {action!r}")
-    if right not in ("PUT", "CALL"):
-        raise ValueError(f"leg.right must be PUT/CALL, got: {right!r}")
-    moneyness = float(raw.get("moneyness_pct") or 0.0)
-    qty = int(raw.get("qty") or 1)
-    if qty <= 0:
-        raise ValueError(f"leg.qty must be positive, got: {qty!r}")
-    return LegConfig(action=action, right=right, moneyness_pct=moneyness, qty=qty)
-
-
-def _filters_from_payload(raw) -> FiltersConfig | None:
-    if raw is None:
-        return None
-    if not isinstance(raw, dict):
-        raise ValueError(f"filters must be an object, got: {raw!r}")
-    return _parse_filters(raw)
-
-
-def _strategy_from_payload(strategy: dict, *, filters: FiltersConfig | None) -> SpotStrategyConfig:
-    if not isinstance(strategy, dict):
-        raise ValueError(f"strategy must be an object, got: {strategy!r}")
-
-    raw = dict(strategy)
-    raw.pop("signal_bar_size", None)
-    raw.pop("signal_use_rth", None)
-    raw.pop("spot_sec_type", None)
-    raw.pop("spot_exchange", None)
-    raw.pop("max_open_trades", None)
-
-    entry_days = _weekdays_from_payload(raw.get("entry_days") or [])
-    raw["entry_days"] = entry_days
-
-    raw.setdefault("flip_exit_gate_mode", "off")
-    raw["filters"] = filters
-
-    # Normalize nested structures back into dataclasses.
-    dspot = raw.get("directional_spot")
-    if dspot is not None:
-        if not isinstance(dspot, dict):
-            raise ValueError(f"directional_spot must be an object, got: {dspot!r}")
-        parsed: dict[str, SpotLegConfig] = {}
-        for k, v in dspot.items():
-            key = str(k).strip()
-            if not key:
-                continue
-            parsed[key] = _spot_leg_from_payload(v)
-        raw["directional_spot"] = parsed or None
-
-    dlegs = raw.get("directional_legs")
-    if dlegs is not None:
-        if not isinstance(dlegs, dict):
-            raise ValueError(f"directional_legs must be an object, got: {dlegs!r}")
-        parsed_dl: dict[str, tuple[LegConfig, ...]] = {}
-        for k, legs in dlegs.items():
-            key = str(k).strip()
-            if not key or not legs:
-                continue
-            if not isinstance(legs, list):
-                continue
-            parsed_dl[key] = tuple(_leg_from_payload(l) for l in legs)
-        raw["directional_legs"] = parsed_dl or None
-
-    legs = raw.get("legs")
-    if legs is not None:
-        if not isinstance(legs, list):
-            raise ValueError(f"legs must be a list, got: {legs!r}")
-        raw["legs"] = tuple(_leg_from_payload(l) for l in legs)
-
-    return SpotStrategyConfig(**raw)
-
-
-def _mk_bundle(
-    *,
-    strategy: SpotStrategyConfig,
-    start: date,
-    end: date,
-    bar_size: str,
-    use_rth: bool,
-    cache_dir: Path,
-    offline: bool,
-) -> ConfigBundle:
-    backtest = BacktestConfig(
-        start=start,
-        end=end,
-        bar_size=str(bar_size),
-        use_rth=bool(use_rth),
-        starting_cash=100_000.0,
-        risk_free_rate=0.02,
-        cache_dir=Path(cache_dir),
-        calibration_dir=Path(cache_dir) / "calibration",
-        output_dir=Path("backtests/out"),
-        calibrate=False,
-        offline=bool(offline),
-    )
-    synthetic = SyntheticConfig(
-        rv_lookback=60,
-        rv_ewma_lambda=0.94,
-        iv_risk_premium=1.2,
-        iv_floor=0.05,
-        term_slope=0.02,
-        skew=-0.25,
-        min_spread_pct=0.1,
-    )
-    return ConfigBundle(backtest=backtest, strategy=strategy, synthetic=synthetic)
-
-
-# endregion
-
-
-# region Evaluation
-def _metrics_from_summary(summary) -> dict:
-    pnl = float(getattr(summary, "total_pnl", 0.0) or 0.0)
-    dd = float(getattr(summary, "max_drawdown", 0.0) or 0.0)
-    trades = int(getattr(summary, "trades", 0) or 0)
-    win_rate = float(getattr(summary, "win_rate", 0.0) or 0.0)
-    roi = float(getattr(summary, "roi", 0.0) or 0.0)
-    dd_pct = float(getattr(summary, "max_drawdown_pct", 0.0) or 0.0)
-    pnl_dd = pnl / dd if dd > 0 else (math.inf if pnl > 0 else -math.inf if pnl < 0 else 0.0)
-    roi_dd = (
-        roi / dd_pct
-        if dd_pct > 0
-        else (math.inf if roi > 0 else -math.inf if roi < 0 else 0.0)
-    )
-    return {
-        "trades": trades,
-        "win_rate": win_rate,
-        "pnl": pnl,
-        "dd": dd,
-        "pnl_over_dd": pnl_dd,
-        "roi": roi,
-        "dd_pct": dd_pct,
-        "roi_over_dd_pct": roi_dd,
-    }
-
-
-def _load_bars(
-    data: IBKRHistoricalData,
-    *,
-    symbol: str,
-    exchange: str | None,
-    start_dt: datetime,
-    end_dt: datetime,
-    bar_size: str,
-    use_rth: bool,
-    cache_dir: Path,
-    offline: bool,
-) -> list:
-    if offline:
-        return data.load_cached_bars(
-            symbol=symbol,
-            exchange=exchange,
-            start=start_dt,
-            end=end_dt,
-            bar_size=bar_size,
-            use_rth=use_rth,
-            cache_dir=cache_dir,
-        )
-    return data.load_or_fetch_bars(
-        symbol=symbol,
-        exchange=exchange,
-        start=start_dt,
-        end=end_dt,
-        bar_size=bar_size,
-        use_rth=use_rth,
-        cache_dir=cache_dir,
-    )
-
-
-def _die_empty_bars(
-    *,
-    kind: str,
-    cache_dir: Path,
-    symbol: str,
-    exchange: str | None,
-    start_dt: datetime,
-    end_dt: datetime,
-    bar_size: str,
-    use_rth: bool,
-    offline: bool,
-) -> None:
-    tag = "rth" if use_rth else "full24"
-    expected = _expected_cache_path(
-        cache_dir=cache_dir,
-        symbol=str(symbol),
-        start_dt=start_dt,
-        end_dt=end_dt,
-        bar_size=str(bar_size),
-        use_rth=use_rth,
-    )
-    covering = _find_covering_cache_path(
-        cache_dir=cache_dir,
-        symbol=str(symbol),
-        start=start_dt,
-        end=end_dt,
-        bar_size=str(bar_size),
-        use_rth=bool(use_rth),
-    )
-    print("")
-    print(f"[ERROR] No bars returned ({kind}):")
-    print(f"- symbol={symbol} exchange={exchange or 'SMART'} bar={bar_size} {tag} offline={offline}")
-    print(f"- window={start_dt.date().isoformat()}→{end_dt.date().isoformat()}")
-    if expected.exists():
-        print(f"- expected_cache={expected} (exists)")
-    else:
-        print(f"- expected_cache={expected} (missing)")
-    if covering is not None and covering != expected:
-        print(f"- covering_cache={covering}")
-    if offline:
-        print("")
-        print("Fix:")
-        print("- Re-run once without --offline to fetch/populate the cache via IBKR.")
-        print("- If the cache file exists but is empty/corrupt, delete it and re-fetch.")
-    else:
-        print("")
-        print("Fix:")
-        print("- Verify IB Gateway / TWS is connected and you have market data permissions for this symbol/timeframe.")
-        print("- If IBKR returns empty due to pacing/subscription limits, retry or prefetch once then re-run with --offline.")
-    raise SystemExit(2)
-
-
-def _preflight_offline_cache_or_die(
-    *,
-    symbol: str,
-    candidates: list[dict],
-    windows: list[tuple[date, date]],
-    signal_bar_size: str,
-    use_rth: bool,
-    cache_dir: Path,
-) -> None:
-    missing: list[dict] = []
-    checked: set[tuple[str, str, str, str, bool]] = set()
-
-    def _require_cached(
-        *,
-        symbol: str,
-        start_dt: datetime,
-        end_dt: datetime,
-        bar_size: str,
-        use_rth: bool,
-    ) -> None:
-        key = (
-            str(symbol),
-            start_dt.date().isoformat(),
-            end_dt.date().isoformat(),
-            str(bar_size),
-            bool(use_rth),
-        )
-        if key in checked:
-            return
-        checked.add(key)
-        covering = _find_covering_cache_path(
-            cache_dir=cache_dir,
-            symbol=str(symbol),
-            start=start_dt,
-            end=end_dt,
-            bar_size=str(bar_size),
-            use_rth=bool(use_rth),
-        )
-        if covering is None:
-            missing.append(
-                {
-                    "symbol": str(symbol),
-                    "bar_size": str(bar_size),
-                    "start": start_dt.date().isoformat(),
-                    "end": end_dt.date().isoformat(),
-                    "use_rth": bool(use_rth),
-                    "expected": str(
-                        _expected_cache_path(
-                            cache_dir=cache_dir,
-                            symbol=str(symbol),
-                            start_dt=start_dt,
-                            end_dt=end_dt,
-                            bar_size=str(bar_size),
-                            use_rth=bool(use_rth),
-                        )
-                    ),
-                }
-            )
-
-    for wstart, wend in windows:
-        start_dt = datetime.combine(wstart, time(0, 0))
-        end_dt = datetime.combine(wend, time(23, 59))
-
-        # Always required for every candidate (signal bars).
-        _require_cached(
-            symbol=str(symbol),
-            start_dt=start_dt,
-            end_dt=end_dt,
-            bar_size=str(signal_bar_size),
-            use_rth=use_rth,
-        )
-
-        for cand in candidates:
-            strat = cand.get("strategy") or {}
-
-            # Multi-timeframe regime bars when regime is computed on a different bar size.
-            regime_mode = str(strat.get("regime_mode", "ema") or "ema").strip().lower()
-            regime_bar = str(strat.get("regime_bar_size") or "").strip() or str(signal_bar_size)
-            if regime_mode == "supertrend":
-                if str(regime_bar) != str(signal_bar_size):
-                    _require_cached(
-                        symbol=str(symbol),
-                        start_dt=start_dt,
-                        end_dt=end_dt,
-                        bar_size=regime_bar,
-                        use_rth=use_rth,
-                    )
-            else:
-                if strat.get("regime_ema_preset") and str(regime_bar) != str(signal_bar_size):
-                    _require_cached(
-                        symbol=str(symbol),
-                        start_dt=start_dt,
-                        end_dt=end_dt,
-                        bar_size=regime_bar,
-                        use_rth=use_rth,
-                    )
-
-            # Regime2 confirm bars (if enabled and on a different timeframe).
-            regime2_mode = str(strat.get("regime2_mode", "off") or "off").strip().lower()
-            if regime2_mode != "off":
-                regime2_bar = str(strat.get("regime2_bar_size") or "").strip() or str(signal_bar_size)
-                if str(regime2_bar) != str(signal_bar_size):
-                    _require_cached(
-                        symbol=str(symbol),
-                        start_dt=start_dt,
-                        end_dt=end_dt,
-                        bar_size=regime2_bar,
-                        use_rth=use_rth,
-                    )
-
-            # Multi-resolution execution bars (e.g. 5 mins) for spot_exec_bar_size.
-            exec_size = str(strat.get("spot_exec_bar_size") or "").strip()
-            if exec_size and str(exec_size) != str(signal_bar_size):
-                _require_cached(
-                    symbol=str(symbol),
-                    start_dt=start_dt,
-                    end_dt=end_dt,
-                    bar_size=exec_size,
-                    use_rth=use_rth,
-                )
-
-            # Tick gate warmup bars (1 day, RTH).
-            tick_mode = str(strat.get("tick_gate_mode", "off") or "off").strip().lower()
-            if tick_mode != "off":
-                try:
-                    z_lookback = int(strat.get("tick_width_z_lookback") or 252)
-                except (TypeError, ValueError):
-                    z_lookback = 252
-                try:
-                    ma_period = int(strat.get("tick_band_ma_period") or 10)
-                except (TypeError, ValueError):
-                    ma_period = 10
-                try:
-                    slope_lb = int(strat.get("tick_width_slope_lookback") or 3)
-                except (TypeError, ValueError):
-                    slope_lb = 3
-                tick_warm_days = max(60, z_lookback + ma_period + slope_lb + 5)
-                tick_start_dt = start_dt - timedelta(days=tick_warm_days)
-                tick_symbol = str(strat.get("tick_gate_symbol", "TICK-NYSE") or "TICK-NYSE").strip()
-                _require_cached(
-                    symbol=tick_symbol,
-                    start_dt=tick_start_dt,
-                    end_dt=end_dt,
-                    bar_size="1 day",
-                    use_rth=True,
-                )
-
-    if not missing:
-        return
-
-    print("")
-    print("[ERROR] --offline was requested, but required cached bars are missing:")
-    for item in missing[:25]:
-        tag = "rth" if item["use_rth"] else "full"
-        print(
-            f"- {item['symbol']} {item['bar_size']} {tag} {item['start']}→{item['end']} "
-            f"(expected: {item['expected']})"
-        )
-    if len(missing) > 25:
-        print(f"- … plus {len(missing) - 25} more missing caches")
-    print("")
-    print("Fix:")
-    print("- Re-run without --offline to fetch via IBKR (and populate db/ cache).")
-    print("- Or prefetch the missing bars explicitly before running with --offline.")
-    raise SystemExit(2)
-
-
-def _score_key(item: dict) -> tuple:
-    return (
-        float(item.get("stability_min_roi_dd") or item.get("stability_min_pnl_dd") or float("-inf")),
-        float(item.get("stability_min_roi") or item.get("stability_min_pnl") or float("-inf")),
-        float(item.get("full_roi_over_dd_pct") or item.get("full_pnl_over_dd") or float("-inf")),
-        float(item.get("full_roi") or item.get("full_pnl") or float("-inf")),
-        float(item.get("full_win") or 0.0),
-        int(item.get("full_trades") or 0),
-    )
-
-
-def _strategy_key(strategy: dict, *, filters: dict | None) -> str:
-    return _strategy_fingerprint(strategy, filters=filters)
-
-
-# endregion
-
-
-# region CLI
-def spot_multitimeframe_main() -> None:
-    ap = argparse.ArgumentParser(prog="tradebot.backtest.multitimeframe")
-    ap.add_argument("--milestones", required=True, help="Input spot milestones JSON to evaluate.")
-    ap.add_argument("--symbol", default="TQQQ", help="Symbol to filter (default: TQQQ).")
-    ap.add_argument("--bar-size", default="1 hour", help="Signal bar size filter (default: 1 hour).")
-    ap.add_argument("--use-rth", action="store_true", help="Filter to RTH-only strategies.")
-    ap.add_argument("--offline", action="store_true", help="Use cached bars only (no IBKR fetch).")
-    ap.add_argument("--cache-dir", default="db", help="Bars cache dir (default: db).")
-    ap.add_argument("--jobs", type=int, default=0, help="Worker processes (0 = auto). Requires --offline for >1.")
-    ap.add_argument("--top", type=int, default=200, help="How many candidates to evaluate (after sorting).")
-    ap.add_argument("--min-trades", type=int, default=200, help="Min trades per window.")
-    ap.add_argument(
-        "--min-trades-per-year",
-        type=float,
-        default=None,
-        help=(
-            "Min trades per year per window (e.g. 500 => 1y>=500, 2y>=1000, 10y>=5000). "
-            "Enforced as ceil(window_years * min_trades_per_year)."
-        ),
-    )
-    ap.add_argument("--min-win", type=float, default=0.0, help="Min win rate per window (0..1).")
-    ap.add_argument(
-        "--max-open",
-        type=int,
-        default=None,
-        help="Deprecated no-op for spot; kept only for CLI compatibility.",
-    )
-    ap.add_argument(
-        "--allow-unlimited-stacking",
-        action="store_true",
-        default=False,
-        help="Deprecated no-op for spot; kept only for CLI compatibility.",
-    )
-    ap.add_argument(
-        "--require-close-eod",
-        action="store_true",
-        default=False,
-        help="Require spot_close_eod=true (forces strategies to close at end of day).",
-    )
-    ap.add_argument(
-        "--require-positive-pnl",
-        action="store_true",
-        default=False,
-        help="Require pnl>0 in every evaluation window.",
-    )
-    ap.add_argument(
-        "--window",
-        action="append",
-        default=[],
-        help="Evaluation window formatted YYYY-MM-DD:YYYY-MM-DD. Repeatable.",
-    )
-    ap.add_argument(
-        "--include-full",
-        action="store_true",
-        help="Also evaluate the full window from the milestones payload notes (best-effort).",
-    )
-    ap.add_argument(
-        "--write-top",
-        type=int,
-        default=0,
-        help="Write a small milestones JSON of the top K stability winners (0 disables).",
-    )
-    ap.add_argument(
-        "--out",
-        default="backtests/out/multitimeframe_top.json",
-        help="Output file for --write-top (default: backtests/out/multitimeframe_top.json).",
-    )
-    # Internal flags (used by parallel worker sharding).
-    ap.add_argument("--multitimeframe-worker", type=int, default=None, help=argparse.SUPPRESS)
-    ap.add_argument("--multitimeframe-workers", type=int, default=None, help=argparse.SUPPRESS)
-    ap.add_argument("--multitimeframe-out", default=None, help=argparse.SUPPRESS)
-
-    args = ap.parse_args()
-    if args.max_open is not None:
-        print("[compat] --max-open is deprecated and ignored for spot multitimeframe eval.", flush=True)
-    if bool(args.allow_unlimited_stacking):
-        print("[compat] --allow-unlimited-stacking is deprecated and ignored for spot multitimeframe eval.", flush=True)
-    try:
-        min_trades_per_year = float(args.min_trades_per_year) if args.min_trades_per_year is not None else None
-    except (TypeError, ValueError):
-        min_trades_per_year = None
-    if min_trades_per_year is not None and min_trades_per_year < 0:
-        raise SystemExit("--min-trades-per-year must be >= 0")
-
-    def _default_jobs() -> int:
-        detected = os.cpu_count()
-        if detected is None:
-            return 1
-        try:
-            detected_i = int(detected)
-        except (TypeError, ValueError):
-            return 1
-        return max(1, detected_i)
-
-    try:
-        jobs = int(args.jobs) if args.jobs is not None else 0
-    except (TypeError, ValueError):
-        jobs = 0
-    jobs_eff = _default_jobs() if jobs <= 0 else min(int(jobs), _default_jobs())
-    jobs_eff = max(1, int(jobs_eff))
-
-    milestones_path = Path(args.milestones)
-    payload = json.loads(milestones_path.read_text())
-    groups = payload.get("groups") or []
-    symbol = str(args.symbol).strip().upper()
-    bar_size = str(args.bar_size).strip().lower()
-    use_rth = bool(args.use_rth)
-
-    candidates: list[dict] = []
-    for group in groups:
-        if not isinstance(group, dict):
-            continue
-        filters_payload = group.get("filters")
-        entries = group.get("entries") or []
-        if not isinstance(entries, list) or not entries:
-            continue
-        entry = entries[0]
-        if not isinstance(entry, dict):
-            continue
-        strat = entry.get("strategy") or {}
-        metrics = entry.get("metrics") or {}
-        if not isinstance(strat, dict) or not isinstance(metrics, dict):
-            continue
-        if str(strat.get("instrument", "spot") or "spot").strip().lower() != "spot":
-            continue
-        if str(strat.get("symbol") or "").strip().upper() != symbol:
-            continue
-        if str(strat.get("signal_bar_size") or "").strip().lower() != bar_size:
-            continue
-        if bool(strat.get("signal_use_rth")) != use_rth:
-            continue
-        candidates.append(
-            {
-                "group_name": str(group.get("name") or ""),
-                "filters": filters_payload,
-                "strategy": strat,
-                "metrics": metrics,
-            }
-        )
-
-    if not candidates:
-        raise SystemExit(f"No candidates found for {symbol} bar={bar_size} rth={use_rth} in {milestones_path}")
-
-    def _sort_key_seed(item: dict) -> tuple:
-        m = item.get("metrics") or {}
-        return (
-            float(m.get("pnl_over_dd") or float("-inf")),
-            float(m.get("pnl") or float("-inf")),
-            float(m.get("win_rate") or 0.0),
-            int(m.get("trades") or 0),
-        )
-
-    candidates = sorted(candidates, key=_sort_key_seed, reverse=True)[: max(1, int(args.top))]
-    jobs_eff = max(1, min(int(jobs_eff), len(candidates)))
-
-    windows: list[tuple[date, date]] = []
-    for raw in args.window or []:
-        windows.append(_parse_window(raw))
-    if not windows:
-        windows = [
-            (_parse_date("2023-01-01"), _parse_date("2024-01-01")),
-            (_parse_date("2024-01-01"), _parse_date("2025-01-01")),
-            (_parse_date("2025-01-01"), date.today()),
-        ]
-
-    cache_dir = Path(args.cache_dir)
-    offline = bool(args.offline)
-    multiwindow_cache_path = cache_dir / "spot_multiwindow_eval_cache.sqlite3"
-    multiwindow_cache_conn: sqlite3.Connection | None = None
-    multiwindow_cache_enabled = True
-    multiwindow_cache_lock = threading.Lock()
-    multiwindow_cache_hits = 0
-    multiwindow_cache_writes = 0
-    _MULTIWINDOW_CACHE_MISS = object()
-
-    def _multiwindow_cache_conn() -> sqlite3.Connection | None:
-        nonlocal multiwindow_cache_conn, multiwindow_cache_enabled
-        if not bool(multiwindow_cache_enabled):
-            return None
-        if multiwindow_cache_conn is not None:
-            return multiwindow_cache_conn
-        try:
-            conn = sqlite3.connect(
-                str(multiwindow_cache_path),
-                timeout=15.0,
-                isolation_level=None,
-            )
-            conn.execute("PRAGMA journal_mode=WAL")
-            conn.execute("PRAGMA synchronous=NORMAL")
-            conn.execute(
-                "CREATE TABLE IF NOT EXISTS multiwindow_eval_cache ("
-                "cache_key TEXT PRIMARY KEY, "
-                "payload_json TEXT NOT NULL, "
-                "updated_at REAL NOT NULL)"
-            )
-            multiwindow_cache_conn = conn
-            return conn
-        except Exception:
-            multiwindow_cache_enabled = False
-            multiwindow_cache_conn = None
-            return None
-
-    def _multiwindow_windows_signature() -> tuple[tuple[str, str], ...]:
-        return tuple((a.isoformat(), b.isoformat()) for a, b in windows)
-
-    def _multiwindow_cache_key(*, strategy_payload: dict, filters_payload: dict | None) -> str:
-        raw = {
-            "version": str(_MULTIWINDOW_CACHE_ENGINE_VERSION),
-            "strategy_key": _strategy_key(strategy_payload, filters=filters_payload),
-            "windows": _multiwindow_windows_signature(),
-            "min_trades": int(args.min_trades),
-            "min_trades_per_year": float(min_trades_per_year) if min_trades_per_year is not None else None,
-            "min_win": float(args.min_win),
-            "require_close_eod": bool(args.require_close_eod),
-            "require_positive_pnl": bool(args.require_positive_pnl),
-            "offline": bool(offline),
-        }
-        return hashlib.sha1(json.dumps(raw, sort_keys=True, default=str).encode("utf-8")).hexdigest()
-
-    def _multiwindow_cache_get(*, cache_key: str) -> dict | None | object:
-        conn = _multiwindow_cache_conn()
-        if conn is None:
-            return _MULTIWINDOW_CACHE_MISS
-        try:
-            with multiwindow_cache_lock:
-                row = conn.execute(
-                    "SELECT payload_json FROM multiwindow_eval_cache WHERE cache_key=?",
-                    (str(cache_key),),
-                ).fetchone()
-        except Exception:
-            return _MULTIWINDOW_CACHE_MISS
-        if row is None:
-            return _MULTIWINDOW_CACHE_MISS
-        try:
-            payload = json.loads(str(row[0]))
-        except Exception:
-            return _MULTIWINDOW_CACHE_MISS
-        if payload is None:
-            return None
-        return dict(payload) if isinstance(payload, dict) else _MULTIWINDOW_CACHE_MISS
-
-    def _multiwindow_cache_set(*, cache_key: str, payload: dict | None) -> None:
-        conn = _multiwindow_cache_conn()
-        if conn is None:
-            return
-        try:
-            payload_json = json.dumps(payload, sort_keys=True, default=str)
-            with multiwindow_cache_lock:
-                conn.execute(
-                    "INSERT OR REPLACE INTO multiwindow_eval_cache(cache_key, payload_json, updated_at) VALUES(?,?,?)",
-                    (str(cache_key), payload_json, float(pytime.time())),
-                )
-        except Exception:
-            return
-
-    def _required_trades_for_window(wstart: date, wend: date) -> int:
-        required = int(args.min_trades)
-        if min_trades_per_year is None:
-            return required
-        days = int((wend - wstart).days) + 1
-        years = max(0.0, float(days) / 365.25)
-        req_by_year = int(math.ceil(years * float(min_trades_per_year)))
-        return max(required, req_by_year)
-
-    def _make_bars_loader(data: IBKRHistoricalData):
-        bars_cache: dict[tuple[str, str | None, str, str, str, bool, bool], list] = {}
-
-        def _load_bars_cached(
-            *,
-            symbol: str,
-            exchange: str | None,
-            start_dt: datetime,
-            end_dt: datetime,
-            bar_size: str,
-            use_rth: bool,
-            offline: bool,
-        ) -> list:
-            key = (
-                str(symbol),
-                str(exchange) if exchange is not None else None,
-                start_dt.isoformat(),
-                end_dt.isoformat(),
-                str(bar_size),
-                bool(use_rth),
-                bool(offline),
-            )
-            cached = bars_cache.get(key)
-            if cached is not None:
-                return cached
-            bars = _load_bars(
-                data,
-                symbol=symbol,
-                exchange=exchange,
-                start_dt=start_dt,
-                end_dt=end_dt,
-                bar_size=bar_size,
-                use_rth=use_rth,
-                cache_dir=cache_dir,
-                offline=offline,
-            )
-            bars_cache[key] = bars
-            return bars
-
-        return _load_bars_cached
-
-    meta_cache: dict[tuple[str, str | None, bool], ContractMeta] = {}
-
-    def _resolve_meta(bundle: ConfigBundle, *, data: IBKRHistoricalData | None) -> ContractMeta:
-        key = (str(bundle.strategy.symbol), bundle.strategy.exchange, bool(offline))
-        cached = meta_cache.get(key)
-        if cached is not None:
-            return cached
-        is_future = bundle.strategy.symbol in ("MNQ", "MBT")
-        if offline or data is None:
-            exchange = "CME" if is_future else "SMART"
-            meta = ContractMeta(
-                symbol=bundle.strategy.symbol,
-                exchange=exchange,
-                multiplier=_spot_multiplier(bundle.strategy.symbol, is_future),
-                min_tick=0.01,
-            )
-        else:
-            _, resolved = data.resolve_contract(bundle.strategy.symbol, bundle.strategy.exchange)
-            meta = ContractMeta(
-                symbol=resolved.symbol,
-                exchange=resolved.exchange,
-                multiplier=_spot_multiplier(bundle.strategy.symbol, is_future, default=resolved.multiplier),
-                min_tick=resolved.min_tick,
-            )
-        meta_cache[key] = meta
-        return meta
-
-    def _load_window_context_bars(
-        *,
-        bundle: ConfigBundle,
-        start_dt: datetime,
-        end_dt: datetime,
-        load_bars_cached,
-    ) -> tuple[list | None, list | None, list | None, list | None]:
-        base_bar = str(bundle.backtest.bar_size)
-        regime_bar = str(getattr(bundle.strategy, "regime_bar_size", "") or "").strip()
-
-        regime_bars = None
-        regime_mode = str(getattr(bundle.strategy, "regime_mode", "") or "").strip().lower()
-        needs_regime = False
-        if regime_bar and regime_bar != base_bar:
-            if regime_mode == "supertrend":
-                needs_regime = True
-            elif bool(getattr(bundle.strategy, "regime_ema_preset", None)):
-                needs_regime = True
-        if needs_regime:
-            regime_bars = load_bars_cached(
-                symbol=bundle.strategy.symbol,
-                exchange=bundle.strategy.exchange,
-                start_dt=start_dt,
-                end_dt=end_dt,
-                bar_size=regime_bar,
-                use_rth=bundle.backtest.use_rth,
-                offline=bundle.backtest.offline,
-            )
-            if not regime_bars:
-                _die_empty_bars(
-                    kind="regime",
-                    cache_dir=cache_dir,
-                    symbol=bundle.strategy.symbol,
-                    exchange=bundle.strategy.exchange,
-                    start_dt=start_dt,
-                    end_dt=end_dt,
-                    bar_size=regime_bar,
-                    use_rth=bundle.backtest.use_rth,
-                    offline=bundle.backtest.offline,
-                )
-
-        regime2_bars = None
-        regime2_mode = str(getattr(bundle.strategy, "regime2_mode", "off") or "off").strip().lower()
-        regime2_bar = str(getattr(bundle.strategy, "regime2_bar_size", "") or "").strip() or base_bar
-        if regime2_mode != "off" and regime2_bar != base_bar:
-            regime2_bars = load_bars_cached(
-                symbol=bundle.strategy.symbol,
-                exchange=bundle.strategy.exchange,
-                start_dt=start_dt,
-                end_dt=end_dt,
-                bar_size=regime2_bar,
-                use_rth=bundle.backtest.use_rth,
-                offline=bundle.backtest.offline,
-            )
-            if not regime2_bars:
-                _die_empty_bars(
-                    kind="regime2",
-                    cache_dir=cache_dir,
-                    symbol=bundle.strategy.symbol,
-                    exchange=bundle.strategy.exchange,
-                    start_dt=start_dt,
-                    end_dt=end_dt,
-                    bar_size=regime2_bar,
-                    use_rth=bundle.backtest.use_rth,
-                    offline=bundle.backtest.offline,
-                )
-
-        tick_bars = None
-        tick_mode = str(getattr(bundle.strategy, "tick_gate_mode", "off") or "off").strip().lower()
-        if tick_mode != "off":
-            try:
-                z_lookback = int(getattr(bundle.strategy, "tick_width_z_lookback", 252) or 252)
-            except (TypeError, ValueError):
-                z_lookback = 252
-            try:
-                ma_period = int(getattr(bundle.strategy, "tick_band_ma_period", 10) or 10)
-            except (TypeError, ValueError):
-                ma_period = 10
-            try:
-                slope_lb = int(getattr(bundle.strategy, "tick_width_slope_lookback", 3) or 3)
-            except (TypeError, ValueError):
-                slope_lb = 3
-            tick_warm_days = max(60, z_lookback + ma_period + slope_lb + 5)
-            tick_start_dt = start_dt - timedelta(days=tick_warm_days)
-            tick_symbol = str(getattr(bundle.strategy, "tick_gate_symbol", "TICK-NYSE") or "TICK-NYSE").strip()
-            tick_exchange = str(getattr(bundle.strategy, "tick_gate_exchange", "NYSE") or "NYSE").strip()
-            tick_bars = load_bars_cached(
-                symbol=tick_symbol,
-                exchange=tick_exchange,
-                start_dt=tick_start_dt,
-                end_dt=end_dt,
-                bar_size="1 day",
-                use_rth=True,
-                offline=bundle.backtest.offline,
-            )
-            if not tick_bars:
-                _die_empty_bars(
-                    kind="tick_gate",
-                    cache_dir=cache_dir,
-                    symbol=tick_symbol,
-                    exchange=tick_exchange,
-                    start_dt=tick_start_dt,
-                    end_dt=end_dt,
-                    bar_size="1 day",
-                    use_rth=True,
-                    offline=bundle.backtest.offline,
-                )
-
-        exec_bars = None
-        exec_size = str(getattr(bundle.strategy, "spot_exec_bar_size", "") or "").strip()
-        if exec_size and exec_size != base_bar:
-            exec_bars = load_bars_cached(
-                symbol=bundle.strategy.symbol,
-                exchange=bundle.strategy.exchange,
-                start_dt=start_dt,
-                end_dt=end_dt,
-                bar_size=exec_size,
-                use_rth=bundle.backtest.use_rth,
-                offline=bundle.backtest.offline,
-            )
-            if not exec_bars:
-                _die_empty_bars(
-                    kind="exec",
-                    cache_dir=cache_dir,
-                    symbol=bundle.strategy.symbol,
-                    exchange=bundle.strategy.exchange,
-                    start_dt=start_dt,
-                    end_dt=end_dt,
-                    bar_size=exec_size,
-                    use_rth=bundle.backtest.use_rth,
-                    offline=bundle.backtest.offline,
-                )
-        return regime_bars, regime2_bars, tick_bars, exec_bars
-
-    def _evaluate_candidate_multiwindow(
-        cand: dict,
-        *,
-        load_bars_cached,
-        data: IBKRHistoricalData | None,
-    ) -> dict | None:
-        nonlocal multiwindow_cache_hits, multiwindow_cache_writes
-        filters_payload = cand.get("filters")
-        strategy_payload = cand["strategy"]
-        cache_key = _multiwindow_cache_key(
-            strategy_payload=strategy_payload if isinstance(strategy_payload, dict) else {},
-            filters_payload=filters_payload if isinstance(filters_payload, dict) else None,
-        )
-        cached = _multiwindow_cache_get(cache_key=cache_key)
-        if cached is not _MULTIWINDOW_CACHE_MISS:
-            multiwindow_cache_hits += 1
-            return dict(cached) if isinstance(cached, dict) else None
-
-        def _cache_and_return(payload: dict | None) -> dict | None:
-            nonlocal multiwindow_cache_writes
-            _multiwindow_cache_set(cache_key=cache_key, payload=payload if isinstance(payload, dict) else None)
-            multiwindow_cache_writes += 1
-            return dict(payload) if isinstance(payload, dict) else None
-
-        filters = _filters_from_payload(filters_payload)
-        strat_cfg = _strategy_from_payload(strategy_payload, filters=filters)
-        if bool(args.require_close_eod) and not bool(getattr(strat_cfg, "spot_close_eod", False)):
-            return _cache_and_return(None)
-
-        sig_bar_size = str(strategy_payload.get("signal_bar_size") or args.bar_size)
-        sig_use_rth = (
-            use_rth if strategy_payload.get("signal_use_rth") is None else bool(strategy_payload.get("signal_use_rth"))
-        )
-
-        per_window: list[dict] = []
-        for wstart, wend in windows:
-            bundle = _mk_bundle(
-                strategy=strat_cfg,
-                start=wstart,
-                end=wend,
-                bar_size=sig_bar_size,
-                use_rth=sig_use_rth,
-                cache_dir=cache_dir,
-                offline=offline,
-            )
-
-            start_dt = datetime.combine(bundle.backtest.start, time(0, 0))
-            end_dt = datetime.combine(bundle.backtest.end, time(23, 59))
-            bars_sig = load_bars_cached(
-                symbol=bundle.strategy.symbol,
-                exchange=bundle.strategy.exchange,
-                start_dt=start_dt,
-                end_dt=end_dt,
-                bar_size=bundle.backtest.bar_size,
-                use_rth=bundle.backtest.use_rth,
-                offline=bundle.backtest.offline,
-            )
-            if not bars_sig:
-                _die_empty_bars(
-                    kind="signal",
-                    cache_dir=cache_dir,
-                    symbol=bundle.strategy.symbol,
-                    exchange=bundle.strategy.exchange,
-                    start_dt=start_dt,
-                    end_dt=end_dt,
-                    bar_size=str(bundle.backtest.bar_size),
-                    use_rth=bundle.backtest.use_rth,
-                    offline=bundle.backtest.offline,
-                )
-
-            regime_bars, regime2_bars, tick_bars, exec_bars = _load_window_context_bars(
-                bundle=bundle,
-                start_dt=start_dt,
-                end_dt=end_dt,
-                load_bars_cached=load_bars_cached,
-            )
-            summary = _run_spot_backtest_summary(
-                bundle,
-                bars_sig,
-                _resolve_meta(bundle, data=data),
-                regime_bars=regime_bars,
-                regime2_bars=regime2_bars,
-                tick_bars=tick_bars,
-                exec_bars=exec_bars,
-            )
-            m = _metrics_from_summary(summary)
-            if bool(args.require_positive_pnl) and float(m["pnl"]) <= 0:
-                return _cache_and_return(None)
-            req_trades = _required_trades_for_window(wstart, wend)
-            if m["trades"] < int(req_trades) or m["win_rate"] < float(args.min_win):
-                return _cache_and_return(None)
-            per_window.append(
-                {
-                    "start": wstart.isoformat(),
-                    "end": wend.isoformat(),
-                    **m,
-                }
-            )
-
-        if not per_window:
-            return _cache_and_return(None)
-        min_pnl_dd = min(float(x["pnl_over_dd"]) for x in per_window)
-        min_pnl = min(float(x["pnl"]) for x in per_window)
-        min_roi_dd = min(float(x.get("roi_over_dd_pct") or 0.0) for x in per_window)
-        min_roi = min(float(x.get("roi") or 0.0) for x in per_window)
-        primary = per_window[0] if per_window else {}
-        return _cache_and_return(
-            {
-            "key": _strategy_key(strategy_payload, filters=filters_payload),
-            "strategy": strategy_payload,
-            "filters": filters_payload,
-            "seed_group_name": cand.get("group_name"),
-            "full_trades": int(primary.get("trades") or 0),
-            "full_win": float(primary.get("win_rate") or 0.0),
-            "full_pnl": float(primary.get("pnl") or 0.0),
-            "full_dd": float(primary.get("dd") or 0.0),
-            "full_pnl_over_dd": float(primary.get("pnl_over_dd") or 0.0),
-            "full_roi": float(primary.get("roi") or 0.0),
-            "full_dd_pct": float(primary.get("dd_pct") or 0.0),
-            "full_roi_over_dd_pct": float(primary.get("roi_over_dd_pct") or 0.0),
-            "stability_min_pnl_dd": min_pnl_dd,
-            "stability_min_pnl": min_pnl,
-            "stability_min_roi_dd": min_roi_dd,
-            "stability_min_roi": min_roi,
-            "windows": per_window,
-            }
-        )
-
-    def _evaluate_candidate_multiwindow_shard(
-        *,
-        load_bars_cached,
-        data: IBKRHistoricalData | None,
-        worker_id: int,
-        workers: int,
-        progress_mode: str,
-    ) -> tuple[int, list[dict]]:
-        out_rows: list[dict] = []
-        tested = 0
-        started = pytime.perf_counter()
-        report_every = 10
-        worker_total = (len(candidates) // int(workers)) + (1 if int(worker_id) < (len(candidates) % int(workers)) else 0)
-        for idx, cand in enumerate(candidates, start=1):
-            if ((idx - 1) % int(workers)) != int(worker_id):
-                continue
-            tested += 1
-            row = _evaluate_candidate_multiwindow(cand, load_bars_cached=load_bars_cached, data=data)
-            if row is not None:
-                out_rows.append(row)
-
-            if tested % report_every != 0:
-                continue
-            line = _progress_line(
-                label=(
-                    f"multitimeframe worker {worker_id+1}/{workers}"
-                    if progress_mode == "worker"
-                    else "multitimeframe serial"
-                ),
-                tested=int(tested),
-                total=int(worker_total),
-                kept=len(out_rows),
-                started_at=started,
-                rate_unit="cands/s",
-            )
-            print(line, flush=True)
-        return tested, out_rows
-
-    def _emit_multitimeframe_results(*, out_rows: list[dict], tested_total: int | None = None, workers: int | None = None) -> None:
-        out_rows = sorted(out_rows, key=_score_key, reverse=True)
-        print("")
-        print(f"Multiwindow results: {len(out_rows)} candidates passed filters.")
-        print(f"- symbol={symbol} bar={args.bar_size} rth={use_rth} offline={offline}")
-        print(f"- windows={', '.join([f'{a.isoformat()}→{b.isoformat()}' for a,b in windows])}")
-        extra = f" min_trades_per_year={float(min_trades_per_year):g}" if min_trades_per_year is not None else ""
-        print(f"- min_trades={int(args.min_trades)} min_win={float(args.min_win):0.2f}{extra}")
-        if tested_total is not None and workers is not None:
-            print(f"- workers={int(workers)} tested_total={int(tested_total)}")
-        if bool(multiwindow_cache_enabled):
-            print(
-                f"- eval_cache={multiwindow_cache_path} hits={int(multiwindow_cache_hits)} writes={int(multiwindow_cache_writes)}",
-                flush=True,
-            )
-        print("")
-
-        show = min(20, len(out_rows))
-        for rank, item in enumerate(out_rows[:show], start=1):
-            st = item["strategy"]
-            print(
-                f"{rank:2d}. stability(min roi/dd)={item.get('stability_min_roi_dd', 0.0):.2f} "
-                f"full roi/dd={item.get('full_roi_over_dd_pct', 0.0):.2f} "
-                f"roi={item.get('full_roi', 0.0)*100:.1f}% dd%={item.get('full_dd_pct', 0.0)*100:.1f}% "
-                f"pnl={item['full_pnl']:.1f} "
-                f"win={item['full_win']*100:.1f}% tr={item['full_trades']} "
-                f"ema={st.get('ema_preset')} {st.get('ema_entry_mode')} "
-                f"regime={st.get('regime_mode')} rbar={st.get('regime_bar_size')}"
-            )
-
-        if int(args.write_top or 0) <= 0:
-            return
-        top_k = max(1, int(args.write_top))
-        now = utc_now_iso_z()
-        groups_out: list[dict] = []
-        for idx, item in enumerate(out_rows[:top_k], start=1):
-            strategy = item["strategy"]
-            filters_payload = item.get("filters")
-            key = _strategy_key(strategy, filters=filters_payload)
-            metrics = {
-                "pnl": float(item.get("full_pnl") or 0.0),
-                "roi": float(item.get("full_roi") or 0.0),
-                "win_rate": float(item.get("full_win") or 0.0),
-                "trades": int(item.get("full_trades") or 0),
-                "max_drawdown": float(item.get("full_dd") or 0.0),
-                "max_drawdown_pct": float(item.get("full_dd_pct") or 0.0),
-                "pnl_over_dd": float(item.get("full_pnl_over_dd") or 0.0),
-                "roi_over_dd_pct": float(item.get("full_roi_over_dd_pct") or 0.0),
-            }
-            groups_out.append(
-                {
-                    "name": f"Spot ({symbol}) KINGMAKER #{idx:02d} roi/dd={metrics['roi_over_dd_pct']:.2f} "
-                    f"roi={metrics['roi']*100:.1f}% dd%={metrics['max_drawdown_pct']*100:.1f}% "
-                    f"win={metrics['win_rate']*100:.1f}% tr={metrics['trades']} pnl={metrics['pnl']:.1f}",
-                    "filters": filters_payload,
-                    "entries": [{"symbol": symbol, "metrics": metrics, "strategy": strategy}],
-                    "_eval": {
-                        "stability_min_pnl_dd": float(item.get("stability_min_pnl_dd") or 0.0),
-                        "stability_min_pnl": float(item.get("stability_min_pnl") or 0.0),
-                        "stability_min_roi_dd": float(item.get("stability_min_roi_dd") or 0.0),
-                        "stability_min_roi": float(item.get("stability_min_roi") or 0.0),
-                        "windows": item.get("windows") or [],
-                    },
-                    "_key": key,
-                }
-            )
-        out_payload = {
-            "name": "multitimeframe_top",
-            "generated_at": now,
-            "source": str(milestones_path),
-            "windows": [{"start": a.isoformat(), "end": b.isoformat()} for a, b in windows],
-            "groups": groups_out,
-        }
-        out_path = Path(args.out)
-        write_json(out_path, out_payload, sort_keys=False)
-        print(f"\nWrote {out_path} (top={top_k}).")
-
-    def _collect_multitimeframe_rows_from_payloads(*, payloads: dict[int, dict]) -> tuple[int, list[dict]]:
-        out_rows: list[dict] = []
-
-        def _decode_row(rec: dict) -> dict | None:
-            return dict(rec) if isinstance(rec, dict) else None
-
-        def _row_key(row: dict) -> str:
-            strategy = row.get("strategy") if isinstance(row.get("strategy"), dict) else {}
-            filters_payload = row.get("filters") if isinstance(row.get("filters"), dict) else None
-            return _strategy_key(strategy, filters=filters_payload)
-
-        tested_total = _collect_parallel_payload_records(
-            payloads=payloads,
-            records_key="rows",
-            tested_key="tested",
-            decode_record=_decode_row,
-            on_record=lambda row: out_rows.append(dict(row)),
-            dedupe_key=_row_key,
-        )
-        return int(tested_total), out_rows
-
-    if args.multitimeframe_worker is not None:
-        if not offline:
-            raise SystemExit("multitimeframe worker mode requires --offline (avoid parallel IBKR sessions).")
-        out_path_raw = str(args.multitimeframe_out or "").strip()
-        if not out_path_raw:
-            raise SystemExit("--multitimeframe-out is required for multitimeframe worker mode.")
-        out_path = Path(out_path_raw)
-
-        worker_id, workers = _parse_worker_shard(
-            args.multitimeframe_worker,
-            args.multitimeframe_workers,
-            label="multitimeframe",
-        )
-
-        _preflight_offline_cache_or_die(
-            symbol=symbol,
-            candidates=candidates,
-            windows=windows,
-            signal_bar_size=str(args.bar_size),
-            use_rth=use_rth,
-            cache_dir=cache_dir,
-        )
-
-        data = IBKRHistoricalData()
-        _load_bars_cached = _make_bars_loader(data)
-
-        tested, out_rows = _evaluate_candidate_multiwindow_shard(
-            load_bars_cached=_load_bars_cached,
-            data=data,
-            worker_id=int(worker_id),
-            workers=int(workers),
-            progress_mode="worker",
-        )
-
-        out_payload = {"tested": tested, "kept": len(out_rows), "rows": out_rows}
-        write_json(out_path, out_payload, sort_keys=False)
-        print(f"multitimeframe worker done tested={tested} kept={len(out_rows)} out={out_path}", flush=True)
-        return
-
-    if jobs_eff > 1:
-        if not offline:
-            raise SystemExit("--jobs>1 for multitimeframe requires --offline (avoid parallel IBKR sessions).")
-
-        _preflight_offline_cache_or_die(
-            symbol=symbol,
-            candidates=candidates,
-            windows=windows,
-            signal_bar_size=str(args.bar_size),
-            use_rth=use_rth,
-            cache_dir=cache_dir,
-        )
-
-        base_cli = _strip_flags(
-            list(sys.argv[1:]),
-            flags_with_values=("--jobs", "--multitimeframe-worker", "--multitimeframe-workers", "--multitimeframe-out"),
-        )
-
-        jobs_eff, payloads = _run_parallel_stage_kernel(
-            stage_label="multitimeframe",
-            jobs=int(jobs_eff),
-            total=len(candidates),
-            default_jobs=int(jobs_eff),
-            offline=bool(offline),
-            offline_error="--jobs>1 for multitimeframe requires --offline (avoid parallel IBKR sessions).",
-            tmp_prefix="tradebot_multitimeframe_",
-            worker_tag="mt",
-            out_prefix="multitimeframe_out",
-            build_cmd=lambda worker_id, workers_n, out_path: [
-                sys.executable,
-                "-u",
-                "-m",
-                "tradebot.backtest",
-                "spot_multitimeframe",
-                *base_cli,
-                "--jobs",
-                "1",
-                "--multitimeframe-worker",
-                str(worker_id),
-                "--multitimeframe-workers",
-                str(workers_n),
-                "--multitimeframe-out",
-                str(out_path),
-            ],
-            capture_error="Failed to capture multitimeframe worker stdout.",
-            failure_label="multitimeframe worker",
-            missing_label="multitimeframe",
-            invalid_label="multitimeframe",
-        )
-
-        tested_total, out_rows = _collect_multitimeframe_rows_from_payloads(payloads=payloads)
-
-        _emit_multitimeframe_results(out_rows=out_rows, tested_total=tested_total, workers=jobs_eff)
-
-        return
-
-    data = IBKRHistoricalData()
-    _load_bars_cached = _make_bars_loader(data)
-
-    if not offline:
-        try:
-            data.connect()
-        except Exception as exc:
-            raise SystemExit(
-                "IBKR API connection failed. Start IB Gateway / TWS (or run with --offline after prefetching cached bars)."
-            ) from exc
-
-    if offline:
-        _preflight_offline_cache_or_die(
-            symbol=symbol,
-            candidates=candidates,
-            windows=windows,
-            signal_bar_size=str(args.bar_size),
-            use_rth=use_rth,
-            cache_dir=cache_dir,
-        )
-
-    _tested_serial, out_rows = _evaluate_candidate_multiwindow_shard(
-        load_bars_cached=_load_bars_cached,
-        data=data,
-        worker_id=0,
-        workers=1,
-        progress_mode="serial",
-    )
-
-    if not offline:
-        data.disconnect()
-
-    _emit_multitimeframe_results(out_rows=out_rows)
-
-multitimeframe_main = spot_multitimeframe_main
-
-
-# endregion
 
 if __name__ == "__main__":
     # Default execution path: evolution sweeps CLI.

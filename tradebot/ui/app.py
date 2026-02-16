@@ -17,6 +17,7 @@ from textual.widgets import DataTable, Footer, Header, Static
 
 from ..client import IBKRClient
 from ..config import load_config
+from ..time_utils import to_et as _to_et_shared
 from .bot_runtime import BotRuntime
 from .common import (
     _INDEX_LABELS,
@@ -1421,7 +1422,7 @@ class PositionsApp(App):
         conn = self._client.connection_state()
         updated = self._snapshot.updated_at
         if updated:
-            ts = updated.astimezone().strftime("%Y-%m-%d %H:%M:%S")
+            ts = _to_et_shared(updated, naive_ts_mode="utc").strftime("%Y-%m-%d %H:%M:%S ET")
         else:
             ts = "n/a"
         session = _market_session_label()

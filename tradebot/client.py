@@ -9,7 +9,6 @@ import time
 from dataclasses import dataclass
 from datetime import date, datetime, time as dtime, timedelta, timezone
 from typing import Callable, Iterable
-from zoneinfo import ZoneInfo
 
 from ib_insync import (
     AccountValue,
@@ -28,6 +27,7 @@ from ib_insync import (
 )
 
 from .config import IBKRConfig
+from .time_utils import NaiveTsMode, now_et as _now_et, now_et_naive as _now_et_naive, to_et as _to_et_shared
 
 # region Constants
 _INDEX_CONTRACTS: dict[str, list[str]] = {
@@ -36,7 +36,6 @@ _INDEX_CONTRACTS: dict[str, list[str]] = {
     "YM": ["ECBOT", "CBOT", "GLOBEX"],
 }
 _PROXY_SYMBOLS = ("QQQ", "TQQQ")
-_ET_ZONE = ZoneInfo("America/New_York")
 _PREMARKET_START = dtime(4, 0)
 _RTH_START = dtime(9, 30)
 _RTH_END = dtime(16, 0)
@@ -207,6 +206,7 @@ class IBKRClient:
         self._proxy_contract_force_delayed: set[int] = set()
         self._proxy_contract_probe_tasks: dict[int, asyncio.Task] = {}
         self._proxy_contract_delayed_tasks: dict[int, asyncio.Task] = {}
+        self._proxy_session_include_overnight: bool | None = None
         self._detail_tickers: dict[int, tuple[IB, Ticker]] = {}
         self._ticker_owners: dict[int, set[str]] = {}
         self._historical_bar_cache: dict[
@@ -320,6 +320,7 @@ class IBKRClient:
         self._proxy_force_delayed = False
         self._proxy_probe_task = None
         self._proxy_contract_force_delayed = set()
+        self._proxy_session_include_overnight = None
         for task in self._proxy_contract_probe_tasks.values():
             if task and not task.done():
                 task.cancel()
@@ -431,19 +432,12 @@ class IBKRClient:
             ib = self._ib
         req_contract = contract
         if contract.secType == "STK":
-            _, include_overnight = _session_flags(datetime.now(tz=_ET_ZONE))
-            if include_overnight:
-                req_contract = copy.copy(contract)
-                req_contract.exchange = "OVERNIGHT"
-            else:
-                exchange = str(getattr(contract, "exchange", "") or "").strip().upper()
-                primary_exchange = str(getattr(contract, "primaryExchange", "") or "").strip().upper()
-                if use_proxy and proxy_md_type == 3 and exchange in ("", "SMART") and primary_exchange:
-                    req_contract = copy.copy(contract)
-                    req_contract.exchange = primary_exchange
-                elif not exchange:
-                    req_contract = copy.copy(contract)
-                    req_contract.exchange = "SMART"
+            _, include_overnight = _session_flags(_now_et())
+            req_contract = self._stock_market_data_contract(
+                contract,
+                include_overnight=include_overnight,
+                delayed=bool(use_proxy and proxy_md_type == 3),
+            )
         elif contract.secType in ("OPT", "FOP"):
             if not contract.exchange:
                 req_contract = copy.copy(contract)
@@ -506,7 +500,7 @@ class IBKRClient:
         outside_session = False
         include_overnight = False
         if contract.secType == "STK":
-            outside_session, include_overnight = _session_flags(datetime.now(tz=_ET_ZONE))
+            outside_session, include_overnight = _session_flags(_now_et())
             if include_overnight:
                 order_contract = copy.copy(contract)
                 order_contract.exchange = "OVERNIGHT"
@@ -623,9 +617,7 @@ class IBKRClient:
 
     @staticmethod
     def _bar_time_et(ts: datetime) -> dtime:
-        if getattr(ts, "tzinfo", None) is None:
-            return ts.time()
-        return ts.astimezone(_ET_ZONE).timetz().replace(tzinfo=None)
+        return _to_et_shared(ts, naive_ts_mode=NaiveTsMode.ET).timetz().replace(tzinfo=None)
 
     @classmethod
     def _is_overnight_bar(cls, ts: datetime) -> bool:
@@ -700,9 +692,7 @@ class IBKRClient:
             return None
         if isinstance(dt, date) and not isinstance(dt, datetime):
             dt = datetime.combine(dt, dtime(0, 0))
-        if getattr(dt, "tzinfo", None) is not None:
-            dt = dt.replace(tzinfo=None)
-        return dt
+        return _to_et_shared(dt, naive_ts_mode=NaiveTsMode.ET).replace(tzinfo=None)
 
     async def session_closes(
         self,
@@ -814,7 +804,7 @@ class IBKRClient:
                     days = sorted(by_day.keys())
                     values = [by_day[key] for key in days]
                     ref_idx = len(days) - 1
-                    today_et = datetime.now(tz=_ET_ZONE).date()
+                    today_et = _now_et().date()
                     for idx in range(len(days) - 1, -1, -1):
                         if days[idx] < today_et:
                             ref_idx = idx
@@ -826,7 +816,7 @@ class IBKRClient:
                         close_3ago = values[target_idx]
                     else:
                         # Keep 72h truthful: only use an observation at/before T-72h.
-                        target = datetime.now() - timedelta(hours=72)
+                        target = _now_et_naive() - timedelta(hours=72)
                         candidates = [entry for entry in intraday if entry[0] <= target]
                         close_3ago = candidates[-1][1] if candidates else None
             self._session_close_cache[con_id] = (
@@ -1009,7 +999,7 @@ class IBKRClient:
 
     @staticmethod
     def _nearest_expiry(raw_expirations: Iterable[object]) -> str | None:
-        today = datetime.now(tz=_ET_ZONE).date()
+        today = _now_et().date()
         options: list[tuple[date, str]] = []
         for raw in raw_expirations or ():
             text = str(raw or "").strip()
@@ -1756,7 +1746,7 @@ class IBKRClient:
             if not details:
                 return None
 
-            today = datetime.now(tz=_ET_ZONE).date()
+            today = _now_et().date()
             best = None
             best_dt = None
             for d in details:
@@ -2002,7 +1992,9 @@ class IBKRClient:
                 self._proxy_tickers = {}
                 self._proxy_task = None
                 return
+            self._proxy_force_delayed = False
             self._proxy_contract_force_delayed = set()
+            self._proxy_session_include_overnight = None
             for task in self._proxy_contract_probe_tasks.values():
                 if task and not task.done():
                     task.cancel()
@@ -2068,14 +2060,43 @@ class IBKRClient:
         self._ib_proxy.reqMarketDataType(md_type)
         if not self._proxy_contracts:
             self._proxy_contracts = await self._qualify_proxy_contracts()
+        _, include_overnight = _session_flags(_now_et())
+        delayed = bool(md_type == 3)
+        desired_contracts: dict[str, Contract] = {}
+        for symbol, contract in self._proxy_contracts.items():
+            req_contract = contract
+            if str(getattr(contract, "secType", "") or "").strip().upper() == "STK":
+                req_contract = self._stock_market_data_contract(
+                    contract,
+                    include_overnight=include_overnight,
+                    delayed=delayed,
+                )
+            desired_contracts[symbol] = req_contract
+        self._proxy_session_include_overnight = include_overnight
+        reload_needed = set(self._proxy_tickers.keys()) != set(desired_contracts.keys())
+        if not reload_needed:
+            for symbol, req_contract in desired_contracts.items():
+                ticker = self._proxy_tickers.get(symbol)
+                if ticker is None:
+                    reload_needed = True
+                    break
+                current = ticker.contract
+                cur_con_id = int(getattr(current, "conId", 0) or 0)
+                req_con_id = int(getattr(req_contract, "conId", 0) or 0)
+                cur_exchange = str(getattr(current, "exchange", "") or "").strip().upper()
+                req_exchange = str(getattr(req_contract, "exchange", "") or "").strip().upper()
+                if cur_exchange != req_exchange or (req_con_id and cur_con_id != req_con_id):
+                    reload_needed = True
+                    break
+        if reload_needed:
+            for ticker in self._proxy_tickers.values():
+                try:
+                    self._ib_proxy.cancelMktData(ticker.contract)
+                except Exception:
+                    pass
+            self._proxy_tickers = {}
         if not self._proxy_tickers:
-            _, include_overnight = _session_flags(datetime.now(tz=_ET_ZONE))
-            for symbol, contract in self._proxy_contracts.items():
-                req_contract = contract
-                if include_overnight and contract.secType == "STK":
-                    if contract.exchange != "OVERNIGHT":
-                        req_contract = copy.copy(contract)
-                        req_contract.exchange = "OVERNIGHT"
+            for symbol, req_contract in desired_contracts.items():
                 self._proxy_tickers[symbol] = self._ib_proxy.reqMktData(req_contract)
 
     async def _qualify_proxy_contracts(self) -> dict[str, Contract]:
@@ -2151,9 +2172,14 @@ class IBKRClient:
 
     def _on_error_proxy(self, reqId, errorCode, errorString, contract) -> None:
         self._remember_order_error(reqId, errorCode, errorString)
-        if errorCode == 10167 and not self._proxy_force_delayed:
-            self._proxy_force_delayed = True
-            self._start_proxy_resubscribe()
+        if errorCode == 10167:
+            con_id = int(getattr(contract, "conId", 0) or 0) if contract else 0
+            if con_id:
+                self._proxy_contract_force_delayed.add(con_id)
+                self._start_proxy_contract_delayed_resubscribe(contract)
+            elif not self._proxy_force_delayed:
+                self._proxy_force_delayed = True
+                self._start_proxy_resubscribe()
         if errorCode in (354, 10089, 10090, 10091, 10168) and contract:
             con_id = int(getattr(contract, "conId", 0) or 0)
             if con_id:
@@ -2224,6 +2250,7 @@ class IBKRClient:
         self._resubscribe_proxy_needed = True
         self._proxy_task = None
         self._proxy_tickers = {}
+        self._proxy_session_include_overnight = None
         self._proxy_probe_task = None
         for task in self._proxy_contract_probe_tasks.values():
             if task and not task.done():
@@ -2262,28 +2289,63 @@ class IBKRClient:
             task.add_done_callback(_cleanup)
 
     @staticmethod
+    def _stock_market_data_contract(
+        contract: Contract,
+        *,
+        include_overnight: bool,
+        delayed: bool,
+    ) -> Contract:
+        req_contract = contract
+        exchange = str(getattr(contract, "exchange", "") or "").strip().upper()
+        primary_exchange = str(getattr(contract, "primaryExchange", "") or "").strip().upper()
+        if include_overnight:
+            if exchange != "OVERNIGHT":
+                req_contract = copy.copy(contract)
+                req_contract.exchange = "OVERNIGHT"
+            return req_contract
+        if delayed and exchange in ("", "SMART") and primary_exchange:
+            req_contract = copy.copy(contract)
+            req_contract.exchange = primary_exchange
+            return req_contract
+        if not exchange:
+            req_contract = copy.copy(contract)
+            req_contract.exchange = "SMART"
+        return req_contract
+
+    @staticmethod
     def _ticker_has_data(ticker: Ticker | None) -> bool:
         if ticker is None:
             return False
-        for attr in ("last", "close", "prevLast", "bid", "ask"):
-            value = getattr(ticker, attr, None)
-            if value is None:
-                continue
-            try:
-                num = float(value)
-            except (TypeError, ValueError):
-                continue
-            if not math.isnan(num) and num > 0:
-                return True
-        return False
+        bid = getattr(ticker, "bid", None)
+        ask = getattr(ticker, "ask", None)
+        try:
+            bid_num = float(bid) if bid is not None else None
+        except (TypeError, ValueError):
+            bid_num = None
+        try:
+            ask_num = float(ask) if ask is not None else None
+        except (TypeError, ValueError):
+            ask_num = None
+        if (
+            bid_num is not None
+            and ask_num is not None
+            and not math.isnan(bid_num)
+            and not math.isnan(ask_num)
+            and bid_num > 0
+            and ask_num > 0
+            and ask_num >= bid_num
+        ):
+            return True
+        last = getattr(ticker, "last", None)
+        try:
+            last_num = float(last) if last is not None else None
+        except (TypeError, ValueError):
+            last_num = None
+        return bool(last_num is not None and not math.isnan(last_num) and last_num > 0)
 
     def _start_proxy_contract_quote_probe(self, contract: Contract) -> None:
         con_id = int(getattr(contract, "conId", 0) or 0)
-        if (
-            not con_id
-            or self._proxy_force_delayed
-            or con_id in self._proxy_contract_force_delayed
-        ):
+        if not con_id or con_id in self._proxy_contract_force_delayed:
             return
         existing = self._proxy_contract_probe_tasks.get(con_id)
         if existing is not None and not existing.done():
@@ -2299,11 +2361,7 @@ class IBKRClient:
         con_id = int(getattr(contract, "conId", 0) or 0)
         try:
             await asyncio.sleep(1.5)
-            if (
-                not con_id
-                or self._proxy_force_delayed
-                or con_id in self._proxy_contract_force_delayed
-            ):
+            if not con_id or con_id in self._proxy_contract_force_delayed:
                 return
             entry = self._detail_tickers.get(con_id)
             if not entry:
@@ -2329,19 +2387,21 @@ class IBKRClient:
             self._ib_proxy.reqMarketDataType(3)
             req_contract = contract
             if contract.secType == "STK":
-                _, include_overnight = _session_flags(datetime.now(tz=_ET_ZONE))
-                if include_overnight:
-                    req_contract = copy.copy(contract)
-                    req_contract.exchange = "OVERNIGHT"
-                else:
-                    exchange = str(getattr(contract, "exchange", "") or "").strip().upper()
-                    primary_exchange = str(getattr(contract, "primaryExchange", "") or "").strip().upper()
-                    if exchange in ("", "SMART") and primary_exchange:
+                _, include_overnight = _session_flags(_now_et())
+                req_contract = self._stock_market_data_contract(
+                    contract,
+                    include_overnight=include_overnight,
+                    delayed=True,
+                )
+                if str(getattr(req_contract, "exchange", "") or "").strip().upper() == "OVERNIGHT":
+                    primary_exchange = str(
+                        getattr(contract, "primaryExchange", "")
+                        or getattr(req_contract, "primaryExchange", "")
+                        or ""
+                    ).strip().upper()
+                    if primary_exchange:
                         req_contract = copy.copy(contract)
                         req_contract.exchange = primary_exchange
-                    elif not exchange:
-                        req_contract = copy.copy(contract)
-                        req_contract.exchange = "SMART"
             elif contract.secType in ("OPT", "FOP"):
                 if not contract.exchange:
                     req_contract = copy.copy(contract)
@@ -2414,6 +2474,8 @@ class IBKRClient:
                 return
             md_type = 3 if self._proxy_force_delayed else 1
             self._ib_proxy.reqMarketDataType(md_type)
+            _, include_overnight = _session_flags(_now_et())
+            self._proxy_session_include_overnight = include_overnight
             for ticker in self._proxy_tickers.values():
                 try:
                     self._ib_proxy.cancelMktData(ticker.contract)
@@ -2424,7 +2486,13 @@ class IBKRClient:
                 if ib is not self._ib_proxy:
                     continue
                 req_contract = ticker.contract
-                if req_contract.secType in ("OPT", "FOP") and not req_contract.exchange:
+                if req_contract.secType == "STK":
+                    req_contract = self._stock_market_data_contract(
+                        req_contract,
+                        include_overnight=include_overnight,
+                        delayed=bool(md_type == 3),
+                    )
+                elif req_contract.secType in ("OPT", "FOP") and not req_contract.exchange:
                     req_contract = copy.copy(req_contract)
                     if req_contract.secType == "FOP":
                         primary_exchange = getattr(req_contract, "primaryExchange", "") or ""
@@ -2533,11 +2601,19 @@ class IBKRClient:
             if self._resubscribe_proxy_needed and self._ib_proxy.isConnected():
                 md_type = 3 if self._proxy_force_delayed else 1
                 self._ib_proxy.reqMarketDataType(md_type)
+                _, include_overnight = _session_flags(_now_et())
+                self._proxy_session_include_overnight = include_overnight
                 for con_id, (ib, ticker) in list(self._detail_tickers.items()):
                     if ib is not self._ib_proxy:
                         continue
                     req_contract = ticker.contract
-                    if req_contract.secType in ("OPT", "FOP") and not req_contract.exchange:
+                    if req_contract.secType == "STK":
+                        req_contract = self._stock_market_data_contract(
+                            req_contract,
+                            include_overnight=include_overnight,
+                            delayed=bool(md_type == 3),
+                        )
+                    elif req_contract.secType in ("OPT", "FOP") and not req_contract.exchange:
                         req_contract = copy.copy(req_contract)
                         if req_contract.secType == "FOP":
                             primary_exchange = getattr(req_contract, "primaryExchange", "") or ""

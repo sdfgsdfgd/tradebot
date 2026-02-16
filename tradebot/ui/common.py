@@ -8,10 +8,11 @@ from __future__ import annotations
 
 import math
 from datetime import datetime, time
-from zoneinfo import ZoneInfo
 
 from ib_insync import PnL, PortfolioItem, Ticker, Trade
 from rich.text import Text
+
+from tradebot.ui.time_compat import now_et as _now_et
 
 # region Formatting Helpers
 def _fmt_expiry(raw: str) -> str:
@@ -334,6 +335,17 @@ def _ticker_price(ticker: Ticker) -> float | None:
     return _ticker_close(ticker)
 
 
+def _ticker_actionable_price(ticker: Ticker) -> float | None:
+    bid = _safe_num(getattr(ticker, "bid", None))
+    ask = _safe_num(getattr(ticker, "ask", None))
+    if bid is not None and ask is not None and bid > 0 and ask > 0 and bid <= ask:
+        return (bid + ask) / 2.0
+    last = _safe_num(getattr(ticker, "last", None))
+    if last is not None and last > 0:
+        return float(last)
+    return None
+
+
 def _option_display_price(item: PortfolioItem, ticker: Ticker | None) -> float | None:
     if ticker:
         bid = _safe_num(getattr(ticker, "bid", None))
@@ -415,7 +427,7 @@ def _market_session_bucket(ts_et: datetime | time) -> str:
 
 
 def _market_session_label() -> str:
-    bucket = _market_session_bucket(datetime.now(ZoneInfo("America/New_York")))
+    bucket = _market_session_bucket(_now_et())
     if bucket == "RTH":
         return "MRKT"
     if bucket == "OVERNIGHT":
@@ -444,7 +456,7 @@ def _ticker_line(
             text.append_text(_ticker_missing(label))
             continue
         tag = _market_data_tag(ticker)
-        price = _ticker_price(ticker)
+        price = _ticker_actionable_price(ticker)
         close = _ticker_close(ticker)
         if price is None or price <= 0:
             if close and close > 0:

@@ -5,11 +5,12 @@ from __future__ import annotations
 import csv
 import json
 import threading
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from typing import Callable
-from zoneinfo import ZoneInfo
 
+from ..time_utils import UTC as _UTC
+from ..time_utils import now_et as _now_et
 from .bot_models import _BOT_JOURNAL_FIELDS, _BotInstance, _BotOrder
 
 
@@ -21,7 +22,7 @@ class BotJournal:
         except Exception:
             self._path: Path | None = None
             return
-        started_at = datetime.now(tz=ZoneInfo("America/New_York"))
+        started_at = _now_et()
         self._path = out_dir / f"bot_journal_{started_at:%Y%m%d_%H%M%S_ET}.csv"
 
     @property
@@ -38,8 +39,8 @@ class BotJournal:
         data: dict | None,
         strategy_instrument: Callable[[dict], str],
     ) -> dict[str, object]:
-        now_et = datetime.now(tz=ZoneInfo("America/New_York"))
-        now_utc = datetime.now(tz=timezone.utc)
+        now_et = _now_et()
+        now_utc = datetime.now(tz=_UTC)
 
         row: dict[str, object] = {k: "" for k in _BOT_JOURNAL_FIELDS}
         row["ts_et"] = now_et.isoformat()

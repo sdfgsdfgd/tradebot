@@ -6,6 +6,7 @@ from datetime import date, datetime, timedelta
 
 from .config import StrategyConfig, LegConfig
 from .models import OptionLeg
+from ..engine import _trade_date, _trade_weekday
 
 
 @dataclass(frozen=True)
@@ -19,7 +20,7 @@ class CreditSpreadStrategy:
         self._cfg = cfg
 
     def should_enter(self, ts: datetime) -> bool:
-        return ts.weekday() in self._cfg.entry_days
+        return _trade_weekday(ts) in self._cfg.entry_days
 
     def build_spec(
         self,
@@ -29,7 +30,7 @@ class CreditSpreadStrategy:
         right_override: str | None = None,
         legs_override: tuple[LegConfig, ...] | None = None,
     ) -> TradeSpec:
-        expiry = _expiry_from_dte(ts.date(), self._cfg.dte)
+        expiry = _expiry_from_dte(_trade_date(ts), self._cfg.dte)
         if legs_override:
             legs = _build_legs(legs_override, spot, self._cfg.quantity)
         elif self._cfg.legs:

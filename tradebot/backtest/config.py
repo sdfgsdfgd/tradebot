@@ -96,11 +96,8 @@ def _parse_from_schema(
 
 
 def _translate_legacy_strategy_payload(raw: dict, *, instrument: str) -> dict:
-    payload = dict(raw)
-    # Compatibility shim: old spot payloads may still carry options-only fields.
-    if str(instrument) == "spot":
-        payload.pop("max_open_trades", None)
-    return payload
+    _ = instrument
+    return dict(raw)
 
 
 def _backtest_schema() -> dict[str, _FieldSpec]:
@@ -148,6 +145,7 @@ def _strategy_schema_common() -> dict[str, _FieldSpec]:
         "flip_exit_gate_mode": _field(_parse_flip_exit_gate_mode, None),
         "flip_exit_min_hold_bars": _field(lambda value: _parse_non_negative_int(value, default=0), 0),
         "flip_exit_only_if_profit": _field(bool, False),
+        "spot_controlled_flip": _field(bool, False),
         "direction_source": _field(_parse_direction_source, None),
         "directional_legs": _field(_parse_directional_legs, None),
         "directional_spot": _field(_parse_directional_spot, None),
@@ -222,13 +220,52 @@ def _strategy_schema_common() -> dict[str, _FieldSpec]:
         "spot_branch_b_min_signed_slope_pct": _field(_parse_optional_float, None),
         "spot_branch_b_max_signed_slope_pct": _field(_parse_optional_float, None),
         "spot_branch_b_size_mult": _field(lambda value: _parse_positive_float(value, default=1.0), 1.0),
+        "spot_policy_pack": _field(_identity, None),
+        "spot_policy_graph": _field(_identity, None),
+        "spot_graph_profile": _field(_identity, None),
+        "spot_entry_policy": _field(_identity, None),
+        "spot_exit_policy": _field(_identity, None),
+        "spot_resize_policy": _field(_identity, None),
+        "spot_risk_overlay_policy": _field(_identity, None),
+        "spot_resize_mode": _field(_parse_spot_resize_mode, None),
+        "spot_resize_min_delta_qty": _field(lambda value: _parse_positive_int(value, default=1), 1),
+        "spot_resize_max_step_qty": _field(lambda value: _parse_non_negative_int(value, default=0), 0),
+        "spot_resize_allow_scale_in": _field(bool, True),
+        "spot_resize_allow_scale_out": _field(bool, True),
+        "spot_resize_cooldown_bars": _field(lambda value: _parse_non_negative_int(value, default=0), 0),
+        "spot_resize_adaptive_mode": _field(_parse_spot_resize_adaptive_mode, None),
+        "spot_resize_adaptive_min_mult": _field(lambda value: _parse_positive_float(value, default=0.5), 0.5),
+        "spot_resize_adaptive_max_mult": _field(lambda value: _parse_positive_float(value, default=1.75), 1.75),
+        "spot_resize_adaptive_atr_target_pct": _field(_parse_optional_float, None),
+        "spot_resize_adaptive_atr_vel_ref_pct": _field(lambda value: _parse_positive_float(value, default=0.40), 0.40),
+        "spot_resize_adaptive_slope_ref_pct": _field(lambda value: _parse_positive_float(value, default=0.10), 0.10),
+        "spot_resize_adaptive_vel_ref_pct": _field(lambda value: _parse_positive_float(value, default=0.08), 0.08),
+        "spot_resize_adaptive_tr_ratio_ref": _field(lambda value: _parse_positive_float(value, default=1.0), 1.0),
+        "spot_entry_tr_ratio_min": _field(_parse_optional_float, None),
+        "spot_entry_slope_med_abs_min_pct": _field(_parse_optional_float, None),
+        "spot_entry_slope_vel_abs_min_pct": _field(_parse_optional_float, None),
+        "spot_entry_slow_slope_med_abs_min_pct": _field(_parse_optional_float, None),
+        "spot_entry_slow_slope_vel_abs_min_pct": _field(_parse_optional_float, None),
+        "spot_entry_shock_atr_max_pct": _field(_parse_optional_float, None),
+        "spot_entry_atr_vel_min_pct": _field(_parse_optional_float, None),
+        "spot_entry_atr_accel_min_pct": _field(_parse_optional_float, None),
+        "spot_exit_flip_hold_slope_min_pct": _field(_parse_optional_float, None),
+        "spot_exit_flip_hold_tr_ratio_min": _field(_parse_optional_float, None),
+        "spot_exit_flip_hold_slow_slope_min_pct": _field(_parse_optional_float, None),
+        "spot_exit_flip_hold_slope_vel_min_pct": _field(_parse_optional_float, None),
+        "spot_exit_flip_hold_slow_slope_vel_min_pct": _field(_parse_optional_float, None),
+        "spot_graph_overlay_atr_hi_pct": _field(_parse_optional_float, None),
+        "spot_graph_overlay_atr_hi_min_mult": _field(lambda value: _parse_positive_float(value, default=0.5), 0.5),
+        "spot_graph_overlay_atr_vel_ref_pct": _field(lambda value: _parse_positive_float(value, default=0.40), 0.40),
+        "spot_graph_overlay_tr_ratio_ref": _field(lambda value: _parse_positive_float(value, default=1.0), 1.0),
+        "spot_graph_overlay_slope_ref_pct": _field(lambda value: _parse_positive_float(value, default=0.08), 0.08),
+        "spot_graph_overlay_trend_boost_max": _field(lambda value: _parse_positive_float(value, default=1.35), 1.35),
+        "spot_graph_overlay_trend_floor_mult": _field(lambda value: _parse_positive_float(value, default=0.65), 0.65),
     }
 
 
 def _options_strategy_schema() -> dict[str, _FieldSpec]:
-    schema = _strategy_schema_common()
-    schema["max_open_trades"] = _field(lambda value: _parse_non_negative_int(value, default=1), 1)
-    return schema
+    return _strategy_schema_common()
 
 
 def _spot_strategy_schema() -> dict[str, _FieldSpec]:
@@ -703,6 +740,9 @@ def _parse_filters(raw) -> FiltersConfig | None:
     ratsv_slope_window = _nonneg_int_default(raw.get("ratsv_slope_window_bars"), 5)
     if ratsv_slope_window <= 0:
         ratsv_slope_window = 5
+    ratsv_slope_slow_window = _i(raw.get("ratsv_slope_slow_window_bars"))
+    if ratsv_slope_slow_window is not None and ratsv_slope_slow_window <= 0:
+        ratsv_slope_slow_window = None
     ratsv_tr_fast = _nonneg_int_default(raw.get("ratsv_tr_fast_bars"), 5)
     if ratsv_tr_fast <= 0:
         ratsv_tr_fast = 5
@@ -716,6 +756,10 @@ def _parse_filters(raw) -> FiltersConfig | None:
     ratsv_tr_ratio_min = _pos_float_or_none(raw.get("ratsv_tr_ratio_min"))
     ratsv_slope_med_min_pct = _pos_float_or_none(raw.get("ratsv_slope_med_min_pct"))
     ratsv_slope_vel_min_pct = _pos_float_or_none(raw.get("ratsv_slope_vel_min_pct"))
+    ratsv_slope_med_slow_min_pct = _pos_float_or_none(raw.get("ratsv_slope_med_slow_min_pct"))
+    ratsv_slope_vel_slow_min_pct = _pos_float_or_none(raw.get("ratsv_slope_vel_slow_min_pct"))
+    ratsv_slope_vel_consistency_bars = _nonneg_int_default(raw.get("ratsv_slope_vel_consistency_bars"), 0)
+    ratsv_slope_vel_consistency_min = _ratio01_or_none(raw.get("ratsv_slope_vel_consistency_min"))
     ratsv_cross_age_max = _i(raw.get("ratsv_cross_age_max_bars"))
     if ratsv_cross_age_max is not None and ratsv_cross_age_max < 0:
         ratsv_cross_age_max = None
@@ -724,6 +768,12 @@ def _parse_filters(raw) -> FiltersConfig | None:
     ratsv_branch_a_tr_ratio_min = _pos_float_or_none(raw.get("ratsv_branch_a_tr_ratio_min"))
     ratsv_branch_a_slope_med_min_pct = _pos_float_or_none(raw.get("ratsv_branch_a_slope_med_min_pct"))
     ratsv_branch_a_slope_vel_min_pct = _pos_float_or_none(raw.get("ratsv_branch_a_slope_vel_min_pct"))
+    ratsv_branch_a_slope_med_slow_min_pct = _pos_float_or_none(raw.get("ratsv_branch_a_slope_med_slow_min_pct"))
+    ratsv_branch_a_slope_vel_slow_min_pct = _pos_float_or_none(raw.get("ratsv_branch_a_slope_vel_slow_min_pct"))
+    ratsv_branch_a_slope_vel_consistency_bars = _i(raw.get("ratsv_branch_a_slope_vel_consistency_bars"))
+    if ratsv_branch_a_slope_vel_consistency_bars is not None and ratsv_branch_a_slope_vel_consistency_bars < 0:
+        ratsv_branch_a_slope_vel_consistency_bars = None
+    ratsv_branch_a_slope_vel_consistency_min = _ratio01_or_none(raw.get("ratsv_branch_a_slope_vel_consistency_min"))
     ratsv_branch_a_cross_age_max = _i(raw.get("ratsv_branch_a_cross_age_max_bars"))
     if ratsv_branch_a_cross_age_max is not None and ratsv_branch_a_cross_age_max < 0:
         ratsv_branch_a_cross_age_max = None
@@ -732,6 +782,12 @@ def _parse_filters(raw) -> FiltersConfig | None:
     ratsv_branch_b_tr_ratio_min = _pos_float_or_none(raw.get("ratsv_branch_b_tr_ratio_min"))
     ratsv_branch_b_slope_med_min_pct = _pos_float_or_none(raw.get("ratsv_branch_b_slope_med_min_pct"))
     ratsv_branch_b_slope_vel_min_pct = _pos_float_or_none(raw.get("ratsv_branch_b_slope_vel_min_pct"))
+    ratsv_branch_b_slope_med_slow_min_pct = _pos_float_or_none(raw.get("ratsv_branch_b_slope_med_slow_min_pct"))
+    ratsv_branch_b_slope_vel_slow_min_pct = _pos_float_or_none(raw.get("ratsv_branch_b_slope_vel_slow_min_pct"))
+    ratsv_branch_b_slope_vel_consistency_bars = _i(raw.get("ratsv_branch_b_slope_vel_consistency_bars"))
+    if ratsv_branch_b_slope_vel_consistency_bars is not None and ratsv_branch_b_slope_vel_consistency_bars < 0:
+        ratsv_branch_b_slope_vel_consistency_bars = None
+    ratsv_branch_b_slope_vel_consistency_min = _ratio01_or_none(raw.get("ratsv_branch_b_slope_vel_consistency_min"))
     ratsv_branch_b_cross_age_max = _i(raw.get("ratsv_branch_b_cross_age_max_bars"))
     if ratsv_branch_b_cross_age_max is not None and ratsv_branch_b_cross_age_max < 0:
         ratsv_branch_b_cross_age_max = None
@@ -815,22 +871,43 @@ def _parse_filters(raw) -> FiltersConfig | None:
         riskpop_short_risk_mult_factor=float(riskpop_short_factor),
         ratsv_enabled=bool(ratsv_enabled),
         ratsv_slope_window_bars=int(ratsv_slope_window),
+        ratsv_slope_slow_window_bars=int(ratsv_slope_slow_window) if ratsv_slope_slow_window is not None else None,
         ratsv_tr_fast_bars=int(ratsv_tr_fast),
         ratsv_tr_slow_bars=int(ratsv_tr_slow),
         ratsv_rank_min=ratsv_rank_min,
         ratsv_tr_ratio_min=ratsv_tr_ratio_min,
         ratsv_slope_med_min_pct=ratsv_slope_med_min_pct,
         ratsv_slope_vel_min_pct=ratsv_slope_vel_min_pct,
+        ratsv_slope_med_slow_min_pct=ratsv_slope_med_slow_min_pct,
+        ratsv_slope_vel_slow_min_pct=ratsv_slope_vel_slow_min_pct,
+        ratsv_slope_vel_consistency_bars=int(ratsv_slope_vel_consistency_bars),
+        ratsv_slope_vel_consistency_min=ratsv_slope_vel_consistency_min,
         ratsv_cross_age_max_bars=int(ratsv_cross_age_max) if ratsv_cross_age_max is not None else None,
         ratsv_branch_a_rank_min=ratsv_branch_a_rank_min,
         ratsv_branch_a_tr_ratio_min=ratsv_branch_a_tr_ratio_min,
         ratsv_branch_a_slope_med_min_pct=ratsv_branch_a_slope_med_min_pct,
         ratsv_branch_a_slope_vel_min_pct=ratsv_branch_a_slope_vel_min_pct,
+        ratsv_branch_a_slope_med_slow_min_pct=ratsv_branch_a_slope_med_slow_min_pct,
+        ratsv_branch_a_slope_vel_slow_min_pct=ratsv_branch_a_slope_vel_slow_min_pct,
+        ratsv_branch_a_slope_vel_consistency_bars=(
+            int(ratsv_branch_a_slope_vel_consistency_bars)
+            if ratsv_branch_a_slope_vel_consistency_bars is not None
+            else None
+        ),
+        ratsv_branch_a_slope_vel_consistency_min=ratsv_branch_a_slope_vel_consistency_min,
         ratsv_branch_a_cross_age_max_bars=int(ratsv_branch_a_cross_age_max) if ratsv_branch_a_cross_age_max is not None else None,
         ratsv_branch_b_rank_min=ratsv_branch_b_rank_min,
         ratsv_branch_b_tr_ratio_min=ratsv_branch_b_tr_ratio_min,
         ratsv_branch_b_slope_med_min_pct=ratsv_branch_b_slope_med_min_pct,
         ratsv_branch_b_slope_vel_min_pct=ratsv_branch_b_slope_vel_min_pct,
+        ratsv_branch_b_slope_med_slow_min_pct=ratsv_branch_b_slope_med_slow_min_pct,
+        ratsv_branch_b_slope_vel_slow_min_pct=ratsv_branch_b_slope_vel_slow_min_pct,
+        ratsv_branch_b_slope_vel_consistency_bars=(
+            int(ratsv_branch_b_slope_vel_consistency_bars)
+            if ratsv_branch_b_slope_vel_consistency_bars is not None
+            else None
+        ),
+        ratsv_branch_b_slope_vel_consistency_min=ratsv_branch_b_slope_vel_consistency_min,
         ratsv_branch_b_cross_age_max_bars=int(ratsv_branch_b_cross_age_max) if ratsv_branch_b_cross_age_max is not None else None,
         ratsv_probe_cancel_max_bars=int(ratsv_probe_cancel_max_bars),
         ratsv_probe_cancel_slope_adverse_min_pct=ratsv_probe_cancel_slope_adverse_min_pct,
@@ -1005,6 +1082,34 @@ def _parse_spot_sizing_mode(value) -> str:
         if cleaned in ("risk_pct", "risk", "risk_percent", "risk_per_trade"):
             return "risk_pct"
     return "fixed"
+
+
+def _parse_spot_resize_mode(value) -> str:
+    if value is None:
+        return "off"
+    if isinstance(value, str):
+        cleaned = value.strip().lower()
+        if cleaned in ("off", "none", "disabled", "false", "0"):
+            return "off"
+        if cleaned in ("target", "adaptive", "on", "enabled", "1"):
+            return "target"
+    return "off"
+
+
+def _parse_spot_resize_adaptive_mode(value) -> str:
+    if value is None:
+        return "off"
+    if isinstance(value, str):
+        cleaned = value.strip().lower()
+        if cleaned in ("off", "none", "disabled", "false", "0"):
+            return "off"
+        if cleaned in ("atr",):
+            return "atr"
+        if cleaned in ("slope", "velocity", "vel"):
+            return "slope"
+        if cleaned in ("hybrid", "atr_slope", "slope_atr", "both"):
+            return "hybrid"
+    return "off"
 
 
 def _parse_non_negative_float(value, *, default: float) -> float:

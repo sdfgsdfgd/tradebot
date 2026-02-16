@@ -9,7 +9,6 @@ import math
 import re
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
-from zoneinfo import ZoneInfo
 
 from ib_insync import Contract, PortfolioItem, Stock
 from rich.text import Text
@@ -21,18 +20,23 @@ from textual.widgets import DataTable, Footer, Header, Static
 
 from ..client import IBKRClient, _session_flags
 from ..engine import (
-    flip_exit_gate_blocked,
-    flip_exit_hit,
     normalize_spot_entry_signal,
     resolve_spot_regime2_spec,
     resolve_spot_regime_spec,
+    spot_riskoff_end_hour,
 )
+from ..spot.lifecycle import flip_exit_gate_blocked, flip_exit_hit
+from ..series import BarSeries, BarSeriesMeta
+from ..series_cache import series_cache_service
 from ..signals import (
     direction_from_action_right,
     ema_state_direction,
     flip_exit_mode,
     parse_bar_size,
 )
+from ..time_utils import now_et as _now_et
+from ..time_utils import now_et_naive as _now_et_naive
+from ..time_utils import to_et as _to_et_shared
 from ..utils.date_utils import business_days_until
 from .common import (
     _SECTION_TYPES,
@@ -70,6 +74,9 @@ from .bot_models import (
 from .bot_engine_runtime import BotEngineRuntimeMixin
 from .bot_order_builder import BotOrderBuilderMixin
 from .bot_signal_runtime import BotSignalRuntimeMixin
+
+_SERIES_CACHE = series_cache_service()
+_UI_SIGNAL_SNAPSHOT_NAMESPACE = "ui.signal.snapshot.v1"
 
 # region Bot UI
 class BotConfigScreen(Screen[_BotConfigResult | None]):
@@ -115,7 +122,6 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
         self._fields: list[_BotConfigField] = []
         self._editing: _BotConfigField | None = None
         self._edit_buffer = ""
-        self._marker_row = -1
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -123,6 +129,7 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
         yield DataTable(
             id="bot-config",
             zebra_stripes=True,
+            show_row_labels=False,
             cursor_foreground_priority="renderable",
             cursor_background_priority="css",
         )
@@ -390,24 +397,11 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
         self._sync_row_marker(force=True)
 
     def _sync_row_marker(self, *, force: bool = False) -> None:
-        current_row = int(getattr(self._table.cursor_coordinate, "row", -1) or -1)
-        previous_row = -1 if force else int(self._marker_row)
-        if not force and previous_row == current_row:
-            return
-        self._set_row_marker(previous_row, active=False)
-        self._set_row_marker(current_row, active=True)
-        self._marker_row = current_row
+        # DataTable row cursor highlight is sufficient; avoid label churn/flicker.
+        return
 
     def _set_row_marker(self, row_index: int, *, active: bool) -> None:
-        if row_index < 0 or row_index >= self._table.row_count:
-            return
-        row = self._table.ordered_rows[row_index]
-        marker = Text("▌", style="bold #2c82c9") if active else Text(" ")
-        prev = row.label if isinstance(row.label, Text) else Text(str(row.label or ""))
-        if prev.plain == marker.plain and str(prev.style or "") == str(marker.style or ""):
-            return
-        row.label = marker
-        self._table.refresh_row(row_index)
+        return
 
     def _format_value(self, field: _BotConfigField, value: object) -> str:
         if field.kind == "bool":
@@ -753,7 +747,6 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         self._cancel_task: asyncio.Task | None = None
         self._tracked_conids: set[int] = set()
         self._active_panel = "presets"
-        self._marker_row_by_table: dict[str, int] = {}
         self._refresh_lock = asyncio.Lock()
         self._scope_all = False
         self._journal = BotJournal(Path(__file__).resolve().parent / "out")
@@ -765,24 +758,28 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             DataTable(
                 id="bot-presets",
                 zebra_stripes=True,
+                show_row_labels=False,
                 cursor_foreground_priority="renderable",
                 cursor_background_priority="css",
             ),
             DataTable(
                 id="bot-instances",
                 zebra_stripes=True,
+                show_row_labels=False,
                 cursor_foreground_priority="renderable",
                 cursor_background_priority="css",
             ),
             DataTable(
                 id="bot-orders",
                 zebra_stripes=True,
+                show_row_labels=False,
                 cursor_foreground_priority="renderable",
                 cursor_background_priority="css",
             ),
             DataTable(
                 id="bot-logs",
                 zebra_stripes=True,
+                show_row_labels=False,
                 cursor_foreground_priority="renderable",
                 cursor_background_priority="css",
             ),
@@ -942,35 +939,15 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         }.get(target, self._logs_table)
 
     def _sync_panel_markers(self, *, force: bool = False) -> None:
-        for panel in self._PANEL_ORDER:
-            table = self._panel_table(panel)
-            if not bool(getattr(table, "display", True)):
-                continue
-            self._sync_row_marker(table, force=force)
+        return
 
     def _sync_row_marker(self, table: DataTable, *, force: bool = False) -> None:
-        table_id = str(getattr(table, "id", "") or "")
-        if not table_id:
-            return
-        current_row = int(getattr(table.cursor_coordinate, "row", -1) or -1)
-        previous_row = -1 if force else int(self._marker_row_by_table.get(table_id, -1))
-        if not force and previous_row == current_row:
-            return
-        self._set_row_marker(table, previous_row, active=False)
-        self._set_row_marker(table, current_row, active=True)
-        self._marker_row_by_table[table_id] = current_row
+        # DataTable row cursor highlight is sufficient; avoid label churn/flicker.
+        return
 
     @staticmethod
     def _set_row_marker(table: DataTable, row_index: int, *, active: bool) -> None:
-        if row_index < 0 or row_index >= table.row_count:
-            return
-        row = table.ordered_rows[row_index]
-        marker = Text("▌", style="bold #2c82c9") if active else Text(" ")
-        prev = row.label if isinstance(row.label, Text) else Text(str(row.label or ""))
-        if prev.plain == marker.plain and str(prev.style or "") == str(marker.style or ""):
-            return
-        row.label = marker
-        table.refresh_row(row_index)
+        return
 
     def _render_panel_titles(self) -> None:
         labels = {
@@ -1853,12 +1830,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                             start = None
                             end = None
 
-            cutoff = None
-            if isinstance(filters, dict) and filters.get("risk_entry_cutoff_hour_et") is not None:
-                try:
-                    cutoff = int(filters.get("risk_entry_cutoff_hour_et"))
-                except (TypeError, ValueError):
-                    cutoff = None
+            cutoff = spot_riskoff_end_hour(filters) if isinstance(filters, dict) else None
 
             if start is not None and end is not None:
                 prefix = "R" if use_rth is True else ("F" if use_rth is False else "")
@@ -2054,10 +2026,12 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         self._instances_table.add_columns("ID", "Strategy", "DTE", "State", "BT PnL", "Unreal", "Realized")
 
         self._orders_table.clear(columns=True)
-        self._orders_table.add_columns("When", "Inst", "Side", "Qty", "Contract", "Lmt", "B/A", "Status", "Unreal", "Realized")
+        self._orders_table.add_columns(
+            "When ET", "Inst", "Side", "Qty", "Contract", "Lmt", "B/A", "Status", "Unreal", "Realized"
+        )
 
         self._logs_table.clear(columns=True)
-        self._logs_table.add_columns("When", "Inst", "Sym", "Event", "Reason", "Msg")
+        self._logs_table.add_columns("When ET", "Inst", "Sym", "Event", "Reason", "Msg")
 
     def _cursor_move(self, direction: int) -> None:
         table = self._panel_table()
@@ -2214,7 +2188,11 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         msg = str(entry.get("msg") or "")
         if repeat > 1:
             msg = f"x{repeat} {msg}" if msg else f"x{repeat}"
-        when = ts.astimezone().strftime("%H:%M:%S") if isinstance(ts, datetime) else ""
+        when = (
+            _to_et_shared(ts, naive_ts_mode="et", default_naive_ts_mode="et").strftime("%H:%M:%S")
+            if isinstance(ts, datetime)
+            else ""
+        )
         return (
             when,
             str(entry.get("instance_id") or ""),
@@ -2619,11 +2597,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         use_rth: bool,
         sec_type: str,
     ) -> bool:
-        now_et = (
-            now_ref.replace(tzinfo=ZoneInfo("America/New_York"))
-            if now_ref.tzinfo is None
-            else now_ref.astimezone(ZoneInfo("America/New_York"))
-        )
+        now_et = _to_et_shared(now_ref, naive_ts_mode="et", default_naive_ts_mode="et")
         weekday = int(now_et.weekday())
         current = now_et.time()
         if bool(use_rth):
@@ -2810,9 +2784,9 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
     @staticmethod
     def _signal_pick_fresher(
         *,
-        current: tuple[list | None, dict | None] | None,
-        candidate: tuple[list | None, dict | None] | None,
-    ) -> tuple[list | None, dict | None]:
+        current: tuple[BarSeries | None, dict | None] | None,
+        candidate: tuple[BarSeries | None, dict | None] | None,
+    ) -> tuple[BarSeries | None, dict | None]:
         if candidate is None:
             return current if current is not None else (None, None)
         if current is None:
@@ -2862,17 +2836,19 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         use_rth: bool,
         now_ref: datetime,
         heal_if_stale: bool = False,
-    ) -> tuple[list | None, dict | None]:
+    ) -> tuple[BarSeries | None, dict | None]:
         from ..utils.bar_utils import trim_incomplete_last_bar
 
         sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
+        symbol = str(getattr(contract, "symbol", "") or "").strip().upper() or None
+        con_id = int(getattr(contract, "conId", 0) or 0)
 
         async def _fetch(
             *,
             what_to_show: str,
             cache_ttl_sec: float,
             duration_override: str | None = None,
-        ) -> tuple[list | None, dict | None]:
+        ) -> tuple[BarSeries | None, dict | None]:
             req_duration = str(duration_override or duration_str)
             bars = await self._client.historical_bars_ohlcv(
                 contract,
@@ -2901,8 +2877,19 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                     sec_type=sec_type,
                     source=what_to_show,
                 )
-            return trimmed, self._signal_bar_health(
-                bars=trimmed,
+            series = BarSeries(
+                bars=tuple(trimmed),
+                meta=BarSeriesMeta(
+                    symbol=symbol,
+                    bar_size=str(bar_size),
+                    tz_mode="et_naive",
+                    session_mode="rth" if bool(use_rth) else "full24",
+                    source=f"ibkr:{str(what_to_show).strip().lower()}",
+                    extra={"duration_str": str(req_duration), "con_id": int(con_id)},
+                ),
+            )
+            return series, self._signal_bar_health(
+                bars=series.as_list(),
                 bar_size=bar_size,
                 now_ref=now_ref,
                 use_rth=use_rth,
@@ -2983,11 +2970,9 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
     ) -> str:
         if not isinstance(filters, dict) or "hour" not in str(regime_bar_size).strip().lower():
             return regime_duration
-        shock_gate_mode = str(filters.get("shock_gate_mode") or "off").strip().lower()
-        if shock_gate_mode in ("", "0", "false", "none", "null"):
-            shock_gate_mode = "off"
-        if shock_gate_mode not in ("off", "detect", "block", "block_longs", "block_shorts", "surf"):
-            shock_gate_mode = "off"
+        from ..engine import normalize_shock_gate_mode
+
+        shock_gate_mode = normalize_shock_gate_mode(filters)
         if shock_gate_mode == "off":
             return regime_duration
         try:
@@ -3072,9 +3057,15 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
 
     def _signal_eval_last_snapshot(self, *, evaluator: object, bars: list) -> object | None:
         last_snap = None
+        trade_day_fn = getattr(evaluator, "_trade_date", None)
         for idx, bar in enumerate(bars):
             next_bar = bars[idx + 1] if idx + 1 < len(bars) else None
-            is_last_bar = next_bar is None or next_bar.ts.date() != bar.ts.date()
+            if next_bar is None:
+                is_last_bar = True
+            elif callable(trade_day_fn):
+                is_last_bar = bool(trade_day_fn(next_bar.ts) != trade_day_fn(bar.ts))
+            else:
+                is_last_bar = next_bar.ts.date() != bar.ts.date()
             evaluator.update_exec_bar(bar, is_last_bar=bool(is_last_bar))
             snap = evaluator.update_signal_bar(bar)
             if snap is not None:
@@ -3116,8 +3107,29 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                 if getattr(snap, "ratsv_fast_slope_vel_pct", None) is not None
                 else None
             ),
+            ratsv_slow_slope_med_pct=(
+                float(snap.ratsv_slow_slope_med_pct)
+                if getattr(snap, "ratsv_slow_slope_med_pct", None) is not None
+                else None
+            ),
+            ratsv_slow_slope_vel_pct=(
+                float(snap.ratsv_slow_slope_vel_pct)
+                if getattr(snap, "ratsv_slow_slope_vel_pct", None) is not None
+                else None
+            ),
+            ratsv_slope_vel_consistency=(
+                float(snap.ratsv_slope_vel_consistency)
+                if getattr(snap, "ratsv_slope_vel_consistency", None) is not None
+                else None
+            ),
             ratsv_cross_age_bars=(
                 int(snap.ratsv_cross_age_bars) if getattr(snap, "ratsv_cross_age_bars", None) is not None else None
+            ),
+            shock_atr_vel_pct=(
+                float(snap.shock_atr_vel_pct) if getattr(snap, "shock_atr_vel_pct", None) is not None else None
+            ),
+            shock_atr_accel_pct=(
+                float(snap.shock_atr_accel_pct) if getattr(snap, "shock_atr_accel_pct", None) is not None else None
             ),
             bar_health=bar_health,
         )
@@ -3135,6 +3147,36 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             else:
                 payload[str(key)] = value
         return payload
+
+    @staticmethod
+    def _signal_series_list(series: BarSeries | list | None) -> list:
+        if series is None:
+            return []
+        if isinstance(series, BarSeries):
+            return series.as_list()
+        return list(series)
+
+    @staticmethod
+    def _signal_series_signature(series: BarSeries | list | None) -> tuple[object, ...]:
+        bars = BotScreen._signal_series_list(series)
+        if not bars:
+            return (0, None, None, None, None)
+        first = bars[0]
+        last = bars[-1]
+        return (
+            int(len(bars)),
+            first.ts.isoformat(),
+            last.ts.isoformat(),
+            round(float(getattr(first, "open", 0.0) or 0.0), 8),
+            round(float(getattr(last, "close", 0.0) or 0.0), 8),
+        )
+
+    @staticmethod
+    def _stable_json_key(payload: object) -> str:
+        try:
+            return json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
+        except Exception:
+            return repr(payload)
 
     async def _signal_snapshot_for_contract(
         self,
@@ -3196,7 +3238,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
 
         # IB intraday bars are timestamped in ET wall-clock for this flow; use ET here so
         # trim_incomplete_last_bar drops the in-progress bar instead of treating it as complete.
-        now_ref = datetime.now(tz=ZoneInfo("America/New_York")).replace(tzinfo=None)
+        now_ref = _now_et_naive()
         _set_diag("signal_fetch")
         bars, bar_health = await self._signal_fetch_bars(
             contract=contract,
@@ -3206,7 +3248,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             now_ref=now_ref,
             heal_if_stale=True,
         )
-        if not bars:
+        if bars is None or len(bars) == 0:
             _set_diag(
                 "signal_bars",
                 bar_health=self._signal_health_payload(bar_health),
@@ -3241,7 +3283,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                 use_rth=use_rth,
                 now_ref=now_ref,
             )
-            if not regime_bars:
+            if regime_bars is None or len(regime_bars) == 0:
                 _set_diag(
                     "regime_bars",
                     regime_bar_size=str(regime_bar_size),
@@ -3277,7 +3319,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                 use_rth=use_rth,
                 now_ref=now_ref,
             )
-            if not regime2_bars:
+            if regime2_bars is None or len(regime2_bars) == 0:
                 _set_diag(
                     "regime2_bars",
                     regime2_mode=str(regime2_mode),
@@ -3320,38 +3362,67 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             regime2_supertrend_source_raw=regime2_supertrend_source_raw,
         )
 
+        bars_list = self._signal_series_list(bars)
+        regime_bars_list = self._signal_series_list(regime_bars)
+        regime2_bars_list = self._signal_series_list(regime2_bars)
+        snapshot_key = (
+            int(getattr(contract, "conId", 0) or 0),
+            str(getattr(contract, "symbol", "") or "").strip().upper(),
+            str(bar_size),
+            bool(use_rth),
+            self._signal_series_signature(bars),
+            self._signal_series_signature(regime_bars),
+            self._signal_series_signature(regime2_bars),
+            self._stable_json_key(strategy),
+            self._stable_json_key(filters or {}),
+        )
+        cached_snapshot = _SERIES_CACHE.get(
+            namespace=_UI_SIGNAL_SNAPSHOT_NAMESPACE,
+            key=snapshot_key,
+        )
+        if isinstance(cached_snapshot, _SignalSnapshot):
+            _set_diag(
+                "snapshot_cache_hit",
+                bars_count=int(len(bars_list)),
+                regime_bars_count=int(len(regime_bars_list)),
+                regime2_bars_count=int(len(regime2_bars_list)),
+                bar_health=self._signal_health_payload(bar_health),
+            )
+            return cached_snapshot
+
         evaluator = SpotSignalEvaluator(
             strategy=strategy,
             filters=filters,
             bar_size=str(bar_size),
             use_rth=bool(use_rth),
+            naive_ts_mode="et",
             regime_bars=regime_bars,
             regime2_bars=regime2_bars,
         )
 
         _set_diag(
             "eval",
-            bars_count=int(len(bars)),
-            regime_bars_count=int(len(regime_bars or [])),
-            regime2_bars_count=int(len(regime2_bars or [])),
+            bars_count=int(len(bars_list)),
+            regime_bars_count=int(len(regime_bars_list)),
+            regime2_bars_count=int(len(regime2_bars_list)),
             bar_health=self._signal_health_payload(bar_health),
             regime_bar_health=self._signal_health_payload(regime_health),
             regime2_bar_health=self._signal_health_payload(regime2_health),
         )
-        last_snap = self._signal_eval_last_snapshot(evaluator=evaluator, bars=bars)
+        last_snap = self._signal_eval_last_snapshot(evaluator=evaluator, bars=bars_list)
         if last_snap is None:
             _set_diag(
                 "eval_no_snapshot",
-                bars_count=int(len(bars)),
-                regime_bars_count=int(len(regime_bars or [])),
-                regime2_bars_count=int(len(regime2_bars or [])),
+                bars_count=int(len(bars_list)),
+                regime_bars_count=int(len(regime_bars_list)),
+                regime2_bars_count=int(len(regime2_bars_list)),
                 bar_health=self._signal_health_payload(bar_health),
             )
             return None
         if not bool(last_snap.signal.ema_ready):
             _set_diag(
                 "eval_ema_not_ready",
-                bars_count=int(len(bars)),
+                bars_count=int(len(bars_list)),
                 last_bar_ts=(last_snap.bar_ts.isoformat() if isinstance(last_snap.bar_ts, datetime) else None),
                 signal_state=str(last_snap.signal.state or ""),
                 entry_dir=str(last_snap.signal.entry_dir or ""),
@@ -3362,16 +3433,18 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
 
         _set_diag(
             "ok",
-            bars_count=int(len(bars)),
-            regime_bars_count=int(len(regime_bars or [])),
-            regime2_bars_count=int(len(regime2_bars or [])),
+            bars_count=int(len(bars_list)),
+            regime_bars_count=int(len(regime_bars_list)),
+            regime2_bars_count=int(len(regime2_bars_list)),
             bar_health=self._signal_health_payload(bar_health),
             bar_ts=last_snap.bar_ts.isoformat() if isinstance(last_snap.bar_ts, datetime) else None,
         )
-        return self._signal_snapshot_from_eval(last_snap, bar_health=bar_health)
+        snapshot = self._signal_snapshot_from_eval(last_snap, bar_health=bar_health)
+        _SERIES_CACHE.set(namespace=_UI_SIGNAL_SNAPSHOT_NAMESPACE, key=snapshot_key, value=snapshot)
+        return snapshot
 
     def _reset_daily_counters_if_needed(self, instance: _BotInstance) -> None:
-        today = datetime.now(tz=ZoneInfo("America/New_York")).date()
+        today = _now_et().date()
         if instance.entries_today_date != today:
             instance.entries_today_date = today
             instance.entries_today = 0
@@ -4229,7 +4302,7 @@ def _set_path(root: object, path: str, value: object) -> None:
 
 # region Table Row Helpers
 def _order_row(order: _BotOrder) -> tuple[str, str, str, str, str, str, str, str, str, str]:
-    ts = order.created_at.astimezone().strftime("%H:%M:%S")
+    ts = _to_et_shared(order.created_at, naive_ts_mode="et", default_naive_ts_mode="et").strftime("%H:%M:%S")
     inst = str(order.instance_id)
     contract = order.order_contract
     if contract.secType == "BAG" or len(order.legs) > 1:

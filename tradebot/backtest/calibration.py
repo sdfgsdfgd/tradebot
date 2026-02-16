@@ -13,6 +13,8 @@ from ib_insync import IB, ContFuture, Option, FuturesOption, Stock, util
 from .config import ConfigBundle
 from ..config import load_config
 from ..engine import realized_vol_from_closes
+from ..time_utils import UTC as _UTC
+from ..time_utils import now_et as _now_et
 from .data import IBKRHistoricalData
 from .synth import IVSurfaceParams, black_76, black_scholes, iv_atm, iv_for_strike
 
@@ -171,7 +173,7 @@ def save_calibration(calibration_dir: Path, book: CalibrationBook) -> None:
 def ensure_calibration(cfg: ConfigBundle, rv_override: float | None = None) -> CalibrationBook | None:
     symbol = cfg.strategy.symbol
     book = load_calibration(cfg.backtest.calibration_dir, symbol)
-    asof = datetime.now().date().isoformat()
+    asof = _now_et().date().isoformat()
     if book and all(_has_record_today(bucket, asof) for bucket in book.buckets):
         return book
     updated = calibrate_symbol(cfg, book, asof, rv_override=rv_override)
@@ -268,7 +270,7 @@ def _pick_expiry(
     max_dte: int,
     target_dte: int,
 ) -> str | None:
-    today = datetime.now().date()
+    today = _now_et().date()
     candidates: list[tuple[int, str]] = []
     for exp in sorted(expirations):
         try:
@@ -389,7 +391,7 @@ def _score_params(
     abs_errors = []
     pct_errors = []
     for sample in samples:
-        dte = max((sample.expiry - datetime.now().date()).days, 0)
+        dte = max((sample.expiry - _now_et().date()).days, 0)
         iv_params = IVSurfaceParams(
             rv_lookback=cfg.synthetic.rv_lookback,
             rv_ewma_lambda=cfg.synthetic.rv_ewma_lambda,
@@ -424,7 +426,7 @@ def _nearest_strike(strikes: list[float], target: float) -> float:
 
 def _recent_realized_vol(cfg: ConfigBundle, symbol: str, exchange: str | None) -> float:
     data = IBKRHistoricalData()
-    end = datetime.now()
+    end = datetime.now(tz=_UTC).replace(tzinfo=None)
     start = end - timedelta(days=10)
     bars = data.load_or_fetch_bars(
         symbol=symbol,

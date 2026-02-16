@@ -9,6 +9,8 @@ from __future__ import annotations
 from datetime import date, datetime
 from pathlib import Path
 
+from .data import cache_path as _cache_path_for_window
+
 
 def parse_date(value: str) -> date:
     year_s, month_s, day_s = str(value).strip().split("-")
@@ -32,6 +34,11 @@ def expected_cache_path(
     bar_size: str,
     use_rth: bool,
 ) -> Path:
-    tag = "rth" if use_rth else "full"
-    safe_bar = str(bar_size).replace(" ", "")
-    return cache_dir / symbol / f"{symbol}_{start_dt.date()}_{end_dt.date()}_{safe_bar}_{tag}.csv"
+    return _cache_path_for_window(
+        cache_dir=cache_dir,
+        symbol=symbol,
+        start=start_dt,
+        end=end_dt,
+        bar=bar_size,
+        use_rth=use_rth,
+    )

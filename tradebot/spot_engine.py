@@ -17,18 +17,19 @@ import math
 from collections import deque
 from statistics import median
 from dataclasses import dataclass
-from datetime import datetime, time
+from datetime import date, datetime, time
 from collections.abc import Mapping
 from typing import Protocol
 
+from .series import BarSeries, bars_list
 from .engine import (
     EmaDecisionEngine,
     EmaDecisionSnapshot,
     OrbDecisionEngine,
     RiskOverlaySnapshot,
     SupertrendEngine,
+    _trade_date as _trade_date_shared,
     annualized_ewma_vol,
-    apply_regime_gate,
     build_shock_engine,
     build_tr_pct_risk_overlay_engine,
     normalize_spot_entry_signal,
@@ -39,7 +40,9 @@ from .engine import (
     resolve_spot_regime2_spec,
     spot_regime_apply_matches_direction,
 )
+from .spot.lifecycle import apply_regime_gate
 from .signals import ema_next, ema_periods
+from .time_utils import NaiveTsModeInput, normalize_naive_ts_mode
 
 
 # region Protocols / Helpers
@@ -51,6 +54,11 @@ class BarLike(Protocol):
     close: float
     volume: float
 
+
+def _bars_input_list(values: list[BarLike] | BarSeries[BarLike] | None) -> list[BarLike]:
+    if values is None:
+        return []
+    return bars_list(values)
 
 def _get(obj: Mapping[str, object] | object | None, key: str, default: object = None):
     if obj is None:
@@ -87,7 +95,12 @@ class SpotSignalSnapshot:
     ratsv_fast_slope_pct: float | None = None
     ratsv_fast_slope_med_pct: float | None = None
     ratsv_fast_slope_vel_pct: float | None = None
+    ratsv_slow_slope_med_pct: float | None = None
+    ratsv_slow_slope_vel_pct: float | None = None
+    ratsv_slope_vel_consistency: float | None = None
     ratsv_cross_age_bars: int | None = None
+    shock_atr_vel_pct: float | None = None
+    shock_atr_accel_pct: float | None = None
 # endregion
 
 
@@ -102,15 +115,17 @@ class SpotSignalEvaluator:
         filters: Mapping[str, object] | object | None,
         bar_size: str,
         use_rth: bool,
+        naive_ts_mode: NaiveTsModeInput = "utc",
         rv_lookback: int = 60,
         rv_ewma_lambda: float = 0.94,
-        regime_bars: list[BarLike] | None = None,
-        regime2_bars: list[BarLike] | None = None,
+        regime_bars: list[BarLike] | BarSeries[BarLike] | None = None,
+        regime2_bars: list[BarLike] | BarSeries[BarLike] | None = None,
     ) -> None:
         self._strategy = strategy
         self._filters = filters
         self._bar_size = str(bar_size)
         self._use_rth = bool(use_rth)
+        self._naive_ts_mode = normalize_naive_ts_mode(naive_ts_mode, default="utc").value
 
         self._rv_lookback = max(1, int(rv_lookback))
         self._rv_lam = float(rv_ewma_lambda)
@@ -134,7 +149,7 @@ class SpotSignalEvaluator:
 
         # Multi-timeframe regime: if provided, caller already fetched the right bars.
         self._use_mtf_regime = bool(regime_bars)
-        self._regime_bars = list(regime_bars) if regime_bars else []
+        self._regime_bars = _bars_input_list(regime_bars)
         self._regime_idx = 0
 
         # Volume EMA (only when volume_ratio_min is enabled)
@@ -179,17 +194,30 @@ class SpotSignalEvaluator:
         # RATS-V runtime state (default-off; only active when filters.ratsv_enabled=true).
         self._ratsv_enabled = bool(_get(filters, "ratsv_enabled", False)) if filters is not None else False
         self._ratsv_slope_window = max(1, int(_get(filters, "ratsv_slope_window_bars", 5) or 5)) if filters is not None else 5
+        raw_slow_window = _get(filters, "ratsv_slope_slow_window_bars", None) if filters is not None else None
+        try:
+            slow_window = int(raw_slow_window) if raw_slow_window is not None else (int(self._ratsv_slope_window) * 3)
+        except (TypeError, ValueError):
+            slow_window = int(self._ratsv_slope_window) * 3
+        self._ratsv_slope_slow_window = max(int(self._ratsv_slope_window) + 1, int(slow_window))
         self._ratsv_tr_fast = max(1, int(_get(filters, "ratsv_tr_fast_bars", 5) or 5)) if filters is not None else 5
         self._ratsv_tr_slow = max(self._ratsv_tr_fast, int(_get(filters, "ratsv_tr_slow_bars", 20) or 20)) if filters is not None else 20
         self._ratsv_tr_pct_hist: deque[float] = deque(maxlen=max(256, self._ratsv_tr_slow + 8))
         self._ratsv_prev_tr_close: float | None = None
         self._ratsv_branch_cross_age: dict[str, int | None] = {"single": None, "a": None, "b": None}
+        slope_hist_maxlen = max(16, max(int(self._ratsv_slope_window), int(self._ratsv_slope_slow_window)) * 4)
         self._ratsv_branch_slope_hist: dict[str, deque[float]] = {
-            "single": deque(maxlen=max(16, self._ratsv_slope_window * 4)),
-            "a": deque(maxlen=max(16, self._ratsv_slope_window * 4)),
-            "b": deque(maxlen=max(16, self._ratsv_slope_window * 4)),
+            "single": deque(maxlen=int(slope_hist_maxlen)),
+            "a": deque(maxlen=int(slope_hist_maxlen)),
+            "b": deque(maxlen=int(slope_hist_maxlen)),
+        }
+        self._ratsv_branch_slope_vel_hist: dict[str, deque[float]] = {
+            "single": deque(maxlen=int(slope_hist_maxlen)),
+            "a": deque(maxlen=int(slope_hist_maxlen)),
+            "b": deque(maxlen=int(slope_hist_maxlen)),
         }
         self._ratsv_branch_last_slope_med: dict[str, float | None] = {"single": None, "a": None, "b": None}
+        self._ratsv_branch_last_slope_med_slow: dict[str, float | None] = {"single": None, "a": None, "b": None}
         self._ratsv_last_candidate_metrics: dict[str, dict[str, float | int | None] | None] = {"single": None, "a": None, "b": None}
 
         def _ratsv_pos_float(raw) -> float | None:
@@ -227,18 +255,67 @@ class SpotSignalEvaluator:
         self._ratsv_tr_ratio_min = _ratsv_pos_float(_get(filters, "ratsv_tr_ratio_min", None)) if filters is not None else None
         self._ratsv_slope_med_min_pct = _ratsv_pos_float(_get(filters, "ratsv_slope_med_min_pct", None)) if filters is not None else None
         self._ratsv_slope_vel_min_pct = _ratsv_pos_float(_get(filters, "ratsv_slope_vel_min_pct", None)) if filters is not None else None
+        self._ratsv_slope_med_slow_min_pct = (
+            _ratsv_pos_float(_get(filters, "ratsv_slope_med_slow_min_pct", None)) if filters is not None else None
+        )
+        self._ratsv_slope_vel_slow_min_pct = (
+            _ratsv_pos_float(_get(filters, "ratsv_slope_vel_slow_min_pct", None)) if filters is not None else None
+        )
+        raw_consistency_bars = _get(filters, "ratsv_slope_vel_consistency_bars", 0) if filters is not None else 0
+        try:
+            consistency_bars = int(raw_consistency_bars)
+        except (TypeError, ValueError):
+            consistency_bars = 0
+        self._ratsv_slope_vel_consistency_bars = max(0, int(consistency_bars))
+        self._ratsv_slope_vel_consistency_min = (
+            _ratsv_ratio(_get(filters, "ratsv_slope_vel_consistency_min", None)) if filters is not None else None
+        )
         self._ratsv_cross_age_max = _ratsv_cross_age(_get(filters, "ratsv_cross_age_max_bars", None)) if filters is not None else None
 
         self._ratsv_branch_a_rank_min = _ratsv_ratio(_get(filters, "ratsv_branch_a_rank_min", None)) if filters is not None else None
         self._ratsv_branch_a_tr_ratio_min = _ratsv_pos_float(_get(filters, "ratsv_branch_a_tr_ratio_min", None)) if filters is not None else None
         self._ratsv_branch_a_slope_med_min_pct = _ratsv_pos_float(_get(filters, "ratsv_branch_a_slope_med_min_pct", None)) if filters is not None else None
         self._ratsv_branch_a_slope_vel_min_pct = _ratsv_pos_float(_get(filters, "ratsv_branch_a_slope_vel_min_pct", None)) if filters is not None else None
+        self._ratsv_branch_a_slope_med_slow_min_pct = (
+            _ratsv_pos_float(_get(filters, "ratsv_branch_a_slope_med_slow_min_pct", None)) if filters is not None else None
+        )
+        self._ratsv_branch_a_slope_vel_slow_min_pct = (
+            _ratsv_pos_float(_get(filters, "ratsv_branch_a_slope_vel_slow_min_pct", None)) if filters is not None else None
+        )
+        self._ratsv_branch_a_slope_vel_consistency_min = (
+            _ratsv_ratio(_get(filters, "ratsv_branch_a_slope_vel_consistency_min", None)) if filters is not None else None
+        )
+        raw_a_consistency_bars = _get(filters, "ratsv_branch_a_slope_vel_consistency_bars", None) if filters is not None else None
+        try:
+            consistency_a_bars = int(raw_a_consistency_bars) if raw_a_consistency_bars is not None else None
+        except (TypeError, ValueError):
+            consistency_a_bars = None
+        self._ratsv_branch_a_slope_vel_consistency_bars = (
+            max(0, int(consistency_a_bars)) if consistency_a_bars is not None else None
+        )
         self._ratsv_branch_a_cross_age_max = _ratsv_cross_age(_get(filters, "ratsv_branch_a_cross_age_max_bars", None)) if filters is not None else None
 
         self._ratsv_branch_b_rank_min = _ratsv_ratio(_get(filters, "ratsv_branch_b_rank_min", None)) if filters is not None else None
         self._ratsv_branch_b_tr_ratio_min = _ratsv_pos_float(_get(filters, "ratsv_branch_b_tr_ratio_min", None)) if filters is not None else None
         self._ratsv_branch_b_slope_med_min_pct = _ratsv_pos_float(_get(filters, "ratsv_branch_b_slope_med_min_pct", None)) if filters is not None else None
         self._ratsv_branch_b_slope_vel_min_pct = _ratsv_pos_float(_get(filters, "ratsv_branch_b_slope_vel_min_pct", None)) if filters is not None else None
+        self._ratsv_branch_b_slope_med_slow_min_pct = (
+            _ratsv_pos_float(_get(filters, "ratsv_branch_b_slope_med_slow_min_pct", None)) if filters is not None else None
+        )
+        self._ratsv_branch_b_slope_vel_slow_min_pct = (
+            _ratsv_pos_float(_get(filters, "ratsv_branch_b_slope_vel_slow_min_pct", None)) if filters is not None else None
+        )
+        self._ratsv_branch_b_slope_vel_consistency_min = (
+            _ratsv_ratio(_get(filters, "ratsv_branch_b_slope_vel_consistency_min", None)) if filters is not None else None
+        )
+        raw_b_consistency_bars = _get(filters, "ratsv_branch_b_slope_vel_consistency_bars", None) if filters is not None else None
+        try:
+            consistency_b_bars = int(raw_b_consistency_bars) if raw_b_consistency_bars is not None else None
+        except (TypeError, ValueError):
+            consistency_b_bars = None
+        self._ratsv_branch_b_slope_vel_consistency_bars = (
+            max(0, int(consistency_b_bars)) if consistency_b_bars is not None else None
+        )
         self._ratsv_branch_b_cross_age_max = _ratsv_cross_age(_get(filters, "ratsv_branch_b_cross_age_max_bars", None)) if filters is not None else None
 
         if entry_signal == "ema":
@@ -428,7 +505,7 @@ class SpotSignalEvaluator:
         self._regime2_mode = regime2_mode
 
         self._use_mtf_regime2 = bool(regime2_bars)
-        self._regime2_bars = list(regime2_bars) if regime2_bars else []
+        self._regime2_bars = _bars_input_list(regime2_bars)
         self._regime2_idx = 0
 
         self._regime2_engine: EmaDecisionEngine | None = None
@@ -456,6 +533,8 @@ class SpotSignalEvaluator:
 
         self._last_signal: EmaDecisionSnapshot | None = None
         self._last_snapshot: SpotSignalSnapshot | None = None
+        self._prev_shock_atr_pct: float | None = None
+        self._prev_shock_atr_vel_pct: float | None = None
 
         # Validate EMA presets early for UI ergonomics.
         if entry_signal == "ema":
@@ -509,6 +588,9 @@ class SpotSignalEvaluator:
         except Exception:
             return None
 
+    def _trade_date(self, ts: datetime) -> date:
+        return _trade_date_shared(ts, naive_ts_mode=self._naive_ts_mode)
+
     def _ratsv_tr_fast_slow(self) -> tuple[float | None, float | None]:
         tr_hist = list(self._ratsv_tr_pct_hist)
         if not tr_hist:
@@ -553,11 +635,25 @@ class SpotSignalEvaluator:
         self,
         *,
         branch_key: str,
-    ) -> tuple[float | None, float | None, float | None, float | None, int | None]:
+    ) -> tuple[
+        float | None,
+        float | None,
+        float | None,
+        float | None,
+        float | None,
+        float | None,
+        int,
+        float | None,
+        int | None,
+    ]:
         rank_min = self._ratsv_rank_min
         tr_ratio_min = self._ratsv_tr_ratio_min
         slope_med_min = self._ratsv_slope_med_min_pct
         slope_vel_min = self._ratsv_slope_vel_min_pct
+        slope_med_slow_min = self._ratsv_slope_med_slow_min_pct
+        slope_vel_slow_min = self._ratsv_slope_vel_slow_min_pct
+        slope_vel_consistency_bars = int(self._ratsv_slope_vel_consistency_bars)
+        slope_vel_consistency_min = self._ratsv_slope_vel_consistency_min
         cross_age_max = self._ratsv_cross_age_max
         if branch_key == "a":
             rank_min = self._ratsv_branch_a_rank_min if self._ratsv_branch_a_rank_min is not None else rank_min
@@ -574,6 +670,20 @@ class SpotSignalEvaluator:
                 if self._ratsv_branch_a_slope_vel_min_pct is not None
                 else slope_vel_min
             )
+            slope_med_slow_min = (
+                self._ratsv_branch_a_slope_med_slow_min_pct
+                if self._ratsv_branch_a_slope_med_slow_min_pct is not None
+                else slope_med_slow_min
+            )
+            slope_vel_slow_min = (
+                self._ratsv_branch_a_slope_vel_slow_min_pct
+                if self._ratsv_branch_a_slope_vel_slow_min_pct is not None
+                else slope_vel_slow_min
+            )
+            if self._ratsv_branch_a_slope_vel_consistency_bars is not None:
+                slope_vel_consistency_bars = max(0, int(self._ratsv_branch_a_slope_vel_consistency_bars))
+            if self._ratsv_branch_a_slope_vel_consistency_min is not None:
+                slope_vel_consistency_min = self._ratsv_branch_a_slope_vel_consistency_min
             cross_age_max = (
                 self._ratsv_branch_a_cross_age_max
                 if self._ratsv_branch_a_cross_age_max is not None
@@ -594,12 +704,36 @@ class SpotSignalEvaluator:
                 if self._ratsv_branch_b_slope_vel_min_pct is not None
                 else slope_vel_min
             )
+            slope_med_slow_min = (
+                self._ratsv_branch_b_slope_med_slow_min_pct
+                if self._ratsv_branch_b_slope_med_slow_min_pct is not None
+                else slope_med_slow_min
+            )
+            slope_vel_slow_min = (
+                self._ratsv_branch_b_slope_vel_slow_min_pct
+                if self._ratsv_branch_b_slope_vel_slow_min_pct is not None
+                else slope_vel_slow_min
+            )
+            if self._ratsv_branch_b_slope_vel_consistency_bars is not None:
+                slope_vel_consistency_bars = max(0, int(self._ratsv_branch_b_slope_vel_consistency_bars))
+            if self._ratsv_branch_b_slope_vel_consistency_min is not None:
+                slope_vel_consistency_min = self._ratsv_branch_b_slope_vel_consistency_min
             cross_age_max = (
                 self._ratsv_branch_b_cross_age_max
                 if self._ratsv_branch_b_cross_age_max is not None
                 else cross_age_max
             )
-        return rank_min, tr_ratio_min, slope_med_min, slope_vel_min, cross_age_max
+        return (
+            rank_min,
+            tr_ratio_min,
+            slope_med_min,
+            slope_vel_min,
+            slope_med_slow_min,
+            slope_vel_slow_min,
+            int(slope_vel_consistency_bars),
+            slope_vel_consistency_min,
+            cross_age_max,
+        )
 
     def _ratsv_branch_metrics(
         self,
@@ -627,12 +761,22 @@ class SpotSignalEvaluator:
             self._ratsv_branch_slope_hist[branch_key].append(float(slope_now))
         window = list(self._ratsv_branch_slope_hist[branch_key])[-int(self._ratsv_slope_window) :]
         slope_med = self._median(window)
+        window_slow = list(self._ratsv_branch_slope_hist[branch_key])[-int(self._ratsv_slope_slow_window) :]
+        slope_med_slow = self._median(window_slow)
         prev_med = self._ratsv_branch_last_slope_med.get(branch_key)
+        prev_med_slow = self._ratsv_branch_last_slope_med_slow.get(branch_key)
         slope_vel = None
         if slope_med is not None and prev_med is not None:
             slope_vel = float(slope_med) - float(prev_med)
+        slope_vel_slow = None
+        if slope_med_slow is not None and prev_med_slow is not None:
+            slope_vel_slow = float(slope_med_slow) - float(prev_med_slow)
         if slope_med is not None:
             self._ratsv_branch_last_slope_med[branch_key] = float(slope_med)
+        if slope_med_slow is not None:
+            self._ratsv_branch_last_slope_med_slow[branch_key] = float(slope_med_slow)
+        if slope_vel is not None:
+            self._ratsv_branch_slope_vel_hist[branch_key].append(float(slope_vel))
 
         tr_fast, tr_slow = self._ratsv_tr_fast_slow()
         tr_ratio = None
@@ -643,12 +787,39 @@ class SpotSignalEvaluator:
         if entry_dir in ("up", "down") and signal.ema_ready:
             side_rank = self._ratsv_side_rank(signal=signal, entry_dir=str(entry_dir), close=float(close))
 
+        (
+            _rank_min,
+            _tr_ratio_min,
+            _slope_med_min,
+            _slope_vel_min,
+            _slope_med_slow_min,
+            _slope_vel_slow_min,
+            slope_vel_consistency_bars,
+            _slope_vel_consistency_min,
+            _cross_age_max,
+        ) = self._ratsv_thresholds_for_branch(branch_key=branch_key)
+        slope_vel_consistency = None
+        if entry_dir in ("up", "down") and int(slope_vel_consistency_bars) > 0:
+            vel_hist = list(self._ratsv_branch_slope_vel_hist[branch_key])
+            if vel_hist:
+                n = min(len(vel_hist), int(slope_vel_consistency_bars))
+                tail = vel_hist[-int(n) :]
+                if tail:
+                    if str(entry_dir) == "up":
+                        aligned = sum(1 for vel in tail if float(vel) >= 0.0)
+                    else:
+                        aligned = sum(1 for vel in tail if float(vel) <= 0.0)
+                    slope_vel_consistency = float(aligned) / float(len(tail))
+
         metrics = {
             "side_rank": float(side_rank) if side_rank is not None else None,
             "tr_ratio": float(tr_ratio) if tr_ratio is not None else None,
             "slope_now": float(slope_now) if slope_now is not None else None,
             "slope_med": float(slope_med) if slope_med is not None else None,
             "slope_vel": float(slope_vel) if slope_vel is not None else None,
+            "slope_med_slow": float(slope_med_slow) if slope_med_slow is not None else None,
+            "slope_vel_slow": float(slope_vel_slow) if slope_vel_slow is not None else None,
+            "slope_vel_consistency": float(slope_vel_consistency) if slope_vel_consistency is not None else None,
             "cross_age": int(cross_age) if cross_age is not None else None,
         }
         self._ratsv_last_candidate_metrics[branch_key] = metrics
@@ -668,14 +839,25 @@ class SpotSignalEvaluator:
         if not isinstance(metrics, dict):
             return False
 
-        rank_min, tr_ratio_min, slope_med_min, slope_vel_min, cross_age_max = self._ratsv_thresholds_for_branch(
-            branch_key=branch_key
-        )
+        (
+            rank_min,
+            tr_ratio_min,
+            slope_med_min,
+            slope_vel_min,
+            slope_med_slow_min,
+            slope_vel_slow_min,
+            _slope_vel_consistency_bars,
+            slope_vel_consistency_min,
+            cross_age_max,
+        ) = self._ratsv_thresholds_for_branch(branch_key=branch_key)
 
         side_rank = metrics.get("side_rank")
         tr_ratio = metrics.get("tr_ratio")
         slope_med = metrics.get("slope_med")
         slope_vel = metrics.get("slope_vel")
+        slope_med_slow = metrics.get("slope_med_slow")
+        slope_vel_slow = metrics.get("slope_vel_slow")
+        slope_vel_consistency = metrics.get("slope_vel_consistency")
         cross_age = metrics.get("cross_age")
 
         if rank_min is not None:
@@ -697,6 +879,24 @@ class SpotSignalEvaluator:
             signed_vel = float(slope_vel) if str(entry_dir) == "up" else -float(slope_vel)
         if slope_vel_min is not None:
             if signed_vel is None or float(signed_vel) < float(slope_vel_min):
+                return False
+
+        signed_med_slow = None
+        if slope_med_slow is not None:
+            signed_med_slow = float(slope_med_slow) if str(entry_dir) == "up" else -float(slope_med_slow)
+        if slope_med_slow_min is not None:
+            if signed_med_slow is None or float(signed_med_slow) < float(slope_med_slow_min):
+                return False
+
+        signed_vel_slow = None
+        if slope_vel_slow is not None:
+            signed_vel_slow = float(slope_vel_slow) if str(entry_dir) == "up" else -float(slope_vel_slow)
+        if slope_vel_slow_min is not None:
+            if signed_vel_slow is None or float(signed_vel_slow) < float(slope_vel_slow_min):
+                return False
+
+        if slope_vel_consistency_min is not None:
+            if slope_vel_consistency is None or float(slope_vel_consistency) < float(slope_vel_consistency_min):
                 return False
 
         if cross_age_max is not None:
@@ -791,11 +991,12 @@ class SpotSignalEvaluator:
                 low=float(bar.low),
                 close=float(bar.close),
                 is_last_bar=bool(is_last_bar),
+                trade_day=self._trade_date(bar.ts),
             )
 
         if self._shock_engine is not None and self._shock_detector in ("daily_atr_pct", "daily_drawdown"):
             self._last_shock = self._shock_engine.update(
-                day=bar.ts.date(),
+                day=self._trade_date(bar.ts),
                 high=float(bar.high),
                 low=float(bar.low),
                 close=float(bar.close),
@@ -804,7 +1005,7 @@ class SpotSignalEvaluator:
 
         if self._shock_scale_engine is not None and self._shock_scale_detector in ("daily_atr_pct", "daily_drawdown"):
             self._last_shock_scale = self._shock_scale_engine.update(
-                day=bar.ts.date(),
+                day=self._trade_date(bar.ts),
                 high=float(bar.high),
                 low=float(bar.low),
                 close=float(bar.close),
@@ -868,8 +1069,8 @@ class SpotSignalEvaluator:
         if close <= 0:
             return None
 
-        if self._sig_last_date != bar.ts.date():
-            self._sig_last_date = bar.ts.date()
+        if self._sig_last_date != self._trade_date(bar.ts):
+            self._sig_last_date = self._trade_date(bar.ts)
             self._sig_bars_in_day = 0
         self._sig_bars_in_day += 1
 
@@ -1093,7 +1294,7 @@ class SpotSignalEvaluator:
                 self._last_shock = self._shock_engine.update_direction(close=float(bar.close))
             else:
                 self._last_shock = self._shock_engine.update(
-                    day=bar.ts.date(),
+                    day=self._trade_date(bar.ts),
                     high=float(bar.high),
                     low=float(bar.low),
                     close=float(bar.close),
@@ -1178,6 +1379,19 @@ class SpotSignalEvaluator:
             entry_branch = None
 
         shock, shock_dir, shock_atr_pct = self._shock_view()
+        shock_atr_vel_pct = None
+        shock_atr_accel_pct = None
+        if shock_atr_pct is not None:
+            cur_atr_pct = float(shock_atr_pct)
+            if self._prev_shock_atr_pct is not None:
+                shock_atr_vel_pct = float(cur_atr_pct) - float(self._prev_shock_atr_pct)
+                if self._prev_shock_atr_vel_pct is not None:
+                    shock_atr_accel_pct = float(shock_atr_vel_pct) - float(self._prev_shock_atr_vel_pct)
+            self._prev_shock_atr_pct = float(cur_atr_pct)
+            self._prev_shock_atr_vel_pct = float(shock_atr_vel_pct) if shock_atr_vel_pct is not None else None
+        else:
+            self._prev_shock_atr_pct = None
+            self._prev_shock_atr_vel_pct = None
         atr = (
             float(self._last_exit_atr.atr)
             if self._last_exit_atr is not None and bool(self._last_exit_atr.ready) and self._last_exit_atr.atr is not None
@@ -1229,11 +1443,28 @@ class SpotSignalEvaluator:
                 if isinstance(ratsv_metrics, dict) and ratsv_metrics.get("slope_vel") is not None
                 else None
             ),
+            ratsv_slow_slope_med_pct=(
+                float(ratsv_metrics.get("slope_med_slow"))
+                if isinstance(ratsv_metrics, dict) and ratsv_metrics.get("slope_med_slow") is not None
+                else None
+            ),
+            ratsv_slow_slope_vel_pct=(
+                float(ratsv_metrics.get("slope_vel_slow"))
+                if isinstance(ratsv_metrics, dict) and ratsv_metrics.get("slope_vel_slow") is not None
+                else None
+            ),
+            ratsv_slope_vel_consistency=(
+                float(ratsv_metrics.get("slope_vel_consistency"))
+                if isinstance(ratsv_metrics, dict) and ratsv_metrics.get("slope_vel_consistency") is not None
+                else None
+            ),
             ratsv_cross_age_bars=(
                 int(ratsv_metrics.get("cross_age"))
                 if isinstance(ratsv_metrics, dict) and ratsv_metrics.get("cross_age") is not None
                 else None
             ),
+            shock_atr_vel_pct=float(shock_atr_vel_pct) if shock_atr_vel_pct is not None else None,
+            shock_atr_accel_pct=float(shock_atr_accel_pct) if shock_atr_accel_pct is not None else None,
         )
         self._last_signal = signal
         self._last_snapshot = snap

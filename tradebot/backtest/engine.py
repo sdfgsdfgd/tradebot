@@ -2,32 +2,59 @@
 from __future__ import annotations
 
 import math
+import hashlib
+import os
+import shutil
 from bisect import bisect_left, bisect_right
 from collections import deque
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from datetime import date, datetime, time, timedelta
-from typing import NamedTuple
+from pathlib import Path
+from typing import NamedTuple, Union
+
+try:
+    import numpy as _np
+except Exception:  # pragma: no cover - optional acceleration dependency
+    _np = None
 
 from .config import ConfigBundle, SpotLegConfig
 from .calibration import ensure_calibration, load_calibration
 from .data import IBKRHistoricalData, ContractMeta
 from .models import Bar, EquityPoint, OptionLeg, OptionTrade, SpotTrade, SummaryStats
+from .spot_context import SpotBarRequirement, load_spot_context_bars
 from .strategy import CreditSpreadStrategy, TradeSpec
+from ..series import BarSeries, bars_list
+from ..series_cache import series_cache_service
+from ..spot.lifecycle import (
+    apply_regime_gate,
+    decide_flat_position_intent,
+    decide_open_position_intent,
+    decide_pending_next_open,
+    entry_capacity_ok as lifecycle_entry_capacity_ok,
+    flip_exit_hit,
+    flip_exit_gate_blocked as lifecycle_flip_exit_gate_blocked,
+    next_open_entry_allowed as lifecycle_next_open_entry_allowed,
+    signal_filters_ok as lifecycle_signal_filters_ok,
+)
+from ..spot.graph import SpotPolicyGraph
+from ..spot.scenario import lifecycle_trace_row, why_not_exit_resize_report, write_rows_csv
 from .synth import IVSurfaceParams, black_76, black_scholes, iv_atm, iv_for_strike, mid_edge_quote
 from ..utils.date_utils import business_days_until
 from ..engine import (
     EmaDecisionEngine,
     EmaDecisionSnapshot,
     OrbDecisionEngine,
+    RiskOverlaySnapshot,
     SupertrendEngine,
+    _trade_date,
+    _trade_hour_et,
+    _trade_weekday,
     _ts_to_et,
-    apply_regime_gate,
     annualized_ewma_vol,
     build_shock_engine,
     build_tr_pct_risk_overlay_engine,
     cooldown_ok_by_index,
-    flip_exit_gate_blocked,
-    flip_exit_hit,
     normalize_shock_detector,
     normalize_shock_direction_source,
     normalize_shock_gate_mode,
@@ -37,15 +64,21 @@ from ..engine import (
     resolve_spot_regime2_spec,
     resolve_spot_regime_spec,
     risk_overlay_policy_from_filters,
-    signal_filters_ok,
-    spot_calc_signed_qty,
+    spot_apply_branch_size_mult,
+    spot_branch_size_mult,
+    spot_calc_signed_qty_with_trace,
     spot_hit_profit,
     spot_hit_stop,
+    spot_pending_entry_should_cancel,
     spot_exec_price as _spot_exec_price,
     spot_intrabar_exit,
     spot_intrabar_worst_ref,
     spot_mark_price as _spot_mark_price,
+    spot_policy_config_view,
+    spot_runtime_spec_view,
     spot_profit_level,
+    spot_resolve_entry_action_qty,
+    spot_riskoff_end_hour,
     spot_scale_exit_pcts,
     spot_shock_exit_pct_multipliers,
     spot_stop_level,
@@ -54,14 +87,30 @@ from ..signals import ema_next, ema_periods as _ema_periods_shared
 
 
 # region Internal Caches (Spot Backtest)
+_SERIES_CACHE = series_cache_service()
+_SPOT_SERIES_CORE_NAMESPACE = "spot.series.core"
+_SPOT_SERIES_PACK_NAMESPACE = "spot.series.pack"
+_SPOT_SERIES_PACK_MMAP_NAMESPACE = "spot.series.pack.mmap"
+_SPOT_EXEC_ALIGNMENT_NAMESPACE = "spot.exec.alignment"
+_SPOT_DAILY_OHLC_NAMESPACE = "spot.daily.ohlc"
+_SPOT_RISK_OVERLAY_DAY_NAMESPACE = "spot.risk.overlay.day"
+_SPOT_SHOCK_SERIES_NAMESPACE = "spot.shock.series"
+_SPOT_DD_TREES_NAMESPACE = "spot.dd.trees"
+_SPOT_STOP_TREE_NAMESPACE = "spot.stop.tree"
+_SPOT_PROFIT_TREE_NAMESPACE = "spot.profit.tree"
+_SPOT_SIGNAL_SERIES_NAMESPACE = "spot.signal.series"
+_SPOT_FLIP_TREE_NAMESPACE = "spot.flip.tree"
+_SPOT_FLIP_NEXT_SIG_NAMESPACE = "spot.flip.next_sig"
+_SPOT_RV_SERIES_NAMESPACE = "spot.rv.series"
+_SPOT_VOLUME_EMA_SERIES_NAMESPACE = "spot.volume_ema.series"
+_SPOT_TICK_GATE_SERIES_NAMESPACE = "spot.tick_gate.series"
+
+
 class _SpotExecAlignment(NamedTuple):
     sig_idx_by_exec_idx: list[int]  # -1 when exec bar isn't a signal close
     exec_idx_by_sig_idx: list[int]  # -1 when signal ts isn't present in exec bars
     signal_exec_indices: list[int]  # exec indices in ascending order that are signal closes
     signal_sig_indices: list[int]  # matching signal indices for `signal_exec_indices`
-
-
-_SPOT_EXEC_ALIGNMENT_CACHE: dict[tuple[int, int], _SpotExecAlignment] = {}
 
 
 def _spot_exec_alignment(signal_bars: list[Bar], exec_bars: list[Bar]) -> _SpotExecAlignment:
@@ -70,8 +119,8 @@ def _spot_exec_alignment(signal_bars: list[Bar], exec_bars: list[Bar]) -> _SpotE
     Cached by (id(signal_bars), id(exec_bars)) so sweeps don't rebuild dicts per config.
     """
     key = (id(signal_bars), id(exec_bars))
-    cached = _SPOT_EXEC_ALIGNMENT_CACHE.get(key)
-    if cached is not None:
+    cached = _SERIES_CACHE.get(namespace=_SPOT_EXEC_ALIGNMENT_NAMESPACE, key=key)
+    if isinstance(cached, _SpotExecAlignment):
         return cached
 
     sig_idx_by_exec_idx = [-1] * len(exec_bars)
@@ -97,7 +146,7 @@ def _spot_exec_alignment(signal_bars: list[Bar], exec_bars: list[Bar]) -> _SpotE
         signal_exec_indices=signal_exec_indices,
         signal_sig_indices=signal_sig_indices,
     )
-    _SPOT_EXEC_ALIGNMENT_CACHE[key] = out
+    _SERIES_CACHE.set(namespace=_SPOT_EXEC_ALIGNMENT_NAMESPACE, key=key, value=out)
     return out
 
 
@@ -110,17 +159,58 @@ class _SpotDailyOhlc(NamedTuple):
     close: float
 
 
-_SPOT_DAILY_OHLC_CACHE: dict[int, list[_SpotDailyOhlc]] = {}
-_SPOT_RISK_OVERLAY_DAY_CACHE: dict[tuple[int, tuple[object, ...]], dict[date, object]] = {}
-_SPOT_SHOCK_SERIES_CACHE: dict[tuple[int, int, int, tuple[object, ...]], object] = {}
-_SPOT_DD_TREES_CACHE: dict[tuple[int, float, str], tuple[object, object]] = {}
-_SPOT_STOP_TREE_CACHE: dict[tuple[int, int, float, float, str, str], object] = {}
-_SPOT_PROFIT_TREE_CACHE: dict[tuple[int, int, float, float, str, str], object] = {}
-_SPOT_SIGNAL_SERIES_CACHE: dict[tuple[object, ...], object] = {}
-_SPOT_FLIP_TREE_CACHE: dict[tuple[object, ...], object] = {}
-_SPOT_FLIP_NEXT_SIG_CACHE: dict[tuple[object, ...], tuple[list[int], list[int]]] = {}
-_SPOT_RV_SERIES_CACHE: dict[tuple[int, int, float, str, bool], object] = {}
-_SPOT_VOLUME_EMA_SERIES_CACHE: dict[tuple[int, int], object] = {}
+_FAST_PATH_RATSV_BLOCK_KEYS: tuple[str, ...] = (
+    "ratsv_rank_min",
+    "ratsv_tr_ratio_min",
+    "ratsv_slope_med_min_pct",
+    "ratsv_slope_vel_min_pct",
+    "ratsv_slope_slow_window_bars",
+    "ratsv_slope_med_slow_min_pct",
+    "ratsv_slope_vel_slow_min_pct",
+    "ratsv_slope_vel_consistency_bars",
+    "ratsv_slope_vel_consistency_min",
+    "ratsv_cross_age_max_bars",
+    "ratsv_branch_a_rank_min",
+    "ratsv_branch_a_tr_ratio_min",
+    "ratsv_branch_a_slope_med_min_pct",
+    "ratsv_branch_a_slope_vel_min_pct",
+    "ratsv_branch_a_slope_med_slow_min_pct",
+    "ratsv_branch_a_slope_vel_slow_min_pct",
+    "ratsv_branch_a_slope_vel_consistency_bars",
+    "ratsv_branch_a_slope_vel_consistency_min",
+    "ratsv_branch_a_cross_age_max_bars",
+    "ratsv_branch_b_rank_min",
+    "ratsv_branch_b_tr_ratio_min",
+    "ratsv_branch_b_slope_med_min_pct",
+    "ratsv_branch_b_slope_vel_min_pct",
+    "ratsv_branch_b_slope_med_slow_min_pct",
+    "ratsv_branch_b_slope_vel_slow_min_pct",
+    "ratsv_branch_b_slope_vel_consistency_bars",
+    "ratsv_branch_b_slope_vel_consistency_min",
+    "ratsv_branch_b_cross_age_max_bars",
+    "ratsv_probe_cancel_max_bars",
+    "ratsv_probe_cancel_slope_adverse_min_pct",
+    "ratsv_probe_cancel_tr_ratio_min",
+    "ratsv_adverse_release_min_hold_bars",
+    "ratsv_adverse_release_slope_adverse_min_pct",
+    "ratsv_adverse_release_tr_ratio_min",
+)
+_SPOT_SERIES_CORE_CACHE_VERSION = "spot-series-core-v1"
+_SPOT_SERIES_PACK_CACHE_VERSION = "spot-series-pack-v1"
+_SPOT_SERIES_PACK_MMAP_CACHE_VERSION = "spot-series-pack-mmap-v1"
+
+
+BarSeriesInput = Union[list[Bar], BarSeries[Bar]]
+
+
+def _bars_input_list(value: BarSeriesInput) -> list[Bar]:
+    return bars_list(value)
+
+
+def _bars_input_optional_list(value: BarSeriesInput | None) -> list[Bar] | None:
+    if value is None:
+        return None
+    return bars_list(value)
 
 
 class _SpotShockSeries(NamedTuple):
@@ -450,79 +540,56 @@ class _SpotVolumeEmaSeries(NamedTuple):
     volume_ema_ready_by_sig_idx: list[bool]
 
 
-def _spot_rv_series(
-    *,
-    signal_bars: list[Bar],
-    rv_lookback: int,
-    rv_ewma_lambda: float,
-    bar_size: str,
-    use_rth: bool,
-) -> _SpotRvSeries:
-    key = (id(signal_bars), int(rv_lookback), float(rv_ewma_lambda), str(bar_size), bool(use_rth))
-    cached = _SPOT_RV_SERIES_CACHE.get(key)
-    if cached is not None:
-        return cached  # type: ignore[return-value]
-
-    lb = max(1, int(rv_lookback))
-    lam = float(rv_ewma_lambda)
-    returns: deque[float] = deque(maxlen=lb)
-    prev_close: float | None = None
-    rv_by_sig_idx: list[float | None] = [None] * len(signal_bars)
-    for i, bar in enumerate(signal_bars):
-        close = float(bar.close)
-        if close <= 0:
-            continue
-        if prev_close is not None and float(prev_close) > 0 and close > 0:
-            returns.append(math.log(close / float(prev_close)))
-        prev_close = float(close)
-        rv = annualized_ewma_vol(returns, lam=lam, bar_size=str(bar_size), use_rth=bool(use_rth))
-        rv_by_sig_idx[i] = float(rv) if rv is not None else None
-
-    out = _SpotRvSeries(rv_by_sig_idx=rv_by_sig_idx)
-    _SPOT_RV_SERIES_CACHE[key] = out
-    return out
+class _SpotTickGateSeries(NamedTuple):
+    tick_ready_by_sig_idx: list[bool]
+    tick_dir_by_sig_idx: list[str | None]
 
 
-def _spot_volume_ema_series(*, signal_bars: list[Bar], period: int) -> _SpotVolumeEmaSeries:
-    p = max(1, int(period))
-    key = (id(signal_bars), int(p))
-    cached = _SPOT_VOLUME_EMA_SERIES_CACHE.get(key)
-    if cached is not None:
-        return cached  # type: ignore[return-value]
-
-    ema: float | None = None
-    count = 0
-    ema_by_sig_idx: list[float | None] = [None] * len(signal_bars)
-    ready_by_sig_idx: list[bool] = [False] * len(signal_bars)
-    for i, bar in enumerate(signal_bars):
-        vol = float(bar.volume) if bar.volume is not None else 0.0
-        ema = ema_next(ema, float(vol), int(p))
-        count += 1
-        ema_by_sig_idx[i] = float(ema) if ema is not None else None
-        ready_by_sig_idx[i] = bool(count >= int(p))
-
-    out = _SpotVolumeEmaSeries(volume_ema_by_sig_idx=ema_by_sig_idx, volume_ema_ready_by_sig_idx=ready_by_sig_idx)
-    _SPOT_VOLUME_EMA_SERIES_CACHE[key] = out
-    return out
+class _SpotSeriesCorePack(NamedTuple):
+    align: _SpotExecAlignment
+    signal_series: _SpotSignalSeries
+    tick_series: _SpotTickGateSeries | None
 
 
-def _spot_signal_series(
-    *,
-    cfg: ConfigBundle,
-    signal_bars: list[Bar],
-    regime_bars: list[Bar] | None,
-    regime2_bars: list[Bar] | None,
-) -> _SpotSignalSeries:
-    """Precompute EMA/regime-gated signal snapshots once per bar set + strategy params.
+class _SpotSeriesPack(NamedTuple):
+    core: _SpotSeriesCorePack
+    shock_series: _SpotShockSeries
+    risk_by_day: dict[date, object]
+    rv_series: _SpotRvSeries | None
+    volume_series: _SpotVolumeEmaSeries | None
 
-    This intentionally runs with `filters=None` so the series is reusable across the sweep
-    (permission gates / shock / overlays are evaluated per-config).
-    """
+
+class _SpotExecProfile(NamedTuple):
+    entry_fill_mode: str
+    flip_fill_mode: str
+    exit_mode: str
+    intrabar_exits: bool
+    close_eod: bool
+    spread: float
+    commission_per_share: float
+    commission_min: float
+    slippage_per_share: float
+    mark_to_market: str
+    drawdown_mode: str
+
+
+def _spot_bars_signature(bars: list[Bar] | None) -> tuple[object, ...]:
+    if not bars:
+        return (0, None, None, None, None)
+    first = bars[0]
+    last = bars[-1]
+    return (
+        int(len(bars)),
+        first.ts.isoformat(),
+        last.ts.isoformat(),
+        round(float(first.open), 8),
+        round(float(last.close), 8),
+    )
+
+
+def _spot_signal_series_signature(*, cfg: ConfigBundle) -> tuple[object, ...]:
     strat = cfg.strategy
-    key = (
-        id(signal_bars),
-        id(regime_bars) if regime_bars else 0,
-        id(regime2_bars) if regime2_bars else 0,
+    return (
         str(cfg.backtest.bar_size),
         bool(cfg.backtest.use_rth),
         str(getattr(strat, "entry_signal", "ema") or "ema"),
@@ -564,9 +631,1214 @@ def _spot_signal_series(
         float(getattr(strat, "regime2_supertrend_multiplier", 3.0) or 3.0),
         str(getattr(strat, "regime2_supertrend_source", "hl2") or "hl2"),
     )
-    cached = _SPOT_SIGNAL_SERIES_CACHE.get(key)
-    if cached is not None:
-        return cached  # type: ignore[return-value]
+
+
+def _spot_signature_value(value: object) -> object:
+    if isinstance(value, dict):
+        return tuple(
+            (str(k), _spot_signature_value(v))
+            for k, v in sorted(value.items(), key=lambda item: str(item[0]))
+        )
+    if isinstance(value, set):
+        vals = [_spot_signature_value(v) for v in value]
+        vals.sort(key=repr)
+        return tuple(vals)
+    if isinstance(value, (list, tuple)):
+        return tuple(_spot_signature_value(v) for v in value)
+    if isinstance(value, float):
+        return round(float(value), 12)
+    if isinstance(value, (int, str, bool)) or value is None:
+        return value
+    return str(value)
+
+
+def _spot_filter_signature(
+    filters: object | None,
+    *,
+    include_prefixes: tuple[str, ...] = (),
+    include_keys: tuple[str, ...] = (),
+) -> tuple[object, ...]:
+    if filters is None:
+        return ("off",)
+    names = {str(k) for k in include_keys if str(k).strip()}
+    try:
+        for raw_name in vars(filters).keys():
+            name = str(raw_name)
+            if any(name.startswith(prefix) for prefix in include_prefixes):
+                names.add(name)
+    except Exception:
+        pass
+    if not names:
+        return ("off",)
+    out: list[tuple[str, object]] = []
+    for name in sorted(names):
+        try:
+            raw_val = getattr(filters, name, None)
+        except Exception:
+            raw_val = None
+        out.append((str(name), _spot_signature_value(raw_val)))
+    return tuple(out)
+
+
+def _spot_tick_gate_settings(
+    strategy: object,
+) -> tuple[str, str, str, int, int, float, float, int]:
+    tick_mode = str(getattr(strategy, "tick_gate_mode", "off") or "off").strip().lower()
+    if tick_mode not in ("off", "raschke"):
+        tick_mode = "off"
+    tick_neutral_policy = str(getattr(strategy, "tick_neutral_policy", "allow") or "allow").strip().lower()
+    if tick_neutral_policy not in ("allow", "block"):
+        tick_neutral_policy = "allow"
+    tick_direction_policy = str(getattr(strategy, "tick_direction_policy", "both") or "both").strip().lower()
+    if tick_direction_policy not in ("both", "wide_only"):
+        tick_direction_policy = "both"
+    tick_ma_period = max(1, int(getattr(strategy, "tick_band_ma_period", 10) or 10))
+    tick_z_lookback = max(5, int(getattr(strategy, "tick_width_z_lookback", 252) or 252))
+    tick_z_enter = float(getattr(strategy, "tick_width_z_enter", 1.0) or 1.0)
+    tick_z_exit = max(0.0, float(getattr(strategy, "tick_width_z_exit", 0.5) or 0.5))
+    tick_slope_lookback = max(1, int(getattr(strategy, "tick_width_slope_lookback", 3) or 3))
+    return (
+        str(tick_mode),
+        str(tick_neutral_policy),
+        str(tick_direction_policy),
+        int(tick_ma_period),
+        int(tick_z_lookback),
+        float(tick_z_enter),
+        float(tick_z_exit),
+        int(tick_slope_lookback),
+    )
+
+
+def _spot_apply_tick_gate_to_entry_dir(
+    *,
+    entry_dir: str | None,
+    tick_ready: bool,
+    tick_dir: str | None,
+    tick_neutral_policy: str,
+) -> str | None:
+    if not bool(tick_ready):
+        return None if str(tick_neutral_policy) == "block" else entry_dir
+    if tick_dir not in ("up", "down"):
+        return None if str(tick_neutral_policy) == "block" else entry_dir
+    if entry_dir is not None and str(entry_dir) != str(tick_dir):
+        return None
+    return entry_dir
+
+
+def _spot_tick_gate_series(
+    *,
+    signal_bars: list[Bar],
+    tick_bars: list[Bar] | None,
+    strategy: object,
+) -> _SpotTickGateSeries | None:
+    (
+        tick_mode,
+        _tick_neutral_policy,
+        tick_direction_policy,
+        tick_ma_period,
+        tick_z_lookback,
+        tick_z_enter,
+        tick_z_exit,
+        tick_slope_lookback,
+    ) = _spot_tick_gate_settings(strategy)
+    if str(tick_mode) == "off" or not tick_bars:
+        return None
+
+    key = (
+        id(signal_bars),
+        id(tick_bars),
+        str(tick_mode),
+        str(tick_direction_policy),
+        int(tick_ma_period),
+        int(tick_z_lookback),
+        float(tick_z_enter),
+        float(tick_z_exit),
+        int(tick_slope_lookback),
+    )
+    cached = _SERIES_CACHE.get(namespace=_SPOT_TICK_GATE_SERIES_NAMESPACE, key=key)
+    if isinstance(cached, _SpotTickGateSeries):
+        return cached
+
+    tick_idx = 0
+    tick_state = "neutral"
+    tick_dir: str | None = None
+    tick_ready = False
+    tick_highs: deque[float] = deque(maxlen=tick_ma_period)
+    tick_lows: deque[float] = deque(maxlen=tick_ma_period)
+    tick_high_sum = 0.0
+    tick_low_sum = 0.0
+    tick_widths: deque[float] = deque(maxlen=tick_z_lookback)
+    tick_width_hist: list[float] = []
+
+    tick_ready_by_sig_idx: list[bool] = [False] * len(signal_bars)
+    tick_dir_by_sig_idx: list[str | None] = [None] * len(signal_bars)
+    for sig_i, sig_bar in enumerate(signal_bars):
+        while tick_idx < len(tick_bars) and tick_bars[tick_idx].ts <= sig_bar.ts:
+            tbar = tick_bars[tick_idx]
+            high_v = float(tbar.high)
+            low_v = float(tbar.low)
+
+            if len(tick_highs) == tick_highs.maxlen:
+                tick_high_sum -= tick_highs[0]
+            if len(tick_lows) == tick_lows.maxlen:
+                tick_low_sum -= tick_lows[0]
+            tick_highs.append(high_v)
+            tick_lows.append(low_v)
+            tick_high_sum += high_v
+            tick_low_sum += low_v
+
+            tick_ready = False
+            tick_dir = None
+            if len(tick_highs) >= tick_ma_period and len(tick_lows) >= tick_ma_period:
+                upper = tick_high_sum / float(tick_ma_period)
+                lower = tick_low_sum / float(tick_ma_period)
+                width = float(upper) - float(lower)
+                tick_widths.append(width)
+                tick_width_hist.append(width)
+
+                min_z = min(tick_z_lookback, 30)
+                if len(tick_widths) >= max(5, min_z) and len(tick_width_hist) >= (tick_slope_lookback + 1):
+                    w_list = list(tick_widths)
+                    mean = sum(w_list) / float(len(w_list))
+                    var = sum((w - mean) ** 2 for w in w_list) / float(len(w_list))
+                    std = math.sqrt(var)
+                    z = (width - mean) / std if std > 1e-9 else 0.0
+                    delta = width - tick_width_hist[-1 - tick_slope_lookback]
+
+                    if tick_state == "neutral":
+                        if z >= tick_z_enter and delta > 0:
+                            tick_state = "wide"
+                        elif z <= (-tick_z_enter) and delta < 0:
+                            tick_state = "narrow"
+                    elif tick_state == "wide":
+                        if z < tick_z_exit:
+                            tick_state = "neutral"
+                    elif tick_state == "narrow":
+                        if z > (-tick_z_exit):
+                            tick_state = "neutral"
+
+                    if tick_state == "wide":
+                        tick_dir = "up"
+                    elif tick_state == "narrow":
+                        tick_dir = "down" if tick_direction_policy == "both" else None
+                    else:
+                        tick_dir = None
+                    tick_ready = True
+
+            tick_idx += 1
+
+        tick_ready_by_sig_idx[sig_i] = bool(tick_ready)
+        tick_dir_by_sig_idx[sig_i] = str(tick_dir) if tick_dir in ("up", "down") else None
+
+    out = _SpotTickGateSeries(
+        tick_ready_by_sig_idx=tick_ready_by_sig_idx,
+        tick_dir_by_sig_idx=tick_dir_by_sig_idx,
+    )
+    _SERIES_CACHE.set(namespace=_SPOT_TICK_GATE_SERIES_NAMESPACE, key=key, value=out)
+    return out
+
+
+def _spot_core_cache_db_path(cache_dir: object | None) -> Path | None:
+    if cache_dir is None:
+        return None
+    try:
+        root = Path(str(cache_dir)).expanduser()
+        root.mkdir(parents=True, exist_ok=True)
+        return root / "spot_series_core_cache.sqlite3"
+    except Exception:
+        return None
+
+
+def _spot_series_core_persistent_get(*, cache_dir: object | None, key_hash: str) -> _SpotSeriesCorePack | None:
+    loaded = _SERIES_CACHE.get_persistent(
+        db_path=_spot_core_cache_db_path(cache_dir),
+        namespace=_SPOT_SERIES_CORE_NAMESPACE,
+        key_hash=str(key_hash),
+        validator=lambda obj: isinstance(obj, _SpotSeriesCorePack),
+    )
+    return loaded if isinstance(loaded, _SpotSeriesCorePack) else None
+
+
+def _spot_series_core_persistent_set(*, cache_dir: object | None, key_hash: str, payload: _SpotSeriesCorePack) -> None:
+    _SERIES_CACHE.set_persistent(
+        db_path=_spot_core_cache_db_path(cache_dir),
+        namespace=_SPOT_SERIES_CORE_NAMESPACE,
+        key_hash=str(key_hash),
+        value=payload,
+    )
+
+
+def _spot_series_pack_persistent_get(*, cache_dir: object | None, key_hash: str) -> _SpotSeriesPack | None:
+    loaded = _SERIES_CACHE.get_persistent(
+        db_path=_spot_core_cache_db_path(cache_dir),
+        namespace=_SPOT_SERIES_PACK_NAMESPACE,
+        key_hash=str(key_hash),
+        validator=lambda obj: isinstance(obj, _SpotSeriesPack),
+    )
+    return loaded if isinstance(loaded, _SpotSeriesPack) else None
+
+
+def _spot_series_pack_persistent_set(*, cache_dir: object | None, key_hash: str, payload: _SpotSeriesPack) -> None:
+    _SERIES_CACHE.set_persistent(
+        db_path=_spot_core_cache_db_path(cache_dir),
+        namespace=_SPOT_SERIES_PACK_NAMESPACE,
+        key_hash=str(key_hash),
+        value=payload,
+    )
+
+
+def _spot_series_pack_mmap_root(cache_dir: object | None) -> Path | None:
+    base = _spot_core_cache_db_path(cache_dir)
+    if base is None:
+        return None
+    try:
+        root = base.parent / "spot_series_pack_mmap"
+        root.mkdir(parents=True, exist_ok=True)
+        return root
+    except Exception:
+        return None
+
+
+def _spot_series_pack_mmap_manifest_get(*, cache_dir: object | None, key_hash: str) -> dict | None:
+    loaded = _SERIES_CACHE.get_persistent(
+        db_path=_spot_core_cache_db_path(cache_dir),
+        namespace=_SPOT_SERIES_PACK_MMAP_NAMESPACE,
+        key_hash=str(key_hash),
+        validator=lambda obj: isinstance(obj, dict),
+    )
+    return dict(loaded) if isinstance(loaded, dict) else None
+
+
+def _spot_series_pack_mmap_manifest_set(*, cache_dir: object | None, key_hash: str, manifest: dict) -> None:
+    _SERIES_CACHE.set_persistent(
+        db_path=_spot_core_cache_db_path(cache_dir),
+        namespace=_SPOT_SERIES_PACK_MMAP_NAMESPACE,
+        key_hash=str(key_hash),
+        value=dict(manifest),
+    )
+
+
+def _spot_mmap_supported() -> bool:
+    return _np is not None
+
+
+def _spot_pack_write_npy(*, out_dir: Path, name: str, arr) -> None:
+    if _np is None:
+        raise RuntimeError("numpy unavailable")
+    path = out_dir / f"{name}.npy"
+    mm = _np.lib.format.open_memmap(str(path), mode="w+", dtype=arr.dtype, shape=arr.shape)
+    mm[...] = arr
+    del mm
+
+
+def _spot_pack_read_npy(*, pack_dir: Path, name: str):
+    if _np is None:
+        raise RuntimeError("numpy unavailable")
+    return _np.load(str(pack_dir / f"{name}.npy"), mmap_mode="r")
+
+
+def _spot_pack_encode_optional_float(values: list[float | None]):
+    if _np is None:
+        raise RuntimeError("numpy unavailable")
+    arr = _np.full((len(values),), _np.nan, dtype=_np.float64)
+    for i, value in enumerate(values):
+        if value is None:
+            continue
+        try:
+            arr[i] = float(value)
+        except (TypeError, ValueError):
+            continue
+    return arr
+
+
+def _spot_pack_decode_optional_float(arr) -> list[float | None]:
+    if _np is None:
+        return []
+    raw = _np.asarray(arr, dtype=_np.float64)
+    out: list[float | None] = [None] * int(raw.shape[0])
+    for i, value in enumerate(raw.tolist()):
+        if isinstance(value, float) and _np.isnan(value):
+            out[i] = None
+        else:
+            out[i] = float(value)
+    return out
+
+
+def _spot_pack_encode_optional_bool(values: list[bool | None]):
+    if _np is None:
+        raise RuntimeError("numpy unavailable")
+    arr = _np.full((len(values),), -1, dtype=_np.int8)
+    for i, value in enumerate(values):
+        if value is None:
+            continue
+        arr[i] = 1 if bool(value) else 0
+    return arr
+
+
+def _spot_pack_decode_optional_bool(arr) -> list[bool | None]:
+    if _np is None:
+        return []
+    raw = _np.asarray(arr, dtype=_np.int8).tolist()
+    out: list[bool | None] = []
+    for value in raw:
+        iv = int(value)
+        if iv < 0:
+            out.append(None)
+        else:
+            out.append(bool(iv))
+    return out
+
+
+def _spot_pack_encode_bool(values: list[bool]):
+    if _np is None:
+        raise RuntimeError("numpy unavailable")
+    return _np.asarray([1 if bool(v) else 0 for v in values], dtype=_np.uint8)
+
+
+def _spot_pack_decode_bool(arr) -> list[bool]:
+    if _np is None:
+        return []
+    return [bool(int(v)) for v in _np.asarray(arr, dtype=_np.uint8).tolist()]
+
+
+def _spot_pack_encode_int(values: list[int]):
+    if _np is None:
+        raise RuntimeError("numpy unavailable")
+    return _np.asarray([int(v) for v in values], dtype=_np.int32)
+
+
+def _spot_pack_decode_int(arr) -> list[int]:
+    if _np is None:
+        return []
+    return [int(v) for v in _np.asarray(arr, dtype=_np.int32).tolist()]
+
+
+def _spot_pack_encode_dir(values: list[str | None]):
+    if _np is None:
+        raise RuntimeError("numpy unavailable")
+    code = {"up": 1, "down": 2}
+    out = _np.zeros((len(values),), dtype=_np.int8)
+    for i, value in enumerate(values):
+        out[i] = int(code.get(str(value), 0))
+    return out
+
+
+def _spot_pack_decode_dir(arr) -> list[str | None]:
+    decode = {1: "up", 2: "down"}
+    if _np is None:
+        return []
+    raw = _np.asarray(arr, dtype=_np.int8).tolist()
+    return [decode.get(int(v)) for v in raw]
+
+
+def _spot_pack_encode_branch(values: list[str | None]):
+    if _np is None:
+        raise RuntimeError("numpy unavailable")
+    code = {"a": 1, "b": 2}
+    out = _np.zeros((len(values),), dtype=_np.int8)
+    for i, value in enumerate(values):
+        out[i] = int(code.get(str(value), 0))
+    return out
+
+
+def _spot_pack_decode_branch(arr) -> list[str | None]:
+    decode = {1: "a", 2: "b"}
+    if _np is None:
+        return []
+    raw = _np.asarray(arr, dtype=_np.int8).tolist()
+    return [decode.get(int(v)) for v in raw]
+
+
+def _spot_series_pack_mmap_persistent_set(*, cache_dir: object | None, key_hash: str, payload: _SpotSeriesPack) -> bool:
+    if not _spot_mmap_supported():
+        return False
+    root = _spot_series_pack_mmap_root(cache_dir)
+    if root is None:
+        return False
+    tmp_dir = root / f".{key_hash}.tmp.{os.getpid()}.{abs(hash(str(key_hash))) % 1000000}"
+    target_dir = root / str(key_hash)
+    try:
+        if tmp_dir.exists():
+            shutil.rmtree(tmp_dir, ignore_errors=True)
+        tmp_dir.mkdir(parents=True, exist_ok=True)
+
+        align = payload.core.align
+        signal = payload.core.signal_series
+        tick = payload.core.tick_series
+        shock = payload.shock_series
+        risk_by_day = payload.risk_by_day
+        rv = payload.rv_series
+        volume = payload.volume_series
+
+        _spot_pack_write_npy(out_dir=tmp_dir, name="align_sig_idx_by_exec_idx", arr=_spot_pack_encode_int(align.sig_idx_by_exec_idx))
+        _spot_pack_write_npy(out_dir=tmp_dir, name="align_exec_idx_by_sig_idx", arr=_spot_pack_encode_int(align.exec_idx_by_sig_idx))
+        _spot_pack_write_npy(out_dir=tmp_dir, name="align_signal_exec_indices", arr=_spot_pack_encode_int(align.signal_exec_indices))
+        _spot_pack_write_npy(out_dir=tmp_dir, name="align_signal_sig_indices", arr=_spot_pack_encode_int(align.signal_sig_indices))
+
+        n_sig = len(signal.signal_by_sig_idx)
+        if _np is None:
+            raise RuntimeError("numpy unavailable")
+        signal_present = _np.zeros((n_sig,), dtype=_np.uint8)
+        ema_fast = _np.full((n_sig,), _np.nan, dtype=_np.float64)
+        ema_slow = _np.full((n_sig,), _np.nan, dtype=_np.float64)
+        prev_ema_fast = _np.full((n_sig,), _np.nan, dtype=_np.float64)
+        prev_ema_slow = _np.full((n_sig,), _np.nan, dtype=_np.float64)
+        ema_ready = _np.zeros((n_sig,), dtype=_np.uint8)
+        cross_up = _np.zeros((n_sig,), dtype=_np.uint8)
+        cross_down = _np.zeros((n_sig,), dtype=_np.uint8)
+        state_code = _np.zeros((n_sig,), dtype=_np.int8)
+        entry_dir_code = _np.zeros((n_sig,), dtype=_np.int8)
+        regime_dir_code = _np.zeros((n_sig,), dtype=_np.int8)
+        regime_ready = _np.zeros((n_sig,), dtype=_np.uint8)
+        dir_code = {"up": 1, "down": 2}
+        for i, snap in enumerate(signal.signal_by_sig_idx):
+            if snap is None:
+                continue
+            signal_present[i] = 1
+            if snap.ema_fast is not None:
+                ema_fast[i] = float(snap.ema_fast)
+            if snap.ema_slow is not None:
+                ema_slow[i] = float(snap.ema_slow)
+            if snap.prev_ema_fast is not None:
+                prev_ema_fast[i] = float(snap.prev_ema_fast)
+            if snap.prev_ema_slow is not None:
+                prev_ema_slow[i] = float(snap.prev_ema_slow)
+            ema_ready[i] = 1 if bool(snap.ema_ready) else 0
+            cross_up[i] = 1 if bool(snap.cross_up) else 0
+            cross_down[i] = 1 if bool(snap.cross_down) else 0
+            state_code[i] = int(dir_code.get(str(snap.state), 0))
+            entry_dir_code[i] = int(dir_code.get(str(snap.entry_dir), 0))
+            regime_dir_code[i] = int(dir_code.get(str(snap.regime_dir), 0))
+            regime_ready[i] = 1 if bool(snap.regime_ready) else 0
+
+        _spot_pack_write_npy(out_dir=tmp_dir, name="signal_present", arr=signal_present)
+        _spot_pack_write_npy(out_dir=tmp_dir, name="signal_ema_fast", arr=ema_fast)
+        _spot_pack_write_npy(out_dir=tmp_dir, name="signal_ema_slow", arr=ema_slow)
+        _spot_pack_write_npy(out_dir=tmp_dir, name="signal_prev_ema_fast", arr=prev_ema_fast)
+        _spot_pack_write_npy(out_dir=tmp_dir, name="signal_prev_ema_slow", arr=prev_ema_slow)
+        _spot_pack_write_npy(out_dir=tmp_dir, name="signal_ema_ready", arr=ema_ready)
+        _spot_pack_write_npy(out_dir=tmp_dir, name="signal_cross_up", arr=cross_up)
+        _spot_pack_write_npy(out_dir=tmp_dir, name="signal_cross_down", arr=cross_down)
+        _spot_pack_write_npy(out_dir=tmp_dir, name="signal_state_code", arr=state_code)
+        _spot_pack_write_npy(out_dir=tmp_dir, name="signal_entry_dir_code", arr=entry_dir_code)
+        _spot_pack_write_npy(out_dir=tmp_dir, name="signal_regime_dir_code", arr=regime_dir_code)
+        _spot_pack_write_npy(out_dir=tmp_dir, name="signal_regime_ready", arr=regime_ready)
+        _spot_pack_write_npy(out_dir=tmp_dir, name="signal_bars_in_day", arr=_spot_pack_encode_int(signal.bars_in_day_by_sig_idx))
+        _spot_pack_write_npy(out_dir=tmp_dir, name="signal_entry_dir_by_sig_idx", arr=_spot_pack_encode_dir(signal.entry_dir_by_sig_idx))
+        _spot_pack_write_npy(out_dir=tmp_dir, name="signal_entry_branch_by_sig_idx", arr=_spot_pack_encode_branch(signal.entry_branch_by_sig_idx))
+
+        if tick is not None:
+            _spot_pack_write_npy(out_dir=tmp_dir, name="tick_ready_by_sig_idx", arr=_spot_pack_encode_bool(tick.tick_ready_by_sig_idx))
+            _spot_pack_write_npy(out_dir=tmp_dir, name="tick_dir_by_sig_idx", arr=_spot_pack_encode_dir(tick.tick_dir_by_sig_idx))
+
+        _spot_pack_write_npy(out_dir=tmp_dir, name="shock_by_exec_idx", arr=_spot_pack_encode_optional_bool(shock.shock_by_exec_idx))
+        _spot_pack_write_npy(out_dir=tmp_dir, name="shock_atr_pct_by_exec_idx", arr=_spot_pack_encode_optional_float(shock.shock_atr_pct_by_exec_idx))
+        _spot_pack_write_npy(out_dir=tmp_dir, name="shock_dir_by_exec_idx", arr=_spot_pack_encode_dir(shock.shock_dir_by_exec_idx))
+        _spot_pack_write_npy(out_dir=tmp_dir, name="shock_by_sig_idx", arr=_spot_pack_encode_optional_bool(shock.shock_by_sig_idx))
+        _spot_pack_write_npy(out_dir=tmp_dir, name="shock_atr_pct_by_sig_idx", arr=_spot_pack_encode_optional_float(shock.shock_atr_pct_by_sig_idx))
+        _spot_pack_write_npy(out_dir=tmp_dir, name="shock_dir_by_sig_idx", arr=_spot_pack_encode_dir(shock.shock_dir_by_sig_idx))
+
+        if risk_by_day:
+            days_sorted = sorted((d, v) for d, v in risk_by_day.items() if isinstance(d, date))
+            day_ord: list[int] = []
+            riskoff: list[bool] = []
+            riskpanic: list[bool] = []
+            riskpop: list[bool] = []
+            tr_med: list[float | None] = []
+            tr_delta: list[float | None] = []
+            neg_ratio: list[float | None] = []
+            pos_ratio: list[float | None] = []
+            for day_item, snap in days_sorted:
+                day_ord.append(int(day_item.toordinal()))
+                riskoff.append(bool(getattr(snap, "riskoff", False)))
+                riskpanic.append(bool(getattr(snap, "riskpanic", False)))
+                riskpop.append(bool(getattr(snap, "riskpop", False)))
+                tr_med.append(float(getattr(snap, "tr_median_pct")) if getattr(snap, "tr_median_pct", None) is not None else None)
+                tr_delta.append(
+                    float(getattr(snap, "tr_median_delta_pct"))
+                    if getattr(snap, "tr_median_delta_pct", None) is not None
+                    else None
+                )
+                neg_ratio.append(float(getattr(snap, "neg_gap_ratio")) if getattr(snap, "neg_gap_ratio", None) is not None else None)
+                pos_ratio.append(float(getattr(snap, "pos_gap_ratio")) if getattr(snap, "pos_gap_ratio", None) is not None else None)
+            _spot_pack_write_npy(out_dir=tmp_dir, name="risk_day_ordinal", arr=_spot_pack_encode_int(day_ord))
+            _spot_pack_write_npy(out_dir=tmp_dir, name="riskoff_by_day", arr=_spot_pack_encode_bool(riskoff))
+            _spot_pack_write_npy(out_dir=tmp_dir, name="riskpanic_by_day", arr=_spot_pack_encode_bool(riskpanic))
+            _spot_pack_write_npy(out_dir=tmp_dir, name="riskpop_by_day", arr=_spot_pack_encode_bool(riskpop))
+            _spot_pack_write_npy(out_dir=tmp_dir, name="risk_tr_median_pct", arr=_spot_pack_encode_optional_float(tr_med))
+            _spot_pack_write_npy(out_dir=tmp_dir, name="risk_tr_median_delta_pct", arr=_spot_pack_encode_optional_float(tr_delta))
+            _spot_pack_write_npy(out_dir=tmp_dir, name="risk_neg_gap_ratio", arr=_spot_pack_encode_optional_float(neg_ratio))
+            _spot_pack_write_npy(out_dir=tmp_dir, name="risk_pos_gap_ratio", arr=_spot_pack_encode_optional_float(pos_ratio))
+
+        if rv is not None:
+            _spot_pack_write_npy(out_dir=tmp_dir, name="rv_by_sig_idx", arr=_spot_pack_encode_optional_float(rv.rv_by_sig_idx))
+        if volume is not None:
+            _spot_pack_write_npy(out_dir=tmp_dir, name="volume_ema_by_sig_idx", arr=_spot_pack_encode_optional_float(volume.volume_ema_by_sig_idx))
+            _spot_pack_write_npy(out_dir=tmp_dir, name="volume_ema_ready_by_sig_idx", arr=_spot_pack_encode_bool(volume.volume_ema_ready_by_sig_idx))
+
+        if target_dir.exists():
+            shutil.rmtree(target_dir, ignore_errors=True)
+        tmp_dir.rename(target_dir)
+        manifest = {
+            "version": str(_SPOT_SERIES_PACK_MMAP_CACHE_VERSION),
+            "key_hash": str(key_hash),
+            "dir": str(target_dir.name),
+            "has_tick": bool(tick is not None),
+            "has_risk": bool(risk_by_day),
+            "has_rv": bool(rv is not None),
+            "has_volume": bool(volume is not None),
+        }
+        _spot_series_pack_mmap_manifest_set(
+            cache_dir=cache_dir,
+            key_hash=str(key_hash),
+            manifest=manifest,
+        )
+        return True
+    except Exception:
+        try:
+            if tmp_dir.exists():
+                shutil.rmtree(tmp_dir, ignore_errors=True)
+        except Exception:
+            pass
+        return False
+
+
+def _spot_series_pack_mmap_persistent_get(*, cache_dir: object | None, key_hash: str) -> _SpotSeriesPack | None:
+    if not _spot_mmap_supported():
+        return None
+    root = _spot_series_pack_mmap_root(cache_dir)
+    if root is None:
+        return None
+    manifest = _spot_series_pack_mmap_manifest_get(cache_dir=cache_dir, key_hash=str(key_hash))
+    if not isinstance(manifest, dict):
+        return None
+    if str(manifest.get("version") or "") != str(_SPOT_SERIES_PACK_MMAP_CACHE_VERSION):
+        return None
+    pack_dir = root / str(manifest.get("dir") or str(key_hash))
+    if not pack_dir.exists():
+        return None
+    try:
+        align = _SpotExecAlignment(
+            sig_idx_by_exec_idx=_spot_pack_decode_int(_spot_pack_read_npy(pack_dir=pack_dir, name="align_sig_idx_by_exec_idx")),
+            exec_idx_by_sig_idx=_spot_pack_decode_int(_spot_pack_read_npy(pack_dir=pack_dir, name="align_exec_idx_by_sig_idx")),
+            signal_exec_indices=_spot_pack_decode_int(_spot_pack_read_npy(pack_dir=pack_dir, name="align_signal_exec_indices")),
+            signal_sig_indices=_spot_pack_decode_int(_spot_pack_read_npy(pack_dir=pack_dir, name="align_signal_sig_indices")),
+        )
+
+        signal_present = _spot_pack_read_npy(pack_dir=pack_dir, name="signal_present")
+        ema_fast = _spot_pack_read_npy(pack_dir=pack_dir, name="signal_ema_fast")
+        ema_slow = _spot_pack_read_npy(pack_dir=pack_dir, name="signal_ema_slow")
+        prev_ema_fast = _spot_pack_read_npy(pack_dir=pack_dir, name="signal_prev_ema_fast")
+        prev_ema_slow = _spot_pack_read_npy(pack_dir=pack_dir, name="signal_prev_ema_slow")
+        ema_ready = _spot_pack_read_npy(pack_dir=pack_dir, name="signal_ema_ready")
+        cross_up = _spot_pack_read_npy(pack_dir=pack_dir, name="signal_cross_up")
+        cross_down = _spot_pack_read_npy(pack_dir=pack_dir, name="signal_cross_down")
+        state_code = _spot_pack_read_npy(pack_dir=pack_dir, name="signal_state_code")
+        entry_dir_code = _spot_pack_read_npy(pack_dir=pack_dir, name="signal_entry_dir_code")
+        regime_dir_code = _spot_pack_read_npy(pack_dir=pack_dir, name="signal_regime_dir_code")
+        regime_ready = _spot_pack_read_npy(pack_dir=pack_dir, name="signal_regime_ready")
+
+        if _np is None:
+            return None
+        state_decode = {1: "up", 2: "down"}
+        n_sig = int(_np.asarray(signal_present).shape[0])
+        signal_by_sig_idx: list[EmaDecisionSnapshot | None] = [None] * n_sig
+        ema_fast_list = _np.asarray(ema_fast, dtype=_np.float64).tolist()
+        ema_slow_list = _np.asarray(ema_slow, dtype=_np.float64).tolist()
+        prev_ema_fast_list = _np.asarray(prev_ema_fast, dtype=_np.float64).tolist()
+        prev_ema_slow_list = _np.asarray(prev_ema_slow, dtype=_np.float64).tolist()
+        ema_ready_list = _np.asarray(ema_ready, dtype=_np.uint8).tolist()
+        cross_up_list = _np.asarray(cross_up, dtype=_np.uint8).tolist()
+        cross_down_list = _np.asarray(cross_down, dtype=_np.uint8).tolist()
+        state_code_list = _np.asarray(state_code, dtype=_np.int8).tolist()
+        entry_dir_code_list = _np.asarray(entry_dir_code, dtype=_np.int8).tolist()
+        regime_dir_code_list = _np.asarray(regime_dir_code, dtype=_np.int8).tolist()
+        regime_ready_list = _np.asarray(regime_ready, dtype=_np.uint8).tolist()
+        signal_present_list = _np.asarray(signal_present, dtype=_np.uint8).tolist()
+        for i in range(n_sig):
+            if int(signal_present_list[i]) <= 0:
+                continue
+            fast_val = float(ema_fast_list[i]) if not _np.isnan(float(ema_fast_list[i])) else None
+            slow_val = float(ema_slow_list[i]) if not _np.isnan(float(ema_slow_list[i])) else None
+            prev_fast_val = float(prev_ema_fast_list[i]) if not _np.isnan(float(prev_ema_fast_list[i])) else None
+            prev_slow_val = float(prev_ema_slow_list[i]) if not _np.isnan(float(prev_ema_slow_list[i])) else None
+            signal_by_sig_idx[i] = EmaDecisionSnapshot(
+                ema_fast=fast_val,
+                ema_slow=slow_val,
+                prev_ema_fast=prev_fast_val,
+                prev_ema_slow=prev_slow_val,
+                ema_ready=bool(int(ema_ready_list[i])),
+                cross_up=bool(int(cross_up_list[i])),
+                cross_down=bool(int(cross_down_list[i])),
+                state=state_decode.get(int(state_code_list[i])),
+                entry_dir=state_decode.get(int(entry_dir_code_list[i])),
+                regime_dir=state_decode.get(int(regime_dir_code_list[i])),
+                regime_ready=bool(int(regime_ready_list[i])),
+            )
+
+        signal_series = _SpotSignalSeries(
+            signal_by_sig_idx=signal_by_sig_idx,
+            bars_in_day_by_sig_idx=_spot_pack_decode_int(_spot_pack_read_npy(pack_dir=pack_dir, name="signal_bars_in_day")),
+            entry_dir_by_sig_idx=_spot_pack_decode_dir(_spot_pack_read_npy(pack_dir=pack_dir, name="signal_entry_dir_by_sig_idx")),
+            entry_branch_by_sig_idx=_spot_pack_decode_branch(
+                _spot_pack_read_npy(pack_dir=pack_dir, name="signal_entry_branch_by_sig_idx")
+            ),
+        )
+
+        tick_series: _SpotTickGateSeries | None = None
+        if bool(manifest.get("has_tick")):
+            tick_series = _SpotTickGateSeries(
+                tick_ready_by_sig_idx=_spot_pack_decode_bool(_spot_pack_read_npy(pack_dir=pack_dir, name="tick_ready_by_sig_idx")),
+                tick_dir_by_sig_idx=_spot_pack_decode_dir(_spot_pack_read_npy(pack_dir=pack_dir, name="tick_dir_by_sig_idx")),
+            )
+
+        core = _SpotSeriesCorePack(
+            align=align,
+            signal_series=signal_series,
+            tick_series=tick_series,
+        )
+        shock_series = _SpotShockSeries(
+            shock_by_exec_idx=_spot_pack_decode_optional_bool(_spot_pack_read_npy(pack_dir=pack_dir, name="shock_by_exec_idx")),
+            shock_atr_pct_by_exec_idx=_spot_pack_decode_optional_float(
+                _spot_pack_read_npy(pack_dir=pack_dir, name="shock_atr_pct_by_exec_idx")
+            ),
+            shock_dir_by_exec_idx=_spot_pack_decode_dir(_spot_pack_read_npy(pack_dir=pack_dir, name="shock_dir_by_exec_idx")),
+            shock_by_sig_idx=_spot_pack_decode_optional_bool(_spot_pack_read_npy(pack_dir=pack_dir, name="shock_by_sig_idx")),
+            shock_atr_pct_by_sig_idx=_spot_pack_decode_optional_float(
+                _spot_pack_read_npy(pack_dir=pack_dir, name="shock_atr_pct_by_sig_idx")
+            ),
+            shock_dir_by_sig_idx=_spot_pack_decode_dir(_spot_pack_read_npy(pack_dir=pack_dir, name="shock_dir_by_sig_idx")),
+        )
+
+        risk_by_day: dict[date, object] = {}
+        if bool(manifest.get("has_risk")):
+            day_ordinal = _spot_pack_decode_int(_spot_pack_read_npy(pack_dir=pack_dir, name="risk_day_ordinal"))
+            riskoff = _spot_pack_decode_bool(_spot_pack_read_npy(pack_dir=pack_dir, name="riskoff_by_day"))
+            riskpanic = _spot_pack_decode_bool(_spot_pack_read_npy(pack_dir=pack_dir, name="riskpanic_by_day"))
+            riskpop = _spot_pack_decode_bool(_spot_pack_read_npy(pack_dir=pack_dir, name="riskpop_by_day"))
+            tr_med = _spot_pack_decode_optional_float(_spot_pack_read_npy(pack_dir=pack_dir, name="risk_tr_median_pct"))
+            tr_delta = _spot_pack_decode_optional_float(
+                _spot_pack_read_npy(pack_dir=pack_dir, name="risk_tr_median_delta_pct")
+            )
+            neg_ratio = _spot_pack_decode_optional_float(_spot_pack_read_npy(pack_dir=pack_dir, name="risk_neg_gap_ratio"))
+            pos_ratio = _spot_pack_decode_optional_float(_spot_pack_read_npy(pack_dir=pack_dir, name="risk_pos_gap_ratio"))
+            n_day = min(
+                len(day_ordinal),
+                len(riskoff),
+                len(riskpanic),
+                len(riskpop),
+                len(tr_med),
+                len(tr_delta),
+                len(neg_ratio),
+                len(pos_ratio),
+            )
+            for i in range(n_day):
+                day_key = date.fromordinal(int(day_ordinal[i]))
+                risk_by_day[day_key] = RiskOverlaySnapshot(
+                    riskoff=bool(riskoff[i]),
+                    riskpanic=bool(riskpanic[i]),
+                    riskpop=bool(riskpop[i]),
+                    tr_median_pct=float(tr_med[i]) if tr_med[i] is not None else None,
+                    tr_median_delta_pct=float(tr_delta[i]) if tr_delta[i] is not None else None,
+                    neg_gap_ratio=float(neg_ratio[i]) if neg_ratio[i] is not None else None,
+                    pos_gap_ratio=float(pos_ratio[i]) if pos_ratio[i] is not None else None,
+                )
+
+        rv_series: _SpotRvSeries | None = None
+        if bool(manifest.get("has_rv")):
+            rv_series = _SpotRvSeries(
+                rv_by_sig_idx=_spot_pack_decode_optional_float(_spot_pack_read_npy(pack_dir=pack_dir, name="rv_by_sig_idx"))
+            )
+        volume_series: _SpotVolumeEmaSeries | None = None
+        if bool(manifest.get("has_volume")):
+            volume_series = _SpotVolumeEmaSeries(
+                volume_ema_by_sig_idx=_spot_pack_decode_optional_float(
+                    _spot_pack_read_npy(pack_dir=pack_dir, name="volume_ema_by_sig_idx")
+                ),
+                volume_ema_ready_by_sig_idx=_spot_pack_decode_bool(
+                    _spot_pack_read_npy(pack_dir=pack_dir, name="volume_ema_ready_by_sig_idx")
+                ),
+            )
+        return _SpotSeriesPack(
+            core=core,
+            shock_series=shock_series,
+            risk_by_day=risk_by_day,
+            rv_series=rv_series,
+            volume_series=volume_series,
+        )
+    except Exception:
+        return None
+
+
+def _spot_series_pack_key_info(
+    *,
+    cfg: ConfigBundle,
+    signal_bars: list[Bar],
+    exec_bars: list[Bar],
+    regime_bars: list[Bar] | None,
+    regime2_bars: list[Bar] | None,
+    tick_bars: list[Bar] | None,
+    include_rv: bool,
+    include_volume: bool,
+    include_tick: bool,
+) -> tuple[tuple[object, ...], tuple[object, ...], str, int]:
+    strat = cfg.strategy
+    filters = strat.filters
+    raw_period = getattr(filters, "volume_ema_period", None) if filters is not None else None
+    try:
+        vol_period = int(raw_period) if raw_period is not None else 20
+    except (TypeError, ValueError):
+        vol_period = 20
+
+    core_key = (
+        str(_SPOT_SERIES_CORE_CACHE_VERSION),
+        _spot_bars_signature(signal_bars),
+        _spot_bars_signature(exec_bars),
+        _spot_bars_signature(regime_bars),
+        _spot_bars_signature(regime2_bars),
+        _spot_bars_signature(tick_bars if include_tick else None),
+        _spot_signal_series_signature(cfg=cfg),
+        _spot_tick_gate_settings(strat),
+    )
+    shock_signature = _spot_filter_signature(
+        filters,
+        include_prefixes=("shock_",),
+        include_keys=("shock_gate_mode",),
+    )
+    risk_signature = _spot_filter_signature(
+        filters,
+        include_prefixes=("riskoff_", "riskpanic_", "riskpop_"),
+        include_keys=("riskoff_mode", "riskpanic_long_scale_mode", "risk_entry_cutoff_hour_et"),
+    )
+    rv_signature = (
+        bool(include_rv),
+        int(cfg.synthetic.rv_lookback),
+        float(cfg.synthetic.rv_ewma_lambda),
+        str(cfg.backtest.bar_size),
+        bool(cfg.backtest.use_rth),
+    )
+    volume_signature = (bool(include_volume), int(vol_period))
+    pack_key = (
+        str(_SPOT_SERIES_PACK_CACHE_VERSION),
+        core_key,
+        shock_signature,
+        risk_signature,
+        rv_signature,
+        volume_signature,
+    )
+    pack_key_hash = hashlib.sha1(repr(pack_key).encode("utf-8")).hexdigest()
+    return core_key, pack_key, str(pack_key_hash), int(vol_period)
+
+
+def _spot_series_pack_cache_state(
+    *,
+    cfg: ConfigBundle,
+    signal_bars: list[Bar],
+    exec_bars: list[Bar],
+    regime_bars: list[Bar] | None,
+    regime2_bars: list[Bar] | None,
+    tick_bars: list[Bar] | None,
+    include_rv: bool,
+    include_volume: bool,
+    include_tick: bool,
+) -> str:
+    _core_key, pack_key, pack_key_hash, _vol_period = _spot_series_pack_key_info(
+        cfg=cfg,
+        signal_bars=signal_bars,
+        exec_bars=exec_bars,
+        regime_bars=regime_bars,
+        regime2_bars=regime2_bars,
+        tick_bars=tick_bars,
+        include_rv=bool(include_rv),
+        include_volume=bool(include_volume),
+        include_tick=bool(include_tick),
+    )
+    cached_pack = _SERIES_CACHE.get(namespace=_SPOT_SERIES_PACK_NAMESPACE, key=pack_key)
+    if isinstance(cached_pack, _SpotSeriesPack):
+        return "memory"
+    use_persist = bool(getattr(cfg.backtest, "offline", False))
+    if not bool(use_persist):
+        return "none"
+    manifest = _spot_series_pack_mmap_manifest_get(
+        cache_dir=cfg.backtest.cache_dir,
+        key_hash=str(pack_key_hash),
+    )
+    if isinstance(manifest, dict) and str(manifest.get("version") or "") == str(_SPOT_SERIES_PACK_MMAP_CACHE_VERSION):
+        root = _spot_series_pack_mmap_root(cfg.backtest.cache_dir)
+        if root is not None:
+            pack_dir = root / str(manifest.get("dir") or str(pack_key_hash))
+            if pack_dir.exists():
+                return "mmap"
+    if _SERIES_CACHE.has_persistent(
+        db_path=_spot_core_cache_db_path(cfg.backtest.cache_dir),
+        namespace=_SPOT_SERIES_PACK_NAMESPACE,
+        key_hash=str(pack_key_hash),
+    ):
+        return "pickle"
+    return "none"
+
+
+def _spot_prepare_summary_series_pack(
+    *,
+    cfg: ConfigBundle,
+    signal_bars: BarSeriesInput,
+    regime_bars: BarSeriesInput | None = None,
+    regime2_bars: BarSeriesInput | None = None,
+    tick_bars: BarSeriesInput | None = None,
+    exec_bars: BarSeriesInput | None = None,
+) -> tuple[str, object | None]:
+    """Prepare (or warm) the summary runner series-pack and return its stable key hash.
+
+    The returned object is an internal pack payload that can be passed back into
+    `_run_spot_backtest_summary(..., prepared_series_pack=...)` to bypass repeated
+    pack construction in tight sweep loops.
+    """
+    signal_list = _bars_input_list(signal_bars)
+    regime_list = _bars_input_optional_list(regime_bars)
+    regime2_list = _bars_input_optional_list(regime2_bars)
+    tick_list = _bars_input_optional_list(tick_bars)
+    exec_list = _bars_input_optional_list(exec_bars)
+
+    exec_bar_size = str(getattr(cfg.strategy, "spot_exec_bar_size", "") or "").strip()
+    if exec_bar_size and str(exec_bar_size) != str(cfg.backtest.bar_size):
+        if exec_list is None or not exec_list:
+            return "", None
+    else:
+        exec_list = signal_list
+
+    filters = cfg.strategy.filters
+    needs_rv = bool(filters is not None and (getattr(filters, "rv_min", None) is not None or getattr(filters, "rv_max", None) is not None))
+    needs_volume = bool(filters is not None and getattr(filters, "volume_ratio_min", None) is not None)
+    tick_mode = str(getattr(cfg.strategy, "tick_gate_mode", "off") or "off").strip().lower()
+    include_tick = bool(str(tick_mode) != "off")
+    use_fast = False
+    try:
+        use_fast = bool(
+            _can_use_fast_summary_path(
+                cfg,
+                signal_bars=signal_list,
+                exec_bars=exec_list,
+                tick_bars=tick_list,
+            )
+        )
+    except Exception:
+        use_fast = False
+    include_rv = bool(needs_rv) if bool(use_fast) else False
+    include_volume = bool(needs_volume) if bool(use_fast) else False
+
+    _core_key, pack_key, pack_key_hash, _vol_period = _spot_series_pack_key_info(
+        cfg=cfg,
+        signal_bars=signal_list,
+        exec_bars=exec_list,
+        regime_bars=regime_list,
+        regime2_bars=regime2_list,
+        tick_bars=tick_list,
+        include_rv=bool(include_rv),
+        include_volume=bool(include_volume),
+        include_tick=bool(include_tick),
+    )
+    cached_pack = _SERIES_CACHE.get(namespace=_SPOT_SERIES_PACK_NAMESPACE, key=pack_key)
+    if isinstance(cached_pack, _SpotSeriesPack):
+        return str(pack_key_hash), cached_pack
+    prepared = _spot_build_series_pack(
+        cfg=cfg,
+        signal_bars=signal_list,
+        exec_bars=exec_list,
+        regime_bars=regime_list,
+        regime2_bars=regime2_list,
+        tick_bars=tick_list,
+        include_rv=bool(include_rv),
+        include_volume=bool(include_volume),
+        include_tick=bool(include_tick),
+    )
+    return str(pack_key_hash), prepared
+
+
+def _spot_build_series_pack(
+    *,
+    cfg: ConfigBundle,
+    signal_bars: list[Bar],
+    exec_bars: list[Bar],
+    regime_bars: list[Bar] | None,
+    regime2_bars: list[Bar] | None,
+    tick_bars: list[Bar] | None,
+    include_rv: bool,
+    include_volume: bool,
+    include_tick: bool,
+) -> _SpotSeriesPack:
+    strat = cfg.strategy
+    filters = strat.filters
+    use_persist = bool(getattr(cfg.backtest, "offline", False))
+    core_key, pack_key, pack_key_hash, vol_period = _spot_series_pack_key_info(
+        cfg=cfg,
+        signal_bars=signal_bars,
+        exec_bars=exec_bars,
+        regime_bars=regime_bars,
+        regime2_bars=regime2_bars,
+        tick_bars=tick_bars,
+        include_rv=bool(include_rv),
+        include_volume=bool(include_volume),
+        include_tick=bool(include_tick),
+    )
+    cached_pack = _SERIES_CACHE.get(namespace=_SPOT_SERIES_PACK_NAMESPACE, key=pack_key)
+    if isinstance(cached_pack, _SpotSeriesPack):
+        return cached_pack
+    pack_loaded: _SpotSeriesPack | None = None
+    if bool(use_persist):
+        pack_loaded = _spot_series_pack_mmap_persistent_get(
+            cache_dir=cfg.backtest.cache_dir,
+            key_hash=str(pack_key_hash),
+        )
+        if pack_loaded is None:
+            pack_loaded = _spot_series_pack_persistent_get(
+                cache_dir=cfg.backtest.cache_dir,
+                key_hash=str(pack_key_hash),
+            )
+    if pack_loaded is not None:
+        _SERIES_CACHE.set(namespace=_SPOT_SERIES_PACK_NAMESPACE, key=pack_key, value=pack_loaded)
+        return pack_loaded
+
+    core_cached = _SERIES_CACHE.get(namespace=_SPOT_SERIES_CORE_NAMESPACE, key=core_key)
+    core = core_cached if isinstance(core_cached, _SpotSeriesCorePack) else None
+    if core is None:
+        key_hash = hashlib.sha1(repr(core_key).encode("utf-8")).hexdigest()
+        core_loaded = (
+            _spot_series_core_persistent_get(cache_dir=cfg.backtest.cache_dir, key_hash=str(key_hash))
+            if bool(use_persist)
+            else None
+        )
+        if core_loaded is None:
+            core_loaded = _SpotSeriesCorePack(
+                align=_spot_exec_alignment(signal_bars, exec_bars),
+                signal_series=_spot_signal_series(
+                    cfg=cfg,
+                    signal_bars=signal_bars,
+                    regime_bars=regime_bars,
+                    regime2_bars=regime2_bars,
+                ),
+                tick_series=(
+                    _spot_tick_gate_series(
+                        signal_bars=signal_bars,
+                        tick_bars=tick_bars,
+                        strategy=strat,
+                    )
+                    if bool(include_tick)
+                    else None
+                ),
+            )
+            if bool(use_persist):
+                _spot_series_core_persistent_set(
+                    cache_dir=cfg.backtest.cache_dir,
+                    key_hash=str(key_hash),
+                    payload=core_loaded,
+                )
+        _SERIES_CACHE.set(namespace=_SPOT_SERIES_CORE_NAMESPACE, key=core_key, value=core_loaded)
+        core = core_loaded
+
+    st_src_for_shock = str(getattr(strat, "supertrend_source", "hl2") or "hl2").strip().lower() or "hl2"
+    shock_series = _spot_shock_series(
+        signal_bars=signal_bars,
+        exec_bars=exec_bars,
+        regime_bars=regime_bars,
+        filters=filters,
+        st_src_for_shock=st_src_for_shock,
+    )
+    risk_by_day = _spot_risk_overlay_flags_by_day(exec_bars, filters)
+
+    rv_series: _SpotRvSeries | None = None
+    if bool(include_rv) and filters is not None:
+        rv_series = _spot_rv_series(
+            signal_bars=signal_bars,
+            rv_lookback=int(cfg.synthetic.rv_lookback),
+            rv_ewma_lambda=float(cfg.synthetic.rv_ewma_lambda),
+            bar_size=str(cfg.backtest.bar_size),
+            use_rth=bool(cfg.backtest.use_rth),
+        )
+
+    volume_series: _SpotVolumeEmaSeries | None = None
+    if bool(include_volume) and filters is not None:
+        volume_series = _spot_volume_ema_series(signal_bars=signal_bars, period=int(vol_period))
+
+    out = _SpotSeriesPack(
+        core=core,
+        shock_series=shock_series,
+        risk_by_day=risk_by_day,
+        rv_series=rv_series,
+        volume_series=volume_series,
+    )
+    _SERIES_CACHE.set(namespace=_SPOT_SERIES_PACK_NAMESPACE, key=pack_key, value=out)
+    if bool(use_persist):
+        mmap_written = _spot_series_pack_mmap_persistent_set(
+            cache_dir=cfg.backtest.cache_dir,
+            key_hash=str(pack_key_hash),
+            payload=out,
+        )
+        if not bool(mmap_written):
+            _spot_series_pack_persistent_set(
+                cache_dir=cfg.backtest.cache_dir,
+                key_hash=str(pack_key_hash),
+                payload=out,
+            )
+    return out
+
+
+def _spot_direction_allowed(
+    *,
+    entry_dir: str | None,
+    needs_direction: bool,
+    directional_spot: object | None,
+) -> str | None:
+    if bool(needs_direction):
+        if entry_dir is None:
+            return None
+        if directional_spot is None:
+            return None
+        try:
+            return str(entry_dir) if str(entry_dir) in directional_spot else None
+        except Exception:
+            return None
+    return "up" if str(entry_dir) == "up" else None
+
+
+def _spot_resolve_entry_dir(
+    *,
+    signal: EmaDecisionSnapshot | None,
+    entry_dir: str | None,
+    ema_needed: bool,
+    sig_idx: int | None,
+    tick_mode: str,
+    tick_series: _SpotTickGateSeries | None,
+    tick_neutral_policy: str,
+    needs_direction: bool,
+    directional_spot: object | None,
+) -> tuple[str | None, bool]:
+    ema_ready = bool(signal is not None and bool(getattr(signal, "ema_ready", False)))
+    resolved = entry_dir
+    if resolved is None and signal is not None:
+        resolved = signal.entry_dir
+    if bool(ema_needed) and not bool(ema_ready):
+        resolved = None
+    if (
+        str(tick_mode) != "off"
+        and tick_series is not None
+        and sig_idx is not None
+        and 0 <= int(sig_idx) < len(tick_series.tick_ready_by_sig_idx)
+    ):
+        tick_ready = bool(tick_series.tick_ready_by_sig_idx[int(sig_idx)])
+        tick_dir_raw = tick_series.tick_dir_by_sig_idx[int(sig_idx)]
+        tick_dir = str(tick_dir_raw) if tick_dir_raw in ("up", "down") else None
+        resolved = _spot_apply_tick_gate_to_entry_dir(
+            entry_dir=resolved,
+            tick_ready=bool(tick_ready),
+            tick_dir=tick_dir,
+            tick_neutral_policy=str(tick_neutral_policy),
+        )
+    resolved = _spot_direction_allowed(
+        entry_dir=resolved,
+        needs_direction=bool(needs_direction),
+        directional_spot=directional_spot,
+    )
+    return resolved, bool(ema_ready)
+
+
+def _spot_exec_profile(strategy: object) -> _SpotExecProfile:
+    runtime = spot_runtime_spec_view(
+        strategy=strategy,
+        filters=getattr(strategy, "filters", None),
+    )
+    return _SpotExecProfile(
+        entry_fill_mode=str(runtime.entry_fill_mode),
+        flip_fill_mode=str(runtime.flip_exit_fill_mode),
+        exit_mode=str(runtime.exit_mode),
+        intrabar_exits=bool(runtime.intrabar_exits),
+        close_eod=bool(runtime.close_eod),
+        spread=float(runtime.spread),
+        commission_per_share=float(runtime.commission_per_share),
+        commission_min=float(runtime.commission_min),
+        slippage_per_share=float(runtime.slippage_per_share),
+        mark_to_market=str(runtime.mark_to_market),
+        drawdown_mode=str(runtime.drawdown_mode),
+    )
+
+
+def _spot_rv_series(
+    *,
+    signal_bars: list[Bar],
+    rv_lookback: int,
+    rv_ewma_lambda: float,
+    bar_size: str,
+    use_rth: bool,
+) -> _SpotRvSeries:
+    key = (id(signal_bars), int(rv_lookback), float(rv_ewma_lambda), str(bar_size), bool(use_rth))
+    cached = _SERIES_CACHE.get(namespace=_SPOT_RV_SERIES_NAMESPACE, key=key)
+    if isinstance(cached, _SpotRvSeries):
+        return cached
+
+    lb = max(1, int(rv_lookback))
+    lam = float(rv_ewma_lambda)
+    returns: deque[float] = deque(maxlen=lb)
+    prev_close: float | None = None
+    rv_by_sig_idx: list[float | None] = [None] * len(signal_bars)
+    for i, bar in enumerate(signal_bars):
+        close = float(bar.close)
+        if close <= 0:
+            continue
+        if prev_close is not None and float(prev_close) > 0 and close > 0:
+            returns.append(math.log(close / float(prev_close)))
+        prev_close = float(close)
+        rv = annualized_ewma_vol(returns, lam=lam, bar_size=str(bar_size), use_rth=bool(use_rth))
+        rv_by_sig_idx[i] = float(rv) if rv is not None else None
+
+    out = _SpotRvSeries(rv_by_sig_idx=rv_by_sig_idx)
+    _SERIES_CACHE.set(namespace=_SPOT_RV_SERIES_NAMESPACE, key=key, value=out)
+    return out
+
+
+def _spot_volume_ema_series(*, signal_bars: list[Bar], period: int) -> _SpotVolumeEmaSeries:
+    p = max(1, int(period))
+    key = (id(signal_bars), int(p))
+    cached = _SERIES_CACHE.get(namespace=_SPOT_VOLUME_EMA_SERIES_NAMESPACE, key=key)
+    if isinstance(cached, _SpotVolumeEmaSeries):
+        return cached
+
+    ema: float | None = None
+    count = 0
+    ema_by_sig_idx: list[float | None] = [None] * len(signal_bars)
+    ready_by_sig_idx: list[bool] = [False] * len(signal_bars)
+    for i, bar in enumerate(signal_bars):
+        vol = float(bar.volume) if bar.volume is not None else 0.0
+        ema = ema_next(ema, float(vol), int(p))
+        count += 1
+        ema_by_sig_idx[i] = float(ema) if ema is not None else None
+        ready_by_sig_idx[i] = bool(count >= int(p))
+
+    out = _SpotVolumeEmaSeries(volume_ema_by_sig_idx=ema_by_sig_idx, volume_ema_ready_by_sig_idx=ready_by_sig_idx)
+    _SERIES_CACHE.set(namespace=_SPOT_VOLUME_EMA_SERIES_NAMESPACE, key=key, value=out)
+    return out
+
+
+def _spot_signal_series(
+    *,
+    cfg: ConfigBundle,
+    signal_bars: list[Bar],
+    regime_bars: list[Bar] | None,
+    regime2_bars: list[Bar] | None,
+) -> _SpotSignalSeries:
+    """Precompute EMA/regime-gated signal snapshots once per bar set + strategy params.
+
+    This intentionally runs with `filters=None` so the series is reusable across the sweep
+    (permission gates / shock / overlays are evaluated per-config).
+    """
+    strat = cfg.strategy
+    key = (
+        id(signal_bars),
+        id(regime_bars) if regime_bars else 0,
+        id(regime2_bars) if regime2_bars else 0,
+        *_spot_signal_series_signature(cfg=cfg),
+    )
+    cached = _SERIES_CACHE.get(namespace=_SPOT_SIGNAL_SERIES_NAMESPACE, key=key)
+    if isinstance(cached, _SpotSignalSeries):
+        return cached
 
     from ..spot_engine import SpotSignalEvaluator
 
@@ -575,6 +1847,7 @@ def _spot_signal_series(
         filters=None,
         bar_size=str(cfg.backtest.bar_size),
         use_rth=bool(cfg.backtest.use_rth),
+        naive_ts_mode="utc",
         rv_lookback=int(cfg.synthetic.rv_lookback),
         rv_ewma_lambda=float(cfg.synthetic.rv_ewma_lambda),
         regime_bars=regime_bars,
@@ -599,7 +1872,7 @@ def _spot_signal_series(
         entry_dir_by_sig_idx=entry_dir_by_sig_idx,
         entry_branch_by_sig_idx=entry_branch_by_sig_idx,
     )
-    _SPOT_SIGNAL_SERIES_CACHE[key] = out
+    _SERIES_CACHE.set(namespace=_SPOT_SIGNAL_SERIES_NAMESPACE, key=key, value=out)
     return out
 
 
@@ -629,8 +1902,8 @@ def _spot_flip_trees(
         str(ema_entry_mode or ""),
         "only_profit",
     )
-    cached = _SPOT_FLIP_TREE_CACHE.get(key)
-    if cached is not None:
+    cached = _SERIES_CACHE.get(namespace=_SPOT_FLIP_TREE_NAMESPACE, key=key)
+    if isinstance(cached, tuple) and len(cached) == 2:
         return cached  # type: ignore[return-value]
 
     closes = [float(b.close) for b in signal_bars]
@@ -657,7 +1930,7 @@ def _spot_flip_trees(
     long_tree = _MaxFirstGtTree(up_vals)
     short_tree = _MaxFirstGtTree(down_vals)
     out = (long_tree, short_tree)
-    _SPOT_FLIP_TREE_CACHE[key] = out
+    _SERIES_CACHE.set(namespace=_SPOT_FLIP_TREE_NAMESPACE, key=key, value=out)
     return out
 
 
@@ -678,8 +1951,8 @@ def _spot_flip_next_sig_idx(
         str(flip_exit_mode or ""),
         str(ema_entry_mode or ""),
     )
-    cached = _SPOT_FLIP_NEXT_SIG_CACHE.get(key)
-    if cached is not None:
+    cached = _SERIES_CACHE.get(namespace=_SPOT_FLIP_NEXT_SIG_NAMESPACE, key=key)
+    if isinstance(cached, tuple) and len(cached) == 2:
         return cached
 
     n = len(signal_series.signal_by_sig_idx)
@@ -719,14 +1992,14 @@ def _spot_flip_next_sig_idx(
         next_down[i] = int(nxt)
 
     out = (next_up, next_down)
-    _SPOT_FLIP_NEXT_SIG_CACHE[key] = out
+    _SERIES_CACHE.set(namespace=_SPOT_FLIP_NEXT_SIG_NAMESPACE, key=key, value=out)
     return out
 
 
 def _spot_daily_ohlc(exec_bars: list[Bar]) -> list[_SpotDailyOhlc]:
     key = id(exec_bars)
-    cached = _SPOT_DAILY_OHLC_CACHE.get(key)
-    if cached is not None:
+    cached = _SERIES_CACHE.get(namespace=_SPOT_DAILY_OHLC_NAMESPACE, key=key)
+    if isinstance(cached, list):
         return cached
     out: list[_SpotDailyOhlc] = []
     cur_day: date | None = None
@@ -736,7 +2009,7 @@ def _spot_daily_ohlc(exec_bars: list[Bar]) -> list[_SpotDailyOhlc]:
     day_close = 0.0
     last_ts: datetime | None = None
     for bar in exec_bars:
-        d = bar.ts.date()
+        d = _trade_date(bar.ts)
         if cur_day != d:
             if cur_day is not None and last_ts is not None:
                 out.append(
@@ -771,7 +2044,7 @@ def _spot_daily_ohlc(exec_bars: list[Bar]) -> list[_SpotDailyOhlc]:
                 close=float(day_close),
             )
         )
-    _SPOT_DAILY_OHLC_CACHE[key] = out
+    _SERIES_CACHE.set(namespace=_SPOT_DAILY_OHLC_NAMESPACE, key=key, value=out)
     return out
 
 
@@ -802,8 +2075,8 @@ def _spot_risk_overlay_flags_by_day(exec_bars: list[Bar], filters: object | None
         getattr(filters, "riskpop_tr5_med_delta_lookback_days", None),
     )
     cache_key = (id(exec_bars), risk_key)
-    cached = _SPOT_RISK_OVERLAY_DAY_CACHE.get(cache_key)
-    if cached is not None:
+    cached = _SERIES_CACHE.get(namespace=_SPOT_RISK_OVERLAY_DAY_NAMESPACE, key=cache_key)
+    if isinstance(cached, dict):
         return cached
     by_day: dict[date, object] = {}
     for day_bar in _spot_daily_ohlc(exec_bars):
@@ -814,9 +2087,10 @@ def _spot_risk_overlay_flags_by_day(exec_bars: list[Bar], filters: object | None
             low=float(day_bar.low),
             close=float(day_bar.close),
             is_last_bar=True,
+            trade_day=day_bar.day,
         )
         by_day[day_bar.day] = snap
-    _SPOT_RISK_OVERLAY_DAY_CACHE[cache_key] = by_day
+    _SERIES_CACHE.set(namespace=_SPOT_RISK_OVERLAY_DAY_NAMESPACE, key=cache_key, value=by_day)
     return by_day
 
 
@@ -945,9 +2219,9 @@ def _spot_shock_series(
         shock_key = (*shock_key, scale_key)
 
     cache_key = (id(exec_bars), id(signal_bars), id(regime_bars) if regime_bars else 0, shock_key)
-    cached = _SPOT_SHOCK_SERIES_CACHE.get(cache_key)
-    if cached is not None:
-        return cached  # type: ignore[return-value]
+    cached = _SERIES_CACHE.get(namespace=_SPOT_SHOCK_SERIES_NAMESPACE, key=cache_key)
+    if isinstance(cached, _SpotShockSeries):
+        return cached
 
     shock_by_sig_idx: list[bool | None] = [None] * len(signal_bars)
     shock_atr_pct_by_sig_idx: list[float | None] = [None] * len(signal_bars)
@@ -1003,7 +2277,7 @@ def _spot_shock_series(
             last = None
             for i, bar in enumerate(exec_bars):
                 last = scale_engine.update(
-                    day=bar.ts.date(),
+                    day=_trade_date(bar.ts),
                     high=float(bar.high),
                     low=float(bar.low),
                     close=float(bar.close),
@@ -1053,14 +2327,14 @@ def _spot_shock_series(
                 shock_atr_pct_by_sig_idx=shock_atr_pct_by_sig_idx,
                 shock_dir_by_sig_idx=shock_dir_by_sig_idx,
             )
-            _SPOT_SHOCK_SERIES_CACHE[cache_key] = out
+            _SERIES_CACHE.set(namespace=_SPOT_SHOCK_SERIES_NAMESPACE, key=cache_key, value=out)
             return out
 
         # 1) advance shock state by exec bars
         last_shock = None
         for i, bar in enumerate(exec_bars):
             last_shock = shock_engine.update(
-                day=bar.ts.date(),
+                day=_trade_date(bar.ts),
                 high=float(bar.high),
                 low=float(bar.low),
                 close=float(bar.close),
@@ -1126,7 +2400,7 @@ def _spot_shock_series(
             shock_atr_pct_by_sig_idx=shock_atr_pct_by_sig_idx,
             shock_dir_by_sig_idx=shock_dir_by_sig_idx,
         )
-        _SPOT_SHOCK_SERIES_CACHE[cache_key] = out
+        _SERIES_CACHE.set(namespace=_SPOT_SHOCK_SERIES_NAMESPACE, key=cache_key, value=out)
         return out
 
     # Non-daily detectors: shock is advanced on regime bars (if provided) and read on signal closes.
@@ -1140,7 +2414,7 @@ def _spot_shock_series(
             shock_atr_pct_by_sig_idx=shock_atr_pct_by_sig_idx,
             shock_dir_by_sig_idx=shock_dir_by_sig_idx,
         )
-        _SPOT_SHOCK_SERIES_CACHE[cache_key] = out
+        _SERIES_CACHE.set(namespace=_SPOT_SHOCK_SERIES_NAMESPACE, key=cache_key, value=out)
         return out
 
     use_mtf = bool(regime_bars)
@@ -1221,14 +2495,14 @@ def _spot_shock_series(
         shock_atr_pct_by_sig_idx=shock_atr_pct_by_sig_idx,
         shock_dir_by_sig_idx=shock_dir_by_sig_idx,
     )
-    _SPOT_SHOCK_SERIES_CACHE[cache_key] = out
+    _SERIES_CACHE.set(namespace=_SPOT_SHOCK_SERIES_NAMESPACE, key=cache_key, value=out)
     return out
 
 
 def _spot_dd_trees(*, exec_bars: list[Bar], spread: float, mark_to_market: str) -> tuple[_SpotDdTreeLong, _SpotDdTreeShort]:
     key = (id(exec_bars), float(spread), str(mark_to_market or "close"))
-    cached = _SPOT_DD_TREES_CACHE.get(key)
-    if cached is not None:
+    cached = _SERIES_CACHE.get(namespace=_SPOT_DD_TREES_NAMESPACE, key=key)
+    if isinstance(cached, tuple) and len(cached) == 2:
         return cached[0], cached[1]  # type: ignore[return-value]
 
     half = max(0.0, float(spread)) / 2.0 if str(mark_to_market).strip().lower() == "liquidation" else 0.0
@@ -1245,8 +2519,35 @@ def _spot_dd_trees(*, exec_bars: list[Bar], spread: float, mark_to_market: str) 
 
     long_tree = _SpotDdTreeLong(close_vals=close_long, low_vals=low_long)
     short_tree = _SpotDdTreeShort(close_vals=close_short, high_vals=high_short)
-    _SPOT_DD_TREES_CACHE[key] = (long_tree, short_tree)
+    _SERIES_CACHE.set(namespace=_SPOT_DD_TREES_NAMESPACE, key=key, value=(long_tree, short_tree))
     return long_tree, short_tree
+
+
+def _spot_effective_pct(base_pct: float | None, *, mult: float, shock_on: bool) -> float | None:
+    if base_pct is None:
+        return None
+    pct = float(base_pct)
+    if pct <= 0:
+        return None
+    if bool(shock_on):
+        pct *= float(mult)
+    if pct <= 0:
+        return None
+    return min(float(pct), 0.99)
+
+
+def _spot_effective_pct_by_exec_idx(
+    *,
+    shock_by_exec_idx: list[bool | None],
+    base_pct: float | None,
+    mult: float,
+) -> list[float | None]:
+    out: list[float | None] = [None] * len(shock_by_exec_idx)
+    for i in range(len(shock_by_exec_idx)):
+        prev = shock_by_exec_idx[i - 1] if i > 0 else None
+        shock_on = bool(prev) if prev is not None else False
+        out[i] = _spot_effective_pct(base_pct, mult=float(mult), shock_on=bool(shock_on))
+    return out
 
 
 def _spot_stop_tree(
@@ -1271,14 +2572,14 @@ def _spot_stop_tree(
         str(direction),
         str(mode),
     )
-    cached = _SPOT_STOP_TREE_CACHE.get(cache_key)
+    cached = _SERIES_CACHE.get(namespace=_SPOT_STOP_TREE_NAMESPACE, key=cache_key)
     if cached is not None:
         return cached
 
     stop_pct = float(base_stop_pct)
     if stop_pct <= 0 or stop_pct >= 0.99:
         tree: object = _MinFirstLeqTree([])  # unused, but keeps types simple
-        _SPOT_STOP_TREE_CACHE[cache_key] = tree
+        _SERIES_CACHE.set(namespace=_SPOT_STOP_TREE_NAMESPACE, key=cache_key, value=tree)
         return tree
 
     mult = float(shock_stop_mult)
@@ -1286,29 +2587,28 @@ def _spot_stop_tree(
         mult = 1.0
 
     shock_by_exec = shock.shock_by_exec_idx
+    stop_pct_by_exec = _spot_effective_pct_by_exec_idx(
+        shock_by_exec_idx=shock_by_exec,
+        base_pct=float(stop_pct),
+        mult=float(mult),
+    )
     if str(direction) == "up":
         triggers: list[float] = []
         for i, bar in enumerate(exec_bars):
-            prev = shock_by_exec[i - 1] if i > 0 else None
-            shock_on = bool(prev) if prev is not None else False
-            pct_eff = stop_pct * (mult if shock_on else 1.0)
-            pct_eff = min(max(0.0, float(pct_eff)), 0.99)
+            pct_eff = float(stop_pct_by_exec[i] if stop_pct_by_exec[i] is not None else 0.0)
             denom = max(1e-9, 1.0 - float(pct_eff))
             triggers.append(float(bar.low) / denom)
         tree = _MinFirstLeqTree(triggers)
     else:
         triggers = []
         for i, bar in enumerate(exec_bars):
-            prev = shock_by_exec[i - 1] if i > 0 else None
-            shock_on = bool(prev) if prev is not None else False
-            pct_eff = stop_pct * (mult if shock_on else 1.0)
-            pct_eff = min(max(0.0, float(pct_eff)), 0.99)
+            pct_eff = float(stop_pct_by_exec[i] if stop_pct_by_exec[i] is not None else 0.0)
             denom = 1.0 + float(pct_eff)
             denom = max(1e-9, float(denom))
             triggers.append(float(bar.high) / denom)
         tree = _MaxFirstGeTree(triggers)
 
-    _SPOT_STOP_TREE_CACHE[cache_key] = tree
+    _SERIES_CACHE.set(namespace=_SPOT_STOP_TREE_NAMESPACE, key=cache_key, value=tree)
     return tree
 
 
@@ -1334,14 +2634,14 @@ def _spot_profit_tree(
         str(direction),
         str(mode),
     )
-    cached = _SPOT_PROFIT_TREE_CACHE.get(cache_key)
+    cached = _SERIES_CACHE.get(namespace=_SPOT_PROFIT_TREE_NAMESPACE, key=cache_key)
     if cached is not None:
         return cached
 
     pt_pct = float(base_profit_pct)
     if pt_pct <= 0 or pt_pct >= 0.99:
         tree: object = _MaxFirstGeTree([])  # unused, but keeps types simple
-        _SPOT_PROFIT_TREE_CACHE[cache_key] = tree
+        _SERIES_CACHE.set(namespace=_SPOT_PROFIT_TREE_NAMESPACE, key=cache_key, value=tree)
         return tree
 
     mult = float(shock_profit_mult)
@@ -1349,13 +2649,15 @@ def _spot_profit_tree(
         mult = 1.0
 
     shock_by_exec = shock.shock_by_exec_idx
+    profit_pct_by_exec = _spot_effective_pct_by_exec_idx(
+        shock_by_exec_idx=shock_by_exec,
+        base_pct=float(pt_pct),
+        mult=float(mult),
+    )
     if str(direction) == "up":
         triggers: list[float] = []
         for i, bar in enumerate(exec_bars):
-            prev = shock_by_exec[i - 1] if i > 0 else None
-            shock_on = bool(prev) if prev is not None else False
-            pct_eff = pt_pct * (mult if shock_on else 1.0)
-            pct_eff = min(max(0.0, float(pct_eff)), 0.99)
+            pct_eff = float(profit_pct_by_exec[i] if profit_pct_by_exec[i] is not None else 0.0)
             denom = 1.0 + float(pct_eff)
             denom = max(1e-9, float(denom))
             triggers.append(float(bar.high) / denom)
@@ -1363,15 +2665,12 @@ def _spot_profit_tree(
     else:
         triggers = []
         for i, bar in enumerate(exec_bars):
-            prev = shock_by_exec[i - 1] if i > 0 else None
-            shock_on = bool(prev) if prev is not None else False
-            pct_eff = pt_pct * (mult if shock_on else 1.0)
-            pct_eff = min(max(0.0, float(pct_eff)), 0.99)
+            pct_eff = float(profit_pct_by_exec[i] if profit_pct_by_exec[i] is not None else 0.0)
             denom = max(1e-9, 1.0 - float(pct_eff))
             triggers.append(float(bar.low) / denom)
         tree = _MinFirstLeqTree(triggers)
 
-    _SPOT_PROFIT_TREE_CACHE[cache_key] = tree
+    _SERIES_CACHE.set(namespace=_SPOT_PROFIT_TREE_NAMESPACE, key=cache_key, value=tree)
     return tree
 
 
@@ -1384,6 +2683,30 @@ class BacktestResult:
     trades: list[OptionTrade | SpotTrade]
     equity: list[EquityPoint]
     summary: SummaryStats
+    lifecycle_trace: list[dict[str, object]] | None = None
+
+
+def _load_backtest_series(
+    *,
+    data: IBKRHistoricalData,
+    cfg: ConfigBundle,
+    symbol: str,
+    exchange: str | None,
+    start: datetime,
+    end: datetime,
+    bar_size: str,
+    use_rth: bool,
+) -> BarSeries[Bar]:
+    loader = data.load_cached_bar_series if bool(cfg.backtest.offline) else data.load_or_fetch_bar_series
+    return loader(
+        symbol=symbol,
+        exchange=exchange,
+        start=start,
+        end=end,
+        bar_size=str(bar_size),
+        use_rth=bool(use_rth),
+        cache_dir=cfg.backtest.cache_dir,
+    )
 
 
 def _load_backtest_bars(
@@ -1397,16 +2720,16 @@ def _load_backtest_bars(
     bar_size: str,
     use_rth: bool,
 ) -> list[Bar]:
-    loader = data.load_cached_bars if bool(cfg.backtest.offline) else data.load_or_fetch_bars
-    return loader(
+    return _load_backtest_series(
+        data=data,
+        cfg=cfg,
         symbol=symbol,
         exchange=exchange,
         start=start,
         end=end,
-        bar_size=str(bar_size),
-        use_rth=bool(use_rth),
-        cache_dir=cfg.backtest.cache_dir,
-    )
+        bar_size=bar_size,
+        use_rth=use_rth,
+    ).as_list()
 
 
 def _load_backtest_bars_offline_fallback_start(
@@ -1420,9 +2743,9 @@ def _load_backtest_bars_offline_fallback_start(
     end: datetime,
     bar_size: str,
     use_rth: bool,
-) -> list[Bar]:
+) -> BarSeries[Bar]:
     if not bool(cfg.backtest.offline) or start == fallback_start:
-        return _load_backtest_bars(
+        return _load_backtest_series(
             data=data,
             cfg=cfg,
             symbol=symbol,
@@ -1433,7 +2756,7 @@ def _load_backtest_bars_offline_fallback_start(
             use_rth=use_rth,
         )
     try:
-        return _load_backtest_bars(
+        return _load_backtest_series(
             data=data,
             cfg=cfg,
             symbol=symbol,
@@ -1444,7 +2767,7 @@ def _load_backtest_bars_offline_fallback_start(
             use_rth=use_rth,
         )
     except FileNotFoundError:
-        return _load_backtest_bars(
+        return _load_backtest_series(
             data=data,
             cfg=cfg,
             symbol=symbol,
@@ -1484,110 +2807,55 @@ def _resolve_backtest_contract_meta(*, data: IBKRHistoricalData, cfg: ConfigBund
     return resolved
 
 
-def _int_attr(obj: object, name: str, default: int) -> int:
-    try:
-        return int(getattr(obj, name, default) or default)
-    except (TypeError, ValueError):
-        return int(default)
-
-
 def _load_spot_backtest_context_bars(
     *,
     data: IBKRHistoricalData,
     cfg: ConfigBundle,
     start_dt: datetime,
     end_dt: datetime,
-) -> tuple[list[Bar] | None, list[Bar] | None, list[Bar] | None, list[Bar] | None]:
-    _regime_mode, _regime_preset, regime_bar, use_mtf_regime = resolve_spot_regime_spec(
-        bar_size=cfg.backtest.bar_size,
-        regime_mode_raw=getattr(cfg.strategy, "regime_mode", "ema"),
-        regime_ema_preset_raw=getattr(cfg.strategy, "regime_ema_preset", None),
-        regime_bar_size_raw=getattr(cfg.strategy, "regime_bar_size", None),
+) -> tuple[BarSeries[Bar] | None, BarSeries[Bar] | None, BarSeries[Bar] | None, BarSeries[Bar] | None]:
+    def _load_requirement(req: SpotBarRequirement, req_start: datetime, req_end: datetime):
+        if str(req.kind) == "regime":
+            return _load_backtest_bars_offline_fallback_start(
+                data=data,
+                cfg=cfg,
+                symbol=req.symbol,
+                exchange=req.exchange,
+                start=req_start,
+                fallback_start=start_dt,
+                end=req_end,
+                bar_size=str(req.bar_size),
+                use_rth=bool(req.use_rth),
+            )
+        return _load_backtest_series(
+            data=data,
+            cfg=cfg,
+            symbol=req.symbol,
+            exchange=req.exchange,
+            start=req_start,
+            end=req_end,
+            bar_size=str(req.bar_size),
+            use_rth=bool(req.use_rth),
+        )
+
+    context = load_spot_context_bars(
+        strategy=cfg.strategy,
+        default_symbol=str(cfg.strategy.symbol),
+        default_exchange=cfg.strategy.exchange,
+        default_signal_bar_size=str(cfg.backtest.bar_size),
+        default_signal_use_rth=bool(cfg.backtest.use_rth),
+        start_dt=start_dt,
+        end_dt=end_dt,
+        load_requirement=_load_requirement,
     )
-    regime_bars = None
-    if use_mtf_regime:
-        # Shock overlays can need longer warmup than the base regime engine.
-        regime_start_dt = start_dt
-        filters = getattr(cfg.strategy, "filters", None)
-        if normalize_shock_gate_mode(filters) != "off":
-            slow_p = _int_attr(filters, "shock_atr_slow_period", 50)
-            regime_start_dt = start_dt - timedelta(days=max(30, int(slow_p)))
-        regime_bars = _load_backtest_bars_offline_fallback_start(
-            data=data,
-            cfg=cfg,
-            symbol=cfg.strategy.symbol,
-            exchange=cfg.strategy.exchange,
-            start=regime_start_dt,
-            fallback_start=start_dt,
-            end=end_dt,
-            bar_size=str(regime_bar),
-            use_rth=cfg.backtest.use_rth,
-        )
-
-    _regime2_mode, _regime2_preset, regime2_bar, use_mtf_regime2 = resolve_spot_regime2_spec(
-        bar_size=cfg.backtest.bar_size,
-        regime2_mode_raw=getattr(cfg.strategy, "regime2_mode", "off"),
-        regime2_ema_preset_raw=getattr(cfg.strategy, "regime2_ema_preset", None),
-        regime2_bar_size_raw=getattr(cfg.strategy, "regime2_bar_size", None),
-    )
-    regime2_bars = None
-    if use_mtf_regime2:
-        regime2_bars = _load_backtest_bars(
-            data=data,
-            cfg=cfg,
-            symbol=cfg.strategy.symbol,
-            exchange=cfg.strategy.exchange,
-            start=start_dt,
-            end=end_dt,
-            bar_size=str(regime2_bar),
-            use_rth=cfg.backtest.use_rth,
-        )
-
-    tick_bars = None
-    tick_mode = str(getattr(cfg.strategy, "tick_gate_mode", "off") or "off").strip().lower()
-    if tick_mode not in ("off", "raschke"):
-        tick_mode = "off"
-    if tick_mode != "off":
-        tick_warm_days = max(
-            60,
-            _int_attr(cfg.strategy, "tick_width_z_lookback", 252)
-            + _int_attr(cfg.strategy, "tick_band_ma_period", 10)
-            + _int_attr(cfg.strategy, "tick_width_slope_lookback", 3)
-            + 5,
-        )
-        tick_bars = _load_backtest_bars(
-            data=data,
-            cfg=cfg,
-            symbol=str(getattr(cfg.strategy, "tick_gate_symbol", "TICK-NYSE") or "TICK-NYSE").strip(),
-            exchange=str(getattr(cfg.strategy, "tick_gate_exchange", "NYSE") or "NYSE").strip(),
-            start=start_dt - timedelta(days=tick_warm_days),
-            end=end_dt,
-            bar_size="1 day",
-            use_rth=True,
-        )
-
-    exec_bars = None
-    exec_bar_size = str(getattr(cfg.strategy, "spot_exec_bar_size", "") or "").strip()
-    if exec_bar_size and str(exec_bar_size) != str(cfg.backtest.bar_size):
-        exec_bars = _load_backtest_bars(
-            data=data,
-            cfg=cfg,
-            symbol=cfg.strategy.symbol,
-            exchange=cfg.strategy.exchange,
-            start=start_dt,
-            end=end_dt,
-            bar_size=str(exec_bar_size),
-            use_rth=cfg.backtest.use_rth,
-        )
-
-    return regime_bars, regime2_bars, tick_bars, exec_bars
+    return context.regime_bars, context.regime2_bars, context.tick_bars, context.exec_bars
 
 
 def run_backtest(cfg: ConfigBundle) -> BacktestResult:
     data = IBKRHistoricalData()
     start_dt = datetime.combine(cfg.backtest.start, time(0, 0))
     end_dt = datetime.combine(cfg.backtest.end, time(23, 59))
-    bars = _load_backtest_bars(
+    bar_series = _load_backtest_series(
         data=data,
         cfg=cfg,
         symbol=cfg.strategy.symbol,
@@ -1597,6 +2865,7 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
         bar_size=cfg.backtest.bar_size,
         use_rth=cfg.backtest.use_rth,
     )
+    bars = bar_series.as_list()
     if not bars:
         raise RuntimeError("No bars loaded for backtest")
     meta = _resolve_backtest_contract_meta(data=data, cfg=cfg)
@@ -1611,7 +2880,7 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
 
         result = _run_spot_backtest(
             cfg,
-            bars,
+            bar_series,
             meta,
             regime_bars=regime_bars,
             regime2_bars=regime2_bars,
@@ -1667,32 +2936,7 @@ def _spot_liquidation_value(
 
 
 def _spot_riskoff_end_hour(filters) -> int | None:
-    if filters is None:
-        return None
-    raw_cutoff_et = getattr(filters, "risk_entry_cutoff_hour_et", None)
-    if raw_cutoff_et is not None:
-        try:
-            # Cached bars are naive ET; use raw hour to avoid timezone-shift surprises.
-            return int(raw_cutoff_et)
-        except (TypeError, ValueError):
-            return None
-
-    # Legacy fallback: allow using entry_end_hour_* as a cutoff only if a TOD window isn't set.
-    raw_start_et = getattr(filters, "entry_start_hour_et", None)
-    raw_end_et = getattr(filters, "entry_end_hour_et", None)
-    raw_start = getattr(filters, "entry_start_hour", None)
-    raw_end = getattr(filters, "entry_end_hour", None)
-    if raw_start_et is None and raw_end_et is not None:
-        try:
-            return int(raw_end_et)
-        except (TypeError, ValueError):
-            return None
-    if raw_start is None and raw_end is not None:
-        try:
-            return int(raw_end)
-        except (TypeError, ValueError):
-            return None
-    return None
+    return spot_riskoff_end_hour(filters)
 
 
 def _spot_apply_exit_accounting(
@@ -1820,30 +3064,20 @@ def _spot_entry_leg_for_direction(
     entry_dir: str | None,
     needs_direction: bool,
 ) -> SpotLegConfig | None:
-    if entry_dir not in ("up", "down"):
+    resolved = spot_resolve_entry_action_qty(
+        strategy=strategy,
+        entry_dir=entry_dir,
+        needs_direction=needs_direction,
+        fallback_short_sell=False,
+    )
+    if resolved is None:
         return None
-    if needs_direction and strategy.directional_spot:
-        return strategy.directional_spot.get(entry_dir)
-    if not needs_direction and entry_dir == "up":
-        return SpotLegConfig(action="BUY", qty=1)
-    return None
+    action, qty = resolved
+    return SpotLegConfig(action=str(action), qty=max(1, int(qty)))
 
 
 def _spot_branch_size_mult(*, strategy, entry_branch: str | None) -> float:
-    """Resolve optional branch-aware sizing multiplier (disabled by default)."""
-    if not bool(getattr(strategy, "spot_dual_branch_enabled", False)):
-        return 1.0
-    if entry_branch not in ("a", "b"):
-        return 1.0
-    key = "spot_branch_a_size_mult" if entry_branch == "a" else "spot_branch_b_size_mult"
-    raw = getattr(strategy, key, 1.0)
-    try:
-        mult = float(raw)
-    except (TypeError, ValueError):
-        return 1.0
-    if mult <= 0:
-        return 1.0
-    return float(mult)
+    return spot_branch_size_mult(strategy=strategy, entry_branch=entry_branch)
 
 
 def _spot_next_open_entry_allowed(
@@ -1855,15 +3089,14 @@ def _spot_next_open_entry_allowed(
     exit_mode: str,
     atr_value: float | None,
 ) -> bool:
-    if bool(riskoff_today):
-        if next_ts.date() != signal_ts.date():
-            return False
-        if riskoff_end_hour is not None and int(next_ts.hour) >= int(riskoff_end_hour):
-            return False
-    if str(exit_mode).strip().lower() == "atr":
-        if atr_value is None or float(atr_value) <= 0.0:
-            return False
-    return True
+    return lifecycle_next_open_entry_allowed(
+        signal_ts=signal_ts,
+        next_ts=next_ts,
+        riskoff_today=bool(riskoff_today),
+        riskoff_end_hour=riskoff_end_hour,
+        exit_mode=str(exit_mode),
+        atr_value=float(atr_value) if atr_value is not None else None,
+    )
 
 
 def _spot_entry_capacity_ok(
@@ -1874,10 +3107,205 @@ def _spot_entry_capacity_ok(
     weekday: int,
     entry_days: tuple[int, ...] | list[int],
 ) -> bool:
-    # Spot parity with live runtime: one net position at a time.
-    open_slots_ok = int(open_count) < 1
-    entries_ok = int(max_entries_per_day) == 0 or int(entries_today) < int(max_entries_per_day)
-    return bool(open_slots_ok and entries_ok and int(weekday) in entry_days)
+    return lifecycle_entry_capacity_ok(
+        open_count=int(open_count),
+        max_entries_per_day=int(max_entries_per_day),
+        entries_today=int(entries_today),
+        weekday=int(weekday),
+        entry_days=entry_days,
+    )
+
+
+def _spot_flat_entry_intent(
+    *,
+    strategy,
+    bar_ts: datetime,
+    direction: str | None,
+    filters_ok: bool,
+    entry_capacity: bool,
+    pending_exists: bool,
+    next_open_allowed: bool,
+    can_order_now: bool,
+    preflight_ok: bool,
+    stale_signal: bool,
+    gap_signal: bool,
+    exit_mode: str,
+    atr_value: float | None,
+    shock_atr_pct: float | None,
+    shock_atr_vel_pct: float | None,
+    shock_atr_accel_pct: float | None,
+    tr_ratio: float | None,
+    slope_med_pct: float | None,
+    slope_vel_pct: float | None,
+    slope_med_slow_pct: float | None,
+    slope_vel_slow_pct: float | None,
+):
+    atr_ready = bool(str(exit_mode) != "atr" or (atr_value is not None and float(atr_value) > 0.0))
+    return decide_flat_position_intent(
+        strategy=strategy,
+        bar_ts=bar_ts,
+        entry_dir=direction,
+        allowed_directions=("up", "down"),
+        can_order_now=bool(can_order_now),
+        preflight_ok=bool(preflight_ok),
+        filters_ok=bool(filters_ok),
+        entry_capacity=bool(entry_capacity),
+        stale_signal=bool(stale_signal),
+        gap_signal=bool(gap_signal),
+        pending_exists=bool(pending_exists),
+        atr_ready=bool(atr_ready),
+        next_open_allowed=bool(next_open_allowed),
+        shock_atr_pct=float(shock_atr_pct) if shock_atr_pct is not None else None,
+        shock_atr_vel_pct=float(shock_atr_vel_pct) if shock_atr_vel_pct is not None else None,
+        shock_atr_accel_pct=float(shock_atr_accel_pct) if shock_atr_accel_pct is not None else None,
+        tr_ratio=float(tr_ratio) if tr_ratio is not None else None,
+        slope_med_pct=float(slope_med_pct) if slope_med_pct is not None else None,
+        slope_vel_pct=float(slope_vel_pct) if slope_vel_pct is not None else None,
+        slope_med_slow_pct=float(slope_med_slow_pct) if slope_med_slow_pct is not None else None,
+        slope_vel_slow_pct=float(slope_vel_slow_pct) if slope_vel_slow_pct is not None else None,
+    )
+
+
+def _spot_flat_entry_decision_from_signal(
+    *,
+    strategy,
+    filters,
+    signal_bar: Bar,
+    signal: EmaDecisionSnapshot | None,
+    direction: str | None,
+    bars_in_day: int,
+    volume_ema: float | None,
+    volume_ema_ready: bool,
+    rv: float | None,
+    cooldown_ok: bool,
+    shock: bool | None,
+    shock_dir: str | None,
+    open_count: int,
+    entries_today: int,
+    pending_exists: bool,
+    next_open_allowed: bool,
+    exit_mode: str,
+    atr_value: float | None,
+    shock_atr_pct: float | None,
+    shock_atr_vel_pct: float | None,
+    shock_atr_accel_pct: float | None,
+    tr_ratio: float | None,
+    slope_med_pct: float | None,
+    slope_vel_pct: float | None,
+    slope_med_slow_pct: float | None,
+    slope_vel_slow_pct: float | None,
+):
+    filters_ok = lifecycle_signal_filters_ok(
+        filters,
+        bar_ts=signal_bar.ts,
+        bars_in_day=int(bars_in_day),
+        close=float(signal_bar.close),
+        volume=float(signal_bar.volume),
+        volume_ema=float(volume_ema) if volume_ema is not None else None,
+        volume_ema_ready=bool(volume_ema_ready),
+        rv=float(rv) if rv is not None else None,
+        signal=signal,
+        cooldown_ok=bool(cooldown_ok),
+        shock=shock,
+        shock_dir=shock_dir,
+    )
+    entry_capacity = _spot_entry_capacity_ok(
+        open_count=int(open_count),
+        max_entries_per_day=int(getattr(strategy, "max_entries_per_day", 0) or 0),
+        entries_today=int(entries_today),
+        weekday=_trade_weekday(signal_bar.ts),
+        entry_days=getattr(strategy, "entry_days", ()),
+    )
+    return _spot_flat_entry_intent(
+        strategy=strategy,
+        bar_ts=signal_bar.ts,
+        direction=direction,
+        filters_ok=bool(filters_ok),
+        entry_capacity=bool(entry_capacity),
+        pending_exists=bool(pending_exists),
+        next_open_allowed=bool(next_open_allowed),
+        can_order_now=True,
+        preflight_ok=True,
+        stale_signal=False,
+        gap_signal=False,
+        exit_mode=str(exit_mode),
+        atr_value=float(atr_value) if atr_value is not None else None,
+        shock_atr_pct=float(shock_atr_pct) if shock_atr_pct is not None else None,
+        shock_atr_vel_pct=float(shock_atr_vel_pct) if shock_atr_vel_pct is not None else None,
+        shock_atr_accel_pct=float(shock_atr_accel_pct) if shock_atr_accel_pct is not None else None,
+        tr_ratio=float(tr_ratio) if tr_ratio is not None else None,
+        slope_med_pct=float(slope_med_pct) if slope_med_pct is not None else None,
+        slope_vel_pct=float(slope_vel_pct) if slope_vel_pct is not None else None,
+        slope_med_slow_pct=float(slope_med_slow_pct) if slope_med_slow_pct is not None else None,
+        slope_vel_slow_pct=float(slope_vel_slow_pct) if slope_vel_slow_pct is not None else None,
+    )
+
+
+def _spot_open_position_intent(
+    *,
+    strategy,
+    bar_ts: datetime,
+    bar_size: str,
+    open_dir: str | None,
+    current_qty: int,
+    exit_candidates: dict[str, bool] | None = None,
+    exit_priority: tuple[str, ...] | list[str] | None = None,
+    target_qty: int | None = None,
+    spot_decision: dict[str, object] | None = None,
+    last_resize_bar_ts: datetime | None = None,
+    signal_entry_dir: str | None = None,
+    shock_atr_pct: float | None = None,
+    shock_atr_vel_pct: float | None = None,
+    shock_atr_accel_pct: float | None = None,
+    tr_ratio: float | None = None,
+    slope_med_pct: float | None = None,
+    slope_vel_pct: float | None = None,
+    slope_med_slow_pct: float | None = None,
+    slope_vel_slow_pct: float | None = None,
+):
+    return decide_open_position_intent(
+        strategy=strategy,
+        bar_ts=bar_ts,
+        bar_size=str(bar_size),
+        open_dir=str(open_dir) if open_dir in ("up", "down") else None,
+        current_qty=int(current_qty),
+        exit_candidates=exit_candidates,
+        exit_priority=exit_priority,
+        target_qty=int(target_qty) if target_qty is not None else None,
+        spot_decision=spot_decision,
+        last_resize_bar_ts=last_resize_bar_ts,
+        signal_entry_dir=str(signal_entry_dir) if signal_entry_dir in ("up", "down") else None,
+        shock_atr_pct=float(shock_atr_pct) if shock_atr_pct is not None else None,
+        shock_atr_vel_pct=float(shock_atr_vel_pct) if shock_atr_vel_pct is not None else None,
+        shock_atr_accel_pct=float(shock_atr_accel_pct) if shock_atr_accel_pct is not None else None,
+        tr_ratio=float(tr_ratio) if tr_ratio is not None else None,
+        slope_med_pct=float(slope_med_pct) if slope_med_pct is not None else None,
+        slope_vel_pct=float(slope_vel_pct) if slope_vel_pct is not None else None,
+        slope_med_slow_pct=float(slope_med_slow_pct) if slope_med_slow_pct is not None else None,
+        slope_vel_slow_pct=float(slope_vel_slow_pct) if slope_vel_slow_pct is not None else None,
+    )
+
+
+def _spot_exit_reason_from_lifecycle(
+    *,
+    lifecycle,
+    exit_candidates: dict[str, bool] | None,
+    fallback_priority: tuple[str, ...] | list[str] | None = None,
+) -> str | None:
+    if str(getattr(lifecycle, "intent", "") or "").strip().lower() == "exit":
+        reason = str(getattr(lifecycle, "reason", "") or "").strip()
+        if reason:
+            return reason
+    if not isinstance(exit_candidates, dict):
+        return None
+    for raw_reason in tuple(fallback_priority or ()):
+        reason = str(raw_reason)
+        if bool(exit_candidates.get(reason, False)):
+            return reason
+    for raw_reason, raw_hit in exit_candidates.items():
+        if bool(raw_hit):
+            return str(raw_reason)
+    return None
 
 
 def _spot_pending_entry_should_cancel(
@@ -1893,17 +3321,18 @@ def _spot_pending_entry_should_cancel(
     shock_dir_now: str | None,
     riskoff_end_hour: int | None,
 ) -> bool:
-    if not bool(risk_overlay_enabled):
-        return False
-    if not (bool(riskoff_today) or bool(riskpanic_today) or bool(riskpop_today)):
-        return False
-    if str(riskoff_mode) == "directional" and shock_dir_now in ("up", "down"):
-        return str(pending_dir) != str(shock_dir_now)
-    if pending_set_date is not None and pending_set_date != exec_ts.date():
-        return True
-    if riskoff_end_hour is not None and int(exec_ts.hour) >= int(riskoff_end_hour):
-        return True
-    return False
+    return spot_pending_entry_should_cancel(
+        pending_dir=pending_dir,
+        pending_set_date=pending_set_date,
+        exec_ts=exec_ts,
+        risk_overlay_enabled=risk_overlay_enabled,
+        riskoff_today=riskoff_today,
+        riskpanic_today=riskpanic_today,
+        riskpop_today=riskpop_today,
+        riskoff_mode=riskoff_mode,
+        shock_dir_now=shock_dir_now,
+        riskoff_end_hour=riskoff_end_hour,
+    )
 
 
 def _spot_try_open_entry(
@@ -2019,6 +3448,7 @@ def _spot_try_open_entry(
     base_stop_loss_pct = stop_loss_pct
 
     shock_on = bool(shock_now) if shock_now is not None else False
+    decision_trace_payload: dict[str, object] | None = None
     if can_open:
         sl_mult, pt_mult = spot_shock_exit_pct_multipliers(filters, shock=shock_on)
         stop_loss_pct, profit_target_pct = spot_scale_exit_pcts(
@@ -2029,7 +3459,7 @@ def _spot_try_open_entry(
         )
 
     if can_open:
-        signed_qty = spot_calc_signed_qty(
+        signed_qty, decision_trace = spot_calc_signed_qty_with_trace(
             strategy=cfg.strategy,
             filters=filters,
             action=action,
@@ -2052,18 +3482,44 @@ def _spot_try_open_entry(
             can_open = False
         else:
             size_mult = _spot_branch_size_mult(strategy=cfg.strategy, entry_branch=entry_branch)
-            if size_mult != 1.0:
-                q_sign = 1 if int(signed_qty) > 0 else -1
-                q_abs = abs(int(signed_qty))
-                scaled_abs = int(q_abs * float(size_mult))
-                if scaled_abs <= 0:
-                    scaled_abs = 1
-                max_qty = int(getattr(cfg.strategy, "spot_max_qty", 0) or 0)
-                if max_qty > 0:
-                    scaled_abs = min(int(scaled_abs), int(max_qty))
-                min_qty = max(1, int(getattr(cfg.strategy, "spot_min_qty", 1) or 1))
-                scaled_abs = max(int(min_qty), int(scaled_abs))
-                signed_qty = int(q_sign) * int(scaled_abs)
+            signed_qty = spot_apply_branch_size_mult(
+                signed_qty=int(signed_qty),
+                size_mult=float(size_mult),
+                spot_min_qty=int(getattr(cfg.strategy, "spot_min_qty", 1) or 1),
+                spot_max_qty=int(getattr(cfg.strategy, "spot_max_qty", 0) or 0),
+            )
+            decision_trace = decision_trace.with_branch_scaling(
+                entry_branch=entry_branch,
+                size_mult=float(size_mult),
+                signed_qty_after_branch=int(signed_qty),
+            )
+            lifecycle = _spot_open_position_intent(
+                strategy=cfg.strategy,
+                bar_ts=entry_time,
+                bar_size=str(cfg.backtest.bar_size),
+                open_dir=None,
+                current_qty=0,
+                target_qty=int(signed_qty),
+                spot_decision=decision_trace.as_payload(),
+                shock_atr_pct=float(shock_atr_pct_now) if shock_atr_pct_now is not None else None,
+                tr_ratio=float(getattr(risk_snapshot, "tr_ratio", 0.0))
+                if risk_snapshot is not None and getattr(risk_snapshot, "tr_ratio", None) is not None
+                else None,
+                slope_med_pct=float(getattr(risk_snapshot, "tr_median_delta_pct", 0.0))
+                if risk_snapshot is not None and getattr(risk_snapshot, "tr_median_delta_pct", None) is not None
+                else None,
+                slope_vel_pct=float(getattr(risk_snapshot, "tr_slope_vel_pct", 0.0))
+                if risk_snapshot is not None and getattr(risk_snapshot, "tr_slope_vel_pct", None) is not None
+                else None,
+            )
+            intent_decision = lifecycle.spot_intent
+            if lifecycle.intent != "enter" or intent_decision is None or int(intent_decision.order_qty) <= 0:
+                can_open = False
+            else:
+                signed_qty = int(intent_decision.delta_qty)
+                decision_trace_payload = decision_trace.as_payload()
+                decision_trace_payload["spot_intent"] = intent_decision.as_payload()
+                decision_trace_payload["spot_lifecycle"] = lifecycle.as_payload()
     else:
         signed_qty = 0
 
@@ -2135,6 +3591,7 @@ def _spot_try_open_entry(
         entry_time=entry_time,
         entry_price=float(entry_price),
         entry_branch=str(entry_branch) if entry_branch in ("a", "b") else None,
+        decision_trace=decision_trace_payload,
         base_profit_target_pct=base_profit_target_pct,
         base_stop_loss_pct=base_stop_loss_pct,
         profit_target_pct=profit_target_pct,
@@ -2156,11 +3613,84 @@ def _spot_apply_opened_trade(
     return float(cash_after), float(margin_after)
 
 
+def _spot_apply_resize_trade(
+    *,
+    trade: SpotTrade,
+    delta_qty: int,
+    entry_ref_price: float,
+    mark_ref_price: float,
+    cash: float,
+    margin_used: float,
+    spread: float,
+    commission_per_share: float,
+    commission_min: float,
+    slippage_per_share: float,
+    mark_to_market: str,
+    multiplier: float,
+    lifecycle_payload: dict[str, object] | None = None,
+    decision_payload: dict[str, object] | None = None,
+) -> tuple[bool, float, float]:
+    delta = int(delta_qty)
+    if delta == 0:
+        return False, float(cash), float(margin_used)
+    old_qty = int(trade.qty)
+    new_qty = int(old_qty + delta)
+    if new_qty == 0:
+        return False, float(cash), float(margin_used)
+
+    side = "buy" if delta > 0 else "sell"
+    resize_price = _spot_exec_price(
+        float(entry_ref_price),
+        side=side,
+        qty=int(delta),
+        spread=float(spread),
+        commission_per_share=float(commission_per_share),
+        commission_min=float(commission_min),
+        slippage_per_share=float(slippage_per_share),
+    )
+    next_cash = float(cash) - (int(delta) * float(resize_price) * float(multiplier))
+
+    old_abs = abs(int(old_qty))
+    new_abs = abs(int(new_qty))
+    if old_qty != 0 and ((old_qty > 0 and new_qty > 0) or (old_qty < 0 and new_qty < 0)) and new_abs > old_abs:
+        # Scale-in keeps weighted entry basis for remaining inventory.
+        weight_old = float(old_abs)
+        weight_add = float(new_abs - old_abs)
+        if (weight_old + weight_add) > 0:
+            trade.entry_price = ((float(trade.entry_price) * weight_old) + (float(resize_price) * weight_add)) / (
+                weight_old + weight_add
+            )
+    trade.qty = int(new_qty)
+
+    old_margin = float(trade.margin_required or 0.0)
+    mark_price = _spot_mark_price(float(mark_ref_price), qty=int(new_qty), spread=float(spread), mode=str(mark_to_market))
+    new_margin = abs(int(new_qty)) * float(mark_price) * float(multiplier)
+    trade.margin_required = float(new_margin)
+    next_margin_used = max(0.0, float(margin_used) - float(old_margin) + float(new_margin))
+
+    trace = trade.decision_trace if isinstance(trade.decision_trace, dict) else {}
+    resizes = trace.get("resizes")
+    rows = list(resizes) if isinstance(resizes, list) else []
+    rows.append(
+        {
+            "delta_qty": int(delta),
+            "new_qty": int(new_qty),
+            "resize_price": float(resize_price),
+            "lifecycle": dict(lifecycle_payload) if isinstance(lifecycle_payload, dict) else None,
+            "spot_decision": dict(decision_payload) if isinstance(decision_payload, dict) else None,
+        }
+    )
+    trace["resizes"] = rows
+    trade.decision_trace = trace
+
+    return True, float(next_cash), float(next_margin_used)
+
+
 def _spot_opened_trade_summary_state(
     *,
     opened: tuple[SpotTrade, float, float],
     entry_exec_idx: int,
-) -> tuple[int, int, datetime, float, float, float]:
+) -> tuple[int, int, datetime, float, float, float, dict[str, object] | None]:
     candidate, cash_after, margin_after = opened
     return (
         int(candidate.qty),
@@ -2169,6 +3699,7 @@ def _spot_opened_trade_summary_state(
         float(candidate.entry_price),
         float(margin_after),
         float(cash_after),
+        candidate.decision_trace if isinstance(candidate.decision_trace, dict) else None,
     )
 
 
@@ -2200,96 +3731,129 @@ def _summary_apply_closed_trade(
     return int(trades), int(wins), int(losses), float(total_pnl), float(win_sum), float(loss_sum), float(hold_sum), int(hold_n)
 
 
+def _spot_emit_progress(progress_callback, **payload: object) -> None:
+    if not callable(progress_callback):
+        return
+    try:
+        progress_callback(dict(payload))
+    except Exception:
+        return
+
+
 def _run_spot_backtest(
     cfg: ConfigBundle,
-    bars: list[Bar],
+    bars: BarSeriesInput,
     meta: ContractMeta,
     *,
-    regime_bars: list[Bar] | None = None,
-    regime2_bars: list[Bar] | None = None,
-    tick_bars: list[Bar] | None = None,
-    exec_bars: list[Bar] | None = None,
+    regime_bars: BarSeriesInput | None = None,
+    regime2_bars: BarSeriesInput | None = None,
+    tick_bars: BarSeriesInput | None = None,
+    exec_bars: BarSeriesInput | None = None,
 ) -> BacktestResult:
+    signal_bars = _bars_input_list(bars)
+    regime_bars_list = _bars_input_optional_list(regime_bars)
+    regime2_bars_list = _bars_input_optional_list(regime2_bars)
+    tick_bars_list = _bars_input_optional_list(tick_bars)
+    exec_bars_list = _bars_input_optional_list(exec_bars)
+
     exec_bar_size = str(getattr(cfg.strategy, "spot_exec_bar_size", "") or "").strip()
     if exec_bar_size and str(exec_bar_size) != str(cfg.backtest.bar_size):
-        if exec_bars is None:
+        if exec_bars_list is None:
             raise ValueError(
                 "spot_exec_bar_size is set but exec_bars was not provided "
                 f"(signal={cfg.backtest.bar_size!r} exec={exec_bar_size!r})"
             )
-        if not exec_bars:
+        if not exec_bars_list:
             raise ValueError(
                 "spot_exec_bar_size is set but exec_bars is empty "
                 f"(signal={cfg.backtest.bar_size!r} exec={exec_bar_size!r})"
             )
         return _run_spot_backtest_exec_loop(
             cfg,
-            signal_bars=bars,
-            exec_bars=exec_bars,
+            signal_bars=signal_bars,
+            exec_bars=exec_bars_list,
             meta=meta,
-            regime_bars=regime_bars,
-            regime2_bars=regime2_bars,
-            tick_bars=tick_bars,
+            regime_bars=regime_bars_list,
+            regime2_bars=regime2_bars_list,
+            tick_bars=tick_bars_list,
         )
 
     # Canonical spot runner: single-res is just exec_bars=signal_bars.
     return _run_spot_backtest_exec_loop(
         cfg,
-        signal_bars=bars,
-        exec_bars=bars,
+        signal_bars=signal_bars,
+        exec_bars=signal_bars,
         meta=meta,
-        regime_bars=regime_bars,
-        regime2_bars=regime2_bars,
-        tick_bars=tick_bars,
+        regime_bars=regime_bars_list,
+        regime2_bars=regime2_bars_list,
+        tick_bars=tick_bars_list,
     )
 
 
 def _run_spot_backtest_summary(
     cfg: ConfigBundle,
-    bars: list[Bar],
+    bars: BarSeriesInput,
     meta: ContractMeta,
     *,
-    regime_bars: list[Bar] | None = None,
-    regime2_bars: list[Bar] | None = None,
-    tick_bars: list[Bar] | None = None,
-    exec_bars: list[Bar] | None = None,
+    regime_bars: BarSeriesInput | None = None,
+    regime2_bars: BarSeriesInput | None = None,
+    tick_bars: BarSeriesInput | None = None,
+    exec_bars: BarSeriesInput | None = None,
+    prepared_series_pack: object | None = None,
+    progress_callback=None,
 ) -> SummaryStats:
     """Spot backtest optimized for sweeps that only need `SummaryStats`.
 
     Keeps semantics aligned with `_run_spot_backtest_exec_loop`, but skips building the
     full equity curve list (and the generic `_summarize` pass over it).
     """
+    signal_bars = _bars_input_list(bars)
+    regime_bars_list = _bars_input_optional_list(regime_bars)
+    regime2_bars_list = _bars_input_optional_list(regime2_bars)
+    tick_bars_list = _bars_input_optional_list(tick_bars)
+    exec_bars_list = _bars_input_optional_list(exec_bars)
+
     exec_bar_size = str(getattr(cfg.strategy, "spot_exec_bar_size", "") or "").strip()
+    _spot_emit_progress(
+        progress_callback,
+        phase="summary.prepare",
+        signal_total=int(len(signal_bars)),
+        exec_total=int(len(exec_bars_list) if isinstance(exec_bars_list, list) else len(signal_bars)),
+    )
     if exec_bar_size and str(exec_bar_size) != str(cfg.backtest.bar_size):
-        if exec_bars is None:
+        if exec_bars_list is None:
             raise ValueError(
                 "spot_exec_bar_size is set but exec_bars was not provided "
                 f"(signal={cfg.backtest.bar_size!r} exec={exec_bar_size!r})"
             )
-        if not exec_bars:
+        if not exec_bars_list:
             raise ValueError(
                 "spot_exec_bar_size is set but exec_bars is empty "
                 f"(signal={cfg.backtest.bar_size!r} exec={exec_bar_size!r})"
             )
         return _run_spot_backtest_exec_loop_summary(
             cfg,
-            signal_bars=bars,
-            exec_bars=exec_bars,
+            signal_bars=signal_bars,
+            exec_bars=exec_bars_list,
             meta=meta,
-            regime_bars=regime_bars,
-            regime2_bars=regime2_bars,
-            tick_bars=tick_bars,
+            regime_bars=regime_bars_list,
+            regime2_bars=regime2_bars_list,
+            tick_bars=tick_bars_list,
+            prepared_series_pack=prepared_series_pack,
+            progress_callback=progress_callback,
         )
 
     # Canonical spot runner: single-res is just exec_bars=signal_bars.
     return _run_spot_backtest_exec_loop_summary(
         cfg,
-        signal_bars=bars,
-        exec_bars=bars,
+        signal_bars=signal_bars,
+        exec_bars=signal_bars,
         meta=meta,
-        regime_bars=regime_bars,
-        regime2_bars=regime2_bars,
-        tick_bars=tick_bars,
+        regime_bars=regime_bars_list,
+        regime2_bars=regime2_bars_list,
+        tick_bars=tick_bars_list,
+        prepared_series_pack=prepared_series_pack,
+        progress_callback=progress_callback,
     )
 
 # "Multi-res" here just means signal bars and execution bars can be different resolutions
@@ -2298,13 +3862,15 @@ def _run_spot_backtest_summary(
 def _run_spot_backtest_exec_loop(
     cfg: ConfigBundle,
     *,
-    signal_bars: list[Bar],
-    exec_bars: list[Bar],
+    signal_bars: BarSeriesInput,
+    exec_bars: BarSeriesInput,
     meta: ContractMeta,
-    regime_bars: list[Bar] | None = None,
-    regime2_bars: list[Bar] | None = None,
-    tick_bars: list[Bar] | None = None,
+    regime_bars: BarSeriesInput | None = None,
+    regime2_bars: BarSeriesInput | None = None,
+    tick_bars: BarSeriesInput | None = None,
     capture_equity: bool = True,
+    prepared_series_pack: object | None = None,
+    progress_callback=None,
 ) -> BacktestResult:
     """Spot backtest using an execution-bar loop.
 
@@ -2313,22 +3879,28 @@ def _run_spot_backtest_exec_loop(
     - Single-resolution runs pass exec_bars=signal_bars.
     """
 
+    signal_bars = _bars_input_list(signal_bars)
+    exec_bars = _bars_input_list(exec_bars)
+    regime_bars = _bars_input_optional_list(regime_bars)
+    regime2_bars = _bars_input_optional_list(regime2_bars)
+    tick_bars = _bars_input_optional_list(tick_bars)
+
     cash = cfg.backtest.starting_cash
     margin_used = 0.0
     equity_curve: list[EquityPoint] = []
     trades: list[SpotTrade] = []
     open_trades: list[SpotTrade] = []
+    trace_out_raw = getattr(cfg.strategy, "spot_lifecycle_trace_path", None)
+    why_not_out_raw = getattr(cfg.strategy, "spot_why_not_report_path", None)
+    capture_lifecycle = bool(getattr(cfg.strategy, "spot_capture_lifecycle_trace", False)) or bool(
+        str(trace_out_raw or "").strip()
+    ) or bool(str(why_not_out_raw or "").strip())
+    lifecycle_rows: list[dict[str, object]] | None = [] if capture_lifecycle else None
 
     if not signal_bars:
         raise ValueError("signal_bars is empty")
     if not exec_bars:
         raise ValueError("exec_bars is empty")
-
-    signal_by_ts: dict[datetime, Bar] = {}
-    signal_idx_by_ts: dict[datetime, int] = {}
-    for idx, bar in enumerate(signal_bars):
-        signal_by_ts[bar.ts] = bar
-        signal_idx_by_ts[bar.ts] = idx
 
     filters = cfg.strategy.filters
     entry_signal = normalize_spot_entry_signal(getattr(cfg.strategy, "entry_signal", "ema"))
@@ -2363,6 +3935,7 @@ def _run_spot_backtest_exec_loop(
         filters=filters,
         bar_size=str(cfg.backtest.bar_size),
         use_rth=bool(cfg.backtest.use_rth),
+        naive_ts_mode="utc",
         rv_lookback=int(cfg.synthetic.rv_lookback),
         rv_ewma_lambda=float(cfg.synthetic.rv_ewma_lambda),
         regime_bars=regime_bars if use_mtf_regime else None,
@@ -2372,55 +3945,45 @@ def _run_spot_backtest_exec_loop(
     last_sig_snap: SpotSignalSnapshot | None = None
     shock_prev, shock_dir_prev, shock_atr_pct_prev = evaluator.shock_view
 
-    tick_mode = str(getattr(cfg.strategy, "tick_gate_mode", "off") or "off").strip().lower()
-    if tick_mode not in ("off", "raschke"):
-        tick_mode = "off"
-    tick_neutral_policy = str(getattr(cfg.strategy, "tick_neutral_policy", "allow") or "allow").strip().lower()
-    if tick_neutral_policy not in ("allow", "block"):
-        tick_neutral_policy = "allow"
-    tick_direction_policy = str(getattr(cfg.strategy, "tick_direction_policy", "both") or "both").strip().lower()
-    if tick_direction_policy not in ("both", "wide_only"):
-        tick_direction_policy = "both"
+    (
+        tick_mode,
+        tick_neutral_policy,
+        _tick_direction_policy,
+        _tick_ma_period,
+        _tick_z_lookback,
+        _tick_z_enter,
+        _tick_z_exit,
+        _tick_slope_lookback,
+    ) = _spot_tick_gate_settings(cfg.strategy)
+    series_pack = prepared_series_pack if isinstance(prepared_series_pack, _SpotSeriesPack) else None
+    if series_pack is None:
+        series_pack = _spot_build_series_pack(
+            cfg=cfg,
+            signal_bars=signal_bars,
+            exec_bars=exec_bars,
+            regime_bars=regime_bars,
+            regime2_bars=regime2_bars,
+            tick_bars=tick_bars,
+            include_rv=False,
+            include_volume=False,
+            include_tick=(str(tick_mode) != "off"),
+        )
+    align = series_pack.core.align
+    tick_series = series_pack.core.tick_series
 
-    tick_ma_period = max(1, int(getattr(cfg.strategy, "tick_band_ma_period", 10) or 10))
-    tick_z_lookback = max(5, int(getattr(cfg.strategy, "tick_width_z_lookback", 252) or 252))
-    tick_z_enter = float(getattr(cfg.strategy, "tick_width_z_enter", 1.0) or 1.0)
-    tick_z_exit = max(0.0, float(getattr(cfg.strategy, "tick_width_z_exit", 0.5) or 0.5))
-    tick_slope_lookback = max(1, int(getattr(cfg.strategy, "tick_width_slope_lookback", 3) or 3))
-
-    tick_idx = 0
-    tick_state = "neutral"  # "neutral" | "wide" | "narrow"
-    tick_dir: str | None = None
-    tick_ready = False
-    tick_highs: deque[float] = deque(maxlen=tick_ma_period)
-    tick_lows: deque[float] = deque(maxlen=tick_ma_period)
-    tick_high_sum = 0.0
-    tick_low_sum = 0.0
-    tick_widths: deque[float] = deque(maxlen=tick_z_lookback)
-    tick_width_hist: list[float] = []
-
-    exit_mode = str(getattr(cfg.strategy, "spot_exit_mode", "pct") or "pct").strip().lower()
-    if exit_mode not in ("pct", "atr"):
-        exit_mode = "pct"
+    exec_profile = _spot_exec_profile(cfg.strategy)
+    exit_mode = str(exec_profile.exit_mode)
     spot_exit_time = parse_time_hhmm(getattr(cfg.strategy, "spot_exit_time_et", None))
-
-    spot_entry_fill_mode = str(getattr(cfg.strategy, "spot_entry_fill_mode", "close") or "close").strip().lower()
-    if spot_entry_fill_mode not in ("close", "next_open"):
-        spot_entry_fill_mode = "close"
-    spot_flip_exit_fill_mode = str(getattr(cfg.strategy, "spot_flip_exit_fill_mode", "close") or "close").strip().lower()
-    if spot_flip_exit_fill_mode not in ("close", "next_open"):
-        spot_flip_exit_fill_mode = "close"
-    spot_intrabar_exits = bool(getattr(cfg.strategy, "spot_intrabar_exits", False))
-    spot_spread = max(0.0, float(getattr(cfg.strategy, "spot_spread", 0.0) or 0.0))
-    spot_commission = max(0.0, float(getattr(cfg.strategy, "spot_commission_per_share", 0.0) or 0.0))
-    spot_commission_min = max(0.0, float(getattr(cfg.strategy, "spot_commission_min", 0.0) or 0.0))
-    spot_slippage = max(0.0, float(getattr(cfg.strategy, "spot_slippage_per_share", 0.0) or 0.0))
-    spot_mark_to_market = str(getattr(cfg.strategy, "spot_mark_to_market", "close") or "close").strip().lower()
-    if spot_mark_to_market not in ("close", "liquidation"):
-        spot_mark_to_market = "close"
-    spot_drawdown_mode = str(getattr(cfg.strategy, "spot_drawdown_mode", "close") or "close").strip().lower()
-    if spot_drawdown_mode not in ("close", "intrabar"):
-        spot_drawdown_mode = "close"
+    spot_entry_fill_mode = str(exec_profile.entry_fill_mode)
+    spot_flip_exit_fill_mode = str(exec_profile.flip_fill_mode)
+    spot_intrabar_exits = bool(exec_profile.intrabar_exits)
+    spot_close_eod = bool(exec_profile.close_eod)
+    spot_spread = float(exec_profile.spread)
+    spot_commission = float(exec_profile.commission_per_share)
+    spot_commission_min = float(exec_profile.commission_min)
+    spot_slippage = float(exec_profile.slippage_per_share)
+    spot_mark_to_market = str(exec_profile.mark_to_market)
+    spot_drawdown_mode = str(exec_profile.drawdown_mode)
     equity_peak: float | None = None
     equity_max_dd = 0.0
 
@@ -2434,6 +3997,34 @@ def _run_spot_backtest_exec_loop(
         dd = float(equity_peak) - value
         if dd > equity_max_dd:
             equity_max_dd = dd
+
+    def _capture_lifecycle(
+        *,
+        stage: str,
+        decision,
+        bar_ts: datetime,
+        exec_idx: int,
+        sig_idx: int | None,
+        context: Mapping[str, object] | None = None,
+    ) -> None:
+        if lifecycle_rows is None:
+            return
+        merged_context: dict[str, object] = {
+            "symbol": str(cfg.strategy.symbol),
+            "exec_idx": int(exec_idx),
+            "sig_idx": int(sig_idx) if sig_idx is not None else None,
+        }
+        if isinstance(context, Mapping):
+            for key, value in context.items():
+                merged_context[str(key)] = value
+        lifecycle_rows.append(
+            lifecycle_trace_row(
+                bar_ts=bar_ts,
+                stage=str(stage),
+                decision=decision,
+                context=merged_context,
+            )
+        )
 
     def _spot_liquidation(ref_price: float) -> float:
         return _spot_liquidation_value(
@@ -2491,18 +4082,34 @@ def _run_spot_backtest_exec_loop(
     riskpop_today = False
     riskoff_end_hour = _spot_riskoff_end_hour(filters) if risk_overlay_enabled else None
     last_entry_sig_idx: int | None = None
+    last_resize_bar_ts: datetime | None = None
 
     exec_last_date = None
     entries_today = 0
+    exec_total = int(len(exec_bars))
+    progress_stride = max(1, int(max(64, exec_total // 200)))
 
     for idx, bar in enumerate(exec_bars):
         next_bar = exec_bars[idx + 1] if idx + 1 < len(exec_bars) else None
-        is_last_bar = next_bar is None or next_bar.ts.date() != bar.ts.date()
-        sig_bar = signal_by_ts.get(bar.ts)
-        sig_idx = signal_idx_by_ts.get(bar.ts)
+        is_last_bar = next_bar is None or _trade_date(next_bar.ts) != _trade_date(bar.ts)
+        sig_map_idx = align.sig_idx_by_exec_idx[idx] if idx < len(align.sig_idx_by_exec_idx) else -1
+        sig_idx = int(sig_map_idx) if int(sig_map_idx) >= 0 else None
+        sig_bar = signal_bars[int(sig_idx)] if sig_idx is not None and int(sig_idx) < len(signal_bars) else None
+        if int(idx) == 0 or int((idx + 1) % int(progress_stride)) == 0 or int(idx + 1) >= int(exec_total):
+            _spot_emit_progress(
+                progress_callback,
+                phase="engine.exec",
+                path="exec",
+                exec_idx=int(idx + 1),
+                exec_total=int(exec_total),
+                sig_idx=(int(sig_idx + 1) if sig_idx is not None else None),
+                sig_total=int(len(signal_bars)),
+                open_count=int(len(open_trades)),
+                trades=int(len(trades)),
+            )
 
-        if exec_last_date != bar.ts.date():
-            exec_last_date = bar.ts.date()
+        if exec_last_date != _trade_date(bar.ts):
+            exec_last_date = _trade_date(bar.ts)
             entries_today = 0
         shock_now_prev = shock_prev
         shock_dir_prev_now = shock_dir_prev
@@ -2518,46 +4125,59 @@ def _run_spot_backtest_exec_loop(
             riskpanic_today = False
             riskpop_today = False
 
-        # Execute next-open fills (from prior bar close) before processing this bar.
-        if pending_exit_all and open_trades:
+        open_dir_now = None
+        if open_trades:
+            open_dir_now = "up" if int(open_trades[0].qty) > 0 else "down"
+        pending_decision = decide_pending_next_open(
+            now_ts=bar.ts,
+            has_open=bool(open_trades),
+            open_dir=open_dir_now,
+            pending_entry_dir=pending_entry_dir,
+            pending_entry_set_date=pending_entry_set_date,
+            pending_entry_due_ts=bar.ts if pending_entry_dir in ("up", "down") else None,
+            pending_exit_reason=pending_exit_reason,
+            pending_exit_due_ts=bar.ts if bool(pending_exit_all) else None,
+            risk_overlay_enabled=bool(risk_overlay_enabled),
+            riskoff_today=bool(riskoff_today),
+            riskpanic_today=bool(riskpanic_today),
+            riskpop_today=bool(riskpop_today),
+            riskoff_mode=str(riskoff_mode),
+            shock_dir_now=shock_dir_prev_now,
+            riskoff_end_hour=riskoff_end_hour,
+            naive_ts_mode="utc",
+        )
+        _capture_lifecycle(
+            stage="pending",
+            decision=pending_decision,
+            bar_ts=bar.ts,
+            exec_idx=int(idx),
+            sig_idx=int(sig_idx) if sig_idx is not None else None,
+        )
+        if pending_decision.pending_clear_exit:
+            pending_exit_all = False
+            pending_exit_reason = ""
+
+        if pending_decision.intent == "exit" and open_trades:
             exit_ref = float(bar.open)
             for trade in list(open_trades):
                 _exit_price, cash, margin_used = _exec_trade_exit(
                     trade,
                     exit_ref_price=exit_ref,
                     exit_time=bar.ts,
-                    reason=pending_exit_reason or "flip",
+                    reason=str(pending_decision.reason or pending_exit_reason or "flip"),
                     apply_slippage=True,
                 )
             open_trades = []
-            pending_exit_all = False
-            pending_exit_reason = ""
 
-        if pending_entry_dir is not None:
-            if _spot_pending_entry_should_cancel(
-                pending_dir=str(pending_entry_dir),
-                pending_set_date=pending_entry_set_date,
-                exec_ts=bar.ts,
-                risk_overlay_enabled=bool(risk_overlay_enabled),
-                riskoff_today=bool(riskoff_today),
-                riskpanic_today=bool(riskpanic_today),
-                riskpop_today=bool(riskpop_today),
-                riskoff_mode=str(riskoff_mode),
-                shock_dir_now=shock_dir_prev_now,
-                riskoff_end_hour=riskoff_end_hour,
-            ):
-                pending_entry_dir = None
-                pending_entry_branch = None
-                pending_entry_set_date = None
-
+        if pending_decision.intent == "enter" and pending_entry_dir in ("up", "down"):
             can_fill_pending = _spot_entry_capacity_ok(
                 open_count=len(open_trades),
                 max_entries_per_day=int(cfg.strategy.max_entries_per_day),
                 entries_today=int(entries_today),
-                weekday=int(bar.ts.weekday()),
+                weekday=_trade_weekday(bar.ts),
                 entry_days=cfg.strategy.entry_days,
             )
-            if pending_entry_dir is not None and can_fill_pending:
+            if can_fill_pending:
                 entry_dir = pending_entry_dir
                 entry_branch = pending_entry_branch if pending_entry_branch in ("a", "b") else None
                 pending_entry_dir = None
@@ -2608,6 +4228,12 @@ def _run_spot_backtest_exec_loop(
             else:
                 pending_entry_dir = None
                 pending_entry_branch = None
+                pending_entry_set_date = None
+
+        if pending_decision.pending_clear_entry:
+            pending_entry_dir = None
+            pending_entry_branch = None
+            pending_entry_set_date = None
 
         # Dynamic shock SL/PT: apply the shock multipliers to *open* trades using the shock
         # state from the prior execution bar (no lookahead within this bar).
@@ -2640,6 +4266,8 @@ def _run_spot_backtest_exec_loop(
         shock = None
         shock_dir = None
         shock_atr_pct = None
+        shock_atr_vel = None
+        shock_atr_accel = None
         atr = None
         signal = None
         entry_signal_dir = None
@@ -2647,7 +4275,9 @@ def _run_spot_backtest_exec_loop(
         ratsv_tr_ratio = None
         ratsv_fast_slope_med = None
         ratsv_fast_slope_vel = None
-        ema_ready = False
+        ratsv_slow_slope_med = None
+        ratsv_slow_slope_vel = None
+        ratsv_slope_vel_consistency = None
         if sig_bar is not None:
             sig_snap = evaluator.update_signal_bar(sig_bar)
             if sig_snap is not None:
@@ -2659,6 +4289,8 @@ def _run_spot_backtest_exec_loop(
                 shock = sig_snap.shock
                 shock_dir = sig_snap.shock_dir
                 shock_atr_pct = sig_snap.shock_atr_pct
+                shock_atr_vel = getattr(sig_snap, "shock_atr_vel_pct", None)
+                shock_atr_accel = getattr(sig_snap, "shock_atr_accel_pct", None)
                 atr = sig_snap.atr
                 signal = sig_snap.signal
                 entry_signal_dir = sig_snap.entry_dir
@@ -2666,62 +4298,9 @@ def _run_spot_backtest_exec_loop(
                 ratsv_tr_ratio = sig_snap.ratsv_tr_ratio
                 ratsv_fast_slope_med = sig_snap.ratsv_fast_slope_med_pct
                 ratsv_fast_slope_vel = sig_snap.ratsv_fast_slope_vel_pct
-                ema_ready = bool(ema_needed and signal is not None and signal.ema_ready)
-
-            if tick_mode != "off" and tick_bars is not None:
-                while tick_idx < len(tick_bars) and tick_bars[tick_idx].ts <= sig_bar.ts:
-                    tbar = tick_bars[tick_idx]
-                    high_v = float(tbar.high)
-                    low_v = float(tbar.low)
-
-                    if len(tick_highs) == tick_highs.maxlen:
-                        tick_high_sum -= tick_highs[0]
-                    if len(tick_lows) == tick_lows.maxlen:
-                        tick_low_sum -= tick_lows[0]
-                    tick_highs.append(high_v)
-                    tick_lows.append(low_v)
-                    tick_high_sum += high_v
-                    tick_low_sum += low_v
-
-                    tick_ready = False
-                    tick_dir = None
-                    if len(tick_highs) >= tick_ma_period and len(tick_lows) >= tick_ma_period:
-                        upper = tick_high_sum / float(tick_ma_period)
-                        lower = tick_low_sum / float(tick_ma_period)
-                        width = float(upper) - float(lower)
-                        tick_widths.append(width)
-                        tick_width_hist.append(width)
-
-                        min_z = min(tick_z_lookback, 30)
-                        if len(tick_widths) >= max(5, min_z) and len(tick_width_hist) >= (tick_slope_lookback + 1):
-                            w_list = list(tick_widths)
-                            mean = sum(w_list) / float(len(w_list))
-                            var = sum((w - mean) ** 2 for w in w_list) / float(len(w_list))
-                            std = math.sqrt(var)
-                            z = (width - mean) / std if std > 1e-9 else 0.0
-                            delta = width - tick_width_hist[-1 - tick_slope_lookback]
-
-                            if tick_state == "neutral":
-                                if z >= tick_z_enter and delta > 0:
-                                    tick_state = "wide"
-                                elif z <= (-tick_z_enter) and delta < 0:
-                                    tick_state = "narrow"
-                            elif tick_state == "wide":
-                                if z < tick_z_exit:
-                                    tick_state = "neutral"
-                            elif tick_state == "narrow":
-                                if z > (-tick_z_exit):
-                                    tick_state = "neutral"
-
-                            if tick_state == "wide":
-                                tick_dir = "up"
-                            elif tick_state == "narrow":
-                                tick_dir = "down" if tick_direction_policy == "both" else None
-                            else:
-                                tick_dir = None
-                            tick_ready = True
-
-                    tick_idx += 1
+                ratsv_slow_slope_med = getattr(sig_snap, "ratsv_slow_slope_med_pct", None)
+                ratsv_slow_slope_vel = getattr(sig_snap, "ratsv_slow_slope_vel_pct", None)
+                ratsv_slope_vel_consistency = getattr(sig_snap, "ratsv_slope_vel_consistency", None)
 
         # Track worst-in-bar equity using the execution bars (for drawdown realism).
         if spot_drawdown_mode == "intrabar" and open_trades:
@@ -2751,9 +4330,9 @@ def _run_spot_backtest_exec_loop(
         if open_trades:
             still_open: list[SpotTrade] = []
             for trade in open_trades:
-                should_close = False
-                reason = ""
-                exit_ref = None
+                exit_candidates: dict[str, bool] = {}
+                exit_ref_by_reason: dict[str, float] = {}
+                apply_slippage_by_reason: dict[str, bool] = {}
 
                 if spot_intrabar_exits:
                     stop_level = spot_stop_level(
@@ -2777,8 +4356,14 @@ def _run_spot_backtest_exec_loop(
                         profit_level=profit_level,
                     )
                     if hit is not None:
-                        should_close = True
-                        reason, exit_ref = hit
+                        kind, ref = hit
+                        if kind == "stop":
+                            reason = "stop_loss" if trade.stop_loss_price is not None else "stop_loss_pct"
+                        else:
+                            reason = "profit_target" if trade.profit_target_price is not None else "profit_target_pct"
+                        exit_candidates[reason] = True
+                        exit_ref_by_reason[reason] = float(ref)
+                        apply_slippage_by_reason[reason] = (kind != "profit")
                 else:
                     if spot_hit_profit(
                         entry_price=float(trade.entry_price),
@@ -2787,9 +4372,10 @@ def _run_spot_backtest_exec_loop(
                         profit_target_price=trade.profit_target_price,
                         profit_target_pct=trade.profit_target_pct,
                     ):
-                        should_close = True
-                        reason = "profit"
-                        exit_ref = float(bar.close)
+                        reason = "profit_target" if trade.profit_target_price is not None else "profit_target_pct"
+                        exit_candidates[reason] = True
+                        exit_ref_by_reason[reason] = float(bar.close)
+                        apply_slippage_by_reason[reason] = False
                     elif spot_hit_stop(
                         entry_price=float(trade.entry_price),
                         qty=int(trade.qty),
@@ -2797,14 +4383,14 @@ def _run_spot_backtest_exec_loop(
                         stop_loss_price=trade.stop_loss_price,
                         stop_loss_pct=trade.stop_loss_pct,
                     ):
-                        should_close = True
-                        reason = "stop"
-                        exit_ref = float(bar.close)
+                        reason = "stop_loss" if trade.stop_loss_price is not None else "stop_loss_pct"
+                        exit_candidates[reason] = True
+                        exit_ref_by_reason[reason] = float(bar.close)
+                        apply_slippage_by_reason[reason] = True
 
-                is_signal_close = bar.ts in signal_by_ts
+                is_signal_close = sig_idx is not None
                 if (
-                    not should_close
-                    and is_signal_close
+                    is_signal_close
                     and _spot_ratsv_probe_cancel_hit(
                         cfg,
                         trade=trade,
@@ -2813,12 +4399,11 @@ def _run_spot_backtest_exec_loop(
                         slope_med=float(ratsv_fast_slope_med) if ratsv_fast_slope_med is not None else None,
                     )
                 ):
-                    should_close = True
-                    reason = "ratsv_probe_cancel"
-                    exit_ref = float(bar.close)
-                elif (
-                    not should_close
-                    and is_signal_close
+                    exit_candidates["ratsv_probe_cancel"] = True
+                    exit_ref_by_reason["ratsv_probe_cancel"] = float(bar.close)
+                    apply_slippage_by_reason["ratsv_probe_cancel"] = True
+                if (
+                    is_signal_close
                     and _spot_ratsv_adverse_release_hit(
                         cfg,
                         trade=trade,
@@ -2828,36 +4413,111 @@ def _run_spot_backtest_exec_loop(
                         slope_vel=float(ratsv_fast_slope_vel) if ratsv_fast_slope_vel is not None else None,
                     )
                 ):
-                    should_close = True
-                    reason = "ratsv_adverse_release"
-                    exit_ref = float(bar.close)
-                elif not should_close and is_signal_close and _spot_hit_flip_exit(cfg, trade, bar, signal):
-                    if spot_flip_exit_fill_mode == "next_open" and next_bar is not None:
-                        pending_exit_all = True
-                        pending_exit_reason = "flip"
-                        still_open.append(trade)
-                        continue
-                    should_close = True
-                    reason = "flip"
-                    exit_ref = float(bar.close)
-                elif not should_close and spot_exit_time is not None:
+                    exit_candidates["ratsv_adverse_release"] = True
+                    exit_ref_by_reason["ratsv_adverse_release"] = float(bar.close)
+                    apply_slippage_by_reason["ratsv_adverse_release"] = True
+                if is_signal_close and _spot_hit_flip_exit(cfg, trade, bar, signal):
+                    exit_candidates["flip"] = True
+                    exit_ref_by_reason["flip"] = float(bar.close)
+                    apply_slippage_by_reason["flip"] = True
+                if spot_exit_time is not None:
                     ts_et = _ts_to_et(bar.ts)
                     if ts_et.time() >= spot_exit_time:
-                        should_close = True
-                        reason = "time"
-                        exit_ref = float(bar.close)
-                elif not should_close and cfg.strategy.spot_close_eod and is_last_bar:
-                    should_close = True
-                    reason = "eod"
-                    exit_ref = float(bar.close)
+                        exit_candidates["exit_time"] = True
+                        exit_ref_by_reason["exit_time"] = float(bar.close)
+                        apply_slippage_by_reason["exit_time"] = True
+                if bool(spot_close_eod) and is_last_bar:
+                    exit_candidates["close_eod"] = True
+                    exit_ref_by_reason["close_eod"] = float(bar.close)
+                    apply_slippage_by_reason["close_eod"] = True
 
-                if should_close and exit_ref is not None:
+                lifecycle = _spot_open_position_intent(
+                    strategy=cfg.strategy,
+                    bar_ts=bar.ts,
+                    bar_size=str(cfg.backtest.bar_size),
+                    open_dir="up" if int(trade.qty) > 0 else "down",
+                    current_qty=int(trade.qty),
+                    exit_candidates=exit_candidates,
+                    signal_entry_dir=entry_signal_dir,
+                    shock_atr_pct=float(shock_atr_pct) if shock_atr_pct is not None else None,
+                    shock_atr_vel_pct=float(shock_atr_vel) if shock_atr_vel is not None else None,
+                    shock_atr_accel_pct=float(shock_atr_accel) if shock_atr_accel is not None else None,
+                    tr_ratio=float(ratsv_tr_ratio) if ratsv_tr_ratio is not None else None,
+                    slope_med_pct=float(ratsv_fast_slope_med) if ratsv_fast_slope_med is not None else None,
+                    slope_vel_pct=float(ratsv_fast_slope_vel) if ratsv_fast_slope_vel is not None else None,
+                    slope_med_slow_pct=float(ratsv_slow_slope_med) if ratsv_slow_slope_med is not None else None,
+                    slope_vel_slow_pct=float(ratsv_slow_slope_vel) if ratsv_slow_slope_vel is not None else None,
+                )
+                _capture_lifecycle(
+                    stage="open_exit",
+                    decision=lifecycle,
+                    bar_ts=bar.ts,
+                    exec_idx=int(idx),
+                    sig_idx=int(sig_idx) if sig_idx is not None else None,
+                    context={
+                        "shock_atr_pct": float(shock_atr_pct) if shock_atr_pct is not None else None,
+                        "shock_atr_vel_pct": float(shock_atr_vel) if shock_atr_vel is not None else None,
+                        "shock_atr_accel_pct": float(shock_atr_accel) if shock_atr_accel is not None else None,
+                        "ratsv_tr_ratio": float(ratsv_tr_ratio) if ratsv_tr_ratio is not None else None,
+                        "ratsv_fast_slope_med_pct": (
+                            float(ratsv_fast_slope_med) if ratsv_fast_slope_med is not None else None
+                        ),
+                        "ratsv_fast_slope_vel_pct": (
+                            float(ratsv_fast_slope_vel) if ratsv_fast_slope_vel is not None else None
+                        ),
+                        "ratsv_slow_slope_med_pct": (
+                            float(ratsv_slow_slope_med) if ratsv_slow_slope_med is not None else None
+                        ),
+                        "ratsv_slow_slope_vel_pct": (
+                            float(ratsv_slow_slope_vel) if ratsv_slow_slope_vel is not None else None
+                        ),
+                        "ratsv_slope_vel_consistency": (
+                            float(ratsv_slope_vel_consistency)
+                            if ratsv_slope_vel_consistency is not None
+                            else None
+                        ),
+                    },
+                )
+                resolved_exit_reason = _spot_exit_reason_from_lifecycle(
+                    lifecycle=lifecycle,
+                    exit_candidates=exit_candidates,
+                    fallback_priority=(
+                        "stop_loss",
+                        "stop_loss_pct",
+                        "profit_target",
+                        "profit_target_pct",
+                        "flip",
+                        "ratsv_probe_cancel",
+                        "ratsv_adverse_release",
+                        "exit_time",
+                        "close_eod",
+                    ),
+                )
+                if (
+                    lifecycle.intent == "exit"
+                    and str(resolved_exit_reason or "") == "flip"
+                    and lifecycle.fill_mode == "next_open"
+                    and next_bar is not None
+                ):
+                    pending_exit_all = True
+                    pending_exit_reason = "flip"
+                    if lifecycle.queue_reentry_dir in ("up", "down") and pending_entry_dir is None:
+                        pending_entry_dir = str(lifecycle.queue_reentry_dir)
+                        pending_entry_branch = entry_signal_branch if entry_signal_branch in ("a", "b") else None
+                        pending_entry_set_date = _trade_date(bar.ts)
+                    still_open.append(trade)
+                    continue
+
+                if lifecycle.intent == "exit" and resolved_exit_reason is not None:
+                    reason = str(resolved_exit_reason)
+                    exit_ref = exit_ref_by_reason.get(reason, float(bar.close))
+                    apply_slippage = apply_slippage_by_reason.get(reason, True)
                     _exit_price, cash, margin_used = _exec_trade_exit(
                         trade,
                         exit_ref_price=float(exit_ref),
                         exit_time=bar.ts,
                         reason=reason,
-                        apply_slippage=(reason != "profit"),
+                        apply_slippage=bool(apply_slippage),
                     )
                 else:
                     still_open.append(trade)
@@ -2877,88 +4537,101 @@ def _run_spot_backtest_exec_loop(
             shock_prev, shock_dir_prev, shock_atr_pct_prev = evaluator.shock_view
             continue
 
-        if entry_signal_dir is None:
-            entry_signal_dir = signal.entry_dir if signal is not None else None
-        if tick_mode != "off":
-            if not tick_ready:
-                if tick_neutral_policy == "block":
-                    entry_signal_dir = None
-            elif tick_dir is None:
-                if tick_neutral_policy == "block":
-                    entry_signal_dir = None
-            elif entry_signal_dir is not None and entry_signal_dir != tick_dir:
-                entry_signal_dir = None
-
-        entry_ok = True
-        direction = entry_signal_dir
-        if ema_needed and not ema_ready:
-            entry_ok = False
-            direction = None
-        if needs_direction:
-            entry_ok = (
-                entry_ok
-                and direction is not None
-                and cfg.strategy.directional_spot is not None
-                and direction in cfg.strategy.directional_spot
-            )
-        else:
-            entry_ok = entry_ok and direction == "up"
+        direction, _ = _spot_resolve_entry_dir(
+            signal=signal,
+            entry_dir=entry_signal_dir,
+            ema_needed=bool(ema_needed),
+            sig_idx=int(sig_idx),
+            tick_mode=str(tick_mode),
+            tick_series=tick_series,
+            tick_neutral_policy=str(tick_neutral_policy),
+            needs_direction=bool(needs_direction),
+            directional_spot=cfg.strategy.directional_spot,
+        )
+        entry_ok = bool(direction is not None)
 
         cooldown_ok = cooldown_ok_by_index(
             current_idx=int(sig_idx),
             last_entry_idx=last_entry_sig_idx,
             cooldown_bars=filters.cooldown_bars if filters else 0,
         )
-        filters_ok = signal_filters_ok(
-            filters,
-            bar_ts=sig_bar.ts,
-            bars_in_day=sig_bars_in_day,
-            close=float(sig_bar.close),
-            volume=float(sig_bar.volume),
-            volume_ema=float(volume_ema) if volume_ema is not None else None,
-            volume_ema_ready=bool(volume_ema_ready),
-            rv=float(rv) if rv is not None else None,
-            signal=signal,
-            cooldown_ok=cooldown_ok,
-            shock=shock,
-            shock_dir=shock_dir,
-        )
-
         effective_open = 0 if (pending_exit_all and spot_flip_exit_fill_mode == "next_open") else len(open_trades)
         if pending_entry_dir is not None:
             effective_open += 1
-        can_schedule_entry = _spot_entry_capacity_ok(
-            open_count=int(effective_open),
-            max_entries_per_day=int(cfg.strategy.max_entries_per_day),
-            entries_today=int(entries_today),
-            weekday=int(sig_bar.ts.weekday()),
-            entry_days=cfg.strategy.entry_days,
+        next_open_ok = bool(
+            next_bar is not None
+            and pending_entry_dir is None
+            and _spot_next_open_entry_allowed(
+                signal_ts=bar.ts,
+                next_ts=next_bar.ts,
+                riskoff_today=bool(riskoff_today),
+                riskoff_end_hour=riskoff_end_hour,
+                exit_mode=exit_mode,
+                atr_value=float(atr) if atr is not None else None,
+            )
         )
-        if (
-            can_schedule_entry
-            and entry_ok
-            and filters_ok
-        ):
+        entry_decision = _spot_flat_entry_decision_from_signal(
+            strategy=cfg.strategy,
+            filters=filters,
+            signal_bar=sig_bar,
+            signal=signal,
+            direction=direction,
+            bars_in_day=int(sig_bars_in_day),
+            volume_ema=float(volume_ema) if volume_ema is not None else None,
+            volume_ema_ready=bool(volume_ema_ready),
+            rv=float(rv) if rv is not None else None,
+            cooldown_ok=bool(cooldown_ok),
+            shock=shock,
+            shock_dir=shock_dir,
+            open_count=int(effective_open),
+            entries_today=int(entries_today),
+            pending_exists=bool(pending_entry_dir is not None),
+            next_open_allowed=bool(spot_entry_fill_mode != "next_open" or next_open_ok),
+            exit_mode=exit_mode,
+            atr_value=float(atr) if atr is not None else None,
+            shock_atr_pct=float(shock_atr_pct) if shock_atr_pct is not None else None,
+            shock_atr_vel_pct=float(shock_atr_vel) if shock_atr_vel is not None else None,
+            shock_atr_accel_pct=float(shock_atr_accel) if shock_atr_accel is not None else None,
+            tr_ratio=float(ratsv_tr_ratio) if ratsv_tr_ratio is not None else None,
+            slope_med_pct=float(ratsv_fast_slope_med) if ratsv_fast_slope_med is not None else None,
+            slope_vel_pct=float(ratsv_fast_slope_vel) if ratsv_fast_slope_vel is not None else None,
+            slope_med_slow_pct=float(ratsv_slow_slope_med) if ratsv_slow_slope_med is not None else None,
+            slope_vel_slow_pct=float(ratsv_slow_slope_vel) if ratsv_slow_slope_vel is not None else None,
+        )
+        _capture_lifecycle(
+            stage="flat_entry",
+            decision=entry_decision,
+            bar_ts=sig_bar.ts,
+            exec_idx=int(idx),
+            sig_idx=int(sig_idx),
+            context={
+                "shock_atr_pct": float(shock_atr_pct) if shock_atr_pct is not None else None,
+                "shock_atr_vel_pct": float(shock_atr_vel) if shock_atr_vel is not None else None,
+                "shock_atr_accel_pct": float(shock_atr_accel) if shock_atr_accel is not None else None,
+                "ratsv_tr_ratio": float(ratsv_tr_ratio) if ratsv_tr_ratio is not None else None,
+                "ratsv_fast_slope_med_pct": float(ratsv_fast_slope_med) if ratsv_fast_slope_med is not None else None,
+                "ratsv_fast_slope_vel_pct": float(ratsv_fast_slope_vel) if ratsv_fast_slope_vel is not None else None,
+                "ratsv_slow_slope_med_pct": float(ratsv_slow_slope_med) if ratsv_slow_slope_med is not None else None,
+                "ratsv_slow_slope_vel_pct": float(ratsv_slow_slope_vel) if ratsv_slow_slope_vel is not None else None,
+                "ratsv_slope_vel_consistency": (
+                    float(ratsv_slope_vel_consistency) if ratsv_slope_vel_consistency is not None else None
+                ),
+            },
+        )
+        if entry_decision.intent == "enter":
+            direction = str(entry_decision.direction or direction)
             spot_leg = _spot_entry_leg_for_direction(
                 strategy=cfg.strategy,
                 entry_dir=direction,
                 needs_direction=needs_direction,
             )
             if spot_leg is not None and direction in ("up", "down"):
-                if spot_entry_fill_mode == "next_open":
-                    if next_bar is not None and pending_entry_dir is None:
-                        if _spot_next_open_entry_allowed(
-                            signal_ts=bar.ts,
-                            next_ts=next_bar.ts,
-                            riskoff_today=bool(riskoff_today),
-                            riskoff_end_hour=riskoff_end_hour,
-                            exit_mode=exit_mode,
-                            atr_value=float(atr) if atr is not None else None,
-                        ):
-                            pending_entry_dir = direction
-                            pending_entry_branch = entry_signal_branch if entry_signal_branch in ("a", "b") else None
-                            pending_entry_set_date = bar.ts.date()
-                            last_entry_sig_idx = int(sig_idx)
+                if str(entry_decision.fill_mode) == "next_open":
+                    if next_bar is not None and pending_entry_dir is None and next_open_ok:
+                        pending_entry_dir = direction
+                        pending_entry_branch = entry_signal_branch if entry_signal_branch in ("a", "b") else None
+                        pending_entry_set_date = _trade_date(bar.ts)
+                        last_entry_sig_idx = int(sig_idx)
                 else:
                     liquidation_close = _spot_liquidation(float(bar.close))
                     opened = _spot_try_open_entry(
@@ -2996,6 +4669,153 @@ def _run_spot_backtest_exec_loop(
                         entries_today += 1
                         last_entry_sig_idx = int(sig_idx)
 
+        if sig_idx is not None and open_trades and (not pending_exit_all) and len(open_trades) == 1:
+            trade = open_trades[0]
+            trade_dir = "up" if int(trade.qty) > 0 else "down"
+            resize_leg = _spot_entry_leg_for_direction(
+                strategy=cfg.strategy,
+                entry_dir=trade_dir,
+                needs_direction=needs_direction,
+            )
+            if resize_leg is not None and trade_dir in ("up", "down"):
+                action = str(getattr(resize_leg, "action", "BUY") or "BUY").strip().upper()
+                lot = max(1, int(getattr(resize_leg, "qty", 1) or 1))
+                base_signed_qty = int(lot) * int(cfg.strategy.quantity)
+                if action != "BUY":
+                    base_signed_qty = -base_signed_qty
+                side = "buy" if action == "BUY" else "sell"
+                entry_price_est = _spot_exec_price(
+                    float(bar.close),
+                    side=side,
+                    qty=int(base_signed_qty),
+                    spread=float(spot_spread),
+                    commission_per_share=float(spot_commission),
+                    commission_min=float(spot_commission_min),
+                    slippage_per_share=float(spot_slippage),
+                )
+
+                stop_price = float(trade.stop_loss_price) if trade.stop_loss_price is not None else None
+                if stop_price is not None and stop_price <= 0:
+                    stop_price = None
+                stop_loss_pct = float(trade.stop_loss_pct) if trade.stop_loss_pct is not None else None
+                if stop_loss_pct is not None and stop_loss_pct <= 0:
+                    stop_loss_pct = None
+
+                liquidation_close = _spot_liquidation(float(bar.close))
+                signed_target, resize_trace = spot_calc_signed_qty_with_trace(
+                    strategy=cfg.strategy,
+                    filters=filters,
+                    action=action,
+                    lot=int(lot),
+                    entry_price=float(entry_price_est),
+                    stop_price=stop_price,
+                    stop_loss_pct=stop_loss_pct,
+                    shock=shock,
+                    shock_dir=shock_dir,
+                    shock_atr_pct=shock_atr_pct,
+                    riskoff=bool(riskoff_today),
+                    risk_dir=shock_dir,
+                    riskpanic=bool(riskpanic_today),
+                    riskpop=bool(riskpop_today),
+                    risk=evaluator.last_risk if risk_overlay_enabled else None,
+                    equity_ref=float(cash) + float(liquidation_close),
+                    cash_ref=float(cash),
+                )
+                if int(signed_target) != 0:
+                    size_mult = _spot_branch_size_mult(strategy=cfg.strategy, entry_branch=trade.entry_branch)
+                    signed_target = spot_apply_branch_size_mult(
+                        signed_qty=int(signed_target),
+                        size_mult=float(size_mult),
+                        spot_min_qty=int(getattr(cfg.strategy, "spot_min_qty", 1) or 1),
+                        spot_max_qty=int(getattr(cfg.strategy, "spot_max_qty", 0) or 0),
+                    )
+                    resize_trace = resize_trace.with_branch_scaling(
+                        entry_branch=trade.entry_branch,
+                        size_mult=float(size_mult),
+                        signed_qty_after_branch=int(signed_target),
+                    )
+                    lifecycle = _spot_open_position_intent(
+                        strategy=cfg.strategy,
+                        bar_ts=bar.ts,
+                        bar_size=str(cfg.backtest.bar_size),
+                        open_dir=trade_dir,
+                        current_qty=int(trade.qty),
+                        target_qty=int(signed_target),
+                        spot_decision=resize_trace.as_payload(),
+                        last_resize_bar_ts=last_resize_bar_ts,
+                        signal_entry_dir=entry_signal_dir,
+                        shock_atr_pct=float(shock_atr_pct) if shock_atr_pct is not None else None,
+                        shock_atr_vel_pct=float(shock_atr_vel) if shock_atr_vel is not None else None,
+                        shock_atr_accel_pct=float(shock_atr_accel) if shock_atr_accel is not None else None,
+                        tr_ratio=float(ratsv_tr_ratio) if ratsv_tr_ratio is not None else None,
+                        slope_med_pct=float(ratsv_fast_slope_med) if ratsv_fast_slope_med is not None else None,
+                        slope_vel_pct=float(ratsv_fast_slope_vel) if ratsv_fast_slope_vel is not None else None,
+                        slope_med_slow_pct=float(ratsv_slow_slope_med) if ratsv_slow_slope_med is not None else None,
+                        slope_vel_slow_pct=float(ratsv_slow_slope_vel) if ratsv_slow_slope_vel is not None else None,
+                    )
+                    _capture_lifecycle(
+                        stage="open_resize",
+                        decision=lifecycle,
+                        bar_ts=bar.ts,
+                        exec_idx=int(idx),
+                        sig_idx=int(sig_idx),
+                        context={
+                            "shock_atr_pct": float(shock_atr_pct) if shock_atr_pct is not None else None,
+                            "shock_atr_vel_pct": float(shock_atr_vel) if shock_atr_vel is not None else None,
+                            "shock_atr_accel_pct": float(shock_atr_accel) if shock_atr_accel is not None else None,
+                            "ratsv_tr_ratio": float(ratsv_tr_ratio) if ratsv_tr_ratio is not None else None,
+                            "ratsv_fast_slope_med_pct": (
+                                float(ratsv_fast_slope_med) if ratsv_fast_slope_med is not None else None
+                            ),
+                            "ratsv_fast_slope_vel_pct": (
+                                float(ratsv_fast_slope_vel) if ratsv_fast_slope_vel is not None else None
+                            ),
+                            "ratsv_slow_slope_med_pct": (
+                                float(ratsv_slow_slope_med) if ratsv_slow_slope_med is not None else None
+                            ),
+                            "ratsv_slow_slope_vel_pct": (
+                                float(ratsv_slow_slope_vel) if ratsv_slow_slope_vel is not None else None
+                            ),
+                            "ratsv_slope_vel_consistency": (
+                                float(ratsv_slope_vel_consistency)
+                                if ratsv_slope_vel_consistency is not None
+                                else None
+                            ),
+                        },
+                    )
+                    if lifecycle.intent == "resize" and lifecycle.spot_intent is not None:
+                        applied, cash, margin_used = _spot_apply_resize_trade(
+                            trade=trade,
+                            delta_qty=int(lifecycle.spot_intent.delta_qty),
+                            entry_ref_price=float(bar.close),
+                            mark_ref_price=float(bar.close),
+                            cash=float(cash),
+                            margin_used=float(margin_used),
+                            spread=float(spot_spread),
+                            commission_per_share=float(spot_commission),
+                            commission_min=float(spot_commission_min),
+                            slippage_per_share=float(spot_slippage),
+                            mark_to_market=str(spot_mark_to_market),
+                            multiplier=float(meta.multiplier),
+                            lifecycle_payload=lifecycle.as_payload(),
+                            decision_payload=resize_trace.as_payload(),
+                        )
+                        if applied:
+                            last_resize_bar_ts = bar.ts
+                    elif lifecycle.intent == "exit":
+                        if lifecycle.fill_mode == "next_open" and next_bar is not None:
+                            pending_exit_all = True
+                            pending_exit_reason = str(lifecycle.reason or "target_zero")
+                        else:
+                            _exit_price, cash, margin_used = _exec_trade_exit(
+                                trade,
+                                exit_ref_price=float(bar.close),
+                                exit_time=bar.ts,
+                                reason=str(lifecycle.reason or "target_zero"),
+                                apply_slippage=True,
+                            )
+                            open_trades = []
+
         shock_prev, shock_dir_prev, shock_atr_pct_prev = evaluator.shock_view
 
     if open_trades:
@@ -3015,52 +4835,76 @@ def _run_spot_backtest_exec_loop(
         max_dd=float(equity_max_dd),
         multiplier=meta.multiplier,
     )
-    return BacktestResult(trades=trades, equity=equity_curve, summary=summary)
+    trace_path = str(trace_out_raw or "").strip()
+    if trace_path and lifecycle_rows is not None:
+        write_rows_csv(rows=lifecycle_rows, out_path=trace_path)
+    why_not_path = str(why_not_out_raw or "").strip()
+    if why_not_path and lifecycle_rows is not None:
+        write_rows_csv(rows=why_not_exit_resize_report(lifecycle_rows), out_path=why_not_path)
+    return BacktestResult(
+        trades=trades,
+        equity=equity_curve,
+        summary=summary,
+        lifecycle_trace=lifecycle_rows if lifecycle_rows is not None else None,
+    )
 
 
 def _run_spot_backtest_exec_loop_summary_fast(
     cfg: ConfigBundle,
     *,
-    signal_bars: list[Bar],
-    exec_bars: list[Bar],
+    signal_bars: BarSeriesInput,
+    exec_bars: BarSeriesInput,
     meta: ContractMeta,
-    regime_bars: list[Bar] | None = None,
-    regime2_bars: list[Bar] | None = None,
+    regime_bars: BarSeriesInput | None = None,
+    regime2_bars: BarSeriesInput | None = None,
+    tick_bars: BarSeriesInput | None = None,
     debug_trades: list[dict[str, object]] | None = None,
+    prepared_series_pack: object | None = None,
+    progress_callback=None,
 ) -> SummaryStats:
     """Event-driven summary-only spot backtest for sweeps.
 
-    Designed for st37_refine-style workloads:
+    Designed for high-volume sweep workloads:
     - signals evaluated on signal bars (e.g. 30m),
     - execution/exits simulated on exec bars (e.g. 5m),
     - only summary stats are needed (no full equity curve).
     """
+    signal_bars = _bars_input_list(signal_bars)
+    exec_bars = _bars_input_list(exec_bars)
+    regime_bars = _bars_input_optional_list(regime_bars)
+    regime2_bars = _bars_input_optional_list(regime2_bars)
+    tick_bars = _bars_input_optional_list(tick_bars)
+
     if not signal_bars:
         raise ValueError("signal_bars is empty")
     if not exec_bars:
         raise ValueError("exec_bars is empty")
+    _spot_emit_progress(
+        progress_callback,
+        phase="engine.prepare",
+        path="fast",
+        signal_total=int(len(signal_bars)),
+        exec_total=int(len(exec_bars)),
+    )
 
     strat = cfg.strategy
     filters = strat.filters
 
-    spot_entry_fill_mode = str(getattr(strat, "spot_entry_fill_mode", "close") or "close").strip().lower()
-    spot_flip_exit_fill_mode = str(getattr(strat, "spot_flip_exit_fill_mode", "close") or "close").strip().lower()
+    exec_profile = _spot_exec_profile(strat)
+    spot_entry_fill_mode = str(exec_profile.entry_fill_mode)
+    spot_flip_exit_fill_mode = str(exec_profile.flip_fill_mode)
     exit_on_signal_flip = bool(getattr(strat, "exit_on_signal_flip", False))
     if spot_entry_fill_mode != "next_open":
         raise ValueError("fast summary runner requires spot_entry_fill_mode='next_open'")
     if exit_on_signal_flip and spot_flip_exit_fill_mode != "next_open":
         raise ValueError("fast summary runner requires spot_flip_exit_fill_mode='next_open' when flip exits are enabled")
 
-    spot_spread = max(0.0, float(getattr(strat, "spot_spread", 0.0) or 0.0))
-    spot_commission = max(0.0, float(getattr(strat, "spot_commission_per_share", 0.0) or 0.0))
-    spot_commission_min = max(0.0, float(getattr(strat, "spot_commission_min", 0.0) or 0.0))
-    spot_slippage = max(0.0, float(getattr(strat, "spot_slippage_per_share", 0.0) or 0.0))
-    spot_mark_to_market = str(getattr(strat, "spot_mark_to_market", "close") or "close").strip().lower()
-    if spot_mark_to_market not in ("close", "liquidation"):
-        spot_mark_to_market = "close"
-    spot_drawdown_mode = str(getattr(strat, "spot_drawdown_mode", "close") or "close").strip().lower()
-    if spot_drawdown_mode not in ("close", "intrabar"):
-        spot_drawdown_mode = "close"
+    spot_spread = float(exec_profile.spread)
+    spot_commission = float(exec_profile.commission_per_share)
+    spot_commission_min = float(exec_profile.commission_min)
+    spot_slippage = float(exec_profile.slippage_per_share)
+    spot_mark_to_market = str(exec_profile.mark_to_market)
+    spot_drawdown_mode = str(exec_profile.drawdown_mode)
     if spot_drawdown_mode != "intrabar":
         raise ValueError("fast summary runner currently only supports spot_drawdown_mode='intrabar'")
 
@@ -3073,18 +4917,42 @@ def _run_spot_backtest_exec_loop_summary_fast(
 
     needs_direction = strat.directional_spot is not None
     signal_bar_hours = float(_bar_hours(str(cfg.backtest.bar_size)))
+    (
+        tick_mode,
+        tick_neutral_policy,
+        _tick_direction_policy,
+        _tick_ma_period,
+        _tick_z_lookback,
+        _tick_z_enter,
+        _tick_z_exit,
+        _tick_slope_lookback,
+    ) = _spot_tick_gate_settings(strat)
+    needs_rv = filters is not None and (
+        getattr(filters, "rv_min", None) is not None or getattr(filters, "rv_max", None) is not None
+    )
+    needs_volume = filters is not None and getattr(filters, "volume_ratio_min", None) is not None
 
     # Precompute reusable series/trees (cached across configs via bar ids + knob keys).
-    align = _spot_exec_alignment(signal_bars, exec_bars)
-    signal_series = _spot_signal_series(cfg=cfg, signal_bars=signal_bars, regime_bars=regime_bars, regime2_bars=regime2_bars)
-    shock_series = _spot_shock_series(
-        signal_bars=signal_bars,
-        exec_bars=exec_bars,
-        regime_bars=regime_bars,
-        filters=filters,
-        st_src_for_shock=str(getattr(strat, "supertrend_source", "hl2") or "hl2").strip().lower() or "hl2",
-    )
-    risk_by_day = _spot_risk_overlay_flags_by_day(exec_bars, filters)
+    series_pack = prepared_series_pack if isinstance(prepared_series_pack, _SpotSeriesPack) else None
+    if series_pack is None:
+        series_pack = _spot_build_series_pack(
+            cfg=cfg,
+            signal_bars=signal_bars,
+            exec_bars=exec_bars,
+            regime_bars=regime_bars,
+            regime2_bars=regime2_bars,
+            tick_bars=tick_bars,
+            include_rv=bool(needs_rv),
+            include_volume=bool(needs_volume),
+            include_tick=(str(tick_mode) != "off"),
+        )
+    align = series_pack.core.align
+    signal_series = series_pack.core.signal_series
+    tick_series = series_pack.core.tick_series
+    shock_series = series_pack.shock_series
+    risk_by_day = series_pack.risk_by_day
+    rv_series = series_pack.rv_series
+    volume_series = series_pack.volume_series
     risk_overlay_enabled = bool(risk_by_day) and filters is not None
     riskoff_mode, *_ = risk_overlay_policy_from_filters(filters)
 
@@ -3150,25 +5018,6 @@ def _run_spot_backtest_exec_loop_summary_fast(
 
     signal_ts = [b.ts for b in signal_bars]
 
-    rv_series: _SpotRvSeries | None = None
-    if filters is not None and (getattr(filters, "rv_min", None) is not None or getattr(filters, "rv_max", None) is not None):
-        rv_series = _spot_rv_series(
-            signal_bars=signal_bars,
-            rv_lookback=int(cfg.synthetic.rv_lookback),
-            rv_ewma_lambda=float(cfg.synthetic.rv_ewma_lambda),
-            bar_size=str(cfg.backtest.bar_size),
-            use_rth=bool(cfg.backtest.use_rth),
-        )
-
-    volume_series: _SpotVolumeEmaSeries | None = None
-    if filters is not None and getattr(filters, "volume_ratio_min", None) is not None:
-        raw_period = getattr(filters, "volume_ema_period", None)
-        try:
-            vol_period = int(raw_period) if raw_period is not None else 20
-        except (TypeError, ValueError):
-            vol_period = 20
-        volume_series = _spot_volume_ema_series(signal_bars=signal_bars, period=int(vol_period))
-
     def _risk_flags(day: date) -> tuple[bool, bool, bool]:
         if not risk_overlay_enabled:
             return False, False, False
@@ -3192,17 +5041,16 @@ def _run_spot_backtest_exec_loop_summary_fast(
             float(shock_atr_pct_now) if shock_atr_pct_now is not None else None,
         )
 
-    def _effective_pct(base_pct: float | None, mult: float, shock_on: bool) -> float | None:
-        if base_pct is None:
-            return None
-        pct = float(base_pct)
-        if pct <= 0:
-            return None
-        if shock_on:
-            pct *= float(mult)
-        if pct <= 0:
-            return None
-        return min(float(pct), 0.99)
+    stop_pct_by_exec = _spot_effective_pct_by_exec_idx(
+        shock_by_exec_idx=shock_series.shock_by_exec_idx,
+        base_pct=float(base_stop_pct),
+        mult=float(shock_stop_mult),
+    )
+    pt_pct_by_exec = _spot_effective_pct_by_exec_idx(
+        shock_by_exec_idx=shock_series.shock_by_exec_idx,
+        base_pct=float(base_pt_pct) if base_pt_pct is not None else None,
+        mult=float(shock_profit_mult),
+    )
 
     def _maybe_cancel_pending_entry(
         *,
@@ -3212,7 +5060,7 @@ def _run_spot_backtest_exec_loop_summary_fast(
     ) -> bool:
         """Return True if a next-open entry should be canceled at execution time."""
         ts = exec_bars[exec_idx].ts
-        day = ts.date()
+        day = _trade_date(ts)
         riskoff_today, riskpanic_today, riskpop_today = _risk_flags(day)
         _shock_on, shock_dir_now, _shock_atr = _shock_prev(exec_idx)
         return _spot_pending_entry_should_cancel(
@@ -3250,18 +5098,52 @@ def _run_spot_backtest_exec_loop_summary_fast(
     open_entry_time: datetime | None = None
     open_entry_price = 0.0
     open_margin_required = 0.0
+    open_decision_trace: dict[str, object] | None = None
 
     sig_cursor = 0
+    sig_total = int(len(signal_bars))
+    exec_total = int(len(exec_bars))
+    progress_stride = max(1, int(max(16, sig_total // 200)))
+    last_progress_sig = -1
+
+    def _emit_fast_progress(*, exec_idx_hint: int | None = None, force: bool = False) -> None:
+        nonlocal last_progress_sig
+        sig_done = max(0, min(int(sig_total), int(sig_cursor)))
+        if not bool(force):
+            if sig_done <= 0:
+                return
+            if int(sig_done - int(last_progress_sig)) < int(progress_stride):
+                return
+        last_progress_sig = int(sig_done)
+        exec_done = None
+        if exec_idx_hint is not None:
+            exec_done = int(max(0, int(exec_idx_hint) + 1))
+        elif sig_done > 0 and (sig_done - 1) < len(align.exec_idx_by_sig_idx):
+            mapped = int(align.exec_idx_by_sig_idx[int(sig_done - 1)])
+            if mapped >= 0:
+                exec_done = int(mapped + 1)
+        _spot_emit_progress(
+            progress_callback,
+            phase="engine.exec",
+            path="fast",
+            sig_idx=int(sig_done),
+            sig_total=int(sig_total),
+            exec_idx=(int(exec_done) if exec_done is not None else None),
+            exec_total=int(exec_total),
+            open_count=(1 if int(open_qty) != 0 else 0),
+            trades=int(trades),
+        )
 
     def _set_day_for_exec_idx(exec_idx: int) -> None:
         nonlocal entries_today_date, entries_today
-        d = exec_bars[exec_idx].ts.date()
+        d = _trade_date(exec_bars[exec_idx].ts)
         if entries_today_date != d:
             entries_today_date = d
             entries_today = 0
 
     def _apply_opened_entry_state(*, opened: SpotTrade, entry_exec_idx: int) -> None:
         nonlocal cash, open_qty, open_entry_exec_idx, open_entry_time, open_entry_price, open_margin_required
+        nonlocal open_decision_trace
         nonlocal entries_today
         (
             open_qty,
@@ -3270,6 +5152,7 @@ def _run_spot_backtest_exec_loop_summary_fast(
             open_entry_price,
             open_margin_required,
             cash,
+            open_decision_trace,
         ) = _spot_opened_trade_summary_state(
             opened=opened,
             entry_exec_idx=int(entry_exec_idx),
@@ -3278,11 +5161,13 @@ def _run_spot_backtest_exec_loop_summary_fast(
 
     def _clear_open_entry_state() -> None:
         nonlocal open_qty, open_entry_exec_idx, open_entry_time, open_entry_price, open_margin_required
+        nonlocal open_decision_trace
         open_qty = 0
         open_entry_exec_idx = -1
         open_entry_time = None
         open_entry_price = 0.0
         open_margin_required = 0.0
+        open_decision_trace = None
 
     def _try_open_entry_from_signal(*, sig_idx: int, sig_exec_idx: int, entry_exec_idx: int) -> bool:
         nonlocal cash, open_qty, open_entry_exec_idx, open_entry_time, open_entry_price, open_margin_required
@@ -3293,16 +5178,18 @@ def _run_spot_backtest_exec_loop_summary_fast(
         _set_day_for_exec_idx(sig_exec_idx)
 
         sig = signal_series.signal_by_sig_idx[sig_idx]
-        entry_dir = signal_series.entry_dir_by_sig_idx[sig_idx]
         entry_branch = signal_series.entry_branch_by_sig_idx[sig_idx]
-        if sig is None or not bool(sig.ema_ready):
-            entry_dir = None
-        if needs_direction:
-            if entry_dir is None or strat.directional_spot is None or entry_dir not in strat.directional_spot:
-                entry_dir = None
-        else:
-            if entry_dir != "up":
-                entry_dir = None
+        entry_dir, _ = _spot_resolve_entry_dir(
+            signal=sig,
+            entry_dir=signal_series.entry_dir_by_sig_idx[sig_idx],
+            ema_needed=True,
+            sig_idx=int(sig_idx),
+            tick_mode=str(tick_mode),
+            tick_series=tick_series,
+            tick_neutral_policy=str(tick_neutral_policy),
+            needs_direction=bool(needs_direction),
+            directional_spot=strat.directional_spot,
+        )
         if entry_dir is None:
             return False
 
@@ -3316,45 +5203,58 @@ def _run_spot_backtest_exec_loop_summary_fast(
         rv_now = rv_series.rv_by_sig_idx[sig_idx] if rv_series is not None else None
         volume_ema_now = volume_series.volume_ema_by_sig_idx[sig_idx] if volume_series is not None else None
         volume_ema_ready_now = volume_series.volume_ema_ready_by_sig_idx[sig_idx] if volume_series is not None else True
-        filters_ok = signal_filters_ok(
-            filters,
-            bar_ts=signal_bars[sig_idx].ts,
-            bars_in_day=int(signal_series.bars_in_day_by_sig_idx[sig_idx]),
-            close=float(signal_bars[sig_idx].close),
-            volume=float(signal_bars[sig_idx].volume),
-            volume_ema=volume_ema_now,
-            volume_ema_ready=bool(volume_ema_ready_now),
-            rv=rv_now,
-            signal=sig,
-            cooldown_ok=bool(cooldown_ok),
-            shock=shock_now,
-            shock_dir=shock_dir_now,
-        )
-        if not bool(filters_ok):
-            return False
-        if not _spot_entry_capacity_ok(
-            open_count=0,
-            max_entries_per_day=int(max_entries_per_day),
-            entries_today=int(entries_today),
-            weekday=int(signal_bars[sig_idx].ts.weekday()),
-            entry_days=strat.entry_days,
-        ):
-            return False
-
-        riskoff_today, _riskpanic_today, _riskpop_today = _risk_flags(exec_bars[sig_exec_idx].ts.date())
-        if not _spot_next_open_entry_allowed(
+        riskoff_today, _riskpanic_today, _riskpop_today = _risk_flags(_trade_date(exec_bars[sig_exec_idx].ts))
+        next_open_allowed = _spot_next_open_entry_allowed(
             signal_ts=exec_bars[sig_exec_idx].ts,
             next_ts=exec_bars[entry_exec_idx].ts,
             riskoff_today=bool(riskoff_today),
             riskoff_end_hour=riskoff_end_hour,
             exit_mode="pct",
             atr_value=None,
-        ):
+        )
+
+        entry_decision = _spot_flat_entry_decision_from_signal(
+            strategy=strat,
+            filters=filters,
+            signal_bar=signal_bars[sig_idx],
+            signal=sig,
+            direction=str(entry_dir) if entry_dir in ("up", "down") else None,
+            bars_in_day=int(signal_series.bars_in_day_by_sig_idx[sig_idx]),
+            volume_ema=float(volume_ema_now) if volume_ema_now is not None else None,
+            volume_ema_ready=bool(volume_ema_ready_now),
+            rv=float(rv_now) if rv_now is not None else None,
+            cooldown_ok=bool(cooldown_ok),
+            shock=shock_now,
+            shock_dir=shock_dir_now,
+            open_count=0,
+            entries_today=int(entries_today),
+            pending_exists=False,
+            next_open_allowed=bool(next_open_allowed),
+            exit_mode="pct",
+            atr_value=None,
+            shock_atr_pct=(
+                float(shock_series.shock_atr_pct_by_sig_idx[sig_idx])
+                if shock_series.shock_atr_pct_by_sig_idx[sig_idx] is not None
+                else None
+            ),
+            shock_atr_vel_pct=None,
+            shock_atr_accel_pct=None,
+            tr_ratio=None,
+            slope_med_pct=None,
+            slope_vel_pct=None,
+            slope_med_slow_pct=None,
+            slope_vel_slow_pct=None,
+        )
+        if entry_decision.intent != "enter":
+            return False
+        if str(entry_decision.fill_mode or "next_open") != "next_open":
             return False
 
         last_entry_sig_idx = int(sig_idx)
-        pending_set_date = exec_bars[sig_exec_idx].ts.date()
-        pending_dir = str(entry_dir)
+        pending_set_date = _trade_date(exec_bars[sig_exec_idx].ts)
+        pending_dir = str(entry_decision.direction or entry_dir)
+        if pending_dir not in ("up", "down"):
+            return False
         pending_branch = str(entry_branch) if entry_branch in ("a", "b") else None
 
         _set_day_for_exec_idx(entry_exec_idx)
@@ -3362,7 +5262,7 @@ def _run_spot_backtest_exec_loop_summary_fast(
             open_count=0,
             max_entries_per_day=int(max_entries_per_day),
             entries_today=int(entries_today),
-            weekday=int(exec_bars[entry_exec_idx].ts.weekday()),
+            weekday=_trade_weekday(exec_bars[entry_exec_idx].ts),
             entry_days=strat.entry_days,
         ):
             return False
@@ -3383,7 +5283,7 @@ def _run_spot_backtest_exec_loop_summary_fast(
 
         bar = exec_bars[entry_exec_idx]
         shock_prev_on, shock_dir_prev_now, shock_atr_pct_prev_now = _shock_prev(entry_exec_idx)
-        riskoff_fill, riskpanic_fill, riskpop_fill = _risk_flags(bar.ts.date())
+        riskoff_fill, riskpanic_fill, riskpop_fill = _risk_flags(_trade_date(bar.ts))
         opened = _spot_try_open_entry(
             cfg=cfg,
             meta=meta,
@@ -3404,7 +5304,7 @@ def _run_spot_backtest_exec_loop_summary_fast(
             riskoff_today=bool(riskoff_fill),
             riskpanic_today=bool(riskpanic_fill),
             riskpop_today=bool(riskpop_fill),
-            risk_snapshot=risk_by_day.get(bar.ts.date()),
+            risk_snapshot=risk_by_day.get(_trade_date(bar.ts)),
             cash=float(cash),
             margin_used=0.0,
             liquidation_value=0.0,
@@ -3440,9 +5340,24 @@ def _run_spot_backtest_exec_loop_summary_fast(
             return True
         return False
 
+    def _is_intrabar_event_reason(reason: str) -> bool:
+        key = str(reason or "").strip().lower()
+        return key in (
+            "stop",
+            "stop_loss",
+            "stop_loss_pct",
+            "profit",
+            "profit_target",
+            "profit_target_pct",
+        )
+
+    def _is_profit_event_reason(reason: str) -> bool:
+        key = str(reason or "").strip().lower()
+        return key in ("profit", "profit_target", "profit_target_pct")
+
     def _advance_sig_cursor_after_exit(*, exit_reason: str, exit_exec_idx: int) -> None:
         nonlocal sig_cursor
-        if exit_reason in ("stop", "profit"):
+        if _is_intrabar_event_reason(exit_reason):
             sig_at_exit = align.sig_idx_by_exec_idx[int(exit_exec_idx)]
             if sig_at_exit >= 0:
                 sig_cursor = max(int(sig_cursor), int(sig_at_exit))
@@ -3458,6 +5373,7 @@ def _run_spot_backtest_exec_loop_summary_fast(
             while sig_cursor < len(signal_bars):
                 sig_idx = sig_cursor
                 sig_cursor += 1
+                _emit_fast_progress()
 
                 sig_exec_idx = align.exec_idx_by_sig_idx[sig_idx]
                 if sig_exec_idx < 0:
@@ -3523,17 +5439,46 @@ def _run_spot_backtest_exec_loop_summary_fast(
                     flip_exec_idx = int(sc_exec + 1)
 
         last_exec_idx = len(exec_bars) - 1
-
-        candidates: list[tuple[int, int, str]] = []
-        if flip_exec_idx is not None:
-            candidates.append((int(flip_exec_idx), 0, "flip"))
+        stop_reason = "stop_loss_pct"
+        profit_reason = "profit_target_pct"
+        exit_exec_idx = int(last_exec_idx)
+        exit_reason = "end"
+        reason_idx: dict[str, int] = {}
         if stop_idx is not None:
-            candidates.append((int(stop_idx), 1, "stop"))
+            reason_idx[str(stop_reason)] = int(stop_idx)
+            exit_exec_idx = min(int(exit_exec_idx), int(stop_idx))
         if profit_idx is not None:
-            candidates.append((int(profit_idx), 2, "profit"))
-        candidates.append((int(last_exec_idx), 3, "end"))
+            reason_idx[str(profit_reason)] = int(profit_idx)
+            exit_exec_idx = min(int(exit_exec_idx), int(profit_idx))
+        if flip_exec_idx is not None:
+            reason_idx["flip"] = int(flip_exec_idx)
+            exit_exec_idx = min(int(exit_exec_idx), int(flip_exec_idx))
 
-        exit_exec_idx, _prio, exit_reason = min(candidates, key=lambda t: (t[0], t[1]))
+        exit_candidates_now: dict[str, bool] = {}
+        for reason_name, reason_exec_idx in reason_idx.items():
+            if int(reason_exec_idx) == int(exit_exec_idx):
+                exit_candidates_now[str(reason_name)] = True
+        if exit_candidates_now:
+            signal_entry_dir_exit = None
+            if flip_sig_idx is not None and int(reason_idx.get("flip", -1)) == int(exit_exec_idx):
+                signal_entry_dir_exit = signal_series.entry_dir_by_sig_idx[int(flip_sig_idx)]
+            lifecycle = _spot_open_position_intent(
+                strategy=strat,
+                bar_ts=exec_bars[int(exit_exec_idx)].ts,
+                bar_size=str(cfg.backtest.bar_size),
+                open_dir=trade_dir,
+                current_qty=int(open_qty),
+                exit_candidates=exit_candidates_now,
+                signal_entry_dir=signal_entry_dir_exit,
+                shock_atr_pct=shock_series.shock_atr_pct_by_exec_idx[int(exit_exec_idx)],
+            )
+            resolved_exit_reason = _spot_exit_reason_from_lifecycle(
+                lifecycle=lifecycle,
+                exit_candidates=exit_candidates_now,
+                fallback_priority=(str(stop_reason), str(profit_reason), "flip"),
+            )
+            if resolved_exit_reason is not None:
+                exit_reason = str(resolved_exit_reason)
 
         # Drawdown during the holding window (mark-to-market), computed from cached segment trees.
         close_end_idx = int(exit_exec_idx + 1) if exit_reason == "end" else int(exit_exec_idx)
@@ -3552,11 +5497,10 @@ def _run_spot_backtest_exec_loop_summary_fast(
             peak_mark = float(mc) if math.isfinite(float(mc)) else None
 
         # For intrabar stop/profit exits, include the exit bar's stop-corrected worst reference.
-        if exit_reason in ("stop", "profit"):
+        if _is_intrabar_event_reason(exit_reason):
             bar = exec_bars[int(exit_exec_idx)]
-            shock_on, _shock_dir, _shock_atr = _shock_prev(int(exit_exec_idx))
-            stop_pct_exit = _effective_pct(float(base_stop_pct), shock_stop_mult, shock_on)
-            pt_pct_exit = _effective_pct(float(base_pt_pct) if base_pt_pct is not None else None, shock_profit_mult, shock_on)
+            stop_pct_exit = stop_pct_by_exec[int(exit_exec_idx)]
+            pt_pct_exit = pt_pct_by_exec[int(exit_exec_idx)]
             stop_level = spot_stop_level(float(open_entry_price), int(open_qty), stop_loss_pct=stop_pct_exit)
             worst_ref = spot_intrabar_worst_ref(
                 qty=int(open_qty),
@@ -3605,9 +5549,8 @@ def _run_spot_backtest_exec_loop_summary_fast(
         elif exit_reason == "end":
             exit_ref = float(exit_bar.close)
         else:
-            shock_on, _shock_dir, _shock_atr = _shock_prev(int(exit_exec_idx))
-            stop_pct_exit = _effective_pct(float(base_stop_pct), shock_stop_mult, shock_on)
-            pt_pct_exit = _effective_pct(float(base_pt_pct) if base_pt_pct is not None else None, shock_profit_mult, shock_on)
+            stop_pct_exit = stop_pct_by_exec[int(exit_exec_idx)]
+            pt_pct_exit = pt_pct_by_exec[int(exit_exec_idx)]
             stop_level = spot_stop_level(float(open_entry_price), int(open_qty), stop_loss_pct=stop_pct_exit)
             profit_level = spot_profit_level(float(open_entry_price), int(open_qty), profit_target_pct=pt_pct_exit)
             hit = spot_intrabar_exit(
@@ -3638,7 +5581,7 @@ def _run_spot_backtest_exec_loop_summary_fast(
             commission_min=float(spot_commission_min),
             slippage_per_share=float(spot_slippage),
             multiplier=float(meta.multiplier),
-            apply_slippage=(exit_reason != "profit"),
+            apply_slippage=(not _is_profit_event_reason(exit_reason)),
         )
 
         pnl = (float(exit_price) - float(open_entry_price)) * float(open_qty) * meta.multiplier
@@ -3676,6 +5619,7 @@ def _run_spot_backtest_exec_loop_summary_fast(
                     "exit_ts": exit_time,
                     "exit_price": float(exit_price),
                     "exit_reason": str(exit_reason),
+                    "spot_decision": dict(open_decision_trace) if isinstance(open_decision_trace, dict) else None,
                 }
             )
 
@@ -3687,6 +5631,7 @@ def _run_spot_backtest_exec_loop_summary_fast(
             flip_sig_idx=flip_sig_idx,
             flip_exec_idx=flip_exec_idx,
         ):
+            _emit_fast_progress(exec_idx_hint=int(exit_exec_idx))
             continue
 
         # If we are flat at the close of this bar, update close-equity drawdown/peak.
@@ -3700,11 +5645,13 @@ def _run_spot_backtest_exec_loop_summary_fast(
 
         # Resume entry scanning from the next signal close after this time.
         if exit_reason == "end":
+            _emit_fast_progress(exec_idx_hint=int(exit_exec_idx), force=True)
             break
         _advance_sig_cursor_after_exit(
             exit_reason=str(exit_reason),
             exit_exec_idx=int(exit_exec_idx),
         )
+        _emit_fast_progress(exec_idx_hint=int(exit_exec_idx))
 
     win_rate = wins / trades if trades else 0.0
     avg_win = win_sum / wins if wins else 0.0
@@ -3734,35 +5681,43 @@ def _can_use_fast_summary_path(
     exec_bars: list[Bar],
     tick_bars: list[Bar] | None,
 ) -> bool:
+    def _is_disabled(raw: object | None) -> bool:
+        if raw is None:
+            return True
+        if isinstance(raw, bool):
+            return not bool(raw)
+        if isinstance(raw, (int, float)):
+            return abs(float(raw)) <= 1e-12
+        text = str(raw).strip().lower()
+        return text in ("", "0", "0.0", "off", "false", "none", "null", "no")
+
     strat = cfg.strategy
     filters = getattr(strat, "filters", None)
+    policy_cfg = spot_policy_config_view(strategy=strat, filters=filters)
+    policy_pack = str(getattr(policy_cfg, "spot_policy_pack", "") or "").strip().lower()
+    if policy_pack not in ("", "neutral"):
+        return False
+
+    graph = SpotPolicyGraph.from_sources(strategy=strat, filters=filters)
+    if str(getattr(graph, "profile_name", "neutral") or "neutral").strip().lower() != "neutral":
+        return False
+    if str(getattr(graph, "entry_policy", "default") or "default").strip().lower() != "default":
+        return False
+    if str(getattr(graph, "exit_policy", "priority") or "priority").strip().lower() != "priority":
+        return False
+    if str(getattr(graph, "resize_policy", "adaptive") or "adaptive").strip().lower() != "adaptive":
+        return False
+    if str(getattr(graph, "risk_overlay_policy", "legacy") or "legacy").strip().lower() != "legacy":
+        return False
+
+    if not _is_disabled(getattr(strat, "spot_controlled_flip", None)):
+        return False
+    if str(getattr(policy_cfg, "spot_resize_mode", "off") or "off").strip().lower() == "target":
+        return False
     if filters is not None:
         if bool(getattr(filters, "ratsv_enabled", False)):
             return False
-        ratsv_keys = (
-            "ratsv_rank_min",
-            "ratsv_tr_ratio_min",
-            "ratsv_slope_med_min_pct",
-            "ratsv_slope_vel_min_pct",
-            "ratsv_cross_age_max_bars",
-            "ratsv_branch_a_rank_min",
-            "ratsv_branch_a_tr_ratio_min",
-            "ratsv_branch_a_slope_med_min_pct",
-            "ratsv_branch_a_slope_vel_min_pct",
-            "ratsv_branch_a_cross_age_max_bars",
-            "ratsv_branch_b_rank_min",
-            "ratsv_branch_b_tr_ratio_min",
-            "ratsv_branch_b_slope_med_min_pct",
-            "ratsv_branch_b_slope_vel_min_pct",
-            "ratsv_branch_b_cross_age_max_bars",
-            "ratsv_probe_cancel_max_bars",
-            "ratsv_probe_cancel_slope_adverse_min_pct",
-            "ratsv_probe_cancel_tr_ratio_min",
-            "ratsv_adverse_release_min_hold_bars",
-            "ratsv_adverse_release_slope_adverse_min_pct",
-            "ratsv_adverse_release_tr_ratio_min",
-        )
-        for key in ratsv_keys:
+        for key in _FAST_PATH_RATSV_BLOCK_KEYS:
             raw = getattr(filters, key, None)
             if raw in (None, False, 0, 0.0, "", "0"):
                 continue
@@ -3770,29 +5725,33 @@ def _can_use_fast_summary_path(
 
     stop_loss_pct = getattr(strat, "spot_stop_loss_pct", None)
     stop_ok = stop_loss_pct is not None and float(stop_loss_pct or 0.0) > 0.0
-    entry_fill_mode = str(getattr(strat, "spot_entry_fill_mode", "close") or "close").strip().lower()
-    flip_fill_mode = str(getattr(strat, "spot_flip_exit_fill_mode", "close") or "close").strip().lower()
+    exec_profile = _spot_exec_profile(strat)
+    entry_fill_mode = str(exec_profile.entry_fill_mode)
+    flip_fill_mode = str(exec_profile.flip_fill_mode)
     exit_on_signal_flip = bool(getattr(strat, "exit_on_signal_flip", False))
     flip_fill_ok = (not bool(exit_on_signal_flip)) or (flip_fill_mode == "next_open")
     tick_gate_mode = str(getattr(strat, "tick_gate_mode", "off") or "off").strip().lower()
     tick_gate_off = tick_gate_mode in ("off", "", "none", "false", "0")
+    if not bool(tick_gate_off):
+        return False
     flip_gate_mode = str(getattr(strat, "flip_exit_gate_mode", "off") or "off").strip().lower()
     flip_gate_off = flip_gate_mode in ("off", "", "none", "false", "0")
     flip_gate_ok = (not bool(exit_on_signal_flip)) or bool(flip_gate_off)
     direction_source = str(getattr(strat, "direction_source", "ema") or "ema").strip().lower()
     direction_ok = (not bool(exit_on_signal_flip)) or (direction_source == "ema")
-    # If tick gate is disabled, preloaded tick bars should not disqualify the fast path.
-    tick_ok = bool(tick_gate_off) and (tick_bars is None or isinstance(tick_bars, list))
+    tick_ok = (bool(tick_gate_off) and (tick_bars is None or isinstance(tick_bars, list))) or (
+        (not bool(tick_gate_off)) and isinstance(tick_bars, list) and bool(len(tick_bars))
+    )
     return (
         str(getattr(strat, "entry_signal", "ema") or "ema").strip().lower() == "ema"
         and entry_fill_mode == "next_open"
         and bool(flip_fill_ok)
-        and bool(getattr(strat, "spot_intrabar_exits", False))
-        and str(getattr(strat, "spot_drawdown_mode", "close") or "close").strip().lower() == "intrabar"
-        and str(getattr(strat, "spot_exit_mode", "pct") or "pct").strip().lower() == "pct"
+        and bool(exec_profile.intrabar_exits)
+        and str(exec_profile.drawdown_mode) == "intrabar"
+        and str(exec_profile.exit_mode) == "pct"
         and bool(stop_ok)
         and getattr(strat, "spot_exit_time_et", None) is None
-        and not bool(getattr(strat, "spot_close_eod", False))
+        and not bool(exec_profile.close_eod)
         and bool(tick_ok)
         and bool(flip_gate_ok)
         and bool(direction_ok)
@@ -3804,20 +5763,35 @@ def _can_use_fast_summary_path(
 def _run_spot_backtest_exec_loop_summary(
     cfg: ConfigBundle,
     *,
-    signal_bars: list[Bar],
-    exec_bars: list[Bar],
+    signal_bars: BarSeriesInput,
+    exec_bars: BarSeriesInput,
     meta: ContractMeta,
-    regime_bars: list[Bar] | None = None,
-    regime2_bars: list[Bar] | None = None,
-    tick_bars: list[Bar] | None = None,
+    regime_bars: BarSeriesInput | None = None,
+    regime2_bars: BarSeriesInput | None = None,
+    tick_bars: BarSeriesInput | None = None,
+    prepared_series_pack: object | None = None,
+    progress_callback=None,
 ) -> SummaryStats:
     """Summary-only spot backtest (avoids materializing full equity curve)."""
+    signal_bars = _bars_input_list(signal_bars)
+    exec_bars = _bars_input_list(exec_bars)
+    regime_bars = _bars_input_optional_list(regime_bars)
+    regime2_bars = _bars_input_optional_list(regime2_bars)
+    tick_bars = _bars_input_optional_list(tick_bars)
+
     if _can_use_fast_summary_path(
         cfg,
         signal_bars=signal_bars,
         exec_bars=exec_bars,
         tick_bars=tick_bars,
     ):
+        _spot_emit_progress(
+            progress_callback,
+            phase="summary.path",
+            path="fast",
+            signal_total=int(len(signal_bars)),
+            exec_total=int(len(exec_bars)),
+        )
         return _run_spot_backtest_exec_loop_summary_fast(
             cfg,
             signal_bars=signal_bars,
@@ -3825,8 +5799,18 @@ def _run_spot_backtest_exec_loop_summary(
             meta=meta,
             regime_bars=regime_bars,
             regime2_bars=regime2_bars,
+            tick_bars=tick_bars,
+            prepared_series_pack=prepared_series_pack,
+            progress_callback=progress_callback,
         )
 
+    _spot_emit_progress(
+        progress_callback,
+        phase="summary.path",
+        path="exec",
+        signal_total=int(len(signal_bars)),
+        exec_total=int(len(exec_bars)),
+    )
     return _run_spot_backtest_exec_loop(
         cfg,
         signal_bars=signal_bars,
@@ -3836,6 +5820,8 @@ def _run_spot_backtest_exec_loop_summary(
         regime2_bars=regime2_bars,
         tick_bars=tick_bars,
         capture_equity=False,
+        prepared_series_pack=prepared_series_pack,
+        progress_callback=progress_callback,
     ).summary
 
 
@@ -3980,7 +5966,7 @@ def _spot_hit_flip_exit(
         if pnl <= 0:
             return False
 
-    if flip_exit_gate_blocked(
+    if lifecycle_flip_exit_gate_blocked(
         gate_mode_raw=getattr(cfg.strategy, "flip_exit_gate_mode", "off"),
         filters=cfg.strategy.filters,
         close=float(bar.close),
@@ -4086,11 +6072,12 @@ def _trade_value_from_spec(
     mode: str,
     calibration,
 ) -> float:
-    dte_days = max((spec.expiry - bar.ts.date()).days, 0)
+    trade_day = _trade_date(bar.ts)
+    dte_days = max((spec.expiry - trade_day).days, 0)
     if calibration:
         surface_params = calibration.surface_params_asof(
             dte_days,
-            bar.ts.date().isoformat(),
+            trade_day.isoformat(),
             surface_params,
         )
     atm_iv = iv_atm(rv, dte_days, surface_params)
@@ -4166,7 +6153,7 @@ def _hit_stop(trade: OptionTrade, current_value: float, basis: str, spot: float)
 def _hit_exit_dte(cfg: ConfigBundle, trade: OptionTrade, today: date) -> bool:
     if cfg.strategy.exit_dte <= 0:
         return False
-    entry_dte = business_days_until(trade.entry_time.date(), trade.expiry)
+    entry_dte = business_days_until(_trade_date(trade.entry_time), trade.expiry)
     if cfg.strategy.exit_dte >= entry_dte:
         return False
     remaining = business_days_until(today, trade.expiry)
@@ -4323,19 +6310,7 @@ def _session_hours(use_rth: bool) -> float:
 
 
 def _min_time(bar_size: str) -> float:
-    label = bar_size.lower()
-    if "hour" in label:
-        hours = 1.0
-    elif "min" in label:
-        try:
-            hours = float(label.split("min")[0].strip()) / 60.0
-        except (ValueError, IndexError):
-            hours = 0.5
-    elif "day" in label:
-        hours = 24.0
-    else:
-        hours = 1.0
-    return hours / (24.0 * 365.0)
+    return float(_bar_hours(bar_size)) / (24.0 * 365.0)
 
 
 def _margin_required(trade: OptionTrade, spot: float, multiplier: float) -> float:

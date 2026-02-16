@@ -38,7 +38,7 @@ def options_leaderboard_main() -> None:
     parser.add_argument(
         "--progress-sec",
         type=float,
-        default=120.0,
+        default=30.0,
         help="Progress update interval in seconds (0 = only group start/end)",
     )
     parser.add_argument("--out", default="tradebot/backtest/leaderboard.json")
@@ -63,7 +63,7 @@ def options_leaderboard_main() -> None:
     jobs = normalize_jobs(int(args.jobs))
 
     interval_sec = float(args.progress_sec)
-    interval_sec = interval_sec if interval_sec >= 0 else 120.0
+    interval_sec = interval_sec if interval_sec >= 0 else 30.0
     sweep_start = time.monotonic()
 
     grid = {
@@ -479,7 +479,6 @@ def _run_combo(
         right=str(group.get("right", "PUT")),
         entry_days=(0, 1, 2, 3, 4),
         max_entries_per_day=0,
-        max_open_trades=0,
         dte=int(dte),
         otm_pct=1.0,
         width_pct=1.0,

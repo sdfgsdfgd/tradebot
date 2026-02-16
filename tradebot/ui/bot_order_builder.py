@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import asyncio
 from datetime import date, datetime
-from zoneinfo import ZoneInfo
 
 from ib_insync import Bag, ComboLeg, Contract, Option, Stock, Ticker
 
-from ..engine import normalize_spot_entry_signal
+from ..engine import normalize_spot_entry_signal, spot_resolve_entry_action_qty, spot_runtime_spec_view
+from ..spot.lifecycle import decide_open_position_intent
+from ..time_utils import now_et as _now_et
+from ..time_utils import now_et_naive as _now_et_naive
 from ..utils.date_utils import add_business_days
 from .bot_models import _BotInstance, _BotLegOrder, _BotOrder
 from .common import (
@@ -226,7 +228,7 @@ class BotOrderBuilderMixin:
                 action=action,
                 quantity=qty,
                 limit_price=float(limit),
-                created_at=datetime.now(tz=ZoneInfo("America/New_York")),
+                created_at=_now_et(),
                 bid=bid,
                 ask=ask,
                 last=last,
@@ -293,10 +295,30 @@ class BotOrderBuilderMixin:
         strat = instance.strategy or {}
         instrument = self._strategy_instrument(strat)
         intent_clean = str(intent or "enter").strip().lower()
-        intent_clean = "exit" if intent_clean == "exit" else "enter"
+        if intent_clean not in ("enter", "exit", "resize"):
+            intent_clean = "enter"
         symbol = str(
             instance.symbol or (self._payload.get("symbol", "SLV") if self._payload else "SLV")
         ).strip().upper()
+        if intent_clean == "resize" and instrument != "spot":
+            self._status = "Resize not supported for options"
+            self._render_status()
+            instance.order_trigger_last_error = None
+            instance.order_trigger_retry_reason = None
+            clear_order_watch = getattr(self, "_clear_order_trigger_watch", None)
+            if callable(clear_order_watch):
+                clear_order_watch(instance)
+            self._journal_write(
+                event="ORDER_SKIPPED",
+                instance=instance,
+                order=None,
+                reason="resize",
+                data={
+                    "skip_reason": "resize_options_unsupported",
+                    "symbol": symbol,
+                },
+            )
+            return
 
         entry_signal = normalize_spot_entry_signal(strat.get("entry_signal"))
         ema_preset = str(strat.get("ema_preset") or "").strip()
@@ -378,7 +400,9 @@ class BotOrderBuilderMixin:
             if ticker is not None:
                 ticker_ts = getattr(ticker, "time", None)
                 if isinstance(ticker_ts, datetime):
-                    now_ts = datetime.now(tz=ticker_ts.tzinfo) if ticker_ts.tzinfo is not None else datetime.now()
+                    now_ts = (
+                        datetime.now(tz=ticker_ts.tzinfo) if ticker_ts.tzinfo is not None else _now_et_naive()
+                    )
                     try:
                         age_ms = max(0, int((now_ts - ticker_ts).total_seconds() * 1000.0))
                     except Exception:
@@ -491,7 +515,7 @@ class BotOrderBuilderMixin:
                     action=single.action,
                     quantity=single.ratio,
                     limit_price=float(limit),
-                    created_at=datetime.now(tz=ZoneInfo("America/New_York")),
+                    created_at=_now_et(),
                     bid=bid,
                     ask=ask,
                     last=last,
@@ -555,7 +579,7 @@ class BotOrderBuilderMixin:
                 action=order_action,
                 quantity=1,
                 limit_price=float(order_limit),
-                created_at=datetime.now(tz=ZoneInfo("America/New_York")),
+                created_at=_now_et(),
                 bid=order_bid,
                 ask=order_ask,
                 last=order_last,
@@ -584,8 +608,10 @@ class BotOrderBuilderMixin:
         flow = {
             ("exit", "spot"): "exit",
             ("exit", "options"): "exit",
-            ("enter", "spot"): "enter_spot",
+            ("enter", "spot"): "spot_signal_sized",
+            ("resize", "spot"): "spot_signal_sized",
             ("enter", "options"): "enter_options",
+            ("resize", "options"): "enter_options",
         }.get(flow_key, "enter_options")
 
         if flow == "exit":
@@ -606,11 +632,11 @@ class BotOrderBuilderMixin:
             )
             return
 
-        if flow == "enter_spot":
+        if flow == "spot_signal_sized":
+            is_resize = intent_clean == "resize"
             entry_signal = normalize_spot_entry_signal(strat.get("entry_signal"))
-            exit_mode = str(strat.get("spot_exit_mode") or "pct").strip().lower()
-            if exit_mode not in ("pct", "atr"):
-                exit_mode = "pct"
+            runtime_spec = spot_runtime_spec_view(strategy=strat, filters=instance.filters)
+            exit_mode = str(runtime_spec.exit_mode)
 
             signal_contract = await self._signal_contract(instance, symbol)
             snap = (
@@ -635,23 +661,25 @@ class BotOrderBuilderMixin:
                 direction = self._entry_direction_for_instance(instance, snap) or (
                     str(snap.signal.state) if snap.signal.state in ("up", "down") else None
                 )
+            if direction not in ("up", "down") and is_resize:
+                _instrument, open_items, open_dir = self._resolve_open_positions(
+                    instance,
+                    symbol=symbol,
+                    signal_contract=signal_contract,
+                )
+                if open_items and open_dir in ("up", "down"):
+                    direction = str(open_dir)
             direction = direction if direction in ("up", "down") else "up"
 
-            mapping = strat.get("directional_spot") if isinstance(strat.get("directional_spot"), dict) else None
-            chosen = mapping.get(direction) if mapping else None
-            if not isinstance(chosen, dict):
-                if direction == "up":
-                    chosen = {"action": "BUY", "qty": 1}
-                else:
-                    chosen = {"action": "SELL", "qty": 1}
-            action = str(chosen.get("action", "")).strip().upper()
-            if action not in ("BUY", "SELL"):
+            resolved_entry = spot_resolve_entry_action_qty(
+                strategy=strat,
+                entry_dir=direction,
+                needs_direction=False,
+                fallback_short_sell=True,
+            )
+            if resolved_entry is None:
                 return _fail(f"Order: invalid spot action for {direction}")
-            try:
-                qty = int(chosen.get("qty", 1) or 1)
-            except (TypeError, ValueError):
-                qty = 1
-            qty = max(1, abs(qty))
+            action, qty = resolved_entry
 
             contract = await self._spot_contract(instance, symbol)
             if contract is None:
@@ -693,72 +721,81 @@ class BotOrderBuilderMixin:
             tick = _tick_size(contract, ticker, limit) or 0.01
             limit = _round_to_tick(float(limit), tick)
 
-            instance.spot_profit_target_price = None
-            instance.spot_stop_loss_price = None
-            if snap is not None and entry_signal == "orb":
-                try:
-                    rr = float(strat.get("orb_risk_reward", 2.0) or 2.0)
-                except (TypeError, ValueError):
-                    rr = 2.0
-                target_mode = str(strat.get("orb_target_mode", "rr") or "rr").strip().lower()
-                if target_mode not in ("rr", "or_range"):
-                    target_mode = "rr"
-                or_high = snap.or_high
-                or_low = snap.or_low
-                if (
-                    rr > 0
-                    and bool(snap.or_ready)
-                    and or_high is not None
-                    and or_low is not None
-                    and float(or_high) > 0
-                    and float(or_low) > 0
-                ):
-                    stop = float(or_low) if direction == "up" else float(or_high)
-                    if target_mode == "or_range":
-                        rng = float(or_high) - float(or_low)
-                        if rng > 0:
-                            target = (
-                                float(or_high) + (rr * rng)
-                                if direction == "up"
-                                else float(or_low) - (rr * rng)
-                            )
-                            if (
-                                (direction == "up" and float(target) <= float(limit))
-                                or (direction == "down" and float(target) >= float(limit))
-                            ):
-                                return _fail("Order: ORB target already hit (skip)")
-                            instance.spot_profit_target_price = float(target)
-                            instance.spot_stop_loss_price = float(stop)
+            if not is_resize:
+                instance.spot_profit_target_price = None
+                instance.spot_stop_loss_price = None
+                if snap is not None and entry_signal == "orb":
+                    try:
+                        rr = float(strat.get("orb_risk_reward", 2.0) or 2.0)
+                    except (TypeError, ValueError):
+                        rr = 2.0
+                    target_mode = str(strat.get("orb_target_mode", "rr") or "rr").strip().lower()
+                    if target_mode not in ("rr", "or_range"):
+                        target_mode = "rr"
+                    or_high = snap.or_high
+                    or_low = snap.or_low
+                    if (
+                        rr > 0
+                        and bool(snap.or_ready)
+                        and or_high is not None
+                        and or_low is not None
+                        and float(or_high) > 0
+                        and float(or_low) > 0
+                    ):
+                        stop = float(or_low) if direction == "up" else float(or_high)
+                        if target_mode == "or_range":
+                            rng = float(or_high) - float(or_low)
+                            if rng > 0:
+                                target = (
+                                    float(or_high) + (rr * rng)
+                                    if direction == "up"
+                                    else float(or_low) - (rr * rng)
+                                )
+                                if (
+                                    (direction == "up" and float(target) <= float(limit))
+                                    or (direction == "down" and float(target) >= float(limit))
+                                ):
+                                    return _fail("Order: ORB target already hit (skip)")
+                                instance.spot_profit_target_price = float(target)
+                                instance.spot_stop_loss_price = float(stop)
+                        else:
+                            risk = abs(float(limit) - stop)
+                            if risk > 0:
+                                target = (
+                                    float(limit) + (rr * risk) if direction == "up" else float(limit) - (rr * risk)
+                                )
+                                instance.spot_profit_target_price = float(target)
+                                instance.spot_stop_loss_price = float(stop)
+                elif exit_mode == "atr":
+                    atr = float(snap.atr) if snap is not None and snap.atr is not None else 0.0
+                    if atr <= 0:
+                        return _fail("Order: ATR not ready (spot_exit_mode=atr)")
+                    pt_raw = strat.get("spot_pt_atr_mult", 1.5)
+                    try:
+                        pt_mult = float(1.5 if pt_raw is None else pt_raw)
+                    except (TypeError, ValueError):
+                        pt_mult = 1.5
+                    sl_raw = strat.get("spot_sl_atr_mult", 1.0)
+                    try:
+                        sl_mult = float(1.0 if sl_raw is None else sl_raw)
+                    except (TypeError, ValueError):
+                        sl_mult = 1.0
+                    if direction == "up":
+                        instance.spot_profit_target_price = float(limit) + (pt_mult * atr)
+                        instance.spot_stop_loss_price = float(limit) - (sl_mult * atr)
                     else:
-                        risk = abs(float(limit) - stop)
-                        if risk > 0:
-                            target = float(limit) + (rr * risk) if direction == "up" else float(limit) - (rr * risk)
-                            instance.spot_profit_target_price = float(target)
-                            instance.spot_stop_loss_price = float(stop)
-            elif exit_mode == "atr":
-                atr = float(snap.atr) if snap is not None and snap.atr is not None else 0.0
-                if atr <= 0:
-                    return _fail("Order: ATR not ready (spot_exit_mode=atr)")
-                pt_raw = strat.get("spot_pt_atr_mult", 1.5)
-                try:
-                    pt_mult = float(1.5 if pt_raw is None else pt_raw)
-                except (TypeError, ValueError):
-                    pt_mult = 1.5
-                sl_raw = strat.get("spot_sl_atr_mult", 1.0)
-                try:
-                    sl_mult = float(1.0 if sl_raw is None else sl_raw)
-                except (TypeError, ValueError):
-                    sl_mult = 1.0
-                if direction == "up":
-                    instance.spot_profit_target_price = float(limit) + (pt_mult * atr)
-                    instance.spot_stop_loss_price = float(limit) - (sl_mult * atr)
-                else:
-                    instance.spot_profit_target_price = float(limit) - (pt_mult * atr)
-                    instance.spot_stop_loss_price = float(limit) + (sl_mult * atr)
+                        instance.spot_profit_target_price = float(limit) - (pt_mult * atr)
+                        instance.spot_stop_loss_price = float(limit) + (sl_mult * atr)
 
             # Spot sizing: mirror backtest semantics (fixed / notional_pct / risk_pct), with optional
             # shock/risk overlays applied via the filters snapshot.
-            from ..engine import spot_calc_signed_qty, spot_scale_exit_pcts, spot_shock_exit_pct_multipliers
+            from ..engine import (
+                spot_apply_branch_size_mult,
+                spot_branch_size_mult,
+                spot_calc_signed_qty_with_trace,
+                spot_scale_exit_pcts,
+                spot_shock_exit_pct_multipliers,
+            )
 
             filters = instance.filters if isinstance(instance.filters, dict) else None
             stop_loss_pct = None
@@ -862,7 +899,7 @@ class BotOrderBuilderMixin:
             riskpanic = bool(snap.risk.riskpanic) if snap.risk is not None else False
             riskpop = bool(snap.risk.riskpop) if snap.risk is not None else False
 
-            signed_qty = spot_calc_signed_qty(
+            signed_qty, decision_trace = spot_calc_signed_qty_with_trace(
                 strategy=strat,
                 filters=filters,
                 action=str(action),
@@ -882,37 +919,115 @@ class BotOrderBuilderMixin:
                 cash_ref=cash_ref,
             )
             if signed_qty == 0:
-                return _fail("Order: spot sizing returned 0 qty")
+                return _fail(
+                    "Order: spot sizing returned 0 qty",
+                    quote_payload={"spot_decision": decision_trace.as_payload()},
+                )
 
-            entry_branch = str(getattr(snap, "entry_branch", "") or "")
-            branch_size_mult = 1.0
-            if bool(strat.get("spot_dual_branch_enabled")) and entry_branch in ("a", "b"):
-                key = "spot_branch_a_size_mult" if entry_branch == "a" else "spot_branch_b_size_mult"
+            entry_branch = str(instance.spot_entry_branch or "") if is_resize else str(getattr(snap, "entry_branch", "") or "")
+            if entry_branch not in ("a", "b"):
+                entry_branch = str(getattr(snap, "entry_branch", "") or "")
+            branch_size_mult = spot_branch_size_mult(strategy=strat, entry_branch=entry_branch)
+            signed_qty = spot_apply_branch_size_mult(
+                signed_qty=int(signed_qty),
+                size_mult=float(branch_size_mult),
+                spot_min_qty=strat.get("spot_min_qty", 1),
+                spot_max_qty=strat.get("spot_max_qty", 0),
+            )
+            decision_trace = decision_trace.with_branch_scaling(
+                entry_branch=entry_branch,
+                size_mult=float(branch_size_mult),
+                signed_qty_after_branch=int(signed_qty),
+            )
+
+            current_qty = 0
+            if is_resize:
+                _instrument, open_items, _open_dir = self._resolve_open_positions(
+                    instance,
+                    symbol=symbol,
+                    signal_contract=signal_contract,
+                )
+                open_item = open_items[0] if open_items else None
+                if open_item is None:
+                    return _fail("Resize: no spot position", retry_reason="resize_no_position")
                 try:
-                    branch_size_mult = float(strat.get(key, 1.0) or 1.0)
+                    current_qty = int(float(getattr(open_item, "position", 0.0) or 0.0))
                 except (TypeError, ValueError):
-                    branch_size_mult = 1.0
-                if branch_size_mult > 0 and abs(branch_size_mult - 1.0) > 1e-12:
-                    sign = 1 if int(signed_qty) > 0 else -1
-                    scaled_abs = int(abs(int(signed_qty)) * float(branch_size_mult))
-                    if scaled_abs <= 0:
-                        scaled_abs = 1
-                    try:
-                        max_qty = int(strat.get("spot_max_qty", 0) or 0)
-                    except (TypeError, ValueError):
-                        max_qty = 0
-                    if max_qty > 0:
-                        scaled_abs = min(int(scaled_abs), int(max_qty))
-                    try:
-                        min_qty = int(strat.get("spot_min_qty", 1) or 1)
-                    except (TypeError, ValueError):
-                        min_qty = 1
-                    min_qty = max(1, int(min_qty))
-                    scaled_abs = max(int(min_qty), int(scaled_abs))
-                    signed_qty = int(sign) * int(scaled_abs)
+                    current_qty = 0
+                if current_qty == 0:
+                    return _fail("Resize: no spot position", retry_reason="resize_no_position")
 
-            action = "BUY" if int(signed_qty) > 0 else "SELL"
-            qty = int(abs(int(signed_qty)))
+            lifecycle_decision = decide_open_position_intent(
+                strategy=strat,
+                bar_ts=snap.bar_ts if snap is not None else (_now_et_naive()),
+                bar_size=self._signal_bar_size(instance),
+                open_dir=direction,
+                current_qty=int(current_qty),
+                target_qty=int(signed_qty),
+                spot_decision=decision_trace.as_payload(),
+                last_resize_bar_ts=instance.last_resize_bar_ts,
+                signal_entry_dir=getattr(getattr(snap, "signal", None), "entry_dir", None),
+                shock_atr_pct=float(snap.shock_atr_pct) if snap is not None and snap.shock_atr_pct is not None else None,
+                shock_atr_vel_pct=(
+                    float(getattr(snap, "shock_atr_vel_pct", 0.0))
+                    if snap is not None and getattr(snap, "shock_atr_vel_pct", None) is not None
+                    else None
+                ),
+                shock_atr_accel_pct=(
+                    float(getattr(snap, "shock_atr_accel_pct", 0.0))
+                    if snap is not None and getattr(snap, "shock_atr_accel_pct", None) is not None
+                    else None
+                ),
+                tr_ratio=float(getattr(snap, "ratsv_tr_ratio", 0.0)) if snap is not None and getattr(snap, "ratsv_tr_ratio", None) is not None else None,
+                slope_med_pct=float(getattr(snap, "ratsv_fast_slope_med_pct", 0.0)) if snap is not None and getattr(snap, "ratsv_fast_slope_med_pct", None) is not None else None,
+                slope_vel_pct=float(getattr(snap, "ratsv_fast_slope_vel_pct", 0.0)) if snap is not None and getattr(snap, "ratsv_fast_slope_vel_pct", None) is not None else None,
+                slope_med_slow_pct=(
+                    float(getattr(snap, "ratsv_slow_slope_med_pct", 0.0))
+                    if snap is not None and getattr(snap, "ratsv_slow_slope_med_pct", None) is not None
+                    else None
+                ),
+                slope_vel_slow_pct=(
+                    float(getattr(snap, "ratsv_slow_slope_vel_pct", 0.0))
+                    if snap is not None and getattr(snap, "ratsv_slow_slope_vel_pct", None) is not None
+                    else None
+                ),
+            )
+            intent_decision = lifecycle_decision.spot_intent
+            if (
+                str(lifecycle_decision.intent) == "hold"
+                or intent_decision is None
+                or int(intent_decision.order_qty) <= 0
+                or str(intent_decision.order_action or "") not in ("BUY", "SELL")
+            ):
+                self._journal_write(
+                    event="ORDER_SKIPPED",
+                    instance=instance,
+                    order=None,
+                    reason=intent_clean,
+                    data={
+                        "skip_reason": str(lifecycle_decision.reason or "hold"),
+                        "direction": direction,
+                        "signal_bar_ts": signal_bar_ts.isoformat() if signal_bar_ts is not None else None,
+                        "spot_lifecycle": lifecycle_decision.as_payload(),
+                        "spot_intent": intent_decision.as_payload() if intent_decision is not None else None,
+                        "spot_decision": decision_trace.as_payload(),
+                        **_order_attempt_payload(),
+                    },
+                )
+                clear_order_watch = getattr(self, "_clear_order_trigger_watch", None)
+                if callable(clear_order_watch):
+                    clear_order_watch(instance)
+                instance.order_trigger_last_error = None
+                instance.order_trigger_retry_reason = None
+                _set_status(f"Order skipped ({intent_clean}): {lifecycle_decision.reason or 'hold'}")
+                return
+
+            action = str(intent_decision.order_action)
+            qty = int(intent_decision.order_qty)
+            if int(intent_decision.target_qty) > 0:
+                direction = "up"
+            elif int(intent_decision.target_qty) < 0:
+                direction = "down"
 
             journal = {
                 "intent": intent_clean,
@@ -926,14 +1041,20 @@ class BotOrderBuilderMixin:
                     "ema_ready": bool(getattr(getattr(snap, "signal", None), "ema_ready", False)),
                 },
                 "entry_dir": getattr(snap, "entry_dir", None),
-                "entry_branch": getattr(snap, "entry_branch", None),
+                "entry_branch": str(entry_branch) if entry_branch in ("a", "b") else None,
                 "branch_size_mult": float(branch_size_mult) if branch_size_mult is not None else None,
+                "spot_decision": decision_trace.as_payload(),
+                "spot_lifecycle": lifecycle_decision.as_payload(),
+                "spot_intent": intent_decision.as_payload(),
                 "ratsv": {
                     "side_rank": float(getattr(snap, "ratsv_side_rank", 0.0)) if getattr(snap, "ratsv_side_rank", None) is not None else None,
                     "tr_ratio": float(getattr(snap, "ratsv_tr_ratio", 0.0)) if getattr(snap, "ratsv_tr_ratio", None) is not None else None,
                     "fast_slope_pct": float(getattr(snap, "ratsv_fast_slope_pct", 0.0)) if getattr(snap, "ratsv_fast_slope_pct", None) is not None else None,
                     "fast_slope_med_pct": float(getattr(snap, "ratsv_fast_slope_med_pct", 0.0)) if getattr(snap, "ratsv_fast_slope_med_pct", None) is not None else None,
                     "fast_slope_vel_pct": float(getattr(snap, "ratsv_fast_slope_vel_pct", 0.0)) if getattr(snap, "ratsv_fast_slope_vel_pct", None) is not None else None,
+                    "slow_slope_med_pct": float(getattr(snap, "ratsv_slow_slope_med_pct", 0.0)) if getattr(snap, "ratsv_slow_slope_med_pct", None) is not None else None,
+                    "slow_slope_vel_pct": float(getattr(snap, "ratsv_slow_slope_vel_pct", 0.0)) if getattr(snap, "ratsv_slow_slope_vel_pct", None) is not None else None,
+                    "slope_vel_consistency": float(getattr(snap, "ratsv_slope_vel_consistency", 0.0)) if getattr(snap, "ratsv_slope_vel_consistency", None) is not None else None,
                     "cross_age_bars": int(getattr(snap, "ratsv_cross_age_bars", 0)) if getattr(snap, "ratsv_cross_age_bars", None) is not None else None,
                 },
                 "bars_in_day": int(snap.bars_in_day) if snap is not None else None,
@@ -943,6 +1064,12 @@ class BotOrderBuilderMixin:
                 "shock_dir": snap.shock_dir if snap is not None else None,
                 "shock_atr_pct": float(snap.shock_atr_pct)
                 if snap is not None and snap.shock_atr_pct is not None
+                else None,
+                "shock_atr_vel_pct": float(getattr(snap, "shock_atr_vel_pct", 0.0))
+                if snap is not None and getattr(snap, "shock_atr_vel_pct", None) is not None
+                else None,
+                "shock_atr_accel_pct": float(getattr(snap, "shock_atr_accel_pct", 0.0))
+                if snap is not None and getattr(snap, "shock_atr_accel_pct", None) is not None
                 else None,
                 "riskoff": bool(snap.risk.riskoff) if snap is not None and snap.risk is not None else None,
                 "riskpanic": bool(snap.risk.riskpanic) if snap is not None and snap.risk is not None else None,
@@ -982,13 +1109,13 @@ class BotOrderBuilderMixin:
                 action=action,
                 quantity=qty,
                 limit_price=float(limit),
-                created_at=datetime.now(tz=ZoneInfo("America/New_York")),
+                created_at=_now_et(),
                 bid=bid,
                 ask=ask,
                 last=last,
                 intent=intent_clean,
                 direction=direction,
-                reason="enter",
+                reason=intent_clean,
                 signal_bar_ts=snap.bar_ts if snap is not None else signal_bar_ts,
                 journal=journal,
                 exec_mode=mode,
@@ -996,9 +1123,12 @@ class BotOrderBuilderMixin:
             if con_id:
                 instance.touched_conids.add(con_id)
             instance.open_direction = str(direction)
-            if signal_bar_ts is not None:
+            if signal_bar_ts is not None and intent_clean == "enter":
                 instance.last_entry_bar_ts = signal_bar_ts
-            _bump_entry_counters()
+            if signal_bar_ts is not None and intent_clean == "resize":
+                instance.last_resize_bar_ts = signal_bar_ts
+            if intent_clean == "enter":
+                _bump_entry_counters()
             self._add_order(order)
             _set_status(f"Created order {action} {qty} {symbol} @ {limit:.2f} ({direction})")
             return
@@ -1060,7 +1190,7 @@ class BotOrderBuilderMixin:
         if spot is None:
             return _fail(f"Spot: n/a for {symbol}")
 
-        expiry = _pick_chain_expiry(date.today(), dte, getattr(chain, "expirations", []))
+        expiry = _pick_chain_expiry(_now_et().date(), dte, getattr(chain, "expirations", []))
         if not expiry:
             return _fail(f"Expiry: none for {symbol}")
 

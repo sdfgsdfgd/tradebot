@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timedelta
-from zoneinfo import ZoneInfo
 
+from ..time_utils import now_et_naive as _now_et_naive
 from .common import (
     _EXEC_LADDER_TIMEOUT_SEC,
     _exec_chase_mode,
@@ -227,6 +227,12 @@ class BotEngineRuntimeMixin:
                         done_data["exit_lock_bar_ts"] = (
                             signal_bar_ts.isoformat() if signal_bar_ts is not None else None
                         )
+                    if status == "Filled" and intent == "resize":
+                        if signal_bar_ts is not None:
+                            instance.last_resize_bar_ts = signal_bar_ts
+                        done_data["resize_bar_ts"] = (
+                            signal_bar_ts.isoformat() if signal_bar_ts is not None else None
+                        )
                     if status == "Filled" and sec_type == "STK":
                         if intent == "enter":
                             basis_price = None
@@ -252,7 +258,7 @@ class BotEngineRuntimeMixin:
                             if basis_price is not None:
                                 instance.spot_entry_basis_price = float(basis_price)
                                 instance.spot_entry_basis_source = str(basis_source or "entry_fill")
-                                instance.spot_entry_basis_set_ts = datetime.now()
+                                instance.spot_entry_basis_set_ts = _now_et_naive()
                                 done_data["entry_basis_price"] = float(basis_price)
                                 done_data["entry_basis_source"] = str(instance.spot_entry_basis_source)
                             journal = getattr(order, "journal", None)
@@ -263,6 +269,8 @@ class BotEngineRuntimeMixin:
                                     entry_branch = str(raw_branch)
                             instance.spot_entry_branch = entry_branch
                             done_data["entry_branch"] = entry_branch
+                        elif intent == "resize":
+                            done_data["resize_applied"] = True
                         elif intent == "exit":
                             instance.spot_entry_basis_price = None
                             instance.spot_entry_basis_source = None
@@ -280,7 +288,7 @@ class BotEngineRuntimeMixin:
                         except (TypeError, ValueError):
                             cooldown_sec = _DEFAULT_EXIT_RETRY_COOLDOWN_SEC
                         cooldown_sec = max(0.0, float(cooldown_sec))
-                        now_wall = datetime.now(tz=ZoneInfo("America/New_York")).replace(tzinfo=None)
+                        now_wall = _now_et_naive()
                         if cooldown_sec > 0:
                             instance.exit_retry_cooldown_until = now_wall + timedelta(seconds=cooldown_sec)
                         else:

@@ -60,6 +60,7 @@ class SpotTrade:
     profit_target_price: float | None = None
     stop_loss_price: float | None = None
     entry_branch: str | None = None
+    decision_trace: dict[str, object] | None = None
     margin_required: float = 0.0
     exit_time: datetime | None = None
     exit_price: float | None = None

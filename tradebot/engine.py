@@ -18,37 +18,56 @@ from __future__ import annotations
 import math
 from collections import deque
 from dataclasses import dataclass
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import date, datetime, time, timedelta
 from functools import lru_cache
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from typing import TYPE_CHECKING, Iterable
-from zoneinfo import ZoneInfo
 
 from .signals import (
     ema_cross,
     ema_next,
     ema_periods,
-    ema_slope_pct,
-    ema_spread_pct,
     ema_state_direction,
-    flip_exit_mode,
     normalize_ema_entry_mode,
     parse_bar_size,
     trend_confirmed_state,
     update_cross_confirm,
 )
-
-# region Constants
-_ET_ZONE = ZoneInfo("America/New_York")
-# endregion
-
+from .spot.policy import SpotDecisionTrace, SpotIntentDecision, SpotPolicy, SpotPolicyConfigView, SpotRuntimeSpec
+from .time_utils import (
+    ET_ZONE as _ET_ZONE,
+    NaiveTsModeInput,
+    normalize_naive_ts_mode as _normalize_naive_ts_mode_shared,
+    to_et as _to_et_shared,
+    trade_date as _trade_date_shared,
+    trade_hour_et as _trade_hour_et_shared,
+    trade_weekday as _trade_weekday_shared,
+)
 
 # region Time Helpers
+def _normalize_naive_ts_mode(naive_ts_mode: NaiveTsModeInput) -> str:
+    return _normalize_naive_ts_mode_shared(naive_ts_mode, default="utc")
+
+
+def _ts_to_et_with_mode(ts: datetime, *, naive_ts_mode: NaiveTsModeInput = None) -> datetime:
+    return _to_et_shared(ts, naive_ts_mode=naive_ts_mode, default_naive_ts_mode="utc")
+
+
 def _ts_to_et(ts: datetime) -> datetime:
     """Interpret naive datetimes as UTC and return an ET-aware timestamp."""
-    if getattr(ts, "tzinfo", None) is None:
-        ts = ts.replace(tzinfo=timezone.utc)
-    return ts.astimezone(_ET_ZONE)
+    return _ts_to_et_with_mode(ts, naive_ts_mode="utc")
+
+
+def _trade_date(ts: datetime, *, naive_ts_mode: NaiveTsModeInput = None) -> date:
+    return _trade_date_shared(ts, naive_ts_mode=naive_ts_mode, default_naive_ts_mode="utc")
+
+
+def _trade_hour_et(ts: datetime, *, naive_ts_mode: NaiveTsModeInput = None) -> int:
+    return _trade_hour_et_shared(ts, naive_ts_mode=naive_ts_mode, default_naive_ts_mode="utc")
+
+
+def _trade_weekday(ts: datetime, *, naive_ts_mode: NaiveTsModeInput = None) -> int:
+    return _trade_weekday_shared(ts, naive_ts_mode=naive_ts_mode, default_naive_ts_mode="utc")
 
 
 def parse_time_hhmm(value: object, *, default: time | None = None) -> time | None:
@@ -328,94 +347,6 @@ def build_shock_engine(filters: Mapping[str, object] | object | None, *, source:
 # endregion
 
 
-# region Permission Gates
-def permission_gate_status(
-    filters: Mapping[str, object] | object | None,
-    *,
-    close: float,
-    signal: EmaDecisionSnapshot | None,
-    entry_dir: str | None,
-) -> tuple[bool, bool]:
-    """Return (active, ok) for the EMA permission gates.
-
-    - active: any permission threshold is configured (spread and/or slope).
-    - ok: True when either inactive OR the thresholds pass for the given direction.
-    """
-    spread_min = _filters_get(filters, "ema_spread_min_pct")
-    spread_min_down = _filters_get(filters, "ema_spread_min_pct_down")
-    if entry_dir == "down" and spread_min_down is not None:
-        spread_min = spread_min_down
-    slope_min = _filters_get(filters, "ema_slope_min_pct")
-
-    slope_signed_up = _filters_get(filters, "ema_slope_signed_min_pct_up") if entry_dir == "up" else None
-    slope_signed_down = _filters_get(filters, "ema_slope_signed_min_pct_down") if entry_dir == "down" else None
-
-    active = (
-        spread_min is not None
-        or slope_min is not None
-        or slope_signed_up is not None
-        or slope_signed_down is not None
-    )
-    if not bool(active):
-        return False, True
-
-    if signal is None or not bool(signal.ema_ready) or signal.ema_fast is None or signal.ema_slow is None:
-        return True, False
-
-    if spread_min is not None:
-        try:
-            spread_min_f = float(spread_min)
-        except (TypeError, ValueError):
-            spread_min_f = None
-        if spread_min_f is not None:
-            spread = ema_spread_pct(float(signal.ema_fast), float(signal.ema_slow), float(close))
-            if spread < spread_min_f:
-                return True, False
-
-    if slope_min is not None:
-        try:
-            slope_min_f = float(slope_min)
-        except (TypeError, ValueError):
-            slope_min_f = None
-        if slope_min_f is not None:
-            if signal.prev_ema_fast is None:
-                return True, False
-            slope = ema_slope_pct(float(signal.ema_fast), float(signal.prev_ema_fast), float(close))
-            if slope < slope_min_f:
-                return True, False
-
-    if slope_signed_up is not None:
-        try:
-            slope_signed_min = float(slope_signed_up)
-        except (TypeError, ValueError):
-            slope_signed_min = None
-        if slope_signed_min is not None and slope_signed_min > 0:
-            if signal.prev_ema_fast is None:
-                return True, False
-            denom = max(float(close), 1e-9)
-            signed = (float(signal.ema_fast) - float(signal.prev_ema_fast)) / denom * 100.0
-            if signed < float(slope_signed_min):
-                return True, False
-
-    if slope_signed_down is not None:
-        try:
-            slope_signed_min = float(slope_signed_down)
-        except (TypeError, ValueError):
-            slope_signed_min = None
-        if slope_signed_min is not None and slope_signed_min > 0:
-            if signal.prev_ema_fast is None:
-                return True, False
-            denom = max(float(close), 1e-9)
-            signed = (float(signal.ema_fast) - float(signal.prev_ema_fast)) / denom * 100.0
-            if signed > -float(slope_signed_min):
-                return True, False
-
-    return True, True
-
-
-# endregion
-
-
 # region Volatility Helpers
 @lru_cache(maxsize=None)
 def annualization_factor(bar_size: str, use_rth: bool) -> float:
@@ -624,15 +555,7 @@ def spot_shock_exit_pct_multipliers(
     shock: bool | None,
 ) -> tuple[float, float]:
     """Return sanitized stop/profit multipliers for shock-aware pct exits."""
-    if not bool(shock) or filters is None:
-        return 1.0, 1.0
-    stop_mult = _parse_float(_filters_get(filters, "shock_stop_loss_pct_mult"), default=1.0)
-    profit_mult = _parse_float(_filters_get(filters, "shock_profit_target_pct_mult"), default=1.0)
-    if stop_mult <= 0:
-        stop_mult = 1.0
-    if profit_mult <= 0:
-        profit_mult = 1.0
-    return float(stop_mult), float(profit_mult)
+    return SpotPolicy.shock_exit_pct_multipliers(filters, shock=shock)
 
 
 def spot_scale_exit_pcts(
@@ -643,36 +566,107 @@ def spot_scale_exit_pcts(
     profit_mult: float = 1.0,
 ) -> tuple[float | None, float | None]:
     """Scale pct-based stop/profit levels with safe bounds and invalid-value handling."""
-    try:
-        stop_mult_f = float(stop_mult)
-    except (TypeError, ValueError):
-        stop_mult_f = 1.0
-    try:
-        profit_mult_f = float(profit_mult)
-    except (TypeError, ValueError):
-        profit_mult_f = 1.0
-    if stop_mult_f <= 0:
-        stop_mult_f = 1.0
-    if profit_mult_f <= 0:
-        profit_mult_f = 1.0
+    return SpotPolicy.scale_exit_pcts(
+        stop_loss_pct=stop_loss_pct,
+        profit_target_pct=profit_target_pct,
+        stop_mult=stop_mult,
+        profit_mult=profit_mult,
+    )
 
-    stop_pct: float | None
-    try:
-        stop_pct = float(stop_loss_pct) if stop_loss_pct is not None else None
-    except (TypeError, ValueError):
-        stop_pct = None
-    if stop_pct is not None:
-        stop_pct = min(stop_pct * stop_mult_f, 0.99) if stop_pct > 0 else None
 
-    profit_pct: float | None
-    try:
-        profit_pct = float(profit_target_pct) if profit_target_pct is not None else None
-    except (TypeError, ValueError):
-        profit_pct = None
-    if profit_pct is not None:
-        profit_pct = min(profit_pct * profit_mult_f, 0.99) if profit_pct > 0 else None
+def spot_riskoff_mode_from_filters(filters: Mapping[str, object] | object | None) -> str:
+    """Normalize riskoff mode from filters."""
+    return SpotPolicy.riskoff_mode(filters)
 
-    return stop_pct, profit_pct
+
+def spot_riskoff_end_hour(filters: Mapping[str, object] | object | None) -> int | None:
+    """Resolve ET risk cutoff hour with legacy fallback support."""
+    return SpotPolicy.risk_entry_cutoff_hour_et(filters)
+
+
+def spot_policy_config_view(
+    *,
+    strategy: Mapping[str, object] | object | None = None,
+    filters: Mapping[str, object] | object | None = None,
+) -> SpotPolicyConfigView:
+    """Return the sanitized/defaulted spot policy config view."""
+    return SpotPolicy.policy_config(strategy=strategy, filters=filters)
+
+
+def spot_runtime_spec_view(
+    *,
+    strategy: Mapping[str, object] | object | None = None,
+    filters: Mapping[str, object] | object | None = None,
+) -> SpotRuntimeSpec:
+    """Return sanitized/defaulted spot execution runtime knobs."""
+    return SpotPolicy.runtime_spec(strategy=strategy, filters=filters)
+
+
+def spot_resolve_entry_action_qty(
+    *,
+    strategy: Mapping[str, object] | object,
+    entry_dir: str | None,
+    needs_direction: bool = False,
+    fallback_short_sell: bool = False,
+) -> tuple[str, int] | None:
+    return SpotPolicy.resolve_entry_action_qty(
+        strategy=strategy,
+        entry_dir=entry_dir,
+        needs_direction=needs_direction,
+        fallback_short_sell=fallback_short_sell,
+    )
+
+
+def spot_pending_entry_should_cancel(
+    *,
+    pending_dir: str,
+    pending_set_date: date | None,
+    exec_ts: datetime,
+    risk_overlay_enabled: bool,
+    riskoff_today: bool,
+    riskpanic_today: bool,
+    riskpop_today: bool,
+    riskoff_mode: str,
+    shock_dir_now: str | None,
+    riskoff_end_hour: int | None,
+    naive_ts_mode: str | None = None,
+) -> bool:
+    return SpotPolicy.pending_entry_should_cancel(
+        pending_dir=pending_dir,
+        pending_set_date=pending_set_date,
+        exec_ts=exec_ts,
+        risk_overlay_enabled=risk_overlay_enabled,
+        riskoff_today=riskoff_today,
+        riskpanic_today=riskpanic_today,
+        riskpop_today=riskpop_today,
+        riskoff_mode=riskoff_mode,
+        shock_dir_now=shock_dir_now,
+        riskoff_end_hour=riskoff_end_hour,
+        naive_ts_mode=naive_ts_mode,
+    )
+
+
+def spot_branch_size_mult(
+    *,
+    strategy: Mapping[str, object] | object,
+    entry_branch: str | None,
+) -> float:
+    return SpotPolicy.branch_size_mult(strategy=strategy, entry_branch=entry_branch)
+
+
+def spot_apply_branch_size_mult(
+    *,
+    signed_qty: int,
+    size_mult: float,
+    spot_min_qty: object,
+    spot_max_qty: object,
+) -> int:
+    return SpotPolicy.apply_branch_size_mult(
+        signed_qty=signed_qty,
+        size_mult=size_mult,
+        spot_min_qty=spot_min_qty,
+        spot_max_qty=spot_max_qty,
+    )
 
 
 def spot_calc_signed_qty(
@@ -695,213 +689,82 @@ def spot_calc_signed_qty(
     equity_ref: float,
     cash_ref: float | None,
 ) -> int:
-    """Return signed share qty for a spot entry.
+    """Return signed share qty for a spot entry."""
+    return SpotPolicy.calc_signed_qty(
+        strategy=strategy,
+        filters=filters,
+        action=action,
+        lot=lot,
+        entry_price=entry_price,
+        stop_price=stop_price,
+        stop_loss_pct=stop_loss_pct,
+        shock=shock,
+        shock_dir=shock_dir,
+        shock_atr_pct=shock_atr_pct,
+        riskoff=riskoff,
+        risk_dir=risk_dir,
+        riskpanic=riskpanic,
+        riskpop=riskpop,
+        risk=risk,
+        equity_ref=equity_ref,
+        cash_ref=cash_ref,
+    )
 
-    This mirrors the sizing logic used by the synthetic backtest spot executor, so the live UI can
-    apply the same sizing modes (fixed / notional_pct / risk_pct) using real account equity.
-    """
 
-    def _get(key: str, default: object = None):
-        if isinstance(strategy, Mapping):
-            return strategy.get(key, default)
-        return getattr(strategy, key, default)
+def spot_calc_signed_qty_with_trace(
+    *,
+    strategy: Mapping[str, object] | object,
+    filters: Mapping[str, object] | object | None,
+    action: str,
+    lot: int,
+    entry_price: float,
+    stop_price: float | None,
+    stop_loss_pct: float | None,
+    shock: bool | None,
+    shock_dir: str | None,
+    shock_atr_pct: float | None,
+    riskoff: bool = False,
+    risk_dir: str | None = None,
+    riskpanic: bool = False,
+    riskpop: bool = False,
+    risk: RiskOverlaySnapshot | None = None,
+    equity_ref: float = 0.0,
+    cash_ref: float | None = None,
+) -> tuple[int, SpotDecisionTrace]:
+    """Return signed share qty plus a typed spot decision trace."""
+    return SpotPolicy.calc_signed_qty_with_trace(
+        strategy=strategy,
+        filters=filters,
+        action=action,
+        lot=lot,
+        entry_price=entry_price,
+        stop_price=stop_price,
+        stop_loss_pct=stop_loss_pct,
+        shock=shock,
+        shock_dir=shock_dir,
+        shock_atr_pct=shock_atr_pct,
+        riskoff=riskoff,
+        risk_dir=risk_dir,
+        riskpanic=riskpanic,
+        riskpop=riskpop,
+        risk=risk,
+        equity_ref=equity_ref,
+        cash_ref=cash_ref,
+    )
 
-    lot = max(1, int(lot or 1))
-    quantity_mult = max(1, int(_get("quantity", 1) or 1))
-    raw_action = str(action or "BUY").strip().upper()
-    if raw_action not in ("BUY", "SELL"):
-        raw_action = "BUY"
 
-    sizing_mode = str(_get("spot_sizing_mode", "fixed") or "fixed").strip().lower()
-    if sizing_mode not in ("fixed", "notional_pct", "risk_pct"):
-        sizing_mode = "fixed"
-    spot_notional_pct = max(0.0, _parse_float(_get("spot_notional_pct"), default=0.0))
-    spot_risk_pct = max(0.0, _parse_float(_get("spot_risk_pct"), default=0.0))
-    spot_short_risk_mult = max(0.0, _parse_float(_get("spot_short_risk_mult"), default=1.0))
-    spot_max_notional_pct = max(0.0, _parse_float(_get("spot_max_notional_pct"), default=1.0))
-    spot_min_qty = _parse_int(_get("spot_min_qty"), default=1, min_value=1)
-    spot_max_qty = _parse_int(_get("spot_max_qty"), default=0, min_value=0)
-
-    if sizing_mode == "fixed":
-        base_qty = lot * quantity_mult
-        return int(base_qty) if raw_action == "BUY" else -int(base_qty)
-
-    if float(entry_price) <= 0:
-        return 0
-
-    cap_pct = float(spot_max_notional_pct)
-    desired_qty = 0
-    if sizing_mode == "notional_pct":
-        if spot_notional_pct > 0 and float(equity_ref) > 0:
-            desired_qty = int((float(equity_ref) * float(spot_notional_pct)) / float(entry_price))
-    else:
-        stop_level = None
-        if stop_price is not None and float(stop_price) > 0:
-            stop_level = float(stop_price)
-        elif stop_loss_pct is not None and float(stop_loss_pct) > 0:
-            stop_level = spot_stop_level(
-                float(entry_price),
-                qty=1 if raw_action == "BUY" else -1,
-                stop_loss_pct=float(stop_loss_pct),
-            )
-        if stop_level is not None and spot_risk_pct > 0 and float(equity_ref) > 0:
-            per_share_risk = abs(float(entry_price) - float(stop_level))
-            risk_dollars = float(equity_ref) * float(spot_risk_pct)
-
-            (
-                riskoff_mode,
-                riskoff_long_factor,
-                riskoff_short_factor,
-                riskpanic_long_factor,
-                riskpanic_short_factor,
-                riskpop_long_factor,
-                riskpop_short_factor,
-            ) = risk_overlay_policy_from_filters(filters)
-
-            if raw_action == "BUY":
-                if bool(riskoff) and riskoff_mode == "directional" and str(risk_dir) == "up":
-                    if float(riskoff_long_factor) == 0:
-                        return 0
-                    risk_dollars *= float(riskoff_long_factor)
-                if bool(riskpanic):
-                    if float(riskpanic_long_factor) == 0:
-                        return 0
-                    risk_dollars *= float(riskpanic_long_factor)
-                elif filters is not None and risk is not None:
-                    scale_mode = str(_filters_get(filters, "riskpanic_long_scale_mode") or "off").strip().lower()
-                    if scale_mode in ("linear", "lin", "delta", "linear_delta", "linear_tr_delta"):
-                        tr_delta = getattr(risk, "tr_median_delta_pct", None)
-                        gap_ratio = getattr(risk, "neg_gap_ratio", None)
-                        if tr_delta is not None and gap_ratio is not None:
-                            try:
-                                gap_min = float(_filters_get(filters, "riskpanic_neg_gap_ratio_min") or 0.0)
-                            except (TypeError, ValueError):
-                                gap_min = 0.0
-                            gap_min = float(max(0.0, min(1.0, gap_min)))
-                            try:
-                                gap_ratio_f = float(gap_ratio)
-                            except (TypeError, ValueError):
-                                gap_ratio_f = 0.0
-                            gap_ratio_f = float(max(0.0, min(1.0, gap_ratio_f)))
-                            gap_strength = 0.0
-                            if gap_min < 1.0:
-                                gap_strength = (gap_ratio_f - gap_min) / (1.0 - gap_min)
-                            gap_strength = float(max(0.0, min(1.0, gap_strength)))
-
-                            raw_delta_max = _filters_get(filters, "riskpanic_long_scale_tr_delta_max_pct")
-                            if raw_delta_max is None:
-                                raw_delta_max = _filters_get(filters, "riskpanic_tr5_med_delta_min_pct")
-                            try:
-                                delta_max = float(raw_delta_max) if raw_delta_max is not None else 0.0
-                            except (TypeError, ValueError):
-                                delta_max = 0.0
-                            if delta_max <= 0:
-                                delta_max = 1.0
-                            try:
-                                delta_f = float(tr_delta)
-                            except (TypeError, ValueError):
-                                delta_f = 0.0
-                            delta_strength = float(max(0.0, min(1.0, max(0.0, delta_f) / float(delta_max))))
-
-                            strength = float(gap_strength) * float(delta_strength)
-                            if strength > 0:
-                                base_factor = float(max(0.0, min(1.0, float(riskpanic_long_factor))))
-                                eff = 1.0 - (float(strength) * (1.0 - float(base_factor)))
-                                eff = float(max(0.0, min(1.0, eff)))
-                                if eff <= 0:
-                                    return 0
-                                risk_dollars *= float(eff)
-                if bool(riskpop):
-                    if float(riskpop_long_factor) == 0:
-                        return 0
-                    risk_dollars *= float(riskpop_long_factor)
-                if bool(shock) and shock_dir in ("up", "down"):
-                    if shock_dir == "up":
-                        shock_long_mult = _parse_float(
-                            _filters_get(filters, "shock_long_risk_mult_factor"),
-                            default=1.0,
-                        )
-                    else:
-                        shock_long_mult = _parse_float(
-                            _filters_get(filters, "shock_long_risk_mult_factor_down"),
-                            default=1.0,
-                        )
-                    if shock_long_mult < 0:
-                        shock_long_mult = 1.0
-                    if shock_long_mult == 0:
-                        return 0
-                    risk_dollars *= float(shock_long_mult)
-            else:
-                short_mult = float(spot_short_risk_mult)
-                if bool(riskoff) and riskoff_mode == "directional" and str(risk_dir) == "down":
-                    short_mult *= float(riskoff_short_factor)
-                if bool(riskpanic):
-                    short_mult *= float(riskpanic_short_factor)
-                if bool(riskpop):
-                    short_mult *= float(riskpop_short_factor)
-                if bool(shock) and str(shock_dir) == "down":
-                    shock_short_mult = _parse_float(
-                        _filters_get(filters, "shock_short_risk_mult_factor"),
-                        default=1.0,
-                    )
-                    if shock_short_mult < 0:
-                        shock_short_mult = 1.0
-                    short_mult *= float(shock_short_mult)
-                if short_mult <= 0:
-                    return 0
-                risk_dollars *= float(short_mult)
-
-            target_atr = _filters_get(filters, "shock_risk_scale_target_atr_pct")
-            if (
-                target_atr is not None
-                and shock_atr_pct is not None
-                and float(shock_atr_pct) > 0
-            ):
-                try:
-                    target = float(target_atr)
-                except (TypeError, ValueError):
-                    target = 0.0
-                if target > 0:
-                    min_mult = _parse_float(_filters_get(filters, "shock_risk_scale_min_mult"), default=0.2)
-                    min_mult = float(max(0.0, min(1.0, min_mult)))
-                    scale = min(1.0, float(target) / float(shock_atr_pct))
-                    scale = float(max(min_mult, min(1.0, scale)))
-                    apply_to = _filters_get(filters, "shock_risk_scale_apply_to") or "risk"
-                    apply_to = str(apply_to).strip().lower()
-                    if apply_to in ("cap", "cap_only", "cap-only", "notional_cap", "max_notional", "notional_pct_cap"):
-                        apply_to = "cap"
-                    elif apply_to in ("both", "all", "risk_and_cap", "cap_and_risk", "cap+risk"):
-                        apply_to = "both"
-                    else:
-                        apply_to = "risk"
-
-                    if apply_to in ("risk", "both"):
-                        risk_dollars *= float(scale)
-                    if apply_to in ("cap", "both"):
-                        cap_pct *= float(scale)
-
-            if per_share_risk > 1e-9 and risk_dollars > 0:
-                desired_qty = int(risk_dollars / per_share_risk)
-
-    if desired_qty <= 0:
-        desired_qty = lot * quantity_mult
-
-    if cap_pct > 0 and float(equity_ref) > 0:
-        cap_qty = int((float(equity_ref) * float(cap_pct)) / float(entry_price))
-        desired_qty = min(int(desired_qty), max(0, int(cap_qty)))
-
-    if raw_action == "BUY" and cash_ref is not None and float(cash_ref) > 0:
-        afford_qty = int(float(cash_ref) / float(entry_price))
-        desired_qty = min(int(desired_qty), max(0, int(afford_qty)))
-
-    if spot_max_qty > 0:
-        desired_qty = min(int(desired_qty), int(spot_max_qty))
-
-    desired_qty = (int(desired_qty) // int(lot)) * int(lot)
-    min_effective = max(int(spot_min_qty), int(lot))
-    if desired_qty < min_effective:
-        return 0
-    return int(desired_qty) if raw_action == "BUY" else -int(desired_qty)
+def spot_resolve_position_intent(
+    *,
+    strategy: Mapping[str, object] | object | None,
+    current_qty: int,
+    target_qty: int,
+) -> SpotIntentDecision:
+    """Resolve order intent needed to move from current_qty to target_qty."""
+    return SpotPolicy.resolve_position_intent(
+        strategy=strategy,
+        current_qty=current_qty,
+        target_qty=target_qty,
+    )
 
 
 def spot_hit_profit(
@@ -2205,11 +2068,12 @@ class TrPctRiskOverlayEngine:
         low: float,
         close: float,
         is_last_bar: bool,
+        trade_day: date | None = None,
     ) -> RiskOverlaySnapshot:
         if self._riskoff_tr_hist is None and self._riskpanic_tr_hist is None and self._riskpop_tr_hist is None:
             return RiskOverlaySnapshot(riskoff=False, riskpanic=False, riskpop=False)
 
-        day = ts.date()
+        day = trade_day if isinstance(trade_day, date) else ts.date()
         if self._cur_day != day:
             self._cur_day = day
             self._compute_today_flags()
@@ -2402,404 +2266,7 @@ def risk_overlay_policy_from_filters(
     filters: Mapping[str, object] | object | None,
 ) -> tuple[str, float, float, float, float, float, float]:
     """Return (riskoff_mode, riskoff_long_factor, riskoff_short_factor, riskpanic_long_factor, riskpanic_short_factor, riskpop_long_factor, riskpop_short_factor)."""
-    mode = str(_filters_get(filters, "riskoff_mode") or "hygiene").strip().lower()
-    if mode not in ("hygiene", "directional"):
-        mode = "hygiene"
-
-    riskoff_short = _parse_float(_filters_get(filters, "riskoff_short_risk_mult_factor"), default=1.0)
-    if riskoff_short < 0:
-        riskoff_short = 1.0
-    riskoff_long = _parse_float(_filters_get(filters, "riskoff_long_risk_mult_factor"), default=1.0)
-    if riskoff_long < 0:
-        riskoff_long = 1.0
-    riskpanic_long = _parse_float(_filters_get(filters, "riskpanic_long_risk_mult_factor"), default=1.0)
-    if riskpanic_long < 0:
-        riskpanic_long = 1.0
-    riskpanic_short = _parse_float(_filters_get(filters, "riskpanic_short_risk_mult_factor"), default=1.0)
-    if riskpanic_short < 0:
-        riskpanic_short = 1.0
-
-    riskpop_long = _parse_float(_filters_get(filters, "riskpop_long_risk_mult_factor"), default=1.0)
-    if riskpop_long < 0:
-        riskpop_long = 1.0
-    riskpop_short = _parse_float(_filters_get(filters, "riskpop_short_risk_mult_factor"), default=1.0)
-    if riskpop_short < 0:
-        riskpop_short = 1.0
-
-    return (
-        str(mode),
-        float(riskoff_long),
-        float(riskoff_short),
-        float(riskpanic_long),
-        float(riskpanic_short),
-        float(riskpop_long),
-        float(riskpop_short),
-    )
-
-
-# endregion
-
-
-# region Regime / Flip Exit / Filters
-def apply_regime_gate(
-    signal: EmaDecisionSnapshot | None,
-    *,
-    regime_dir: str | None,
-    regime_ready: bool,
-) -> EmaDecisionSnapshot | None:
-    if signal is None:
-        return None
-    cleaned_regime_dir = str(regime_dir) if regime_dir in ("up", "down") else None
-    entry_dir = signal.entry_dir
-    if entry_dir is not None:
-        if not bool(regime_ready):
-            entry_dir = None
-        elif cleaned_regime_dir is None or cleaned_regime_dir != entry_dir:
-            entry_dir = None
-    return EmaDecisionSnapshot(
-        ema_fast=signal.ema_fast,
-        ema_slow=signal.ema_slow,
-        prev_ema_fast=signal.prev_ema_fast,
-        prev_ema_slow=signal.prev_ema_slow,
-        ema_ready=signal.ema_ready,
-        cross_up=signal.cross_up,
-        cross_down=signal.cross_down,
-        state=signal.state,
-        entry_dir=entry_dir,
-        regime_dir=cleaned_regime_dir,
-        regime_ready=bool(regime_ready),
-    )
-
-
-def flip_exit_hit(
-    *,
-    exit_on_signal_flip: bool,
-    open_dir: str | None,
-    signal: EmaDecisionSnapshot | None,
-    flip_exit_mode_raw: str | None,
-    ema_entry_mode_raw: str | None,
-) -> bool:
-    if not bool(exit_on_signal_flip):
-        return False
-    if open_dir not in ("up", "down"):
-        return False
-    if signal is None or not signal.ema_ready or signal.ema_fast is None or signal.ema_slow is None:
-        return False
-
-    mode = flip_exit_mode(flip_exit_mode_raw, ema_entry_mode_raw)
-    if mode == "cross":
-        if open_dir == "up":
-            return bool(signal.cross_down)
-        return bool(signal.cross_up)
-
-    state = signal.state or ema_state_direction(signal.ema_fast, signal.ema_slow)
-    if state is None:
-        return False
-    if open_dir == "up":
-        return state == "down"
-    return state == "up"
-
-
-def flip_exit_gate_blocked(
-    *,
-    gate_mode_raw: str | None,
-    filters: Mapping[str, object] | object | None,
-    close: float,
-    signal: EmaDecisionSnapshot | None,
-    trade_dir: str | None,
-) -> bool:
-    gate_mode = str(gate_mode_raw or "off").strip().lower()
-    if gate_mode not in (
-        "off",
-        "regime",
-        "permission",
-        "regime_or_permission",
-        "regime_and_permission",
-    ):
-        gate_mode = "off"
-    if gate_mode == "off" or signal is None or trade_dir not in ("up", "down"):
-        return False
-
-    bias_ok = bool(signal.regime_ready) and str(signal.regime_dir) == str(trade_dir)
-    perm_active, perm_pass = permission_gate_status(filters, close=float(close), signal=signal, entry_dir=trade_dir)
-    perm_ok = bool(perm_active and perm_pass)
-
-    if gate_mode == "regime":
-        return bias_ok
-    if gate_mode == "permission":
-        return perm_ok
-    if gate_mode == "regime_or_permission":
-        return bias_ok or perm_ok
-    if gate_mode == "regime_and_permission":
-        return bias_ok and perm_ok
-    return False
-
-
-def _signal_filter_rv_ok(
-    filters: Mapping[str, object] | object | None,
-    *,
-    rv: float | None,
-) -> bool:
-    rv_min = _filters_get(filters, "rv_min")
-    rv_max = _filters_get(filters, "rv_max")
-    if rv_min is None and rv_max is None:
-        return True
-    if rv is None:
-        return False
-    try:
-        rv_min_f = float(rv_min) if rv_min is not None else None
-    except (TypeError, ValueError):
-        rv_min_f = None
-    try:
-        rv_max_f = float(rv_max) if rv_max is not None else None
-    except (TypeError, ValueError):
-        rv_max_f = None
-    if rv_min_f is not None and float(rv) < rv_min_f:
-        return False
-    if rv_max_f is not None and float(rv) > rv_max_f:
-        return False
-    return True
-
-
-def _hour_window_ok(hour: int, *, start_raw: object, end_raw: object) -> bool:
-    try:
-        start = int(start_raw)
-        end = int(end_raw)
-    except (TypeError, ValueError):
-        return True
-    if start <= end:
-        return start <= hour < end
-    return hour >= start or hour < end
-
-
-def _signal_filter_time_ok(
-    filters: Mapping[str, object] | object | None,
-    *,
-    bar_ts: datetime,
-) -> bool:
-    entry_start_hour_et = _filters_get(filters, "entry_start_hour_et")
-    entry_end_hour_et = _filters_get(filters, "entry_end_hour_et")
-    if entry_start_hour_et is not None and entry_end_hour_et is not None:
-        return _hour_window_ok(
-            int(_ts_to_et(bar_ts).hour),
-            start_raw=entry_start_hour_et,
-            end_raw=entry_end_hour_et,
-        )
-
-    entry_start_hour = _filters_get(filters, "entry_start_hour")
-    entry_end_hour = _filters_get(filters, "entry_end_hour")
-    if entry_start_hour is not None and entry_end_hour is not None:
-        return _hour_window_ok(
-            int(bar_ts.hour),
-            start_raw=entry_start_hour,
-            end_raw=entry_end_hour,
-        )
-    return True
-
-
-def _signal_filter_skip_first_ok(
-    filters: Mapping[str, object] | object | None,
-    *,
-    bars_in_day: int,
-) -> bool:
-    skip_first = _filters_get(filters, "skip_first_bars")
-    try:
-        skip_first_n = int(skip_first or 0)
-    except (TypeError, ValueError):
-        skip_first_n = 0
-    return not (skip_first_n > 0 and int(bars_in_day) <= skip_first_n)
-
-
-def _signal_filter_shock_gate_ok(
-    filters: Mapping[str, object] | object | None,
-    *,
-    shock: bool | None,
-    shock_dir: str | None,
-    signal: EmaDecisionSnapshot | None,
-) -> bool:
-    shock_mode = normalize_shock_gate_mode(filters)
-    if shock_mode == "block":
-        if shock is None:
-            return False
-        return not bool(shock)
-    if shock_mode in ("block_longs", "block_shorts"):
-        if shock is None:
-            return False
-        if not bool(shock):
-            return True
-        entry_dir = signal.entry_dir if signal is not None else None
-        if shock_mode == "block_longs" and entry_dir == "up":
-            return False
-        if shock_mode == "block_shorts" and entry_dir == "down":
-            return False
-        return True
-    if shock_mode == "surf":
-        if shock is None:
-            return False
-        if not bool(shock):
-            return True
-        entry_dir = signal.entry_dir if signal is not None else None
-        cleaned = str(shock_dir) if shock_dir in ("up", "down") else None
-        if cleaned is None or entry_dir not in ("up", "down"):
-            return False
-        return entry_dir == cleaned
-    return True
-
-
-def _signal_filter_permission_ok(
-    filters: Mapping[str, object] | object | None,
-    *,
-    close: float,
-    signal: EmaDecisionSnapshot | None,
-) -> bool:
-    entry_dir = signal.entry_dir if signal is not None else None
-    _, perm_ok = permission_gate_status(filters, close=float(close), signal=signal, entry_dir=entry_dir)
-    return bool(perm_ok)
-
-
-def _signal_filter_volume_ok(
-    filters: Mapping[str, object] | object | None,
-    *,
-    volume: float | None,
-    volume_ema: float | None,
-    volume_ema_ready: bool,
-) -> bool:
-    volume_ratio_min = _filters_get(filters, "volume_ratio_min")
-    if volume_ratio_min is None:
-        return True
-    try:
-        ratio_min = float(volume_ratio_min)
-    except (TypeError, ValueError):
-        ratio_min = None
-    if ratio_min is None:
-        return True
-    if not bool(volume_ema_ready):
-        return False
-    if volume is None or volume_ema is None:
-        return False
-    denom = float(volume_ema)
-    if denom <= 0:
-        return False
-    ratio = float(volume) / denom
-    return ratio >= ratio_min
-
-
-@dataclass(frozen=True)
-class _SignalFilterContext:
-    bar_ts: datetime
-    bars_in_day: int
-    close: float
-    volume: float | None
-    volume_ema: float | None
-    volume_ema_ready: bool
-    rv: float | None
-    signal: EmaDecisionSnapshot | None
-    cooldown_ok: bool
-    shock: bool | None
-    shock_dir: str | None
-
-
-def _signal_filter_cooldown_ok(
-    _filters: Mapping[str, object] | object | None,
-    *,
-    ctx: _SignalFilterContext,
-) -> bool:
-    return bool(ctx.cooldown_ok)
-
-
-_SIGNAL_FILTER_REGISTRY: tuple[tuple[str, Callable[[Mapping[str, object] | object | None, _SignalFilterContext], bool]], ...] = (
-    ("rv", lambda filters, ctx: _signal_filter_rv_ok(filters, rv=ctx.rv)),
-    ("time", lambda filters, ctx: _signal_filter_time_ok(filters, bar_ts=ctx.bar_ts)),
-    ("skip_first", lambda filters, ctx: _signal_filter_skip_first_ok(filters, bars_in_day=ctx.bars_in_day)),
-    ("cooldown", lambda filters, ctx: _signal_filter_cooldown_ok(filters, ctx=ctx)),
-    (
-        "shock_gate",
-        lambda filters, ctx: _signal_filter_shock_gate_ok(
-            filters,
-            shock=ctx.shock,
-            shock_dir=ctx.shock_dir,
-            signal=ctx.signal,
-        ),
-    ),
-    ("permission", lambda filters, ctx: _signal_filter_permission_ok(filters, close=float(ctx.close), signal=ctx.signal)),
-    (
-        "volume",
-        lambda filters, ctx: _signal_filter_volume_ok(
-            filters,
-            volume=ctx.volume,
-            volume_ema=ctx.volume_ema,
-            volume_ema_ready=ctx.volume_ema_ready,
-        ),
-    ),
-)
-
-
-def signal_filters_ok(
-    filters: Mapping[str, object] | object | None,
-    *,
-    bar_ts: datetime,
-    bars_in_day: int,
-    close: float,
-    volume: float | None = None,
-    volume_ema: float | None = None,
-    volume_ema_ready: bool = True,
-    rv: float | None = None,
-    signal: EmaDecisionSnapshot | None = None,
-    cooldown_ok: bool = True,
-    shock: bool | None = None,
-    shock_dir: str | None = None,
-) -> bool:
-    checks = signal_filter_checks(
-        filters,
-        bar_ts=bar_ts,
-        bars_in_day=bars_in_day,
-        close=close,
-        volume=volume,
-        volume_ema=volume_ema,
-        volume_ema_ready=volume_ema_ready,
-        rv=rv,
-        signal=signal,
-        cooldown_ok=cooldown_ok,
-        shock=shock,
-        shock_dir=shock_dir,
-    )
-    return all(bool(v) for v in checks.values())
-
-
-def signal_filter_checks(
-    filters: Mapping[str, object] | object | None,
-    *,
-    bar_ts: datetime,
-    bars_in_day: int,
-    close: float,
-    volume: float | None = None,
-    volume_ema: float | None = None,
-    volume_ema_ready: bool = True,
-    rv: float | None = None,
-    signal: EmaDecisionSnapshot | None = None,
-    cooldown_ok: bool = True,
-    shock: bool | None = None,
-    shock_dir: str | None = None,
-) -> dict[str, bool]:
-    if filters is None:
-        return {name: True for name, _predicate in _SIGNAL_FILTER_REGISTRY}
-    ctx = _SignalFilterContext(
-        bar_ts=bar_ts,
-        bars_in_day=int(bars_in_day),
-        close=float(close),
-        volume=volume,
-        volume_ema=volume_ema,
-        volume_ema_ready=bool(volume_ema_ready),
-        rv=rv,
-        signal=signal,
-        cooldown_ok=bool(cooldown_ok),
-        shock=shock,
-        shock_dir=shock_dir,
-    )
-    checks: dict[str, bool] = {}
-    for name, predicate in _SIGNAL_FILTER_REGISTRY:
-        checks[str(name)] = bool(predicate(filters, ctx))
-    return checks
+    return SpotPolicy.risk_overlay_policy(filters)
 
 
 # endregion

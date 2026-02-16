@@ -126,22 +126,35 @@ class FiltersConfig:
     # RATS-V (Reversal-Aware Two-Stage + anti-trap release) knobs; all default-off.
     ratsv_enabled: bool = False
     ratsv_slope_window_bars: int = 5
+    ratsv_slope_slow_window_bars: int | None = None
     ratsv_tr_fast_bars: int = 5
     ratsv_tr_slow_bars: int = 20
     ratsv_rank_min: float | None = None
     ratsv_tr_ratio_min: float | None = None
     ratsv_slope_med_min_pct: float | None = None
     ratsv_slope_vel_min_pct: float | None = None
+    ratsv_slope_med_slow_min_pct: float | None = None
+    ratsv_slope_vel_slow_min_pct: float | None = None
+    ratsv_slope_vel_consistency_bars: int = 0
+    ratsv_slope_vel_consistency_min: float | None = None
     ratsv_cross_age_max_bars: int | None = None
     ratsv_branch_a_rank_min: float | None = None
     ratsv_branch_a_tr_ratio_min: float | None = None
     ratsv_branch_a_slope_med_min_pct: float | None = None
     ratsv_branch_a_slope_vel_min_pct: float | None = None
+    ratsv_branch_a_slope_med_slow_min_pct: float | None = None
+    ratsv_branch_a_slope_vel_slow_min_pct: float | None = None
+    ratsv_branch_a_slope_vel_consistency_bars: int | None = None
+    ratsv_branch_a_slope_vel_consistency_min: float | None = None
     ratsv_branch_a_cross_age_max_bars: int | None = None
     ratsv_branch_b_rank_min: float | None = None
     ratsv_branch_b_tr_ratio_min: float | None = None
     ratsv_branch_b_slope_med_min_pct: float | None = None
     ratsv_branch_b_slope_vel_min_pct: float | None = None
+    ratsv_branch_b_slope_med_slow_min_pct: float | None = None
+    ratsv_branch_b_slope_vel_slow_min_pct: float | None = None
+    ratsv_branch_b_slope_vel_consistency_bars: int | None = None
+    ratsv_branch_b_slope_vel_consistency_min: float | None = None
     ratsv_branch_b_cross_age_max_bars: int | None = None
     ratsv_probe_cancel_max_bars: int = 0
     ratsv_probe_cancel_slope_adverse_min_pct: float | None = None
@@ -222,6 +235,7 @@ class StrategyConfigBase:
     tick_direction_policy: str = "both"
     spot_entry_fill_mode: str = "close"
     spot_flip_exit_fill_mode: str = "close"
+    spot_controlled_flip: bool = False
     spot_intrabar_exits: bool = False
     spot_spread: float = 0.0
     spot_commission_per_share: float = 0.0
@@ -248,12 +262,51 @@ class StrategyConfigBase:
     spot_branch_b_min_signed_slope_pct: float | None = None
     spot_branch_b_max_signed_slope_pct: float | None = None
     spot_branch_b_size_mult: float = 1.0
+    spot_policy_pack: str | None = None
+    spot_policy_graph: str | None = None
+    spot_graph_profile: str | None = None
+    spot_entry_policy: str | None = None
+    spot_exit_policy: str | None = None
+    spot_resize_policy: str | None = None
+    spot_risk_overlay_policy: str | None = None
+    spot_resize_mode: str = "off"
+    spot_resize_min_delta_qty: int = 1
+    spot_resize_max_step_qty: int = 0
+    spot_resize_allow_scale_in: bool = True
+    spot_resize_allow_scale_out: bool = True
+    spot_resize_cooldown_bars: int = 0
+    spot_resize_adaptive_mode: str = "off"
+    spot_resize_adaptive_min_mult: float = 0.5
+    spot_resize_adaptive_max_mult: float = 1.75
+    spot_resize_adaptive_atr_target_pct: float | None = None
+    spot_resize_adaptive_atr_vel_ref_pct: float = 0.40
+    spot_resize_adaptive_slope_ref_pct: float = 0.10
+    spot_resize_adaptive_vel_ref_pct: float = 0.08
+    spot_resize_adaptive_tr_ratio_ref: float = 1.0
+    spot_entry_tr_ratio_min: float | None = None
+    spot_entry_slope_med_abs_min_pct: float | None = None
+    spot_entry_slope_vel_abs_min_pct: float | None = None
+    spot_entry_slow_slope_med_abs_min_pct: float | None = None
+    spot_entry_slow_slope_vel_abs_min_pct: float | None = None
+    spot_entry_shock_atr_max_pct: float | None = None
+    spot_entry_atr_vel_min_pct: float | None = None
+    spot_entry_atr_accel_min_pct: float | None = None
+    spot_exit_flip_hold_slope_min_pct: float | None = None
+    spot_exit_flip_hold_tr_ratio_min: float | None = None
+    spot_exit_flip_hold_slow_slope_min_pct: float | None = None
+    spot_exit_flip_hold_slope_vel_min_pct: float | None = None
+    spot_exit_flip_hold_slow_slope_vel_min_pct: float | None = None
+    spot_graph_overlay_atr_hi_pct: float | None = None
+    spot_graph_overlay_atr_hi_min_mult: float = 0.5
+    spot_graph_overlay_atr_vel_ref_pct: float = 0.40
+    spot_graph_overlay_tr_ratio_ref: float = 1.0
+    spot_graph_overlay_slope_ref_pct: float = 0.08
+    spot_graph_overlay_trend_boost_max: float = 1.35
+    spot_graph_overlay_trend_floor_mult: float = 0.65
 
 
 @dataclass(frozen=True)
 class OptionsStrategyConfig(StrategyConfigBase):
-    max_open_trades: int = 1
-
     def __post_init__(self) -> None:
         if str(self.instrument or "").strip().lower() != "options":
             raise ValueError("OptionsStrategyConfig requires instrument='options'")

@@ -1,8 +1,4 @@
-"""Shared helpers for backtest sweeps (CLI tools).
-
-Goal: keep the various sweep scripts small and consistent without turning the
-codebase into a pile of micro-modules.
-"""
+"""Shared generic helpers for backtest sweeps (CLI tools)."""
 
 from __future__ import annotations
 
@@ -27,16 +23,18 @@ def fmt_duration(seconds: float | None) -> str:
     h, rem = divmod(seconds_int, 3600)
     m, s = divmod(rem, 60)
     return f"{h:02d}:{m:02d}:{s:02d}"
-# endregion
 
+
+# endregion
 
 # region IO
 def write_json(path: Path, payload: object, *, indent: int = 2, sort_keys: bool = False) -> None:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=indent, sort_keys=sort_keys))
-# endregion
 
+
+# endregion
 
 # region Concurrency / Progress
 def normalize_jobs(jobs: int) -> int:
@@ -137,5 +135,6 @@ class Progress:
         end = "\n" if newline or not sys.stdout.isatty() else ""
         print(line, end=end, flush=True)
         self._last_line_len = 0
-# endregion
 
+
+# endregion
