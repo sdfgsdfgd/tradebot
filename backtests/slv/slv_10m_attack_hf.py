@@ -448,66 +448,64 @@ def _hyper10_stage_a(*, symbol: str, base_strategy: dict, base_filters: dict) ->
         for ema in ema_presets:
             for regime_note, regime_over in regime_profiles:
                 for stop_loss in (0.006, 0.008):
-                    for max_open in (3, 5):
-                        for close_eod in (False, True):
-                            for flip_only_profit in (False, True):
-                                for flip_hold in (0, 1):
-                                    rank += 1
-                                    strategy = dict(base_strategy)
-                                    strategy.update(
-                                        {
-                                            "instrument": "spot",
-                                            "symbol": str(symbol).strip().upper(),
-                                            "signal_bar_size": "10 mins",
-                                            "signal_use_rth": bool(signal_use_rth),
-                                            "spot_exec_bar_size": "5 mins",
-                                            "ema_entry_mode": "trend",
-                                            "entry_confirm_bars": 0,
-                                            "ema_preset": str(ema),
-                                            "spot_stop_loss_pct": float(stop_loss),
-                                            "max_open_trades": int(max_open),
-                                            "spot_close_eod": bool(close_eod),
-                                            "exit_on_signal_flip": True,
-                                            "flip_exit_mode": "entry",
-                                            "flip_exit_only_if_profit": bool(flip_only_profit),
-                                            "flip_exit_min_hold_bars": int(flip_hold),
-                                            "regime2_mode": "off",
-                                        }
-                                    )
-                                    strategy.update(regime_over)
-                                    if strategy.get("regime_mode") == "off":
-                                        strategy["regime_bar_size"] = "10 mins"
-                                    strategy.pop("regime2_bar_size", None)
-                                    strategy.pop("regime2_supertrend_atr_period", None)
-                                    strategy.pop("regime2_supertrend_multiplier", None)
-                                    strategy.pop("regime2_supertrend_source", None)
-                                    strategy.pop("regime2_ema_preset", None)
+                    for close_eod in (False, True):
+                        for flip_only_profit in (False, True):
+                            for flip_hold in (0, 1):
+                                rank += 1
+                                strategy = dict(base_strategy)
+                                strategy.update(
+                                    {
+                                        "instrument": "spot",
+                                        "symbol": str(symbol).strip().upper(),
+                                        "signal_bar_size": "10 mins",
+                                        "signal_use_rth": bool(signal_use_rth),
+                                        "spot_exec_bar_size": "5 mins",
+                                        "ema_entry_mode": "trend",
+                                        "entry_confirm_bars": 0,
+                                        "ema_preset": str(ema),
+                                        "spot_stop_loss_pct": float(stop_loss),
+                                        "spot_close_eod": bool(close_eod),
+                                        "exit_on_signal_flip": True,
+                                        "flip_exit_mode": "entry",
+                                        "flip_exit_only_if_profit": bool(flip_only_profit),
+                                        "flip_exit_min_hold_bars": int(flip_hold),
+                                        "regime2_mode": "off",
+                                    }
+                                )
+                                strategy.update(regime_over)
+                                if strategy.get("regime_mode") == "off":
+                                    strategy["regime_bar_size"] = "10 mins"
+                                strategy.pop("regime2_bar_size", None)
+                                strategy.pop("regime2_supertrend_atr_period", None)
+                                strategy.pop("regime2_supertrend_multiplier", None)
+                                strategy.pop("regime2_supertrend_source", None)
+                                strategy.pop("regime2_ema_preset", None)
 
-                                    filters = dict(filters_base)
-                                    if signal_use_rth:
-                                        filters = _merge_dict(filters, {"entry_start_hour_et": 9, "entry_end_hour_et": 16})
-                                    else:
-                                        filters = _merge_dict(filters, {"entry_start_hour_et": None, "entry_end_hour_et": None})
+                                filters = dict(filters_base)
+                                if signal_use_rth:
+                                    filters = _merge_dict(filters, {"entry_start_hour_et": 9, "entry_end_hour_et": 16})
+                                else:
+                                    filters = _merge_dict(filters, {"entry_start_hour_et": None, "entry_end_hour_et": None})
 
-                                    note = (
-                                        f"HYPERA #{rank:04d} lane={'RTH' if signal_use_rth else 'FULL24'} "
-                                        f"ema={ema} {regime_note} sl={stop_loss:g} open={max_open} "
-                                        f"eod={int(close_eod)} flip_prof={int(flip_only_profit)} hold={flip_hold}"
-                                    )
-                                    groups.append(
-                                        {
-                                            "name": note,
-                                            "filters": filters,
-                                            "entries": [
-                                                {
-                                                    "symbol": str(symbol).strip().upper(),
-                                                    "metrics": _blank_metrics(),
-                                                    "strategy": strategy,
-                                                }
-                                            ],
-                                            "_eval": {"stage": "A", "profile": "hyper10", "note": note},
-                                        }
-                                    )
+                                note = (
+                                    f"HYPERA #{rank:04d} lane={'RTH' if signal_use_rth else 'FULL24'} "
+                                    f"ema={ema} {regime_note} sl={stop_loss:g} "
+                                    f"eod={int(close_eod)} flip_prof={int(flip_only_profit)} hold={flip_hold}"
+                                )
+                                groups.append(
+                                    {
+                                        "name": note,
+                                        "filters": filters,
+                                        "entries": [
+                                            {
+                                                "symbol": str(symbol).strip().upper(),
+                                                "metrics": _blank_metrics(),
+                                                "strategy": strategy,
+                                            }
+                                        ],
+                                        "_eval": {"stage": "A", "profile": "hyper10", "note": note},
+                                    }
+                                )
     return groups
 
 
@@ -710,7 +708,6 @@ def _scalp10_stage_a(*, symbol: str, base_strategy: dict, base_filters: dict) ->
                                     "entry_confirm_bars": int(confirm_bars),
                                     "ema_preset": str(ema),
                                     "spot_stop_loss_pct": float(stop_loss),
-                                    "max_open_trades": 5,
                                     "spot_close_eod": False,
                                     "exit_on_signal_flip": True,
                                     "flip_exit_mode": "entry",
@@ -911,52 +908,50 @@ def _island_bridge_stage_a(*, symbol: str, base_strategy: dict, base_filters: di
     for ema_preset in ("8/21", "5/13"):
         for confirm_bars in (1, 0):
             for stop_loss in (0.018, 0.02):
-                for max_open in (3, 4):
-                    for tod_note, tod_over in tod_specs:
-                        for short_mult in (0.0, 0.0025):
-                            rank += 1
-                            strategy = dict(base_strategy)
-                            strategy.update(
-                                {
-                                    "instrument": "spot",
-                                    "symbol": symbol_u,
-                                    "signal_bar_size": "10 mins",
-                                    "signal_use_rth": False,
-                                    "spot_exec_bar_size": "5 mins",
-                                    "ema_entry_mode": "trend",
-                                    "ema_preset": str(ema_preset),
-                                    "entry_confirm_bars": int(confirm_bars),
-                                    "spot_stop_loss_pct": float(stop_loss),
-                                    "max_open_trades": int(max_open),
-                                    "spot_close_eod": False,
-                                    "exit_on_signal_flip": True,
-                                    "flip_exit_mode": "entry",
-                                    "flip_exit_only_if_profit": True,
-                                    "flip_exit_min_hold_bars": 0,
-                                    "regime_mode": "supertrend",
-                                    "regime2_mode": "off",
-                                    "spot_short_risk_mult": float(short_mult),
-                                }
-                            )
-                            strategy.pop("regime2_bar_size", None)
-                            strategy.pop("regime2_supertrend_atr_period", None)
-                            strategy.pop("regime2_supertrend_multiplier", None)
-                            strategy.pop("regime2_supertrend_source", None)
-                            strategy.pop("regime2_ema_preset", None)
+                for tod_note, tod_over in tod_specs:
+                    for short_mult in (0.0, 0.0025):
+                        rank += 1
+                        strategy = dict(base_strategy)
+                        strategy.update(
+                            {
+                                "instrument": "spot",
+                                "symbol": symbol_u,
+                                "signal_bar_size": "10 mins",
+                                "signal_use_rth": False,
+                                "spot_exec_bar_size": "5 mins",
+                                "ema_entry_mode": "trend",
+                                "ema_preset": str(ema_preset),
+                                "entry_confirm_bars": int(confirm_bars),
+                                "spot_stop_loss_pct": float(stop_loss),
+                                "spot_close_eod": False,
+                                "exit_on_signal_flip": True,
+                                "flip_exit_mode": "entry",
+                                "flip_exit_only_if_profit": True,
+                                "flip_exit_min_hold_bars": 0,
+                                "regime_mode": "supertrend",
+                                "regime2_mode": "off",
+                                "spot_short_risk_mult": float(short_mult),
+                            }
+                        )
+                        strategy.pop("regime2_bar_size", None)
+                        strategy.pop("regime2_supertrend_atr_period", None)
+                        strategy.pop("regime2_supertrend_multiplier", None)
+                        strategy.pop("regime2_supertrend_source", None)
+                        strategy.pop("regime2_ema_preset", None)
 
-                            filters = _merge_dict(filters_base, tod_over)
-                            note = (
-                                f"IBA #{rank:04d} FULL24 ema={ema_preset} confirm={confirm_bars} "
-                                f"sl={stop_loss:g} open={max_open} {tod_note} short={short_mult:g}"
-                            )
-                            groups.append(
-                                {
-                                    "name": note,
-                                    "filters": filters,
-                                    "entries": [{"symbol": symbol_u, "metrics": _blank_metrics(), "strategy": strategy}],
-                                    "_eval": {"stage": "A", "profile": "island_bridge", "note": note},
-                                }
-                            )
+                        filters = _merge_dict(filters_base, tod_over)
+                        note = (
+                            f"IBA #{rank:04d} FULL24 ema={ema_preset} confirm={confirm_bars} "
+                            f"sl={stop_loss:g} {tod_note} short={short_mult:g}"
+                        )
+                        groups.append(
+                            {
+                                "name": note,
+                                "filters": filters,
+                                "entries": [{"symbol": symbol_u, "metrics": _blank_metrics(), "strategy": strategy}],
+                                "_eval": {"stage": "A", "profile": "island_bridge", "note": note},
+                            }
+                        )
     return groups
 
 
@@ -1156,58 +1151,56 @@ def _precision_guard_stage_a(*, symbol: str, base_strategy: dict, base_filters: 
 
     for confirm_bars in (1, 2):
         for stop_loss in (0.018, 0.02):
-            for max_open in (2, 3):
-                for flip_hold in (0, 1):
-                    for tod_note, tod_over in tod_specs:
-                        for geom_note, geom_over in geom_specs:
-                            rank += 1
-                            strategy = dict(base_strategy)
-                            strategy.update(
-                                {
-                                    "instrument": "spot",
-                                    "symbol": symbol_u,
-                                    "signal_bar_size": "10 mins",
-                                    "signal_use_rth": False,
-                                    "spot_exec_bar_size": "5 mins",
-                                    "ema_entry_mode": "trend",
-                                    "ema_preset": "8/21",
-                                    "entry_confirm_bars": int(confirm_bars),
-                                    "spot_stop_loss_pct": float(stop_loss),
-                                    "max_open_trades": int(max_open),
-                                    "spot_close_eod": False,
-                                    "exit_on_signal_flip": True,
-                                    "flip_exit_mode": "entry",
-                                    "flip_exit_only_if_profit": True,
-                                    "flip_exit_min_hold_bars": int(flip_hold),
-                                    "regime_mode": "supertrend",
-                                    "regime_bar_size": "1 day",
-                                    "supertrend_atr_period": 7,
-                                    "supertrend_multiplier": 0.4,
-                                    "supertrend_source": "close",
-                                    "regime2_mode": "off",
-                                    "spot_short_risk_mult": 0.0,
-                                }
-                            )
-                            strategy.pop("regime2_bar_size", None)
-                            strategy.pop("regime2_supertrend_atr_period", None)
-                            strategy.pop("regime2_supertrend_multiplier", None)
-                            strategy.pop("regime2_supertrend_source", None)
-                            strategy.pop("regime2_ema_preset", None)
+            for flip_hold in (0, 1):
+                for tod_note, tod_over in tod_specs:
+                    for geom_note, geom_over in geom_specs:
+                        rank += 1
+                        strategy = dict(base_strategy)
+                        strategy.update(
+                            {
+                                "instrument": "spot",
+                                "symbol": symbol_u,
+                                "signal_bar_size": "10 mins",
+                                "signal_use_rth": False,
+                                "spot_exec_bar_size": "5 mins",
+                                "ema_entry_mode": "trend",
+                                "ema_preset": "8/21",
+                                "entry_confirm_bars": int(confirm_bars),
+                                "spot_stop_loss_pct": float(stop_loss),
+                                "spot_close_eod": False,
+                                "exit_on_signal_flip": True,
+                                "flip_exit_mode": "entry",
+                                "flip_exit_only_if_profit": True,
+                                "flip_exit_min_hold_bars": int(flip_hold),
+                                "regime_mode": "supertrend",
+                                "regime_bar_size": "1 day",
+                                "supertrend_atr_period": 7,
+                                "supertrend_multiplier": 0.4,
+                                "supertrend_source": "close",
+                                "regime2_mode": "off",
+                                "spot_short_risk_mult": 0.0,
+                            }
+                        )
+                        strategy.pop("regime2_bar_size", None)
+                        strategy.pop("regime2_supertrend_atr_period", None)
+                        strategy.pop("regime2_supertrend_multiplier", None)
+                        strategy.pop("regime2_supertrend_source", None)
+                        strategy.pop("regime2_ema_preset", None)
 
-                            filters = _merge_dict(filters_base, tod_over)
-                            filters = _merge_dict(filters, geom_over)
-                            note = (
-                                f"PGA #{rank:04d} FULL24 ema=8/21 confirm={confirm_bars} sl={stop_loss:g} "
-                                f"open={max_open} hold={flip_hold} {tod_note} {geom_note}"
-                            )
-                            groups.append(
-                                {
-                                    "name": note,
-                                    "filters": filters,
-                                    "entries": [{"symbol": symbol_u, "metrics": _blank_metrics(), "strategy": strategy}],
-                                    "_eval": {"stage": "A", "profile": "precision_guard", "note": note},
-                                }
-                            )
+                        filters = _merge_dict(filters_base, tod_over)
+                        filters = _merge_dict(filters, geom_over)
+                        note = (
+                            f"PGA #{rank:04d} FULL24 ema=8/21 confirm={confirm_bars} sl={stop_loss:g} "
+                            f"hold={flip_hold} {tod_note} {geom_note}"
+                        )
+                        groups.append(
+                            {
+                                "name": note,
+                                "filters": filters,
+                                "entries": [{"symbol": symbol_u, "metrics": _blank_metrics(), "strategy": strategy}],
+                                "_eval": {"stage": "A", "profile": "precision_guard", "note": note},
+                            }
+                        )
     return groups
 
 
@@ -1376,6 +1369,414 @@ def _precision_guard_stage_b(*, symbol: str, seed_groups: list[dict]) -> list[di
     return groups
 
 
+def _graph_compact_stage_a(*, symbol: str, base_strategy: dict, base_filters: dict) -> list[dict]:
+    groups: list[dict] = []
+    rank = 0
+    symbol_u = str(symbol).strip().upper()
+    filters_base = _neutral_filters(base_filters)
+
+    tod_specs: tuple[tuple[str, dict[str, object]], ...] = (
+        ("tod=off", {"entry_start_hour_et": None, "entry_end_hour_et": None, "risk_entry_cutoff_hour_et": None}),
+        ("tod=8-16", {"entry_start_hour_et": 8, "entry_end_hour_et": 16, "risk_entry_cutoff_hour_et": 16}),
+    )
+    exit_specs: tuple[tuple[str, dict[str, object]], ...] = (
+        (
+            "flip=state_h6_prof1",
+            {
+                "flip_exit_mode": "state",
+                "flip_exit_only_if_profit": True,
+                "flip_exit_min_hold_bars": 6,
+            },
+        ),
+        (
+            "flip=cross_h0_prof0",
+            {
+                "flip_exit_mode": "cross",
+                "flip_exit_only_if_profit": False,
+                "flip_exit_min_hold_bars": 0,
+            },
+        ),
+        (
+            "flip=entry_h0_prof0",
+            {
+                "flip_exit_mode": "entry",
+                "flip_exit_only_if_profit": False,
+                "flip_exit_min_hold_bars": 0,
+            },
+        ),
+    )
+    stop_specs: tuple[tuple[str, float], ...] = (
+        ("sl=0.0192", 0.0192),
+        ("sl=0.0160", 0.0160),
+    )
+    risk_specs: tuple[tuple[str, float], ...] = (
+        ("risk=0.019", 0.019),
+        ("risk=0.016", 0.016),
+    )
+    graph_specs: tuple[tuple[str, dict[str, object], dict[str, object]], ...] = (
+        (
+            "graph=def_lo",
+            {
+                "spot_policy_graph": "defensive",
+                "spot_entry_policy": "slope_tr_guard",
+                "spot_exit_policy": "slope_flip_guard",
+                "spot_resize_policy": "adaptive_atr_defensive",
+                "spot_risk_overlay_policy": "atr_compress",
+                "spot_entry_tr_ratio_min": 0.98,
+                "spot_entry_slope_med_abs_min_pct": 0.000002,
+                "spot_entry_slope_vel_abs_min_pct": 0.000001,
+                "spot_exit_flip_hold_tr_ratio_min": 0.99,
+                "spot_resize_adaptive_mode": "atr",
+                "spot_resize_adaptive_min_mult": 0.40,
+                "spot_resize_adaptive_max_mult": 1.00,
+                "spot_graph_overlay_atr_hi_pct": 7.0,
+                "spot_graph_overlay_atr_hi_min_mult": 0.35,
+            },
+            {},
+        ),
+        (
+            "graph=def_mid",
+            {
+                "spot_policy_graph": "defensive",
+                "spot_entry_policy": "slope_tr_guard",
+                "spot_exit_policy": "slope_flip_guard",
+                "spot_resize_policy": "adaptive_atr_defensive",
+                "spot_risk_overlay_policy": "atr_compress",
+                "spot_entry_tr_ratio_min": 1.00,
+                "spot_entry_slope_med_abs_min_pct": 0.000003,
+                "spot_entry_slope_vel_abs_min_pct": 0.0000015,
+                "spot_entry_atr_vel_min_pct": 0.03,
+                "spot_entry_atr_accel_min_pct": 0.007,
+                "spot_exit_flip_hold_tr_ratio_min": 1.00,
+                "spot_resize_adaptive_mode": "atr",
+                "spot_resize_adaptive_min_mult": 0.35,
+                "spot_resize_adaptive_max_mult": 1.00,
+                "spot_graph_overlay_atr_hi_pct": 6.5,
+                "spot_graph_overlay_atr_hi_min_mult": 0.30,
+            },
+            {},
+        ),
+        (
+            "graph=hf_probe_lo",
+            {
+                "spot_policy_graph": "hf_probe",
+                "spot_entry_policy": "slope_tr_guard",
+                "spot_exit_policy": "slope_flip_guard",
+                "spot_resize_policy": "adaptive_slope_probe",
+                "spot_risk_overlay_policy": "trend_bias",
+                "spot_entry_tr_ratio_min": 0.96,
+                "spot_entry_slope_med_abs_min_pct": 0.000002,
+                "spot_entry_slope_vel_abs_min_pct": 0.000001,
+                "spot_exit_flip_hold_tr_ratio_min": 0.98,
+                "spot_resize_adaptive_mode": "slope",
+                "spot_resize_adaptive_min_mult": 0.50,
+                "spot_resize_adaptive_max_mult": 1.35,
+            },
+            {},
+        ),
+        (
+            "graph=hf_probe_mid",
+            {
+                "spot_policy_graph": "hf_probe",
+                "spot_entry_policy": "slope_tr_guard",
+                "spot_exit_policy": "slope_flip_guard",
+                "spot_resize_policy": "adaptive_slope_probe",
+                "spot_risk_overlay_policy": "trend_bias",
+                "spot_entry_tr_ratio_min": 1.00,
+                "spot_entry_slope_med_abs_min_pct": 0.000003,
+                "spot_entry_slope_vel_abs_min_pct": 0.0000015,
+                "spot_entry_atr_vel_min_pct": 0.03,
+                "spot_entry_atr_accel_min_pct": 0.007,
+                "spot_exit_flip_hold_tr_ratio_min": 1.00,
+                "spot_resize_adaptive_mode": "slope",
+                "spot_resize_adaptive_min_mult": 0.45,
+                "spot_resize_adaptive_max_mult": 1.30,
+            },
+            {},
+        ),
+        (
+            "graph=hf_probe_crash",
+            {
+                "spot_policy_graph": "hf_probe",
+                "spot_entry_policy": "slope_tr_guard",
+                "spot_exit_policy": "slope_flip_guard",
+                "spot_resize_policy": "adaptive_slope_probe",
+                "spot_risk_overlay_policy": "trend_bias",
+                "spot_entry_tr_ratio_min": 1.00,
+                "spot_entry_slope_med_abs_min_pct": 0.000003,
+                "spot_entry_slope_vel_abs_min_pct": 0.0000015,
+                "spot_entry_atr_vel_min_pct": 0.03,
+                "spot_entry_atr_accel_min_pct": 0.007,
+                "spot_exit_flip_hold_tr_ratio_min": 1.00,
+                "spot_resize_adaptive_mode": "slope",
+                "spot_resize_adaptive_min_mult": 0.45,
+                "spot_resize_adaptive_max_mult": 1.30,
+            },
+            {
+                "shock_gate_mode": "detect",
+                "shock_scale_detector": "daily_drawdown",
+                "shock_drawdown_lookback_days": 20,
+                "shock_risk_scale_target_atr_pct": 8.0,
+                "shock_risk_scale_min_mult": 0.2,
+                "shock_risk_scale_apply_to": "both",
+                "shock_direction_source": "signal",
+                "shock_direction_lookback": 1,
+                "riskoff_tr5_med_pct": None,
+                "riskpop_tr5_med_pct": None,
+                "riskpanic_tr5_med_pct": 2.75,
+                "riskpanic_neg_gap_ratio_min": 0.6,
+                "riskpanic_neg_gap_abs_pct_min": 0.005,
+                "riskpanic_lookback_days": 5,
+                "riskpanic_tr5_med_delta_min_pct": 0.5,
+                "riskpanic_tr5_med_delta_lookback_days": 1,
+                "riskpanic_long_risk_mult_factor": 0.0,
+                "riskpanic_short_risk_mult_factor": 1.0,
+                "riskpanic_long_scale_mode": "linear",
+                "riskpanic_long_scale_tr_delta_max_pct": None,
+                "risk_entry_cutoff_hour_et": 15,
+            },
+        ),
+        (
+            "graph=aggr_guard",
+            {
+                "spot_policy_graph": "aggressive",
+                "spot_entry_policy": "slope_tr_guard",
+                "spot_exit_policy": "slope_flip_guard",
+                "spot_resize_policy": "adaptive_hybrid_aggressive",
+                "spot_risk_overlay_policy": "trend_bias",
+                "spot_entry_tr_ratio_min": 0.98,
+                "spot_entry_slope_med_abs_min_pct": 0.000002,
+                "spot_entry_slope_vel_abs_min_pct": 0.000001,
+                "spot_exit_flip_hold_tr_ratio_min": 0.99,
+                "spot_resize_adaptive_mode": "hybrid",
+                "spot_resize_adaptive_min_mult": 0.90,
+                "spot_resize_adaptive_max_mult": 1.45,
+            },
+            {},
+        ),
+    )
+
+    for tod_note, tod_over in tod_specs:
+        for exit_note, exit_over in exit_specs:
+            for stop_note, stop_loss in stop_specs:
+                for risk_note, risk_pct in risk_specs:
+                    for graph_note, graph_over, filt_over in graph_specs:
+                        rank += 1
+                        strategy = dict(base_strategy)
+                        strategy.update(
+                            {
+                                "instrument": "spot",
+                                "symbol": symbol_u,
+                                "signal_bar_size": "10 mins",
+                                "signal_use_rth": False,
+                                "spot_exec_bar_size": "1 min",
+                                "ema_entry_mode": "trend",
+                                "ema_preset": "5/13",
+                                "entry_confirm_bars": 0,
+                                "spot_stop_loss_pct": float(stop_loss),
+                                "spot_profit_target_pct": None,
+                                "spot_risk_pct": float(risk_pct),
+                                "spot_close_eod": False,
+                                "exit_on_signal_flip": True,
+                                "regime_mode": "supertrend",
+                                "regime_bar_size": "1 day",
+                                "supertrend_atr_period": 7,
+                                "supertrend_multiplier": 0.4,
+                                "supertrend_source": "close",
+                                "regime2_mode": "off",
+                                "spot_short_risk_mult": 0.04,
+                            }
+                        )
+                        strategy.update(dict(exit_over))
+                        strategy.update(dict(graph_over))
+                        strategy.pop("regime2_bar_size", None)
+                        strategy.pop("regime2_supertrend_atr_period", None)
+                        strategy.pop("regime2_supertrend_multiplier", None)
+                        strategy.pop("regime2_supertrend_source", None)
+                        strategy.pop("regime2_ema_preset", None)
+
+                        filters = _merge_dict(filters_base, tod_over)
+                        filters = _merge_dict(filters, dict(filt_over))
+                        note = (
+                            f"GCA #{rank:04d} {tod_note} {exit_note} {stop_note} {risk_note} "
+                            f"{graph_note}"
+                        )
+                        groups.append(
+                            {
+                                "name": note,
+                                "filters": filters,
+                                "entries": [{"symbol": symbol_u, "metrics": _blank_metrics(), "strategy": strategy}],
+                                "_eval": {"stage": "A", "profile": "graph_compact", "note": note},
+                            }
+                        )
+    return groups
+
+
+def _graph_compact_stage_b(*, symbol: str, seed_groups: list[dict]) -> list[dict]:
+    seeds = [_seed_from_group(g) for g in seed_groups]
+    groups: list[dict] = []
+    rank = 0
+    symbol_u = str(symbol).strip().upper()
+
+    drawdown_specs: tuple[tuple[int, float, float, str], ...] = (
+        (10, 8.0, 0.2, "both"),
+        (20, 8.0, 0.2, "both"),
+        (20, 10.0, 0.2, "cap"),
+    )
+    trratio_specs: tuple[tuple[int, int, float, float, float, float, float, str, str], ...] = (
+        (3, 21, 1.30, 1.20, 3.0, 8.0, 0.2, "both", "detect"),
+        (5, 34, 1.40, 1.30, 3.5, 10.0, 0.2, "both", "detect"),
+        (3, 21, 1.30, 1.20, 3.0, 8.0, 0.2, "both", "surf"),
+    )
+    panic_specs: tuple[tuple[float, float, float, float], ...] = (
+        (2.75, 0.5, 0.2, 1.0),
+        (2.75, 0.5, 0.0, 1.5),
+        (3.0, 0.5, 0.0, 1.5),
+        (2.5, 0.25, 0.0, 2.0),
+    )
+    short_mults = (0.0, 0.02, 0.04)
+    cross_specs: tuple[tuple[int, int, int, int], ...] = (
+        (0, 0, 0, 15),
+        (1, 1, 1, 15),
+        (2, 2, 2, 16),
+        (0, 1, 3, 15),
+    )
+
+    def _over_dd(lb: int, target: float, min_mult: float, apply_to: str) -> dict[str, object]:
+        return {
+            "shock_gate_mode": "detect",
+            "shock_scale_detector": "daily_drawdown",
+            "shock_drawdown_lookback_days": int(lb),
+            "shock_risk_scale_target_atr_pct": float(target),
+            "shock_risk_scale_min_mult": float(min_mult),
+            "shock_risk_scale_apply_to": str(apply_to),
+            "shock_direction_source": "signal",
+            "shock_direction_lookback": 1,
+        }
+
+    def _over_trratio(
+        fast: int,
+        slow: int,
+        on_ratio: float,
+        off_ratio: float,
+        min_atr_pct: float,
+        target: float,
+        min_mult: float,
+        apply_to: str,
+        gate_mode: str,
+    ) -> dict[str, object]:
+        return {
+            "shock_gate_mode": str(gate_mode),
+            "shock_scale_detector": "tr_ratio",
+            "shock_atr_fast_period": int(fast),
+            "shock_atr_slow_period": int(slow),
+            "shock_on_ratio": float(on_ratio),
+            "shock_off_ratio": float(off_ratio),
+            "shock_min_atr_pct": float(min_atr_pct),
+            "shock_risk_scale_target_atr_pct": float(target),
+            "shock_risk_scale_min_mult": float(min_mult),
+            "shock_risk_scale_apply_to": str(apply_to),
+            "shock_direction_source": "signal",
+            "shock_direction_lookback": 1,
+        }
+
+    def _over_riskpanic(tr_med: float, tr_delta: float, long_factor: float, short_factor: float) -> dict[str, object]:
+        return {
+            "riskoff_tr5_med_pct": None,
+            "riskpop_tr5_med_pct": None,
+            "riskpanic_tr5_med_pct": float(tr_med),
+            "riskpanic_neg_gap_ratio_min": 0.6,
+            "riskpanic_neg_gap_abs_pct_min": 0.005,
+            "riskpanic_lookback_days": 5,
+            "riskpanic_tr5_med_delta_min_pct": float(tr_delta),
+            "riskpanic_tr5_med_delta_lookback_days": 1,
+            "riskpanic_long_risk_mult_factor": float(long_factor),
+            "riskpanic_short_risk_mult_factor": float(short_factor),
+            "riskpanic_long_scale_mode": "linear",
+            "riskpanic_long_scale_tr_delta_max_pct": None,
+        }
+
+    for seed_idx, (seed_name, seed_strategy, seed_filters) in enumerate(seeds, start=1):
+        for dd in drawdown_specs:
+            rank += 1
+            filters = _merge_dict(seed_filters, _over_dd(*dd))
+            note = f"GCB #{rank:04d} seed={seed_idx} dd={dd}"
+            groups.append(
+                {
+                    "name": note,
+                    "filters": filters,
+                    "entries": [{"symbol": symbol_u, "metrics": _blank_metrics(), "strategy": dict(seed_strategy)}],
+                    "_eval": {"stage": "B", "profile": "graph_compact", "seed": seed_name, "kind": "drawdown_only"},
+                }
+            )
+
+        for trr in trratio_specs:
+            rank += 1
+            filters = _merge_dict(seed_filters, _over_trratio(*trr))
+            note = f"GCB #{rank:04d} seed={seed_idx} trratio={trr}"
+            groups.append(
+                {
+                    "name": note,
+                    "filters": filters,
+                    "entries": [{"symbol": symbol_u, "metrics": _blank_metrics(), "strategy": dict(seed_strategy)}],
+                    "_eval": {"stage": "B", "profile": "graph_compact", "seed": seed_name, "kind": "trratio_only"},
+                }
+            )
+
+        for tr_med, tr_delta, long_factor, short_factor in panic_specs:
+            for short_mult in short_mults:
+                rank += 1
+                filters = _merge_dict(seed_filters, _over_riskpanic(tr_med, tr_delta, long_factor, short_factor))
+                strategy = dict(seed_strategy)
+                strategy["spot_short_risk_mult"] = float(short_mult)
+                note = (
+                    f"GCB #{rank:04d} seed={seed_idx} panic(tr={tr_med:g},d={tr_delta:g},"
+                    f"L={long_factor:g},S={short_factor:g}) short={short_mult:g}"
+                )
+                groups.append(
+                    {
+                        "name": note,
+                        "filters": filters,
+                        "entries": [{"symbol": symbol_u, "metrics": _blank_metrics(), "strategy": strategy}],
+                        "_eval": {"stage": "B", "profile": "graph_compact", "seed": seed_name, "kind": "riskpanic_only"},
+                    }
+                )
+
+        for cross_idx, dd_idx, tr_idx, panic_idx, cutoff in (
+            (idx + 1, *spec) for idx, spec in enumerate(cross_specs)
+        ):
+            dd = drawdown_specs[int(dd_idx)]
+            trr = trratio_specs[int(tr_idx)]
+            panic = panic_specs[int(panic_idx)]
+            for short_mult in short_mults:
+                rank += 1
+                filters = _merge_dict(seed_filters, _over_dd(*dd))
+                filters = _merge_dict(filters, _over_trratio(*trr))
+                filters = _merge_dict(filters, _over_riskpanic(*panic))
+                filters = _merge_dict(filters, {"risk_entry_cutoff_hour_et": int(cutoff)})
+                strategy = dict(seed_strategy)
+                strategy.update(
+                    {
+                        "spot_short_risk_mult": float(short_mult),
+                        "flip_exit_mode": "cross",
+                        "flip_exit_only_if_profit": False,
+                        "flip_exit_min_hold_bars": 0,
+                        "spot_stop_loss_pct": 0.016,
+                        "spot_risk_pct": 0.016,
+                    }
+                )
+                note = f"GCB #{rank:04d} seed={seed_idx} cross={cross_idx} cutoff={cutoff} short={short_mult:g}"
+                groups.append(
+                    {
+                        "name": note,
+                        "filters": filters,
+                        "entries": [{"symbol": symbol_u, "metrics": _blank_metrics(), "strategy": strategy}],
+                        "_eval": {"stage": "B", "profile": "graph_compact", "seed": seed_name, "kind": "cross"},
+                    }
+                )
+    return groups
+
+
 def _hour_expansion_stage_a(*, symbol: str, base_strategy: dict, base_filters: dict) -> list[dict]:
     groups: list[dict] = []
     rank = 0
@@ -1413,58 +1814,56 @@ def _hour_expansion_stage_a(*, symbol: str, base_strategy: dict, base_filters: d
 
     for ema_preset in ("8/21", "5/13"):
         for stop_loss in (0.02, 0.022):
-            for max_open in (3, 4):
-                for short_mult in (0.0, 0.0025):
-                    for tod_note, tod_over in tod_specs:
-                        for geom_note, geom_over in geom_specs:
-                            rank += 1
-                            strategy = dict(base_strategy)
-                            strategy.update(
-                                {
-                                    "instrument": "spot",
-                                    "symbol": symbol_u,
-                                    "signal_bar_size": "10 mins",
-                                    "signal_use_rth": False,
-                                    "spot_exec_bar_size": "5 mins",
-                                    "ema_entry_mode": "trend",
-                                    "ema_preset": str(ema_preset),
-                                    "entry_confirm_bars": 1,
-                                    "spot_stop_loss_pct": float(stop_loss),
-                                    "max_open_trades": int(max_open),
-                                    "spot_close_eod": False,
-                                    "exit_on_signal_flip": True,
-                                    "flip_exit_mode": "entry",
-                                    "flip_exit_only_if_profit": True,
-                                    "flip_exit_min_hold_bars": 0,
-                                    "regime_mode": "supertrend",
-                                    "regime_bar_size": "1 day",
-                                    "supertrend_atr_period": 7,
-                                    "supertrend_multiplier": 0.4,
-                                    "supertrend_source": "close",
-                                    "regime2_mode": "off",
-                                    "spot_short_risk_mult": float(short_mult),
-                                }
-                            )
-                            strategy.pop("regime2_bar_size", None)
-                            strategy.pop("regime2_supertrend_atr_period", None)
-                            strategy.pop("regime2_supertrend_multiplier", None)
-                            strategy.pop("regime2_supertrend_source", None)
-                            strategy.pop("regime2_ema_preset", None)
+            for short_mult in (0.0, 0.0025):
+                for tod_note, tod_over in tod_specs:
+                    for geom_note, geom_over in geom_specs:
+                        rank += 1
+                        strategy = dict(base_strategy)
+                        strategy.update(
+                            {
+                                "instrument": "spot",
+                                "symbol": symbol_u,
+                                "signal_bar_size": "10 mins",
+                                "signal_use_rth": False,
+                                "spot_exec_bar_size": "5 mins",
+                                "ema_entry_mode": "trend",
+                                "ema_preset": str(ema_preset),
+                                "entry_confirm_bars": 1,
+                                "spot_stop_loss_pct": float(stop_loss),
+                                "spot_close_eod": False,
+                                "exit_on_signal_flip": True,
+                                "flip_exit_mode": "entry",
+                                "flip_exit_only_if_profit": True,
+                                "flip_exit_min_hold_bars": 0,
+                                "regime_mode": "supertrend",
+                                "regime_bar_size": "1 day",
+                                "supertrend_atr_period": 7,
+                                "supertrend_multiplier": 0.4,
+                                "supertrend_source": "close",
+                                "regime2_mode": "off",
+                                "spot_short_risk_mult": float(short_mult),
+                            }
+                        )
+                        strategy.pop("regime2_bar_size", None)
+                        strategy.pop("regime2_supertrend_atr_period", None)
+                        strategy.pop("regime2_supertrend_multiplier", None)
+                        strategy.pop("regime2_supertrend_source", None)
+                        strategy.pop("regime2_ema_preset", None)
 
-                            filters = _merge_dict(filters_base, tod_over)
-                            filters = _merge_dict(filters, geom_over)
-                            note = (
-                                f"HEA #{rank:04d} FULL24 ema={ema_preset} sl={stop_loss:g} open={max_open} "
-                                f"short={short_mult:g} {tod_note} {geom_note}"
-                            )
-                            groups.append(
-                                {
-                                    "name": note,
-                                    "filters": filters,
-                                    "entries": [{"symbol": symbol_u, "metrics": _blank_metrics(), "strategy": strategy}],
-                                    "_eval": {"stage": "A", "profile": "hour_expansion", "note": note},
-                                }
-                            )
+                        filters = _merge_dict(filters_base, tod_over)
+                        filters = _merge_dict(filters, geom_over)
+                        note = (
+                            f"HEA #{rank:04d} FULL24 ema={ema_preset} sl={stop_loss:g} "
+                            f"short={short_mult:g} {tod_note} {geom_note}"
+                        )
+                        groups.append(
+                            {
+                                "name": note,
+                                "filters": filters,
+                                "entries": [{"symbol": symbol_u, "metrics": _blank_metrics(), "strategy": strategy}],
+                                "_eval": {"stage": "A", "profile": "hour_expansion", "note": note},
+                            }
+                        )
     return groups
 
 
@@ -1812,6 +2211,11 @@ def _profile_run(
         stage_a_seed_top = 16
         stage_b_top_keep = 160
         stage_b_builder = _hour_expansion_stage_b
+    elif profile == "graph_compact":
+        stage_a_groups = _graph_compact_stage_a(symbol=symbol, base_strategy=seed_strategy, base_filters=seed_filters)
+        stage_a_seed_top = 8
+        stage_b_top_keep = 120
+        stage_b_builder = _graph_compact_stage_b
     else:
         raise SystemExit(f"Unknown profile: {profile}")
 
@@ -1947,7 +2351,10 @@ def _profile_run(
 
 def main() -> None:
     ap = argparse.ArgumentParser(
-        description="Temporary SLV 10m high-frequency attack runner (hyper10 + scalp10 + island_bridge + precision_guard + hour_expansion)."
+        description=(
+            "Temporary SLV 10m high-frequency attack runner "
+            "(hyper10 + scalp10 + island_bridge + precision_guard + hour_expansion + graph_compact)."
+        )
     )
     ap.add_argument("--symbol", default="SLV")
     ap.add_argument("--seed-milestones", default="backtests/slv/slv_exec5m_v30_seed_v25_as_10m_rth_top80.json")
@@ -1967,7 +2374,7 @@ def main() -> None:
     ap.add_argument(
         "--profiles",
         default="hyper10,scalp10",
-        help="Comma list: hyper10, scalp10, island_bridge, precision_guard, hour_expansion",
+        help="Comma list: hyper10, scalp10, island_bridge, precision_guard, hour_expansion, graph_compact",
     )
     ap.add_argument(
         "--lane-mode",
@@ -2026,10 +2433,15 @@ def main() -> None:
         print(f"  {s}:{e} pnl={pnl:.1f}")
 
     profiles_req = [p.strip().lower() for p in str(args.profiles).split(",") if p.strip()]
-    profiles = [p for p in profiles_req if p in ("hyper10", "scalp10", "island_bridge", "precision_guard", "hour_expansion")]
+    profiles = [
+        p
+        for p in profiles_req
+        if p in ("hyper10", "scalp10", "island_bridge", "precision_guard", "hour_expansion", "graph_compact")
+    ]
     if not profiles:
         raise SystemExit(
-            "No valid profiles selected. Use --profiles hyper10,scalp10,island_bridge,precision_guard,hour_expansion"
+            "No valid profiles selected. Use --profiles "
+            "hyper10,scalp10,island_bridge,precision_guard,hour_expansion,graph_compact"
         )
 
     for profile in profiles:

@@ -1,0 +1,166 @@
+SLV spot evolve sweep (2025-02-14 -> 2026-02-14, use_rth=False, bar_size=10 mins, offline=True, base=champion, axis=ptsl, jobs=12, long_only=False realism=v2 spread=0.01 comm=0.005 comm_min=1 slip=0 sizing=risk_pct risk=0.01 max_notional=0.5)
+START ptsl total=144
+ptsl axis 5/144 (3.5%) kept=4 elapsed=15.0s eta=7.0m rate=0.33/s inflight=1.4s stage=engine.exec exec=32844/71441 trades=1743
+ptsl watchdog 8/144 (5.6%) kept=7 elapsed=30.0s eta=8.5m rate=0.27/cfg/s heartbeat=axis
+ptsl axis 8/144 (5.6%) kept=7 elapsed=30.0s eta=8.5m rate=0.27/s inflight=3.7s stage=engine.exec exec=64617/71441 trades=2878
+ptsl axis 13/144 (9.0%) kept=12 elapsed=45.0s eta=7.6m rate=0.29/s inflight=3.2s stage=engine.exec exec=59619/71441 trades=2777
+ptsl watchdog 16/144 (11.1%) kept=15 elapsed=60.0s eta=8.0m rate=0.27/cfg/s heartbeat=axis
+ptsl axis 17/144 (11.8%) kept=16 elapsed=60.0s eta=7.5m rate=0.28/s inflight=0.6s stage=engine.exec exec=31689/71441 trades=1640
+ptsl axis 21/144 (14.6%) kept=20 elapsed=75.1s eta=7.3m rate=0.28/s inflight=1.3s stage=engine.exec exec=28917/71441 trades=1508
+ptsl watchdog 23/144 (16.0%) kept=22 elapsed=90.0s eta=7.9m rate=0.26/cfg/s heartbeat=axis
+ptsl axis 24/144 (16.7%) kept=23 elapsed=90.1s eta=7.5m rate=0.27/s inflight=0.5s stage=engine.exec exec=13566/71441 trades=688
+ptsl axis 28/144 (19.4%) kept=27 elapsed=105.1s eta=7.3m rate=0.27/s inflight=2.4s stage=engine.exec exec=37485/71441 trades=1472
+ptsl watchdog 30/144 (20.8%) kept=29 elapsed=120.0s eta=7.6m rate=0.25/cfg/s heartbeat=axis
+ptsl axis 30/144 (20.8%) kept=29 elapsed=120.1s eta=7.6m rate=0.25/s inflight=5.6s stage=engine.exec exec=70686/71441 trades=2123
+ptsl axis 34/144 (23.6%) kept=33 elapsed=135.1s eta=7.3m rate=0.25/s inflight=2.7s stage=engine.exec exec=24990/71441 trades=398
+ptsl watchdog 36/144 (25.0%) kept=35 elapsed=150.1s eta=7.5m rate=0.24/cfg/s heartbeat=axis
+ptsl axis 37/144 (25.7%) kept=36 elapsed=150.1s eta=7.2m rate=0.25/s inflight=0.6s stage=engine.exec exec=7854/71441 trades=290
+ptsl axis 39/144 (27.1%) kept=38 elapsed=165.1s eta=7.4m rate=0.24/s inflight=1.4s stage=engine.exec exec=17493/71441 trades=699
+ptsl watchdog 42/144 (29.2%) kept=40 elapsed=180.1s eta=7.3m rate=0.23/cfg/s heartbeat=axis
+ptsl axis 42/144 (29.2%) kept=40 elapsed=180.1s eta=7.3m rate=0.23/s inflight=1.9s stage=engine.exec exec=17493/71441 trades=214
+ptsl axis 45/144 (31.2%) kept=40 elapsed=195.2s eta=7.2m rate=0.23/s inflight=0.1s stage=engine.exec exec=1071/71441 trades=17
+ptsl watchdog 46/144 (31.9%) kept=41 elapsed=210.1s eta=7.5m rate=0.22/cfg/s heartbeat=axis
+ptsl axis 46/144 (31.9%) kept=41 elapsed=210.2s eta=7.5m rate=0.22/s inflight=7.4s stage=engine.exec exec=69258/71441 trades=858
+ptsl axis 48/144 (33.3%) kept=43 elapsed=225.2s eta=7.5m rate=0.21/s inflight=7.1s stage=engine.exec exec=64974/71441 trades=784
+ptsl axis 50/144 (34.7%) kept=45 elapsed=227.0s eta=7.1m rate=0.22/s
+ptsl watchdog 53/144 (36.8%) kept=48 elapsed=240.1s eta=6.9m rate=0.22/cfg/s heartbeat=axis
+ptsl axis 53/144 (36.8%) kept=48 elapsed=240.2s eta=6.9m rate=0.22/s inflight=3.1s stage=engine.exec exec=60690/71441 trades=3054
+ptsl axis 58/144 (40.3%) kept=53 elapsed=255.2s eta=6.3m rate=0.23/s inflight=0.4s stage=engine.exec exec=8925/71441 trades=431
+SLV spot evolve sweep (2025-02-14 -> 2026-02-14, use_rth=False, bar_size=10 mins, offline=True, base=champion, axis=ptsl, jobs=12, long_only=False realism=v2 spread=0.01 comm=0.005 comm_min=1 slip=0 sizing=risk_pct risk=0.01 max_notional=0.5)
+START ptsl total=144
+ptsl axis 50/144 (34.7%) kept=45 elapsed=2.0s eta=0.1m rate=24.47/s
+ptsl axis 61/144 (42.4%) kept=56 elapsed=15.0s eta=0.3m rate=4.06/s inflight=2.6s stage=engine.exec exec=52836/71441 trades=2631
+ptsl watchdog 64/144 (44.4%) kept=59 elapsed=30.0s eta=0.6m rate=2.13/cfg/s heartbeat=axis
+ptsl axis 66/144 (45.8%) kept=61 elapsed=30.0s eta=0.6m rate=2.20/s inflight=0.1s stage=engine.exec exec=1785/71441 trades=76
+ptsl axis 69/144 (47.9%) kept=64 elapsed=45.0s eta=0.8m rate=1.53/s inflight=1.7s stage=engine.exec exec=34272/71441 trades=1772
+ptsl watchdog 71/144 (49.3%) kept=66 elapsed=60.0s eta=1.0m rate=1.18/cfg/s heartbeat=axis
+ptsl axis 72/144 (50.0%) kept=67 elapsed=60.0s eta=1.0m rate=1.20/s inflight=0.8s stage=engine.exec exec=19635/71441 trades=1019
+ptsl axis 76/144 (52.8%) kept=71 elapsed=75.1s eta=1.1m rate=1.01/s inflight=2.4s stage=engine.exec exec=37128/71441 trades=1472
+ptsl watchdog 78/144 (54.2%) kept=73 elapsed=90.0s eta=1.3m rate=0.87/cfg/s heartbeat=axis
+ptsl axis 78/144 (54.2%) kept=73 elapsed=90.1s eta=1.3m rate=0.87/s inflight=5.4s stage=engine.exec exec=67116/71441 trades=2031
+ptsl axis 82/144 (56.9%) kept=77 elapsed=105.1s eta=1.3m rate=0.78/s inflight=2.1s stage=engine.exec exec=19635/71441 trades=348
+ptsl watchdog 84/144 (58.3%) kept=79 elapsed=120.0s eta=1.4m rate=0.70/cfg/s heartbeat=axis
+ptsl axis 84/144 (58.3%) kept=79 elapsed=120.1s eta=1.4m rate=0.70/s inflight=8.0s stage=engine.exec exec=68901/71441 trades=692
+ptsl axis 87/144 (60.4%) kept=82 elapsed=135.1s eta=1.5m rate=0.64/s inflight=0.6s stage=engine.exec exec=6783/71441 trades=240
+ptsl watchdog 90/144 (62.5%) kept=84 elapsed=150.1s eta=1.5m rate=0.60/cfg/s heartbeat=axis
+ptsl axis 90/144 (62.5%) kept=84 elapsed=150.1s eta=1.5m rate=0.60/s inflight=1.0s stage=engine.exec exec=8211/71441 trades=61
+ptsl axis 92/144 (63.9%) kept=84 elapsed=165.1s eta=1.6m rate=0.56/s inflight=7.3s stage=engine.exec exec=61404/71441 trades=349
+ptsl watchdog 94/144 (65.3%) kept=85 elapsed=180.1s eta=1.6m rate=0.52/cfg/s heartbeat=axis
+ptsl axis 94/144 (65.3%) kept=85 elapsed=180.1s eta=1.6m rate=0.52/s inflight=6.3s stage=engine.exec exec=57477/71441 trades=709
+ptsl axis 96/144 (66.7%) kept=87 elapsed=195.1s eta=1.6m rate=0.49/s inflight=5.8s stage=engine.exec exec=54264/71441 trades=687
+ptsl axis 100/144 (69.4%) kept=91 elapsed=203.8s eta=1.5m rate=0.49/s
+ptsl watchdog 101/144 (70.1%) kept=92 elapsed=210.1s eta=1.5m rate=0.48/cfg/s heartbeat=axis
+ptsl axis 101/144 (70.1%) kept=92 elapsed=210.1s eta=1.5m rate=0.48/s inflight=1.8s stage=engine.exec exec=43554/71441 trades=2319
+ptsl axis 104/144 (72.2%) kept=95 elapsed=225.2s eta=1.4m rate=0.46/s inflight=4.3s stage=engine.exec exec=69972/71441 trades=2997
+ptsl watchdog 109/144 (75.7%) kept=100 elapsed=240.1s eta=1.3m rate=0.45/cfg/s heartbeat=axis
+ptsl axis 109/144 (75.7%) kept=100 elapsed=240.2s eta=1.3m rate=0.45/s inflight=3.7s stage=engine.exec exec=64974/71441 trades=2871
+ptsl axis 114/144 (79.2%) kept=105 elapsed=255.2s eta=1.1m rate=0.45/s inflight=0.3s stage=engine.exec exec=8568/71441 trades=411
+ptsl watchdog 117/144 (81.2%) kept=108 elapsed=270.1s eta=1.0m rate=0.43/cfg/s heartbeat=axis
+ptsl axis 117/144 (81.2%) kept=108 elapsed=270.2s eta=1.0m rate=0.43/s inflight=2.0s stage=engine.exec exec=37485/71441 trades=1911
+ptsl axis 120/144 (83.3%) kept=111 elapsed=285.2s eta=1.0m rate=0.42/s inflight=1.0s stage=engine.exec exec=22848/71441 trades=1188
+ptsl watchdog 124/144 (86.1%) kept=115 elapsed=300.1s eta=0.8m rate=0.41/cfg/s heartbeat=axis
+ptsl axis 124/144 (86.1%) kept=115 elapsed=300.2s eta=0.8m rate=0.41/s inflight=2.6s stage=engine.exec exec=38556/71441 trades=1476
+ptsl axis 126/144 (87.5%) kept=117 elapsed=315.2s eta=0.8m rate=0.40/s inflight=5.5s stage=engine.exec exec=68544/71441 trades=2056
+ptsl watchdog 130/144 (90.3%) kept=121 elapsed=330.1s eta=0.6m rate=0.39/cfg/s heartbeat=axis
+ptsl axis 130/144 (90.3%) kept=121 elapsed=330.2s eta=0.6m rate=0.39/s inflight=2.4s stage=engine.exec exec=22491/71441 trades=383
+ptsl axis 133/144 (92.4%) kept=124 elapsed=345.2s eta=0.5m rate=0.39/s inflight=0.1s stage=engine.exec exec=1785/71441 trades=63
+ptsl watchdog 135/144 (93.8%) kept=126 elapsed=360.1s eta=0.4m rate=0.37/cfg/s heartbeat=axis
+ptsl axis 135/144 (93.8%) kept=126 elapsed=360.3s eta=0.4m rate=0.37/s inflight=0.9s stage=engine.exec exec=11781/71441 trades=457
+ptsl axis 138/144 (95.8%) kept=128 elapsed=375.3s eta=0.3m rate=0.37/s inflight=1.2s stage=engine.exec exec=11067/71441 trades=112
+ptsl watchdog 140/144 (97.2%) kept=128 elapsed=390.1s eta=0.2m rate=0.36/cfg/s heartbeat=axis
+ptsl axis 140/144 (97.2%) kept=128 elapsed=390.3s eta=0.2m rate=0.36/s inflight=7.6s stage=engine.exec exec=62118/71441 trades=343
+ptsl axis 142/144 (98.6%) kept=129 elapsed=405.3s eta=0.1m rate=0.35/s inflight=6.2s stage=engine.exec exec=56406/71441 trades=700
+ptsl axis 144/144 (100.0%) kept=131 elapsed=414.7s eta=0.0m rate=0.35/s
+ptsl watchdog 144/144 (100.0%) kept=131 elapsed=420.1s eta=0.0m rate=0.34/cfg/s heartbeat=axis
+ptsl axis 144/144 (100.0%) kept=131 elapsed=420.3s eta=0.0m rate=0.34/s inflight=5.6s stage=engine.exec exec=51408/71441 trades=668
+
+PT/SL sweep (seeded-local mutation) — Top by pnl/dd
+---------------------------------------------------
+ 1. tr= 712 win=  8.1% pnl=   -1413.2 dd=  1413.4 pnl/dd= -1.00 roi= -1.41% dd%=  1.41% PT=0.0180 SL=0.0360 flip=entry hold=6 only_profit=0 gate=regime_or_permission close_eod=0
+ 2. tr= 715 win=  8.1% pnl=   -1419.9 dd=  1420.1 pnl/dd= -1.00 roi= -1.42% dd%=  1.42% PT=0.0180 SL=0.0360 flip=entry hold=4 only_profit=0 gate=regime_or_permission close_eod=0
+ 3. tr= 729 win=  8.1% pnl=   -1443.0 dd=  1443.2 pnl/dd= -1.00 roi= -1.44% dd%=  1.44% PT=0.0150 SL=0.0360 flip=entry hold=6 only_profit=0 gate=regime_or_permission close_eod=0
+ 4. tr= 732 win=  8.1% pnl=   -1449.2 dd=  1449.4 pnl/dd= -1.00 roi= -1.45% dd%=  1.45% PT=0.0150 SL=0.0360 flip=entry hold=4 only_profit=0 gate=regime_or_permission close_eod=0
+ 5. tr= 747 win=  3.6% pnl=   -1470.1 dd=  1470.3 pnl/dd= -1.00 roi= -1.47% dd%=  1.47% PT=0.0120 SL=0.0360 flip=entry hold=6 only_profit=0 gate=regime_or_permission close_eod=0
+ 6. tr= 750 win=  3.6% pnl=   -1476.3 dd=  1476.5 pnl/dd= -1.00 roi= -1.48% dd%=  1.48% PT=0.0120 SL=0.0360 flip=entry hold=4 only_profit=0 gate=regime_or_permission close_eod=0
+ 7. tr= 869 win=  5.6% pnl=   -1731.7 dd=  1731.9 pnl/dd= -1.00 roi= -1.73% dd%=  1.73% PT=0.0180 SL=0.0360 flip=entry hold=4 only_profit=1 gate=regime_or_permission close_eod=1
+ 8. tr= 869 win=  5.6% pnl=   -1731.7 dd=  1731.9 pnl/dd= -1.00 roi= -1.73% dd%=  1.73% PT=0.0180 SL=0.0360 flip=entry hold=6 only_profit=1 gate=regime_or_permission close_eod=1
+ 9. tr= 879 win=  5.7% pnl=   -1753.2 dd=  1753.4 pnl/dd= -1.00 roi= -1.75% dd%=  1.75% PT=0.0150 SL=0.0360 flip=entry hold=4 only_profit=1 gate=regime_or_permission close_eod=1
+10. tr= 879 win=  5.7% pnl=   -1753.2 dd=  1753.4 pnl/dd= -1.00 roi= -1.75% dd%=  1.75% PT=0.0150 SL=0.0360 flip=entry hold=6 only_profit=1 gate=regime_or_permission close_eod=1
+11. tr= 892 win=  2.6% pnl=   -1767.8 dd=  1768.0 pnl/dd= -1.00 roi= -1.77% dd%=  1.77% PT=0.0120 SL=0.0360 flip=entry hold=4 only_profit=1 gate=regime_or_permission close_eod=1
+12. tr= 892 win=  2.6% pnl=   -1767.8 dd=  1768.0 pnl/dd= -1.00 roi= -1.77% dd%=  1.77% PT=0.0120 SL=0.0360 flip=entry hold=6 only_profit=1 gate=regime_or_permission close_eod=1
+13. tr= 908 win=  4.3% pnl=   -1820.5 dd=  1820.7 pnl/dd= -1.00 roi= -1.82% dd%=  1.82% PT=0.0180 SL=0.0360 flip=entry hold=4 only_profit=1 gate=off close_eod=1
+14. tr= 908 win=  4.3% pnl=   -1820.5 dd=  1820.7 pnl/dd= -1.00 roi= -1.82% dd%=  1.82% PT=0.0180 SL=0.0360 flip=entry hold=6 only_profit=1 gate=off close_eod=1
+15. tr= 916 win=  2.3% pnl=   -1826.9 dd=  1827.1 pnl/dd= -1.00 roi= -1.83% dd%=  1.83% PT=0.0120 SL=0.0360 flip=entry hold=4 only_profit=1 gate=off close_eod=1
+16. tr= 916 win=  2.3% pnl=   -1826.9 dd=  1827.1 pnl/dd= -1.00 roi= -1.83% dd%=  1.83% PT=0.0120 SL=0.0360 flip=entry hold=6 only_profit=1 gate=off close_eod=1
+17. tr= 911 win=  4.5% pnl=   -1827.3 dd=  1827.4 pnl/dd= -1.00 roi= -1.83% dd%=  1.83% PT=0.0150 SL=0.0360 flip=entry hold=4 only_profit=1 gate=off close_eod=1
+18. tr= 911 win=  4.5% pnl=   -1827.3 dd=  1827.4 pnl/dd= -1.00 roi= -1.83% dd%=  1.83% PT=0.0150 SL=0.0360 flip=entry hold=6 only_profit=1 gate=off close_eod=1
+19. tr= 975 win=  5.1% pnl=   -1953.3 dd=  1953.5 pnl/dd= -1.00 roi= -1.95% dd%=  1.95% PT=0.0180 SL=0.0360 flip=entry hold=6 only_profit=0 gate=regime_or_permission close_eod=1
+20. tr= 977 win=  5.1% pnl=   -1957.9 dd=  1958.1 pnl/dd= -1.00 roi= -1.96% dd%=  1.96% PT=0.0180 SL=0.0360 flip=entry hold=4 only_profit=0 gate=regime_or_permission close_eod=1
+21. tr= 984 win=  5.1% pnl=   -1970.6 dd=  1970.7 pnl/dd= -1.00 roi= -1.97% dd%=  1.97% PT=0.0150 SL=0.0360 flip=entry hold=6 only_profit=0 gate=regime_or_permission close_eod=1
+22. tr= 986 win=  5.1% pnl=   -1975.2 dd=  1975.4 pnl/dd= -1.00 roi= -1.98% dd%=  1.98% PT=0.0150 SL=0.0360 flip=entry hold=4 only_profit=0 gate=regime_or_permission close_eod=1
+23. tr= 994 win=  2.3% pnl=   -1979.4 dd=  1979.6 pnl/dd= -1.00 roi= -1.98% dd%=  1.98% PT=0.0120 SL=0.0360 flip=entry hold=6 only_profit=0 gate=regime_or_permission close_eod=1
+24. tr= 996 win=  2.3% pnl=   -1984.1 dd=  1984.3 pnl/dd= -1.00 roi= -1.98% dd%=  1.98% PT=0.0120 SL=0.0360 flip=entry hold=4 only_profit=0 gate=regime_or_permission close_eod=1
+25. tr=2160 win=  2.0% pnl=   -4356.9 dd=  4356.9 pnl/dd= -1.00 roi= -4.36% dd%=  4.36% PT=0.0150 SL=0.0300 flip=entry hold=4 only_profit=1 gate=off close_eod=1
+26. tr=2160 win=  2.0% pnl=   -4356.9 dd=  4356.9 pnl/dd= -1.00 roi= -4.36% dd%=  4.36% PT=0.0150 SL=0.0300 flip=entry hold=6 only_profit=1 gate=off close_eod=1
+27. tr=2313 win=  1.0% pnl=   -4640.6 dd=  4640.6 pnl/dd= -1.00 roi= -4.64% dd%=  4.64% PT=0.0120 SL=0.0360 flip=entry hold=6 only_profit=0 gate=off close_eod=0
+28. tr=2133 win=  2.4% pnl=   -4290.1 dd=  4290.1 pnl/dd= -1.00 roi= -4.29% dd%=  4.29% PT=0.0150 SL=0.0300 flip=entry hold=4 only_profit=1 gate=regime_or_permission close_eod=1
+29. tr=2133 win=  2.4% pnl=   -4290.1 dd=  4290.1 pnl/dd= -1.00 roi= -4.29% dd%=  4.29% PT=0.0150 SL=0.0300 flip=entry hold=6 only_profit=1 gate=regime_or_permission close_eod=1
+30. tr=2180 win=  2.4% pnl=   -4380.5 dd=  4380.5 pnl/dd= -1.00 roi= -4.38% dd%=  4.38% PT=0.0150 SL=0.0300 flip=entry hold=6 only_profit=0 gate=regime_or_permission close_eod=1
+31. tr=2313 win=  1.8% pnl=   -4647.4 dd=  4647.4 pnl/dd= -1.00 roi= -4.65% dd%=  4.65% PT=0.0150 SL=0.0360 flip=entry hold=6 only_profit=0 gate=off close_eod=0
+32. tr=2181 win=  2.4% pnl=   -4382.6 dd=  4382.6 pnl/dd= -1.00 roi= -4.38% dd%=  4.38% PT=0.0150 SL=0.0300 flip=entry hold=4 only_profit=0 gate=regime_or_permission close_eod=1
+33. tr=2162 win=  1.0% pnl=   -4348.5 dd=  4348.5 pnl/dd= -1.00 roi= -4.35% dd%=  4.35% PT=0.0120 SL=0.0300 flip=entry hold=4 only_profit=1 gate=off close_eod=1
+34. tr=2162 win=  1.0% pnl=   -4348.5 dd=  4348.5 pnl/dd= -1.00 roi= -4.35% dd%=  4.35% PT=0.0120 SL=0.0300 flip=entry hold=6 only_profit=1 gate=off close_eod=1
+35. tr=2124 win=  2.3% pnl=   -4277.3 dd=  4277.3 pnl/dd= -1.00 roi= -4.28% dd%=  4.28% PT=0.0180 SL=0.0300 flip=entry hold=4 only_profit=1 gate=regime_or_permission close_eod=1
+36. tr=2124 win=  2.3% pnl=   -4277.3 dd=  4277.3 pnl/dd= -1.00 roi= -4.28% dd%=  4.28% PT=0.0180 SL=0.0300 flip=entry hold=6 only_profit=1 gate=regime_or_permission close_eod=1
+37. tr=2142 win=  1.1% pnl=   -4297.0 dd=  4297.0 pnl/dd= -1.00 roi= -4.30% dd%=  4.30% PT=0.0120 SL=0.0300 flip=entry hold=4 only_profit=1 gate=regime_or_permission close_eod=1
+38. tr=2142 win=  1.1% pnl=   -4297.0 dd=  4297.0 pnl/dd= -1.00 roi= -4.30% dd%=  4.30% PT=0.0120 SL=0.0300 flip=entry hold=6 only_profit=1 gate=regime_or_permission close_eod=1
+39. tr=2172 win=  2.3% pnl=   -4369.6 dd=  4369.6 pnl/dd= -1.00 roi= -4.37% dd%=  4.37% PT=0.0180 SL=0.0300 flip=entry hold=4 only_profit=0 gate=regime_or_permission close_eod=1
+40. tr=2171 win=  2.3% pnl=   -4367.5 dd=  4367.5 pnl/dd= -1.00 roi= -4.37% dd%=  4.37% PT=0.0180 SL=0.0300 flip=entry hold=6 only_profit=0 gate=regime_or_permission close_eod=1
+
+PT/SL sweep (seeded-local mutation) — Top by pnl
+------------------------------------------------
+ 1. tr= 712 win=  8.1% pnl=   -1413.2 dd=  1413.4 pnl/dd= -1.00 roi= -1.41% dd%=  1.41% PT=0.0180 SL=0.0360 flip=entry hold=6 only_profit=0 gate=regime_or_permission close_eod=0
+ 2. tr= 715 win=  8.1% pnl=   -1419.9 dd=  1420.1 pnl/dd= -1.00 roi= -1.42% dd%=  1.42% PT=0.0180 SL=0.0360 flip=entry hold=4 only_profit=0 gate=regime_or_permission close_eod=0
+ 3. tr= 729 win=  8.1% pnl=   -1443.0 dd=  1443.2 pnl/dd= -1.00 roi= -1.44% dd%=  1.44% PT=0.0150 SL=0.0360 flip=entry hold=6 only_profit=0 gate=regime_or_permission close_eod=0
+ 4. tr= 732 win=  8.1% pnl=   -1449.2 dd=  1449.4 pnl/dd= -1.00 roi= -1.45% dd%=  1.45% PT=0.0150 SL=0.0360 flip=entry hold=4 only_profit=0 gate=regime_or_permission close_eod=0
+ 5. tr= 747 win=  3.6% pnl=   -1470.1 dd=  1470.3 pnl/dd= -1.00 roi= -1.47% dd%=  1.47% PT=0.0120 SL=0.0360 flip=entry hold=6 only_profit=0 gate=regime_or_permission close_eod=0
+ 6. tr= 750 win=  3.6% pnl=   -1476.3 dd=  1476.5 pnl/dd= -1.00 roi= -1.48% dd%=  1.48% PT=0.0120 SL=0.0360 flip=entry hold=4 only_profit=0 gate=regime_or_permission close_eod=0
+ 7. tr= 869 win=  5.6% pnl=   -1731.7 dd=  1731.9 pnl/dd= -1.00 roi= -1.73% dd%=  1.73% PT=0.0180 SL=0.0360 flip=entry hold=4 only_profit=1 gate=regime_or_permission close_eod=1
+ 8. tr= 869 win=  5.6% pnl=   -1731.7 dd=  1731.9 pnl/dd= -1.00 roi= -1.73% dd%=  1.73% PT=0.0180 SL=0.0360 flip=entry hold=6 only_profit=1 gate=regime_or_permission close_eod=1
+ 9. tr= 879 win=  5.7% pnl=   -1753.2 dd=  1753.4 pnl/dd= -1.00 roi= -1.75% dd%=  1.75% PT=0.0150 SL=0.0360 flip=entry hold=4 only_profit=1 gate=regime_or_permission close_eod=1
+10. tr= 879 win=  5.7% pnl=   -1753.2 dd=  1753.4 pnl/dd= -1.00 roi= -1.75% dd%=  1.75% PT=0.0150 SL=0.0360 flip=entry hold=6 only_profit=1 gate=regime_or_permission close_eod=1
+11. tr= 892 win=  2.6% pnl=   -1767.8 dd=  1768.0 pnl/dd= -1.00 roi= -1.77% dd%=  1.77% PT=0.0120 SL=0.0360 flip=entry hold=4 only_profit=1 gate=regime_or_permission close_eod=1
+12. tr= 892 win=  2.6% pnl=   -1767.8 dd=  1768.0 pnl/dd= -1.00 roi= -1.77% dd%=  1.77% PT=0.0120 SL=0.0360 flip=entry hold=6 only_profit=1 gate=regime_or_permission close_eod=1
+13. tr= 908 win=  4.3% pnl=   -1820.5 dd=  1820.7 pnl/dd= -1.00 roi= -1.82% dd%=  1.82% PT=0.0180 SL=0.0360 flip=entry hold=4 only_profit=1 gate=off close_eod=1
+14. tr= 908 win=  4.3% pnl=   -1820.5 dd=  1820.7 pnl/dd= -1.00 roi= -1.82% dd%=  1.82% PT=0.0180 SL=0.0360 flip=entry hold=6 only_profit=1 gate=off close_eod=1
+15. tr= 916 win=  2.3% pnl=   -1826.9 dd=  1827.1 pnl/dd= -1.00 roi= -1.83% dd%=  1.83% PT=0.0120 SL=0.0360 flip=entry hold=4 only_profit=1 gate=off close_eod=1
+16. tr= 916 win=  2.3% pnl=   -1826.9 dd=  1827.1 pnl/dd= -1.00 roi= -1.83% dd%=  1.83% PT=0.0120 SL=0.0360 flip=entry hold=6 only_profit=1 gate=off close_eod=1
+17. tr= 911 win=  4.5% pnl=   -1827.3 dd=  1827.4 pnl/dd= -1.00 roi= -1.83% dd%=  1.83% PT=0.0150 SL=0.0360 flip=entry hold=4 only_profit=1 gate=off close_eod=1
+18. tr= 911 win=  4.5% pnl=   -1827.3 dd=  1827.4 pnl/dd= -1.00 roi= -1.83% dd%=  1.83% PT=0.0150 SL=0.0360 flip=entry hold=6 only_profit=1 gate=off close_eod=1
+19. tr= 975 win=  5.1% pnl=   -1953.3 dd=  1953.5 pnl/dd= -1.00 roi= -1.95% dd%=  1.95% PT=0.0180 SL=0.0360 flip=entry hold=6 only_profit=0 gate=regime_or_permission close_eod=1
+20. tr= 977 win=  5.1% pnl=   -1957.9 dd=  1958.1 pnl/dd= -1.00 roi= -1.96% dd%=  1.96% PT=0.0180 SL=0.0360 flip=entry hold=4 only_profit=0 gate=regime_or_permission close_eod=1
+21. tr= 984 win=  5.1% pnl=   -1970.6 dd=  1970.7 pnl/dd= -1.00 roi= -1.97% dd%=  1.97% PT=0.0150 SL=0.0360 flip=entry hold=6 only_profit=0 gate=regime_or_permission close_eod=1
+22. tr= 986 win=  5.1% pnl=   -1975.2 dd=  1975.4 pnl/dd= -1.00 roi= -1.98% dd%=  1.98% PT=0.0150 SL=0.0360 flip=entry hold=4 only_profit=0 gate=regime_or_permission close_eod=1
+23. tr= 994 win=  2.3% pnl=   -1979.4 dd=  1979.6 pnl/dd= -1.00 roi= -1.98% dd%=  1.98% PT=0.0120 SL=0.0360 flip=entry hold=6 only_profit=0 gate=regime_or_permission close_eod=1
+24. tr= 996 win=  2.3% pnl=   -1984.1 dd=  1984.3 pnl/dd= -1.00 roi= -1.98% dd%=  1.98% PT=0.0120 SL=0.0360 flip=entry hold=4 only_profit=0 gate=regime_or_permission close_eod=1
+25. tr=1756 win=  3.1% pnl=   -3530.9 dd=  3530.2 pnl/dd= -1.00 roi= -3.53% dd%=  3.53% PT=0.0180 SL=0.0300 flip=entry hold=4 only_profit=1 gate=regime_or_permission close_eod=0
+26. tr=1756 win=  3.1% pnl=   -3530.9 dd=  3530.2 pnl/dd= -1.00 roi= -3.53% dd%=  3.53% PT=0.0180 SL=0.0300 flip=entry hold=6 only_profit=1 gate=regime_or_permission close_eod=0
+27. tr=1767 win=  3.2% pnl=   -3550.2 dd=  3549.6 pnl/dd= -1.00 roi= -3.55% dd%=  3.55% PT=0.0150 SL=0.0300 flip=entry hold=4 only_profit=1 gate=regime_or_permission close_eod=0
+28. tr=1767 win=  3.2% pnl=   -3550.2 dd=  3549.6 pnl/dd= -1.00 roi= -3.55% dd%=  3.55% PT=0.0150 SL=0.0300 flip=entry hold=6 only_profit=1 gate=regime_or_permission close_eod=0
+29. tr=1797 win=  1.4% pnl=   -3604.1 dd=  3603.5 pnl/dd= -1.00 roi= -3.60% dd%=  3.60% PT=0.0120 SL=0.0300 flip=entry hold=4 only_profit=1 gate=regime_or_permission close_eod=0
+30. tr=1797 win=  1.4% pnl=   -3604.1 dd=  3603.5 pnl/dd= -1.00 roi= -3.60% dd%=  3.60% PT=0.0120 SL=0.0300 flip=entry hold=6 only_profit=1 gate=regime_or_permission close_eod=0
+31. tr=1898 win=  1.3% pnl=   -3824.4 dd=  3823.7 pnl/dd= -1.00 roi= -3.82% dd%=  3.82% PT=0.0120 SL=0.0300 flip=entry hold=4 only_profit=1 gate=off close_eod=0
+32. tr=1898 win=  1.3% pnl=   -3824.4 dd=  3823.7 pnl/dd= -1.00 roi= -3.82% dd%=  3.82% PT=0.0120 SL=0.0300 flip=entry hold=6 only_profit=1 gate=off close_eod=0
+33. tr=1895 win=  2.3% pnl=   -3830.4 dd=  3829.7 pnl/dd= -1.00 roi= -3.83% dd%=  3.83% PT=0.0180 SL=0.0300 flip=entry hold=4 only_profit=1 gate=off close_eod=0
+34. tr=1895 win=  2.3% pnl=   -3830.4 dd=  3829.7 pnl/dd= -1.00 roi= -3.83% dd%=  3.83% PT=0.0180 SL=0.0300 flip=entry hold=6 only_profit=1 gate=off close_eod=0
+35. tr=1897 win=  2.4% pnl=   -3832.9 dd=  3832.3 pnl/dd= -1.00 roi= -3.83% dd%=  3.83% PT=0.0150 SL=0.0300 flip=entry hold=4 only_profit=1 gate=off close_eod=0
+36. tr=1897 win=  2.4% pnl=   -3832.9 dd=  3832.3 pnl/dd= -1.00 roi= -3.83% dd%=  3.83% PT=0.0150 SL=0.0300 flip=entry hold=6 only_profit=1 gate=off close_eod=0
+37. tr=1937 win=  3.0% pnl=   -3884.8 dd=  3884.2 pnl/dd= -1.00 roi= -3.88% dd%=  3.88% PT=0.0150 SL=0.0300 flip=entry hold=6 only_profit=0 gate=regime_or_permission close_eod=0
+38. tr=1938 win=  3.0% pnl=   -3886.9 dd=  3886.3 pnl/dd= -1.00 roi= -3.89% dd%=  3.89% PT=0.0150 SL=0.0300 flip=entry hold=4 only_profit=0 gate=regime_or_permission close_eod=0
+39. tr=1950 win=  3.0% pnl=   -3912.0 dd=  3911.3 pnl/dd= -1.00 roi= -3.91% dd%=  3.91% PT=0.0180 SL=0.0300 flip=entry hold=6 only_profit=0 gate=regime_or_permission close_eod=0
+40. tr=1951 win=  3.0% pnl=   -3914.1 dd=  3913.4 pnl/dd= -1.00 roi= -3.91% dd%=  3.91% PT=0.0180 SL=0.0300 flip=entry hold=4 only_profit=0 gate=regime_or_permission close_eod=0
+ptsl axis 144/144 (100.0%) kept=132 elapsed=423.3s eta=0.0m rate=0.34/cfg/s
+DONE  ptsl tested=144 elapsed=423.3s
+
+run_cfg cache (strategy+axis_dims+window): entries=144 hits=58/144 (40.3%) fp_hits=0
+run_cfg persistent cache (strategy+axis_dims+window): path=db/spot_sweeps_run_cfg_cache.sqlite3 hits=58 writes=86 dim_index_writes=230 worker_plan_hits=0 worker_plan_writes=0 stage_status_reads=0 stage_status_writes=0 cartesian_manifest_reads=0 cartesian_manifest_writes=0 cartesian_manifest_hits=0 cartesian_rank_manifest_reads=0 cartesian_rank_manifest_writes=0 cartesian_rank_manifest_hits=0 cartesian_rank_manifest_compactions=0 cartesian_rank_manifest_pending_ttl_prunes=0 stage_rank_manifest_reads=0 stage_rank_manifest_writes=0 stage_rank_manifest_hits=0 stage_rank_manifest_compactions=0 stage_rank_manifest_pending_ttl_prunes=0 stage_unresolved_summary_reads=0 stage_unresolved_summary_writes=0 stage_unresolved_summary_hits=0 rank_dominance_stamp_reads=0 rank_dominance_stamp_writes=0 rank_dominance_stamp_hits=0 rank_dominance_manifest_applies=0 rank_dominance_stamp_compactions=0 rank_dominance_stamp_ttl_prunes=0 rank_bin_runtime_reads=0 rank_bin_runtime_writes=0 stage_frontier_reads=0 stage_frontier_writes=0 stage_frontier_hits=0 winner_projection_reads=0 winner_projection_writes=0 winner_projection_hits=0 dimension_utility_reads=0 dimension_utility_writes=0 dimension_utility_hint_hits=0 dimension_upper_bound_reads=0 dimension_upper_bound_writes=0 dimension_upper_bound_deferred=0 planner_heartbeat_reads=0 planner_heartbeat_writes=0 planner_heartbeat_stale_candidates=0 series_pack_mmap_hints=0 series_pack_pickle_hints=0 series_pack_state_manifest_reads=0 series_pack_state_manifest_writes=0 series_pack_state_manifest_hits=0

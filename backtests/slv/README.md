@@ -12,31 +12,48 @@ We are explicitly targeting the new contract:
 - **Goal:** dual-track optimization across **10y / 2y / 1y**
   - **Track A (pnl-first dethrone):** beat v25 on total PnL in all windows (and keep `pnl/dd` healthy)
   - **Track B (high-trade):** increase trade count while preserving all-window positivity and avoiding the high-churn negative basin
-  - **Parity rule (promotion gate):** promoted CURRENT must run `max_open_trades=1` to match live single-position behavior
+  - **Parity rule (promotion gate):** promoted CURRENT must run `open_position_cap=1` to match live single-position behavior
 
 ## Current Champions (stack)
 
+### Canonical command equivalents (current architecture)
+Historical command logs below are normalized to these current wrappers:
+- Spot sweeps/evolution: `python -m tradebot.backtest spot ...`
+- Multiwindow kingmaker eval: `python -m tradebot.backtest spot_multitimeframe ...`
+- Legacy alias still accepted: `python -m tradebot.backtest multitimeframe ...`
+
+Current LF champion replay (v31.2):
+```bash
+python -m tradebot.backtest spot_multitimeframe \
+  --milestones [PURGED false-timebars artifact] \
+  --symbol SLV --bar-size "10 mins" --offline --cache-dir db \
+  --top 1 --min-trades 0 \
+  --window 2016-01-08:2026-01-08 \
+  --window 2024-01-08:2026-01-08 \
+  --window 2025-01-08:2026-01-08
+```
+
 ### CURRENT (v31.2) — FULL24 10m single-position parity dethrone (single-process verified)
 This is the current SLV dethroner under a **live-parity-first contract**:
-- Enforces single-position behavior: `max_open_trades=1` (matches live net-position handling)
+- Enforces single-position behavior: `open_position_cap=1` (matches live net-position handling)
 - Removes simultaneous-position holding from the promoted lane (no live parity)
 - Keeps the v31.1 shock wall core (`shock_on/off=1.35/1.25`) and retunes sizing for single-position mode
 - Verified via single-process (`--jobs 1`) multiwindow sweeps with fixed windows
 
-**v31.2 kingmaker #01** (from `backtests/slv/slv_v31_2_singlepos_parity_eval_20260212_top1.json`)
-- `max_open_trades=1`, `spot_max_notional_pct=0.7`, `spot_risk_pct=0.016`, `spot_stop_loss_pct=0.016`
+**v31.2 kingmaker #01** (from `[PURGED false-timebars artifact]`)
+- `open_position_cap=1`, `spot_max_notional_pct=0.7`, `spot_risk_pct=0.016`, `spot_stop_loss_pct=0.016`
 - Worst-window `roi/dd`: **4.546495578** (worst window is **1y**)
 - 10y: `roi/dd=6.541506284`, ROI ≈ **384.54%**, DD% ≈ **58.78%**, trades ≈ **798**
 - 2y:  `roi/dd=6.093215523`, ROI ≈ **183.52%**, DD% ≈ **30.12%**, trades ≈ **162**
 - 1y:  `roi/dd=4.546495578`, ROI ≈ **93.99%**, DD% ≈ **20.67%**, trades ≈ **69**
 
-Single-run delta vs prior v31.1 stacked champ (`max_open_trades=3`, same windows):
+Single-run delta vs prior v31.1 stacked champ (`open_position_cap=3`, same windows):
 - 10y: `pnl -158,849.52` (`543,388.44 -> 384,538.92`), `roi/dd +0.151931987`
 - 2y:  `pnl -80,142.10` (`263,658.96 -> 183,516.87`), `roi/dd +0.607742995`
 - 1y:  `pnl -31,623.56` (`125,609.17 -> 93,985.61`), `roi/dd +0.342315486`
 
 Defining delta vs v31.1:
-- Structural parity change: `max_open_trades: 3 -> 1` (single-position only)
+- Structural parity change: `open_position_cap: 3 -> 1` (single-position only)
 - Single-position sizing retune: `spot_max_notional_pct=0.7`, `spot_risk_pct=0.016`, `spot_stop_loss_pct=0.016`
 - Same lane core: `signal_bar_size="10 mins"`, `spot_exec_bar_size="5 mins"`, `signal_use_rth=false`, `ema_preset=5/13`, `supertrend @ 1 day`, `shock_on/off=1.35/1.25`
 
@@ -46,7 +63,7 @@ This was the prior SLV dethroner under the **multiwindow pnl-first contract**:
 - Beats the prior v31 (`shock_on/off=1.50/1.40`) on `pnl` and worst-window `roi/dd`
 - Verified via single-process (`--jobs 1`) multiwindow sweeps with cache reset per pass
 
-**v31.1 kingmaker #01** (from `backtests/slv/slv_v31_shock_wall_eval_20260211_top12.json`)
+**v31.1 kingmaker #01** (from `[PURGED false-timebars artifact]`)
 - `shock_on_ratio=1.35`, `shock_off_ratio=1.25` (canonical pick from the top plateau)
 - Worst-window `roi/dd`: **4.204180092** (worst window is **1y**)
 - 10y: `roi/dd=6.389574297`, ROI ≈ **543.39%**, DD% ≈ **85.04%**, trades ≈ **1,615**
@@ -59,7 +76,7 @@ This was the prior SLV dethroner under the same contract:
 - Beat v25 on **both** `pnl` and `roi/dd` in all windows
 - Uses `signal_use_rth=false` (FULL24 bars), with entry-hour gating instead of RTH lane
 
-**v31 kingmaker #01** (from `backtests/slv/slv_full24_timegate_plus2_top80_promo_raw.json`)
+**v31 kingmaker #01** (from `[PURGED false-timebars artifact]`)
 - Worst-window `roi/dd`: **4.174889507** (worst window is **1y**)
 - 10y: `roi/dd=6.362166024`, ROI ≈ **528.67%**, DD% ≈ **83.10%**, trades ≈ **1,616**
 - 2y:  `roi/dd=5.451136011`, ROI ≈ **257.76%**, DD% ≈ **47.29%**, trades ≈ **316**
@@ -68,7 +85,7 @@ This was the prior SLV dethroner under the same contract:
 ### CURRENT-HIGH-TRADE (v31-HT) — Full24 all-window beater with higher turnover
 This is the trade-focused counterpart on the same winning family.
 
-**v31-HT kingmaker #51** (from `backtests/slv/slv_full24_timegate_plus2_top80_promo_raw.json`)
+**v31-HT kingmaker #51** (from `[PURGED false-timebars artifact]`)
 - Worst-window `roi/dd`: **3.913645159** (worst window is **1y**)
 - 10y: `roi/dd=6.104210764`, ROI ≈ **502.82%**, DD% ≈ **82.37%**, trades ≈ **2,591**
 - 2y:  `roi/dd=5.208784411`, ROI ≈ **246.93%**, DD% ≈ **47.41%**, trades ≈ **535**
@@ -84,7 +101,7 @@ This was the prior SLV FULL24 stability champ under the original **multiwindow s
 - Activity: `>=500 trades` in the 1y window
 - Ranked by stability = maximize the worst-window `roi/dd`
 
-**v25 kingmaker #1** (from `backtests/slv/slv_exec5m_v25_shock_throttle_drawdown_1h_10y2y1y_mintr500_top80_20260206_173719.json`)
+**v25 kingmaker #1** (from `[PURGED false-timebars artifact]`)
 - Worst-window `roi/dd`: **3.601660671** (worst window is **1y**)
 - 10y: `roi/dd=3.732269713`, ROI ≈ **240.65%**, DD% ≈ **64.48%**, trades ≈ **4,176**
 - 2y:  `roi/dd=4.417900341`, ROI ≈ **164.63%**, DD% ≈ **37.26%**, trades ≈ **855**
@@ -99,7 +116,7 @@ Defining delta vs v7 baseline (needle-thread, throttle-only):
 ### TIE-CHAMP (v26) — Adds TQQQ-style riskpanic micro overlay (same floor; better 10y)
 This is not a stability dethrone (worst-window floor ties v25), but it **does** improve the 10y ratio.
 
-**v26 kingmaker #1** (from `backtests/slv/slv_exec5m_v26_riskpanic_micro_1h_10y2y1y_mintr500_top80_20260206_182002.json`)
+**v26 kingmaker #1** (from `[PURGED false-timebars artifact]`)
 - Worst-window `roi/dd`: **3.601660671** (same 1y floor as v25)
 - 10y: `roi/dd=3.931068737`, ROI ≈ **249.21%**, DD% ≈ **63.40%**, trades ≈ **4,170**
 - 2y:  `roi/dd=4.417900341`, ROI ≈ **164.63%**, DD% ≈ **37.26%**, trades ≈ **855**
@@ -112,7 +129,7 @@ Interpretation:
 ### Earlier (v10) — Risk-off overlay dethrone (rounding hides it)
 This was the first post-v7 dethrone; it rounds to “3.60”, but it is strictly higher than v7.
 
-**v10 kingmaker #1** (from `backtests/slv/slv_exec5m_v10_risk_overlays_svlscale_1h_10y2y1y_mintr500_top80_20260205_200444.json`)
+**v10 kingmaker #1** (from `[PURGED false-timebars artifact]`)
 - Worst-window `roi/dd`: **3.601454743** (1y)
 - 10y: `roi/dd=3.712911120`, ROI ≈ **239.10%**, DD% ≈ **64.40%**, trades ≈ **4,168**
 - 2y:  `roi/dd=4.422903614`, ROI ≈ **164.98%**, DD% ≈ **37.30%**, trades ≈ **850**
@@ -123,7 +140,7 @@ Key levers:
 - late-day cutoff on risk days: `risk_entry_cutoff_hour_et=16`
 
 ### Baseline (v7) — First FULL24 stability lift (worst-window `roi/dd = 3.597984452`)
-**v7 kingmaker #1** (from `backtests/slv/slv_exec5m_v7_full24_champ_refine_1h_todoff_10y2y1y_mintr100_top80.json`)
+**v7 kingmaker #1** (from `[PURGED false-timebars artifact]`)
 - Worst-window `roi/dd`: **3.597984452** (1y)
 - 10y: `roi/dd=3.745381803`, ROI ≈ **247.83%**, DD% ≈ **66.17%**, trades ≈ **4,207**
 - 2y:  `roi/dd=4.419906533`, ROI ≈ **164.82%**, DD% ≈ **37.29%**, trades ≈ **857**
@@ -135,7 +152,7 @@ Defining shape (abridged):
 - Regime: `supertrend @ 1 day`
 - Shock: `shock_gate_mode=surf` with `shock_detector=daily_atr_pct`
 - Session/TOD: **off** (FULL24)
-- `max_open_trades=5`, `spot_close_eod=false`, `spot_short_risk_mult=0.02`
+- `open_position_cap=5`, `spot_close_eod=false`, `spot_short_risk_mult=0.02`
 
 ### LEGACY (timestamp-bug) — archived (pre-ET-fix SLV “champs”)
 
@@ -145,7 +162,7 @@ We had a **timestamp interpretation bug** (ET) in the backtest engine that made 
 files (v6/v4/v3/v2) **not reproducible at their previously reported metrics**.
 
 ET-fixed rescored reference (reproducible today, but *not* champion-grade):
-`backtests/slv/slv_exec5m_v6_st_neighborhood_champ_refine_15m_10y2y1y_mintr1000_top80_rescored_et.json`
+`[PURGED false-timebars artifact]`
 - v6 kingmaker #01 (rescored): worst-window `roi/dd≈0.82` (10y), 2y `≈2.05`, 1y `≈1.65`
 
 #### (legacy) v6 — First above-floor stability lift (timestamp-bug era; do not use)
@@ -154,7 +171,7 @@ This is the first SLV family that:
 - meets the activity constraint in the 1y window (`>500 trades`)
 - and meaningfully improves worst-window stability vs v4 (10y `roi/dd` lifted from **`1.39`** → **`1.70`**)
 
-**v6 kingmaker #1** (from `backtests/slv/slv_exec5m_v6_st_neighborhood_champ_refine_15m_10y2y1y_mintr1000_top80.json`)
+**v6 kingmaker #1** (from `[PURGED false-timebars artifact]`)
 - Worst-window `roi/dd`: **1.70** (worst window is **10y**)
 - 10y: `roi/dd=1.70`, ROI ≈ **115.5%**, DD% ≈ **68.0%**, pnl ≈ **$115,548**, trades ≈ **5,680**
 - 2y:  `roi/dd=2.85`, ROI ≈ **92.4%**, DD% ≈ **32.5%**, trades ≈ **1,505**
@@ -166,7 +183,7 @@ Defining shape (abridged):
   with `flip_exit_only_if_profit=true` and a longer debounce `flip_exit_min_hold_bars=4`
 - Regime: `supertrend @ 4 hours` (`ST(5,0.75,hl2)`)
 - Session: `entry_start/end=9–16 ET`
-- `max_open_trades=5`, `spot_close_eod=false`, `spot_short_risk_mult=0.01`
+- `open_position_cap=5`, `spot_close_eod=false`, `spot_short_risk_mult=0.01`
 - Note: this winner is still “simple” (no extra shock/risk overlays); the gain came from a better Supertrend + hold pocket.
 
 #### (legacy) v4 — First decade stability lift from the v3 baseline (timestamp-bug era; do not use)
@@ -175,7 +192,7 @@ This is the first SLV family that:
 - meets the activity constraint in the 1y window (`>500 trades`)
 - and improves worst-window stability vs v3 (10y `roi/dd` lifted from ~`1.25` → **`1.39`**)
 
-**v4 kingmaker #1** (from `backtests/slv/slv_exec5m_v4_shockrisk_champ_refine_15m_10y2y1y_mintr1000_top80.json`)
+**v4 kingmaker #1** (from `[PURGED false-timebars artifact]`)
 - Worst-window `roi/dd`: **1.39** (worst window is **10y**)
 - 10y: `roi/dd=1.39`, ROI ≈ **98.9%**, DD% ≈ **70.9%**, pnl ≈ **$98,882**, trades ≈ **5,902**
 - 2y:  `roi/dd=2.66`, ROI ≈ **81.6%**, DD% ≈ **30.6%**, trades ≈ **1,556**
@@ -187,7 +204,7 @@ Defining shape (abridged):
   with `flip_exit_only_if_profit=true` and `flip_exit_min_hold_bars=0`
 - Regime: `supertrend @ 4 hours` (`ST(7,0.65,hl2)`)
 - Session: `entry_start/end=9–16 ET`
-- `max_open_trades=5`, `spot_close_eod=false`, `spot_short_risk_mult=0.01`
+- `open_position_cap=5`, `spot_close_eod=false`, `spot_short_risk_mult=0.01`
 - Note: even though v4 sweeps expanded shock/risk scaling pockets, the current best is still **shock=off** (pure regime+stack wins again).
 
 #### (legacy) v3 — First stability lift above the v2 baseline (timestamp-bug era; do not use)
@@ -196,7 +213,7 @@ This is the first SLV family that:
 - meets the activity constraint in the 1y window (`>500 trades`)
 - and meaningfully improves worst-window stability vs v2.
 
-**v3 kingmaker #1** (from `backtests/slv/slv_exec5m_v3_champ_refine_ranktrades_15m_10y2y1y_mintr1000_top80.json`)
+**v3 kingmaker #1** (from `[PURGED false-timebars artifact]`)
 - Worst-window `roi/dd`: **1.25** (worst window is **10y**)
 - 10y: `roi/dd=1.25`, ROI ≈ **90.9%**, DD% ≈ **72.4%**, pnl ≈ **$90,864**, trades ≈ **5,983**
 - 2y:  `roi/dd=2.43`, ROI ≈ **71.1%**, DD% ≈ **29.2%**, trades ≈ **1,619**
@@ -208,7 +225,7 @@ Defining shape (abridged):
   with `flip_exit_only_if_profit=true` and `flip_exit_min_hold_bars=0`
 - Regime: `supertrend @ 4 hours` (`ST(14,0.6,hl2)`)
 - Session: `entry_start/end=9–16 ET`
-- `max_open_trades=5` (stacking; currently required for decade positivity at this cadence)
+- `open_position_cap=5` (stacking; currently required for decade positivity at this cadence)
 - `spot_close_eod=false`, `spot_short_risk_mult=0.01`
 - No extra permission/shock/risk-pop overlays in this top pick (surprisingly, the simple regime+stack wins here)
 
@@ -220,7 +237,7 @@ This is the first SLV family that is:
 It is **not yet** “contract-ready” because worst-window `roi/dd` is still well below the target floor
 (initially `>=1.5..2.0`, eventually aiming near the TQQQ champ ≈3.49).
 
-**v2 kingmaker #1** (from `backtests/slv/slv_exec5m_v2_hf_scalp_15m_10y2y1y_mintr1000_top80.json`)
+**v2 kingmaker #1** (from `[PURGED false-timebars artifact]`)
 - Worst-window `roi/dd`: **~0.92**
 - 10y: pnl ≈ **$73,611**, trades ≈ **6,199**
 - 1y: trades ≈ **1,150**
@@ -231,7 +248,7 @@ Defining shape (abridged):
 - `exit_on_signal_flip=true`, `flip_exit_only_if_profit=true`, `flip_exit_min_hold_bars=0`
 - Regime: `supertrend @ 4 hours` (`ST(7,0.5,hl2)`)
 - Session: `entry_start/end=9–16 ET`
-- `max_open_trades=5` (stacking; currently required for decade positivity at this cadence)
+- `open_position_cap=5` (stacking; currently required for decade positivity at this cadence)
 
 Promotion checklist (minimum):
 - Positive PnL in **all 3** windows (10y + 2y + 1y)
@@ -283,7 +300,7 @@ High-level pipeline:
 ## Evolutions (stack)
 
 ### v0 — High-activity scalper scaffolding (15m signals, 5m exec; RTH; multiwindow kingmaker)
-Status: **DONE** (combo_fast baseline failed activity+profit under costs)
+Status: **DONE** (compact baseline failed activity+profit under costs)
 
 Key intent:
 - Make the strategy “trade a few times/day” without turning into noise.
@@ -297,13 +314,13 @@ python -m tradebot.backtest spot \
   --start 2025-01-08 --end 2026-01-08 \
   --bar-size "15 mins" --spot-exec-bar-size "5 mins" \
   --realism2 \
-  --axis combo_fast --min-trades 0 --top 50 \
+  --axis combo_full --combo-full-preset gate_matrix --min-trades 0 --top 50 \
   --milestone-min-win 0.00 --milestone-min-trades 1000 --milestone-min-pnl-dd 0.00 \
-  --write-milestones --milestones-out backtests/slv/slv_exec5m_v0_combo_fast_15m_1y_milestones.json
+  --write-milestones --milestones-out backtests/slv/slv_exec5m_v0_combo_15m_1y_milestones.json
 ```
 
 Outcome (2026-01-30):
-- `backtests/slv/slv_exec5m_v0_combo_fast_15m_1y_milestones.json` contains **0 eligible presets** at
+- `backtests/slv/slv_exec5m_v0_combo_15m_1y_milestones.json` contains **0 eligible presets** at
   `milestone_min_trades=1000` + `milestone_min_pnl_dd>=0` (1y window, `--realism2`).
 
 ### v1 — hf_scalp axis (stop-only + flip-profit, with cadence knobs; exec=5m realism)
@@ -318,17 +335,17 @@ python -u -m tradebot.backtest spot \
   --realism2 \
   --axis hf_scalp --min-trades 0 --top 25 \
   --milestone-min-win 0.00 --milestone-min-trades 1000 --milestone-min-pnl-dd 0.00 \
-  --write-milestones --milestones-out backtests/slv/slv_exec5m_v1_hf_scalp_15m_1y_milestones.json
+  --write-milestones --milestones-out [PURGED false-timebars artifact]
 ```
 
 Outcome (2026-01-30):
-- `backtests/slv/slv_exec5m_v1_hf_scalp_15m_1y_milestones.json` contains **399 eligible presets**.
+- `[PURGED false-timebars artifact]` contains **399 eligible presets**.
 
 #### v1.1 — 10y/2y/1y kingmaker eval (stability-first)
 Strict gate (must be positive pnl in all windows):
 ```bash
 python -u -m tradebot.backtest spot_multitimeframe \
-  --milestones backtests/slv/slv_exec5m_v1_hf_scalp_15m_1y_milestones.json \
+  --milestones [PURGED false-timebars artifact] \
   --symbol SLV --bar-size "15 mins" --use-rth --offline --cache-dir db --top 2000 \
   --require-positive-pnl --min-trades 1000 \
   --window 2016-01-08:2026-01-08 --window 2024-01-08:2026-01-08 --window 2025-01-08:2026-01-08 \
@@ -340,8 +357,8 @@ Outcome (2026-01-30):
 - Diagnostic finding: **10y pnl is negative for 399/399 candidates** in the v1 pool.
 
 Diagnostics (no-positive gate removed; useful for inspection / debugging):
-- Top-80 by “least-bad stability”: `backtests/slv/slv_exec5m_v1_hf_scalp_15m_10y2y1y_mintr1000_top80_nopos.json`
-- Full evaluated set (all 399): `backtests/slv/slv_exec5m_v1_hf_scalp_15m_10y2y1y_mintr1000_all.json`
+- Top-80 by “least-bad stability”: `[PURGED false-timebars artifact]`
+- Full evaluated set (all 399): `[PURGED false-timebars artifact]`
 
 ### v2 — hf_scalp widened (wider stops + longer EMAs + daily shock + daily regime option)
 Status: **DONE** (first decade-positive candidates found)
@@ -359,20 +376,20 @@ python -u -m tradebot.backtest spot \
   --realism2 \
   --axis hf_scalp --min-trades 0 --top 25 \
   --milestone-min-win 0.00 --milestone-min-trades 1000 --milestone-min-pnl-dd 0.00 \
-  --write-milestones --milestones-out backtests/slv/slv_exec5m_v2_hf_scalp_15m_1y_milestones.json
+  --write-milestones --milestones-out [PURGED false-timebars artifact]
 ```
 
 Outcome (2026-01-30):
-- `backtests/slv/slv_exec5m_v2_hf_scalp_15m_1y_milestones.json` contains **872 eligible presets**.
+- `[PURGED false-timebars artifact]` contains **872 eligible presets**.
 
 #### v2.1 — 10y/2y/1y kingmaker eval (stability-first)
 ```bash
 python -u -m tradebot.backtest spot_multitimeframe \
-  --milestones backtests/slv/slv_exec5m_v2_hf_scalp_15m_1y_milestones.json \
+  --milestones [PURGED false-timebars artifact] \
   --symbol SLV --bar-size "15 mins" --use-rth --offline --cache-dir db --top 2000 \
   --require-positive-pnl --min-trades 1000 \
   --window 2016-01-08:2026-01-08 --window 2024-01-08:2026-01-08 --window 2025-01-08:2026-01-08 \
-  --write-top 80 --out backtests/slv/slv_exec5m_v2_hf_scalp_15m_10y2y1y_mintr1000_top80.json
+  --write-top 80 --out [PURGED false-timebars artifact]
 ```
 
 Outcome (2026-01-30):
@@ -395,22 +412,22 @@ python -u -m tradebot.backtest spot \
   --bar-size "15 mins" --spot-exec-bar-size "5 mins" \
   --realism2 --jobs 12 \
   --axis champ_refine \
-  --seed-milestones backtests/slv/slv_exec5m_v2_hf_scalp_15m_10y2y1y_mintr1000_top80.json \
+  --seed-milestones [PURGED false-timebars artifact] \
   --seed-top 6 \
   --min-trades 0 --top 25 \
   --milestone-min-win 0.00 --milestone-min-trades 1000 --milestone-min-pnl-dd 0.90 \
-  --write-milestones --milestones-out backtests/slv/slv_exec5m_v3_champ_refine_15m_10y_milestones.json
+  --write-milestones --milestones-out [PURGED false-timebars artifact]
 ```
 
 Outcome (2026-01-30):
-- `backtests/slv/slv_exec5m_v3_champ_refine_15m_10y_milestones.json` contains **4,290 eligible presets**
+- `[PURGED false-timebars artifact]` contains **4,290 eligible presets**
   (eligible under the 10y-window milestone gates used above).
 
 #### v3.1 — Naive kingmaker eval (top by 10y pnl/dd) failed (cadence mismatch)
 If we evaluate the **top by 10y pnl/dd**, we get 0:
 ```bash
 python -u -m tradebot.backtest spot_multitimeframe \
-  --milestones backtests/slv/slv_exec5m_v3_champ_refine_15m_10y_milestones.json \
+  --milestones [PURGED false-timebars artifact] \
   --symbol SLV --bar-size "15 mins" --use-rth --offline --cache-dir db --top 400 \
   --require-positive-pnl --min-trades 1000 \
   --window 2016-01-08:2026-01-08 --window 2024-01-08:2026-01-08 --window 2025-01-08:2026-01-08 \
@@ -425,14 +442,14 @@ Outcome:
 Workaround: re-rank candidates by decade trade count first, then run kingmaker.
 
 Create a ranking-friendly copy:
-- `backtests/slv/slv_exec5m_v3_champ_refine_15m_10y_milestones_rank_trades.json`
+- `[PURGED false-timebars artifact]`
 ```bash
 python - <<'PY'
 import json
 from pathlib import Path
 
-src = Path("backtests/slv/slv_exec5m_v3_champ_refine_15m_10y_milestones.json")
-dst = Path("backtests/slv/slv_exec5m_v3_champ_refine_15m_10y_milestones_rank_trades.json")
+src = Path("[PURGED false-timebars artifact]")
+dst = Path("[PURGED false-timebars artifact]")
 obj = json.loads(src.read_text())
 for g in obj.get("groups", []):
     e = (g.get("entries") or [None])[0]
@@ -450,11 +467,11 @@ PY
 Then evaluate:
 ```bash
 python -u -m tradebot.backtest spot_multitimeframe \
-  --milestones backtests/slv/slv_exec5m_v3_champ_refine_15m_10y_milestones_rank_trades.json \
+  --milestones [PURGED false-timebars artifact] \
   --symbol SLV --bar-size "15 mins" --use-rth --offline --cache-dir db --top 400 \
   --require-positive-pnl --min-trades 1000 \
   --window 2016-01-08:2026-01-08 --window 2024-01-08:2026-01-08 --window 2025-01-08:2026-01-08 \
-  --write-top 80 --out backtests/slv/slv_exec5m_v3_champ_refine_ranktrades_15m_10y2y1y_mintr1000_top80.json
+  --write-top 80 --out [PURGED false-timebars artifact]
 ```
 
 Outcome:
@@ -465,7 +482,7 @@ Outcome:
 Status: **DONE** (raised worst-window stability vs v3; still below `roi/dd>=1.5..2.0` floor)
 
 Key intent vs v3:
-- Keep cadence **hard locked**: `tod=9–16`, no skip/cooldown, and lock `max_open_trades=5`.
+- Keep cadence **hard locked**: `tod=9–16`, no skip/cooldown, and lock `open_position_cap=5`.
 - Sweep a **wider shock detection + risk scaling pocket** (primarily `shock_gate_mode=detect`, volatility-aware position scaling)
   without using `block` (avoid killing trade count).
 - Add a small exit neighborhood for SLV (hold micro + optional `spot_close_eod=true` pocket).
@@ -478,20 +495,20 @@ python -u -m tradebot.backtest spot \
   --bar-size "15 mins" --spot-exec-bar-size "5 mins" \
   --realism2 --jobs 12 \
   --axis champ_refine \
-  --seed-milestones backtests/slv/slv_exec5m_v3_champ_refine_ranktrades_15m_10y2y1y_mintr1000_top80.json \
+  --seed-milestones [PURGED false-timebars artifact] \
   --seed-top 3 \
   --min-trades 0 --top 25 \
   --milestone-min-win 0.00 --milestone-min-trades 1000 --milestone-min-pnl-dd 1.00 \
-  --write-milestones --milestones-out backtests/slv/slv_exec5m_v4_shockrisk_champ_refine_15m_10y_milestones.json
+  --write-milestones --milestones-out [PURGED false-timebars artifact]
 ```
 
 Outcome (2026-01-31):
-- `backtests/slv/slv_exec5m_v4_shockrisk_champ_refine_15m_10y_milestones.json` contains **775 eligible presets**
+- `[PURGED false-timebars artifact]` contains **775 eligible presets**
   (eligible under the 10y-window milestone gates used above).
 
 Ranges swept (abridged):
 - TOD: locked to `9–16 ET`, `skip_first_bars=0`, `cooldown_bars=0`
-- `max_open_trades`: locked to `5`
+- `open_position_cap`: locked to `5`
 - SL stop neighborhood: `spot_stop_loss_pct ∈ {0.008, 0.010, 0.012, 0.015, 0.020}`
 - Flip hold neighborhood (SLV-only): `flip_exit_min_hold_bars ∈ {0, 2, 4}`
 - Close EOD pocket (SLV-only): try `spot_close_eod=true` on the core stop+flip variant for `sl=1%`
@@ -506,11 +523,11 @@ Ranges swept (abridged):
 #### v4.1 — 10y/2y/1y kingmaker eval (stability-first)
 ```bash
 python -u -m tradebot.backtest spot_multitimeframe \
-  --milestones backtests/slv/slv_exec5m_v4_shockrisk_champ_refine_15m_10y_milestones.json \
+  --milestones [PURGED false-timebars artifact] \
   --symbol SLV --bar-size "15 mins" --use-rth --offline --cache-dir db --top 2000 \
   --require-positive-pnl --min-trades 1000 \
   --window 2016-01-08:2026-01-08 --window 2024-01-08:2026-01-08 --window 2025-01-08:2026-01-08 \
-  --write-top 80 --out backtests/slv/slv_exec5m_v4_shockrisk_champ_refine_15m_10y2y1y_mintr1000_top80.json
+  --write-top 80 --out [PURGED false-timebars artifact]
 ```
 
 Outcome (2026-01-31):
@@ -533,25 +550,25 @@ python -u -m tradebot.backtest spot \
   --bar-size "15 mins" --spot-exec-bar-size "5 mins" \
   --realism2 --jobs 12 \
   --axis champ_refine \
-  --seed-milestones backtests/slv/slv_exec5m_v4_shockrisk_champ_refine_15m_10y2y1y_mintr1000_top80.json \
+  --seed-milestones [PURGED false-timebars artifact] \
   --seed-top 6 \
   --min-trades 0 --top 25 \
   --milestone-min-win 0.00 --milestone-min-trades 1000 --milestone-min-pnl-dd 1.25 \
-  --write-milestones --milestones-out backtests/slv/slv_exec5m_v5_seedv4_champ_refine_15m_10y_milestones.json
+  --write-milestones --milestones-out [PURGED false-timebars artifact]
 ```
 
 Outcome (2026-01-31):
-- `backtests/slv/slv_exec5m_v5_seedv4_champ_refine_15m_10y_milestones.json` contains **639 eligible presets**
+- `[PURGED false-timebars artifact]` contains **639 eligible presets**
   (eligible under the 10y-window milestone gates used above).
 
 #### v5.1 — 10y/2y/1y kingmaker eval (stability-first)
 ```bash
 python -u -m tradebot.backtest spot_multitimeframe \
-  --milestones backtests/slv/slv_exec5m_v5_seedv4_champ_refine_15m_10y_milestones.json \
+  --milestones [PURGED false-timebars artifact] \
   --symbol SLV --bar-size "15 mins" --use-rth --offline --cache-dir db --top 2000 \
   --require-positive-pnl --min-trades 1000 \
   --window 2016-01-08:2026-01-08 --window 2024-01-08:2026-01-08 --window 2025-01-08:2026-01-08 \
-  --write-top 80 --out backtests/slv/slv_exec5m_v5_seedv4_champ_refine_15m_10y2y1y_mintr1000_top80.json
+  --write-top 80 --out [PURGED false-timebars artifact]
 ```
 
 Outcome (2026-01-31):
@@ -575,32 +592,32 @@ python -u -m tradebot.backtest spot \
   --bar-size "15 mins" --spot-exec-bar-size "5 mins" \
   --realism2 --jobs 12 \
   --axis champ_refine \
-  --seed-milestones backtests/slv/slv_exec5m_v4_shockrisk_champ_refine_15m_10y2y1y_mintr1000_top80.json \
+  --seed-milestones [PURGED false-timebars artifact] \
   --seed-top 6 \
   --min-trades 0 --top 25 \
   --milestone-min-win 0.00 --milestone-min-trades 1000 --milestone-min-pnl-dd 1.25 \
-  --write-milestones --milestones-out backtests/slv/slv_exec5m_v6_st_neighborhood_champ_refine_15m_10y_milestones.json
+  --write-milestones --milestones-out [PURGED false-timebars artifact]
 ```
 
 Outcome (2026-01-31):
-- `backtests/slv/slv_exec5m_v6_st_neighborhood_champ_refine_15m_10y_milestones.json` contains **721 eligible presets**
+- `[PURGED false-timebars artifact]` contains **721 eligible presets**
   (eligible under the 10y-window milestone gates used above).
 
 #### v6.1 — 10y/2y/1y kingmaker eval (stability-first)
 ```bash
 python -u -m tradebot.backtest spot_multitimeframe \
-  --milestones backtests/slv/slv_exec5m_v6_st_neighborhood_champ_refine_15m_10y_milestones.json \
+  --milestones [PURGED false-timebars artifact] \
   --symbol SLV --bar-size "15 mins" --use-rth --offline --cache-dir db --top 2000 \
   --require-positive-pnl --min-trades 1000 \
   --window 2016-01-08:2026-01-08 --window 2024-01-08:2026-01-08 --window 2025-01-08:2026-01-08 \
-  --write-top 80 --out backtests/slv/slv_exec5m_v6_st_neighborhood_champ_refine_15m_10y2y1y_mintr1000_top80.json
+  --write-top 80 --out [PURGED false-timebars artifact]
 ```
 
 Outcome (2026-01-31):
 - **36** candidates passed strict positivity (10y+2y+1y) with `min_trades=1000`.
 - Best worst-window `roi/dd` was **1.70** (timestamp-bug era; not reproducible today at those metrics).
 - Defining delta vs v4: `ST(5,0.75,hl2)` and `flip_exit_min_hold_bars=4` (the rest of the stack stays similar).
-- ET-fixed rescored reference (reproducible today): `backtests/slv/slv_exec5m_v6_st_neighborhood_champ_refine_15m_10y2y1y_mintr1000_top80_rescored_et.json`
+- ET-fixed rescored reference (reproducible today): `[PURGED false-timebars artifact]`
 
 ### v7 — FULL24 (24/5) pivot + 1h signals (no TOD; stability floor `roi/dd >= 3.5`)
 Status: **DONE** (promoted above as Baseline v7; later dethroned by v10 and v25)
@@ -610,7 +627,7 @@ Key intent vs v6:
 - Keep realism (`exec=5 mins`, intrabar exits) while preserving `>500 trades` in the 1y window.
 
 Primary artifact:
-- Multiwindow top-80: `backtests/slv/slv_exec5m_v7_full24_champ_refine_1h_todoff_10y2y1y_mintr100_top80.json`
+- Multiwindow top-80: `[PURGED false-timebars artifact]`
 
 ### v8 — Attempt: `shock_velocity_refine_wide` seeded from v7 (did NOT dethrone)
 Status: **DONE** (failed to lift the 1y stability floor vs v7)
@@ -619,14 +636,14 @@ Intent:
 - Port the TQQQ playbook (TR-ratio shock sensitivity + TR-median ramp/gap overlays) onto SLV FULL24, seeded from v7.
 
 Artifacts:
-- Variant pool (1y): `backtests/slv/slv_exec5m_v8_shock_velocity_refine_wide_variants_1h_1y_20260205_032052.json`
-- Multiwindow top-80: `backtests/slv/slv_exec5m_v8_shock_velocity_refine_wide_1h_10y2y1y_mintr500_top80_20260205_032052.json`
+- Variant pool (1y): `[PURGED false-timebars artifact]`
+- Multiwindow top-80: `[PURGED false-timebars artifact]`
 
 ### v8b — Attempt: `risk_overlays` (unscaled defaults) (catastrophic; archived)
 Status: **DONE** (riskoff triggered in a way that crushed the 10y window; not promoted)
 
 Artifacts:
-- Multiwindow top-80: `backtests/slv/slv_exec5m_v8_risk_overlays_1h_10y2y1y_mintr500_top80_20260205_060653.json`
+- Multiwindow top-80: `[PURGED false-timebars artifact]`
 
 Outcome:
 - Worst-window stability collapsed to **~0.99** (10y window became the floor).
@@ -643,16 +660,16 @@ python -u -m tradebot.backtest spot \
   --bar-size "1 hour" --spot-exec-bar-size "5 mins" \
   --realism2 --jobs 12 \
   --axis risk_overlays --base champion \
-  --seed-milestones backtests/slv/slv_exec5m_v7_champ_only_milestone.json \
+  --seed-milestones [PURGED false-timebars artifact] \
   --min-trades 500 --top 25 \
   --write-milestones --merge-milestones --milestone-add-top-pnl-dd 2500 \
-  --milestones-out backtests/slv/slv_exec5m_v9_risk_overlays_variants_1h_1y_20260205_070029.json
+  --milestones-out [PURGED false-timebars artifact]
 ```
 
 Kingmaker (10y/2y/1y; strict pnl>0):
 ```bash
-python -u -m tradebot.backtest multitimeframe \
-  --milestones backtests/slv/slv_exec5m_v9_risk_overlays_variants_1h_1y_20260205_070029.json \
+python -u -m tradebot.backtest spot_multitimeframe \
+  --milestones [PURGED false-timebars artifact] \
   --symbol SLV --bar-size "1 hour" \
   --offline --cache-dir db --jobs 12 \
   --min-trades 500 --require-positive-pnl \
@@ -660,7 +677,7 @@ python -u -m tradebot.backtest multitimeframe \
   --window 2024-01-08:2026-01-08 \
   --window 2025-01-08:2026-01-08 \
   --write-top 80 \
-  --out backtests/slv/slv_exec5m_v9_risk_overlays_1h_10y2y1y_mintr500_top80_20260205_070029.json
+  --out [PURGED false-timebars artifact]
 ```
 
 Outcome:
@@ -682,20 +699,17 @@ python -u -m tradebot.backtest spot \
   --bar-size "1 hour" --spot-exec-bar-size "5 mins" \
   --realism2 --jobs 12 \
   --axis risk_overlays --base champion \
-  --seed-milestones backtests/slv/slv_exec5m_v7_champ_only_milestone.json \
+  --seed-milestones [PURGED false-timebars artifact] \
   --min-trades 500 --top 25 \
-  --risk-overlays-riskoff-trs "4,4.5,5,5.5,6" \
-  --risk-overlays-riskpanic-trs "4.5,5,5.5,6,6.5" \
-  --risk-overlays-riskpop-trs "4,4.5,5,5.5,6" \
   --milestone-min-win 0.00 --milestone-min-trades 0 --milestone-min-pnl-dd 0.00 \
   --write-milestones --merge-milestones --milestone-add-top-pnl-dd 2500 \
-  --milestones-out backtests/slv/slv_exec5m_v10_risk_overlays_svlscale_variants_1h_1y_20260205_180945.json
+  --milestones-out [PURGED false-timebars artifact]
 ```
 
 Kingmaker (10y/2y/1y; strict pnl>0):
 ```bash
-python -u -m tradebot.backtest multitimeframe \
-  --milestones backtests/slv/slv_exec5m_v10_risk_overlays_svlscale_variants_1h_1y_20260205_180945.json \
+python -u -m tradebot.backtest spot_multitimeframe \
+  --milestones [PURGED false-timebars artifact] \
   --symbol SLV --bar-size "1 hour" \
   --offline --cache-dir db --jobs 12 \
   --min-trades 500 --require-positive-pnl \
@@ -703,7 +717,7 @@ python -u -m tradebot.backtest multitimeframe \
   --window 2024-01-08:2026-01-08 \
   --window 2025-01-08:2026-01-08 \
   --write-top 80 \
-  --out backtests/slv/slv_exec5m_v10_risk_overlays_svlscale_1h_10y2y1y_mintr500_top80_20260205_200444.json
+  --out [PURGED false-timebars artifact]
 ```
 
 Outcome:
@@ -725,20 +739,18 @@ python -u -m tradebot.backtest spot \
   --bar-size "1 hour" --spot-exec-bar-size "5 mins" \
   --realism2 --jobs 12 \
   --axis risk_overlays --base champion \
-  --seed-milestones backtests/slv/slv_exec5m_v7_champ_only_milestone.json \
+  --seed-milestones [PURGED false-timebars artifact] \
   --min-trades 500 --top 25 \
   --risk-overlays-skip-pop \
-  --risk-overlays-riskoff-trs "4,4.5,5,5.5,6" \
-  --risk-overlays-riskpanic-trs "4.5,5,5.5,6,6.5" \
   --milestone-min-win 0.00 --milestone-min-trades 0 --milestone-min-pnl-dd 0.00 \
   --write-milestones --merge-milestones --milestone-add-top-pnl-dd 2500 \
-  --milestones-out backtests/slv/slv_exec5m_v11_risk_overlays_panicoff_variants_1h_1y_20260205_203203.json
+  --milestones-out [PURGED false-timebars artifact]
 ```
 
 Kingmaker:
 ```bash
-python -u -m tradebot.backtest multitimeframe \
-  --milestones backtests/slv/slv_exec5m_v11_risk_overlays_panicoff_variants_1h_1y_20260205_203203.json \
+python -u -m tradebot.backtest spot_multitimeframe \
+  --milestones [PURGED false-timebars artifact] \
   --symbol SLV --bar-size "1 hour" \
   --offline --cache-dir db --jobs 12 \
   --min-trades 500 --require-positive-pnl \
@@ -746,7 +758,7 @@ python -u -m tradebot.backtest multitimeframe \
   --window 2024-01-08:2026-01-08 \
   --window 2025-01-08:2026-01-08 \
   --write-top 80 \
-  --out backtests/slv/slv_exec5m_v11_risk_overlays_panicoff_1h_10y2y1y_mintr500_top80_20260205_204340.json
+  --out [PURGED false-timebars artifact]
 ```
 
 Outcome:
@@ -766,21 +778,18 @@ python -u -m tradebot.backtest spot \
   --bar-size "1 hour" --spot-exec-bar-size "5 mins" \
   --realism2 --jobs 12 \
   --axis risk_overlays --base champion \
-  --seed-milestones backtests/slv/slv_exec5m_v7_champ_only_milestone.json \
+  --seed-milestones [PURGED false-timebars artifact] \
   --min-trades 500 --top 25 \
   --risk-overlays-skip-pop \
-  --risk-overlays-riskoff-trs "4,4.5,5,5.5,6" \
-  --risk-overlays-riskpanic-trs "4.5,5,5.5,6,6.5" \
-  --risk-overlays-riskpanic-long-factors "1,0.8,0.6,0.4,0.2,0" \
   --milestone-min-win 0.00 --milestone-min-trades 0 --milestone-min-pnl-dd 0.00 \
   --write-milestones --merge-milestones --milestone-add-top-pnl-dd 2500 \
-  --milestones-out backtests/slv/slv_exec5m_v12_risk_overlays_paniclong_variants_1h_1y_20260205_205850.json
+  --milestones-out [PURGED false-timebars artifact]
 ```
 
 Kingmaker (10y/2y/1y; full paranoia: evaluate all 2500 variants):
 ```bash
-python -u -m tradebot.backtest multitimeframe \
-  --milestones backtests/slv/slv_exec5m_v12_risk_overlays_paniclong_variants_1h_1y_20260205_205850.json \
+python -u -m tradebot.backtest spot_multitimeframe \
+  --milestones [PURGED false-timebars artifact] \
   --symbol SLV --bar-size "1 hour" \
   --offline --cache-dir db --jobs 12 \
   --top 2500 \
@@ -789,7 +798,7 @@ python -u -m tradebot.backtest multitimeframe \
   --window 2024-01-08:2026-01-08 \
   --window 2025-01-08:2026-01-08 \
   --write-top 80 \
-  --out backtests/slv/slv_exec5m_v12_risk_overlays_paniclong_1h_10y2y1y_mintr500_top80_top2500_20260205_221531.json
+  --out [PURGED false-timebars artifact]
 ```
 
 Outcome:
@@ -817,21 +826,18 @@ python -u -m tradebot.backtest spot \
   --bar-size "1 hour" --spot-exec-bar-size "5 mins" \
   --realism2 --jobs 12 \
   --axis risk_overlays --base champion \
-  --seed-milestones backtests/slv/slv_exec5m_v7_champ_only_milestone.json \
+  --seed-milestones [PURGED false-timebars artifact] \
   --min-trades 500 --top 25 \
   --risk-overlays-skip-pop \
-  --risk-overlays-riskoff-trs "4.5,5,5.5,6" \
-  --risk-overlays-riskpanic-trs "5,5.5,6" \
-  --risk-overlays-riskpanic-long-factors "1,0.4,0" \
   --milestone-min-win 0.00 --milestone-min-trades 0 --milestone-min-pnl-dd 0.00 \
   --write-milestones --merge-milestones --milestone-add-top-pnl-dd 2500 \
-  --milestones-out backtests/slv/slv_exec5m_v13_risk_overlays_paniclin_variants_1h_1y_20260205_2359.json
+  --milestones-out [PURGED false-timebars artifact]
 ```
 
 Kingmaker (10y/2y/1y; strict pnl>0; evaluate top500 for runtime sanity):
 ```bash
-python -u -m tradebot.backtest multitimeframe \
-  --milestones backtests/slv/slv_exec5m_v13_risk_overlays_paniclin_variants_1h_1y_20260205_2359.json \
+python -u -m tradebot.backtest spot_multitimeframe \
+  --milestones [PURGED false-timebars artifact] \
   --symbol SLV --bar-size "1 hour" \
   --offline --cache-dir db --jobs 12 \
   --top 500 \
@@ -840,7 +846,7 @@ python -u -m tradebot.backtest multitimeframe \
   --window 2024-01-08:2026-01-08 \
   --window 2025-01-08:2026-01-08 \
   --write-top 80 \
-  --out backtests/slv/slv_exec5m_v13_risk_overlays_paniclin_1h_10y2y1y_mintr500_top80_top500_20260205_2359.json
+  --out [PURGED false-timebars artifact]
 ```
 
 Outcome:
@@ -856,7 +862,7 @@ Root bug:
   which is nonsensical for the SLV v7 family (`spot_stop_loss_pct=1.2%`).
 
 Artifacts:
-- Variants (1y): `backtests/slv/slv_exec5m_v14_shock_throttle_refine_variants_1h_1y_20260206_0015.json`
+- Variants (1y): `[PURGED false-timebars artifact]`
 
 Ranges swept (exact pockets live in `tradebot/backtest/run_backtests_spot_sweeps.py` under `shock_throttle_refine`):
 - Stop-loss pocket is now **anchored on the seed**: `{0.70,0.85,0.925,1.00,1.075,1.15,1.30} × seed_stop`
@@ -869,8 +875,8 @@ Ranges swept (exact pockets live in `tradebot/backtest/run_backtests_spot_sweeps
 Status: **DONE**
 
 Artifacts:
-- Variants (1y): `backtests/slv/slv_exec5m_v15_shock_throttle_refine_variants_1h_1y_20260206_023332.json`
-- Multiwindow top-80: `backtests/slv/slv_exec5m_v15_shock_throttle_refine_1h_10y2y1y_mintr500_top80_20260206_023332.json`
+- Variants (1y): `[PURGED false-timebars artifact]`
+- Multiwindow top-80: `[PURGED false-timebars artifact]`
 
 Outcome:
 - Worst-window `roi/dd` = **3.599155138** (beats v7, but does **not** beat v10’s **3.601454743**).
@@ -880,11 +886,11 @@ Outcome:
 Status: **DONE** (exploration) + **BLOCKED** (reproducibility)
 
 Artifacts:
-- v16 15m variants (1y): `backtests/slv/slv_exec5m_v16_shock_throttle_refine_variants_15m_1y_20260206_025719.json`
+- v16 15m variants (1y): `[PURGED false-timebars artifact]`
 - v16 15m kingmaker (2y+1y): `backtests/slv/slv_exec5m_v16_shock_throttle_refine_15m_2y1y_mintr500_top80_20260206_025719.json`
-- v17–v19 15m 2y variants (rapid probes): `backtests/slv/slv_exec5m_v17_shock_throttle_refine_variants_15m_2y_20260206_030142.json`,
-  `backtests/slv/slv_exec5m_v18_shock_throttle_refine_variants_15m_2y_20260206_030706.json`,
-  `backtests/slv/slv_exec5m_v19_shock_throttle_refine_variants_15m_2y_20260206_031121.json`
+- v17–v19 15m 2y variants (rapid probes): `[PURGED false-timebars artifact]`,
+  `[PURGED false-timebars artifact]`,
+  `[PURGED false-timebars artifact]`
 - v20 rescore (current cache): `backtests/slv/slv_exec5m_v20_rescore_hf15m_2y1y_mintr500_top80_20260206_032150.json`
 
 Outcome:
@@ -895,10 +901,10 @@ Outcome:
 Status: **DONE**
 
 Artifacts:
-- v21 variants (1y): `backtests/slv/slv_exec5m_v21_shock_throttle_trratio_variants_1h_1y_20260206_043021.json`
-- v21 top-80: `backtests/slv/slv_exec5m_v21_shock_throttle_trratio_1h_10y2y1y_mintr500_top80_20260206_043021.json`
-- v22 variants (1y): `backtests/slv/slv_exec5m_v22_shock_throttle_trratio_cap_variants_1h_1y_20260206_153328.json`
-- v22 top-80: `backtests/slv/slv_exec5m_v22_shock_throttle_trratio_cap_1h_10y2y1y_mintr500_top80_20260206_153328.json`
+- v21 variants (1y): `[PURGED false-timebars artifact]`
+- v21 top-80: `[PURGED false-timebars artifact]`
+- v22 variants (1y): `[PURGED false-timebars artifact]`
+- v22 top-80: `[PURGED false-timebars artifact]`
 
 Ranges swept (from the axis pockets; see `tradebot/backtest/run_backtests_spot_sweeps.py` under `shock_throttle_tr_ratio`):
 - `shock_scale_detector="tr_ratio"`
@@ -915,8 +921,8 @@ Outcome:
 Status: **DONE**
 
 Artifacts:
-- Variants (1y): `backtests/slv/slv_exec5m_v23_shock_throttle_refine_cap_variants_1h_1y_20260206_154652.json`
-- Multiwindow top-80: `backtests/slv/slv_exec5m_v23_shock_throttle_refine_cap_1h_10y2y1y_mintr500_top80_20260206_154652.json`
+- Variants (1y): `[PURGED false-timebars artifact]`
+- Multiwindow top-80: `[PURGED false-timebars artifact]`
 
 Outcome:
 - Worst-window `roi/dd` = **3.599155138** (beats v7; not v10).
@@ -929,8 +935,8 @@ Outcome:
 Status: **DONE** (but treat as “bad seed”)
 
 Artifacts:
-- Variants (1y): `backtests/slv/slv_exec5m_v24_shock_throttle_drawdown_variants_1h_1y_20260206_172840.json`
-- Multiwindow top-80: `backtests/slv/slv_exec5m_v24_shock_throttle_drawdown_1h_10y2y1y_mintr500_top80_20260206_172840.json`
+- Variants (1y): `[PURGED false-timebars artifact]`
+- Multiwindow top-80: `[PURGED false-timebars artifact]`
 
 Outcome:
 - Worst-window `roi/dd` fell to **3.596878105** (worse than v7/v10).
@@ -941,8 +947,8 @@ Outcome:
 Status: **DONE** (promoted above as CURRENT v25)
 
 Artifacts:
-- Variants (1y): `backtests/slv/slv_exec5m_v25_shock_throttle_drawdown_variants_1h_1y_20260206_173719.json`
-- Multiwindow top-80: `backtests/slv/slv_exec5m_v25_shock_throttle_drawdown_1h_10y2y1y_mintr500_top80_20260206_173719.json`
+- Variants (1y): `[PURGED false-timebars artifact]`
+- Multiwindow top-80: `[PURGED false-timebars artifact]`
 
 Ranges swept (from the axis pockets; see `tradebot/backtest/run_backtests_spot_sweeps.py` under `shock_throttle_drawdown`):
 - `shock_scale_detector="daily_drawdown"`
@@ -959,8 +965,8 @@ Outcome:
 Status: **DONE**
 
 Artifacts:
-- Variants (1y): `backtests/slv/slv_exec5m_v26_riskpanic_micro_variants_1h_1y_20260206_180125.json`
-- Multiwindow top-80: `backtests/slv/slv_exec5m_v26_riskpanic_micro_1h_10y2y1y_mintr500_top80_20260206_182002.json`
+- Variants (1y): `[PURGED false-timebars artifact]`
+- Multiwindow top-80: `[PURGED false-timebars artifact]`
 
 Ranges swept (from the axis pockets; see `tradebot/backtest/run_backtests_spot_sweeps.py` under `riskpanic_micro`):
 - `risk_entry_cutoff_hour_et ∈ {None, 15}`
@@ -981,22 +987,22 @@ Status: **DONE** (exploration) + **NOT GOOD ENOUGH** (performance)
 Cache work (reproducibility-first):
 - New bar size: `10 mins` support (signals + UI).
 - Cache safety: atomic write + sort/dedupe on read/write (`tradebot/backtest/data.py`).
-- Deterministic resample tool: `tradebot/backtest/tools/resample_cache.py`.
+- Deterministic resample tool: `tradebot/backtest/tools/cache_ops.py resample`.
 - Generated (from `5 mins` FULL24 cache, no IBKR refetch drift):
   - `db/SLV/SLV_2016-01-08_2026-01-08_10mins_full24.csv`
   - rows=260,475 (bars), dropped incomplete 10m buckets=569
 
 Commands used:
 - Build the 10m FULL24 cache from the existing 5m FULL24 cache:
-  - `python -m tradebot.backtest.tools.resample_cache --symbol SLV --start 2016-01-08 --end 2026-01-08 --src-bar-size "5 mins" --dst-bar-size "10 mins" --cache-dir db`
+  - `python -m tradebot.backtest.tools.cache_ops resample --symbol SLV --start 2016-01-08 --end 2026-01-08 --src-bar-size "5 mins" --dst-bar-size "10 mins" --cache-dir db`
 - 1y discovery sweep (pnl-first shortlist): `hf_scalp`
-  - `python -m tradebot.backtest.run_backtests_spot_sweeps --symbol SLV --start 2025-01-08 --end 2026-01-08 --bar-size "10 mins" --spot-exec-bar-size "5 mins" --axis hf_scalp --base default --offline --cache-dir db --realism2 --min-trades 500 --milestone-min-trades 500 --milestone-min-win 0 --milestone-min-pnl-dd 0 --write-milestones --milestones-out backtests/slv/slv_exec5m_v27_hf_scalp_10m_1y_milestones_20260206_200840.json --top 80`
+  - `python -m tradebot.backtest spot --symbol SLV --start 2025-01-08 --end 2026-01-08 --bar-size "10 mins" --spot-exec-bar-size "5 mins" --axis hf_scalp --base default --offline --cache-dir db --realism2 --min-trades 500 --milestone-min-trades 500 --milestone-min-win 0 --milestone-min-pnl-dd 0 --write-milestones --milestones-out [PURGED false-timebars artifact] --top 80`
 - Multiwindow eval (10y/2y/1y stability check):
-  - `python -m tradebot.backtest.run_backtests_spot_multiwindow --milestones backtests/slv/slv_exec5m_v27_hf_scalp_10m_1y_milestones_20260206_200840.json --symbol SLV --bar-size "10 mins" --offline --cache-dir db --top 200 --min-trades 200 --min-win 0 --window 2016-01-08:2026-01-08 --window 2024-01-08:2026-01-08 --window 2025-01-08:2026-01-08 --write-top 80 --out backtests/slv/slv_exec5m_v27_hf_scalp_10m_10y2y1y_mintr200_top80_20260206_201704.json`
+  - `python -m tradebot.backtest spot_multitimeframe --milestones [PURGED false-timebars artifact] --symbol SLV --bar-size "10 mins" --offline --cache-dir db --top 200 --min-trades 200 --min-win 0 --window 2016-01-08:2026-01-08 --window 2024-01-08:2026-01-08 --window 2025-01-08:2026-01-08 --write-top 80 --out [PURGED false-timebars artifact]`
 
 Artifacts:
-- 1y milestones: `backtests/slv/slv_exec5m_v27_hf_scalp_10m_1y_milestones_20260206_200840.json`
-- 10y/2y/1y top-80: `backtests/slv/slv_exec5m_v27_hf_scalp_10m_10y2y1y_mintr200_top80_20260206_201704.json`
+- 1y milestones: `[PURGED false-timebars artifact]`
+- 10y/2y/1y top-80: `[PURGED false-timebars artifact]`
 
 Outcome:
 - Best 1y candidate found was only a **tiny** winner:
@@ -1017,8 +1023,8 @@ Goal:
   by sweeping the exit semantics (PT/SL + close_eod + flip-only-if-profit).
 
 Seed transform (so seeded sweeps can run on `10 mins` without rewriting the seed generator):
-- Input: `backtests/slv/slv_exec5m_v25_shock_throttle_drawdown_1h_10y2y1y_mintr500_top80_20260206_173719.json`
-- Output: `backtests/slv/slv_exec5m_v28_seed_v25_as_10m_full24_top80.json`
+- Input: `[PURGED false-timebars artifact]`
+- Output: `[PURGED false-timebars artifact]`
   - Overwrites `strategy.signal_bar_size="10 mins"` and `strategy.signal_use_rth=false` for all entries (metrics remain from v25).
 
 Sweep command (2y window, FULL24):
@@ -1028,15 +1034,15 @@ python -u -m tradebot.backtest spot \
   --start 2024-01-08 --end 2026-01-08 \
   --bar-size "10 mins" --spot-exec-bar-size "5 mins" \
   --realism2 \
-  --axis exit_pivot --seed-milestones backtests/slv/slv_exec5m_v28_seed_v25_as_10m_full24_top80.json --seed-top 2 \
+  --axis exit_pivot --seed-milestones [PURGED false-timebars artifact] --seed-top 2 \
   --min-trades 2000 --top 25 \
   --milestone-min-win 0 --milestone-min-trades 2000 --milestone-min-pnl-dd -999 \
-  --write-milestones --milestones-out backtests/slv/slv_exec5m_v28_exit_pivot_seedv25_10m_2y_milestones_20260206_213020.json
+  --write-milestones --milestones-out [PURGED false-timebars artifact]
 ```
 
 Artifacts:
 - log: `backtests/slv/slv_exec5m_v28_exit_pivot_seedv25_10m_2y_log_20260206_213020.txt`
-- milestones: `backtests/slv/slv_exec5m_v28_exit_pivot_seedv25_10m_2y_milestones_20260206_213020.json`
+- milestones: `[PURGED false-timebars artifact]`
 
 Outcome:
 - Best 2y pnl among the high-trade variants is still deeply negative: **~-$46.8k** (ROI **~-46.8%**, trades **~2,214**).
@@ -1050,7 +1056,7 @@ Hypothesis:
 - Try an entry window restriction (`entry_start_hour_et=9`, `entry_end_hour_et=16`) while still running FULL24 bars.
 
 Seed transform:
-- Output: `backtests/slv/slv_exec5m_v29_seed_v25_as_10m_full24_tod916_top80.json` (adds TOD filter to all groups).
+- Output: `[PURGED false-timebars artifact]` (adds TOD filter to all groups).
 
 Sweep command:
 ```bash
@@ -1059,15 +1065,15 @@ python -u -m tradebot.backtest spot \
   --start 2024-01-08 --end 2026-01-08 \
   --bar-size "10 mins" --spot-exec-bar-size "5 mins" \
   --realism2 \
-  --axis exit_pivot --seed-milestones backtests/slv/slv_exec5m_v29_seed_v25_as_10m_full24_tod916_top80.json --seed-top 2 \
+  --axis exit_pivot --seed-milestones [PURGED false-timebars artifact] --seed-top 2 \
   --min-trades 1500 --top 25 \
   --milestone-min-win 0 --milestone-min-trades 1500 --milestone-min-pnl-dd -999 \
-  --write-milestones --milestones-out backtests/slv/slv_exec5m_v29_exit_pivot_seedv25_tod916_10m_2y_milestones_20260206_214157.json
+  --write-milestones --milestones-out [PURGED false-timebars artifact]
 ```
 
 Artifacts:
 - log: `backtests/slv/slv_exec5m_v29_exit_pivot_seedv25_tod916_10m_2y_log_20260206_214157.txt`
-- milestones: `backtests/slv/slv_exec5m_v29_exit_pivot_seedv25_tod916_10m_2y_milestones_20260206_214157.json`
+- milestones: `[PURGED false-timebars artifact]`
 
 Outcome:
 - Best 2y pnl is still negative: **~-$26.8k** (ROI **~-26.8%**, trades **~1,602**).
@@ -1081,11 +1087,11 @@ Key move:
 
 Cache (deterministic; no IBKR refetch drift):
 - Built 10m RTH cache from the existing 5m RTH cache:
-  - `python -m tradebot.backtest.tools.resample_cache --symbol SLV --start 2016-01-08 --end 2026-01-08 --src-bar-size "5 mins" --dst-bar-size "10 mins" --use-rth --cache-dir db`
+  - `python -m tradebot.backtest.tools.cache_ops resample --symbol SLV --start 2016-01-08 --end 2026-01-08 --src-bar-size "5 mins" --dst-bar-size "10 mins" --use-rth --cache-dir db`
   - output: `db/SLV/SLV_2016-01-08_2026-01-08_10mins_rth.csv` (rows=97,668)
 
 Seed transform:
-- Output: `backtests/slv/slv_exec5m_v30_seed_v25_as_10m_rth_top80.json` (sets `signal_use_rth=true`).
+- Output: `[PURGED false-timebars artifact]` (sets `signal_use_rth=true`).
 
 2y sweep (RTH):
 ```bash
@@ -1094,10 +1100,10 @@ python -u -m tradebot.backtest spot \
   --start 2024-01-08 --end 2026-01-08 \
   --bar-size "10 mins" --spot-exec-bar-size "5 mins" \
   --realism2 \
-  --axis exit_pivot --seed-milestones backtests/slv/slv_exec5m_v30_seed_v25_as_10m_rth_top80.json --seed-top 2 \
+  --axis exit_pivot --seed-milestones [PURGED false-timebars artifact] --seed-top 2 \
   --min-trades 1000 --top 25 \
   --milestone-min-win 0 --milestone-min-trades 1000 --milestone-min-pnl-dd -999 \
-  --write-milestones --milestones-out backtests/slv/slv_exec5m_v30_exit_pivot_seedv25_10m_rth_2y_milestones_20260206_215316.json
+  --write-milestones --milestones-out [PURGED false-timebars artifact]
 ```
 
 Outcome (2y):
@@ -1108,14 +1114,14 @@ Outcome (2y):
 But on decade:
 - Multiwindow eval with positivity gate finds **0** candidates that stay positive across **10y/2y/1y**:
   - log: `backtests/slv/slv_exec5m_v30_exit_pivot_seedv25_10m_rth_10y2y1y_mintr500py_log_20260206_215657.txt`
-  - empty top80: `backtests/slv/slv_exec5m_v30_exit_pivot_seedv25_10m_rth_10y2y1y_mintr500py_top80_20260206_215657.json`
+  - empty top80: `[PURGED false-timebars artifact]`
 - Even the best 2y winner is catastrophic on 10y (example diagnostic on top-1):
   - decade ROI ≈ **-75%**, DD% ≈ **83%**, trades ≈ **5,425**
 
 Conclusion:
 - 10m can “work” in recent years under RTH-only bars, but **it does not generalize to the decade** under this family.
 - If we continue 10m, we must stop generating candidates on 1y/2y and instead run a **10y-first candidate sweep**
-  (e.g. `combo_fast` on `10 mins` RTH), then re-evaluate 2y/1y for stability.
+  (e.g. compact `combo_full` preset runs on `10 mins` RTH), then re-evaluate 2y/1y for stability.
 
 ### v31 — FULL24 lane diagnosis + time-window rescue (AB + micro)
 Status: **DONE** (diagnostic) + **SUCCESS** (found the first positive FULL24 10m rescue pocket)
@@ -1125,13 +1131,13 @@ Hypothesis:
 - Keep `signal_use_rth=false`, but restrict **entry hours** and rebalance stop/short settings.
 
 AB test (same strategy, lane behavior changed):
-- RTH run: `backtests/slv/slv_ab_rth_raw.json` -> pnl ≈ **+$68.4k**
-- FULL24 run: `backtests/slv/slv_ab_full24_raw.json` -> pnl ≈ **-$74.2k**
-- FULL24 + entry-hour gating: `backtests/slv/slv_ab_full24_timegated_raw.json` -> pnl ≈ **-$20.9k**
+- RTH run: `[PURGED false-timebars artifact]` -> pnl ≈ **+$68.4k**
+- FULL24 run: `[PURGED false-timebars artifact]` -> pnl ≈ **-$74.2k**
+- FULL24 + entry-hour gating: `[PURGED false-timebars artifact]` -> pnl ≈ **-$20.9k**
 
 Micro rescue sweep:
-- Milestones: `backtests/slv/slv_full24_timegate_micro_in.json` (144 combos)
-- Eval: `backtests/slv/slv_full24_timegate_micro_raw.json`
+- Milestones: `[PURGED false-timebars artifact]` (144 combos)
+- Eval: `[PURGED false-timebars artifact]`
 
 Ranges swept (joint):
 - `entry_start_hour_et ∈ {8,9,10}`
@@ -1154,7 +1160,7 @@ Goal:
 Stage command pattern:
 ```bash
 python -m tradebot.backtest spot_multitimeframe \
-  --milestones backtests/slv/slv_full24_timegate_plus2_in.json \
+  --milestones [PURGED false-timebars artifact] \
   --symbol SLV --bar-size "10 mins" --offline --cache-dir db \
   --window 2016-01-08:2026-01-08
 ```
@@ -1170,9 +1176,9 @@ Plus2 ranges (192 combos):
 - `entry_confirm_bars ∈ {0,1}`
 
 Artifacts:
-- Discovery: `backtests/slv/slv_full24_timegate_plus2_raw.json`
-- Promotion set: `backtests/slv/slv_full24_timegate_plus2_top80_in.json`
-- Multiwindow promotion eval: `backtests/slv/slv_full24_timegate_plus2_top80_promo_raw.json`
+- Discovery: `[PURGED false-timebars artifact]`
+- Promotion set: `[PURGED false-timebars artifact]`
+- Multiwindow promotion eval: `[PURGED false-timebars artifact]`
 
 Outcome:
 - Strong new island: top decade pnl in discovery ≈ **+$672.4k**.
@@ -1186,8 +1192,8 @@ Goal:
 - Push turnover up while preserving positivity and searching for all-window champion-level pnl.
 
 Stage A (broad map):
-- Milestones: `backtests/slv/slv_full24_hightrade_stageA_in.json` (648 combos)
-- Eval: `backtests/slv/slv_full24_hightrade_stageA_raw.json`
+- Milestones: `[PURGED false-timebars artifact]` (648 combos)
+- Eval: `[PURGED false-timebars artifact]`
 - Constraint: `min_trades=2500` on 10y window
 
 Stage A ranges (joint):
@@ -1202,8 +1208,8 @@ Stage A ranges (joint):
 - `entry_confirm_bars ∈ {0,1}`
 
 Stage B (targeted gate overlays on high-trade seeds):
-- Milestones: `backtests/slv/slv_full24_hightrade_stageB_in.json` (176 combos)
-- Eval: `backtests/slv/slv_full24_hightrade_stageB_raw.json`
+- Milestones: `[PURGED false-timebars artifact]` (176 combos)
+- Eval: `[PURGED false-timebars artifact]`
 - Constraint: `min_trades=3500`
 
 Stage B ranges:
@@ -1232,13 +1238,13 @@ Goal:
 - Test whether leverage/exposure scaling can lift the high-trade island to champion pnl.
 
 Milestones + eval:
-- `backtests/slv/slv_full24_hightrade_stageC_in.json` (504 combos)
-- `backtests/slv/slv_full24_hightrade_stageC_raw.json`
+- `[PURGED false-timebars artifact]` (504 combos)
+- `[PURGED false-timebars artifact]`
 - Constraint: `min_trades=3900`
 
 Scaling ranges:
 - `spot_risk_pct ∈ {0.01,0.015,0.02,0.03,0.04,0.05,0.07}`
-- `max_open_trades ∈ {3,5,8}`
+- `open_position_cap ∈ {3,5,8}`
 - `spot_max_notional_pct ∈ {0.5,0.75,1.0}`
 
 Outcome:
@@ -1261,9 +1267,9 @@ Key commands:
 python backtests/slv/slv_10m_attack_hf.py \
   --profiles island_bridge \
   --lane-mode full24 \
-  --seed-milestones backtests/slv/slv_full24_timegate_plus2_top80_promo_raw.json \
+  --seed-milestones [PURGED false-timebars artifact] \
   --seed-bar-size "10 mins" --seed-kingmaker-id 61 \
-  --champion-milestones backtests/slv/slv_full24_timegate_plus2_top80_promo_raw.json \
+  --champion-milestones [PURGED false-timebars artifact] \
   --champion-bar-size "10 mins" --champion-kingmaker-id 61 \
   --stage-window 2016-01-08:2026-01-08 \
   --stage-min-trades-per-year 100 --promotion-min-trades-per-year 100 \
@@ -1271,15 +1277,15 @@ python backtests/slv/slv_10m_attack_hf.py \
 ```
 
 Artifacts:
-- Stage A ranked: `backtests/slv/slv_exec5m_islandbridge_20260207_island_bridge_stageA_ranked.json`
-- Stage B ranked: `backtests/slv/slv_exec5m_islandbridge_20260207_island_bridge_stageB_ranked_top120.json`
-- Promotion top-80: `backtests/slv/slv_exec5m_islandbridge_20260207_island_bridge_promotion_top80.json`
-- Precision audit (10y/2y/1y): `backtests/slv/slv_precision_audit_islandbridge_20260207_10y2y1y.json`
+- Stage A ranked: `[PURGED false-timebars artifact]`
+- Stage B ranked: `[PURGED false-timebars artifact]`
+- Promotion top-80: `[PURGED false-timebars artifact]`
+- Precision audit (10y/2y/1y): `[PURGED false-timebars artifact]`
 
 Search matrix:
 - Stage A (96):
   - `ema_preset ∈ {"8/21","5/13"}`; `entry_confirm_bars ∈ {1,0}`
-  - `spot_stop_loss_pct ∈ {0.018,0.020}`; `max_open_trades ∈ {3,4}`
+  - `spot_stop_loss_pct ∈ {0.018,0.020}`; `open_position_cap ∈ {3,4}`
   - entry windows `(8,15)`, `(9,16)`, `off`; `spot_short_risk_mult ∈ {1.0,0.0025}`
   - fixed: `signal_bar_size=10 mins`, `spot_exec_bar_size=5 mins`, `signal_use_rth=false`
 - Stage B (360):
@@ -1324,9 +1330,9 @@ Command pattern:
 python backtests/slv/slv_10m_attack_hf.py \
   --profiles hour_expansion,precision_guard \
   --lane-mode full24 \
-  --seed-milestones backtests/slv/slv_full24_timegate_plus2_top80_promo_raw.json \
+  --seed-milestones [PURGED false-timebars artifact] \
   --seed-bar-size "10 mins" --seed-kingmaker-id <50|56|61> \
-  --champion-milestones backtests/slv/slv_full24_timegate_plus2_top80_promo_raw.json \
+  --champion-milestones [PURGED false-timebars artifact] \
   --champion-bar-size "10 mins" --champion-kingmaker-id <50|56|61> \
   --stage-window 2016-01-08:2026-01-08 \
   --stage-min-trades-per-year 100 --promotion-min-trades-per-year 100 \
@@ -1337,14 +1343,14 @@ Search matrix:
 - `hour_expansion` Stage A (288):
   - entry windows from `6..9` start and `14..16` end, `risk_cutoff` aligned to end hour
   - `ema_preset ∈ {"8/21","5/13"}`, `entry_confirm_bars=1`
-  - `spot_stop_loss_pct ∈ {0.020,0.022}`, `max_open_trades ∈ {3,4}`, `spot_short_risk_mult ∈ {0.0,0.0025}`
+  - `spot_stop_loss_pct ∈ {0.020,0.022}`, `open_position_cap ∈ {3,4}`, `spot_short_risk_mult ∈ {0.0,0.0025}`
   - geometry pocket: `(spread, spread_down, slope) ∈ {(0.0015,0.02,0.01),(0.0025,0.03,0.02)}`
 - `hour_expansion` Stage B (832):
   - drawdown throttle + TR-ratio detect/surf + riskpanic velocity + tiny cross tuples
   - includes `shock_scale_detector ∈ {"daily_drawdown","tr_ratio"}`, `shock_gate_mode ∈ {"detect","surf"}`
 - `precision_guard` Stage A (96):
   - entry windows `{8,9}` to `{14,15}`, `ema_preset="8/21"`, `entry_confirm_bars ∈ {1,2}`
-  - `spot_stop_loss_pct ∈ {0.018,0.020}`, `max_open_trades ∈ {2,3}`, `spot_short_risk_mult=0.0`
+  - `spot_stop_loss_pct ∈ {0.018,0.020}`, `open_position_cap ∈ {2,3}`, `spot_short_risk_mult=0.0`
 - `precision_guard` Stage B (330):
   - narrow drawdown/TR-ratio/riskpanic overlays; `shock_gate_mode="detect"` only
   - `spot_short_risk_mult ∈ {0.0,0.001}` in staged variants
@@ -1389,42 +1395,42 @@ Exact rerunnable commands (equivalent to executed run):
 ```bash
 rm -f db/spot_multiwindow_eval_cache.sqlite3 db/spot_multiwindow_eval_cache.sqlite3-shm db/spot_multiwindow_eval_cache.sqlite3-wal
 python -u -m tradebot.backtest spot_multitimeframe \
-  --milestones backtests/slv/slv_v31_shock_wall_candidates_20260211_top12.json \
+  --milestones [PURGED false-timebars artifact] \
   --symbol SLV --bar-size "10 mins" --offline --cache-dir db \
   --jobs 1 --top 12 --min-trades 0 \
   --window 2016-01-08:2026-01-08 \
   --window 2024-01-08:2026-01-08 \
   --window 2025-01-08:2026-01-08 \
-  --write-top 12 --out backtests/slv/slv_v31_shock_wall_eval_20260211_top12.json
+  --write-top 12 --out [PURGED false-timebars artifact]
 
 rm -f db/spot_multiwindow_eval_cache.sqlite3 db/spot_multiwindow_eval_cache.sqlite3-shm db/spot_multiwindow_eval_cache.sqlite3-wal
 python -u -m tradebot.backtest spot_multitimeframe \
-  --milestones backtests/slv/slv_v31_shock_wall_candidates_20260211_below131_top12.json \
+  --milestones [PURGED false-timebars artifact] \
   --symbol SLV --bar-size "10 mins" --offline --cache-dir db \
   --jobs 1 --top 12 --min-trades 0 \
   --window 2016-01-08:2026-01-08 \
   --window 2024-01-08:2026-01-08 \
   --window 2025-01-08:2026-01-08 \
-  --write-top 12 --out backtests/slv/slv_v31_shock_wall_eval_20260211_below131_top12.json
+  --write-top 12 --out [PURGED false-timebars artifact]
 
 rm -f db/spot_multiwindow_eval_cache.sqlite3 db/spot_multiwindow_eval_cache.sqlite3-shm db/spot_multiwindow_eval_cache.sqlite3-wal
 python -u -m tradebot.backtest spot_multitimeframe \
-  --milestones backtests/slv/slv_v31_shock_wall_candidates_20260211_uppermicro_top11.json \
+  --milestones [PURGED false-timebars artifact] \
   --symbol SLV --bar-size "10 mins" --offline --cache-dir db \
   --jobs 1 --top 11 --min-trades 0 \
   --window 2016-01-08:2026-01-08 \
   --window 2024-01-08:2026-01-08 \
   --window 2025-01-08:2026-01-08 \
-  --write-top 11 --out backtests/slv/slv_v31_shock_wall_eval_20260211_uppermicro_top11.json
+  --write-top 11 --out [PURGED false-timebars artifact]
 ```
 
 Persisted artifacts:
-- `backtests/slv/slv_v31_shock_wall_candidates_20260211_top12.json`
-- `backtests/slv/slv_v31_shock_wall_candidates_20260211_below131_top12.json`
-- `backtests/slv/slv_v31_shock_wall_candidates_20260211_uppermicro_top11.json`
-- `backtests/slv/slv_v31_shock_wall_eval_20260211_top12.json`
-- `backtests/slv/slv_v31_shock_wall_eval_20260211_below131_top12.json`
-- `backtests/slv/slv_v31_shock_wall_eval_20260211_uppermicro_top11.json`
+- `[PURGED false-timebars artifact]`
+- `[PURGED false-timebars artifact]`
+- `[PURGED false-timebars artifact]`
+- `[PURGED false-timebars artifact]`
+- `[PURGED false-timebars artifact]`
+- `[PURGED false-timebars artifact]`
 
 Outcome (wall map):
 - **Top plateau:** `shock_on_ratio ∈ [1.300, 1.355]`, `shock_off_ratio = on - 0.10`
@@ -1444,7 +1450,7 @@ Goal:
 - Promote a live-parity single-position config as CURRENT.
 
 What changed:
-- Forced single-position behavior in the promoted preset: `max_open_trades=1`
+- Forced single-position behavior in the promoted preset: `open_position_cap=1`
 - Retuned single-position sizing/exits:
   - `spot_max_notional_pct=0.7`
   - `spot_risk_pct=0.016`
@@ -1454,20 +1460,20 @@ What changed:
 Exact rerunnable command:
 ```bash
 python -m tradebot.backtest spot_multitimeframe \
-  --milestones backtests/slv/slv_v31_2_singlepos_parity_candidates_20260212_top1.json \
+  --milestones [PURGED false-timebars artifact] \
   --symbol SLV --bar-size "10 mins" --offline --cache-dir db \
   --jobs 1 --top 1 --min-trades 0 \
   --window 2016-01-08:2026-01-08 \
   --window 2024-01-08:2026-01-08 \
   --window 2025-01-08:2026-01-08 \
-  --write-top 1 --out backtests/slv/slv_v31_2_singlepos_parity_eval_20260212_top1.json
+  --write-top 1 --out [PURGED false-timebars artifact]
 ```
 
 Persisted artifacts:
-- `backtests/slv/slv_v31_2_singlepos_baseline_candidates_20260212_top1.json`
-- `backtests/slv/slv_v31_2_singlepos_baseline_eval_20260212_top1.json`
-- `backtests/slv/slv_v31_2_singlepos_parity_candidates_20260212_top1.json`
-- `backtests/slv/slv_v31_2_singlepos_parity_eval_20260212_top1.json`
+- `[PURGED false-timebars artifact]`
+- `[PURGED false-timebars artifact]`
+- `[PURGED false-timebars artifact]`
+- `[PURGED false-timebars artifact]`
 
 Outcome:
 - New CURRENT is **v31.2** (single-position parity lane).

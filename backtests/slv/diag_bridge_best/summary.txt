@@ -1,0 +1,10 @@
+Backtest Summary
+Trades: 669
+Win rate: 36.9%
+Total PnL: 3,853.56
+ROI: 3.85%
+Avg win: 812.43
+Avg loss: -466.39
+Max drawdown: 27,102.82
+Max drawdown %: 27.10%
+Avg hold (hours): 8.70

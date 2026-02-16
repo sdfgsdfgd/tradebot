@@ -1,0 +1,317 @@
+SLV spot evolve sweep (2025-02-14 -> 2026-02-14, use_rth=False, bar_size=10 mins, offline=True, base=champion, axis=combo_full, jobs=8, long_only=False realism=v2 spread=0.01 comm=0.005 comm_min=1 slip=0 sizing=risk_pct risk=0.01 max_notional=0.5)
+START combo_full total=6
+
+=== combo_full: unified tight Cartesian core ===
+combo_full preset active: hf_timing_sniper (tier=profile)
+combo_full dimensions: total=144 timing_profile=144 direction=1 confirm=1 perm=1 tod=1 vol=1 cadence=1 regime=1 regime2=1 exit=1 tick=1 shock=1 slope=1 risk=1 short_mult=1
+combo_full sharding order: timing_profile,tick,regime,regime2,risk,shock,exit,slope,direction,confirm,perm,tod,vol,cadence,short_mult
+
+combo_full Cartesian jobs tuner: requested=8 tuned=3 total=144
+combo_full Cartesian parallel: workers=3 total=144
+START cfc:0
+START cfc:1
+START cfc:2
+[cfc:1] SLV spot evolve sweep (2025-02-14 -> 2026-02-14, use_rth=False, bar_size=10 mins, offline=True, base=champion, axis=combo_full, jobs=1, long_only=False realism=v2 spread=0.01 comm=0.005 comm_min=1 slip=0 sizing=risk_pct risk=0.01 max_notional=0.5)
+[cfc:2] SLV spot evolve sweep (2025-02-14 -> 2026-02-14, use_rth=False, bar_size=10 mins, offline=True, base=champion, axis=combo_full, jobs=1, long_only=False realism=v2 spread=0.01 comm=0.005 comm_min=1 slip=0 sizing=risk_pct risk=0.01 max_notional=0.5)
+[cfc:0] SLV spot evolve sweep (2025-02-14 -> 2026-02-14, use_rth=False, bar_size=10 mins, offline=True, base=champion, axis=combo_full, jobs=1, long_only=False realism=v2 spread=0.01 comm=0.005 comm_min=1 slip=0 sizing=risk_pct risk=0.01 max_notional=0.5)
+[cfc:1] worker-stage mode: axis-level progress disabled; using worker/stage heartbeats.
+[cfc:1] START combo_full total=6
+[cfc:0] worker-stage mode: axis-level progress disabled; using worker/stage heartbeats.
+[cfc:0] START combo_full total=6
+[cfc:2] worker-stage mode: axis-level progress disabled; using worker/stage heartbeats.
+[cfc:2] START combo_full total=6
+[cfc:2] combo_full_cartesian unresolved rank ranges total=144/144 0-143
+[cfc:2] combo_full_cartesian worker 3/3 dynamic-claim enabled (claim_span=32, batch=2048)
+[cfc:1] combo_full_cartesian unresolved rank ranges total=144/144 0-143
+[cfc:2] combo_full_cartesian worker 3/3 claim 0-31
+[cfc:1] combo_full_cartesian worker 2/3 dynamic-claim enabled (claim_span=32, batch=2048)
+[cfc:0] combo_full_cartesian unresolved rank ranges total=144/144 0-143
+[cfc:1] combo_full_cartesian worker 2/3 claim 32-63
+[cfc:0] combo_full_cartesian worker 1/3 dynamic-claim enabled (claim_span=32, batch=2048)
+[cfc:0] combo_full_cartesian worker 1/3 claim 64-95
+[cfc:2] combo_full_cartesian planner[scan] processed=32/32 pending=0 unresolved=32 cached=0 elapsed=0.0s
+[cfc:2] combo_full_cartesian planner[resolve] processed=32/32 pending=32 unresolved=32 cached=0 elapsed=0.1s
+[cfc:1] combo_full_cartesian planner[scan] processed=32/32 pending=0 unresolved=32 cached=0 elapsed=0.1s
+[cfc:0] combo_full_cartesian planner[scan] processed=32/32 pending=0 unresolved=32 cached=0 elapsed=0.1s
+[cfc:1] combo_full_cartesian planner[resolve] processed=32/32 pending=32 unresolved=32 cached=0 elapsed=0.1s
+[cfc:0] combo_full_cartesian planner[resolve] processed=32/32 pending=32 unresolved=32 cached=0 elapsed=0.1s
+combo_full watchdog 1/6 (16.7%) kept=1 elapsed=30.0s eta=2.5m rate=0.03/cfg/s heartbeat=axis
+RUNNING workers=3 pending=0 [cfc:0:30.0s, cfc:1:30.0s, cfc:2:30.0s]
+combo_full_cartesian planner heartbeat running=3 pending=0 hb_rows=3 tested=0/144 cached_hits=0 eta~0.0m stale=0
+[cfc:0] combo_full watchdog 4/6 (66.7%) kept=0 elapsed=30.0s eta=0.3m rate=0.13/cfg/s heartbeat=axis
+[cfc:1] combo_full watchdog 2/6 (33.3%) kept=0 elapsed=30.0s eta=1.0m rate=0.07/cfg/s heartbeat=axis
+[cfc:2] combo_full watchdog 2/6 (33.3%) kept=0 elapsed=30.0s eta=1.0m rate=0.07/cfg/s heartbeat=axis
+[cfc:2] combo_full_cartesian worker 3/3 2/32 (6.2%) kept=1 elapsed=30.0s eta=7.5m rate=0.07/s inflight=6.0s stage=engine.exec exec=121312/356910 trades=202
+[cfc:1] combo_full_cartesian worker 2/3 2/32 (6.2%) kept=1 elapsed=30.0s eta=7.5m rate=0.07/s inflight=5.8s stage=engine.exec exec=115960/356910 trades=196
+[cfc:0] combo_full_cartesian worker 1/3 4/32 (12.5%) kept=3 elapsed=30.0s eta=3.5m rate=0.13/s inflight=4.0s stage=engine.exec exec=194456/356910 trades=10
+combo_full watchdog 1/6 (16.7%) kept=1 elapsed=60.0s eta=5.0m rate=0.02/cfg/s heartbeat=axis
+RUNNING workers=3 pending=0 [cfc:0:60.0s, cfc:1:60.0s, cfc:2:60.0s]
+combo_full_cartesian planner heartbeat running=3 pending=0 hb_rows=3 tested=0/144 cached_hits=0 eta~0.0m stale=0
+[cfc:0] combo_full watchdog 8/6 (133.3%) kept=0 elapsed=60.0s eta=0.0m rate=0.13/cfg/s heartbeat=axis
+[cfc:1] combo_full watchdog 3/6 (50.0%) kept=0 elapsed=60.0s eta=1.0m rate=0.05/cfg/s heartbeat=axis
+[cfc:2] combo_full watchdog 3/6 (50.0%) kept=0 elapsed=60.0s eta=1.0m rate=0.05/cfg/s heartbeat=axis
+[cfc:2] combo_full_cartesian worker 3/3 3/32 (9.4%) kept=2 elapsed=60.0s eta=9.7m rate=0.05/s inflight=15.5s stage=engine.exec exec=278304/356910 trades=487
+[cfc:1] combo_full_cartesian worker 2/3 3/32 (9.4%) kept=2 elapsed=60.0s eta=9.7m rate=0.05/s inflight=14.9s stage=engine.exec exec=267600/356910 trades=457
+[cfc:0] combo_full_cartesian worker 1/3 8/32 (25.0%) kept=7 elapsed=60.0s eta=3.0m rate=0.13/s inflight=3.8s stage=engine.exec exec=181968/356910 trades=10
+combo_full watchdog 1/6 (16.7%) kept=1 elapsed=90.0s eta=7.5m rate=0.01/cfg/s heartbeat=axis
+RUNNING workers=3 pending=0 [cfc:0:90.1s, cfc:1:90.1s, cfc:2:90.1s]
+combo_full_cartesian planner heartbeat running=3 pending=0 hb_rows=3 tested=0/144 cached_hits=0 eta~0.0m stale=0
+[cfc:1] combo_full watchdog 5/6 (83.3%) kept=0 elapsed=90.0s eta=0.3m rate=0.06/cfg/s heartbeat=axis
+[cfc:0] combo_full watchdog 12/6 (200.0%) kept=0 elapsed=90.0s eta=0.0m rate=0.13/cfg/s heartbeat=axis
+[cfc:2] combo_full watchdog 5/6 (83.3%) kept=0 elapsed=90.0s eta=0.3m rate=0.06/cfg/s heartbeat=axis
+[cfc:2] combo_full_cartesian worker 3/3 5/32 (15.6%) kept=4 elapsed=90.0s eta=8.1m rate=0.06/s inflight=4.5s stage=engine.exec exec=90984/356910 trades=161
+[cfc:1] combo_full_cartesian worker 2/3 5/32 (15.6%) kept=4 elapsed=90.0s eta=8.1m rate=0.06/s inflight=3.3s stage=engine.exec exec=137368/356910 trades=8
+[cfc:0] combo_full_cartesian worker 1/3 12/32 (37.5%) kept=11 elapsed=90.0s eta=2.5m rate=0.13/s inflight=3.5s stage=engine.exec exec=167696/356910 trades=8
+combo_full watchdog 1/6 (16.7%) kept=1 elapsed=120.0s eta=10.0m rate=0.01/cfg/s heartbeat=axis
+RUNNING workers=3 pending=0 [cfc:0:120.1s, cfc:1:120.1s, cfc:2:120.1s]
+combo_full_cartesian planner heartbeat running=3 pending=0 hb_rows=3 tested=0/144 cached_hits=0 eta~0.0m stale=0
+[cfc:1] combo_full watchdog 8/6 (133.3%) kept=0 elapsed=120.0s eta=0.0m rate=0.07/cfg/s heartbeat=axis
+[cfc:0] combo_full watchdog 16/6 (266.7%) kept=0 elapsed=120.0s eta=0.0m rate=0.13/cfg/s heartbeat=axis
+[cfc:2] combo_full watchdog 6/6 (100.0%) kept=0 elapsed=120.0s eta=0.0m rate=0.05/cfg/s heartbeat=axis
+[cfc:2] combo_full_cartesian worker 3/3 6/32 (18.8%) kept=5 elapsed=120.0s eta=8.7m rate=0.05/s inflight=12.9s stage=engine.exec exec=210512/356910 trades=315
+[cfc:1] combo_full_cartesian worker 2/3 9/32 (28.1%) kept=8 elapsed=120.0s eta=5.1m rate=0.07/s
+[cfc:1] combo_full_cartesian worker 2/3 9/32 (28.1%) kept=8 elapsed=120.0s eta=5.1m rate=0.07/s inflight=0.0s stage=engine.exec exec=1/356910 trades=0
+[cfc:0] combo_full_cartesian worker 1/3 16/32 (50.0%) kept=15 elapsed=120.0s eta=2.0m rate=0.13/s inflight=1.3s stage=engine.exec exec=53520/356910 trades=2
+combo_full watchdog 1/6 (16.7%) kept=1 elapsed=150.0s eta=12.5m rate=0.01/cfg/s heartbeat=axis
+RUNNING workers=3 pending=0 [cfc:0:150.1s, cfc:1:150.1s, cfc:2:150.1s]
+combo_full_cartesian planner heartbeat running=3 pending=0 hb_rows=3 tested=0/144 cached_hits=0 eta~0.0m stale=0
+[cfc:1] combo_full watchdog 12/6 (200.0%) kept=0 elapsed=150.1s eta=0.0m rate=0.08/cfg/s heartbeat=axis
+[cfc:0] combo_full watchdog 19/6 (316.7%) kept=0 elapsed=150.1s eta=0.0m rate=0.13/cfg/s heartbeat=axis
+[cfc:2] combo_full watchdog 7/6 (116.7%) kept=0 elapsed=150.1s eta=0.0m rate=0.05/cfg/s heartbeat=axis
+[cfc:2] combo_full_cartesian worker 3/3 7/32 (21.9%) kept=6 elapsed=150.1s eta=8.9m rate=0.05/s inflight=19.6s stage=engine.exec exec=333608/356910 trades=657
+[cfc:1] combo_full_cartesian worker 2/3 12/32 (37.5%) kept=11 elapsed=150.1s eta=4.2m rate=0.08/s inflight=5.5s stage=engine.exec exec=264032/356910 trades=15
+[cfc:0] combo_full_cartesian worker 1/3 19/32 (59.4%) kept=18 elapsed=150.1s eta=1.7m rate=0.13/s inflight=6.9s stage=engine.exec exec=338960/356910 trades=22
+combo_full watchdog 1/6 (16.7%) kept=1 elapsed=180.0s eta=15.0m rate=0.01/cfg/s heartbeat=axis
+RUNNING workers=3 pending=0 [cfc:0:180.2s, cfc:1:180.2s, cfc:2:180.2s]
+combo_full_cartesian planner heartbeat running=3 pending=0 hb_rows=3 tested=0/144 cached_hits=0 eta~0.0m stale=0
+[cfc:0] combo_full watchdog 23/6 (383.3%) kept=0 elapsed=180.1s eta=0.0m rate=0.13/cfg/s heartbeat=axis
+[cfc:2] combo_full watchdog 9/6 (150.0%) kept=0 elapsed=180.1s eta=0.0m rate=0.05/cfg/s heartbeat=axis
+[cfc:1] combo_full watchdog 16/6 (266.7%) kept=0 elapsed=180.1s eta=0.0m rate=0.09/cfg/s heartbeat=axis
+[cfc:2] combo_full_cartesian worker 3/3 9/32 (28.1%) kept=8 elapsed=180.1s eta=7.7m rate=0.05/s inflight=7.6s stage=engine.exec exec=144504/356910 trades=240
+[cfc:1] combo_full_cartesian worker 2/3 16/32 (50.0%) kept=15 elapsed=180.1s eta=3.0m rate=0.09/s inflight=4.9s stage=engine.exec exec=221216/356910 trades=12
+[cfc:0] combo_full_cartesian worker 1/3 23/32 (71.9%) kept=22 elapsed=180.1s eta=1.2m rate=0.13/s inflight=7.0s stage=engine.exec exec=326472/356910 trades=20
+combo_full watchdog 1/6 (16.7%) kept=1 elapsed=210.0s eta=17.5m rate=0.00/cfg/s heartbeat=axis
+RUNNING workers=3 pending=0 [cfc:0:210.2s, cfc:1:210.2s, cfc:2:210.2s]
+[cfc:2] combo_full watchdog 10/6 (166.7%) kept=0 elapsed=210.1s eta=0.0m rate=0.05/cfg/s heartbeat=axis
+[cfc:0] combo_full watchdog 27/6 (450.0%) kept=0 elapsed=210.1s eta=0.0m rate=0.13/cfg/s heartbeat=axis
+[cfc:1] combo_full watchdog 20/6 (333.3%) kept=0 elapsed=210.1s eta=0.0m rate=0.10/cfg/s heartbeat=axis
+[cfc:2] combo_full_cartesian worker 3/3 10/32 (31.2%) kept=9 elapsed=210.1s eta=7.7m rate=0.05/s inflight=17.2s stage=engine.exec exec=292576/356910 trades=529
+[cfc:1] combo_full_cartesian worker 2/3 20/32 (62.5%) kept=19 elapsed=210.1s eta=2.1m rate=0.10/s inflight=4.0s stage=engine.exec exec=176616/356910 trades=10
+[cfc:0] combo_full_cartesian worker 1/3 27/32 (84.4%) kept=26 elapsed=210.1s eta=0.6m rate=0.13/s inflight=6.9s stage=engine.exec exec=306848/356910 trades=17
+combo_full watchdog 1/6 (16.7%) kept=1 elapsed=240.1s eta=20.0m rate=0.00/cfg/s heartbeat=axis
+RUNNING workers=3 pending=0 [cfc:0:240.2s, cfc:1:240.2s, cfc:2:240.2s]
+[cfc:2] combo_full watchdog 12/6 (200.0%) kept=0 elapsed=240.1s eta=0.0m rate=0.05/cfg/s heartbeat=axis
+[cfc:0] combo_full watchdog 31/6 (516.7%) kept=0 elapsed=240.1s eta=0.0m rate=0.13/cfg/s heartbeat=axis
+[cfc:1] combo_full watchdog 24/6 (400.0%) kept=0 elapsed=240.1s eta=0.0m rate=0.10/cfg/s heartbeat=axis
+[cfc:2] combo_full_cartesian worker 3/3 12/32 (37.5%) kept=11 elapsed=240.1s eta=6.7m rate=0.05/s inflight=2.8s stage=engine.exec exec=60656/356910 trades=93
+[cfc:1] combo_full_cartesian worker 2/3 24/32 (75.0%) kept=23 elapsed=240.1s eta=1.3m rate=0.10/s inflight=1.2s stage=engine.exec exec=60656/356910 trades=5
+[cfc:0] combo_full_cartesian worker 1/3 31/32 (96.9%) kept=30 elapsed=240.1s eta=0.1m rate=0.13/s inflight=4.5s stage=engine.exec exec=208728/356910 trades=9
+[cfc:0] combo_full_cartesian worker 1/3 32/32 (100.0%) kept=31 elapsed=243.3s eta=0.0m rate=0.13/s
+[cfc:0] combo_full_cartesian worker 1/3 processed=32/32 eval=32 cached=0 kept=32
+[cfc:0] combo_full_cartesian worker 1/3 claim 96-127
+[cfc:0] combo_full_cartesian planner[scan] processed=32/32 pending=0 unresolved=32 cached=0 elapsed=0.0s
+[cfc:0] combo_full_cartesian planner[resolve] processed=32/32 pending=32 unresolved=32 cached=0 elapsed=0.1s
+combo_full watchdog 1/6 (16.7%) kept=1 elapsed=270.1s eta=22.5m rate=0.00/cfg/s heartbeat=axis
+RUNNING workers=3 pending=0 [cfc:0:270.2s, cfc:1:270.2s, cfc:2:270.2s]
+[cfc:2] combo_full watchdog 13/6 (216.7%) kept=0 elapsed=270.1s eta=0.0m rate=0.05/cfg/s heartbeat=axis
+[cfc:0] combo_full watchdog 35/6 (583.3%) kept=0 elapsed=270.1s eta=0.0m rate=0.13/cfg/s heartbeat=axis
+[cfc:1] combo_full watchdog 27/6 (450.0%) kept=0 elapsed=270.1s eta=0.0m rate=0.10/cfg/s heartbeat=axis
+[cfc:2] combo_full_cartesian worker 3/3 13/32 (40.6%) kept=12 elapsed=270.1s eta=6.6m rate=0.05/s inflight=11.5s stage=engine.exec exec=206944/356910 trades=307
+[cfc:1] combo_full_cartesian worker 2/3 28/32 (87.5%) kept=27 elapsed=270.1s eta=0.6m rate=0.10/s inflight=0.0s stage=engine.exec exec=1784/356910 trades=0
+[cfc:0] combo_full_cartesian worker 1/3 4/32 (12.5%) kept=3 elapsed=30.0s eta=3.5m rate=0.13/s inflight=7.1s stage=engine.exec exec=326472/356910 trades=20
+combo_full watchdog 1/6 (16.7%) kept=1 elapsed=300.1s eta=25.0m rate=0.00/cfg/s heartbeat=axis
+RUNNING workers=3 pending=0 [cfc:0:300.3s, cfc:1:300.3s, cfc:2:300.2s]
+[cfc:2] combo_full watchdog 14/6 (233.3%) kept=0 elapsed=300.1s eta=0.0m rate=0.05/cfg/s heartbeat=axis
+[cfc:0] combo_full watchdog 39/6 (650.0%) kept=0 elapsed=300.1s eta=0.0m rate=0.13/cfg/s heartbeat=axis
+[cfc:1] combo_full watchdog 31/6 (516.7%) kept=0 elapsed=300.1s eta=0.0m rate=0.10/cfg/s heartbeat=axis
+[cfc:2] combo_full_cartesian worker 3/3 14/32 (43.8%) kept=13 elapsed=300.1s eta=6.4m rate=0.05/s inflight=20.3s stage=engine.exec exec=346096/356910 trades=710
+[cfc:1] combo_full_cartesian worker 2/3 31/32 (96.9%) kept=30 elapsed=300.1s eta=0.2m rate=0.10/s inflight=7.1s stage=engine.exec exec=321120/356910 trades=24
+[cfc:1] combo_full_cartesian worker 2/3 32/32 (100.0%) kept=31 elapsed=300.8s eta=0.0m rate=0.11/s
+[cfc:1] combo_full_cartesian worker 2/3 processed=32/32 eval=32 cached=0 kept=32
+[cfc:1] combo_full_cartesian worker 2/3 claim 128-143
+[cfc:1] combo_full_cartesian planner[scan] processed=16/16 pending=0 unresolved=16 cached=0 elapsed=0.0s
+[cfc:1] combo_full_cartesian planner[resolve] processed=16/16 pending=16 unresolved=16 cached=0 elapsed=0.0s
+[cfc:0] combo_full_cartesian worker 1/3 8/32 (25.0%) kept=7 elapsed=60.0s eta=3.0m rate=0.13/s inflight=6.9s stage=engine.exec exec=321120/356910 trades=19
+combo_full watchdog 1/6 (16.7%) kept=1 elapsed=330.1s eta=27.5m rate=0.00/cfg/s heartbeat=axis
+RUNNING workers=3 pending=0 [cfc:0:330.3s, cfc:1:330.3s, cfc:2:330.3s]
+[cfc:0] combo_full watchdog 43/6 (716.7%) kept=0 elapsed=330.1s eta=0.0m rate=0.13/cfg/s heartbeat=axis
+[cfc:2] combo_full watchdog 16/6 (266.7%) kept=0 elapsed=330.1s eta=0.0m rate=0.05/cfg/s heartbeat=axis
+[cfc:1] combo_full watchdog 35/6 (583.3%) kept=0 elapsed=330.1s eta=0.0m rate=0.11/cfg/s heartbeat=axis
+[cfc:2] combo_full_cartesian worker 3/3 16/32 (50.0%) kept=15 elapsed=330.1s eta=5.5m rate=0.05/s inflight=8.8s stage=engine.exec exec=169480/356910 trades=270
+[cfc:1] combo_full_cartesian worker 2/3 4/16 (25.0%) kept=3 elapsed=30.0s eta=1.5m rate=0.13/s inflight=1.3s stage=engine.exec exec=53520/356910 trades=18
+[cfc:0] combo_full_cartesian worker 1/3 12/32 (37.5%) kept=11 elapsed=90.0s eta=2.5m rate=0.13/s inflight=7.1s stage=engine.exec exec=346096/356910 trades=25
+combo_full watchdog 1/6 (16.7%) kept=1 elapsed=360.1s eta=30.0m rate=0.00/cfg/s heartbeat=axis
+RUNNING workers=3 pending=0 [cfc:0:360.3s, cfc:1:360.3s, cfc:2:360.3s]
+[cfc:0] combo_full watchdog 46/6 (766.7%) kept=0 elapsed=360.1s eta=0.0m rate=0.13/cfg/s heartbeat=axis
+[cfc:2] combo_full watchdog 17/6 (283.3%) kept=0 elapsed=360.1s eta=0.0m rate=0.05/cfg/s heartbeat=axis
+[cfc:1] combo_full watchdog 38/6 (633.3%) kept=0 elapsed=360.1s eta=0.0m rate=0.11/cfg/s heartbeat=axis
+[cfc:2] combo_full_cartesian worker 3/3 17/32 (53.1%) kept=16 elapsed=360.2s eta=5.3m rate=0.05/s inflight=18.6s stage=engine.exec exec=331824/356910 trades=651
+[cfc:1] combo_full_cartesian worker 2/3 7/16 (43.8%) kept=6 elapsed=60.0s eta=1.3m rate=0.12/s inflight=3.4s stage=engine.exec exec=137368/356910 trades=45
+[cfc:0] combo_full_cartesian worker 1/3 16/32 (50.0%) kept=15 elapsed=120.1s eta=2.0m rate=0.13/s inflight=2.0s stage=engine.exec exec=78496/356910 trades=27
+combo_full watchdog 1/6 (16.7%) kept=1 elapsed=390.1s eta=32.5m rate=0.00/cfg/s heartbeat=axis
+RUNNING workers=3 pending=0 [cfc:0:390.3s, cfc:1:390.3s, cfc:2:390.3s]
+[cfc:0] combo_full watchdog 50/6 (833.3%) kept=0 elapsed=390.2s eta=0.0m rate=0.13/cfg/s heartbeat=axis
+[cfc:1] combo_full watchdog 41/6 (683.3%) kept=0 elapsed=390.2s eta=0.0m rate=0.11/cfg/s heartbeat=axis[cfc:2] combo_full watchdog 19/6 (316.7%) kept=0 elapsed=390.2s eta=0.0m rate=0.05/cfg/s heartbeat=axis
+
+[cfc:2] combo_full_cartesian worker 3/3 19/32 (59.4%) kept=18 elapsed=390.2s eta=4.4m rate=0.05/s inflight=8.3s stage=engine.exec exec=164128/356910 trades=264
+[cfc:1] combo_full_cartesian worker 2/3 10/16 (62.5%) kept=9 elapsed=90.0s eta=0.9m rate=0.11/s inflight=5.8s stage=engine.exec exec=221216/356910 trades=77
+[cfc:0] combo_full_cartesian worker 1/3 19/32 (59.4%) kept=18 elapsed=150.1s eta=1.7m rate=0.13/s inflight=4.1s stage=engine.exec exec=160560/356910 trades=55
+combo_full watchdog 1/6 (16.7%) kept=1 elapsed=420.1s eta=35.0m rate=0.00/cfg/s heartbeat=axis
+RUNNING workers=3 pending=0 [cfc:0:420.3s, cfc:1:420.3s, cfc:2:420.3s]
+[cfc:0] combo_full watchdog 53/6 (883.3%) kept=0 elapsed=420.2s eta=0.0m rate=0.13/cfg/s heartbeat=axis
+[cfc:1] combo_full watchdog 44/6 (733.3%) kept=0 elapsed=420.2s eta=0.0m rate=0.10/cfg/s heartbeat=axis
+[cfc:2] combo_full watchdog 20/6 (333.3%) kept=0 elapsed=420.2s eta=0.0m rate=0.05/cfg/s heartbeat=axis
+[cfc:2] combo_full_cartesian worker 3/3 20/32 (62.5%) kept=19 elapsed=420.2s eta=4.2m rate=0.05/s inflight=18.3s stage=engine.exec exec=326472/356910 trades=633
+[cfc:1] combo_full_cartesian worker 2/3 13/16 (81.2%) kept=12 elapsed=120.1s eta=0.5m rate=0.11/s inflight=7.8s stage=engine.exec exec=296144/356910 trades=123
+[cfc:0] combo_full_cartesian worker 1/3 22/32 (68.8%) kept=21 elapsed=180.1s eta=1.4m rate=0.12/s inflight=6.2s stage=engine.exec exec=240840/356910 trades=84
+combo_full watchdog 1/6 (16.7%) kept=1 elapsed=450.1s eta=37.5m rate=0.00/cfg/s heartbeat=axis
+RUNNING workers=3 pending=0 [cfc:0:450.3s, cfc:1:450.3s, cfc:2:450.3s]
+[cfc:1] combo_full_cartesian worker 2/3 16/16 (100.0%) kept=15 elapsed=140.5s eta=0.0m rate=0.11/s
+[cfc:0] combo_full watchdog 56/6 (933.3%) kept=0 elapsed=450.2s eta=0.0m rate=0.12/cfg/s heartbeat=axis
+[cfc:2] combo_full watchdog 22/6 (366.7%) kept=0 elapsed=450.2s eta=0.0m rate=0.05/cfg/s heartbeat=axis
+[cfc:1] combo_full watchdog 48/6 (800.0%) kept=0 elapsed=450.2s eta=0.0m rate=0.11/cfg/s heartbeat=axis
+[cfc:2] combo_full_cartesian worker 3/3 22/32 (68.8%) kept=21 elapsed=450.2s eta=3.4m rate=0.05/s inflight=8.1s stage=engine.exec exec=158776/356910 trades=257
+[cfc:1] combo_full_cartesian worker 2/3 processed=48/48 eval=48 cached=0 kept=48
+[cfc:1] combo_full_cartesian worker done tested=48 kept=48 out=/var/folders/rn/tbt648y54zl_f0m02zrb01sm0000gn/T/tradebot_combo_full_cartesian_dpe4elco/combo_full_cartesian_out_1.json
+[cfc:1] DONE  combo_full tested=48 elapsed=459.5s
+[cfc:1] 
+[cfc:1] run_cfg persistent cache (strategy+axis_dims+window): path=db/spot_sweeps_run_cfg_cache.sqlite3 hits=0 writes=48 dim_index_writes=96 worker_plan_hits=0 worker_plan_writes=0 stage_status_reads=0 stage_status_writes=96 cartesian_manifest_reads=0 cartesian_manifest_writes=96 cartesian_manifest_hits=0 cartesian_rank_manifest_reads=7 cartesian_rank_manifest_writes=7 cartesian_rank_manifest_hits=0 cartesian_rank_manifest_compactions=0 cartesian_rank_manifest_pending_ttl_prunes=0 stage_rank_manifest_reads=0 stage_rank_manifest_writes=0 stage_rank_manifest_hits=0 stage_rank_manifest_compactions=0 stage_rank_manifest_pending_ttl_prunes=0 stage_unresolved_summary_reads=1 stage_unresolved_summary_writes=2 stage_unresolved_summary_hits=1 rank_dominance_stamp_reads=0 rank_dominance_stamp_writes=0 rank_dominance_stamp_hits=0 rank_dominance_manifest_applies=0 rank_dominance_stamp_compactions=0 rank_dominance_stamp_ttl_prunes=0 rank_bin_runtime_reads=0 rank_bin_runtime_writes=3 stage_frontier_reads=0 stage_frontier_writes=48 stage_frontier_hits=0 winner_projection_reads=0 winner_projection_writes=48 winner_projection_hits=0 dimension_utility_reads=0 dimension_utility_writes=0 dimension_utility_hint_hits=0 dimension_upper_bound_reads=0 dimension_upper_bound_writes=0 dimension_upper_bound_deferred=0 planner_heartbeat_reads=0 planner_heartbeat_writes=5 planner_heartbeat_stale_candidates=0 series_pack_mmap_hints=0 series_pack_pickle_hints=0 series_pack_state_manifest_reads=0 series_pack_state_manifest_writes=0 series_pack_state_manifest_hits=0
+DONE  cfc:1 exit=0 elapsed=460.3s
+[cfc:0] combo_full_cartesian worker 1/3 25/32 (78.1%) kept=24 elapsed=210.1s eta=1.0m rate=0.12/s inflight=8.3s stage=engine.exec exec=322904/356910 trades=126
+combo_full watchdog 1/6 (16.7%) kept=1 elapsed=480.1s eta=40.0m rate=0.00/cfg/s heartbeat=axis
+RUNNING workers=2 pending=0 [cfc:0:480.3s, cfc:2:480.3s]
+[cfc:0] combo_full watchdog 59/6 (983.3%) kept=0 elapsed=480.2s eta=0.0m rate=0.12/cfg/s heartbeat=axis
+[cfc:2] combo_full watchdog 23/6 (383.3%) kept=0 elapsed=480.2s eta=0.0m rate=0.05/cfg/s heartbeat=axis
+[cfc:2] combo_full_cartesian worker 3/3 23/32 (71.9%) kept=22 elapsed=480.2s eta=3.1m rate=0.05/s inflight=18.0s stage=engine.exec exec=322904/356910 trades=618
+[cfc:0] combo_full_cartesian worker 1/3 29/32 (90.6%) kept=28 elapsed=240.1s eta=0.4m rate=0.12/s inflight=1.6s stage=engine.exec exec=64224/356910 trades=24
+combo_full watchdog 1/6 (16.7%) kept=1 elapsed=510.1s eta=42.5m rate=0.00/cfg/s heartbeat=axis
+RUNNING workers=2 pending=0 [cfc:0:510.3s, cfc:2:510.3s]
+[cfc:0] combo_full watchdog 63/6 (1050.0%) kept=0 elapsed=510.2s eta=0.0m rate=0.12/cfg/s heartbeat=axis
+[cfc:2] combo_full watchdog 25/6 (416.7%) kept=0 elapsed=510.2s eta=0.0m rate=0.05/cfg/s heartbeat=axis
+[cfc:2] combo_full_cartesian worker 3/3 25/32 (78.1%) kept=24 elapsed=510.2s eta=2.4m rate=0.05/s inflight=7.8s stage=engine.exec exec=153424/356910 trades=247
+[cfc:0] combo_full_cartesian worker 1/3 32/32 (100.0%) kept=31 elapsed=266.3s eta=0.0m rate=0.12/s
+[cfc:0] combo_full_cartesian worker 1/3 32/32 (100.0%) kept=31 elapsed=270.1s eta=0.0m rate=0.12/s inflight=3.8s stage=engine.exec exec=155208/356910 trades=53
+combo_full watchdog 1/6 (16.7%) kept=1 elapsed=540.1s eta=45.0m rate=0.00/cfg/s heartbeat=axis
+[cfc:0] combo_full_cartesian worker 1/3 processed=64/64 eval=64 cached=0 kept=64
+[cfc:0] combo_full_cartesian worker done tested=64 kept=64 out=/var/folders/rn/tbt648y54zl_f0m02zrb01sm0000gn/T/tradebot_combo_full_cartesian_dpe4elco/combo_full_cartesian_out_0.json
+[cfc:0] DONE  combo_full tested=64 elapsed=527.8s
+[cfc:0] 
+[cfc:0] run_cfg persistent cache (strategy+axis_dims+window): path=db/spot_sweeps_run_cfg_cache.sqlite3 hits=0 writes=64 dim_index_writes=128 worker_plan_hits=0 worker_plan_writes=0 stage_status_reads=0 stage_status_writes=128 cartesian_manifest_reads=0 cartesian_manifest_writes=128 cartesian_manifest_hits=0 cartesian_rank_manifest_reads=7 cartesian_rank_manifest_writes=7 cartesian_rank_manifest_hits=0 cartesian_rank_manifest_compactions=0 cartesian_rank_manifest_pending_ttl_prunes=0 stage_rank_manifest_reads=0 stage_rank_manifest_writes=0 stage_rank_manifest_hits=0 stage_rank_manifest_compactions=0 stage_rank_manifest_pending_ttl_prunes=0 stage_unresolved_summary_reads=1 stage_unresolved_summary_writes=2 stage_unresolved_summary_hits=1 rank_dominance_stamp_reads=0 rank_dominance_stamp_writes=0 rank_dominance_stamp_hits=0 rank_dominance_manifest_applies=0 rank_dominance_stamp_compactions=0 rank_dominance_stamp_ttl_prunes=0 rank_bin_runtime_reads=0 rank_bin_runtime_writes=3 stage_frontier_reads=0 stage_frontier_writes=64 stage_frontier_hits=0 winner_projection_reads=0 winner_projection_writes=64 winner_projection_hits=0 dimension_utility_reads=0 dimension_utility_writes=0 dimension_utility_hint_hits=0 dimension_upper_bound_reads=0 dimension_upper_bound_writes=0 dimension_upper_bound_deferred=0 planner_heartbeat_reads=0 planner_heartbeat_writes=5 planner_heartbeat_stale_candidates=0 series_pack_mmap_hints=0 series_pack_pickle_hints=0 series_pack_state_manifest_reads=0 series_pack_state_manifest_writes=0 series_pack_state_manifest_hits=0
+DONE  cfc:0 exit=0 elapsed=528.6s
+RUNNING workers=1 pending=0 [cfc:2:540.3s]
+[cfc:2] combo_full watchdog 26/6 (433.3%) kept=0 elapsed=540.2s eta=0.0m rate=0.05/cfg/s heartbeat=axis
+[cfc:2] combo_full_cartesian worker 3/3 26/32 (81.2%) kept=25 elapsed=540.2s eta=2.1m rate=0.05/s inflight=17.7s stage=engine.exec exec=319336/356910 trades=600
+combo_full watchdog 1/6 (16.7%) kept=1 elapsed=570.1s eta=47.5m rate=0.00/cfg/s heartbeat=axis
+RUNNING workers=1 pending=0 [cfc:2:570.4s]
+[cfc:2] combo_full watchdog 28/6 (466.7%) kept=0 elapsed=570.2s eta=0.0m rate=0.05/cfg/s heartbeat=axis
+[cfc:2] combo_full_cartesian worker 3/3 28/32 (87.5%) kept=27 elapsed=570.3s eta=1.4m rate=0.05/s inflight=7.7s stage=engine.exec exec=153424/356910 trades=247
+combo_full watchdog 1/6 (16.7%) kept=1 elapsed=600.1s eta=50.0m rate=0.00/cfg/s heartbeat=axis
+RUNNING workers=1 pending=0 [cfc:2:600.4s]
+[cfc:2] combo_full watchdog 29/6 (483.3%) kept=0 elapsed=600.2s eta=0.0m rate=0.05/cfg/s heartbeat=axis
+[cfc:2] combo_full_cartesian worker 3/3 29/32 (90.6%) kept=28 elapsed=600.3s eta=1.0m rate=0.05/s inflight=17.8s stage=engine.exec exec=322904/356910 trades=614
+combo_full watchdog 1/6 (16.7%) kept=1 elapsed=630.1s eta=52.5m rate=0.00/cfg/s heartbeat=axis
+RUNNING workers=1 pending=0 [cfc:2:630.4s]
+[cfc:2] combo_full watchdog 31/6 (516.7%) kept=0 elapsed=630.3s eta=0.0m rate=0.05/cfg/s heartbeat=axis
+[cfc:2] combo_full_cartesian worker 3/3 31/32 (96.9%) kept=30 elapsed=630.3s eta=0.3m rate=0.05/s inflight=7.7s stage=engine.exec exec=153424/356910 trades=249
+[cfc:2] combo_full_cartesian worker 3/3 32/32 (100.0%) kept=31 elapsed=642.5s eta=0.0m rate=0.05/s
+combo_full watchdog 1/6 (16.7%) kept=1 elapsed=660.1s eta=55.0m rate=0.00/cfg/s heartbeat=axis
+RUNNING workers=1 pending=0 [cfc:2:660.5s]
+[cfc:2] combo_full watchdog 32/6 (533.3%) kept=0 elapsed=660.3s eta=0.0m rate=0.05/cfg/s heartbeat=axis
+[cfc:2] combo_full_cartesian worker 3/3 32/32 (100.0%) kept=31 elapsed=660.3s eta=0.0m rate=0.05/s inflight=17.7s stage=engine.exec exec=321120/356910 trades=610
+[cfc:2] combo_full_cartesian worker 3/3 processed=32/32 eval=32 cached=0 kept=32
+[cfc:2] combo_full_cartesian worker done tested=32 kept=32 out=/var/folders/rn/tbt648y54zl_f0m02zrb01sm0000gn/T/tradebot_combo_full_cartesian_dpe4elco/combo_full_cartesian_out_2.json
+[cfc:2] DONE  combo_full tested=32 elapsed=663.6s
+[cfc:2] 
+[cfc:2] run_cfg persistent cache (strategy+axis_dims+window): path=db/spot_sweeps_run_cfg_cache.sqlite3 hits=0 writes=32 dim_index_writes=64 worker_plan_hits=0 worker_plan_writes=0 stage_status_reads=0 stage_status_writes=64 cartesian_manifest_reads=0 cartesian_manifest_writes=64 cartesian_manifest_hits=0 cartesian_rank_manifest_reads=4 cartesian_rank_manifest_writes=4 cartesian_rank_manifest_hits=0 cartesian_rank_manifest_compactions=0 cartesian_rank_manifest_pending_ttl_prunes=0 stage_rank_manifest_reads=0 stage_rank_manifest_writes=0 stage_rank_manifest_hits=0 stage_rank_manifest_compactions=0 stage_rank_manifest_pending_ttl_prunes=0 stage_unresolved_summary_reads=1 stage_unresolved_summary_writes=1 stage_unresolved_summary_hits=1 rank_dominance_stamp_reads=0 rank_dominance_stamp_writes=0 rank_dominance_stamp_hits=0 rank_dominance_manifest_applies=0 rank_dominance_stamp_compactions=0 rank_dominance_stamp_ttl_prunes=0 rank_bin_runtime_reads=0 rank_bin_runtime_writes=1 stage_frontier_reads=0 stage_frontier_writes=32 stage_frontier_hits=0 winner_projection_reads=0 winner_projection_writes=32 winner_projection_hits=0 dimension_utility_reads=0 dimension_utility_writes=0 dimension_utility_hint_hits=0 dimension_upper_bound_reads=0 dimension_upper_bound_writes=0 dimension_upper_bound_deferred=0 planner_heartbeat_reads=0 planner_heartbeat_writes=4 planner_heartbeat_stale_candidates=0 series_pack_mmap_hints=0 series_pack_pickle_hints=0 series_pack_state_manifest_reads=0 series_pack_state_manifest_writes=0 series_pack_state_manifest_hits=0
+DONE  cfc:2 exit=0 elapsed=664.7s
+combo_full Cartesian tested=144 kept=145 min_trades=0
+
+combo_full sweep (unified tight Cartesian) — Top by pnl/dd
+----------------------------------------------------------
+ 1. tr= 119 win= 33.6% pnl=   26293.8 dd= 31790.9 pnl/dd=  0.83 roi= 26.29% dd%= 31.79% base
+ 2. tr=  27 win= 40.7% pnl=     912.6 dd=  4864.2 pnl/dd=  0.19 roi=  0.91% dd%=  4.86% timing=hf_symm_v10 | sniper rank=0.0085 cross=5 slope=0.000002/0.000001 b_mult=1.10 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+ 3. tr=  27 win= 40.7% pnl=     912.6 dd=  4864.2 pnl/dd=  0.19 roi=  0.91% dd%=  4.86% timing=hf_symm_v10 | sniper rank=0.0085 cross=5 slope=0.000002/0.000001 b_mult=1.40 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+ 4. tr=  27 win= 40.7% pnl=     912.6 dd=  4864.2 pnl/dd=  0.19 roi=  0.91% dd%=  4.86% timing=hf_symm_v10 | sniper rank=0.0085 cross=5 slope=0.000006/0.000002 b_mult=1.10 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+ 5. tr=  27 win= 40.7% pnl=     912.6 dd=  4864.2 pnl/dd=  0.19 roi=  0.91% dd%=  4.86% timing=hf_symm_v10 | sniper rank=0.0085 cross=5 slope=0.000006/0.000002 b_mult=1.40 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+ 6. tr=  27 win= 40.7% pnl=     912.6 dd=  4864.2 pnl/dd=  0.19 roi=  0.91% dd%=  4.86% timing=hf_symm_v10 | sniper rank=0.0185 cross=5 slope=0.000002/0.000001 b_mult=1.10 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+ 7. tr=  27 win= 40.7% pnl=     912.6 dd=  4864.2 pnl/dd=  0.19 roi=  0.91% dd%=  4.86% timing=hf_symm_v10 | sniper rank=0.0185 cross=5 slope=0.000002/0.000001 b_mult=1.40 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+ 8. tr=  27 win= 40.7% pnl=     912.6 dd=  4864.2 pnl/dd=  0.19 roi=  0.91% dd%=  4.86% timing=hf_symm_v10 | sniper rank=0.0185 cross=5 slope=0.000006/0.000002 b_mult=1.10 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+ 9. tr=  27 win= 40.7% pnl=     912.6 dd=  4864.2 pnl/dd=  0.19 roi=  0.91% dd%=  4.86% timing=hf_symm_v10 | sniper rank=0.0185 cross=5 slope=0.000006/0.000002 b_mult=1.40 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+10. tr=  27 win= 40.7% pnl=     912.6 dd=  4864.2 pnl/dd=  0.19 roi=  0.91% dd%=  4.86% timing=hf_symm_v10 | sniper rank=0.0240 cross=5 slope=0.000002/0.000001 b_mult=1.10 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+11. tr=  27 win= 40.7% pnl=     912.6 dd=  4864.2 pnl/dd=  0.19 roi=  0.91% dd%=  4.86% timing=hf_symm_v10 | sniper rank=0.0240 cross=5 slope=0.000002/0.000001 b_mult=1.40 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+12. tr=  27 win= 40.7% pnl=     912.6 dd=  4864.2 pnl/dd=  0.19 roi=  0.91% dd%=  4.86% timing=hf_symm_v10 | sniper rank=0.0240 cross=5 slope=0.000006/0.000002 b_mult=1.10 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+13. tr=  27 win= 40.7% pnl=     912.6 dd=  4864.2 pnl/dd=  0.19 roi=  0.91% dd%=  4.86% timing=hf_symm_v10 | sniper rank=0.0240 cross=5 slope=0.000006/0.000002 b_mult=1.40 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+14. tr=  29 win= 41.4% pnl=     867.9 dd=  4878.1 pnl/dd=  0.18 roi=  0.87% dd%=  4.88% timing=hf_symm_v10 | sniper rank=0.0085 cross=8 slope=0.000002/0.000001 b_mult=1.10 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+15. tr=  29 win= 41.4% pnl=     867.9 dd=  4878.1 pnl/dd=  0.18 roi=  0.87% dd%=  4.88% timing=hf_symm_v10 | sniper rank=0.0085 cross=8 slope=0.000002/0.000001 b_mult=1.40 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+16. tr=  29 win= 41.4% pnl=     867.9 dd=  4878.1 pnl/dd=  0.18 roi=  0.87% dd%=  4.88% timing=hf_symm_v10 | sniper rank=0.0085 cross=8 slope=0.000006/0.000002 b_mult=1.10 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+17. tr=  29 win= 41.4% pnl=     867.9 dd=  4878.1 pnl/dd=  0.18 roi=  0.87% dd%=  4.88% timing=hf_symm_v10 | sniper rank=0.0085 cross=8 slope=0.000006/0.000002 b_mult=1.40 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+18. tr=  29 win= 41.4% pnl=     867.9 dd=  4878.1 pnl/dd=  0.18 roi=  0.87% dd%=  4.88% timing=hf_symm_v10 | sniper rank=0.0185 cross=8 slope=0.000002/0.000001 b_mult=1.10 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+19. tr=  29 win= 41.4% pnl=     867.9 dd=  4878.1 pnl/dd=  0.18 roi=  0.87% dd%=  4.88% timing=hf_symm_v10 | sniper rank=0.0185 cross=8 slope=0.000002/0.000001 b_mult=1.40 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+20. tr=  29 win= 41.4% pnl=     867.9 dd=  4878.1 pnl/dd=  0.18 roi=  0.87% dd%=  4.88% timing=hf_symm_v10 | sniper rank=0.0185 cross=8 slope=0.000006/0.000002 b_mult=1.10 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+21. tr=  29 win= 41.4% pnl=     867.9 dd=  4878.1 pnl/dd=  0.18 roi=  0.87% dd%=  4.88% timing=hf_symm_v10 | sniper rank=0.0185 cross=8 slope=0.000006/0.000002 b_mult=1.40 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+22. tr=  29 win= 41.4% pnl=     867.9 dd=  4878.1 pnl/dd=  0.18 roi=  0.87% dd%=  4.88% timing=hf_symm_v10 | sniper rank=0.0240 cross=8 slope=0.000002/0.000001 b_mult=1.10 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+23. tr=  29 win= 41.4% pnl=     867.9 dd=  4878.1 pnl/dd=  0.18 roi=  0.87% dd%=  4.88% timing=hf_symm_v10 | sniper rank=0.0240 cross=8 slope=0.000002/0.000001 b_mult=1.40 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+24. tr=  29 win= 41.4% pnl=     867.9 dd=  4878.1 pnl/dd=  0.18 roi=  0.87% dd%=  4.88% timing=hf_symm_v10 | sniper rank=0.0240 cross=8 slope=0.000006/0.000002 b_mult=1.10 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+25. tr=  29 win= 41.4% pnl=     867.9 dd=  4878.1 pnl/dd=  0.18 roi=  0.87% dd%=  4.88% timing=hf_symm_v10 | sniper rank=0.0240 cross=8 slope=0.000006/0.000002 b_mult=1.40 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+26. tr=  24 win= 33.3% pnl=    -907.0 dd=  2785.5 pnl/dd= -0.33 roi= -0.91% dd%=  2.79% timing=hf_symm_v10 | sniper rank=0.0085 cross=3 slope=0.000002/0.000001 b_mult=1.10 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+27. tr=  24 win= 33.3% pnl=    -907.0 dd=  2785.5 pnl/dd= -0.33 roi= -0.91% dd%=  2.79% timing=hf_symm_v10 | sniper rank=0.0085 cross=3 slope=0.000002/0.000001 b_mult=1.40 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+28. tr=  24 win= 33.3% pnl=    -907.0 dd=  2785.5 pnl/dd= -0.33 roi= -0.91% dd%=  2.79% timing=hf_symm_v10 | sniper rank=0.0085 cross=3 slope=0.000006/0.000002 b_mult=1.10 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+29. tr=  24 win= 33.3% pnl=    -907.0 dd=  2785.5 pnl/dd= -0.33 roi= -0.91% dd%=  2.79% timing=hf_symm_v10 | sniper rank=0.0085 cross=3 slope=0.000006/0.000002 b_mult=1.40 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+30. tr=  24 win= 33.3% pnl=    -907.0 dd=  2785.5 pnl/dd= -0.33 roi= -0.91% dd%=  2.79% timing=hf_symm_v10 | sniper rank=0.0185 cross=3 slope=0.000002/0.000001 b_mult=1.10 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+31. tr=  24 win= 33.3% pnl=    -907.0 dd=  2785.5 pnl/dd= -0.33 roi= -0.91% dd%=  2.79% timing=hf_symm_v10 | sniper rank=0.0185 cross=3 slope=0.000002/0.000001 b_mult=1.40 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+32. tr=  24 win= 33.3% pnl=    -907.0 dd=  2785.5 pnl/dd= -0.33 roi= -0.91% dd%=  2.79% timing=hf_symm_v10 | sniper rank=0.0185 cross=3 slope=0.000006/0.000002 b_mult=1.10 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+33. tr=  24 win= 33.3% pnl=    -907.0 dd=  2785.5 pnl/dd= -0.33 roi= -0.91% dd%=  2.79% timing=hf_symm_v10 | sniper rank=0.0185 cross=3 slope=0.000006/0.000002 b_mult=1.40 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+34. tr=  24 win= 33.3% pnl=    -907.0 dd=  2785.5 pnl/dd= -0.33 roi= -0.91% dd%=  2.79% timing=hf_symm_v10 | sniper rank=0.0240 cross=3 slope=0.000002/0.000001 b_mult=1.10 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+35. tr=  24 win= 33.3% pnl=    -907.0 dd=  2785.5 pnl/dd= -0.33 roi= -0.91% dd%=  2.79% timing=hf_symm_v10 | sniper rank=0.0240 cross=3 slope=0.000002/0.000001 b_mult=1.40 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+36. tr=  24 win= 33.3% pnl=    -907.0 dd=  2785.5 pnl/dd= -0.33 roi= -0.91% dd%=  2.79% timing=hf_symm_v10 | sniper rank=0.0240 cross=3 slope=0.000006/0.000002 b_mult=1.10 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+37. tr=  24 win= 33.3% pnl=    -907.0 dd=  2785.5 pnl/dd= -0.33 roi= -0.91% dd%=  2.79% timing=hf_symm_v10 | sniper rank=0.0240 cross=3 slope=0.000006/0.000002 b_mult=1.40 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+38. tr= 773 win= 38.6% pnl=  -22981.4 dd= 41778.4 pnl/dd= -0.55 roi=-22.98% dd%= 41.78% timing=hf_symm_v10 | sniper rank=0.0085 cross=5 slope=0.000006/0.000002 b_mult=1.10 tag=overlay_only_hybrid | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+39. tr= 773 win= 38.6% pnl=  -23171.1 dd= 41625.7 pnl/dd= -0.56 roi=-23.17% dd%= 41.63% timing=hf_symm_v10 | sniper rank=0.0185 cross=5 slope=0.000002/0.000001 b_mult=1.10 tag=overlay_only_hybrid | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+40. tr= 773 win= 38.6% pnl=  -23211.1 dd= 41643.9 pnl/dd= -0.56 roi=-23.21% dd%= 41.64% timing=hf_symm_v10 | sniper rank=0.0085 cross=5 slope=0.000006/0.000002 b_mult=1.40 tag=overlay_only_hybrid | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+
+combo_full sweep (unified tight Cartesian) — Top by pnl
+-------------------------------------------------------
+ 1. tr= 119 win= 33.6% pnl=   26293.8 dd= 31790.9 pnl/dd=  0.83 roi= 26.29% dd%= 31.79% base
+ 2. tr=  27 win= 40.7% pnl=     912.6 dd=  4864.2 pnl/dd=  0.19 roi=  0.91% dd%=  4.86% timing=hf_symm_v10 | sniper rank=0.0085 cross=5 slope=0.000002/0.000001 b_mult=1.10 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+ 3. tr=  27 win= 40.7% pnl=     912.6 dd=  4864.2 pnl/dd=  0.19 roi=  0.91% dd%=  4.86% timing=hf_symm_v10 | sniper rank=0.0085 cross=5 slope=0.000002/0.000001 b_mult=1.40 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+ 4. tr=  27 win= 40.7% pnl=     912.6 dd=  4864.2 pnl/dd=  0.19 roi=  0.91% dd%=  4.86% timing=hf_symm_v10 | sniper rank=0.0085 cross=5 slope=0.000006/0.000002 b_mult=1.10 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+ 5. tr=  27 win= 40.7% pnl=     912.6 dd=  4864.2 pnl/dd=  0.19 roi=  0.91% dd%=  4.86% timing=hf_symm_v10 | sniper rank=0.0085 cross=5 slope=0.000006/0.000002 b_mult=1.40 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+ 6. tr=  27 win= 40.7% pnl=     912.6 dd=  4864.2 pnl/dd=  0.19 roi=  0.91% dd%=  4.86% timing=hf_symm_v10 | sniper rank=0.0185 cross=5 slope=0.000002/0.000001 b_mult=1.10 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+ 7. tr=  27 win= 40.7% pnl=     912.6 dd=  4864.2 pnl/dd=  0.19 roi=  0.91% dd%=  4.86% timing=hf_symm_v10 | sniper rank=0.0185 cross=5 slope=0.000002/0.000001 b_mult=1.40 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+ 8. tr=  27 win= 40.7% pnl=     912.6 dd=  4864.2 pnl/dd=  0.19 roi=  0.91% dd%=  4.86% timing=hf_symm_v10 | sniper rank=0.0185 cross=5 slope=0.000006/0.000002 b_mult=1.10 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+ 9. tr=  27 win= 40.7% pnl=     912.6 dd=  4864.2 pnl/dd=  0.19 roi=  0.91% dd%=  4.86% timing=hf_symm_v10 | sniper rank=0.0185 cross=5 slope=0.000006/0.000002 b_mult=1.40 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+10. tr=  27 win= 40.7% pnl=     912.6 dd=  4864.2 pnl/dd=  0.19 roi=  0.91% dd%=  4.86% timing=hf_symm_v10 | sniper rank=0.0240 cross=5 slope=0.000002/0.000001 b_mult=1.10 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+11. tr=  27 win= 40.7% pnl=     912.6 dd=  4864.2 pnl/dd=  0.19 roi=  0.91% dd%=  4.86% timing=hf_symm_v10 | sniper rank=0.0240 cross=5 slope=0.000002/0.000001 b_mult=1.40 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+12. tr=  27 win= 40.7% pnl=     912.6 dd=  4864.2 pnl/dd=  0.19 roi=  0.91% dd%=  4.86% timing=hf_symm_v10 | sniper rank=0.0240 cross=5 slope=0.000006/0.000002 b_mult=1.10 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+13. tr=  27 win= 40.7% pnl=     912.6 dd=  4864.2 pnl/dd=  0.19 roi=  0.91% dd%=  4.86% timing=hf_symm_v10 | sniper rank=0.0240 cross=5 slope=0.000006/0.000002 b_mult=1.40 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+14. tr=  29 win= 41.4% pnl=     867.9 dd=  4878.1 pnl/dd=  0.18 roi=  0.87% dd%=  4.88% timing=hf_symm_v10 | sniper rank=0.0085 cross=8 slope=0.000002/0.000001 b_mult=1.10 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+15. tr=  29 win= 41.4% pnl=     867.9 dd=  4878.1 pnl/dd=  0.18 roi=  0.87% dd%=  4.88% timing=hf_symm_v10 | sniper rank=0.0085 cross=8 slope=0.000002/0.000001 b_mult=1.40 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+16. tr=  29 win= 41.4% pnl=     867.9 dd=  4878.1 pnl/dd=  0.18 roi=  0.87% dd%=  4.88% timing=hf_symm_v10 | sniper rank=0.0085 cross=8 slope=0.000006/0.000002 b_mult=1.10 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+17. tr=  29 win= 41.4% pnl=     867.9 dd=  4878.1 pnl/dd=  0.18 roi=  0.87% dd%=  4.88% timing=hf_symm_v10 | sniper rank=0.0085 cross=8 slope=0.000006/0.000002 b_mult=1.40 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+18. tr=  29 win= 41.4% pnl=     867.9 dd=  4878.1 pnl/dd=  0.18 roi=  0.87% dd%=  4.88% timing=hf_symm_v10 | sniper rank=0.0185 cross=8 slope=0.000002/0.000001 b_mult=1.10 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+19. tr=  29 win= 41.4% pnl=     867.9 dd=  4878.1 pnl/dd=  0.18 roi=  0.87% dd%=  4.88% timing=hf_symm_v10 | sniper rank=0.0185 cross=8 slope=0.000002/0.000001 b_mult=1.40 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+20. tr=  29 win= 41.4% pnl=     867.9 dd=  4878.1 pnl/dd=  0.18 roi=  0.87% dd%=  4.88% timing=hf_symm_v10 | sniper rank=0.0185 cross=8 slope=0.000006/0.000002 b_mult=1.10 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+21. tr=  29 win= 41.4% pnl=     867.9 dd=  4878.1 pnl/dd=  0.18 roi=  0.87% dd%=  4.88% timing=hf_symm_v10 | sniper rank=0.0185 cross=8 slope=0.000006/0.000002 b_mult=1.40 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+22. tr=  29 win= 41.4% pnl=     867.9 dd=  4878.1 pnl/dd=  0.18 roi=  0.87% dd%=  4.88% timing=hf_symm_v10 | sniper rank=0.0240 cross=8 slope=0.000002/0.000001 b_mult=1.10 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+23. tr=  29 win= 41.4% pnl=     867.9 dd=  4878.1 pnl/dd=  0.18 roi=  0.87% dd%=  4.88% timing=hf_symm_v10 | sniper rank=0.0240 cross=8 slope=0.000002/0.000001 b_mult=1.40 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+24. tr=  29 win= 41.4% pnl=     867.9 dd=  4878.1 pnl/dd=  0.18 roi=  0.87% dd%=  4.88% timing=hf_symm_v10 | sniper rank=0.0240 cross=8 slope=0.000006/0.000002 b_mult=1.10 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+25. tr=  29 win= 41.4% pnl=     867.9 dd=  4878.1 pnl/dd=  0.18 roi=  0.87% dd%=  4.88% timing=hf_symm_v10 | sniper rank=0.0240 cross=8 slope=0.000006/0.000002 b_mult=1.40 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+26. tr=  24 win= 33.3% pnl=    -907.0 dd=  2785.5 pnl/dd= -0.33 roi= -0.91% dd%=  2.79% timing=hf_symm_v10 | sniper rank=0.0085 cross=3 slope=0.000002/0.000001 b_mult=1.10 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+27. tr=  24 win= 33.3% pnl=    -907.0 dd=  2785.5 pnl/dd= -0.33 roi= -0.91% dd%=  2.79% timing=hf_symm_v10 | sniper rank=0.0085 cross=3 slope=0.000002/0.000001 b_mult=1.40 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+28. tr=  24 win= 33.3% pnl=    -907.0 dd=  2785.5 pnl/dd= -0.33 roi= -0.91% dd%=  2.79% timing=hf_symm_v10 | sniper rank=0.0085 cross=3 slope=0.000006/0.000002 b_mult=1.10 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+29. tr=  24 win= 33.3% pnl=    -907.0 dd=  2785.5 pnl/dd= -0.33 roi= -0.91% dd%=  2.79% timing=hf_symm_v10 | sniper rank=0.0085 cross=3 slope=0.000006/0.000002 b_mult=1.40 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+30. tr=  24 win= 33.3% pnl=    -907.0 dd=  2785.5 pnl/dd= -0.33 roi= -0.91% dd%=  2.79% timing=hf_symm_v10 | sniper rank=0.0185 cross=3 slope=0.000002/0.000001 b_mult=1.10 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+31. tr=  24 win= 33.3% pnl=    -907.0 dd=  2785.5 pnl/dd= -0.33 roi= -0.91% dd%=  2.79% timing=hf_symm_v10 | sniper rank=0.0185 cross=3 slope=0.000002/0.000001 b_mult=1.40 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+32. tr=  24 win= 33.3% pnl=    -907.0 dd=  2785.5 pnl/dd= -0.33 roi= -0.91% dd%=  2.79% timing=hf_symm_v10 | sniper rank=0.0185 cross=3 slope=0.000006/0.000002 b_mult=1.10 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+33. tr=  24 win= 33.3% pnl=    -907.0 dd=  2785.5 pnl/dd= -0.33 roi= -0.91% dd%=  2.79% timing=hf_symm_v10 | sniper rank=0.0185 cross=3 slope=0.000006/0.000002 b_mult=1.40 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+34. tr=  24 win= 33.3% pnl=    -907.0 dd=  2785.5 pnl/dd= -0.33 roi= -0.91% dd%=  2.79% timing=hf_symm_v10 | sniper rank=0.0240 cross=3 slope=0.000002/0.000001 b_mult=1.10 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+35. tr=  24 win= 33.3% pnl=    -907.0 dd=  2785.5 pnl/dd= -0.33 roi= -0.91% dd%=  2.79% timing=hf_symm_v10 | sniper rank=0.0240 cross=3 slope=0.000002/0.000001 b_mult=1.40 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+36. tr=  24 win= 33.3% pnl=    -907.0 dd=  2785.5 pnl/dd= -0.33 roi= -0.91% dd%=  2.79% timing=hf_symm_v10 | sniper rank=0.0240 cross=3 slope=0.000006/0.000002 b_mult=1.10 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+37. tr=  24 win= 33.3% pnl=    -907.0 dd=  2785.5 pnl/dd= -0.33 roi= -0.91% dd%=  2.79% timing=hf_symm_v10 | sniper rank=0.0240 cross=3 slope=0.000006/0.000002 b_mult=1.40 tag=strict_slow_confirm | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+38. tr=  27 win= 29.6% pnl=   -3459.7 dd=  5888.6 pnl/dd= -0.59 roi= -3.46% dd%=  5.89% timing=hf_symm_v10 | sniper rank=0.0240 cross=5 slope=0.000002/0.000001 b_mult=1.10 tag=early_sizeup_hybrid | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+39. tr=  27 win= 29.6% pnl=   -3459.7 dd=  5888.6 pnl/dd= -0.59 roi= -3.46% dd%=  5.89% timing=hf_symm_v10 | sniper rank=0.0240 cross=5 slope=0.000002/0.000001 b_mult=1.40 tag=early_sizeup_hybrid | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+40. tr=  27 win= 29.6% pnl=   -3459.7 dd=  5888.6 pnl/dd= -0.59 roi= -3.46% dd%=  5.89% timing=hf_symm_v10 | sniper rank=0.0240 cross=5 slope=0.000006/0.000002 b_mult=1.10 tag=early_sizeup_hybrid | direction=base | c=0 | base_filters | base_filters | base_filters | base_filters | regime=base | regime2=base | exit=base | tick=base | base_filters | base_filters | base_filters | short_mult=1
+combo_full axis 1/6 (16.7%) kept=1 elapsed=679.1s eta=56.6m rate=0.00/cfg/s
+DONE  combo_full tested=145 elapsed=679.1s
+
+run_cfg persistent cache (strategy+axis_dims+window): path=db/spot_sweeps_run_cfg_cache.sqlite3 hits=0 writes=1 dim_index_writes=2 worker_plan_hits=0 worker_plan_writes=0 stage_status_reads=0 stage_status_writes=0 cartesian_manifest_reads=0 cartesian_manifest_writes=0 cartesian_manifest_hits=0 cartesian_rank_manifest_reads=0 cartesian_rank_manifest_writes=0 cartesian_rank_manifest_hits=0 cartesian_rank_manifest_compactions=0 cartesian_rank_manifest_pending_ttl_prunes=0 stage_rank_manifest_reads=0 stage_rank_manifest_writes=0 stage_rank_manifest_hits=0 stage_rank_manifest_compactions=0 stage_rank_manifest_pending_ttl_prunes=0 stage_unresolved_summary_reads=0 stage_unresolved_summary_writes=1 stage_unresolved_summary_hits=0 rank_dominance_stamp_reads=0 rank_dominance_stamp_writes=0 rank_dominance_stamp_hits=0 rank_dominance_manifest_applies=0 rank_dominance_stamp_compactions=0 rank_dominance_stamp_ttl_prunes=0 rank_bin_runtime_reads=0 rank_bin_runtime_writes=0 stage_frontier_reads=0 stage_frontier_writes=0 stage_frontier_hits=0 winner_projection_reads=0 winner_projection_writes=0 winner_projection_hits=0 dimension_utility_reads=0 dimension_utility_writes=0 dimension_utility_hint_hits=0 dimension_upper_bound_reads=0 dimension_upper_bound_writes=0 dimension_upper_bound_deferred=0 planner_heartbeat_reads=54 planner_heartbeat_writes=0 planner_heartbeat_stale_candidates=0 series_pack_mmap_hints=0 series_pack_pickle_hints=0 series_pack_state_manifest_reads=0 series_pack_state_manifest_writes=0 series_pack_state_manifest_hits=0

@@ -1,0 +1,20 @@
+{
+  "name": "multitimeframe_top",
+  "generated_at": "2026-02-16T05:37:19.430531Z",
+  "source": "backtests/slv/slv_hf_ptsl_attack_10y2y1y_min0_20260216_top8.json",
+  "windows": [
+    {
+      "start": "2016-02-14",
+      "end": "2026-02-14"
+    },
+    {
+      "start": "2024-02-14",
+      "end": "2026-02-14"
+    },
+    {
+      "start": "2025-02-14",
+      "end": "2026-02-14"
+    }
+  ],
+  "groups": []
+}

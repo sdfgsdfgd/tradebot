@@ -1,0 +1,12 @@
+{
+  "name": "multitimeframe_top",
+  "generated_at": "2026-02-16T08:59:37.914281Z",
+  "source": "backtests/slv/slv_hf_r5_track2_dynamic_atrtr_candidates_20260216_v1.json",
+  "windows": [
+    {
+      "start": "2025-02-14",
+      "end": "2026-02-14"
+    }
+  ],
+  "groups": []
+}

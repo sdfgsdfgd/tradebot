@@ -1,0 +1,46 @@
+SLV spot evolve sweep (2025-02-14 -> 2026-02-14, use_rth=False, bar_size=1 min, offline=True, base=champion, axis=combo_full, jobs=4, long_only=False realism=v2 spread=0.01 comm=0.005 comm_min=1 slip=0 sizing=risk_pct risk=0.01 max_notional=0.5)
+START combo_full total=6
+
+=== combo_full: unified tight Cartesian core ===
+combo_full preset active: hf_timing_sniper (tier=profile)
+combo_full dimensions: total=32 timing_profile=32 direction=1 confirm=1 perm=1 tod=1 vol=1 cadence=1 regime=1 regime2=1 exit=1 tick=1 shock=1 slope=1 risk=1 short_mult=1
+combo_full sharding order: timing_profile,tick,regime,regime2,risk,shock,exit,slope,direction,confirm,perm,tod,vol,cadence,short_mult
+
+combo_full watchdog 1/6 (16.7%) kept=0 elapsed=30.0s eta=2.5m rate=0.03/cfg/s heartbeat=axis
+combo_full watchdog 1/6 (16.7%) kept=0 elapsed=60.0s eta=5.0m rate=0.02/cfg/s heartbeat=axis
+combo_full watchdog 1/6 (16.7%) kept=0 elapsed=90.0s eta=7.5m rate=0.01/cfg/s heartbeat=axis
+combo_full axis 1/6 (16.7%) kept=0 elapsed=105.1s eta=8.8m rate=0.01/cfg/s
+combo_full Cartesian jobs tuner: requested=4 tuned=1 total=32
+combo_full Cartesian parallel: workers=1 total=32
+START cfc:0
+[cfc:0] SLV spot evolve sweep (2025-02-14 -> 2026-02-14, use_rth=False, bar_size=1 min, offline=True, base=champion, axis=combo_full, jobs=1, long_only=False realism=v2 spread=0.01 comm=0.005 comm_min=1 slip=0 sizing=risk_pct risk=0.01 max_notional=0.5)
+[cfc:0] worker-stage mode: axis-level progress disabled; using worker/stage heartbeats.
+[cfc:0] START combo_full total=6
+[cfc:0] combo_full_cartesian unresolved rank ranges total=32/32 0-31
+[cfc:0] combo_full_cartesian worker 1/1 dynamic-claim enabled (claim_span=32, batch=2048)
+[cfc:0] combo_full_cartesian worker 1/1 claim 0-31
+[cfc:0] combo_full_cartesian planner[scan] processed=32/32 pending=0 unresolved=32 cached=0 elapsed=0.0s
+[cfc:0] combo_full_cartesian planner[resolve] processed=32/32 pending=32 unresolved=32 cached=0 elapsed=0.6s
+RUNNING workers=1 pending=0 [cfc:0:30.0s]
+combo_full_cartesian planner heartbeat running=1 pending=0 hb_rows=1 tested=0/32 cached_hits=0 eta~0.0m stale=0
+[cfc:0] combo_full watchdog 1/6 (16.7%) kept=0 elapsed=30.0s eta=2.5m rate=0.03/cfg/s heartbeat=axis
+[cfc:0] combo_full_cartesian worker 1/1 1/32 (3.1%) kept=0 elapsed=30.0s eta=15.5m rate=0.03/s inflight=30.0s stage=engine.exec exec=53520/356910 trades=69
+combo_full watchdog 1/6 (16.7%) kept=0 elapsed=150.0s eta=12.5m rate=0.01/cfg/s heartbeat=axis
+RUNNING workers=1 pending=0 [cfc:0:60.1s]
+combo_full_cartesian planner heartbeat running=1 pending=0 hb_rows=1 tested=0/32 cached_hits=0 eta~0.0m stale=0
+[cfc:0] combo_full watchdog 1/6 (16.7%) kept=0 elapsed=60.0s eta=5.0m rate=0.02/cfg/s heartbeat=axis
+[cfc:0] combo_full_cartesian worker 1/1 1/32 (3.1%) kept=0 elapsed=60.0s eta=31.0m rate=0.02/s inflight=60.0s stage=engine.exec exec=133800/356910 trades=163
+combo_full watchdog 1/6 (16.7%) kept=0 elapsed=180.0s eta=15.0m rate=0.01/cfg/s heartbeat=axis
+RUNNING workers=1 pending=0 [cfc:0:90.1s]
+combo_full_cartesian planner heartbeat running=1 pending=0 hb_rows=1 tested=0/32 cached_hits=0 eta~0.0m stale=0
+[cfc:0] combo_full watchdog 1/6 (16.7%) kept=0 elapsed=90.0s eta=7.5m rate=0.01/cfg/s heartbeat=axis
+[cfc:0] combo_full_cartesian worker 1/1 1/32 (3.1%) kept=0 elapsed=90.0s eta=46.5m rate=0.01/s inflight=90.0s stage=engine.exec exec=214080/356910 trades=202
+combo_full watchdog 1/6 (16.7%) kept=0 elapsed=210.0s eta=17.5m rate=0.00/cfg/s heartbeat=axis
+RUNNING workers=1 pending=0 [cfc:0:120.2s]
+combo_full_cartesian planner heartbeat running=1 pending=0 hb_rows=1 tested=0/32 cached_hits=0 eta~0.0m stale=0
+[cfc:0] combo_full watchdog 1/6 (16.7%) kept=0 elapsed=120.0s eta=10.0m rate=0.01/cfg/s heartbeat=axis
+[cfc:0] combo_full_cartesian worker 1/1 1/32 (3.1%) kept=0 elapsed=120.0s eta=62.0m rate=0.01/s inflight=120.0s stage=engine.exec exec=294360/356910 trades=478
+combo_full watchdog 1/6 (16.7%) kept=0 elapsed=240.0s eta=20.0m rate=0.00/cfg/s heartbeat=axis
+RUNNING workers=1 pending=0 [cfc:0:150.2s]
+combo_full_cartesian planner heartbeat running=1 pending=0 hb_rows=1 tested=0/32 cached_hits=0 eta~0.0m stale=0
+[cfc:0] combo_full watchdog 2/6 (33.3%) kept=0 elapsed=150.1s eta=5.0m rate=0.01/cfg/s heartbeat=axis

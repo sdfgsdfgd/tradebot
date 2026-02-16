@@ -1,0 +1,348 @@
+{
+  "run_date": "2026-02-16",
+  "window": "2025-02-14:2026-02-14",
+  "best_cross4_floor086_tr099": {
+    "path": "backtests/slv/diag_bridge_best/trades.csv",
+    "trades": 669,
+    "pnl": 3853.6624999999062,
+    "by_direction": {
+      "long": {
+        "trades": 461,
+        "pnl": 24894.58109999995,
+        "wins": 180,
+        "losses": 281
+      },
+      "short": {
+        "trades": 208,
+        "pnl": -21040.91860000003,
+        "wins": 67,
+        "losses": 139
+      }
+    },
+    "exit_reasons_top": [
+      [
+        "ratsv_adverse_release",
+        538
+      ],
+      [
+        "ratsv_probe_cancel",
+        106
+      ],
+      [
+        "stop_loss_pct",
+        15
+      ],
+      [
+        "flip",
+        10
+      ]
+    ],
+    "jan_feb_2026": {
+      "trades": 127,
+      "pnl": 8487.369900000038,
+      "wins": 58,
+      "losses": 69
+    },
+    "months_worst": [
+      {
+        "month": "2026-02",
+        "trades": 50,
+        "pnl": -14191.743799999957,
+        "wins": 19,
+        "losses": 31
+      },
+      {
+        "month": "2025-04",
+        "trades": 74,
+        "pnl": -8400.779999999968,
+        "wins": 22,
+        "losses": 52
+      },
+      {
+        "month": "2025-11",
+        "trades": 68,
+        "pnl": -7601.495200000044,
+        "wins": 21,
+        "losses": 47
+      },
+      {
+        "month": "2025-03",
+        "trades": 42,
+        "pnl": -4612.8099999999995,
+        "wins": 14,
+        "losses": 28
+      },
+      {
+        "month": "2025-05",
+        "trades": 46,
+        "pnl": -4286.569999999982,
+        "wins": 16,
+        "losses": 30
+      },
+      {
+        "month": "2025-08",
+        "trades": 29,
+        "pnl": -3940.1900000000037,
+        "wins": 5,
+        "losses": 24
+      }
+    ],
+    "months_best": [
+      {
+        "month": "2026-01",
+        "trades": 77,
+        "pnl": 22679.113699999998,
+        "wins": 39,
+        "losses": 38
+      },
+      {
+        "month": "2025-12",
+        "trades": 63,
+        "pnl": 13169.969999999943,
+        "wins": 26,
+        "losses": 37
+      },
+      {
+        "month": "2025-10",
+        "trades": 75,
+        "pnl": 7503.139999999989,
+        "wins": 37,
+        "losses": 38
+      },
+      {
+        "month": "2025-09",
+        "trades": 46,
+        "pnl": 6377.489999999997,
+        "wins": 18,
+        "losses": 28
+      },
+      {
+        "month": "2025-02",
+        "trades": 19,
+        "pnl": 1816.6899999999957,
+        "wins": 9,
+        "losses": 10
+      },
+      {
+        "month": "2025-06",
+        "trades": 42,
+        "pnl": -982.2222000000033,
+        "wins": 12,
+        "losses": 30
+      }
+    ]
+  },
+  "trade_floor_sibling_cross6_floor086_tr099": {
+    "path": "backtests/slv/diag_bridge_cross6/trades.csv",
+    "trades": 681,
+    "pnl": 579.1171999999575,
+    "by_direction": {
+      "long": {
+        "trades": 467,
+        "pnl": 23067.038699999957,
+        "wins": 180,
+        "losses": 287
+      },
+      "short": {
+        "trades": 214,
+        "pnl": -22487.92150000001,
+        "wins": 69,
+        "losses": 143
+      }
+    },
+    "exit_reasons_top": [
+      [
+        "ratsv_adverse_release",
+        546
+      ],
+      [
+        "ratsv_probe_cancel",
+        110
+      ],
+      [
+        "stop_loss_pct",
+        15
+      ],
+      [
+        "flip",
+        10
+      ]
+    ],
+    "jan_feb_2026": {
+      "trades": 130,
+      "pnl": 8331.18630000007,
+      "wins": 58,
+      "losses": 72
+    },
+    "months_worst": [
+      {
+        "month": "2026-02",
+        "trades": 51,
+        "pnl": -13934.377199999944,
+        "wins": 19,
+        "losses": 32
+      },
+      {
+        "month": "2025-04",
+        "trades": 75,
+        "pnl": -8808.839999999964,
+        "wins": 22,
+        "losses": 53
+      },
+      {
+        "month": "2025-11",
+        "trades": 69,
+        "pnl": -7703.010100000043,
+        "wins": 21,
+        "losses": 48
+      },
+      {
+        "month": "2025-05",
+        "trades": 48,
+        "pnl": -5898.649999999984,
+        "wins": 16,
+        "losses": 32
+      },
+      {
+        "month": "2025-03",
+        "trades": 42,
+        "pnl": -4612.8099999999995,
+        "wins": 14,
+        "losses": 28
+      },
+      {
+        "month": "2025-08",
+        "trades": 29,
+        "pnl": -3856.2700000000023,
+        "wins": 5,
+        "losses": 24
+      }
+    ],
+    "months_best": [
+      {
+        "month": "2026-01",
+        "trades": 79,
+        "pnl": 22265.56350000001,
+        "wins": 39,
+        "losses": 40
+      },
+      {
+        "month": "2025-12",
+        "trades": 65,
+        "pnl": 12224.099999999953,
+        "wins": 26,
+        "losses": 39
+      },
+      {
+        "month": "2025-10",
+        "trades": 76,
+        "pnl": 7816.019999999985,
+        "wins": 38,
+        "losses": 38
+      },
+      {
+        "month": "2025-09",
+        "trades": 47,
+        "pnl": 5597.649999999994,
+        "wins": 18,
+        "losses": 29
+      },
+      {
+        "month": "2025-02",
+        "trades": 19,
+        "pnl": 1816.6899999999957,
+        "wins": 9,
+        "losses": 10
+      },
+      {
+        "month": "2025-06",
+        "trades": 42,
+        "pnl": -560.5890000000068,
+        "wins": 13,
+        "losses": 29
+      }
+    ]
+  },
+  "deltas": {
+    "trade_delta_cross6_minus_cross4": 12,
+    "pnl_delta_cross6_minus_cross4": -3274.545299999949,
+    "long_pnl_delta": -1827.5423999999912,
+    "short_pnl_delta": -1447.0028999999813,
+    "worst_month_deltas": [
+      {
+        "month": "2025-05",
+        "best_cross4_pnl": -4286.569999999982,
+        "cross6_pnl": -5898.649999999984,
+        "delta_cross6_minus_cross4": -1612.0800000000017
+      },
+      {
+        "month": "2025-12",
+        "best_cross4_pnl": 13169.969999999943,
+        "cross6_pnl": 12224.099999999953,
+        "delta_cross6_minus_cross4": -945.8699999999899
+      },
+      {
+        "month": "2025-09",
+        "best_cross4_pnl": 6377.489999999997,
+        "cross6_pnl": 5597.649999999994,
+        "delta_cross6_minus_cross4": -779.8400000000029
+      },
+      {
+        "month": "2026-01",
+        "best_cross4_pnl": 22679.113699999998,
+        "cross6_pnl": 22265.56350000001,
+        "delta_cross6_minus_cross4": -413.55019999998694
+      },
+      {
+        "month": "2025-04",
+        "best_cross4_pnl": -8400.779999999968,
+        "cross6_pnl": -8808.839999999964,
+        "delta_cross6_minus_cross4": -408.05999999999585
+      },
+      {
+        "month": "2025-11",
+        "best_cross4_pnl": -7601.495200000044,
+        "cross6_pnl": -7703.010100000043,
+        "delta_cross6_minus_cross4": -101.51489999999922
+      }
+    ],
+    "best_month_deltas": [
+      {
+        "month": "2025-06",
+        "best_cross4_pnl": -982.2222000000033,
+        "cross6_pnl": -560.5890000000068,
+        "delta_cross6_minus_cross4": 421.6331999999966
+      },
+      {
+        "month": "2025-10",
+        "best_cross4_pnl": 7503.139999999989,
+        "cross6_pnl": 7816.019999999985,
+        "delta_cross6_minus_cross4": 312.87999999999556
+      },
+      {
+        "month": "2026-02",
+        "best_cross4_pnl": -14191.743799999957,
+        "cross6_pnl": -13934.377199999944,
+        "delta_cross6_minus_cross4": 257.3666000000121
+      },
+      {
+        "month": "2025-08",
+        "best_cross4_pnl": -3940.1900000000037,
+        "cross6_pnl": -3856.2700000000023,
+        "delta_cross6_minus_cross4": 83.92000000000144
+      },
+      {
+        "month": "2025-03",
+        "best_cross4_pnl": -4612.8099999999995,
+        "cross6_pnl": -4612.8099999999995,
+        "delta_cross6_minus_cross4": 0.0
+      },
+      {
+        "month": "2025-02",
+        "best_cross4_pnl": 1816.6899999999957,
+        "cross6_pnl": 1816.6899999999957,
+        "delta_cross6_minus_cross4": 0.0
+      }
+    ]
+  }
+}

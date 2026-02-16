@@ -1,0 +1,18 @@
+{
+  "name": "slv_hf_pg_r1_20260216_precision_guard_stageA_ranked",
+  "generated_at": "2026-02-16T05:09:36Z",
+  "source": "/Users/x/Desktop/py/tradebot/backtests/slv/slv_hf_pg_r1_20260216_precision_guard_stageA_candidates.json",
+  "windows": [
+    {
+      "start": "2025-02-14",
+      "end": "2026-02-14"
+    }
+  ],
+  "groups": [],
+  "notes": [
+    "rank=pnl_first",
+    "tested=48",
+    "kept=0",
+    "output_kept=0"
+  ]
+}

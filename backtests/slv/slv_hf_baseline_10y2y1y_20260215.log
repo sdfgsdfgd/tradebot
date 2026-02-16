@@ -1,0 +1,105 @@
+multitimeframe prep candidates=1 jobs=1 offline=True cache_dir=db
+multitimeframe windows 2016-02-14->2026-02-14, 2024-02-14->2026-02-14, 2025-02-14->2026-02-14
+multitimeframe preflight start candidates=1 windows=3
+multitimeframe preflight checks=6 unique=6 missing=0 elapsed=0.0s
+multitimeframe preflight done checks=6 unique=6 missing=0
+multitimeframe serial 0/1 (0.0%) kept=0 elapsed=0.0s eta=0.0m rate=0.00/cands/s
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=15.0s eta=0.0m rate=0.07/cands/s inflight_candidate=15.0s stage=engine.exec path=exec window=1/3 exec=28544/356910 sig=28544/356910 trades=33
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=30.0s eta=0.0m rate=0.03/cands/s inflight_candidate=30.0s stage=engine.exec path=exec window=1/3 exec=69576/356910 sig=69576/356910 trades=134
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=45.0s eta=0.0m rate=0.02/cands/s inflight_candidate=45.0s stage=engine.exec path=exec window=1/3 exec=112392/356910 sig=112392/356910 trades=173
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=60.1s eta=0.0m rate=0.02/cands/s inflight_candidate=60.1s stage=engine.exec path=exec window=1/3 exec=156992/356910 sig=156992/356910 trades=209
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=75.1s eta=0.0m rate=0.01/cands/s inflight_candidate=75.1s stage=engine.exec path=exec window=1/3 exec=199808/356910 sig=199808/356910 trades=229
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=90.1s eta=0.0m rate=0.01/cands/s inflight_candidate=90.1s stage=engine.exec path=exec window=1/3 exec=242624/356910 sig=242624/356910 trades=356
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=105.1s eta=0.0m rate=0.01/cands/s inflight_candidate=105.1s stage=engine.exec path=exec window=1/3 exec=283656/356910 sig=283656/356910 trades=476
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=120.1s eta=0.0m rate=0.01/cands/s inflight_candidate=120.1s stage=engine.exec path=exec window=1/3 exec=326472/356910 sig=326472/356910 trades=825
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=135.1s eta=0.0m rate=0.01/cands/s inflight_candidate=135.1s stage=summary.path path=exec window=2/3 exec=356910/711275 sig=356910/356910 trades=1504
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=150.2s eta=0.0m rate=0.01/cands/s inflight_candidate=150.2s stage=engine.exec path=exec window=2/3 exec=42672/711275 sig=42672/711275 trades=39
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=165.2s eta=0.0m rate=0.01/cands/s inflight_candidate=165.2s stage=engine.exec path=exec window=2/3 exec=85344/711275 sig=85344/711275 trades=135
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=180.2s eta=0.0m rate=0.01/cands/s inflight_candidate=180.2s stage=engine.exec path=exec window=2/3 exec=128016/711275 sig=128016/711275 trades=254
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=195.2s eta=0.0m rate=0.01/cands/s inflight_candidate=195.2s stage=engine.exec path=exec window=2/3 exec=170688/711275 sig=170688/711275 trades=312
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=210.2s eta=0.0m rate=0.00/cands/s inflight_candidate=210.2s stage=engine.exec path=exec window=2/3 exec=216916/711275 sig=216916/711275 trades=390
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=225.2s eta=0.0m rate=0.00/cands/s inflight_candidate=225.2s stage=engine.exec path=exec window=2/3 exec=259588/711275 sig=259588/711275 trades=475
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=240.3s eta=0.0m rate=0.00/cands/s inflight_candidate=240.3s stage=engine.exec path=exec window=2/3 exec=302260/711275 sig=302260/711275 trades=523
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=255.3s eta=0.0m rate=0.00/cands/s inflight_candidate=255.3s stage=engine.exec path=exec window=2/3 exec=344932/711275 sig=344932/711275 trades=567
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=270.3s eta=0.0m rate=0.00/cands/s inflight_candidate=270.3s stage=engine.exec path=exec window=2/3 exec=391160/711275 sig=391160/711275 trades=618
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=285.3s eta=0.0m rate=0.00/cands/s inflight_candidate=285.3s stage=engine.exec path=exec window=2/3 exec=433832/711275 sig=433832/711275 trades=725
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=300.3s eta=0.0m rate=0.00/cands/s inflight_candidate=300.3s stage=engine.exec path=exec window=2/3 exec=476504/711275 sig=476504/711275 trades=768
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=315.3s eta=0.0m rate=0.00/cands/s inflight_candidate=315.3s stage=engine.exec path=exec window=2/3 exec=519176/711275 sig=519176/711275 trades=795
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=330.3s eta=0.0m rate=0.00/cands/s inflight_candidate=330.3s stage=engine.exec path=exec window=2/3 exec=561848/711275 sig=561848/711275 trades=814
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=345.4s eta=0.0m rate=0.00/cands/s inflight_candidate=345.4s stage=engine.exec path=exec window=2/3 exec=604520/711275 sig=604520/711275 trades=977
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=360.4s eta=0.0m rate=0.00/cands/s inflight_candidate=360.4s stage=engine.exec path=exec window=2/3 exec=643636/711275 sig=643636/711275 trades=1080
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=375.4s eta=0.0m rate=0.00/cands/s inflight_candidate=375.4s stage=engine.exec path=exec window=2/3 exec=682752/711275 sig=682752/711275 trades=1444
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=390.4s eta=0.0m rate=0.00/cands/s inflight_candidate=390.4s stage=window.start path=exec window=3/3 exec=711275/711275 sig=711275/711275 trades=2085
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=405.5s eta=0.0m rate=0.00/cands/s inflight_candidate=405.5s stage=summary.path path=exec window=3/3 exec=711275/2650449 sig=711275/711275 trades=2085
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=420.5s eta=0.0m rate=0.00/cands/s inflight_candidate=420.5s stage=engine.exec path=exec window=3/3 exec=13252/2650449 sig=13252/2650449 trades=12
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=435.5s eta=0.0m rate=0.00/cands/s inflight_candidate=435.5s stage=engine.exec path=exec window=3/3 exec=53008/2650449 sig=53008/2650449 trades=70
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=450.6s eta=0.0m rate=0.00/cands/s inflight_candidate=450.6s stage=engine.exec path=exec window=3/3 exec=92764/2650449 sig=92764/2650449 trades=122
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=465.6s eta=0.0m rate=0.00/cands/s inflight_candidate=465.6s stage=engine.exec path=exec window=3/3 exec=145772/2650449 sig=145772/2650449 trades=167
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=480.6s eta=0.0m rate=0.00/cands/s inflight_candidate=480.6s stage=engine.exec path=exec window=3/3 exec=185528/2650449 sig=185528/2650449 trades=213
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=495.6s eta=0.0m rate=0.00/cands/s inflight_candidate=495.6s stage=engine.exec path=exec window=3/3 exec=225284/2650449 sig=225284/2650449 trades=238
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=510.6s eta=0.0m rate=0.00/cands/s inflight_candidate=510.6s stage=engine.exec path=exec window=3/3 exec=265040/2650449 sig=265040/2650449 trades=257
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=525.6s eta=0.0m rate=0.00/cands/s inflight_candidate=525.6s stage=engine.exec path=exec window=3/3 exec=304796/2650449 sig=304796/2650449 trades=273
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=540.7s eta=0.0m rate=0.00/cands/s inflight_candidate=540.7s stage=engine.exec path=exec window=3/3 exec=357804/2650449 sig=357804/2650449 trades=304
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=555.7s eta=0.0m rate=0.00/cands/s inflight_candidate=555.7s stage=engine.exec path=exec window=3/3 exec=397560/2650449 sig=397560/2650449 trades=331
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=570.7s eta=0.0m rate=0.00/cands/s inflight_candidate=570.7s stage=engine.exec path=exec window=3/3 exec=437316/2650449 sig=437316/2650449 trades=349
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=585.7s eta=0.0m rate=0.00/cands/s inflight_candidate=585.7s stage=engine.exec path=exec window=3/3 exec=477072/2650449 sig=477072/2650449 trades=374
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=600.7s eta=0.0m rate=0.00/cands/s inflight_candidate=600.7s stage=engine.exec path=exec window=3/3 exec=516828/2650449 sig=516828/2650449 trades=392
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=615.7s eta=0.0m rate=0.00/cands/s inflight_candidate=615.7s stage=engine.exec path=exec window=3/3 exec=556584/2650449 sig=556584/2650449 trades=412
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=630.8s eta=0.0m rate=0.00/cands/s inflight_candidate=630.8s stage=engine.exec path=exec window=3/3 exec=609592/2650449 sig=609592/2650449 trades=448
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=645.8s eta=0.0m rate=0.00/cands/s inflight_candidate=645.8s stage=engine.exec path=exec window=3/3 exec=649348/2650449 sig=649348/2650449 trades=469
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=660.8s eta=0.0m rate=0.00/cands/s inflight_candidate=660.8s stage=engine.exec path=exec window=3/3 exec=689104/2650449 sig=689104/2650449 trades=486
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=675.8s eta=0.0m rate=0.00/cands/s inflight_candidate=675.8s stage=engine.exec path=exec window=3/3 exec=728860/2650449 sig=728860/2650449 trades=496
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=690.8s eta=0.0m rate=0.00/cands/s inflight_candidate=690.8s stage=engine.exec path=exec window=3/3 exec=781868/2650449 sig=781868/2650449 trades=520
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=705.8s eta=0.0m rate=0.00/cands/s inflight_candidate=705.8s stage=engine.exec path=exec window=3/3 exec=821624/2650449 sig=821624/2650449 trades=572
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=720.9s eta=0.0m rate=0.00/cands/s inflight_candidate=720.9s stage=engine.exec path=exec window=3/3 exec=861380/2650449 sig=861380/2650449 trades=617
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=735.9s eta=0.0m rate=0.00/cands/s inflight_candidate=735.9s stage=engine.exec path=exec window=3/3 exec=901136/2650449 sig=901136/2650449 trades=638
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=750.9s eta=0.0m rate=0.00/cands/s inflight_candidate=750.9s stage=engine.exec path=exec window=3/3 exec=940892/2650449 sig=940892/2650449 trades=752
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=765.9s eta=0.0m rate=0.00/cands/s inflight_candidate=765.9s stage=engine.exec path=exec window=3/3 exec=993900/2650449 sig=993900/2650449 trades=993
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=780.9s eta=0.0m rate=0.00/cands/s inflight_candidate=780.9s stage=engine.exec path=exec window=3/3 exec=1033656/2650449 sig=1033656/2650449 trades=1182
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=795.9s eta=0.0m rate=0.00/cands/s inflight_candidate=795.9s stage=engine.exec path=exec window=3/3 exec=1073412/2650449 sig=1073412/2650449 trades=1536
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=811.0s eta=0.0m rate=0.00/cands/s inflight_candidate=811.0s stage=engine.exec path=exec window=3/3 exec=1113168/2650449 sig=1113168/2650449 trades=1648
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=826.0s eta=0.0m rate=0.00/cands/s inflight_candidate=826.0s stage=engine.exec path=exec window=3/3 exec=1166176/2650449 sig=1166176/2650449 trades=1886
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=841.0s eta=0.0m rate=0.00/cands/s inflight_candidate=841.0s stage=engine.exec path=exec window=3/3 exec=1205932/2650449 sig=1205932/2650449 trades=1953
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=856.0s eta=0.0m rate=0.00/cands/s inflight_candidate=856.0s stage=engine.exec path=exec window=3/3 exec=1245688/2650449 sig=1245688/2650449 trades=2036
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=871.0s eta=0.0m rate=0.00/cands/s inflight_candidate=871.0s stage=engine.exec path=exec window=3/3 exec=1285444/2650449 sig=1285444/2650449 trades=2076
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=886.0s eta=0.0m rate=0.00/cands/s inflight_candidate=886.0s stage=engine.exec path=exec window=3/3 exec=1338452/2650449 sig=1338452/2650449 trades=2154
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=901.0s eta=0.0m rate=0.00/cands/s inflight_candidate=901.0s stage=engine.exec path=exec window=3/3 exec=1378208/2650449 sig=1378208/2650449 trades=2198
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=916.1s eta=0.0m rate=0.00/cands/s inflight_candidate=916.1s stage=engine.exec path=exec window=3/3 exec=1417964/2650449 sig=1417964/2650449 trades=2288
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=931.1s eta=0.0m rate=0.00/cands/s inflight_candidate=931.1s stage=engine.exec path=exec window=3/3 exec=1457720/2650449 sig=1457720/2650449 trades=2359
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=946.1s eta=0.0m rate=0.00/cands/s inflight_candidate=946.1s stage=engine.exec path=exec window=3/3 exec=1497476/2650449 sig=1497476/2650449 trades=2440
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=961.1s eta=0.0m rate=0.00/cands/s inflight_candidate=961.1s stage=engine.exec path=exec window=3/3 exec=1537232/2650449 sig=1537232/2650449 trades=2522
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=976.1s eta=0.0m rate=0.00/cands/s inflight_candidate=976.1s stage=engine.exec path=exec window=3/3 exec=1576988/2650449 sig=1576988/2650449 trades=2622
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=991.1s eta=0.0m rate=0.00/cands/s inflight_candidate=991.1s stage=engine.exec path=exec window=3/3 exec=1616744/2650449 sig=1616744/2650449 trades=2707
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=1006.2s eta=0.0m rate=0.00/cands/s inflight_candidate=1006.2s stage=engine.exec path=exec window=3/3 exec=1656500/2650449 sig=1656500/2650449 trades=2788
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=1021.2s eta=0.0m rate=0.00/cands/s inflight_candidate=1021.2s stage=engine.exec path=exec window=3/3 exec=1696256/2650449 sig=1696256/2650449 trades=2865
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=1036.2s eta=0.0m rate=0.00/cands/s inflight_candidate=1036.2s stage=engine.exec path=exec window=3/3 exec=1749264/2650449 sig=1749264/2650449 trades=2940
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=1051.2s eta=0.0m rate=0.00/cands/s inflight_candidate=1051.2s stage=engine.exec path=exec window=3/3 exec=1789020/2650449 sig=1789020/2650449 trades=2974
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=1066.2s eta=0.0m rate=0.00/cands/s inflight_candidate=1066.2s stage=engine.exec path=exec window=3/3 exec=1828776/2650449 sig=1828776/2650449 trades=3029
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=1081.2s eta=0.0m rate=0.00/cands/s inflight_candidate=1081.2s stage=engine.exec path=exec window=3/3 exec=1868532/2650449 sig=1868532/2650449 trades=3078
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=1096.3s eta=0.0m rate=0.00/cands/s inflight_candidate=1096.3s stage=engine.exec path=exec window=3/3 exec=1908288/2650449 sig=1908288/2650449 trades=3116
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=1111.3s eta=0.0m rate=0.00/cands/s inflight_candidate=1111.3s stage=engine.exec path=exec window=3/3 exec=1948044/2650449 sig=1948044/2650449 trades=3158
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=1126.3s eta=0.0m rate=0.00/cands/s inflight_candidate=1126.3s stage=engine.exec path=exec window=3/3 exec=1987800/2650449 sig=1987800/2650449 trades=3206
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=1141.3s eta=0.0m rate=0.00/cands/s inflight_candidate=1141.3s stage=engine.exec path=exec window=3/3 exec=2027556/2650449 sig=2027556/2650449 trades=3291
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=1156.3s eta=0.0m rate=0.00/cands/s inflight_candidate=1156.3s stage=engine.exec path=exec window=3/3 exec=2067312/2650449 sig=2067312/2650449 trades=3406
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=1171.3s eta=0.0m rate=0.00/cands/s inflight_candidate=1171.3s stage=engine.exec path=exec window=3/3 exec=2107068/2650449 sig=2107068/2650449 trades=3463
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=1186.4s eta=0.0m rate=0.00/cands/s inflight_candidate=1186.4s stage=engine.exec path=exec window=3/3 exec=2160076/2650449 sig=2160076/2650449 trades=3552
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=1201.4s eta=0.0m rate=0.00/cands/s inflight_candidate=1201.4s stage=engine.exec path=exec window=3/3 exec=2199832/2650449 sig=2199832/2650449 trades=3636
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=1216.4s eta=0.0m rate=0.00/cands/s inflight_candidate=1216.4s stage=engine.exec path=exec window=3/3 exec=2239588/2650449 sig=2239588/2650449 trades=3673
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=1231.4s eta=0.0m rate=0.00/cands/s inflight_candidate=1231.4s stage=engine.exec path=exec window=3/3 exec=2292596/2650449 sig=2292596/2650449 trades=3733
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=1246.4s eta=0.0m rate=0.00/cands/s inflight_candidate=1246.4s stage=engine.exec path=exec window=3/3 exec=2332352/2650449 sig=2332352/2650449 trades=3771
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=1261.4s eta=0.0m rate=0.00/cands/s inflight_candidate=1261.4s stage=engine.exec path=exec window=3/3 exec=2372108/2650449 sig=2372108/2650449 trades=3875
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=1276.5s eta=0.0m rate=0.00/cands/s inflight_candidate=1276.5s stage=engine.exec path=exec window=3/3 exec=2425116/2650449 sig=2425116/2650449 trades=3926
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=1291.5s eta=0.0m rate=0.00/cands/s inflight_candidate=1291.5s stage=engine.exec path=exec window=3/3 exec=2464872/2650449 sig=2464872/2650449 trades=3947
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=1306.5s eta=0.0m rate=0.00/cands/s inflight_candidate=1306.5s stage=engine.exec path=exec window=3/3 exec=2504628/2650449 sig=2504628/2650449 trades=3967
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=1321.5s eta=0.0m rate=0.00/cands/s inflight_candidate=1321.5s stage=engine.exec path=exec window=3/3 exec=2544384/2650449 sig=2544384/2650449 trades=4131
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=1336.5s eta=0.0m rate=0.00/cands/s inflight_candidate=1336.5s stage=engine.exec path=exec window=3/3 exec=2597392/2650449 sig=2597392/2650449 trades=4311
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=1351.5s eta=0.0m rate=0.00/cands/s inflight_candidate=1351.5s stage=engine.exec path=exec window=3/3 exec=2637148/2650449 sig=2637148/2650449 trades=4888
+multitimeframe serial 1/1 (100.0%) kept=1 elapsed=1353.5s eta=0.0m rate=0.00/cands/s
+
+Multiwindow results: 1 candidates passed filters.
+- symbol=SLV bar=1 min rth=False offline=True
+- windows=2016-02-14→2026-02-14, 2024-02-14→2026-02-14, 2025-02-14→2026-02-14
+- min_trades=0 min_win=0.00
+- eval_cache=db/spot_multiwindow_eval_cache.sqlite3 hits=0 writes=1
+
+ 1. stability(min roi/dd)=-0.90 full roi/dd=-0.90 roi=-70.0% dd%=77.7% pnl=-70001.3 win=36.9% tr=5236 ema=3/7 trend regime=supertrend rbar=1 day

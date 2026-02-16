@@ -1,0 +1,92 @@
+multitimeframe prep candidates=20 jobs=4 offline=True cache_dir=db
+multitimeframe windows 2016-02-14->2026-02-14, 2024-02-14->2026-02-14, 2025-02-14->2026-02-14
+multitimeframe preflight start candidates=20 windows=3
+multitimeframe preflight checks=180 unique=9 missing=0 elapsed=0.0s
+multitimeframe preflight done checks=180 unique=9 missing=0
+multitimeframe parallel: workers=4 total=20
+START mt:0
+START mt:1
+START mt:2
+START mt:3
+[mt:1] multitimeframe prep candidates=20 jobs=1 offline=True cache_dir=db
+[mt:1] multitimeframe windows 2016-02-14->2026-02-14, 2024-02-14->2026-02-14, 2025-02-14->2026-02-14
+[mt:1] multitimeframe preflight start candidates=20 windows=3
+[mt:0] multitimeframe prep candidates=20 jobs=1 offline=True cache_dir=db
+[mt:0] multitimeframe windows 2016-02-14->2026-02-14, 2024-02-14->2026-02-14, 2025-02-14->2026-02-14
+[mt:0] multitimeframe preflight start candidates=20 windows=3
+[mt:3] multitimeframe prep candidates=20 jobs=1 offline=True cache_dir=db
+[mt:3] multitimeframe windows 2016-02-14->2026-02-14, 2024-02-14->2026-02-14, 2025-02-14->2026-02-14
+[mt:3] multitimeframe preflight start candidates=20 windows=3
+[mt:2] multitimeframe prep candidates=20 jobs=1 offline=True cache_dir=db
+[mt:2] multitimeframe windows 2016-02-14->2026-02-14, 2024-02-14->2026-02-14, 2025-02-14->2026-02-14
+[mt:2] multitimeframe preflight start candidates=20 windows=3
+[mt:1] multitimeframe preflight checks=180 unique=9 missing=0 elapsed=0.0s
+[mt:1] multitimeframe preflight done checks=180 unique=9 missing=0
+[mt:1] multitimeframe worker 2/4 0/5 (0.0%) kept=0 elapsed=0.0s eta=0.0m rate=0.00/cands/s
+[mt:0] multitimeframe preflight checks=180 unique=9 missing=0 elapsed=0.0s
+[mt:0] multitimeframe preflight done checks=180 unique=9 missing=0
+[mt:0] multitimeframe worker 1/4 0/5 (0.0%) kept=0 elapsed=0.0s eta=0.0m rate=0.00/cands/s
+[mt:3] multitimeframe preflight checks=180 unique=9 missing=0 elapsed=0.0s
+[mt:3] multitimeframe preflight done checks=180 unique=9 missing=0
+[mt:3] multitimeframe worker 4/4 0/5 (0.0%) kept=0 elapsed=0.0s eta=0.0m rate=0.00/cands/s
+[mt:2] multitimeframe preflight checks=180 unique=9 missing=0 elapsed=0.0s
+[mt:2] multitimeframe preflight done checks=180 unique=9 missing=0
+[mt:2] multitimeframe worker 3/4 0/5 (0.0%) kept=0 elapsed=0.0s eta=0.0m rate=0.00/cands/s
+RUNNING workers=4 pending=0 [mt:0:10.0s, mt:1:10.0s, mt:2:10.0s, mt:3:10.0s]
+[mt:0] multitimeframe worker 1/4 2/5 (40.0%) kept=2 elapsed=15.1s eta=0.4m rate=0.13/cands/s
+[mt:1] multitimeframe worker 2/4 2/5 (40.0%) kept=2 elapsed=15.1s eta=0.4m rate=0.13/cands/s
+[mt:2] multitimeframe worker 3/4 2/5 (40.0%) kept=2 elapsed=16.1s eta=0.4m rate=0.12/cands/s
+[mt:3] multitimeframe worker 4/4 3/5 (60.0%) kept=3 elapsed=18.6s eta=0.2m rate=0.16/cands/s
+RUNNING workers=4 pending=0 [mt:0:20.1s, mt:1:20.1s, mt:2:20.1s, mt:3:20.1s]
+[mt:0] multitimeframe worker 1/4 5/5 (100.0%) kept=5 elapsed=24.0s eta=0.0m rate=0.21/cands/s
+[mt:0] multitimeframe worker done tested=5 kept=5 out=/var/folders/rn/tbt648y54zl_f0m02zrb01sm0000gn/T/tradebot_multitimeframe_3l1f28vz/multitimeframe_out_0.json
+[mt:1] multitimeframe worker 2/4 5/5 (100.0%) kept=5 elapsed=25.0s eta=0.0m rate=0.20/cands/s
+[mt:1] multitimeframe worker done tested=5 kept=5 out=/var/folders/rn/tbt648y54zl_f0m02zrb01sm0000gn/T/tradebot_multitimeframe_3l1f28vz/multitimeframe_out_1.json
+[mt:2] multitimeframe worker 3/4 5/5 (100.0%) kept=5 elapsed=25.2s eta=0.0m rate=0.20/cands/s
+[mt:2] multitimeframe worker done tested=5 kept=5 out=/var/folders/rn/tbt648y54zl_f0m02zrb01sm0000gn/T/tradebot_multitimeframe_3l1f28vz/multitimeframe_out_2.json
+DONE  mt:0 exit=0 elapsed=25.4s
+DONE  mt:1 exit=0 elapsed=26.6s
+DONE  mt:2 exit=0 elapsed=26.7s
+RUNNING workers=1 pending=0 [mt:3:30.1s]
+[mt:3] multitimeframe worker 4/4 5/5 (100.0%) kept=4 elapsed=36.3s eta=0.0m rate=0.14/cands/s inflight_candidate=15.0s stage=engine.exec path=exec window=2/3 exec=105228/142394 trades=1397
+RUNNING workers=1 pending=0 [mt:3:40.1s]
+RUNNING workers=1 pending=0 [mt:3:50.2s]
+[mt:3] multitimeframe worker 4/4 5/5 (100.0%) kept=4 elapsed=51.3s eta=0.0m rate=0.10/cands/s inflight_candidate=30.0s stage=engine.exec path=exec window=3/3 exec=161833/530670 trades=1478
+RUNNING workers=1 pending=0 [mt:3:60.2s]
+[mt:3] multitimeframe worker 4/4 5/5 (100.0%) kept=4 elapsed=66.3s eta=0.0m rate=0.08/cands/s inflight_candidate=45.0s stage=engine.exec path=exec window=3/3 exec=336931/530670 sig=168645/265606 trades=3856
+RUNNING workers=1 pending=0 [mt:3:70.2s]
+RUNNING workers=1 pending=0 [mt:3:80.3s]
+[mt:3] multitimeframe worker 4/4 5/5 (100.0%) kept=4 elapsed=81.3s eta=0.0m rate=0.06/cands/s inflight_candidate=60.1s stage=engine.exec path=exec window=3/3 exec=522641/530670 trades=6194
+[mt:3] multitimeframe worker 4/4 5/5 (100.0%) kept=5 elapsed=82.0s eta=0.0m rate=0.06/cands/s
+[mt:3] multitimeframe worker done tested=5 kept=5 out=/var/folders/rn/tbt648y54zl_f0m02zrb01sm0000gn/T/tradebot_multitimeframe_3l1f28vz/multitimeframe_out_3.json
+DONE  mt:3 exit=0 elapsed=84.2s
+
+Multiwindow results: 20 candidates passed filters.
+- symbol=SLV bar=10 mins rth=False offline=True
+- windows=2016-02-14→2026-02-14, 2024-02-14→2026-02-14, 2025-02-14→2026-02-14
+- min_trades=0 min_win=0.00
+- workers=4 tested_total=20
+- eval_cache=db/spot_multiwindow_eval_cache.sqlite3 hits=0 writes=0
+
+ 1. stability(min roi/dd)=-0.87 full roi/dd=-0.87 roi=-55.6% dd%=64.2% pnl=-55551.2 win=61.8% tr=4096 ema=5/13 trend regime=supertrend rbar=1 day
+ 2. stability(min roi/dd)=-0.87 full roi/dd=-0.87 roi=-55.5% dd%=64.1% pnl=-55511.8 win=62.3% tr=4095 ema=5/13 trend regime=supertrend rbar=1 day
+ 3. stability(min roi/dd)=-0.87 full roi/dd=-0.87 roi=-55.4% dd%=64.0% pnl=-55429.3 win=62.7% tr=4110 ema=5/13 trend regime=supertrend rbar=1 day
+ 4. stability(min roi/dd)=-0.87 full roi/dd=-0.87 roi=-55.7% dd%=64.2% pnl=-55653.7 win=62.8% tr=4121 ema=5/13 trend regime=supertrend rbar=1 day
+ 5. stability(min roi/dd)=-0.87 full roi/dd=-0.87 roi=-56.0% dd%=64.5% pnl=-56008.0 win=61.5% tr=4106 ema=5/13 trend regime=supertrend rbar=1 day
+ 6. stability(min roi/dd)=-0.87 full roi/dd=-0.87 roi=-56.0% dd%=64.4% pnl=-55989.1 win=62.0% tr=4099 ema=5/13 trend regime=supertrend rbar=1 day
+ 7. stability(min roi/dd)=-0.87 full roi/dd=-0.87 roi=-56.1% dd%=64.5% pnl=-56058.7 win=62.5% tr=4106 ema=5/13 trend regime=supertrend rbar=1 day
+ 8. stability(min roi/dd)=-0.87 full roi/dd=-0.87 roi=-56.2% dd%=64.6% pnl=-56200.8 win=62.7% tr=4126 ema=5/13 trend regime=supertrend rbar=1 day
+ 9. stability(min roi/dd)=-0.88 full roi/dd=-0.88 roi=-57.5% dd%=65.7% pnl=-57529.3 win=61.6% tr=4077 ema=5/13 trend regime=supertrend rbar=1 day
+10. stability(min roi/dd)=-0.88 full roi/dd=-0.88 roi=-55.3% dd%=63.0% pnl=-55269.3 win=62.8% tr=4129 ema=5/13 trend regime=supertrend rbar=1 day
+11. stability(min roi/dd)=-0.88 full roi/dd=-0.88 roi=-55.3% dd%=63.1% pnl=-55346.3 win=62.5% tr=4113 ema=5/13 trend regime=supertrend rbar=1 day
+12. stability(min roi/dd)=-0.88 full roi/dd=-0.88 roi=-55.2% dd%=62.9% pnl=-55229.6 win=62.8% tr=4145 ema=5/13 trend regime=supertrend rbar=1 day
+13. stability(min roi/dd)=-0.88 full roi/dd=-0.88 roi=-55.7% dd%=63.4% pnl=-55712.8 win=61.9% tr=4113 ema=5/13 trend regime=supertrend rbar=1 day
+14. stability(min roi/dd)=-0.88 full roi/dd=-0.88 roi=-58.2% dd%=66.2% pnl=-58218.3 win=61.9% tr=4077 ema=5/13 trend regime=supertrend rbar=1 day
+15. stability(min roi/dd)=-0.88 full roi/dd=-0.88 roi=-55.8% dd%=63.4% pnl=-55779.1 win=62.6% tr=4132 ema=5/13 trend regime=supertrend rbar=1 day
+16. stability(min roi/dd)=-0.88 full roi/dd=-0.88 roi=-58.3% dd%=66.2% pnl=-58264.0 win=62.4% tr=4093 ema=5/13 trend regime=supertrend rbar=1 day
+17. stability(min roi/dd)=-0.88 full roi/dd=-0.88 roi=-55.9% dd%=63.5% pnl=-55936.8 win=62.3% tr=4121 ema=5/13 trend regime=supertrend rbar=1 day
+18. stability(min roi/dd)=-0.88 full roi/dd=-0.88 roi=-55.7% dd%=63.3% pnl=-55732.5 win=62.6% tr=4148 ema=5/13 trend regime=supertrend rbar=1 day
+19. stability(min roi/dd)=-0.88 full roi/dd=-0.88 roi=-56.2% dd%=63.8% pnl=-56223.7 win=61.6% tr=4118 ema=5/13 trend regime=supertrend rbar=1 day
+20. stability(min roi/dd)=-0.98 full roi/dd=-0.98 roi=-88.1% dd%=90.2% pnl=-88091.7 win=23.0% tr=6317 ema=5/13 trend regime=supertrend rbar=1 day
+
+Wrote backtests/slv/slv_hf_strike2b_microgate_10y2y1y_ranked_20260216_v1.json (top=20).

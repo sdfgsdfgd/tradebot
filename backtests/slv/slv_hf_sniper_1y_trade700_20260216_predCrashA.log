@@ -1,0 +1,24 @@
+SLV spot evolve sweep (2025-02-14 -> 2026-02-14, use_rth=False, bar_size=10 mins, offline=True, base=champion, axis=combo_full, jobs=8, long_only=False realism=v2 spread=0.01 comm=0.005 comm_min=1 slip=0 sizing=risk_pct risk=0.01 max_notional=0.5)
+START combo_full total=6
+
+=== combo_full: unified tight Cartesian core ===
+combo_full preset active: hf_timing_sniper (tier=profile)
+combo_full dimensions: total=64 timing_profile=64 direction=1 confirm=1 perm=1 tod=1 vol=1 cadence=1 regime=1 regime2=1 exit=1 tick=1 shock=1 slope=1 risk=1 short_mult=1
+combo_full sharding order: timing_profile,tick,regime,regime2,risk,shock,exit,slope,direction,confirm,perm,tod,vol,cadence,short_mult
+
+combo_full Cartesian jobs tuner: requested=8 tuned=1 total=64
+combo_full Cartesian parallel: workers=1 total=64
+START cfc:0
+[cfc:0] SLV spot evolve sweep (2025-02-14 -> 2026-02-14, use_rth=False, bar_size=10 mins, offline=True, base=champion, axis=combo_full, jobs=1, long_only=False realism=v2 spread=0.01 comm=0.005 comm_min=1 slip=0 sizing=risk_pct risk=0.01 max_notional=0.5)
+[cfc:0] worker-stage mode: axis-level progress disabled; using worker/stage heartbeats.
+[cfc:0] START combo_full total=6
+[cfc:0] combo_full_cartesian unresolved rank ranges total=64/64 0-63
+[cfc:0] combo_full_cartesian worker 1/1 dynamic-claim enabled (claim_span=32, batch=2048)
+[cfc:0] combo_full_cartesian worker 1/1 claim 0-31
+[cfc:0] combo_full_cartesian planner[scan] processed=32/32 pending=0 unresolved=32 cached=0 elapsed=0.0s
+[cfc:0] combo_full_cartesian planner[resolve] processed=32/32 pending=32 unresolved=32 cached=0 elapsed=0.4s
+combo_full watchdog 1/6 (16.7%) kept=0 elapsed=30.0s eta=2.5m rate=0.03/cfg/s heartbeat=axis
+RUNNING workers=1 pending=0 [cfc:0:30.0s]
+combo_full_cartesian planner heartbeat running=1 pending=0 hb_rows=1 tested=0/64 cached_hits=0 eta~0.0m stale=0
+[cfc:0] combo_full watchdog 2/6 (33.3%) kept=0 elapsed=30.0s eta=1.0m rate=0.07/cfg/s heartbeat=axis
+[cfc:0] combo_full_cartesian worker 1/1 2/32 (6.2%) kept=1 elapsed=30.0s eta=7.5m rate=0.07/s inflight=6.5s stage=engine.exec exec=130232/356910 trades=216

@@ -1,9 +1,0 @@
-SLV spot evolve sweep (2025-01-08 -> 2026-01-08, use_rth=False, bar_size=10 mins, offline=True, base=champion, axis=hf_scalp, jobs=12, long_only=False realism=v2 spread=0.01 comm=0.005 comm_min=1 slip=0 sizing=risk_pct risk=0.01 max_notional=0.5)
-
-HF scalper: stage1 (stacked stop+flip) — Top by pnl/dd
-------------------------------------------------------
-
-HF scalper: stage1 (stacked stop+flip) — Top by pnl
----------------------------------------------------
-HF scalper: stage1 produced 0 results; nothing to refine.
-Wrote backtests/slv/slv_exec5m_v27_hf_scalp_10m_1y_milestones_20260206_200431.json (0 eligible presets).

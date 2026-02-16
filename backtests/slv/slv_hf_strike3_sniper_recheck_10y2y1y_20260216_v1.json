@@ -1,0 +1,20 @@
+{
+  "name": "multitimeframe_top",
+  "generated_at": "2026-02-16T05:42:58.117160Z",
+  "source": "backtests/slv/slv_hf_v10_sniper_complex_10y2y1y_20260216_round1_top6.json",
+  "windows": [
+    {
+      "start": "2016-02-14",
+      "end": "2026-02-14"
+    },
+    {
+      "start": "2024-02-14",
+      "end": "2026-02-14"
+    },
+    {
+      "start": "2025-02-14",
+      "end": "2026-02-14"
+    }
+  ],
+  "groups": []
+}

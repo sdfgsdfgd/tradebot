@@ -1,0 +1,146 @@
+SLV spot evolve sweep (2025-02-14 -> 2026-02-14, use_rth=False, bar_size=10 mins, offline=True, base=champion, axis=flip_exit, jobs=12, long_only=False realism=v2 spread=0.01 comm=0.005 comm_min=1 slip=0 sizing=risk_pct risk=0.01 max_notional=0.5)
+START flip_exit total=48
+flip_exit axis 2/48 (4.2%) kept=2 elapsed=23.3s eta=8.9m rate=0.09/cfg/s
+flip_exit watchdog 4/48 (8.3%) kept=3 elapsed=60.0s eta=11.0m rate=0.07/cfg/s heartbeat=axis
+flip_exit axis 4/48 (8.3%) kept=4 elapsed=61.9s eta=11.3m rate=0.06/cfg/s
+flip_exit watchdog 7/48 (14.6%) kept=6 elapsed=90.0s eta=8.8m rate=0.08/cfg/s heartbeat=axis
+flip_exit axis 7/48 (14.6%) kept=7 elapsed=100.6s eta=9.8m rate=0.07/cfg/s
+flip_exit axis 9/48 (18.8%) kept=9 elapsed=139.4s eta=10.1m rate=0.06/cfg/s
+flip_exit axis 11/48 (22.9%) kept=11 elapsed=178.1s eta=10.0m rate=0.06/cfg/s
+flip_exit watchdog 13/48 (27.1%) kept=12 elapsed=210.1s eta=9.4m rate=0.06/cfg/s heartbeat=axis
+flip_exit axis 13/48 (27.1%) kept=13 elapsed=216.6s eta=9.7m rate=0.06/cfg/s
+flip_exit axis 15/48 (31.2%) kept=15 elapsed=255.2s eta=9.4m rate=0.06/cfg/s
+flip_exit axis 17/48 (35.4%) kept=17 elapsed=293.7s eta=8.9m rate=0.06/cfg/s
+flip_exit watchdog 19/48 (39.6%) kept=18 elapsed=330.1s eta=8.4m rate=0.06/cfg/s heartbeat=axis
+flip_exit axis 19/48 (39.6%) kept=19 elapsed=332.3s eta=8.5m rate=0.06/cfg/s
+flip_exit watchdog 21/48 (43.8%) kept=20 elapsed=360.1s eta=7.7m rate=0.06/cfg/s heartbeat=axis
+flip_exit axis 21/48 (43.8%) kept=21 elapsed=370.9s eta=7.9m rate=0.06/cfg/s
+flip_exit axis 23/48 (47.9%) kept=23 elapsed=409.9s eta=7.4m rate=0.06/cfg/s
+flip_exit axis 25/48 (52.1%) kept=25 elapsed=448.6s eta=6.9m rate=0.06/cfg/s
+flip_exit watchdog 27/48 (56.2%) kept=26 elapsed=480.2s eta=6.2m rate=0.06/cfg/s heartbeat=axis
+flip_exit axis 27/48 (56.2%) kept=27 elapsed=487.3s eta=6.3m rate=0.06/cfg/s
+flip_exit axis 29/48 (60.4%) kept=29 elapsed=526.1s eta=5.7m rate=0.06/cfg/s
+flip_exit axis 31/48 (64.6%) kept=31 elapsed=564.8s eta=5.2m rate=0.05/cfg/s
+flip_exit watchdog 33/48 (68.8%) kept=32 elapsed=600.2s eta=4.5m rate=0.05/cfg/s heartbeat=axis
+flip_exit axis 33/48 (68.8%) kept=33 elapsed=603.6s eta=4.6m rate=0.05/cfg/s
+flip_exit watchdog 35/48 (72.9%) kept=34 elapsed=630.2s eta=3.9m rate=0.06/cfg/s heartbeat=axis
+flip_exit axis 35/48 (72.9%) kept=35 elapsed=642.3s eta=4.0m rate=0.05/cfg/s
+flip_exit axis 37/48 (77.1%) kept=37 elapsed=680.9s eta=3.4m rate=0.05/cfg/s
+flip_exit axis 39/48 (81.2%) kept=39 elapsed=719.9s eta=2.8m rate=0.05/cfg/s
+flip_exit watchdog 41/48 (85.4%) kept=40 elapsed=750.3s eta=2.1m rate=0.05/cfg/s heartbeat=axis
+flip_exit axis 41/48 (85.4%) kept=41 elapsed=758.7s eta=2.2m rate=0.05/cfg/s
+flip_exit axis 43/48 (89.6%) kept=43 elapsed=797.4s eta=1.5m rate=0.05/cfg/s
+flip_exit axis 45/48 (93.8%) kept=45 elapsed=836.1s eta=0.9m rate=0.05/cfg/s
+flip_exit watchdog 47/48 (97.9%) kept=46 elapsed=870.3s eta=0.3m rate=0.05/cfg/s heartbeat=axis
+flip_exit axis 47/48 (97.9%) kept=47 elapsed=875.0s eta=0.3m rate=0.05/cfg/s
+flip_exit axis 48/48 (100.0%) kept=48 elapsed=894.6s eta=0.0m rate=0.05/cfg/s
+flip_exit axis 49/48 (102.1%) kept=49 elapsed=914.1s eta=0.0m rate=0.05/cfg/s
+
+Flip-exit semantics sweep — Top by pnl/dd
+-----------------------------------------
+ 1. tr= 881 win= 41.9% pnl=   -7591.6 dd= 30967.3 pnl/dd= -0.25 roi= -7.59% dd%= 30.97% flip=on mode=cross hold=0 only_profit=0
+ 2. tr= 881 win= 41.9% pnl=   -7591.6 dd= 30967.3 pnl/dd= -0.25 roi= -7.59% dd%= 30.97% flip=on mode=cross hold=2 only_profit=0
+ 3. tr= 881 win= 41.9% pnl=   -7591.6 dd= 30967.3 pnl/dd= -0.25 roi= -7.59% dd%= 30.97% flip=on mode=cross hold=4 only_profit=0
+ 4. tr= 881 win= 41.9% pnl=   -7591.6 dd= 30967.3 pnl/dd= -0.25 roi= -7.59% dd%= 30.97% flip=on mode=cross hold=6 only_profit=0
+ 5. tr= 879 win= 42.9% pnl=   -8017.5 dd= 30819.4 pnl/dd= -0.26 roi= -8.02% dd%= 30.82% flip=on mode=entry hold=6 only_profit=1
+ 6. tr= 879 win= 42.9% pnl=   -8017.5 dd= 30819.4 pnl/dd= -0.26 roi= -8.02% dd%= 30.82% flip=on mode=state hold=6 only_profit=1
+ 7. tr= 879 win= 42.9% pnl=   -8033.5 dd= 30815.9 pnl/dd= -0.26 roi= -8.03% dd%= 30.82% flip=on mode=entry hold=0 only_profit=1
+ 8. tr= 879 win= 42.9% pnl=   -8033.5 dd= 30815.9 pnl/dd= -0.26 roi= -8.03% dd%= 30.82% flip=on mode=entry hold=2 only_profit=1
+ 9. tr= 879 win= 42.9% pnl=   -8033.5 dd= 30815.9 pnl/dd= -0.26 roi= -8.03% dd%= 30.82% flip=on mode=entry hold=4 only_profit=1
+10. tr= 879 win= 42.9% pnl=   -8033.5 dd= 30815.9 pnl/dd= -0.26 roi= -8.03% dd%= 30.82% flip=on mode=state hold=0 only_profit=1
+11. tr= 879 win= 42.9% pnl=   -8033.5 dd= 30815.9 pnl/dd= -0.26 roi= -8.03% dd%= 30.82% flip=on mode=state hold=2 only_profit=1
+12. tr= 879 win= 42.9% pnl=   -8033.5 dd= 30815.9 pnl/dd= -0.26 roi= -8.03% dd%= 30.82% flip=on mode=state hold=4 only_profit=1
+13. tr= 884 win= 42.0% pnl=   -8334.4 dd= 30705.8 pnl/dd= -0.27 roi= -8.33% dd%= 30.71% flip=on mode=entry hold=0 only_profit=0
+14. tr= 884 win= 42.0% pnl=   -8334.4 dd= 30705.8 pnl/dd= -0.27 roi= -8.33% dd%= 30.71% flip=on mode=entry hold=2 only_profit=0
+15. tr= 884 win= 42.0% pnl=   -8334.4 dd= 30705.8 pnl/dd= -0.27 roi= -8.33% dd%= 30.71% flip=on mode=entry hold=4 only_profit=0
+16. tr= 884 win= 42.0% pnl=   -8334.4 dd= 30705.8 pnl/dd= -0.27 roi= -8.33% dd%= 30.71% flip=on mode=state hold=0 only_profit=0
+17. tr= 884 win= 42.0% pnl=   -8334.4 dd= 30705.8 pnl/dd= -0.27 roi= -8.33% dd%= 30.71% flip=on mode=state hold=2 only_profit=0
+18. tr= 884 win= 42.0% pnl=   -8334.4 dd= 30705.8 pnl/dd= -0.27 roi= -8.33% dd%= 30.71% flip=on mode=state hold=4 only_profit=0
+19. tr= 884 win= 42.0% pnl=   -8397.6 dd= 30701.2 pnl/dd= -0.27 roi= -8.40% dd%= 30.70% flip=on mode=entry hold=6 only_profit=0
+20. tr= 884 win= 42.0% pnl=   -8397.6 dd= 30701.2 pnl/dd= -0.27 roi= -8.40% dd%= 30.70% flip=on mode=state hold=6 only_profit=0
+21. tr= 884 win= 42.0% pnl=   -8397.6 dd= 30701.2 pnl/dd= -0.27 roi= -8.40% dd%= 30.70% base
+22. tr= 877 win= 42.3% pnl=   -8545.1 dd= 30637.7 pnl/dd= -0.28 roi= -8.55% dd%= 30.64% flip=on mode=cross hold=0 only_profit=1
+23. tr= 877 win= 42.3% pnl=   -8545.1 dd= 30637.7 pnl/dd= -0.28 roi= -8.55% dd%= 30.64% flip=on mode=cross hold=2 only_profit=1
+24. tr= 877 win= 42.3% pnl=   -8545.1 dd= 30637.7 pnl/dd= -0.28 roi= -8.55% dd%= 30.64% flip=on mode=cross hold=4 only_profit=1
+25. tr= 877 win= 42.3% pnl=   -8545.1 dd= 30637.7 pnl/dd= -0.28 roi= -8.55% dd%= 30.64% flip=on mode=cross hold=6 only_profit=1
+26. tr= 872 win= 41.5% pnl=   -9949.4 dd= 30180.6 pnl/dd= -0.33 roi= -9.95% dd%= 30.18% flip=off mode=entry hold=0 only_profit=0
+27. tr= 872 win= 41.5% pnl=   -9949.4 dd= 30180.6 pnl/dd= -0.33 roi= -9.95% dd%= 30.18% flip=off mode=entry hold=2 only_profit=0
+28. tr= 872 win= 41.5% pnl=   -9949.4 dd= 30180.6 pnl/dd= -0.33 roi= -9.95% dd%= 30.18% flip=off mode=entry hold=4 only_profit=0
+29. tr= 872 win= 41.5% pnl=   -9949.4 dd= 30180.6 pnl/dd= -0.33 roi= -9.95% dd%= 30.18% flip=off mode=entry hold=6 only_profit=0
+30. tr= 872 win= 41.5% pnl=   -9949.4 dd= 30180.6 pnl/dd= -0.33 roi= -9.95% dd%= 30.18% flip=off mode=entry hold=0 only_profit=1
+31. tr= 872 win= 41.5% pnl=   -9949.4 dd= 30180.6 pnl/dd= -0.33 roi= -9.95% dd%= 30.18% flip=off mode=entry hold=2 only_profit=1
+32. tr= 872 win= 41.5% pnl=   -9949.4 dd= 30180.6 pnl/dd= -0.33 roi= -9.95% dd%= 30.18% flip=off mode=entry hold=4 only_profit=1
+33. tr= 872 win= 41.5% pnl=   -9949.4 dd= 30180.6 pnl/dd= -0.33 roi= -9.95% dd%= 30.18% flip=off mode=entry hold=6 only_profit=1
+34. tr= 872 win= 41.5% pnl=   -9949.4 dd= 30180.6 pnl/dd= -0.33 roi= -9.95% dd%= 30.18% flip=off mode=state hold=0 only_profit=0
+35. tr= 872 win= 41.5% pnl=   -9949.4 dd= 30180.6 pnl/dd= -0.33 roi= -9.95% dd%= 30.18% flip=off mode=state hold=2 only_profit=0
+36. tr= 872 win= 41.5% pnl=   -9949.4 dd= 30180.6 pnl/dd= -0.33 roi= -9.95% dd%= 30.18% flip=off mode=state hold=4 only_profit=0
+37. tr= 872 win= 41.5% pnl=   -9949.4 dd= 30180.6 pnl/dd= -0.33 roi= -9.95% dd%= 30.18% flip=off mode=state hold=6 only_profit=0
+38. tr= 872 win= 41.5% pnl=   -9949.4 dd= 30180.6 pnl/dd= -0.33 roi= -9.95% dd%= 30.18% flip=off mode=state hold=0 only_profit=1
+39. tr= 872 win= 41.5% pnl=   -9949.4 dd= 30180.6 pnl/dd= -0.33 roi= -9.95% dd%= 30.18% flip=off mode=state hold=2 only_profit=1
+40. tr= 872 win= 41.5% pnl=   -9949.4 dd= 30180.6 pnl/dd= -0.33 roi= -9.95% dd%= 30.18% flip=off mode=state hold=4 only_profit=1
+41. tr= 872 win= 41.5% pnl=   -9949.4 dd= 30180.6 pnl/dd= -0.33 roi= -9.95% dd%= 30.18% flip=off mode=state hold=6 only_profit=1
+42. tr= 872 win= 41.5% pnl=   -9949.4 dd= 30180.6 pnl/dd= -0.33 roi= -9.95% dd%= 30.18% flip=off mode=cross hold=0 only_profit=0
+43. tr= 872 win= 41.5% pnl=   -9949.4 dd= 30180.6 pnl/dd= -0.33 roi= -9.95% dd%= 30.18% flip=off mode=cross hold=2 only_profit=0
+44. tr= 872 win= 41.5% pnl=   -9949.4 dd= 30180.6 pnl/dd= -0.33 roi= -9.95% dd%= 30.18% flip=off mode=cross hold=4 only_profit=0
+45. tr= 872 win= 41.5% pnl=   -9949.4 dd= 30180.6 pnl/dd= -0.33 roi= -9.95% dd%= 30.18% flip=off mode=cross hold=6 only_profit=0
+46. tr= 872 win= 41.5% pnl=   -9949.4 dd= 30180.6 pnl/dd= -0.33 roi= -9.95% dd%= 30.18% flip=off mode=cross hold=0 only_profit=1
+47. tr= 872 win= 41.5% pnl=   -9949.4 dd= 30180.6 pnl/dd= -0.33 roi= -9.95% dd%= 30.18% flip=off mode=cross hold=2 only_profit=1
+48. tr= 872 win= 41.5% pnl=   -9949.4 dd= 30180.6 pnl/dd= -0.33 roi= -9.95% dd%= 30.18% flip=off mode=cross hold=4 only_profit=1
+49. tr= 872 win= 41.5% pnl=   -9949.4 dd= 30180.6 pnl/dd= -0.33 roi= -9.95% dd%= 30.18% flip=off mode=cross hold=6 only_profit=1
+
+Flip-exit semantics sweep — Top by pnl
+--------------------------------------
+ 1. tr= 881 win= 41.9% pnl=   -7591.6 dd= 30967.3 pnl/dd= -0.25 roi= -7.59% dd%= 30.97% flip=on mode=cross hold=0 only_profit=0
+ 2. tr= 881 win= 41.9% pnl=   -7591.6 dd= 30967.3 pnl/dd= -0.25 roi= -7.59% dd%= 30.97% flip=on mode=cross hold=2 only_profit=0
+ 3. tr= 881 win= 41.9% pnl=   -7591.6 dd= 30967.3 pnl/dd= -0.25 roi= -7.59% dd%= 30.97% flip=on mode=cross hold=4 only_profit=0
+ 4. tr= 881 win= 41.9% pnl=   -7591.6 dd= 30967.3 pnl/dd= -0.25 roi= -7.59% dd%= 30.97% flip=on mode=cross hold=6 only_profit=0
+ 5. tr= 879 win= 42.9% pnl=   -8017.5 dd= 30819.4 pnl/dd= -0.26 roi= -8.02% dd%= 30.82% flip=on mode=entry hold=6 only_profit=1
+ 6. tr= 879 win= 42.9% pnl=   -8017.5 dd= 30819.4 pnl/dd= -0.26 roi= -8.02% dd%= 30.82% flip=on mode=state hold=6 only_profit=1
+ 7. tr= 879 win= 42.9% pnl=   -8033.5 dd= 30815.9 pnl/dd= -0.26 roi= -8.03% dd%= 30.82% flip=on mode=entry hold=0 only_profit=1
+ 8. tr= 879 win= 42.9% pnl=   -8033.5 dd= 30815.9 pnl/dd= -0.26 roi= -8.03% dd%= 30.82% flip=on mode=entry hold=2 only_profit=1
+ 9. tr= 879 win= 42.9% pnl=   -8033.5 dd= 30815.9 pnl/dd= -0.26 roi= -8.03% dd%= 30.82% flip=on mode=entry hold=4 only_profit=1
+10. tr= 879 win= 42.9% pnl=   -8033.5 dd= 30815.9 pnl/dd= -0.26 roi= -8.03% dd%= 30.82% flip=on mode=state hold=0 only_profit=1
+11. tr= 879 win= 42.9% pnl=   -8033.5 dd= 30815.9 pnl/dd= -0.26 roi= -8.03% dd%= 30.82% flip=on mode=state hold=2 only_profit=1
+12. tr= 879 win= 42.9% pnl=   -8033.5 dd= 30815.9 pnl/dd= -0.26 roi= -8.03% dd%= 30.82% flip=on mode=state hold=4 only_profit=1
+13. tr= 884 win= 42.0% pnl=   -8334.4 dd= 30705.8 pnl/dd= -0.27 roi= -8.33% dd%= 30.71% flip=on mode=entry hold=0 only_profit=0
+14. tr= 884 win= 42.0% pnl=   -8334.4 dd= 30705.8 pnl/dd= -0.27 roi= -8.33% dd%= 30.71% flip=on mode=entry hold=2 only_profit=0
+15. tr= 884 win= 42.0% pnl=   -8334.4 dd= 30705.8 pnl/dd= -0.27 roi= -8.33% dd%= 30.71% flip=on mode=entry hold=4 only_profit=0
+16. tr= 884 win= 42.0% pnl=   -8334.4 dd= 30705.8 pnl/dd= -0.27 roi= -8.33% dd%= 30.71% flip=on mode=state hold=0 only_profit=0
+17. tr= 884 win= 42.0% pnl=   -8334.4 dd= 30705.8 pnl/dd= -0.27 roi= -8.33% dd%= 30.71% flip=on mode=state hold=2 only_profit=0
+18. tr= 884 win= 42.0% pnl=   -8334.4 dd= 30705.8 pnl/dd= -0.27 roi= -8.33% dd%= 30.71% flip=on mode=state hold=4 only_profit=0
+19. tr= 884 win= 42.0% pnl=   -8397.6 dd= 30701.2 pnl/dd= -0.27 roi= -8.40% dd%= 30.70% flip=on mode=entry hold=6 only_profit=0
+20. tr= 884 win= 42.0% pnl=   -8397.6 dd= 30701.2 pnl/dd= -0.27 roi= -8.40% dd%= 30.70% flip=on mode=state hold=6 only_profit=0
+21. tr= 884 win= 42.0% pnl=   -8397.6 dd= 30701.2 pnl/dd= -0.27 roi= -8.40% dd%= 30.70% base
+22. tr= 877 win= 42.3% pnl=   -8545.1 dd= 30637.7 pnl/dd= -0.28 roi= -8.55% dd%= 30.64% flip=on mode=cross hold=0 only_profit=1
+23. tr= 877 win= 42.3% pnl=   -8545.1 dd= 30637.7 pnl/dd= -0.28 roi= -8.55% dd%= 30.64% flip=on mode=cross hold=2 only_profit=1
+24. tr= 877 win= 42.3% pnl=   -8545.1 dd= 30637.7 pnl/dd= -0.28 roi= -8.55% dd%= 30.64% flip=on mode=cross hold=4 only_profit=1
+25. tr= 877 win= 42.3% pnl=   -8545.1 dd= 30637.7 pnl/dd= -0.28 roi= -8.55% dd%= 30.64% flip=on mode=cross hold=6 only_profit=1
+26. tr= 872 win= 41.5% pnl=   -9949.4 dd= 30180.6 pnl/dd= -0.33 roi= -9.95% dd%= 30.18% flip=off mode=entry hold=0 only_profit=0
+27. tr= 872 win= 41.5% pnl=   -9949.4 dd= 30180.6 pnl/dd= -0.33 roi= -9.95% dd%= 30.18% flip=off mode=entry hold=2 only_profit=0
+28. tr= 872 win= 41.5% pnl=   -9949.4 dd= 30180.6 pnl/dd= -0.33 roi= -9.95% dd%= 30.18% flip=off mode=entry hold=4 only_profit=0
+29. tr= 872 win= 41.5% pnl=   -9949.4 dd= 30180.6 pnl/dd= -0.33 roi= -9.95% dd%= 30.18% flip=off mode=entry hold=6 only_profit=0
+30. tr= 872 win= 41.5% pnl=   -9949.4 dd= 30180.6 pnl/dd= -0.33 roi= -9.95% dd%= 30.18% flip=off mode=entry hold=0 only_profit=1
+31. tr= 872 win= 41.5% pnl=   -9949.4 dd= 30180.6 pnl/dd= -0.33 roi= -9.95% dd%= 30.18% flip=off mode=entry hold=2 only_profit=1
+32. tr= 872 win= 41.5% pnl=   -9949.4 dd= 30180.6 pnl/dd= -0.33 roi= -9.95% dd%= 30.18% flip=off mode=entry hold=4 only_profit=1
+33. tr= 872 win= 41.5% pnl=   -9949.4 dd= 30180.6 pnl/dd= -0.33 roi= -9.95% dd%= 30.18% flip=off mode=entry hold=6 only_profit=1
+34. tr= 872 win= 41.5% pnl=   -9949.4 dd= 30180.6 pnl/dd= -0.33 roi= -9.95% dd%= 30.18% flip=off mode=state hold=0 only_profit=0
+35. tr= 872 win= 41.5% pnl=   -9949.4 dd= 30180.6 pnl/dd= -0.33 roi= -9.95% dd%= 30.18% flip=off mode=state hold=2 only_profit=0
+36. tr= 872 win= 41.5% pnl=   -9949.4 dd= 30180.6 pnl/dd= -0.33 roi= -9.95% dd%= 30.18% flip=off mode=state hold=4 only_profit=0
+37. tr= 872 win= 41.5% pnl=   -9949.4 dd= 30180.6 pnl/dd= -0.33 roi= -9.95% dd%= 30.18% flip=off mode=state hold=6 only_profit=0
+38. tr= 872 win= 41.5% pnl=   -9949.4 dd= 30180.6 pnl/dd= -0.33 roi= -9.95% dd%= 30.18% flip=off mode=state hold=0 only_profit=1
+39. tr= 872 win= 41.5% pnl=   -9949.4 dd= 30180.6 pnl/dd= -0.33 roi= -9.95% dd%= 30.18% flip=off mode=state hold=2 only_profit=1
+40. tr= 872 win= 41.5% pnl=   -9949.4 dd= 30180.6 pnl/dd= -0.33 roi= -9.95% dd%= 30.18% flip=off mode=state hold=4 only_profit=1
+41. tr= 872 win= 41.5% pnl=   -9949.4 dd= 30180.6 pnl/dd= -0.33 roi= -9.95% dd%= 30.18% flip=off mode=state hold=6 only_profit=1
+42. tr= 872 win= 41.5% pnl=   -9949.4 dd= 30180.6 pnl/dd= -0.33 roi= -9.95% dd%= 30.18% flip=off mode=cross hold=0 only_profit=0
+43. tr= 872 win= 41.5% pnl=   -9949.4 dd= 30180.6 pnl/dd= -0.33 roi= -9.95% dd%= 30.18% flip=off mode=cross hold=2 only_profit=0
+44. tr= 872 win= 41.5% pnl=   -9949.4 dd= 30180.6 pnl/dd= -0.33 roi= -9.95% dd%= 30.18% flip=off mode=cross hold=4 only_profit=0
+45. tr= 872 win= 41.5% pnl=   -9949.4 dd= 30180.6 pnl/dd= -0.33 roi= -9.95% dd%= 30.18% flip=off mode=cross hold=6 only_profit=0
+46. tr= 872 win= 41.5% pnl=   -9949.4 dd= 30180.6 pnl/dd= -0.33 roi= -9.95% dd%= 30.18% flip=off mode=cross hold=0 only_profit=1
+47. tr= 872 win= 41.5% pnl=   -9949.4 dd= 30180.6 pnl/dd= -0.33 roi= -9.95% dd%= 30.18% flip=off mode=cross hold=2 only_profit=1
+48. tr= 872 win= 41.5% pnl=   -9949.4 dd= 30180.6 pnl/dd= -0.33 roi= -9.95% dd%= 30.18% flip=off mode=cross hold=4 only_profit=1
+49. tr= 872 win= 41.5% pnl=   -9949.4 dd= 30180.6 pnl/dd= -0.33 roi= -9.95% dd%= 30.18% flip=off mode=cross hold=6 only_profit=1
+DONE  flip_exit tested=49 elapsed=914.1s
+
+run_cfg cache (strategy+axis_dims+window): entries=48 hits=2/49 (4.1%) fp_hits=1
+run_cfg persistent cache (strategy+axis_dims+window): path=db/spot_sweeps_run_cfg_cache.sqlite3 hits=1 writes=47 dim_index_writes=95 worker_plan_hits=0 worker_plan_writes=0 stage_status_reads=0 stage_status_writes=0 cartesian_manifest_reads=0 cartesian_manifest_writes=0 cartesian_manifest_hits=0 cartesian_rank_manifest_reads=0 cartesian_rank_manifest_writes=0 cartesian_rank_manifest_hits=0 cartesian_rank_manifest_compactions=0 cartesian_rank_manifest_pending_ttl_prunes=0 stage_rank_manifest_reads=0 stage_rank_manifest_writes=0 stage_rank_manifest_hits=0 stage_rank_manifest_compactions=0 stage_rank_manifest_pending_ttl_prunes=0 stage_unresolved_summary_reads=0 stage_unresolved_summary_writes=0 stage_unresolved_summary_hits=0 rank_dominance_stamp_reads=0 rank_dominance_stamp_writes=0 rank_dominance_stamp_hits=0 rank_dominance_manifest_applies=0 rank_dominance_stamp_compactions=0 rank_dominance_stamp_ttl_prunes=0 rank_bin_runtime_reads=0 rank_bin_runtime_writes=0 stage_frontier_reads=0 stage_frontier_writes=0 stage_frontier_hits=0 winner_projection_reads=0 winner_projection_writes=0 winner_projection_hits=0 dimension_utility_reads=0 dimension_utility_writes=0 dimension_utility_hint_hits=0 dimension_upper_bound_reads=0 dimension_upper_bound_writes=0 dimension_upper_bound_deferred=0 planner_heartbeat_reads=0 planner_heartbeat_writes=0 planner_heartbeat_stale_candidates=0 series_pack_mmap_hints=0 series_pack_pickle_hints=0 series_pack_state_manifest_reads=0 series_pack_state_manifest_writes=0 series_pack_state_manifest_hits=0
+Wrote backtests/slv/slv_hf_exec1_slope_then_flipexit_1y_trade700_20260216_round1_milestones.json (48 eligible presets).

@@ -1,0 +1,17 @@
+multitimeframe prep candidates=1 jobs=1 offline=True cache_dir=db
+multitimeframe windows 2016-02-14->2026-02-14, 2024-02-14->2026-02-14, 2025-02-14->2026-02-14
+multitimeframe preflight start candidates=1 windows=3
+multitimeframe preflight checks=9 unique=9 missing=0 elapsed=0.0s
+multitimeframe preflight done checks=9 unique=9 missing=0
+multitimeframe serial 0/1 (0.0%) kept=0 elapsed=0.0s eta=0.0m rate=0.00/cands/s
+multitimeframe serial 1/1 (100.0%) kept=1 elapsed=0.0s eta=0.0m rate=942.14/cands/s
+
+Multiwindow results: 1 candidates passed filters.
+- symbol=SLV bar=10 mins rth=False offline=True
+- windows=2016-02-14→2026-02-14, 2024-02-14→2026-02-14, 2025-02-14→2026-02-14
+- min_trades=700 min_win=0.00
+- eval_cache=db/spot_multiwindow_eval_cache.sqlite3 hits=1 writes=0
+
+ 1. stability(min roi/dd)=-0.87 full roi/dd=-0.87 roi=-56.2% dd%=64.6% pnl=-56211.5 win=61.7% tr=4101 ema=5/13 trend regime=supertrend rbar=1 day
+
+Wrote backtests/slv/slv_hf_v11_exception_recheck_10y2y1y_20260216_v1.json (top=1).

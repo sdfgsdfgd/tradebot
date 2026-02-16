@@ -1,0 +1,21 @@
+multitimeframe prep candidates=3 jobs=1 offline=True cache_dir=db
+multitimeframe windows 2016-02-14->2017-02-14, 2017-02-14->2018-02-14, 2018-02-14->2019-02-14, 2019-02-14->2020-02-14, 2020-02-14->2021-02-14, 2021-02-14->2022-02-14, 2022-02-14->2023-02-14, 2023-02-14->2024-02-14, 2024-02-14->2025-02-14, 2025-02-14->2026-02-14
+multitimeframe preflight start candidates=3 windows=10
+multitimeframe preflight checks=90 unique=30 missing=0 elapsed=0.0s
+multitimeframe preflight done checks=90 unique=30 missing=0
+multitimeframe serial 0/3 (0.0%) kept=0 elapsed=0.0s eta=0.0m rate=0.00/cands/s
+multitimeframe serial 1/3 (33.3%) kept=0 elapsed=15.0s eta=0.5m rate=0.07/cands/s inflight_candidate=15.0s stage=engine.prepare path=fast window=9/10 exec=46292/48169 sig=23157/23179 trades=343
+multitimeframe serial 1/3 (33.3%) kept=1 elapsed=17.7s eta=0.6m rate=0.06/cands/s
+multitimeframe serial 3/3 (100.0%) kept=3 elapsed=21.3s eta=0.0m rate=0.14/cands/s
+
+Multiwindow results: 3 candidates passed filters.
+- symbol=SLV bar=10 mins rth=False offline=True
+- windows=2016-02-14→2017-02-14, 2017-02-14→2018-02-14, 2018-02-14→2019-02-14, 2019-02-14→2020-02-14, 2020-02-14→2021-02-14, 2021-02-14→2022-02-14, 2022-02-14→2023-02-14, 2023-02-14→2024-02-14, 2024-02-14→2025-02-14, 2025-02-14→2026-02-14
+- min_trades=0 min_win=0.00
+- eval_cache=db/spot_multiwindow_eval_cache.sqlite3 hits=0 writes=3
+
+ 1. stability(min roi/dd)=-0.92 full roi/dd=-0.92 roi=-22.2% dd%=24.0% pnl=-22184.7 win=61.1% tr=342 ema=5/13 trend regime=supertrend rbar=1 day
+ 2. stability(min roi/dd)=-0.94 full roi/dd=-0.93 roi=-22.2% dd%=24.0% pnl=-22209.5 win=61.2% tr=343 ema=5/13 trend regime=supertrend rbar=1 day
+ 3. stability(min roi/dd)=-0.94 full roi/dd=-0.93 roi=-22.2% dd%=24.0% pnl=-22210.8 win=61.2% tr=343 ema=5/13 trend regime=supertrend rbar=1 day
+
+Wrote backtests/slv/slv_hf_yearly_forensics_v11_v12_v12alt_20260216_v1_ranked.json (top=3).

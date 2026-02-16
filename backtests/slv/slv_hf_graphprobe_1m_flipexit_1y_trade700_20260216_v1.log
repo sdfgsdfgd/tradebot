@@ -1,0 +1,4 @@
+SLV spot evolve sweep (2025-02-14 -> 2026-02-14, use_rth=False, bar_size=1 min, offline=True, base=champion, axis=flip_exit, jobs=4, long_only=False realism=v2 spread=0.01 comm=0.005 comm_min=1 slip=0 sizing=risk_pct risk=0.01 max_notional=0.5)
+START flip_exit total=48
+flip_exit watchdog 1/48 (2.1%) kept=0 elapsed=30.0s eta=23.5m rate=0.03/cfg/s heartbeat=axis
+flip_exit watchdog 1/48 (2.1%) kept=0 elapsed=60.0s eta=47.0m rate=0.02/cfg/s heartbeat=axis

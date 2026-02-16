@@ -1,0 +1,35 @@
+SLV spot evolve sweep (2025-02-14 -> 2026-02-14, use_rth=False, bar_size=10 mins, offline=True, base=champion, axis=spot_short_risk_mult, jobs=4, long_only=False realism=v2 spread=0.01 comm=0.005 comm_min=1 slip=0 sizing=risk_pct risk=0.01 max_notional=0.5)
+START spot_short_risk_mult total=13
+spot_short_risk_mult axis 13/13 (100.0%) kept=11 elapsed=10.2s eta=0.0m rate=1.28/cfg/s
+spot_short_risk_mult axis 14/13 (107.7%) kept=11 elapsed=11.3s eta=0.0m rate=1.24/cfg/s
+
+Spot short risk multiplier sweep — Top by pnl/dd
+------------------------------------------------
+ 1. tr= 706 win= 63.7% pnl=   10499.6 dd= 13832.7 pnl/dd=  0.76 roi= 10.50% dd%= 13.83% base
+ 2. tr= 707 win= 63.8% pnl=   10081.4 dd= 13975.5 pnl/dd=  0.72 roi= 10.08% dd%= 13.98% spot_short_risk_mult=0.05
+ 3. tr= 706 win= 66.0% pnl=    7224.6 dd= 14605.1 pnl/dd=  0.49 roi=  7.22% dd%= 14.61% spot_short_risk_mult=0.1
+ 4. tr= 707 win= 66.3% pnl=    5474.1 dd= 15374.7 pnl/dd=  0.36 roi=  5.47% dd%= 15.37% spot_short_risk_mult=0.15
+ 5. tr= 707 win= 66.3% pnl=    2548.5 dd= 15909.9 pnl/dd=  0.16 roi=  2.55% dd%= 15.91% spot_short_risk_mult=0.2
+ 6. tr= 707 win= 66.3% pnl=    -328.3 dd= 16420.3 pnl/dd= -0.02 roi= -0.33% dd%= 16.42% spot_short_risk_mult=0.25
+ 7. tr= 707 win= 66.3% pnl=   -3153.3 dd= 16911.9 pnl/dd= -0.19 roi= -3.15% dd%= 16.91% spot_short_risk_mult=0.3
+ 8. tr= 707 win= 66.3% pnl=   -8547.9 dd= 17783.8 pnl/dd= -0.48 roi= -8.55% dd%= 17.78% spot_short_risk_mult=0.4
+ 9. tr= 707 win= 66.3% pnl=  -18498.4 dd= 19821.1 pnl/dd= -0.93 roi=-18.50% dd%= 19.82% spot_short_risk_mult=0.6
+10. tr= 707 win= 66.3% pnl=  -27411.1 dd= 28442.0 pnl/dd= -0.96 roi=-27.41% dd%= 28.44% spot_short_risk_mult=0.8
+11. tr= 707 win= 66.3% pnl=  -29851.8 dd= 30806.8 pnl/dd= -0.97 roi=-29.85% dd%= 30.81% spot_short_risk_mult=1
+
+Spot short risk multiplier sweep — Top by pnl
+---------------------------------------------
+ 1. tr= 706 win= 63.7% pnl=   10499.6 dd= 13832.7 pnl/dd=  0.76 roi= 10.50% dd%= 13.83% base
+ 2. tr= 707 win= 63.8% pnl=   10081.4 dd= 13975.5 pnl/dd=  0.72 roi= 10.08% dd%= 13.98% spot_short_risk_mult=0.05
+ 3. tr= 706 win= 66.0% pnl=    7224.6 dd= 14605.1 pnl/dd=  0.49 roi=  7.22% dd%= 14.61% spot_short_risk_mult=0.1
+ 4. tr= 707 win= 66.3% pnl=    5474.1 dd= 15374.7 pnl/dd=  0.36 roi=  5.47% dd%= 15.37% spot_short_risk_mult=0.15
+ 5. tr= 707 win= 66.3% pnl=    2548.5 dd= 15909.9 pnl/dd=  0.16 roi=  2.55% dd%= 15.91% spot_short_risk_mult=0.2
+ 6. tr= 707 win= 66.3% pnl=    -328.3 dd= 16420.3 pnl/dd= -0.02 roi= -0.33% dd%= 16.42% spot_short_risk_mult=0.25
+ 7. tr= 707 win= 66.3% pnl=   -3153.3 dd= 16911.9 pnl/dd= -0.19 roi= -3.15% dd%= 16.91% spot_short_risk_mult=0.3
+ 8. tr= 707 win= 66.3% pnl=   -8547.9 dd= 17783.8 pnl/dd= -0.48 roi= -8.55% dd%= 17.78% spot_short_risk_mult=0.4
+ 9. tr= 707 win= 66.3% pnl=  -18498.4 dd= 19821.1 pnl/dd= -0.93 roi=-18.50% dd%= 19.82% spot_short_risk_mult=0.6
+10. tr= 707 win= 66.3% pnl=  -27411.1 dd= 28442.0 pnl/dd= -0.96 roi=-27.41% dd%= 28.44% spot_short_risk_mult=0.8
+11. tr= 707 win= 66.3% pnl=  -29851.8 dd= 30806.8 pnl/dd= -0.97 roi=-29.85% dd%= 30.81% spot_short_risk_mult=1
+DONE  spot_short_risk_mult tested=14 elapsed=11.3s
+
+run_cfg persistent cache (strategy+axis_dims+window): path=db/spot_sweeps_run_cfg_cache.sqlite3 hits=0 writes=14 dim_index_writes=28 worker_plan_hits=0 worker_plan_writes=0 stage_status_reads=0 stage_status_writes=0 cartesian_manifest_reads=0 cartesian_manifest_writes=0 cartesian_manifest_hits=0 cartesian_rank_manifest_reads=0 cartesian_rank_manifest_writes=0 cartesian_rank_manifest_hits=0 cartesian_rank_manifest_compactions=0 cartesian_rank_manifest_pending_ttl_prunes=0 stage_rank_manifest_reads=0 stage_rank_manifest_writes=0 stage_rank_manifest_hits=0 stage_rank_manifest_compactions=0 stage_rank_manifest_pending_ttl_prunes=0 stage_unresolved_summary_reads=0 stage_unresolved_summary_writes=0 stage_unresolved_summary_hits=0 rank_dominance_stamp_reads=0 rank_dominance_stamp_writes=0 rank_dominance_stamp_hits=0 rank_dominance_manifest_applies=0 rank_dominance_stamp_compactions=0 rank_dominance_stamp_ttl_prunes=0 rank_bin_runtime_reads=0 rank_bin_runtime_writes=0 stage_frontier_reads=0 stage_frontier_writes=0 stage_frontier_hits=0 winner_projection_reads=0 winner_projection_writes=0 winner_projection_hits=0 dimension_utility_reads=0 dimension_utility_writes=0 dimension_utility_hint_hits=0 dimension_upper_bound_reads=0 dimension_upper_bound_writes=0 dimension_upper_bound_deferred=0 planner_heartbeat_reads=0 planner_heartbeat_writes=0 planner_heartbeat_stale_candidates=0 series_pack_mmap_hints=0 series_pack_pickle_hints=0 series_pack_state_manifest_reads=0 series_pack_state_manifest_writes=0 series_pack_state_manifest_hits=0

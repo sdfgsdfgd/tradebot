@@ -1,0 +1,30 @@
+SLV spot evolve sweep (2025-02-14 -> 2026-02-14, use_rth=False, bar_size=10 mins, offline=True, base=champion, axis=slope, jobs=12, long_only=False realism=v2 spread=0.01 comm=0.005 comm_min=1 slip=0 sizing=risk_pct risk=0.01 max_notional=0.5)
+START slope total=6
+slope axis 2/6 (33.3%) kept=2 elapsed=24.2s eta=0.8m rate=0.08/cfg/s
+slope watchdog 4/6 (66.7%) kept=3 elapsed=60.0s eta=0.5m rate=0.07/cfg/s heartbeat=axis
+slope axis 4/6 (66.7%) kept=4 elapsed=64.1s eta=0.5m rate=0.06/cfg/s
+slope watchdog 6/6 (100.0%) kept=5 elapsed=90.0s eta=0.0m rate=0.07/cfg/s heartbeat=axis
+slope axis 6/6 (100.0%) kept=6 elapsed=102.9s eta=0.0m rate=0.06/cfg/s
+
+EMA slope sweep (quality gate) — Top by pnl/dd
+----------------------------------------------
+ 1. tr= 884 win= 42.0% pnl=   -8397.6 dd= 30701.2 pnl/dd= -0.27 roi= -8.40% dd%= 30.70% slope>=0.05
+ 2. tr= 902 win= 42.4% pnl=   -9250.9 dd= 29461.6 pnl/dd= -0.31 roi= -9.25% dd%= 29.46% slope>=0.03
+ 3. tr= 905 win= 42.7% pnl=  -11248.3 dd= 30379.5 pnl/dd= -0.37 roi=-11.25% dd%= 30.38% -
+ 4. tr= 908 win= 42.1% pnl=  -11564.2 dd= 29804.8 pnl/dd= -0.39 roi=-11.56% dd%= 29.80% slope>=0.02
+ 5. tr= 906 win= 42.5% pnl=  -11917.4 dd= 30146.1 pnl/dd= -0.40 roi=-11.92% dd%= 30.15% slope>=0.005
+ 6. tr= 907 win= 42.3% pnl=  -13407.6 dd= 29820.8 pnl/dd= -0.45 roi=-13.41% dd%= 29.82% slope>=0.01
+
+EMA slope sweep (quality gate) — Top by pnl
+-------------------------------------------
+ 1. tr= 884 win= 42.0% pnl=   -8397.6 dd= 30701.2 pnl/dd= -0.27 roi= -8.40% dd%= 30.70% slope>=0.05
+ 2. tr= 902 win= 42.4% pnl=   -9250.9 dd= 29461.6 pnl/dd= -0.31 roi= -9.25% dd%= 29.46% slope>=0.03
+ 3. tr= 905 win= 42.7% pnl=  -11248.3 dd= 30379.5 pnl/dd= -0.37 roi=-11.25% dd%= 30.38% -
+ 4. tr= 908 win= 42.1% pnl=  -11564.2 dd= 29804.8 pnl/dd= -0.39 roi=-11.56% dd%= 29.80% slope>=0.02
+ 5. tr= 906 win= 42.5% pnl=  -11917.4 dd= 30146.1 pnl/dd= -0.40 roi=-11.92% dd%= 30.15% slope>=0.005
+ 6. tr= 907 win= 42.3% pnl=  -13407.6 dd= 29820.8 pnl/dd= -0.45 roi=-13.41% dd%= 29.82% slope>=0.01
+DONE  slope tested=6 elapsed=102.9s
+
+run_cfg cache (strategy+axis_dims+window): entries=6 hits=1/6 (16.7%) fp_hits=0
+run_cfg persistent cache (strategy+axis_dims+window): path=db/spot_sweeps_run_cfg_cache.sqlite3 hits=1 writes=5 dim_index_writes=11 worker_plan_hits=0 worker_plan_writes=0 stage_status_reads=0 stage_status_writes=0 cartesian_manifest_reads=0 cartesian_manifest_writes=0 cartesian_manifest_hits=0 cartesian_rank_manifest_reads=0 cartesian_rank_manifest_writes=0 cartesian_rank_manifest_hits=0 cartesian_rank_manifest_compactions=0 cartesian_rank_manifest_pending_ttl_prunes=0 stage_rank_manifest_reads=0 stage_rank_manifest_writes=0 stage_rank_manifest_hits=0 stage_rank_manifest_compactions=0 stage_rank_manifest_pending_ttl_prunes=0 stage_unresolved_summary_reads=0 stage_unresolved_summary_writes=0 stage_unresolved_summary_hits=0 rank_dominance_stamp_reads=0 rank_dominance_stamp_writes=0 rank_dominance_stamp_hits=0 rank_dominance_manifest_applies=0 rank_dominance_stamp_compactions=0 rank_dominance_stamp_ttl_prunes=0 rank_bin_runtime_reads=0 rank_bin_runtime_writes=0 stage_frontier_reads=0 stage_frontier_writes=0 stage_frontier_hits=0 winner_projection_reads=0 winner_projection_writes=0 winner_projection_hits=0 dimension_utility_reads=0 dimension_utility_writes=0 dimension_utility_hint_hits=0 dimension_upper_bound_reads=0 dimension_upper_bound_writes=0 dimension_upper_bound_deferred=0 planner_heartbeat_reads=0 planner_heartbeat_writes=0 planner_heartbeat_stale_candidates=0 series_pack_mmap_hints=0 series_pack_pickle_hints=0 series_pack_state_manifest_reads=0 series_pack_state_manifest_writes=0 series_pack_state_manifest_hits=0
+Wrote backtests/slv/slv_hf_exec1_slope_1y_trade700_20260216_round1_milestones.json (6 eligible presets).

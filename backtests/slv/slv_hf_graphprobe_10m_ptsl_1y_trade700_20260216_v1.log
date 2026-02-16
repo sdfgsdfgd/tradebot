@@ -1,0 +1,8 @@
+SLV spot evolve sweep (2025-02-14 -> 2026-02-14, use_rth=False, bar_size=10 mins, offline=True, base=champion, axis=ptsl, jobs=4, long_only=False realism=v2 spread=0.01 comm=0.005 comm_min=1 slip=0 sizing=risk_pct risk=0.01 max_notional=0.5)
+START ptsl total=144
+ptsl axis 2/144 (1.4%) kept=1 elapsed=15.0s eta=17.8m rate=0.13/s inflight=10.3s stage=engine.exec exec=210512/356910 trades=57
+ptsl watchdog 4/144 (2.8%) kept=2 elapsed=30.0s eta=17.5m rate=0.13/cfg/s heartbeat=axis
+ptsl axis 4/144 (2.8%) kept=2 elapsed=30.0s eta=17.5m rate=0.13/s inflight=7.5s stage=engine.exec exec=155208/356910 trades=42
+ptsl axis 5/144 (3.5%) kept=2 elapsed=45.1s eta=20.9m rate=0.11/s inflight=5.3s stage=engine.exec exec=124880/356910 trades=282
+ptsl watchdog 6/144 (4.2%) kept=3 elapsed=60.0s eta=23.0m rate=0.10/cfg/s heartbeat=axis
+ptsl axis 6/144 (4.2%) kept=3 elapsed=60.1s eta=23.0m rate=0.10/s inflight=5.3s stage=engine.exec exec=117744/356910 trades=110

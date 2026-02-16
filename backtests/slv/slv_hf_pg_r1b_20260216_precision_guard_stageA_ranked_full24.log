@@ -1,0 +1,61 @@
+multitimeframe prep candidates=48 jobs=4 offline=True cache_dir=db
+multitimeframe windows 2025-02-14->2026-02-14
+multitimeframe preflight start candidates=48 windows=1
+multitimeframe preflight checks=144 unique=3 missing=0 elapsed=0.0s
+multitimeframe preflight done checks=144 unique=3 missing=0
+multitimeframe parallel: workers=4 total=48
+START mt:0
+START mt:1
+START mt:2
+START mt:3
+[mt:1] multitimeframe prep candidates=48 jobs=1 offline=True cache_dir=db
+[mt:1] multitimeframe windows 2025-02-14->2026-02-14
+[mt:1] multitimeframe preflight start candidates=48 windows=1
+[mt:1] multitimeframe preflight checks=144 unique=3 missing=0 elapsed=0.0s
+[mt:1] multitimeframe preflight done checks=144 unique=3 missing=0
+[mt:1] multitimeframe worker 2/4 0/12 (0.0%) kept=0 elapsed=0.0s eta=0.0m rate=0.00/cands/s
+[mt:3] multitimeframe prep candidates=48 jobs=1 offline=True cache_dir=db
+[mt:3] multitimeframe windows 2025-02-14->2026-02-14
+[mt:3] multitimeframe preflight start candidates=48 windows=1
+[mt:2] multitimeframe prep candidates=48 jobs=1 offline=True cache_dir=db
+[mt:2] multitimeframe windows 2025-02-14->2026-02-14
+[mt:2] multitimeframe preflight start candidates=48 windows=1
+[mt:3] multitimeframe preflight checks=144 unique=3 missing=0 elapsed=0.0s
+[mt:3] multitimeframe preflight done checks=144 unique=3 missing=0
+[mt:3] multitimeframe worker 4/4 0/12 (0.0%) kept=0 elapsed=0.0s eta=0.0m rate=0.00/cands/s
+[mt:2] multitimeframe preflight checks=144 unique=3 missing=0 elapsed=0.0s
+[mt:2] multitimeframe preflight done checks=144 unique=3 missing=0
+[mt:2] multitimeframe worker 3/4 0/12 (0.0%) kept=0 elapsed=0.0s eta=0.0m rate=0.00/cands/s
+[mt:0] multitimeframe prep candidates=48 jobs=1 offline=True cache_dir=db
+[mt:0] multitimeframe windows 2025-02-14->2026-02-14
+[mt:0] multitimeframe preflight start candidates=48 windows=1
+[mt:0] multitimeframe preflight checks=144 unique=3 missing=0 elapsed=0.0s
+[mt:0] multitimeframe preflight done checks=144 unique=3 missing=0
+[mt:0] multitimeframe worker 1/4 0/12 (0.0%) kept=0 elapsed=0.0s eta=0.0m rate=0.00/cands/s
+RUNNING workers=4 pending=0 [mt:0:10.0s, mt:1:10.0s, mt:2:10.0s, mt:3:10.0s]
+[mt:1] multitimeframe worker 2/4 10/12 (83.3%) kept=0 elapsed=10.0s eta=0.0m rate=1.00/cands/s
+[mt:3] multitimeframe worker 4/4 10/12 (83.3%) kept=0 elapsed=10.0s eta=0.0m rate=1.00/cands/s
+[mt:2] multitimeframe worker 3/4 10/12 (83.3%) kept=0 elapsed=10.1s eta=0.0m rate=0.99/cands/s
+[mt:0] multitimeframe worker 1/4 10/12 (83.3%) kept=0 elapsed=10.1s eta=0.0m rate=0.99/cands/s
+[mt:1] multitimeframe worker 2/4 12/12 (100.0%) kept=0 elapsed=11.1s eta=0.0m rate=1.08/cands/s
+[mt:1] multitimeframe worker done tested=12 kept=0 out=/var/folders/rn/tbt648y54zl_f0m02zrb01sm0000gn/T/tradebot_multitimeframe_4vyyj5m9/multitimeframe_out_1.json
+[mt:3] multitimeframe worker 4/4 12/12 (100.0%) kept=0 elapsed=11.1s eta=0.0m rate=1.08/cands/s
+[mt:3] multitimeframe worker done tested=12 kept=0 out=/var/folders/rn/tbt648y54zl_f0m02zrb01sm0000gn/T/tradebot_multitimeframe_4vyyj5m9/multitimeframe_out_3.json
+[mt:2] multitimeframe worker 3/4 12/12 (100.0%) kept=0 elapsed=11.2s eta=0.0m rate=1.07/cands/s
+[mt:2] multitimeframe worker done tested=12 kept=0 out=/var/folders/rn/tbt648y54zl_f0m02zrb01sm0000gn/T/tradebot_multitimeframe_4vyyj5m9/multitimeframe_out_2.json
+[mt:0] multitimeframe worker 1/4 12/12 (100.0%) kept=0 elapsed=11.3s eta=0.0m rate=1.06/cands/s
+[mt:0] multitimeframe worker done tested=12 kept=0 out=/var/folders/rn/tbt648y54zl_f0m02zrb01sm0000gn/T/tradebot_multitimeframe_4vyyj5m9/multitimeframe_out_0.json
+DONE  mt:1 exit=0 elapsed=11.9s
+DONE  mt:3 exit=0 elapsed=11.9s
+DONE  mt:2 exit=0 elapsed=12.0s
+DONE  mt:0 exit=0 elapsed=12.1s
+
+Multiwindow results: 0 candidates passed filters.
+- symbol=SLV bar=10 mins rth=False offline=True
+- windows=2025-02-14→2026-02-14
+- min_trades=0 min_win=0.00 min_trades_per_year=500
+- workers=4 tested_total=48
+- eval_cache=db/spot_multiwindow_eval_cache.sqlite3 hits=0 writes=0
+
+
+Wrote /Users/x/Desktop/py/tradebot/backtests/slv/slv_hf_pg_r1b_20260216_precision_guard_stageA_ranked_full24_raw.json (top=48).

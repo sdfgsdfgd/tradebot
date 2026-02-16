@@ -257,7 +257,6 @@ def _build_stage_a_groups(
         ),
     )
     stops = (0.006, 0.008)
-    max_open_values = (1, 2)
 
     fixed_strategy = {
         "instrument": "spot",
@@ -283,37 +282,35 @@ def _build_stage_a_groups(
         for regime_note, regime_over in regime_pockets:
             for regime2_note, regime2_over in regime2_opts:
                 for sl in stops:
-                    for max_open in max_open_values:
-                        rank += 1
-                        strategy = dict(base_strategy)
-                        strategy.update(fixed_strategy)
-                        strategy.update(regime_over)
-                        strategy.update(regime2_over)
-                        strategy["ema_preset"] = str(ema)
-                        strategy["spot_stop_loss_pct"] = float(sl)
-                        strategy["max_open_trades"] = int(max_open)
-                        if strategy.get("regime2_mode") == "off":
-                            strategy.pop("regime2_ema_preset", None)
-                        filters = dict(base_filters)
-                        filters.update(fixed_filters)
-                        note = (
-                            f"A ema={ema} regime={regime_note} regime2={regime2_note} "
-                            f"sl={sl:g} max_open={max_open}"
-                        )
-                        groups.append(
-                            {
-                                "name": f"StageA #{rank:03d} {note}",
-                                "filters": filters,
-                                "entries": [
-                                    {
-                                        "symbol": str(symbol).strip().upper(),
-                                        "metrics": _blank_metrics(),
-                                        "strategy": strategy,
-                                    }
-                                ],
-                                "_eval": {"stage": "A", "note": note},
-                            }
-                        )
+                    rank += 1
+                    strategy = dict(base_strategy)
+                    strategy.update(fixed_strategy)
+                    strategy.update(regime_over)
+                    strategy.update(regime2_over)
+                    strategy["ema_preset"] = str(ema)
+                    strategy["spot_stop_loss_pct"] = float(sl)
+                    if strategy.get("regime2_mode") == "off":
+                        strategy.pop("regime2_ema_preset", None)
+                    filters = dict(base_filters)
+                    filters.update(fixed_filters)
+                    note = (
+                        f"A ema={ema} regime={regime_note} regime2={regime2_note} "
+                        f"sl={sl:g}"
+                    )
+                    groups.append(
+                        {
+                            "name": f"StageA #{rank:03d} {note}",
+                            "filters": filters,
+                            "entries": [
+                                {
+                                    "symbol": str(symbol).strip().upper(),
+                                    "metrics": _blank_metrics(),
+                                    "strategy": strategy,
+                                }
+                            ],
+                            "_eval": {"stage": "A", "note": note},
+                        }
+                    )
     return groups
 
 

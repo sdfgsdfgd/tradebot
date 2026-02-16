@@ -1,0 +1,24 @@
+multitimeframe prep candidates=1 jobs=1 offline=True cache_dir=db
+multitimeframe windows 2025-02-14->2026-02-14
+multitimeframe preflight start candidates=1 windows=1
+multitimeframe preflight checks=2 unique=2 missing=0 elapsed=0.0s
+multitimeframe preflight done checks=2 unique=2 missing=0
+multitimeframe serial 0/1 (0.0%) kept=0 elapsed=0.0s eta=0.0m rate=0.00/cands/s
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=15.0s eta=0.0m rate=0.07/cands/s inflight_candidate=15.0s stage=summary.path path=exec window=1/1
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=30.0s eta=0.0m rate=0.03/cands/s inflight_candidate=30.0s stage=engine.exec path=exec window=1/1 exec=51736/356910 sig=51736/356910 trades=8
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=45.0s eta=0.0m rate=0.02/cands/s inflight_candidate=45.0s stage=engine.exec path=exec window=1/1 exec=103472/356910 sig=103472/356910 trades=20
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=60.1s eta=0.0m rate=0.02/cands/s inflight_candidate=60.1s stage=engine.exec path=exec window=1/1 exec=153424/356910 sig=153424/356910 trades=31
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=75.1s eta=0.0m rate=0.01/cands/s inflight_candidate=75.1s stage=engine.exec path=exec window=1/1 exec=201592/356910 sig=201592/356910 trades=39
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=90.1s eta=0.0m rate=0.01/cands/s inflight_candidate=90.1s stage=engine.exec path=exec window=1/1 exec=251544/356910 sig=251544/356910 trades=54
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=105.1s eta=0.0m rate=0.01/cands/s inflight_candidate=105.1s stage=engine.exec path=exec window=1/1 exec=294360/356910 sig=294360/356910 trades=67
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=120.1s eta=0.0m rate=0.01/cands/s inflight_candidate=120.1s stage=engine.exec path=exec window=1/1 exec=338960/356910 sig=338960/356910 trades=90
+multitimeframe serial 1/1 (100.0%) kept=0 elapsed=125.4s eta=0.0m rate=0.01/cands/s
+
+Multiwindow results: 0 candidates passed filters.
+- symbol=SLV bar=1 min rth=False offline=True
+- windows=2025-02-14→2026-02-14
+- min_trades=700 min_win=0.00
+- eval_cache=db/spot_multiwindow_eval_cache.sqlite3 hits=0 writes=1
+
+
+Wrote backtests/slv/slv_hf_pool_v1_v9_screen1y_top20_20260215.json (top=20).

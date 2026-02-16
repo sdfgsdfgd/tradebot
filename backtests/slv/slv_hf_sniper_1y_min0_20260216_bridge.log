@@ -1,0 +1,139 @@
+SLV spot evolve sweep (2025-02-14 -> 2026-02-14, use_rth=False, bar_size=10 mins, offline=True, base=champion, axis=combo_full, jobs=8, long_only=False realism=v2 spread=0.01 comm=0.005 comm_min=1 slip=0 sizing=risk_pct risk=0.01 max_notional=0.5)
+START combo_full total=6
+
+=== combo_full: unified tight Cartesian core ===
+combo_full preset active: hf_timing_sniper (tier=profile)
+combo_full dimensions: total=64 timing_profile=64 direction=1 confirm=1 perm=1 tod=1 vol=1 cadence=1 regime=1 regime2=1 exit=1 tick=1 shock=1 slope=1 risk=1 short_mult=1
+combo_full sharding order: timing_profile,tick,regime,regime2,risk,shock,exit,slope,direction,confirm,perm,tod,vol,cadence,short_mult
+
+combo_full Cartesian jobs tuner: requested=8 tuned=1 total=64
+combo_full Cartesian parallel: workers=1 total=64
+START cfc:0
+[cfc:0] SLV spot evolve sweep (2025-02-14 -> 2026-02-14, use_rth=False, bar_size=10 mins, offline=True, base=champion, axis=combo_full, jobs=1, long_only=False realism=v2 spread=0.01 comm=0.005 comm_min=1 slip=0 sizing=risk_pct risk=0.01 max_notional=0.5)
+[cfc:0] worker-stage mode: axis-level progress disabled; using worker/stage heartbeats.
+[cfc:0] START combo_full total=6
+[cfc:0] combo_full_cartesian unresolved rank ranges total=64/64 0-63
+[cfc:0] combo_full_cartesian worker 1/1 dynamic-claim enabled (claim_span=32, batch=2048)
+[cfc:0] combo_full_cartesian worker 1/1 claim 0-31
+[cfc:0] combo_full_cartesian planner[scan] processed=32/32 pending=0 unresolved=32 cached=0 elapsed=0.0s
+[cfc:0] combo_full_cartesian planner[resolve] processed=32/32 pending=32 unresolved=32 cached=0 elapsed=0.3s
+combo_full watchdog 1/6 (16.7%) kept=1 elapsed=30.0s eta=2.5m rate=0.03/cfg/s heartbeat=axis
+RUNNING workers=1 pending=0 [cfc:0:30.0s]
+combo_full_cartesian planner heartbeat running=1 pending=0 hb_rows=1 tested=0/64 cached_hits=0 eta~0.0m stale=0
+[cfc:0] combo_full watchdog 2/6 (33.3%) kept=0 elapsed=30.0s eta=1.0m rate=0.07/cfg/s heartbeat=axis
+[cfc:0] combo_full_cartesian worker 1/1 2/32 (6.2%) kept=1 elapsed=30.0s eta=7.5m rate=0.07/s inflight=7.9s stage=engine.exec exec=167696/356910 trades=238
+combo_full watchdog 1/6 (16.7%) kept=1 elapsed=60.0s eta=5.0m rate=0.02/cfg/s heartbeat=axis
+RUNNING workers=1 pending=0 [cfc:0:60.0s]
+combo_full_cartesian planner heartbeat running=1 pending=0 hb_rows=1 tested=0/64 cached_hits=0 eta~0.0m stale=0
+[cfc:0] combo_full watchdog 3/6 (50.0%) kept=0 elapsed=60.0s eta=1.0m rate=0.05/cfg/s heartbeat=axis
+[cfc:0] combo_full_cartesian worker 1/1 4/32 (12.5%) kept=3 elapsed=60.0s eta=7.0m rate=0.07/s inflight=1.0s stage=engine.exec exec=32112/356910 trades=15
+combo_full watchdog 1/6 (16.7%) kept=1 elapsed=90.0s eta=7.5m rate=0.01/cfg/s heartbeat=axis
+RUNNING workers=1 pending=0 [cfc:0:90.1s]
+combo_full_cartesian planner heartbeat running=1 pending=0 hb_rows=1 tested=0/64 cached_hits=0 eta~0.0m stale=0
+[cfc:0] combo_full watchdog 5/6 (83.3%) kept=0 elapsed=90.0s eta=0.3m rate=0.06/cfg/s heartbeat=axis
+[cfc:0] combo_full_cartesian worker 1/1 5/32 (15.6%) kept=4 elapsed=90.0s eta=8.1m rate=0.06/s inflight=12.1s stage=engine.exec exec=242624/356910 trades=353
+combo_full watchdog 1/6 (16.7%) kept=1 elapsed=120.0s eta=10.0m rate=0.01/cfg/s heartbeat=axis
+RUNNING workers=1 pending=0 [cfc:0:120.1s]
+combo_full_cartesian planner heartbeat running=1 pending=0 hb_rows=1 tested=0/64 cached_hits=0 eta~0.0m stale=0
+[cfc:0] combo_full watchdog 7/6 (116.7%) kept=0 elapsed=120.1s eta=0.0m rate=0.06/cfg/s heartbeat=axis
+[cfc:0] combo_full_cartesian worker 1/1 7/32 (21.9%) kept=6 elapsed=120.0s eta=7.1m rate=0.06/s inflight=4.8s stage=engine.exec exec=108824/356910 trades=161
+combo_full watchdog 1/6 (16.7%) kept=1 elapsed=150.0s eta=12.5m rate=0.01/cfg/s heartbeat=axis
+RUNNING workers=1 pending=0 [cfc:0:150.2s]
+combo_full_cartesian planner heartbeat running=1 pending=0 hb_rows=1 tested=0/64 cached_hits=0 eta~0.0m stale=0
+[cfc:0] combo_full watchdog 8/6 (133.3%) kept=0 elapsed=150.1s eta=0.0m rate=0.05/cfg/s heartbeat=axis
+[cfc:0] combo_full_cartesian worker 1/1 8/32 (25.0%) kept=7 elapsed=150.1s eta=7.5m rate=0.05/s inflight=16.3s stage=engine.exec exec=317552/356910 trades=534
+combo_full watchdog 1/6 (16.7%) kept=1 elapsed=180.0s eta=15.0m rate=0.01/cfg/s heartbeat=axis
+RUNNING workers=1 pending=0 [cfc:0:180.2s]
+combo_full_cartesian planner heartbeat running=1 pending=0 hb_rows=1 tested=0/64 cached_hits=0 eta~0.0m stale=0
+[cfc:0] combo_full watchdog 10/6 (166.7%) kept=0 elapsed=180.1s eta=0.0m rate=0.06/cfg/s heartbeat=axis
+[cfc:0] combo_full_cartesian worker 1/1 10/32 (31.2%) kept=9 elapsed=180.1s eta=6.6m rate=0.06/s inflight=9.6s stage=engine.exec exec=201592/356910 trades=270
+combo_full watchdog 1/6 (16.7%) kept=1 elapsed=210.0s eta=17.5m rate=0.00/cfg/s heartbeat=axis
+RUNNING workers=1 pending=0 [cfc:0:210.2s]
+[cfc:0] combo_full watchdog 12/6 (200.0%) kept=0 elapsed=210.1s eta=0.0m rate=0.06/cfg/s heartbeat=axis
+[cfc:0] combo_full_cartesian worker 1/1 12/32 (37.5%) kept=11 elapsed=210.1s eta=5.8m rate=0.06/s inflight=3.2s stage=engine.exec exec=74928/356910 trades=109
+combo_full watchdog 1/6 (16.7%) kept=1 elapsed=240.0s eta=20.0m rate=0.00/cfg/s heartbeat=axis
+RUNNING workers=1 pending=0 [cfc:0:240.2s]
+[cfc:0] combo_full watchdog 13/6 (216.7%) kept=0 elapsed=240.1s eta=0.0m rate=0.05/cfg/s heartbeat=axis
+[cfc:0] combo_full_cartesian worker 1/1 13/32 (40.6%) kept=12 elapsed=240.1s eta=5.8m rate=0.05/s inflight=15.0s stage=engine.exec exec=299712/356910 trades=490
+combo_full watchdog 1/6 (16.7%) kept=1 elapsed=270.0s eta=22.5m rate=0.00/cfg/s heartbeat=axis
+RUNNING workers=1 pending=0 [cfc:0:270.3s]
+[cfc:0] combo_full watchdog 15/6 (250.0%) kept=0 elapsed=270.1s eta=0.0m rate=0.06/cfg/s heartbeat=axis
+[cfc:0] combo_full_cartesian worker 1/1 15/32 (46.9%) kept=14 elapsed=270.1s eta=5.1m rate=0.06/s inflight=8.5s stage=engine.exec exec=180184/356910 trades=252
+combo_full watchdog 1/6 (16.7%) kept=1 elapsed=300.0s eta=25.0m rate=0.00/cfg/s heartbeat=axis
+RUNNING workers=1 pending=0 [cfc:0:300.3s]
+[cfc:0] combo_full watchdog 17/6 (283.3%) kept=0 elapsed=300.1s eta=0.0m rate=0.06/cfg/s heartbeat=axis
+[cfc:0] combo_full_cartesian worker 1/1 17/32 (53.1%) kept=16 elapsed=300.1s eta=4.4m rate=0.06/s inflight=2.0s stage=engine.exec exec=53520/356910 trades=60
+combo_full watchdog 1/6 (16.7%) kept=1 elapsed=330.1s eta=27.5m rate=0.00/cfg/s heartbeat=axis
+[cfc:0] combo_full watchdog 18/6 (300.0%) kept=0 elapsed=330.1s eta=0.0m rate=0.05/cfg/s heartbeat=axis
+RUNNING workers=1 pending=0 [cfc:0:330.4s]
+[cfc:0] combo_full_cartesian worker 1/1 18/32 (56.2%) kept=17 elapsed=330.1s eta=4.3m rate=0.05/s inflight=13.8s stage=engine.exec exec=276520/356910 trades=434
+combo_full watchdog 1/6 (16.7%) kept=1 elapsed=360.1s eta=30.0m rate=0.00/cfg/s heartbeat=axis
+[cfc:0] combo_full watchdog 20/6 (333.3%) kept=0 elapsed=360.1s eta=0.0m rate=0.06/cfg/s heartbeat=axis
+RUNNING workers=1 pending=0 [cfc:0:360.4s]
+[cfc:0] combo_full_cartesian worker 1/1 20/32 (62.5%) kept=19 elapsed=360.1s eta=3.6m rate=0.06/s inflight=7.4s stage=engine.exec exec=156992/356910 trades=226
+combo_full watchdog 1/6 (16.7%) kept=1 elapsed=390.1s eta=32.5m rate=0.00/cfg/s heartbeat=axis
+[cfc:0] combo_full watchdog 21/6 (350.0%) kept=0 elapsed=390.2s eta=0.0m rate=0.05/cfg/s heartbeat=axis
+RUNNING workers=1 pending=0 [cfc:0:390.4s]
+[cfc:0] combo_full_cartesian worker 1/1 22/32 (68.8%) kept=21 elapsed=390.1s eta=3.0m rate=0.06/s inflight=0.9s stage=engine.exec exec=30328/356910 trades=12
+combo_full watchdog 1/6 (16.7%) kept=1 elapsed=420.1s eta=35.0m rate=0.00/cfg/s heartbeat=axis
+[cfc:0] combo_full watchdog 23/6 (383.3%) kept=0 elapsed=420.2s eta=0.0m rate=0.05/cfg/s heartbeat=axis
+RUNNING workers=1 pending=0 [cfc:0:420.5s]
+[cfc:0] combo_full_cartesian worker 1/1 23/32 (71.9%) kept=22 elapsed=420.2s eta=2.7m rate=0.05/s inflight=12.6s stage=engine.exec exec=253328/356910 trades=380
+combo_full watchdog 1/6 (16.7%) kept=1 elapsed=450.1s eta=37.5m rate=0.00/cfg/s heartbeat=axis
+[cfc:0] combo_full watchdog 25/6 (416.7%) kept=0 elapsed=450.2s eta=0.0m rate=0.06/cfg/s heartbeat=axis
+RUNNING workers=1 pending=0 [cfc:0:450.5s]
+[cfc:0] combo_full_cartesian worker 1/1 25/32 (78.1%) kept=24 elapsed=450.2s eta=2.1m rate=0.06/s inflight=5.8s stage=engine.exec exec=126664/356910 trades=184
+combo_full watchdog 1/6 (16.7%) kept=1 elapsed=480.1s eta=40.0m rate=0.00/cfg/s heartbeat=axis
+[cfc:0] combo_full watchdog 26/6 (433.3%) kept=0 elapsed=480.2s eta=0.0m rate=0.05/cfg/s heartbeat=axis
+RUNNING workers=1 pending=0 [cfc:0:480.6s]
+[cfc:0] combo_full_cartesian worker 1/1 26/32 (81.2%) kept=25 elapsed=480.2s eta=1.8m rate=0.05/s inflight=17.5s stage=engine.exec exec=340744/356910 trades=583
+combo_full watchdog 1/6 (16.7%) kept=1 elapsed=510.1s eta=42.5m rate=0.00/cfg/s heartbeat=axis
+[cfc:0] combo_full watchdog 28/6 (466.7%) kept=0 elapsed=510.2s eta=0.0m rate=0.05/cfg/s heartbeat=axis
+RUNNING workers=1 pending=0 [cfc:0:510.6s]
+[cfc:0] combo_full_cartesian worker 1/1 28/32 (87.5%) kept=27 elapsed=510.2s eta=1.2m rate=0.05/s inflight=11.0s stage=engine.exec exec=224784/356910 trades=306
+combo_full watchdog 1/6 (16.7%) kept=1 elapsed=540.1s eta=45.0m rate=0.00/cfg/s heartbeat=axis
+[cfc:0] combo_full watchdog 30/6 (500.0%) kept=0 elapsed=540.2s eta=0.0m rate=0.06/cfg/s heartbeat=axis
+RUNNING workers=1 pending=0 [cfc:0:540.7s]
+[cfc:0] combo_full_cartesian worker 1/1 30/32 (93.8%) kept=29 elapsed=540.2s eta=0.6m rate=0.06/s inflight=4.4s stage=engine.exec exec=99904/356910 trades=147
+combo_full watchdog 1/6 (16.7%) kept=1 elapsed=570.1s eta=47.5m rate=0.00/cfg/s heartbeat=axis
+[cfc:0] combo_full watchdog 31/6 (516.7%) kept=0 elapsed=570.2s eta=0.0m rate=0.05/cfg/s heartbeat=axis
+RUNNING workers=1 pending=0 [cfc:0:570.7s]
+[cfc:0] combo_full_cartesian worker 1/1 31/32 (96.9%) kept=30 elapsed=570.2s eta=0.3m rate=0.05/s inflight=16.0s stage=engine.exec exec=315768/356910 trades=520
+[cfc:0] combo_full_cartesian worker 1/1 32/32 (100.0%) kept=31 elapsed=572.5s eta=0.0m rate=0.06/s
+[cfc:0] combo_full_cartesian worker 1/1 processed=32/32 eval=32 cached=0 kept=32
+[cfc:0] combo_full_cartesian worker 1/1 claim 32-63
+[cfc:0] combo_full_cartesian planner[scan] processed=32/32 pending=0 unresolved=32 cached=0 elapsed=0.0s
+[cfc:0] combo_full_cartesian planner[resolve] processed=32/32 pending=32 unresolved=32 cached=0 elapsed=0.2s
+combo_full watchdog 1/6 (16.7%) kept=1 elapsed=600.1s eta=50.0m rate=0.00/cfg/s heartbeat=axis
+[cfc:0] combo_full watchdog 33/6 (550.0%) kept=0 elapsed=600.3s eta=0.0m rate=0.05/cfg/s heartbeat=axis
+RUNNING workers=1 pending=0 [cfc:0:600.7s]
+combo_full_cartesian planner heartbeat running=1 pending=0 hb_rows=1 tested=32/64 cached_hits=0 eta~0.0m stale=0
+[cfc:0] combo_full_cartesian worker 1/1 2/32 (6.2%) kept=1 elapsed=30.0s eta=7.5m rate=0.07/s inflight=11.6s stage=engine.exec exec=235488/356910 trades=325
+combo_full watchdog 1/6 (16.7%) kept=1 elapsed=630.1s eta=52.5m rate=0.00/cfg/s heartbeat=axis
+[cfc:0] combo_full watchdog 35/6 (583.3%) kept=0 elapsed=630.3s eta=0.0m rate=0.06/cfg/s heartbeat=axis
+RUNNING workers=1 pending=0 [cfc:0:630.8s]
+combo_full_cartesian planner heartbeat running=1 pending=0 hb_rows=1 tested=32/64 cached_hits=0 eta~0.0m stale=0
+[cfc:0] combo_full_cartesian worker 1/1 4/32 (12.5%) kept=3 elapsed=60.0s eta=7.0m rate=0.07/s inflight=4.7s stage=engine.exec exec=105256/356910 trades=152
+combo_full watchdog 1/6 (16.7%) kept=1 elapsed=660.1s eta=55.0m rate=0.00/cfg/s heartbeat=axis
+[cfc:0] combo_full watchdog 36/6 (600.0%) kept=0 elapsed=660.3s eta=0.0m rate=0.05/cfg/s heartbeat=axis
+RUNNING workers=1 pending=0 [cfc:0:660.8s]
+combo_full_cartesian planner heartbeat running=1 pending=0 hb_rows=1 tested=32/64 cached_hits=0 eta~0.0m stale=0
+[cfc:0] combo_full_cartesian worker 1/1 5/32 (15.6%) kept=4 elapsed=90.0s eta=8.1m rate=0.06/s inflight=16.3s stage=engine.exec exec=317552/356910 trades=536
+combo_full watchdog 1/6 (16.7%) kept=1 elapsed=690.1s eta=57.5m rate=0.00/cfg/s heartbeat=axis
+[cfc:0] combo_full watchdog 38/6 (633.3%) kept=0 elapsed=690.3s eta=0.0m rate=0.06/cfg/s heartbeat=axis
+RUNNING workers=1 pending=0 [cfc:0:690.9s]
+combo_full_cartesian planner heartbeat running=1 pending=0 hb_rows=1 tested=32/64 cached_hits=0 eta~0.0m stale=0
+[cfc:0] combo_full_cartesian worker 1/1 7/32 (21.9%) kept=6 elapsed=120.0s eta=7.1m rate=0.06/s inflight=9.2s stage=engine.exec exec=192672/356910 trades=263
+combo_full watchdog 1/6 (16.7%) kept=1 elapsed=720.1s eta=60.0m rate=0.00/cfg/s heartbeat=axis
+[cfc:0] combo_full watchdog 39/6 (650.0%) kept=0 elapsed=720.3s eta=0.0m rate=0.05/cfg/s heartbeat=axis
+RUNNING workers=1 pending=0 [cfc:0:720.9s]
+combo_full_cartesian planner heartbeat running=1 pending=0 hb_rows=1 tested=32/64 cached_hits=0 eta~0.0m stale=0
+[cfc:0] combo_full_cartesian worker 1/1 9/32 (28.1%) kept=8 elapsed=150.1s eta=6.4m rate=0.06/s inflight=2.3s stage=engine.exec exec=57088/356910 trades=72
+combo_full watchdog 1/6 (16.7%) kept=1 elapsed=750.1s eta=62.5m rate=0.00/cfg/s heartbeat=axis
+[cfc:0] combo_full watchdog 41/6 (683.3%) kept=0 elapsed=750.3s eta=0.0m rate=0.05/cfg/s heartbeat=axis
+RUNNING workers=1 pending=0 [cfc:0:750.9s]
+combo_full_cartesian planner heartbeat running=1 pending=0 hb_rows=1 tested=32/64 cached_hits=0 eta~0.0m stale=0
+[cfc:0] combo_full_cartesian worker 1/1 10/32 (31.2%) kept=9 elapsed=180.1s eta=6.6m rate=0.06/s inflight=13.5s stage=engine.exec exec=267600/356910 trades=406
+combo_full watchdog 1/6 (16.7%) kept=1 elapsed=780.1s eta=65.0m rate=0.00/cfg/s heartbeat=axis
+[cfc:0] combo_full watchdog 43/6 (716.7%) kept=0 elapsed=780.3s eta=0.0m rate=0.06/cfg/s heartbeat=axis
+RUNNING workers=1 pending=0 [cfc:0:780.9s]

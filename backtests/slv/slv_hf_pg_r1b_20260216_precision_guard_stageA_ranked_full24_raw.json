@@ -1,0 +1,12 @@
+{
+  "name": "multitimeframe_top",
+  "generated_at": "2026-02-16T05:10:02.484417Z",
+  "source": "/Users/x/Desktop/py/tradebot/backtests/slv/slv_hf_pg_r1b_20260216_precision_guard_stageA_ranked_full24_in.json",
+  "windows": [
+    {
+      "start": "2025-02-14",
+      "end": "2026-02-14"
+    }
+  ],
+  "groups": []
+}
