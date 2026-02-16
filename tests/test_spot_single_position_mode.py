@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from datetime import date, datetime, timedelta
 import json
 from pathlib import Path
@@ -9,7 +9,7 @@ from tradebot.backtest.config import load_config
 from tradebot.backtest.data import ContractMeta
 from tradebot.backtest.engine import _run_spot_backtest_summary
 from tradebot.backtest.models import Bar
-from tradebot.backtest.run_backtests_spot_sweeps import _strategy_from_payload
+from tradebot.backtest.spot_codec import filters_from_payload, strategy_from_payload
 from tradebot.knobs.models import BacktestConfig, ConfigBundle, SpotLegConfig, SpotStrategyConfig, SyntheticConfig
 
 
@@ -124,9 +124,10 @@ def _base_cfg(day: date) -> ConfigBundle:
     return ConfigBundle(backtest=backtest, strategy=strategy, synthetic=synthetic)
 
 
-def test_spot_strategy_ignores_legacy_max_open_field() -> None:
+def test_spot_strategy_ignores_legacy_unknown_field() -> None:
     day = date(2024, 1, 1)
-    base = datetime(day.year, day.month, day.day, 0, 0, 0)
+    # Keep synthetic tape on the intended ET trade date (09:00 ET in UTC).
+    base = datetime(day.year, day.month, day.day, 14, 0, 0)
     seg1 = _bars_5m(start=base, end=base + timedelta(minutes=60), start_price=100.0, end_price=102.0)
     seg2 = _bars_5m(start=seg1[-1].ts, end=seg1[-1].ts + timedelta(minutes=30), start_price=seg1[-1].close, end_price=110.0)
     seg3 = _bars_5m(start=seg2[-1].ts, end=seg2[-1].ts + timedelta(minutes=60), start_price=seg2[-1].close, end_price=105.0)
@@ -135,12 +136,10 @@ def test_spot_strategy_ignores_legacy_max_open_field() -> None:
     signal_bars = _extract_signal_bars(exec_bars, every_minutes=30)
 
     cfg = _base_cfg(day)
-    assert not hasattr(cfg.strategy, "max_open_trades")
-
     legacy_payload = asdict(cfg.strategy)
-    legacy_payload["max_open_trades"] = 9
-    parsed = _strategy_from_payload(legacy_payload, filters=None)
-    assert not hasattr(parsed, "max_open_trades")
+    legacy_payload["legacy_open_slots"] = 9
+    parsed = strategy_from_payload(legacy_payload, filters=None)
+    assert not hasattr(parsed, "legacy_open_slots")
 
     meta = ContractMeta(symbol="TQQQ", exchange="SMART", multiplier=1.0, min_tick=0.01)
 
@@ -148,7 +147,33 @@ def test_spot_strategy_ignores_legacy_max_open_field() -> None:
     assert int(summary.trades) >= 1
 
 
-def test_load_config_ignores_legacy_spot_max_open(tmp_path: Path) -> None:
+def test_spot_next_open_entries_execute_when_fast_path_disabled() -> None:
+    day = date(2024, 1, 1)
+    base = datetime(day.year, day.month, day.day, 14, 0, 0)
+    seg1 = _bars_5m(start=base, end=base + timedelta(minutes=60), start_price=100.0, end_price=102.0)
+    seg2 = _bars_5m(start=seg1[-1].ts, end=seg1[-1].ts + timedelta(minutes=30), start_price=seg1[-1].close, end_price=110.0)
+    seg3 = _bars_5m(start=seg2[-1].ts, end=seg2[-1].ts + timedelta(minutes=60), start_price=seg2[-1].close, end_price=105.0)
+    seg4 = _bars_5m(start=seg3[-1].ts, end=seg3[-1].ts + timedelta(minutes=30), start_price=seg3[-1].close, end_price=100.0)
+    exec_bars = seg1 + seg2 + seg3 + seg4
+    signal_bars = _extract_signal_bars(exec_bars, every_minutes=30)
+
+    cfg = _base_cfg(day)
+    # Force the iterative summary path (disable fast path) so next-open pending fill
+    # behavior is validated under the shared lifecycle runtime.
+    cfg = replace(
+        cfg,
+        strategy=replace(
+            cfg.strategy,
+            filters=filters_from_payload({"ratsv_enabled": True}),
+        ),
+    )
+    meta = ContractMeta(symbol="TQQQ", exchange="SMART", multiplier=1.0, min_tick=0.01)
+
+    summary = _run_spot_backtest_summary(cfg, bars=signal_bars, meta=meta, exec_bars=exec_bars)
+    assert int(summary.trades) >= 1
+
+
+def test_load_config_ignores_legacy_spot_unknown_field(tmp_path: Path) -> None:
     raw = {
         "backtest": {
             "start": "2025-01-08",
@@ -169,7 +194,7 @@ def test_load_config_ignores_legacy_spot_max_open(tmp_path: Path) -> None:
             "symbol": "SLV",
             "entry_days": ["Mon", "Tue", "Wed", "Thu", "Fri"],
             "max_entries_per_day": 0,
-            "max_open_trades": 7,
+            "legacy_open_slots": 7,
             "dte": 0,
             "otm_pct": 0.0,
             "width_pct": 0.0,
@@ -230,14 +255,14 @@ def test_load_config_ignores_legacy_spot_max_open(tmp_path: Path) -> None:
             "min_spread_pct": 0.0,
         },
     }
-    cfg_path = tmp_path / "legacy_spot_max_open.json"
+    cfg_path = tmp_path / "legacy_spot_unknown_field.json"
     cfg_path.write_text(json.dumps(raw))
     cfg = load_config(cfg_path)
     assert cfg.strategy.instrument == "spot"
-    assert not hasattr(cfg.strategy, "max_open_trades")
+    assert not hasattr(cfg.strategy, "legacy_open_slots")
 
 
-def test_load_config_options_keeps_max_open(tmp_path: Path) -> None:
+def test_load_config_options_ignores_legacy_unknown_field(tmp_path: Path) -> None:
     raw = {
         "backtest": {
             "start": "2025-01-08",
@@ -246,12 +271,11 @@ def test_load_config_options_keeps_max_open(tmp_path: Path) -> None:
         "strategy": {
             "instrument": "options",
             "symbol": "SLV",
-            "max_open_trades": 3,
+            "legacy_open_slots": 3,
         },
     }
-    cfg_path = tmp_path / "options_with_max_open.json"
+    cfg_path = tmp_path / "options_with_unknown_field.json"
     cfg_path.write_text(json.dumps(raw))
     cfg = load_config(cfg_path)
     assert cfg.strategy.instrument == "options"
-    assert hasattr(cfg.strategy, "max_open_trades")
-    assert int(getattr(cfg.strategy, "max_open_trades")) == 3
+    assert not hasattr(cfg.strategy, "legacy_open_slots")

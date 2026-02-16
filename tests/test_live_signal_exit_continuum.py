@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 import sys
 import time
@@ -14,7 +14,7 @@ from ib_insync import Future, Stock
 
 from tradebot.client import IBKRClient, _session_flags
 from tradebot.config import IBKRConfig
-from tradebot.engine import flip_exit_gate_blocked, signal_filter_checks
+from tradebot.spot.lifecycle import flip_exit_gate_blocked, signal_filter_checks
 
 _UI_DIR = Path(__file__).resolve().parents[1] / "tradebot" / "ui"
 if "tradebot.ui" not in sys.modules:
@@ -57,6 +57,11 @@ def _new_client() -> IBKRClient:
         reconnect_slow_interval_sec=60.0,
     )
     return IBKRClient(cfg)
+
+
+def test_ib_bar_datetime_converts_aware_timestamp_to_et_naive() -> None:
+    parsed = IBKRClient._ib_bar_datetime(datetime(2026, 2, 10, 14, 30, tzinfo=timezone.utc))
+    assert parsed == datetime(2026, 2, 10, 9, 30)
 
 
 def test_historical_full24_stitches_overnight_and_keeps_what_to_show_cache_separate() -> None:

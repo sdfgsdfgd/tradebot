@@ -46,7 +46,20 @@ class BacktestTimeAlignmentTests(unittest.TestCase):
         self.assertEqual(seen.get(datetime(2025, 1, 1, 1, 0)), 0)
         self.assertEqual(seen.get(datetime(2025, 1, 1, 4, 0)), 1)
 
+    def test_rth_fragmented_4hour_bars_align_to_true_closes(self) -> None:
+        # IBKR can return fragmented 4-hour RTH starts for equities:
+        # 09:30 ET, 11:00 ET, 15:00 ET (UTC: 14:30, 16:00, 20:00 in winter).
+        # Close alignment should be 11:00 ET, 15:00 ET, 16:00 ET.
+        raw = [
+            Bar(ts=datetime(2025, 1, 2, 14, 30), open=1, high=1, low=1, close=1, volume=0),
+            Bar(ts=datetime(2025, 1, 2, 16, 0), open=1, high=1, low=1, close=1, volume=0),
+            Bar(ts=datetime(2025, 1, 2, 20, 0), open=1, high=1, low=1, close=1, volume=0),
+        ]
+        out = _normalize_bars(raw, symbol="TQQQ", bar_size="4 hours", use_rth=True)
+        self.assertEqual(out[0].ts, datetime(2025, 1, 2, 16, 0))
+        self.assertEqual(out[1].ts, datetime(2025, 1, 2, 20, 0))
+        self.assertEqual(out[2].ts, datetime(2025, 1, 2, 21, 0))
+
 
 if __name__ == "__main__":
     unittest.main()
-
