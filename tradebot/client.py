@@ -12,13 +12,13 @@ from typing import Callable, Iterable
 
 from ib_insync import (
     AccountValue,
-    ContFuture,
     Contract,
     Forex,
     Future,
     IB,
     LimitOrder,
     PnL,
+    PnLSingle,
     PortfolioItem,
     Stock,
     Ticker,
@@ -30,10 +30,10 @@ from .config import IBKRConfig
 from .time_utils import NaiveTsMode, now_et as _now_et, now_et_naive as _now_et_naive, to_et as _to_et_shared
 
 # region Constants
-_INDEX_CONTRACTS: dict[str, list[str]] = {
-    "NQ": ["GLOBEX", "CME"],
-    "ES": ["GLOBEX", "CME"],
-    "YM": ["ECBOT", "CBOT", "GLOBEX"],
+_INDEX_PROXY_SYMBOLS: dict[str, str] = {
+    "NQ": "QQQ",
+    "ES": "SPY",
+    "YM": "DIA",
 }
 _PROXY_SYMBOLS = ("QQQ", "TQQQ")
 _PREMARKET_START = dtime(4, 0)
@@ -41,6 +41,9 @@ _RTH_START = dtime(9, 30)
 _RTH_END = dtime(16, 0)
 _AFTER_END = dtime(20, 0)
 _OVERNIGHT_END = dtime(3, 50)
+_PROXY_CONTRACT_QUOTE_PROBE_INITIAL_SEC = 1.5
+_PROXY_CONTRACT_QUOTE_PROBE_RETRY_SEC = 12.0
+_INDEX_QUOTE_PROBE_INITIAL_SEC = 2.0
 _SEARCH_TERM_ALIASES_BY_MODE: dict[str, dict[str, tuple[str, ...]]] = {
     "STK": {
         "SILVER": ("SLV",),
@@ -117,6 +120,17 @@ def _session_flags(now: datetime) -> tuple[bool, bool]:
     )
     include_overnight = current >= _AFTER_END or current < _OVERNIGHT_END
     return outside_rth, include_overnight
+
+
+def _session_bucket(now: datetime) -> str:
+    current = now.time()
+    if _RTH_START <= current < _RTH_END:
+        return "RTH"
+    if _PREMARKET_START <= current < _RTH_START:
+        return "PRE"
+    if _RTH_END <= current < _AFTER_END:
+        return "POST"
+    return "OVERNIGHT"
 # endregion
 
 
@@ -185,6 +199,7 @@ class IBKRClient:
         self._connect_lock = asyncio.Lock()
         self._connect_proxy_lock = asyncio.Lock()
         self._lock = asyncio.Lock()
+        self._index_lock = asyncio.Lock()
         self._proxy_lock = asyncio.Lock()
         self._historical_lock = asyncio.Lock()
         self._historical_proxy_lock = asyncio.Lock()
@@ -192,11 +207,13 @@ class IBKRClient:
         self._index_contracts: dict[str, Contract] = {}
         self._index_tickers: dict[str, Ticker] = {}
         self._index_task: asyncio.Task | None = None
+        self._index_probe_task: asyncio.Task | None = None
+        self._index_requalify_on_reload = False
+        self._index_session_flags: tuple[bool, bool] | None = None
+        self._index_session_include_overnight: bool | None = None
         self._index_error: str | None = None
-        # Index strip uses continuous futures (CONTFUT); on accounts without
-        # live futures subscriptions, forcing delayed avoids repeated gateway
-        # errors and keeps NASDAQ/S&P/DOW strip stable.
-        self._index_force_delayed = True
+        # Index strip starts live-first and degrades to delayed when needed.
+        self._index_force_delayed = False
         self._proxy_contracts: dict[str, Contract] = {}
         self._proxy_tickers: dict[str, Ticker] = {}
         self._proxy_task: asyncio.Task | None = None
@@ -205,7 +222,9 @@ class IBKRClient:
         self._proxy_probe_task: asyncio.Task | None = None
         self._proxy_contract_force_delayed: set[int] = set()
         self._proxy_contract_probe_tasks: dict[int, asyncio.Task] = {}
+        self._proxy_contract_live_tasks: dict[int, asyncio.Task] = {}
         self._proxy_contract_delayed_tasks: dict[int, asyncio.Task] = {}
+        self._proxy_session_bucket: str | None = _session_bucket(_now_et())
         self._proxy_session_include_overnight: bool | None = None
         self._detail_tickers: dict[int, tuple[IB, Ticker]] = {}
         self._ticker_owners: dict[int, set[str]] = {}
@@ -222,6 +241,8 @@ class IBKRClient:
         self._stream_listeners: set[Callable[[], None]] = set()
         self._pnl: PnL | None = None
         self._pnl_account: str | None = None
+        self._pnl_single_by_con_id: dict[int, PnLSingle] = {}
+        self._pnl_single_account: str | None = None
         self._account_value_cache: dict[tuple[str, str], tuple[float, datetime]] = {}
         self._session_close_cache: dict[int, tuple[float | None, float | None, float]] = {}
         self._order_error_cache: dict[int, tuple[float, int, str]] = {}
@@ -237,6 +258,7 @@ class IBKRClient:
         self._ib.updatePortfolioEvent += self._on_stream_update
         self._ib.pendingTickersEvent += self._on_stream_update
         self._ib.pnlEvent += self._on_stream_update
+        self._ib.pnlSingleEvent += self._on_pnl_single
         self._ib.accountValueEvent += self._on_account_value
         self._ib_proxy.errorEvent += self._on_error_proxy
         self._ib_proxy.disconnectedEvent += self._on_disconnected_proxy
@@ -307,32 +329,46 @@ class IBKRClient:
         self._stop_reconnect_loop()
         self._reconnect_requested = False
         self._reconnect_fast_deadline = None
+        self._clear_pnl_single_subscriptions(cancel=True)
         self._safe_disconnect(self._ib)
         self._safe_disconnect(self._ib_proxy)
         self._account_updates_started = False
         self._index_tickers = {}
         self._index_task = None
+        if self._index_probe_task and not self._index_probe_task.done():
+            self._index_probe_task.cancel()
+        self._index_probe_task = None
+        self._index_requalify_on_reload = False
+        self._index_session_flags = None
+        self._index_session_include_overnight = None
         self._index_error = None
-        self._index_force_delayed = True
+        self._index_force_delayed = False
         self._proxy_tickers = {}
         self._proxy_task = None
         self._proxy_error = None
         self._proxy_force_delayed = False
         self._proxy_probe_task = None
         self._proxy_contract_force_delayed = set()
+        self._proxy_session_bucket = None
         self._proxy_session_include_overnight = None
         for task in self._proxy_contract_probe_tasks.values():
+            if task and not task.done():
+                task.cancel()
+        for task in self._proxy_contract_live_tasks.values():
             if task and not task.done():
                 task.cancel()
         for task in self._proxy_contract_delayed_tasks.values():
             if task and not task.done():
                 task.cancel()
         self._proxy_contract_probe_tasks = {}
+        self._proxy_contract_live_tasks = {}
         self._proxy_contract_delayed_tasks = {}
         self._detail_tickers = {}
         self._ticker_owners = {}
         self._pnl = None
         self._pnl_account = None
+        self._pnl_single_by_con_id = {}
+        self._pnl_single_account = None
         self._account_value_cache = {}
         self._session_close_cache = {}
         self._fx_rate_cache = {}
@@ -344,14 +380,19 @@ class IBKRClient:
         async with self._lock:
             await self._ensure_account_updates()
             account = self._config.account or ""
-            return list(self._ib.portfolio(account))
+            items = list(self._ib.portfolio(account))
+            self._sync_pnl_single_subscriptions(items, account)
+            return items
 
     async def fetch_index_tickers(self) -> dict[str, Ticker]:
-        async with self._lock:
+        async with self._index_lock:
             await self._ensure_index_tickers()
             return dict(self._index_tickers)
 
     def start_index_tickers(self) -> None:
+        if self._index_requalify_on_reload:
+            self._start_index_resubscribe(requalify=True)
+            return
         if self._index_task and not self._index_task.done():
             return
         try:
@@ -392,6 +433,33 @@ class IBKRClient:
 
     def pnl(self) -> PnL | None:
         return self._pnl
+
+    def pnl_single_unrealized(self, con_id: int) -> float | None:
+        try:
+            key = int(con_id or 0)
+        except (TypeError, ValueError):
+            key = 0
+        if key <= 0:
+            return None
+        entry = self._pnl_single_by_con_id.get(key)
+        if entry is None:
+            return None
+        try:
+            value = float(getattr(entry, "unrealizedPnL", None))
+        except (TypeError, ValueError):
+            return None
+        if math.isnan(value):
+            return None
+        return float(value)
+
+    def has_pnl_single_subscription(self, con_id: int) -> bool:
+        try:
+            key = int(con_id or 0)
+        except (TypeError, ValueError):
+            return False
+        if key <= 0:
+            return False
+        return key in self._pnl_single_by_con_id
 
     def portfolio_item(self, con_id: int) -> PortfolioItem | None:
         if not con_id or not self._ib.isConnected():
@@ -1076,6 +1144,18 @@ class IBKRClient:
         return " ".join(chunks).upper()
 
     @staticmethod
+    def _desc_label(desc: object) -> str:
+        for attr in ("description", "longName", "companyName"):
+            text = str(getattr(desc, attr, "") or "").strip()
+            if text:
+                return text
+        contract = getattr(desc, "contract", None)
+        if contract is None:
+            return ""
+        symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
+        return symbol
+
+    @staticmethod
     def _future_exchange_candidates(symbol: str, preferred: Iterable[str]) -> list[str]:
         sym = str(symbol or "").strip().upper()
         out: list[str] = []
@@ -1185,7 +1265,7 @@ class IBKRClient:
                 break
         return [*exact_symbols, *prefix_symbols, *contains_symbols, *desc_symbols]
 
-    async def search_option_underlyers(self, query: str, *, limit: int = 8) -> list[str]:
+    async def search_option_underlyers(self, query: str, *, limit: int = 8) -> list[tuple[str, str]]:
         token = str(query or "").strip().upper()
         if not token:
             return []
@@ -1208,11 +1288,24 @@ class IBKRClient:
         )
         if not ranked_symbols:
             return []
-        out: list[str] = []
-        for symbol in ranked_symbols:
-            if symbol in out:
+        label_by_symbol: dict[str, str] = {}
+        for desc in matches:
+            contract = getattr(desc, "contract", None)
+            if not contract:
                 continue
-            out.append(symbol)
+            if str(getattr(contract, "secType", "") or "").strip().upper() != "STK":
+                continue
+            symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
+            if not symbol or symbol in label_by_symbol:
+                continue
+            label_by_symbol[symbol] = self._desc_label(desc)
+        out: list[tuple[str, str]] = []
+        seen_symbols: set[str] = set()
+        for symbol in ranked_symbols:
+            if symbol in seen_symbols:
+                continue
+            seen_symbols.add(symbol)
+            out.append((symbol, label_by_symbol.get(symbol, "")))
             if len(out) >= max_rows:
                 break
         return out
@@ -1805,6 +1898,9 @@ class IBKRClient:
         probe_task = self._proxy_contract_probe_tasks.pop(con_id, None)
         if probe_task and not probe_task.done():
             probe_task.cancel()
+        live_task = self._proxy_contract_live_tasks.pop(con_id, None)
+        if live_task and not live_task.done():
+            live_task.cancel()
         delayed_task = self._proxy_contract_delayed_tasks.pop(con_id, None)
         if delayed_task and not delayed_task.done():
             delayed_task.cancel()
@@ -1966,6 +2062,7 @@ class IBKRClient:
                 self._ib.client.reqAccountUpdates(False, account)
             except Exception:
                 pass
+            self._clear_pnl_single_subscriptions(cancel=True)
             if self._pnl_account:
                 try:
                     self._ib.cancelPnL(self._pnl_account)
@@ -1976,14 +2073,22 @@ class IBKRClient:
             self._account_updates_started = False
             self._session_close_cache = {}
             await self._ensure_account_updates()
+        async with self._index_lock:
             for ticker in self._index_tickers.values():
                 try:
                     self._ib.cancelMktData(ticker.contract)
                 except Exception:
                     pass
+            if self._index_probe_task and not self._index_probe_task.done():
+                self._index_probe_task.cancel()
+            self._index_probe_task = None
+            self._index_requalify_on_reload = False
+            self._index_session_flags = None
+            self._index_session_include_overnight = None
             self._index_tickers = {}
             self._index_task = None
             await self._ensure_index_tickers()
+            self._start_index_probe()
         async with self._proxy_lock:
             try:
                 await self.connect_proxy()
@@ -1994,14 +2099,19 @@ class IBKRClient:
                 return
             self._proxy_force_delayed = False
             self._proxy_contract_force_delayed = set()
+            self._proxy_session_bucket = None
             self._proxy_session_include_overnight = None
             for task in self._proxy_contract_probe_tasks.values():
+                if task and not task.done():
+                    task.cancel()
+            for task in self._proxy_contract_live_tasks.values():
                 if task and not task.done():
                     task.cancel()
             for task in self._proxy_contract_delayed_tasks.values():
                 if task and not task.done():
                     task.cancel()
             self._proxy_contract_probe_tasks = {}
+            self._proxy_contract_live_tasks = {}
             self._proxy_contract_delayed_tasks = {}
             for ticker in self._proxy_tickers.values():
                 try:
@@ -2025,10 +2135,7 @@ class IBKRClient:
     def _ensure_pnl(self, account: str) -> None:
         if self._pnl:
             return
-        if not account:
-            accounts = self._ib.managedAccounts()
-            if accounts:
-                account = accounts[0]
+        account = self._resolve_account(account)
         if not account:
             return
         try:
@@ -2038,24 +2145,130 @@ class IBKRClient:
             self._pnl = None
             self._pnl_account = None
 
+    def _resolve_account(self, account: str | None = None) -> str:
+        candidate = str(account or "").strip()
+        if candidate:
+            return candidate
+        if self._pnl_account:
+            return str(self._pnl_account)
+        try:
+            accounts = self._ib.managedAccounts()
+        except Exception:
+            return ""
+        return str(accounts[0]) if accounts else ""
+
+    def _sync_pnl_single_subscriptions(self, items: list[PortfolioItem], account: str | None) -> None:
+        if not hasattr(self._ib, "reqPnLSingle") or not hasattr(self._ib, "cancelPnLSingle"):
+            return
+        resolved_account = self._resolve_account(account)
+        if not resolved_account:
+            return
+
+        desired_con_ids: set[int] = set()
+        for item in items:
+            contract = getattr(item, "contract", None)
+            try:
+                con_id = int(getattr(contract, "conId", 0) or 0)
+            except (TypeError, ValueError):
+                con_id = 0
+            if con_id > 0:
+                desired_con_ids.add(con_id)
+
+        if self._pnl_single_account and self._pnl_single_account != resolved_account:
+            self._clear_pnl_single_subscriptions(cancel=True)
+
+        active_con_ids = set(self._pnl_single_by_con_id.keys())
+        remove_con_ids = active_con_ids - desired_con_ids
+        add_con_ids = desired_con_ids - active_con_ids
+
+        if remove_con_ids:
+            cancel_account = self._pnl_single_account or resolved_account
+            for con_id in remove_con_ids:
+                try:
+                    self._ib.cancelPnLSingle(cancel_account, "", int(con_id))
+                except Exception:
+                    pass
+                self._pnl_single_by_con_id.pop(int(con_id), None)
+
+        if add_con_ids:
+            for con_id in add_con_ids:
+                try:
+                    pnl_single = self._ib.reqPnLSingle(resolved_account, "", int(con_id))
+                except Exception:
+                    continue
+                self._pnl_single_by_con_id[int(con_id)] = pnl_single
+
+        if desired_con_ids:
+            self._pnl_single_account = resolved_account
+        elif not self._pnl_single_by_con_id:
+            self._pnl_single_account = None
+
+    def _clear_pnl_single_subscriptions(self, *, cancel: bool) -> None:
+        if cancel and self._pnl_single_account and hasattr(self._ib, "cancelPnLSingle"):
+            account = str(self._pnl_single_account)
+            for con_id in list(self._pnl_single_by_con_id.keys()):
+                try:
+                    self._ib.cancelPnLSingle(account, "", int(con_id))
+                except Exception:
+                    continue
+        self._pnl_single_by_con_id = {}
+        self._pnl_single_account = None
+
     async def _ensure_index_tickers(self) -> None:
         await self.connect()
+        current_session_flags = tuple(bool(v) for v in _session_flags(_now_et()))
+        reload_needed = False
+        if self._index_session_flags is None:
+            self._index_session_flags = current_session_flags
+        elif current_session_flags != self._index_session_flags:
+            self._index_session_flags = current_session_flags
+            reload_needed = True
         md_type = 3 if self._index_force_delayed else 1
         self._ib.reqMarketDataType(md_type)
         if not self._index_contracts:
             self._index_contracts = await self._qualify_index_contracts()
+        _, include_overnight = _session_flags(_now_et())
+        delayed = bool(md_type == 3)
+        desired_contracts: dict[str, Contract] = {}
+        for symbol, contract in self._index_contracts.items():
+            req_contract = contract
+            if str(getattr(contract, "secType", "") or "").strip().upper() == "STK":
+                req_contract = self._stock_market_data_contract(
+                    contract,
+                    include_overnight=include_overnight,
+                    delayed=delayed,
+                )
+            desired_contracts[symbol] = req_contract
+        self._index_session_include_overnight = include_overnight
+        reload_needed = reload_needed or (set(self._index_tickers.keys()) != set(desired_contracts.keys()))
+        if not reload_needed:
+            for symbol, req_contract in desired_contracts.items():
+                ticker = self._index_tickers.get(symbol)
+                if ticker is None:
+                    reload_needed = True
+                    break
+                current = ticker.contract
+                cur_con_id = int(getattr(current, "conId", 0) or 0)
+                req_con_id = int(getattr(req_contract, "conId", 0) or 0)
+                cur_exchange = str(getattr(current, "exchange", "") or "").strip().upper()
+                req_exchange = str(getattr(req_contract, "exchange", "") or "").strip().upper()
+                if cur_exchange != req_exchange or (req_con_id and cur_con_id != req_con_id):
+                    reload_needed = True
+                    break
+        if reload_needed:
+            for ticker in self._index_tickers.values():
+                try:
+                    self._ib.cancelMktData(ticker.contract)
+                except Exception:
+                    pass
+            self._index_tickers = {}
         if not self._index_tickers:
-            for symbol, contract in self._index_contracts.items():
-                sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
-                req_md_type = 3 if (
-                    self._index_force_delayed
-                    or sec_type == "CONTFUT"
-                ) else 1
-                self._ib.reqMarketDataType(req_md_type)
-                self._index_tickers[symbol] = self._ib.reqMktData(contract)
+            for symbol, req_contract in desired_contracts.items():
+                self._index_tickers[symbol] = self._ib.reqMktData(req_contract)
 
     async def _ensure_proxy_tickers(self) -> None:
         await self.connect_proxy()
+        self._maybe_reset_proxy_contract_delay_on_session_change()
         md_type = 3 if self._proxy_force_delayed else 1
         self._ib_proxy.reqMarketDataType(md_type)
         if not self._proxy_contracts:
@@ -2129,33 +2342,131 @@ class IBKRClient:
         return result[0] if result else None
 
     async def _qualify_index_contracts(self) -> dict[str, Contract]:
+        async def _resolve(symbol: str, proxy_symbol: str) -> tuple[str, Contract | None]:
+            candidate = Stock(symbol=proxy_symbol, exchange="SMART", currency="USD")
+            contract = await self._qualify_contract(candidate, use_proxy=False)
+            return symbol, contract
+
+        tasks = [
+            _resolve(symbol, proxy_symbol)
+            for symbol, proxy_symbol in _INDEX_PROXY_SYMBOLS.items()
+        ]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
         qualified: dict[str, Contract] = {}
-        for symbol, exchanges in _INDEX_CONTRACTS.items():
-            contract = await self._qualify_cont_future(symbol, exchanges)
-            if contract:
+        for result in results:
+            if isinstance(result, Exception):
+                continue
+            symbol, contract = result
+            if contract is not None:
                 qualified[symbol] = contract
         return qualified
 
-    async def _qualify_cont_future(
-        self, symbol: str, exchanges: Iterable[str]
-    ) -> Contract | None:
-        for exchange in exchanges:
-            candidate = ContFuture(symbol=symbol, exchange=exchange, currency="USD")
-            try:
-                result = await self._ib.qualifyContractsAsync(candidate)
-            except Exception:
-                continue
-            if result:
-                return result[0]
-        return None
-
     async def _load_index_tickers(self) -> None:
         try:
-            async with self._lock:
+            async with self._index_lock:
                 await self._ensure_index_tickers()
             self._index_error = None
+            self._start_index_probe()
         except Exception as exc:
             self._index_error = str(exc)
+
+    async def _reload_index_tickers(self) -> None:
+        try:
+            async with self._index_lock:
+                await self.connect()
+                md_type = 3 if self._index_force_delayed else 1
+                self._ib.reqMarketDataType(md_type)
+                for ticker in self._index_tickers.values():
+                    try:
+                        self._ib.cancelMktData(ticker.contract)
+                    except Exception:
+                        pass
+                self._index_tickers = {}
+                if self._index_requalify_on_reload:
+                    self._index_requalify_on_reload = False
+                    self._index_contracts = {}
+                await self._ensure_index_tickers()
+            self._index_error = None
+            self._start_index_probe()
+        except Exception as exc:
+            self._index_error = str(exc)
+
+    def _start_index_resubscribe(self, *, requalify: bool = False) -> None:
+        if requalify:
+            self._index_requalify_on_reload = True
+        if self._index_probe_task and not self._index_probe_task.done():
+            self._index_probe_task.cancel()
+        self._index_probe_task = None
+        if self._index_task and not self._index_task.done():
+            return
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        self._index_task = loop.create_task(self._reload_index_tickers())
+
+    def _start_index_probe(self) -> None:
+        if not self._index_tickers:
+            return
+        if self._index_probe_task is not None:
+            if not self._index_probe_task.done():
+                return
+            self._index_probe_task = None
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        self._index_probe_task = loop.create_task(self._probe_index_quotes())
+
+    async def _probe_index_quotes(self) -> None:
+        await asyncio.sleep(float(_INDEX_QUOTE_PROBE_INITIAL_SEC))
+        if not self._index_tickers:
+            return
+        if self._index_has_data():
+            return
+        if not self._index_force_delayed:
+            self._index_force_delayed = True
+            self._start_index_resubscribe(requalify=False)
+        else:
+            self._start_index_resubscribe(requalify=False)
+        await asyncio.sleep(float(_INDEX_QUOTE_PROBE_INITIAL_SEC))
+        if not self._index_tickers:
+            return
+        if self._index_has_data():
+            return
+        self._start_index_resubscribe(requalify=False)
+
+    def _index_has_data(self) -> bool:
+        for ticker in self._index_tickers.values():
+            if self._ticker_has_data(ticker):
+                return True
+        return False
+
+    def _is_index_contract(self, contract: Contract | None) -> bool:
+        if contract is None:
+            return False
+        symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
+        if symbol in _INDEX_PROXY_SYMBOLS or symbol in set(_INDEX_PROXY_SYMBOLS.values()):
+            return True
+        try:
+            con_id = int(getattr(contract, "conId", 0) or 0)
+        except (TypeError, ValueError):
+            con_id = 0
+        if con_id <= 0:
+            return False
+        for candidate in self._index_contracts.values():
+            try:
+                if int(getattr(candidate, "conId", 0) or 0) == con_id:
+                    return True
+            except (TypeError, ValueError):
+                continue
+        for ticker in self._index_tickers.values():
+            try:
+                if int(getattr(getattr(ticker, "contract", None), "conId", 0) or 0) == con_id:
+                    return True
+            except (TypeError, ValueError):
+                continue
+        return False
 
     async def _load_proxy_tickers(self) -> None:
         try:
@@ -2168,6 +2479,10 @@ class IBKRClient:
 
     def _on_error_main(self, reqId, errorCode, errorString, contract) -> None:
         self._remember_order_error(reqId, errorCode, errorString)
+        if errorCode in (10167, 354, 10089, 10090, 10091, 10168):
+            if self._is_index_contract(contract):
+                self._index_force_delayed = True
+                self._start_index_resubscribe(requalify=True)
         self._handle_conn_error(errorCode)
 
     def _on_error_proxy(self, reqId, errorCode, errorString, contract) -> None:
@@ -2235,10 +2550,17 @@ class IBKRClient:
         self._account_updates_started = False
         self._pnl = None
         self._pnl_account = None
+        self._clear_pnl_single_subscriptions(cancel=False)
         self._account_value_cache = {}
         self._fx_rate_cache = {}
         self._index_tickers = {}
         self._index_task = None
+        if self._index_probe_task and not self._index_probe_task.done():
+            self._index_probe_task.cancel()
+        self._index_probe_task = None
+        self._index_requalify_on_reload = False
+        self._index_session_flags = None
+        self._index_session_include_overnight = None
         self._reconnect_requested = True
         self._start_reconnect_loop()
         if self._update_callback:
@@ -2250,15 +2572,20 @@ class IBKRClient:
         self._resubscribe_proxy_needed = True
         self._proxy_task = None
         self._proxy_tickers = {}
+        self._proxy_session_bucket = None
         self._proxy_session_include_overnight = None
         self._proxy_probe_task = None
         for task in self._proxy_contract_probe_tasks.values():
+            if task and not task.done():
+                task.cancel()
+        for task in self._proxy_contract_live_tasks.values():
             if task and not task.done():
                 task.cancel()
         for task in self._proxy_contract_delayed_tasks.values():
             if task and not task.done():
                 task.cancel()
         self._proxy_contract_probe_tasks = {}
+        self._proxy_contract_live_tasks = {}
         self._proxy_contract_delayed_tasks = {}
         self._reconnect_requested = True
         self._start_reconnect_loop()
@@ -2287,6 +2614,30 @@ class IBKRClient:
                     self._proxy_contract_delayed_tasks.pop(key, None)
 
             task.add_done_callback(_cleanup)
+
+    def _start_proxy_contract_live_resubscribe(self, contract: Contract) -> None:
+        con_id = int(getattr(contract, "conId", 0) or 0)
+        if not con_id or con_id in self._proxy_contract_force_delayed:
+            return
+        delayed_task = self._proxy_contract_delayed_tasks.pop(con_id, None)
+        if delayed_task and not delayed_task.done():
+            delayed_task.cancel()
+        existing = self._proxy_contract_live_tasks.get(con_id)
+        if existing is not None and not existing.done():
+            return
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        task = loop.create_task(self._resubscribe_proxy_contract_live(contract))
+        self._proxy_contract_live_tasks[con_id] = task
+
+        def _cleanup(done_task: asyncio.Task, key: int = con_id) -> None:
+            current = self._proxy_contract_live_tasks.get(key)
+            if current is done_task:
+                self._proxy_contract_live_tasks.pop(key, None)
+
+        task.add_done_callback(_cleanup)
 
     @staticmethod
     def _stock_market_data_contract(
@@ -2360,7 +2711,7 @@ class IBKRClient:
     async def _probe_proxy_contract_quote(self, contract: Contract) -> None:
         con_id = int(getattr(contract, "conId", 0) or 0)
         try:
-            await asyncio.sleep(1.5)
+            await asyncio.sleep(float(_PROXY_CONTRACT_QUOTE_PROBE_INITIAL_SEC))
             if not con_id or con_id in self._proxy_contract_force_delayed:
                 return
             entry = self._detail_tickers.get(con_id)
@@ -2371,12 +2722,59 @@ class IBKRClient:
                 return
             if self._ticker_has_data(ticker):
                 return
-            self._proxy_contract_force_delayed.add(con_id)
-            self._start_proxy_contract_delayed_resubscribe(contract)
+            self._start_proxy_contract_live_resubscribe(contract)
+            await asyncio.sleep(float(_PROXY_CONTRACT_QUOTE_PROBE_RETRY_SEC))
+            if not con_id or con_id in self._proxy_contract_force_delayed:
+                return
+            entry = self._detail_tickers.get(con_id)
+            if not entry:
+                return
+            ib, ticker = entry
+            if ib is not self._ib_proxy:
+                return
+            if self._ticker_has_data(ticker):
+                return
+            if contract.secType == "OPT":
+                self._start_proxy_contract_live_resubscribe(contract)
         finally:
             current = self._proxy_contract_probe_tasks.get(con_id)
             if current is asyncio.current_task():
                 self._proxy_contract_probe_tasks.pop(con_id, None)
+
+    async def _resubscribe_proxy_contract_live(self, contract: Contract) -> None:
+        async with self._proxy_lock:
+            try:
+                await self.connect_proxy()
+            except Exception:
+                return
+            self._ib_proxy.reqMarketDataType(1)
+            req_contract = contract
+            if contract.secType == "STK":
+                _, include_overnight = _session_flags(_now_et())
+                req_contract = self._stock_market_data_contract(
+                    contract,
+                    include_overnight=include_overnight,
+                    delayed=False,
+                )
+            elif contract.secType in ("OPT", "FOP"):
+                if not contract.exchange:
+                    req_contract = copy.copy(contract)
+                    if contract.secType == "FOP":
+                        primary_exchange = getattr(contract, "primaryExchange", "") or ""
+                        req_contract.exchange = primary_exchange or "CME"
+                    else:
+                        req_contract.exchange = "SMART"
+            try:
+                self._ib_proxy.cancelMktData(contract)
+            except Exception:
+                pass
+            ticker = self._ib_proxy.reqMktData(req_contract)
+            con_id = int(getattr(req_contract, "conId", 0) or 0)
+            if con_id and con_id in self._detail_tickers:
+                self._detail_tickers[con_id] = (self._ib_proxy, ticker)
+            symbol = getattr(req_contract, "symbol", "") or ""
+            if symbol and symbol in self._proxy_tickers:
+                self._proxy_tickers[symbol] = ticker
 
     async def _resubscribe_proxy_contract_delayed(self, contract: Contract) -> None:
         async with self._proxy_lock:
@@ -2421,6 +2819,28 @@ class IBKRClient:
             symbol = getattr(req_contract, "symbol", "") or ""
             if symbol and symbol in self._proxy_tickers:
                 self._proxy_tickers[symbol] = ticker
+
+    def _maybe_reset_proxy_contract_delay_on_session_change(self) -> None:
+        current_bucket = _session_bucket(_now_et())
+        if self._proxy_session_bucket is None:
+            self._proxy_session_bucket = current_bucket
+            return
+        if current_bucket == self._proxy_session_bucket:
+            return
+        self._proxy_session_bucket = current_bucket
+        if self._proxy_contract_force_delayed:
+            self._proxy_contract_force_delayed = set()
+        for _con_id, (ib, ticker) in list(self._detail_tickers.items()):
+            if ib is not self._ib_proxy:
+                continue
+            contract = getattr(ticker, "contract", None)
+            if contract is None:
+                continue
+            sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
+            if sec_type not in ("OPT", "FOP"):
+                continue
+            self._start_proxy_contract_live_resubscribe(contract)
+            self._start_proxy_contract_quote_probe(contract)
 
     def _handle_conn_error(self, error_code: int) -> None:
         if error_code == 1100:
@@ -2510,6 +2930,7 @@ class IBKRClient:
             await self._ensure_proxy_tickers()
 
     def _on_stream_update(self, *_, **__) -> None:
+        self._maybe_reset_proxy_contract_delay_on_session_change()
         if self._update_callback:
             self._update_callback()
         if not self._stream_listeners:
@@ -2519,6 +2940,17 @@ class IBKRClient:
                 callback()
             except Exception:
                 continue
+
+    def _on_pnl_single(self, value: PnLSingle) -> None:
+        if self._config.account and value.account and value.account != self._config.account:
+            return
+        try:
+            con_id = int(getattr(value, "conId", 0) or 0)
+        except (TypeError, ValueError):
+            con_id = 0
+        if con_id > 0:
+            self._pnl_single_by_con_id[con_id] = value
+        self._on_stream_update()
 
     def _on_account_value(self, value: AccountValue) -> None:
         if self._config.account and value.account != self._config.account:
@@ -2588,7 +3020,11 @@ class IBKRClient:
                         continue
                 self._index_tickers = {}
                 self._index_task = None
+                if self._index_probe_task and not self._index_probe_task.done():
+                    self._index_probe_task.cancel()
+                self._index_probe_task = None
                 await self._ensure_index_tickers()
+                self._start_index_probe()
                 self._resubscribe_main_needed = False
         async with self._proxy_lock:
             if not self._ib_proxy.isConnected():

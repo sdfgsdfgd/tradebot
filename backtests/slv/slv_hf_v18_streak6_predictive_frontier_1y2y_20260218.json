@@ -1,0 +1,768 @@
+{
+  "source_strategy": "backtests/slv/archive/champion_history_20260214/slv_hf_champions_v18_exception_ddshock_lb10_on10_off5_20260217.json",
+  "winners_vs_v18": [
+    "streak6",
+    "streak6_on9_off5",
+    "streak6_short2p5",
+    "streak6_short3"
+  ],
+  "winners_vs_streak6": [],
+  "results": [
+    {
+      "variant": "v18_baseline",
+      "filters_patch": {},
+      "y1": {
+        "pnl": 31077.08494399865,
+        "dd_pct": 0.09556154855999208,
+        "roi_dd": 3.2520491151824453,
+        "trades": 698
+      },
+      "y2": {
+        "pnl": 43716.00399200219,
+        "dd_pct": 0.15247905231998768,
+        "roi_dd": 2.8670170313139915,
+        "trades": 1252
+      },
+      "segments": {
+        "pre_2026": {
+          "total_pnl": 19604.848607997672,
+          "short_pnl": -1249.045552000081,
+          "long_pnl": 20853.894159997755,
+          "trades": 590,
+          "short_trades": 203,
+          "avg_abs_short_qty": 117.08866995073892
+        },
+        "janfeb_2026": {
+          "total_pnl": 17090.269760001305,
+          "short_pnl": -3523.521207999988,
+          "long_pnl": 20613.790968001293,
+          "trades": 163,
+          "short_trades": 60,
+          "avg_abs_short_qty": 84.2
+        },
+        "crash_leg_2026": {
+          "total_pnl": 5672.301576000536,
+          "short_pnl": -2663.20979199999,
+          "long_pnl": 8335.511368000527,
+          "trades": 89,
+          "short_trades": 35,
+          "avg_abs_short_qty": 102.74285714285715
+        }
+      },
+      "trace_probe": {
+        "shock_short_trades": 69,
+        "shock_short_boost_applied": 69
+      },
+      "delta_vs_v18": {
+        "y1_pnl": 0.0,
+        "y2_pnl": 0.0,
+        "y1_roi_dd": 0.0,
+        "y2_roi_dd": 0.0,
+        "jan_total": 0.0,
+        "jan_short": 0.0,
+        "crash_total": 0.0,
+        "crash_short": 0.0,
+        "pre_2026_total": 0.0
+      },
+      "delta_vs_streak6": {
+        "y1_pnl": -1519.1826400000064,
+        "y2_pnl": -1859.0359599999938,
+        "y1_roi_dd": -0.21056160673975421,
+        "y2_roi_dd": -0.13560945254702306,
+        "crash_short": -1381.971447999994,
+        "crash_total": -1426.7190719999953
+      }
+    },
+    {
+      "variant": "streak6",
+      "filters_patch": {
+        "shock_short_boost_min_down_streak_bars": 6
+      },
+      "y1": {
+        "pnl": 32596.267583998655,
+        "dd_pct": 0.09413783471999268,
+        "roi_dd": 3.4626107219221995,
+        "trades": 697
+      },
+      "y2": {
+        "pnl": 45575.03995200218,
+        "dd_pct": 0.1517839138399865,
+        "roi_dd": 3.0026264838610146,
+        "trades": 1252
+      },
+      "segments": {
+        "pre_2026": {
+          "total_pnl": 19754.376655997687,
+          "short_pnl": -1115.0044160000657,
+          "long_pnl": 20869.381071997752,
+          "trades": 591,
+          "short_trades": 204,
+          "avg_abs_short_qty": 100.1029411764706
+        },
+        "janfeb_2026": {
+          "total_pnl": 18467.6198720013,
+          "short_pnl": -2202.769759999994,
+          "long_pnl": 20670.389632001294,
+          "trades": 162,
+          "short_trades": 59,
+          "avg_abs_short_qty": 53.40677966101695
+        },
+        "crash_leg_2026": {
+          "total_pnl": 7099.020648000532,
+          "short_pnl": -1281.238343999996,
+          "long_pnl": 8380.258992000527,
+          "trades": 88,
+          "short_trades": 34,
+          "avg_abs_short_qty": 53.529411764705884
+        }
+      },
+      "trace_probe": {
+        "shock_short_trades": 70,
+        "shock_short_boost_applied": 0
+      },
+      "delta_vs_v18": {
+        "y1_pnl": 1519.1826400000064,
+        "y2_pnl": 1859.0359599999938,
+        "y1_roi_dd": 0.21056160673975421,
+        "y2_roi_dd": 0.13560945254702306,
+        "jan_total": 1377.3501119999964,
+        "jan_short": 1320.7514479999936,
+        "crash_total": 1426.7190719999953,
+        "crash_short": 1381.971447999994,
+        "pre_2026_total": 149.52804800001468
+      },
+      "delta_vs_streak6": {
+        "y1_pnl": 0.0,
+        "y2_pnl": 0.0,
+        "y1_roi_dd": 0.0,
+        "y2_roi_dd": 0.0,
+        "crash_short": 0.0,
+        "crash_total": 0.0
+      }
+    },
+    {
+      "variant": "streak6_sig6",
+      "filters_patch": {
+        "shock_short_boost_min_down_streak_bars": 6,
+        "shock_direction_source": "signal",
+        "shock_direction_lookback": 6,
+        "shock_regime_override_dir": false
+      },
+      "y1": {
+        "pnl": 28546.469583998707,
+        "dd_pct": 0.09574859703999289,
+        "roi_dd": 2.9813982101560437,
+        "trades": 699
+      },
+      "y2": {
+        "pnl": 41125.24263200222,
+        "dd_pct": 0.1517839138399865,
+        "roi_dd": 2.7094598888362595,
+        "trades": 1255
+      },
+      "segments": {
+        "pre_2026": {
+          "total_pnl": 20044.693239997665,
+          "short_pnl": -1024.9386240000672,
+          "long_pnl": 21069.631863997733,
+          "trades": 590,
+          "short_trades": 204,
+          "avg_abs_short_qty": 101.37254901960785
+        },
+        "janfeb_2026": {
+          "total_pnl": 13953.613904001333,
+          "short_pnl": -2190.907559999995,
+          "long_pnl": 16144.521464001327,
+          "trades": 165,
+          "short_trades": 59,
+          "avg_abs_short_qty": 53.152542372881356
+        },
+        "crash_leg_2026": {
+          "total_pnl": 2559.4552560005604,
+          "short_pnl": -1268.1990399999972,
+          "long_pnl": 3827.6542960005577,
+          "trades": 91,
+          "short_trades": 34,
+          "avg_abs_short_qty": 52.970588235294116
+        }
+      },
+      "trace_probe": {
+        "shock_short_trades": 58,
+        "shock_short_boost_applied": 2
+      },
+      "delta_vs_v18": {
+        "y1_pnl": -2530.6153599999416,
+        "y2_pnl": -2590.7613599999677,
+        "y1_roi_dd": -0.27065090502640166,
+        "y2_roi_dd": -0.157557142477732,
+        "jan_total": -3136.655855999972,
+        "jan_short": 1332.6136479999927,
+        "crash_total": -3112.846319999976,
+        "crash_short": 1395.0107519999929,
+        "pre_2026_total": 439.844631999993
+      },
+      "delta_vs_streak6": {
+        "y1_pnl": -4049.797999999948,
+        "y2_pnl": -4449.7973199999615,
+        "y1_roi_dd": -0.48121251176615587,
+        "y2_roi_dd": -0.29316659502475506,
+        "crash_short": 13.039303999998765,
+        "crash_total": -4539.565391999971
+      }
+    },
+    {
+      "variant": "streak6_sig8",
+      "filters_patch": {
+        "shock_short_boost_min_down_streak_bars": 6,
+        "shock_direction_source": "signal",
+        "shock_direction_lookback": 8,
+        "shock_regime_override_dir": false
+      },
+      "y1": {
+        "pnl": 24893.292711998503,
+        "dd_pct": 0.11363535631999941,
+        "roi_dd": 2.190629177234108,
+        "trades": 699
+      },
+      "y2": {
+        "pnl": 37107.58144800204,
+        "dd_pct": 0.15077930959998775,
+        "roi_dd": 2.461052616996799,
+        "trades": 1255
+      },
+      "segments": {
+        "pre_2026": {
+          "total_pnl": 16089.34789599761,
+          "short_pnl": -1006.4234640000668,
+          "long_pnl": 17095.771359997674,
+          "trades": 589,
+          "short_trades": 203,
+          "avg_abs_short_qty": 104.21182266009852
+        },
+        "janfeb_2026": {
+          "total_pnl": 14142.519256001231,
+          "short_pnl": -2115.8276399999886,
+          "long_pnl": 16258.34689600122,
+          "trades": 165,
+          "short_trades": 59,
+          "avg_abs_short_qty": 51.389830508474574
+        },
+        "crash_leg_2026": {
+          "total_pnl": 3121.6336960004824,
+          "short_pnl": -1224.333743999993,
+          "long_pnl": 4345.967440000475,
+          "trades": 91,
+          "short_trades": 34,
+          "avg_abs_short_qty": 51.3235294117647
+        }
+      },
+      "trace_probe": {
+        "shock_short_trades": 43,
+        "shock_short_boost_applied": 6
+      },
+      "delta_vs_v18": {
+        "y1_pnl": -6183.792232000145,
+        "y2_pnl": -6608.422544000146,
+        "y1_roi_dd": -1.0614199379483371,
+        "y2_roi_dd": -0.40596441431719255,
+        "jan_total": -2947.750504000074,
+        "jan_short": 1407.6935679999992,
+        "crash_total": -2550.667880000054,
+        "crash_short": 1438.8760479999971,
+        "pre_2026_total": -3515.500712000063
+      },
+      "delta_vs_streak6": {
+        "y1_pnl": -7702.974872000152,
+        "y2_pnl": -8467.45850400014,
+        "y1_roi_dd": -1.2719815446880913,
+        "y2_roi_dd": -0.5415738668642156,
+        "crash_short": 56.90460000000303,
+        "crash_total": -3977.3869520000494
+      }
+    },
+    {
+      "variant": "streak6_sig12",
+      "filters_patch": {
+        "shock_short_boost_min_down_streak_bars": 6,
+        "shock_direction_source": "signal",
+        "shock_direction_lookback": 12,
+        "shock_regime_override_dir": false
+      },
+      "y1": {
+        "pnl": 24747.597831998475,
+        "dd_pct": 0.09659214759999318,
+        "roi_dd": 2.562071394714514,
+        "trades": 697
+      },
+      "y2": {
+        "pnl": 36834.43363200205,
+        "dd_pct": 0.15077930959998775,
+        "roi_dd": 2.4429368810430634,
+        "trades": 1253
+      },
+      "segments": {
+        "pre_2026": {
+          "total_pnl": 17651.779135997585,
+          "short_pnl": -1067.2928640000732,
+          "long_pnl": 18719.07199999766,
+          "trades": 589,
+          "short_trades": 203,
+          "avg_abs_short_qty": 105.26108374384236
+        },
+        "janfeb_2026": {
+          "total_pnl": 12428.589808001221,
+          "short_pnl": -2261.0682959999917,
+          "long_pnl": 14689.658104001213,
+          "trades": 163,
+          "short_trades": 59,
+          "avg_abs_short_qty": 58.813559322033896
+        },
+        "crash_leg_2026": {
+          "total_pnl": 1257.3986320004594,
+          "short_pnl": -1360.320095999999,
+          "long_pnl": 2617.718728000458,
+          "trades": 89,
+          "short_trades": 34,
+          "avg_abs_short_qty": 61.088235294117645
+        }
+      },
+      "trace_probe": {
+        "shock_short_trades": 34,
+        "shock_short_boost_applied": 14
+      },
+      "delta_vs_v18": {
+        "y1_pnl": -6329.4871120001735,
+        "y2_pnl": -6881.570360000136,
+        "y1_roi_dd": -0.6899777204679314,
+        "y2_roi_dd": -0.42408015027092816,
+        "jan_total": -4661.679952000084,
+        "jan_short": 1262.452911999996,
+        "crash_total": -4414.902944000077,
+        "crash_short": 1302.889695999991,
+        "pre_2026_total": -1953.0694720000865
+      },
+      "delta_vs_streak6": {
+        "y1_pnl": -7848.66975200018,
+        "y2_pnl": -8740.60632000013,
+        "y1_roi_dd": -0.9005393272076856,
+        "y2_roi_dd": -0.5596896028179512,
+        "crash_short": -79.08175200000301,
+        "crash_total": -5841.622016000072
+      }
+    },
+    {
+      "variant": "streak6_sig8_override",
+      "filters_patch": {
+        "shock_short_boost_min_down_streak_bars": 6,
+        "shock_direction_source": "signal",
+        "shock_direction_lookback": 8,
+        "shock_regime_override_dir": true
+      },
+      "y1": {
+        "pnl": 22070.218783998775,
+        "dd_pct": 0.15184888704002994,
+        "roi_dd": 1.4534330289941928,
+        "trades": 717
+      },
+      "y2": {
+        "pnl": 36810.43316000242,
+        "dd_pct": 0.17000942936003471,
+        "roi_dd": 2.1651995009081366,
+        "trades": 1275
+      },
+      "segments": {
+        "pre_2026": {
+          "total_pnl": 12266.621255997423,
+          "short_pnl": -1780.8247760000586,
+          "long_pnl": 14047.446031997482,
+          "trades": 593,
+          "short_trades": 191,
+          "avg_abs_short_qty": 108.18324607329843
+        },
+        "janfeb_2026": {
+          "total_pnl": 15030.55336800168,
+          "short_pnl": 491.57041600001793,
+          "long_pnl": 14538.982952001661,
+          "trades": 179,
+          "short_trades": 62,
+          "avg_abs_short_qty": 64.95161290322581
+        },
+        "crash_leg_2026": {
+          "total_pnl": -1022.5201679991206,
+          "short_pnl": 1381.7953440000124,
+          "long_pnl": -2404.315511999133,
+          "trades": 105,
+          "short_trades": 39,
+          "avg_abs_short_qty": 71.94871794871794
+        }
+      },
+      "trace_probe": {
+        "shock_short_trades": 61,
+        "shock_short_boost_applied": 12
+      },
+      "delta_vs_v18": {
+        "y1_pnl": -9006.866159999874,
+        "y2_pnl": -6905.570831999765,
+        "y1_roi_dd": -1.7986160861882525,
+        "y2_roi_dd": -0.7018175304058549,
+        "jan_total": -2059.7163919996256,
+        "jan_short": 4015.0916240000056,
+        "crash_total": -6694.821743999657,
+        "crash_short": 4045.0051360000025,
+        "pre_2026_total": -7338.227352000249
+      },
+      "delta_vs_streak6": {
+        "y1_pnl": -10526.04879999988,
+        "y2_pnl": -8764.606791999759,
+        "y1_roi_dd": -2.0091776929280067,
+        "y2_roi_dd": -0.837426982952878,
+        "crash_short": 2663.0336880000086,
+        "crash_total": -8121.540815999652
+      }
+    },
+    {
+      "variant": "streak6_sig12_override",
+      "filters_patch": {
+        "shock_short_boost_min_down_streak_bars": 6,
+        "shock_direction_source": "signal",
+        "shock_direction_lookback": 12,
+        "shock_regime_override_dir": true
+      },
+      "y1": {
+        "pnl": 20739.897031999015,
+        "dd_pct": 0.17365289616001361,
+        "roi_dd": 1.194330615303306,
+        "trades": 728
+      },
+      "y2": {
+        "pnl": 34770.62092000265,
+        "dd_pct": 0.21960181383998978,
+        "roi_dd": 1.5833485303239727,
+        "trades": 1288
+      },
+      "segments": {
+        "pre_2026": {
+          "total_pnl": 6078.461839997716,
+          "short_pnl": -2054.0846800000472,
+          "long_pnl": 8132.546519997763,
+          "trades": 603,
+          "short_trades": 193,
+          "avg_abs_short_qty": 104.93264248704664
+        },
+        "janfeb_2026": {
+          "total_pnl": 19832.29524800164,
+          "short_pnl": 446.385888000018,
+          "long_pnl": 19385.90936000162,
+          "trades": 181,
+          "short_trades": 62,
+          "avg_abs_short_qty": 71.2258064516129
+        },
+        "crash_leg_2026": {
+          "total_pnl": 8574.221144000901,
+          "short_pnl": 1147.6709200000116,
+          "long_pnl": 7426.55022400089,
+          "trades": 105,
+          "short_trades": 39,
+          "avg_abs_short_qty": 81.74358974358974
+        }
+      },
+      "trace_probe": {
+        "shock_short_trades": 65,
+        "shock_short_boost_applied": 24
+      },
+      "delta_vs_v18": {
+        "y1_pnl": -10337.187911999634,
+        "y2_pnl": -8945.383071999539,
+        "y1_roi_dd": -2.0577184998791394,
+        "y2_roi_dd": -1.2836685009900188,
+        "jan_total": 2742.025488000334,
+        "jan_short": 3969.907096000006,
+        "crash_total": 2901.919568000365,
+        "crash_short": 3810.880712000002,
+        "pre_2026_total": -13526.386767999957
+      },
+      "delta_vs_streak6": {
+        "y1_pnl": -11856.37055199964,
+        "y2_pnl": -10804.419031999532,
+        "y1_roi_dd": -2.2682801066188936,
+        "y2_roi_dd": -1.419277953537042,
+        "crash_short": 2428.9092640000076,
+        "crash_total": 1475.2004960003696
+      }
+    },
+    {
+      "variant": "streak6_on9_off5",
+      "filters_patch": {
+        "shock_short_boost_min_down_streak_bars": 6,
+        "shock_on_drawdown_pct": -9.0,
+        "shock_off_drawdown_pct": -5.0
+      },
+      "y1": {
+        "pnl": 32596.267583998655,
+        "dd_pct": 0.09413783471999268,
+        "roi_dd": 3.4626107219221995,
+        "trades": 697
+      },
+      "y2": {
+        "pnl": 45609.18932000218,
+        "dd_pct": 0.1517839138399865,
+        "roi_dd": 3.004876351263696,
+        "trades": 1252
+      },
+      "segments": {
+        "pre_2026": {
+          "total_pnl": 19754.376655997687,
+          "short_pnl": -1115.0044160000657,
+          "long_pnl": 20869.381071997752,
+          "trades": 591,
+          "short_trades": 204,
+          "avg_abs_short_qty": 100.1029411764706
+        },
+        "janfeb_2026": {
+          "total_pnl": 18467.6198720013,
+          "short_pnl": -2202.769759999994,
+          "long_pnl": 20670.389632001294,
+          "trades": 162,
+          "short_trades": 59,
+          "avg_abs_short_qty": 53.40677966101695
+        },
+        "crash_leg_2026": {
+          "total_pnl": 7099.020648000532,
+          "short_pnl": -1281.238343999996,
+          "long_pnl": 8380.258992000527,
+          "trades": 88,
+          "short_trades": 34,
+          "avg_abs_short_qty": 53.529411764705884
+        }
+      },
+      "trace_probe": {
+        "shock_short_trades": 80,
+        "shock_short_boost_applied": 0
+      },
+      "delta_vs_v18": {
+        "y1_pnl": 1519.1826400000064,
+        "y2_pnl": 1893.1853279999923,
+        "y1_roi_dd": 0.21056160673975421,
+        "y2_roi_dd": 0.13785931994970424,
+        "jan_total": 1377.3501119999964,
+        "jan_short": 1320.7514479999936,
+        "crash_total": 1426.7190719999953,
+        "crash_short": 1381.971447999994,
+        "pre_2026_total": 149.52804800001468
+      },
+      "delta_vs_streak6": {
+        "y1_pnl": 0.0,
+        "y2_pnl": 34.1493679999985,
+        "y1_roi_dd": 0.0,
+        "y2_roi_dd": 0.0022498674026811827,
+        "crash_short": 0.0,
+        "crash_total": 0.0
+      }
+    },
+    {
+      "variant": "streak6_on8_off4",
+      "filters_patch": {
+        "shock_short_boost_min_down_streak_bars": 6,
+        "shock_on_drawdown_pct": -8.0,
+        "shock_off_drawdown_pct": -4.0
+      },
+      "y1": {
+        "pnl": 30276.796343998645,
+        "dd_pct": 0.09413783471999268,
+        "roi_dd": 3.2162197520322358,
+        "trades": 697
+      },
+      "y2": {
+        "pnl": 43065.23436000216,
+        "dd_pct": 0.1517839138399865,
+        "roi_dd": 2.837272624647323,
+        "trades": 1252
+      },
+      "segments": {
+        "pre_2026": {
+          "total_pnl": 19754.376655997687,
+          "short_pnl": -1115.0044160000657,
+          "long_pnl": 20869.381071997752,
+          "trades": 591,
+          "short_trades": 204,
+          "avg_abs_short_qty": 100.1029411764706
+        },
+        "janfeb_2026": {
+          "total_pnl": 16053.914544001285,
+          "short_pnl": -2196.218831999997,
+          "long_pnl": 18250.133376001282,
+          "trades": 162,
+          "short_trades": 59,
+          "avg_abs_short_qty": 53.23728813559322
+        },
+        "crash_leg_2026": {
+          "total_pnl": 4685.315320000515,
+          "short_pnl": -1274.6874159999988,
+          "long_pnl": 5960.002736000514,
+          "trades": 88,
+          "short_trades": 34,
+          "avg_abs_short_qty": 53.23529411764706
+        }
+      },
+      "trace_probe": {
+        "shock_short_trades": 89,
+        "shock_short_boost_applied": 0
+      },
+      "delta_vs_v18": {
+        "y1_pnl": -800.2886000000035,
+        "y2_pnl": -650.769632000025,
+        "y1_roi_dd": -0.03582936315020957,
+        "y2_roi_dd": -0.029744406666668333,
+        "jan_total": -1036.35521600002,
+        "jan_short": 1327.302375999991,
+        "crash_total": -986.9862560000211,
+        "crash_short": 1388.5223759999913,
+        "pre_2026_total": 149.52804800001468
+      },
+      "delta_vs_streak6": {
+        "y1_pnl": -2319.47124000001,
+        "y2_pnl": -2509.805592000019,
+        "y1_roi_dd": -0.24639096988996378,
+        "y2_roi_dd": -0.1653538592136914,
+        "crash_short": 6.550927999997157,
+        "crash_total": -2413.7053280000164
+      }
+    },
+    {
+      "variant": "streak6_short2p5",
+      "filters_patch": {
+        "shock_short_boost_min_down_streak_bars": 6,
+        "shock_short_risk_mult_factor": 2.5
+      },
+      "y1": {
+        "pnl": 32596.267583998655,
+        "dd_pct": 0.09413783471999268,
+        "roi_dd": 3.4626107219221995,
+        "trades": 697
+      },
+      "y2": {
+        "pnl": 45575.03995200218,
+        "dd_pct": 0.1517839138399865,
+        "roi_dd": 3.0026264838610146,
+        "trades": 1252
+      },
+      "segments": {
+        "pre_2026": {
+          "total_pnl": 19754.376655997687,
+          "short_pnl": -1115.0044160000657,
+          "long_pnl": 20869.381071997752,
+          "trades": 591,
+          "short_trades": 204,
+          "avg_abs_short_qty": 100.1029411764706
+        },
+        "janfeb_2026": {
+          "total_pnl": 18467.6198720013,
+          "short_pnl": -2202.769759999994,
+          "long_pnl": 20670.389632001294,
+          "trades": 162,
+          "short_trades": 59,
+          "avg_abs_short_qty": 53.40677966101695
+        },
+        "crash_leg_2026": {
+          "total_pnl": 7099.020648000532,
+          "short_pnl": -1281.238343999996,
+          "long_pnl": 8380.258992000527,
+          "trades": 88,
+          "short_trades": 34,
+          "avg_abs_short_qty": 53.529411764705884
+        }
+      },
+      "trace_probe": {
+        "shock_short_trades": 70,
+        "shock_short_boost_applied": 0
+      },
+      "delta_vs_v18": {
+        "y1_pnl": 1519.1826400000064,
+        "y2_pnl": 1859.0359599999938,
+        "y1_roi_dd": 0.21056160673975421,
+        "y2_roi_dd": 0.13560945254702306,
+        "jan_total": 1377.3501119999964,
+        "jan_short": 1320.7514479999936,
+        "crash_total": 1426.7190719999953,
+        "crash_short": 1381.971447999994,
+        "pre_2026_total": 149.52804800001468
+      },
+      "delta_vs_streak6": {
+        "y1_pnl": 0.0,
+        "y2_pnl": 0.0,
+        "y1_roi_dd": 0.0,
+        "y2_roi_dd": 0.0,
+        "crash_short": 0.0,
+        "crash_total": 0.0
+      }
+    },
+    {
+      "variant": "streak6_short3",
+      "filters_patch": {
+        "shock_short_boost_min_down_streak_bars": 6,
+        "shock_short_risk_mult_factor": 3.0
+      },
+      "y1": {
+        "pnl": 32596.267583998655,
+        "dd_pct": 0.09413783471999268,
+        "roi_dd": 3.4626107219221995,
+        "trades": 697
+      },
+      "y2": {
+        "pnl": 45575.03995200218,
+        "dd_pct": 0.1517839138399865,
+        "roi_dd": 3.0026264838610146,
+        "trades": 1252
+      },
+      "segments": {
+        "pre_2026": {
+          "total_pnl": 19754.376655997687,
+          "short_pnl": -1115.0044160000657,
+          "long_pnl": 20869.381071997752,
+          "trades": 591,
+          "short_trades": 204,
+          "avg_abs_short_qty": 100.1029411764706
+        },
+        "janfeb_2026": {
+          "total_pnl": 18467.6198720013,
+          "short_pnl": -2202.769759999994,
+          "long_pnl": 20670.389632001294,
+          "trades": 162,
+          "short_trades": 59,
+          "avg_abs_short_qty": 53.40677966101695
+        },
+        "crash_leg_2026": {
+          "total_pnl": 7099.020648000532,
+          "short_pnl": -1281.238343999996,
+          "long_pnl": 8380.258992000527,
+          "trades": 88,
+          "short_trades": 34,
+          "avg_abs_short_qty": 53.529411764705884
+        }
+      },
+      "trace_probe": {
+        "shock_short_trades": 70,
+        "shock_short_boost_applied": 0
+      },
+      "delta_vs_v18": {
+        "y1_pnl": 1519.1826400000064,
+        "y2_pnl": 1859.0359599999938,
+        "y1_roi_dd": 0.21056160673975421,
+        "y2_roi_dd": 0.13560945254702306,
+        "jan_total": 1377.3501119999964,
+        "jan_short": 1320.7514479999936,
+        "crash_total": 1426.7190719999953,
+        "crash_short": 1381.971447999994,
+        "pre_2026_total": 149.52804800001468
+      },
+      "delta_vs_streak6": {
+        "y1_pnl": 0.0,
+        "y2_pnl": 0.0,
+        "y1_roi_dd": 0.0,
+        "y2_roi_dd": 0.0,
+        "crash_short": 0.0,
+        "crash_total": 0.0
+      }
+    }
+  ]
+}

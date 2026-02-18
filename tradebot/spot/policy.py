@@ -22,6 +22,7 @@ from datetime import date, datetime
 from ..time_utils import NaiveTsModeInput
 from ..time_utils import trade_date as _trade_date_shared
 from ..time_utils import trade_hour_et as _trade_hour_et_shared
+from .fill_modes import SPOT_FILL_MODE_CLOSE, normalize_spot_fill_mode
 from .graph import SpotPolicyGraph
 from .packs import resolve_pack
 
@@ -63,6 +64,9 @@ class SpotPolicyConfigView:
     riskpanic_long_scale_tr_delta_max_pct: float = 1.0
 
     shock_short_risk_mult_factor: float = 1.0
+    shock_short_boost_min_down_streak_bars: int = 1
+    shock_short_boost_require_regime_down: bool = False
+    shock_short_boost_require_entry_down: bool = False
     shock_long_risk_mult_factor: float = 1.0
     shock_long_risk_mult_factor_down: float = 1.0
     shock_stop_loss_pct_mult: float = 1.0
@@ -294,6 +298,19 @@ class SpotPolicyConfigView:
             delta_max = 1.0
 
         shock_short_risk_mult_factor = cls._parse_factor(_fget("shock_short_risk_mult_factor"))
+        shock_short_boost_min_down_streak_bars = cls._parse_int(
+            _fget("shock_short_boost_min_down_streak_bars"),
+            default=1,
+            min_value=1,
+        )
+        shock_short_boost_require_regime_down = cls._parse_bool(
+            _fget("shock_short_boost_require_regime_down"),
+            default=False,
+        )
+        shock_short_boost_require_entry_down = cls._parse_bool(
+            _fget("shock_short_boost_require_entry_down"),
+            default=False,
+        )
         shock_long_risk_mult_factor = cls._parse_factor(_fget("shock_long_risk_mult_factor"))
         shock_long_risk_mult_factor_down = cls._parse_factor(_fget("shock_long_risk_mult_factor_down"))
 
@@ -354,6 +371,9 @@ class SpotPolicyConfigView:
             riskpanic_neg_gap_ratio_min=float(riskpanic_neg_gap_ratio_min),
             riskpanic_long_scale_tr_delta_max_pct=float(delta_max),
             shock_short_risk_mult_factor=float(shock_short_risk_mult_factor),
+            shock_short_boost_min_down_streak_bars=int(shock_short_boost_min_down_streak_bars),
+            shock_short_boost_require_regime_down=bool(shock_short_boost_require_regime_down),
+            shock_short_boost_require_entry_down=bool(shock_short_boost_require_entry_down),
             shock_long_risk_mult_factor=float(shock_long_risk_mult_factor),
             shock_long_risk_mult_factor_down=float(shock_long_risk_mult_factor_down),
             shock_stop_loss_pct_mult=float(shock_stop_loss_pct_mult),
@@ -384,10 +404,7 @@ class SpotRuntimeSpec:
 
     @staticmethod
     def _normalize_fill_mode(raw: object | None) -> str:
-        mode = str(raw or "close").strip().lower()
-        if mode not in ("close", "next_open"):
-            return "close"
-        return mode
+        return normalize_spot_fill_mode(raw, default=SPOT_FILL_MODE_CLOSE)
 
     @staticmethod
     def _normalize_exit_mode(raw: object | None) -> str:
@@ -476,9 +493,12 @@ class SpotDecisionTrace:
     riskpop: bool
     shock: bool
     shock_dir: str | None
+    shock_dir_down_streak_bars: int | None
     shock_atr_pct: float | None
     riskoff_mode: str
     risk_dir: str | None
+    signal_entry_dir: str | None
+    signal_regime_dir: str | None
 
     riskoff_long_factor: float
     riskoff_short_factor: float
@@ -501,6 +521,8 @@ class SpotDecisionTrace:
     short_mult_final: float | None = None
     shock_long_factor: float | None = None
     shock_short_factor: float | None = None
+    shock_short_boost_applied: bool | None = None
+    shock_short_boost_gate_reason: str | None = None
 
     cap_pct_base: float | None = None
     cap_pct_final: float | None = None
@@ -977,11 +999,14 @@ class SpotPolicy:
         shock: bool | None,
         shock_dir: str | None,
         shock_atr_pct: float | None,
+        shock_dir_down_streak_bars: int | None = None,
         riskoff: bool = False,
         risk_dir: str | None = None,
         riskpanic: bool = False,
         riskpop: bool = False,
         risk: object | None = None,
+        signal_entry_dir: str | None = None,
+        signal_regime_dir: str | None = None,
         equity_ref: float = 0.0,
         cash_ref: float | None = None,
     ) -> tuple[int, SpotDecisionTrace]:
@@ -1032,6 +1057,14 @@ class SpotPolicy:
 
         shock_dir_clean = str(shock_dir) if shock_dir in ("up", "down") else None
         risk_dir_clean = str(risk_dir) if risk_dir in ("up", "down") else None
+        signal_entry_dir_clean = str(signal_entry_dir) if signal_entry_dir in ("up", "down") else None
+        signal_regime_dir_clean = str(signal_regime_dir) if signal_regime_dir in ("up", "down") else None
+        shock_dir_down_streak_clean: int | None = None
+        if shock_dir_down_streak_bars is not None:
+            try:
+                shock_dir_down_streak_clean = max(0, int(shock_dir_down_streak_bars))
+            except (TypeError, ValueError):
+                shock_dir_down_streak_clean = None
 
         shock_atr_pct_clean = None
         if shock_atr_pct is not None:
@@ -1098,9 +1131,14 @@ class SpotPolicy:
             riskpop=bool(riskpop),
             shock=bool(shock),
             shock_dir=shock_dir_clean,
+            shock_dir_down_streak_bars=int(shock_dir_down_streak_clean)
+            if shock_dir_down_streak_clean is not None
+            else None,
             shock_atr_pct=float(shock_atr_pct_clean) if shock_atr_pct_clean is not None else None,
             riskoff_mode=str(cfg.riskoff_mode),
             risk_dir=risk_dir_clean,
+            signal_entry_dir=signal_entry_dir_clean,
+            signal_regime_dir=signal_regime_dir_clean,
             riskoff_long_factor=float(cfg.riskoff_long_factor),
             riskoff_short_factor=float(cfg.riskoff_short_factor),
             riskpanic_long_factor=float(cfg.riskpanic_long_factor),
@@ -1241,9 +1279,43 @@ class SpotPolicy:
                     if bool(riskpop):
                         short_mult *= float(cfg.riskpop_short_factor)
                     if bool(shock) and str(shock_dir_clean) == "down":
-                        shock_short_mult = float(cfg.shock_short_risk_mult_factor)
-                        _update_trace(shock_short_factor=float(shock_short_mult))
-                        short_mult *= float(shock_short_mult)
+                        boost_ok = True
+                        gate_reason = "ok"
+                        min_streak = max(1, int(cfg.shock_short_boost_min_down_streak_bars))
+                        streak = int(shock_dir_down_streak_clean or 0)
+                        if streak < min_streak:
+                            boost_ok = False
+                            gate_reason = f"down_streak_lt_{min_streak}"
+                        elif bool(cfg.shock_short_boost_require_regime_down) and signal_regime_dir_clean != "down":
+                            boost_ok = False
+                            gate_reason = "regime_not_down"
+                        elif bool(cfg.shock_short_boost_require_entry_down) and signal_entry_dir_clean != "down":
+                            boost_ok = False
+                            gate_reason = "entry_not_down"
+
+                        if boost_ok:
+                            shock_short_mult = float(cfg.shock_short_risk_mult_factor)
+                            _update_trace(
+                                shock_short_factor=float(shock_short_mult),
+                                shock_short_boost_applied=True,
+                                shock_short_boost_gate_reason=gate_reason,
+                            )
+                            short_mult *= float(shock_short_mult)
+                        else:
+                            _update_trace(
+                                shock_short_boost_applied=False,
+                                shock_short_boost_gate_reason=gate_reason,
+                            )
+                    elif bool(shock):
+                        _update_trace(
+                            shock_short_boost_applied=False,
+                            shock_short_boost_gate_reason="shock_not_down",
+                        )
+                    else:
+                        _update_trace(
+                            shock_short_boost_applied=False,
+                            shock_short_boost_gate_reason="shock_off",
+                        )
                     short_mult *= float(graph_overlay.short_risk_mult)
                     _update_trace(short_mult_final=float(short_mult))
                     if short_mult <= 0:
@@ -1349,11 +1421,14 @@ class SpotPolicy:
         shock: bool | None,
         shock_dir: str | None,
         shock_atr_pct: float | None,
+        shock_dir_down_streak_bars: int | None = None,
         riskoff: bool = False,
         risk_dir: str | None = None,
         riskpanic: bool = False,
         riskpop: bool = False,
         risk: object | None = None,
+        signal_entry_dir: str | None = None,
+        signal_regime_dir: str | None = None,
         equity_ref: float = 0.0,
         cash_ref: float | None = None,
     ) -> int:
@@ -1368,11 +1443,14 @@ class SpotPolicy:
             shock=shock,
             shock_dir=shock_dir,
             shock_atr_pct=shock_atr_pct,
+            shock_dir_down_streak_bars=shock_dir_down_streak_bars,
             riskoff=riskoff,
             risk_dir=risk_dir,
             riskpanic=riskpanic,
             riskpop=riskpop,
             risk=risk,
+            signal_entry_dir=signal_entry_dir,
+            signal_regime_dir=signal_regime_dir,
             equity_ref=equity_ref,
             cash_ref=cash_ref,
         )

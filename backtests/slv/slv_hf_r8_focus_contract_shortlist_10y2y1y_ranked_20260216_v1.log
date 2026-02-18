@@ -1,0 +1,267 @@
+multitimeframe prep candidates=16 jobs=3 offline=True cache_dir=db
+multitimeframe windows 2016-02-14->2026-02-14, 2024-02-14->2026-02-14, 2025-02-14->2026-02-14
+multitimeframe preflight start candidates=16 windows=3
+multitimeframe preflight checks=144 unique=9 missing=0 elapsed=0.0s
+multitimeframe preflight done checks=144 unique=9 missing=0
+multitimeframe parallel: workers=3 total=16
+START mt:0
+START mt:1
+START mt:2
+[mt:0] multitimeframe prep candidates=16 jobs=1 offline=True cache_dir=db
+[mt:0] multitimeframe windows 2016-02-14->2026-02-14, 2024-02-14->2026-02-14, 2025-02-14->2026-02-14
+[mt:0] multitimeframe preflight start candidates=16 windows=3
+[mt:1] multitimeframe prep candidates=16 jobs=1 offline=True cache_dir=db
+[mt:1] multitimeframe windows 2016-02-14->2026-02-14, 2024-02-14->2026-02-14, 2025-02-14->2026-02-14
+[mt:1] multitimeframe preflight start candidates=16 windows=3
+[mt:2] multitimeframe prep candidates=16 jobs=1 offline=True cache_dir=db
+[mt:2] multitimeframe windows 2016-02-14->2026-02-14, 2024-02-14->2026-02-14, 2025-02-14->2026-02-14
+[mt:2] multitimeframe preflight start candidates=16 windows=3
+[mt:0] multitimeframe preflight checks=144 unique=9 missing=0 elapsed=0.0s
+[mt:0] multitimeframe preflight done checks=144 unique=9 missing=0
+[mt:0] multitimeframe worker 1/3 0/6 (0.0%) kept=0 elapsed=0.0s eta=0.0m rate=0.00/cands/s
+[mt:1] multitimeframe preflight checks=144 unique=9 missing=0 elapsed=0.0s
+[mt:1] multitimeframe preflight done checks=144 unique=9 missing=0
+[mt:2] multitimeframe preflight checks=144 unique=9 missing=0 elapsed=0.0s
+[mt:2] multitimeframe preflight done checks=144 unique=9 missing=0
+[mt:1] multitimeframe worker 2/3 0/5 (0.0%) kept=0 elapsed=0.0s eta=0.0m rate=0.00/cands/s
+[mt:2] multitimeframe worker 3/3 0/5 (0.0%) kept=0 elapsed=0.0s eta=0.0m rate=0.00/cands/s
+RUNNING workers=3 pending=0 [mt:0:10.0s, mt:1:10.0s, mt:2:10.0s]
+[mt:2] multitimeframe worker 3/3 1/5 (20.0%) kept=0 elapsed=15.0s eta=1.0m rate=0.07/cands/s inflight_candidate=15.0s stage=engine.exec path=exec window=1/3 exec=64260/71441 trades=557
+[mt:1] multitimeframe worker 2/3 1/5 (20.0%) kept=0 elapsed=15.0s eta=1.0m rate=0.07/cands/s inflight_candidate=15.0s stage=engine.exec path=exec window=1/3 exec=64260/71441 trades=557
+[mt:0] multitimeframe worker 1/3 2/6 (33.3%) kept=1 elapsed=15.0s eta=0.5m rate=0.13/cands/s inflight_candidate=15.0s stage=engine.exec path=exec window=1/3 exec=63903/71441 sig=31974/35743 trades=550
+RUNNING workers=3 pending=0 [mt:0:20.1s, mt:1:20.1s, mt:2:20.1s]
+RUNNING workers=3 pending=0 [mt:0:30.1s, mt:1:30.1s, mt:2:30.1s]
+[mt:2] multitimeframe worker 3/3 1/5 (20.0%) kept=0 elapsed=30.0s eta=2.0m rate=0.03/cands/s inflight_candidate=30.0s stage=engine.exec path=exec window=2/3 exec=67545/142394 trades=524
+[mt:0] multitimeframe worker 1/3 2/6 (33.3%) kept=1 elapsed=30.0s eta=1.0m rate=0.07/cands/s inflight_candidate=30.0s stage=engine.exec path=exec window=2/3 exec=66834/142394 sig=33453/71257 trades=517
+[mt:1] multitimeframe worker 2/3 1/5 (20.0%) kept=0 elapsed=30.0s eta=2.0m rate=0.03/cands/s inflight_candidate=30.0s stage=engine.exec path=exec window=2/3 exec=67545/142394 trades=524
+RUNNING workers=3 pending=0 [mt:0:40.1s, mt:1:40.1s, mt:2:40.1s]
+[mt:2] multitimeframe worker 3/3 1/5 (20.0%) kept=0 elapsed=45.0s eta=3.0m rate=0.02/cands/s inflight_candidate=45.0s stage=window.start path=exec window=3/3 exec=142394/142394 sig=71257/71257 trades=1266
+[mt:0] multitimeframe worker 1/3 2/6 (33.3%) kept=1 elapsed=45.0s eta=1.5m rate=0.04/cands/s inflight_candidate=45.0s stage=window.start path=exec window=3/3 exec=142394/142394 sig=71257/71257 trades=1267
+[mt:1] multitimeframe worker 2/3 1/5 (20.0%) kept=0 elapsed=45.0s eta=3.0m rate=0.02/cands/s inflight_candidate=45.0s stage=window.start path=exec window=3/3 exec=142394/142394 sig=71257/71257 trades=1266
+RUNNING workers=3 pending=0 [mt:0:50.1s, mt:1:50.1s, mt:2:50.1s]
+RUNNING workers=3 pending=0 [mt:0:60.2s, mt:1:60.2s, mt:2:60.1s]
+[mt:2] multitimeframe worker 3/3 1/5 (20.0%) kept=0 elapsed=60.0s eta=4.0m rate=0.02/cands/s inflight_candidate=60.0s stage=engine.exec path=exec window=3/3 exec=61019/530670 trades=437
+[mt:0] multitimeframe worker 1/3 2/6 (33.3%) kept=1 elapsed=60.0s eta=2.0m rate=0.03/cands/s inflight_candidate=60.0s stage=engine.exec path=exec window=3/3 exec=58366/530670 sig=29225/265606 trades=419
+[mt:1] multitimeframe worker 2/3 1/5 (20.0%) kept=0 elapsed=60.1s eta=4.0m rate=0.02/cands/s inflight_candidate=60.1s stage=engine.exec path=exec window=3/3 exec=61019/530670 trades=437
+RUNNING workers=3 pending=0 [mt:0:70.2s, mt:1:70.2s, mt:2:70.2s]
+[mt:2] multitimeframe worker 3/3 1/5 (20.0%) kept=0 elapsed=75.1s eta=5.0m rate=0.01/cands/s inflight_candidate=75.1s stage=engine.exec path=exec window=3/3 exec=140609/530670 trades=874
+[mt:1] multitimeframe worker 2/3 1/5 (20.0%) kept=0 elapsed=75.1s eta=5.0m rate=0.01/cands/s inflight_candidate=75.1s stage=engine.exec path=exec window=3/3 exec=140609/530670 trades=874
+[mt:0] multitimeframe worker 1/3 2/6 (33.3%) kept=1 elapsed=75.1s eta=2.5m rate=0.03/cands/s inflight_candidate=75.1s stage=engine.exec path=exec window=3/3 exec=137956/530670 sig=69083/265606 trades=859
+RUNNING workers=3 pending=0 [mt:0:80.2s, mt:1:80.2s, mt:2:80.2s]
+RUNNING workers=3 pending=0 [mt:0:90.3s, mt:1:90.3s, mt:2:90.3s]
+[mt:2] multitimeframe worker 3/3 1/5 (20.0%) kept=0 elapsed=90.1s eta=6.0m rate=0.01/cands/s inflight_candidate=90.1s stage=engine.exec path=exec window=3/3 exec=220199/530670 sig=110246/265606 trades=1557
+[mt:0] multitimeframe worker 1/3 2/6 (33.3%) kept=1 elapsed=90.1s eta=3.0m rate=0.02/cands/s inflight_candidate=90.1s stage=engine.exec path=exec window=3/3 exec=217546/530670 sig=108919/265606 trades=1532
+[mt:1] multitimeframe worker 2/3 1/5 (20.0%) kept=0 elapsed=90.1s eta=6.0m rate=0.01/cands/s inflight_candidate=90.1s stage=engine.exec path=exec window=3/3 exec=220199/530670 sig=110246/265606 trades=1557
+RUNNING workers=3 pending=0 [mt:0:100.3s, mt:1:100.3s, mt:2:100.3s]
+[mt:2] multitimeframe worker 3/3 1/5 (20.0%) kept=0 elapsed=105.1s eta=7.0m rate=0.01/cands/s inflight_candidate=105.1s stage=engine.exec path=exec window=3/3 exec=302442/530670 trades=2259
+[mt:0] multitimeframe worker 1/3 2/6 (33.3%) kept=1 elapsed=105.1s eta=3.5m rate=0.02/cands/s inflight_candidate=105.1s stage=engine.exec path=exec window=3/3 exec=299789/530670 sig=150066/265606 trades=2241
+[mt:1] multitimeframe worker 2/3 1/5 (20.0%) kept=0 elapsed=105.1s eta=7.0m rate=0.01/cands/s inflight_candidate=105.1s stage=engine.exec path=exec window=3/3 exec=302442/530670 trades=2259
+RUNNING workers=3 pending=0 [mt:0:110.3s, mt:1:110.3s, mt:2:110.3s]
+[mt:2] multitimeframe worker 3/3 1/5 (20.0%) kept=0 elapsed=120.1s eta=8.0m rate=0.01/cands/s inflight_candidate=120.1s stage=engine.exec path=exec window=3/3 exec=384685/530670 sig=192552/265606 trades=2902
+RUNNING workers=3 pending=0 [mt:0:120.3s, mt:1:120.3s, mt:2:120.3s]
+[mt:0] multitimeframe worker 1/3 2/6 (33.3%) kept=1 elapsed=120.1s eta=4.0m rate=0.02/cands/s inflight_candidate=120.1s stage=engine.exec path=exec window=3/3 exec=382032/530670 sig=191223/265606 trades=2891
+[mt:1] multitimeframe worker 2/3 1/5 (20.0%) kept=0 elapsed=120.1s eta=8.0m rate=0.01/cands/s inflight_candidate=120.1s stage=engine.exec path=exec window=3/3 exec=384685/530670 sig=192552/265606 trades=2902
+RUNNING workers=3 pending=0 [mt:0:130.3s, mt:1:130.3s, mt:2:130.3s]
+[mt:2] multitimeframe worker 3/3 1/5 (20.0%) kept=0 elapsed=135.1s eta=9.0m rate=0.01/cands/s inflight_candidate=135.1s stage=engine.exec path=exec window=3/3 exec=466928/530670 sig=233718/265606 trades=3501
+[mt:0] multitimeframe worker 1/3 2/6 (33.3%) kept=1 elapsed=135.1s eta=4.5m rate=0.01/cands/s inflight_candidate=135.1s stage=engine.exec path=exec window=3/3 exec=461622/530670 trades=3474
+[mt:1] multitimeframe worker 2/3 1/5 (20.0%) kept=0 elapsed=135.1s eta=9.0m rate=0.01/cands/s inflight_candidate=135.1s stage=engine.exec path=exec window=3/3 exec=466928/530670 sig=233718/265606 trades=3501
+RUNNING workers=3 pending=0 [mt:0:140.4s, mt:1:140.4s, mt:2:140.4s]
+[mt:2] multitimeframe worker 3/3 1/5 (20.0%) kept=1 elapsed=146.5s eta=9.8m rate=0.01/cands/s
+[mt:1] multitimeframe worker 2/3 1/5 (20.0%) kept=1 elapsed=146.7s eta=9.8m rate=0.01/cands/s
+[mt:0] multitimeframe worker 1/3 2/6 (33.3%) kept=2 elapsed=147.3s eta=4.9m rate=0.01/cands/s
+RUNNING workers=3 pending=0 [mt:0:150.4s, mt:1:150.4s, mt:2:150.4s]
+RUNNING workers=3 pending=0 [mt:0:160.4s, mt:1:160.4s, mt:2:160.4s]
+[mt:2] multitimeframe worker 3/3 2/5 (40.0%) kept=1 elapsed=161.5s eta=4.0m rate=0.01/cands/s inflight_candidate=15.0s stage=engine.exec path=exec window=2/3 exec=8532/142394 trades=44
+[mt:1] multitimeframe worker 2/3 2/5 (40.0%) kept=1 elapsed=161.7s eta=4.0m rate=0.01/cands/s inflight_candidate=15.0s stage=engine.exec path=exec window=2/3 exec=7110/142394 trades=36
+[mt:0] multitimeframe worker 1/3 3/6 (50.0%) kept=2 elapsed=162.3s eta=2.7m rate=0.02/cands/s inflight_candidate=15.0s stage=engine.exec path=exec window=2/3 exec=7821/142394 trades=43
+RUNNING workers=3 pending=0 [mt:0:170.5s, mt:1:170.5s, mt:2:170.5s]
+[mt:2] multitimeframe worker 3/3 2/5 (40.0%) kept=1 elapsed=176.5s eta=4.4m rate=0.01/cands/s inflight_candidate=30.0s stage=engine.exec path=exec window=2/3 exec=91719/142394 trades=778
+[mt:1] multitimeframe worker 2/3 2/5 (40.0%) kept=1 elapsed=176.7s eta=4.4m rate=0.01/cands/s inflight_candidate=30.0s stage=engine.exec path=exec window=2/3 exec=90297/142394 trades=703
+[mt:0] multitimeframe worker 1/3 3/6 (50.0%) kept=2 elapsed=177.3s eta=3.0m rate=0.02/cands/s inflight_candidate=30.0s stage=engine.exec path=exec window=2/3 exec=90297/142394 trades=771
+RUNNING workers=3 pending=0 [mt:0:180.5s, mt:1:180.5s, mt:2:180.5s]
+RUNNING workers=3 pending=0 [mt:0:190.5s, mt:1:190.5s, mt:2:190.5s]
+[mt:2] multitimeframe worker 3/3 2/5 (40.0%) kept=1 elapsed=191.5s eta=4.8m rate=0.01/cands/s inflight_candidate=45.0s stage=engine.exec path=exec window=3/3 exec=26530/530670 sig=13284/265606 trades=222
+[mt:1] multitimeframe worker 2/3 2/5 (40.0%) kept=1 elapsed=191.7s eta=4.8m rate=0.01/cands/s inflight_candidate=45.0s stage=engine.exec path=exec window=3/3 exec=23877/530670 sig=11956/265606 trades=185
+[mt:0] multitimeframe worker 1/3 3/6 (50.0%) kept=2 elapsed=192.3s eta=3.2m rate=0.02/cands/s inflight_candidate=45.0s stage=engine.exec path=exec window=3/3 exec=23877/530670 sig=11956/265606 trades=197
+RUNNING workers=3 pending=0 [mt:0:200.6s, mt:1:200.6s, mt:2:200.6s]
+[mt:2] multitimeframe worker 3/3 2/5 (40.0%) kept=1 elapsed=206.5s eta=5.2m rate=0.01/cands/s inflight_candidate=60.1s stage=engine.exec path=exec window=3/3 exec=106120/530670 trades=764
+[mt:1] multitimeframe worker 2/3 2/5 (40.0%) kept=1 elapsed=206.7s eta=5.2m rate=0.01/cands/s inflight_candidate=60.1s stage=engine.exec path=exec window=3/3 exec=103467/530670 sig=51808/265606 trades=698
+[mt:0] multitimeframe worker 1/3 3/6 (50.0%) kept=2 elapsed=207.4s eta=3.5m rate=0.01/cands/s inflight_candidate=60.1s stage=engine.exec path=exec window=3/3 exec=103467/530670 sig=51808/265606 trades=758
+RUNNING workers=3 pending=0 [mt:0:210.6s, mt:1:210.6s, mt:2:210.6s]
+RUNNING workers=3 pending=0 [mt:0:220.6s, mt:1:220.6s, mt:2:220.6s]
+[mt:2] multitimeframe worker 3/3 2/5 (40.0%) kept=1 elapsed=221.6s eta=5.5m rate=0.01/cands/s inflight_candidate=75.1s stage=engine.exec path=exec window=3/3 exec=188363/530670 sig=94318/265606 trades=1265
+[mt:1] multitimeframe worker 2/3 2/5 (40.0%) kept=1 elapsed=221.7s eta=5.5m rate=0.01/cands/s inflight_candidate=75.1s stage=engine.exec path=exec window=3/3 exec=185710/530670 sig=92991/265606 trades=1133
+[mt:0] multitimeframe worker 1/3 3/6 (50.0%) kept=2 elapsed=222.4s eta=3.7m rate=0.01/cands/s inflight_candidate=75.1s stage=engine.exec path=exec window=3/3 exec=185710/530670 sig=92991/265606 trades=1228
+RUNNING workers=3 pending=0 [mt:0:230.6s, mt:1:230.6s, mt:2:230.6s]
+[mt:2] multitimeframe worker 3/3 2/5 (40.0%) kept=1 elapsed=236.6s eta=5.9m rate=0.01/cands/s inflight_candidate=90.1s stage=engine.exec path=exec window=3/3 exec=273259/530670 trades=2171
+[mt:1] multitimeframe worker 2/3 2/5 (40.0%) kept=1 elapsed=236.7s eta=5.9m rate=0.01/cands/s inflight_candidate=90.1s stage=engine.exec path=exec window=3/3 exec=267953/530670 sig=134137/265606 trades=1971
+[mt:0] multitimeframe worker 1/3 3/6 (50.0%) kept=2 elapsed=237.4s eta=4.0m rate=0.01/cands/s inflight_candidate=90.1s stage=engine.exec path=exec window=3/3 exec=267953/530670 sig=134137/265606 trades=2129
+RUNNING workers=3 pending=0 [mt:0:240.7s, mt:1:240.7s, mt:2:240.7s]
+RUNNING workers=3 pending=0 [mt:0:250.7s, mt:1:250.7s, mt:2:250.7s]
+[mt:2] multitimeframe worker 3/3 2/5 (40.0%) kept=1 elapsed=251.6s eta=6.3m rate=0.01/cands/s inflight_candidate=105.1s stage=engine.exec path=exec window=3/3 exec=358155/530670 sig=179267/265606 trades=2989
+[mt:1] multitimeframe worker 2/3 2/5 (40.0%) kept=1 elapsed=251.8s eta=6.3m rate=0.01/cands/s inflight_candidate=105.1s stage=engine.exec path=exec window=3/3 exec=352849/530670 sig=176612/265606 trades=2718
+[mt:0] multitimeframe worker 1/3 3/6 (50.0%) kept=2 elapsed=252.4s eta=4.2m rate=0.01/cands/s inflight_candidate=105.1s stage=engine.exec path=exec window=3/3 exec=352849/530670 sig=176612/265606 trades=2960
+RUNNING workers=3 pending=0 [mt:0:260.7s, mt:1:260.7s, mt:2:260.7s]
+[mt:2] multitimeframe worker 3/3 2/5 (40.0%) kept=1 elapsed=266.6s eta=6.7m rate=0.01/cands/s inflight_candidate=120.1s stage=engine.exec path=exec window=3/3 exec=440398/530670 sig=220440/265606 trades=3612
+[mt:1] multitimeframe worker 2/3 2/5 (40.0%) kept=1 elapsed=266.8s eta=6.7m rate=0.01/cands/s inflight_candidate=120.1s stage=engine.exec path=exec window=3/3 exec=435092/530670 sig=217785/265606 trades=3292
+[mt:0] multitimeframe worker 1/3 3/6 (50.0%) kept=2 elapsed=267.4s eta=4.5m rate=0.01/cands/s inflight_candidate=120.1s stage=engine.exec path=exec window=3/3 exec=435092/530670 sig=217785/265606 trades=3562
+RUNNING workers=3 pending=0 [mt:0:270.7s, mt:1:270.7s, mt:2:270.7s]
+RUNNING workers=3 pending=0 [mt:0:280.7s, mt:1:280.7s, mt:2:280.7s]
+[mt:2] multitimeframe worker 3/3 2/5 (40.0%) kept=1 elapsed=281.6s eta=7.0m rate=0.01/cands/s inflight_candidate=135.1s stage=engine.exec path=exec window=3/3 exec=522641/530670 trades=4299
+[mt:1] multitimeframe worker 2/3 2/5 (40.0%) kept=1 elapsed=281.8s eta=7.0m rate=0.01/cands/s inflight_candidate=135.1s stage=engine.exec path=exec window=3/3 exec=517335/530670 trades=3915
+[mt:0] multitimeframe worker 1/3 3/6 (50.0%) kept=2 elapsed=282.4s eta=4.7m rate=0.01/cands/s inflight_candidate=135.1s stage=engine.exec path=exec window=3/3 exec=517335/530670 trades=4223
+[mt:2] multitimeframe worker 3/3 2/5 (40.0%) kept=2 elapsed=282.8s eta=7.1m rate=0.01/cands/s
+[mt:1] multitimeframe worker 2/3 2/5 (40.0%) kept=2 elapsed=284.0s eta=7.1m rate=0.01/cands/s
+[mt:0] multitimeframe worker 1/3 3/6 (50.0%) kept=3 elapsed=284.7s eta=4.7m rate=0.01/cands/s
+RUNNING workers=3 pending=0 [mt:0:290.8s, mt:1:290.8s, mt:2:290.8s]
+[mt:2] multitimeframe worker 3/3 3/5 (60.0%) kept=2 elapsed=297.8s eta=3.3m rate=0.01/cands/s inflight_candidate=15.0s stage=engine.exec path=exec window=2/3 exec=7821/142394 trades=40
+[mt:1] multitimeframe worker 2/3 3/5 (60.0%) kept=2 elapsed=299.0s eta=3.3m rate=0.01/cands/s inflight_candidate=15.0s stage=engine.exec path=exec window=2/3 exec=7110/142394 trades=37
+[mt:0] multitimeframe worker 1/3 4/6 (66.7%) kept=3 elapsed=299.7s eta=2.5m rate=0.01/cands/s inflight_candidate=15.0s stage=engine.exec path=exec window=2/3 exec=7110/142394 trades=37
+RUNNING workers=3 pending=0 [mt:0:300.8s, mt:1:300.8s, mt:2:300.8s]
+RUNNING workers=3 pending=0 [mt:0:310.8s, mt:1:310.8s, mt:2:310.8s]
+[mt:2] multitimeframe worker 3/3 3/5 (60.0%) kept=2 elapsed=312.8s eta=3.5m rate=0.01/cands/s inflight_candidate=30.0s stage=engine.exec path=exec window=2/3 exec=87453/142394 trades=684
+[mt:1] multitimeframe worker 2/3 3/5 (60.0%) kept=2 elapsed=314.0s eta=3.5m rate=0.01/cands/s inflight_candidate=30.0s stage=engine.exec path=exec window=2/3 exec=87453/142394 trades=684
+[mt:0] multitimeframe worker 1/3 4/6 (66.7%) kept=3 elapsed=314.7s eta=2.6m rate=0.01/cands/s inflight_candidate=30.0s stage=engine.exec path=exec window=2/3 exec=86031/142394 sig=43062/71257 trades=665
+RUNNING workers=3 pending=0 [mt:0:320.9s, mt:1:320.9s, mt:2:320.9s]
+[mt:2] multitimeframe worker 3/3 3/5 (60.0%) kept=2 elapsed=327.8s eta=3.6m rate=0.01/cands/s inflight_candidate=45.0s stage=engine.exec path=exec window=3/3 exec=18571/530670 sig=9300/265606 trades=152
+[mt:1] multitimeframe worker 2/3 3/5 (60.0%) kept=2 elapsed=329.0s eta=3.7m rate=0.01/cands/s inflight_candidate=45.0s stage=engine.exec path=exec window=3/3 exec=18571/530670 sig=9300/265606 trades=152
+[mt:0] multitimeframe worker 1/3 4/6 (66.7%) kept=3 elapsed=329.7s eta=2.7m rate=0.01/cands/s inflight_candidate=45.0s stage=engine.exec path=exec window=3/3 exec=15918/530670 sig=7973/265606 trades=124
+RUNNING workers=3 pending=0 [mt:0:330.9s, mt:1:330.9s, mt:2:330.9s]
+RUNNING workers=3 pending=0 [mt:0:340.9s, mt:1:340.9s, mt:2:340.9s]
+[mt:2] multitimeframe worker 3/3 3/5 (60.0%) kept=2 elapsed=342.9s eta=3.8m rate=0.01/cands/s inflight_candidate=60.1s stage=engine.exec path=exec window=3/3 exec=98161/530670 trades=676
+[mt:1] multitimeframe worker 2/3 3/5 (60.0%) kept=2 elapsed=344.0s eta=3.8m rate=0.01/cands/s inflight_candidate=60.1s stage=engine.exec path=exec window=3/3 exec=98161/530670 trades=676
+[mt:0] multitimeframe worker 1/3 4/6 (66.7%) kept=3 elapsed=344.7s eta=2.9m rate=0.01/cands/s inflight_candidate=60.0s stage=engine.exec path=exec window=3/3 exec=98161/530670 trades=675
+RUNNING workers=3 pending=0 [mt:0:350.9s, mt:1:350.9s, mt:2:350.9s]
+[mt:2] multitimeframe worker 3/3 3/5 (60.0%) kept=2 elapsed=357.9s eta=4.0m rate=0.01/cands/s inflight_candidate=75.1s stage=engine.exec path=exec window=3/3 exec=180404/530670 trades=1103
+[mt:1] multitimeframe worker 2/3 3/5 (60.0%) kept=2 elapsed=359.1s eta=4.0m rate=0.01/cands/s inflight_candidate=75.1s stage=engine.exec path=exec window=3/3 exec=177751/530670 trades=1089
+[mt:0] multitimeframe worker 1/3 4/6 (66.7%) kept=3 elapsed=359.7s eta=3.0m rate=0.01/cands/s inflight_candidate=75.1s stage=engine.exec path=exec window=3/3 exec=177751/530670 trades=1087
+RUNNING workers=3 pending=0 [mt:0:361.0s, mt:1:361.0s, mt:2:361.0s]
+RUNNING workers=3 pending=0 [mt:0:371.0s, mt:1:371.0s, mt:2:371.0s]
+[mt:2] multitimeframe worker 3/3 3/5 (60.0%) kept=2 elapsed=372.9s eta=4.1m rate=0.01/cands/s inflight_candidate=90.1s stage=engine.exec path=exec window=3/3 exec=262647/530670 trades=1950
+[mt:1] multitimeframe worker 2/3 3/5 (60.0%) kept=2 elapsed=374.1s eta=4.2m rate=0.01/cands/s inflight_candidate=90.1s stage=engine.exec path=exec window=3/3 exec=262647/530670 trades=1950
+[mt:0] multitimeframe worker 1/3 4/6 (66.7%) kept=3 elapsed=374.7s eta=3.1m rate=0.01/cands/s inflight_candidate=90.1s stage=engine.exec path=exec window=3/3 exec=259994/530670 sig=130155/265606 trades=1920
+RUNNING workers=3 pending=0 [mt:0:381.1s, mt:1:381.1s, mt:2:381.1s]
+[mt:2] multitimeframe worker 3/3 3/5 (60.0%) kept=2 elapsed=387.9s eta=4.3m rate=0.01/cands/s inflight_candidate=105.1s stage=engine.exec path=exec window=3/3 exec=344890/530670 trades=2693
+[mt:1] multitimeframe worker 2/3 3/5 (60.0%) kept=2 elapsed=389.1s eta=4.3m rate=0.01/cands/s inflight_candidate=105.1s stage=engine.exec path=exec window=3/3 exec=344890/530670 trades=2693
+[mt:0] multitimeframe worker 1/3 4/6 (66.7%) kept=3 elapsed=389.7s eta=3.2m rate=0.01/cands/s inflight_candidate=105.1s stage=engine.exec path=exec window=3/3 exec=342237/530670 sig=171299/265606 trades=2675
+RUNNING workers=3 pending=0 [mt:0:391.1s, mt:1:391.1s, mt:2:391.1s]
+RUNNING workers=3 pending=0 [mt:0:401.1s, mt:1:401.1s, mt:2:401.1s]
+[mt:2] multitimeframe worker 3/3 3/5 (60.0%) kept=2 elapsed=402.9s eta=4.5m rate=0.01/cands/s inflight_candidate=120.1s stage=engine.exec path=exec window=3/3 exec=427133/530670 trades=3259
+[mt:1] multitimeframe worker 2/3 3/5 (60.0%) kept=2 elapsed=404.1s eta=4.5m rate=0.01/cands/s inflight_candidate=120.1s stage=engine.exec path=exec window=3/3 exec=427133/530670 trades=3259
+[mt:0] multitimeframe worker 1/3 4/6 (66.7%) kept=3 elapsed=404.8s eta=3.4m rate=0.01/cands/s inflight_candidate=120.1s stage=engine.exec path=exec window=3/3 exec=424480/530670 sig=212473/265606 trades=3247
+RUNNING workers=3 pending=0 [mt:0:411.2s, mt:1:411.2s, mt:2:411.2s]
+[mt:2] multitimeframe worker 3/3 3/5 (60.0%) kept=2 elapsed=417.9s eta=4.6m rate=0.01/cands/s inflight_candidate=135.1s stage=engine.exec path=exec window=3/3 exec=509376/530670 sig=254958/265606 trades=3873
+[mt:1] multitimeframe worker 2/3 3/5 (60.0%) kept=2 elapsed=419.1s eta=4.7m rate=0.01/cands/s inflight_candidate=135.1s stage=engine.exec path=exec window=3/3 exec=509376/530670 sig=254958/265606 trades=3873
+[mt:0] multitimeframe worker 1/3 4/6 (66.7%) kept=3 elapsed=419.8s eta=3.5m rate=0.01/cands/s inflight_candidate=135.1s stage=engine.exec path=exec window=3/3 exec=506723/530670 trades=3838
+RUNNING workers=3 pending=0 [mt:0:421.2s, mt:1:421.2s, mt:2:421.2s]
+[mt:2] multitimeframe worker 3/3 3/5 (60.0%) kept=3 elapsed=421.4s eta=4.7m rate=0.01/cands/s
+[mt:1] multitimeframe worker 2/3 3/5 (60.0%) kept=3 elapsed=422.6s eta=4.7m rate=0.01/cands/s
+[mt:0] multitimeframe worker 1/3 4/6 (66.7%) kept=4 elapsed=424.0s eta=3.5m rate=0.01/cands/s
+RUNNING workers=3 pending=0 [mt:0:431.2s, mt:1:431.2s, mt:2:431.2s]
+[mt:2] multitimeframe worker 3/3 4/5 (80.0%) kept=3 elapsed=436.4s eta=1.8m rate=0.01/cands/s inflight_candidate=15.0s stage=engine.exec path=exec window=2/3 exec=11376/142394 trades=80
+[mt:1] multitimeframe worker 2/3 4/5 (80.0%) kept=3 elapsed=437.6s eta=1.8m rate=0.01/cands/s inflight_candidate=15.0s stage=engine.exec path=exec window=2/3 exec=7110/142394 trades=37
+[mt:0] multitimeframe worker 1/3 5/6 (83.3%) kept=4 elapsed=439.0s eta=1.5m rate=0.01/cands/s inflight_candidate=15.0s stage=engine.exec path=exec window=2/3 exec=11376/142394 trades=80
+RUNNING workers=3 pending=0 [mt:0:441.2s, mt:1:441.2s, mt:2:441.2s]
+RUNNING workers=3 pending=0 [mt:0:451.2s, mt:1:451.2s, mt:2:451.2s]
+[mt:2] multitimeframe worker 3/3 4/5 (80.0%) kept=3 elapsed=451.4s eta=1.9m rate=0.01/cands/s inflight_candidate=30.0s stage=engine.exec path=exec window=2/3 exec=95274/142394 trades=799
+[mt:1] multitimeframe worker 2/3 4/5 (80.0%) kept=3 elapsed=452.6s eta=1.9m rate=0.01/cands/s inflight_candidate=30.0s stage=engine.exec path=exec window=2/3 exec=90297/142394 trades=698
+[mt:0] multitimeframe worker 1/3 5/6 (83.3%) kept=4 elapsed=454.0s eta=1.5m rate=0.01/cands/s inflight_candidate=30.0s stage=engine.exec path=exec window=2/3 exec=93852/142394 sig=46977/71257 trades=791
+RUNNING workers=3 pending=0 [mt:0:461.2s, mt:1:461.2s, mt:2:461.2s]
+[mt:2] multitimeframe worker 3/3 4/5 (80.0%) kept=3 elapsed=466.4s eta=1.9m rate=0.01/cands/s inflight_candidate=45.0s stage=engine.exec path=exec window=3/3 exec=34489/530670 trades=285
+[mt:1] multitimeframe worker 2/3 4/5 (80.0%) kept=3 elapsed=467.6s eta=1.9m rate=0.01/cands/s inflight_candidate=45.0s stage=engine.exec path=exec window=3/3 exec=21224/530670 sig=10627/265606 trades=174
+[mt:0] multitimeframe worker 1/3 5/6 (83.3%) kept=4 elapsed=469.0s eta=1.6m rate=0.01/cands/s inflight_candidate=45.0s stage=engine.exec path=exec window=3/3 exec=31836/530670 trades=257
+RUNNING workers=3 pending=0 [mt:0:471.2s, mt:1:471.2s, mt:2:471.2s]
+RUNNING workers=3 pending=0 [mt:0:481.3s, mt:1:481.3s, mt:2:481.3s]
+[mt:2] multitimeframe worker 3/3 4/5 (80.0%) kept=3 elapsed=481.4s eta=2.0m rate=0.01/cands/s inflight_candidate=60.0s stage=engine.exec path=exec window=3/3 exec=114079/530670 sig=57123/265606 trades=797
+[mt:1] multitimeframe worker 2/3 4/5 (80.0%) kept=3 elapsed=482.6s eta=2.0m rate=0.01/cands/s inflight_candidate=60.1s stage=engine.exec path=exec window=3/3 exec=98161/530670 trades=675
+[mt:0] multitimeframe worker 1/3 5/6 (83.3%) kept=4 elapsed=484.1s eta=1.6m rate=0.01/cands/s inflight_candidate=60.1s stage=engine.exec path=exec window=3/3 exec=111426/530670 sig=55794/265606 trades=787
+RUNNING workers=3 pending=0 [mt:0:491.3s, mt:1:491.3s, mt:2:491.3s]
+[mt:2] multitimeframe worker 3/3 4/5 (80.0%) kept=3 elapsed=496.4s eta=2.1m rate=0.01/cands/s inflight_candidate=75.1s stage=engine.exec path=exec window=3/3 exec=196322/530670 trades=1360
+[mt:1] multitimeframe worker 2/3 4/5 (80.0%) kept=3 elapsed=497.6s eta=2.1m rate=0.01/cands/s inflight_candidate=75.1s stage=engine.exec path=exec window=3/3 exec=177751/530670 trades=1087
+[mt:0] multitimeframe worker 1/3 5/6 (83.3%) kept=4 elapsed=499.1s eta=1.7m rate=0.01/cands/s inflight_candidate=75.1s stage=engine.exec path=exec window=3/3 exec=193669/530670 trades=1340
+RUNNING workers=3 pending=0 [mt:0:501.3s, mt:1:501.3s, mt:2:501.3s]
+RUNNING workers=3 pending=0 [mt:0:511.4s, mt:1:511.4s, mt:2:511.4s]
+[mt:2] multitimeframe worker 3/3 4/5 (80.0%) kept=3 elapsed=511.4s eta=2.1m rate=0.01/cands/s inflight_candidate=90.1s stage=engine.exec path=exec window=3/3 exec=278565/530670 trades=2211
+[mt:1] multitimeframe worker 2/3 4/5 (80.0%) kept=3 elapsed=512.6s eta=2.1m rate=0.01/cands/s inflight_candidate=90.1s stage=engine.exec path=exec window=3/3 exec=259994/530670 sig=130155/265606 trades=1920
+[mt:0] multitimeframe worker 1/3 5/6 (83.3%) kept=4 elapsed=514.1s eta=1.7m rate=0.01/cands/s inflight_candidate=90.1s stage=engine.exec path=exec window=3/3 exec=275912/530670 sig=138118/265606 trades=2187
+RUNNING workers=3 pending=0 [mt:0:521.4s, mt:1:521.4s, mt:2:521.4s]
+[mt:2] multitimeframe worker 3/3 4/5 (80.0%) kept=3 elapsed=526.5s eta=2.2m rate=0.01/cands/s inflight_candidate=105.1s stage=engine.exec path=exec window=3/3 exec=363461/530670 trades=3016
+[mt:1] multitimeframe worker 2/3 4/5 (80.0%) kept=3 elapsed=527.7s eta=2.2m rate=0.01/cands/s inflight_candidate=105.1s stage=engine.exec path=exec window=3/3 exec=344890/530670 trades=2694
+[mt:0] multitimeframe worker 1/3 5/6 (83.3%) kept=4 elapsed=529.1s eta=1.8m rate=0.01/cands/s inflight_candidate=105.1s stage=engine.exec path=exec window=3/3 exec=360808/530670 trades=2995
+RUNNING workers=3 pending=0 [mt:0:531.4s, mt:1:531.4s, mt:2:531.4s]
+RUNNING workers=3 pending=0 [mt:0:541.4s, mt:1:541.4s, mt:2:541.4s]
+[mt:2] multitimeframe worker 3/3 4/5 (80.0%) kept=3 elapsed=541.5s eta=2.3m rate=0.01/cands/s inflight_candidate=120.1s stage=engine.exec path=exec window=3/3 exec=445704/530670 sig=223094/265606 trades=3650
+[mt:1] multitimeframe worker 2/3 4/5 (80.0%) kept=3 elapsed=542.7s eta=2.3m rate=0.01/cands/s inflight_candidate=120.1s stage=engine.exec path=exec window=3/3 exec=427133/530670 trades=3257
+[mt:0] multitimeframe worker 1/3 5/6 (83.3%) kept=4 elapsed=544.1s eta=1.8m rate=0.01/cands/s inflight_candidate=120.1s stage=engine.exec path=exec window=3/3 exec=443051/530670 sig=221767/265606 trades=3630
+RUNNING workers=3 pending=0 [mt:0:551.5s, mt:1:551.5s, mt:2:551.5s]
+[mt:2] multitimeframe worker 3/3 4/5 (80.0%) kept=3 elapsed=556.5s eta=2.3m rate=0.01/cands/s inflight_candidate=135.1s stage=engine.exec path=exec window=3/3 exec=527947/530670 trades=4408
+[mt:2] multitimeframe worker 3/3 4/5 (80.0%) kept=4 elapsed=556.6s eta=2.3m rate=0.01/cands/s
+[mt:1] multitimeframe worker 2/3 4/5 (80.0%) kept=3 elapsed=557.7s eta=2.3m rate=0.01/cands/s inflight_candidate=135.1s stage=engine.exec path=exec window=3/3 exec=509376/530670 sig=254958/265606 trades=3873
+[mt:0] multitimeframe worker 1/3 5/6 (83.3%) kept=4 elapsed=559.1s eta=1.9m rate=0.01/cands/s inflight_candidate=135.1s stage=engine.exec path=exec window=3/3 exec=522641/530670 trades=4295
+[mt:0] multitimeframe worker 1/3 5/6 (83.3%) kept=5 elapsed=560.1s eta=1.9m rate=0.01/cands/s
+[mt:0] multitimeframe worker 1/3 6/6 (100.0%) kept=6 elapsed=560.1s eta=0.0m rate=0.01/cands/s
+[mt:0] multitimeframe worker done tested=6 kept=6 out=/var/folders/rn/tbt648y54zl_f0m02zrb01sm0000gn/T/tradebot_multitimeframe_t_m973s3/multitimeframe_out_0.json
+RUNNING workers=3 pending=0 [mt:0:561.5s, mt:1:561.5s, mt:2:561.5s]
+DONE  mt:0 exit=0 elapsed=561.7s
+[mt:1] multitimeframe worker 2/3 4/5 (80.0%) kept=4 elapsed=561.5s eta=2.3m rate=0.01/cands/s
+RUNNING workers=2 pending=0 [mt:1:571.5s, mt:2:571.5s]
+[mt:2] multitimeframe worker 3/3 5/5 (100.0%) kept=4 elapsed=571.6s eta=0.0m rate=0.01/cands/s inflight_candidate=15.0s stage=engine.exec path=exec window=2/3 exec=11376/142394 trades=75
+[mt:1] multitimeframe worker 2/3 5/5 (100.0%) kept=4 elapsed=576.5s eta=0.0m rate=0.01/cands/s inflight_candidate=15.0s stage=engine.exec path=exec window=2/3 exec=10665/142394 sig=5340/71257 trades=69
+RUNNING workers=2 pending=0 [mt:1:581.6s, mt:2:581.6s]
+[mt:2] multitimeframe worker 3/3 5/5 (100.0%) kept=4 elapsed=586.6s eta=0.0m rate=0.01/cands/s inflight_candidate=30.0s stage=engine.exec path=exec window=2/3 exec=94563/142394 trades=747
+RUNNING workers=2 pending=0 [mt:1:591.6s, mt:2:591.6s]
+[mt:1] multitimeframe worker 2/3 5/5 (100.0%) kept=4 elapsed=591.5s eta=0.0m rate=0.01/cands/s inflight_candidate=30.0s stage=engine.exec path=exec window=2/3 exec=93852/142394 sig=46977/71257 trades=741
+RUNNING workers=2 pending=0 [mt:1:601.6s, mt:2:601.6s]
+[mt:2] multitimeframe worker 3/3 5/5 (100.0%) kept=4 elapsed=601.6s eta=0.0m rate=0.01/cands/s inflight_candidate=45.0s stage=engine.exec path=exec window=3/3 exec=34489/530670 trades=273
+[mt:1] multitimeframe worker 2/3 5/5 (100.0%) kept=4 elapsed=606.5s eta=0.0m rate=0.01/cands/s inflight_candidate=45.0s stage=engine.exec path=exec window=3/3 exec=34489/530670 trades=273
+RUNNING workers=2 pending=0 [mt:1:611.7s, mt:2:611.7s]
+[mt:2] multitimeframe worker 3/3 5/5 (100.0%) kept=4 elapsed=616.6s eta=0.0m rate=0.01/cands/s inflight_candidate=60.1s stage=engine.exec path=exec window=3/3 exec=116732/530670 sig=58451/265606 trades=769
+RUNNING workers=2 pending=0 [mt:1:621.7s, mt:2:621.7s]
+[mt:1] multitimeframe worker 2/3 5/5 (100.0%) kept=4 elapsed=621.6s eta=0.0m rate=0.01/cands/s inflight_candidate=60.1s stage=engine.exec path=exec window=3/3 exec=114079/530670 sig=57123/265606 trades=757
+RUNNING workers=2 pending=0 [mt:1:631.7s, mt:2:631.7s]
+[mt:2] multitimeframe worker 3/3 5/5 (100.0%) kept=4 elapsed=631.6s eta=0.0m rate=0.01/cands/s inflight_candidate=75.1s stage=engine.exec path=exec window=3/3 exec=198975/530670 trades=1323
+[mt:1] multitimeframe worker 2/3 5/5 (100.0%) kept=4 elapsed=636.6s eta=0.0m rate=0.01/cands/s inflight_candidate=75.1s stage=engine.exec path=exec window=3/3 exec=196322/530670 trades=1292
+RUNNING workers=2 pending=0 [mt:1:641.7s, mt:2:641.7s]
+[mt:2] multitimeframe worker 3/3 5/5 (100.0%) kept=4 elapsed=646.6s eta=0.0m rate=0.01/cands/s inflight_candidate=90.1s stage=engine.exec path=exec window=3/3 exec=281218/530670 sig=140772/265606 trades=2141
+RUNNING workers=2 pending=0 [mt:1:651.7s, mt:2:651.7s]
+[mt:1] multitimeframe worker 2/3 5/5 (100.0%) kept=4 elapsed=651.6s eta=0.0m rate=0.01/cands/s inflight_candidate=90.1s stage=engine.exec path=exec window=3/3 exec=278565/530670 trades=2120
+RUNNING workers=2 pending=0 [mt:1:661.8s, mt:2:661.8s]
+[mt:2] multitimeframe worker 3/3 5/5 (100.0%) kept=4 elapsed=661.6s eta=0.0m rate=0.01/cands/s inflight_candidate=105.1s stage=engine.exec path=exec window=3/3 exec=366114/530670 sig=183252/265606 trades=2901
+[mt:1] multitimeframe worker 2/3 5/5 (100.0%) kept=4 elapsed=666.6s eta=0.0m rate=0.01/cands/s inflight_candidate=105.1s stage=engine.exec path=exec window=3/3 exec=363461/530670 trades=2880
+RUNNING workers=2 pending=0 [mt:1:671.8s, mt:2:671.8s]
+[mt:2] multitimeframe worker 3/3 5/5 (100.0%) kept=4 elapsed=676.6s eta=0.0m rate=0.01/cands/s inflight_candidate=120.1s stage=engine.exec path=exec window=3/3 exec=448357/530670 trades=3517
+[mt:1] multitimeframe worker 2/3 5/5 (100.0%) kept=4 elapsed=681.6s eta=0.0m rate=0.01/cands/s inflight_candidate=120.1s stage=engine.exec path=exec window=3/3 exec=448357/530670 trades=3517
+RUNNING workers=2 pending=0 [mt:1:681.8s, mt:2:681.8s]
+[mt:2] multitimeframe worker 3/3 5/5 (100.0%) kept=5 elapsed=691.2s eta=0.0m rate=0.01/cands/s
+[mt:2] multitimeframe worker done tested=5 kept=5 out=/var/folders/rn/tbt648y54zl_f0m02zrb01sm0000gn/T/tradebot_multitimeframe_t_m973s3/multitimeframe_out_2.json
+RUNNING workers=2 pending=0 [mt:1:691.9s, mt:2:691.8s]
+DONE  mt:2 exit=0 elapsed=692.6s
+[mt:1] multitimeframe worker 2/3 5/5 (100.0%) kept=5 elapsed=696.6s eta=0.0m rate=0.01/cands/s
+[mt:1] multitimeframe worker done tested=5 kept=5 out=/var/folders/rn/tbt648y54zl_f0m02zrb01sm0000gn/T/tradebot_multitimeframe_t_m973s3/multitimeframe_out_1.json
+DONE  mt:1 exit=0 elapsed=698.8s
+
+Multiwindow results: 16 candidates passed filters.
+- symbol=SLV bar=10 mins rth=False offline=True
+- windows=2016-02-14→2026-02-14, 2024-02-14→2026-02-14, 2025-02-14→2026-02-14
+- min_trades=700 min_win=0.00
+- workers=3 tested_total=16
+- eval_cache=db/spot_multiwindow_eval_cache.sqlite3 hits=0 writes=0
+
+ 1. stability(min roi/dd)=-0.78 full roi/dd=-0.78 roi=-60.1% dd%=77.2% pnl=-60125.6 win=61.1% tr=4203 ema=5/13 trend regime=supertrend rbar=1 day
+ 2. stability(min roi/dd)=-0.78 full roi/dd=-0.78 roi=-60.1% dd%=77.2% pnl=-60125.6 win=61.1% tr=4203 ema=5/13 trend regime=supertrend rbar=1 day
+ 3. stability(min roi/dd)=-0.79 full roi/dd=-0.79 roi=-60.7% dd%=76.8% pnl=-60745.7 win=61.3% tr=4151 ema=5/13 trend regime=supertrend rbar=1 day
+ 4. stability(min roi/dd)=-0.79 full roi/dd=-0.79 roi=-60.7% dd%=76.8% pnl=-60745.7 win=61.3% tr=4151 ema=5/13 trend regime=supertrend rbar=1 day
+ 5. stability(min roi/dd)=-0.80 full roi/dd=-0.80 roi=-63.7% dd%=79.3% pnl=-63683.1 win=59.7% tr=4479 ema=5/13 trend regime=supertrend rbar=1 day
+ 6. stability(min roi/dd)=-0.80 full roi/dd=-0.80 roi=-63.7% dd%=79.3% pnl=-63683.1 win=59.7% tr=4479 ema=5/13 trend regime=supertrend rbar=1 day
+ 7. stability(min roi/dd)=-0.80 full roi/dd=-0.80 roi=-67.9% dd%=84.4% pnl=-67872.6 win=60.6% tr=4195 ema=5/13 trend regime=supertrend rbar=1 day
+ 8. stability(min roi/dd)=-0.80 full roi/dd=-0.80 roi=-67.9% dd%=84.4% pnl=-67872.6 win=60.6% tr=4195 ema=5/13 trend regime=supertrend rbar=1 day
+ 9. stability(min roi/dd)=-0.81 full roi/dd=-0.81 roi=-64.1% dd%=79.6% pnl=-64141.1 win=61.2% tr=4143 ema=5/13 trend regime=supertrend rbar=1 day
+10. stability(min roi/dd)=-0.81 full roi/dd=-0.81 roi=-64.1% dd%=79.6% pnl=-64141.1 win=61.2% tr=4143 ema=5/13 trend regime=supertrend rbar=1 day
+11. stability(min roi/dd)=-0.82 full roi/dd=-0.82 roi=-68.7% dd%=84.2% pnl=-68665.4 win=60.4% tr=4293 ema=5/13 trend regime=supertrend rbar=1 day
+12. stability(min roi/dd)=-0.82 full roi/dd=-0.82 roi=-68.7% dd%=84.2% pnl=-68665.4 win=60.4% tr=4293 ema=5/13 trend regime=supertrend rbar=1 day
+13. stability(min roi/dd)=-0.82 full roi/dd=-0.82 roi=-71.8% dd%=87.4% pnl=-71815.4 win=59.2% tr=4483 ema=5/13 trend regime=supertrend rbar=1 day
+14. stability(min roi/dd)=-0.82 full roi/dd=-0.82 roi=-71.8% dd%=87.4% pnl=-71815.4 win=59.2% tr=4483 ema=5/13 trend regime=supertrend rbar=1 day
+15. stability(min roi/dd)=-0.86 full roi/dd=-0.86 roi=-55.7% dd%=64.6% pnl=-55742.2 win=61.7% tr=4109 ema=5/13 trend regime=supertrend rbar=1 day
+16. stability(min roi/dd)=-0.86 full roi/dd=-0.86 roi=-49.2% dd%=57.0% pnl=-49167.7 win=60.5% tr=4101 ema=5/13 trend regime=supertrend rbar=1 day
+
+Wrote backtests/slv/slv_hf_r8_focus_contract_shortlist_10y2y1y_ranked_20260216_v1.json (top=16).

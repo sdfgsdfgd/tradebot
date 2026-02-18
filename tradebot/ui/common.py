@@ -319,56 +319,63 @@ _TICKER_WIDTHS = {
 
 
 def _ticker_price(ticker: Ticker) -> float | None:
-    bid = _safe_num(getattr(ticker, "bid", None))
-    ask = _safe_num(getattr(ticker, "ask", None))
-    if bid is not None and ask is not None and bid > 0 and ask > 0 and bid <= ask:
+    bid, ask, last = _sanitize_nbbo(
+        getattr(ticker, "bid", None),
+        getattr(ticker, "ask", None),
+        getattr(ticker, "last", None),
+    )
+    if bid is not None and ask is not None and bid <= ask:
         return (bid + ask) / 2.0
-    last = _safe_num(getattr(ticker, "last", None))
-    if last is not None and last > 0:
+    if last is not None:
         return last
     try:
         value = float(ticker.marketPrice())
     except Exception:
         value = None
-    if value is not None and value > 0 and not math.isnan(value):
+    value = _quote_num_display(value)
+    if value is not None:
         return value
     return _ticker_close(ticker)
 
 
 def _ticker_actionable_price(ticker: Ticker) -> float | None:
-    bid = _safe_num(getattr(ticker, "bid", None))
-    ask = _safe_num(getattr(ticker, "ask", None))
-    if bid is not None and ask is not None and bid > 0 and ask > 0 and bid <= ask:
+    bid, ask, last = _sanitize_nbbo(
+        getattr(ticker, "bid", None),
+        getattr(ticker, "ask", None),
+        getattr(ticker, "last", None),
+    )
+    if bid is not None and ask is not None and bid <= ask:
         return (bid + ask) / 2.0
-    last = _safe_num(getattr(ticker, "last", None))
-    if last is not None and last > 0:
+    if last is not None:
         return float(last)
     return None
 
 
 def _option_display_price(item: PortfolioItem, ticker: Ticker | None) -> float | None:
     if ticker:
-        bid = _safe_num(getattr(ticker, "bid", None))
-        ask = _safe_num(getattr(ticker, "ask", None))
-        if bid is not None and ask is not None and bid > 0 and ask > 0 and bid <= ask:
+        bid, ask, last = _sanitize_nbbo(
+            getattr(ticker, "bid", None),
+            getattr(ticker, "ask", None),
+            getattr(ticker, "last", None),
+        )
+        if bid is not None and ask is not None and bid <= ask:
             return (bid + ask) / 2.0
-        last = _safe_num(getattr(ticker, "last", None))
-        if last is not None and last > 0:
+        if last is not None:
             return float(last)
         model = getattr(ticker, "modelGreeks", None)
-        model_price = _safe_num(getattr(model, "optPrice", None)) if model else None
-        if model_price is not None and model_price > 0:
+        model_price = _quote_num_display(getattr(model, "optPrice", None)) if model else None
+        if model_price is not None:
             return float(model_price)
         close = _ticker_close(ticker)
-        if close is not None and close > 0:
+        if close is not None:
             close_value = float(close)
         else:
             close_value = None
     else:
         close_value = None
 
-    portfolio_mark = _safe_num(getattr(item, "marketPrice", None))
-    if portfolio_mark is not None and portfolio_mark > 0:
+    portfolio_mark = _quote_num_display(getattr(item, "marketPrice", None))
+    if portfolio_mark is not None:
         return float(portfolio_mark)
     return close_value
 
@@ -407,11 +414,18 @@ def _market_data_label(ticker: Ticker) -> str:
 
 
 def _quote_status_line(ticker: Ticker) -> Text:
-    bid = _safe_num(getattr(ticker, "bid", None))
-    ask = _safe_num(getattr(ticker, "ask", None))
-    last = _safe_num(getattr(ticker, "last", None))
-    bid_ask = "ok" if bid is not None and ask is not None and bid > 0 and ask > 0 and bid <= ask else "n/a"
-    last_label = "ok" if last is not None and last > 0 else "n/a"
+    health = _quote_health(
+        bid=getattr(ticker, "bid", None),
+        ask=getattr(ticker, "ask", None),
+        last=getattr(ticker, "last", None),
+    )
+    if bool(health.get("has_nbbo")):
+        bid_ask = "ok"
+    elif bool(health.get("has_one_sided")):
+        bid_ask = "1-sided"
+    else:
+        bid_ask = "n/a"
+    last_label = "ok" if bool(health.get("has_last")) else "n/a"
     return Text(f"MD Quotes: bid/ask {bid_ask} · last {last_label}", style="dim")
 
 
@@ -441,6 +455,8 @@ def _ticker_line(
     tickers: dict[str, Ticker],
     error: str | None,
     prefix: str,
+    *,
+    allow_display_fallback: bool = False,
 ) -> Text:
     if error:
         return Text(f"{prefix}Data error: {error}", style="red")
@@ -457,6 +473,10 @@ def _ticker_line(
             continue
         tag = _market_data_tag(ticker)
         price = _ticker_actionable_price(ticker)
+        if (price is None or price <= 0) and allow_display_fallback:
+            fallback = _ticker_price(ticker)
+            if fallback is not None and fallback > 0:
+                price = float(fallback)
         close = _ticker_close(ticker)
         if price is None or price <= 0:
             if close and close > 0:
@@ -546,8 +566,60 @@ def _safe_num(value: float | None) -> float | None:
     return num
 
 
+def _quote_num_actionable(value: float | None) -> float | None:
+    num = _safe_num(value)
+    if num is None or num <= 0:
+        return None
+    return float(num)
+
+
+def _quote_num_display(value: float | None) -> float | None:
+    num = _safe_num(value)
+    if num is None or num <= 0:
+        return None
+    return float(num)
+
+
+def _sanitize_nbbo(
+    bid: float | None,
+    ask: float | None,
+    last: float | None,
+) -> tuple[float | None, float | None, float | None]:
+    return (
+        _quote_num_actionable(bid),
+        _quote_num_actionable(ask),
+        _quote_num_actionable(last),
+    )
+
+
+def _quote_health(
+    *,
+    bid: float | None,
+    ask: float | None,
+    last: float | None,
+    close: float | None = None,
+) -> dict[str, bool]:
+    clean_bid, clean_ask, clean_last = _sanitize_nbbo(bid, ask, last)
+    clean_close = _quote_num_display(close)
+    has_bid = bool(clean_bid is not None)
+    has_ask = bool(clean_ask is not None)
+    has_nbbo = bool(clean_bid is not None and clean_ask is not None and clean_bid <= clean_ask)
+    has_one_sided = bool((has_bid or has_ask) and not has_nbbo)
+    has_last = bool(clean_last is not None)
+    has_close_only = bool((not has_nbbo) and (not has_last) and clean_close is not None)
+    return {
+        "has_bid": has_bid,
+        "has_ask": has_ask,
+        "has_nbbo": has_nbbo,
+        "has_one_sided": has_one_sided,
+        "has_last": has_last,
+        "has_close_only": has_close_only,
+        "has_actionable": bool(has_nbbo or has_last),
+    }
+
+
 def _mark_price(item: PortfolioItem) -> float | None:
-    value = _safe_num(getattr(item, "marketPrice", None))
+    value = _quote_num_display(getattr(item, "marketPrice", None))
     if value is not None:
         return value
     if item.marketValue is not None and item.position:
@@ -751,7 +823,7 @@ def _exec_chase_quote_signature(
     ask: float | None,
     last: float | None,
 ) -> tuple[float | None, float | None, float | None]:
-    return (_safe_num(bid), _safe_num(ask), _safe_num(last))
+    return _sanitize_nbbo(bid, ask, last)
 
 
 def _exec_chase_should_reprice(
@@ -787,6 +859,9 @@ def _limit_price_for_mode(
     action: str,
     mode: str,
 ) -> float | None:
+    bid = bid if bid is not None and bid > 0 else None
+    ask = ask if ask is not None and ask > 0 else None
+    last = last if last is not None and last > 0 else None
     mid = _midpoint(bid, ask)
     cleaned = str(mode or "").strip().upper()
     if cleaned == "CROSS":
@@ -801,6 +876,8 @@ def _limit_price_for_mode(
         value = mid
     if value is None:
         value = mid if mid is not None else last
+    if value is None or value <= 0:
+        return None
     return value
 
 

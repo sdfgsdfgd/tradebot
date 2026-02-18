@@ -8,6 +8,7 @@ from datetime import date
 from pathlib import Path
 
 from ..signals import parse_bar_size
+from ..spot.fill_modes import SPOT_FILL_MODE_CLOSE, normalize_spot_fill_mode
 from .cli_utils import parse_date as _parse_date_impl
 from ..knobs.models import (
     BacktestConfig,
@@ -188,6 +189,7 @@ def _strategy_schema_common() -> dict[str, _FieldSpec]:
         "tick_direction_policy": _field(_parse_tick_direction_policy, None),
         "spot_entry_fill_mode": _field(lambda value: _parse_spot_fill_mode(value, default="close"), "close"),
         "spot_flip_exit_fill_mode": _field(lambda value: _parse_spot_fill_mode(value, default="close"), "close"),
+        "spot_next_open_session": _field(_parse_spot_next_open_session_mode, "auto"),
         "spot_intrabar_exits": _field(bool, False),
         "spot_spread": _field(lambda value: _parse_non_negative_float(value, default=0.0), 0.0),
         "spot_commission_per_share": _field(lambda value: _parse_non_negative_float(value, default=0.0), 0.0),
@@ -249,11 +251,23 @@ def _strategy_schema_common() -> dict[str, _FieldSpec]:
         "spot_entry_shock_atr_max_pct": _field(_parse_optional_float, None),
         "spot_entry_atr_vel_min_pct": _field(_parse_optional_float, None),
         "spot_entry_atr_accel_min_pct": _field(_parse_optional_float, None),
+        "spot_guard_threshold_scale_mode": _field(_identity, None),
+        "spot_guard_threshold_scale_min_mult": _field(lambda value: _parse_positive_float(value, default=0.70), 0.70),
+        "spot_guard_threshold_scale_max_mult": _field(lambda value: _parse_positive_float(value, default=1.80), 1.80),
+        "spot_guard_threshold_scale_tr_ref": _field(_parse_optional_float, None),
+        "spot_guard_threshold_scale_atr_vel_ref_pct": _field(_parse_optional_float, None),
+        "spot_guard_threshold_scale_tr_median_ref_pct": _field(_parse_optional_float, None),
         "spot_exit_flip_hold_slope_min_pct": _field(_parse_optional_float, None),
         "spot_exit_flip_hold_tr_ratio_min": _field(_parse_optional_float, None),
         "spot_exit_flip_hold_slow_slope_min_pct": _field(_parse_optional_float, None),
         "spot_exit_flip_hold_slope_vel_min_pct": _field(_parse_optional_float, None),
         "spot_exit_flip_hold_slow_slope_vel_min_pct": _field(_parse_optional_float, None),
+        "spot_flip_hold_dynamic_mode": _field(_identity, None),
+        "spot_flip_hold_dynamic_min_mult": _field(lambda value: _parse_positive_float(value, default=0.50), 0.50),
+        "spot_flip_hold_dynamic_max_mult": _field(lambda value: _parse_positive_float(value, default=2.50), 2.50),
+        "spot_flip_hold_dynamic_tr_ref": _field(_parse_optional_float, None),
+        "spot_flip_hold_dynamic_atr_vel_ref_pct": _field(_parse_optional_float, None),
+        "spot_flip_hold_dynamic_tr_median_ref_pct": _field(_parse_optional_float, None),
         "spot_graph_overlay_atr_hi_pct": _field(_parse_optional_float, None),
         "spot_graph_overlay_atr_hi_min_mult": _field(lambda value: _parse_positive_float(value, default=0.5), 0.5),
         "spot_graph_overlay_atr_vel_ref_pct": _field(lambda value: _parse_positive_float(value, default=0.40), 0.40),
@@ -563,6 +577,11 @@ def _parse_filters(raw) -> FiltersConfig | None:
     shock_short_mult = _f(raw.get("shock_short_risk_mult_factor"))
     if shock_short_mult is None or shock_short_mult < 0:
         shock_short_mult = 1.0
+    shock_short_boost_min_down_streak = _i(raw.get("shock_short_boost_min_down_streak_bars"))
+    if shock_short_boost_min_down_streak is None or shock_short_boost_min_down_streak <= 0:
+        shock_short_boost_min_down_streak = 1
+    shock_short_boost_require_regime_down = bool(raw.get("shock_short_boost_require_regime_down"))
+    shock_short_boost_require_entry_down = bool(raw.get("shock_short_boost_require_entry_down"))
     shock_long_mult = _f(raw.get("shock_long_risk_mult_factor"))
     if shock_long_mult is None or shock_long_mult < 0:
         shock_long_mult = 1.0
@@ -832,6 +851,9 @@ def _parse_filters(raw) -> FiltersConfig | None:
         shock_on_drawdown_pct=float(dd_on),
         shock_off_drawdown_pct=float(dd_off),
         shock_short_risk_mult_factor=float(shock_short_mult),
+        shock_short_boost_min_down_streak_bars=int(shock_short_boost_min_down_streak),
+        shock_short_boost_require_regime_down=bool(shock_short_boost_require_regime_down),
+        shock_short_boost_require_entry_down=bool(shock_short_boost_require_entry_down),
         shock_long_risk_mult_factor=float(shock_long_mult),
         shock_long_risk_mult_factor_down=float(shock_long_mult_down),
         shock_stop_loss_pct_mult=float(shock_sl_mult),
@@ -1035,15 +1057,24 @@ def _parse_tick_direction_policy(value) -> str:
 
 
 def _parse_spot_fill_mode(value, *, default: str) -> str:
+    fallback = normalize_spot_fill_mode(default, default=SPOT_FILL_MODE_CLOSE)
+    return normalize_spot_fill_mode(value, default=fallback)
+
+
+def _parse_spot_next_open_session_mode(value) -> str:
     if value is None:
-        return default
+        return "auto"
     if isinstance(value, str):
         cleaned = value.strip().lower()
-        if cleaned in ("close", "bar_close", "at_close"):
-            return "close"
-        if cleaned in ("next_open", "nextopen", "open", "next_bar_open", "nextbaropen"):
-            return "next_open"
-    return default
+        aliases = {
+            "full24": "tradable_24x5",
+            "tradable": "tradable_24x5",
+            "overnight_plus_extended": "tradable_24x5",
+        }
+        cleaned = aliases.get(cleaned, cleaned)
+        if cleaned in ("auto", "rth", "extended", "always", "tradable_24x5"):
+            return cleaned
+    return "auto"
 
 
 def _parse_spot_mark_to_market(value) -> str:

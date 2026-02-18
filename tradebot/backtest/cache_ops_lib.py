@@ -1008,6 +1008,7 @@ def _resample_intraday_ohlcv(
     *,
     src_bar_size: str,
     dst_bar_size: str,
+    allow_day_from_partial: bool = False,
 ) -> tuple[list[Bar], _ResampleStats]:
     src = parse_bar_size(src_bar_size)
     dst = parse_bar_size(dst_bar_size)
@@ -1022,11 +1023,38 @@ def _resample_intraday_ohlcv(
     if (dst.duration.total_seconds() % src.duration.total_seconds()) != 0:
         raise SystemExit(f"Non-integer resample ratio: {src_bar_size!r} -> {dst_bar_size!r}")
 
-    factor = max(1, int(dst.duration.total_seconds() // src.duration.total_seconds()))
     if not bars:
         return [], _ResampleStats(kept=0, dropped_incomplete=0)
 
     bars = sorted(bars, key=lambda b: b.ts)
+
+    # RTH streams do not contain 24h coverage, so 1-day bars cannot satisfy strict
+    # ratio-based chunk completeness (390 != 1440). Allow deterministic day grouping
+    # when explicitly requested by caller.
+    if allow_day_from_partial and src.duration < timedelta(days=1) and dst.duration >= timedelta(days=1):
+        by_day: dict[date, list[Bar]] = defaultdict(list)
+        for bar in bars:
+            by_day[bar.ts.date()].append(bar)
+        out: list[Bar] = []
+        for day in sorted(by_day.keys()):
+            chunk = by_day[day]
+            if not chunk:
+                continue
+            first = chunk[0]
+            last = chunk[-1]
+            out.append(
+                Bar(
+                    ts=datetime.combine(day, time(0, 0)),
+                    open=first.open,
+                    high=max(b.high for b in chunk),
+                    low=min(b.low for b in chunk),
+                    close=last.close,
+                    volume=sum(float(b.volume or 0.0) for b in chunk),
+                )
+            )
+        return out, _ResampleStats(kept=len(out), dropped_incomplete=0)
+
+    factor = max(1, int(dst.duration.total_seconds() // src.duration.total_seconds()))
     out: list[Bar] = []
     cur_bucket = None
     cur: list[Bar] = []
@@ -1878,6 +1906,7 @@ def main_resample(argv: list[str]) -> None:
         src_bars,
         src_bar_size=src_bar_size,
         dst_bar_size=dst_bar_size,
+        allow_day_from_partial=bool(use_rth),
     )
     if not dst_bars:
         raise SystemExit("Resample produced 0 bars (likely misaligned source cache).")

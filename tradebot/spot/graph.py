@@ -84,6 +84,214 @@ def _pick_value(
     return None
 
 
+def _normalize_dynamic_scale_mode(raw: object | None) -> str:
+    mode = str(raw or "off").strip().lower()
+    if mode in ("", "0", "false", "none", "null", "off"):
+        return "off"
+    aliases = {
+        "hybrid": "atrtr",
+        "tr_atr": "atrtr",
+        "atr_tr": "atrtr",
+        "atr+tr": "atrtr",
+        "atr-tr": "atrtr",
+        "atr_tr_med": "atrtrmed",
+        "atr+tr+med": "atrtrmed",
+        "atrtrm": "atrtrmed",
+        "trmed": "tr_median",
+        "tr_med": "tr_median",
+        "trmedian": "tr_median",
+        "median_tr": "tr_median",
+        "atrvel": "atr_vel",
+        "atrvelocity": "atr_vel",
+        "trd": "tr_direct",
+        "tr_direct": "tr_direct",
+        "atrveld": "atr_vel_direct",
+        "atr_vel_direct": "atr_vel_direct",
+        "trmedd": "tr_median_direct",
+        "tr_median_direct": "tr_median_direct",
+        "atrtrd": "atrtr_direct",
+        "atrtr_direct": "atrtr_direct",
+        "atrtrmedd": "atrtrmed_direct",
+        "atrtrmed_direct": "atrtrmed_direct",
+        "atr+tr+direct": "atrtr_direct",
+        "atr+tr+med+direct": "atrtrmed_direct",
+    }
+    mode = aliases.get(mode, mode)
+    if mode not in (
+        "off",
+        "tr",
+        "atr_vel",
+        "atrtr",
+        "tr_median",
+        "atrtrmed",
+        "tr_direct",
+        "atr_vel_direct",
+        "atrtr_direct",
+        "tr_median_direct",
+        "atrtrmed_direct",
+    ):
+        return "off"
+    return mode
+
+
+def _dynamic_scale_from_mode(
+    *,
+    strategy: Mapping[str, object] | object | None,
+    mode_key: str,
+    min_mult_key: str,
+    max_mult_key: str,
+    tr_ref_key: str,
+    atr_vel_ref_key: str,
+    tr_median_ref_key: str | None,
+    tr_ratio: float | None,
+    shock_atr_vel_pct: float | None,
+    tr_median_pct: float | None,
+    default_min_mult: float,
+    default_max_mult: float,
+    default_tr_ref: float,
+    default_atr_vel_ref: float,
+    default_tr_median_ref: float,
+) -> tuple[float, dict[str, object]]:
+    mode = _normalize_dynamic_scale_mode(_get(strategy, mode_key))
+    direct = bool(str(mode).endswith("_direct"))
+    base_mode = str(mode)[:-7] if direct else str(mode)
+    min_mult = max(0.05, _parse_float(_get(strategy, min_mult_key), default=float(default_min_mult)))
+    max_mult = max(float(min_mult), _parse_float(_get(strategy, max_mult_key), default=float(default_max_mult)))
+    tr_ref = max(1e-9, _parse_float(_get(strategy, tr_ref_key), default=float(default_tr_ref)))
+    atr_vel_ref = max(1e-9, _parse_float(_get(strategy, atr_vel_ref_key), default=float(default_atr_vel_ref)))
+    tr_median_ref = max(
+        1e-9,
+        _parse_float(
+            _get(strategy, str(tr_median_ref_key)) if tr_median_ref_key else None,
+            default=float(default_tr_median_ref),
+        ),
+    )
+
+    components: list[float] = []
+    if base_mode in ("tr", "atrtr", "atrtrmed") and tr_ratio is not None and float(tr_ratio) > 0.0:
+        tr_now = max(1e-9, float(tr_ratio))
+        components.append((tr_now / float(tr_ref)) if direct else (float(tr_ref) / tr_now))
+    if base_mode in ("atr_vel", "atrtr", "atrtrmed") and shock_atr_vel_pct is not None:
+        atr_vel_up = max(0.0, float(shock_atr_vel_pct))
+        if atr_vel_up <= 0.0:
+            components.append(float(min_mult) if direct else float(max_mult))
+        else:
+            atr_now = max(1e-9, float(atr_vel_up))
+            components.append((atr_now / float(atr_vel_ref)) if direct else (float(atr_vel_ref) / atr_now))
+    if base_mode in ("tr_median", "atrtrmed") and tr_median_pct is not None:
+        tr_median_up = max(0.0, float(tr_median_pct))
+        if tr_median_up <= 0.0:
+            components.append(float(min_mult) if direct else float(max_mult))
+        else:
+            tr_median_now = max(1e-9, float(tr_median_up))
+            components.append(
+                (tr_median_now / float(tr_median_ref)) if direct else (float(tr_median_ref) / tr_median_now)
+            )
+
+    if mode == "off" or not components:
+        scale = 1.0
+    else:
+        scale = float(sum(components) / float(len(components)))
+    scale = float(max(float(min_mult), min(float(max_mult), float(scale))))
+    return float(scale), {
+        "mode": str(mode),
+        "min_mult": float(min_mult),
+        "max_mult": float(max_mult),
+        "tr_ref": float(tr_ref),
+        "tr_median_ref_pct": float(tr_median_ref),
+        "atr_vel_ref_pct": float(atr_vel_ref),
+        "tr_ratio": float(tr_ratio) if tr_ratio is not None else None,
+        "tr_median_pct": float(tr_median_pct) if tr_median_pct is not None else None,
+        "shock_atr_vel_pct": float(shock_atr_vel_pct) if shock_atr_vel_pct is not None else None,
+        "components": [float(x) for x in components],
+        "scale": float(scale),
+    }
+
+
+def spot_guard_threshold_scale(
+    *,
+    strategy: Mapping[str, object] | object | None,
+    tr_ratio: float | None,
+    shock_atr_vel_pct: float | None,
+    tr_median_pct: float | None = None,
+) -> tuple[float, dict[str, object]]:
+    tr_ref_raw = _pick_value(
+        strategy=strategy,
+        filters=None,
+        keys=("spot_graph_overlay_tr_ratio_ref", "spot_resize_adaptive_tr_ratio_ref"),
+    )
+    atr_ref_raw = _pick_value(
+        strategy=strategy,
+        filters=None,
+        keys=("spot_graph_overlay_atr_vel_ref_pct", "spot_resize_adaptive_atr_vel_ref_pct"),
+    )
+    default_tr_ref = max(1e-9, _parse_float(tr_ref_raw, default=1.0))
+    default_atr_ref = max(1e-9, _parse_float(atr_ref_raw, default=0.40))
+    return _dynamic_scale_from_mode(
+        strategy=strategy,
+        mode_key="spot_guard_threshold_scale_mode",
+        min_mult_key="spot_guard_threshold_scale_min_mult",
+        max_mult_key="spot_guard_threshold_scale_max_mult",
+        tr_ref_key="spot_guard_threshold_scale_tr_ref",
+        atr_vel_ref_key="spot_guard_threshold_scale_atr_vel_ref_pct",
+        tr_median_ref_key="spot_guard_threshold_scale_tr_median_ref_pct",
+        tr_ratio=tr_ratio,
+        shock_atr_vel_pct=shock_atr_vel_pct,
+        tr_median_pct=tr_median_pct,
+        default_min_mult=0.70,
+        default_max_mult=1.80,
+        default_tr_ref=float(default_tr_ref),
+        default_atr_vel_ref=float(default_atr_ref),
+        default_tr_median_ref=1.0,
+    )
+
+
+def spot_dynamic_flip_hold_bars(
+    *,
+    strategy: Mapping[str, object] | object | None,
+    tr_ratio: float | None,
+    shock_atr_vel_pct: float | None,
+    tr_median_pct: float | None = None,
+) -> tuple[int, dict[str, object]]:
+    base_hold = max(0, _parse_int(_get(strategy, "flip_exit_min_hold_bars"), default=0))
+    tr_ref_raw = _pick_value(
+        strategy=strategy,
+        filters=None,
+        keys=("spot_graph_overlay_tr_ratio_ref", "spot_resize_adaptive_tr_ratio_ref"),
+    )
+    atr_ref_raw = _pick_value(
+        strategy=strategy,
+        filters=None,
+        keys=("spot_graph_overlay_atr_vel_ref_pct", "spot_resize_adaptive_atr_vel_ref_pct"),
+    )
+    default_tr_ref = max(1e-9, _parse_float(tr_ref_raw, default=1.0))
+    default_atr_ref = max(1e-9, _parse_float(atr_ref_raw, default=0.40))
+    scale, scale_trace = _dynamic_scale_from_mode(
+        strategy=strategy,
+        mode_key="spot_flip_hold_dynamic_mode",
+        min_mult_key="spot_flip_hold_dynamic_min_mult",
+        max_mult_key="spot_flip_hold_dynamic_max_mult",
+        tr_ref_key="spot_flip_hold_dynamic_tr_ref",
+        atr_vel_ref_key="spot_flip_hold_dynamic_atr_vel_ref_pct",
+        tr_median_ref_key="spot_flip_hold_dynamic_tr_median_ref_pct",
+        tr_ratio=tr_ratio,
+        shock_atr_vel_pct=shock_atr_vel_pct,
+        tr_median_pct=tr_median_pct,
+        default_min_mult=0.50,
+        default_max_mult=2.50,
+        default_tr_ref=float(default_tr_ref),
+        default_atr_vel_ref=float(default_atr_ref),
+        default_tr_median_ref=1.0,
+    )
+    hold_bars = max(0, int(round(float(base_hold) * float(scale))))
+    return int(hold_bars), {
+        "base_hold_bars": int(base_hold),
+        "dynamic_scale": float(scale),
+        "dynamic": dict(scale_trace),
+        "hold_bars": int(hold_bars),
+    }
+
+
 def canonical_exit_reason(reason: str | None) -> str:
     key = str(reason or "").strip().lower()
     if not key:
@@ -378,6 +586,7 @@ def _entry_policy_default(
     shock_atr_vel_pct: float | None,
     shock_atr_accel_pct: float | None,
     tr_ratio: float | None,
+    tr_median_pct: float | None,
     slope_med_pct: float | None,
     slope_vel_pct: float | None,
     slope_med_slow_pct: float | None,
@@ -392,6 +601,7 @@ def _entry_policy_default(
         shock_atr_vel_pct,
         shock_atr_accel_pct,
         tr_ratio,
+        tr_median_pct,
         slope_med_pct,
         slope_vel_pct,
         slope_med_slow_pct,
@@ -415,6 +625,7 @@ def _entry_policy_slope_tr_guard(
     shock_atr_vel_pct: float | None,
     shock_atr_accel_pct: float | None,
     tr_ratio: float | None,
+    tr_median_pct: float | None,
     slope_med_pct: float | None,
     slope_vel_pct: float | None,
     slope_med_slow_pct: float | None,
@@ -426,6 +637,17 @@ def _entry_policy_slope_tr_guard(
     slope_vel_min = max(0.0, _parse_float(_get(strategy, "spot_entry_slope_vel_abs_min_pct"), default=0.0))
     slope_slow_min = max(0.0, _parse_float(_get(strategy, "spot_entry_slow_slope_med_abs_min_pct"), default=0.0))
     slope_vel_slow_min = max(0.0, _parse_float(_get(strategy, "spot_entry_slow_slope_vel_abs_min_pct"), default=0.0))
+    threshold_scale, threshold_trace = spot_guard_threshold_scale(
+        strategy=strategy,
+        tr_ratio=tr_ratio,
+        shock_atr_vel_pct=shock_atr_vel_pct,
+        tr_median_pct=tr_median_pct,
+    )
+    tr_min *= float(threshold_scale)
+    slope_min *= float(threshold_scale)
+    slope_vel_min *= float(threshold_scale)
+    slope_slow_min *= float(threshold_scale)
+    slope_vel_slow_min *= float(threshold_scale)
     atr_max = max(0.0, _parse_float(_get(strategy, "spot_entry_shock_atr_max_pct"), default=0.0))
     atr_vel_min = max(0.0, _parse_float(_get(strategy, "spot_entry_atr_vel_min_pct"), default=0.0))
     atr_accel_min = max(0.0, _parse_float(_get(strategy, "spot_entry_atr_accel_min_pct"), default=0.0))
@@ -565,7 +787,11 @@ def _entry_policy_slope_tr_guard(
         allow=True,
         reason="entry_allowed",
         gate="TRIGGER_ENTRY",
-        trace={"policy": "slope_tr_guard"},
+        trace={
+            "policy": "slope_tr_guard",
+            "guard_threshold_scale": float(threshold_scale),
+            "guard_threshold_trace": dict(threshold_trace),
+        },
     )
 
 
@@ -578,6 +804,7 @@ def _exit_policy_priority(
     exit_candidates: Mapping[str, bool] | None,
     exit_priority: Sequence[str] | None,
     tr_ratio: float | None,
+    tr_median_pct: float | None,
     slope_med_pct: float | None,
     slope_vel_pct: float | None,
     slope_med_slow_pct: float | None,
@@ -591,6 +818,7 @@ def _exit_policy_priority(
         open_dir,
         signal_entry_dir,
         tr_ratio,
+        tr_median_pct,
         slope_med_pct,
         slope_vel_pct,
         slope_med_slow_pct,
@@ -611,6 +839,7 @@ def _exit_policy_slope_flip_guard(
     exit_candidates: Mapping[str, bool] | None,
     exit_priority: Sequence[str] | None,
     tr_ratio: float | None,
+    tr_median_pct: float | None,
     slope_med_pct: float | None,
     slope_vel_pct: float | None,
     slope_med_slow_pct: float | None,
@@ -626,6 +855,17 @@ def _exit_policy_slope_flip_guard(
     slope_slow_min = max(0.0, _parse_float(_get(strategy, "spot_exit_flip_hold_slow_slope_min_pct"), default=0.0))
     slope_vel_min = max(0.0, _parse_float(_get(strategy, "spot_exit_flip_hold_slope_vel_min_pct"), default=0.0))
     slope_vel_slow_min = max(0.0, _parse_float(_get(strategy, "spot_exit_flip_hold_slow_slope_vel_min_pct"), default=0.0))
+    threshold_scale, threshold_trace = spot_guard_threshold_scale(
+        strategy=strategy,
+        tr_ratio=tr_ratio,
+        shock_atr_vel_pct=shock_atr_vel_pct,
+        tr_median_pct=tr_median_pct,
+    )
+    slope_min *= float(threshold_scale)
+    tr_min *= float(threshold_scale)
+    slope_slow_min *= float(threshold_scale)
+    slope_vel_min *= float(threshold_scale)
+    slope_vel_slow_min *= float(threshold_scale)
     if bool(candidates.get("flip")) and open_dir in ("up", "down"):
         directional_ok = slope_min <= 0.0 or (
             slope_med_pct is not None
@@ -659,11 +899,14 @@ def _exit_policy_slope_flip_guard(
         trace={
             "policy": "slope_flip_guard",
             "flip_suppressed": bool(flip_suppressed),
+            "guard_threshold_scale": float(threshold_scale),
+            "guard_threshold_trace": dict(threshold_trace),
             "slope_med_pct": float(slope_med_pct) if slope_med_pct is not None else None,
             "slope_vel_pct": float(slope_vel_pct) if slope_vel_pct is not None else None,
             "slope_med_slow_pct": float(slope_med_slow_pct) if slope_med_slow_pct is not None else None,
             "slope_vel_slow_pct": float(slope_vel_slow_pct) if slope_vel_slow_pct is not None else None,
             "tr_ratio": float(tr_ratio) if tr_ratio is not None else None,
+            "tr_median_pct": float(tr_median_pct) if tr_median_pct is not None else None,
         },
     )
 
@@ -1075,6 +1318,7 @@ class SpotPolicyGraph:
         shock_atr_vel_pct: float | None = None,
         shock_atr_accel_pct: float | None = None,
         tr_ratio: float | None = None,
+        tr_median_pct: float | None = None,
         slope_med_pct: float | None = None,
         slope_vel_pct: float | None = None,
         slope_med_slow_pct: float | None = None,
@@ -1090,6 +1334,7 @@ class SpotPolicyGraph:
             shock_atr_vel_pct=shock_atr_vel_pct,
             shock_atr_accel_pct=shock_atr_accel_pct,
             tr_ratio=tr_ratio,
+            tr_median_pct=tr_median_pct,
             slope_med_pct=slope_med_pct,
             slope_vel_pct=slope_vel_pct,
             slope_med_slow_pct=slope_med_slow_pct,
@@ -1108,6 +1353,7 @@ class SpotPolicyGraph:
         exit_candidates: Mapping[str, bool] | None,
         exit_priority: Sequence[str] | None = None,
         tr_ratio: float | None = None,
+        tr_median_pct: float | None = None,
         slope_med_pct: float | None = None,
         slope_vel_pct: float | None = None,
         slope_med_slow_pct: float | None = None,
@@ -1124,6 +1370,7 @@ class SpotPolicyGraph:
             exit_candidates=exit_candidates,
             exit_priority=exit_priority,
             tr_ratio=tr_ratio,
+            tr_median_pct=tr_median_pct,
             slope_med_pct=slope_med_pct,
             slope_vel_pct=slope_vel_pct,
             slope_med_slow_pct=slope_med_slow_pct,

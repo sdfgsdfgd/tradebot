@@ -1,0 +1,117 @@
+{
+  "full_2y": {
+    "all": {
+      "bars": 711275,
+      "flat_bars": 406789,
+      "zero_vol": 312995,
+      "flat_share": 0.5719152226635268,
+      "zero_vol_share": 0.4400478014832519
+    },
+    "rth": {
+      "bars": 195780,
+      "flat_bars": 80201,
+      "zero_vol": 50266,
+      "flat_share": 0.40964858514659314,
+      "zero_vol_share": 0.2567473694963735
+    },
+    "overnight": {
+      "bars": 515495,
+      "flat_bars": 326588,
+      "zero_vol": 262729,
+      "flat_share": 0.6335425173862016,
+      "zero_vol_share": 0.5096635272893044
+    }
+  },
+  "older_than_2025_11": {
+    "all": {
+      "bars": 610149,
+      "flat_bars": 380383,
+      "zero_vol": 297911,
+      "flat_share": 0.623426408959123,
+      "zero_vol_share": 0.488259425156806
+    },
+    "rth": {
+      "bars": 168090,
+      "flat_bars": 74853,
+      "zero_vol": 47714,
+      "flat_share": 0.4453150098161699,
+      "zero_vol_share": 0.28385983699208756
+    },
+    "overnight": {
+      "bars": 442059,
+      "flat_bars": 305530,
+      "zero_vol": 250197,
+      "flat_share": 0.6911520860337648,
+      "zero_vol_share": 0.5659810115844265
+    }
+  },
+  "newer_from_2025_11": {
+    "all": {
+      "bars": 101126,
+      "flat_bars": 26406,
+      "zero_vol": 15084,
+      "flat_share": 0.26111979115163264,
+      "zero_vol_share": 0.14916045329588828
+    },
+    "rth": {
+      "bars": 27690,
+      "flat_bars": 5348,
+      "zero_vol": 2552,
+      "flat_share": 0.19313831708197907,
+      "zero_vol_share": 0.09216323582520766
+    },
+    "overnight": {
+      "bars": 73436,
+      "flat_bars": 21058,
+      "zero_vol": 12532,
+      "flat_share": 0.2867530911269677,
+      "zero_vol_share": 0.17065199629609457
+    }
+  },
+  "recent_1y": {
+    "all": {
+      "bars": 356910,
+      "flat_bars": 177604,
+      "zero_vol": 127236,
+      "flat_share": 0.49761564540080133,
+      "zero_vol_share": 0.3564932335882996
+    },
+    "rth": {
+      "bars": 97890,
+      "flat_bars": 32299,
+      "zero_vol": 17970,
+      "flat_share": 0.3299519869240985,
+      "zero_vol_share": 0.18357339871284095
+    },
+    "overnight": {
+      "bars": 259020,
+      "flat_bars": 145305,
+      "zero_vol": 109266,
+      "flat_share": 0.5609798471160529,
+      "zero_vol_share": 0.4218438730599954
+    }
+  },
+  "last_2m": {
+    "all": {
+      "bars": 59880,
+      "flat_bars": 6214,
+      "zero_vol": 2385,
+      "flat_share": 0.10377421509686038,
+      "zero_vol_share": 0.03982965931863727
+    },
+    "rth": {
+      "bars": 16380,
+      "flat_bars": 1185,
+      "zero_vol": 366,
+      "flat_share": 0.07234432234432235,
+      "zero_vol_share": 0.022344322344322345
+    },
+    "overnight": {
+      "bars": 43500,
+      "flat_bars": 5029,
+      "zero_vol": 2019,
+      "flat_share": 0.11560919540229884,
+      "zero_vol_share": 0.04641379310344827
+    }
+  }
+}

@@ -18,6 +18,7 @@ from .common import (
     _midpoint,
     _round_to_tick,
     _safe_num,
+    _sanitize_nbbo,
     _tick_size,
     _ticker_price,
 )
@@ -208,9 +209,11 @@ class BotOrderBuilderMixin:
             if con_id:
                 self._tracked_conids.add(con_id)
             ticker = await self._client.ensure_ticker(contract, owner="bot")
-            bid = _safe_num(getattr(ticker, "bid", None))
-            ask = _safe_num(getattr(ticker, "ask", None))
-            last = _safe_num(getattr(ticker, "last", None))
+            bid, ask, last = _sanitize_nbbo(
+                getattr(ticker, "bid", None),
+                getattr(ticker, "ask", None),
+                getattr(ticker, "last", None),
+            )
             limit = leg_price(bid, ask, last, action)
             if limit is None:
                 return fail(
@@ -274,9 +277,11 @@ class BotOrderBuilderMixin:
             if con_id:
                 self._tracked_conids.add(con_id)
             ticker = await self._client.ensure_ticker(contract, owner="bot")
-            bid = _safe_num(getattr(ticker, "bid", None))
-            ask = _safe_num(getattr(ticker, "ask", None))
-            last = _safe_num(getattr(ticker, "last", None))
+            bid, ask, last = _sanitize_nbbo(
+                getattr(ticker, "bid", None),
+                getattr(ticker, "ask", None),
+                getattr(ticker, "last", None),
+            )
             leg_orders.append(_BotLegOrder(contract=contract, action=action, ratio=ratio))
             leg_quotes.append((bid, ask, last, ticker))
 
@@ -689,9 +694,11 @@ class BotOrderBuilderMixin:
             if con_id:
                 self._tracked_conids.add(con_id)
             ticker = await self._client.ensure_ticker(contract, owner="bot")
-            bid = _safe_num(getattr(ticker, "bid", None))
-            ask = _safe_num(getattr(ticker, "ask", None))
-            last = _safe_num(getattr(ticker, "last", None))
+            bid, ask, last = _sanitize_nbbo(
+                getattr(ticker, "bid", None),
+                getattr(ticker, "ask", None),
+                getattr(ticker, "last", None),
+            )
             limit = _leg_price(bid, ask, last, action)
             if limit is None:
                 retry_window_ms_raw = strat.get("spot_quote_retry_window_ms", 600)
@@ -707,9 +714,11 @@ class BotOrderBuilderMixin:
                 retry_attempts = max(0, retry_window_ms // retry_interval_ms)
                 for _ in range(retry_attempts):
                     await asyncio.sleep(retry_interval_ms / 1000.0)
-                    bid = _safe_num(getattr(ticker, "bid", None))
-                    ask = _safe_num(getattr(ticker, "ask", None))
-                    last = _safe_num(getattr(ticker, "last", None))
+                    bid, ask, last = _sanitize_nbbo(
+                        getattr(ticker, "bid", None),
+                        getattr(ticker, "ask", None),
+                        getattr(ticker, "last", None),
+                    )
                     limit = _leg_price(bid, ask, last, action)
                     if limit is not None:
                         break
@@ -910,11 +919,14 @@ class BotOrderBuilderMixin:
                 shock=snap.shock,
                 shock_dir=snap.shock_dir,
                 shock_atr_pct=snap.shock_atr_pct,
+                shock_dir_down_streak_bars=getattr(snap, "shock_dir_down_streak_bars", None),
                 riskoff=riskoff,
                 risk_dir=snap.shock_dir,
                 riskpanic=riskpanic,
                 riskpop=riskpop,
                 risk=snap.risk,
+                signal_entry_dir=getattr(getattr(snap, "signal", None), "entry_dir", None),
+                signal_regime_dir=getattr(getattr(snap, "signal", None), "regime_dir", None),
                 equity_ref=float(equity_ref),
                 cash_ref=cash_ref,
             )
@@ -1011,6 +1023,22 @@ class BotOrderBuilderMixin:
                         "spot_lifecycle": lifecycle_decision.as_payload(),
                         "spot_intent": intent_decision.as_payload() if intent_decision is not None else None,
                         "spot_decision": decision_trace.as_payload(),
+                        "size_funnel": {
+                            "signed_qty_final": int(getattr(decision_trace, "signed_qty_final", 0)),
+                            "signed_qty_after_branch": int(
+                                getattr(
+                                    decision_trace,
+                                    "signed_qty_after_branch",
+                                    getattr(decision_trace, "signed_qty_final", 0),
+                                )
+                            ),
+                            "resize_target_qty": int(getattr(intent_decision, "target_qty", 0))
+                            if intent_decision is not None
+                            else 0,
+                            "intent_qty": int(getattr(intent_decision, "order_qty", 0))
+                            if intent_decision is not None
+                            else 0,
+                        },
                         **_order_attempt_payload(),
                     },
                 )
@@ -1046,6 +1074,14 @@ class BotOrderBuilderMixin:
                 "spot_decision": decision_trace.as_payload(),
                 "spot_lifecycle": lifecycle_decision.as_payload(),
                 "spot_intent": intent_decision.as_payload(),
+                "size_funnel": {
+                    "signed_qty_final": int(getattr(decision_trace, "signed_qty_final", 0)),
+                    "signed_qty_after_branch": int(
+                        getattr(decision_trace, "signed_qty_after_branch", getattr(decision_trace, "signed_qty_final", 0))
+                    ),
+                    "resize_target_qty": int(getattr(intent_decision, "target_qty", 0)),
+                    "intent_qty": int(getattr(intent_decision, "order_qty", 0)),
+                },
                 "ratsv": {
                     "side_rank": float(getattr(snap, "ratsv_side_rank", 0.0)) if getattr(snap, "ratsv_side_rank", None) is not None else None,
                     "tr_ratio": float(getattr(snap, "ratsv_tr_ratio", 0.0)) if getattr(snap, "ratsv_tr_ratio", None) is not None else None,
@@ -1062,15 +1098,67 @@ class BotOrderBuilderMixin:
                 "volume": float(snap.volume) if snap is not None and snap.volume is not None else None,
                 "shock": bool(snap.shock) if snap is not None and snap.shock is not None else None,
                 "shock_dir": snap.shock_dir if snap is not None else None,
+                "shock_detector": str(getattr(snap, "shock_detector", "") or "") if snap is not None else None,
+                "shock_direction_source_effective": (
+                    str(getattr(snap, "shock_direction_source_effective", "") or "") if snap is not None else None
+                ),
+                "shock_scale_detector": (
+                    str(getattr(snap, "shock_scale_detector", "") or "") if snap is not None else None
+                ),
+                "shock_dir_ret_sum_pct": (
+                    float(getattr(snap, "shock_dir_ret_sum_pct", 0.0))
+                    if snap is not None and getattr(snap, "shock_dir_ret_sum_pct", None) is not None
+                    else None
+                ),
                 "shock_atr_pct": float(snap.shock_atr_pct)
                 if snap is not None and snap.shock_atr_pct is not None
                 else None,
+                "shock_drawdown_pct": (
+                    float(getattr(snap, "shock_drawdown_pct", 0.0))
+                    if snap is not None and getattr(snap, "shock_drawdown_pct", None) is not None
+                    else None
+                ),
+                "shock_drawdown_on_pct": (
+                    float(getattr(snap, "shock_drawdown_on_pct", 0.0))
+                    if snap is not None and getattr(snap, "shock_drawdown_on_pct", None) is not None
+                    else None
+                ),
+                "shock_drawdown_off_pct": (
+                    float(getattr(snap, "shock_drawdown_off_pct", 0.0))
+                    if snap is not None and getattr(snap, "shock_drawdown_off_pct", None) is not None
+                    else None
+                ),
+                "shock_drawdown_dist_on_pct": (
+                    float(getattr(snap, "shock_drawdown_dist_on_pct", 0.0))
+                    if snap is not None and getattr(snap, "shock_drawdown_dist_on_pct", None) is not None
+                    else None
+                ),
+                "shock_drawdown_dist_off_pct": (
+                    float(getattr(snap, "shock_drawdown_dist_off_pct", 0.0))
+                    if snap is not None and getattr(snap, "shock_drawdown_dist_off_pct", None) is not None
+                    else None
+                ),
                 "shock_atr_vel_pct": float(getattr(snap, "shock_atr_vel_pct", 0.0))
                 if snap is not None and getattr(snap, "shock_atr_vel_pct", None) is not None
                 else None,
                 "shock_atr_accel_pct": float(getattr(snap, "shock_atr_accel_pct", 0.0))
                 if snap is not None and getattr(snap, "shock_atr_accel_pct", None) is not None
                 else None,
+                "shock_peak_close": (
+                    float(getattr(snap, "shock_peak_close", 0.0))
+                    if snap is not None and getattr(snap, "shock_peak_close", None) is not None
+                    else None
+                ),
+                "shock_dir_down_streak_bars": (
+                    int(getattr(snap, "shock_dir_down_streak_bars", 0))
+                    if snap is not None and getattr(snap, "shock_dir_down_streak_bars", None) is not None
+                    else None
+                ),
+                "shock_dir_up_streak_bars": (
+                    int(getattr(snap, "shock_dir_up_streak_bars", 0))
+                    if snap is not None and getattr(snap, "shock_dir_up_streak_bars", None) is not None
+                    else None
+                ),
                 "riskoff": bool(snap.risk.riskoff) if snap is not None and snap.risk is not None else None,
                 "riskpanic": bool(snap.risk.riskpanic) if snap is not None and snap.risk is not None else None,
                 "atr": float(snap.atr) if snap is not None and snap.atr is not None else None,
@@ -1264,9 +1352,11 @@ class BotOrderBuilderMixin:
             if con_id:
                 self._tracked_conids.add(con_id)
             ticker = await self._client.ensure_ticker(contract, owner="bot")
-            bid = _safe_num(getattr(ticker, "bid", None))
-            ask = _safe_num(getattr(ticker, "ask", None))
-            last = _safe_num(getattr(ticker, "last", None))
+            bid, ask, last = _sanitize_nbbo(
+                getattr(ticker, "bid", None),
+                getattr(ticker, "ask", None),
+                getattr(ticker, "last", None),
+            )
             leg_orders.append(_BotLegOrder(contract=contract, action=action, ratio=ratio))
             leg_quotes.append((bid, ask, last, ticker))
 

@@ -1,0 +1,79 @@
+multitimeframe prep candidates=3 jobs=2 offline=True cache_dir=db
+multitimeframe windows 2016-02-14->2017-02-14, 2017-02-14->2018-02-14, 2018-02-14->2019-02-14, 2019-02-14->2020-02-14, 2020-02-14->2021-02-14, 2021-02-14->2022-02-14, 2022-02-14->2023-02-14, 2023-02-14->2024-02-14, 2024-02-14->2025-02-14, 2025-02-14->2026-02-14, 2016-02-14->2026-02-14, 2024-02-14->2026-02-14, 2025-02-14->2026-02-14
+multitimeframe preflight start candidates=3 windows=13
+multitimeframe preflight checks=117 unique=36 missing=0 elapsed=0.0s
+multitimeframe preflight done checks=117 unique=36 missing=0
+multitimeframe parallel: workers=2 total=3
+START mt:0
+START mt:1
+[mt:1] multitimeframe prep candidates=3 jobs=1 offline=True cache_dir=db
+[mt:1] multitimeframe windows 2016-02-14->2017-02-14, 2017-02-14->2018-02-14, 2018-02-14->2019-02-14, 2019-02-14->2020-02-14, 2020-02-14->2021-02-14, 2021-02-14->2022-02-14, 2022-02-14->2023-02-14, 2023-02-14->2024-02-14, 2024-02-14->2025-02-14, 2025-02-14->2026-02-14, 2016-02-14->2026-02-14, 2024-02-14->2026-02-14, 2025-02-14->2026-02-14
+[mt:1] multitimeframe preflight start candidates=3 windows=13
+[mt:0] multitimeframe prep candidates=3 jobs=1 offline=True cache_dir=db
+[mt:0] multitimeframe windows 2016-02-14->2017-02-14, 2017-02-14->2018-02-14, 2018-02-14->2019-02-14, 2019-02-14->2020-02-14, 2020-02-14->2021-02-14, 2021-02-14->2022-02-14, 2022-02-14->2023-02-14, 2023-02-14->2024-02-14, 2024-02-14->2025-02-14, 2025-02-14->2026-02-14, 2016-02-14->2026-02-14, 2024-02-14->2026-02-14, 2025-02-14->2026-02-14
+[mt:0] multitimeframe preflight start candidates=3 windows=13
+[mt:1] multitimeframe preflight checks=117 unique=36 missing=0 elapsed=0.0s
+[mt:1] multitimeframe preflight done checks=117 unique=36 missing=0
+[mt:0] multitimeframe preflight checks=117 unique=36 missing=0 elapsed=0.0s
+[mt:0] multitimeframe preflight done checks=117 unique=36 missing=0
+[mt:1] multitimeframe worker 2/2 0/1 (0.0%) kept=0 elapsed=0.0s eta=0.0m rate=0.00/cands/s
+[mt:0] multitimeframe worker 1/2 0/2 (0.0%) kept=0 elapsed=0.0s eta=0.0m rate=0.00/cands/s
+RUNNING workers=2 pending=0 [mt:0:10.0s, mt:1:10.0s]
+[mt:1] multitimeframe worker 2/2 1/1 (100.0%) kept=0 elapsed=15.0s eta=0.0m rate=0.07/cands/s inflight_candidate=15.0s stage=engine.prepare path=fast window=13/13 exec=142394/530670 sig=71256/71257 trades=1261
+[mt:0] multitimeframe worker 1/2 1/2 (50.0%) kept=0 elapsed=15.0s eta=0.3m rate=0.07/cands/s inflight_candidate=15.0s stage=engine.prepare path=fast window=13/13 exec=142394/530670 sig=71256/71257 trades=1261
+[mt:0] multitimeframe worker 1/2 1/2 (50.0%) kept=1 elapsed=19.4s eta=0.3m rate=0.05/cands/s
+[mt:1] multitimeframe worker 2/2 1/1 (100.0%) kept=1 elapsed=19.4s eta=0.0m rate=0.05/cands/s
+[mt:1] multitimeframe worker done tested=1 kept=1 out=/var/folders/rn/tbt648y54zl_f0m02zrb01sm0000gn/T/tradebot_multitimeframe_8izi3nao/multitimeframe_out_1.json
+RUNNING workers=2 pending=0 [mt:0:20.0s, mt:1:20.0s]
+DONE  mt:1 exit=0 elapsed=21.1s
+RUNNING workers=1 pending=0 [mt:0:30.1s]
+[mt:0] multitimeframe worker 1/2 2/2 (100.0%) kept=1 elapsed=34.4s eta=0.0m rate=0.06/cands/s inflight_candidate=15.0s stage=engine.exec path=exec window=2/13 exec=40075/45914 sig=20073/22997 trades=180
+RUNNING workers=1 pending=0 [mt:0:40.1s]
+[mt:0] multitimeframe worker 1/2 2/2 (100.0%) kept=1 elapsed=49.4s eta=0.0m rate=0.04/cands/s inflight_candidate=30.0s stage=engine.exec path=exec window=4/13 exec=34704/48395 sig=17363/24212 trades=255
+RUNNING workers=1 pending=0 [mt:0:50.1s]
+RUNNING workers=1 pending=0 [mt:0:60.1s]
+[mt:0] multitimeframe worker 1/2 2/2 (100.0%) kept=1 elapsed=64.4s eta=0.0m rate=0.03/cands/s inflight_candidate=45.0s stage=engine.exec path=exec window=6/13 exec=28704/59852 trades=207
+RUNNING workers=1 pending=0 [mt:0:70.2s]
+[mt:0] multitimeframe worker 1/2 2/2 (100.0%) kept=1 elapsed=79.5s eta=0.0m rate=0.03/cands/s inflight_candidate=60.0s stage=engine.exec path=exec window=7/13 exec=58548/71441 trades=477
+RUNNING workers=1 pending=0 [mt:0:80.2s]
+RUNNING workers=1 pending=0 [mt:0:90.2s]
+[mt:0] multitimeframe worker 1/2 2/2 (100.0%) kept=1 elapsed=94.5s eta=0.0m rate=0.02/cands/s inflight_candidate=75.1s stage=engine.exec path=exec window=9/13 exec=10626/46292 sig=5323/23179 trades=78
+RUNNING workers=1 pending=0 [mt:0:100.3s]
+[mt:0] multitimeframe worker 1/2 2/2 (100.0%) kept=1 elapsed=109.5s eta=0.0m rate=0.02/cands/s inflight_candidate=90.1s stage=engine.exec path=exec window=11/13 exec=8188/71239 trades=27
+RUNNING workers=1 pending=0 [mt:0:110.3s]
+RUNNING workers=1 pending=0 [mt:0:120.3s]
+[mt:0] multitimeframe worker 1/2 2/2 (100.0%) kept=1 elapsed=124.5s eta=0.0m rate=0.02/cands/s inflight_candidate=105.1s stage=engine.exec path=exec window=12/13 exec=27729/142394 sig=13882/71257 trades=207
+RUNNING workers=1 pending=0 [mt:0:130.4s]
+[mt:0] multitimeframe worker 1/2 2/2 (100.0%) kept=1 elapsed=139.5s eta=0.0m rate=0.01/cands/s inflight_candidate=120.1s stage=engine.exec path=exec window=12/13 exec=115182/142394 sig=57650/71257 trades=840
+RUNNING workers=1 pending=0 [mt:0:140.4s]
+RUNNING workers=1 pending=0 [mt:0:150.4s]
+[mt:0] multitimeframe worker 1/2 2/2 (100.0%) kept=1 elapsed=154.5s eta=0.0m rate=0.01/cands/s inflight_candidate=135.1s stage=engine.exec path=exec window=13/13 exec=63672/530670 trades=449
+RUNNING workers=1 pending=0 [mt:0:160.4s]
+[mt:0] multitimeframe worker 1/2 2/2 (100.0%) kept=1 elapsed=169.6s eta=0.0m rate=0.01/cands/s inflight_candidate=150.1s stage=engine.exec path=exec window=13/13 exec=145915/530670 sig=73071/265606 trades=866
+RUNNING workers=1 pending=0 [mt:0:170.5s]
+RUNNING workers=1 pending=0 [mt:0:180.5s]
+[mt:0] multitimeframe worker 1/2 2/2 (100.0%) kept=1 elapsed=184.6s eta=0.0m rate=0.01/cands/s inflight_candidate=165.2s stage=engine.exec path=exec window=13/13 exec=236117/530670 trades=1686
+RUNNING workers=1 pending=0 [mt:0:190.6s]
+[mt:0] multitimeframe worker 1/2 2/2 (100.0%) kept=1 elapsed=199.6s eta=0.0m rate=0.01/cands/s inflight_candidate=180.2s stage=engine.exec path=exec window=13/13 exec=323666/530670 trades=2440
+RUNNING workers=1 pending=0 [mt:0:200.6s]
+RUNNING workers=1 pending=0 [mt:0:210.7s]
+[mt:0] multitimeframe worker 1/2 2/2 (100.0%) kept=1 elapsed=214.6s eta=0.0m rate=0.01/cands/s inflight_candidate=195.2s stage=engine.exec path=exec window=13/13 exec=408562/530670 sig=204503/265606 trades=3040
+RUNNING workers=1 pending=0 [mt:0:220.7s]
+[mt:0] multitimeframe worker 1/2 2/2 (100.0%) kept=1 elapsed=229.6s eta=0.0m rate=0.01/cands/s inflight_candidate=210.2s stage=engine.exec path=exec window=13/13 exec=496111/530670 trades=3660
+RUNNING workers=1 pending=0 [mt:0:230.7s]
+[mt:0] multitimeframe worker 1/2 2/2 (100.0%) kept=2 elapsed=234.7s eta=0.0m rate=0.01/cands/s
+[mt:0] multitimeframe worker done tested=2 kept=2 out=/var/folders/rn/tbt648y54zl_f0m02zrb01sm0000gn/T/tradebot_multitimeframe_8izi3nao/multitimeframe_out_0.json
+DONE  mt:0 exit=0 elapsed=237.3s
+
+Multiwindow results: 3 candidates passed filters.
+- symbol=SLV bar=10 mins rth=False offline=True
+- windows=2016-02-14→2017-02-14, 2017-02-14→2018-02-14, 2018-02-14→2019-02-14, 2019-02-14→2020-02-14, 2020-02-14→2021-02-14, 2021-02-14→2022-02-14, 2022-02-14→2023-02-14, 2023-02-14→2024-02-14, 2024-02-14→2025-02-14, 2025-02-14→2026-02-14, 2016-02-14→2026-02-14, 2024-02-14→2026-02-14, 2025-02-14→2026-02-14
+- min_trades=0 min_win=0.00
+- workers=2 tested_total=3
+- eval_cache=db/spot_multiwindow_eval_cache.sqlite3 hits=0 writes=0
+
+ 1. stability(min roi/dd)=-0.93 full roi/dd=-0.93 roi=-18.7% dd%=20.1% pnl=-18742.9 win=60.8% tr=342 ema=5/13 trend regime=supertrend rbar=1 day
+ 2. stability(min roi/dd)=-0.94 full roi/dd=-0.93 roi=-22.2% dd%=24.0% pnl=-22209.5 win=61.2% tr=343 ema=5/13 trend regime=supertrend rbar=1 day
+ 3. stability(min roi/dd)=-0.94 full roi/dd=-0.93 roi=-22.4% dd%=24.2% pnl=-22416.7 win=61.0% tr=344 ema=5/13 trend regime=supertrend rbar=1 day
+
+Wrote backtests/slv/slv_hf_regime_probe_10y_yearslice_ranked_20260216_v1.json (top=3).

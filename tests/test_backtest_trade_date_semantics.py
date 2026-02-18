@@ -2,7 +2,13 @@ import unittest
 from dataclasses import dataclass
 from datetime import date, datetime
 
-from tradebot.backtest.engine import _spot_next_open_entry_allowed, _spot_pending_entry_should_cancel, _trade_date
+from tradebot.backtest.engine import (
+    _spot_fill_due_ts,
+    _spot_next_open_due_ts,
+    _spot_next_open_entry_allowed,
+    _spot_pending_entry_should_cancel,
+    _trade_date,
+)
 from tradebot.backtest.strategy import CreditSpreadStrategy
 
 
@@ -68,6 +74,59 @@ class BacktestTradeDateSemanticsTests(unittest.TestCase):
             riskoff_end_hour=19,
         )
         self.assertTrue(should_cancel)
+
+    def test_next_open_due_defaults_to_tradable_24x5_when_signal_use_rth_false(self) -> None:
+        strategy = {"spot_sec_type": "STK", "signal_use_rth": False}
+        # 2026-02-10 02:20 UTC == 2026-02-09 21:20 ET (overnight tradable window).
+        due = _spot_next_open_due_ts(
+            strategy=strategy,
+            signal_close_ts=datetime(2026, 2, 10, 2, 20),
+            exec_bar_size="5 mins",
+        )
+        self.assertEqual(due, datetime(2026, 2, 10, 2, 20))
+
+    def test_next_open_due_extended_mode_waits_until_0400_et(self) -> None:
+        strategy = {
+            "spot_sec_type": "STK",
+            "signal_use_rth": False,
+            "spot_next_open_session": "extended",
+        }
+        # 2026-02-10 02:20 UTC == 2026-02-09 21:20 ET; extended next open is 04:00 ET (09:00 UTC).
+        due = _spot_next_open_due_ts(
+            strategy=strategy,
+            signal_close_ts=datetime(2026, 2, 10, 2, 20),
+            exec_bar_size="5 mins",
+        )
+        self.assertEqual(due, datetime(2026, 2, 10, 9, 0))
+
+    def test_fill_due_next_bar_aligns_to_next_exec_boundary(self) -> None:
+        due = _spot_fill_due_ts(
+            strategy={"spot_sec_type": "STK", "signal_use_rth": False},
+            fill_mode="next_bar",
+            signal_close_ts=datetime(2026, 2, 10, 2, 21),
+            exec_bar_size="5 mins",
+        )
+        self.assertEqual(due, datetime(2026, 2, 10, 2, 25))
+
+    def test_fill_due_legacy_next_open_alias_matches_next_tradable_bar(self) -> None:
+        strategy = {
+            "spot_sec_type": "STK",
+            "signal_use_rth": False,
+            "spot_next_open_session": "extended",
+        }
+        due_legacy = _spot_fill_due_ts(
+            strategy=strategy,
+            fill_mode="next_open",
+            signal_close_ts=datetime(2026, 2, 10, 2, 20),
+            exec_bar_size="5 mins",
+        )
+        due_canonical = _spot_fill_due_ts(
+            strategy=strategy,
+            fill_mode="next_tradable_bar",
+            signal_close_ts=datetime(2026, 2, 10, 2, 20),
+            exec_bar_size="5 mins",
+        )
+        self.assertEqual(due_legacy, due_canonical)
 
     def test_strategy_should_enter_uses_et_weekday(self) -> None:
         # 2025-01-16 00:30 UTC is Wednesday ET (weekday=2).

@@ -1,0 +1,10 @@
+kind	count	top_pnl	top_name	mean_top20_pnl	mean_top20_pdd
+ctl	48	14517.07	r5a_km03_h1_sm0.0386_sl0.0192_sh1.35_1.25_goff__ctl	14317.08	1.0970
+dboth	45	14356.68	r5a_km03_h1_sm0.0386_sl0.0192_sh1.35_1.25_goff__dboth	14004.50	1.0760
+dhtr	45	14356.68	r5a_km03_h1_sm0.0386_sl0.0192_sh1.40_1.30_gpermission__dhtr	14004.50	1.0760
+dstr	48	14356.68	r5a_km03_h1_sm0.0386_sl0.0192_sh1.40_1.30_gpermission__dstr	14178.91	1.0878
+
+kind	base_wins
+ctl	34
+dhtr	2
+dstr	12

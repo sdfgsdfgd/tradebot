@@ -13,6 +13,7 @@ from .common import (
     _exec_chase_should_reprice,
     _midpoint,
     _safe_num,
+    _sanitize_nbbo,
 )
 
 _DEFAULT_EXIT_RETRY_COOLDOWN_SEC = 3.0
@@ -62,9 +63,11 @@ class BotEngineRuntimeMixin:
             if not con_id:
                 con_id = int(getattr(getattr(order, "order_contract", None), "conId", 0) or 0)
             ticker = self._client.ticker_for_con_id(con_id) if con_id else None
-            bid = _safe_num(getattr(ticker, "bid", None)) if ticker else _safe_num(getattr(order, "bid", None))
-            ask = _safe_num(getattr(ticker, "ask", None)) if ticker else _safe_num(getattr(order, "ask", None))
-            last = _safe_num(getattr(ticker, "last", None)) if ticker else _safe_num(getattr(order, "last", None))
+            bid, ask, last = _sanitize_nbbo(
+                getattr(ticker, "bid", None) if ticker else getattr(order, "bid", None),
+                getattr(ticker, "ask", None) if ticker else getattr(order, "ask", None),
+                getattr(ticker, "last", None) if ticker else getattr(order, "last", None),
+            )
             return _exec_chase_quote_signature(bid, ask, last)
 
         if legs:
@@ -77,9 +80,11 @@ class BotEngineRuntimeMixin:
             for leg in legs:
                 con_id = int(getattr(getattr(leg, "contract", None), "conId", 0) or 0)
                 ticker = self._client.ticker_for_con_id(con_id) if con_id else None
-                bid = _safe_num(getattr(ticker, "bid", None)) if ticker else None
-                ask = _safe_num(getattr(ticker, "ask", None)) if ticker else None
-                last = _safe_num(getattr(ticker, "last", None)) if ticker else None
+                bid, ask, last = _sanitize_nbbo(
+                    getattr(ticker, "bid", None) if ticker else None,
+                    getattr(ticker, "ask", None) if ticker else None,
+                    getattr(ticker, "last", None) if ticker else None,
+                )
                 mid = _midpoint(bid, ask)
                 sign = 1.0 if str(getattr(leg, "action", "")).strip().upper() == "BUY" else -1.0
                 ratio = int(getattr(leg, "ratio", 1) or 1)

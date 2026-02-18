@@ -86,6 +86,7 @@ from ..series import bars_list
 from ..series_cache import series_cache_service
 from ..time_utils import now_et as _now_et
 from ..signals import parse_bar_size
+from ..spot.fill_modes import SPOT_FILL_MODE_NEXT_TRADABLE_BAR, normalize_spot_fill_mode
 
 _SERIES_CACHE = series_cache_service()
 _SWEEP_BARS_NAMESPACE = "spot.sweeps.bars"
@@ -2530,7 +2531,8 @@ def _milestone_entry_for(
         if bool(strategy.get("signal_use_rth")) != bool(use_rth):
             continue
         if prefer_realism:
-            if str(strategy.get("spot_entry_fill_mode") or "").strip().lower() != "next_open":
+            fill_mode = normalize_spot_fill_mode(strategy.get("spot_entry_fill_mode"), default="close")
+            if fill_mode != SPOT_FILL_MODE_NEXT_TRADABLE_BAR:
                 continue
             if not bool(strategy.get("spot_intrabar_exits")):
                 continue
@@ -10639,8 +10641,8 @@ def main() -> None:
                 cfg,
                 strategy=replace(
                     cfg.strategy,
-                    spot_entry_fill_mode="next_open",
-                    spot_flip_exit_fill_mode="next_open",
+                    spot_entry_fill_mode=SPOT_FILL_MODE_NEXT_TRADABLE_BAR,
+                    spot_flip_exit_fill_mode=SPOT_FILL_MODE_NEXT_TRADABLE_BAR,
                     spot_intrabar_exits=True,
                     spot_spread=float(spot_spread),
                     spot_commission_per_share=float(spot_commission),

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from tradebot.spot.graph import SpotPolicyGraph
+from tradebot.spot.graph import SpotPolicyGraph, spot_dynamic_flip_hold_bars
 from tradebot.spot.lifecycle import decide_flat_position_intent
 from tradebot.spot.policy import SpotPolicy
 
@@ -125,3 +125,109 @@ def test_graph_risk_overlay_compresses_qty() -> None:
     overlay = payload.get("graph_overlay_trace")
     assert isinstance(overlay, dict)
     assert str(overlay.get("trace", {}).get("policy")) == "atr_compress"
+
+
+def test_graph_entry_guard_dynamic_threshold_scale_tightens_in_calm_regime() -> None:
+    strategy = {
+        "spot_entry_policy": "slope_tr_guard",
+        "spot_entry_slope_med_abs_min_pct": 0.05,
+        "spot_guard_threshold_scale_mode": "tr",
+        "spot_guard_threshold_scale_min_mult": 0.5,
+        "spot_guard_threshold_scale_max_mult": 2.0,
+        "spot_guard_threshold_scale_tr_ref": 1.0,
+    }
+    graph = SpotPolicyGraph.from_sources(strategy=strategy, filters=None)
+    decision = graph.evaluate_entry_gate(
+        strategy=strategy,
+        bar_ts=datetime(2026, 2, 14, 10, 0, 0),
+        entry_dir="up",
+        tr_ratio=0.5,
+        slope_med_pct=0.07,
+    )
+    assert bool(decision.allow) is False
+    assert str(decision.gate) == "BLOCKED_GRAPH_ENTRY_SLOPE"
+    trace = dict(decision.trace)
+    assert abs(float(trace.get("min_abs", 0.0)) - 0.10) < 1e-12
+
+
+def test_graph_exit_guard_dynamic_threshold_scale_can_preserve_flip() -> None:
+    strategy = {
+        "spot_exit_policy": "slope_flip_guard",
+        "spot_exit_flip_hold_slope_min_pct": 0.05,
+        "spot_guard_threshold_scale_mode": "tr",
+        "spot_guard_threshold_scale_min_mult": 0.5,
+        "spot_guard_threshold_scale_max_mult": 2.0,
+        "spot_guard_threshold_scale_tr_ref": 1.0,
+    }
+    graph = SpotPolicyGraph.from_sources(strategy=strategy, filters=None)
+    out = graph.resolve_exit_reason(
+        strategy=strategy,
+        open_dir="up",
+        signal_entry_dir="down",
+        exit_candidates={"flip": True},
+        tr_ratio=0.5,
+        slope_med_pct=0.07,
+    )
+    assert str(out.reason) == "flip"
+    assert bool(out.trace.get("flip_suppressed")) is False
+
+
+def test_spot_dynamic_flip_hold_bars_scales_by_tr_ratio() -> None:
+    strategy = {
+        "flip_exit_min_hold_bars": 6,
+        "spot_flip_hold_dynamic_mode": "tr",
+        "spot_flip_hold_dynamic_min_mult": 0.5,
+        "spot_flip_hold_dynamic_max_mult": 2.0,
+        "spot_flip_hold_dynamic_tr_ref": 1.0,
+    }
+    hold_hi, _trace_hi = spot_dynamic_flip_hold_bars(strategy=strategy, tr_ratio=2.0, shock_atr_vel_pct=None)
+    hold_lo, _trace_lo = spot_dynamic_flip_hold_bars(strategy=strategy, tr_ratio=0.5, shock_atr_vel_pct=None)
+    assert int(hold_hi) == 3
+    assert int(hold_lo) == 12
+
+
+def test_graph_entry_guard_dynamic_threshold_scale_supports_tr_median_mode() -> None:
+    strategy = {
+        "spot_entry_policy": "slope_tr_guard",
+        "spot_entry_slope_med_abs_min_pct": 0.05,
+        "spot_guard_threshold_scale_mode": "tr_median",
+        "spot_guard_threshold_scale_min_mult": 0.5,
+        "spot_guard_threshold_scale_max_mult": 2.0,
+        "spot_guard_threshold_scale_tr_median_ref_pct": 0.06,
+    }
+    graph = SpotPolicyGraph.from_sources(strategy=strategy, filters=None)
+    decision = graph.evaluate_entry_gate(
+        strategy=strategy,
+        bar_ts=datetime(2026, 2, 14, 10, 0, 0),
+        entry_dir="up",
+        tr_median_pct=0.03,
+        slope_med_pct=0.07,
+    )
+    assert bool(decision.allow) is False
+    assert str(decision.gate) == "BLOCKED_GRAPH_ENTRY_SLOPE"
+    trace = dict(decision.trace)
+    assert abs(float(trace.get("min_abs", 0.0)) - 0.10) < 1e-12
+
+
+def test_spot_dynamic_flip_hold_bars_scales_by_tr_median() -> None:
+    strategy = {
+        "flip_exit_min_hold_bars": 6,
+        "spot_flip_hold_dynamic_mode": "tr_median",
+        "spot_flip_hold_dynamic_min_mult": 0.5,
+        "spot_flip_hold_dynamic_max_mult": 2.0,
+        "spot_flip_hold_dynamic_tr_median_ref_pct": 0.06,
+    }
+    hold_hi, _trace_hi = spot_dynamic_flip_hold_bars(
+        strategy=strategy,
+        tr_ratio=None,
+        shock_atr_vel_pct=None,
+        tr_median_pct=0.12,
+    )
+    hold_lo, _trace_lo = spot_dynamic_flip_hold_bars(
+        strategy=strategy,
+        tr_ratio=None,
+        shock_atr_vel_pct=None,
+        tr_median_pct=0.03,
+    )
+    assert int(hold_hi) == 3
+    assert int(hold_lo) == 12

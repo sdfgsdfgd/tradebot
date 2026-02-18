@@ -19,6 +19,8 @@ from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
 
+_REPEAT_COUNT_KEY = "log_repeat_count"
+
 
 @dataclass
 class JournalSummary:
@@ -51,6 +53,14 @@ def _load_rows(path: Path) -> list[dict[str, str]]:
         return list(csv.DictReader(handle))
 
 
+def _repeat_weight(payload: dict[str, object]) -> int:
+    try:
+        value = int(payload.get(_REPEAT_COUNT_KEY) or 1)
+    except (TypeError, ValueError):
+        value = 1
+    return value if value > 0 else 1
+
+
 def _build_summary(path: Path, rows: list[dict[str, str]]) -> JournalSummary:
     mode = ""
     strategy = ""
@@ -61,6 +71,7 @@ def _build_summary(path: Path, rows: list[dict[str, str]]) -> JournalSummary:
     trigger_exit_count = 0
     trigger_exit_stop_count = 0
     trigger_exit_profit_count = 0
+    row_count = 0
 
     for row in rows:
         event = str(row.get("event") or "")
@@ -74,6 +85,8 @@ def _build_summary(path: Path, rows: list[dict[str, str]]) -> JournalSummary:
                 payload = {}
         else:
             payload = {}
+        weight = _repeat_weight(payload)
+        row_count += weight
 
         if event == "INSTANCE_CREATED" and isinstance(payload, dict):
             strategy_payload = payload.get("strategy")
@@ -84,26 +97,26 @@ def _build_summary(path: Path, rows: list[dict[str, str]]) -> JournalSummary:
                     strategy = str(strategy_payload.get("name") or "")
 
         if event == "SIGNAL":
-            signal_count += 1
+            signal_count += weight
 
         if event != "GATE":
             continue
 
-        gate_reason_counts[reason] += 1
+        gate_reason_counts[reason] += weight
         if reason == "TRIGGER_ENTRY":
-            trigger_entry_count += 1
+            trigger_entry_count += weight
         if reason == "TRIGGER_EXIT":
-            trigger_exit_count += 1
+            trigger_exit_count += weight
             why = str(payload.get("reason") or "").lower()
             if "stop" in why:
-                trigger_exit_stop_count += 1
+                trigger_exit_stop_count += weight
             if "profit" in why:
-                trigger_exit_profit_count += 1
+                trigger_exit_profit_count += weight
 
         failed = payload.get("failed_filters")
         if isinstance(failed, list):
             for name in failed:
-                failed_filter_counts[str(name)] += 1
+                failed_filter_counts[str(name)] += weight
 
     start_ts = _parse_ts(rows[0].get("ts_et") if rows else None)
     end_ts = _parse_ts(rows[-1].get("ts_et") if rows else None)
@@ -114,7 +127,7 @@ def _build_summary(path: Path, rows: list[dict[str, str]]) -> JournalSummary:
         strategy=strategy,
         start_ts=start_ts,
         end_ts=end_ts,
-        row_count=len(rows),
+        row_count=row_count,
         signal_count=signal_count,
         trigger_entry_count=trigger_entry_count,
         trigger_exit_count=trigger_exit_count,

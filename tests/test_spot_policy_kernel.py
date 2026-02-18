@@ -170,6 +170,84 @@ class SpotPolicyKernelTests(unittest.TestCase):
         self.assertEqual(trace.shock_scale_apply_to, "both")
         self.assertEqual(trace.signed_qty_final, 250)
 
+    def test_short_shock_boost_respects_down_streak_gate(self) -> None:
+        _qty, trace = SpotPolicy.calc_signed_qty_with_trace(
+            strategy={
+                "quantity": 1,
+                "spot_sizing_mode": "risk_pct",
+                "spot_risk_pct": 0.01,
+                "spot_short_risk_mult": 1.0,
+                "spot_max_notional_pct": 1.0,
+                "spot_min_qty": 1,
+                "spot_max_qty": 0,
+            },
+            filters={
+                "shock_short_risk_mult_factor": 3.0,
+                "shock_short_boost_min_down_streak_bars": 4,
+            },
+            action="SELL",
+            lot=1,
+            entry_price=100.0,
+            stop_price=101.0,
+            stop_loss_pct=None,
+            shock=True,
+            shock_dir="down",
+            shock_atr_pct=12.0,
+            shock_dir_down_streak_bars=2,
+            riskoff=False,
+            risk_dir=None,
+            riskpanic=False,
+            riskpop=False,
+            risk=None,
+            signal_entry_dir="down",
+            signal_regime_dir="down",
+            equity_ref=100_000.0,
+            cash_ref=100_000.0,
+        )
+        self.assertFalse(bool(trace.shock_short_boost_applied))
+        self.assertEqual(trace.shock_short_boost_gate_reason, "down_streak_lt_4")
+        self.assertAlmostEqual(float(trace.short_mult_final or 0.0), 1.0, places=6)
+
+    def test_short_shock_boost_requires_regime_and_entry_when_enabled(self) -> None:
+        _qty, trace = SpotPolicy.calc_signed_qty_with_trace(
+            strategy={
+                "quantity": 1,
+                "spot_sizing_mode": "risk_pct",
+                "spot_risk_pct": 0.01,
+                "spot_short_risk_mult": 1.0,
+                "spot_max_notional_pct": 1.0,
+                "spot_min_qty": 1,
+                "spot_max_qty": 0,
+            },
+            filters={
+                "shock_short_risk_mult_factor": 2.5,
+                "shock_short_boost_min_down_streak_bars": 2,
+                "shock_short_boost_require_regime_down": True,
+                "shock_short_boost_require_entry_down": True,
+            },
+            action="SELL",
+            lot=1,
+            entry_price=100.0,
+            stop_price=101.0,
+            stop_loss_pct=None,
+            shock=True,
+            shock_dir="down",
+            shock_atr_pct=12.0,
+            shock_dir_down_streak_bars=3,
+            riskoff=False,
+            risk_dir=None,
+            riskpanic=False,
+            riskpop=False,
+            risk=None,
+            signal_entry_dir="down",
+            signal_regime_dir="down",
+            equity_ref=100_000.0,
+            cash_ref=100_000.0,
+        )
+        self.assertTrue(bool(trace.shock_short_boost_applied))
+        self.assertEqual(trace.shock_short_boost_gate_reason, "ok")
+        self.assertAlmostEqual(float(trace.short_mult_final or 0.0), 2.5, places=6)
+
     def test_resolve_position_intent_enter_from_flat(self) -> None:
         decision = SpotPolicy.resolve_position_intent(
             strategy={"spot_resize_mode": "target"},

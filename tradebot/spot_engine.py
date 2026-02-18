@@ -82,7 +82,20 @@ class SpotSignalSnapshot:
     volume_ema_ready: bool
     shock: bool | None
     shock_dir: str | None
+    shock_detector: str | None
+    shock_direction_source_effective: str | None
+    shock_scale_detector: str | None
+    shock_dir_ret_sum_pct: float | None
     shock_atr_pct: float | None
+    shock_drawdown_pct: float | None
+    shock_drawdown_on_pct: float | None
+    shock_drawdown_off_pct: float | None
+    shock_drawdown_dist_on_pct: float | None
+    shock_drawdown_dist_off_pct: float | None
+    shock_scale_drawdown_pct: float | None
+    shock_peak_close: float | None
+    shock_dir_down_streak_bars: int | None
+    shock_dir_up_streak_bars: int | None
     risk: RiskOverlaySnapshot | None
     atr: float | None
     or_high: float | None
@@ -535,6 +548,8 @@ class SpotSignalEvaluator:
         self._last_snapshot: SpotSignalSnapshot | None = None
         self._prev_shock_atr_pct: float | None = None
         self._prev_shock_atr_vel_pct: float | None = None
+        self._shock_dir_down_streak_bars: int = 0
+        self._shock_dir_up_streak_bars: int = 0
 
         # Validate EMA presets early for UI ergonomics.
         if entry_signal == "ema":
@@ -1392,6 +1407,45 @@ class SpotSignalEvaluator:
         else:
             self._prev_shock_atr_pct = None
             self._prev_shock_atr_vel_pct = None
+
+        def _float_or_none(raw: object) -> float | None:
+            try:
+                return float(raw) if raw is not None else None
+            except (TypeError, ValueError):
+                return None
+
+        shock_drawdown_pct = _float_or_none(getattr(self._last_shock, "drawdown_pct", None))
+        shock_scale_drawdown_pct = _float_or_none(getattr(self._last_shock_scale, "drawdown_pct", None))
+        shock_peak_close = _float_or_none(getattr(self._last_shock, "peak_close", None))
+        shock_dir_ret_sum_pct = _float_or_none(getattr(self._last_shock, "direction_ret_sum_pct", None))
+        shock_on_drawdown_pct = None
+        shock_off_drawdown_pct = None
+        shock_drawdown_dist_on_pct = None
+        shock_drawdown_dist_off_pct = None
+        if str(self._shock_detector) == "daily_drawdown":
+            shock_on_drawdown_pct = _float_or_none(_get(self._filters, "shock_on_drawdown_pct", -20.0))
+            shock_off_drawdown_pct = _float_or_none(_get(self._filters, "shock_off_drawdown_pct", -10.0))
+            if shock_on_drawdown_pct is not None and shock_off_drawdown_pct is not None and shock_off_drawdown_pct < shock_on_drawdown_pct:
+                shock_off_drawdown_pct = float(shock_on_drawdown_pct)
+            if (
+                shock_drawdown_pct is not None
+                and shock_on_drawdown_pct is not None
+                and shock_off_drawdown_pct is not None
+            ):
+                # +dist_on means drawdown has crossed ON threshold by that many pp.
+                # +dist_off means drawdown has recovered past OFF threshold by that many pp.
+                shock_drawdown_dist_on_pct = float(shock_on_drawdown_pct) - float(shock_drawdown_pct)
+                shock_drawdown_dist_off_pct = float(shock_drawdown_pct) - float(shock_off_drawdown_pct)
+
+        if bool(shock) and shock_dir == "down":
+            self._shock_dir_down_streak_bars += 1
+        else:
+            self._shock_dir_down_streak_bars = 0
+        if bool(shock) and shock_dir == "up":
+            self._shock_dir_up_streak_bars += 1
+        else:
+            self._shock_dir_up_streak_bars = 0
+
         atr = (
             float(self._last_exit_atr.atr)
             if self._last_exit_atr is not None and bool(self._last_exit_atr.ready) and self._last_exit_atr.atr is not None
@@ -1410,7 +1464,20 @@ class SpotSignalEvaluator:
             volume_ema_ready=bool(self._volume_count >= int(self._volume_period)) if self._volume_period else True,
             shock=shock,
             shock_dir=shock_dir,
+            shock_detector=str(self._shock_detector) if self._shock_engine is not None else None,
+            shock_direction_source_effective=str(self._shock_dir_source) if self._shock_engine is not None else None,
+            shock_scale_detector=str(self._shock_scale_detector) if self._shock_scale_engine is not None else None,
+            shock_dir_ret_sum_pct=shock_dir_ret_sum_pct,
             shock_atr_pct=shock_atr_pct,
+            shock_drawdown_pct=shock_drawdown_pct,
+            shock_drawdown_on_pct=shock_on_drawdown_pct,
+            shock_drawdown_off_pct=shock_off_drawdown_pct,
+            shock_drawdown_dist_on_pct=shock_drawdown_dist_on_pct,
+            shock_drawdown_dist_off_pct=shock_drawdown_dist_off_pct,
+            shock_scale_drawdown_pct=shock_scale_drawdown_pct,
+            shock_peak_close=shock_peak_close,
+            shock_dir_down_streak_bars=int(self._shock_dir_down_streak_bars),
+            shock_dir_up_streak_bars=int(self._shock_dir_up_streak_bars),
             risk=self._last_risk,
             atr=atr,
             or_high=self._orb_engine.or_high if self._orb_engine is not None else None,

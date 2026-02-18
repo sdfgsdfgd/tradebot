@@ -1,12 +1,15 @@
 """Shared spot policy kernel for live UI and backtests."""
 
 from .lifecycle import (
+    SpotDeferredEntryPlan,
     SpotLifecycleDecision,
     adaptive_resize_target_qty,
     apply_regime_gate,
     decide_flat_position_intent,
     decide_open_position_intent,
     decide_pending_next_open,
+    deferred_entry_plan,
+    fill_due_ts,
     flip_exit_hit,
     entry_capacity_ok,
     flip_exit_gate_blocked,
@@ -31,6 +34,7 @@ __all__ = [
     "SpotRuntimeSpec",
     "SpotDecisionTrace",
     "SpotIntentDecision",
+    "SpotDeferredEntryPlan",
     "SpotLifecycleDecision",
     "SpotGraphProfile",
     "SpotPolicyGraph",
@@ -46,6 +50,8 @@ __all__ = [
     "signal_filter_checks",
     "signal_filters_ok",
     "adaptive_resize_target_qty",
+    "fill_due_ts",
+    "deferred_entry_plan",
     "decide_pending_next_open",
     "decide_open_position_intent",
     "decide_flat_position_intent",

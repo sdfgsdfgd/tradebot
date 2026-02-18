@@ -1,0 +1,633 @@
+{
+  "name": "slv_hf_v18_probe_v17_vs_dd_lb10_on10_off5_6replay_20260217",
+  "generated_at": "2026-02-17T12:14:06.310373Z",
+  "base_champion": "backtests/slv/archive/champion_history_20260214/slv_hf_champions_v17_exception_ddshock_20260217.json",
+  "scope": {
+    "exclude_10y": true,
+    "windows": {
+      "1y": {
+        "start": "2025-02-14",
+        "end": "2026-02-14"
+      },
+      "2y": {
+        "start": "2024-02-14",
+        "end": "2026-02-14"
+      },
+      "full": {
+        "start": "2025-01-08",
+        "end": "2026-02-14"
+      }
+    },
+    "stress_slices": {
+      "pre_2026": {
+        "start": "2025-01-08",
+        "end": "2025-12-31"
+      },
+      "early_2025": {
+        "start": "2025-01-08",
+        "end": "2025-04-30"
+      },
+      "mid_2025": {
+        "start": "2025-05-01",
+        "end": "2025-10-31"
+      },
+      "late_2025": {
+        "start": "2025-11-01",
+        "end": "2025-12-31"
+      },
+      "last2m": {
+        "start": "2025-12-14",
+        "end": "2026-02-14"
+      },
+      "janfeb_2026": {
+        "start": "2026-01-01",
+        "end": "2026-02-14"
+      },
+      "crash_leg_2026": {
+        "start": "2026-01-24",
+        "end": "2026-02-14"
+      },
+      "rebound_tail_2026": {
+        "start": "2026-02-01",
+        "end": "2026-02-14"
+      }
+    }
+  },
+  "replays": [
+    {
+      "replay": 1,
+      "variants": {
+        "v17_baseline": {
+          "1y": {
+            "trades": 697,
+            "trades_per_year": 697.0,
+            "pnl": 27040.947071998617,
+            "roi": 0.27040947071998617,
+            "dd": 9556.154855999208,
+            "dd_pct": 0.09556154855999208,
+            "pnl_over_dd": 2.829689083054438,
+            "win_rate": 0.642754662840746
+          },
+          "2y": {
+            "trades": 1254,
+            "trades_per_year": 627.0,
+            "pnl": 38893.298808002124,
+            "roi": 0.38893298808002125,
+            "dd": 15532.761447998317,
+            "dd_pct": 0.15532761447998317,
+            "pnl_over_dd": 2.503952625437008,
+            "win_rate": 0.671451355661882
+          }
+        },
+        "dd_lb10_on10_off5": {
+          "1y": {
+            "trades": 698,
+            "trades_per_year": 698.0,
+            "pnl": 31079.104943998645,
+            "roi": 0.3107910494399865,
+            "dd": 9556.154855999208,
+            "dd_pct": 0.09556154855999208,
+            "pnl_over_dd": 3.252260497273928,
+            "win_rate": 0.6418338108882522
+          },
+          "2y": {
+            "trades": 1252,
+            "trades_per_year": 626.0,
+            "pnl": 43716.80399200219,
+            "roi": 0.4371680399200219,
+            "dd": 15248.905231998768,
+            "dd_pct": 0.1524890523199877,
+            "pnl_over_dd": 2.866881479482574,
+            "win_rate": 0.6701277955271565
+          }
+        }
+      }
+    },
+    {
+      "replay": 2,
+      "variants": {
+        "v17_baseline": {
+          "1y": {
+            "trades": 697,
+            "trades_per_year": 697.0,
+            "pnl": 27040.947071998617,
+            "roi": 0.27040947071998617,
+            "dd": 9556.154855999208,
+            "dd_pct": 0.09556154855999208,
+            "pnl_over_dd": 2.829689083054438,
+            "win_rate": 0.642754662840746
+          },
+          "2y": {
+            "trades": 1254,
+            "trades_per_year": 627.0,
+            "pnl": 38893.298808002124,
+            "roi": 0.38893298808002125,
+            "dd": 15532.761447998317,
+            "dd_pct": 0.15532761447998317,
+            "pnl_over_dd": 2.503952625437008,
+            "win_rate": 0.671451355661882
+          }
+        },
+        "dd_lb10_on10_off5": {
+          "1y": {
+            "trades": 698,
+            "trades_per_year": 698.0,
+            "pnl": 31079.104943998645,
+            "roi": 0.3107910494399865,
+            "dd": 9556.154855999208,
+            "dd_pct": 0.09556154855999208,
+            "pnl_over_dd": 3.252260497273928,
+            "win_rate": 0.6418338108882522
+          },
+          "2y": {
+            "trades": 1252,
+            "trades_per_year": 626.0,
+            "pnl": 43716.80399200219,
+            "roi": 0.4371680399200219,
+            "dd": 15248.905231998768,
+            "dd_pct": 0.1524890523199877,
+            "pnl_over_dd": 2.866881479482574,
+            "win_rate": 0.6701277955271565
+          }
+        }
+      }
+    },
+    {
+      "replay": 3,
+      "variants": {
+        "v17_baseline": {
+          "1y": {
+            "trades": 697,
+            "trades_per_year": 697.0,
+            "pnl": 27040.947071998617,
+            "roi": 0.27040947071998617,
+            "dd": 9556.154855999208,
+            "dd_pct": 0.09556154855999208,
+            "pnl_over_dd": 2.829689083054438,
+            "win_rate": 0.642754662840746
+          },
+          "2y": {
+            "trades": 1254,
+            "trades_per_year": 627.0,
+            "pnl": 38893.298808002124,
+            "roi": 0.38893298808002125,
+            "dd": 15532.761447998317,
+            "dd_pct": 0.15532761447998317,
+            "pnl_over_dd": 2.503952625437008,
+            "win_rate": 0.671451355661882
+          }
+        },
+        "dd_lb10_on10_off5": {
+          "1y": {
+            "trades": 698,
+            "trades_per_year": 698.0,
+            "pnl": 31079.104943998645,
+            "roi": 0.3107910494399865,
+            "dd": 9556.154855999208,
+            "dd_pct": 0.09556154855999208,
+            "pnl_over_dd": 3.252260497273928,
+            "win_rate": 0.6418338108882522
+          },
+          "2y": {
+            "trades": 1252,
+            "trades_per_year": 626.0,
+            "pnl": 43716.80399200219,
+            "roi": 0.4371680399200219,
+            "dd": 15248.905231998768,
+            "dd_pct": 0.1524890523199877,
+            "pnl_over_dd": 2.866881479482574,
+            "win_rate": 0.6701277955271565
+          }
+        }
+      }
+    },
+    {
+      "replay": 4,
+      "variants": {
+        "v17_baseline": {
+          "1y": {
+            "trades": 697,
+            "trades_per_year": 697.0,
+            "pnl": 27040.947071998617,
+            "roi": 0.27040947071998617,
+            "dd": 9556.154855999208,
+            "dd_pct": 0.09556154855999208,
+            "pnl_over_dd": 2.829689083054438,
+            "win_rate": 0.642754662840746
+          },
+          "2y": {
+            "trades": 1254,
+            "trades_per_year": 627.0,
+            "pnl": 38893.298808002124,
+            "roi": 0.38893298808002125,
+            "dd": 15532.761447998317,
+            "dd_pct": 0.15532761447998317,
+            "pnl_over_dd": 2.503952625437008,
+            "win_rate": 0.671451355661882
+          }
+        },
+        "dd_lb10_on10_off5": {
+          "1y": {
+            "trades": 698,
+            "trades_per_year": 698.0,
+            "pnl": 31079.104943998645,
+            "roi": 0.3107910494399865,
+            "dd": 9556.154855999208,
+            "dd_pct": 0.09556154855999208,
+            "pnl_over_dd": 3.252260497273928,
+            "win_rate": 0.6418338108882522
+          },
+          "2y": {
+            "trades": 1252,
+            "trades_per_year": 626.0,
+            "pnl": 43716.80399200219,
+            "roi": 0.4371680399200219,
+            "dd": 15248.905231998768,
+            "dd_pct": 0.1524890523199877,
+            "pnl_over_dd": 2.866881479482574,
+            "win_rate": 0.6701277955271565
+          }
+        }
+      }
+    },
+    {
+      "replay": 5,
+      "variants": {
+        "v17_baseline": {
+          "1y": {
+            "trades": 697,
+            "trades_per_year": 697.0,
+            "pnl": 27040.947071998617,
+            "roi": 0.27040947071998617,
+            "dd": 9556.154855999208,
+            "dd_pct": 0.09556154855999208,
+            "pnl_over_dd": 2.829689083054438,
+            "win_rate": 0.642754662840746
+          },
+          "2y": {
+            "trades": 1254,
+            "trades_per_year": 627.0,
+            "pnl": 38893.298808002124,
+            "roi": 0.38893298808002125,
+            "dd": 15532.761447998317,
+            "dd_pct": 0.15532761447998317,
+            "pnl_over_dd": 2.503952625437008,
+            "win_rate": 0.671451355661882
+          }
+        },
+        "dd_lb10_on10_off5": {
+          "1y": {
+            "trades": 698,
+            "trades_per_year": 698.0,
+            "pnl": 31079.104943998645,
+            "roi": 0.3107910494399865,
+            "dd": 9556.154855999208,
+            "dd_pct": 0.09556154855999208,
+            "pnl_over_dd": 3.252260497273928,
+            "win_rate": 0.6418338108882522
+          },
+          "2y": {
+            "trades": 1252,
+            "trades_per_year": 626.0,
+            "pnl": 43716.80399200219,
+            "roi": 0.4371680399200219,
+            "dd": 15248.905231998768,
+            "dd_pct": 0.1524890523199877,
+            "pnl_over_dd": 2.866881479482574,
+            "win_rate": 0.6701277955271565
+          }
+        }
+      }
+    },
+    {
+      "replay": 6,
+      "variants": {
+        "v17_baseline": {
+          "1y": {
+            "trades": 697,
+            "trades_per_year": 697.0,
+            "pnl": 27040.947071998617,
+            "roi": 0.27040947071998617,
+            "dd": 9556.154855999208,
+            "dd_pct": 0.09556154855999208,
+            "pnl_over_dd": 2.829689083054438,
+            "win_rate": 0.642754662840746
+          },
+          "2y": {
+            "trades": 1254,
+            "trades_per_year": 627.0,
+            "pnl": 38893.298808002124,
+            "roi": 0.38893298808002125,
+            "dd": 15532.761447998317,
+            "dd_pct": 0.15532761447998317,
+            "pnl_over_dd": 2.503952625437008,
+            "win_rate": 0.671451355661882
+          }
+        },
+        "dd_lb10_on10_off5": {
+          "1y": {
+            "trades": 698,
+            "trades_per_year": 698.0,
+            "pnl": 31079.104943998645,
+            "roi": 0.3107910494399865,
+            "dd": 9556.154855999208,
+            "dd_pct": 0.09556154855999208,
+            "pnl_over_dd": 3.252260497273928,
+            "win_rate": 0.6418338108882522
+          },
+          "2y": {
+            "trades": 1252,
+            "trades_per_year": 626.0,
+            "pnl": 43716.80399200219,
+            "roi": 0.4371680399200219,
+            "dd": 15248.905231998768,
+            "dd_pct": 0.1524890523199877,
+            "pnl_over_dd": 2.866881479482574,
+            "win_rate": 0.6701277955271565
+          }
+        }
+      }
+    }
+  ],
+  "determinism": {
+    "v17_baseline": {
+      "1y": {
+        "stable_exact": true,
+        "reference": {
+          "trades": 697,
+          "trades_per_year": 697.0,
+          "pnl": 27040.947071998617,
+          "roi": 0.27040947071998617,
+          "dd": 9556.154855999208,
+          "dd_pct": 0.09556154855999208,
+          "pnl_over_dd": 2.829689083054438,
+          "win_rate": 0.642754662840746
+        },
+        "distinct_rows": 1
+      },
+      "2y": {
+        "stable_exact": true,
+        "reference": {
+          "trades": 1254,
+          "trades_per_year": 627.0,
+          "pnl": 38893.298808002124,
+          "roi": 0.38893298808002125,
+          "dd": 15532.761447998317,
+          "dd_pct": 0.15532761447998317,
+          "pnl_over_dd": 2.503952625437008,
+          "win_rate": 0.671451355661882
+        },
+        "distinct_rows": 1
+      }
+    },
+    "dd_lb10_on10_off5": {
+      "1y": {
+        "stable_exact": true,
+        "reference": {
+          "trades": 698,
+          "trades_per_year": 698.0,
+          "pnl": 31079.104943998645,
+          "roi": 0.3107910494399865,
+          "dd": 9556.154855999208,
+          "dd_pct": 0.09556154855999208,
+          "pnl_over_dd": 3.252260497273928,
+          "win_rate": 0.6418338108882522
+        },
+        "distinct_rows": 1
+      },
+      "2y": {
+        "stable_exact": true,
+        "reference": {
+          "trades": 1252,
+          "trades_per_year": 626.0,
+          "pnl": 43716.80399200219,
+          "roi": 0.4371680399200219,
+          "dd": 15248.905231998768,
+          "dd_pct": 0.1524890523199877,
+          "pnl_over_dd": 2.866881479482574,
+          "win_rate": 0.6701277955271565
+        },
+        "distinct_rows": 1
+      }
+    }
+  },
+  "stress": {
+    "v17_baseline": {
+      "full": {
+        "trades": 753,
+        "trades_per_year": 683.6940298507463,
+        "pnl": 32429.915535998913,
+        "roi": 0.3242991553599891,
+        "dd": 10077.908511999223,
+        "dd_pct": 0.10077908511999223,
+        "pnl_over_dd": 3.217921208293006,
+        "win_rate": 0.6520584329349269
+      },
+      "slices": {
+        "pre_2026": {
+          "trades": 590,
+          "pnl": 18393.70083199771,
+          "win_rate": 0.6864406779661016,
+          "short_avg_qty": 118.61576354679804,
+          "short_max_qty": 344
+        },
+        "early_2025": {
+          "trades": 166,
+          "pnl": -1715.113863998915,
+          "win_rate": 0.6987951807228916,
+          "short_avg_qty": 143.01666666666668,
+          "short_max_qty": 344
+        },
+        "mid_2025": {
+          "trades": 283,
+          "pnl": 4293.674079997573,
+          "win_rate": 0.6819787985865724,
+          "short_avg_qty": 116.08571428571429,
+          "short_max_qty": 224
+        },
+        "late_2025": {
+          "trades": 141,
+          "pnl": 15815.140615999051,
+          "win_rate": 0.6808510638297872,
+          "short_avg_qty": 87.07894736842105,
+          "short_max_qty": 219
+        },
+        "last2m": {
+          "trades": 207,
+          "pnl": 21167.59147200133,
+          "win_rate": 0.5555555555555556,
+          "short_avg_qty": 77.45588235294117,
+          "short_max_qty": 175
+        },
+        "janfeb_2026": {
+          "trades": 163,
+          "pnl": 14036.214704001215,
+          "win_rate": 0.5276073619631901,
+          "short_avg_qty": 80.86666666666666,
+          "short_max_qty": 175
+        },
+        "crash_leg_2026": {
+          "trades": 89,
+          "pnl": 2799.3034960004534,
+          "win_rate": 0.449438202247191,
+          "short_avg_qty": 101.05714285714286,
+          "short_max_qty": 175
+        },
+        "rebound_tail_2026": {
+          "trades": 60,
+          "pnl": 673.4389680001888,
+          "win_rate": 0.38333333333333336,
+          "short_avg_qty": 101.05714285714286,
+          "short_max_qty": 175
+        }
+      },
+      "filters": {
+        "shock_on_ratio": 1.4,
+        "shock_off_ratio": 1.3,
+        "shock_detector": "daily_drawdown",
+        "shock_drawdown_lookback_days": 20,
+        "shock_on_drawdown_pct": -12.0,
+        "shock_off_drawdown_pct": -5.0,
+        "shock_short_risk_mult_factor": 2.0,
+        "shock_long_risk_mult_factor_down": 0.1,
+        "shock_long_risk_mult_factor": 1.0,
+        "shock_direction_source": "regime",
+        "shock_direction_lookback": 2,
+        "risk_entry_cutoff_hour_et": 15,
+        "riskoff_mode": "directional",
+        "riskpanic_long_risk_mult_factor": 0.25,
+        "riskpanic_long_scale_mode": "linear",
+        "riskpanic_lookback_days": 5,
+        "riskpanic_neg_gap_abs_pct_min": 0.005,
+        "riskpanic_neg_gap_ratio_min": 0.65,
+        "riskpanic_short_risk_mult_factor": 1.0,
+        "riskpanic_tr5_med_delta_lookback_days": 1,
+        "riskpanic_tr5_med_delta_min_pct": 0.35,
+        "riskpanic_tr5_med_pct": 2.5,
+        "shock_atr_fast_period": 5,
+        "shock_atr_slow_period": 50,
+        "shock_gate_mode": "detect",
+        "shock_min_atr_pct": 4.0,
+        "shock_risk_scale_apply_to": "both",
+        "shock_risk_scale_min_mult": 0.6,
+        "shock_risk_scale_target_atr_pct": 12.0,
+        "shock_scale_detector": "tr_ratio"
+      }
+    },
+    "dd_lb10_on10_off5": {
+      "full": {
+        "trades": 753,
+        "trades_per_year": 683.6940298507463,
+        "pnl": 36697.17836799899,
+        "roi": 0.3669717836799899,
+        "dd": 10077.908511999223,
+        "dd_pct": 0.10077908511999223,
+        "pnl_over_dd": 3.641348631445268,
+        "win_rate": 0.6520584329349269
+      },
+      "slices": {
+        "pre_2026": {
+          "trades": 590,
+          "pnl": 19606.90860799767,
+          "win_rate": 0.6847457627118644,
+          "short_avg_qty": 117.64532019704434,
+          "short_max_qty": 344
+        },
+        "early_2025": {
+          "trades": 166,
+          "pnl": -1715.113863998915,
+          "win_rate": 0.6987951807228916,
+          "short_avg_qty": 143.01666666666668,
+          "short_max_qty": 344
+        },
+        "mid_2025": {
+          "trades": 283,
+          "pnl": 4363.2540799975695,
+          "win_rate": 0.6819787985865724,
+          "short_avg_qty": 118.6952380952381,
+          "short_max_qty": 224
+        },
+        "late_2025": {
+          "trades": 141,
+          "pnl": 16958.768391999016,
+          "win_rate": 0.6737588652482269,
+          "short_avg_qty": 74.6842105263158,
+          "short_max_qty": 165
+        },
+        "last2m": {
+          "trades": 207,
+          "pnl": 25340.13944800138,
+          "win_rate": 0.5603864734299517,
+          "short_avg_qty": 82.22058823529412,
+          "short_max_qty": 181
+        },
+        "janfeb_2026": {
+          "trades": 163,
+          "pnl": 17090.269760001305,
+          "win_rate": 0.5337423312883436,
+          "short_avg_qty": 84.2,
+          "short_max_qty": 181
+        },
+        "crash_leg_2026": {
+          "trades": 89,
+          "pnl": 5672.301576000536,
+          "win_rate": 0.4606741573033708,
+          "short_avg_qty": 102.74285714285715,
+          "short_max_qty": 181
+        },
+        "rebound_tail_2026": {
+          "trades": 60,
+          "pnl": 3525.1342080002696,
+          "win_rate": 0.4,
+          "short_avg_qty": 102.74285714285715,
+          "short_max_qty": 181
+        }
+      },
+      "filters": {
+        "shock_on_ratio": 1.4,
+        "shock_off_ratio": 1.3,
+        "shock_detector": "daily_drawdown",
+        "shock_drawdown_lookback_days": 10,
+        "shock_on_drawdown_pct": -10.0,
+        "shock_off_drawdown_pct": -5.0,
+        "shock_short_risk_mult_factor": 2.0,
+        "shock_long_risk_mult_factor_down": 0.1,
+        "shock_long_risk_mult_factor": 1.0,
+        "shock_direction_source": "regime",
+        "shock_direction_lookback": 2,
+        "risk_entry_cutoff_hour_et": 15,
+        "riskoff_mode": "directional",
+        "riskpanic_long_risk_mult_factor": 0.25,
+        "riskpanic_long_scale_mode": "linear",
+        "riskpanic_lookback_days": 5,
+        "riskpanic_neg_gap_abs_pct_min": 0.005,
+        "riskpanic_neg_gap_ratio_min": 0.65,
+        "riskpanic_short_risk_mult_factor": 1.0,
+        "riskpanic_tr5_med_delta_lookback_days": 1,
+        "riskpanic_tr5_med_delta_min_pct": 0.35,
+        "riskpanic_tr5_med_pct": 2.5,
+        "shock_atr_fast_period": 5,
+        "shock_atr_slow_period": 50,
+        "shock_gate_mode": "detect",
+        "shock_min_atr_pct": 4.0,
+        "shock_risk_scale_apply_to": "both",
+        "shock_risk_scale_min_mult": 0.6,
+        "shock_risk_scale_target_atr_pct": 12.0,
+        "shock_scale_detector": "tr_ratio"
+      }
+    }
+  },
+  "dethrone_check": {
+    "candidate": "dd_lb10_on10_off5",
+    "base": "v17_baseline",
+    "pass_1y_pnl_and_pnl_over_dd": true,
+    "pass_2y_pnl_and_pnl_over_dd": true,
+    "pass_both": true,
+    "throughput": {
+      "base_1y_trades": 697,
+      "base_2y_trades": 1254,
+      "cand_1y_trades": 698,
+      "cand_2y_trades": 1252
+    }
+  }
+}

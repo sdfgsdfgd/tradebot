@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import csv
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import json
 from pathlib import Path
 import sys
 import time
@@ -391,6 +393,31 @@ def test_exit_gate_blocks_retry_limit_and_cooldown() -> None:
     assert "BLOCKED_EXIT_RETRY_COOLDOWN" in gates_cd
 
 
+def test_exit_gate_skips_holding_while_pending_exit_next_open_active() -> None:
+    harness = _ExitGateHarness()
+    harness._should_exit_on_dte = lambda *args, **kwargs: False  # type: ignore[attr-defined]
+    harness._options_position_values = lambda *args, **kwargs: (None, None)  # type: ignore[attr-defined]
+    harness._should_exit_on_flip = lambda *args, **kwargs: False  # type: ignore[attr-defined]
+    bar_ts = datetime(2026, 2, 9, 10, 0)
+    instance = _new_instance(strategy={})
+    instance.pending_exit_due_ts = datetime(2026, 2, 9, 11, 0)
+    gates: list[str] = []
+
+    async def _run() -> bool:
+        return await harness._auto_maybe_exit_open_positions(
+            instance=instance,
+            snap=SimpleNamespace(bar_ts=bar_ts, close=74.2),
+            instrument="options",
+            open_items=[object()],
+            open_dir="up",
+            now_et=datetime(2026, 2, 9, 10, 1),
+            gate=lambda status, data=None: gates.append(str(status)),
+        )
+
+    assert asyncio.run(_run()) is False
+    assert "HOLDING" not in gates
+
+
 def test_entry_weekday_maps_sunday_overnight_to_monday_for_spot_non_rth() -> None:
     harness = _EntryDayHarness()
     instance = _new_instance(
@@ -575,6 +602,98 @@ def test_next_open_due_aligns_to_0400_after_stock_overnight_gap() -> None:
     assert due == datetime(2026, 2, 10, 4, 0)
 
 
+def test_next_open_due_auto_full24_keeps_stock_overnight_window() -> None:
+    harness = _PendingNextOpenHarness()
+    instance = _new_instance(
+        strategy={
+            "instrument": "spot",
+            "signal_bar_size": "10 mins",
+            "spot_exec_bar_size": "5 mins",
+            "signal_use_rth": False,
+            "spot_sec_type": "STK",
+        }
+    )
+    due = harness._spot_next_open_due_ts(instance, datetime(2026, 2, 10, 21, 20))
+    assert due == datetime(2026, 2, 10, 21, 30)
+
+
+def test_next_open_due_tradable_24x5_keeps_stock_overnight_window() -> None:
+    harness = _PendingNextOpenHarness()
+    instance = _new_instance(
+        strategy={
+            "instrument": "spot",
+            "signal_bar_size": "10 mins",
+            "spot_exec_bar_size": "5 mins",
+            "signal_use_rth": False,
+            "spot_sec_type": "STK",
+            "spot_next_open_session": "tradable_24x5",
+        }
+    )
+    due = harness._spot_next_open_due_ts(instance, datetime(2026, 2, 10, 21, 20))
+    assert due == datetime(2026, 2, 10, 21, 30)
+
+
+def test_next_open_due_tradable_24x5_respects_overnight_gap() -> None:
+    harness = _PendingNextOpenHarness()
+    instance = _new_instance(
+        strategy={
+            "instrument": "spot",
+            "signal_bar_size": "1 min",
+            "spot_exec_bar_size": "1 min",
+            "signal_use_rth": False,
+            "spot_sec_type": "STK",
+            "spot_next_open_session": "tradable_24x5",
+        }
+    )
+    due = harness._spot_next_open_due_ts(instance, datetime(2026, 2, 10, 3, 49))
+    assert due == datetime(2026, 2, 10, 4, 0)
+
+
+def test_next_open_due_tradable_24x5_rolls_friday_post_close_to_sunday_2000() -> None:
+    harness = _PendingNextOpenHarness()
+    instance = _new_instance(
+        strategy={
+            "instrument": "spot",
+            "signal_bar_size": "1 min",
+            "spot_exec_bar_size": "1 min",
+            "signal_use_rth": False,
+            "spot_sec_type": "STK",
+            "spot_next_open_session": "tradable_24x5",
+        }
+    )
+    due = harness._spot_next_open_due_ts(instance, datetime(2026, 2, 13, 20, 4))
+    assert due == datetime(2026, 2, 15, 20, 0)
+
+
+def test_schedule_next_bar_uses_immediate_exec_boundary_not_session_open() -> None:
+    harness = _PendingNextOpenHarness()
+    instance = _new_instance(
+        strategy={
+            "instrument": "spot",
+            "signal_bar_size": "10 mins",
+            "spot_exec_bar_size": "5 mins",
+            "signal_use_rth": False,
+            "spot_sec_type": "STK",
+            "spot_next_open_session": "extended",
+        }
+    )
+    gate_events: list[tuple[str, dict | None]] = []
+    fired = harness._schedule_pending_entry_next_open(
+        instance=instance,
+        direction="up",
+        fill_mode="next_bar",
+        signal_bar_ts=datetime(2026, 2, 9, 21, 20),
+        now_wall=datetime(2026, 2, 9, 21, 29),
+        gate=lambda status, data=None: gate_events.append((str(status), dict(data or {}))),
+    )
+    assert fired is True
+    assert gate_events
+    status, payload = gate_events[-1]
+    assert status == "PENDING_ENTRY_NEXT_OPEN"
+    assert payload.get("next_open_due") == "2026-02-09T21:30:00"
+    assert payload.get("next_open_due_from") == "2026-02-09T21:30:00"
+
+
 def test_schedule_next_open_emits_due_from_and_now_wall() -> None:
     harness = _PendingNextOpenHarness()
     instance = _new_instance(
@@ -590,6 +709,7 @@ def test_schedule_next_open_emits_due_from_and_now_wall() -> None:
     fired = harness._schedule_pending_entry_next_open(
         instance=instance,
         direction="up",
+        fill_mode="next_tradable_bar",
         signal_bar_ts=signal_bar_ts,
         now_wall=datetime(2026, 2, 9, 11, 29),
         gate=lambda status, data=None: gate_events.append((str(status), dict(data or {}))),
@@ -624,13 +744,16 @@ def test_journal_signal_and_order_build_failed_compact_diagnostics() -> None:
             },
         },
     )
-    assert "bar=11:10" in str(signal_entry["msg"])
-    assert "lag=1.94b" in str(signal_entry["msg"])
-    assert "stale=0" in str(signal_entry["msg"])
-    assert "gap=0" in str(signal_entry["msg"])
-    assert "shm=detect" in str(signal_entry["msg"])
-    assert "shdet=tr_ratio" in str(signal_entry["msg"])
-    assert "shscale=daily_atr_pct" in str(signal_entry["msg"])
+    signal_msg = str(signal_entry["msg"])
+    assert "dir=[bold #ffd166]⟪[/]" in signal_msg
+    assert "bias=[bold #ffd166]⟪[/]" in signal_msg
+    assert "time=11:10" in signal_msg
+    assert "lag:2b" in signal_msg
+    assert "stale=[bold #73d89e]✓[/]" in signal_msg
+    assert "gap=[bold #73d89e]✓[/]" in signal_msg
+    assert "active_knobs" in signal_msg
+    assert "shock_gate=detect" in signal_msg
+    assert "shock_scale=daily_atr_pct" in signal_msg
 
     failed_entry = BotJournal._in_app_entry(
         now_et=datetime(2026, 2, 9, 11, 29),
@@ -660,6 +783,205 @@ def test_journal_signal_and_order_build_failed_compact_diagnostics() -> None:
     assert "md_ok=0" in msg
     assert "delayed=1" in msg
     assert "age_ms=1250" in msg
+
+
+def test_journal_signal_entry_shows_block_emoji_on_regime_veto() -> None:
+    signal_entry = BotJournal._in_app_entry(
+        now_et=datetime(2026, 2, 9, 11, 29),
+        event="SIGNAL",
+        reason=None,
+        instance_id="1",
+        symbol="SLV",
+        extra={},
+        detail={
+            "bar_ts": "2026-02-09T11:10:00",
+            "signal": {"state": "up", "entry_dir": None, "regime_dir": "down", "regime_ready": True},
+        },
+    )
+    signal_msg = str(signal_entry["msg"])
+    assert "entry=[bold #ff5f87]🚫[/]" in signal_msg
+
+
+def test_journal_gate_formats_filter_map_and_lifecycle_context() -> None:
+    gate_entry = BotJournal._in_app_entry(
+        now_et=datetime(2026, 2, 9, 11, 29),
+        event="GATE",
+        reason="BLOCKED_FILTERS",
+        instance_id="1",
+        symbol="SLV",
+        extra={
+            "filters": {
+                "ema_spread_min_pct": 0.3,
+                "ema_slope_min_pct": 0.1,
+                "volume_ratio_min": 1.2,
+            },
+        },
+        detail={
+            "bar_ts": "2026-02-09T11:10:00",
+            "bar_hour_et": 11,
+            "bars_in_day": 4,
+            "state": "up",
+            "entry_dir": "up",
+            "regime_dir": "down",
+            "rv": 12.3,
+            "cooldown_ok": True,
+            "volume": 820.0,
+            "volume_ema": 1000.0,
+            "volume_ema_ready": True,
+            "ema_spread_pct": 0.238,
+            "ema_slope_pct": 0.068,
+            "filter_checks": {
+                "rv": True,
+                "time": True,
+                "skip_first": True,
+                "cooldown": True,
+                "shock_gate": True,
+                "permission": False,
+                "volume": False,
+            },
+            "failed_filters": ["permission", "volume"],
+            "entry_ctx": {
+                "entry_dir": "up",
+                "allowed_directions": ["down", "up"],
+                "direction_ok": True,
+                "entry_capacity": False,
+                "entries_today": 1,
+                "max_entries_per_day": 1,
+            },
+            "next_open_ctx": {
+                "allowed": False,
+                "reason": "next_open_not_allowed",
+                "due_ts": "2026-02-09T20:00:00",
+                "fill_mode": "next_tradable_bar",
+            },
+            "spot_lifecycle": {
+                "trace": {
+                    "stage": "flat",
+                    "path": "hold",
+                    "graph_entry": {
+                        "gate": "BLOCKED_GRAPH_ENTRY_TR_RATIO",
+                        "reason": "graph_entry_tr_ratio",
+                        "trace": {
+                            "policy": "slope_tr_guard",
+                            "tr_ratio": 1.12,
+                            "min": 1.30,
+                            "graph": {"profile": "defensive"},
+                        },
+                    },
+                }
+            },
+        },
+    )
+    msg = str(gate_entry["msg"])
+    assert "filter_map" in msg
+    assert "filter_fail" in msg
+    assert "permission:" in msg
+    assert "volume:" in msg
+    assert "entry_ctx" in msg
+    assert "next_open_ctx" in msg
+    assert "graph_entry" in msg
+
+
+def test_active_knob_tokens_ignore_max_tokens_limit() -> None:
+    kwargs = dict(
+        meta={
+            "entry_signal": "ema",
+            "signal_bar_size": "5 mins",
+            "signal_use_rth": False,
+            "regime_mode": "ema",
+            "regime_bar_size": "10 mins",
+            "regime2_mode": "ema",
+            "regime2_bar_size": "15 mins",
+            "regime2_apply_to": "both",
+            "spot_exec_feed_mode": "ticks_side",
+            "spot_exec_bar_size": "5 mins",
+            "shock_gate_mode": "detect",
+            "shock_detector": "tr_ratio",
+            "shock_scale_detector": "daily_atr_pct",
+        },
+        strategy={
+            "ema_preset": "5/13",
+            "regime_ema_preset": "20/50",
+            "regime2_ema_preset": "8/21",
+            "spot_resize_policy": "off",
+            "spot_risk_overlay_policy": "none",
+            "tick_gate_mode": "off",
+        },
+        filters={
+            "riskoff_mode": "directional",
+            "shock_gate_mode": "detect",
+            "shock_detector": "tr_ratio",
+            "shock_scale_detector": "daily_atr_pct",
+        },
+    )
+    tokens_low_limit = BotJournal._active_knob_tokens(**kwargs, max_tokens=2)
+    tokens_high_limit = BotJournal._active_knob_tokens(**kwargs, max_tokens=99)
+
+    assert tokens_low_limit == tokens_high_limit
+    assert len(tokens_low_limit) > 2
+    assert "execution=ticks_side@5m" in tokens_low_limit
+    assert "shock_scale=daily_atr_pct" in tokens_low_limit
+
+
+def test_bot_journal_persists_repeat_count_with_repeat_from_ts(tmp_path) -> None:
+    journal = BotJournal(tmp_path)
+    payload = {"mode": "spot", "reason": "flip", "next_open_due_from": "2026-02-09T11:20:00"}
+    for _ in range(3):
+        journal.write(
+            event="GATE",
+            instance=None,
+            order=None,
+            reason="PENDING_EXIT_NEXT_OPEN",
+            data=dict(payload),
+            strategy_instrument=lambda _: "spot",
+        )
+    journal.close()
+
+    path = journal.path
+    assert path is not None
+    with path.open(newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    assert len(rows) == 1
+    row = rows[0]
+    data_json = json.loads(row.get("data_json") or "{}")
+    assert data_json.get("next_open_due_from") == "2026-02-09T11:20:00"
+    assert int(data_json.get("log_repeat_count") or 0) == 3
+    assert str(data_json.get("log_repeat_from_ts_et") or "")
+    assert str(data_json.get("log_repeat_from_ts_utc") or "")
+    assert str(data_json.get("log_repeat_from_ts_et") or "") <= str(row.get("ts_et") or "")
+
+
+def test_bot_journal_repeat_compaction_requires_full_row_identity(tmp_path) -> None:
+    journal = BotJournal(tmp_path)
+    journal.write(
+        event="GATE",
+        instance=None,
+        order=None,
+        reason="HOLDING",
+        data={"direction": "up", "items": 1},
+        strategy_instrument=lambda _: "spot",
+    )
+    journal.write(
+        event="GATE",
+        instance=None,
+        order=None,
+        reason="HOLDING",
+        data={"direction": "down", "items": 1},
+        strategy_instrument=lambda _: "spot",
+    )
+    journal.close()
+
+    path = journal.path
+    assert path is not None
+    with path.open(newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    assert len(rows) == 2
+    first_payload = json.loads(rows[0].get("data_json") or "{}")
+    second_payload = json.loads(rows[1].get("data_json") or "{}")
+    assert first_payload.get("direction") == "up"
+    assert second_payload.get("direction") == "down"
+    assert "log_repeat_count" not in first_payload
+    assert "log_repeat_count" not in second_payload
 
 
 def test_flip_exit_gate_mode_regime_blocks_supported_position() -> None:

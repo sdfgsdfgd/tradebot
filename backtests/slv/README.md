@@ -40,7 +40,7 @@ This is the current SLV dethroner under a **live-parity-first contract**:
 - Keeps the v31.1 shock wall core (`shock_on/off=1.35/1.25`) and retunes sizing for single-position mode
 - Verified via single-process (`--jobs 1`) multiwindow sweeps with fixed windows
 
-**v31.2 kingmaker #01** (from `[PURGED false-timebars artifact]`)
+**v31.2 kingmaker #01** (from `backtests/slv/slv_v31_2_singlepos_parity_eval_20260212_top1.json`)
 - `open_position_cap=1`, `spot_max_notional_pct=0.7`, `spot_risk_pct=0.016`, `spot_stop_loss_pct=0.016`
 - Worst-window `roi/dd`: **4.546495578** (worst window is **1y**)
 - 10y: `roi/dd=6.541506284`, ROI ≈ **384.54%**, DD% ≈ **58.78%**, trades ≈ **798**

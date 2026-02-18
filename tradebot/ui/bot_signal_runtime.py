@@ -29,17 +29,23 @@ from ..spot.lifecycle import (
     decide_flat_position_intent,
     decide_open_position_intent,
     decide_pending_next_open,
+    deferred_entry_plan as lifecycle_deferred_entry_plan,
+    fill_due_ts as lifecycle_fill_due_ts,
+    next_open_due_ts as lifecycle_next_open_due_ts,
+    signal_bar_close_ts as lifecycle_signal_bar_close_ts,
     signal_filter_checks,
+)
+from ..spot.fill_modes import (
+    SPOT_FILL_MODE_CLOSE,
+    SPOT_FILL_MODE_NEXT_TRADABLE_BAR,
+    normalize_spot_fill_mode,
+    spot_fill_mode_is_deferred,
 )
 from ..time_utils import now_et as _now_et
 from ..time_utils import to_et as _to_et_shared
 from .bot_models import _BotInstance
-from .common import _market_session_bucket, _safe_num, _ticker_price
+from .common import _market_session_bucket, _quote_num_display, _safe_num, _sanitize_nbbo, _ticker_price
 
-_RTH_OPEN = time(9, 30)
-_RTH_CLOSE = time(16, 0)
-_EXT_OPEN = time(4, 0)
-_EXT_CLOSE = time(20, 0)
 _DEFAULT_ORDER_STAGE_TIMEOUT_SEC = 20.0
 _DEFAULT_EXIT_RETRY_MAX_PER_BAR = 3
 _BID_TICK_TYPES = {1, 66}
@@ -167,6 +173,37 @@ class BotSignalRuntimeMixin:
                 ema_spread_pct = ((ema_fast - ema_slow) / float(snap.close)) * 100.0
             if ema_fast is not None and prev_ema_fast is not None and snap.close:
                 ema_slope_pct = ((ema_fast - prev_ema_fast) / float(snap.close)) * 100.0
+            filter_bar_ts_preview = self._as_et_aware(snap.bar_ts)
+            cooldown_bars_preview = 0
+            if isinstance(instance.filters, dict):
+                raw_cd = instance.filters.get("cooldown_bars", 0)
+                try:
+                    cooldown_bars_preview = int(raw_cd or 0)
+                except (TypeError, ValueError):
+                    cooldown_bars_preview = 0
+            cooldown_ok_preview = cooldown_ok_by_time(
+                current_bar_ts=snap.bar_ts,
+                last_entry_bar_ts=instance.last_entry_bar_ts,
+                bar_size=self._signal_bar_size(instance),
+                cooldown_bars=cooldown_bars_preview,
+            )
+            signal_filter_checks_preview = signal_filter_checks(
+                instance.filters,
+                bar_ts=filter_bar_ts_preview,
+                bars_in_day=snap.bars_in_day,
+                close=float(snap.close),
+                volume=snap.volume,
+                volume_ema=snap.volume_ema,
+                volume_ema_ready=snap.volume_ema_ready,
+                rv=snap.rv,
+                signal=snap.signal,
+                cooldown_ok=cooldown_ok_preview,
+                shock=snap.shock,
+                shock_dir=snap.shock_dir,
+            )
+            failed_filters_preview = [
+                name for name, ok in signal_filter_checks_preview.items() if not bool(ok)
+            ]
             signal_fingerprint = (
                 str(snap.signal.state or ""),
                 str(snap.signal.entry_dir or ""),
@@ -186,6 +223,10 @@ class BotSignalRuntimeMixin:
                     if isinstance(bar_health_raw, dict)
                     and isinstance(bar_health_raw.get("last_bar_ts"), datetime)
                     else None
+                ),
+                tuple(
+                    (str(name), bool(ok))
+                    for name, ok in signal_filter_checks_preview.items()
                 ),
             )
             if instance.last_signal_fingerprint != signal_fingerprint:
@@ -220,9 +261,64 @@ class BotSignalRuntimeMixin:
                         "shock": {
                             "shock": snap.shock,
                             "dir": snap.shock_dir,
+                            "detector": str(getattr(snap, "shock_detector", "") or "") or None,
+                            "direction_source_effective": (
+                                str(getattr(snap, "shock_direction_source_effective", "") or "") or None
+                            ),
+                            "scale_detector": str(getattr(snap, "shock_scale_detector", "") or "") or None,
+                            "dir_ret_sum_pct": (
+                                float(getattr(snap, "shock_dir_ret_sum_pct", 0.0))
+                                if getattr(snap, "shock_dir_ret_sum_pct", None) is not None
+                                else None
+                            ),
                             "atr_pct": float(snap.shock_atr_pct)
                             if snap.shock_atr_pct is not None
                             else None,
+                            "drawdown_pct": (
+                                float(getattr(snap, "shock_drawdown_pct", 0.0))
+                                if getattr(snap, "shock_drawdown_pct", None) is not None
+                                else None
+                            ),
+                            "drawdown_on_pct": (
+                                float(getattr(snap, "shock_drawdown_on_pct", 0.0))
+                                if getattr(snap, "shock_drawdown_on_pct", None) is not None
+                                else None
+                            ),
+                            "drawdown_off_pct": (
+                                float(getattr(snap, "shock_drawdown_off_pct", 0.0))
+                                if getattr(snap, "shock_drawdown_off_pct", None) is not None
+                                else None
+                            ),
+                            "drawdown_dist_on_pct": (
+                                float(getattr(snap, "shock_drawdown_dist_on_pct", 0.0))
+                                if getattr(snap, "shock_drawdown_dist_on_pct", None) is not None
+                                else None
+                            ),
+                            "drawdown_dist_off_pct": (
+                                float(getattr(snap, "shock_drawdown_dist_off_pct", 0.0))
+                                if getattr(snap, "shock_drawdown_dist_off_pct", None) is not None
+                                else None
+                            ),
+                            "scale_drawdown_pct": (
+                                float(getattr(snap, "shock_scale_drawdown_pct", 0.0))
+                                if getattr(snap, "shock_scale_drawdown_pct", None) is not None
+                                else None
+                            ),
+                            "peak_close": (
+                                float(getattr(snap, "shock_peak_close", 0.0))
+                                if getattr(snap, "shock_peak_close", None) is not None
+                                else None
+                            ),
+                            "dir_down_streak_bars": (
+                                int(getattr(snap, "shock_dir_down_streak_bars", 0))
+                                if getattr(snap, "shock_dir_down_streak_bars", None) is not None
+                                else None
+                            ),
+                            "dir_up_streak_bars": (
+                                int(getattr(snap, "shock_dir_up_streak_bars", 0))
+                                if getattr(snap, "shock_dir_up_streak_bars", None) is not None
+                                else None
+                            ),
                         },
                         "risk": {
                             "riskoff": bool(getattr(risk, "riskoff", False)) if risk is not None else None,
@@ -231,6 +327,11 @@ class BotSignalRuntimeMixin:
                         },
                         "rv": float(snap.rv) if snap.rv is not None else None,
                         "bars_in_day": int(snap.bars_in_day),
+                        "bar_hour_et": int(filter_bar_ts_preview.hour),
+                        "cooldown_bars": int(cooldown_bars_preview),
+                        "cooldown_ok": bool(cooldown_ok_preview),
+                        "filter_checks": signal_filter_checks_preview,
+                        "failed_filters": failed_filters_preview,
                         "volume": float(snap.volume) if snap.volume is not None else None,
                         "volume_ema": float(snap.volume_ema) if snap.volume_ema is not None else None,
                         "volume_ema_ready": bool(snap.volume_ema_ready),
@@ -448,6 +549,7 @@ class BotSignalRuntimeMixin:
                         "bar_hour_et": int(filter_bar_ts.hour),
                         "bars_in_day": int(snap.bars_in_day),
                         "cooldown_ok": bool(cooldown_ok),
+                        "cooldown_bars": int(cooldown_bars),
                         "rv": float(snap.rv) if snap.rv is not None else None,
                         "volume": float(snap.volume) if snap.volume is not None else None,
                         "volume_ema": float(snap.volume_ema) if snap.volume_ema is not None else None,
@@ -457,6 +559,8 @@ class BotSignalRuntimeMixin:
                         "state": snap.signal.state,
                         "entry_dir": snap.signal.entry_dir,
                         "regime_dir": snap.signal.regime_dir,
+                        "ema_spread_pct": ema_spread_pct,
+                        "ema_slope_pct": ema_slope_pct,
                         "filter_checks": filter_checks,
                         "failed_filters": failed_filters,
                     },
@@ -876,75 +980,29 @@ class BotSignalRuntimeMixin:
         return floor_ts + span
 
     def _spot_signal_close_ts(self, instance: _BotInstance, signal_bar_ts: datetime) -> datetime:
-        signal_def = parse_bar_size(self._signal_bar_size(instance))
-        if signal_def is None or signal_def.duration.total_seconds() <= 0:
-            return signal_bar_ts
-        return signal_bar_ts + signal_def.duration
+        return lifecycle_signal_bar_close_ts(
+            signal_bar_ts=signal_bar_ts,
+            signal_bar_size=self._signal_bar_size(instance),
+        )
 
     def _spot_next_open_due_ts(self, instance: _BotInstance, signal_bar_ts: datetime) -> datetime:
         close_ts = self._spot_signal_close_ts(instance, signal_bar_ts)
-        span = self._spot_exec_duration(instance)
-        due_ts = self._bar_ceil(close_ts, span)
-        return self._spot_align_exec_open(instance=instance, ts=due_ts, span=span)
+        return lifecycle_next_open_due_ts(
+            signal_close_ts=close_ts,
+            exec_bar_size=str(instance.strategy.get("spot_exec_bar_size") or self._signal_bar_size(instance) or ""),
+            strategy=instance.strategy,
+            naive_ts_mode="et",
+        )
 
-    def _spot_session_window(self, instance: _BotInstance) -> tuple[time, time] | None:
-        mode = str(instance.strategy.get("spot_next_open_session", "auto") or "auto").strip().lower()
-        if mode not in ("auto", "rth", "extended", "always"):
-            mode = "auto"
-        if mode == "always":
-            return None
-        if mode == "rth":
-            return (_RTH_OPEN, _RTH_CLOSE)
-        if mode == "extended":
-            return (_EXT_OPEN, _EXT_CLOSE)
-
-        sec_type = str(instance.strategy.get("spot_sec_type") or "STK").strip().upper()
-        if sec_type != "STK":
-            return None
-        return (_RTH_OPEN, _RTH_CLOSE) if bool(self._signal_use_rth(instance)) else (_EXT_OPEN, _EXT_CLOSE)
-
-    @staticmethod
-    def _spot_next_weekday_open(ts: datetime, open_time: time) -> datetime:
-        candidate = datetime.combine(ts.date(), open_time)
-        if candidate <= ts:
-            candidate = candidate + timedelta(days=1)
-        while candidate.weekday() >= 5:
-            candidate = candidate + timedelta(days=1)
-        return candidate
-
-    @staticmethod
-    def _spot_session_contains(ts: datetime, *, open_time: time, close_time: time) -> bool:
-        if ts.weekday() >= 5:
-            return False
-        current = ts.time()
-        return open_time <= current < close_time
-
-    def _spot_align_exec_open(self, *, instance: _BotInstance, ts: datetime, span: timedelta) -> datetime:
-        session = self._spot_session_window(instance)
-        if session is None:
-            return ts
-        open_time, close_time = session
-        candidate = ts
-        while True:
-            if candidate.weekday() >= 5:
-                candidate = self._spot_next_weekday_open(candidate, open_time)
-                continue
-            day_open = datetime.combine(candidate.date(), open_time)
-            day_close = datetime.combine(candidate.date(), close_time)
-            if candidate < day_open:
-                candidate = day_open
-            elif candidate >= day_close:
-                candidate = self._spot_next_weekday_open(candidate, open_time)
-                continue
-
-            aligned = self._bar_ceil(candidate, span)
-            if aligned >= day_close:
-                candidate = self._spot_next_weekday_open(candidate, open_time)
-                continue
-            if not self._spot_session_contains(aligned, open_time=open_time, close_time=close_time):
-                candidate = self._spot_next_weekday_open(candidate, open_time)
-                continue
-            return aligned
+    def _spot_fill_due_ts(self, instance: _BotInstance, signal_bar_ts: datetime, *, fill_mode: str) -> datetime | None:
+        close_ts = self._spot_signal_close_ts(instance, signal_bar_ts)
+        return lifecycle_fill_due_ts(
+            fill_mode=normalize_spot_fill_mode(fill_mode, default=SPOT_FILL_MODE_CLOSE),
+            signal_close_ts=close_ts,
+            exec_bar_size=str(instance.strategy.get("spot_exec_bar_size") or self._signal_bar_size(instance) or ""),
+            strategy=instance.strategy,
+            naive_ts_mode="et",
+        )
 
     @staticmethod
     def _spot_exec_feed_mode(instance: _BotInstance) -> str:
@@ -1124,8 +1182,11 @@ class BotSignalRuntimeMixin:
         if len(new_tbt) > 256:
             new_tbt = new_tbt[-256:]
         for item in new_tbt:
-            bid_p = _safe_num(getattr(item, "bidPrice", None))
-            ask_p = _safe_num(getattr(item, "askPrice", None))
+            bid_p, ask_p, _last_p = _sanitize_nbbo(
+                getattr(item, "bidPrice", None),
+                getattr(item, "askPrice", None),
+                None,
+            )
             if mode == "ticks_quote":
                 if bid_p is not None and bid_p > 0:
                     prices.append(float(bid_p))
@@ -1217,12 +1278,17 @@ class BotSignalRuntimeMixin:
         *,
         instance: _BotInstance,
         direction: str,
+        fill_mode: str,
         signal_bar_ts: datetime,
         now_wall: datetime,
+        due_ts: datetime | None = None,
         gate,
     ) -> bool:
+        fill_mode_clean = normalize_spot_fill_mode(fill_mode, default=SPOT_FILL_MODE_NEXT_TRADABLE_BAR)
         due_from_ts = self._spot_signal_close_ts(instance, signal_bar_ts)
-        due_ts = self._spot_next_open_due_ts(instance, signal_bar_ts)
+        due_ts = due_ts if due_ts is not None else self._spot_fill_due_ts(instance, signal_bar_ts, fill_mode=fill_mode_clean)
+        if due_ts is None:
+            return False
         if due_ts <= now_wall:
             self._queue_order(
                 instance,
@@ -1236,7 +1302,7 @@ class BotSignalRuntimeMixin:
                 "TRIGGER_ENTRY",
                 {
                     "direction": direction,
-                    "fill_mode": "next_open",
+                    "fill_mode": fill_mode_clean,
                     "next_open_due": due_ts.isoformat(),
                     "next_open_due_from": due_from_ts.isoformat(),
                     "now_wall_ts": now_wall.isoformat(),
@@ -1270,13 +1336,18 @@ class BotSignalRuntimeMixin:
         instance: _BotInstance,
         reason: str,
         direction: str | None,
+        fill_mode: str,
         signal_bar_ts: datetime,
         now_wall: datetime,
         mode: str,
+        due_ts: datetime | None = None,
         gate,
     ) -> bool:
+        fill_mode_clean = normalize_spot_fill_mode(fill_mode, default=SPOT_FILL_MODE_NEXT_TRADABLE_BAR)
         due_from_ts = self._spot_signal_close_ts(instance, signal_bar_ts)
-        due_ts = self._spot_next_open_due_ts(instance, signal_bar_ts)
+        due_ts = due_ts if due_ts is not None else self._spot_fill_due_ts(instance, signal_bar_ts, fill_mode=fill_mode_clean)
+        if due_ts is None:
+            return False
         if due_ts <= now_wall:
             self._queue_order(
                 instance,
@@ -1291,7 +1362,7 @@ class BotSignalRuntimeMixin:
                 {
                     "mode": mode,
                     "reason": reason,
-                    "fill_mode": "next_open",
+                    "fill_mode": fill_mode_clean,
                     "next_open_due": due_ts.isoformat(),
                     "next_open_due_from": due_from_ts.isoformat(),
                     "now_wall_ts": now_wall.isoformat(),
@@ -1342,6 +1413,19 @@ class BotSignalRuntimeMixin:
         pending_entry_direction = instance.pending_entry_direction
         pending_entry_signal_bar_ts = instance.pending_entry_signal_bar_ts
         pending_entry_set_date = pending_entry_signal_bar_ts.date() if pending_entry_signal_bar_ts is not None else None
+        runtime_spec = spot_runtime_spec_view(strategy=instance.strategy, filters=instance.filters)
+        pending_entry_fill_mode = normalize_spot_fill_mode(
+            str(runtime_spec.entry_fill_mode),
+            default=SPOT_FILL_MODE_CLOSE,
+        )
+        pending_exit_fill_mode = normalize_spot_fill_mode(
+            (
+                str(runtime_spec.flip_exit_fill_mode)
+                if str(pending_exit_reason or "").strip().lower() == "flip"
+                else SPOT_FILL_MODE_CLOSE
+            ),
+            default=SPOT_FILL_MODE_CLOSE,
+        )
 
         risk = getattr(snap, "risk", None) if snap is not None else None
         shock_dir_now = str(getattr(snap, "shock_dir", "") or "").strip().lower() if snap is not None else ""
@@ -1366,6 +1450,8 @@ class BotSignalRuntimeMixin:
             riskoff_mode=riskoff_mode,
             shock_dir_now=shock_dir_now,
             riskoff_end_hour=riskoff_end_hour,
+            pending_entry_fill_mode=pending_entry_fill_mode,
+            pending_exit_fill_mode=pending_exit_fill_mode,
             naive_ts_mode="et",
         )
 
@@ -1393,7 +1479,7 @@ class BotSignalRuntimeMixin:
                 {
                     "mode": "spot",
                     "reason": pending_exit_reason,
-                    "fill_mode": "next_open",
+                    "fill_mode": str(decision.fill_mode),
                     "next_open_due": pending_exit_due.isoformat() if pending_exit_due is not None else None,
                     "next_open_due_from": due_from_ts.isoformat(),
                     "now_wall_ts": now_wall.isoformat(),
@@ -1422,7 +1508,7 @@ class BotSignalRuntimeMixin:
                 "TRIGGER_ENTRY",
                 {
                     "direction": pending_entry_direction,
-                    "fill_mode": "next_open",
+                    "fill_mode": str(decision.fill_mode),
                     "next_open_due": pending_entry_due.isoformat() if pending_entry_due is not None else None,
                     "next_open_due_from": due_from_ts.isoformat(),
                     "now_wall_ts": now_wall.isoformat(),
@@ -1463,6 +1549,7 @@ class BotSignalRuntimeMixin:
                 {
                     "mode": "spot",
                     "reason": str(instance.pending_exit_reason or "flip"),
+                    "fill_mode": str(decision.fill_mode),
                     "next_open_due": instance.pending_exit_due_ts.isoformat(),
                     "next_open_due_from": (
                         self._spot_signal_close_ts(instance, instance.pending_exit_signal_bar_ts).isoformat()
@@ -1482,6 +1569,7 @@ class BotSignalRuntimeMixin:
                 "PENDING_ENTRY_NEXT_OPEN",
                 {
                     "direction": instance.pending_entry_direction,
+                    "fill_mode": str(decision.fill_mode),
                     "next_open_due": instance.pending_entry_due_ts.isoformat(),
                     "next_open_due_from": (
                         self._spot_signal_close_ts(instance, instance.pending_entry_signal_bar_ts).isoformat()
@@ -1560,7 +1648,9 @@ class BotSignalRuntimeMixin:
                 )
                 return False
 
-        gate("HOLDING", {"direction": open_dir, "items": len(open_items)})
+        pending_exit_active = instance.pending_exit_due_ts is not None
+        if not pending_exit_active:
+            gate("HOLDING", {"direction": open_dir, "items": len(open_items)})
 
         def _trigger_exit(
             reason: str,
@@ -1648,11 +1738,13 @@ class BotSignalRuntimeMixin:
             else:
                 avg_cost = None
                 entry_basis_source = None
-            portfolio_market_price = _safe_num(getattr(open_item, "marketPrice", None))
+            portfolio_market_price = _quote_num_display(getattr(open_item, "marketPrice", None))
             ticker = await self._client.ensure_ticker(open_item.contract, owner="bot")
-            bid = _safe_num(getattr(ticker, "bid", None))
-            ask = _safe_num(getattr(ticker, "ask", None))
-            last = _safe_num(getattr(ticker, "last", None))
+            bid, ask, last = _sanitize_nbbo(
+                getattr(ticker, "bid", None),
+                getattr(ticker, "ask", None),
+                getattr(ticker, "last", None),
+            )
             mid = None
             if bid is not None and ask is not None and bid > 0 and ask > 0 and bid <= ask:
                 mid = (bid + ask) / 2.0
@@ -1711,6 +1803,11 @@ class BotSignalRuntimeMixin:
             entry_branch = str(instance.spot_entry_branch) if instance.spot_entry_branch in ("a", "b") else None
             ratsv_tr_ratio = (
                 float(snap.ratsv_tr_ratio) if getattr(snap, "ratsv_tr_ratio", None) is not None else None
+            )
+            risk_tr_median_pct = (
+                float(getattr(getattr(snap, "risk", None), "tr_median_pct", 0.0))
+                if getattr(getattr(snap, "risk", None), "tr_median_pct", None) is not None
+                else None
             )
             ratsv_slope_med = (
                 float(snap.ratsv_fast_slope_med_pct)
@@ -1791,6 +1888,9 @@ class BotSignalRuntimeMixin:
                     "entry_branch": entry_branch,
                     "held_bars": int(held_bars),
                     "ratsv_tr_ratio": float(ratsv_tr_ratio) if ratsv_tr_ratio is not None else None,
+                    "risk_tr_median_pct": (
+                        float(risk_tr_median_pct) if risk_tr_median_pct is not None else None
+                    ),
                     "ratsv_slope_med_pct": float(ratsv_slope_med) if ratsv_slope_med is not None else None,
                     "ratsv_slope_vel_pct": float(ratsv_slope_vel) if ratsv_slope_vel is not None else None,
                     "exec_bar_ts": exec_bar_ts.isoformat() if exec_bar_ts is not None else None,
@@ -1997,6 +2097,7 @@ class BotSignalRuntimeMixin:
                     else None
                 ),
                 tr_ratio=ratsv_tr_ratio,
+                tr_median_pct=risk_tr_median_pct,
                 slope_med_pct=ratsv_slope_med,
                 slope_vel_pct=ratsv_slope_vel,
                 slope_med_slow_pct=(
@@ -2011,11 +2112,12 @@ class BotSignalRuntimeMixin:
                 ),
             )
             if lifecycle.intent == "exit":
-                if lifecycle.fill_mode == "next_open":
+                if spot_fill_mode_is_deferred(lifecycle.fill_mode):
                     scheduled = self._schedule_pending_exit_next_open(
                         instance=instance,
                         reason=str(lifecycle.reason or "flip"),
                         direction=open_dir,
+                        fill_mode=str(lifecycle.fill_mode),
                         signal_bar_ts=snap.bar_ts,
                         now_wall=self._wall_time(now_et),
                         mode="spot",
@@ -2024,7 +2126,13 @@ class BotSignalRuntimeMixin:
                     if scheduled and lifecycle.queue_reentry_dir in ("up", "down"):
                         if instance.pending_entry_due_ts is None:
                             due_from_ts = self._spot_signal_close_ts(instance, snap.bar_ts)
-                            due_ts = self._spot_next_open_due_ts(instance, snap.bar_ts)
+                            due_ts = self._spot_fill_due_ts(
+                                instance,
+                                snap.bar_ts,
+                                fill_mode=str(lifecycle.fill_mode),
+                            )
+                            if due_ts is None:
+                                return bool(scheduled)
                             instance.pending_entry_direction = str(lifecycle.queue_reentry_dir)
                             instance.pending_entry_signal_bar_ts = snap.bar_ts
                             instance.pending_entry_due_ts = due_ts
@@ -2135,16 +2243,60 @@ class BotSignalRuntimeMixin:
 
         instrument = self._strategy_instrument(instance.strategy)
         atr_ready = True
+        entry_plan = None
+        next_open_allowed = True
         if instrument == "spot":
             runtime_spec = spot_runtime_spec_view(strategy=instance.strategy, filters=instance.filters)
             exit_mode = str(runtime_spec.exit_mode)
+            atr_value = float(snap.atr or 0.0) if snap.atr is not None else None
             if exit_mode == "atr":
-                atr = float(snap.atr or 0.0) if snap.atr is not None else 0.0
-                if atr <= 0:
+                atr = float(atr_value or 0.0)
+                if atr <= 0.0:
                     atr_ready = False
+            risk = getattr(snap, "risk", None)
+            entry_plan = lifecycle_deferred_entry_plan(
+                fill_mode=str(runtime_spec.entry_fill_mode),
+                signal_ts=snap.bar_ts,
+                signal_close_ts=self._spot_signal_close_ts(instance, snap.bar_ts),
+                exec_bar_size=str(instance.strategy.get("spot_exec_bar_size") or self._signal_bar_size(instance) or ""),
+                strategy=instance.strategy,
+                riskoff_today=bool(getattr(risk, "riskoff", False)) if risk is not None else False,
+                riskoff_end_hour=self._spot_riskoff_end_hour(instance),
+                exit_mode=exit_mode,
+                atr_value=atr_value,
+                naive_ts_mode="et",
+            )
+            next_open_allowed = bool(entry_plan.allowed)
 
         direction = self._entry_direction_for_instance(instance, snap)
         allowed_directions = tuple(self._allowed_entry_directions(instance))
+        entry_capacity = bool(self._entry_limit_ok(instance))
+        raw_max_entries = instance.strategy.get("max_entries_per_day", 1)
+        try:
+            max_entries_per_day = int(raw_max_entries)
+        except (TypeError, ValueError):
+            max_entries_per_day = 1
+        direction_ok = direction in set(allowed_directions) if direction in ("up", "down") else None
+        entry_ctx = {
+            "entry_dir": direction,
+            "allowed_directions": [str(d) for d in sorted(str(v) for v in allowed_directions)],
+            "direction_ok": direction_ok,
+            "entry_capacity": bool(entry_capacity),
+            "entries_today": int(instance.entries_today),
+            "max_entries_per_day": int(max_entries_per_day),
+        }
+        next_open_ctx = None
+        if entry_plan is not None:
+            next_open_ctx = {
+                "allowed": bool(next_open_allowed),
+                "reason": str(getattr(entry_plan, "reason", "") or ""),
+                "due_ts": (
+                    entry_plan.due_ts.isoformat()
+                    if getattr(entry_plan, "due_ts", None) is not None
+                    else None
+                ),
+                "fill_mode": str(getattr(entry_plan, "fill_mode", "") or ""),
+            }
         decision = decide_flat_position_intent(
             strategy=instance.strategy,
             bar_ts=snap.bar_ts,
@@ -2153,12 +2305,12 @@ class BotSignalRuntimeMixin:
             can_order_now=True,
             preflight_ok=True,
             filters_ok=True,
-            entry_capacity=bool(self._entry_limit_ok(instance)),
+            entry_capacity=bool(entry_capacity),
             stale_signal=False,
             gap_signal=False,
             pending_exists=False,
             atr_ready=bool(atr_ready),
-            next_open_allowed=True,
+            next_open_allowed=bool(next_open_allowed),
             shock_atr_pct=float(snap.shock_atr_pct) if getattr(snap, "shock_atr_pct", None) is not None else None,
             shock_atr_vel_pct=float(getattr(snap, "shock_atr_vel_pct", 0.0))
             if getattr(snap, "shock_atr_vel_pct", None) is not None
@@ -2168,6 +2320,9 @@ class BotSignalRuntimeMixin:
             else None,
             tr_ratio=float(getattr(snap, "ratsv_tr_ratio", 0.0))
             if getattr(snap, "ratsv_tr_ratio", None) is not None
+            else None,
+            tr_median_pct=float(getattr(getattr(snap, "risk", None), "tr_median_pct", 0.0))
+            if getattr(getattr(snap, "risk", None), "tr_median_pct", None) is not None
             else None,
             slope_med_pct=float(getattr(snap, "ratsv_fast_slope_med_pct", 0.0))
             if getattr(snap, "ratsv_fast_slope_med_pct", None) is not None
@@ -2183,7 +2338,12 @@ class BotSignalRuntimeMixin:
             else None,
         )
         if decision.intent != "enter":
-            payload = {"spot_lifecycle": decision.as_payload()}
+            payload = {
+                "spot_lifecycle": decision.as_payload(),
+                "entry_ctx": entry_ctx,
+            }
+            if next_open_ctx is not None:
+                payload["next_open_ctx"] = next_open_ctx
             if decision.gate == "BLOCKED_ENTRY_LIMIT":
                 payload["entries_today"] = int(instance.entries_today)
             if decision.gate == "BLOCKED_ATR_NOT_READY":
@@ -2196,12 +2356,22 @@ class BotSignalRuntimeMixin:
             return False
 
         if instrument == "spot":
-            if str(decision.fill_mode) == "next_open":
+            if spot_fill_mode_is_deferred(decision.fill_mode):
+                precomputed_due = None
+                if entry_plan is not None:
+                    mode_match = normalize_spot_fill_mode(
+                        decision.fill_mode,
+                        default=SPOT_FILL_MODE_CLOSE,
+                    ) == str(getattr(entry_plan, "fill_mode", ""))
+                    if mode_match:
+                        precomputed_due = getattr(entry_plan, "due_ts", None)
                 return self._schedule_pending_entry_next_open(
                     instance=instance,
                     direction=str(decision.direction),
+                    fill_mode=str(decision.fill_mode),
                     signal_bar_ts=snap.bar_ts,
                     now_wall=self._wall_time(now_et),
+                    due_ts=precomputed_due,
                     gate=gate,
                 )
 
@@ -2213,7 +2383,13 @@ class BotSignalRuntimeMixin:
             trigger_reason="entry",
             trigger_mode=instrument,
         )
-        payload = {"direction": str(decision.direction), "spot_lifecycle": decision.as_payload()}
+        payload = {
+            "direction": str(decision.direction),
+            "spot_lifecycle": decision.as_payload(),
+            "entry_ctx": entry_ctx,
+        }
+        if next_open_ctx is not None:
+            payload["next_open_ctx"] = next_open_ctx
         payload.update(self._order_trigger_watch_payload(instance))
         gate("TRIGGER_ENTRY", payload)
         return True

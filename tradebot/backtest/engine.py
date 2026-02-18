@@ -31,13 +31,22 @@ from ..spot.lifecycle import (
     decide_flat_position_intent,
     decide_open_position_intent,
     decide_pending_next_open,
+    deferred_entry_plan as lifecycle_deferred_entry_plan,
+    fill_due_ts as lifecycle_fill_due_ts,
     entry_capacity_ok as lifecycle_entry_capacity_ok,
     flip_exit_hit,
     flip_exit_gate_blocked as lifecycle_flip_exit_gate_blocked,
+    next_open_due_ts as lifecycle_next_open_due_ts,
     next_open_entry_allowed as lifecycle_next_open_entry_allowed,
     signal_filters_ok as lifecycle_signal_filters_ok,
 )
-from ..spot.graph import SpotPolicyGraph
+from ..spot.fill_modes import (
+    SPOT_FILL_MODE_CLOSE,
+    SPOT_FILL_MODE_NEXT_TRADABLE_BAR,
+    normalize_spot_fill_mode,
+    spot_fill_mode_is_deferred,
+)
+from ..spot.graph import SpotPolicyGraph, spot_dynamic_flip_hold_bars
 from ..spot.scenario import lifecycle_trace_row, why_not_exit_resize_report, write_rows_csv
 from .synth import IVSurfaceParams, black_76, black_scholes, iv_atm, iv_for_strike, mid_edge_quote
 from ..utils.date_utils import business_days_until
@@ -3099,6 +3108,84 @@ def _spot_next_open_entry_allowed(
     )
 
 
+def _spot_strategy_sec_type(*, strategy) -> str:
+    raw = str(getattr(strategy, "spot_sec_type", "") or "").strip().upper()
+    if raw:
+        return raw
+    symbol = str(getattr(strategy, "symbol", "") or "").strip().upper()
+    if symbol in {"MNQ", "MES", "ES", "NQ", "YM", "RTY", "M2K"}:
+        return "FUT"
+    return "STK"
+
+
+def _spot_next_open_due_ts(
+    *,
+    strategy,
+    signal_close_ts: datetime,
+    exec_bar_size: str,
+    signal_use_rth: bool | None = None,
+    spot_sec_type: str | None = None,
+) -> datetime:
+    if isinstance(strategy, Mapping):
+        mode_raw = strategy.get("spot_next_open_session")
+        use_rth_raw = strategy.get("signal_use_rth", True)
+        sec_type_raw = strategy.get("spot_sec_type")
+    else:
+        mode_raw = getattr(strategy, "spot_next_open_session", None)
+        use_rth_raw = getattr(strategy, "signal_use_rth", True)
+        sec_type_raw = getattr(strategy, "spot_sec_type", None)
+    strategy_view = {
+        "spot_next_open_session": mode_raw,
+        "signal_use_rth": (
+            bool(signal_use_rth)
+            if signal_use_rth is not None
+            else bool(use_rth_raw)
+        ),
+        "spot_sec_type": str(spot_sec_type or sec_type_raw or _spot_strategy_sec_type(strategy=strategy)),
+    }
+    return lifecycle_next_open_due_ts(
+        signal_close_ts=signal_close_ts,
+        exec_bar_size=str(exec_bar_size or ""),
+        strategy=strategy_view,
+        naive_ts_mode="utc",
+    )
+
+
+def _spot_fill_due_ts(
+    *,
+    strategy,
+    fill_mode: str,
+    signal_close_ts: datetime,
+    exec_bar_size: str,
+    signal_use_rth: bool | None = None,
+    spot_sec_type: str | None = None,
+) -> datetime | None:
+    if isinstance(strategy, Mapping):
+        mode_raw = strategy.get("spot_next_open_session")
+        use_rth_raw = strategy.get("signal_use_rth", True)
+        sec_type_raw = strategy.get("spot_sec_type")
+    else:
+        mode_raw = getattr(strategy, "spot_next_open_session", None)
+        use_rth_raw = getattr(strategy, "signal_use_rth", True)
+        sec_type_raw = getattr(strategy, "spot_sec_type", None)
+    strategy_view = {
+        "spot_next_open_session": mode_raw,
+        "signal_use_rth": (
+            bool(signal_use_rth)
+            if signal_use_rth is not None
+            else bool(use_rth_raw)
+        ),
+        "spot_sec_type": str(spot_sec_type or sec_type_raw or _spot_strategy_sec_type(strategy=strategy)),
+    }
+    return lifecycle_fill_due_ts(
+        fill_mode=normalize_spot_fill_mode(fill_mode, default=SPOT_FILL_MODE_CLOSE),
+        signal_close_ts=signal_close_ts,
+        exec_bar_size=str(exec_bar_size or ""),
+        strategy=strategy_view,
+        naive_ts_mode="utc",
+    )
+
+
 def _spot_entry_capacity_ok(
     *,
     open_count: int,
@@ -3135,6 +3222,7 @@ def _spot_flat_entry_intent(
     shock_atr_vel_pct: float | None,
     shock_atr_accel_pct: float | None,
     tr_ratio: float | None,
+    tr_median_pct: float | None,
     slope_med_pct: float | None,
     slope_vel_pct: float | None,
     slope_med_slow_pct: float | None,
@@ -3159,6 +3247,7 @@ def _spot_flat_entry_intent(
         shock_atr_vel_pct=float(shock_atr_vel_pct) if shock_atr_vel_pct is not None else None,
         shock_atr_accel_pct=float(shock_atr_accel_pct) if shock_atr_accel_pct is not None else None,
         tr_ratio=float(tr_ratio) if tr_ratio is not None else None,
+        tr_median_pct=float(tr_median_pct) if tr_median_pct is not None else None,
         slope_med_pct=float(slope_med_pct) if slope_med_pct is not None else None,
         slope_vel_pct=float(slope_vel_pct) if slope_vel_pct is not None else None,
         slope_med_slow_pct=float(slope_med_slow_pct) if slope_med_slow_pct is not None else None,
@@ -3190,6 +3279,7 @@ def _spot_flat_entry_decision_from_signal(
     shock_atr_vel_pct: float | None,
     shock_atr_accel_pct: float | None,
     tr_ratio: float | None,
+    tr_median_pct: float | None,
     slope_med_pct: float | None,
     slope_vel_pct: float | None,
     slope_med_slow_pct: float | None,
@@ -3234,6 +3324,7 @@ def _spot_flat_entry_decision_from_signal(
         shock_atr_vel_pct=float(shock_atr_vel_pct) if shock_atr_vel_pct is not None else None,
         shock_atr_accel_pct=float(shock_atr_accel_pct) if shock_atr_accel_pct is not None else None,
         tr_ratio=float(tr_ratio) if tr_ratio is not None else None,
+        tr_median_pct=float(tr_median_pct) if tr_median_pct is not None else None,
         slope_med_pct=float(slope_med_pct) if slope_med_pct is not None else None,
         slope_vel_pct=float(slope_vel_pct) if slope_vel_pct is not None else None,
         slope_med_slow_pct=float(slope_med_slow_pct) if slope_med_slow_pct is not None else None,
@@ -3258,6 +3349,7 @@ def _spot_open_position_intent(
     shock_atr_vel_pct: float | None = None,
     shock_atr_accel_pct: float | None = None,
     tr_ratio: float | None = None,
+    tr_median_pct: float | None = None,
     slope_med_pct: float | None = None,
     slope_vel_pct: float | None = None,
     slope_med_slow_pct: float | None = None,
@@ -3279,6 +3371,7 @@ def _spot_open_position_intent(
         shock_atr_vel_pct=float(shock_atr_vel_pct) if shock_atr_vel_pct is not None else None,
         shock_atr_accel_pct=float(shock_atr_accel_pct) if shock_atr_accel_pct is not None else None,
         tr_ratio=float(tr_ratio) if tr_ratio is not None else None,
+        tr_median_pct=float(tr_median_pct) if tr_median_pct is not None else None,
         slope_med_pct=float(slope_med_pct) if slope_med_pct is not None else None,
         slope_vel_pct=float(slope_vel_pct) if slope_vel_pct is not None else None,
         slope_med_slow_pct=float(slope_med_slow_pct) if slope_med_slow_pct is not None else None,
@@ -3353,6 +3446,9 @@ def _spot_try_open_entry(
     shock_now: bool | None,
     shock_dir_now: str | None,
     shock_atr_pct_now: float | None,
+    shock_dir_down_streak_bars_now: int | None,
+    signal_entry_dir_now: str | None,
+    signal_regime_dir_now: str | None,
     riskoff_today: bool,
     riskpanic_today: bool,
     riskpop_today: bool,
@@ -3470,11 +3566,14 @@ def _spot_try_open_entry(
             shock=bool(shock_on),
             shock_dir=shock_dir_now,
             shock_atr_pct=shock_atr_pct_now,
+            shock_dir_down_streak_bars=shock_dir_down_streak_bars_now,
             riskoff=bool(riskoff_today),
             risk_dir=shock_dir_now,
             riskpanic=bool(riskpanic_today),
             riskpop=bool(riskpop_today),
             risk=risk_snapshot,
+            signal_entry_dir=signal_entry_dir_now,
+            signal_regime_dir=signal_regime_dir_now,
             equity_ref=float(cash) + float(liquidation_value),
             cash_ref=float(cash),
         )
@@ -3504,6 +3603,9 @@ def _spot_try_open_entry(
                 shock_atr_pct=float(shock_atr_pct_now) if shock_atr_pct_now is not None else None,
                 tr_ratio=float(getattr(risk_snapshot, "tr_ratio", 0.0))
                 if risk_snapshot is not None and getattr(risk_snapshot, "tr_ratio", None) is not None
+                else None,
+                tr_median_pct=float(getattr(risk_snapshot, "tr_median_pct", 0.0))
+                if risk_snapshot is not None and getattr(risk_snapshot, "tr_median_pct", None) is not None
                 else None,
                 slope_med_pct=float(getattr(risk_snapshot, "tr_median_delta_pct", 0.0))
                 if risk_snapshot is not None and getattr(risk_snapshot, "tr_median_delta_pct", None) is not None
@@ -3974,6 +4076,8 @@ def _run_spot_backtest_exec_loop(
     exec_profile = _spot_exec_profile(cfg.strategy)
     exit_mode = str(exec_profile.exit_mode)
     spot_exit_time = parse_time_hhmm(getattr(cfg.strategy, "spot_exit_time_et", None))
+    spot_exec_bar_size = str(getattr(cfg.strategy, "spot_exec_bar_size", "") or cfg.backtest.bar_size or "")
+    spot_sec_type = _spot_strategy_sec_type(strategy=cfg.strategy)
     spot_entry_fill_mode = str(exec_profile.entry_fill_mode)
     spot_flip_exit_fill_mode = str(exec_profile.flip_fill_mode)
     spot_intrabar_exits = bool(exec_profile.intrabar_exits)
@@ -4064,8 +4168,10 @@ def _run_spot_backtest_exec_loop(
     pending_entry_dir: str | None = None
     pending_entry_branch: str | None = None
     pending_entry_set_date: date | None = None
+    pending_entry_due_ts: datetime | None = None
     pending_exit_all = False
     pending_exit_reason = ""
+    pending_exit_due_ts: datetime | None = None
 
     (
         riskoff_mode,
@@ -4134,9 +4240,9 @@ def _run_spot_backtest_exec_loop(
             open_dir=open_dir_now,
             pending_entry_dir=pending_entry_dir,
             pending_entry_set_date=pending_entry_set_date,
-            pending_entry_due_ts=bar.ts if pending_entry_dir in ("up", "down") else None,
+            pending_entry_due_ts=pending_entry_due_ts if pending_entry_dir in ("up", "down") else None,
             pending_exit_reason=pending_exit_reason,
-            pending_exit_due_ts=bar.ts if bool(pending_exit_all) else None,
+            pending_exit_due_ts=pending_exit_due_ts if bool(pending_exit_all) else None,
             risk_overlay_enabled=bool(risk_overlay_enabled),
             riskoff_today=bool(riskoff_today),
             riskpanic_today=bool(riskpanic_today),
@@ -4144,6 +4250,10 @@ def _run_spot_backtest_exec_loop(
             riskoff_mode=str(riskoff_mode),
             shock_dir_now=shock_dir_prev_now,
             riskoff_end_hour=riskoff_end_hour,
+            pending_entry_fill_mode=spot_entry_fill_mode,
+            pending_exit_fill_mode=(
+                spot_flip_exit_fill_mode if str(pending_exit_reason or "").strip().lower() == "flip" else SPOT_FILL_MODE_CLOSE
+            ),
             naive_ts_mode="utc",
         )
         _capture_lifecycle(
@@ -4156,6 +4266,7 @@ def _run_spot_backtest_exec_loop(
         if pending_decision.pending_clear_exit:
             pending_exit_all = False
             pending_exit_reason = ""
+            pending_exit_due_ts = None
 
         if pending_decision.intent == "exit" and open_trades:
             exit_ref = float(bar.open)
@@ -4183,6 +4294,7 @@ def _run_spot_backtest_exec_loop(
                 pending_entry_dir = None
                 pending_entry_branch = None
                 pending_entry_set_date = None
+                pending_entry_due_ts = None
 
                 entry_leg = _spot_entry_leg_for_direction(
                     strategy=cfg.strategy,
@@ -4209,6 +4321,22 @@ def _run_spot_backtest_exec_loop(
                         shock_now=shock_now_prev,
                         shock_dir_now=shock_dir_prev_now,
                         shock_atr_pct_now=shock_atr_pct_prev_now,
+                        shock_dir_down_streak_bars_now=(
+                            int(getattr(last_sig_snap, "shock_dir_down_streak_bars", 0))
+                            if last_sig_snap is not None and getattr(last_sig_snap, "shock_dir_down_streak_bars", None) is not None
+                            else None
+                        ),
+                        signal_entry_dir_now=(
+                            str(getattr(last_sig_snap, "entry_dir", None))
+                            if last_sig_snap is not None and getattr(last_sig_snap, "entry_dir", None) in ("up", "down")
+                            else None
+                        ),
+                        signal_regime_dir_now=(
+                            str(getattr(getattr(last_sig_snap, "signal", None), "regime_dir", None))
+                            if last_sig_snap is not None
+                            and getattr(getattr(last_sig_snap, "signal", None), "regime_dir", None) in ("up", "down")
+                            else None
+                        ),
                         riskoff_today=bool(riskoff_today),
                         riskpanic_today=bool(riskpanic_today),
                         riskpop_today=bool(riskpop_today),
@@ -4229,11 +4357,13 @@ def _run_spot_backtest_exec_loop(
                 pending_entry_dir = None
                 pending_entry_branch = None
                 pending_entry_set_date = None
+                pending_entry_due_ts = None
 
         if pending_decision.pending_clear_entry:
             pending_entry_dir = None
             pending_entry_branch = None
             pending_entry_set_date = None
+            pending_entry_due_ts = None
 
         # Dynamic shock SL/PT: apply the shock multipliers to *open* trades using the shock
         # state from the prior execution bar (no lookahead within this bar).
@@ -4271,8 +4401,11 @@ def _run_spot_backtest_exec_loop(
         atr = None
         signal = None
         entry_signal_dir = None
+        entry_regime_dir = None
         entry_signal_branch = None
+        shock_dir_down_streak_bars = None
         ratsv_tr_ratio = None
+        risk_tr_median_pct = None
         ratsv_fast_slope_med = None
         ratsv_fast_slope_vel = None
         ratsv_slow_slope_med = None
@@ -4294,8 +4427,16 @@ def _run_spot_backtest_exec_loop(
                 atr = sig_snap.atr
                 signal = sig_snap.signal
                 entry_signal_dir = sig_snap.entry_dir
+                entry_regime_dir = sig_snap.signal.regime_dir if sig_snap.signal is not None else None
                 entry_signal_branch = sig_snap.entry_branch
+                shock_dir_down_streak_bars = getattr(sig_snap, "shock_dir_down_streak_bars", None)
                 ratsv_tr_ratio = sig_snap.ratsv_tr_ratio
+                risk_snap = getattr(sig_snap, "risk", None)
+                risk_tr_median_pct = (
+                    float(getattr(risk_snap, "tr_median_pct"))
+                    if risk_snap is not None and getattr(risk_snap, "tr_median_pct", None) is not None
+                    else None
+                )
                 ratsv_fast_slope_med = sig_snap.ratsv_fast_slope_med_pct
                 ratsv_fast_slope_vel = sig_snap.ratsv_fast_slope_vel_pct
                 ratsv_slow_slope_med = getattr(sig_snap, "ratsv_slow_slope_med_pct", None)
@@ -4416,7 +4557,17 @@ def _run_spot_backtest_exec_loop(
                     exit_candidates["ratsv_adverse_release"] = True
                     exit_ref_by_reason["ratsv_adverse_release"] = float(bar.close)
                     apply_slippage_by_reason["ratsv_adverse_release"] = True
-                if is_signal_close and _spot_hit_flip_exit(cfg, trade, bar, signal):
+                if is_signal_close and _spot_hit_flip_exit(
+                    cfg,
+                    trade,
+                    bar,
+                    signal,
+                    tr_ratio=float(ratsv_tr_ratio) if ratsv_tr_ratio is not None else None,
+                    shock_atr_vel_pct=float(shock_atr_vel) if shock_atr_vel is not None else None,
+                    tr_median_pct=(
+                        float(risk_tr_median_pct) if risk_tr_median_pct is not None else None
+                    ),
+                ):
                     exit_candidates["flip"] = True
                     exit_ref_by_reason["flip"] = float(bar.close)
                     apply_slippage_by_reason["flip"] = True
@@ -4443,6 +4594,9 @@ def _run_spot_backtest_exec_loop(
                     shock_atr_vel_pct=float(shock_atr_vel) if shock_atr_vel is not None else None,
                     shock_atr_accel_pct=float(shock_atr_accel) if shock_atr_accel is not None else None,
                     tr_ratio=float(ratsv_tr_ratio) if ratsv_tr_ratio is not None else None,
+                    tr_median_pct=(
+                        float(risk_tr_median_pct) if risk_tr_median_pct is not None else None
+                    ),
                     slope_med_pct=float(ratsv_fast_slope_med) if ratsv_fast_slope_med is not None else None,
                     slope_vel_pct=float(ratsv_fast_slope_vel) if ratsv_fast_slope_vel is not None else None,
                     slope_med_slow_pct=float(ratsv_slow_slope_med) if ratsv_slow_slope_med is not None else None,
@@ -4459,6 +4613,9 @@ def _run_spot_backtest_exec_loop(
                         "shock_atr_vel_pct": float(shock_atr_vel) if shock_atr_vel is not None else None,
                         "shock_atr_accel_pct": float(shock_atr_accel) if shock_atr_accel is not None else None,
                         "ratsv_tr_ratio": float(ratsv_tr_ratio) if ratsv_tr_ratio is not None else None,
+                        "risk_tr_median_pct": (
+                            float(risk_tr_median_pct) if risk_tr_median_pct is not None else None
+                        ),
                         "ratsv_fast_slope_med_pct": (
                             float(ratsv_fast_slope_med) if ratsv_fast_slope_med is not None else None
                         ),
@@ -4496,15 +4653,28 @@ def _run_spot_backtest_exec_loop(
                 if (
                     lifecycle.intent == "exit"
                     and str(resolved_exit_reason or "") == "flip"
-                    and lifecycle.fill_mode == "next_open"
+                    and spot_fill_mode_is_deferred(lifecycle.fill_mode)
                     and next_bar is not None
                 ):
+                    due_ts = _spot_fill_due_ts(
+                        strategy=cfg.strategy,
+                        fill_mode=str(lifecycle.fill_mode),
+                        signal_close_ts=bar.ts,
+                        exec_bar_size=spot_exec_bar_size,
+                        signal_use_rth=bool(cfg.backtest.use_rth),
+                        spot_sec_type=spot_sec_type,
+                    )
+                    if due_ts is None:
+                        still_open.append(trade)
+                        continue
                     pending_exit_all = True
                     pending_exit_reason = "flip"
+                    pending_exit_due_ts = due_ts
                     if lifecycle.queue_reentry_dir in ("up", "down") and pending_entry_dir is None:
                         pending_entry_dir = str(lifecycle.queue_reentry_dir)
                         pending_entry_branch = entry_signal_branch if entry_signal_branch in ("a", "b") else None
                         pending_entry_set_date = _trade_date(bar.ts)
+                        pending_entry_due_ts = due_ts
                     still_open.append(trade)
                     continue
 
@@ -4555,21 +4725,24 @@ def _run_spot_backtest_exec_loop(
             last_entry_idx=last_entry_sig_idx,
             cooldown_bars=filters.cooldown_bars if filters else 0,
         )
-        effective_open = 0 if (pending_exit_all and spot_flip_exit_fill_mode == "next_open") else len(open_trades)
+        effective_open = len(open_trades)
         if pending_entry_dir is not None:
             effective_open += 1
-        next_open_ok = bool(
-            next_bar is not None
-            and pending_entry_dir is None
-            and _spot_next_open_entry_allowed(
-                signal_ts=bar.ts,
-                next_ts=next_bar.ts,
-                riskoff_today=bool(riskoff_today),
-                riskoff_end_hour=riskoff_end_hour,
-                exit_mode=exit_mode,
-                atr_value=float(atr) if atr is not None else None,
-            )
+        entry_plan = lifecycle_deferred_entry_plan(
+            fill_mode=spot_entry_fill_mode,
+            signal_ts=bar.ts,
+            signal_close_ts=bar.ts,
+            exec_bar_size=spot_exec_bar_size,
+            strategy=cfg.strategy,
+            riskoff_today=bool(riskoff_today),
+            riskoff_end_hour=riskoff_end_hour,
+            exit_mode=exit_mode,
+            atr_value=float(atr) if atr is not None else None,
+            naive_ts_mode="utc",
         )
+        if next_bar is None and entry_plan.deferred:
+            entry_plan = replace(entry_plan, due_ts=None, allowed=False, reason="no_next_bar")
+        next_open_ok = bool(entry_plan.allowed and pending_entry_dir is None)
         entry_decision = _spot_flat_entry_decision_from_signal(
             strategy=cfg.strategy,
             filters=filters,
@@ -4585,14 +4758,15 @@ def _run_spot_backtest_exec_loop(
             shock_dir=shock_dir,
             open_count=int(effective_open),
             entries_today=int(entries_today),
-            pending_exists=bool(pending_entry_dir is not None),
-            next_open_allowed=bool(spot_entry_fill_mode != "next_open" or next_open_ok),
+            pending_exists=bool(pending_entry_dir is not None or pending_exit_all),
+            next_open_allowed=bool(next_open_ok),
             exit_mode=exit_mode,
             atr_value=float(atr) if atr is not None else None,
             shock_atr_pct=float(shock_atr_pct) if shock_atr_pct is not None else None,
             shock_atr_vel_pct=float(shock_atr_vel) if shock_atr_vel is not None else None,
             shock_atr_accel_pct=float(shock_atr_accel) if shock_atr_accel is not None else None,
             tr_ratio=float(ratsv_tr_ratio) if ratsv_tr_ratio is not None else None,
+            tr_median_pct=float(risk_tr_median_pct) if risk_tr_median_pct is not None else None,
             slope_med_pct=float(ratsv_fast_slope_med) if ratsv_fast_slope_med is not None else None,
             slope_vel_pct=float(ratsv_fast_slope_vel) if ratsv_fast_slope_vel is not None else None,
             slope_med_slow_pct=float(ratsv_slow_slope_med) if ratsv_slow_slope_med is not None else None,
@@ -4609,6 +4783,9 @@ def _run_spot_backtest_exec_loop(
                 "shock_atr_vel_pct": float(shock_atr_vel) if shock_atr_vel is not None else None,
                 "shock_atr_accel_pct": float(shock_atr_accel) if shock_atr_accel is not None else None,
                 "ratsv_tr_ratio": float(ratsv_tr_ratio) if ratsv_tr_ratio is not None else None,
+                "risk_tr_median_pct": (
+                    float(risk_tr_median_pct) if risk_tr_median_pct is not None else None
+                ),
                 "ratsv_fast_slope_med_pct": float(ratsv_fast_slope_med) if ratsv_fast_slope_med is not None else None,
                 "ratsv_fast_slope_vel_pct": float(ratsv_fast_slope_vel) if ratsv_fast_slope_vel is not None else None,
                 "ratsv_slow_slope_med_pct": float(ratsv_slow_slope_med) if ratsv_slow_slope_med is not None else None,
@@ -4626,11 +4803,36 @@ def _run_spot_backtest_exec_loop(
                 needs_direction=needs_direction,
             )
             if spot_leg is not None and direction in ("up", "down"):
-                if str(entry_decision.fill_mode) == "next_open":
-                    if next_bar is not None and pending_entry_dir is None and next_open_ok:
+                if spot_fill_mode_is_deferred(entry_decision.fill_mode):
+                    same_mode = normalize_spot_fill_mode(
+                        entry_decision.fill_mode,
+                        default=spot_entry_fill_mode,
+                    ) == str(entry_plan.fill_mode)
+                    entry_schedule = lifecycle_deferred_entry_plan(
+                        fill_mode=str(entry_decision.fill_mode),
+                        signal_ts=bar.ts,
+                        signal_close_ts=bar.ts,
+                        exec_bar_size=spot_exec_bar_size,
+                        strategy=cfg.strategy,
+                        riskoff_today=bool(riskoff_today),
+                        riskoff_end_hour=riskoff_end_hour,
+                        exit_mode=exit_mode,
+                        atr_value=float(atr) if atr is not None else None,
+                        naive_ts_mode="utc",
+                        due_ts=entry_plan.due_ts if same_mode else None,
+                    )
+                    if next_bar is None and entry_schedule.deferred:
+                        entry_schedule = replace(entry_schedule, due_ts=None, allowed=False, reason="no_next_bar")
+                    can_schedule = bool(
+                        entry_schedule.allowed
+                        and entry_schedule.due_ts is not None
+                        and pending_entry_dir is None
+                    )
+                    if can_schedule:
                         pending_entry_dir = direction
                         pending_entry_branch = entry_signal_branch if entry_signal_branch in ("a", "b") else None
                         pending_entry_set_date = _trade_date(bar.ts)
+                        pending_entry_due_ts = entry_schedule.due_ts
                         last_entry_sig_idx = int(sig_idx)
                 else:
                     liquidation_close = _spot_liquidation(float(bar.close))
@@ -4651,6 +4853,15 @@ def _run_spot_backtest_exec_loop(
                         shock_now=shock,
                         shock_dir_now=shock_dir,
                         shock_atr_pct_now=shock_atr_pct,
+                        shock_dir_down_streak_bars_now=(
+                            int(shock_dir_down_streak_bars) if shock_dir_down_streak_bars is not None else None
+                        ),
+                        signal_entry_dir_now=(
+                            str(entry_signal_dir) if entry_signal_dir in ("up", "down") else None
+                        ),
+                        signal_regime_dir_now=(
+                            str(entry_regime_dir) if entry_regime_dir in ("up", "down") else None
+                        ),
                         riskoff_today=bool(riskoff_today),
                         riskpanic_today=bool(riskpanic_today),
                         riskpop_today=bool(riskpop_today),
@@ -4713,11 +4924,16 @@ def _run_spot_backtest_exec_loop(
                     shock=shock,
                     shock_dir=shock_dir,
                     shock_atr_pct=shock_atr_pct,
+                    shock_dir_down_streak_bars=(
+                        int(shock_dir_down_streak_bars) if shock_dir_down_streak_bars is not None else None
+                    ),
                     riskoff=bool(riskoff_today),
                     risk_dir=shock_dir,
                     riskpanic=bool(riskpanic_today),
                     riskpop=bool(riskpop_today),
                     risk=evaluator.last_risk if risk_overlay_enabled else None,
+                    signal_entry_dir=str(entry_signal_dir) if entry_signal_dir in ("up", "down") else None,
+                    signal_regime_dir=str(entry_regime_dir) if entry_regime_dir in ("up", "down") else None,
                     equity_ref=float(cash) + float(liquidation_close),
                     cash_ref=float(cash),
                 )
@@ -4748,6 +4964,9 @@ def _run_spot_backtest_exec_loop(
                         shock_atr_vel_pct=float(shock_atr_vel) if shock_atr_vel is not None else None,
                         shock_atr_accel_pct=float(shock_atr_accel) if shock_atr_accel is not None else None,
                         tr_ratio=float(ratsv_tr_ratio) if ratsv_tr_ratio is not None else None,
+                        tr_median_pct=(
+                            float(risk_tr_median_pct) if risk_tr_median_pct is not None else None
+                        ),
                         slope_med_pct=float(ratsv_fast_slope_med) if ratsv_fast_slope_med is not None else None,
                         slope_vel_pct=float(ratsv_fast_slope_vel) if ratsv_fast_slope_vel is not None else None,
                         slope_med_slow_pct=float(ratsv_slow_slope_med) if ratsv_slow_slope_med is not None else None,
@@ -4764,6 +4983,9 @@ def _run_spot_backtest_exec_loop(
                             "shock_atr_vel_pct": float(shock_atr_vel) if shock_atr_vel is not None else None,
                             "shock_atr_accel_pct": float(shock_atr_accel) if shock_atr_accel is not None else None,
                             "ratsv_tr_ratio": float(ratsv_tr_ratio) if ratsv_tr_ratio is not None else None,
+                            "risk_tr_median_pct": (
+                                float(risk_tr_median_pct) if risk_tr_median_pct is not None else None
+                            ),
                             "ratsv_fast_slope_med_pct": (
                                 float(ratsv_fast_slope_med) if ratsv_fast_slope_med is not None else None
                             ),
@@ -4803,9 +5025,27 @@ def _run_spot_backtest_exec_loop(
                         if applied:
                             last_resize_bar_ts = bar.ts
                     elif lifecycle.intent == "exit":
-                        if lifecycle.fill_mode == "next_open" and next_bar is not None:
-                            pending_exit_all = True
-                            pending_exit_reason = str(lifecycle.reason or "target_zero")
+                        if spot_fill_mode_is_deferred(lifecycle.fill_mode) and next_bar is not None:
+                            pending_exit_due_ts = _spot_fill_due_ts(
+                                strategy=cfg.strategy,
+                                fill_mode=str(lifecycle.fill_mode),
+                                signal_close_ts=bar.ts,
+                                exec_bar_size=spot_exec_bar_size,
+                                signal_use_rth=bool(cfg.backtest.use_rth),
+                                spot_sec_type=spot_sec_type,
+                            )
+                            if pending_exit_due_ts is not None:
+                                pending_exit_all = True
+                                pending_exit_reason = str(lifecycle.reason or "target_zero")
+                            else:
+                                _exit_price, cash, margin_used = _exec_trade_exit(
+                                    trade,
+                                    exit_ref_price=float(bar.close),
+                                    exit_time=bar.ts,
+                                    reason=str(lifecycle.reason or "target_zero"),
+                                    apply_slippage=True,
+                                )
+                                open_trades = []
                         else:
                             _exit_price, cash, margin_used = _exec_trade_exit(
                                 trade,
@@ -4894,10 +5134,16 @@ def _run_spot_backtest_exec_loop_summary_fast(
     spot_entry_fill_mode = str(exec_profile.entry_fill_mode)
     spot_flip_exit_fill_mode = str(exec_profile.flip_fill_mode)
     exit_on_signal_flip = bool(getattr(strat, "exit_on_signal_flip", False))
-    if spot_entry_fill_mode != "next_open":
-        raise ValueError("fast summary runner requires spot_entry_fill_mode='next_open'")
-    if exit_on_signal_flip and spot_flip_exit_fill_mode != "next_open":
-        raise ValueError("fast summary runner requires spot_flip_exit_fill_mode='next_open' when flip exits are enabled")
+    spot_exec_bar_size = str(getattr(strat, "spot_exec_bar_size", "") or cfg.backtest.bar_size or "")
+    spot_sec_type = _spot_strategy_sec_type(strategy=strat)
+    if not spot_fill_mode_is_deferred(spot_entry_fill_mode):
+        raise ValueError(
+            "fast summary runner requires spot_entry_fill_mode in {'next_bar','next_tradable_bar'}"
+        )
+    if exit_on_signal_flip and not spot_fill_mode_is_deferred(spot_flip_exit_fill_mode):
+        raise ValueError(
+            "fast summary runner requires deferred spot_flip_exit_fill_mode when flip exits are enabled"
+        )
 
     spot_spread = float(exec_profile.spread)
     spot_commission = float(exec_profile.commission_per_share)
@@ -5017,6 +5263,26 @@ def _run_spot_backtest_exec_loop_summary_fast(
             raise ValueError("fast summary runner requires flip trees when flip_exit_only_if_profit is enabled")
 
     signal_ts = [b.ts for b in signal_bars]
+    exec_ts = [b.ts for b in exec_bars]
+
+    def _next_fill_from_signal_exec_idx(sig_exec_idx: int, *, fill_mode: str) -> tuple[int, datetime] | None:
+        if sig_exec_idx < 0 or sig_exec_idx >= len(exec_bars):
+            return None
+        due_ts = _spot_fill_due_ts(
+            strategy=strat,
+            fill_mode=str(fill_mode),
+            signal_close_ts=exec_bars[int(sig_exec_idx)].ts,
+            exec_bar_size=spot_exec_bar_size,
+            signal_use_rth=bool(cfg.backtest.use_rth),
+            spot_sec_type=spot_sec_type,
+        )
+        if due_ts is None:
+            return None
+        entry_exec_idx = int(bisect_right(exec_ts, due_ts))
+        entry_exec_idx = max(int(sig_exec_idx) + 1, int(entry_exec_idx))
+        if entry_exec_idx < 0 or entry_exec_idx >= len(exec_bars):
+            return None
+        return int(entry_exec_idx), due_ts
 
     def _risk_flags(day: date) -> tuple[bool, bool, bool]:
         if not risk_overlay_enabled:
@@ -5169,7 +5435,14 @@ def _run_spot_backtest_exec_loop_summary_fast(
         open_margin_required = 0.0
         open_decision_trace = None
 
-    def _try_open_entry_from_signal(*, sig_idx: int, sig_exec_idx: int, entry_exec_idx: int) -> bool:
+    def _try_open_entry_from_signal(
+        *,
+        sig_idx: int,
+        sig_exec_idx: int,
+        entry_exec_idx: int,
+        fill_mode: str,
+        fill_due_ts: datetime,
+    ) -> bool:
         nonlocal cash, open_qty, open_entry_exec_idx, open_entry_time, open_entry_price, open_margin_required
         nonlocal entries_today, last_entry_sig_idx
         if sig_exec_idx < 0 or entry_exec_idx < 0 or entry_exec_idx >= len(exec_bars):
@@ -5204,13 +5477,18 @@ def _run_spot_backtest_exec_loop_summary_fast(
         volume_ema_now = volume_series.volume_ema_by_sig_idx[sig_idx] if volume_series is not None else None
         volume_ema_ready_now = volume_series.volume_ema_ready_by_sig_idx[sig_idx] if volume_series is not None else True
         riskoff_today, _riskpanic_today, _riskpop_today = _risk_flags(_trade_date(exec_bars[sig_exec_idx].ts))
-        next_open_allowed = _spot_next_open_entry_allowed(
+        entry_plan = lifecycle_deferred_entry_plan(
+            fill_mode=str(fill_mode),
             signal_ts=exec_bars[sig_exec_idx].ts,
-            next_ts=exec_bars[entry_exec_idx].ts,
+            signal_close_ts=exec_bars[sig_exec_idx].ts,
+            exec_bar_size=spot_exec_bar_size,
+            strategy=strat,
             riskoff_today=bool(riskoff_today),
             riskoff_end_hour=riskoff_end_hour,
             exit_mode="pct",
             atr_value=None,
+            naive_ts_mode="utc",
+            due_ts=fill_due_ts,
         )
 
         entry_decision = _spot_flat_entry_decision_from_signal(
@@ -5229,7 +5507,7 @@ def _run_spot_backtest_exec_loop_summary_fast(
             open_count=0,
             entries_today=int(entries_today),
             pending_exists=False,
-            next_open_allowed=bool(next_open_allowed),
+            next_open_allowed=bool(entry_plan.allowed),
             exit_mode="pct",
             atr_value=None,
             shock_atr_pct=(
@@ -5240,6 +5518,7 @@ def _run_spot_backtest_exec_loop_summary_fast(
             shock_atr_vel_pct=None,
             shock_atr_accel_pct=None,
             tr_ratio=None,
+            tr_median_pct=None,
             slope_med_pct=None,
             slope_vel_pct=None,
             slope_med_slow_pct=None,
@@ -5247,7 +5526,7 @@ def _run_spot_backtest_exec_loop_summary_fast(
         )
         if entry_decision.intent != "enter":
             return False
-        if str(entry_decision.fill_mode or "next_open") != "next_open":
+        if not spot_fill_mode_is_deferred(entry_decision.fill_mode):
             return False
 
         last_entry_sig_idx = int(sig_idx)
@@ -5301,6 +5580,11 @@ def _run_spot_backtest_exec_loop_summary_fast(
             shock_now=bool(shock_prev_on),
             shock_dir_now=shock_dir_prev_now,
             shock_atr_pct_now=shock_atr_pct_prev_now,
+            shock_dir_down_streak_bars_now=None,
+            signal_entry_dir_now=str(pending_dir) if pending_dir in ("up", "down") else None,
+            signal_regime_dir_now=(
+                str(getattr(sig, "regime_dir", None)) if getattr(sig, "regime_dir", None) in ("up", "down") else None
+            ),
             riskoff_today=bool(riskoff_fill),
             riskpanic_today=bool(riskpanic_fill),
             riskpop_today=bool(riskpop_fill),
@@ -5325,9 +5609,10 @@ def _run_spot_backtest_exec_loop_summary_fast(
         exit_reason: str,
         flip_sig_idx: int | None,
         flip_exec_idx: int | None,
+        flip_due_ts: datetime | None,
     ) -> bool:
         nonlocal sig_cursor
-        if exit_reason != "flip" or flip_sig_idx is None or flip_exec_idx is None:
+        if exit_reason != "flip" or flip_sig_idx is None or flip_exec_idx is None or flip_due_ts is None:
             return False
         sig_idx = int(flip_sig_idx)
         sig_exec = align.exec_idx_by_sig_idx[sig_idx]
@@ -5335,6 +5620,8 @@ def _run_spot_backtest_exec_loop_summary_fast(
             sig_idx=int(sig_idx),
             sig_exec_idx=int(sig_exec),
             entry_exec_idx=int(flip_exec_idx),
+            fill_mode=spot_entry_fill_mode,
+            fill_due_ts=flip_due_ts,
         ):
             sig_cursor = max(int(sig_cursor), int(sig_idx + 1))
             return True
@@ -5378,13 +5665,19 @@ def _run_spot_backtest_exec_loop_summary_fast(
                 sig_exec_idx = align.exec_idx_by_sig_idx[sig_idx]
                 if sig_exec_idx < 0:
                     continue
-                entry_exec_idx = sig_exec_idx + 1
-                if entry_exec_idx >= len(exec_bars):
+                next_fill = _next_fill_from_signal_exec_idx(
+                    int(sig_exec_idx),
+                    fill_mode=spot_entry_fill_mode,
+                )
+                if next_fill is None:
                     continue
+                entry_exec_idx, next_fill_due_ts = next_fill
                 if _try_open_entry_from_signal(
                     sig_idx=int(sig_idx),
                     sig_exec_idx=int(sig_exec_idx),
                     entry_exec_idx=int(entry_exec_idx),
+                    fill_mode=spot_entry_fill_mode,
+                    fill_due_ts=next_fill_due_ts,
                 ):
                     opened = True
                     break
@@ -5415,6 +5708,7 @@ def _run_spot_backtest_exec_loop_summary_fast(
 
         flip_sig_idx = None
         flip_exec_idx = None
+        flip_due_ts = None
         if bool(exit_on_signal_flip) and strat.direction_source == "ema":
             hold_bars = int(getattr(strat, "flip_exit_min_hold_bars", 0) or 0)
             hold_hours = float(signal_bar_hours) * float(max(0, hold_bars))
@@ -5435,8 +5729,13 @@ def _run_spot_backtest_exec_loop_summary_fast(
                     flip_sig_idx = int(nxt) if int(nxt) >= 0 else None
             if flip_sig_idx is not None:
                 sc_exec = align.exec_idx_by_sig_idx[int(flip_sig_idx)]
-                if sc_exec >= 0 and (sc_exec + 1) < len(exec_bars):
-                    flip_exec_idx = int(sc_exec + 1)
+                if sc_exec >= 0:
+                    next_fill = _next_fill_from_signal_exec_idx(
+                        int(sc_exec),
+                        fill_mode=spot_flip_exit_fill_mode,
+                    )
+                    if next_fill is not None:
+                        flip_exec_idx, flip_due_ts = next_fill
 
         last_exec_idx = len(exec_bars) - 1
         stop_reason = "stop_loss_pct"
@@ -5630,6 +5929,7 @@ def _run_spot_backtest_exec_loop_summary_fast(
             exit_reason=str(exit_reason),
             flip_sig_idx=flip_sig_idx,
             flip_exec_idx=flip_exec_idx,
+            flip_due_ts=flip_due_ts,
         ):
             _emit_fast_progress(exec_idx_hint=int(exit_exec_idx))
             continue
@@ -5710,6 +6010,13 @@ def _can_use_fast_summary_path(
     if str(getattr(graph, "risk_overlay_policy", "legacy") or "legacy").strip().lower() != "legacy":
         return False
 
+    guard_scale_mode = str(getattr(strat, "spot_guard_threshold_scale_mode", "off") or "off").strip().lower()
+    if guard_scale_mode not in ("", "0", "false", "none", "null", "off"):
+        return False
+    hold_dynamic_mode = str(getattr(strat, "spot_flip_hold_dynamic_mode", "off") or "off").strip().lower()
+    if hold_dynamic_mode not in ("", "0", "false", "none", "null", "off"):
+        return False
+
     if not _is_disabled(getattr(strat, "spot_controlled_flip", None)):
         return False
     if str(getattr(policy_cfg, "spot_resize_mode", "off") or "off").strip().lower() == "target":
@@ -5729,7 +6036,7 @@ def _can_use_fast_summary_path(
     entry_fill_mode = str(exec_profile.entry_fill_mode)
     flip_fill_mode = str(exec_profile.flip_fill_mode)
     exit_on_signal_flip = bool(getattr(strat, "exit_on_signal_flip", False))
-    flip_fill_ok = (not bool(exit_on_signal_flip)) or (flip_fill_mode == "next_open")
+    flip_fill_ok = (not bool(exit_on_signal_flip)) or spot_fill_mode_is_deferred(flip_fill_mode)
     tick_gate_mode = str(getattr(strat, "tick_gate_mode", "off") or "off").strip().lower()
     tick_gate_off = tick_gate_mode in ("off", "", "none", "false", "0")
     if not bool(tick_gate_off):
@@ -5744,7 +6051,7 @@ def _can_use_fast_summary_path(
     )
     return (
         str(getattr(strat, "entry_signal", "ema") or "ema").strip().lower() == "ema"
-        and entry_fill_mode == "next_open"
+        and spot_fill_mode_is_deferred(entry_fill_mode)
         and bool(flip_fill_ok)
         and bool(exec_profile.intrabar_exits)
         and str(exec_profile.drawdown_mode) == "intrabar"
@@ -5832,6 +6139,9 @@ def _flip_exit_base_checks(
     entry_time: datetime,
     bar_ts: datetime,
     signal: EmaDecisionSnapshot | None,
+    tr_ratio: float | None = None,
+    shock_atr_vel_pct: float | None = None,
+    tr_median_pct: float | None = None,
 ) -> bool:
     if cfg.strategy.direction_source != "ema":
         return False
@@ -5845,9 +6155,15 @@ def _flip_exit_base_checks(
         ema_entry_mode_raw=cfg.strategy.ema_entry_mode,
     ):
         return False
-    if cfg.strategy.flip_exit_min_hold_bars:
+    hold_bars, _hold_trace = spot_dynamic_flip_hold_bars(
+        strategy=cfg.strategy,
+        tr_ratio=float(tr_ratio) if tr_ratio is not None else None,
+        shock_atr_vel_pct=float(shock_atr_vel_pct) if shock_atr_vel_pct is not None else None,
+        tr_median_pct=float(tr_median_pct) if tr_median_pct is not None else None,
+    )
+    if hold_bars > 0:
         held = _bars_held(cfg.backtest.bar_size, entry_time, bar_ts)
-        if held < cfg.strategy.flip_exit_min_hold_bars:
+        if held < int(hold_bars):
             return False
     return True
 
@@ -5954,9 +6270,21 @@ def _spot_hit_flip_exit(
     trade: SpotTrade,
     bar: Bar,
     signal: EmaDecisionSnapshot | None,
+    tr_ratio: float | None = None,
+    shock_atr_vel_pct: float | None = None,
+    tr_median_pct: float | None = None,
 ) -> bool:
     trade_dir = "up" if trade.qty > 0 else "down" if trade.qty < 0 else None
-    if not _flip_exit_base_checks(cfg, trade_dir=trade_dir, entry_time=trade.entry_time, bar_ts=bar.ts, signal=signal):
+    if not _flip_exit_base_checks(
+        cfg,
+        trade_dir=trade_dir,
+        entry_time=trade.entry_time,
+        bar_ts=bar.ts,
+        signal=signal,
+        tr_ratio=tr_ratio,
+        shock_atr_vel_pct=shock_atr_vel_pct,
+        tr_median_pct=tr_median_pct,
+    ):
         return False
 
     if cfg.strategy.flip_exit_only_if_profit:
@@ -6168,7 +6496,15 @@ def _hit_flip_exit(
     signal: EmaDecisionSnapshot | None,
 ) -> bool:
     trade_dir = _direction_from_legs(trade.legs)
-    if not _flip_exit_base_checks(cfg, trade_dir=trade_dir, entry_time=trade.entry_time, bar_ts=bar.ts, signal=signal):
+    if not _flip_exit_base_checks(
+        cfg,
+        trade_dir=trade_dir,
+        entry_time=trade.entry_time,
+        bar_ts=bar.ts,
+        signal=signal,
+        tr_ratio=None,
+        shock_atr_vel_pct=None,
+    ):
         return False
 
     if cfg.strategy.flip_exit_only_if_profit:

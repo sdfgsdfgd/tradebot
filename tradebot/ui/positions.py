@@ -37,6 +37,7 @@ from .common import (
     _option_display_price,
     _optimistic_price,
     _parse_int,
+    _quote_num_actionable,
     _round_to_tick,
     _safe_num,
     _tick_decimals,
@@ -215,10 +216,7 @@ class PositionDetailScreen(Screen):
 
     @staticmethod
     def _quote_num(value: float | None) -> float | None:
-        num = _safe_num(value)
-        if num is None or num <= 0:
-            return None
-        return num
+        return _quote_num_actionable(value)
 
     def on_key(self, event: events.Key) -> None:
         if event.key == "backspace":
@@ -1446,16 +1444,19 @@ class PositionDetailScreen(Screen):
             if self._ticker
             else Text("MD Quotes: n/a", style="dim")
         )
+        has_live_quote = bool(
+            (bid is not None and ask is not None and bid <= ask)
+            or (last is not None)
+        )
         close_only_badge_row: Text | None = None
         if self._ticker:
             md_type = getattr(self._ticker, "marketDataType", None)
             is_delayed = md_type in (3, 4)
-            has_live_quote = bool(
-                (bid is not None and ask is not None and bid <= ask)
-                or (last is not None)
-            )
             if is_delayed and (not has_live_quote) and close is not None and close > 0:
                 close_only_badge_row = Text("CLOSE-ONLY DELAYED FEED", style="bold black on yellow")
+        no_quote_badge_row: Text | None = None
+        if contract.secType == "OPT" and not has_live_quote:
+            no_quote_badge_row = Text("NO ACTIONABLE OPTION QUOTE YET", style="bold black on yellow")
 
         quote_row = Text("Bid ")
         quote_row.append(_fmt_quote(bid), style="green")
@@ -1512,10 +1513,6 @@ class PositionDetailScreen(Screen):
 
         detail_row = Text(f"Avg {avg_cost}   MktVal {market_value}")
         ref_price = mid or price or mark
-        has_live_quote = bool(
-            (bid is not None and ask is not None and bid <= ask)
-            or (last is not None)
-        )
         pct_baseline = close
         if (
             contract.secType in ("OPT", "FOP")
@@ -1579,8 +1576,10 @@ class PositionDetailScreen(Screen):
             self._box_row(momentum_label_row, inner, style="#2d8fd5"),
             self._box_row(momentum_row, inner, style="#2d8fd5"),
         ]
+        if no_quote_badge_row is not None:
+            lines.insert(3, self._box_row(no_quote_badge_row, inner, style="#2d8fd5"))
         if close_only_badge_row is not None:
-            lines.insert(3, self._box_row(close_only_badge_row, inner, style="#2d8fd5"))
+            lines.insert(4 if no_quote_badge_row is not None else 3, self._box_row(close_only_badge_row, inner, style="#2d8fd5"))
         if contract.lastTradeDateOrContractMonth:
             expiry = _fmt_expiry(contract.lastTradeDateOrContractMonth)
             meta = Text(f"Expiry {expiry}")
@@ -1607,8 +1606,8 @@ class PositionDetailScreen(Screen):
         bid = self._quote_num(self._ticker.bid) if self._ticker else None
         ask = self._quote_num(self._ticker.ask) if self._ticker else None
         last = self._quote_num(self._ticker.last) if self._ticker else None
-        mark = _mark_price(self._item)
-        last_ref = last or mark
+        mark = _option_display_price(self._item, self._ticker) if contract.secType in ("OPT", "FOP") else _mark_price(self._item)
+        last_ref = last if last is not None else (bid if bid is not None else (ask if ask is not None else mark))
         tick = _tick_size(contract, self._ticker, last_ref)
         mid_raw = _midpoint(bid, ask)
         fallback = _round_to_tick(last_ref, tick)
@@ -1628,6 +1627,16 @@ class PositionDetailScreen(Screen):
         lines: list[Text] = [self._box_top("Execution Ladder", inner, style="#d4922f")]
         if self._exec_status:
             lines.append(self._box_row(Text(self._exec_status, style="yellow"), inner, style="#d4922f"))
+        has_actionable_quote = bool(
+            (bid is not None and ask is not None and bid <= ask)
+            or (last is not None)
+        )
+        if contract.secType == "OPT" and not has_actionable_quote:
+            lock_row = Text(
+                "B/S locked: no actionable option quote yet (waiting for bid/ask/last)",
+                style="bold black on yellow",
+            )
+            lines.append(self._box_row(lock_row, inner, style="#d4922f"))
 
         lines.append(self._box_rule("Depth", inner, style="#d4922f"))
         mid_size = ((ask_size or 0.0) + (bid_size or 0.0)) * 0.5
@@ -1932,6 +1941,18 @@ class PositionDetailScreen(Screen):
             self._exec_status = "Exec: unsupported contract"
             self._render_details(sample=False)
             return
+        if contract.secType == "OPT":
+            bid = self._quote_num(self._ticker.bid) if self._ticker else None
+            ask = self._quote_num(self._ticker.ask) if self._ticker else None
+            last = self._quote_num(self._ticker.last) if self._ticker else None
+            has_actionable = bool(
+                (bid is not None and ask is not None and bid <= ask)
+                or (last is not None)
+            )
+            if not has_actionable:
+                self._exec_status = "Exec locked: no actionable equity option quote yet (bid/ask/last n/a)"
+                self._render_details(sample=False)
+                return
         qty = int(self._exec_qty) if self._exec_qty else 0
         if qty <= 0:
             self._exec_status = "Exec: invalid qty"
@@ -1940,7 +1961,10 @@ class PositionDetailScreen(Screen):
         mode = self._selected_exec_mode()
         price = self._initial_exec_price(action, mode=mode)
         if price is None:
-            self._exec_status = "Exec: price n/a"
+            if contract.secType == "OPT":
+                self._exec_status = "Exec locked: no actionable option quote yet (bid/ask/last n/a)"
+            else:
+                self._exec_status = "Exec: price n/a"
             self._render_details(sample=False)
             return
         outside_rth = contract.secType == "STK"
@@ -1990,8 +2014,8 @@ class PositionDetailScreen(Screen):
         bid = self._quote_num(self._ticker.bid) if self._ticker else None
         ask = self._quote_num(self._ticker.ask) if self._ticker else None
         last = self._quote_num(self._ticker.last) if self._ticker else None
-        mark = _mark_price(self._item)
-        last_ref = last or mark
+        mark = _option_display_price(self._item, self._ticker) if self._item.contract.secType in ("OPT", "FOP") else _mark_price(self._item)
+        last_ref = last if last is not None else (bid if bid is not None else (ask if ask is not None else mark))
         tick = _tick_size(self._item.contract, self._ticker, last_ref)
         selected_mode = "OPTIMISTIC" if mode == "AUTO" else mode
         value = (
@@ -2016,9 +2040,10 @@ class PositionDetailScreen(Screen):
         bid = bid if bid is not None else (self._quote_num(self._ticker.bid) if self._ticker else None)
         ask = ask if ask is not None else (self._quote_num(self._ticker.ask) if self._ticker else None)
         last = last if last is not None else (self._quote_num(self._ticker.last) if self._ticker else None)
-        mark = _mark_price(self._item)
-        last_ref = last or mark
-        tick = _tick_size(self._item.contract, ticker or self._ticker, last_ref)
+        ticker_ref = ticker or self._ticker
+        mark = _option_display_price(self._item, ticker_ref) if self._item.contract.secType in ("OPT", "FOP") else _mark_price(self._item)
+        last_ref = last if last is not None else (bid if bid is not None else (ask if ask is not None else mark))
+        tick = _tick_size(self._item.contract, ticker_ref, last_ref)
         value = _limit_price_for_mode(bid, ask, last_ref, action=action, mode=mode)
         if value is None:
             return _round_to_tick(last_ref, tick) if last_ref is not None else None

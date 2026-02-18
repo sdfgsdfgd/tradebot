@@ -17,10 +17,21 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import asdict, dataclass, field, is_dataclass, replace
-from datetime import date, datetime
+from datetime import date, datetime, time, timedelta
 
 from ..signals import ema_slope_pct, ema_spread_pct, ema_state_direction, flip_exit_mode, parse_bar_size
 from ..time_utils import NaiveTsModeInput
+from ..time_utils import normalize_naive_ts_mode as _normalize_naive_ts_mode
+from ..time_utils import to_et as _to_et
+from ..time_utils import to_utc_naive as _to_utc_naive
+from .fill_modes import (
+    SPOT_FILL_MODE_CLOSE,
+    SPOT_FILL_MODE_NEXT_BAR,
+    SPOT_FILL_MODE_NEXT_TRADABLE_BAR,
+    normalize_spot_fill_mode,
+    spot_fill_mode_is_deferred,
+    spot_fill_mode_is_next_tradable,
+)
 from .graph import SpotPolicyGraph, canonical_exit_reason as graph_canonical_exit_reason
 from .graph import pick_exit_reason as graph_pick_exit_reason
 from .policy import SpotIntentDecision, SpotPolicy
@@ -32,7 +43,7 @@ class SpotLifecycleDecision:
     reason: str
     gate: str
     direction: str | None = None
-    fill_mode: str = "close"
+    fill_mode: str = SPOT_FILL_MODE_CLOSE
     blocked: bool = False
     pending_clear_entry: bool = False
     pending_clear_exit: bool = False
@@ -48,15 +59,332 @@ class SpotLifecycleDecision:
         return payload
 
 
+@dataclass(frozen=True)
+class SpotDeferredEntryPlan:
+    fill_mode: str
+    deferred: bool
+    due_ts: datetime | None
+    allowed: bool
+    reason: str
+
+
 def _get(source: Mapping[str, object] | object | None, key: str, default: object = None) -> object:
     return SpotPolicy._get(source, key, default)  # noqa: SLF001 - shared parser reuse by design
 
 
-def _normalize_fill_mode(raw: object, *, default: str = "close") -> str:
+def _normalize_fill_mode(raw: object, *, default: str = SPOT_FILL_MODE_CLOSE) -> str:
+    return normalize_spot_fill_mode(raw, default=str(default))
+
+
+_RTH_OPEN = time(9, 30)
+_RTH_CLOSE = time(16, 0)
+_EXT_OPEN = time(4, 0)
+_EXT_CLOSE = time(20, 0)
+_OVERNIGHT_OPEN = time(20, 0)
+_OVERNIGHT_GAP_START = time(3, 50)
+_OVERNIGHT_GAP_END = time(4, 0)
+
+
+def normalize_next_open_session_mode(raw: object | None, *, default: str = "auto") -> str:
     mode = str(raw or default).strip().lower()
-    if mode not in ("close", "next_open"):
-        return str(default)
+    aliases = {
+        "full24": "tradable_24x5",
+        "tradable": "tradable_24x5",
+        "overnight_plus_extended": "tradable_24x5",
+    }
+    mode = aliases.get(mode, mode)
+    if mode not in ("auto", "rth", "extended", "always", "tradable_24x5"):
+        fallback = str(default or "auto").strip().lower()
+        return fallback if fallback in ("auto", "rth", "extended", "always", "tradable_24x5") else "auto"
     return mode
+
+
+def signal_bar_close_ts(
+    *,
+    signal_bar_ts: datetime,
+    signal_bar_size: str,
+) -> datetime:
+    signal_def = parse_bar_size(str(signal_bar_size or ""))
+    if signal_def is None or signal_def.duration.total_seconds() <= 0:
+        return signal_bar_ts
+    return signal_bar_ts + signal_def.duration
+
+
+def _spot_exec_span(exec_bar_size: str) -> timedelta:
+    parsed = parse_bar_size(str(exec_bar_size or ""))
+    if parsed is None or parsed.duration.total_seconds() <= 0:
+        return timedelta(minutes=5)
+    return parsed.duration
+
+
+def _bar_floor(ts: datetime, span: timedelta) -> datetime:
+    sec = float(span.total_seconds())
+    if sec <= 0:
+        return ts
+    day_start = ts.replace(hour=0, minute=0, second=0, microsecond=0)
+    elapsed = max(0.0, float((ts - day_start).total_seconds()))
+    slot = int(elapsed // sec)
+    return day_start + timedelta(seconds=(slot * sec))
+
+
+def _bar_ceil(ts: datetime, span: timedelta) -> datetime:
+    floor_ts = _bar_floor(ts, span)
+    if floor_ts >= ts:
+        return floor_ts
+    return floor_ts + span
+
+
+def _spot_next_weekday_open(ts: datetime, open_time: time) -> datetime:
+    candidate = datetime.combine(ts.date(), open_time)
+    if candidate <= ts:
+        candidate = candidate + timedelta(days=1)
+    while candidate.weekday() >= 5:
+        candidate = candidate + timedelta(days=1)
+    return candidate
+
+
+def _spot_session_contains(ts: datetime, *, open_time: time, close_time: time) -> bool:
+    if ts.weekday() >= 5:
+        return False
+    current = ts.time()
+    return open_time <= current < close_time
+
+
+def _spot_stk_tradable_24x5_contains(ts: datetime) -> bool:
+    weekday = ts.weekday()
+    current = ts.time()
+    if weekday == 5:
+        return False
+    if _OVERNIGHT_GAP_START <= current < _OVERNIGHT_GAP_END:
+        return False
+    if weekday == 6:
+        return current >= _OVERNIGHT_OPEN
+    if weekday == 4 and current >= _OVERNIGHT_OPEN:
+        return False
+    return True
+
+
+def _spot_next_stk_tradable_24x5_start(ts: datetime) -> datetime:
+    candidate = ts
+    while True:
+        weekday = candidate.weekday()
+        current = candidate.time()
+        if weekday == 5:
+            sunday = candidate.date() + timedelta(days=1)
+            candidate = datetime.combine(sunday, _OVERNIGHT_OPEN)
+            continue
+        if weekday == 6:
+            if current < _OVERNIGHT_OPEN:
+                return datetime.combine(candidate.date(), _OVERNIGHT_OPEN)
+            return candidate
+        if _OVERNIGHT_GAP_START <= current < _OVERNIGHT_GAP_END:
+            return datetime.combine(candidate.date(), _OVERNIGHT_GAP_END)
+        if weekday == 4 and current >= _OVERNIGHT_OPEN:
+            sunday = candidate.date() + timedelta(days=2)
+            return datetime.combine(sunday, _OVERNIGHT_OPEN)
+        return candidate
+
+
+def _spot_align_exec_open_stk_tradable_24x5(*, ts: datetime, span: timedelta) -> datetime:
+    candidate = ts
+    while True:
+        if not _spot_stk_tradable_24x5_contains(candidate):
+            candidate = _spot_next_stk_tradable_24x5_start(candidate)
+            continue
+        aligned = _bar_ceil(candidate, span)
+        if _spot_stk_tradable_24x5_contains(aligned):
+            return aligned
+        candidate = _spot_next_stk_tradable_24x5_start(aligned)
+
+
+def _spot_session_window(
+    *,
+    mode: str,
+    sec_type: str,
+    signal_use_rth: bool,
+) -> tuple[time, time] | None:
+    if mode == "always":
+        return None
+    if mode == "rth":
+        return (_RTH_OPEN, _RTH_CLOSE)
+    if mode == "extended":
+        return (_EXT_OPEN, _EXT_CLOSE)
+    if str(sec_type).strip().upper() != "STK":
+        return None
+    return (_RTH_OPEN, _RTH_CLOSE) if bool(signal_use_rth) else (_EXT_OPEN, _EXT_CLOSE)
+
+
+def _spot_align_exec_open_et(
+    *,
+    ts: datetime,
+    span: timedelta,
+    mode: str,
+    sec_type: str,
+    signal_use_rth: bool,
+) -> datetime:
+    mode_clean = normalize_next_open_session_mode(mode, default="auto")
+    if mode_clean == "auto" and str(sec_type).strip().upper() == "STK" and not bool(signal_use_rth):
+        mode_clean = "tradable_24x5"
+    if mode_clean == "tradable_24x5":
+        if str(sec_type).strip().upper() == "STK":
+            return _spot_align_exec_open_stk_tradable_24x5(ts=ts, span=span)
+        return ts
+    session = _spot_session_window(
+        mode=mode_clean,
+        sec_type=str(sec_type),
+        signal_use_rth=bool(signal_use_rth),
+    )
+    if session is None:
+        return ts
+    open_time, close_time = session
+    candidate = ts
+    while True:
+        if candidate.weekday() >= 5:
+            candidate = _spot_next_weekday_open(candidate, open_time)
+            continue
+        day_open = datetime.combine(candidate.date(), open_time)
+        day_close = datetime.combine(candidate.date(), close_time)
+        if candidate < day_open:
+            candidate = day_open
+        elif candidate >= day_close:
+            candidate = _spot_next_weekday_open(candidate, open_time)
+            continue
+
+        aligned = _bar_ceil(candidate, span)
+        if aligned >= day_close:
+            candidate = _spot_next_weekday_open(candidate, open_time)
+            continue
+        if not _spot_session_contains(aligned, open_time=open_time, close_time=close_time):
+            candidate = _spot_next_weekday_open(candidate, open_time)
+            continue
+        return aligned
+
+
+def _to_et_naive(ts: datetime, *, naive_ts_mode: NaiveTsModeInput) -> datetime:
+    return _to_et(ts, naive_ts_mode=naive_ts_mode, default_naive_ts_mode="utc").replace(tzinfo=None)
+
+
+def _from_et_naive(ts: datetime, *, naive_ts_mode: NaiveTsModeInput) -> datetime:
+    mode = _normalize_naive_ts_mode(naive_ts_mode, default="et")
+    if str(mode.value).strip().lower() == "utc":
+        return _to_utc_naive(ts, naive_ts_mode="et", default_naive_ts_mode="utc")
+    return ts
+
+
+def next_open_due_ts(
+    *,
+    signal_close_ts: datetime,
+    exec_bar_size: str,
+    strategy: Mapping[str, object] | object | None = None,
+    naive_ts_mode: NaiveTsModeInput = None,
+) -> datetime:
+    span = _spot_exec_span(exec_bar_size)
+    due_from = _bar_ceil(signal_close_ts, span)
+    due_from_et = _to_et_naive(due_from, naive_ts_mode=naive_ts_mode)
+    mode = normalize_next_open_session_mode(_get(strategy, "spot_next_open_session", "auto"), default="auto")
+    sec_type = str(_get(strategy, "spot_sec_type", "STK") or "STK").strip().upper()
+    signal_use_rth_raw = _get(strategy, "signal_use_rth", True)
+    if isinstance(signal_use_rth_raw, str):
+        signal_use_rth = signal_use_rth_raw.strip().lower() not in ("0", "false", "off", "no")
+    else:
+        signal_use_rth = bool(signal_use_rth_raw)
+    aligned_et = _spot_align_exec_open_et(
+        ts=due_from_et,
+        span=span,
+        mode=mode,
+        sec_type=sec_type,
+        signal_use_rth=signal_use_rth,
+    )
+    return _from_et_naive(aligned_et, naive_ts_mode=naive_ts_mode)
+
+
+def fill_due_ts(
+    *,
+    fill_mode: str,
+    signal_close_ts: datetime,
+    exec_bar_size: str,
+    strategy: Mapping[str, object] | object | None = None,
+    naive_ts_mode: NaiveTsModeInput = None,
+) -> datetime | None:
+    mode = normalize_spot_fill_mode(fill_mode, default=SPOT_FILL_MODE_CLOSE)
+    if mode == SPOT_FILL_MODE_CLOSE:
+        return None
+    if mode == SPOT_FILL_MODE_NEXT_BAR:
+        return _bar_ceil(signal_close_ts, _spot_exec_span(exec_bar_size))
+    return next_open_due_ts(
+        signal_close_ts=signal_close_ts,
+        exec_bar_size=exec_bar_size,
+        strategy=strategy,
+        naive_ts_mode=naive_ts_mode,
+    )
+
+
+def deferred_entry_plan(
+    *,
+    fill_mode: str,
+    signal_ts: datetime,
+    signal_close_ts: datetime,
+    exec_bar_size: str,
+    strategy: Mapping[str, object] | object | None = None,
+    riskoff_today: bool,
+    riskoff_end_hour: int | None,
+    exit_mode: str,
+    atr_value: float | None,
+    naive_ts_mode: NaiveTsModeInput = None,
+    due_ts: datetime | None = None,
+) -> SpotDeferredEntryPlan:
+    mode = normalize_spot_fill_mode(fill_mode, default=SPOT_FILL_MODE_CLOSE)
+    if not spot_fill_mode_is_deferred(mode):
+        return SpotDeferredEntryPlan(
+            fill_mode=mode,
+            deferred=False,
+            due_ts=None,
+            allowed=True,
+            reason="immediate",
+        )
+
+    resolved_due = due_ts
+    if resolved_due is None:
+        resolved_due = fill_due_ts(
+            fill_mode=mode,
+            signal_close_ts=signal_close_ts,
+            exec_bar_size=exec_bar_size,
+            strategy=strategy,
+            naive_ts_mode=naive_ts_mode,
+        )
+    if resolved_due is None:
+        return SpotDeferredEntryPlan(
+            fill_mode=mode,
+            deferred=True,
+            due_ts=None,
+            allowed=False,
+            reason="deferred_due_missing",
+        )
+
+    if spot_fill_mode_is_next_tradable(mode):
+        allowed = next_open_entry_allowed(
+            signal_ts=signal_ts,
+            next_ts=resolved_due,
+            riskoff_today=bool(riskoff_today),
+            riskoff_end_hour=riskoff_end_hour,
+            exit_mode=str(exit_mode),
+            atr_value=float(atr_value) if atr_value is not None else None,
+        )
+        return SpotDeferredEntryPlan(
+            fill_mode=mode,
+            deferred=True,
+            due_ts=resolved_due,
+            allowed=bool(allowed),
+            reason="ok" if bool(allowed) else "next_open_not_allowed",
+        )
+
+    return SpotDeferredEntryPlan(
+        fill_mode=mode,
+        deferred=True,
+        due_ts=resolved_due,
+        allowed=True,
+        reason="ok",
+    )
 
 
 def _bars_elapsed(start_ts: datetime | None, end_ts: datetime, *, bar_size: str) -> int:
@@ -680,8 +1008,13 @@ def decide_pending_next_open(
     riskoff_mode: str,
     shock_dir_now: str | None,
     riskoff_end_hour: int | None,
+    pending_entry_fill_mode: str = SPOT_FILL_MODE_NEXT_TRADABLE_BAR,
+    pending_exit_fill_mode: str = SPOT_FILL_MODE_NEXT_TRADABLE_BAR,
     naive_ts_mode: NaiveTsModeInput = None,
 ) -> SpotLifecycleDecision:
+    entry_fill_mode = normalize_spot_fill_mode(pending_entry_fill_mode, default=SPOT_FILL_MODE_NEXT_TRADABLE_BAR)
+    exit_fill_mode = normalize_spot_fill_mode(pending_exit_fill_mode, default=SPOT_FILL_MODE_NEXT_TRADABLE_BAR)
+
     if pending_exit_due_ts is not None and now_ts >= pending_exit_due_ts:
         if bool(has_open):
             reason = canonical_exit_reason(pending_exit_reason or "flip")
@@ -690,7 +1023,7 @@ def decide_pending_next_open(
                 reason=reason or "flip",
                 gate="TRIGGER_EXIT",
                 direction=str(open_dir) if open_dir in ("up", "down") else None,
-                fill_mode="next_open",
+                fill_mode=exit_fill_mode,
                 pending_clear_exit=True,
                 trace={"stage": "pending", "pending_kind": "exit", "due": pending_exit_due_ts.isoformat()},
             )
@@ -736,7 +1069,7 @@ def decide_pending_next_open(
                     reason="next_open",
                     gate="TRIGGER_ENTRY",
                     direction=str(pending_entry_dir),
-                    fill_mode="next_open",
+                    fill_mode=entry_fill_mode,
                     pending_clear_entry=True,
                     trace={
                         "stage": "pending",
@@ -762,7 +1095,7 @@ def decide_pending_next_open(
             reason="pending_entry_wait",
             gate="PENDING_ENTRY_NEXT_OPEN",
             direction=str(pending_entry_dir),
-            fill_mode="next_open",
+            fill_mode=entry_fill_mode,
             trace={
                 "stage": "pending",
                 "pending_kind": "entry",
@@ -777,7 +1110,7 @@ def decide_pending_next_open(
             reason="pending_exit_wait",
             gate="PENDING_EXIT_NEXT_OPEN",
             direction=str(open_dir) if open_dir in ("up", "down") else None,
-            fill_mode="next_open",
+            fill_mode=exit_fill_mode,
             trace={"stage": "pending", "pending_kind": "exit", "due": pending_exit_due_ts.isoformat()},
         )
     return SpotLifecycleDecision(intent="hold", reason="no_pending", gate="HOLDING", trace={"stage": "pending"})
@@ -800,6 +1133,7 @@ def decide_open_position_intent(
     shock_atr_vel_pct: float | None = None,
     shock_atr_accel_pct: float | None = None,
     tr_ratio: float | None = None,
+    tr_median_pct: float | None = None,
     slope_med_pct: float | None = None,
     slope_vel_pct: float | None = None,
     slope_med_slow_pct: float | None = None,
@@ -813,6 +1147,7 @@ def decide_open_position_intent(
         exit_candidates=exit_candidates,
         exit_priority=exit_priority,
         tr_ratio=tr_ratio,
+        tr_median_pct=tr_median_pct,
         slope_med_pct=slope_med_pct,
         slope_vel_pct=slope_vel_pct,
         slope_med_slow_pct=slope_med_slow_pct,
@@ -823,7 +1158,11 @@ def decide_open_position_intent(
     exit_reason = exit_pick.reason
     if exit_reason:
         flip_fill = _normalize_fill_mode(_get(strategy, "spot_flip_exit_fill_mode", "close"), default="close")
-        fill_mode = "next_open" if exit_reason == "flip" and flip_fill == "next_open" else "close"
+        fill_mode = (
+            str(flip_fill)
+            if exit_reason == "flip" and spot_fill_mode_is_deferred(flip_fill)
+            else SPOT_FILL_MODE_CLOSE
+        )
 
         queue_reentry_dir = None
         if bool(_get(strategy, "spot_controlled_flip", False)) and exit_reason == "flip":
@@ -964,6 +1303,7 @@ def decide_flat_position_intent(
     shock_atr_vel_pct: float | None = None,
     shock_atr_accel_pct: float | None = None,
     tr_ratio: float | None = None,
+    tr_median_pct: float | None = None,
     slope_med_pct: float | None = None,
     slope_vel_pct: float | None = None,
     slope_med_slow_pct: float | None = None,
@@ -1054,7 +1394,7 @@ def decide_flat_position_intent(
         )
 
     fill_mode = _normalize_fill_mode(_get(strategy, "spot_entry_fill_mode", "close"), default="close")
-    if fill_mode == "next_open" and not bool(next_open_allowed):
+    if spot_fill_mode_is_next_tradable(fill_mode) and not bool(next_open_allowed):
         return SpotLifecycleDecision(
             intent="hold",
             reason="next_open_not_allowed",
@@ -1073,6 +1413,7 @@ def decide_flat_position_intent(
         shock_atr_vel_pct=shock_atr_vel_pct,
         shock_atr_accel_pct=shock_atr_accel_pct,
         tr_ratio=tr_ratio,
+        tr_median_pct=tr_median_pct,
         slope_med_pct=slope_med_pct,
         slope_vel_pct=slope_vel_pct,
         slope_med_slow_pct=slope_med_slow_pct,

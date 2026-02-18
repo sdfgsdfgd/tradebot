@@ -681,11 +681,14 @@ def spot_calc_signed_qty(
     shock: bool | None,
     shock_dir: str | None,
     shock_atr_pct: float | None,
+    shock_dir_down_streak_bars: int | None = None,
     riskoff: bool = False,
     risk_dir: str | None = None,
     riskpanic: bool = False,
     riskpop: bool = False,
     risk: RiskOverlaySnapshot | None = None,
+    signal_entry_dir: str | None = None,
+    signal_regime_dir: str | None = None,
     equity_ref: float,
     cash_ref: float | None,
 ) -> int:
@@ -701,11 +704,14 @@ def spot_calc_signed_qty(
         shock=shock,
         shock_dir=shock_dir,
         shock_atr_pct=shock_atr_pct,
+        shock_dir_down_streak_bars=shock_dir_down_streak_bars,
         riskoff=riskoff,
         risk_dir=risk_dir,
         riskpanic=riskpanic,
         riskpop=riskpop,
         risk=risk,
+        signal_entry_dir=signal_entry_dir,
+        signal_regime_dir=signal_regime_dir,
         equity_ref=equity_ref,
         cash_ref=cash_ref,
     )
@@ -723,11 +729,14 @@ def spot_calc_signed_qty_with_trace(
     shock: bool | None,
     shock_dir: str | None,
     shock_atr_pct: float | None,
+    shock_dir_down_streak_bars: int | None = None,
     riskoff: bool = False,
     risk_dir: str | None = None,
     riskpanic: bool = False,
     riskpop: bool = False,
     risk: RiskOverlaySnapshot | None = None,
+    signal_entry_dir: str | None = None,
+    signal_regime_dir: str | None = None,
     equity_ref: float = 0.0,
     cash_ref: float | None = None,
 ) -> tuple[int, SpotDecisionTrace]:
@@ -743,11 +752,14 @@ def spot_calc_signed_qty_with_trace(
         shock=shock,
         shock_dir=shock_dir,
         shock_atr_pct=shock_atr_pct,
+        shock_dir_down_streak_bars=shock_dir_down_streak_bars,
         riskoff=riskoff,
         risk_dir=risk_dir,
         riskpanic=riskpanic,
         riskpop=riskpop,
         risk=risk,
+        signal_entry_dir=signal_entry_dir,
+        signal_regime_dir=signal_regime_dir,
         equity_ref=equity_ref,
         cash_ref=cash_ref,
     )
@@ -1251,12 +1263,14 @@ class _ShockDirectionMixin:
     _dir_prev_close: float | None
     _ret_hist: deque[float]
     _direction: str | None
+    _direction_ret_sum_pct: float | None
 
     def _init_direction_state(self, direction_lookback: int) -> None:
         self._dir_lookback = max(1, int(direction_lookback))
         self._dir_prev_close = None
         self._ret_hist = deque(maxlen=self._dir_lookback)
         self._direction = None
+        self._direction_ret_sum_pct = None
 
     def _update_direction(self, close: float) -> None:
         prev_close = self._dir_prev_close
@@ -1265,15 +1279,19 @@ class _ShockDirectionMixin:
             self._ret_hist.append((float(close) / float(prev_close)) - 1.0)
             if len(self._ret_hist) >= self._dir_lookback:
                 ret_sum = float(sum(self._ret_hist))
+                self._direction_ret_sum_pct = float(ret_sum * 100.0)
                 if ret_sum > 0:
                     self._direction = "up"
                 elif ret_sum < 0:
                     self._direction = "down"
+                else:
+                    self._direction = None
 
-    def _direction_state(self) -> tuple[str | None, bool]:
+    def _direction_state(self) -> tuple[str | None, bool, float | None]:
         direction = str(self._direction) if self._direction in ("up", "down") else None
         direction_ready = bool(direction in ("up", "down") and len(self._ret_hist) >= self._dir_lookback)
-        return direction, direction_ready
+        ret_sum_pct = float(self._direction_ret_sum_pct) if self._direction_ret_sum_pct is not None else None
+        return direction, direction_ready, ret_sum_pct
 
 
 @dataclass(frozen=True)
@@ -1286,6 +1304,7 @@ class AtrRatioShockSnapshot:
     atr_slow: float | None = None
     direction: str | None = None  # "up" | "down"
     direction_ready: bool = False
+    direction_ret_sum_pct: float | None = None
 
 
 class AtrRatioShockEngine(_ShockDirectionMixin):
@@ -1330,7 +1349,7 @@ class AtrRatioShockEngine(_ShockDirectionMixin):
         self._last_atr_slow: float | None = None
 
     def _snapshot(self) -> AtrRatioShockSnapshot:
-        direction, direction_ready = self._direction_state()
+        direction, direction_ready, direction_ret_sum_pct = self._direction_state()
         if not bool(self._atr_ready):
             return AtrRatioShockSnapshot(
                 shock=False,
@@ -1341,6 +1360,7 @@ class AtrRatioShockEngine(_ShockDirectionMixin):
                 atr_slow=float(self._last_atr_slow) if self._last_atr_slow is not None else None,
                 direction=direction,
                 direction_ready=direction_ready,
+                direction_ret_sum_pct=direction_ret_sum_pct,
             )
         return AtrRatioShockSnapshot(
             shock=bool(self._shock),
@@ -1351,6 +1371,7 @@ class AtrRatioShockEngine(_ShockDirectionMixin):
             atr_slow=float(self._last_atr_slow) if self._last_atr_slow is not None else None,
             direction=direction,
             direction_ready=direction_ready,
+            direction_ret_sum_pct=direction_ret_sum_pct,
         )
 
     def update(
@@ -1408,6 +1429,7 @@ class TrRatioShockSnapshot:
     tr_slow: float | None = None
     direction: str | None = None  # "up" | "down"
     direction_ready: bool = False
+    direction_ret_sum_pct: float | None = None
 
 
 class TrRatioShockEngine(_ShockDirectionMixin):
@@ -1459,7 +1481,7 @@ class TrRatioShockEngine(_ShockDirectionMixin):
         )
 
     def _snapshot(self) -> TrRatioShockSnapshot:
-        direction, direction_ready = self._direction_state()
+        direction, direction_ready, direction_ret_sum_pct = self._direction_state()
         if not bool(self._ready):
             return TrRatioShockSnapshot(
                 shock=False,
@@ -1470,6 +1492,7 @@ class TrRatioShockEngine(_ShockDirectionMixin):
                 tr_slow=float(self._last_tr_slow) if self._last_tr_slow is not None else None,
                 direction=direction,
                 direction_ready=direction_ready,
+                direction_ret_sum_pct=direction_ret_sum_pct,
             )
         return TrRatioShockSnapshot(
             shock=bool(self._shock),
@@ -1480,6 +1503,7 @@ class TrRatioShockEngine(_ShockDirectionMixin):
             tr_slow=float(self._last_tr_slow) if self._last_tr_slow is not None else None,
             direction=direction,
             direction_ready=direction_ready,
+            direction_ret_sum_pct=direction_ret_sum_pct,
         )
 
     def update(
@@ -1538,6 +1562,7 @@ class DailyAtrPctShockSnapshot:
     tr: float | None = None
     direction: str | None = None  # "up" | "down"
     direction_ready: bool = False
+    direction_ret_sum_pct: float | None = None
 
 
 class DailyAtrPctShockEngine(_ShockDirectionMixin):
@@ -1624,7 +1649,7 @@ class DailyAtrPctShockEngine(_ShockDirectionMixin):
         atr: float | None,
         tr: float | None,
     ) -> DailyAtrPctShockSnapshot:
-        direction, direction_ready = self._direction_state()
+        direction, direction_ready, direction_ret_sum_pct = self._direction_state()
         return DailyAtrPctShockSnapshot(
             shock=bool(shock),
             ready=bool(ready),
@@ -1633,6 +1658,7 @@ class DailyAtrPctShockEngine(_ShockDirectionMixin):
             tr=float(tr) if tr is not None else None,
             direction=direction,
             direction_ready=direction_ready,
+            direction_ret_sum_pct=direction_ret_sum_pct,
         )
 
     def update(
@@ -1731,6 +1757,7 @@ class DailyDrawdownShockSnapshot:
     peak_close: float | None = None
     direction: str | None = None  # "up" | "down"
     direction_ready: bool = False
+    direction_ret_sum_pct: float | None = None
 
 
 class DailyDrawdownShockEngine(_ShockDirectionMixin):
@@ -1781,7 +1808,7 @@ class DailyDrawdownShockEngine(_ShockDirectionMixin):
         drawdown_pct: float | None,
         peak_close: float | None,
     ) -> DailyDrawdownShockSnapshot:
-        direction, direction_ready = self._direction_state()
+        direction, direction_ready, direction_ret_sum_pct = self._direction_state()
         return DailyDrawdownShockSnapshot(
             shock=bool(shock),
             ready=bool(ready),
@@ -1789,6 +1816,7 @@ class DailyDrawdownShockEngine(_ShockDirectionMixin):
             peak_close=float(peak_close) if peak_close is not None else None,
             direction=direction,
             direction_ready=direction_ready,
+            direction_ret_sum_pct=direction_ret_sum_pct,
         )
 
     def update(

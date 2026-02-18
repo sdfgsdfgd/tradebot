@@ -181,9 +181,10 @@ def test_search_option_underlyers_returns_ranked_symbols() -> None:
 
     client._matching_symbols = _matching_symbols
 
-    symbols = asyncio.run(client.search_option_underlyers("bitcoin", limit=4))
+    underlyers = asyncio.run(client.search_option_underlyers("bitcoin", limit=4))
 
-    assert symbols[:2] == ["BITU", "IBIT"]
+    assert [symbol for symbol, _desc in underlyers[:2]] == ["BITU", "IBIT"]
+    assert "BITCOIN ETF" in underlyers[0][1].upper()
 
 
 def test_search_contracts_opt_honors_forced_underlyer_symbol() -> None:

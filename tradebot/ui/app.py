@@ -42,6 +42,7 @@ from .common import (
     _portfolio_sort_key,
     _quote_status_line,
     _safe_num,
+    _sanitize_nbbo,
     _ticker_close,
     _ticker_line,
     _ticker_price,
@@ -318,6 +319,7 @@ class PositionsApp(App):
         self._search_ticker_con_ids: set[int] = set()
         self._search_ticker_loading: set[int] = set()
         self._search_opt_underlyers: list[str] = []
+        self._search_opt_underlyer_descriptions: dict[str, str] = {}
         self._search_opt_underlyer_index = 0
         self._search_opt_chain_cache: dict[str, list[Contract]] = {}
         self._search_task: asyncio.Task | None = None
@@ -329,6 +331,7 @@ class PositionsApp(App):
             id="positions",
             zebra_stripes=True,
             show_row_labels=False,
+            cell_padding=0,
             cursor_foreground_priority="renderable",
             cursor_background_priority="css",
         )
@@ -409,6 +412,27 @@ class PositionsApp(App):
         left = pad // 2
         right = pad - left
         return f"{' ' * left}{raw}{' ' * right}"
+
+    @staticmethod
+    def _center_with_sep_bias(
+        value: str,
+        width: int,
+        *,
+        max_left_gap: int | None = None,
+        max_right_gap: int | None = None,
+    ) -> str:
+        segment = value.center(width)
+        if max_right_gap is not None:
+            right_pad = len(segment) - len(segment.rstrip(" "))
+            if right_pad > max_right_gap:
+                shift = right_pad - max_right_gap
+                segment = (" " * shift) + segment[:-shift]
+        if max_left_gap is not None:
+            left_pad = len(segment) - len(segment.lstrip(" "))
+            if left_pad > max_left_gap:
+                shift = left_pad - max_left_gap
+                segment = segment[shift:] + (" " * shift)
+        return segment
 
     async def action_refresh(self) -> None:
         await self.refresh_positions(hard=True)
@@ -594,6 +618,7 @@ class PositionsApp(App):
         self._search_side = 0
         self._search_opt_expiry_index = 0
         self._search_opt_underlyers = []
+        self._search_opt_underlyer_descriptions = {}
         self._search_opt_underlyer_index = 0
         self._search_opt_chain_cache = {}
         self._search_loading = False
@@ -613,6 +638,7 @@ class PositionsApp(App):
         self._search_side = 0
         self._search_opt_expiry_index = 0
         self._search_opt_underlyers = []
+        self._search_opt_underlyer_descriptions = {}
         self._search_opt_underlyer_index = 0
         self._search_opt_chain_cache = {}
         self._search_loading = False
@@ -639,6 +665,7 @@ class PositionsApp(App):
         self._search_side = 0
         self._search_opt_expiry_index = 0
         self._search_opt_underlyers = []
+        self._search_opt_underlyer_descriptions = {}
         self._search_opt_underlyer_index = 0
         self._search_opt_chain_cache = {}
         self._queue_search()
@@ -699,6 +726,17 @@ class PositionsApp(App):
         )
         symbol = str(self._search_opt_underlyers[self._search_opt_underlyer_index] or "").strip().upper()
         return symbol or None
+
+    def _current_opt_underlyer_description(self) -> str:
+        symbol = self._current_opt_underlyer()
+        if not symbol:
+            return ""
+        text = str(self._search_opt_underlyer_descriptions.get(symbol, "") or "").strip()
+        if not text:
+            return ""
+        if text.strip().upper() == symbol:
+            return ""
+        return text
 
     def _cycle_search_opt_underlyer(self, step: int) -> None:
         if self._search_mode() != "OPT":
@@ -940,6 +978,7 @@ class PositionsApp(App):
         self._search_scroll = 0
         self._search_opt_expiry_index = 0
         self._search_opt_underlyers = []
+        self._search_opt_underlyer_descriptions = {}
         self._search_opt_underlyer_index = 0
         self._search_opt_chain_cache = {}
         self._cancel_search_task()
@@ -979,7 +1018,16 @@ class PositionsApp(App):
                 )
                 if generation != self._search_generation:
                     return
-                self._search_opt_underlyers = list(underlyers)
+                self._search_opt_underlyers = []
+                self._search_opt_underlyer_descriptions = {}
+                for symbol, description in underlyers:
+                    cleaned_symbol = str(symbol or "").strip().upper()
+                    if not cleaned_symbol or cleaned_symbol in self._search_opt_underlyers:
+                        continue
+                    self._search_opt_underlyers.append(cleaned_symbol)
+                    self._search_opt_underlyer_descriptions[cleaned_symbol] = str(
+                        description or ""
+                    ).strip()
                 if not self._search_opt_underlyers:
                     results: list[Contract] = []
                 else:
@@ -1103,6 +1151,10 @@ class PositionsApp(App):
             underlyer_line = Text("Underlyer ", style="dim")
             if underlyer_label:
                 underlyer_line.append(underlyer_label, style="bold #86dca9")
+                underlyer_desc = self._current_opt_underlyer_description()
+                if underlyer_desc:
+                    underlyer_line.append("  |  ", style="dim")
+                    underlyer_line.append(underlyer_desc, style="bold #b7cadc")
                 if len(self._search_opt_underlyers) > 1:
                     underlyer_line.append("  (< / > or Ctrl+Left/Right)", style="dim")
             else:
@@ -1155,6 +1207,14 @@ class PositionsApp(App):
                             active=idx == self._search_selected,
                         )
                     )
+                selected_contract = self._selected_opt_contract()
+                if selected_contract is not None:
+                    selected_line = Text("Selected ", style="dim")
+                    selected_line.append(
+                        self._search_contract_description(selected_contract),
+                        style="bold #9fd7ff",
+                    )
+                    lines.append(selected_line)
                 if total > self._SEARCH_LIMIT:
                     lines.append(Text(f"Rows {start + 1}-{end}/{total}", style="dim"))
         else:
@@ -1247,22 +1307,67 @@ class PositionsApp(App):
         line.append(put_text, style=right_style)
         return line
 
-    def _open_search_selection(self) -> None:
+    @staticmethod
+    def _search_contract_description(contract: Contract) -> str:
+        sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
+        symbol = str(getattr(contract, "symbol", "") or "").strip().upper() or "?"
+        expiry = str(getattr(contract, "lastTradeDateOrContractMonth", "") or "").strip()
+        right = str(getattr(contract, "right", "") or "").strip().upper()[:1]
+        strike_raw = getattr(contract, "strike", None)
+        strike_text = ""
+        if strike_raw not in (None, ""):
+            try:
+                strike_text = f"{float(strike_raw):.2f}"
+            except (TypeError, ValueError):
+                strike_text = str(strike_raw)
+        local_symbol = str(getattr(contract, "localSymbol", "") or "").strip()
+        exchange = str(getattr(contract, "exchange", "") or "").strip().upper()
+        con_id = int(getattr(contract, "conId", 0) or 0)
+        summary_parts: list[str] = [symbol]
+        if expiry:
+            summary_parts.append(expiry)
+        if sec_type in ("OPT", "FOP"):
+            if right == "C":
+                summary_parts.append("CALL")
+            elif right == "P":
+                summary_parts.append("PUT")
+            elif right:
+                summary_parts.append(right)
+            if strike_text:
+                summary_parts.append(strike_text)
+        summary = " ".join(part for part in summary_parts if part) or symbol
+        detail_parts: list[str] = []
+        if local_symbol and local_symbol.upper() != summary.upper():
+            detail_parts.append(local_symbol)
+        if exchange:
+            detail_parts.append(exchange)
+        if con_id > 0:
+            detail_parts.append(f"conId {con_id}")
+        if detail_parts:
+            return f"{summary}  |  {'  |  '.join(detail_parts)}"
+        return summary
+
+    def _selected_opt_contract(self) -> Contract | None:
+        rows = self._option_pair_rows()
+        if not rows:
+            return None
+        index = min(max(self._search_selected, 0), len(rows) - 1)
+        call_contract, put_contract = rows[index]
+        contract = call_contract if self._search_side == 0 else put_contract
+        if contract is None:
+            contract = put_contract if self._search_side == 0 else call_contract
+        return contract
+
+    def _selected_search_contract(self) -> Contract | None:
         if not self._search_results:
-            return
-        contract: Contract | None = None
+            return None
         if self._search_mode() == "OPT":
-            rows = self._option_pair_rows()
-            if not rows:
-                return
-            index = min(max(self._search_selected, 0), len(rows) - 1)
-            call_contract, put_contract = rows[index]
-            contract = call_contract if self._search_side == 0 else put_contract
-            if contract is None:
-                contract = put_contract if self._search_side == 0 else call_contract
-        else:
-            index = min(max(self._search_selected, 0), len(self._search_results) - 1)
-            contract = self._search_results[index]
+            return self._selected_opt_contract()
+        index = min(max(self._search_selected, 0), len(self._search_results) - 1)
+        return self._search_results[index]
+
+    def _open_search_selection(self) -> None:
+        contract = self._selected_search_contract()
         if contract is None:
             return
         item = self._portfolio_item_for_contract(contract)
@@ -1299,6 +1404,10 @@ class PositionsApp(App):
             self._dirty = True
             return
         async with self._refresh_lock:
+            # Kick off non-blocking market-data warmup first so index/proxy
+            # streams can initialize while portfolio snapshot is loading.
+            self._client.start_index_tickers()
+            self._client.start_proxy_tickers()
             try:
                 if hard:
                     await self._client.hard_refresh()
@@ -1307,8 +1416,6 @@ class PositionsApp(App):
             except Exception as exc:  # pragma: no cover - UI surface
                 self._snapshot.update([], str(exc))
             self._sync_session_tickers()
-            self._client.start_index_tickers()
-            self._client.start_proxy_tickers()
             self._index_tickers = self._client.index_tickers()
             self._index_error = self._client.index_error()
             self._proxy_tickers = self._client.proxy_tickers()
@@ -1453,7 +1560,12 @@ class PositionsApp(App):
         )
         self._row_keys.append(header_key)
         for item in rows:
-            row_key = f"{sec_type}:{item.contract.conId}"
+            base_row_key = self._portfolio_row_key(item)
+            row_key = base_row_key
+            suffix = 2
+            while row_key in self._row_item_by_key or row_key in self._row_keys:
+                row_key = f"{base_row_key}:{suffix}"
+                suffix += 1
             change_text = self._contract_change_text(item)
             unreal_text, unreal_pct_text = self._unreal_texts(item)
             row_values = _portfolio_row(
@@ -1471,6 +1583,31 @@ class PositionsApp(App):
             )
             self._row_keys.append(row_key)
             self._row_item_by_key[row_key] = item
+
+    @staticmethod
+    def _portfolio_row_key(item: PortfolioItem) -> str:
+        contract = getattr(item, "contract", None)
+        if contract is None:
+            return "UNK"
+        sec_type = str(getattr(contract, "secType", "") or "").strip().upper() or "UNK"
+        con_id = int(getattr(contract, "conId", 0) or 0)
+        if con_id > 0:
+            return f"{sec_type}:{con_id}"
+        symbol = str(getattr(contract, "symbol", "") or "").strip().upper() or "?"
+        exchange = str(getattr(contract, "exchange", "") or "").strip().upper()
+        local_symbol = str(getattr(contract, "localSymbol", "") or "").strip().upper()
+        if sec_type in ("OPT", "FOP"):
+            expiry = str(getattr(contract, "lastTradeDateOrContractMonth", "") or "").strip().upper()
+            right = str(getattr(contract, "right", "") or "").strip().upper()[:1]
+            strike_raw = getattr(contract, "strike", None)
+            strike = ""
+            if strike_raw not in (None, ""):
+                try:
+                    strike = f"{float(strike_raw):.6f}".rstrip("0").rstrip(".")
+                except (TypeError, ValueError):
+                    strike = str(strike_raw).strip().upper()
+            return f"{sec_type}:{symbol}:{expiry}:{right}:{strike}:{exchange}:{local_symbol}"
+        return f"{sec_type}:{symbol}:{exchange}:{local_symbol}"
 
     def _section_header_row(self, title: str, sec_type: str) -> list[Text]:
         style = self._SECTION_HEADER_STYLE_BY_TYPE.get(sec_type, "bold white on #2b2b2b")
@@ -1701,12 +1838,14 @@ class PositionsApp(App):
         if not con_id:
             return Text("")
         ticker = self._client.ticker_for_con_id(con_id)
-        bid = _safe_num(getattr(ticker, "bid", None)) if ticker else None
-        ask = _safe_num(getattr(ticker, "ask", None)) if ticker else None
-        last = _safe_num(getattr(ticker, "last", None)) if ticker else None
+        bid, ask, last = _sanitize_nbbo(
+            getattr(ticker, "bid", None) if ticker else None,
+            getattr(ticker, "ask", None) if ticker else None,
+            getattr(ticker, "last", None) if ticker else None,
+        )
         has_live_quote = bool(
-            (bid is not None and ask is not None and bid > 0 and ask > 0 and bid <= ask)
-            or (last is not None and last > 0)
+            (bid is not None and ask is not None and bid <= ask)
+            or (last is not None)
         )
         quote_price = _ticker_price(ticker) if ticker else None
         price = quote_price
@@ -1793,9 +1932,14 @@ class PositionsApp(App):
         if len(right_plain) > right_width:
             right_plain = right_plain[:right_width]
 
-        left_block = left_plain.center(left_width)
-        mid_block = mid_plain.center(mid_width)
-        right_block = right_plain.center(right_width)
+        left_block = self._center_with_sep_bias(left_plain, left_width, max_right_gap=1)
+        mid_block = self._center_with_sep_bias(
+            mid_plain,
+            mid_width,
+            max_left_gap=1,
+            max_right_gap=1,
+        )
+        right_block = self._center_with_sep_bias(right_plain, right_width, max_left_gap=1)
 
         ribbon_text = Text(" " * ribbon_width)
         if ribbon is not None and ribbon.plain:
@@ -1808,9 +1952,9 @@ class PositionsApp(App):
 
         text = Text("")
         text.append(left_block, style=self._pct_text_style(pct24 if pct24 is not None else ref))
-        text.append(" ¦ ", style="grey35")
+        text.append("¦", style="grey35")
         text.append(mid_block, style=self._pct_text_style(pct24))
-        text.append(" · ", style="dim")
+        text.append("·", style="dim")
         text.append(right_block, style=self._pct_text_style(pct72))
         text.append(" ", style="dim")
         text.append_text(ribbon_text)
@@ -1908,17 +2052,17 @@ class PositionsApp(App):
         pct_plain = f"({pct:.2f}%)" if pct is not None else "n/a"
 
         # Ordered layout:
-        # [outer pad][left value col][space|space][right pct col][outer pad]
+        # [outer pad][left value col][separator][right pct col][outer pad]
         outer_pad = 3
-        sep = " · "
+        sep = "·"
         right_width = 10
         core_width = max(width - (outer_pad * 2), 1)
         left_width = max(core_width - len(sep) - right_width, 1)
 
         if len(left_plain) > left_width:
             left_plain = left_plain[:left_width]
-        left_part = left_plain.center(left_width)
-        right_part = pct_plain.center(right_width)
+        left_part = self._center_with_sep_bias(left_plain, left_width, max_right_gap=1)
+        right_part = self._center_with_sep_bias(pct_plain, right_width, max_left_gap=1)
         core_plain = f"{left_part}{sep}{right_part}"
 
         if len(core_plain) < core_width:
@@ -1965,8 +2109,11 @@ class PositionsApp(App):
         contract = item.contract
         if contract.secType not in _SECTION_TYPES:
             return Text(""), Text("")
+        con_id = int(getattr(contract, "conId", 0) or 0)
         mark_price, _is_estimate = self._mark_price(item)
-        official_unreal = self._float_or_none(getattr(item, "unrealizedPNL", None))
+        official_unreal = self._client.pnl_single_unrealized(con_id)
+        if official_unreal is None and not self._client.has_pnl_single_subscription(con_id):
+            official_unreal = self._float_or_none(getattr(item, "unrealizedPNL", None))
         est_unreal, est_pct = self._live_unrealized_metrics(item, mark_price)
         _official_pnl, official_pct = _unrealized_pnl_values(item, mark_price=mark_price)
         display_pct = est_pct if est_pct is not None else official_pct
@@ -2053,6 +2200,7 @@ class PositionsApp(App):
             self._index_tickers,
             self._index_error,
             prefix,
+            allow_display_fallback=True,
         )
         line2 = _ticker_line(
             _PROXY_ORDER,

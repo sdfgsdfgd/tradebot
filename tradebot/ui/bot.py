@@ -25,6 +25,7 @@ from ..engine import (
     resolve_spot_regime_spec,
     spot_riskoff_end_hour,
 )
+from ..spot.graph import spot_dynamic_flip_hold_bars
 from ..spot.lifecycle import flip_exit_gate_blocked, flip_exit_hit
 from ..series import BarSeries, BarSeriesMeta
 from ..series_cache import series_cache_service
@@ -38,6 +39,7 @@ from ..time_utils import now_et as _now_et
 from ..time_utils import now_et_naive as _now_et_naive
 from ..time_utils import to_et as _to_et_shared
 from ..utils.date_utils import business_days_until
+from .readme_retrievers import extract_current_slv_hf_json_path, extract_current_slv_lf_json_path
 from .common import (
     _SECTION_TYPES,
     _cost_basis,
@@ -56,6 +58,7 @@ from .common import (
     _quote_status_line,
     _round_to_tick,
     _safe_num,
+    _sanitize_nbbo,
     _tick_size,
     _ticker_price,
     _trade_sort_key,
@@ -301,7 +304,7 @@ class BotConfigScreen(Screen[_BotConfigResult | None]):
                         "Spot next-open session",
                         "enum",
                         "spot_next_open_session",
-                        options=("auto", "rth", "extended", "always"),
+                        options=("auto", "rth", "extended", "tradable_24x5", "always"),
                     ),
                     _BotConfigField(
                         "Spot exec feed",
@@ -818,6 +821,10 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             self._client.release_ticker(con_id, owner="bot")
         self._tracked_conids.clear()
         self._journal_write(event="SHUTDOWN", reason=None, data=None)
+        try:
+            self._journal.close()
+        except Exception:
+            pass
 
     async def on_screen_resume(self) -> None:
         if self._refresh_lock.locked():
@@ -1344,6 +1351,34 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                 return None
             group = dict(group)
             group["_source"] = f"champion:{symbol}:v{version}"
+            entries = group.get("entries")
+            if isinstance(entries, list):
+                hydrated_entries: list[dict] = []
+                for raw_entry in entries:
+                    if not isinstance(raw_entry, dict):
+                        continue
+                    entry = dict(raw_entry)
+                    strategy_raw = entry.get("strategy")
+                    if isinstance(strategy_raw, dict):
+                        strategy = dict(strategy_raw)
+                        mode_raw = str(strategy.get("spot_next_open_session") or "").strip()
+                        sec_type = str(strategy.get("spot_sec_type") or "STK").strip().upper()
+                        instrument = str(strategy.get("instrument") or "").strip().lower()
+                        use_rth_raw = strategy.get("signal_use_rth")
+                        if isinstance(use_rth_raw, str):
+                            use_rth = use_rth_raw.strip().lower() in ("1", "true", "yes", "on")
+                        else:
+                            use_rth = bool(use_rth_raw)
+                        if (
+                            instrument == "spot"
+                            and sec_type == "STK"
+                            and not use_rth
+                            and not mode_raw
+                        ):
+                            strategy["spot_next_open_session"] = "tradable_24x5"
+                        entry["strategy"] = strategy
+                    hydrated_entries.append(entry)
+                group["entries"] = hydrated_entries
 
             name = str(group.get("name") or "")
             spot_tag = f"Spot ({symbol})"
@@ -1398,36 +1433,9 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         slv_ver: str | None = None
         slv_path: Path | None = None
         if slv_readme:
-            head = re.search(
-                r"^###\s+CURRENT(?:\s+\(v(?P<ver>[^)]+)\))?",
-                slv_readme,
-                flags=re.MULTILINE | re.IGNORECASE,
-            )
-            if head:
-                slv_ver = str(head.group("ver") or "").strip() or None
-                tail = slv_readme[head.end() :]
-                next_head = re.search(r"^###\s+", tail, flags=re.MULTILINE)
-                section = tail[: next_head.start()] if next_head else tail
-                match = re.search(r"`(?P<path>backtests/slv/[^`]+\.json)`", section)
-                if match is None:
-                    match = re.search(r"(?P<path>backtests/slv/[^\s)]+\.json)", section)
-                if match:
-                    slv_path = _resolve_existing_json(match.group("path"))
-
-            if slv_path is None:
-                slv_dir = repo_root / "backtests" / "slv"
-                candidates: list[Path] = []
-                ver_tokens: list[str] = []
-                if slv_ver:
-                    ver_tokens.append(slv_ver)
-                    major = slv_ver.split(".", 1)[0].strip()
-                    if major and major not in ver_tokens:
-                        ver_tokens.append(major)
-                patterns = [f"slv*v{token}_*top*.json" for token in ver_tokens] or ["slv*top*.json"]
-                for pattern in patterns:
-                    candidates.extend(sorted(slv_dir.glob(pattern)))
-                if candidates:
-                    slv_path = max(candidates, key=lambda p: p.stat().st_mtime)
+            slv_ver, slv_rel_path = extract_current_slv_lf_json_path(slv_readme)
+            if slv_rel_path:
+                slv_path = _resolve_existing_json(slv_rel_path)
 
         if slv_path:
             version_label = slv_ver or "?"
@@ -1441,27 +1449,9 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         slv_hf_ver: str | None = None
         slv_hf_path: Path | None = None
         if slv_hf_readme:
-            head = re.search(
-                r"^###\s+CURRENT(?:\s+\(v(?P<ver>[^)]+)\))?",
-                slv_hf_readme,
-                flags=re.MULTILINE | re.IGNORECASE,
-            )
-            if head:
-                slv_hf_ver = str(head.group("ver") or "").strip() or None
-                tail = slv_hf_readme[head.end() :]
-                next_head = re.search(r"^###\s+", tail, flags=re.MULTILINE)
-                section = tail[: next_head.start()] if next_head else tail
-                match = re.search(r"`(?P<path>backtests/slv/[^`]+\.json)`", section)
-                if match is None:
-                    match = re.search(r"(?P<path>backtests/slv/[^\s)]+\.json)", section)
-                if match:
-                    slv_hf_path = _resolve_existing_json(match.group("path"))
-
-            if slv_hf_path is None:
-                slv_dir = repo_root / "backtests" / "slv"
-                candidates = sorted(slv_dir.glob("slv_hf_champions_v*.json"))
-                if candidates:
-                    slv_hf_path = max(candidates, key=lambda p: p.stat().st_mtime)
+            slv_hf_ver, slv_hf_rel_path = extract_current_slv_hf_json_path(slv_hf_readme)
+            if slv_hf_rel_path:
+                slv_hf_path = _resolve_existing_json(slv_hf_rel_path)
 
         if slv_hf_path:
             version_label = f"HF{slv_hf_ver}" if slv_hf_ver else "HF?"
@@ -2149,7 +2139,10 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         return unreal, realized
 
     @staticmethod
-    def _log_entry_identity(entry: dict) -> tuple[str, str, str, str, str]:
+    def _log_entry_identity(entry: dict) -> tuple[str, ...]:
+        raw = entry.get("_identity")
+        if isinstance(raw, tuple) and raw:
+            return tuple(str(v) for v in raw)
         return (
             str(entry.get("instance_id") or ""),
             str(entry.get("symbol") or ""),
@@ -2185,9 +2178,18 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
     def _log_row_cells(entry: dict) -> tuple[str, str, str, str, str, str]:
         ts = entry.get("ts_et")
         repeat = int(entry.get("_repeat") or 1)
+        repeat_from_ts = entry.get("_repeat_from_ts")
         msg = str(entry.get("msg") or "")
         if repeat > 1:
-            msg = f"x{repeat} {msg}" if msg else f"x{repeat}"
+            repeat_from = (
+                _to_et_shared(repeat_from_ts, naive_ts_mode="et", default_naive_ts_mode="et").strftime("%H:%M:%S")
+                if isinstance(repeat_from_ts, datetime)
+                else ""
+            )
+            prefix = f"x{repeat}"
+            if repeat_from:
+                prefix = f"{prefix} from={repeat_from}"
+            msg = f"{prefix} {msg}" if msg else prefix
         when = (
             _to_et_shared(ts, naive_ts_mode="et", default_naive_ts_mode="et").strftime("%H:%M:%S")
             if isinstance(ts, datetime)
@@ -2201,6 +2203,16 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             str(entry.get("reason") or ""),
             msg,
         )
+
+    @staticmethod
+    def _log_row_height(entry: dict) -> int | None:
+        event = str(entry.get("event") or "")
+        msg = str(entry.get("msg") or "")
+        if "\n" in msg:
+            return None
+        if event in ("SIGNAL", "GATE"):
+            return None
+        return 1
 
     def _scroll_logs_to_tail(self) -> None:
         if not self._log_rows:
@@ -2228,10 +2240,19 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             return
         row = dict(entry)
         row["_repeat"] = int(row.get("_repeat") or 1)
+        if row["_repeat"] > 1 and not isinstance(row.get("_repeat_from_ts"), datetime):
+            if isinstance(row.get("ts_et"), datetime):
+                row["_repeat_from_ts"] = row.get("ts_et")
 
         if self._log_rows and self._log_entry_identity(self._log_rows[-1]) == self._log_entry_identity(row):
             prev = self._log_rows[-1]
-            prev["_repeat"] = int(prev.get("_repeat") or 1) + int(row.get("_repeat") or 1)
+            prev_repeat = int(prev.get("_repeat") or 1)
+            row_repeat = int(row.get("_repeat") or 1)
+            if prev_repeat == 1 and isinstance(prev.get("ts_et"), datetime):
+                prev["_repeat_from_ts"] = prev.get("ts_et")
+            if not isinstance(prev.get("_repeat_from_ts"), datetime) and isinstance(row.get("_repeat_from_ts"), datetime):
+                prev["_repeat_from_ts"] = row.get("_repeat_from_ts")
+            prev["_repeat"] = prev_repeat + row_repeat
             prev["ts_et"] = row.get("ts_et")
             when, _inst, _sym, _event, _reason, msg = self._log_row_cells(prev)
             row_index = len(self._log_rows) - 1
@@ -2249,7 +2270,11 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         self._log_seq += 1
         row_key = f"log:{self._log_seq}"
         try:
-            self._logs_table.add_row(*self._log_row_cells(row), key=row_key)
+            self._logs_table.add_row(
+                *self._log_row_cells(row),
+                key=row_key,
+                height=self._log_row_height(row),
+            )
         except Exception:
             return
         self._log_rows.append(row)
@@ -2293,24 +2318,24 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                 continue
             if scope is not None and not self._scope_all and inst_id and inst_id != str(int(scope)):
                 continue
-            event = str(entry.get("event") or "")
-            reason = str(entry.get("reason") or "")
-            symbol = str(entry.get("symbol") or "")
-            msg = str(entry.get("msg") or "")
             if compacted:
                 prev = compacted[-1]
-                if (
-                    str(prev.get("instance_id") or "") == inst_id
-                    and str(prev.get("symbol") or "") == symbol
-                    and str(prev.get("event") or "") == event
-                    and str(prev.get("reason") or "") == reason
-                    and str(prev.get("msg") or "") == msg
-                ):
-                    prev["_repeat"] = int(prev.get("_repeat") or 1) + 1
+                if self._log_entry_identity(prev) == self._log_entry_identity(entry):
+                    prev_repeat = int(prev.get("_repeat") or 1)
+                    if prev_repeat == 1 and isinstance(prev.get("ts_et"), datetime):
+                        prev["_repeat_from_ts"] = prev.get("ts_et")
+                    if not isinstance(prev.get("_repeat_from_ts"), datetime) and isinstance(
+                        entry.get("_repeat_from_ts"), datetime
+                    ):
+                        prev["_repeat_from_ts"] = entry.get("_repeat_from_ts")
+                    prev["_repeat"] = prev_repeat + int(entry.get("_repeat") or 1)
                     prev["ts_et"] = entry.get("ts_et")
                     continue
             row = dict(entry)
-            row["_repeat"] = 1
+            row["_repeat"] = int(row.get("_repeat") or 1)
+            if row["_repeat"] > 1 and not isinstance(row.get("_repeat_from_ts"), datetime):
+                if isinstance(row.get("ts_et"), datetime):
+                    row["_repeat_from_ts"] = row.get("ts_et")
             compacted.append(row)
 
         for entry in compacted:
@@ -2340,9 +2365,11 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         if len(legs) == 1 and order.order_contract.secType != "BAG":
             leg = legs[0]
             ticker = await self._client.ensure_ticker(leg.contract, owner="bot")
-            bid = _safe_num(getattr(ticker, "bid", None))
-            ask = _safe_num(getattr(ticker, "ask", None))
-            last = _safe_num(getattr(ticker, "last", None))
+            bid, ask, last = _sanitize_nbbo(
+                getattr(ticker, "bid", None),
+                getattr(ticker, "ask", None),
+                getattr(ticker, "last", None),
+            )
             limit = _limit_price_for_mode(bid, ask, last, action=leg.action, mode=mode)
             if limit is None:
                 return False
@@ -2362,9 +2389,11 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         tick = None
         for leg in legs:
             ticker = await self._client.ensure_ticker(leg.contract, owner="bot")
-            bid = _safe_num(getattr(ticker, "bid", None))
-            ask = _safe_num(getattr(ticker, "ask", None))
-            last = _safe_num(getattr(ticker, "last", None))
+            bid, ask, last = _sanitize_nbbo(
+                getattr(ticker, "bid", None),
+                getattr(ticker, "ask", None),
+                getattr(ticker, "last", None),
+            )
             mid = _midpoint(bid, ask)
             leg_mid = mid or last
             if leg_mid is None:
@@ -3084,7 +3113,62 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             volume_ema_ready=bool(snap.volume_ema_ready),
             shock=snap.shock,
             shock_dir=snap.shock_dir,
+            shock_detector=str(getattr(snap, "shock_detector", "") or "") or None,
+            shock_direction_source_effective=(
+                str(getattr(snap, "shock_direction_source_effective", "") or "") or None
+            ),
+            shock_scale_detector=str(getattr(snap, "shock_scale_detector", "") or "") or None,
+            shock_dir_ret_sum_pct=(
+                float(getattr(snap, "shock_dir_ret_sum_pct", 0.0))
+                if getattr(snap, "shock_dir_ret_sum_pct", None) is not None
+                else None
+            ),
             shock_atr_pct=float(snap.shock_atr_pct) if snap.shock_atr_pct is not None else None,
+            shock_drawdown_pct=(
+                float(getattr(snap, "shock_drawdown_pct", 0.0))
+                if getattr(snap, "shock_drawdown_pct", None) is not None
+                else None
+            ),
+            shock_drawdown_on_pct=(
+                float(getattr(snap, "shock_drawdown_on_pct", 0.0))
+                if getattr(snap, "shock_drawdown_on_pct", None) is not None
+                else None
+            ),
+            shock_drawdown_off_pct=(
+                float(getattr(snap, "shock_drawdown_off_pct", 0.0))
+                if getattr(snap, "shock_drawdown_off_pct", None) is not None
+                else None
+            ),
+            shock_drawdown_dist_on_pct=(
+                float(getattr(snap, "shock_drawdown_dist_on_pct", 0.0))
+                if getattr(snap, "shock_drawdown_dist_on_pct", None) is not None
+                else None
+            ),
+            shock_drawdown_dist_off_pct=(
+                float(getattr(snap, "shock_drawdown_dist_off_pct", 0.0))
+                if getattr(snap, "shock_drawdown_dist_off_pct", None) is not None
+                else None
+            ),
+            shock_scale_drawdown_pct=(
+                float(getattr(snap, "shock_scale_drawdown_pct", 0.0))
+                if getattr(snap, "shock_scale_drawdown_pct", None) is not None
+                else None
+            ),
+            shock_peak_close=(
+                float(getattr(snap, "shock_peak_close", 0.0))
+                if getattr(snap, "shock_peak_close", None) is not None
+                else None
+            ),
+            shock_dir_down_streak_bars=(
+                int(getattr(snap, "shock_dir_down_streak_bars", 0))
+                if getattr(snap, "shock_dir_down_streak_bars", None) is not None
+                else None
+            ),
+            shock_dir_up_streak_bars=(
+                int(getattr(snap, "shock_dir_up_streak_bars", 0))
+                if getattr(snap, "shock_dir_up_streak_bars", None) is not None
+                else None
+            ),
             risk=snap.risk,
             atr=float(snap.atr) if snap.atr is not None else None,
             or_high=float(snap.or_high) if snap.or_high is not None else None,
@@ -3695,11 +3779,19 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         ):
             return False
 
-        hold_bars_raw = instance.strategy.get("flip_exit_min_hold_bars", 0)
-        try:
-            hold_bars = int(hold_bars_raw)
-        except (TypeError, ValueError):
-            hold_bars = 0
+        tr_ratio = (
+            float(getattr(snap, "ratsv_tr_ratio", 0.0)) if getattr(snap, "ratsv_tr_ratio", None) is not None else None
+        )
+        shock_atr_vel_pct = (
+            float(getattr(snap, "shock_atr_vel_pct", 0.0))
+            if getattr(snap, "shock_atr_vel_pct", None) is not None
+            else None
+        )
+        hold_bars, _hold_trace = spot_dynamic_flip_hold_bars(
+            strategy=instance.strategy,
+            tr_ratio=tr_ratio,
+            shock_atr_vel_pct=shock_atr_vel_pct,
+        )
         if hold_bars > 0 and instance.last_entry_bar_ts is not None:
             bar_def = parse_bar_size(self._signal_bar_size(instance))
             if bar_def is not None:
