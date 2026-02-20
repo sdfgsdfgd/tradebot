@@ -1502,6 +1502,7 @@ class IBKRClient:
             error: BaseException | None = None,
             detail: str | None = None,
             bars_count: int | None = None,
+            elapsed_sec: float | None = None,
         ) -> None:
             request_ts = _now_et().isoformat()
             con_id = 0
@@ -1531,6 +1532,8 @@ class IBKRClient:
             }
             if bars_count is not None:
                 payload["bars_count"] = int(bars_count)
+            if elapsed_sec is not None:
+                payload["elapsed_sec"] = max(0.0, float(elapsed_sec))
             if error is not None:
                 payload["error"] = str(error)
                 payload["error_type"] = type(error).__name__
@@ -1561,52 +1564,79 @@ class IBKRClient:
                 detail="historical connect failed",
             )
             return []
+        timeout_sec = float(_HISTORICAL_REQUEST_TIMEOUT_SEC)
+        if timeout_sec <= 0:
+            timeout_sec = 0.001
+        started_mono = time.monotonic()
         try:
-            bars = await asyncio.wait_for(
-                ib.reqHistoricalDataAsync(
-                    req_contract,
-                    endDateTime="",
-                    durationStr=str(duration_str),
-                    barSizeSetting=str(bar_size),
-                    whatToShow=str(what_to_show),
-                    useRTH=1 if use_rth else 0,
-                    formatDate=1,
-                    keepUpToDate=False,
-                ),
-                timeout=float(_HISTORICAL_REQUEST_TIMEOUT_SEC),
+            # Use ib_insync's native historical timeout handling so the underlying
+            # request is canceled and cleaned up on timeout.
+            bars = await ib.reqHistoricalDataAsync(
+                req_contract,
+                endDateTime="",
+                durationStr=str(duration_str),
+                barSizeSetting=str(bar_size),
+                whatToShow=str(what_to_show),
+                useRTH=1 if use_rth else 0,
+                formatDate=1,
+                keepUpToDate=False,
+                timeout=float(timeout_sec),
             )
         except asyncio.TimeoutError as exc:
+            elapsed_sec = max(0.0, float(time.monotonic() - started_mono))
             _record(
                 "timeout",
                 req_contract=req_contract,
                 error=exc,
-                detail=f"historical request timed out after {_HISTORICAL_REQUEST_TIMEOUT_SEC:.1f}s",
+                detail=f"historical request timed out after {timeout_sec:.3f}s",
+                elapsed_sec=elapsed_sec,
             )
             return []
         except Exception as exc:
+            elapsed_sec = max(0.0, float(time.monotonic() - started_mono))
             _record(
                 "request_error",
                 req_contract=req_contract,
                 error=exc,
                 detail="historical request failed",
+                elapsed_sec=elapsed_sec,
             )
             return []
+        elapsed_sec = max(0.0, float(time.monotonic() - started_mono))
         try:
             bars_count = int(len(bars)) if bars is not None else 0
         except Exception:
             bars_count = 0
         if bars_count <= 0:
+            # ib_insync timeouts return an empty container after canceling the
+            # request, so classify long-empty waits as timeouts for diagnostics.
+            timeout_threshold = max(
+                float(timeout_sec) * 0.9,
+                float(timeout_sec) - min(0.05, float(timeout_sec) * 0.1),
+            )
+            if elapsed_sec >= timeout_threshold:
+                _record(
+                    "timeout",
+                    req_contract=req_contract,
+                    error=asyncio.TimeoutError(),
+                    detail=f"historical request timed out after {timeout_sec:.3f}s",
+                    bars_count=0,
+                    elapsed_sec=elapsed_sec,
+                )
+                return []
             _record(
                 "empty",
                 req_contract=req_contract,
                 detail="historical response returned no bars",
                 bars_count=0,
+                elapsed_sec=elapsed_sec,
             )
             return []
         _record(
             "ok",
             req_contract=req_contract,
             bars_count=bars_count,
+            elapsed_sec=elapsed_sec,
         )
         return bars
 

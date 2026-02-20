@@ -1586,9 +1586,11 @@ def test_request_historical_data_timeout_records_diagnostics(monkeypatch) -> Non
     client = _new_client()
     contract = Stock("SLV", "SMART", "USD")
     contract.conId = 889911
+    calls: list[dict[str, object]] = []
 
     class _SlowIB:
-        async def reqHistoricalDataAsync(self, *_args, **_kwargs):
+        async def reqHistoricalDataAsync(self, *_args, **kwargs):
+            calls.append(dict(kwargs))
             await asyncio.sleep(0.05)
             return []
 
@@ -1621,6 +1623,8 @@ def test_request_historical_data_timeout_records_diagnostics(monkeypatch) -> Non
     assert request.get("what_to_show") == "TRADES"
     assert request.get("use_rth") is False
     assert request.get("use_proxy") is True
+    assert len(calls) == 1
+    assert float(calls[0].get("timeout", 0.0) or 0.0) == 0.01
 
 
 def test_last_historical_request_tracks_per_contract_statuses() -> None:

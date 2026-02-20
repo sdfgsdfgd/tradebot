@@ -9,6 +9,7 @@ import math
 import re
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
+from typing import Optional
 
 from ib_insync import Contract, PortfolioItem, Stock
 from rich.text import Text
@@ -18,6 +19,7 @@ from textual.containers import Vertical
 from textual.screen import Screen
 from textual.widgets import DataTable, Footer, Header, Static
 
+from ..backtest.trading_calendar import is_trading_day, session_label_et
 from ..client import IBKRClient, _session_flags
 from ..engine import (
     normalize_spot_entry_signal,
@@ -82,7 +84,7 @@ _SERIES_CACHE = series_cache_service()
 _UI_SIGNAL_SNAPSHOT_NAMESPACE = "ui.signal.snapshot.v1"
 
 # region Bot UI
-class BotConfigScreen(Screen[_BotConfigResult | None]):
+class BotConfigScreen(Screen[Optional[_BotConfigResult]]):
     _HOUR_FILTER_PATHS = {
         "filters.entry_start_hour_et",
         "filters.entry_end_hour_et",
@@ -2623,6 +2625,28 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         return order[min(idx + 1, len(order) - 1)]
 
     @staticmethod
+    def _signal_duration_rank(duration: str) -> int:
+        order = ("1 D", "2 D", "1 W", "2 W", "1 M", "2 M", "3 M", "6 M", "1 Y", "2 Y")
+        cleaned = str(duration or "").strip()
+        try:
+            return order.index(cleaned)
+        except ValueError:
+            return -1
+
+    def _signal_timeout_fallback_durations(self, duration: str) -> tuple[str, ...]:
+        requested_rank = self._signal_duration_rank(str(duration))
+        week_rank = self._signal_duration_rank("1 W")
+        if requested_rank <= week_rank:
+            return ()
+        fallbacks = ("1 W", "2 D", "1 D")
+        return tuple(
+            fallback
+            for fallback in fallbacks
+            if self._signal_duration_rank(fallback) >= 0
+            and self._signal_duration_rank(fallback) < requested_rank
+        )
+
+    @staticmethod
     def _signal_zero_gap_enabled(filters: dict | None) -> bool:
         if not isinstance(filters, dict):
             return True
@@ -2646,20 +2670,26 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         now_et = _to_et_shared(now_ref, naive_ts_mode="et", default_naive_ts_mode="et")
         weekday = int(now_et.weekday())
         current = now_et.time()
-        if bool(use_rth):
-            return weekday < 5 and time(9, 30) <= current < time(16, 0)
-
         sec = str(sec_type or "").strip().upper()
-        if sec not in ("STK", "OPT"):
+        equity_like = sec in ("STK", "OPT")
+        if bool(use_rth):
+            in_rth = weekday < 5 and time(9, 30) <= current < time(16, 0)
+            if not in_rth:
+                return False
+            if equity_like and not is_trading_day(now_et.date()):
+                return False
+            return True
+
+        if not equity_like:
             return weekday < 5
 
         # Keep stale/gap expectations in parity with IBKR session handling:
-        # STK full-session has a maintenance gap between 03:50 and 04:00 ET.
-        if weekday == 5:
+        # STK/OPT full-session has a maintenance gap between 03:50 and 04:00 ET.
+        session_label = session_label_et(current)
+        if session_label is None:
             return False
-        if weekday == 6:
-            return current >= time(20, 0)
-        if weekday == 4 and current >= time(20, 0):
+        session_day = now_et.date() + timedelta(days=1) if session_label == "OVERNIGHT_LATE" else now_et.date()
+        if not is_trading_day(session_day):
             return False
 
         outside_rth, include_overnight = _session_flags(now_et)
@@ -2772,6 +2802,8 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             "recent_horizon_bars": 72,
             "gap_detected": False,
             "strict_zero_gap": bool(strict_zero_gap),
+            "gap_method": "slot_scan",
+            "gap_scan_tolerance_sec": 0.0,
         }
         if not bars or len(bars) < 2:
             return out
@@ -2783,6 +2815,8 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         gap_threshold = float(out["gap_threshold_bars"])
         recent_horizon_bars = int(out["recent_horizon_bars"])
         recent_horizon_sec = max(bar_seconds, float(recent_horizon_bars) * bar_seconds)
+        tolerance_sec = min(60.0, max(1.0, bar_seconds * 0.02))
+        out["gap_scan_tolerance_sec"] = float(tolerance_sec)
 
         last_ts = getattr(bars[-1], "ts", None)
         if not isinstance(last_ts, datetime):
@@ -2804,19 +2838,27 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             if not isinstance(prev_ts, datetime):
                 prev_ts = curr_ts
                 continue
-            delta_sec = float((curr_ts - prev_ts).total_seconds())
+            start_ts = prev_ts
+            delta_sec = float((curr_ts - start_ts).total_seconds())
             prev_ts = curr_ts
             if delta_sec <= bar_seconds:
                 continue
-            midpoint = curr_ts - timedelta(seconds=(delta_sec / 2.0))
-            expected_live = self._signal_expected_live_bars(
-                now_ref=midpoint,
-                use_rth=use_rth,
-                sec_type=sec_type,
-            )
-            if not expected_live:
+            slot_span = int(math.floor((delta_sec + tolerance_sec) / bar_seconds))
+            if slot_span <= 1:
                 continue
-            gap_bars = float(delta_sec / bar_seconds)
+            missing_live_slots = 0
+            for slot_idx in range(1, slot_span):
+                probe_ts = start_ts + timedelta(seconds=(slot_idx * bar_seconds))
+                if not self._signal_expected_live_bars(
+                    now_ref=probe_ts,
+                    use_rth=use_rth,
+                    sec_type=sec_type,
+                ):
+                    continue
+                missing_live_slots += 1
+            if missing_live_slots <= 0:
+                continue
+            gap_bars = float(1 + missing_live_slots)
             if gap_bars <= gap_threshold:
                 continue
             gap_count += 1
@@ -2904,7 +2946,30 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             cache_ttl_sec: float,
             duration_override: str | None = None,
         ) -> tuple[BarSeries | None, dict | None]:
-            req_duration = str(duration_override or duration_str)
+            requested_duration = str(duration_override or duration_str)
+            req_duration = str(requested_duration)
+            fallback_attempts: list[str] = []
+            degraded_from: str | None = None
+
+            def _request_timed_out(diag: dict | None, *, duration: str) -> bool:
+                if not isinstance(diag, dict):
+                    return False
+                status = str(diag.get("status", "") or "").strip().lower()
+                if status != "timeout":
+                    return False
+                request = diag.get("request")
+                if not isinstance(request, dict):
+                    return True
+                if str(request.get("duration_str", "") or "").strip() != str(duration):
+                    return False
+                if str(request.get("bar_size", "") or "").strip() != str(bar_size):
+                    return False
+                if str(request.get("what_to_show", "") or "").strip().upper() != str(what_to_show).strip().upper():
+                    return False
+                if bool(request.get("use_rth")) != bool(use_rth):
+                    return False
+                return True
+
             bars = await self._client.historical_bars_ohlcv(
                 contract,
                 duration_str=req_duration,
@@ -2913,26 +2978,61 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                 what_to_show=what_to_show,
                 cache_ttl_sec=cache_ttl_sec,
             )
+            if not bars and IBKRClient._is_intraday_bar_size(str(bar_size)):
+                last_diag = self._client.last_historical_request(contract)
+                if _request_timed_out(last_diag, duration=req_duration):
+                    for fallback_duration in self._signal_timeout_fallback_durations(req_duration):
+                        fallback_attempts.append(str(fallback_duration))
+                        candidate = await self._client.historical_bars_ohlcv(
+                            contract,
+                            duration_str=str(fallback_duration),
+                            bar_size=bar_size,
+                            use_rth=use_rth,
+                            what_to_show=what_to_show,
+                            cache_ttl_sec=0.0,
+                        )
+                        if candidate:
+                            bars = candidate
+                            degraded_from = str(req_duration)
+                            req_duration = str(fallback_duration)
+                            break
+
+            def _annotate_health(payload: dict | None) -> dict | None:
+                if not isinstance(payload, dict):
+                    return payload
+                out = dict(payload)
+                out["duration_str"] = str(req_duration)
+                if fallback_attempts:
+                    out["timeout_fallback_attempts"] = list(fallback_attempts)
+                if degraded_from:
+                    out["timeout_fallback_used"] = True
+                    out["timeout_fallback_from_duration"] = str(degraded_from)
+                return out
+
             if not bars:
-                return None, self._signal_bar_health(
-                    bars=None,
-                    bar_size=bar_size,
-                    now_ref=now_ref,
-                    use_rth=use_rth,
-                    sec_type=sec_type,
-                    source=what_to_show,
-                    strict_zero_gap=bool(strict_zero_gap),
+                return None, _annotate_health(
+                    self._signal_bar_health(
+                        bars=None,
+                        bar_size=bar_size,
+                        now_ref=now_ref,
+                        use_rth=use_rth,
+                        sec_type=sec_type,
+                        source=what_to_show,
+                        strict_zero_gap=bool(strict_zero_gap),
+                    )
                 )
             trimmed = trim_incomplete_last_bar(bars, bar_size=bar_size, now_ref=now_ref)
             if not trimmed:
-                return None, self._signal_bar_health(
-                    bars=None,
-                    bar_size=bar_size,
-                    now_ref=now_ref,
-                    use_rth=use_rth,
-                    sec_type=sec_type,
-                    source=what_to_show,
-                    strict_zero_gap=bool(strict_zero_gap),
+                return None, _annotate_health(
+                    self._signal_bar_health(
+                        bars=None,
+                        bar_size=bar_size,
+                        now_ref=now_ref,
+                        use_rth=use_rth,
+                        sec_type=sec_type,
+                        source=what_to_show,
+                        strict_zero_gap=bool(strict_zero_gap),
+                    )
                 )
             series = BarSeries(
                 bars=tuple(trimmed),
@@ -2945,14 +3045,16 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                     extra={"duration_str": str(req_duration), "con_id": int(con_id)},
                 ),
             )
-            return series, self._signal_bar_health(
-                bars=series.as_list(),
-                bar_size=bar_size,
-                now_ref=now_ref,
-                use_rth=use_rth,
-                sec_type=sec_type,
-                source=what_to_show,
-                strict_zero_gap=bool(strict_zero_gap),
+            return series, _annotate_health(
+                self._signal_bar_health(
+                    bars=series.as_list(),
+                    bar_size=bar_size,
+                    now_ref=now_ref,
+                    use_rth=use_rth,
+                    sec_type=sec_type,
+                    source=what_to_show,
+                    strict_zero_gap=bool(strict_zero_gap),
+                )
             )
 
         base = await _fetch(what_to_show="TRADES", cache_ttl_sec=30.0)
