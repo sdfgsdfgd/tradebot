@@ -1660,6 +1660,42 @@ def test_request_historical_data_timeout_records_diagnostics(monkeypatch) -> Non
     assert float(calls[0].get("timeout", 0.0) or 0.0) == 0.01
 
 
+def test_request_historical_data_applies_month_duration_timeout_overrides() -> None:
+    client = _new_client()
+    contract = Stock("SLV", "SMART", "USD")
+    contract.conId = 889912
+    calls: list[dict[str, object]] = []
+
+    class _CaptureIB:
+        async def reqHistoricalDataAsync(self, *_args, **kwargs):
+            calls.append(dict(kwargs))
+            return []
+
+    async def _connect_proxy() -> None:
+        return None
+
+    client._ib_proxy = _CaptureIB()  # type: ignore[assignment]
+    client.connect_proxy = _connect_proxy  # type: ignore[method-assign]
+
+    for duration, expected_timeout in (("1 M", 80.0), ("2 M", 100.0), ("3 M", 120.0)):
+        calls.clear()
+        out = asyncio.run(
+            client._request_historical_data(
+                contract,
+                duration_str=duration,
+                bar_size="10 mins",
+                what_to_show="TRADES",
+                use_rth=False,
+            )
+        )
+        assert out == []
+        assert len(calls) == 1
+        assert float(calls[0].get("timeout", 0.0) or 0.0) == float(expected_timeout)
+        diag = client.last_historical_request(contract)
+        assert isinstance(diag, dict)
+        assert float(diag.get("timeout_sec", 0.0) or 0.0) == float(expected_timeout)
+
+
 def test_request_historical_data_for_stream_rejects_incomplete_full24_stitch() -> None:
     client = _new_client()
     contract = Stock("SLV", "SMART", "USD")

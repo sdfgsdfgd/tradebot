@@ -2638,7 +2638,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         week_rank = self._signal_duration_rank("1 W")
         if requested_rank <= week_rank:
             return ()
-        fallbacks = ("1 W", "2 D", "1 D")
+        fallbacks = ("3 M", "2 M", "1 M", "1 W", "2 D", "1 D")
         return tuple(
             fallback
             for fallback in fallbacks

@@ -1521,6 +1521,7 @@ class IBKRClient:
     ):
         sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
         use_proxy = sec_type in ("STK", "OPT")
+        timeout_sec = self._historical_timeout_sec(duration_str)
 
         def _record(
             status: str,
@@ -1540,7 +1541,7 @@ class IBKRClient:
             payload: dict[str, object] = {
                 "status": str(status),
                 "ts": request_ts,
-                "timeout_sec": float(_HISTORICAL_REQUEST_TIMEOUT_SEC),
+                "timeout_sec": float(timeout_sec),
                 "request": {
                     "duration_str": str(duration_str),
                     "bar_size": str(bar_size),
@@ -1586,9 +1587,6 @@ class IBKRClient:
                 detail="historical connect failed",
             )
             return []
-        timeout_sec = float(_HISTORICAL_REQUEST_TIMEOUT_SEC)
-        if timeout_sec <= 0:
-            timeout_sec = 0.001
         started_mono = time.monotonic()
         try:
             # Use ib_insync's native historical timeout handling so the underlying
@@ -1668,6 +1666,26 @@ class IBKRClient:
         if not label:
             return True
         return not any(token in label for token in ("day", "week", "month"))
+
+    @staticmethod
+    def _historical_timeout_sec(duration_str: str) -> float:
+        base = float(_HISTORICAL_REQUEST_TIMEOUT_SEC)
+        if base <= 0:
+            base = 0.001
+        cleaned = " ".join(str(duration_str or "").strip().upper().split())
+        if cleaned.endswith("M") and " " not in cleaned:
+            prefix = cleaned[:-1]
+            if prefix.isdigit():
+                cleaned = f"{int(prefix)} M"
+        month_overrides = {
+            "1 M": 80.0,
+            "2 M": 100.0,
+            "3 M": 120.0,
+        }
+        override = month_overrides.get(cleaned)
+        if override is None:
+            return float(base)
+        return max(float(base), float(override))
 
     @staticmethod
     def _bar_time_et(ts: datetime) -> dtime:
@@ -1808,7 +1826,7 @@ class IBKRClient:
             payload: dict[str, object] = {
                 "status": str(status),
                 "ts": _now_et().isoformat(),
-                "timeout_sec": float(_HISTORICAL_REQUEST_TIMEOUT_SEC),
+                "timeout_sec": float(self._historical_timeout_sec(duration_str)),
                 "request": {
                     "duration_str": str(duration_str),
                     "bar_size": str(bar_size),
