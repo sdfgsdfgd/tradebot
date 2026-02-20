@@ -374,7 +374,7 @@ def test_run_search_opt_initial_query_uses_single_pass_contract_lookup() -> None
     assert app._search_loading is False
 
 
-def test_run_search_opt_underlyer_streams_partial_rows_before_final_cache() -> None:
+def test_run_search_opt_underlyer_uses_single_pass_contract_lookup() -> None:
     positions_app = _load_positions_app()
     app = positions_app.__new__(positions_app)
     generation = 11
@@ -414,7 +414,7 @@ def test_run_search_opt_underlyer_streams_partial_rows_before_final_cache() -> N
         right="P",
     )
     put_contract.conId = 991002
-    progress_seen: dict[str, object] = {}
+    seen_search_kwargs: dict[str, object] = {}
 
     async def _search_contracts(
         _query: str,
@@ -423,27 +423,13 @@ def test_run_search_opt_underlyer_streams_partial_rows_before_final_cache() -> N
         limit: int,
         opt_underlyer_symbol: str | None = None,
         timing: dict[str, object] | None = None,
-        opt_first_limit: int | None = None,
-        opt_progress=None,
+        **kwargs,
     ) -> list[Contract]:
         assert mode == "OPT"
         assert limit == positions_app._SEARCH_OPT_FETCH_LIMIT
         assert str(opt_underlyer_symbol or "").upper() == "NVDA"
-        assert int(opt_first_limit or 0) == positions_app._SEARCH_OPT_FIRST_PAINT_LIMIT
-        if opt_progress is not None:
-            await opt_progress(
-                [call_contract],
-                {
-                    "candidate_count": 1,
-                    "qualified_count": 1,
-                    "stage": "qualify-first",
-                    "reason": "progress",
-                    "total_ms": 7.0,
-                    "split_active": True,
-                    "first_limit": 1,
-                },
-            )
-            progress_seen["cache_rows"] = len(app._search_opt_chain_cache.get("NVDA", []))
+        seen_search_kwargs.clear()
+        seen_search_kwargs.update(kwargs)
         if timing is not None:
             timing.update(
                 {
@@ -452,8 +438,6 @@ def test_run_search_opt_underlyer_streams_partial_rows_before_final_cache() -> N
                     "stage": "done",
                     "reason": "ok",
                     "total_ms": 19.0,
-                    "split_active": True,
-                    "first_limit": 1,
                 }
             )
         return [call_contract, put_contract]
@@ -469,7 +453,8 @@ def test_run_search_opt_underlyer_streams_partial_rows_before_final_cache() -> N
         )
     )
 
-    assert int(progress_seen.get("cache_rows", 0) or 0) == 1
+    assert "opt_first_limit" not in seen_search_kwargs
+    assert "opt_progress" not in seen_search_kwargs
     assert len(app._search_opt_chain_cache.get("NVDA", [])) == 2
     assert len(app._search_results) == 2
     assert app._search_loading is False

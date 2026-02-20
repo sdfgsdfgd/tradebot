@@ -1606,19 +1606,6 @@ class PositionsApp(App):
             self._set_search_timing(generation=generation, phase="contracts", opt_deepen_pending=False)
             contract_timing: dict[str, object] = {}
             contracts_started = time.monotonic()
-            first_paint_limit = self._search_opt_first_paint_limit(fetch_limit)
-
-            async def _on_opt_progress(
-                partial_rows: list[Contract],
-                progress_timing: dict[str, object],
-            ) -> None:
-                self._apply_opt_progress_rows(
-                    generation=generation,
-                    symbol=symbol,
-                    results=list(partial_rows),
-                    contract_timing=progress_timing,
-                    contracts_started=contracts_started,
-                )
 
             results = await self._client.search_contracts(
                 query,
@@ -1626,8 +1613,6 @@ class PositionsApp(App):
                 limit=fetch_limit,
                 opt_underlyer_symbol=symbol,
                 timing=contract_timing,
-                opt_first_limit=first_paint_limit,
-                opt_progress=_on_opt_progress,
             )
             self._set_opt_search_contract_timing(
                 generation=generation,
