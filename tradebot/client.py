@@ -17,6 +17,7 @@ from typing import Callable, Iterable
 from ib_insync import (
     AccountValue,
     Contract,
+    ExecutionFilter,
     Forex,
     Future,
     IB,
@@ -60,6 +61,11 @@ _MAIN_CONTRACT_HISTORICAL_ATTEMPT_TIMEOUT_SEC = 4.5
 _HISTORICAL_REQUEST_TIMEOUT_SEC = 12.0
 _MAX_HISTORICAL_REQUEST_DIAG_ENTRIES = 256
 _ENTITLEMENT_ERROR_CODES = (10167, 354, 10089, 10090, 10091, 10168)
+_PRICE_INCREMENT_DETAILS_TIMEOUT_SEC = 1.5
+_PRICE_INCREMENT_WAIT_TIMEOUT_SEC = 3.0
+_ORDER_RECONCILE_TIMEOUT_SEC = 1.5
+_ORDER_RECONCILE_MIN_INTERVAL_SEC = 0.75
+_CLIENT_ID_FAST_PROBE_TIMEOUT_SEC = 2.0
 _MATCHING_SYMBOL_TIMEOUT_INITIAL_SEC = 5.0
 _MATCHING_SYMBOL_TIMEOUT_RETRY_SEC = 7.0
 _MATCHING_SYMBOL_MAX_ATTEMPTS = 2
@@ -231,6 +237,10 @@ class IBKRClient:
 
     async def _connect_ib(self, ib: IB, *, client_id: int) -> None:
         timeout = max(1.0, float(self._config.connect_timeout_sec))
+        key = int(client_id or 0)
+        if key > 0 and key in self._fast_connect_probe_client_ids:
+            self._fast_connect_probe_client_ids.discard(key)
+            timeout = min(timeout, float(_CLIENT_ID_FAST_PROBE_TIMEOUT_SEC))
         if hasattr(ib, "connectAsync"):
             await ib.connectAsync(
                 self._config.host,
@@ -493,8 +503,16 @@ class IBKRClient:
         last_exc: Exception | None = None
         conflict_detected = False
         rotatable_detected = False
-        for main_id, proxy_id in self._candidate_pairs(preferred_pair=self._persisted_client_id_pair):
+        preferred_pair = self._persisted_client_id_pair
+        candidates = self._candidate_pairs(preferred_pair=preferred_pair)
+        for main_id, proxy_id in candidates:
             self._persisted_client_id_pair = None
+            if (
+                preferred_pair is not None
+                and len(candidates) > 1
+                and (int(main_id), int(proxy_id)) == preferred_pair
+            ):
+                self._fast_connect_probe_client_ids.add(int(main_id))
             self._main_client_id = int(main_id)
             self._proxy_client_id = int(proxy_id)
             try:
@@ -536,7 +554,10 @@ class IBKRClient:
         last_exc: Exception | None = None
         conflict_detected = False
         rotatable_detected = False
-        for main_id, proxy_id in self._candidate_pairs(preferred_pair=preferred):
+        candidates = self._candidate_pairs(preferred_pair=preferred)
+        for main_id, proxy_id in candidates:
+            if len(candidates) > 1 and (int(main_id), int(proxy_id)) == preferred:
+                self._fast_connect_probe_client_ids.add(int(proxy_id))
             self._main_client_id = int(main_id)
             self._proxy_client_id = int(proxy_id)
             try:
@@ -600,6 +621,7 @@ class IBKRClient:
         self._proxy_lock = asyncio.Lock()
         self._historical_lock = asyncio.Lock()
         self._historical_proxy_lock = asyncio.Lock()
+        self._order_reconcile_lock = asyncio.Lock()
         self._account_updates_started = False
         self._index_contracts: dict[str, Contract] = {}
         self._index_tickers: dict[str, Ticker] = {}
@@ -651,7 +673,10 @@ class IBKRClient:
         self._order_error_cache: dict[int, tuple[float, int, str]] = {}
         self._market_rule_increments: dict[int, tuple[tuple[float, float], ...]] = {}
         self._contract_price_increments: dict[int, tuple[tuple[float, float], ...]] = {}
+        self._contract_price_increment_tasks: dict[int, asyncio.Task[tuple[tuple[float, float], ...]]] = {}
+        self._fast_connect_probe_client_ids: set[int] = set()
         self._fx_rate_cache: dict[tuple[str, str], tuple[float, float]] = {}
+        self._last_order_reconcile_mono: float = 0.0
         self._farm_connectivity_lost = False
         self._reconnect_requested = False
         self._resubscribe_main_needed = False
@@ -707,6 +732,21 @@ class IBKRClient:
         self._ib.pnlEvent += self._on_stream_update
         self._ib.pnlSingleEvent += self._on_pnl_single
         self._ib.accountValueEvent += self._on_account_value
+        for event_name in (
+            "openOrderEvent",
+            "orderStatusEvent",
+            "execDetailsEvent",
+            "commissionReportEvent",
+            "newOrderEvent",
+            "cancelOrderEvent",
+        ):
+            event = getattr(self._ib, event_name, None)
+            if event is None:
+                continue
+            try:
+                event += self._on_stream_update
+            except Exception:
+                continue
         self._ib_proxy.errorEvent += self._on_error_proxy
         self._ib_proxy.disconnectedEvent += self._on_disconnected_proxy
         self._ib_proxy.pendingTickersEvent += self._on_stream_update
@@ -817,11 +857,15 @@ class IBKRClient:
         for task in self._main_contract_watchdog_tasks.values():
             if task and not task.done():
                 task.cancel()
+        for task in self._contract_price_increment_tasks.values():
+            if task and not task.done():
+                task.cancel()
         self._proxy_contract_probe_tasks = {}
         self._proxy_contract_live_tasks = {}
         self._proxy_contract_delayed_tasks = {}
         self._main_contract_probe_tasks = {}
         self._main_contract_watchdog_tasks = {}
+        self._contract_price_increment_tasks = {}
         self._detail_tickers = {}
         self._ticker_owners = {}
         self._pnl = None
@@ -833,11 +877,13 @@ class IBKRClient:
         self._last_historical_request = None
         self._last_historical_request_by_con_id = {}
         self._fx_rate_cache = {}
+        self._fast_connect_probe_client_ids = set()
         self._resubscribe_main_needed = False
         self._resubscribe_proxy_needed = False
         self._reset_client_id_backoff()
         self._connected_main_client_id = None
         self._connected_proxy_client_id = None
+        self._last_order_reconcile_mono = 0.0
 
     async def fetch_portfolio(self) -> list[PortfolioItem]:
         """Fetch a snapshot of portfolio items (filtered by account if provided)."""
@@ -1052,6 +1098,47 @@ class IBKRClient:
         *,
         ticker: Ticker | None = None,
     ) -> tuple[tuple[float, float], ...]:
+        con_id = int(getattr(contract, "conId", 0) or 0)
+        if con_id <= 0:
+            return await self._prime_contract_price_increments_impl(contract, ticker=ticker)
+
+        task = self._contract_price_increment_tasks.get(con_id)
+        if task is None or task.done():
+            loop = asyncio.get_running_loop()
+            task = loop.create_task(
+                self._prime_contract_price_increments_impl(contract, ticker=ticker)
+            )
+            self._contract_price_increment_tasks[con_id] = task
+
+            def _cleanup(done_task: asyncio.Task, *, key: int = con_id) -> None:
+                current = self._contract_price_increment_tasks.get(key)
+                if current is done_task:
+                    self._contract_price_increment_tasks.pop(key, None)
+
+            task.add_done_callback(_cleanup)
+
+        try:
+            increments = await asyncio.wait_for(
+                asyncio.shield(task),
+                timeout=float(_PRICE_INCREMENT_WAIT_TIMEOUT_SEC),
+            )
+        except asyncio.TimeoutError:
+            increments = self._contract_price_increments.get(con_id, ())
+        except Exception:
+            increments = self._contract_price_increments.get(con_id, ())
+        if increments:
+            self._attach_price_increments(contract, increments)
+            if ticker is not None:
+                self._attach_price_increments(ticker, increments)
+                self._attach_price_increments(getattr(ticker, "contract", None), increments)
+        return increments
+
+    async def _prime_contract_price_increments_impl(
+        self,
+        contract: Contract,
+        *,
+        ticker: Ticker | None = None,
+    ) -> tuple[tuple[float, float], ...]:
         source_contract = contract
         sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
         con_id = int(getattr(contract, "conId", 0) or 0)
@@ -1076,16 +1163,23 @@ class IBKRClient:
                         self._attach_price_increments(getattr(ticker, "contract", None), cached)
                     return cached
         await self.connect()
-        details: list[object] = []
-        try:
-            details = list(await self._ib.reqContractDetailsAsync(contract) or [])
-        except Exception:
-            details = []
-        if con_id > 0 and not details:
+
+        async def _req_details(req_contract: Contract) -> list[object]:
             try:
-                details = list(await self._ib.reqContractDetailsAsync(Contract(conId=con_id)) or [])
+                return list(
+                    await asyncio.wait_for(
+                        self._ib.reqContractDetailsAsync(req_contract),
+                        timeout=float(_PRICE_INCREMENT_DETAILS_TIMEOUT_SEC),
+                    )
+                    or []
+                )
             except Exception:
-                details = []
+                return []
+
+        details: list[object] = []
+        details = await _req_details(contract)
+        if con_id > 0 and not details:
+            details = await _req_details(Contract(conId=con_id))
         detail = None
         if con_id > 0:
             for candidate in details:
@@ -1124,10 +1218,7 @@ class IBKRClient:
                     if ticker_contract is not None:
                         setattr(ticker_contract, "minTick", detail_min_tick)
         if con_id > 0 and not market_rule_ids:
-            try:
-                retry_details = list(await self._ib.reqContractDetailsAsync(Contract(conId=con_id)) or [])
-            except Exception:
-                retry_details = []
+            retry_details = await _req_details(Contract(conId=con_id))
             if retry_details:
                 retry_detail = retry_details[0]
                 retry_contract = getattr(retry_detail, "contract", None)
@@ -1161,7 +1252,13 @@ class IBKRClient:
                 rule_increments = ()
                 for _attempt in range(2):
                     try:
-                        rows = list(await self._ib.reqMarketRuleAsync(rule_id) or [])
+                        rows = list(
+                            await asyncio.wait_for(
+                                self._ib.reqMarketRuleAsync(rule_id),
+                                timeout=float(_PRICE_INCREMENT_DETAILS_TIMEOUT_SEC),
+                            )
+                            or []
+                        )
                     except Exception:
                         rows = []
                     rule_increments = self._coerce_price_increments(
@@ -1240,6 +1337,49 @@ class IBKRClient:
             return float(price_value)
         return round(float(price_value) / float(increment)) * float(increment)
 
+    @staticmethod
+    def _owner_defers_price_increment_prime(owner: str) -> bool:
+        owner_key = str(owner or "").strip().lower()
+        if not owner_key:
+            return False
+        deferred_prefixes = ("details", "details-chase", "search", "positions", "favorites")
+        for prefix in deferred_prefixes:
+            if owner_key == prefix or owner_key.startswith(f"{prefix}:"):
+                return True
+        return False
+
+    @staticmethod
+    def _consume_background_task(task: asyncio.Task) -> None:
+        if task.cancelled():
+            return
+        try:
+            task.exception()
+        except Exception:
+            return
+
+    async def _prime_price_increments_for_ticker(
+        self,
+        contract: Contract,
+        *,
+        sec_type: str,
+        owner: str,
+        ticker: Ticker | None,
+    ) -> None:
+        if sec_type not in ("OPT", "FOP", "FUT"):
+            return
+        if self._owner_defers_price_increment_prime(owner):
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                return
+            task = loop.create_task(self._prime_contract_price_increments(contract, ticker=ticker))
+            task.add_done_callback(self._consume_background_task)
+            return
+        try:
+            await self._prime_contract_price_increments(contract, ticker=ticker)
+        except Exception:
+            pass
+
     async def ensure_ticker(self, contract: Contract, *, owner: str = "default") -> Ticker:
         con_id = int(contract.conId or 0)
         sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
@@ -1303,11 +1443,12 @@ class IBKRClient:
                         self._tag_ticker_quote_meta(ticker, source="stream-close-only")
                     else:
                         self._start_main_contract_quote_probe(req_contract)
-                if sec_type in ("OPT", "FOP", "FUT"):
-                    try:
-                        await self._prime_contract_price_increments(req_contract, ticker=ticker)
-                    except Exception:
-                        pass
+                await self._prime_price_increments_for_ticker(
+                    req_contract,
+                    sec_type=sec_type,
+                    owner=owner,
+                    ticker=ticker,
+                )
                 return ticker
             if use_proxy and con_id:
                 if con_id in self._proxy_contract_force_delayed:
@@ -1323,11 +1464,12 @@ class IBKRClient:
                     self._tag_ticker_quote_meta(cached_ticker, source="stream-close-only")
                 else:
                     self._start_main_contract_quote_probe(req_contract)
-            if sec_type in ("OPT", "FOP", "FUT"):
-                try:
-                    await self._prime_contract_price_increments(req_contract, ticker=cached_ticker)
-                except Exception:
-                    pass
+            await self._prime_price_increments_for_ticker(
+                req_contract,
+                sec_type=sec_type,
+                owner=owner,
+                ticker=cached_ticker,
+            )
             return cached_ticker
         ticker = ib.reqMktData(req_contract)
         try:
@@ -1351,11 +1493,12 @@ class IBKRClient:
                 self._tag_ticker_quote_meta(ticker, source="stream-close-only")
             else:
                 self._start_main_contract_quote_probe(req_contract)
-        if sec_type in ("OPT", "FOP", "FUT"):
-            try:
-                await self._prime_contract_price_increments(req_contract, ticker=ticker)
-            except Exception:
-                pass
+        await self._prime_price_increments_for_ticker(
+            req_contract,
+            sec_type=sec_type,
+            owner=owner,
+            ticker=ticker,
+        )
         return ticker
 
     async def refresh_live_snapshot_once(self, contract: Contract) -> str | None:
@@ -1447,6 +1590,316 @@ class IBKRClient:
             if trade_con_id in targets:
                 trades.append(trade)
         return trades
+
+    @staticmethod
+    def _trade_order_ids(trade: Trade) -> tuple[int, int]:
+        order = getattr(trade, "order", None)
+        try:
+            order_id = int(getattr(order, "orderId", 0) or 0)
+        except (TypeError, ValueError):
+            order_id = 0
+        try:
+            perm_id = int(getattr(order, "permId", 0) or 0)
+        except (TypeError, ValueError):
+            perm_id = 0
+        return max(0, order_id), max(0, perm_id)
+
+    @staticmethod
+    def _ids_match(
+        *,
+        order_id: int,
+        perm_id: int,
+        candidate_order_id: int,
+        candidate_perm_id: int,
+    ) -> bool:
+        return bool(
+            (order_id > 0 and candidate_order_id > 0 and order_id == candidate_order_id)
+            or (perm_id > 0 and candidate_perm_id > 0 and perm_id == candidate_perm_id)
+        )
+
+    def trade_for_order_ids(
+        self,
+        *,
+        order_id: int = 0,
+        perm_id: int = 0,
+        include_closed: bool = True,
+    ) -> Trade | None:
+        try:
+            wanted_order_id = int(order_id or 0)
+        except (TypeError, ValueError):
+            wanted_order_id = 0
+        try:
+            wanted_perm_id = int(perm_id or 0)
+        except (TypeError, ValueError):
+            wanted_perm_id = 0
+        if wanted_order_id <= 0 and wanted_perm_id <= 0:
+            return None
+        if not self._ib.isConnected():
+            return None
+        try:
+            trades = self._ib.trades() if include_closed else self._ib.openTrades()
+        except Exception:
+            trades = []
+        for trade in reversed(list(trades or [])):
+            candidate_order_id, candidate_perm_id = self._trade_order_ids(trade)
+            if self._ids_match(
+                order_id=wanted_order_id,
+                perm_id=wanted_perm_id,
+                candidate_order_id=candidate_order_id,
+                candidate_perm_id=candidate_perm_id,
+            ):
+                return trade
+        return None
+
+    def _has_open_trade_for_order_ids(self, *, order_id: int, perm_id: int) -> bool:
+        if not self._ib.isConnected():
+            return False
+        try:
+            trades = self._ib.openTrades()
+        except Exception:
+            trades = []
+        for trade in trades or []:
+            candidate_order_id, candidate_perm_id = self._trade_order_ids(trade)
+            if self._ids_match(
+                order_id=order_id,
+                perm_id=perm_id,
+                candidate_order_id=candidate_order_id,
+                candidate_perm_id=candidate_perm_id,
+            ):
+                return True
+        return False
+
+    def _executed_qty_for_order_ids(self, *, order_id: int, perm_id: int) -> float:
+        if not self._ib.isConnected():
+            return 0.0
+        try:
+            fills = list(self._ib.fills() or [])
+        except Exception:
+            fills = []
+        executed_qty = 0.0
+        cumulative_only_max = 0.0
+        has_incremental_shares = False
+        for fill in fills:
+            execution = getattr(fill, "execution", None)
+            if execution is None:
+                continue
+            try:
+                candidate_order_id = int(getattr(execution, "orderId", 0) or 0)
+            except (TypeError, ValueError):
+                candidate_order_id = 0
+            try:
+                candidate_perm_id = int(getattr(execution, "permId", 0) or 0)
+            except (TypeError, ValueError):
+                candidate_perm_id = 0
+            if not self._ids_match(
+                order_id=order_id,
+                perm_id=perm_id,
+                candidate_order_id=candidate_order_id,
+                candidate_perm_id=candidate_perm_id,
+            ):
+                continue
+            try:
+                shares = float(getattr(execution, "shares", None))
+            except (TypeError, ValueError):
+                shares = 0.0
+            if shares > 0:
+                has_incremental_shares = True
+                executed_qty += float(shares)
+                continue
+            try:
+                cum_qty = float(getattr(execution, "cumQty", None))
+            except (TypeError, ValueError):
+                cum_qty = 0.0
+            if cum_qty > cumulative_only_max:
+                cumulative_only_max = float(cum_qty)
+        if has_incremental_shares:
+            return max(0.0, float(executed_qty))
+        return max(0.0, float(cumulative_only_max))
+
+    @staticmethod
+    def _effective_order_status(
+        *,
+        raw_status: str,
+        open_present: bool,
+        is_done: bool,
+        filled_qty: float,
+        remaining_qty: float,
+        executed_qty: float,
+    ) -> str:
+        status = str(raw_status or "").strip()
+        terminal_statuses = ("Filled", "Cancelled", "ApiCancelled", "Inactive")
+        if status in terminal_statuses:
+            return status
+        total_filled = max(float(filled_qty), float(executed_qty))
+        remaining = max(0.0, float(remaining_qty))
+        if total_filled > 0 and remaining <= 1e-9:
+            return "Filled"
+        if open_present and status in ("", "PendingSubmit", "PendingSubmission", "ApiPending"):
+            return "Submitted"
+        if total_filled > 0 and status in ("", "PendingSubmit", "PendingSubmission", "ApiPending"):
+            return "Submitted"
+        if status:
+            return status
+        if open_present:
+            return "Submitted"
+        if is_done:
+            return "Done"
+        return "PendingSubmission"
+
+    def _order_state_for_ids(self, *, order_id: int, perm_id: int) -> dict[str, object] | None:
+        if order_id <= 0 and perm_id <= 0:
+            return None
+        trade = self.trade_for_order_ids(
+            order_id=order_id,
+            perm_id=perm_id,
+            include_closed=True,
+        )
+        raw_status = ""
+        filled_qty = 0.0
+        remaining_qty = 0.0
+        is_done = False
+        if trade is not None:
+            order_status = getattr(trade, "orderStatus", None)
+            raw_status = str(getattr(order_status, "status", "") or "").strip()
+            try:
+                filled_qty = float(getattr(order_status, "filled", 0.0) or 0.0)
+            except (TypeError, ValueError):
+                filled_qty = 0.0
+            try:
+                remaining_qty = float(getattr(order_status, "remaining", 0.0) or 0.0)
+            except (TypeError, ValueError):
+                remaining_qty = 0.0
+            try:
+                is_done = bool(trade.isDone())
+            except Exception:
+                is_done = False
+            trade_order_id, trade_perm_id = self._trade_order_ids(trade)
+            if order_id <= 0:
+                order_id = trade_order_id
+            if perm_id <= 0:
+                perm_id = trade_perm_id
+        open_present = self._has_open_trade_for_order_ids(order_id=order_id, perm_id=perm_id)
+        executed_qty = self._executed_qty_for_order_ids(order_id=order_id, perm_id=perm_id)
+        effective_status = self._effective_order_status(
+            raw_status=raw_status,
+            open_present=open_present,
+            is_done=is_done,
+            filled_qty=filled_qty,
+            remaining_qty=remaining_qty,
+            executed_qty=executed_qty,
+        )
+        is_terminal = bool(
+            effective_status in ("Filled", "Cancelled", "ApiCancelled", "Inactive")
+            or (is_done and effective_status not in ("Submitted", "PreSubmitted"))
+        )
+        if (
+            trade is None
+            and order_id <= 0
+            and perm_id <= 0
+            and executed_qty <= 0
+            and not open_present
+        ):
+            return None
+        payload: dict[str, object] = {
+            "order_id": int(order_id),
+            "perm_id": int(perm_id),
+            "raw_status": str(raw_status),
+            "effective_status": str(effective_status),
+            "filled_qty": float(max(filled_qty, executed_qty)),
+            "remaining_qty": float(max(0.0, remaining_qty)),
+            "executed_qty": float(max(0.0, executed_qty)),
+            "open_present": bool(open_present),
+            "is_done": bool(is_done),
+            "is_terminal": bool(is_terminal),
+        }
+        if trade is not None:
+            payload["trade"] = trade
+        return payload
+
+    def current_order_state(
+        self,
+        *,
+        order_id: int = 0,
+        perm_id: int = 0,
+    ) -> dict[str, object] | None:
+        try:
+            wanted_order_id = int(order_id or 0)
+        except (TypeError, ValueError):
+            wanted_order_id = 0
+        try:
+            wanted_perm_id = int(perm_id or 0)
+        except (TypeError, ValueError):
+            wanted_perm_id = 0
+        if wanted_order_id <= 0 and wanted_perm_id <= 0:
+            return None
+        if not self._ib.isConnected():
+            return None
+        return self._order_state_for_ids(
+            order_id=wanted_order_id,
+            perm_id=wanted_perm_id,
+        )
+
+    async def _sync_order_snapshots(self, *, include_completed: bool) -> None:
+        requests = [
+            asyncio.wait_for(
+                self._ib.reqAllOpenOrdersAsync(),
+                timeout=float(_ORDER_RECONCILE_TIMEOUT_SEC),
+            ),
+            asyncio.wait_for(
+                self._ib.reqOpenOrdersAsync(),
+                timeout=float(_ORDER_RECONCILE_TIMEOUT_SEC),
+            ),
+            asyncio.wait_for(
+                self._ib.reqExecutionsAsync(ExecutionFilter()),
+                timeout=float(_ORDER_RECONCILE_TIMEOUT_SEC),
+            ),
+        ]
+        if include_completed:
+            requests.append(
+                asyncio.wait_for(
+                    self._ib.reqCompletedOrdersAsync(apiOnly=False),
+                    timeout=float(_ORDER_RECONCILE_TIMEOUT_SEC),
+                )
+            )
+        await asyncio.gather(*requests, return_exceptions=True)
+
+    async def reconcile_order_state(
+        self,
+        *,
+        order_id: int = 0,
+        perm_id: int = 0,
+        force: bool = False,
+    ) -> dict[str, object] | None:
+        try:
+            wanted_order_id = int(order_id or 0)
+        except (TypeError, ValueError):
+            wanted_order_id = 0
+        try:
+            wanted_perm_id = int(perm_id or 0)
+        except (TypeError, ValueError):
+            wanted_perm_id = 0
+        if not self._ib.isConnected():
+            try:
+                await self.connect()
+            except Exception:
+                return None
+        now = time.monotonic()
+        if bool(force) or (
+            now - float(self._last_order_reconcile_mono)
+        ) >= float(_ORDER_RECONCILE_MIN_INTERVAL_SEC):
+            async with self._order_reconcile_lock:
+                now_locked = time.monotonic()
+                if bool(force) or (
+                    now_locked - float(self._last_order_reconcile_mono)
+                ) >= float(_ORDER_RECONCILE_MIN_INTERVAL_SEC):
+                    await self._sync_order_snapshots(include_completed=bool(force))
+                    self._last_order_reconcile_mono = time.monotonic()
+        if wanted_order_id <= 0 and wanted_perm_id <= 0:
+            return None
+        return self._order_state_for_ids(
+            order_id=wanted_order_id,
+            perm_id=wanted_perm_id,
+        )
 
     async def cancel_trade(self, trade: Trade) -> None:
         await self.connect()
@@ -2549,19 +3002,60 @@ class IBKRClient:
         normalized = str(getattr(underlying, "symbol", "") or "").strip().upper() or candidate
         return normalized, ""
 
-    async def search_option_underlyers(self, query: str, *, limit: int = 8) -> list[tuple[str, str]]:
+    async def search_option_underlyers(
+        self,
+        query: str,
+        *,
+        limit: int = 8,
+        timing: dict[str, object] | None = None,
+    ) -> list[tuple[str, str]]:
+        started_mono = time.monotonic()
         token = str(query or "").strip().upper()
+        if timing is not None:
+            timing.clear()
+            timing.update(
+                {
+                    "query": token,
+                    "limit": int(limit or 8),
+                    "mode": "OPT",
+                    "source": "",
+                }
+            )
+
+        def _finish(
+            rows: list[tuple[str, str]],
+            *,
+            source: str = "",
+            error: str = "",
+        ) -> list[tuple[str, str]]:
+            if timing is not None:
+                if source:
+                    timing["source"] = str(source)
+                if error:
+                    timing["error"] = str(error)
+                timing["result_count"] = len(rows)
+                timing["total_ms"] = (time.monotonic() - started_mono) * 1000.0
+            return rows
+
         if not token:
-            return []
+            return _finish([], source="empty-query")
+        if len(token) >= 3 and re.fullmatch(r"[A-Z][A-Z0-9.-]{0,9}", token):
+            direct_started = time.monotonic()
+            direct = await self._opt_underlyer_fallback_from_symbol(token)
+            if timing is not None:
+                timing["direct_ms"] = (time.monotonic() - direct_started) * 1000.0
+            if direct is not None:
+                return _finish([direct], source="direct")
         terms = self._search_terms(token, mode="OPT")
         if not terms:
-            return []
+            return _finish([], source="no-terms")
         term_set = set(terms)
         mode_aliases = _SEARCH_TERM_ALIASES_BY_MODE.get("OPT", {})
         token_is_alias_seed = token in mode_aliases
         max_rows = max(1, min(int(limit or 8), 20))
         matches: list[object] = []
         match_error: Exception | None = None
+        matching_started = time.monotonic()
         try:
             matches = await self._matching_symbols(
                 token,
@@ -2571,21 +3065,38 @@ class IBKRClient:
             )
         except Exception as exc:
             match_error = exc
+        if timing is not None:
+            timing["matching_ms"] = (time.monotonic() - matching_started) * 1000.0
+            timing["matching_rows"] = len(matches)
         if not matches:
             fallback_candidates: list[str] = [token, *terms]
             seen_candidates: set[str] = set()
+            fallback_calls = 0
+            fallback_ms_total = 0.0
             for candidate in fallback_candidates:
                 normalized = str(candidate or "").strip().upper()
                 if not normalized or normalized in seen_candidates:
                     continue
                 seen_candidates.add(normalized)
+                fallback_calls += 1
+                fallback_started = time.monotonic()
                 fallback = await self._opt_underlyer_fallback_from_symbol(normalized)
+                fallback_ms_total += (time.monotonic() - fallback_started) * 1000.0
                 if fallback is not None:
-                    return [fallback]
+                    if timing is not None:
+                        timing["fallback_chain_calls"] = fallback_calls
+                        timing["fallback_chain_ms"] = fallback_ms_total
+                    return _finish([fallback], source="fallback")
+            if timing is not None:
+                timing["fallback_chain_calls"] = fallback_calls
+                timing["fallback_chain_ms"] = fallback_ms_total
             if match_error is not None:
+                if timing is not None:
+                    _finish([], source="matching-error", error=str(match_error))
                 raise match_error
         if not matches:
-            return []
+            return _finish([], source="no-matches")
+        rank_started = time.monotonic()
         ranked_symbols = self._rank_opt_underlyer_symbols(
             matches,
             term_set=term_set,
@@ -2593,8 +3104,11 @@ class IBKRClient:
             token_is_alias_seed=token_is_alias_seed,
             max_symbols=max_rows * 6,
         )
+        if timing is not None:
+            timing["rank_ms"] = (time.monotonic() - rank_started) * 1000.0
+            timing["ranked_symbol_count"] = len(ranked_symbols)
         if not ranked_symbols:
-            return []
+            return _finish([], source="rank-empty")
         label_by_symbol: dict[str, str] = {}
         for desc in matches:
             contract = getattr(desc, "contract", None)
@@ -2615,7 +3129,7 @@ class IBKRClient:
             out.append((symbol, label_by_symbol.get(symbol, "")))
             if len(out) >= max_rows:
                 break
-        return out
+        return _finish(out, source="matching")
 
     async def search_contracts(
         self,
@@ -2624,8 +3138,24 @@ class IBKRClient:
         mode: str = "STK",
         limit: int = 5,
         opt_underlyer_symbol: str | None = None,
+        timing: dict[str, object] | None = None,
+        opt_first_limit: int | None = None,
+        opt_progress: Callable[[list[Contract], dict[str, object]], object] | None = None,
     ) -> list[Contract]:
+        started_mono = time.monotonic()
         token = str(query or "").strip().upper()
+        if timing is not None:
+            timing.clear()
+            timing.update(
+                {
+                    "query": token,
+                    "mode": str(mode or "").strip().upper(),
+                    "limit": int(limit or 5),
+                    "source": "",
+                    "candidate_count": 0,
+                    "qualified_count": 0,
+                }
+            )
         if not token:
             return []
         mode_clean = str(mode or "STK").strip().upper()
@@ -2642,6 +3172,25 @@ class IBKRClient:
         opt_symbol_override = ""
         if mode_clean == "OPT":
             opt_symbol_override = str(opt_underlyer_symbol or "").strip().upper()
+        if timing is not None:
+            timing["mode"] = mode_clean
+            timing["limit"] = int(max_rows)
+            timing["opt_symbol_override"] = bool(mode_clean == "OPT" and opt_symbol_override)
+
+        def _opt_timing_finish(
+            rows: list[Contract],
+            *,
+            stage: str,
+            reason: str,
+        ) -> list[Contract]:
+            if timing is not None and mode_clean == "OPT":
+                timing["source"] = "search_contracts_opt"
+                timing["stage"] = str(stage or "")
+                timing["reason"] = str(reason or "")
+                timing["result_count"] = len(rows)
+                timing["total_ms"] = (time.monotonic() - started_mono) * 1000.0
+            return rows
+
         matches: list[object] = []
         if not (mode_clean == "OPT" and opt_symbol_override):
             lookup_terms = [token]
@@ -2651,6 +3200,9 @@ class IBKRClient:
                     if not normalized or normalized in lookup_terms:
                         continue
                     lookup_terms.append(normalized)
+            matching_started = time.monotonic()
+            if timing is not None and mode_clean == "OPT":
+                timing["lookup_terms"] = list(lookup_terms)
             for lookup in lookup_terms:
                 matches = await self._matching_symbols(
                     lookup,
@@ -2660,7 +3212,12 @@ class IBKRClient:
                 )
                 if matches or mode_clean not in ("FUT", "FOP"):
                     break
+            if timing is not None and mode_clean == "OPT":
+                timing["matching_ms"] = (time.monotonic() - matching_started) * 1000.0
+                timing["matching_rows"] = len(matches)
             if not matches and mode_clean not in ("FUT", "FOP"):
+                if mode_clean == "OPT":
+                    return _opt_timing_finish([], stage="matching", reason="no-matches")
                 return []
 
         if mode_clean == "STK":
@@ -2810,12 +3367,17 @@ class IBKRClient:
                     max_symbols=max_rows * 6,
                 )
                 if not ranked_symbols:
-                    return []
+                    return _opt_timing_finish([], stage="rank", reason="no-ranked-symbols")
                 symbol = ranked_symbols[0]
+            if timing is not None:
+                timing["symbol"] = str(symbol)
 
+            chain_started = time.monotonic()
             chain_entry = await self.stock_option_chain(symbol)
+            if timing is not None:
+                timing["chain_ms"] = (time.monotonic() - chain_started) * 1000.0
             if not chain_entry:
-                return []
+                return _opt_timing_finish([], stage="chain", reason="chain-missing")
             underlying, chain = chain_entry
             expiries_raw = getattr(chain, "expirations", ()) or ()
             expiries: list[str] = []
@@ -2824,8 +3386,10 @@ class IBKRClient:
                 if len(text) >= 8 and text[:8].isdigit():
                     expiries.append(text[:8])
             expiries = sorted(set(expiries))
+            if timing is not None:
+                timing["expiry_count"] = len(expiries)
             if not expiries:
-                return []
+                return _opt_timing_finish([], stage="chain", reason="no-expiries")
             # Keep each expiry deep enough to show meaningful C/P ladders near ATM.
             target_strikes_per_expiry = max(1, min(20, int(max_rows) // 2))
             max_expiries = max(1, int(max_rows) // (2 * target_strikes_per_expiry))
@@ -2841,27 +3405,42 @@ class IBKRClient:
                 if strike > 0:
                     strikes.append(strike)
             if not strikes:
-                return []
+                return _opt_timing_finish([], stage="chain", reason="no-strikes")
             strikes = sorted(set(strikes))
+            if timing is not None:
+                timing["strike_count"] = len(strikes)
             ref_price = None
+            ref_source = ""
+            ref_started = time.monotonic()
             try:
                 ticker = await self.ensure_ticker(underlying, owner="search")
                 ref_price = self._search_reference_price_from_ticker(ticker)
+                if ref_price is not None:
+                    ref_source = "ticker"
             except Exception:
                 ref_price = None
             finally:
                 under_con_id = int(getattr(underlying, "conId", 0) or 0)
                 if under_con_id:
                     self.release_ticker(under_con_id, owner="search")
+            if timing is not None:
+                timing["ref_price_ms"] = (time.monotonic() - ref_started) * 1000.0
 
             if ref_price is None:
                 ref_price = self._median_strike(strikes)
+                if ref_price is not None:
+                    ref_source = "median"
             if ref_price is None:
-                return []
+                return _opt_timing_finish([], stage="reference", reason="no-reference-price")
+            if timing is not None:
+                timing["ref_price_source"] = ref_source or "unknown"
             rows_per_expiry = max(
                 target_strikes_per_expiry,
                 int(max_rows) // max(1, (2 * len(selected_expiries))),
             )
+            if timing is not None:
+                timing["selected_expiry_count"] = len(selected_expiries)
+                timing["rows_per_expiry"] = int(rows_per_expiry)
 
             symbol_clean = str(getattr(underlying, "symbol", "") or symbol).strip().upper()
             exchange = str(getattr(chain, "exchange", "") or "SMART").strip().upper() or "SMART"
@@ -2891,39 +3470,126 @@ class IBKRClient:
                             )
                         )
             if not candidates:
-                return []
+                return _opt_timing_finish([], stage="candidate-build", reason="no-candidates")
+            if timing is not None:
+                timing["candidate_count"] = len(candidates)
 
-            qualified = await self.qualify_proxy_contracts(*candidates)
-            by_key: dict[tuple[str, str, str, float], Contract] = {}
-            for contract in qualified:
+            def _opt_key(contract: Contract | None) -> tuple[str, str, str, float] | None:
+                if contract is None:
+                    return None
                 try:
                     strike = float(getattr(contract, "strike", 0.0) or 0.0)
                 except (TypeError, ValueError):
-                    continue
-                key = (
+                    return None
+                return (
                     str(getattr(contract, "symbol", "") or "").strip().upper(),
                     str(getattr(contract, "lastTradeDateOrContractMonth", "") or "").strip(),
                     str(getattr(contract, "right", "") or "").strip().upper()[:1],
                     round(strike, 6),
                 )
-                by_key[key] = contract
 
-            out: list[Contract] = []
-            for candidate in candidates:
-                key = (
-                    str(getattr(candidate, "symbol", "") or "").strip().upper(),
-                    str(getattr(candidate, "lastTradeDateOrContractMonth", "") or "").strip(),
-                    str(getattr(candidate, "right", "") or "").strip().upper()[:1],
-                    round(float(getattr(candidate, "strike", 0.0) or 0.0), 6),
-                )
-                resolved = by_key.get(key)
-                if resolved is None:
-                    continue
-                con_id = int(getattr(resolved, "conId", 0) or 0)
-                if con_id <= 0:
-                    continue
-                out.append(resolved)
-            return out[:max_rows]
+            def _ordered_resolved(
+                source_candidates: list[Contract],
+                resolved_by_key: dict[tuple[str, str, str, float], Contract],
+            ) -> list[Contract]:
+                out_rows: list[Contract] = []
+                for candidate in source_candidates:
+                    key = _opt_key(candidate)
+                    if key is None:
+                        continue
+                    resolved = resolved_by_key.get(key)
+                    if resolved is None:
+                        continue
+                    con_id = int(getattr(resolved, "conId", 0) or 0)
+                    if con_id <= 0:
+                        continue
+                    out_rows.append(resolved)
+                return out_rows
+
+            split_limit = 0
+            if opt_progress is not None:
+                try:
+                    split_limit = int(opt_first_limit or 0)
+                except (TypeError, ValueError):
+                    split_limit = 0
+                split_limit = max(0, min(split_limit, len(candidates), max_rows))
+            split_active = 0 < split_limit < len(candidates)
+            if timing is not None:
+                timing["first_limit"] = int(split_limit)
+                timing["split_active"] = bool(split_active)
+
+            qualified: list[Contract] = []
+            qualify_ms_total = 0.0
+            if split_active:
+                first_candidates = candidates[:split_limit]
+                rest_candidates = candidates[split_limit:]
+
+                first_started = time.monotonic()
+                first_qualified = await self.qualify_proxy_contracts(*first_candidates)
+                first_ms = (time.monotonic() - first_started) * 1000.0
+                qualify_ms_total += first_ms
+                qualified.extend(first_qualified)
+
+                first_by_key: dict[tuple[str, str, str, float], Contract] = {}
+                for contract in first_qualified:
+                    key = _opt_key(contract)
+                    if key is not None:
+                        first_by_key[key] = contract
+                first_rows = _ordered_resolved(first_candidates, first_by_key)
+                first_qualified_count = len(first_by_key)
+                if timing is not None:
+                    timing["qualify_ms_first"] = float(first_ms)
+                    timing["first_candidate_count"] = len(first_candidates)
+                    timing["first_qualified_count"] = int(first_qualified_count)
+                    timing["first_result_count"] = len(first_rows)
+                if opt_progress is not None:
+                    progress_timing: dict[str, object] = {}
+                    if timing is not None:
+                        progress_timing.update(timing)
+                    progress_timing.update(
+                        {
+                            "source": "search_contracts_opt",
+                            "stage": "qualify-first",
+                            "reason": "progress",
+                            "candidate_count": len(first_candidates),
+                            "qualified_count": int(first_qualified_count),
+                            "qualify_ms": float(first_ms),
+                            "result_count": len(first_rows),
+                            "total_ms": (time.monotonic() - started_mono) * 1000.0,
+                        }
+                    )
+                    try:
+                        progress_result = opt_progress(first_rows[:max_rows], progress_timing)
+                        if asyncio.iscoroutine(progress_result):
+                            await progress_result
+                    except Exception:
+                        pass
+
+                rest_started = time.monotonic()
+                rest_qualified = await self.qualify_proxy_contracts(*rest_candidates)
+                rest_ms = (time.monotonic() - rest_started) * 1000.0
+                qualify_ms_total += rest_ms
+                qualified.extend(rest_qualified)
+                if timing is not None:
+                    timing["qualify_ms_rest"] = float(rest_ms)
+                    timing["rest_candidate_count"] = len(rest_candidates)
+                    timing["rest_qualified_count"] = len(rest_qualified)
+            else:
+                qualify_started = time.monotonic()
+                qualified = await self.qualify_proxy_contracts(*candidates)
+                qualify_ms_total = (time.monotonic() - qualify_started) * 1000.0
+            if timing is not None:
+                timing["qualify_ms"] = float(qualify_ms_total)
+
+            by_key: dict[tuple[str, str, str, float], Contract] = {}
+            for contract in qualified:
+                key = _opt_key(contract)
+                if key is not None:
+                    by_key[key] = contract
+            if timing is not None:
+                timing["qualified_count"] = int(len(by_key))
+            out = _ordered_resolved(candidates, by_key)
+            return _opt_timing_finish(out[:max_rows], stage="done", reason="ok")
 
         exact_roots: list[tuple[str, str]] = []
         prefix_roots: list[tuple[str, str]] = []
@@ -5411,6 +6077,10 @@ class IBKRClient:
             and not self._resubscribe_main_needed
             and not self._resubscribe_proxy_needed
         ):
+            try:
+                await self.reconcile_order_state(force=True)
+            except Exception:
+                pass
             self._reconnect_requested = False
             self._reconnect_fast_deadline = None
             if self._update_callback:

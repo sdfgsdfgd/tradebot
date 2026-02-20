@@ -20,7 +20,7 @@ from textual.containers import Vertical
 from textual.screen import Screen
 from textual.widgets import DataTable, Footer, Header, Static
 
-from ..backtest.trading_calendar import is_trading_day, session_label_et
+from ..backtest.trading_calendar import full24_post_close_time_et, is_trading_day, session_label_et
 from ..client import IBKRClient, _session_flags
 from ..engine import (
     normalize_spot_entry_signal,
@@ -684,6 +684,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         ("q", "app.pop_screen", "Back"),
         ("ctrl+t", "app.pop_screen", "Back"),
         ("ctrl+a", "toggle_presets", "Presets"),
+        ("p", "toggle_presets", "Presets"),
         ("v", "toggle_scope", "Scope"),
         ("tab", "cycle_focus", "Focus"),
         ("h", "focus_prev", "Prev"),
@@ -820,7 +821,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         self._logs_table.cursor_type = "row"
         self._setup_tables()
         self._load_leaderboard()
-        self._presets_table.display = self._presets_visible
+        self._apply_presets_layout()
         await self._refresh_positions()
         self._refresh_instances_table()
         self._refresh_orders_table()
@@ -869,7 +870,9 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             if self._refresh_lock.locked():
                 await asyncio.sleep(min(0.1, self._refresh_sec))
                 continue
-            self._refresh_instances_table()
+            # Stream updates are frequent; keep logs stable by avoiding dependent
+            # table rebuilds (orders/logs) from instance refresh.
+            self._refresh_instances_table(refresh_dependents=False)
             self._refresh_orders_table()
             self._render_status()
             await asyncio.sleep(0)
@@ -935,9 +938,14 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         self._set_status("Reloaded leaderboard")
         self._journal_write(event="RELOAD_LEADERBOARD", reason=None, data=None)
 
+    def _apply_presets_layout(self) -> None:
+        self._presets_table.display = self._presets_visible
+        self._orders_table.styles.height = "1fr"
+        self._logs_table.styles.height = "1fr" if self._presets_visible else "3fr"
+
     def action_toggle_presets(self) -> None:
         self._presets_visible = not self._presets_visible
-        self._presets_table.display = self._presets_visible
+        self._apply_presets_layout()
         if not self._presets_visible and self._active_panel == "presets":
             self._focus_panel("instances")
         elif self._presets_visible and self._active_panel != "presets":
@@ -2924,16 +2932,8 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
 
     @staticmethod
     def _signal_zero_gap_enabled(filters: dict | None) -> bool:
-        if not isinstance(filters, dict):
-            return True
-        raw = filters.get("signal_zero_gap_mode")
-        if raw is None:
-            raw = filters.get("zero_gap_mode")
-        if raw is None:
-            return True
-        normalized = str(raw or "").strip().lower()
-        if normalized in ("off", "false", "0", "disabled", "legacy", "relaxed"):
-            return False
+        _ = filters
+        # Strict continuity is now an internal policy (not preset-configurable).
         return True
 
     def _signal_expected_live_bars(
@@ -2972,6 +2972,8 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         if include_overnight:
             return True
         if outside_rth:
+            if current >= time(16, 0):
+                return current < full24_post_close_time_et(now_et.date())
             return True
         return time(9, 30) <= current < time(16, 0)
 
@@ -3147,10 +3149,8 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         out["max_gap_bars"] = float(max_gap_bars)
         out["recent_gap_count"] = int(recent_gap_count)
         out["recent_max_gap_bars"] = float(recent_max_gap_bars)
-        if bool(strict_zero_gap):
-            out["gap_detected"] = bool(gap_count > 0)
-        else:
-            out["gap_detected"] = bool(recent_gap_count > 0)
+        out["gap_detected_any"] = bool(gap_count > 0)
+        out["gap_detected"] = bool(recent_gap_count > 0)
         return out
 
     @staticmethod
@@ -4415,7 +4415,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
 
         lines.append(
             Text(
-                "Enter=Config/Send  Ctrl+A=Presets  f=FilterDTE  w=FilterWin  v=Scope  Tab/h/l=Focus  c=Cancel  Space=Run/Toggle  s=Stop  S=Kill  d=Del  X=Send",
+                "Enter=Config/Send  Ctrl+A/p=Presets  f=FilterDTE  w=FilterWin  v=Scope  Tab/h/l=Focus  c=Cancel  Space=Run/Toggle  s=Stop  S=Kill  d=Del  X=Send",
                 style="dim",
             )
         )

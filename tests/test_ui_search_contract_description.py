@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import importlib
 import sys
 import types
@@ -233,3 +234,305 @@ def test_selected_search_contract_uses_side_in_fop_mode() -> None:
 
     assert selected is not None
     assert str(getattr(selected, "right", "") or "").upper() == "P"
+
+
+def test_render_search_hides_no_option_rows_while_loading() -> None:
+    positions_app = _load_positions_app()
+    app = positions_app.__new__(positions_app)
+    rendered: list[object] = []
+    app._search_active = True
+    app._search = SimpleNamespace(display=False, update=lambda value: rendered.append(value))
+    app._search_mode_index = positions_app._SEARCH_MODES.index("OPT")
+    app._search_query = "NVDA"
+    app._search_error = None
+    app._search_loading = True
+    app._search_results = []
+    app._search_side = 0
+    app._search_scroll = 0
+    app._search_selected = 0
+    app._search_opt_expiry_index = 0
+    app._search_opt_underlyers = []
+    app._search_opt_underlyer_index = 0
+    app._search_opt_underlyer_descriptions = {}
+    app._search_symbol_labels = {}
+    app._search_timing = {"generation": 1}
+    app._search_name_line = lambda: None
+    app._search_timing_line = lambda: None
+    app._sync_search_option_tickers = lambda: None
+    app._clear_search_tickers = lambda: None
+
+    app._render_search()
+
+    assert rendered
+    rendered_text = str(getattr(rendered[-1], "plain", rendered[-1]))
+    assert "Searching..." in rendered_text
+    assert "No option chain rows" not in rendered_text
+
+
+def test_run_search_opt_initial_query_uses_single_pass_contract_lookup() -> None:
+    positions_app = _load_positions_app()
+    app = positions_app.__new__(positions_app)
+    generation = 14
+    app._SEARCH_DEBOUNCE_SEC = 0.0
+    app._search_generation = generation
+    app._search_mode_index = positions_app._SEARCH_MODES.index("OPT")
+    app._search_loading = True
+    app._search_error = None
+    app._search_results = []
+    app._search_selected = 0
+    app._search_scroll = 0
+    app._search_side = 0
+    app._search_opt_expiry_index = 0
+    app._search_query = "NVDA"
+    app._search_timing = {"generation": generation}
+    app._search_opt_underlyers = []
+    app._search_opt_underlyer_descriptions = {}
+    app._search_symbol_labels = {}
+    app._search_opt_underlyer_index = 0
+    app._search_opt_chain_cache = {}
+    app._render_search = lambda: None
+    app._ensure_search_visible = lambda: None
+    app._default_opt_row_index = lambda: 0
+
+    call_contract = Contract(
+        secType="OPT",
+        symbol="NVDA",
+        exchange="SMART",
+        currency="USD",
+        lastTradeDateOrContractMonth="20260220",
+        strike=190.0,
+        right="C",
+    )
+    call_contract.conId = 998001
+    put_contract = Contract(
+        secType="OPT",
+        symbol="NVDA",
+        exchange="SMART",
+        currency="USD",
+        lastTradeDateOrContractMonth="20260220",
+        strike=190.0,
+        right="P",
+    )
+    put_contract.conId = 998002
+    seen_search_kwargs: dict[str, object] = {}
+
+    async def _search_option_underlyers(
+        _query: str,
+        *,
+        limit: int,
+        timing: dict[str, object] | None = None,
+    ):
+        assert limit == positions_app._SEARCH_OPT_UNDERLYER_LIMIT
+        if timing is not None:
+            timing.update({"total_ms": 1.0, "source": "direct"})
+        return [("NVDA", "Equity Option")]
+
+    async def _search_contracts(
+        _query: str,
+        *,
+        mode: str,
+        limit: int,
+        opt_underlyer_symbol: str | None = None,
+        timing: dict[str, object] | None = None,
+        **kwargs,
+    ) -> list[Contract]:
+        assert mode == "OPT"
+        assert limit == positions_app._SEARCH_OPT_FETCH_LIMIT
+        assert str(opt_underlyer_symbol or "").upper() == "NVDA"
+        seen_search_kwargs.clear()
+        seen_search_kwargs.update(kwargs)
+        if timing is not None:
+            timing.update(
+                {
+                    "candidate_count": 2,
+                    "qualified_count": 2,
+                    "stage": "done",
+                    "reason": "ok",
+                    "total_ms": 20.0,
+                }
+            )
+        return [call_contract, put_contract]
+
+    app._client = SimpleNamespace(
+        search_option_underlyers=_search_option_underlyers,
+        search_contracts=_search_contracts,
+    )
+
+    asyncio.run(
+        app._run_search(
+            generation,
+            "NVDA",
+            "OPT",
+            fetch_limit=positions_app._SEARCH_OPT_FETCH_LIMIT,
+        )
+    )
+
+    assert "opt_first_limit" not in seen_search_kwargs
+    assert "opt_progress" not in seen_search_kwargs
+    assert len(app._search_results) == 2
+    assert len(app._search_opt_chain_cache.get("NVDA", [])) == 2
+    assert app._search_loading is False
+
+
+def test_run_search_opt_underlyer_streams_partial_rows_before_final_cache() -> None:
+    positions_app = _load_positions_app()
+    app = positions_app.__new__(positions_app)
+    generation = 11
+    app._search_generation = generation
+    app._search_mode_index = positions_app._SEARCH_MODES.index("OPT")
+    app._search_loading = True
+    app._search_error = None
+    app._search_results = []
+    app._search_selected = 0
+    app._search_scroll = 0
+    app._search_side = 0
+    app._search_opt_expiry_index = 0
+    app._search_opt_chain_cache = {}
+    app._search_timing = {"generation": generation}
+    app._search_query = "NVDA"
+    app._render_search = lambda: None
+    app._ensure_search_visible = lambda: None
+    app._default_opt_row_index = lambda: 0
+
+    call_contract = Contract(
+        secType="OPT",
+        symbol="NVDA",
+        exchange="SMART",
+        currency="USD",
+        lastTradeDateOrContractMonth="20260220",
+        strike=190.0,
+        right="C",
+    )
+    call_contract.conId = 991001
+    put_contract = Contract(
+        secType="OPT",
+        symbol="NVDA",
+        exchange="SMART",
+        currency="USD",
+        lastTradeDateOrContractMonth="20260220",
+        strike=190.0,
+        right="P",
+    )
+    put_contract.conId = 991002
+    progress_seen: dict[str, object] = {}
+
+    async def _search_contracts(
+        _query: str,
+        *,
+        mode: str,
+        limit: int,
+        opt_underlyer_symbol: str | None = None,
+        timing: dict[str, object] | None = None,
+        opt_first_limit: int | None = None,
+        opt_progress=None,
+    ) -> list[Contract]:
+        assert mode == "OPT"
+        assert limit == positions_app._SEARCH_OPT_FETCH_LIMIT
+        assert str(opt_underlyer_symbol or "").upper() == "NVDA"
+        assert int(opt_first_limit or 0) == positions_app._SEARCH_OPT_FIRST_PAINT_LIMIT
+        if opt_progress is not None:
+            await opt_progress(
+                [call_contract],
+                {
+                    "candidate_count": 1,
+                    "qualified_count": 1,
+                    "stage": "qualify-first",
+                    "reason": "progress",
+                    "total_ms": 7.0,
+                    "split_active": True,
+                    "first_limit": 1,
+                },
+            )
+            progress_seen["cache_rows"] = len(app._search_opt_chain_cache.get("NVDA", []))
+        if timing is not None:
+            timing.update(
+                {
+                    "candidate_count": 2,
+                    "qualified_count": 2,
+                    "stage": "done",
+                    "reason": "ok",
+                    "total_ms": 19.0,
+                    "split_active": True,
+                    "first_limit": 1,
+                }
+            )
+        return [call_contract, put_contract]
+
+    app._client = SimpleNamespace(search_contracts=_search_contracts)
+
+    asyncio.run(
+        app._run_search_opt_underlyer(
+            generation,
+            "NVDA",
+            "NVDA",
+            fetch_limit=positions_app._SEARCH_OPT_FETCH_LIMIT,
+        )
+    )
+
+    assert int(progress_seen.get("cache_rows", 0) or 0) == 1
+    assert len(app._search_opt_chain_cache.get("NVDA", [])) == 2
+    assert len(app._search_results) == 2
+    assert app._search_loading is False
+
+
+def test_apply_opt_progress_rows_does_not_regress_full_rows() -> None:
+    positions_app = _load_positions_app()
+    app = positions_app.__new__(positions_app)
+    generation = 21
+    app._search_generation = generation
+    app._search_loading = False
+    app._search_error = None
+    app._search_selected = 0
+    app._search_scroll = 0
+    app._search_side = 0
+    app._search_opt_expiry_index = 0
+    app._search_query = "NVDA"
+    app._search_timing = {"generation": generation}
+    app._render_search = lambda: None
+    app._ensure_search_visible = lambda: None
+    app._default_opt_row_index = lambda: 0
+
+    full_call = Contract(
+        secType="OPT",
+        symbol="NVDA",
+        exchange="SMART",
+        currency="USD",
+        lastTradeDateOrContractMonth="20260220",
+        strike=190.0,
+        right="C",
+    )
+    full_call.conId = 993001
+    full_put = Contract(
+        secType="OPT",
+        symbol="NVDA",
+        exchange="SMART",
+        currency="USD",
+        lastTradeDateOrContractMonth="20260220",
+        strike=190.0,
+        right="P",
+    )
+    full_put.conId = 993002
+    app._search_results = [full_call, full_put]
+    app._search_opt_chain_cache = {"NVDA": [full_call, full_put]}
+
+    partial_call = Contract(
+        secType="OPT",
+        symbol="NVDA",
+        exchange="SMART",
+        currency="USD",
+        lastTradeDateOrContractMonth="20260220",
+        strike=190.0,
+        right="C",
+    )
+    partial_call.conId = 993001
+
+    app._apply_opt_progress_rows(
+        generation=generation,
+        symbol="NVDA",
+        results=[partial_call],
+        contract_timing={"stage": "qualify-first", "reason": "progress"},
+        contracts_started=0.0,
+    )
+
+    assert len(app._search_results) == 2
+    assert len(app._search_opt_chain_cache.get("NVDA", [])) == 2

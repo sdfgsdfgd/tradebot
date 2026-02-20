@@ -5,6 +5,8 @@ from tradebot.backtest.trading_calendar import (
     SESSION_ORDER,
     expected_sessions,
     et_day_from_utc_naive,
+    full24_post_close_time_et,
+    is_early_close_day,
     is_trading_day,
     session_label_et,
     utc_bounds_for_et_day,
@@ -37,6 +39,16 @@ class BacktestTradingCalendarTests(unittest.TestCase):
         self.assertEqual(start_utc, datetime(2025, 1, 15, 5, 0))
         self.assertEqual(end_utc, datetime(2025, 1, 16, 4, 59))
         self.assertEqual(et_day_from_utc_naive(datetime(2025, 1, 16, 0, 30)), date(2025, 1, 15))
+
+    def test_early_close_day_rules(self) -> None:
+        self.assertTrue(is_early_close_day(date(2025, 11, 28)))
+        self.assertTrue(is_early_close_day(date(2025, 12, 24)))
+        self.assertFalse(is_early_close_day(date(2025, 12, 26)))
+
+    def test_full24_post_close_cutoff_on_early_close_day(self) -> None:
+        self.assertEqual(full24_post_close_time_et(date(2025, 11, 28)), time(17, 0))
+        self.assertEqual(full24_post_close_time_et(date(2025, 12, 24)), time(17, 0))
+        self.assertEqual(full24_post_close_time_et(date(2025, 12, 26)), time(20, 0))
 
 
 if __name__ == "__main__":

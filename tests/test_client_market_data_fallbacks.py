@@ -224,6 +224,47 @@ def test_connect_ib_uses_configured_timeout() -> None:
     assert fake_ib.calls == [("127.0.0.1", 4001, 745, 13.5)]
 
 
+def test_current_order_state_promotes_pending_to_submitted_when_open() -> None:
+    client = _new_client()
+    contract = Contract(secType="FUT", symbol="MNQ", exchange="CME", currency="USD")
+    contract.conId = 750150193
+    trade = SimpleNamespace(
+        order=SimpleNamespace(orderId=455, permId=0),
+        orderStatus=SimpleNamespace(
+            status="PendingSubmission",
+            filled=0.0,
+            remaining=1.0,
+        ),
+        contract=contract,
+        isDone=lambda: False,
+    )
+
+    class _StateIB:
+        @staticmethod
+        def isConnected() -> bool:
+            return True
+
+        @staticmethod
+        def trades():
+            return [trade]
+
+        @staticmethod
+        def openTrades():
+            return [trade]
+
+        @staticmethod
+        def fills():
+            return []
+
+    client._ib = _StateIB()
+
+    payload = client.current_order_state(order_id=455, perm_id=0)
+
+    assert isinstance(payload, dict)
+    assert str(payload.get("raw_status")) == "PendingSubmission"
+    assert str(payload.get("effective_status")) == "Submitted"
+
+
 def test_connect_rotates_client_id_on_conflict_and_persists_pair(tmp_path) -> None:
     _ensure_event_loop()
     cfg = IBKRConfig(

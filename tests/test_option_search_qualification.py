@@ -234,6 +234,69 @@ def test_search_option_underlyers_returns_ranked_symbols() -> None:
     assert "BITCOIN ETF" in underlyers[0][1].upper()
 
 
+def test_search_option_underlyers_prefers_direct_symbol_fast_path() -> None:
+    client = _client()
+    calls = {"matching": 0, "chain": 0}
+
+    async def _matching_symbols(*_args, **_kwargs):
+        calls["matching"] += 1
+        return [
+            SimpleNamespace(
+                contract=Contract(secType="STK", symbol="OTHER", exchange="SMART", currency="USD"),
+                derivativeSecTypes=("OPT",),
+            )
+        ]
+
+    async def _stock_option_chain(symbol: str):
+        calls["chain"] += 1
+        assert str(symbol or "").strip().upper() == "NVDA"
+        underlying = Contract(secType="STK", symbol="NVDA", exchange="SMART", currency="USD")
+        chain = SimpleNamespace(
+            exchange="SMART",
+            tradingClass="NVDA",
+            expirations=("20260220",),
+            strikes=(180.0, 185.0),
+            multiplier="100",
+        )
+        return underlying, chain
+
+    client._matching_symbols = _matching_symbols
+    client.stock_option_chain = _stock_option_chain
+
+    underlyers = asyncio.run(client.search_option_underlyers("NVDA", limit=4))
+
+    assert underlyers == [("NVDA", "")]
+    assert calls["chain"] == 1
+    assert calls["matching"] == 0
+
+
+def test_search_option_underlyers_reports_direct_timing() -> None:
+    client = _client()
+
+    async def _stock_option_chain(symbol: str):
+        assert str(symbol or "").strip().upper() == "NVDA"
+        underlying = Contract(secType="STK", symbol="NVDA", exchange="SMART", currency="USD")
+        chain = SimpleNamespace(
+            exchange="SMART",
+            tradingClass="NVDA",
+            expirations=("20260220",),
+            strikes=(180.0, 185.0),
+            multiplier="100",
+        )
+        return underlying, chain
+
+    client.stock_option_chain = _stock_option_chain
+
+    timing: dict[str, object] = {}
+    underlyers = asyncio.run(client.search_option_underlyers("NVDA", limit=4, timing=timing))
+
+    assert underlyers == [("NVDA", "")]
+    assert str(timing.get("source", "")) == "direct"
+    assert int(timing.get("result_count", 0) or 0) == 1
+    assert float(timing.get("direct_ms", 0.0) or 0.0) >= 0.0
+    assert float(timing.get("total_ms", 0.0) or 0.0) >= 0.0
+
+
 def test_search_contracts_opt_honors_forced_underlyer_symbol() -> None:
     client = _client()
     requested: dict[str, str] = {}
@@ -298,6 +361,161 @@ def test_search_contracts_opt_honors_forced_underlyer_symbol() -> None:
     assert requested.get("symbol") == "AAPL"
     assert results
     assert all(str(getattr(contract, "symbol", "") or "").upper() == "AAPL" for contract in results)
+
+
+def test_search_contracts_opt_reports_timing_metrics() -> None:
+    client = _client()
+
+    async def _stock_option_chain(symbol: str):
+        normalized = str(symbol or "").strip().upper()
+        underlying = Contract(
+            secType="STK",
+            symbol=normalized,
+            exchange="SMART",
+            currency="USD",
+            conId=11,
+        )
+        chain = SimpleNamespace(
+            expirations=("20260220",),
+            strikes=(60.0,),
+            exchange="SMART",
+            multiplier="100",
+            tradingClass=normalized,
+        )
+        return underlying, chain
+
+    async def _ensure_ticker(_contract: Contract, *, owner: str = "default"):
+        return SimpleNamespace(bid=60.0, ask=60.2, last=60.1, close=60.0)
+
+    async def _qualify_proxy_contracts(*contracts: Contract):
+        out: list[Contract] = []
+        for idx, source in enumerate(contracts, start=1):
+            resolved = Contract(
+                secType="OPT",
+                symbol=str(getattr(source, "symbol", "") or ""),
+                exchange=str(getattr(source, "exchange", "") or ""),
+                currency=str(getattr(source, "currency", "") or ""),
+                lastTradeDateOrContractMonth=str(
+                    getattr(source, "lastTradeDateOrContractMonth", "") or ""
+                ),
+                strike=float(getattr(source, "strike", 0.0) or 0.0),
+                right=str(getattr(source, "right", "") or ""),
+            )
+            resolved.conId = 820000 + idx
+            out.append(resolved)
+        return out
+
+    client.stock_option_chain = _stock_option_chain
+    client.ensure_ticker = _ensure_ticker
+    client.qualify_proxy_contracts = _qualify_proxy_contracts
+    client.release_ticker = lambda *_args, **_kwargs: None
+
+    timing: dict[str, object] = {}
+    results = asyncio.run(
+        client.search_contracts(
+            "nvda",
+            mode="OPT",
+            limit=4,
+            opt_underlyer_symbol="AAPL",
+            timing=timing,
+        )
+    )
+
+    assert results
+    assert str(timing.get("source", "")) == "search_contracts_opt"
+    assert str(timing.get("stage", "")) == "done"
+    assert str(timing.get("reason", "")) == "ok"
+    assert int(timing.get("candidate_count", 0) or 0) >= 2
+    assert int(timing.get("qualified_count", 0) or 0) >= 2
+    assert float(timing.get("chain_ms", 0.0) or 0.0) >= 0.0
+    assert float(timing.get("ref_price_ms", 0.0) or 0.0) >= 0.0
+    assert float(timing.get("qualify_ms", 0.0) or 0.0) >= 0.0
+    assert float(timing.get("total_ms", 0.0) or 0.0) >= 0.0
+
+
+def test_search_contracts_opt_progress_split_qualifies_in_two_passes() -> None:
+    client = _client()
+    qualify_batch_sizes: list[int] = []
+    progress_events: list[dict[str, object]] = []
+
+    async def _stock_option_chain(symbol: str):
+        normalized = str(symbol or "").strip().upper()
+        underlying = Contract(
+            secType="STK",
+            symbol=normalized,
+            exchange="SMART",
+            currency="USD",
+            conId=42,
+        )
+        chain = SimpleNamespace(
+            expirations=("20260220",),
+            strikes=(60.0, 61.0, 62.0, 63.0),
+            exchange="SMART",
+            multiplier="100",
+            tradingClass=normalized,
+        )
+        return underlying, chain
+
+    async def _ensure_ticker(_contract: Contract, *, owner: str = "default"):
+        return SimpleNamespace(bid=61.0, ask=61.2, last=61.1, close=61.0)
+
+    async def _qualify_proxy_contracts(*contracts: Contract):
+        qualify_batch_sizes.append(len(contracts))
+        out: list[Contract] = []
+        for idx, source in enumerate(contracts, start=1):
+            resolved = Contract(
+                secType="OPT",
+                symbol=str(getattr(source, "symbol", "") or ""),
+                exchange=str(getattr(source, "exchange", "") or ""),
+                currency=str(getattr(source, "currency", "") or ""),
+                lastTradeDateOrContractMonth=str(
+                    getattr(source, "lastTradeDateOrContractMonth", "") or ""
+                ),
+                strike=float(getattr(source, "strike", 0.0) or 0.0),
+                right=str(getattr(source, "right", "") or ""),
+            )
+            resolved.conId = 830000 + len(out) + idx
+            out.append(resolved)
+        return out
+
+    async def _on_progress(rows: list[Contract], timing: dict[str, object]) -> None:
+        progress_events.append(
+            {
+                "rows": len(rows),
+                "candidate_count": int(timing.get("candidate_count", 0) or 0),
+                "qualified_count": int(timing.get("qualified_count", 0) or 0),
+                "stage": str(timing.get("stage", "") or ""),
+            }
+        )
+
+    client.stock_option_chain = _stock_option_chain
+    client.ensure_ticker = _ensure_ticker
+    client.qualify_proxy_contracts = _qualify_proxy_contracts
+    client.release_ticker = lambda *_args, **_kwargs: None
+
+    timing: dict[str, object] = {}
+    results = asyncio.run(
+        client.search_contracts(
+            "nvda",
+            mode="OPT",
+            limit=8,
+            opt_underlyer_symbol="NVDA",
+            timing=timing,
+            opt_first_limit=4,
+            opt_progress=_on_progress,
+        )
+    )
+
+    assert len(results) == 8
+    assert qualify_batch_sizes == [4, 4]
+    assert progress_events
+    assert progress_events[0]["rows"] == 4
+    assert progress_events[0]["candidate_count"] == 4
+    assert progress_events[0]["stage"] == "qualify-first"
+    assert bool(timing.get("split_active")) is True
+    assert int(timing.get("first_limit", 0) or 0) == 4
+    assert float(timing.get("qualify_ms_first", 0.0) or 0.0) >= 0.0
+    assert float(timing.get("qualify_ms_rest", 0.0) or 0.0) >= 0.0
 
 
 def test_matching_symbols_retries_transient_timeout() -> None:

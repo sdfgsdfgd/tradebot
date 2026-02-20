@@ -97,6 +97,9 @@ class PositionDetailScreen(Screen):
     _RELENTLESS_SPREAD_PRESSURE_TRIGGER = 2.0
     _RELENTLESS_SPREAD_PRESSURE_HYPER = 3.5
     _RELENTLESS_MAX_EDGE_TICKS = 40
+    _CHASE_PENDING_ACK_SEC = 0.9
+    _CHASE_RECONCILE_INTERVAL_SEC = 0.9
+    _CANCEL_REQUEST_TTL_SEC = 90.0
     _AURORA_PRESET_ORDER = ("calm", "normal", "feral")
     _AURORA_PRESETS = {
         "calm": {"buy_soft": 0.28, "buy_strong": 0.56, "sell_soft": -0.28, "sell_strong": -0.56, "burst_gain": 0.80},
@@ -134,6 +137,8 @@ class PositionDetailScreen(Screen):
         self._orders_notice: tuple[float, str, str] | None = None
         self._refresh_task = None
         self._chase_tasks: set[asyncio.Task] = set()
+        self._chase_task_by_order: dict[int, asyncio.Task] = {}
+        self._cancel_requested_at_by_order: dict[int, float] = {}
         self._mid_samples: deque[float] = deque(maxlen=240)
         self._mid_tape: deque[tuple[float, float]] = deque(maxlen=4096)
         self._spread_samples: deque[float] = deque(maxlen=96)
@@ -170,6 +175,7 @@ class PositionDetailScreen(Screen):
         self._session_prev_close: float | None = session_closes[0] if session_closes else None
         self._session_close_3ago: float | None = session_closes[1] if session_closes else None
         self._closes_task: asyncio.Task | None = None
+        self._bootstrap_task: asyncio.Task | None = None
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -185,22 +191,22 @@ class PositionDetailScreen(Screen):
         self._detail_left = self.query_one("#detail-left", Static)
         self._detail_right = self.query_one("#detail-right", Static)
         self._detail_legend = self.query_one("#detail-legend", Static)
-        await self._maybe_align_front_future_contract()
-        self._ticker = await self._client.ensure_ticker(self._item.contract, owner="details")
         self._client.add_stream_listener(self._capture_tick_mid)
-        try:
-            loop = asyncio.get_running_loop()
-            self._closes_task = loop.create_task(self._load_session_closes())
-        except RuntimeError:
-            self._closes_task = None
-        await self._load_underlying()
         self._refresh_task = self.set_interval(self._refresh_sec, self._render_details)
         self._render_details()
+        try:
+            loop = asyncio.get_running_loop()
+            self._bootstrap_task = loop.create_task(self._bootstrap_screen_data())
+        except RuntimeError:
+            self._bootstrap_task = None
+            await self._bootstrap_screen_data()
 
     async def on_unmount(self) -> None:
         self._client.remove_stream_listener(self._capture_tick_mid)
         if self._refresh_task:
             self._refresh_task.stop()
+        if self._bootstrap_task and not self._bootstrap_task.done():
+            self._bootstrap_task.cancel()
         if self._closes_task and not self._closes_task.done():
             self._closes_task.cancel()
         con_id = int(self._item.contract.conId or 0)
@@ -208,6 +214,22 @@ class PositionDetailScreen(Screen):
             self._client.release_ticker(con_id, owner="details")
         if self._underlying_con_id:
             self._client.release_ticker(self._underlying_con_id, owner="details")
+
+    async def _bootstrap_screen_data(self) -> None:
+        try:
+            await self._maybe_align_front_future_contract()
+            self._ticker = await self._client.ensure_ticker(self._item.contract, owner="details")
+            try:
+                loop = asyncio.get_running_loop()
+                self._closes_task = loop.create_task(self._load_session_closes())
+            except RuntimeError:
+                self._closes_task = None
+            await self._load_underlying()
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            return
+        self._render_details_if_mounted(sample=False)
 
     async def _maybe_align_front_future_contract(self) -> None:
         contract = self._item.contract
@@ -381,6 +403,9 @@ class PositionDetailScreen(Screen):
 
     def action_cancel_order(self) -> None:
         if self._active_panel != "orders":
+            self._exec_status = "Cancel: focus orders panel"
+            self._set_orders_notice(self._exec_status, level="warn")
+            self._render_details(sample=False)
             return
         trade = self._selected_order()
         if not trade:
@@ -388,7 +413,10 @@ class PositionDetailScreen(Screen):
             self._set_orders_notice(self._exec_status, level="warn")
             self._render_details(sample=False)
             return
-        order_id = trade.order.orderId or trade.order.permId or 0
+        order_id_raw, perm_id_raw = self._trade_order_ids(trade)
+        self._mark_cancel_requested(order_id=order_id_raw, perm_id=perm_id_raw)
+        self._cancel_chase_for_ids(order_id=order_id_raw, perm_id=perm_id_raw)
+        order_id = order_id_raw or perm_id_raw or 0
         self._exec_status = f"Canceling #{order_id}"
         self._set_orders_notice(self._exec_status, level="warn")
         try:
@@ -2128,6 +2156,92 @@ class PositionDetailScreen(Screen):
             perm_id = 0
         return max(0, order_id), max(0, perm_id)
 
+    def _latest_trade_for_ids(
+        self,
+        *,
+        order_id: int,
+        perm_id: int,
+        fallback: Trade,
+    ) -> Trade:
+        lookup = getattr(self._client, "trade_for_order_ids", None)
+        if not callable(lookup):
+            return fallback
+        try:
+            refreshed = lookup(
+                order_id=int(order_id),
+                perm_id=int(perm_id),
+                include_closed=True,
+            )
+        except TypeError:
+            try:
+                refreshed = lookup(int(order_id), int(perm_id))
+            except Exception:
+                refreshed = None
+        except Exception:
+            refreshed = None
+        if refreshed is None:
+            return fallback
+        return refreshed
+
+    async def _client_reconcile_order_state(
+        self,
+        *,
+        order_id: int,
+        perm_id: int,
+        force: bool = False,
+    ) -> dict[str, object] | None:
+        reconcile = getattr(self._client, "reconcile_order_state", None)
+        if not callable(reconcile):
+            return None
+        try:
+            payload = await reconcile(
+                order_id=int(order_id),
+                perm_id=int(perm_id),
+                force=bool(force),
+            )
+        except TypeError:
+            try:
+                payload = await reconcile(int(order_id), int(perm_id))
+            except Exception:
+                payload = None
+        except Exception:
+            payload = None
+        if not isinstance(payload, dict):
+            return None
+        return payload
+
+    def _client_current_order_state(
+        self,
+        *,
+        order_id: int,
+        perm_id: int,
+    ) -> dict[str, object] | None:
+        current_state = getattr(self._client, "current_order_state", None)
+        if not callable(current_state):
+            return None
+        try:
+            payload = current_state(
+                order_id=int(order_id),
+                perm_id=int(perm_id),
+            )
+        except TypeError:
+            try:
+                payload = current_state(int(order_id), int(perm_id))
+            except Exception:
+                payload = None
+        except Exception:
+            payload = None
+        if not isinstance(payload, dict):
+            return None
+        return payload
+
+    @staticmethod
+    def _status_compact(status: str) -> str:
+        text = str(status or "").strip()
+        if not text:
+            return "n/a"
+        return text.replace("PreSubmitted", "PreSub")[:9]
+
     @staticmethod
     def _state_order_keys(*, order_id: int, perm_id: int) -> list[int]:
         keys: list[int] = []
@@ -2143,6 +2257,46 @@ class PositionDetailScreen(Screen):
             if isinstance(state, dict):
                 return state
         return None
+
+    def _register_chase_task(self, task: asyncio.Task, *, order_id: int, perm_id: int) -> None:
+        for key in self._state_order_keys(order_id=order_id, perm_id=perm_id):
+            self._chase_task_by_order[int(key)] = task
+
+    def _unregister_chase_task(self, task: asyncio.Task) -> None:
+        for key, value in list(self._chase_task_by_order.items()):
+            if value is task:
+                self._chase_task_by_order.pop(int(key), None)
+
+    def _cancel_chase_for_ids(self, *, order_id: int, perm_id: int) -> None:
+        tasks: set[asyncio.Task] = set()
+        for key in self._state_order_keys(order_id=order_id, perm_id=perm_id):
+            task = self._chase_task_by_order.get(int(key))
+            if task is not None:
+                tasks.add(task)
+        for task in tasks:
+            if not task.done():
+                task.cancel()
+
+    def _mark_cancel_requested(self, *, order_id: int, perm_id: int) -> None:
+        ts = monotonic()
+        for key in self._state_order_keys(order_id=order_id, perm_id=perm_id):
+            self._cancel_requested_at_by_order[int(key)] = float(ts)
+
+    def _clear_cancel_requested(self, *, order_id: int, perm_id: int) -> None:
+        for key in self._state_order_keys(order_id=order_id, perm_id=perm_id):
+            self._cancel_requested_at_by_order.pop(int(key), None)
+
+    def _cancel_requested_for_ids(self, *, order_id: int, perm_id: int) -> bool:
+        now = monotonic()
+        ttl = max(1.0, float(self._CANCEL_REQUEST_TTL_SEC))
+        for key in self._state_order_keys(order_id=order_id, perm_id=perm_id):
+            ts = self._cancel_requested_at_by_order.get(int(key))
+            if ts is None:
+                continue
+            if (now - float(ts)) <= ttl:
+                return True
+            self._cancel_requested_at_by_order.pop(int(key), None)
+        return False
 
     def _set_chase_state(
         self,
@@ -2226,13 +2380,27 @@ class PositionDetailScreen(Screen):
             return f"{selected}>{active}"[:9]
         return selected[:9]
 
+    def _effective_status_for_trade(self, trade: Trade) -> str | None:
+        order_id, perm_id = self._trade_order_ids(trade)
+        raw_status = str(getattr(getattr(trade, "orderStatus", None), "status", "") or "").strip()
+        state = self._chase_state_for_ids(order_id=order_id, perm_id=perm_id)
+        if isinstance(state, dict):
+            effective = str(state.get("effective_status") or "").strip()
+            if effective and effective != raw_status:
+                return effective
+        payload = self._client_current_order_state(order_id=order_id, perm_id=perm_id)
+        if isinstance(payload, dict):
+            effective = str(payload.get("effective_status") or "").strip()
+            if effective and effective != raw_status:
+                return effective
+        return None
+
     def _format_order_line(self, trade: Trade, *, width: int) -> Text:
         contract = trade.contract
         label = getattr(contract, "localSymbol", "") or getattr(contract, "symbol", "") or "?"
         label = label[:10]
-        status = trade.orderStatus.status or "n/a"
-        status = status.replace("PreSubmitted", "PreSub")
-        status = status[:9]
+        raw_status = str(getattr(getattr(trade, "orderStatus", None), "status", "") or "").strip()
+        status = self._status_compact(raw_status)
         mode = self._order_mode_for_trade(trade)
         side = (trade.order.action or "?")[:1].upper()
         qty = _fmt_qty(float(trade.order.totalQuantity or 0))
@@ -2246,9 +2414,13 @@ class PositionDetailScreen(Screen):
         filled = _fmt_qty(float(trade.orderStatus.filled or 0))
         remaining = _fmt_qty(float(trade.orderStatus.remaining or 0))
         order_id = trade.order.orderId or trade.order.permId or 0
+        effective_status = self._effective_status_for_trade(trade)
+        effective_hint = ""
+        if effective_status:
+            effective_hint = f" ~{self._status_compact(effective_status)}"
         line = (
             f"{label:<10} {status:<9} {mode:<9} {side:<1} {qty:>3} "
-            f"{type_label:<12} {filled:>4}/{remaining:<4} #{order_id}"
+            f"{type_label:<12} {filled:>4}/{remaining:<4} #{order_id}{effective_hint}"
         )
         return Text(self._clip(line, width))
 
@@ -2268,11 +2440,13 @@ class PositionDetailScreen(Screen):
     async def _cancel_order(self, trade: Trade) -> None:
         order_id, perm_id = self._trade_order_ids(trade)
         order_ref = int(order_id or perm_id or 0)
+        self._mark_cancel_requested(order_id=order_id, perm_id=perm_id)
         try:
             await self._client.cancel_trade(trade)
         except Exception as exc:
             self._exec_status = f"Cancel error: {exc}"
             self._set_orders_notice(self._exec_status, level="error")
+            self._clear_cancel_requested(order_id=order_id, perm_id=perm_id)
             self._render_details(sample=False)
             return
         error_payload = (
@@ -2280,6 +2454,7 @@ class PositionDetailScreen(Screen):
             if order_ref
             else None
         )
+        should_clear_cancel_intent = False
         if error_payload is not None:
             error_code, error_message = error_payload
             error_prefix = f"IB {error_code}: " if error_code else "IB: "
@@ -2289,12 +2464,45 @@ class PositionDetailScreen(Screen):
             else:
                 self._exec_status = f"Cancel: {error_prefix}{error_message}"
             self._set_orders_notice(self._exec_status, level=level)
+            should_clear_cancel_intent = True
         else:
+            ack_status = ""
             if order_ref:
-                self._exec_status = f"Cancel sent #{order_ref}"
+                for attempt in range(5):
+                    payload = self._client_current_order_state(order_id=order_id, perm_id=perm_id)
+                    if not isinstance(payload, dict) and attempt >= 2:
+                        payload = await self._client_reconcile_order_state(
+                            order_id=order_id,
+                            perm_id=perm_id,
+                            force=bool(attempt >= 4),
+                        )
+                    if isinstance(payload, dict):
+                        ack_status = str(payload.get("effective_status") or "").strip()
+                        if ack_status in (
+                            "PendingCancel",
+                            "Cancelled",
+                            "ApiCancelled",
+                            "Inactive",
+                            "Filled",
+                        ):
+                            break
+                    await asyncio.sleep(0.08)
+            if order_ref:
+                if ack_status:
+                    self._exec_status = f"Cancel {ack_status} #{order_ref}"
+                else:
+                    self._exec_status = f"Cancel sent #{order_ref} (awaiting broker ack)"
             else:
                 self._exec_status = "Cancel sent"
             self._set_orders_notice(self._exec_status, level="warn")
+            should_clear_cancel_intent = ack_status in (
+                "Cancelled",
+                "ApiCancelled",
+                "Inactive",
+                "Filled",
+            )
+        if should_clear_cancel_intent:
+            self._clear_cancel_requested(order_id=order_id, perm_id=perm_id)
         self._render_details(sample=False)
 
     def _handle_digit(self, char: str) -> None:
@@ -2610,6 +2818,7 @@ class PositionDetailScreen(Screen):
             if loop is not None:
                 task = loop.create_task(self._chase_until_filled(trade, action, mode=mode))
                 self._chase_tasks.add(task)
+                self._register_chase_task(task, order_id=order_id, perm_id=perm_id)
 
                 def _on_chase_done(
                     done_task: asyncio.Task,
@@ -2618,6 +2827,7 @@ class PositionDetailScreen(Screen):
                     seed_perm_id: int = perm_id,
                 ) -> None:
                     self._chase_tasks.discard(done_task)
+                    self._unregister_chase_task(done_task)
                     if done_task.cancelled():
                         return
                     try:
@@ -2745,20 +2955,115 @@ class PositionDetailScreen(Screen):
         no_progress_reprices = 0
         last_filled_qty = 0.0
         last_live_probe_ts: float | None = None
+        last_reconcile_ts: float | None = None
+        pending_since_ts: float | None = None
         try:
             while True:
+                trade = self._latest_trade_for_ids(
+                    order_id=order_id,
+                    perm_id=perm_id,
+                    fallback=trade,
+                )
                 live_order_id, live_perm_id = self._trade_order_ids(trade)
                 if live_order_id > 0:
                     order_id = int(live_order_id)
                 if live_perm_id > 0:
                     perm_id = int(live_perm_id)
+                live_con_id = int(getattr(getattr(trade, "contract", None), "conId", 0) or 0)
+                if live_con_id > 0:
+                    con_id = int(live_con_id)
+                current_task = asyncio.current_task()
+                if current_task is not None:
+                    self._register_chase_task(
+                        current_task,
+                        order_id=order_id,
+                        perm_id=perm_id,
+                    )
+                loop_now = asyncio.get_running_loop().time()
                 status_raw = str(getattr(getattr(trade, "orderStatus", None), "status", "") or "").strip()
+                status_effective = status_raw
+                live_state_payload = (
+                    self._client_current_order_state(order_id=order_id, perm_id=perm_id)
+                    if (order_id or perm_id)
+                    else None
+                )
+                if isinstance(live_state_payload, dict):
+                    live_trade = live_state_payload.get("trade")
+                    if isinstance(live_trade, Trade):
+                        trade = live_trade
+                        live_order_id, live_perm_id = self._trade_order_ids(trade)
+                        if live_order_id > 0:
+                            order_id = int(live_order_id)
+                        if live_perm_id > 0:
+                            perm_id = int(live_perm_id)
+                    effective_live = str(
+                        live_state_payload.get("effective_status") or ""
+                    ).strip()
+                    if effective_live:
+                        status_effective = effective_live
                 terminal_statuses = ("Filled", "Cancelled", "ApiCancelled", "Inactive")
                 repricable_statuses = ("PreSubmitted", "Submitted")
+                pending_statuses = ("PendingSubmit", "PendingSubmission", "ApiPending")
+                cancel_requested = self._cancel_requested_for_ids(
+                    order_id=order_id,
+                    perm_id=perm_id,
+                )
+                if status_raw in pending_statuses:
+                    if pending_since_ts is None:
+                        pending_since_ts = loop_now
+                else:
+                    pending_since_ts = None
+                pending_age = (
+                    max(0.0, loop_now - pending_since_ts)
+                    if pending_since_ts is not None
+                    else 0.0
+                )
+                reconcile_payload: dict[str, object] | None = None
+                if order_id or perm_id:
+                    should_reconcile = False
+                    if status_raw in pending_statuses and pending_age >= float(self._CHASE_PENDING_ACK_SEC):
+                        if (
+                            last_reconcile_ts is None
+                            or (loop_now - last_reconcile_ts) >= float(self._CHASE_RECONCILE_INTERVAL_SEC)
+                        ):
+                            should_reconcile = True
+                    if should_reconcile:
+                        reconcile_payload = await self._client_reconcile_order_state(
+                            order_id=order_id,
+                            perm_id=perm_id,
+                            force=bool(pending_age >= (float(self._CHASE_PENDING_ACK_SEC) * 2.0)),
+                        )
+                        last_reconcile_ts = loop_now
+                if reconcile_payload is not None:
+                    reconciled_trade = reconcile_payload.get("trade")
+                    if isinstance(reconciled_trade, Trade):
+                        trade = reconciled_trade
+                        live_order_id, live_perm_id = self._trade_order_ids(trade)
+                        if live_order_id > 0:
+                            order_id = int(live_order_id)
+                        if live_perm_id > 0:
+                            perm_id = int(live_perm_id)
+                    status_effective = str(
+                        reconcile_payload.get("effective_status") or status_effective
+                    ).strip() or status_effective
                 try:
                     filled_now = float(getattr(getattr(trade, "orderStatus", None), "filled", 0.0) or 0.0)
                 except (TypeError, ValueError):
                     filled_now = 0.0
+                if reconcile_payload is not None:
+                    try:
+                        reconciled_filled = float(reconcile_payload.get("filled_qty") or 0.0)
+                    except (TypeError, ValueError):
+                        reconciled_filled = 0.0
+                    if reconciled_filled > filled_now:
+                        filled_now = float(reconciled_filled)
+                if isinstance(live_state_payload, dict):
+                    try:
+                        live_filled = float(live_state_payload.get("filled_qty") or 0.0)
+                    except (TypeError, ValueError):
+                        live_filled = 0.0
+                    if live_filled > filled_now:
+                        filled_now = float(live_filled)
                 prev_filled_qty = float(last_filled_qty)
                 fill_progress = bool(filled_now > (prev_filled_qty + 1e-9))
                 if fill_progress:
@@ -2769,7 +3074,15 @@ class PositionDetailScreen(Screen):
                     is_done = bool(trade.isDone())
                 except Exception:
                     is_done = False
-                if status_raw in terminal_statuses or is_done:
+                reconcile_terminal = bool(reconcile_payload and reconcile_payload.get("is_terminal"))
+                live_terminal = bool(live_state_payload and live_state_payload.get("is_terminal"))
+                if (
+                    status_effective in terminal_statuses
+                    or status_raw in terminal_statuses
+                    or is_done
+                    or reconcile_terminal
+                    or live_terminal
+                ):
                     order_ref = int(order_id or perm_id or 0)
                     order_label = f"#{order_ref}" if order_ref else "order"
                     error_payload = (
@@ -2777,11 +3090,13 @@ class PositionDetailScreen(Screen):
                         if order_ref
                         else None
                     )
-                    status_label = status_raw
+                    status_label = status_effective or status_raw
                     if not status_label:
                         status_label = "Done"
                     elif is_done and status_label not in terminal_statuses:
                         status_label = f"Done ({status_label})"
+                    if status_raw and status_effective and status_effective != status_raw:
+                        status_label = f"{status_label} [{status_raw}]"
                     if error_payload is not None:
                         error_code, error_message = error_payload
                         error_prefix = f"IB {error_code}: " if error_code else "IB: "
@@ -2803,10 +3118,11 @@ class PositionDetailScreen(Screen):
                                 f"{order_label} {status_raw}",
                                 level="warn",
                             )
-                    elif status_raw == "Filled":
+                    elif status_effective == "Filled" or status_raw == "Filled":
                         self._set_orders_notice(f"Filled {order_label}", level="info")
                     elif is_done:
                         self._set_orders_notice(f"{order_label} {status_label}", level="warn")
+                    self._clear_cancel_requested(order_id=order_id, perm_id=perm_id)
                     self._clear_chase_state(order_id=order_id, perm_id=perm_id)
                     self._render_details_if_mounted(sample=False)
                     return
@@ -2832,11 +3148,11 @@ class PositionDetailScreen(Screen):
                             self._render_details_if_mounted(sample=False)
                             return
 
-                loop_now = asyncio.get_running_loop().time()
                 elapsed = loop_now - started
                 mode_now = _exec_chase_mode(elapsed, selected_mode=mode)
                 if mode_now is None:
                     try:
+                        self._mark_cancel_requested(order_id=order_id, perm_id=perm_id)
                         await self._client.cancel_trade(trade)
                         live_order_id, live_perm_id = self._trade_order_ids(trade)
                         if live_order_id > 0:
@@ -2931,18 +3247,24 @@ class PositionDetailScreen(Screen):
                     prev_quote_signature=prev_quote_sig,
                     min_interval_sec=float(min_interval_sec),
                 )
-                if should_reprice and status_raw not in repricable_statuses:
+                working_status = status_effective or status_raw
+                if cancel_requested:
+                    should_reprice = False
+                if should_reprice and working_status not in repricable_statuses:
                     should_reprice = False
                 prev_mode = str(mode_now)
                 prev_quote_sig = quote_sig
                 if order_id or perm_id:
+                    state_updates: dict[str, object] = {
+                        "selected": selected_label,
+                        "active": self._exec_mode_label(str(mode_now)),
+                    }
+                    if status_effective and status_effective != status_raw:
+                        state_updates["effective_status"] = status_effective
                     self._set_chase_state(
                         order_id=order_id,
                         perm_id=perm_id,
-                        updates={
-                            "selected": selected_label,
-                            "active": self._exec_mode_label(str(mode_now)),
-                        },
+                        updates=state_updates,
                     )
 
                 if should_reprice:
@@ -3016,6 +3338,9 @@ class PositionDetailScreen(Screen):
 
                 await asyncio.sleep(0.25)
         finally:
+            current_task = asyncio.current_task()
+            if current_task is not None:
+                self._unregister_chase_task(current_task)
             self._clear_chase_state(order_id=order_id, perm_id=perm_id)
             if con_id:
                 try:

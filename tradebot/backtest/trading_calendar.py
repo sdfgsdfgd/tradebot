@@ -27,6 +27,7 @@ NYSE_SPECIAL_CLOSED_DAYS = {
 }
 
 _HOLIDAY_CACHE: dict[int, set[date]] = {}
+_EARLY_CLOSE_CACHE: dict[int, set[date]] = {}
 
 
 def is_maintenance_gap(t: time) -> bool:
@@ -125,6 +126,38 @@ def is_trading_day(d: date) -> bool:
             if hd.year == d.year:
                 holidays.add(hd)
     return d not in holidays
+
+
+def _nyse_early_closes(year: int) -> set[date]:
+    out: set[date] = set()
+    # Day after Thanksgiving (Black Friday).
+    black_friday = _nth_weekday(year, 11, 3, 4) + timedelta(days=1)
+    if is_trading_day(black_friday):
+        out.add(black_friday)
+    # Christmas Eve.
+    christmas_eve = date(year, 12, 24)
+    if is_trading_day(christmas_eve):
+        out.add(christmas_eve)
+    # Independence Day eve when it remains a trading day.
+    july_3 = date(year, 7, 3)
+    if is_trading_day(july_3):
+        out.add(july_3)
+    return out
+
+
+def is_early_close_day(d: date) -> bool:
+    if not is_trading_day(d):
+        return False
+    cached = _EARLY_CLOSE_CACHE.get(d.year)
+    if cached is None:
+        cached = _nyse_early_closes(d.year)
+        _EARLY_CLOSE_CACHE[d.year] = cached
+    return d in cached
+
+
+def full24_post_close_time_et(day: date) -> time:
+    # IBKR full-session equity bars typically stop at 17:00 ET on NYSE half-days.
+    return time(17, 0) if is_early_close_day(day) else time(20, 0)
 
 
 def expected_sessions(day: date, *, session_mode: str) -> set[str]:

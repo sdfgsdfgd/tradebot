@@ -75,8 +75,11 @@ class PositionsApp(App):
     _SEARCH_MODES = ("STK", "FUT", "OPT", "FOP")
     _SEARCH_LIMIT = 5
     _SEARCH_FETCH_LIMIT = 96
+    _SEARCH_OPT_FETCH_LIMIT = 48
+    _SEARCH_OPT_FIRST_PAINT_LIMIT = 12
     _SEARCH_OPT_UNDERLYER_LIMIT = 8
     _SEARCH_DEBOUNCE_SEC = 0.18
+    _SNAPSHOT_THROTTLE_MIN_SEC = 1.0
 
     _SECTION_HEADER_STYLE_BY_TYPE = {
         "OPT": "bold #8fbfff",
@@ -268,7 +271,9 @@ class PositionsApp(App):
         self._snapshot = PortfolioSnapshot()
         self._refresh_lock = asyncio.Lock()
         self._dirty = False
+        self._dirty_needs_snapshot = False
         self._dirty_task: asyncio.Task | None = None
+        self._last_snapshot_fetch_mono: float = 0.0
         self._row_count = 0
         self._row_keys: list[str] = []
         self._row_item_by_key: dict[str, PortfolioItem] = {}
@@ -322,6 +327,7 @@ class PositionsApp(App):
         self._search_symbol_labels: dict[str, str] = {}
         self._search_opt_underlyer_index = 0
         self._search_opt_chain_cache: dict[str, list[Contract]] = {}
+        self._search_timing: dict[str, object] = {}
         self._search_task: asyncio.Task | None = None
 
     def compose(self) -> ComposeResult:
@@ -349,10 +355,12 @@ class PositionsApp(App):
         self._table.cursor_type = "row"
         self._table.focus()
         self._bot_runtime.install(self)
-        self._client.set_update_callback(self._mark_dirty)
-        await self.refresh_positions()
+        self._client.set_update_callback(self._mark_stream_dirty)
+        self._mark_dirty(fetch_snapshot=True)
 
     async def on_unmount(self) -> None:
+        if self._dirty_task and not self._dirty_task.done():
+            self._dirty_task.cancel()
         self._cancel_search_task()
         self._clear_search_tickers()
         await self._client.disconnect()
@@ -622,6 +630,7 @@ class PositionsApp(App):
         self._search_symbol_labels = {}
         self._search_opt_underlyer_index = 0
         self._search_opt_chain_cache = {}
+        self._search_timing = {}
         self._search_loading = False
         self._search_error = None
         self._search_generation += 1
@@ -643,6 +652,7 @@ class PositionsApp(App):
         self._search_symbol_labels = {}
         self._search_opt_underlyer_index = 0
         self._search_opt_chain_cache = {}
+        self._search_timing = {}
         self._search_loading = False
         self._search_error = None
         self._search_generation += 1
@@ -671,6 +681,7 @@ class PositionsApp(App):
         self._search_symbol_labels = {}
         self._search_opt_underlyer_index = 0
         self._search_opt_chain_cache = {}
+        self._search_timing = {}
         self._queue_search()
 
     def _move_search_selection(self, delta: int) -> None:
@@ -830,6 +841,7 @@ class PositionsApp(App):
         if not query or not symbol:
             self._search_results = []
             self._search_loading = False
+            self._search_timing = {}
             self._render_search()
             return
         cached = self._search_opt_chain_cache.get(symbol)
@@ -839,8 +851,34 @@ class PositionsApp(App):
             self._search_results = list(cached)
             self._search_selected = self._default_opt_row_index()
             self._ensure_search_visible()
+            self._init_search_timing(
+                generation=self._search_generation,
+                query=query,
+                mode="OPT",
+                source="underlyer-cycle",
+                fetch_limit=self._SEARCH_OPT_FETCH_LIMIT,
+            )
+            self._set_search_timing(
+                status="done",
+                phase="done",
+                opt_deepen_pending=False,
+                chain_cache_hit=True,
+                contracts_ms=0.0,
+                rows=len(self._search_results),
+                candidate_count=0,
+                qualified_count=0,
+                total_ms=0.0,
+            )
             self._render_search()
             return
+        self._init_search_timing(
+            generation=self._search_generation,
+            query=query,
+            mode="OPT",
+            source="underlyer-cycle",
+            fetch_limit=self._SEARCH_OPT_FETCH_LIMIT,
+        )
+        self._set_search_timing(phase="contracts", opt_deepen_pending=False)
         self._search_loading = True
         self._search_error = None
         self._search_results = []
@@ -850,6 +888,11 @@ class PositionsApp(App):
             loop = asyncio.get_running_loop()
         except RuntimeError:
             self._search_loading = False
+            self._finalize_search_timing(
+                generation=generation,
+                status="error",
+                error="runtime_loop_unavailable",
+            )
             self._render_search()
             return
         self._search_task = loop.create_task(
@@ -857,7 +900,7 @@ class PositionsApp(App):
                 generation,
                 query,
                 symbol,
-                fetch_limit=self._SEARCH_FETCH_LIMIT,
+                fetch_limit=self._SEARCH_OPT_FETCH_LIMIT,
             )
         )
 
@@ -1043,6 +1086,273 @@ class PositionsApp(App):
             self._search_scroll = self._search_selected - self._SEARCH_LIMIT + 1
         self._search_scroll = min(max(self._search_scroll, 0), max_scroll)
 
+    def _init_search_timing(
+        self,
+        *,
+        generation: int,
+        query: str,
+        mode: str,
+        source: str,
+        fetch_limit: int,
+    ) -> None:
+        self._search_timing = {
+            "generation": int(generation),
+            "query": str(query or ""),
+            "mode": str(mode or "").strip().upper(),
+            "source": str(source or "").strip().lower(),
+            "fetch_limit": int(fetch_limit),
+            "status": "loading",
+            "phase": "queued",
+            "started_mono": float(time.monotonic()),
+        }
+
+    def _set_search_timing(self, *, generation: int | None = None, **values: object) -> None:
+        timing = getattr(self, "_search_timing", None)
+        if not isinstance(timing, dict):
+            timing = {}
+            self._search_timing = timing
+        if generation is not None:
+            current_generation = self._timing_int(timing.get("generation"))
+            if current_generation != int(generation):
+                return
+        timing.update(values)
+
+    def _finalize_search_timing(
+        self,
+        *,
+        generation: int | None = None,
+        status: str,
+        rows: int | None = None,
+        error: str | None = None,
+    ) -> None:
+        timing = getattr(self, "_search_timing", None)
+        if not isinstance(timing, dict) or not timing:
+            return
+        if generation is not None:
+            current_generation = self._timing_int(timing.get("generation"))
+            if current_generation != int(generation):
+                return
+        started_raw = timing.get("started_mono")
+        try:
+            started_mono = float(started_raw)
+        except (TypeError, ValueError):
+            started_mono = 0.0
+        total_ms = None
+        if started_mono > 0:
+            total_ms = (time.monotonic() - started_mono) * 1000.0
+        timing["status"] = str(status or "").strip().lower() or "done"
+        timing["phase"] = "done" if timing["status"] in ("done", "ok", "success") else timing.get("phase")
+        if rows is not None:
+            timing["rows"] = int(rows)
+        if error:
+            timing["error"] = str(error)
+        if total_ms is not None:
+            timing["total_ms"] = float(total_ms)
+
+    @staticmethod
+    def _timing_ms_text(value: object) -> str:
+        try:
+            ms = float(value)
+        except (TypeError, ValueError):
+            return "..."
+        if ms < 0:
+            return "..."
+        return f"{ms:.0f}ms"
+
+    @staticmethod
+    def _timing_int(value: object) -> int:
+        try:
+            return int(value or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    def _search_opt_first_paint_limit(self, fetch_limit: int) -> int:
+        return max(1, min(int(fetch_limit or 1), int(self._SEARCH_OPT_FIRST_PAINT_LIMIT)))
+
+    def _set_opt_search_contract_timing(
+        self,
+        *,
+        generation: int,
+        contract_timing: dict[str, object],
+        contracts_started: float,
+        phase: str | None = None,
+        deepen_pending: bool | None = None,
+    ) -> None:
+        values: dict[str, object] = {
+            "chain_cache_hit": False,
+            "contracts_ms": contract_timing.get(
+                "total_ms",
+                (time.monotonic() - contracts_started) * 1000.0,
+            ),
+            "candidate_count": self._timing_int(contract_timing.get("candidate_count")),
+            "qualified_count": self._timing_int(contract_timing.get("qualified_count")),
+            "contract_stage": str(contract_timing.get("stage", "") or ""),
+            "contract_reason": str(contract_timing.get("reason", "") or ""),
+            "chain_ms": contract_timing.get("chain_ms"),
+            "ref_price_ms": contract_timing.get("ref_price_ms"),
+            "ref_price_source": str(contract_timing.get("ref_price_source", "") or ""),
+            "qualify_ms": contract_timing.get("qualify_ms"),
+            "selected_expiry_count": self._timing_int(contract_timing.get("selected_expiry_count")),
+            "expiry_count": self._timing_int(contract_timing.get("expiry_count")),
+            "strike_count": self._timing_int(contract_timing.get("strike_count")),
+            "rows_per_expiry": self._timing_int(contract_timing.get("rows_per_expiry")),
+            "first_limit": self._timing_int(contract_timing.get("first_limit")),
+            "split_active": bool(contract_timing.get("split_active")),
+            "qualify_ms_first": contract_timing.get("qualify_ms_first"),
+            "qualify_ms_rest": contract_timing.get("qualify_ms_rest"),
+        }
+        if phase is not None:
+            values["phase"] = str(phase)
+        if deepen_pending is not None:
+            values["opt_deepen_pending"] = bool(deepen_pending)
+        self._set_search_timing(generation=generation, **values)
+
+    def _apply_opt_progress_rows(
+        self,
+        *,
+        generation: int,
+        symbol: str,
+        results: list[Contract],
+        contract_timing: dict[str, object],
+        contracts_started: float,
+    ) -> None:
+        if generation != self._search_generation:
+            return
+        incoming_rows = list(results)
+        incoming_count = len(incoming_rows)
+        current_count = len(self._search_results)
+        cached_rows = self._search_opt_chain_cache.get(symbol)
+        cached_count = len(cached_rows) if cached_rows is not None else 0
+        # Guard against out-of-order progress callbacks regressing an already-expanded table.
+        if current_count > 0 and incoming_count < current_count:
+            return
+        if cached_count > 0 and incoming_count < cached_count:
+            return
+        if not self._search_loading and current_count > 0:
+            return
+        self._search_error = None
+        self._search_loading = True
+        self._search_results = incoming_rows
+        self._search_opt_chain_cache[symbol] = list(incoming_rows)
+        self._search_selected = self._default_opt_row_index()
+        self._ensure_search_visible()
+        self._set_opt_search_contract_timing(
+            generation=generation,
+            contract_timing=contract_timing,
+            contracts_started=contracts_started,
+            phase="contracts-deepen",
+            deepen_pending=True,
+        )
+        self._render_search()
+
+    def _search_timing_line(self) -> Text | None:
+        if not self._search_query.strip():
+            return None
+        timing = getattr(self, "_search_timing", None)
+        if not isinstance(timing, dict) or not timing:
+            return None
+        mode = str(timing.get("mode", self._search_mode()) or "").strip().upper()
+        parts: list[str] = []
+        phase = str(timing.get("phase", "") or "").strip().lower()
+        if phase:
+            parts.append(f"phase={phase}")
+        if mode == "OPT":
+            under_ms = self._timing_ms_text(timing.get("underlyer_ms"))
+            under_source = str(timing.get("underlyer_source", "") or "").strip().lower()
+            under_suffix: list[str] = []
+            under_matching_ms = timing.get("underlyer_matching_ms")
+            if under_matching_ms is not None:
+                under_suffix.append(f"match={self._timing_ms_text(under_matching_ms)}")
+            fallback_calls = self._timing_int(timing.get("underlyer_fallback_calls"))
+            if fallback_calls > 0:
+                under_suffix.append(
+                    f"fb={fallback_calls}/{self._timing_ms_text(timing.get('underlyer_fallback_ms'))}"
+                )
+            rank_ms = timing.get("underlyer_rank_ms")
+            if rank_ms is not None:
+                under_suffix.append(f"rank={self._timing_ms_text(rank_ms)}")
+            if under_source:
+                under_ms = f"{under_ms} {under_source}"
+            if under_suffix:
+                under_ms = f"{under_ms} ({', '.join(under_suffix)})"
+            chain_ms = self._timing_ms_text(timing.get("contracts_ms"))
+            chain_suffix: list[str] = []
+            if bool(timing.get("chain_cache_hit")):
+                chain_suffix.append("cache")
+            if bool(timing.get("opt_deepen_pending")):
+                chain_suffix.append("bg")
+            candidates = self._timing_int(timing.get("candidate_count"))
+            qualified = self._timing_int(timing.get("qualified_count"))
+            if candidates > 0:
+                chain_suffix.append(f"q {qualified}/{candidates}")
+            chain_detail: list[str] = []
+            secdef_ms = timing.get("chain_ms")
+            if secdef_ms is not None:
+                chain_detail.append(f"secdef={self._timing_ms_text(secdef_ms)}")
+            ref_ms = timing.get("ref_price_ms")
+            if ref_ms is not None:
+                ref_source = str(timing.get("ref_price_source", "") or "").strip().lower()
+                ref_part = f"ref={self._timing_ms_text(ref_ms)}"
+                if ref_source:
+                    ref_part = f"{ref_part}/{ref_source}"
+                chain_detail.append(ref_part)
+            qualify_ms = timing.get("qualify_ms")
+            if qualify_ms is not None:
+                chain_detail.append(f"qual={self._timing_ms_text(qualify_ms)}")
+            if bool(timing.get("split_active")):
+                first_limit = self._timing_int(timing.get("first_limit"))
+                if first_limit > 0:
+                    chain_detail.append(f"fp={first_limit}")
+                qualify_ms_first = timing.get("qualify_ms_first")
+                if qualify_ms_first is not None:
+                    chain_detail.append(f"q1={self._timing_ms_text(qualify_ms_first)}")
+                qualify_ms_rest = timing.get("qualify_ms_rest")
+                if qualify_ms_rest is not None:
+                    chain_detail.append(f"q2={self._timing_ms_text(qualify_ms_rest)}")
+            selected_expiry_count = self._timing_int(timing.get("selected_expiry_count"))
+            expiry_count = self._timing_int(timing.get("expiry_count"))
+            if expiry_count > 0:
+                chain_detail.append(f"exp={selected_expiry_count}/{expiry_count}")
+            rows_per_expiry = self._timing_int(timing.get("rows_per_expiry"))
+            if rows_per_expiry > 0:
+                chain_detail.append(f"rpe={rows_per_expiry}")
+            strike_count = self._timing_int(timing.get("strike_count"))
+            if strike_count > 0:
+                chain_detail.append(f"strk={strike_count}")
+            contract_stage = str(timing.get("contract_stage", "") or "").strip().lower()
+            contract_reason = str(timing.get("contract_reason", "") or "").strip().lower()
+            if contract_stage and contract_stage not in ("done", "cache"):
+                chain_detail.append(f"stg={contract_stage}")
+            if contract_reason and contract_reason not in ("ok", "cache-hit"):
+                chain_detail.append(f"why={contract_reason}")
+            chain_detail_text = ""
+            if chain_detail:
+                chain_detail_text = f" ({' '.join(chain_detail)})"
+            parts.extend(
+                [
+                    f"db={self._timing_ms_text(timing.get('debounce_ms'))}",
+                    f"under={under_ms}",
+                    f"chain={chain_ms}{(' ' + ','.join(chain_suffix)) if chain_suffix else ''}{chain_detail_text}",
+                ]
+            )
+        else:
+            parts.extend(
+                [
+                    f"db={self._timing_ms_text(timing.get('debounce_ms'))}",
+                    f"contracts={self._timing_ms_text(timing.get('contracts_ms'))}",
+                    f"labels={self._timing_ms_text(timing.get('labels_ms'))}",
+                ]
+            )
+        total_ms = timing.get("total_ms")
+        if total_ms is not None:
+            parts.append(f"total={self._timing_ms_text(total_ms)}")
+        rows = timing.get("rows")
+        if rows is not None:
+            parts.append(f"rows={self._timing_int(rows)}")
+        line = Text("Timing ", style="dim")
+        line.append(" | ".join(parts), style="dim")
+        return line
+
     def _queue_search(self) -> None:
         self._search_error = None
         self._search_selected = 0
@@ -1053,6 +1363,7 @@ class PositionsApp(App):
         self._search_symbol_labels = {}
         self._search_opt_underlyer_index = 0
         self._search_opt_chain_cache = {}
+        self._search_timing = {}
         self._cancel_search_task()
         query = self._search_query.strip()
         if not query:
@@ -1065,10 +1376,31 @@ class PositionsApp(App):
         self._search_generation += 1
         generation = self._search_generation
         mode = self._search_mode()
+        fetch_limit = (
+            self._SEARCH_OPT_FETCH_LIMIT
+            if mode == "OPT"
+            else (
+                self._SEARCH_FETCH_LIMIT
+                if self._is_option_search_mode(mode)
+                else self._SEARCH_LIMIT
+            )
+        )
+        self._init_search_timing(
+            generation=generation,
+            query=query,
+            mode=mode,
+            source="query",
+            fetch_limit=fetch_limit,
+        )
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
             self._search_loading = False
+            self._finalize_search_timing(
+                generation=generation,
+                status="error",
+                error="runtime_loop_unavailable",
+            )
             self._render_search()
             return
         self._search_task = loop.create_task(
@@ -1076,17 +1408,44 @@ class PositionsApp(App):
                 generation,
                 query,
                 mode,
-                fetch_limit=self._SEARCH_FETCH_LIMIT if self._is_option_search_mode(mode) else self._SEARCH_LIMIT,
+                fetch_limit=fetch_limit,
             )
         )
 
     async def _run_search(self, generation: int, query: str, mode: str, *, fetch_limit: int) -> None:
+        self._set_search_timing(generation=generation, phase="debounce")
         try:
+            debounce_started = time.monotonic()
             await asyncio.sleep(self._SEARCH_DEBOUNCE_SEC)
+            self._set_search_timing(
+                generation=generation,
+                debounce_ms=(time.monotonic() - debounce_started) * 1000.0,
+            )
             if mode == "OPT":
+                self._set_search_timing(generation=generation, phase="underlyers")
+                underlyer_timing: dict[str, object] = {}
+                underlyer_started = time.monotonic()
                 underlyers = await self._client.search_option_underlyers(
                     query,
                     limit=self._SEARCH_OPT_UNDERLYER_LIMIT,
+                    timing=underlyer_timing,
+                )
+                self._set_search_timing(
+                    generation=generation,
+                    underlyer_ms=underlyer_timing.get(
+                        "total_ms",
+                        (time.monotonic() - underlyer_started) * 1000.0,
+                    ),
+                    underlyer_source=str(underlyer_timing.get("source", "") or "").strip().lower(),
+                    underlyer_count=len(underlyers),
+                    underlyer_matching_ms=underlyer_timing.get("matching_ms"),
+                    underlyer_matching_rows=self._timing_int(underlyer_timing.get("matching_rows")),
+                    underlyer_direct_ms=underlyer_timing.get("direct_ms"),
+                    underlyer_fallback_ms=underlyer_timing.get("fallback_chain_ms"),
+                    underlyer_fallback_calls=self._timing_int(
+                        underlyer_timing.get("fallback_chain_calls")
+                    ),
+                    underlyer_rank_ms=underlyer_timing.get("rank_ms"),
                 )
                 if generation != self._search_generation:
                     return
@@ -1104,6 +1463,17 @@ class PositionsApp(App):
                         self._search_symbol_labels[cleaned_symbol] = label
                 if not self._search_opt_underlyers:
                     results: list[Contract] = []
+                    self._set_search_timing(
+                        generation=generation,
+                        phase="contracts",
+                        opt_deepen_pending=False,
+                        chain_cache_hit=False,
+                        contracts_ms=0.0,
+                        candidate_count=0,
+                        qualified_count=0,
+                        contract_stage="underlyers-empty",
+                        contract_reason="no-underlyers",
+                    )
                 else:
                     self._search_opt_underlyer_index = min(
                         max(int(self._search_opt_underlyer_index), 0),
@@ -1112,19 +1482,52 @@ class PositionsApp(App):
                     symbol = self._search_opt_underlyers[self._search_opt_underlyer_index]
                     cached = self._search_opt_chain_cache.get(symbol)
                     if cached is None:
+                        self._set_search_timing(
+                            generation=generation,
+                            phase="contracts",
+                            opt_deepen_pending=False,
+                            chain_cache_hit=False,
+                        )
+                        contract_timing: dict[str, object] = {}
+                        contract_started = time.monotonic()
                         results = await self._client.search_contracts(
                             query,
                             mode=mode,
                             limit=fetch_limit,
                             opt_underlyer_symbol=symbol,
+                            timing=contract_timing,
+                        )
+                        self._set_opt_search_contract_timing(
+                            generation=generation,
+                            contract_timing=contract_timing,
+                            contracts_started=contract_started,
+                            phase="contracts",
+                            deepen_pending=False,
                         )
                         if generation != self._search_generation:
                             return
                         self._search_opt_chain_cache[symbol] = list(results)
                     else:
                         results = list(cached)
+                        self._set_search_timing(
+                            generation=generation,
+                            phase="contracts",
+                            opt_deepen_pending=False,
+                            chain_cache_hit=True,
+                            contracts_ms=0.0,
+                            candidate_count=0,
+                            qualified_count=0,
+                            contract_stage="cache",
+                            contract_reason="cache-hit",
+                        )
             else:
+                self._set_search_timing(generation=generation, phase="contracts")
+                contracts_started = time.monotonic()
                 results = await self._client.search_contracts(query, mode=mode, limit=fetch_limit)
+                self._set_search_timing(
+                    generation=generation,
+                    contracts_ms=(time.monotonic() - contracts_started) * 1000.0,
+                )
                 if generation != self._search_generation:
                     return
                 symbols: list[str] = []
@@ -1135,14 +1538,22 @@ class PositionsApp(App):
                     symbols.append(symbol)
                 self._search_symbol_labels = {}
                 if symbols:
+                    self._set_search_timing(generation=generation, phase="labels")
+                    labels_started = time.monotonic()
                     self._search_symbol_labels = await self._client.search_contract_labels(
                         query,
                         mode=mode,
                         symbols=symbols,
                     )
+                    self._set_search_timing(
+                        generation=generation,
+                        labels_ms=(time.monotonic() - labels_started) * 1000.0,
+                    )
                     if generation != self._search_generation:
                         return
         except asyncio.CancelledError:
+            self._set_search_timing(generation=generation, phase="cancelled")
+            self._finalize_search_timing(generation=generation, status="cancelled")
             return
         except Exception as exc:
             if generation != self._search_generation:
@@ -1150,20 +1561,37 @@ class PositionsApp(App):
             self._search_loading = False
             self._search_results = []
             self._search_error = str(exc)
+            self._set_search_timing(generation=generation, phase="error")
+            self._finalize_search_timing(
+                generation=generation,
+                status="error",
+                rows=0,
+                error=str(exc),
+            )
             self._render_search()
             return
         if generation != self._search_generation:
             return
+        had_partial_opt_rows = mode == "OPT" and bool(self._search_results)
         self._search_loading = False
         self._search_results = list(results)
         total = self._search_row_count()
         if mode == "OPT":
-            self._search_selected = self._default_opt_row_index()
+            if had_partial_opt_rows:
+                self._search_selected = min(max(self._search_selected, 0), max(total - 1, 0))
+            else:
+                self._search_selected = self._default_opt_row_index()
         elif mode == "FOP":
             self._search_selected = self._default_opt_row_index()
         else:
             self._search_selected = min(max(self._search_selected, 0), max(total - 1, 0))
         self._ensure_search_visible()
+        self._set_search_timing(generation=generation, phase="done", opt_deepen_pending=False)
+        self._finalize_search_timing(
+            generation=generation,
+            status="done",
+            rows=len(self._search_results),
+        )
         self._render_search()
 
     async def _run_search_opt_underlyer(
@@ -1175,13 +1603,42 @@ class PositionsApp(App):
         fetch_limit: int,
     ) -> None:
         try:
+            self._set_search_timing(generation=generation, phase="contracts", opt_deepen_pending=False)
+            contract_timing: dict[str, object] = {}
+            contracts_started = time.monotonic()
+            first_paint_limit = self._search_opt_first_paint_limit(fetch_limit)
+
+            async def _on_opt_progress(
+                partial_rows: list[Contract],
+                progress_timing: dict[str, object],
+            ) -> None:
+                self._apply_opt_progress_rows(
+                    generation=generation,
+                    symbol=symbol,
+                    results=list(partial_rows),
+                    contract_timing=progress_timing,
+                    contracts_started=contracts_started,
+                )
+
             results = await self._client.search_contracts(
                 query,
                 mode="OPT",
                 limit=fetch_limit,
                 opt_underlyer_symbol=symbol,
+                timing=contract_timing,
+                opt_first_limit=first_paint_limit,
+                opt_progress=_on_opt_progress,
+            )
+            self._set_opt_search_contract_timing(
+                generation=generation,
+                contract_timing=contract_timing,
+                contracts_started=contracts_started,
+                phase="contracts",
+                deepen_pending=False,
             )
         except asyncio.CancelledError:
+            self._set_search_timing(generation=generation, phase="cancelled")
+            self._finalize_search_timing(generation=generation, status="cancelled")
             return
         except Exception as exc:
             if generation != self._search_generation:
@@ -1189,15 +1646,33 @@ class PositionsApp(App):
             self._search_loading = False
             self._search_results = []
             self._search_error = str(exc)
+            self._set_search_timing(generation=generation, phase="error")
+            self._finalize_search_timing(
+                generation=generation,
+                status="error",
+                rows=0,
+                error=str(exc),
+            )
             self._render_search()
             return
         if generation != self._search_generation:
             return
         self._search_opt_chain_cache[symbol] = list(results)
+        had_partial_opt_rows = bool(self._search_results)
         self._search_loading = False
         self._search_results = list(results)
-        self._search_selected = self._default_opt_row_index()
+        if had_partial_opt_rows:
+            total = self._search_row_count()
+            self._search_selected = min(max(self._search_selected, 0), max(total - 1, 0))
+        else:
+            self._search_selected = self._default_opt_row_index()
         self._ensure_search_visible()
+        self._set_search_timing(generation=generation, phase="done", opt_deepen_pending=False)
+        self._finalize_search_timing(
+            generation=generation,
+            status="done",
+            rows=len(self._search_results),
+        )
         self._render_search()
 
     def _render_search(self) -> None:
@@ -1240,7 +1715,10 @@ class PositionsApp(App):
                     style="dim",
                 )
             )
-        elif self._is_option_search_mode(mode):
+        timing_line = self._search_timing_line()
+        if timing_line is not None:
+            lines.append(timing_line)
+        if self._is_option_search_mode(mode):
             underlyer_label = self._opt_underlyer_label()
             if mode == "OPT":
                 underlyer_line = Text("Underlyer ", style="dim")
@@ -1256,10 +1734,13 @@ class PositionsApp(App):
                     underlyer_line.append("n/a", style="dim")
                 lines.append(underlyer_line)
 
+            has_query = bool(self._search_query.strip())
             if mode == "OPT" and not self._search_opt_underlyers:
-                lines.append(Text("No matches", style="dim"))
+                if has_query and not self._search_loading:
+                    lines.append(Text("No matches", style="dim"))
             elif not self._search_results:
-                lines.append(Text("No option chain rows", style="dim"))
+                if has_query and not self._search_loading:
+                    lines.append(Text("No option chain rows", style="dim"))
             else:
                 expiries = self._search_opt_expiries()
                 expiry_line = Text("Expiry ", style="dim")
@@ -1554,20 +2035,31 @@ class PositionsApp(App):
             return item
         return cast(PortfolioItem, _SyntheticPortfolioItem(contract=contract))
 
-    async def refresh_positions(self, hard: bool = False) -> None:
+    async def refresh_positions(self, hard: bool = False, *, fetch_snapshot: bool = True) -> None:
+        if hard:
+            fetch_snapshot = True
         if self._refresh_lock.locked():
             self._dirty = True
+            if fetch_snapshot:
+                self._dirty_needs_snapshot = True
             return
         async with self._refresh_lock:
             streams_warmed = False
-            try:
-                if hard:
+            if fetch_snapshot:
+                try:
+                    if hard:
+                        await self._client.hard_refresh()
+                    items = await self._client.fetch_portfolio()
+                    self._snapshot.update(items, None)
+                    self._last_snapshot_fetch_mono = time.monotonic()
+                    streams_warmed = True
+                except Exception as exc:  # pragma: no cover - UI surface
+                    self._snapshot.update([], str(exc))
+            elif hard:
+                try:
                     await self._client.hard_refresh()
-                items = await self._client.fetch_portfolio()
-                self._snapshot.update(items, None)
-                streams_warmed = True
-            except Exception as exc:  # pragma: no cover - UI surface
-                self._snapshot.update([], str(exc))
+                except Exception as exc:  # pragma: no cover - UI surface
+                    self._snapshot.update([], str(exc))
             if streams_warmed:
                 # Gate non-critical streams behind a successful account snapshot
                 # so startup doesn't fan out while API session init is unstable.
@@ -1587,8 +2079,13 @@ class PositionsApp(App):
             if self._search_active:
                 self._render_search()
 
-    def _mark_dirty(self) -> None:
+    def _mark_stream_dirty(self) -> None:
+        self._mark_dirty(fetch_snapshot=False)
+
+    def _mark_dirty(self, *, fetch_snapshot: bool = False) -> None:
         self._dirty = True
+        if fetch_snapshot:
+            self._dirty_needs_snapshot = True
         if self._dirty_task and not self._dirty_task.done():
             return
         try:
@@ -1600,7 +2097,19 @@ class PositionsApp(App):
     async def _flush_dirty(self) -> None:
         while self._dirty:
             self._dirty = False
-            await self.refresh_positions()
+            fetch_snapshot = bool(self._dirty_needs_snapshot)
+            self._dirty_needs_snapshot = False
+            if not fetch_snapshot:
+                if not self._snapshot.items:
+                    fetch_snapshot = True
+                else:
+                    throttle_sec = max(
+                        float(self._config.refresh_sec),
+                        float(self._SNAPSHOT_THROTTLE_MIN_SEC),
+                    )
+                    elapsed = time.monotonic() - float(self._last_snapshot_fetch_mono)
+                    fetch_snapshot = elapsed >= throttle_sec
+            await self.refresh_positions(fetch_snapshot=fetch_snapshot)
             if not self._dirty:
                 break
             await asyncio.sleep(self._config.refresh_sec)
