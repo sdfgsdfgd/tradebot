@@ -1627,6 +1627,76 @@ def test_request_historical_data_timeout_records_diagnostics(monkeypatch) -> Non
     assert float(calls[0].get("timeout", 0.0) or 0.0) == 0.01
 
 
+def test_request_historical_data_for_stream_rejects_incomplete_full24_stitch() -> None:
+    client = _new_client()
+    contract = Stock("SLV", "SMART", "USD")
+    contract.conId = 889922
+
+    def _raw_bar(ts: datetime):
+        return SimpleNamespace(
+            date=ts,
+            open=70.0,
+            high=70.0,
+            low=70.0,
+            close=70.0,
+            volume=1.0,
+        )
+
+    overnight_rows = [
+        _raw_bar(datetime(2026, 2, 10, 20, 0)),
+        _raw_bar(datetime(2026, 2, 11, 3, 40)),
+        _raw_bar(datetime(2026, 2, 11, 20, 0)),
+        _raw_bar(datetime(2026, 2, 12, 3, 40)),
+    ]
+
+    class _LegIB:
+        async def reqHistoricalDataAsync(self, req_contract, *_args, **_kwargs):
+            exchange = str(getattr(req_contract, "exchange", "") or "").strip().upper()
+            if exchange == "SMART":
+                raise asyncio.TimeoutError()
+            if exchange == "OVERNIGHT":
+                return list(overnight_rows)
+            return []
+
+    async def _connect_proxy() -> None:
+        return None
+
+    client._ib_proxy = _LegIB()  # type: ignore[assignment]
+    client.connect_proxy = _connect_proxy  # type: ignore[method-assign]
+
+    out = asyncio.run(
+        client._request_historical_data_for_stream(
+            contract,
+            duration_str="1 M",
+            bar_size="10 mins",
+            what_to_show="TRADES",
+            use_rth=False,
+        )
+    )
+
+    assert out == []
+    diag = client.last_historical_request(contract)
+    assert isinstance(diag, dict)
+    assert str(diag.get("status")) == "timeout"
+    assert "stitch incomplete" in str(diag.get("detail", "")).lower()
+    request = diag.get("request")
+    assert isinstance(request, dict)
+    assert str(request.get("duration_str")) == "1 M"
+    assert str(request.get("bar_size")) == "10 mins"
+    assert str(request.get("what_to_show")) == "TRADES"
+    assert bool(request.get("use_rth")) is False
+    stream_legs = diag.get("stream_legs")
+    assert isinstance(stream_legs, dict)
+    assert int(stream_legs.get("smart_rows", -1)) == 0
+    assert int(stream_legs.get("overnight_rows", -1)) == len(overnight_rows)
+    assert str(stream_legs.get("smart_status")) == "timeout"
+    assert str(stream_legs.get("overnight_status")) == "ok"
+    stream_quality = diag.get("stream_quality")
+    assert isinstance(stream_quality, dict)
+    assert bool(stream_quality.get("complete")) is False
+    assert int(stream_quality.get("missing_days", 0)) >= 1
+
+
 def test_last_historical_request_tracks_per_contract_statuses() -> None:
     client = _new_client()
     contract_a = Stock("SLV", "SMART", "USD")

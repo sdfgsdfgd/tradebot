@@ -30,6 +30,7 @@ from ib_insync import (
     util,
 )
 
+from .backtest.trading_calendar import expected_sessions, session_label_et
 from .config import IBKRConfig
 from .time_utils import NaiveTsMode, now_et as _now_et, now_et_naive as _now_et_naive, to_et as _to_et_shared
 
@@ -212,6 +213,21 @@ def _futures_md_ladder(now: datetime) -> tuple[int, ...]:
 
 # region Client
 class IBKRClient:
+    def _store_historical_request_payload(self, payload: dict[str, object]) -> None:
+        self._last_historical_request = payload
+        contract = payload.get("contract")
+        con_id = 0
+        if isinstance(contract, dict):
+            try:
+                con_id = int(contract.get("con_id", 0) or 0)
+            except (TypeError, ValueError):
+                con_id = 0
+        if con_id > 0:
+            self._last_historical_request_by_con_id[int(con_id)] = payload
+            if len(self._last_historical_request_by_con_id) > int(_MAX_HISTORICAL_REQUEST_DIAG_ENTRIES):
+                oldest = next(iter(self._last_historical_request_by_con_id))
+                self._last_historical_request_by_con_id.pop(oldest, None)
+
     async def _connect_ib(self, ib: IB, *, client_id: int) -> None:
         timeout = max(1.0, float(self._config.connect_timeout_sec))
         if hasattr(ib, "connectAsync"):
@@ -1539,12 +1555,7 @@ class IBKRClient:
                 payload["error_type"] = type(error).__name__
             if detail:
                 payload["detail"] = str(detail)
-            self._last_historical_request = payload
-            if con_id > 0:
-                self._last_historical_request_by_con_id[int(con_id)] = payload
-                if len(self._last_historical_request_by_con_id) > int(_MAX_HISTORICAL_REQUEST_DIAG_ENTRIES):
-                    oldest = next(iter(self._last_historical_request_by_con_id))
-                    self._last_historical_request_by_con_id.pop(oldest, None)
+            self._store_historical_request_payload(payload)
 
         req_contract = self._historical_request_contract(contract, sec_type=sec_type)
         try:
@@ -1672,6 +1683,55 @@ class IBKRClient:
                 by_ts[dt] = bar
         return [by_ts[ts] for ts in sorted(by_ts.keys())]
 
+    @classmethod
+    def _full24_stitch_quality(cls, *, bars: list) -> dict[str, object]:
+        first_ts: datetime | None = None
+        last_ts: datetime | None = None
+        sessions_by_day: dict[date, set[str]] = {}
+        for bar in bars or []:
+            ts = cls._ib_bar_datetime(getattr(bar, "date", None))
+            if ts is None:
+                continue
+            if first_ts is None or ts < first_ts:
+                first_ts = ts
+            if last_ts is None or ts > last_ts:
+                last_ts = ts
+            label = session_label_et(ts.time())
+            if label is None:
+                continue
+            sessions_by_day.setdefault(ts.date(), set()).add(str(label))
+        out: dict[str, object] = {
+            "complete": True,
+            "first_bar_ts": first_ts.isoformat() if isinstance(first_ts, datetime) else None,
+            "last_bar_ts": last_ts.isoformat() if isinstance(last_ts, datetime) else None,
+            "interior_trading_days": 0,
+            "missing_days": 0,
+            "missing_by_day": {},
+        }
+        if not isinstance(first_ts, datetime) or not isinstance(last_ts, datetime):
+            out["complete"] = False
+            return out
+        if first_ts.date() >= last_ts.date():
+            return out
+        missing_by_day: dict[str, list[str]] = {}
+        interior_trading_days = 0
+        day = first_ts.date() + timedelta(days=1)
+        last_interior = last_ts.date() - timedelta(days=1)
+        while day <= last_interior:
+            expected = expected_sessions(day, session_mode="full24")
+            if expected:
+                interior_trading_days += 1
+                present = sessions_by_day.get(day, set())
+                missing = sorted(str(label) for label in (set(expected) - set(present)))
+                if missing:
+                    missing_by_day[day.isoformat()] = missing
+            day += timedelta(days=1)
+        out["interior_trading_days"] = int(interior_trading_days)
+        out["missing_days"] = int(len(missing_by_day))
+        out["missing_by_day"] = missing_by_day
+        out["complete"] = bool(not missing_by_day)
+        return out
+
     async def _request_historical_data_for_stream(
         self,
         contract: Contract,
@@ -1704,6 +1764,7 @@ class IBKRClient:
             what_to_show=what_to_show,
             use_rth=False,
         )
+        smart_diag = self.last_historical_request(smart_contract)
         overnight_contract = copy.copy(contract)
         overnight_contract.exchange = "OVERNIGHT"
         overnight = await self._request_historical_data(
@@ -1713,7 +1774,58 @@ class IBKRClient:
             what_to_show=what_to_show,
             use_rth=False,
         )
-        return self._merge_full24_raw_bars(smart=smart, overnight=overnight)
+        overnight_diag = self.last_historical_request(overnight_contract)
+        merged = self._merge_full24_raw_bars(smart=smart, overnight=overnight)
+        quality = self._full24_stitch_quality(bars=merged)
+        if not bool(quality.get("complete", True)):
+            smart_status = (
+                str(smart_diag.get("status", "")).strip().lower()
+                if isinstance(smart_diag, dict)
+                else ""
+            )
+            overnight_status = (
+                str(overnight_diag.get("status", "")).strip().lower()
+                if isinstance(overnight_diag, dict)
+                else ""
+            )
+            status = "timeout" if "timeout" in {smart_status, overnight_status} else "incomplete"
+            con_id = 0
+            try:
+                con_id = int(getattr(contract, "conId", 0) or 0)
+            except (TypeError, ValueError):
+                con_id = 0
+            payload: dict[str, object] = {
+                "status": str(status),
+                "ts": _now_et().isoformat(),
+                "timeout_sec": float(_HISTORICAL_REQUEST_TIMEOUT_SEC),
+                "request": {
+                    "duration_str": str(duration_str),
+                    "bar_size": str(bar_size),
+                    "what_to_show": str(what_to_show),
+                    "use_rth": bool(use_rth),
+                    "use_proxy": True,
+                },
+                "contract": {
+                    "con_id": int(con_id),
+                    "sec_type": str(sec_type),
+                    "symbol": str(getattr(contract, "symbol", "") or "").strip().upper(),
+                    "exchange": str(getattr(contract, "exchange", "") or "").strip().upper(),
+                    "primary_exchange": str(getattr(contract, "primaryExchange", "") or "").strip().upper(),
+                    "currency": str(getattr(contract, "currency", "") or "").strip().upper(),
+                },
+                "bars_count": int(len(merged)),
+                "detail": "historical full24 stitch incomplete; missing expected sessions",
+                "stream_quality": quality,
+                "stream_legs": {
+                    "smart_rows": int(len(smart or [])),
+                    "overnight_rows": int(len(overnight or [])),
+                    "smart_status": smart_status or None,
+                    "overnight_status": overnight_status or None,
+                },
+            }
+            self._store_historical_request_payload(payload)
+            return []
+        return merged
 
     @staticmethod
     def _ib_bar_datetime(value) -> datetime | None:

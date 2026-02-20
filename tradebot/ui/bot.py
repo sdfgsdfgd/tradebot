@@ -2955,7 +2955,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                 if not isinstance(diag, dict):
                     return False
                 status = str(diag.get("status", "") or "").strip().lower()
-                if status != "timeout":
+                if status not in ("timeout", "incomplete"):
                     return False
                 request = diag.get("request")
                 if not isinstance(request, dict):
