@@ -36,6 +36,22 @@ def _fmt_money(value: float) -> str:
     return f"{value:,.2f}"
 # endregion
 
+
+def _safe_float(value: object, *, abs_cap: float = 1e307) -> float | None:
+    if value is None:
+        return None
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        return None
+    # Guard against stream sentinels/invalid values (nan, inf, max-float style sentinels).
+    if math.isnan(parsed) or not math.isfinite(parsed):
+        return None
+    if abs(parsed) >= float(abs_cap):
+        return None
+    return float(parsed)
+
+
 def _portfolio_sort_key(item: PortfolioItem) -> float:
     unreal = float(item.unrealizedPNL or 0.0)
     realized = float(item.realizedPNL or 0.0)
@@ -112,16 +128,7 @@ def _unrealized_pnl_values(
     *,
     mark_price: float | None = None,
 ) -> tuple[float | None, float | None]:
-    raw_unreal = getattr(item, "unrealizedPNL", None)
-    if raw_unreal is None:
-        fallback_unreal = None
-    else:
-        try:
-            fallback_unreal = float(raw_unreal)
-        except (TypeError, ValueError):
-            fallback_unreal = None
-    if fallback_unreal is not None and math.isnan(fallback_unreal):
-        fallback_unreal = None
+    fallback_unreal = _safe_float(getattr(item, "unrealizedPNL", None))
 
     try:
         position = float(getattr(item, "position", 0.0) or 0.0)
@@ -132,9 +139,8 @@ def _unrealized_pnl_values(
 
     def _fallback_pct() -> float | None:
         market_value = getattr(item, "marketValue", None)
-        try:
-            market_value_f = float(market_value) if market_value is not None else 0.0
-        except (TypeError, ValueError):
+        market_value_f = _safe_float(market_value)
+        if market_value_f is None:
             market_value_f = 0.0
         denom_local = abs(cost_basis) if cost_basis else abs(market_value_f)
         return (fallback_unreal / denom_local * 100.0) if denom_local > 0 and fallback_unreal is not None else None
@@ -299,10 +305,7 @@ def _pct_style(pct: float) -> str:
 def _pnl_value(pnl: PnL | None) -> float | None:
     if not pnl:
         return None
-    value = pnl.dailyPnL
-    if value is None or (isinstance(value, float) and math.isnan(value)):
-        return None
-    return float(value)
+    return _safe_float(getattr(pnl, "dailyPnL", None))
 
 
 def _estimate_buying_power(

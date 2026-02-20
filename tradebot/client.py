@@ -912,6 +912,29 @@ class IBKRClient:
     def pnl(self) -> PnL | None:
         return self._pnl
 
+    def pnl_unrealized(self) -> float | None:
+        if self._pnl is None:
+            return None
+        return self._clean_pnl_stream_value(getattr(self._pnl, "unrealizedPnL", None))
+
+    def pnl_realized(self) -> float | None:
+        if self._pnl is None:
+            return None
+        return self._clean_pnl_stream_value(getattr(self._pnl, "realizedPnL", None))
+
+    @staticmethod
+    def _clean_pnl_stream_value(value: object) -> float | None:
+        try:
+            parsed = float(value)
+        except (TypeError, ValueError):
+            return None
+        # IB can surface sentinel/invalid values (for example max-float) before streams settle.
+        if math.isnan(parsed) or not math.isfinite(parsed):
+            return None
+        if abs(parsed) >= 1e307:
+            return None
+        return float(parsed)
+
     def pnl_single_unrealized(self, con_id: int) -> float | None:
         try:
             key = int(con_id or 0)
@@ -922,13 +945,7 @@ class IBKRClient:
         entry = self._pnl_single_by_con_id.get(key)
         if entry is None:
             return None
-        try:
-            value = float(getattr(entry, "unrealizedPnL", None))
-        except (TypeError, ValueError):
-            return None
-        if math.isnan(value):
-            return None
-        return float(value)
+        return self._clean_pnl_stream_value(getattr(entry, "unrealizedPnL", None))
 
     def pnl_single_daily(self, con_id: int) -> float | None:
         try:
@@ -940,13 +957,7 @@ class IBKRClient:
         entry = self._pnl_single_by_con_id.get(key)
         if entry is None:
             return None
-        try:
-            value = float(getattr(entry, "dailyPnL", None))
-        except (TypeError, ValueError):
-            return None
-        if math.isnan(value):
-            return None
-        return float(value)
+        return self._clean_pnl_stream_value(getattr(entry, "dailyPnL", None))
 
     def has_pnl_single_subscription(self, con_id: int) -> bool:
         try:
@@ -3479,10 +3490,10 @@ class IBKRClient:
             chosen = _pick_account_value(values)
         if not chosen:
             return None, None, None
-        try:
-            return float(chosen.value), chosen.currency, None
-        except (TypeError, ValueError):
+        parsed = self._clean_pnl_stream_value(getattr(chosen, "value", None))
+        if parsed is None:
             return None, chosen.currency, None
+        return parsed, chosen.currency, None
 
     def account_exchange_rate(self, currency: str) -> float | None:
         target = str(currency or "").strip().upper()
@@ -5194,10 +5205,7 @@ class IBKRClient:
     def _on_account_value(self, value: AccountValue) -> None:
         if self._config.account and value.account != self._config.account:
             return
-        try:
-            parsed = float(value.value)
-        except (TypeError, ValueError):
-            parsed = None
+        parsed = self._clean_pnl_stream_value(getattr(value, "value", None))
         if parsed is not None:
             key = (value.tag, value.currency)
             self._account_value_cache[key] = (parsed, datetime.now(timezone.utc))

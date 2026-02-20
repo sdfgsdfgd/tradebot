@@ -207,13 +207,13 @@ class _RefreshClient:
         return (None, None, None)
 
 
-def test_total_row_prefers_official_unrealized_when_available() -> None:
+def test_total_row_uses_account_ibkr_totals_when_available() -> None:
     table = _CaptureTable()
     fake_self = SimpleNamespace(
-        _official_unrealized_value=lambda item: {11: 10.0, 22: None}.get(
-            int(item.contract.conId)
-        ),
-        _mark_price=lambda _item: (None, False),
+        _account_u_r_totals=lambda _items: (10.0, -2.0, 8.0, "USD", "account"),
+        _open_unreal_drift_delta=lambda _items: 5.5,
+        _pnl_style=PositionsApp._pnl_style,
+        _account_label=PositionsApp._account_label,
         _center_cell=lambda text, _width: text,
         _UNREAL_COL_WIDTH=32,
         _REALIZED_COL_WIDTH=24,
@@ -245,7 +245,67 @@ def test_total_row_prefers_official_unrealized_when_available() -> None:
     assert len(table.rows) == 1
     row_args, row_kwargs = table.rows[0]
     assert row_kwargs.get("key") == "total"
-    assert row_args[4].plain.startswith("13.00")
+    assert row_args[0].plain == "TOTAL (U+R, IBKR) (USD)"
+    assert row_args[4].plain.startswith("8.00 (13.50)")
+    assert row_args[5].plain.startswith("-2.00")
+
+
+def test_total_row_falls_back_to_open_totals_when_account_totals_missing() -> None:
+    table = _CaptureTable()
+    fake_self = SimpleNamespace(
+        _account_u_r_totals=lambda _items: (None, 4.0, 9.0, None, "open"),
+        _open_position_totals=lambda _items, prefer_official_unreal=False: (
+            6.0,
+            4.0,
+            10.0,
+            None,
+        ),
+        _pnl_style=PositionsApp._pnl_style,
+        _account_label=PositionsApp._account_label,
+        _center_cell=lambda text, _width: text,
+        _UNREAL_COL_WIDTH=32,
+        _REALIZED_COL_WIDTH=24,
+        _table=table,
+        _row_keys=[],
+    )
+    items: list[SimpleNamespace] = []
+
+    PositionsApp._add_total_row(fake_self, items)
+
+    assert len(table.rows) == 1
+    row_args, row_kwargs = table.rows[0]
+    assert row_kwargs.get("key") == "total"
+    assert "≈open" in row_args[4].plain
+    assert row_args[4].plain.startswith("9.00")
+    assert row_args[5].plain.startswith("4.00")
+
+
+def test_account_u_r_totals_prefers_live_account_stream() -> None:
+    _ensure_event_loop()
+    app = PositionsApp()
+    app._pnl = SimpleNamespace(unrealizedPnL=12.5, realizedPnL=-2.0)
+    app._net_liq = (5000.0, "AUD", None)
+
+    calls: list[tuple[str, str | None]] = []
+
+    def _account_value(tag: str, *, currency: str | None = None):
+        calls.append((str(tag), str(currency) if currency is not None else None))
+        return (None, None, None)
+
+    app._client = SimpleNamespace(
+        pnl_unrealized=lambda: 12.5,
+        pnl_realized=lambda: -2.0,
+        account_value=_account_value,
+    )
+
+    unreal, realized, total, currency, source = app._account_u_r_totals([])
+
+    assert unreal == pytest.approx(12.5)
+    assert realized == pytest.approx(-2.0)
+    assert total == pytest.approx(10.5)
+    assert currency == "AUD"
+    assert source == "account"
+    assert calls == []
 
 
 def test_open_position_totals_supports_estimate_only_mode() -> None:

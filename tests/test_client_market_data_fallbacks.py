@@ -1526,10 +1526,14 @@ def test_pnl_single_unrealized_reads_live_value_and_ignores_nan() -> None:
     client = _new_client()
     client._pnl_single_by_con_id[101] = SimpleNamespace(unrealizedPnL=12.34)
     client._pnl_single_by_con_id[202] = SimpleNamespace(unrealizedPnL=float("nan"))
+    client._pnl_single_by_con_id[404] = SimpleNamespace(unrealizedPnL=float("inf"))
+    client._pnl_single_by_con_id[505] = SimpleNamespace(unrealizedPnL=1.7976931348623157e308)
 
     assert client.pnl_single_unrealized(101) == 12.34
     assert client.pnl_single_unrealized(202) is None
     assert client.pnl_single_unrealized(303) is None
+    assert client.pnl_single_unrealized(404) is None
+    assert client.pnl_single_unrealized(505) is None
     assert client.has_pnl_single_subscription(101) is True
     assert client.has_pnl_single_subscription(202) is True
     assert client.has_pnl_single_subscription(303) is False
@@ -1539,10 +1543,39 @@ def test_pnl_single_daily_reads_live_value_and_ignores_nan() -> None:
     client = _new_client()
     client._pnl_single_by_con_id[101] = SimpleNamespace(dailyPnL=-2.75)
     client._pnl_single_by_con_id[202] = SimpleNamespace(dailyPnL=float("nan"))
+    client._pnl_single_by_con_id[404] = SimpleNamespace(dailyPnL=float("-inf"))
+    client._pnl_single_by_con_id[505] = SimpleNamespace(dailyPnL=1.7976931348623157e308)
 
     assert client.pnl_single_daily(101) == -2.75
     assert client.pnl_single_daily(202) is None
     assert client.pnl_single_daily(303) is None
+    assert client.pnl_single_daily(404) is None
+    assert client.pnl_single_daily(505) is None
+
+
+def test_account_pnl_stream_fields_ignore_invalid_values() -> None:
+    client = _new_client()
+    client._pnl = SimpleNamespace(unrealizedPnL=18.5, realizedPnL=-4.25)
+    assert client.pnl_unrealized() == 18.5
+    assert client.pnl_realized() == -4.25
+
+    client._pnl = SimpleNamespace(unrealizedPnL=float("inf"), realizedPnL=1.7976931348623157e308)
+    assert client.pnl_unrealized() is None
+    assert client.pnl_realized() is None
+
+
+def test_account_value_ignores_non_finite_values() -> None:
+    client = _new_client()
+
+    class _FakeIB:
+        @staticmethod
+        def accountValues(_account: str):
+            return [SimpleNamespace(tag="UnrealizedPnL", currency="BASE", value=float("inf"))]
+
+    client._ib = _FakeIB()  # type: ignore[assignment]
+    value, currency, _updated = client.account_value("UnrealizedPnL")
+    assert value is None
+    assert currency == "BASE"
 
 
 def test_session_close_anchors_expose_prev1_close_and_keep_legacy_shape() -> None:

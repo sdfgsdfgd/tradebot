@@ -41,6 +41,7 @@ from .common import (
     _parse_int,
     _quote_num_actionable,
     _round_to_tick,
+    _safe_float,
     _safe_num,
     _tick_decimals,
     _tick_size,
@@ -493,20 +494,12 @@ class PositionDetailScreen(Screen):
 
     @staticmethod
     def _float_or_none(value: object) -> float | None:
-        if value is None:
-            return None
-        try:
-            num = float(value)
-        except (TypeError, ValueError):
-            return None
-        if math.isnan(num):
-            return None
-        return float(num)
+        return _safe_float(value)
 
     def _official_unrealized(self) -> float | None:
         con_id = int(getattr(self._item.contract, "conId", 0) or 0)
         official = self._client.pnl_single_unrealized(con_id)
-        if official is None and not self._client.has_pnl_single_subscription(con_id):
+        if official is None:
             official = self._float_or_none(getattr(self._item, "unrealizedPNL", None))
         return official
 

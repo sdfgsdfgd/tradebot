@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import math
 import time
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
@@ -26,7 +25,6 @@ from .common import (
     _PROXY_ORDER,
     _SECTION_ORDER,
     _SECTION_TYPES,
-    _combined_value_pct,
     _cost_basis,
     _fmt_money,
     _estimate_buying_power,
@@ -34,12 +32,12 @@ from .common import (
     _market_session_label,
     _option_display_price,
     _pct24_72_from_price,
-    _pnl_pct_value,
     _pnl_text,
     _pnl_value,
     _portfolio_row,
     _portfolio_sort_key,
     _quote_status_line,
+    _safe_float,
     _safe_num,
     _ticker_close,
     _ticker_actionable_price,
@@ -1681,7 +1679,7 @@ class PositionsApp(App):
         base = f"IBKR {conn} | last update: {ts} | rows: {self._row_count}"
         base = f"{base} | MKT: {session} | MD: [L]=Live [D]=Delayed"
         base = (
-            f"{base} | PnL rows: total=open(U+R), "
+            f"{base} | PnL rows: total=account(U+R), "
             "today(IBKR)=broker daily"
         )
         if self._snapshot.error:
@@ -1849,15 +1847,37 @@ class PositionsApp(App):
         return None, "warmup"
 
     def _add_total_row(self, items: list[PortfolioItem]) -> None:
-        _total_unreal, total_real, total_pnl, pct = self._open_position_totals(items)
+        _account_unreal, account_real, account_total, account_currency, source = self._account_u_r_totals(
+            items
+        )
+        estimate_total: float | None = None
+        if account_total is not None and source == "account":
+            drift = self._open_unreal_drift_delta(items)
+            if drift is not None:
+                estimate_total = float(account_total) + float(drift)
+        elif source == "open":
+            _u_est, _r_est, open_estimate_total, _pct_est = self._open_position_totals(
+                items,
+                prefer_official_unreal=False,
+            )
+            estimate_total = float(open_estimate_total)
+
         style = "bold white on #1f1f1f"
-        label = Text("TOTAL (U+R, POS)", style=style)
+        label = Text(self._account_label("TOTAL (U+R, IBKR)", account_currency), style=style)
         blank = Text("")
-        pnl_text = _pnl_text(total_pnl)
-        pct_text = _pnl_pct_value(pct)
-        unreal_text = _combined_value_pct(pnl_text, pct_text)
-        unreal_text = self._center_cell(unreal_text, self._UNREAL_COL_WIDTH)
-        realized_text = _pnl_text(total_real)
+        if account_total is None:
+            total_text = Text("warming...", style="dim")
+        else:
+            total_text = _pnl_text(account_total)
+            if source == "open":
+                total_text.append(" ≈open", style="dim")
+        if account_total is not None and estimate_total is not None:
+            est_plain = _fmt_money(float(estimate_total))
+            total_text.append(" (")
+            total_text.append(est_plain, style=self._pnl_style(estimate_total))
+            total_text.append(")")
+        unreal_text = self._center_cell(total_text, self._UNREAL_COL_WIDTH)
+        realized_text = _pnl_text(account_real)
         realized_text = self._center_cell(realized_text, self._REALIZED_COL_WIDTH)
         self._table.add_row(
             label,
@@ -1929,15 +1949,124 @@ class PositionsApp(App):
         contract = getattr(item, "contract", None)
         con_id = int(getattr(contract, "conId", 0) or 0)
         official_unreal = self._client.pnl_single_unrealized(con_id)
-        if official_unreal is None and not self._client.has_pnl_single_subscription(con_id):
+        if official_unreal is None:
+            # Keep broker truth available even when pnlSingle is warming/stale.
             official_unreal = self._float_or_none(getattr(item, "unrealizedPNL", None))
         return official_unreal
 
-    def _estimate_net_liq_from_unreal_drift(
+    def _account_metric_value(
         self,
-        raw_net_liq: float,
+        tag: str,
+        *,
+        currency: str | None = None,
+    ) -> tuple[float | None, str | None, datetime | None]:
+        account_value_fn = getattr(self._client, "account_value", None)
+        if not callable(account_value_fn):
+            return None, None, None
+        try:
+            value, curr, updated = account_value_fn(tag, currency=currency)
+        except TypeError:
+            value, curr, updated = account_value_fn(tag)
+        except Exception:
+            return None, None, None
+        parsed = self._float_or_none(value)
+        curr_clean = str(curr or "").strip().upper() or None
+        return parsed, curr_clean, updated
+
+    def _client_account_u_r_stream(self) -> tuple[float | None, float | None]:
+        unreal_fn = getattr(self._client, "pnl_unrealized", None)
+        real_fn = getattr(self._client, "pnl_realized", None)
+
+        if callable(unreal_fn):
+            try:
+                stream_unreal = self._float_or_none(unreal_fn())
+            except Exception:
+                stream_unreal = None
+        else:
+            stream_unreal = self._float_or_none(getattr(self._pnl, "unrealizedPnL", None))
+
+        if callable(real_fn):
+            try:
+                stream_real = self._float_or_none(real_fn())
+            except Exception:
+                stream_real = None
+        else:
+            stream_real = self._float_or_none(getattr(self._pnl, "realizedPnL", None))
+
+        return stream_unreal, stream_real
+
+    def _account_reporting_currency(self) -> str | None:
+        net_liq = getattr(self, "_net_liq", None)
+        if isinstance(net_liq, tuple) and len(net_liq) >= 2:
+            curr = str(net_liq[1] or "").strip().upper()
+            if curr:
+                return curr
+        for tag in ("NetLiquidation", "UnrealizedPnL", "RealizedPnL"):
+            _value, curr, _updated = self._account_metric_value(tag)
+            if curr:
+                return curr
+        return None
+
+    def _account_u_r_totals(
+        self,
         items: list[PortfolioItem],
-    ) -> float | None:
+    ) -> tuple[float | None, float | None, float | None, str | None, str]:
+        stream_unreal, stream_real = self._client_account_u_r_stream()
+        if stream_unreal is not None and stream_real is not None:
+            stream_currency = self._account_reporting_currency()
+            return (
+                float(stream_unreal),
+                float(stream_real),
+                float(stream_unreal) + float(stream_real),
+                stream_currency,
+                "account",
+            )
+
+        unreal_value, unreal_curr, _unreal_updated = self._account_metric_value("UnrealizedPnL")
+        real_value, real_curr, _real_updated = self._account_metric_value("RealizedPnL")
+
+        if (
+            unreal_value is not None
+            and real_value is not None
+            and (not unreal_curr or not real_curr or unreal_curr == real_curr)
+        ):
+            final_currency = unreal_curr or real_curr
+            return (
+                float(unreal_value),
+                float(real_value),
+                float(unreal_value) + float(real_value),
+                final_currency,
+                "account",
+            )
+
+        candidate_currencies: list[str] = []
+        for raw_currency in (self._account_reporting_currency(), unreal_curr, real_curr):
+            currency = str(raw_currency or "").strip().upper()
+            if currency and currency not in candidate_currencies:
+                candidate_currencies.append(currency)
+        for currency in candidate_currencies:
+            aligned_unreal, _u_curr, _u_updated = self._account_metric_value(
+                "UnrealizedPnL",
+                currency=currency,
+            )
+            aligned_real, _r_curr, _r_updated = self._account_metric_value(
+                "RealizedPnL",
+                currency=currency,
+            )
+            if aligned_unreal is None or aligned_real is None:
+                continue
+            return (
+                float(aligned_unreal),
+                float(aligned_real),
+                float(aligned_unreal) + float(aligned_real),
+                currency,
+                "account",
+            )
+
+        _open_unreal, open_real, open_total, _open_pct = self._open_position_totals(items)
+        return None, float(open_real), float(open_total), None, "open"
+
+    def _open_unreal_overlap_totals(self, items: list[PortfolioItem]) -> tuple[float, float, int]:
         official_total = 0.0
         estimate_total = 0.0
         overlap_count = 0
@@ -1954,9 +2083,23 @@ class PositionsApp(App):
             official_total += float(official_unreal)
             estimate_total += float(estimate_unreal)
             overlap_count += 1
+        return float(official_total), float(estimate_total), int(overlap_count)
+
+    def _open_unreal_drift_delta(self, items: list[PortfolioItem]) -> float | None:
+        official_total, estimate_total, overlap_count = self._open_unreal_overlap_totals(items)
         if overlap_count <= 0:
             return None
-        return float(raw_net_liq) + (estimate_total - official_total)
+        return float(estimate_total - official_total)
+
+    def _estimate_net_liq_from_unreal_drift(
+        self,
+        raw_net_liq: float,
+        items: list[PortfolioItem],
+    ) -> float | None:
+        drift_delta = self._open_unreal_drift_delta(items)
+        if drift_delta is None:
+            return None
+        return float(raw_net_liq) + float(drift_delta)
 
     @staticmethod
     def _net_liq_amount_cell(raw_value: float, est_value: float | None) -> Text:
@@ -2267,15 +2410,7 @@ class PositionsApp(App):
 
     @staticmethod
     def _float_or_none(value: object) -> float | None:
-        if value is None:
-            return None
-        try:
-            num = float(value)
-        except (TypeError, ValueError):
-            return None
-        if math.isnan(num):
-            return None
-        return float(num)
+        return _safe_float(value)
 
     @staticmethod
     def _pnl_style(value: float | None) -> str:
