@@ -31,6 +31,7 @@ _BOT_JOURNAL_FIELDS = (
 class _BotPreset:
     group: str
     entry: dict
+    key: str | None = None
 
 
 @dataclass(frozen=True)
@@ -47,6 +48,7 @@ class _BotInstance:
     symbol: str
     strategy: dict
     filters: dict | None
+    preset_key: str | None = None
     metrics: dict | None = None
     state: str = "RUNNING"
     last_order_date: date | None = None

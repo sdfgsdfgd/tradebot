@@ -7,6 +7,7 @@ import copy
 import json
 import math
 import re
+from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 from typing import Optional
@@ -45,6 +46,7 @@ from .readme_retrievers import extract_current_slv_hf_json_path, extract_current
 from .common import (
     _SECTION_TYPES,
     _cost_basis,
+    _fmt_money,
     _fmt_quote,
     _infer_multiplier,
     _limit_price_for_mode,
@@ -82,6 +84,12 @@ from .bot_signal_runtime import BotSignalRuntimeMixin
 
 _SERIES_CACHE = series_cache_service()
 _UI_SIGNAL_SNAPSHOT_NAMESPACE = "ui.signal.snapshot.v1"
+
+
+@dataclass
+class _InstancePnlState:
+    realized_total: float = 0.0
+    realized_seen_by_conid: dict[int, float] = field(default_factory=dict)
 
 # region Bot UI
 class BotConfigScreen(Screen[Optional[_BotConfigResult]]):
@@ -753,6 +761,10 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         self._send_task: asyncio.Task | None = None
         self._cancel_task: asyncio.Task | None = None
         self._tracked_conids: set[int] = set()
+        self._instance_pnl_state_by_id: dict[int, _InstancePnlState] = {}
+        self._instance_live_total_by_id: dict[int, float | None] = {}
+        self._stream_refresh_task: asyncio.Task | None = None
+        self._stream_dirty = False
         self._active_panel = "presets"
         self._refresh_lock = asyncio.Lock()
         self._scope_all = False
@@ -817,11 +829,15 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         self._render_status()
         self._focus_panel("presets")
         self._sync_panel_markers(force=True)
+        self._client.add_stream_listener(self._on_client_stream_update)
         self._refresh_task = self.set_interval(self._refresh_sec, self._on_refresh_tick)
 
     async def on_unmount(self) -> None:
+        self._client.remove_stream_listener(self._on_client_stream_update)
         if self._refresh_task:
             self._refresh_task.stop()
+        if self._stream_refresh_task and not self._stream_refresh_task.done():
+            self._stream_refresh_task.cancel()
         for con_id in list(self._tracked_conids):
             self._client.release_ticker(con_id, owner="bot")
         self._tracked_conids.clear()
@@ -836,6 +852,27 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             return
         await self._refresh_positions()
         self._render_status()
+
+    def _on_client_stream_update(self) -> None:
+        self._stream_dirty = True
+        if self._stream_refresh_task and not self._stream_refresh_task.done():
+            return
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        self._stream_refresh_task = loop.create_task(self._flush_stream_refresh())
+
+    async def _flush_stream_refresh(self) -> None:
+        while self._stream_dirty:
+            self._stream_dirty = False
+            if self._refresh_lock.locked():
+                await asyncio.sleep(min(0.1, self._refresh_sec))
+                continue
+            self._refresh_instances_table()
+            self._refresh_orders_table()
+            self._render_status()
+            await asyncio.sleep(0)
 
     def _journal_write(
         self,
@@ -1046,6 +1083,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             return
         instance.state = "PAUSED" if instance.state == "RUNNING" else "RUNNING"
         self._refresh_instances_table()
+        self._rebuild_presets_table()
         self._set_status(f"Instance {instance.instance_id}: {instance.state}")
 
     def action_context_space(self) -> None:
@@ -1059,6 +1097,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         self._instances = [i for i in self._instances if i.instance_id != instance.instance_id]
         self._orders = [o for o in self._orders if o.instance_id != instance.instance_id]
         self._refresh_instances_table()
+        self._rebuild_presets_table()
         self._refresh_orders_table()
         self._set_status(f"Deleted instance {instance.instance_id}")
 
@@ -1107,6 +1146,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         instance.state = "PAUSED"
         self._orders = [o for o in self._orders if o.instance_id != instance.instance_id]
         self._refresh_instances_table()
+        self._rebuild_presets_table()
         self._refresh_orders_table()
         self._journal_write(event="STOP_INSTANCE", instance=instance, reason=None, data=None)
         self._set_status(f"Stopped instance {instance.instance_id}: paused + cleared orders")
@@ -1116,6 +1156,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             instance.state = "PAUSED"
         self._orders.clear()
         self._refresh_instances_table()
+        self._rebuild_presets_table()
         self._refresh_orders_table()
         self._journal_write(event="KILL_ALL", reason=None, data=None)
         self._set_status("KILL: paused all + cleared orders")
@@ -1258,11 +1299,13 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                 symbol=result.symbol,
                 strategy=result.strategy,
                 filters=result.filters,
+                preset_key=preset.key,
                 metrics=entry.get("metrics"),
             )
             self._next_instance_id += 1
             self._instances.append(instance)
             self._refresh_instances_table()
+            self._rebuild_presets_table()
             self._instances_table.cursor_coordinate = (max(len(self._instances) - 1, 0), 0)
             self._focus_panel("instances")
             self._set_status(f"Created instance {instance.instance_id}")
@@ -1295,6 +1338,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             instance.strategy = result.strategy
             instance.filters = result.filters
             self._refresh_instances_table()
+            self._rebuild_presets_table()
             self._set_status(f"Updated instance {instance.instance_id}")
             self._journal_write(event="INSTANCE_UPDATED", instance=instance, reason=None, data=None)
 
@@ -1496,6 +1540,8 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         self._presets_table.add_column("P/DD 10|2|1", width=14)
         self._presets_table.add_column("PnL 10|2|1", width=18)
         self._presets_table.add_column("DD 10|2|1", width=18)
+        self._presets_table.add_column("Active", width=7)
+        self._presets_table.add_column("Live Total", width=12)
 
         payload = self._payload or {}
         groups = payload.get("groups", [])
@@ -1505,6 +1551,24 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             self._render_status()
             self._presets_table.refresh(repaint=True)
             return
+
+        active_by_preset_key: dict[str, int] = {}
+        live_total_by_preset_key: dict[str, float] = {}
+        live_seen_by_preset_key: dict[str, bool] = {}
+        for instance in self._instances:
+            if str(getattr(instance, "state", "")).strip().upper() != "RUNNING":
+                continue
+            preset_key = str(getattr(instance, "preset_key", "") or "").strip()
+            if not preset_key:
+                continue
+            active_by_preset_key[preset_key] = active_by_preset_key.get(preset_key, 0) + 1
+            live_total = self._instance_live_total_by_id.get(int(instance.instance_id))
+            if live_total is None:
+                continue
+            live_total_by_preset_key[preset_key] = live_total_by_preset_key.get(preset_key, 0.0) + float(
+                live_total
+            )
+            live_seen_by_preset_key[preset_key] = True
 
         def _get_symbol(group_name: str, entry: dict, strat: dict) -> str:
             raw = entry.get("symbol") or strat.get("symbol") or payload.get("symbol") or ""
@@ -1740,9 +1804,9 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                     signal_bar = str(payload.get("bar_size") or "").strip()
                 tf = signal_bar or "?"
 
-                preset = _BotPreset(group=group_name, entry=entry)
                 name = _short_preset_name(group_name=group_name, symbol=symbol, instrument=instrument, source=source)
                 row_id = f"preset:{source}:{group_name}:{entry_idx}"
+                preset = _BotPreset(group=group_name, entry=entry, key=row_id)
 
                 item = {
                     "row_id": row_id,
@@ -1840,6 +1904,24 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                 return "24/5"
             return "-"
 
+        def _active_live_cells(items: list[dict]) -> tuple[str, Text]:
+            if not items:
+                return "", Text("")
+            active = 0
+            live_total = 0.0
+            live_seen = False
+            for item in items:
+                key = str(item.get("row_id") or "").strip()
+                if not key:
+                    continue
+                active += int(active_by_preset_key.get(key, 0))
+                if bool(live_seen_by_preset_key.get(key)):
+                    live_total += float(live_total_by_preset_key.get(key, 0.0))
+                    live_seen = True
+            active_text = str(active) if active > 0 else ""
+            live_text = _pnl_text(live_total) if live_seen else Text("")
+            return active_text, live_text
+
         def _add_leaf(item: dict, *, depth: int) -> None:
             preset = item["preset"]
             strat = item["strategy"]
@@ -1862,6 +1944,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             ema = str(strat.get("ema_preset", ""))[:6]
 
             ratio_s, pnl_trip, dd_trip = _window_triplets(preset.group, metrics)
+            active_text, live_text = _active_live_cells([item])
 
             label = f"{'  ' * depth}{item['name']}".rstrip()
             self._presets.append(preset)
@@ -1876,10 +1959,19 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                 ratio_s,
                 pnl_trip,
                 dd_trip,
+                active_text,
+                live_text,
                 key=item["row_id"],
             )
 
-        def _add_header(node_id: str, *, depth: int, label: str, best: dict | None) -> bool:
+        def _add_header(
+            node_id: str,
+            *,
+            depth: int,
+            label: str,
+            best: dict | None,
+            items: list[dict],
+        ) -> bool:
             expanded = node_id in self._preset_expanded
             caret = "▾" if expanded else "▸"
             left = f"{'  ' * depth}{caret} {label}".rstrip()
@@ -1891,6 +1983,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             ratio_s = ""
             pnl_trip = Text("")
             dd_trip = Text("")
+            active_text, live_text = _active_live_cells(items)
 
             if best is not None:
                 filters = _filters_for_group(payload, best["preset"].group) if self._payload else None
@@ -1922,6 +2015,8 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                 ratio_s,
                 pnl_trip,
                 dd_trip,
+                active_text,
+                live_text,
                 key=node_id,
             )
             return expanded
@@ -1941,6 +2036,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                 depth=0,
                 label=_label_with_version(symbol, contract_best),
                 best=contract_best,
+                items=all_items,
             )
             if not contract_expanded:
                 continue
@@ -1953,6 +2049,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                 depth=1,
                 label=_label_with_version(f"{symbol} - Spot", spot_best),
                 best=spot_best,
+                items=spot_items,
             )
             if spot_expanded:
                 spot_tfs = sorted(bucket["spot"].keys())
@@ -1965,7 +2062,13 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                     for tf in spot_tfs:
                         tf_items = bucket["spot"][tf]
                         tf_node = f"{spot_node}|tf:{tf}"
-                        tf_expanded = _add_header(tf_node, depth=2, label=str(tf), best=_best(tf_items))
+                        tf_expanded = _add_header(
+                            tf_node,
+                            depth=2,
+                            label=str(tf),
+                            best=_best(tf_items),
+                            items=tf_items,
+                        )
                         if tf_expanded:
                             ordered = sorted(
                                 tf_items,
@@ -1977,12 +2080,24 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             opt_node = f"{contract_node}|options"
             opt_items = [it for items in bucket["options"].values() for it in items]
             if opt_items:
-                opt_expanded = _add_header(opt_node, depth=1, label=f"{symbol} - Options", best=_best(opt_items))
+                opt_expanded = _add_header(
+                    opt_node,
+                    depth=1,
+                    label=f"{symbol} - Options",
+                    best=_best(opt_items),
+                    items=opt_items,
+                )
                 if opt_expanded:
                     for dte in sorted(bucket["options"].keys()):
                         dte_items = bucket["options"][dte]
                         dte_node = f"{opt_node}|dte:{dte}"
-                        dte_expanded = _add_header(dte_node, depth=2, label=f"DTE {dte}", best=_best(dte_items))
+                        dte_expanded = _add_header(
+                            dte_node,
+                            depth=2,
+                            label=f"DTE {dte}",
+                            best=_best(dte_items),
+                            items=dte_items,
+                        )
                         if dte_expanded:
                             ordered = sorted(
                                 dte_items,
@@ -2018,7 +2133,16 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
 
     def _setup_tables(self) -> None:
         self._instances_table.clear(columns=True)
-        self._instances_table.add_columns("ID", "Strategy", "DTE", "State", "BT PnL", "Unreal", "Realized")
+        self._instances_table.add_columns(
+            "ID",
+            "Strategy",
+            "DTE",
+            "State",
+            "BT PnL",
+            "Live Unreal",
+            "Live Realized",
+            "Live Total",
+        )
 
         self._orders_table.clear(columns=True)
         self._orders_table.add_columns(
@@ -2049,6 +2173,13 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
 
         self._instances_table.clear()
         self._instance_rows = []
+        live_total_by_id: dict[int, float | None] = {}
+        active_ids = {int(instance.instance_id) for instance in self._instances}
+        self._instance_pnl_state_by_id = {
+            int(instance_id): state
+            for instance_id, state in self._instance_pnl_state_by_id.items()
+            if int(instance_id) in active_ids
+        }
         for instance in self._instances:
             instrument = self._strategy_instrument(instance.strategy or {})
             if instrument == "spot":
@@ -2061,11 +2192,8 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                     bt_pnl = _pnl_text(float(instance.metrics.get("pnl", 0.0)))
                 except (TypeError, ValueError):
                     bt_pnl = ""
-            unreal_cell, realized_cell = _instance_pnl_cells(
-                instance,
-                self._positions,
-                pnl_value_fn=self._position_pnl_values,
-            )
+            unreal_cell, realized_cell, total_cell, live_total = self._instance_live_cells(instance)
+            live_total_by_id[int(instance.instance_id)] = live_total
             self._instances_table.add_row(
                 str(instance.instance_id),
                 instance.group[:24],
@@ -2074,8 +2202,10 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                 bt_pnl,
                 unreal_cell,
                 realized_cell,
+                total_cell,
             )
             self._instance_rows.append(instance)
+        self._instance_live_total_by_id = live_total_by_id
 
         if prev_id is not None:
             for idx, inst in enumerate(self._instance_rows):
@@ -2142,6 +2272,152 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         mark_price = self._position_mark_price(item)
         unreal, _ = _unrealized_pnl_values(item, mark_price=mark_price)
         return unreal, realized
+
+    @staticmethod
+    def _item_con_id(item: PortfolioItem) -> int:
+        contract = getattr(item, "contract", None)
+        try:
+            return int(getattr(contract, "conId", 0) or 0)
+        except (TypeError, ValueError):
+            return 0
+
+    def _official_unrealized_value(self, item: PortfolioItem) -> float | None:
+        con_id = self._item_con_id(item)
+        official = self._client.pnl_single_unrealized(con_id)
+        if official is not None:
+            return float(official)
+        fallback = _safe_num(getattr(item, "unrealizedPNL", None))
+        return float(fallback) if fallback is not None else None
+
+    def _live_unrealized_value(self, item: PortfolioItem, mark_price: float | None) -> float | None:
+        mark = _safe_num(mark_price)
+        qty = _safe_num(getattr(item, "position", None))
+        if mark is None or qty is None:
+            return None
+        if abs(float(qty)) <= 1e-12:
+            return 0.0
+        multiplier = _infer_multiplier(item)
+        cost_basis = _cost_basis(item)
+        return (float(mark) * float(qty) * float(multiplier)) - float(cost_basis)
+
+    def _spot_instance_positions(self, instance: _BotInstance) -> list[PortfolioItem]:
+        symbol = str(instance.symbol or "").strip().upper()
+        if not symbol:
+            return []
+        sec_type = self._spot_sec_type(instance, symbol)
+        touched = {int(con_id) for con_id in instance.touched_conids if int(con_id) > 0}
+        matches: list[PortfolioItem] = []
+        for item in self._positions:
+            contract = getattr(item, "contract", None)
+            if contract is None:
+                continue
+            if str(getattr(contract, "secType", "") or "").strip().upper() != sec_type:
+                continue
+            if str(getattr(contract, "symbol", "") or "").strip().upper() != symbol:
+                continue
+            try:
+                qty = float(getattr(item, "position", 0.0) or 0.0)
+            except (TypeError, ValueError):
+                qty = 0.0
+            if abs(qty) <= 1e-12:
+                continue
+            matches.append(item)
+        if not matches:
+            return []
+
+        if touched:
+            scoped = [item for item in matches if self._item_con_id(item) in touched]
+            if scoped:
+                matches = scoped
+
+        for item in matches:
+            con_id = self._item_con_id(item)
+            if con_id <= 0:
+                continue
+            instance.touched_conids.add(con_id)
+        return matches
+
+    def _instance_positions(self, instance: _BotInstance) -> list[PortfolioItem]:
+        instrument = self._strategy_instrument(instance.strategy or {})
+        if instrument == "spot":
+            return self._spot_instance_positions(instance)
+        return self._options_open_positions(instance)
+
+    def _instance_realized_total(self, instance: _BotInstance, items: list[PortfolioItem]) -> float:
+        state = self._instance_pnl_state_by_id.get(int(instance.instance_id))
+        if state is None:
+            state = _InstancePnlState()
+            self._instance_pnl_state_by_id[int(instance.instance_id)] = state
+
+        realized_by_conid: dict[int, float] = {}
+        direct_realized = 0.0
+        for item in items:
+            realized = _safe_num(getattr(item, "realizedPNL", None))
+            if realized is None:
+                continue
+            con_id = self._item_con_id(item)
+            if con_id > 0:
+                realized_by_conid[con_id] = float(realized)
+            else:
+                direct_realized += float(realized)
+
+        for con_id, realized in realized_by_conid.items():
+            prev = state.realized_seen_by_conid.get(con_id)
+            if prev is None:
+                state.realized_total += float(realized)
+            else:
+                delta = float(realized) - float(prev)
+                if delta > 1e-9:
+                    state.realized_total += float(delta)
+            state.realized_seen_by_conid[con_id] = float(realized)
+
+        return float(state.realized_total + direct_realized)
+
+    def _instance_live_cells(
+        self,
+        instance: _BotInstance,
+    ) -> tuple[Text | str, Text | str, Text | str, float | None]:
+        items = self._instance_positions(instance)
+
+        unreal_hybrid = 0.0
+        unreal_hybrid_seen = False
+        unreal_estimate = 0.0
+        unreal_estimate_seen = False
+        unreal_official_seen = False
+        for item in items:
+            official = self._official_unrealized_value(item)
+            mark_price = self._position_mark_price(item)
+            estimate = self._live_unrealized_value(item, mark_price)
+            if official is not None:
+                unreal_hybrid += float(official)
+                unreal_hybrid_seen = True
+                unreal_official_seen = True
+            elif estimate is not None:
+                unreal_hybrid += float(estimate)
+                unreal_hybrid_seen = True
+            if estimate is not None:
+                unreal_estimate += float(estimate)
+                unreal_estimate_seen = True
+
+        unreal_value = float(unreal_hybrid) if unreal_hybrid_seen else 0.0
+        realized_value = self._instance_realized_total(instance, items)
+        total_value = float(unreal_value + realized_value)
+        is_running = str(getattr(instance, "state", "")).strip().upper() == "RUNNING"
+        has_live = bool(items) or abs(float(realized_value)) > 1e-9 or is_running
+        live_total = float(total_value) if has_live else None
+
+        unreal_cell = _pnl_text(unreal_value)
+        if unreal_estimate_seen and not unreal_official_seen:
+            unreal_cell.append(" ≈", style="dim")
+        elif unreal_estimate_seen and unreal_hybrid_seen and abs(float(unreal_estimate) - float(unreal_hybrid)) >= 0.01:
+            unreal_cell.append(" (", style="dim")
+            est_style = "green" if unreal_estimate > 0 else "red" if unreal_estimate < 0 else ""
+            unreal_cell.append(_fmt_money(float(unreal_estimate)), style=est_style)
+            unreal_cell.append(")", style="dim")
+
+        realized_cell = _pnl_text(realized_value)
+        total_cell = _pnl_text(total_value)
+        return unreal_cell, realized_cell, total_cell, live_total
 
     @staticmethod
     def _log_entry_identity(entry: dict) -> tuple[str, ...]:
