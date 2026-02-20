@@ -64,6 +64,7 @@ _MATCHING_SYMBOL_TIMEOUT_INITIAL_SEC = 5.0
 _MATCHING_SYMBOL_TIMEOUT_RETRY_SEC = 7.0
 _MATCHING_SYMBOL_MAX_ATTEMPTS = 2
 _MATCHING_SYMBOL_RETRY_BASE_SEC = 0.12
+_MATCHING_SYMBOL_EMPTY_TIMEOUT_RATIO = 0.9
 _CLIENT_ID_CONFLICT_PATTERNS = (
     "client id already in use",
     "clientid already in use",
@@ -2433,10 +2434,23 @@ class IBKRClient:
                         else _MATCHING_SYMBOL_TIMEOUT_RETRY_SEC
                     )
                     try:
+                        started = time.monotonic()
                         matches = await asyncio.wait_for(
                             ib.reqMatchingSymbolsAsync(term),
                             timeout=float(timeout_sec),
                         )
+                        elapsed = time.monotonic() - started
+                        # ib_insync can occasionally return an empty list right around the
+                        # timeout boundary for delayed/canceled requests; treat that as retryable.
+                        if not matches:
+                            timeout_threshold = max(
+                                float(timeout_sec) * float(_MATCHING_SYMBOL_EMPTY_TIMEOUT_RATIO),
+                                float(timeout_sec) - min(0.05, float(timeout_sec) * 0.1),
+                            )
+                            if elapsed >= timeout_threshold:
+                                raise asyncio.TimeoutError(
+                                    f"matching symbols request timed out after {float(timeout_sec):.3f}s"
+                                )
                         had_successful_term = True
                         last_exc = None
                         break
@@ -2519,6 +2533,22 @@ class IBKRClient:
                 break
         return [*exact_symbols, *prefix_symbols, *contains_symbols, *desc_symbols]
 
+    async def _opt_underlyer_fallback_from_symbol(self, symbol: str) -> tuple[str, str] | None:
+        candidate = str(symbol or "").strip().upper()
+        if not candidate:
+            return None
+        if not re.fullmatch(r"[A-Z][A-Z0-9.-]{0,9}", candidate):
+            return None
+        try:
+            resolved = await self.stock_option_chain(candidate)
+        except Exception:
+            return None
+        if not resolved:
+            return None
+        underlying, _chain = resolved
+        normalized = str(getattr(underlying, "symbol", "") or "").strip().upper() or candidate
+        return normalized, ""
+
     async def search_option_underlyers(self, query: str, *, limit: int = 8) -> list[tuple[str, str]]:
         token = str(query or "").strip().upper()
         if not token:
@@ -2530,12 +2560,30 @@ class IBKRClient:
         mode_aliases = _SEARCH_TERM_ALIASES_BY_MODE.get("OPT", {})
         token_is_alias_seed = token in mode_aliases
         max_rows = max(1, min(int(limit or 8), 20))
-        matches = await self._matching_symbols(
-            token,
-            use_proxy=True,
-            mode="OPT",
-            raise_on_error=True,
-        )
+        matches: list[object] = []
+        match_error: Exception | None = None
+        try:
+            matches = await self._matching_symbols(
+                token,
+                use_proxy=True,
+                mode="OPT",
+                raise_on_error=True,
+            )
+        except Exception as exc:
+            match_error = exc
+        if not matches:
+            fallback_candidates: list[str] = [token, *terms]
+            seen_candidates: set[str] = set()
+            for candidate in fallback_candidates:
+                normalized = str(candidate or "").strip().upper()
+                if not normalized or normalized in seen_candidates:
+                    continue
+                seen_candidates.add(normalized)
+                fallback = await self._opt_underlyer_fallback_from_symbol(normalized)
+                if fallback is not None:
+                    return [fallback]
+            if match_error is not None:
+                raise match_error
         if not matches:
             return []
         ranked_symbols = self._rank_opt_underlyer_symbols(

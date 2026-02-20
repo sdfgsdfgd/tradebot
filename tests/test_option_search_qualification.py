@@ -332,6 +332,76 @@ def test_matching_symbols_retries_transient_timeout() -> None:
     assert str(getattr(getattr(rows[0], "contract", None), "symbol", "") or "").upper() == "NVDA"
 
 
+def test_matching_symbols_retries_timeout_like_empty_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client = _client()
+
+    monkeypatch.setattr("tradebot.client._MATCHING_SYMBOL_TIMEOUT_INITIAL_SEC", 0.05)
+    monkeypatch.setattr("tradebot.client._MATCHING_SYMBOL_TIMEOUT_RETRY_SEC", 0.05)
+    monkeypatch.setattr("tradebot.client._MATCHING_SYMBOL_RETRY_BASE_SEC", 0.0)
+
+    class _BoundaryProxy:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        async def reqMatchingSymbolsAsync(self, _term):
+            self.calls += 1
+            if self.calls == 1:
+                await asyncio.sleep(0.046)
+                return []
+            return [
+                SimpleNamespace(
+                    contract=Contract(secType="STK", symbol="NVDA", exchange="SMART", currency="USD"),
+                    derivativeSecTypes=("OPT",),
+                )
+            ]
+
+    async def _connect_proxy() -> None:
+        return None
+
+    proxy = _BoundaryProxy()
+    client._ib_proxy = proxy
+    client.connect_proxy = _connect_proxy
+
+    rows = asyncio.run(
+        client._matching_symbols("NVDA", use_proxy=True, mode="OPT", raise_on_error=True)
+    )
+
+    assert rows
+    assert proxy.calls >= 2
+    assert str(getattr(getattr(rows[0], "contract", None), "symbol", "") or "").upper() == "NVDA"
+
+
+def test_search_option_underlyers_falls_back_to_direct_symbol_when_lookup_unavailable() -> None:
+    client = _client()
+    calls = {"chain": 0}
+
+    async def _matching_symbols(*_args, **_kwargs):
+        raise RuntimeError("IBKR symbol lookup unavailable: simulated timeout")
+
+    async def _stock_option_chain(symbol: str):
+        calls["chain"] += 1
+        assert str(symbol).upper() == "NVDA"
+        underlying = Contract(secType="STK", symbol="NVDA", exchange="SMART", currency="USD")
+        chain = SimpleNamespace(
+            exchange="SMART",
+            tradingClass="NVDA",
+            expirations=("20260220",),
+            strikes=(180.0, 185.0),
+            multiplier="100",
+        )
+        return underlying, chain
+
+    client._matching_symbols = _matching_symbols
+    client.stock_option_chain = _stock_option_chain
+
+    underlyers = asyncio.run(client.search_option_underlyers("NVDA", limit=4))
+
+    assert underlyers == [("NVDA", "")]
+    assert calls["chain"] == 1
+
+
 def test_search_contracts_fop_can_fallback_from_alias_root() -> None:
     client = _client()
 
