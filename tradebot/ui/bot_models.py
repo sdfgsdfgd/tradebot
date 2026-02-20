@@ -73,6 +73,7 @@ class _BotInstance:
     last_gate_fingerprint: tuple | None = None
     no_signal_snapshot_since: datetime | None = None
     no_signal_snapshot_last_ping: datetime | None = None
+    no_signal_unrecovered_last_ping: datetime | None = None
     quote_starvation_since: datetime | None = None
     quote_starvation_stage: str | None = None
     quote_starvation_last_repair_ts: datetime | None = None
@@ -176,6 +177,7 @@ class _SignalSnapshot:
     shock_drawdown_on_pct: float | None = None
     shock_drawdown_off_pct: float | None = None
     shock_drawdown_dist_on_pct: float | None = None
+    shock_drawdown_dist_on_vel_pp: float | None = None
     shock_drawdown_dist_off_pct: float | None = None
     shock_scale_drawdown_pct: float | None = None
     shock_peak_close: float | None = None
@@ -200,3 +202,5 @@ class _SignalSnapshot:
     shock_atr_vel_pct: float | None = None
     shock_atr_accel_pct: float | None = None
     bar_health: dict | None = None
+    regime_bar_health: dict | None = None
+    regime2_bar_health: dict | None = None

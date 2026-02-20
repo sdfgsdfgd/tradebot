@@ -8,11 +8,14 @@ from __future__ import annotations
 
 import math
 from datetime import datetime, time
+from time import monotonic
 
 from ib_insync import PnL, PortfolioItem, Ticker, Trade
 from rich.text import Text
 
 from tradebot.ui.time_compat import now_et as _now_et
+
+_QUOTE_INFO_ERROR_CODES = {10167, 354, 10089, 10090, 10091, 10168}
 
 # region Formatting Helpers
 def _fmt_expiry(raw: str) -> str:
@@ -195,6 +198,35 @@ def _pct_change(price: float | None, baseline: float | None) -> float | None:
     return ((price - baseline) / baseline) * 100.0
 
 
+def _pct24_72_from_price(
+    *,
+    price: float | None,
+    ticker: Ticker | None,
+    session_prev_close: float | None,
+    session_prev_close_1ago: float | None,
+    session_close_3ago: float | None,
+    has_actionable_quote: bool | None = None,
+) -> tuple[float | None, float | None]:
+    """Return (24h_pct, 72h_pct) with truthful fallback baselines.
+
+    If an actionable quote is present (NBBO/last), 24h compares against the latest close.
+    If not, 24h falls back to previous-session close so close-only rows don't pin to 0.00%.
+    """
+    actionable = bool(has_actionable_quote)
+    if has_actionable_quote is None:
+        actionable = bool(_ticker_actionable_price(ticker)) if ticker is not None else False
+
+    if actionable:
+        ticker_close = _ticker_close(ticker) if ticker is not None else None
+        baseline_24 = ticker_close if ticker_close is not None else session_prev_close
+    else:
+        baseline_24 = session_prev_close_1ago
+
+    pct24 = _pct_change(price, baseline_24)
+    pct72 = _pct_change(price, session_close_3ago)
+    return pct24, pct72
+
+
 def _pct_dual_text(
     pct24: float | None,
     pct72: float | None,
@@ -271,15 +303,6 @@ def _pnl_value(pnl: PnL | None) -> float | None:
     if value is None or (isinstance(value, float) and math.isnan(value)):
         return None
     return float(value)
-
-
-def _estimate_net_liq(
-    net_liq: float, pnl: PnL | None, anchor: float | None
-) -> float | None:
-    daily = _pnl_value(pnl)
-    if daily is None or anchor is None:
-        return None
-    return net_liq + (daily - anchor)
 
 
 def _estimate_buying_power(
@@ -405,12 +428,52 @@ def _market_data_tag(ticker: Ticker) -> str:
 
 
 def _market_data_label(ticker: Ticker) -> str:
-    md_type = getattr(ticker, "marketDataType", None)
-    if md_type in (1, 2):
+    md_raw = getattr(ticker, "marketDataType", None)
+    try:
+        md_type = int(md_raw) if md_raw is not None else None
+    except (TypeError, ValueError):
+        md_type = None
+    if md_type == 1:
         return "Live"
-    if md_type in (3, 4):
+    if md_type == 2:
+        return "Live-Frozen"
+    if md_type == 3:
         return "Delayed"
+    if md_type == 4:
+        return "Delayed-Frozen"
     return "n/a"
+
+
+def _quote_source_label(
+    ticker: Ticker,
+    *,
+    source: str,
+    has_nbbo: bool,
+    has_last: bool,
+) -> str:
+    clean_source = str(source or "").strip()
+    if not clean_source:
+        return ""
+    src = clean_source.lower()
+    has_close = _ticker_close(ticker) is not None
+    if src in ("stream-close-only", "delayed-snapshot", "delayed-frozen-snapshot"):
+        if (not has_nbbo) and (not has_last) and has_close:
+            return "close-only"
+    return clean_source
+
+
+def _should_show_quote_error_code(ticker: Ticker, *, has_nbbo: bool, has_last: bool) -> int | None:
+    raw = getattr(ticker, "tbQuoteErrorCode", None)
+    if raw is None:
+        return None
+    try:
+        code = int(raw)
+    except (TypeError, ValueError):
+        return None
+    has_close = _ticker_close(ticker) is not None
+    if code in _QUOTE_INFO_ERROR_CODES and (has_nbbo or has_last or has_close):
+        return None
+    return code
 
 
 def _quote_status_line(ticker: Ticker) -> Text:
@@ -425,8 +488,58 @@ def _quote_status_line(ticker: Ticker) -> Text:
         bid_ask = "1-sided"
     else:
         bid_ask = "n/a"
-    last_label = "ok" if bool(health.get("has_last")) else "n/a"
-    return Text(f"MD Quotes: bid/ask {bid_ask} · last {last_label}", style="dim")
+    has_nbbo = bool(health.get("has_nbbo"))
+    has_last = bool(health.get("has_last"))
+    last_label = "ok" if has_last else "n/a"
+    parts = [f"MD Quotes: bid/ask {bid_ask}", f"last {last_label}"]
+    source = str(getattr(ticker, "tbQuoteSource", "") or "").strip()
+    source_label = _quote_source_label(
+        ticker,
+        source=source,
+        has_nbbo=has_nbbo,
+        has_last=has_last,
+    )
+    if source_label:
+        parts.append(f"src {source_label}")
+    as_of_raw = str(getattr(ticker, "tbQuoteAsOf", "") or "").strip()
+    if as_of_raw:
+        try:
+            as_of_dt = datetime.fromisoformat(as_of_raw.replace("Z", "+00:00"))
+            parts.append(f"asof {as_of_dt.strftime('%H:%M:%S')}")
+        except ValueError:
+            parts.append(f"asof {as_of_raw[:19]}")
+    updated_mono = getattr(ticker, "tbQuoteUpdatedMono", None)
+    try:
+        age_sec = max(0.0, monotonic() - float(updated_mono)) if updated_mono is not None else None
+    except (TypeError, ValueError):
+        age_sec = None
+    if age_sec is not None:
+        parts.append(f"age {age_sec:.0f}s")
+    top_updated_mono = getattr(ticker, "tbTopQuoteUpdatedMono", None)
+    try:
+        top_age_sec = (
+            max(0.0, monotonic() - float(top_updated_mono))
+            if top_updated_mono is not None
+            else None
+        )
+    except (TypeError, ValueError):
+        top_age_sec = None
+    if top_age_sec is not None:
+        parts.append(f"topchg {top_age_sec:.0f}s")
+    top_moves = getattr(ticker, "tbTopQuoteMoveCount", None)
+    if top_moves is not None:
+        try:
+            parts.append(f"moves {max(0, int(top_moves))}")
+        except (TypeError, ValueError):
+            pass
+    error_code = _should_show_quote_error_code(
+        ticker,
+        has_nbbo=has_nbbo,
+        has_last=has_last,
+    )
+    if error_code is not None:
+        parts.append(f"code {error_code}")
+    return Text(" · ".join(parts), style="dim")
 
 
 def _market_session_bucket(ts_et: datetime | time) -> str:
@@ -688,7 +801,52 @@ def _default_order_qty(item: PortfolioItem) -> int:
     return 1
 
 
+def _price_increment_from_ladder(
+    ladder: object,
+    *,
+    ref_price: float | None,
+) -> float | None:
+    if not isinstance(ladder, (list, tuple)):
+        return None
+    rows: list[tuple[float, float]] = []
+    for row in ladder:
+        if not isinstance(row, (list, tuple)) or len(row) < 2:
+            continue
+        try:
+            low_edge = float(row[0])
+            increment = float(row[1])
+        except (TypeError, ValueError):
+            continue
+        if increment <= 0:
+            continue
+        rows.append((max(0.0, low_edge), increment))
+    if not rows:
+        return None
+    rows.sort(key=lambda entry: entry[0])
+    try:
+        ref = float(ref_price) if ref_price is not None else 0.0
+    except (TypeError, ValueError):
+        ref = 0.0
+    ref = max(0.0, ref)
+    selected = rows[0][1]
+    for low_edge, increment in rows:
+        if ref >= low_edge:
+            selected = increment
+        else:
+            break
+    return selected if selected > 0 else None
+
+
 def _tick_size(contract, ticker: Ticker | None, ref_price: float | None) -> float:
+    for source in (ticker, contract):
+        if source is None:
+            continue
+        ladder_tick = _price_increment_from_ladder(
+            getattr(source, "tbPriceIncrements", None),
+            ref_price=ref_price,
+        )
+        if ladder_tick is not None:
+            return ladder_tick
     if ticker is not None:
         value = getattr(ticker, "minTick", None)
         if value:
@@ -769,6 +927,7 @@ _EXEC_LADDER_OPTIMISTIC_SEC = 15.0
 _EXEC_LADDER_MID_SEC = 15.0
 _EXEC_LADDER_AGGRESSIVE_SEC = 15.0
 _EXEC_LADDER_CROSS_SEC = 5 * 60.0
+_EXEC_RELENTLESS_TIMEOUT_SEC = 15 * 60.0
 _EXEC_LADDER_TIMEOUT_SEC = (
     _EXEC_LADDER_OPTIMISTIC_SEC
     + _EXEC_LADDER_MID_SEC
@@ -813,6 +972,8 @@ def _exec_chase_mode(elapsed_sec: float, *, selected_mode: str | None = "AUTO") 
         elapsed = float(elapsed_sec)
     except (TypeError, ValueError):
         elapsed = 0.0
+    if cleaned == "RELENTLESS":
+        return cleaned if elapsed <= _EXEC_RELENTLESS_TIMEOUT_SEC else None
     if cleaned and cleaned not in ("AUTO", "LADDER"):
         return cleaned if elapsed <= _EXEC_LADDER_TIMEOUT_SEC else None
     return _exec_ladder_mode(elapsed)

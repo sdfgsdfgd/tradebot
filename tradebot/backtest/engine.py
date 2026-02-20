@@ -3447,6 +3447,8 @@ def _spot_try_open_entry(
     shock_dir_now: str | None,
     shock_atr_pct_now: float | None,
     shock_dir_down_streak_bars_now: int | None,
+    shock_drawdown_dist_on_pct_now: float | None,
+    shock_drawdown_dist_on_vel_pp_now: float | None,
     signal_entry_dir_now: str | None,
     signal_regime_dir_now: str | None,
     riskoff_today: bool,
@@ -3567,6 +3569,8 @@ def _spot_try_open_entry(
             shock_dir=shock_dir_now,
             shock_atr_pct=shock_atr_pct_now,
             shock_dir_down_streak_bars=shock_dir_down_streak_bars_now,
+            shock_drawdown_dist_on_pct=shock_drawdown_dist_on_pct_now,
+            shock_drawdown_dist_on_vel_pp=shock_drawdown_dist_on_vel_pp_now,
             riskoff=bool(riskoff_today),
             risk_dir=shock_dir_now,
             riskpanic=bool(riskpanic_today),
@@ -4326,6 +4330,16 @@ def _run_spot_backtest_exec_loop(
                             if last_sig_snap is not None and getattr(last_sig_snap, "shock_dir_down_streak_bars", None) is not None
                             else None
                         ),
+                        shock_drawdown_dist_on_pct_now=(
+                            float(getattr(last_sig_snap, "shock_drawdown_dist_on_pct", 0.0))
+                            if last_sig_snap is not None and getattr(last_sig_snap, "shock_drawdown_dist_on_pct", None) is not None
+                            else None
+                        ),
+                        shock_drawdown_dist_on_vel_pp_now=(
+                            float(getattr(last_sig_snap, "shock_drawdown_dist_on_vel_pp", 0.0))
+                            if last_sig_snap is not None and getattr(last_sig_snap, "shock_drawdown_dist_on_vel_pp", None) is not None
+                            else None
+                        ),
                         signal_entry_dir_now=(
                             str(getattr(last_sig_snap, "entry_dir", None))
                             if last_sig_snap is not None and getattr(last_sig_snap, "entry_dir", None) in ("up", "down")
@@ -4398,6 +4412,8 @@ def _run_spot_backtest_exec_loop(
         shock_atr_pct = None
         shock_atr_vel = None
         shock_atr_accel = None
+        shock_drawdown_dist_on_pct = None
+        shock_drawdown_dist_on_vel_pp = None
         atr = None
         signal = None
         entry_signal_dir = None
@@ -4424,6 +4440,8 @@ def _run_spot_backtest_exec_loop(
                 shock_atr_pct = sig_snap.shock_atr_pct
                 shock_atr_vel = getattr(sig_snap, "shock_atr_vel_pct", None)
                 shock_atr_accel = getattr(sig_snap, "shock_atr_accel_pct", None)
+                shock_drawdown_dist_on_pct = getattr(sig_snap, "shock_drawdown_dist_on_pct", None)
+                shock_drawdown_dist_on_vel_pp = getattr(sig_snap, "shock_drawdown_dist_on_vel_pp", None)
                 atr = sig_snap.atr
                 signal = sig_snap.signal
                 entry_signal_dir = sig_snap.entry_dir
@@ -4856,6 +4874,12 @@ def _run_spot_backtest_exec_loop(
                         shock_dir_down_streak_bars_now=(
                             int(shock_dir_down_streak_bars) if shock_dir_down_streak_bars is not None else None
                         ),
+                        shock_drawdown_dist_on_pct_now=(
+                            float(shock_drawdown_dist_on_pct) if shock_drawdown_dist_on_pct is not None else None
+                        ),
+                        shock_drawdown_dist_on_vel_pp_now=(
+                            float(shock_drawdown_dist_on_vel_pp) if shock_drawdown_dist_on_vel_pp is not None else None
+                        ),
                         signal_entry_dir_now=(
                             str(entry_signal_dir) if entry_signal_dir in ("up", "down") else None
                         ),
@@ -4926,6 +4950,12 @@ def _run_spot_backtest_exec_loop(
                     shock_atr_pct=shock_atr_pct,
                     shock_dir_down_streak_bars=(
                         int(shock_dir_down_streak_bars) if shock_dir_down_streak_bars is not None else None
+                    ),
+                    shock_drawdown_dist_on_pct=(
+                        float(shock_drawdown_dist_on_pct) if shock_drawdown_dist_on_pct is not None else None
+                    ),
+                    shock_drawdown_dist_on_vel_pp=(
+                        float(shock_drawdown_dist_on_vel_pp) if shock_drawdown_dist_on_vel_pp is not None else None
                     ),
                     riskoff=bool(riskoff_today),
                     risk_dir=shock_dir,
@@ -5581,6 +5611,8 @@ def _run_spot_backtest_exec_loop_summary_fast(
             shock_dir_now=shock_dir_prev_now,
             shock_atr_pct_now=shock_atr_pct_prev_now,
             shock_dir_down_streak_bars_now=None,
+            shock_drawdown_dist_on_pct_now=None,
+            shock_drawdown_dist_on_vel_pp_now=None,
             signal_entry_dir_now=str(pending_dir) if pending_dir in ("up", "down") else None,
             signal_regime_dir_now=(
                 str(getattr(sig, "regime_dir", None)) if getattr(sig, "regime_dir", None) in ("up", "down") else None

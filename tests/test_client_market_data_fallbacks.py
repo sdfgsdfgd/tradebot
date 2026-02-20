@@ -1,19 +1,38 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime
+import json
+import time
 from types import SimpleNamespace
 
 from ib_insync import Contract, Stock
 
+import tradebot.client as client_module
 from tradebot.client import IBKRClient
 from tradebot.config import IBKRConfig
 
 
-def _new_client() -> IBKRClient:
+class _FakeConnectIB:
+    def __init__(self, *, connected: bool = False) -> None:
+        self.connected = bool(connected)
+
+    def isConnected(self) -> bool:
+        return bool(self.connected)
+
+    def disconnect(self) -> None:
+        self.connected = False
+
+
+def _ensure_event_loop() -> None:
     try:
         asyncio.get_event_loop()
     except RuntimeError:
         asyncio.set_event_loop(asyncio.new_event_loop())
+
+
+def _new_client() -> IBKRClient:
+    _ensure_event_loop()
     cfg = IBKRConfig(
         host="127.0.0.1",
         port=4001,
@@ -55,6 +74,50 @@ class _FakeProxyIB:
         self.cancels.append(contract)
 
 
+class _FakeMainIBForRules:
+    def __init__(self) -> None:
+        self.market_data_types: list[int] = []
+        self.requests: list[object] = []
+        self.contract_details_calls = 0
+        self.market_rule_calls = 0
+
+    def reqMarketDataType(self, md_type: int) -> None:
+        self.market_data_types.append(int(md_type))
+
+    def reqMktData(self, contract):
+        self.requests.append(contract)
+        md_type = self.market_data_types[-1] if self.market_data_types else None
+        return SimpleNamespace(
+            contract=contract,
+            marketDataType=md_type,
+            bid=None,
+            ask=None,
+            last=None,
+            close=None,
+            prevLast=None,
+            minTick=None,
+        )
+
+    async def reqContractDetailsAsync(self, contract):
+        self.contract_details_calls += 1
+        return [
+            SimpleNamespace(
+                contract=contract,
+                minTick=0.05,
+                marketRuleIds="85",
+            )
+        ]
+
+    async def reqMarketRuleAsync(self, market_rule_id: int):
+        self.market_rule_calls += 1
+        assert int(market_rule_id) == 85
+        return [
+            SimpleNamespace(lowEdge=0.0, increment=0.05),
+            SimpleNamespace(lowEdge=5.0, increment=0.25),
+            SimpleNamespace(lowEdge=100.0, increment=0.5),
+        ]
+
+
 class _FakePnLSingleIB:
     def __init__(self) -> None:
         self.req_calls: list[tuple[str, str, int]] = []
@@ -86,6 +149,290 @@ def test_ticker_has_data_requires_actionable_quote() -> None:
 
     with_nbbo = SimpleNamespace(bid=600.4, ask=600.6, last=None, close=None, prevLast=None)
     assert IBKRClient._ticker_has_data(with_nbbo) is True
+
+
+def test_ensure_ticker_primes_price_increments_for_fop() -> None:
+    client = _new_client()
+    fake_ib = _FakeMainIBForRules()
+    client._ib = fake_ib
+
+    async def _connect() -> None:
+        return None
+
+    client.connect = _connect  # type: ignore[method-assign]
+    client._start_main_contract_quote_watchdog = lambda _contract: None  # type: ignore[method-assign]
+    client._start_main_contract_quote_probe = lambda _contract: None  # type: ignore[method-assign]
+
+    contract = Contract(secType="FOP", symbol="MNQ", exchange="CME", currency="USD")
+    contract.conId = 853838839
+    ticker = asyncio.run(client.ensure_ticker(contract, owner="test"))
+    _ = asyncio.run(client.ensure_ticker(contract, owner="test2"))
+
+    assert tuple(getattr(ticker, "tbPriceIncrements", ())) == (
+        (0.0, 0.05),
+        (5.0, 0.25),
+        (100.0, 0.5),
+    )
+    assert tuple(getattr(contract, "tbPriceIncrements", ())) == (
+        (0.0, 0.05),
+        (5.0, 0.25),
+        (100.0, 0.5),
+    )
+    assert fake_ib.contract_details_calls == 1
+    assert fake_ib.market_rule_calls == 1
+
+
+def test_client_id_conflict_error_classifier() -> None:
+    assert IBKRClient._is_client_id_conflict_error(RuntimeError("Client id already in use")) is True
+    assert IBKRClient._is_client_id_conflict_error(RuntimeError("Duplicate client id")) is True
+    assert IBKRClient._is_client_id_conflict_error(RuntimeError("API connection failed")) is False
+
+
+def test_api_session_init_error_classifier() -> None:
+    assert IBKRClient._is_api_session_init_error(asyncio.TimeoutError()) is True
+    assert IBKRClient._is_api_session_init_error(RuntimeError("API connection failed: TimeoutError()")) is True
+    assert IBKRClient._is_api_session_init_error(RuntimeError("Socket connection broken while connecting")) is True
+    assert IBKRClient._is_api_session_init_error(RuntimeError("Client id already in use")) is False
+
+
+def test_connect_ib_uses_configured_timeout() -> None:
+    _ensure_event_loop()
+    cfg = IBKRConfig(
+        host="127.0.0.1",
+        port=4001,
+        client_id=701,
+        proxy_client_id=702,
+        account=None,
+        refresh_sec=0.25,
+        detail_refresh_sec=0.5,
+        reconnect_interval_sec=5.0,
+        reconnect_timeout_sec=60.0,
+        reconnect_slow_interval_sec=60.0,
+        connect_timeout_sec=13.5,
+    )
+    client = IBKRClient(cfg)
+
+    class _FakeIB:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, int, int, float]] = []
+
+        async def connectAsync(self, host: str, port: int, clientId: int, timeout: float) -> None:
+            self.calls.append((str(host), int(port), int(clientId), float(timeout)))
+
+    fake_ib = _FakeIB()
+    asyncio.run(client._connect_ib(fake_ib, client_id=745))
+    assert fake_ib.calls == [("127.0.0.1", 4001, 745, 13.5)]
+
+
+def test_connect_rotates_client_id_on_conflict_and_persists_pair(tmp_path) -> None:
+    _ensure_event_loop()
+    cfg = IBKRConfig(
+        host="127.0.0.1",
+        port=4001,
+        client_id=500,
+        proxy_client_id=501,
+        account=None,
+        refresh_sec=0.25,
+        detail_refresh_sec=0.5,
+        reconnect_interval_sec=5.0,
+        reconnect_timeout_sec=60.0,
+        reconnect_slow_interval_sec=60.0,
+        client_id_pool_start=500,
+        client_id_pool_end=505,
+        client_id_burst_attempts=4,
+        client_id_backoff_initial_sec=0.5,
+        client_id_backoff_max_sec=2.0,
+        client_id_backoff_multiplier=2.0,
+        client_id_backoff_jitter_ratio=0.0,
+        client_id_state_file=str(tmp_path / "ids.json"),
+    )
+    client = IBKRClient(cfg)
+    client._request_reconnect = lambda: None  # type: ignore[method-assign]
+    client._ib = _FakeConnectIB()
+    client._ib_proxy = _FakeConnectIB(connected=True)
+    client._connected_proxy_client_id = 503
+    attempted: list[int] = []
+
+    async def _fake_connect_ib(ib, *, client_id: int) -> None:
+        attempted.append(int(client_id))
+        if int(client_id) == 500:
+            raise RuntimeError("Client id already in use")
+        ib.connected = True
+
+    client._connect_ib = _fake_connect_ib  # type: ignore[method-assign]
+    asyncio.run(client.connect())
+
+    assert attempted[:2] == [500, 502]
+    assert int(client._main_client_id) == 502
+    assert int(client._proxy_client_id) == 503
+    persisted = json.loads((tmp_path / "ids.json").read_text(encoding="utf-8"))
+    assert int(persisted["main_client_id"]) == 502
+    assert int(persisted["proxy_client_id"]) == 503
+
+
+def test_connect_rotates_client_id_on_api_init_timeout_and_quarantines_pair(tmp_path) -> None:
+    _ensure_event_loop()
+    cfg = IBKRConfig(
+        host="127.0.0.1",
+        port=4001,
+        client_id=500,
+        proxy_client_id=501,
+        account=None,
+        refresh_sec=0.25,
+        detail_refresh_sec=0.5,
+        reconnect_interval_sec=5.0,
+        reconnect_timeout_sec=60.0,
+        reconnect_slow_interval_sec=60.0,
+        client_id_pool_start=500,
+        client_id_pool_end=507,
+        client_id_burst_attempts=4,
+        client_id_backoff_initial_sec=0.5,
+        client_id_backoff_max_sec=2.0,
+        client_id_backoff_multiplier=2.0,
+        client_id_backoff_jitter_ratio=0.0,
+        client_id_quarantine_sec=120.0,
+        client_id_state_file=str(tmp_path / "ids.json"),
+    )
+    client = IBKRClient(cfg)
+    client._request_reconnect = lambda: None  # type: ignore[method-assign]
+    client._ib = _FakeConnectIB()
+    client._ib_proxy = _FakeConnectIB(connected=True)
+    client._connected_proxy_client_id = 503
+    attempted: list[int] = []
+
+    async def _fake_connect_ib(ib, *, client_id: int) -> None:
+        attempted.append(int(client_id))
+        if int(client_id) == 500:
+            raise asyncio.TimeoutError()
+        ib.connected = True
+
+    client._connect_ib = _fake_connect_ib  # type: ignore[method-assign]
+    asyncio.run(client.connect())
+
+    assert attempted[:2] == [500, 502]
+    assert int(client._main_client_id) == 502
+    assert int(client._proxy_client_id) == 503
+    assert client._is_pair_quarantined(500, 501) is True
+
+
+def test_connect_pool_exhaustion_arms_backoff(tmp_path) -> None:
+    _ensure_event_loop()
+    cfg = IBKRConfig(
+        host="127.0.0.1",
+        port=4001,
+        client_id=500,
+        proxy_client_id=501,
+        account=None,
+        refresh_sec=0.25,
+        detail_refresh_sec=0.5,
+        reconnect_interval_sec=5.0,
+        reconnect_timeout_sec=60.0,
+        reconnect_slow_interval_sec=60.0,
+        client_id_pool_start=500,
+        client_id_pool_end=503,
+        client_id_burst_attempts=2,
+        client_id_backoff_initial_sec=2.0,
+        client_id_backoff_max_sec=2.0,
+        client_id_backoff_multiplier=2.0,
+        client_id_backoff_jitter_ratio=0.0,
+        client_id_state_file=str(tmp_path / "ids.json"),
+    )
+    client = IBKRClient(cfg)
+    client._request_reconnect = lambda: None  # type: ignore[method-assign]
+    client._ib = _FakeConnectIB()
+
+    async def _always_conflict(_ib, *, client_id: int) -> None:
+        raise RuntimeError(f"Client id already in use: {int(client_id)}")
+
+    client._connect_ib = _always_conflict  # type: ignore[method-assign]
+    try:
+        asyncio.run(client.connect())
+    except Exception as exc:
+        assert "pool exhausted" in str(exc).lower()
+    else:
+        raise AssertionError("expected pool exhaustion to raise")
+
+    assert client._client_id_backoff_remaining_sec() > 0
+    try:
+        asyncio.run(client.connect())
+    except Exception as exc:
+        assert "backoff active" in str(exc).lower()
+    else:
+        raise AssertionError("expected active backoff to raise")
+
+
+def test_connect_pool_exhaustion_on_api_init_timeout_arms_backoff(tmp_path) -> None:
+    _ensure_event_loop()
+    cfg = IBKRConfig(
+        host="127.0.0.1",
+        port=4001,
+        client_id=500,
+        proxy_client_id=501,
+        account=None,
+        refresh_sec=0.25,
+        detail_refresh_sec=0.5,
+        reconnect_interval_sec=5.0,
+        reconnect_timeout_sec=60.0,
+        reconnect_slow_interval_sec=60.0,
+        client_id_pool_start=500,
+        client_id_pool_end=503,
+        client_id_burst_attempts=2,
+        client_id_backoff_initial_sec=2.0,
+        client_id_backoff_max_sec=2.0,
+        client_id_backoff_multiplier=2.0,
+        client_id_backoff_jitter_ratio=0.0,
+        client_id_state_file=str(tmp_path / "ids.json"),
+    )
+    client = IBKRClient(cfg)
+    client._request_reconnect = lambda: None  # type: ignore[method-assign]
+    client._ib = _FakeConnectIB()
+
+    async def _always_timeout(_ib, *, client_id: int) -> None:
+        raise asyncio.TimeoutError(f"timed out while connecting with {int(client_id)}")
+
+    client._connect_ib = _always_timeout  # type: ignore[method-assign]
+    try:
+        asyncio.run(client.connect())
+    except Exception as exc:
+        assert "connect retries exhausted" in str(exc).lower()
+    else:
+        raise AssertionError("expected timeout retries to raise")
+
+    assert client._client_id_backoff_remaining_sec() > 0
+    assert client._is_pair_quarantined(500, 501) is True
+    assert client._is_pair_quarantined(502, 503) is True
+
+
+def test_client_id_state_loads_valid_pair(tmp_path) -> None:
+    _ensure_event_loop()
+    state_path = tmp_path / "ids.json"
+    state_path.write_text(
+        json.dumps({"main_client_id": 504, "proxy_client_id": 505}),
+        encoding="utf-8",
+    )
+    cfg = IBKRConfig(
+        host="127.0.0.1",
+        port=4001,
+        client_id=500,
+        proxy_client_id=501,
+        account=None,
+        refresh_sec=0.25,
+        detail_refresh_sec=0.5,
+        reconnect_interval_sec=5.0,
+        reconnect_timeout_sec=60.0,
+        reconnect_slow_interval_sec=60.0,
+        client_id_pool_start=500,
+        client_id_pool_end=505,
+        client_id_burst_attempts=3,
+        client_id_backoff_initial_sec=0.5,
+        client_id_backoff_max_sec=2.0,
+        client_id_backoff_multiplier=2.0,
+        client_id_backoff_jitter_ratio=0.0,
+        client_id_state_file=str(state_path),
+    )
+    client = IBKRClient(cfg)
+    assert int(client._main_client_id) == 504
+    assert int(client._proxy_client_id) == 505
 
 
 def test_ensure_proxy_tickers_reloads_on_session_route_change(monkeypatch) -> None:
@@ -195,6 +542,73 @@ def test_on_error_main_index_stock_permission_forces_delayed() -> None:
     assert client._index_force_delayed is True
     assert called["value"] is True
     assert called["requalify"] is True
+
+
+def test_on_error_main_future_permission_starts_main_probe() -> None:
+    client = _new_client()
+    contract = Contract(secType="FUT", symbol="1OZ", exchange="COMEX", currency="USD")
+    contract.conId = 753716628
+    ticker = SimpleNamespace(contract=contract, bid=None, ask=None, last=None)
+    client._detail_tickers[int(contract.conId)] = (client._ib, ticker)
+    seen: list[int] = []
+    resubscribe_md: list[int | None] = []
+
+    def _start_probe(req_contract) -> None:
+        seen.append(int(getattr(req_contract, "conId", 0) or 0))
+
+    def _resubscribe(_ticker, *, md_type_override: int | None = None):
+        resubscribe_md.append(md_type_override)
+        return _ticker
+
+    client._start_main_contract_quote_probe = _start_probe  # type: ignore[method-assign]
+    client._resubscribe_main_contract_stream = _resubscribe  # type: ignore[method-assign]
+
+    client._on_error_main(0, 354, "No market data subscription", contract)
+
+    assert seen == [753716628]
+    assert resubscribe_md == [4]
+    assert getattr(ticker, "tbQuoteErrorCode", None) == 354
+
+
+def test_on_error_main_future_permission_skips_error_stamp_when_close_only_exists() -> None:
+    client = _new_client()
+    contract = Contract(secType="FUT", symbol="1OZ", exchange="COMEX", currency="USD")
+    contract.conId = 753716628
+    ticker = SimpleNamespace(
+        contract=contract,
+        bid=None,
+        ask=None,
+        last=None,
+        close=5036.25,
+        prevLast=5036.25,
+        tbQuoteSource="stream-close-only",
+        tbQuoteErrorCode=10090,
+    )
+    client._detail_tickers[int(contract.conId)] = (client._ib, ticker)
+    seen_probe: list[int] = []
+    seen_resubscribe: list[int | None] = []
+    seen_watchdog: list[int] = []
+
+    def _start_probe(req_contract) -> None:
+        seen_probe.append(int(getattr(req_contract, "conId", 0) or 0))
+
+    def _resubscribe(_ticker, *, md_type_override: int | None = None):
+        seen_resubscribe.append(md_type_override)
+        return _ticker
+
+    def _start_watchdog(req_contract) -> None:
+        seen_watchdog.append(int(getattr(req_contract, "conId", 0) or 0))
+
+    client._start_main_contract_quote_probe = _start_probe  # type: ignore[method-assign]
+    client._resubscribe_main_contract_stream = _resubscribe  # type: ignore[method-assign]
+    client._start_main_contract_quote_watchdog = _start_watchdog  # type: ignore[method-assign]
+
+    client._on_error_main(0, 10090, "Part of requested market data is not subscribed", contract)
+
+    assert seen_probe == []
+    assert seen_resubscribe == []
+    assert seen_watchdog == [753716628]
+    assert getattr(ticker, "tbQuoteErrorCode", None) is None
 
 
 def test_probe_index_quotes_triggers_requalifying_resubscribe(monkeypatch) -> None:
@@ -350,6 +764,709 @@ def test_probe_proxy_contract_quote_retries_live_without_forcing_delayed(monkeyp
     assert 792492697 not in client._proxy_contract_force_delayed
 
 
+def test_attempt_main_contract_snapshot_quote_populates_fallback(monkeypatch) -> None:
+    client = _new_client()
+    contract = Contract(secType="FUT", symbol="1OZ", exchange="COMEX", currency="USD")
+    contract.conId = 753716628
+    ticker = SimpleNamespace(
+        contract=contract,
+        bid=None,
+        ask=None,
+        last=None,
+        close=None,
+        prevLast=None,
+        marketDataType=1,
+    )
+
+    class _MainIB:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def reqMarketDataType(self, _md_type: int) -> None:
+            return None
+
+        def reqMktData(self, _contract, _generic: str = "", snapshot: bool = False, _reg: bool = False):
+            self.calls += 1
+            if snapshot and self.calls >= 2:
+                return SimpleNamespace(
+                    contract=contract,
+                    marketDataType=3,
+                    bid=5016.5,
+                    ask=5017.25,
+                    last=5017.0,
+                    close=4906.0,
+                    prevLast=5019.25,
+                )
+            return SimpleNamespace(
+                contract=contract,
+                marketDataType=3,
+                bid=None,
+                ask=None,
+                last=None,
+                close=None,
+                prevLast=None,
+            )
+
+    client._ib = _MainIB()
+    client._on_stream_update = lambda *args, **kwargs: None  # type: ignore[method-assign]
+    monkeypatch.setattr("tradebot.client._futures_md_ladder", lambda _now: (3, 4))
+
+    async def _sleep(_: float) -> None:
+        return None
+
+    monkeypatch.setattr("asyncio.sleep", _sleep)
+    ok = asyncio.run(client._attempt_main_contract_snapshot_quote(contract, ticker=ticker))
+
+    assert ok is True
+    assert float(ticker.last) == 5017.0
+    assert float(ticker.bid) == 5016.5
+    assert float(ticker.ask) == 5017.25
+    assert str(getattr(ticker, "tbQuoteSource", "")) in {
+        "delayed-snapshot",
+        "delayed-frozen-snapshot",
+    }
+
+
+def test_refresh_live_snapshot_once_prefers_live_snapshot(monkeypatch) -> None:
+    client = _new_client()
+    contract = Contract(secType="FOP", symbol="MNQ", exchange="CME", currency="USD")
+    contract.conId = 750150193
+    ticker = SimpleNamespace(
+        contract=contract,
+        bid=None,
+        ask=None,
+        last=None,
+        close=None,
+        prevLast=None,
+        marketDataType=3,
+    )
+
+    class _MainIB:
+        def __init__(self) -> None:
+            self.market_data_types: list[int] = []
+
+        def reqMarketDataType(self, md_type: int) -> None:
+            self.market_data_types.append(int(md_type))
+
+        def reqMktData(
+            self,
+            _contract,
+            _generic: str = "",
+            snapshot: bool = False,
+            _reg: bool = False,
+        ):
+            md_type = self.market_data_types[-1] if self.market_data_types else 0
+            if snapshot and md_type == 1:
+                return SimpleNamespace(
+                    contract=contract,
+                    marketDataType=1,
+                    bid=116.0,
+                    ask=116.5,
+                    last=116.25,
+                    close=114.0,
+                    prevLast=114.0,
+                )
+            return SimpleNamespace(
+                contract=contract,
+                marketDataType=md_type,
+                bid=None,
+                ask=None,
+                last=None,
+                close=None,
+                prevLast=None,
+            )
+
+    client._ib = _MainIB()
+    client._detail_tickers[int(contract.conId)] = (client._ib, ticker)
+    client._on_stream_update = lambda *args, **kwargs: None  # type: ignore[method-assign]
+
+    async def _connect() -> None:
+        return None
+
+    async def _sleep(_: float) -> None:
+        return None
+
+    client.connect = _connect  # type: ignore[method-assign]
+    monkeypatch.setattr("asyncio.sleep", _sleep)
+    source = asyncio.run(client.refresh_live_snapshot_once(contract))
+
+    assert source == "live-snapshot"
+    assert float(ticker.last) == 116.25
+    assert float(ticker.bid) == 116.0
+    assert float(ticker.ask) == 116.5
+    assert client._ib.market_data_types == [1]
+
+
+def test_attempt_main_contract_historical_quote_populates_last(monkeypatch) -> None:
+    client = _new_client()
+    contract = Contract(secType="FUT", symbol="MNQ", exchange="CME", currency="USD")
+    contract.conId = 750150193
+    ticker = SimpleNamespace(
+        contract=contract,
+        bid=None,
+        ask=None,
+        last=None,
+        close=None,
+        prevLast=None,
+        marketDataType=1,
+    )
+    client._on_stream_update = lambda *args, **kwargs: None  # type: ignore[method-assign]
+    monkeypatch.setattr("tradebot.client._futures_md_ladder", lambda _now: (3, 4))
+
+    async def _historical_bars(
+        _contract,
+        *,
+        duration_str: str,
+        bar_size: str,
+        use_rth: bool,
+        what_to_show: str,
+        cache_ttl_sec: float,
+    ):
+        assert duration_str == "3 H"
+        assert bar_size == "1 min"
+        assert use_rth is False
+        assert cache_ttl_sec == 20.0
+        if what_to_show == "TRADES":
+            return [(datetime(2026, 2, 18, 10, 0, 0), 25011.5)]
+        return []
+
+    client.historical_bars = _historical_bars  # type: ignore[method-assign]
+    ok = asyncio.run(client._attempt_main_contract_historical_quote(contract, ticker=ticker))
+
+    assert ok is True
+    assert float(ticker.last) == 25011.5
+    assert float(ticker.close) == 25011.5
+    assert str(getattr(ticker, "tbQuoteSource", "")) == "historical-trades"
+
+
+def test_attempt_main_contract_historical_quote_uses_daily_fallback_for_fop(monkeypatch) -> None:
+    client = _new_client()
+    contract = Contract(
+        secType="FOP",
+        symbol="GC",
+        exchange="COMEX",
+        currency="USD",
+        lastTradeDateOrContractMonth="20260220",
+        strike=5005.0,
+        right="C",
+    )
+    contract.conId = 849222157
+    ticker = SimpleNamespace(
+        contract=contract,
+        bid=None,
+        ask=None,
+        last=None,
+        close=None,
+        prevLast=None,
+        marketDataType=1,
+    )
+    client._on_stream_update = lambda *args, **kwargs: None  # type: ignore[method-assign]
+    monkeypatch.setattr("tradebot.client._futures_md_ladder", lambda _now: (3, 4))
+    seen_requests: list[tuple[str, str, str, bool, float]] = []
+
+    async def _historical_bars(
+        _contract,
+        *,
+        duration_str: str,
+        bar_size: str,
+        use_rth: bool,
+        what_to_show: str,
+        cache_ttl_sec: float,
+    ):
+        seen_requests.append((duration_str, bar_size, what_to_show, bool(use_rth), float(cache_ttl_sec)))
+        if (duration_str, bar_size, what_to_show) == ("2 M", "1 day", "TRADES"):
+            return [(datetime(2026, 2, 18, 0, 0, 0), 41.75)]
+        return []
+
+    client.historical_bars = _historical_bars  # type: ignore[method-assign]
+    ok = asyncio.run(client._attempt_main_contract_historical_quote(contract, ticker=ticker))
+
+    assert ok is True
+    assert float(ticker.last) == 41.75
+    assert float(ticker.close) == 41.75
+    assert str(getattr(ticker, "tbQuoteSource", "")) == "historical-daily-trades"
+    assert ("3 H", "1 min", "TRADES", False, 20.0) in seen_requests
+    assert ("2 M", "1 day", "TRADES", False, 120.0) in seen_requests
+
+
+def test_attempt_main_contract_historical_quote_uses_daily_fallback_for_fut(monkeypatch) -> None:
+    client = _new_client()
+    contract = Contract(secType="FUT", symbol="1OZ", exchange="COMEX", currency="USD")
+    contract.conId = 753716628
+    ticker = SimpleNamespace(
+        contract=contract,
+        bid=None,
+        ask=None,
+        last=None,
+        close=None,
+        prevLast=None,
+        marketDataType=1,
+    )
+    client._on_stream_update = lambda *args, **kwargs: None  # type: ignore[method-assign]
+    monkeypatch.setattr("tradebot.client._futures_md_ladder", lambda _now: (3, 4))
+    seen_requests: list[tuple[str, str, str, bool, float]] = []
+
+    async def _historical_bars(
+        _contract,
+        *,
+        duration_str: str,
+        bar_size: str,
+        use_rth: bool,
+        what_to_show: str,
+        cache_ttl_sec: float,
+    ):
+        seen_requests.append((duration_str, bar_size, what_to_show, bool(use_rth), float(cache_ttl_sec)))
+        if (duration_str, bar_size, what_to_show) == ("2 M", "1 day", "TRADES"):
+            return [(datetime(2026, 2, 18, 0, 0, 0), 5010.5)]
+        return []
+
+    client.historical_bars = _historical_bars  # type: ignore[method-assign]
+    ok = asyncio.run(client._attempt_main_contract_historical_quote(contract, ticker=ticker))
+
+    assert ok is True
+    assert float(ticker.last) == 5010.5
+    assert float(ticker.close) == 5010.5
+    assert str(getattr(ticker, "tbQuoteSource", "")) == "historical-daily-trades"
+    assert ("3 H", "1 min", "TRADES", False, 20.0) in seen_requests
+    assert ("2 M", "1 day", "TRADES", False, 120.0) in seen_requests
+
+
+def test_tag_ticker_quote_meta_clears_stale_asof_when_unspecified() -> None:
+    client = _new_client()
+    ticker = SimpleNamespace(
+        contract=SimpleNamespace(conId=1),
+        bid=None,
+        ask=None,
+        last=None,
+        tbQuoteAsOf="2026-02-19T12:00:00",
+    )
+
+    client._tag_ticker_quote_meta(ticker, source="stream")
+
+    assert getattr(ticker, "tbQuoteAsOf", "missing") is None
+
+
+def test_on_stream_update_updates_freshness_only_on_quote_signature_change(monkeypatch) -> None:
+    client = _new_client()
+    now = {"value": 10.0}
+    monkeypatch.setattr("tradebot.client.time.monotonic", lambda: float(now["value"]))
+    contract = Contract(secType="FUT", symbol="1OZ", exchange="COMEX", currency="USD")
+    contract.conId = 753716628
+    ticker = SimpleNamespace(
+        contract=contract,
+        bid=5016.5,
+        ask=5017.0,
+        last=5016.75,
+        close=None,
+        prevLast=None,
+        bidSize=1.0,
+        askSize=1.0,
+        lastSize=1.0,
+        marketDataType=3,
+        tbQuoteSource="historical-daily-trades",
+        tbQuoteAsOf="2026-02-19T00:00:00",
+        tbQuoteUpdatedMono=0.0,
+    )
+
+    client._on_stream_update([ticker])
+    assert float(getattr(ticker, "tbQuoteUpdatedMono", 0.0)) == 10.0
+    assert float(getattr(ticker, "tbTopQuoteUpdatedMono", 0.0)) == 10.0
+    assert int(getattr(ticker, "tbTopQuoteMoveCount", 0) or 0) == 1
+    assert str(getattr(ticker, "tbQuoteSource", "")) == "stream"
+    assert getattr(ticker, "tbQuoteAsOf", "missing") is None
+
+    now["value"] = 20.0
+    client._on_stream_update([ticker])
+    assert float(getattr(ticker, "tbQuoteUpdatedMono", 0.0)) == 10.0
+    assert float(getattr(ticker, "tbTopQuoteUpdatedMono", 0.0)) == 10.0
+    assert int(getattr(ticker, "tbTopQuoteMoveCount", 0) or 0) == 1
+
+    ticker.last = 5017.25
+    client._on_stream_update([ticker])
+    assert float(getattr(ticker, "tbQuoteUpdatedMono", 0.0)) == 20.0
+    assert float(getattr(ticker, "tbTopQuoteUpdatedMono", 0.0)) == 20.0
+    assert int(getattr(ticker, "tbTopQuoteMoveCount", 0) or 0) == 2
+
+
+def test_on_stream_update_size_only_change_keeps_top_change_timestamp(monkeypatch) -> None:
+    client = _new_client()
+    now = {"value": 10.0}
+    monkeypatch.setattr("tradebot.client.time.monotonic", lambda: float(now["value"]))
+    contract = Contract(secType="FUT", symbol="1OZ", exchange="COMEX", currency="USD")
+    contract.conId = 753716628
+    ticker = SimpleNamespace(
+        contract=contract,
+        bid=5016.5,
+        ask=5017.0,
+        last=5016.75,
+        close=None,
+        prevLast=None,
+        bidSize=1.0,
+        askSize=1.0,
+        lastSize=1.0,
+        marketDataType=3,
+        tbQuoteUpdatedMono=0.0,
+    )
+
+    client._on_stream_update([ticker])
+    assert float(getattr(ticker, "tbTopQuoteUpdatedMono", 0.0)) == 10.0
+    assert int(getattr(ticker, "tbTopQuoteMoveCount", 0) or 0) == 1
+
+    now["value"] = 20.0
+    ticker.bidSize = 2.0
+    client._on_stream_update([ticker])
+    assert float(getattr(ticker, "tbQuoteUpdatedMono", 0.0)) == 20.0
+    assert float(getattr(ticker, "tbTopQuoteUpdatedMono", 0.0)) == 10.0
+    assert int(getattr(ticker, "tbTopQuoteMoveCount", 0) or 0) == 1
+
+
+def test_watch_main_contract_quote_reprobes_when_quote_is_stale(monkeypatch) -> None:
+    client = _new_client()
+    contract = Contract(secType="FUT", symbol="1OZ", exchange="COMEX", currency="USD")
+    contract.conId = 753716628
+    ticker = SimpleNamespace(
+        contract=contract,
+        bid=None,
+        ask=None,
+        last=5017.0,
+        close=5008.0,
+        prevLast=5008.0,
+        marketDataType=3,
+        tbQuoteUpdatedMono=1.0,
+    )
+    client._detail_tickers[int(contract.conId)] = (client._ib, ticker)
+
+    seen: list[int] = []
+
+    def _start_probe(req_contract) -> None:
+        seen.append(int(getattr(req_contract, "conId", 0) or 0))
+        client._detail_tickers.pop(int(contract.conId), None)
+
+    client._start_main_contract_quote_probe = _start_probe  # type: ignore[method-assign]
+    monkeypatch.setattr("tradebot.client.time.monotonic", lambda: 200.0)
+
+    async def _sleep(_: float) -> None:
+        return None
+
+    monkeypatch.setattr("asyncio.sleep", _sleep)
+    asyncio.run(client._watch_main_contract_quote(contract))
+
+    assert seen == [753716628]
+
+
+def test_watch_main_contract_quote_promotes_md3_to_delayed_frozen_when_topline_stale(monkeypatch) -> None:
+    client = _new_client()
+    contract = Contract(secType="FUT", symbol="1OZ", exchange="COMEX", currency="USD")
+    contract.conId = 753716628
+    ticker = SimpleNamespace(
+        contract=contract,
+        bid=5017.0,
+        ask=5017.5,
+        last=5017.25,
+        close=5008.0,
+        prevLast=5008.0,
+        marketDataType=3,
+        tbQuoteUpdatedMono=190.0,
+        tbTopQuoteUpdatedMono=100.0,
+    )
+    client._detail_tickers[int(contract.conId)] = (client._ib, ticker)
+
+    seen_probe: list[int] = []
+    seen_resubscribe: list[int | None] = []
+
+    def _start_probe(req_contract) -> None:
+        seen_probe.append(int(getattr(req_contract, "conId", 0) or 0))
+
+    def _resubscribe(_ticker, *, md_type_override: int | None = None):
+        seen_resubscribe.append(md_type_override)
+        client._detail_tickers.pop(int(contract.conId), None)
+        return _ticker
+
+    client._start_main_contract_quote_probe = _start_probe  # type: ignore[method-assign]
+    client._resubscribe_main_contract_stream = _resubscribe  # type: ignore[method-assign]
+    monkeypatch.setattr("tradebot.client.time.monotonic", lambda: 200.0)
+
+    async def _sleep(_: float) -> None:
+        return None
+
+    monkeypatch.setattr("asyncio.sleep", _sleep)
+    asyncio.run(client._watch_main_contract_quote(contract))
+
+    assert seen_probe == [753716628]
+    assert seen_resubscribe == [4]
+
+
+def test_front_future_ignores_undated_cache_and_prefers_dated_contract() -> None:
+    client = _new_client()
+    stale = Contract(secType="FUT", symbol="1OZ", exchange="COMEX", currency="USD")
+    stale.conId = 1001
+    stale.lastTradeDateOrContractMonth = ""
+    client._front_future_cache[("1OZ", "COMEX")] = (stale, time.monotonic())
+
+    dated = Contract(secType="FUT", symbol="1OZ", exchange="COMEX", currency="USD")
+    dated.conId = 753716628
+    dated.lastTradeDateOrContractMonth = "20260327"
+    dated.localSymbol = "1OZJ6"
+
+    class _MainIB:
+        async def reqContractDetailsAsync(self, _candidate):
+            return [SimpleNamespace(contract=dated, realExpirationDate="20260327")]
+
+        async def qualifyContractsAsync(self, contract):
+            return [contract]
+
+    async def _connect() -> None:
+        return None
+
+    client._ib = _MainIB()
+    client.connect = _connect  # type: ignore[method-assign]
+
+    resolved = asyncio.run(client.front_future("1OZ", exchange="COMEX", cache_ttl_sec=3600.0))
+
+    assert resolved is not None
+    assert str(getattr(resolved, "lastTradeDateOrContractMonth", "") or "") == "20260327"
+    assert int(getattr(resolved, "conId", 0) or 0) == 753716628
+
+
+def test_ensure_ticker_future_starts_main_probe_when_stream_empty(monkeypatch) -> None:
+    client = _new_client()
+
+    class _MainIB:
+        def __init__(self) -> None:
+            self.market_data_types: list[int] = []
+            self.requests: list[object] = []
+
+        def reqMarketDataType(self, md_type: int) -> None:
+            self.market_data_types.append(int(md_type))
+
+        def reqMktData(self, contract):
+            self.requests.append(contract)
+            return SimpleNamespace(
+                contract=contract,
+                marketDataType=self.market_data_types[-1] if self.market_data_types else None,
+                bid=None,
+                ask=None,
+                last=None,
+                close=None,
+                prevLast=None,
+            )
+
+    fake_ib = _MainIB()
+    client._ib = fake_ib
+
+    async def _connect() -> None:
+        return None
+
+    client.connect = _connect  # type: ignore[method-assign]
+    monkeypatch.setattr("tradebot.client._futures_md_ladder", lambda _now: (3, 4))
+    probes: list[int] = []
+
+    def _start_probe(req_contract) -> None:
+        probes.append(int(getattr(req_contract, "conId", 0) or 0))
+
+    client._start_main_contract_quote_probe = _start_probe  # type: ignore[method-assign]
+    contract = Contract(secType="FUT", symbol="1OZ", exchange="COMEX", currency="USD")
+    contract.conId = 753716628
+
+    ticker = asyncio.run(client.ensure_ticker(contract, owner="test"))
+
+    assert int(getattr(ticker, "marketDataType", 0) or 0) == 3
+    assert probes == [753716628]
+
+
+def test_ensure_ticker_future_defaults_exchange_when_missing(monkeypatch) -> None:
+    client = _new_client()
+
+    class _MainIB:
+        def __init__(self) -> None:
+            self.market_data_types: list[int] = []
+            self.requests: list[object] = []
+
+        def reqMarketDataType(self, md_type: int) -> None:
+            self.market_data_types.append(int(md_type))
+
+        def reqMktData(self, contract):
+            self.requests.append(contract)
+            return SimpleNamespace(
+                contract=contract,
+                marketDataType=self.market_data_types[-1] if self.market_data_types else None,
+                bid=None,
+                ask=None,
+                last=None,
+                close=None,
+                prevLast=None,
+            )
+
+    fake_ib = _MainIB()
+    client._ib = fake_ib
+
+    async def _connect() -> None:
+        return None
+
+    client.connect = _connect  # type: ignore[method-assign]
+    monkeypatch.setattr("tradebot.client._futures_md_ladder", lambda _now: (3, 4))
+    contract = Contract(secType="FUT", symbol="1OZ", currency="USD")
+    contract.conId = 753716628
+
+    ticker = asyncio.run(client.ensure_ticker(contract, owner="test"))
+
+    assert fake_ib.requests
+    assert str(getattr(fake_ib.requests[-1], "exchange", "") or "").strip().upper() == "COMEX"
+    assert str(getattr(ticker.contract, "exchange", "") or "").strip().upper() == "COMEX"
+
+
+def test_ensure_ticker_future_replaces_cached_empty_exchange(monkeypatch) -> None:
+    client = _new_client()
+
+    class _MainIB:
+        def __init__(self) -> None:
+            self.market_data_types: list[int] = []
+            self.requests: list[object] = []
+            self.cancels: list[object] = []
+
+        def reqMarketDataType(self, md_type: int) -> None:
+            self.market_data_types.append(int(md_type))
+
+        def reqMktData(self, contract):
+            self.requests.append(contract)
+            return SimpleNamespace(
+                contract=contract,
+                marketDataType=self.market_data_types[-1] if self.market_data_types else None,
+                bid=None,
+                ask=None,
+                last=None,
+                close=None,
+                prevLast=None,
+            )
+
+        def cancelMktData(self, contract) -> None:
+            self.cancels.append(contract)
+
+    fake_ib = _MainIB()
+    client._ib = fake_ib
+
+    async def _connect() -> None:
+        return None
+
+    client.connect = _connect  # type: ignore[method-assign]
+    monkeypatch.setattr("tradebot.client._futures_md_ladder", lambda _now: (3, 4))
+    started_watchdog: list[str] = []
+    started_probe: list[str] = []
+
+    def _start_watchdog(req_contract) -> None:
+        started_watchdog.append(str(getattr(req_contract, "exchange", "") or "").strip().upper())
+
+    def _start_probe(req_contract) -> None:
+        started_probe.append(str(getattr(req_contract, "exchange", "") or "").strip().upper())
+
+    client._start_main_contract_quote_watchdog = _start_watchdog  # type: ignore[method-assign]
+    client._start_main_contract_quote_probe = _start_probe  # type: ignore[method-assign]
+
+    contract = Contract(secType="FUT", symbol="1OZ", currency="USD")
+    contract.conId = 753716628
+    stale = Contract(secType="FUT", symbol="1OZ", currency="USD")
+    stale.conId = int(contract.conId)
+    client._detail_tickers[int(contract.conId)] = (
+        fake_ib,
+        SimpleNamespace(
+            contract=stale,
+            marketDataType=3,
+            bid=None,
+            ask=None,
+            last=None,
+            close=None,
+            prevLast=None,
+        ),
+    )
+
+    ticker = asyncio.run(client.ensure_ticker(contract, owner="test"))
+
+    assert fake_ib.cancels and fake_ib.cancels[-1] is stale
+    assert fake_ib.requests
+    assert str(getattr(fake_ib.requests[-1], "exchange", "") or "").strip().upper() == "COMEX"
+    assert str(getattr(ticker.contract, "exchange", "") or "").strip().upper() == "COMEX"
+    assert started_watchdog == ["COMEX"]
+    assert started_probe == ["COMEX"]
+
+
+def test_ensure_ticker_future_arms_watchdog_even_when_stream_has_data(monkeypatch) -> None:
+    client = _new_client()
+
+    class _MainIB:
+        def __init__(self) -> None:
+            self.market_data_types: list[int] = []
+
+        def reqMarketDataType(self, md_type: int) -> None:
+            self.market_data_types.append(int(md_type))
+
+        def reqMktData(self, contract):
+            return SimpleNamespace(
+                contract=contract,
+                marketDataType=self.market_data_types[-1] if self.market_data_types else None,
+                bid=None,
+                ask=None,
+                last=5017.0,
+                close=5008.0,
+                prevLast=5008.0,
+            )
+
+    fake_ib = _MainIB()
+    client._ib = fake_ib
+
+    async def _connect() -> None:
+        return None
+
+    client.connect = _connect  # type: ignore[method-assign]
+    monkeypatch.setattr("tradebot.client._futures_md_ladder", lambda _now: (3, 4))
+    probes: list[int] = []
+    watchdogs: list[int] = []
+
+    def _start_probe(req_contract) -> None:
+        probes.append(int(getattr(req_contract, "conId", 0) or 0))
+
+    def _start_watchdog(req_contract) -> None:
+        watchdogs.append(int(getattr(req_contract, "conId", 0) or 0))
+
+    client._start_main_contract_quote_probe = _start_probe  # type: ignore[method-assign]
+    client._start_main_contract_quote_watchdog = _start_watchdog  # type: ignore[method-assign]
+    contract = Contract(secType="FUT", symbol="1OZ", exchange="COMEX", currency="USD")
+    contract.conId = 753716628
+
+    asyncio.run(client.ensure_ticker(contract, owner="test"))
+
+    assert probes == []
+    assert watchdogs == [753716628]
+
+
+def test_resolve_underlying_contract_fop_falls_back_to_front_future_when_under_con_id_missing() -> None:
+    client = _new_client()
+    contract = Contract(
+        secType="FOP",
+        symbol="GC",
+        exchange="COMEX",
+        currency="USD",
+        lastTradeDateOrContractMonth="20260220",
+        strike=5005.0,
+        right="C",
+    )
+    contract.conId = 849222157
+    future = Contract(secType="FUT", symbol="GC", exchange="COMEX", currency="USD")
+    future.conId = 693609539
+    calls: list[tuple[str, str]] = []
+
+    async def _front_future(symbol: str, *, exchange: str = "CME", cache_ttl_sec: float = 3600.0):
+        calls.append((str(symbol or "").strip().upper(), str(exchange or "").strip().upper()))
+        return future
+
+    client.front_future = _front_future  # type: ignore[method-assign]
+    resolved = asyncio.run(client.resolve_underlying_contract(contract))
+
+    assert resolved is future
+    assert calls
+    assert calls[0][0] == "GC"
+    assert calls[0][1] == "COMEX"
+
+
 def test_proxy_contract_delayed_flags_clear_when_session_bucket_changes(monkeypatch) -> None:
     client = _new_client()
     contract = Contract(
@@ -416,3 +1533,144 @@ def test_pnl_single_unrealized_reads_live_value_and_ignores_nan() -> None:
     assert client.has_pnl_single_subscription(101) is True
     assert client.has_pnl_single_subscription(202) is True
     assert client.has_pnl_single_subscription(303) is False
+
+
+def test_pnl_single_daily_reads_live_value_and_ignores_nan() -> None:
+    client = _new_client()
+    client._pnl_single_by_con_id[101] = SimpleNamespace(dailyPnL=-2.75)
+    client._pnl_single_by_con_id[202] = SimpleNamespace(dailyPnL=float("nan"))
+
+    assert client.pnl_single_daily(101) == -2.75
+    assert client.pnl_single_daily(202) is None
+    assert client.pnl_single_daily(303) is None
+
+
+def test_session_close_anchors_expose_prev1_close_and_keep_legacy_shape() -> None:
+    client = _new_client()
+    contract = Contract(secType="FUT", symbol="MNQ", exchange="CME", currency="USD")
+    contract.conId = 993311
+
+    async def _request_historical_data(
+        _contract,
+        *,
+        duration_str: str,
+        bar_size: str,
+        what_to_show: str,
+        use_rth: bool,
+    ):
+        assert duration_str == "2 W"
+        assert bar_size == "1 day"
+        assert what_to_show == "TRADES"
+        assert use_rth is True
+        return [
+            SimpleNamespace(close=19_980.0),
+            SimpleNamespace(close=20_010.0),
+            SimpleNamespace(close=20_040.0),
+            SimpleNamespace(close=20_070.0),
+            SimpleNamespace(close=20_100.0),
+        ]
+
+    client._request_historical_data = _request_historical_data  # type: ignore[method-assign]
+
+    prev_close, close_1ago, close_3ago = asyncio.run(client.session_close_anchors(contract))
+    assert prev_close == 20_100.0
+    assert close_1ago == 20_070.0
+    assert close_3ago == 20_010.0
+
+    legacy_prev, legacy_3ago = asyncio.run(client.session_closes(contract))
+    assert legacy_prev == prev_close
+    assert legacy_3ago == close_3ago
+
+
+def test_request_historical_data_timeout_records_diagnostics(monkeypatch) -> None:
+    client = _new_client()
+    contract = Stock("SLV", "SMART", "USD")
+    contract.conId = 889911
+
+    class _SlowIB:
+        async def reqHistoricalDataAsync(self, *_args, **_kwargs):
+            await asyncio.sleep(0.05)
+            return []
+
+    async def _connect_proxy() -> None:
+        return None
+
+    client._ib_proxy = _SlowIB()  # type: ignore[assignment]
+    client.connect_proxy = _connect_proxy  # type: ignore[method-assign]
+    monkeypatch.setattr(client_module, "_HISTORICAL_REQUEST_TIMEOUT_SEC", 0.01)
+
+    out = asyncio.run(
+        client._request_historical_data(
+            contract,
+            duration_str="2 W",
+            bar_size="10 mins",
+            what_to_show="TRADES",
+            use_rth=False,
+        )
+    )
+
+    assert out == []
+    diag = client.last_historical_request(contract)
+    assert isinstance(diag, dict)
+    assert diag.get("status") == "timeout"
+    assert diag.get("error_type") == "TimeoutError"
+    request = diag.get("request")
+    assert isinstance(request, dict)
+    assert request.get("duration_str") == "2 W"
+    assert request.get("bar_size") == "10 mins"
+    assert request.get("what_to_show") == "TRADES"
+    assert request.get("use_rth") is False
+    assert request.get("use_proxy") is True
+
+
+def test_last_historical_request_tracks_per_contract_statuses() -> None:
+    client = _new_client()
+    contract_a = Stock("SLV", "SMART", "USD")
+    contract_b = Stock("GLD", "SMART", "USD")
+    contract_a.conId = 3311
+    contract_b.conId = 7722
+    attempts: dict[int, int] = {}
+
+    class _FakeIB:
+        async def reqHistoricalDataAsync(self, req_contract, *_args, **_kwargs):
+            con_id = int(getattr(req_contract, "conId", 0) or 0)
+            attempts[con_id] = int(attempts.get(con_id, 0)) + 1
+            if con_id == 3311:
+                return []
+            return [SimpleNamespace(close=1.0)]
+
+    async def _connect_proxy() -> None:
+        return None
+
+    client._ib_proxy = _FakeIB()  # type: ignore[assignment]
+    client.connect_proxy = _connect_proxy  # type: ignore[method-assign]
+
+    out_a = asyncio.run(
+        client._request_historical_data(
+            contract_a,
+            duration_str="2 W",
+            bar_size="10 mins",
+            what_to_show="TRADES",
+            use_rth=False,
+        )
+    )
+    out_b = asyncio.run(
+        client._request_historical_data(
+            contract_b,
+            duration_str="2 W",
+            bar_size="10 mins",
+            what_to_show="TRADES",
+            use_rth=False,
+        )
+    )
+
+    assert out_a == []
+    assert len(out_b) == 1
+    diag_a = client.last_historical_request(contract_a)
+    diag_b = client.last_historical_request(contract_b)
+    assert isinstance(diag_a, dict)
+    assert isinstance(diag_b, dict)
+    assert diag_a.get("status") == "empty"
+    assert diag_b.get("status") == "ok"
+    assert int(diag_a.get("bars_count", -1)) == 0
+    assert int(diag_b.get("bars_count", -1)) == 1

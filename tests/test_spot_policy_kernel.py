@@ -1,5 +1,6 @@
 import unittest
 from datetime import date, datetime
+from types import SimpleNamespace
 
 from tradebot.spot.policy import SpotPolicy, SpotPolicyConfigView
 
@@ -247,6 +248,96 @@ class SpotPolicyKernelTests(unittest.TestCase):
         self.assertTrue(bool(trace.shock_short_boost_applied))
         self.assertEqual(trace.shock_short_boost_gate_reason, "ok")
         self.assertAlmostEqual(float(trace.short_mult_final or 0.0), 2.5, places=6)
+
+    def test_short_prearm_applies_before_shock_when_dd_is_near_and_accelerating(self) -> None:
+        _qty, trace = SpotPolicy.calc_signed_qty_with_trace(
+            strategy={
+                "quantity": 1,
+                "spot_sizing_mode": "risk_pct",
+                "spot_risk_pct": 0.01,
+                "spot_short_risk_mult": 1.0,
+                "spot_max_notional_pct": 1.0,
+                "spot_min_qty": 1,
+                "spot_max_qty": 0,
+            },
+            filters={
+                "shock_prearm_dist_on_max_pp": 2.0,
+                "shock_prearm_min_dist_on_vel_pp": 0.2,
+                "shock_prearm_short_risk_mult_factor": 2.0,
+                "shock_prearm_require_regime_down": True,
+                "shock_prearm_require_entry_down": True,
+            },
+            action="SELL",
+            lot=1,
+            entry_price=100.0,
+            stop_price=101.0,
+            stop_loss_pct=None,
+            shock=False,
+            shock_dir="down",
+            shock_atr_pct=8.0,
+            shock_drawdown_dist_on_pct=-0.7,
+            shock_drawdown_dist_on_vel_pp=0.4,
+            riskoff=False,
+            risk_dir=None,
+            riskpanic=False,
+            riskpop=False,
+            risk=None,
+            signal_entry_dir="down",
+            signal_regime_dir="down",
+            equity_ref=100_000.0,
+            cash_ref=100_000.0,
+        )
+        self.assertTrue(bool(trace.shock_prearm_applied))
+        self.assertEqual(trace.shock_prearm_reason, "ok")
+        self.assertAlmostEqual(float(trace.short_mult_final or 0.0), 2.0, places=6)
+
+    def test_liq_boost_can_floor_toward_cap_when_confidence_is_high(self) -> None:
+        _qty, trace = SpotPolicy.calc_signed_qty_with_trace(
+            strategy={
+                "quantity": 1,
+                "spot_sizing_mode": "risk_pct",
+                "spot_risk_pct": 0.002,
+                "spot_short_risk_mult": 1.0,
+                "spot_max_notional_pct": 1.0,
+                "spot_min_qty": 1,
+                "spot_max_qty": 0,
+                "spot_risk_overlay_policy": "trend_bias",
+            },
+            filters={
+                "liq_boost_enable": True,
+                "liq_boost_score_min": 0.2,
+                "liq_boost_score_span": 0.8,
+                "liq_boost_max_risk_mult": 4.0,
+                "liq_boost_cap_floor_frac": 0.6,
+                "liq_boost_require_alignment": True,
+            },
+            action="BUY",
+            lot=1,
+            entry_price=100.0,
+            stop_price=99.0,
+            stop_loss_pct=None,
+            shock=True,
+            shock_dir="up",
+            shock_atr_pct=8.0,
+            riskoff=False,
+            risk_dir=None,
+            riskpanic=False,
+            riskpop=False,
+            risk=SimpleNamespace(
+                tr_ratio=2.0,
+                tr_median_delta_pct=1.0,
+                tr_slope_vel_pct=1.0,
+            ),
+            signal_entry_dir="up",
+            signal_regime_dir="up",
+            equity_ref=100_000.0,
+            cash_ref=100_000.0,
+        )
+        self.assertTrue(bool(trace.liq_boost_applied))
+        self.assertEqual(trace.liq_boost_reason, "ok")
+        self.assertEqual(trace.cap_qty, 1000)
+        self.assertEqual(trace.liq_boost_cap_floor_qty, 600)
+        self.assertGreaterEqual(int(trace.signed_qty_final), 600)
 
     def test_resolve_position_intent_enter_from_flat(self) -> None:
         decision = SpotPolicy.resolve_position_intent(

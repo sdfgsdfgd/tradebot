@@ -12,7 +12,7 @@ if "tradebot.ui" not in sys.modules:
     ui_pkg.__path__ = [str(_UI_DIR)]  # type: ignore[attr-defined]
     sys.modules["tradebot.ui"] = ui_pkg
 
-from tradebot.ui.common import _limit_price_for_mode, _quote_health, _sanitize_nbbo, _ticker_line
+from tradebot.ui.common import _limit_price_for_mode, _quote_health, _sanitize_nbbo, _tick_size, _ticker_line
 
 
 @pytest.mark.parametrize("action", ["BUY", "SELL"])
@@ -79,3 +79,27 @@ def test_ticker_line_can_use_display_fallback_price() -> None:
         allow_display_fallback=True,
     )
     assert "123.45" in text.plain
+
+
+def test_tick_size_uses_market_rule_price_ladder() -> None:
+    contract = types.SimpleNamespace(
+        secType="FOP",
+        minTick=0.05,
+        tbPriceIncrements=((0.0, 0.05), (5.0, 0.25), (100.0, 0.5)),
+    )
+    assert _tick_size(contract, None, 4.9) == 0.05
+    assert _tick_size(contract, None, 90.0) == 0.25
+    assert _tick_size(contract, None, 101.3) == 0.5
+
+
+def test_tick_size_prefers_ticker_ladder_over_contract_defaults() -> None:
+    contract = types.SimpleNamespace(
+        secType="FOP",
+        minTick=0.05,
+        tbPriceIncrements=((0.0, 0.05),),
+    )
+    ticker = types.SimpleNamespace(
+        minTick=0.05,
+        tbPriceIncrements=((0.0, 0.05), (5.0, 0.25), (100.0, 0.5)),
+    )
+    assert _tick_size(contract, ticker, 101.3) == 0.5

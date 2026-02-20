@@ -698,6 +698,8 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         "bot-logs": "logs",
     }
     _PANEL_ORDER = ("presets", "instances", "orders", "logs")
+    _SIGNAL_HEAL_BACKOFF_BASE_SEC = 8.0
+    _SIGNAL_HEAL_BACKOFF_MAX_SEC = 180.0
     _ACTIVATE_HANDLER_BY_PANEL = {
         "presets": "_activate_presets_panel",
         "instances": "_activate_instances_panel",
@@ -753,6 +755,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         self._refresh_lock = asyncio.Lock()
         self._scope_all = False
         self._journal = BotJournal(Path(__file__).resolve().parent / "out")
+        self._signal_heal_backoff: dict[tuple[int, str, str, bool], dict[str, float | int]] = {}
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -2619,6 +2622,20 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             return cleaned
         return order[min(idx + 1, len(order) - 1)]
 
+    @staticmethod
+    def _signal_zero_gap_enabled(filters: dict | None) -> bool:
+        if not isinstance(filters, dict):
+            return True
+        raw = filters.get("signal_zero_gap_mode")
+        if raw is None:
+            raw = filters.get("zero_gap_mode")
+        if raw is None:
+            return True
+        normalized = str(raw or "").strip().lower()
+        if normalized in ("off", "false", "0", "disabled", "legacy", "relaxed"):
+            return False
+        return True
+
     def _signal_expected_live_bars(
         self,
         *,
@@ -2679,6 +2696,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         use_rth: bool,
         sec_type: str,
         source: str,
+        strict_zero_gap: bool = False,
         heal_attempted: bool = False,
         heal_sources: list[str] | None = None,
     ) -> dict:
@@ -2711,6 +2729,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             bar_size=bar_size,
             use_rth=use_rth,
             sec_type=sec_type,
+            strict_zero_gap=bool(strict_zero_gap),
         )
         return {
             "source": str(source or "TRADES").upper(),
@@ -2732,6 +2751,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             "gap_threshold_bars": float(gap_stats.get("gap_threshold_bars", 2.25)),
             "recent_horizon_bars": int(gap_stats.get("recent_horizon_bars", 0)),
             "gap_detected": bool(gap_stats.get("gap_detected", False)),
+            "strict_zero_gap": bool(gap_stats.get("strict_zero_gap", False)),
         }
 
     def _signal_gap_stats(
@@ -2741,15 +2761,17 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         bar_size: str,
         use_rth: bool,
         sec_type: str,
+        strict_zero_gap: bool = False,
     ) -> dict[str, object]:
         out = {
             "gap_count": 0,
             "max_gap_bars": 0.0,
             "recent_gap_count": 0,
             "recent_max_gap_bars": 0.0,
-            "gap_threshold_bars": 2.25,
+            "gap_threshold_bars": 1.05 if bool(strict_zero_gap) else 2.25,
             "recent_horizon_bars": 72,
             "gap_detected": False,
+            "strict_zero_gap": bool(strict_zero_gap),
         }
         if not bars or len(bars) < 2:
             return out
@@ -2807,7 +2829,10 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         out["max_gap_bars"] = float(max_gap_bars)
         out["recent_gap_count"] = int(recent_gap_count)
         out["recent_max_gap_bars"] = float(recent_max_gap_bars)
-        out["gap_detected"] = bool(recent_gap_count > 0)
+        if bool(strict_zero_gap):
+            out["gap_detected"] = bool(gap_count > 0)
+        else:
+            out["gap_detected"] = bool(recent_gap_count > 0)
         return out
 
     @staticmethod
@@ -2864,6 +2889,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         bar_size: str,
         use_rth: bool,
         now_ref: datetime,
+        strict_zero_gap: bool = False,
         heal_if_stale: bool = False,
     ) -> tuple[BarSeries | None, dict | None]:
         from ..utils.bar_utils import trim_incomplete_last_bar
@@ -2895,6 +2921,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                     use_rth=use_rth,
                     sec_type=sec_type,
                     source=what_to_show,
+                    strict_zero_gap=bool(strict_zero_gap),
                 )
             trimmed = trim_incomplete_last_bar(bars, bar_size=bar_size, now_ref=now_ref)
             if not trimmed:
@@ -2905,6 +2932,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                     use_rth=use_rth,
                     sec_type=sec_type,
                     source=what_to_show,
+                    strict_zero_gap=bool(strict_zero_gap),
                 )
             series = BarSeries(
                 bars=tuple(trimmed),
@@ -2924,6 +2952,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                 use_rth=use_rth,
                 sec_type=sec_type,
                 source=what_to_show,
+                strict_zero_gap=bool(strict_zero_gap),
             )
 
         base = await _fetch(what_to_show="TRADES", cache_ttl_sec=30.0)
@@ -2931,11 +2960,54 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         if not heal_if_stale:
             return bars, health
 
+        def _annotate_health(base_health: dict | None, **extra: object) -> dict | None:
+            if not isinstance(base_health, dict):
+                return base_health
+            payload = dict(base_health)
+            payload.update(extra)
+            return payload
+
         stale_now = bool(health and health.get("stale"))
         gap_now = bool(health and health.get("gap_detected"))
         expected_live = bool(health and health.get("expected_live"))
         if (not stale_now and not gap_now) or not expected_live:
             return bars, health
+
+        heal_key = (
+            int(con_id),
+            str(symbol or ""),
+            str(bar_size),
+            bool(use_rth),
+        )
+        backoff_state = self._signal_heal_backoff.get(heal_key)
+        prior_failures = (
+            int(backoff_state.get("failures", 0))
+            if isinstance(backoff_state, dict)
+            else 0
+        )
+        reconnect_phase = self._client.reconnect_phase()
+        if reconnect_phase in ("fast", "slow"):
+            return bars, _annotate_health(
+                health,
+                heal_attempted=False,
+                heal_skipped="reconnect",
+                heal_reconnect_phase=str(reconnect_phase),
+                heal_backoff_failures=int(prior_failures),
+            )
+        now_mono = asyncio.get_running_loop().time()
+        retry_after_mono = (
+            float(backoff_state.get("retry_after_mono", 0.0))
+            if isinstance(backoff_state, dict)
+            else 0.0
+        )
+        if retry_after_mono > now_mono:
+            return bars, _annotate_health(
+                health,
+                heal_attempted=False,
+                heal_skipped="backoff",
+                heal_backoff_remaining_sec=max(0.0, float(retry_after_mono - now_mono)),
+                heal_backoff_failures=int(prior_failures),
+            )
 
         heal_sources = ["TRADES", "MIDPOINT"]
         heal_durations = [str(duration_str)]
@@ -2953,11 +3025,35 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                 picked = self._signal_pick_fresher(current=picked, candidate=candidate)
 
         picked_bars, picked_health = picked
+        heal_failed = bool(
+            picked_bars is None
+            or not isinstance(picked_health, dict)
+            or bool(picked_health.get("stale"))
+            or bool(picked_health.get("gap_detected"))
+        )
+        if heal_failed:
+            failures = int(prior_failures + 1)
+            delay_sec = min(
+                float(self._SIGNAL_HEAL_BACKOFF_MAX_SEC),
+                float(self._SIGNAL_HEAL_BACKOFF_BASE_SEC) * float(2 ** max(0, failures - 1)),
+            )
+            self._signal_heal_backoff[heal_key] = {
+                "failures": int(failures),
+                "retry_after_mono": float(now_mono + delay_sec),
+            }
+        else:
+            failures = 0
+            delay_sec = 0.0
+            self._signal_heal_backoff.pop(heal_key, None)
         if isinstance(picked_health, dict):
             picked_health = dict(picked_health)
             picked_health["heal_attempted"] = True
             picked_health["heal_sources"] = heal_sources
             picked_health["heal_durations"] = heal_durations
+            picked_health["heal_backoff_failures"] = int(failures)
+            picked_health["heal_backoff_armed"] = bool(heal_failed)
+            if heal_failed:
+                picked_health["heal_backoff_delay_sec"] = float(delay_sec)
         return picked_bars, picked_health
 
     def _signal_regime_spec(
@@ -3101,7 +3197,14 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                 last_snap = snap
         return last_snap
 
-    def _signal_snapshot_from_eval(self, snap: object, *, bar_health: dict | None = None) -> _SignalSnapshot:
+    def _signal_snapshot_from_eval(
+        self,
+        snap: object,
+        *,
+        bar_health: dict | None = None,
+        regime_bar_health: dict | None = None,
+        regime2_bar_health: dict | None = None,
+    ) -> _SignalSnapshot:
         return _SignalSnapshot(
             bar_ts=snap.bar_ts,
             close=float(snap.close),
@@ -3142,6 +3245,11 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             shock_drawdown_dist_on_pct=(
                 float(getattr(snap, "shock_drawdown_dist_on_pct", 0.0))
                 if getattr(snap, "shock_drawdown_dist_on_pct", None) is not None
+                else None
+            ),
+            shock_drawdown_dist_on_vel_pp=(
+                float(getattr(snap, "shock_drawdown_dist_on_vel_pp", 0.0))
+                if getattr(snap, "shock_drawdown_dist_on_vel_pp", None) is not None
                 else None
             ),
             shock_drawdown_dist_off_pct=(
@@ -3216,6 +3324,8 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                 float(snap.shock_atr_accel_pct) if getattr(snap, "shock_atr_accel_pct", None) is not None else None
             ),
             bar_health=bar_health,
+            regime_bar_health=regime_bar_health,
+            regime2_bar_health=regime2_bar_health,
         )
 
     @staticmethod
@@ -3305,12 +3415,15 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         from ..spot_engine import SpotSignalEvaluator
 
         entry_signal = normalize_spot_entry_signal(entry_signal_raw)
+        strict_zero_gap = self._signal_zero_gap_enabled(filters)
         diag: dict[str, object] = {
             "stage": "init",
             "bar_size": str(bar_size),
             "use_rth": bool(use_rth),
             "entry_signal": str(entry_signal),
+            "strict_zero_gap": bool(strict_zero_gap),
             "proxy_error": self._client.proxy_error(),
+            "historical_request": self._client.last_historical_request(contract),
         }
 
         def _set_diag(stage: str, **extra: object) -> None:
@@ -3318,6 +3431,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             payload["stage"] = str(stage)
             payload.update(extra)
             payload["proxy_error"] = self._client.proxy_error()
+            payload["historical_request"] = self._client.last_historical_request(contract)
             self._last_signal_snapshot_diag = payload
 
         # IB intraday bars are timestamped in ET wall-clock for this flow; use ET here so
@@ -3330,6 +3444,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             bar_size=bar_size,
             use_rth=use_rth,
             now_ref=now_ref,
+            strict_zero_gap=bool(strict_zero_gap),
             heal_if_stale=True,
         )
         if bars is None or len(bars) == 0:
@@ -3366,6 +3481,8 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                 bar_size=regime_bar_size,
                 use_rth=use_rth,
                 now_ref=now_ref,
+                strict_zero_gap=bool(strict_zero_gap),
+                heal_if_stale=True,
             )
             if regime_bars is None or len(regime_bars) == 0:
                 _set_diag(
@@ -3402,6 +3519,8 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                 bar_size=regime2_bar_size,
                 use_rth=use_rth,
                 now_ref=now_ref,
+                strict_zero_gap=bool(strict_zero_gap),
+                heal_if_stale=True,
             )
             if regime2_bars is None or len(regime2_bars) == 0:
                 _set_diag(
@@ -3523,7 +3642,12 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             bar_health=self._signal_health_payload(bar_health),
             bar_ts=last_snap.bar_ts.isoformat() if isinstance(last_snap.bar_ts, datetime) else None,
         )
-        snapshot = self._signal_snapshot_from_eval(last_snap, bar_health=bar_health)
+        snapshot = self._signal_snapshot_from_eval(
+            last_snap,
+            bar_health=bar_health,
+            regime_bar_health=regime_health,
+            regime2_bar_health=regime2_health,
+        )
         _SERIES_CACHE.set(namespace=_UI_SIGNAL_SNAPSHOT_NAMESPACE, key=snapshot_key, value=snapshot)
         return snapshot
 

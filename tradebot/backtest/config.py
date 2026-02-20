@@ -582,6 +582,17 @@ def _parse_filters(raw) -> FiltersConfig | None:
         shock_short_boost_min_down_streak = 1
     shock_short_boost_require_regime_down = bool(raw.get("shock_short_boost_require_regime_down"))
     shock_short_boost_require_entry_down = bool(raw.get("shock_short_boost_require_entry_down"))
+    shock_prearm_dist_on_max_pp = _f(raw.get("shock_prearm_dist_on_max_pp"))
+    if shock_prearm_dist_on_max_pp is None or shock_prearm_dist_on_max_pp < 0:
+        shock_prearm_dist_on_max_pp = 0.0
+    shock_prearm_min_dist_on_vel_pp = _f(raw.get("shock_prearm_min_dist_on_vel_pp"))
+    if shock_prearm_min_dist_on_vel_pp is None or shock_prearm_min_dist_on_vel_pp < 0:
+        shock_prearm_min_dist_on_vel_pp = 0.0
+    shock_prearm_short_mult = _f(raw.get("shock_prearm_short_risk_mult_factor"))
+    if shock_prearm_short_mult is None or shock_prearm_short_mult < 0:
+        shock_prearm_short_mult = 1.0
+    shock_prearm_require_regime_down = bool(raw.get("shock_prearm_require_regime_down", True))
+    shock_prearm_require_entry_down = bool(raw.get("shock_prearm_require_entry_down", True))
     shock_long_mult = _f(raw.get("shock_long_risk_mult_factor"))
     if shock_long_mult is None or shock_long_mult < 0:
         shock_long_mult = 1.0
@@ -658,6 +669,22 @@ def _parse_filters(raw) -> FiltersConfig | None:
         shock_scale_apply_to = "both"
     else:
         shock_scale_apply_to = "risk"
+    liq_boost_enable = bool(raw.get("liq_boost_enable", False))
+    liq_boost_score_min = _f(raw.get("liq_boost_score_min"))
+    if liq_boost_score_min is None:
+        liq_boost_score_min = 2.0
+    liq_boost_score_span = _f(raw.get("liq_boost_score_span"))
+    if liq_boost_score_span is None or liq_boost_score_span <= 0:
+        liq_boost_score_span = 2.0
+    liq_boost_max_risk_mult = _f(raw.get("liq_boost_max_risk_mult"))
+    if liq_boost_max_risk_mult is None or liq_boost_max_risk_mult < 1.0:
+        liq_boost_max_risk_mult = 1.0
+    liq_boost_cap_floor_frac = _f(raw.get("liq_boost_cap_floor_frac"))
+    if liq_boost_cap_floor_frac is None:
+        liq_boost_cap_floor_frac = 0.0
+    liq_boost_cap_floor_frac = float(max(0.0, min(1.0, liq_boost_cap_floor_frac)))
+    liq_boost_require_alignment = bool(raw.get("liq_boost_require_alignment", True))
+    liq_boost_require_shock = bool(raw.get("liq_boost_require_shock", False))
     riskoff_tr5_med = _f(raw.get("riskoff_tr5_med_pct"))
     if riskoff_tr5_med is not None and riskoff_tr5_med <= 0:
         riskoff_tr5_med = None
@@ -854,6 +881,11 @@ def _parse_filters(raw) -> FiltersConfig | None:
         shock_short_boost_min_down_streak_bars=int(shock_short_boost_min_down_streak),
         shock_short_boost_require_regime_down=bool(shock_short_boost_require_regime_down),
         shock_short_boost_require_entry_down=bool(shock_short_boost_require_entry_down),
+        shock_prearm_dist_on_max_pp=float(shock_prearm_dist_on_max_pp),
+        shock_prearm_min_dist_on_vel_pp=float(shock_prearm_min_dist_on_vel_pp),
+        shock_prearm_short_risk_mult_factor=float(shock_prearm_short_mult),
+        shock_prearm_require_regime_down=bool(shock_prearm_require_regime_down),
+        shock_prearm_require_entry_down=bool(shock_prearm_require_entry_down),
         shock_long_risk_mult_factor=float(shock_long_mult),
         shock_long_risk_mult_factor_down=float(shock_long_mult_down),
         shock_stop_loss_pct_mult=float(shock_sl_mult),
@@ -867,6 +899,13 @@ def _parse_filters(raw) -> FiltersConfig | None:
         shock_risk_scale_target_atr_pct=shock_scale_target,
         shock_risk_scale_min_mult=shock_scale_min,
         shock_risk_scale_apply_to=str(shock_scale_apply_to),
+        liq_boost_enable=bool(liq_boost_enable),
+        liq_boost_score_min=float(liq_boost_score_min),
+        liq_boost_score_span=float(liq_boost_score_span),
+        liq_boost_max_risk_mult=float(liq_boost_max_risk_mult),
+        liq_boost_cap_floor_frac=float(liq_boost_cap_floor_frac),
+        liq_boost_require_alignment=bool(liq_boost_require_alignment),
+        liq_boost_require_shock=bool(liq_boost_require_shock),
         risk_entry_cutoff_hour_et=risk_cutoff_et,
         riskoff_tr5_med_pct=riskoff_tr5_med,
         riskoff_tr5_lookback_days=int(riskoff_tr5_lb),

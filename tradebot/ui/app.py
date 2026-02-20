@@ -6,7 +6,7 @@ import asyncio
 import math
 import time
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import cast
 
 from ib_insync import Contract, PnL, PortfolioItem, Ticker
@@ -30,11 +30,10 @@ from .common import (
     _cost_basis,
     _fmt_money,
     _estimate_buying_power,
-    _estimate_net_liq,
     _infer_multiplier,
     _market_session_label,
     _option_display_price,
-    _pct_change,
+    _pct24_72_from_price,
     _pnl_pct_value,
     _pnl_text,
     _pnl_value,
@@ -42,8 +41,8 @@ from .common import (
     _portfolio_sort_key,
     _quote_status_line,
     _safe_num,
-    _sanitize_nbbo,
     _ticker_close,
+    _ticker_actionable_price,
     _ticker_line,
     _ticker_price,
     _unrealized_pnl_values,
@@ -283,6 +282,7 @@ class PositionsApp(App):
         self._pnl: PnL | None = None
         self._ticker_con_ids: set[int] = set()
         self._session_closes_by_con_id: dict[int, tuple[float | None, float | None]] = {}
+        self._session_close_1ago_by_con_id: dict[int, float | None] = {}
         self._closes_retry_at_by_con_id: dict[int, float] = {}
         self._option_underlying_con_id: dict[int, int] = {}
         self._ticker_loading: set[int] = set()
@@ -294,13 +294,14 @@ class PositionsApp(App):
             None,
             None,
         )
-        self._net_liq_daily_anchor: float | None = None
         self._buying_power: tuple[float | None, str | None, datetime | None] = (
             None,
             None,
             None,
         )
         self._buying_power_daily_anchor: float | None = None
+        self._today_ibkr_day: date | None = None
+        self._today_ibkr_last_value: float | None = None
         self._quote_signature_by_con_id: dict[
             int, tuple[float | None, float | None, float | None, float | None]
         ] = {}
@@ -311,7 +312,7 @@ class PositionsApp(App):
         self._search_results: list[Contract] = []
         self._search_selected = 0
         self._search_scroll = 0
-        self._search_side = 0  # 0=CALL(left), 1=PUT(right) for OPT mode
+        self._search_side = 0  # 0=CALL(left), 1=PUT(right) for OPT/FOP modes
         self._search_opt_expiry_index = 0
         self._search_loading = False
         self._search_error: str | None = None
@@ -320,6 +321,7 @@ class PositionsApp(App):
         self._search_ticker_loading: set[int] = set()
         self._search_opt_underlyers: list[str] = []
         self._search_opt_underlyer_descriptions: dict[str, str] = {}
+        self._search_symbol_labels: dict[str, str] = {}
         self._search_opt_underlyer_index = 0
         self._search_opt_chain_cache: dict[str, list[Contract]] = {}
         self._search_task: asyncio.Task | None = None
@@ -531,14 +533,14 @@ class PositionsApp(App):
                 event.stop()
                 return
             if event.key in ("left", "h"):
-                if self._search_mode() == "OPT":
+                if self._search_option_sec_type() is not None:
                     self._search_side = 0
                     self._render_search()
                     event.prevent_default()
                     event.stop()
                     return
             if event.key in ("right", "l"):
-                if self._search_mode() == "OPT":
+                if self._search_option_sec_type() is not None:
                     self._search_side = 1
                     self._render_search()
                     event.prevent_default()
@@ -557,7 +559,7 @@ class PositionsApp(App):
                     event.stop()
                     return
             if event.character in ("[", "]") or event.key in ("left_square_bracket", "right_square_bracket"):
-                if self._search_mode() == "OPT":
+                if self._search_option_sec_type() is not None:
                     bracket_char = event.character
                     if bracket_char not in ("[", "]"):
                         bracket_char = "[" if event.key == "left_square_bracket" else "]"
@@ -619,6 +621,7 @@ class PositionsApp(App):
         self._search_opt_expiry_index = 0
         self._search_opt_underlyers = []
         self._search_opt_underlyer_descriptions = {}
+        self._search_symbol_labels = {}
         self._search_opt_underlyer_index = 0
         self._search_opt_chain_cache = {}
         self._search_loading = False
@@ -639,6 +642,7 @@ class PositionsApp(App):
         self._search_opt_expiry_index = 0
         self._search_opt_underlyers = []
         self._search_opt_underlyer_descriptions = {}
+        self._search_symbol_labels = {}
         self._search_opt_underlyer_index = 0
         self._search_opt_chain_cache = {}
         self._search_loading = False
@@ -666,6 +670,7 @@ class PositionsApp(App):
         self._search_opt_expiry_index = 0
         self._search_opt_underlyers = []
         self._search_opt_underlyer_descriptions = {}
+        self._search_symbol_labels = {}
         self._search_opt_underlyer_index = 0
         self._search_opt_chain_cache = {}
         self._queue_search()
@@ -683,11 +688,22 @@ class PositionsApp(App):
     def _search_mode(self) -> str:
         return self._SEARCH_MODES[self._search_mode_index]
 
+    @staticmethod
+    def _is_option_search_mode(mode: str) -> bool:
+        return str(mode or "").strip().upper() in ("OPT", "FOP")
+
+    def _search_option_sec_type(self) -> str | None:
+        mode = self._search_mode()
+        return mode if self._is_option_search_mode(mode) else None
+
     def _search_opt_expiries(self) -> list[str]:
+        option_sec_type = self._search_option_sec_type()
+        if option_sec_type is None:
+            return []
         expiries = {
             str(getattr(contract, "lastTradeDateOrContractMonth", "") or "").strip()
             for contract in self._search_results
-            if str(getattr(contract, "secType", "") or "").strip().upper() == "OPT"
+            if str(getattr(contract, "secType", "") or "").strip().upper() == option_sec_type
         }
         cleaned = [value for value in expiries if value]
         return sorted(cleaned)
@@ -704,7 +720,7 @@ class PositionsApp(App):
         return expiries[self._search_opt_expiry_index]
 
     def _cycle_search_expiry(self, step: int) -> None:
-        if self._search_mode() != "OPT":
+        if self._search_option_sec_type() is None:
             return
         expiries = self._search_opt_expiries()
         if not expiries:
@@ -737,6 +753,60 @@ class PositionsApp(App):
         if text.strip().upper() == symbol:
             return ""
         return text
+
+    def _search_label_for_symbol(self, symbol: str, *, sec_type: str = "") -> str:
+        normalized = str(symbol or "").strip().upper()
+        if not normalized:
+            return ""
+        label = str(self._search_symbol_labels.get(normalized, "") or "").strip()
+        if not label and sec_type == "OPT":
+            label = str(self._search_opt_underlyer_descriptions.get(normalized, "") or "").strip()
+        if label and label.upper() != normalized:
+            return label
+        if sec_type == "STK":
+            return "Equity"
+        if sec_type == "FUT":
+            return "Futures"
+        if sec_type == "OPT":
+            return "Equity Option"
+        if sec_type == "FOP":
+            return "Futures Option"
+        return ""
+
+    def _search_label_for_contract(self, contract: Contract | None) -> str:
+        if contract is None:
+            return ""
+        symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
+        sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
+        return self._search_label_for_symbol(symbol, sec_type=sec_type)
+
+    def _search_name_line(self) -> Text | None:
+        if not self._search_query.strip():
+            return None
+        mode = self._search_mode()
+        symbol = ""
+        label = ""
+        style = self._SECTION_HEADER_STYLE_BY_TYPE.get(mode, "bold white")
+        if mode == "OPT":
+            symbol = self._current_opt_underlyer() or ""
+            label = self._search_label_for_symbol(symbol, sec_type="OPT")
+        else:
+            contract = self._selected_search_contract()
+            if contract is None and self._search_results:
+                contract = self._search_results[0]
+            if contract is not None:
+                symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
+                sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
+                label = self._search_label_for_symbol(symbol, sec_type=sec_type)
+                style = self._SECTION_HEADER_STYLE_BY_TYPE.get(sec_type, style)
+        if not symbol:
+            return None
+        line = Text("Name ", style="dim")
+        line.append(symbol, style=style)
+        if label:
+            line.append("  •  ", style="dim")
+            line.append(label, style="bold #b7cadc")
+        return line
 
     def _cycle_search_opt_underlyer(self, step: int) -> None:
         if self._search_mode() != "OPT":
@@ -794,10 +864,13 @@ class PositionsApp(App):
         )
 
     def _option_pair_rows(self) -> list[tuple[Contract | None, Contract | None]]:
+        option_sec_type = self._search_option_sec_type()
+        if option_sec_type is None:
+            return []
         target_expiry = self._current_opt_expiry()
         by_strike: dict[float, list[Contract | None]] = {}
         for contract in self._search_results:
-            if str(getattr(contract, "secType", "") or "").strip().upper() != "OPT":
+            if str(getattr(contract, "secType", "") or "").strip().upper() != option_sec_type:
                 continue
             expiry = str(getattr(contract, "lastTradeDateOrContractMonth", "") or "").strip()
             if target_expiry and expiry != target_expiry:
@@ -820,7 +893,7 @@ class PositionsApp(App):
         return rows
 
     def _search_option_contracts(self) -> dict[int, Contract]:
-        if not self._search_active or self._search_mode() != "OPT":
+        if not self._search_active or self._search_option_sec_type() is None:
             return {}
         contracts: dict[int, Contract] = {}
         for call_contract, put_contract in self._option_pair_rows():
@@ -956,7 +1029,7 @@ class PositionsApp(App):
         return f"[{index}/{total}] {symbol}"
 
     def _search_row_count(self) -> int:
-        if self._search_mode() == "OPT":
+        if self._search_option_sec_type() is not None:
             return len(self._option_pair_rows())
         return len(self._search_results)
 
@@ -979,6 +1052,7 @@ class PositionsApp(App):
         self._search_opt_expiry_index = 0
         self._search_opt_underlyers = []
         self._search_opt_underlyer_descriptions = {}
+        self._search_symbol_labels = {}
         self._search_opt_underlyer_index = 0
         self._search_opt_chain_cache = {}
         self._cancel_search_task()
@@ -1004,7 +1078,7 @@ class PositionsApp(App):
                 generation,
                 query,
                 mode,
-                fetch_limit=self._SEARCH_FETCH_LIMIT if mode == "OPT" else self._SEARCH_LIMIT,
+                fetch_limit=self._SEARCH_FETCH_LIMIT if self._is_option_search_mode(mode) else self._SEARCH_LIMIT,
             )
         )
 
@@ -1020,14 +1094,16 @@ class PositionsApp(App):
                     return
                 self._search_opt_underlyers = []
                 self._search_opt_underlyer_descriptions = {}
+                self._search_symbol_labels = {}
                 for symbol, description in underlyers:
                     cleaned_symbol = str(symbol or "").strip().upper()
                     if not cleaned_symbol or cleaned_symbol in self._search_opt_underlyers:
                         continue
                     self._search_opt_underlyers.append(cleaned_symbol)
-                    self._search_opt_underlyer_descriptions[cleaned_symbol] = str(
-                        description or ""
-                    ).strip()
+                    label = str(description or "").strip()
+                    self._search_opt_underlyer_descriptions[cleaned_symbol] = label
+                    if label:
+                        self._search_symbol_labels[cleaned_symbol] = label
                 if not self._search_opt_underlyers:
                     results: list[Contract] = []
                 else:
@@ -1053,6 +1129,21 @@ class PositionsApp(App):
                 results = await self._client.search_contracts(query, mode=mode, limit=fetch_limit)
                 if generation != self._search_generation:
                     return
+                symbols: list[str] = []
+                for contract in results:
+                    symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
+                    if not symbol or symbol in symbols:
+                        continue
+                    symbols.append(symbol)
+                self._search_symbol_labels = {}
+                if symbols:
+                    self._search_symbol_labels = await self._client.search_contract_labels(
+                        query,
+                        mode=mode,
+                        symbols=symbols,
+                    )
+                    if generation != self._search_generation:
+                        return
         except asyncio.CancelledError:
             return
         except Exception as exc:
@@ -1069,6 +1160,8 @@ class PositionsApp(App):
         self._search_results = list(results)
         total = self._search_row_count()
         if mode == "OPT":
+            self._search_selected = self._default_opt_row_index()
+        elif mode == "FOP":
             self._search_selected = self._default_opt_row_index()
         else:
             self._search_selected = min(max(self._search_selected, 0), max(total - 1, 0))
@@ -1130,8 +1223,11 @@ class PositionsApp(App):
         else:
             line1.append("type symbol...", style="dim")
         lines: list[Text] = [line1]
+        name_line = self._search_name_line()
+        if name_line is not None:
+            lines.append(name_line)
         mode = self._search_mode()
-        if mode == "OPT":
+        if self._is_option_search_mode(mode):
             self._sync_search_option_tickers()
         else:
             self._clear_search_tickers()
@@ -1146,22 +1242,23 @@ class PositionsApp(App):
                     style="dim",
                 )
             )
-        elif mode == "OPT":
+        elif self._is_option_search_mode(mode):
             underlyer_label = self._opt_underlyer_label()
-            underlyer_line = Text("Underlyer ", style="dim")
-            if underlyer_label:
-                underlyer_line.append(underlyer_label, style="bold #86dca9")
-                underlyer_desc = self._current_opt_underlyer_description()
-                if underlyer_desc:
-                    underlyer_line.append("  |  ", style="dim")
-                    underlyer_line.append(underlyer_desc, style="bold #b7cadc")
-                if len(self._search_opt_underlyers) > 1:
-                    underlyer_line.append("  (< / > or Ctrl+Left/Right)", style="dim")
-            else:
-                underlyer_line.append("n/a", style="dim")
-            lines.append(underlyer_line)
+            if mode == "OPT":
+                underlyer_line = Text("Underlyer ", style="dim")
+                if underlyer_label:
+                    underlyer_line.append(underlyer_label, style="bold #86dca9")
+                    underlyer_desc = self._current_opt_underlyer_description()
+                    if underlyer_desc:
+                        underlyer_line.append("  |  ", style="dim")
+                        underlyer_line.append(underlyer_desc, style="bold #b7cadc")
+                    if len(self._search_opt_underlyers) > 1:
+                        underlyer_line.append("  (< / > or Ctrl+Left/Right)", style="dim")
+                else:
+                    underlyer_line.append("n/a", style="dim")
+                lines.append(underlyer_line)
 
-            if not self._search_opt_underlyers:
+            if mode == "OPT" and not self._search_opt_underlyers:
                 lines.append(Text("No matches", style="dim"))
             elif not self._search_results:
                 lines.append(Text("No option chain rows", style="dim"))
@@ -1209,9 +1306,10 @@ class PositionsApp(App):
                     )
                 selected_contract = self._selected_opt_contract()
                 if selected_contract is not None:
+                    selected_label = self._search_label_for_contract(selected_contract)
                     selected_line = Text("Selected ", style="dim")
                     selected_line.append(
-                        self._search_contract_description(selected_contract),
+                        self._search_contract_description(selected_contract, label=selected_label),
                         style="bold #9fd7ff",
                     )
                     lines.append(selected_line)
@@ -1245,6 +1343,10 @@ class PositionsApp(App):
         line.append(sec_type.ljust(3), style=style)
         line.append(" ")
         line.append(symbol, style="bold")
+        label = self._search_label_for_symbol(symbol, sec_type=sec_type)
+        if label:
+            line.append("  •  ", style="dim")
+            line.append(self._clip_cell(label, 34), style="bold #b7cadc")
         expiry = str(getattr(contract, "lastTradeDateOrContractMonth", "") or "").strip()
         if sec_type in ("OPT", "FOP"):
             right = str(getattr(contract, "right", "") or "").strip().upper()[:1]
@@ -1308,7 +1410,7 @@ class PositionsApp(App):
         return line
 
     @staticmethod
-    def _search_contract_description(contract: Contract) -> str:
+    def _search_contract_description(contract: Contract, *, label: str = "") -> str:
         sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
         symbol = str(getattr(contract, "symbol", "") or "").strip().upper() or "?"
         expiry = str(getattr(contract, "lastTradeDateOrContractMonth", "") or "").strip()
@@ -1336,6 +1438,9 @@ class PositionsApp(App):
             if strike_text:
                 summary_parts.append(strike_text)
         summary = " ".join(part for part in summary_parts if part) or symbol
+        clean_label = str(label or "").strip()
+        if clean_label and clean_label.upper() != summary.upper():
+            summary = f"{summary}  •  {clean_label}"
         detail_parts: list[str] = []
         if local_symbol and local_symbol.upper() != summary.upper():
             detail_parts.append(local_symbol)
@@ -1361,7 +1466,7 @@ class PositionsApp(App):
     def _selected_search_contract(self) -> Contract | None:
         if not self._search_results:
             return None
-        if self._search_mode() == "OPT":
+        if self._search_option_sec_type() is not None:
             return self._selected_opt_contract()
         index = min(max(self._search_selected, 0), len(self._search_results) - 1)
         return self._search_results[index]
@@ -1386,8 +1491,39 @@ class PositionsApp(App):
             for item in self._snapshot.items:
                 if int(getattr(getattr(item, "contract", None), "conId", 0) or 0) == con_id:
                     return item
+
+        def _norm_expiry(raw: object) -> str:
+            text = str(raw or "").strip()
+            if len(text) >= 8 and text[:8].isdigit():
+                return text[:8]
+            if len(text) >= 6 and text[:6].isdigit():
+                return text[:6]
+            return text
+
+        def _exchange_set(value: object) -> set[str]:
+            out: set[str] = set()
+            for attr in ("exchange", "primaryExchange"):
+                text = str(getattr(value, attr, "") or "").strip().upper()
+                if text:
+                    out.add(text)
+            return out
+
+        def _strike(value: object) -> float | None:
+            raw = getattr(value, "strike", None)
+            if raw is None:
+                return None
+            try:
+                number = float(raw)
+            except (TypeError, ValueError):
+                return None
+            return number if number > 0 else None
+
         sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
         symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
+        target_expiry = _norm_expiry(getattr(contract, "lastTradeDateOrContractMonth", ""))
+        target_right = str(getattr(contract, "right", "") or "").strip().upper()[:1]
+        target_strike = _strike(contract)
+        target_exchanges = _exchange_set(contract)
         for item in self._snapshot.items:
             existing = getattr(item, "contract", None)
             if existing is None:
@@ -1396,6 +1532,27 @@ class PositionsApp(App):
                 continue
             if str(getattr(existing, "symbol", "") or "").strip().upper() != symbol:
                 continue
+            if sec_type == "FUT":
+                existing_expiry = _norm_expiry(getattr(existing, "lastTradeDateOrContractMonth", ""))
+                if target_expiry and existing_expiry and target_expiry != existing_expiry:
+                    continue
+                existing_exchanges = _exchange_set(existing)
+                if target_exchanges and existing_exchanges and target_exchanges.isdisjoint(existing_exchanges):
+                    continue
+            elif sec_type in ("OPT", "FOP"):
+                existing_expiry = _norm_expiry(getattr(existing, "lastTradeDateOrContractMonth", ""))
+                if target_expiry and existing_expiry and target_expiry != existing_expiry:
+                    continue
+                existing_right = str(getattr(existing, "right", "") or "").strip().upper()[:1]
+                if target_right and existing_right and target_right != existing_right:
+                    continue
+                existing_strike = _strike(existing)
+                if (
+                    target_strike is not None
+                    and existing_strike is not None
+                    and abs(target_strike - existing_strike) > 1e-6
+                ):
+                    continue
             return item
         return cast(PortfolioItem, _SyntheticPortfolioItem(contract=contract))
 
@@ -1404,17 +1561,20 @@ class PositionsApp(App):
             self._dirty = True
             return
         async with self._refresh_lock:
-            # Kick off non-blocking market-data warmup first so index/proxy
-            # streams can initialize while portfolio snapshot is loading.
-            self._client.start_index_tickers()
-            self._client.start_proxy_tickers()
+            streams_warmed = False
             try:
                 if hard:
                     await self._client.hard_refresh()
                 items = await self._client.fetch_portfolio()
                 self._snapshot.update(items, None)
+                streams_warmed = True
             except Exception as exc:  # pragma: no cover - UI surface
                 self._snapshot.update([], str(exc))
+            if streams_warmed:
+                # Gate non-critical streams behind a successful account snapshot
+                # so startup doesn't fan out while API session init is unstable.
+                self._client.start_index_tickers()
+                self._client.start_proxy_tickers()
             self._sync_session_tickers()
             self._index_tickers = self._client.index_tickers()
             self._index_error = self._client.index_error()
@@ -1422,7 +1582,6 @@ class PositionsApp(App):
             self._proxy_error = self._client.proxy_error()
             self._pnl = self._client.pnl()
             self._net_liq = self._client.account_value("NetLiquidation")
-            self._maybe_update_netliq_anchor()
             self._buying_power = self._client.account_value("BuyingPower")
             self._maybe_update_buying_power_anchor()
             self._prime_change_data(self._snapshot.items)
@@ -1476,26 +1635,11 @@ class PositionsApp(App):
             self._row_keys.append(spacer_key)
             self._add_buying_power_row(self._buying_power, self._pnl)
         self._add_total_row(items)
-        self._add_daily_row(self._pnl, self._net_liq[1] or self._buying_power[1])
-        self._add_net_liq_row(self._net_liq, self._pnl)
+        self._add_today_ibkr_row(items)
+        self._add_net_liq_row(self._net_liq, items)
         self._render_ticker_bar()
         self._status.update(self._status_text())
         self._restore_cursor(prev_row_key, prev_row_index, prev_column)
-
-    def _maybe_update_netliq_anchor(self) -> None:
-        value, _currency, updated_at = self._net_liq
-        if value is None:
-            return
-        daily = _pnl_value(self._pnl)
-        if daily is None:
-            return
-        if self._net_liq_daily_anchor is None:
-            self._net_liq_daily_anchor = daily
-        if updated_at is None:
-            return
-        if not hasattr(self, "_net_liq_updated_at") or self._net_liq_updated_at != updated_at:
-            self._net_liq_daily_anchor = daily
-            self._net_liq_updated_at = updated_at
 
     def _maybe_update_buying_power_anchor(self) -> None:
         value, _currency, updated_at = self._buying_power
@@ -1504,9 +1648,10 @@ class PositionsApp(App):
         daily = _pnl_value(self._pnl)
         if daily is None:
             return
-        if self._buying_power_daily_anchor is None:
-            self._buying_power_daily_anchor = daily
         if updated_at is None:
+            return
+        if self._buying_power_daily_anchor is None and abs(float(daily)) <= 1e-9:
+            # Mirror net-liq anchoring so buying-power doesn't jitter at boot.
             return
         if (
             not hasattr(self, "_buying_power_updated_at")
@@ -1535,7 +1680,10 @@ class PositionsApp(App):
         session = _market_session_label()
         base = f"IBKR {conn} | last update: {ts} | rows: {self._row_count}"
         base = f"{base} | MKT: {session} | MD: [L]=Live [D]=Delayed"
-        base = f"{base} | PnL rows=position(U/R), daily=account day move"
+        base = (
+            f"{base} | PnL rows: total=open(U+R), "
+            "today(IBKR)=broker daily"
+        )
         if self._snapshot.error:
             return f"{base} | error: {self._snapshot.error}"
         return base
@@ -1615,7 +1763,12 @@ class PositionsApp(App):
         row.extend(Text("", style=style) for _ in range(self._column_count - 1))
         return row
 
-    def _add_total_row(self, items: list[PortfolioItem]) -> None:
+    def _open_position_totals(
+        self,
+        items: list[PortfolioItem],
+        *,
+        prefer_official_unreal: bool = True,
+    ) -> tuple[float, float, float, float | None]:
         total_unreal = 0.0
         total_real = 0.0
         total_cost = 0.0
@@ -1623,10 +1776,18 @@ class PositionsApp(App):
         for item in items:
             if item.contract.secType not in _SECTION_TYPES:
                 continue
-            mark_price, _ = self._mark_price(item)
-            unreal, _ = _unrealized_pnl_values(item, mark_price=mark_price)
-            if unreal is not None:
-                total_unreal += float(unreal)
+            official_unreal = (
+                self._official_unrealized_value(item)
+                if prefer_official_unreal
+                else None
+            )
+            if official_unreal is not None:
+                total_unreal += float(official_unreal)
+            else:
+                mark_price, _ = self._mark_price(item)
+                unreal, _ = _unrealized_pnl_values(item, mark_price=mark_price)
+                if unreal is not None:
+                    total_unreal += float(unreal)
             total_real += float(item.realizedPNL or 0.0)
             if item.averageCost:
                 total_cost += abs(float(item.averageCost) * float(item.position))
@@ -1635,6 +1796,60 @@ class PositionsApp(App):
         total_pnl = total_unreal + total_real
         denom = total_cost if total_cost > 0 else total_mkt
         pct = (total_pnl / denom * 100.0) if denom > 0 else None
+        return total_unreal, total_real, total_pnl, pct
+
+    @staticmethod
+    def _current_et_day() -> date:
+        now_utc = datetime.now(timezone.utc)
+        return _to_et_shared(now_utc, naive_ts_mode="utc").date()
+
+    def _open_positions_ibkr_daily(self, items: list[PortfolioItem]) -> float | None:
+        total = 0.0
+        seen = 0
+        for item in items:
+            contract = getattr(item, "contract", None)
+            sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
+            if sec_type not in _SECTION_TYPES:
+                continue
+            con_id = int(getattr(contract, "conId", 0) or 0)
+            if con_id <= 0:
+                continue
+            daily = self._client.pnl_single_daily(con_id)
+            if daily is None:
+                continue
+            total += float(daily)
+            seen += 1
+        if seen <= 0:
+            return None
+        return float(total)
+
+    def _today_ibkr_value(
+        self,
+        items: list[PortfolioItem],
+        *,
+        et_day: date | None = None,
+    ) -> tuple[float | None, str]:
+        day = et_day if et_day is not None else self._current_et_day()
+        if self._today_ibkr_day != day:
+            self._today_ibkr_day = day
+            self._today_ibkr_last_value = None
+
+        account_daily = _pnl_value(self._pnl)
+        if account_daily is not None:
+            value = float(account_daily)
+            self._today_ibkr_last_value = value
+            return value, "account"
+
+        open_daily = self._open_positions_ibkr_daily(items)
+        if open_daily is not None:
+            return float(open_daily), "open"
+
+        if self._today_ibkr_last_value is not None:
+            return float(self._today_ibkr_last_value), "cache"
+        return None, "warmup"
+
+    def _add_total_row(self, items: list[PortfolioItem]) -> None:
+        _total_unreal, total_real, total_pnl, pct = self._open_position_totals(items)
         style = "bold white on #1f1f1f"
         label = Text("TOTAL (U+R, POS)", style=style)
         blank = Text("")
@@ -1655,35 +1870,40 @@ class PositionsApp(App):
         )
         self._row_keys.append("total")
 
-    @staticmethod
-    def _account_label(base: str, currency: str | None) -> str:
-        curr = str(currency or "").strip().upper()
-        return f"{base} ({curr})" if curr else base
-
-    def _add_daily_row(self, pnl: PnL | None, currency: str | None = None) -> None:
-        if not pnl:
-            return
-        daily = pnl.dailyPnL
-        if daily is None or (isinstance(daily, float) and math.isnan(daily)):
-            return
+    def _add_today_ibkr_row(self, items: list[PortfolioItem]) -> None:
+        value, source = self._today_ibkr_value(items)
         style = "bold white on #1f1f1f"
-        label = Text(self._account_label("DAILY P&L", currency), style=style)
+        label = Text("TODAY PnL (IBKR)", style=style)
         blank = Text("")
-        daily_text = _pnl_text(float(daily))
-        daily_text = self._center_cell(daily_text, self._UNREAL_COL_WIDTH)
+        if value is None:
+            amount = Text("warming...", style="dim")
+        else:
+            amount = _pnl_text(value)
+            if source == "open":
+                amount.append(" ≈open", style="dim")
+            elif source == "cache":
+                amount.append(" ≈hold", style="dim")
+        amount = self._center_cell(amount, self._UNREAL_COL_WIDTH)
         self._table.add_row(
             label,
             blank,
             blank,
             blank,
-            daily_text,
+            amount,
             blank,
-            key="daily",
+            key="today_ibkr",
         )
-        self._row_keys.append("daily")
+        self._row_keys.append("today_ibkr")
+
+    @staticmethod
+    def _account_label(base: str, currency: str | None) -> str:
+        curr = str(currency or "").strip().upper()
+        return f"{base} ({curr})" if curr else base
 
     def _add_net_liq_row(
-        self, net_liq: tuple[float | None, str | None, datetime | None], pnl: PnL | None
+        self,
+        net_liq: tuple[float | None, str | None, datetime | None],
+        items: list[PortfolioItem],
     ) -> None:
         value, currency, _updated_at = net_liq
         if value is None:
@@ -1691,9 +1911,8 @@ class PositionsApp(App):
         style = "bold white on #1f1f1f"
         label = Text(self._account_label("NET LIQ", currency), style=style)
         blank = Text("")
-        est_value = _estimate_net_liq(value, pnl, self._net_liq_daily_anchor)
-        shown_value = est_value if est_value is not None else value
-        unreal_cell = Text(_fmt_money(shown_value))
+        est_value = self._estimate_net_liq_from_unreal_drift(float(value), items)
+        unreal_cell = self._net_liq_amount_cell(float(value), est_value)
         amount_text = self._center_cell(unreal_cell, self._UNREAL_COL_WIDTH)
         self._table.add_row(
             label,
@@ -1705,6 +1924,55 @@ class PositionsApp(App):
             key="netliq",
         )
         self._row_keys.append("netliq")
+
+    def _official_unrealized_value(self, item: PortfolioItem) -> float | None:
+        contract = getattr(item, "contract", None)
+        con_id = int(getattr(contract, "conId", 0) or 0)
+        official_unreal = self._client.pnl_single_unrealized(con_id)
+        if official_unreal is None and not self._client.has_pnl_single_subscription(con_id):
+            official_unreal = self._float_or_none(getattr(item, "unrealizedPNL", None))
+        return official_unreal
+
+    def _estimate_net_liq_from_unreal_drift(
+        self,
+        raw_net_liq: float,
+        items: list[PortfolioItem],
+    ) -> float | None:
+        official_total = 0.0
+        estimate_total = 0.0
+        overlap_count = 0
+        for item in items:
+            contract = getattr(item, "contract", None)
+            sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
+            if sec_type not in _SECTION_TYPES:
+                continue
+            official_unreal = self._official_unrealized_value(item)
+            mark_price, _is_estimate = self._mark_price(item)
+            estimate_unreal, _estimate_pct = self._live_unrealized_metrics(item, mark_price)
+            if official_unreal is None or estimate_unreal is None:
+                continue
+            official_total += float(official_unreal)
+            estimate_total += float(estimate_unreal)
+            overlap_count += 1
+        if overlap_count <= 0:
+            return None
+        return float(raw_net_liq) + (estimate_total - official_total)
+
+    @staticmethod
+    def _net_liq_amount_cell(raw_value: float, est_value: float | None) -> Text:
+        raw_plain = _fmt_money(raw_value)
+        if est_value is None:
+            return Text(raw_plain)
+        est_plain = _fmt_money(est_value)
+        text = Text(f"{raw_plain} ({est_plain})")
+        est_start = len(raw_plain) + 2
+        est_end = est_start + len(est_plain)
+        delta = float(est_value) - float(raw_value)
+        if delta > 0:
+            text.stylize("green", est_start, est_end)
+        elif delta < 0:
+            text.stylize("red", est_start, est_end)
+        return text
 
     def _add_buying_power_row(
         self,
@@ -1787,8 +2055,9 @@ class PositionsApp(App):
 
     async def _load_closes(self, con_id: int, contract: Contract) -> None:
         try:
-            prev_close, close_3ago = await self._client.session_closes(contract)
+            prev_close, close_1ago, close_3ago = await self._client.session_close_anchors(contract)
             self._session_closes_by_con_id[con_id] = (prev_close, close_3ago)
+            self._session_close_1ago_by_con_id[con_id] = close_1ago
             if close_3ago is not None:
                 self._closes_retry_at_by_con_id.pop(con_id, None)
             else:
@@ -1838,15 +2107,8 @@ class PositionsApp(App):
         if not con_id:
             return Text("")
         ticker = self._client.ticker_for_con_id(con_id)
-        bid, ask, last = _sanitize_nbbo(
-            getattr(ticker, "bid", None) if ticker else None,
-            getattr(ticker, "ask", None) if ticker else None,
-            getattr(ticker, "last", None) if ticker else None,
-        )
-        has_live_quote = bool(
-            (bid is not None and ask is not None and bid <= ask)
-            or (last is not None)
-        )
+        actionable_quote = _ticker_actionable_price(ticker) if ticker else None
+        has_live_quote = actionable_quote is not None
         quote_price = _ticker_price(ticker) if ticker else None
         price = quote_price
         if item is not None:
@@ -1856,14 +2118,17 @@ class PositionsApp(App):
                 if display_price is not None:
                     price = float(display_price)
         cached = self._session_closes_by_con_id.get(con_id)
-        ticker_close = _ticker_close(ticker) if ticker else None
-        if (not has_live_quote) and cached and cached[0] is not None:
-            prev_close = cached[0]
-        else:
-            prev_close = ticker_close if ticker_close is not None else (cached[0] if cached else None)
+        session_prev_close = cached[0] if cached else None
+        session_prev_close_1ago = self._session_close_1ago_by_con_id.get(con_id)
         close_3ago = cached[1] if cached else None
-        pct24 = _pct_change(price, prev_close)
-        pct72 = _pct_change(price, close_3ago)
+        pct24, pct72 = _pct24_72_from_price(
+            price=price,
+            ticker=ticker,
+            session_prev_close=session_prev_close,
+            session_prev_close_1ago=session_prev_close_1ago,
+            session_close_3ago=close_3ago,
+            has_actionable_quote=has_live_quote,
+        )
         age_sec = self._quote_age_seconds(con_id, ticker, price if price is not None else quote_price)
         ribbon = self._quote_age_ribbon(age_sec)
         text = self._aligned_px_change_text(
@@ -2109,11 +2374,8 @@ class PositionsApp(App):
         contract = item.contract
         if contract.secType not in _SECTION_TYPES:
             return Text(""), Text("")
-        con_id = int(getattr(contract, "conId", 0) or 0)
         mark_price, _is_estimate = self._mark_price(item)
-        official_unreal = self._client.pnl_single_unrealized(con_id)
-        if official_unreal is None and not self._client.has_pnl_single_subscription(con_id):
-            official_unreal = self._float_or_none(getattr(item, "unrealizedPNL", None))
+        official_unreal = self._official_unrealized_value(item)
         est_unreal, est_pct = self._live_unrealized_metrics(item, mark_price)
         _official_pnl, official_pct = _unrealized_pnl_values(item, mark_price=mark_price)
         display_pct = est_pct if est_pct is not None else official_pct

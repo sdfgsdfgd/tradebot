@@ -53,8 +53,17 @@ Minimal IBKR TUI trading client & bot
 Optional env vars:
 - `IBKR_HOST` (default `127.0.0.1`)
 - `IBKR_PORT` (default `4001`)
-- `IBKR_CLIENT_ID` (default `0`)
+- `IBKR_CLIENT_ID` (seed, default `500`)
+- `IBKR_PROXY_CLIENT_ID` (seed, default `IBKR_CLIENT_ID + 1`)
 - `IBKR_ACCOUNT` (optional, to pin an account)
+- `IBKR_CLIENT_ID_POOL_START` (default `500`)
+- `IBKR_CLIENT_ID_POOL_END` (default `899`)
+- `IBKR_CLIENT_ID_BURST_ATTEMPTS` (default `8`)
+- `IBKR_CLIENT_ID_BACKOFF_INITIAL_SEC` (default `5.0`)
+- `IBKR_CLIENT_ID_BACKOFF_MAX_SEC` (default `300.0`)
+- `IBKR_CLIENT_ID_BACKOFF_MULTIPLIER` (default `2.0`)
+- `IBKR_CLIENT_ID_BACKOFF_JITTER_RATIO` (default `0.15`)
+- `IBKR_CLIENT_ID_STATE_FILE` (default `${TMPDIR:-/tmp}/tradebot_ib_client_ids.json`)
 
 ## Controls
 - **Arrow keys** — navigate rows

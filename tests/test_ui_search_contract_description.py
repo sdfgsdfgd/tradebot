@@ -69,6 +69,23 @@ def test_search_contract_description_option_falls_back_without_local_symbol() ->
     assert "conId" not in text
 
 
+def test_search_contract_description_option_includes_label_when_provided() -> None:
+    positions_app = _load_positions_app()
+    contract = Contract(
+        secType="FOP",
+        symbol="MCL",
+        exchange="NYMEX",
+        currency="USD",
+        lastTradeDateOrContractMonth="20260220",
+        strike=66.0,
+        right="P",
+    )
+
+    text = positions_app._search_contract_description(contract, label="Micro WTI Crude Oil")
+
+    assert "MCL 20260220 PUT 66.00  •  Micro WTI Crude Oil" in text
+
+
 def test_portfolio_row_key_distinguishes_call_and_put_without_conid() -> None:
     positions_app = _load_positions_app()
     call_contract = Contract(
@@ -132,3 +149,87 @@ def test_opt_underlyer_description_hides_symbol_only_label() -> None:
     app._search_opt_underlyer_descriptions = {"BITU": "BITU"}
 
     assert app._current_opt_underlyer_description() == ""
+
+
+def test_search_label_for_symbol_returns_mode_fallback_label() -> None:
+    positions_app = _load_positions_app()
+    app = positions_app.__new__(positions_app)
+    app._search_symbol_labels = {}
+    app._search_opt_underlyer_descriptions = {}
+
+    assert app._search_label_for_symbol("AAPL", sec_type="STK") == "Equity"
+    assert app._search_label_for_symbol("MNQ", sec_type="FUT") == "Futures"
+    assert app._search_label_for_symbol("AAPL", sec_type="OPT") == "Equity Option"
+    assert app._search_label_for_symbol("MCL", sec_type="FOP") == "Futures Option"
+
+
+def test_option_pair_rows_supports_fop_mode() -> None:
+    positions_app = _load_positions_app()
+    app = positions_app.__new__(positions_app)
+    app._search_mode_index = positions_app._SEARCH_MODES.index("FOP")
+    app._search_opt_expiry_index = 0
+    app._search_results = []
+    app._search_selected = 0
+    app._search_side = 0
+    call_contract = Contract(
+        secType="FOP",
+        symbol="GC",
+        exchange="COMEX",
+        currency="USD",
+        lastTradeDateOrContractMonth="20260327",
+        strike=5000.0,
+        right="C",
+    )
+    put_contract = Contract(
+        secType="FOP",
+        symbol="GC",
+        exchange="COMEX",
+        currency="USD",
+        lastTradeDateOrContractMonth="20260327",
+        strike=5000.0,
+        right="P",
+    )
+    app._search_results = [call_contract, put_contract]
+
+    rows = app._option_pair_rows()
+
+    assert len(rows) == 1
+    row_call, row_put = rows[0]
+    assert row_call is not None
+    assert row_put is not None
+    assert str(getattr(row_call, "right", "") or "").upper() == "C"
+    assert str(getattr(row_put, "right", "") or "").upper() == "P"
+    assert app._search_row_count() == 1
+
+
+def test_selected_search_contract_uses_side_in_fop_mode() -> None:
+    positions_app = _load_positions_app()
+    app = positions_app.__new__(positions_app)
+    app._search_mode_index = positions_app._SEARCH_MODES.index("FOP")
+    app._search_opt_expiry_index = 0
+    app._search_selected = 0
+    app._search_side = 1
+    call_contract = Contract(
+        secType="FOP",
+        symbol="GC",
+        exchange="COMEX",
+        currency="USD",
+        lastTradeDateOrContractMonth="20260327",
+        strike=5000.0,
+        right="C",
+    )
+    put_contract = Contract(
+        secType="FOP",
+        symbol="GC",
+        exchange="COMEX",
+        currency="USD",
+        lastTradeDateOrContractMonth="20260327",
+        strike=5000.0,
+        right="P",
+    )
+    app._search_results = [call_contract, put_contract]
+
+    selected = app._selected_search_contract()
+
+    assert selected is not None
+    assert str(getattr(selected, "right", "") or "").upper() == "P"

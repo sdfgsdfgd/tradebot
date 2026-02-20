@@ -12,7 +12,7 @@ from types import SimpleNamespace
 import types
 from unittest.mock import patch
 
-from ib_insync import Future, Stock
+from ib_insync import Contract, Future, Stock
 
 from tradebot.client import IBKRClient, _session_flags
 from tradebot.config import IBKRConfig
@@ -29,6 +29,7 @@ from tradebot.ui.bot_journal import BotJournal
 from tradebot.ui.bot_models import _BotInstance, _BotOrder
 from tradebot.ui.bot_order_builder import BotOrderBuilderMixin
 from tradebot.ui.bot_signal_runtime import BotSignalRuntimeMixin
+import tradebot.ui.bot_signal_runtime as bot_signal_runtime_module
 
 
 @dataclass(frozen=True)
@@ -251,6 +252,36 @@ class _GapGateHarness(BotSignalRuntimeMixin):
 
     def _auto_process_pending_next_open(self, **kwargs) -> bool:
         return False
+
+
+class _NoSignalRecoveryHarness(_GapGateHarness):
+    def __init__(
+        self,
+        *,
+        instance: _BotInstance,
+        snapshots: list[object | None],
+        diags: list[dict | None] | None = None,
+    ) -> None:
+        first_snap = snapshots[0] if snapshots else None
+        first_diag = diags[0] if isinstance(diags, list) and diags else None
+        super().__init__(instance=instance, snap=first_snap, diag=first_diag)
+        self._snapshots = list(snapshots)
+        self._diags = list(diags) if isinstance(diags, list) else []
+        self._snap_idx = 0
+
+    async def _signal_snapshot_for_contract(self, **kwargs):
+        if self._snapshots:
+            idx = min(self._snap_idx, len(self._snapshots) - 1)
+            snap = self._snapshots[idx]
+        else:
+            snap = None
+        if self._diags:
+            idx = min(self._snap_idx, len(self._diags) - 1)
+            diag = self._diags[idx]
+            if isinstance(diag, dict):
+                self._last_signal_snapshot_diag = dict(diag)
+        self._snap_idx += 1
+        return snap
 
 
 class _QuoteStarveHarness(BotSignalRuntimeMixin):
@@ -1086,6 +1117,69 @@ def test_auto_tick_blocks_waiting_data_gap_when_flat() -> None:
     )
 
 
+def test_auto_tick_blocks_waiting_regime_health_when_flat() -> None:
+    bar_ts = datetime(2026, 2, 9, 12, 0)
+    signal = SimpleNamespace(
+        state="up",
+        entry_dir="up",
+        cross_up=False,
+        cross_down=False,
+        ema_ready=True,
+        regime_dir="up",
+        regime_ready=True,
+        ema_fast=74.0,
+        ema_slow=73.5,
+        prev_ema_fast=73.9,
+    )
+    snap = SimpleNamespace(
+        bar_ts=bar_ts,
+        close=74.2,
+        signal=signal,
+        bars_in_day=5,
+        rv=None,
+        volume=1000.0,
+        volume_ema=None,
+        volume_ema_ready=True,
+        shock=False,
+        shock_dir="up",
+        shock_atr_pct=0.4,
+        risk=None,
+        atr=None,
+        or_high=None,
+        or_low=None,
+        or_ready=False,
+        bar_health={
+            "stale": False,
+            "gap_detected": False,
+            "last_bar_ts": bar_ts,
+            "recent_gap_count": 0,
+            "max_gap_bars": 0.0,
+        },
+        regime_bar_health={
+            "stale": False,
+            "gap_detected": True,
+            "last_bar_ts": bar_ts,
+            "recent_gap_count": 1,
+            "max_gap_bars": 3.0,
+        },
+    )
+    instance = _new_instance(
+        strategy={
+            "entry_signal": "ema",
+            "ema_preset": "5/13",
+            "instrument": "spot",
+        }
+    )
+    harness = _GapGateHarness(instance=instance, snap=snap)
+
+    asyncio.run(harness._auto_order_tick())
+
+    assert any(
+        event == "GATE" and reason == "WAITING_REGIME_HEALTH"
+        for event, reason, _data in harness._events
+    )
+
+
 def test_auto_tick_blocks_waiting_preflight_bars_when_history_too_short() -> None:
     bar_ts = datetime(2026, 2, 9, 12, 0)
     signal = SimpleNamespace(
@@ -1150,6 +1244,108 @@ def test_auto_tick_blocks_waiting_preflight_bars_when_history_too_short() -> Non
 
     assert any(
         event == "GATE" and reason == "WAITING_PREFLIGHT_BARS"
+        for event, reason, _data in harness._events
+    )
+
+
+def test_no_signal_recovered_is_logged_on_transition_to_live_snapshot() -> None:
+    bar_ts = datetime(2026, 2, 9, 12, 0)
+    signal = SimpleNamespace(
+        state="up",
+        entry_dir="up",
+        cross_up=False,
+        cross_down=False,
+        ema_ready=True,
+        regime_dir="up",
+        regime_ready=True,
+        ema_fast=74.0,
+        ema_slow=73.5,
+        prev_ema_fast=73.9,
+    )
+    live_snap = SimpleNamespace(
+        bar_ts=bar_ts,
+        close=74.2,
+        signal=signal,
+        bars_in_day=5,
+        rv=None,
+        volume=1000.0,
+        volume_ema=None,
+        volume_ema_ready=True,
+        shock=False,
+        shock_dir="up",
+        shock_atr_pct=0.4,
+        risk=None,
+        atr=1.2,
+        or_high=None,
+        or_low=None,
+        or_ready=False,
+        bar_health={
+            "stale": False,
+            "gap_detected": False,
+            "last_bar_ts": bar_ts,
+            "recent_gap_count": 0,
+            "max_gap_bars": 0.0,
+        },
+    )
+    instance = _new_instance(
+        strategy={
+            "entry_signal": "ema",
+            "ema_preset": "5/13",
+            "regime_mode": "supertrend",
+            "regime_bar_size": "1 day",
+            "supertrend_atr_period": 7,
+            "instrument": "spot",
+        }
+    )
+    harness = _NoSignalRecoveryHarness(
+        instance=instance,
+        snapshots=[None, live_snap],
+        diags=[
+            {"stage": "signal_bars"},
+            {"stage": "ok", "bars_count": 5, "regime_bars_count": 3, "regime2_bars_count": 0},
+        ],
+    )
+
+    asyncio.run(harness._auto_order_tick())
+    asyncio.run(harness._auto_order_tick())
+
+    assert any(
+        event == "GATE" and reason == "NO_SIGNAL_SNAPSHOT"
+        for event, reason, _data in harness._events
+    )
+    assert any(
+        event == "GATE" and reason == "SIGNAL_RECOVERED"
+        for event, reason, _data in harness._events
+    )
+
+
+def test_signal_unrecovered_is_logged_after_threshold() -> None:
+    instance = _new_instance(
+        strategy={
+            "entry_signal": "ema",
+            "ema_preset": "5/13",
+            "instrument": "spot",
+            "signal_unrecovered_alert_sec": 60,
+            "signal_unrecovered_repeat_sec": 60,
+        }
+    )
+    harness = _NoSignalRecoveryHarness(
+        instance=instance,
+        snapshots=[None, None],
+        diags=[{"stage": "signal_bars"}, {"stage": "signal_bars"}],
+    )
+    t0 = datetime(2026, 2, 9, 12, 0, 0, tzinfo=timezone.utc)
+    t1 = datetime(2026, 2, 9, 12, 1, 5, tzinfo=timezone.utc)
+    with patch.object(bot_signal_runtime_module, "_now_et", side_effect=[t0, t1]):
+        asyncio.run(harness._auto_order_tick())
+        asyncio.run(harness._auto_order_tick())
+
+    assert any(
+        event == "GATE" and reason == "NO_SIGNAL_PERSISTING"
+        for event, reason, _data in harness._events
+    )
+    assert any(
+        event == "GATE" and reason == "SIGNAL_UNRECOVERED"
         for event, reason, _data in harness._events
     )
 
@@ -1361,6 +1557,11 @@ def test_order_error_cache_pop_and_expiry() -> None:
     assert payload == {"code": 201, "message": "bad tif"}
     assert client.pop_order_error(1001) is None
 
+    client._remember_order_error(1004, 110, "The price does not conform to the minimum price variation for this contract.")
+    payload_110 = client.pop_order_error(1004)
+    assert payload_110 is not None
+    assert payload_110.get("code") == 110
+
     client._order_error_cache[1002] = (time.monotonic() - 600.0, 201, "stale")
     assert client.pop_order_error(1002, max_age_sec=120.0) is None
 
@@ -1492,6 +1693,45 @@ def test_place_limit_order_premarket_uses_gtc_outside_rth(monkeypatch) -> None:
     assert str(getattr(placed_contract, "exchange", "")).upper() == "SMART"
     assert str(getattr(placed_order, "tif", "")).upper() == "GTC"
     assert bool(getattr(placed_order, "outsideRth", False)) is True
+
+
+def test_place_limit_order_fop_uses_detail_ticker_ladder_when_cache_empty() -> None:
+    class _FakeIB:
+        def __init__(self) -> None:
+            self.calls: list[tuple[object, object]] = []
+
+        def placeOrder(self, contract, order):
+            self.calls.append((contract, order))
+            return SimpleNamespace(contract=contract, order=SimpleNamespace(orderId=456, permId=0))
+
+    client = _new_client()
+    fake_ib = _FakeIB()
+    client._ib = fake_ib
+
+    async def _fake_connect() -> None:
+        return None
+
+    async def _fake_prime(_contract, *, ticker=None):
+        return ()
+
+    client.connect = _fake_connect  # type: ignore[method-assign]
+    client._prime_contract_price_increments = _fake_prime  # type: ignore[method-assign]
+
+    contract = Contract(secType="FOP", symbol="MNQ", exchange="CME", currency="USD")
+    contract.conId = 901001
+    contract.minTick = 0.05
+
+    ladder = ((0.0, 0.05), (5.0, 0.25), (100.0, 0.5))
+    ticker_contract = Contract(secType="FOP", symbol="MNQ", exchange="CME", currency="USD")
+    ticker_contract.conId = 901001
+    setattr(ticker_contract, "tbPriceIncrements", ladder)
+    detail_ticker = SimpleNamespace(contract=ticker_contract, tbPriceIncrements=ladder)
+    client._detail_tickers[int(contract.conId)] = (fake_ib, detail_ticker)
+
+    asyncio.run(client.place_limit_order(contract, "BUY", 1, 115.70, outside_rth=False))
+
+    _placed_contract, placed_order = fake_ib.calls[-1]
+    assert abs(float(getattr(placed_order, "lmtPrice", 0.0)) - 115.5) < 1e-9
 
 
 def test_initial_exec_mode_escalates_stop_exit_retries() -> None:

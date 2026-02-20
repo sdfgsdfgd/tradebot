@@ -17,10 +17,9 @@ from textual.widgets import DataTable, Footer, Header, Static
 from ..client import IBKRClient
 from .common import (
     _fmt_expiry,
-    _pct_change,
+    _pct24_72_from_price,
     _price_pct_dual_text,
     _safe_num,
-    _ticker_close,
     _ticker_price,
 )
 from .positions import PositionDetailScreen
@@ -154,6 +153,7 @@ class FavoritesScreen(Screen):
         self._ticker_loading: set[int] = set()
         self._closes_loading: set[int] = set()
         self._session_closes_by_con_id: dict[int, tuple[float | None, float | None]] = {}
+        self._session_close_1ago_by_con_id: dict[int, float | None] = {}
         self._quote_signature_by_con_id: dict[
             int, tuple[float | None, float | None, float | None, float | None]
         ] = {}
@@ -198,6 +198,7 @@ class FavoritesScreen(Screen):
         self._ticker_con_ids.clear()
         self._ticker_loading.clear()
         self._closes_loading.clear()
+        self._session_close_1ago_by_con_id.clear()
 
     def _setup_columns(self) -> None:
         self._table.add_column("Symbol", width=26)
@@ -265,6 +266,7 @@ class FavoritesScreen(Screen):
         self._ticker_loading.clear()
         self._closes_loading.clear()
         self._session_closes_by_con_id.clear()
+        self._session_close_1ago_by_con_id.clear()
         self._quote_signature_by_con_id.clear()
         self._quote_updated_mono_by_con_id.clear()
         self._favorites = []
@@ -458,8 +460,9 @@ class FavoritesScreen(Screen):
 
     async def _load_closes(self, con_id: int, contract: Contract) -> None:
         try:
-            prev_close, close_3ago = await self._client.session_closes(contract)
+            prev_close, close_1ago, close_3ago = await self._client.session_close_anchors(contract)
             self._session_closes_by_con_id[con_id] = (prev_close, close_3ago)
+            self._session_close_1ago_by_con_id[con_id] = close_1ago
         except Exception:
             pass
         finally:
@@ -530,10 +533,18 @@ class FavoritesScreen(Screen):
         ticker = self._client.ticker_for_con_id(con_id) if con_id else None
         ticker_price = _ticker_price(ticker) if ticker else None
         cached = self._session_closes_by_con_id.get(con_id)
-        fallback_close = cached[0] if cached else None
-        price = ticker_price if ticker_price is not None else fallback_close
+        session_prev_close = cached[0] if cached else None
+        session_prev_close_1ago = self._session_close_1ago_by_con_id.get(con_id)
+        price = ticker_price if ticker_price is not None else session_prev_close
         close_3ago = cached[1] if cached else None
-        return _pct_change(price, close_3ago)
+        _pct24, pct72 = _pct24_72_from_price(
+            price=price,
+            ticker=ticker,
+            session_prev_close=session_prev_close,
+            session_prev_close_1ago=session_prev_close_1ago,
+            session_close_3ago=close_3ago,
+        )
+        return pct72
 
     def _symbol_cell(self, entry: _FavoriteRow) -> Text:
         contract = entry.contract
@@ -555,13 +566,17 @@ class FavoritesScreen(Screen):
         ticker = self._client.ticker_for_con_id(con_id) if con_id else None
         ticker_price = _ticker_price(ticker) if ticker else None
         cached = self._session_closes_by_con_id.get(con_id)
-        fallback_close = cached[0] if cached else None
-        price = ticker_price if ticker_price is not None else fallback_close
-        ticker_close = _ticker_close(ticker) if ticker else None
-        prev_close = ticker_close if ticker_close is not None else (cached[0] if cached else None)
+        session_prev_close = cached[0] if cached else None
+        session_prev_close_1ago = self._session_close_1ago_by_con_id.get(con_id)
+        price = ticker_price if ticker_price is not None else session_prev_close
         close_3ago = cached[1] if cached else None
-        pct24 = _pct_change(price, prev_close)
-        pct72 = _pct_change(price, close_3ago)
+        pct24, pct72 = _pct24_72_from_price(
+            price=price,
+            ticker=ticker,
+            session_prev_close=session_prev_close,
+            session_prev_close_1ago=session_prev_close_1ago,
+            session_close_3ago=close_3ago,
+        )
         text = _price_pct_dual_text(price, pct24, pct72, separator="·")
         glyph = self._price_direction_glyph(pct24, pct72)
         if glyph.plain:

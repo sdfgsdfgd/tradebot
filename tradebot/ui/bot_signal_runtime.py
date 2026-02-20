@@ -77,42 +77,132 @@ class BotSignalRuntimeMixin:
                     status_text,
                     json.dumps(data, sort_keys=True, default=str) if isinstance(data, dict) else "",
                 )
-                if instance.last_gate_fingerprint == fingerprint:
-                    if status_text == "NO_SIGNAL_SNAPSHOT":
-                        if instance.no_signal_snapshot_since is None:
-                            instance.no_signal_snapshot_since = now_et
-                        last_ping = instance.no_signal_snapshot_last_ping
-                        should_ping = (
-                            last_ping is None
-                            or (now_et - last_ping).total_seconds() >= float(no_signal_watchdog_sec)
+
+                def _maybe_log_no_signal_progress() -> None:
+                    if status_text != "NO_SIGNAL_SNAPSHOT":
+                        return
+                    if instance.no_signal_snapshot_since is None:
+                        instance.no_signal_snapshot_since = now_et
+                    if instance.no_signal_snapshot_last_ping is None:
+                        instance.no_signal_snapshot_last_ping = now_et
+                    last_ping = instance.no_signal_snapshot_last_ping
+                    if not isinstance(last_ping, datetime):
+                        instance.no_signal_snapshot_last_ping = now_et
+                        last_ping = now_et
+                    since_sec = max(
+                        0.0,
+                        float((now_et - instance.no_signal_snapshot_since).total_seconds()),
+                    )
+                    should_ping = (
+                        (now_et - last_ping).total_seconds() >= float(no_signal_watchdog_sec)
+                    )
+                    if not should_ping or since_sec < float(no_signal_watchdog_sec):
+                        return
+                    instance.no_signal_snapshot_last_ping = now_et
+                    payload: dict[str, object] = {"since_sec": since_sec}
+                    if isinstance(data, dict):
+                        for key in ("symbol", "bar_size", "use_rth", "diag"):
+                            if key in data:
+                                payload[key] = data.get(key)
+                    self._journal_write(
+                        event="GATE",
+                        instance=instance,
+                        reason="NO_SIGNAL_PERSISTING",
+                        data=payload,
+                    )
+                    raw_alert_after = (
+                        instance.strategy.get("signal_unrecovered_alert_sec")
+                        if isinstance(instance.strategy, dict)
+                        else None
+                    )
+                    raw_repeat = (
+                        instance.strategy.get("signal_unrecovered_repeat_sec")
+                        if isinstance(instance.strategy, dict)
+                        else None
+                    )
+                    try:
+                        alert_after_sec = (
+                            float(raw_alert_after)
+                            if raw_alert_after is not None
+                            else 900.0
                         )
-                        if should_ping:
-                            instance.no_signal_snapshot_last_ping = now_et
-                            since_sec = max(
-                                0.0,
-                                float((now_et - instance.no_signal_snapshot_since).total_seconds()),
-                            )
-                            payload: dict[str, object] = {"since_sec": since_sec}
-                            if isinstance(data, dict):
-                                for key in ("symbol", "bar_size", "use_rth", "diag"):
-                                    if key in data:
-                                        payload[key] = data.get(key)
-                            self._journal_write(
-                                event="GATE",
-                                instance=instance,
-                                reason="NO_SIGNAL_PERSISTING",
-                                data=payload,
-                            )
+                    except (TypeError, ValueError):
+                        alert_after_sec = 900.0
+                    try:
+                        repeat_sec = (
+                            float(raw_repeat)
+                            if raw_repeat is not None
+                            else 300.0
+                        )
+                    except (TypeError, ValueError):
+                        repeat_sec = 300.0
+                    alert_after_sec = max(float(no_signal_watchdog_sec), float(alert_after_sec))
+                    repeat_sec = max(float(no_signal_watchdog_sec), float(repeat_sec))
+                    if since_sec < float(alert_after_sec):
+                        return
+                    last_unrecovered = instance.no_signal_unrecovered_last_ping
+                    should_alert_unrecovered = (
+                        last_unrecovered is None
+                        or (now_et - last_unrecovered).total_seconds() >= float(repeat_sec)
+                    )
+                    if not should_alert_unrecovered:
+                        return
+                    instance.no_signal_unrecovered_last_ping = now_et
+                    stuck_payload = dict(payload)
+                    stuck_payload["alert_after_sec"] = float(alert_after_sec)
+                    stuck_payload["repeat_sec"] = float(repeat_sec)
+                    stuck_payload["status"] = status_text
+                    self._journal_write(
+                        event="GATE",
+                        instance=instance,
+                        reason="SIGNAL_UNRECOVERED",
+                        data=stuck_payload,
+                    )
+
+                if instance.last_gate_fingerprint == fingerprint:
+                    _maybe_log_no_signal_progress()
                     return
+
+                prev_status = str(instance.last_gate_status or "")
+                prev_no_signal_since = instance.no_signal_snapshot_since
+                recovered_from_no_signal = bool(
+                    isinstance(prev_no_signal_since, datetime)
+                    and prev_status.startswith("NO_SIGNAL_")
+                    and (not status_text.startswith("NO_SIGNAL_"))
+                )
+                if recovered_from_no_signal and isinstance(prev_no_signal_since, datetime):
+                    diag = getattr(self, "_last_signal_snapshot_diag", None)
+                    self._journal_write(
+                        event="GATE",
+                        instance=instance,
+                        reason="SIGNAL_RECOVERED",
+                        data={
+                            "symbol": symbol,
+                            "bar_size": self._signal_bar_size(instance),
+                            "use_rth": bool(self._signal_use_rth(instance)),
+                            "from_status": prev_status,
+                            "to_status": status_text,
+                            "since_ts": prev_no_signal_since.isoformat(),
+                            "resolved_ts": now_et.isoformat(),
+                            "since_sec": max(
+                                0.0,
+                                float((now_et - prev_no_signal_since).total_seconds()),
+                            ),
+                            "diag": dict(diag) if isinstance(diag, dict) else None,
+                        },
+                    )
                 instance.last_gate_fingerprint = fingerprint
                 instance.last_gate_status = status_text
                 if status_text == "NO_SIGNAL_SNAPSHOT":
                     if instance.no_signal_snapshot_since is None:
                         instance.no_signal_snapshot_since = now_et
-                    instance.no_signal_snapshot_last_ping = now_et
+                        instance.no_signal_snapshot_last_ping = now_et
+                        instance.no_signal_unrecovered_last_ping = None
                 else:
                     instance.no_signal_snapshot_since = None
                     instance.no_signal_snapshot_last_ping = None
+                    instance.no_signal_unrecovered_last_ping = None
+                _maybe_log_no_signal_progress()
                 self._journal_write(event="GATE", instance=instance, reason=status_text, data=data)
 
             symbol = str(
@@ -157,13 +247,31 @@ class BotSignalRuntimeMixin:
 
             risk = snap.risk
             bar_health_raw = snap.bar_health if isinstance(snap.bar_health, dict) else None
-            bar_health = dict(bar_health_raw) if bar_health_raw is not None else None
-            if bar_health is not None:
-                last_bar_ts = bar_health.get("last_bar_ts")
+
+            def _bar_health_payload(raw: dict | None) -> dict | None:
+                if raw is None:
+                    return None
+                payload = dict(raw)
+                last_bar_ts = payload.get("last_bar_ts")
                 if isinstance(last_bar_ts, datetime):
-                    bar_health["last_bar_ts"] = last_bar_ts.isoformat()
+                    payload["last_bar_ts"] = last_bar_ts.isoformat()
+                return payload
+
+            bar_health = _bar_health_payload(bar_health_raw)
+            regime_bar_health_raw = (
+                snap.regime_bar_health if isinstance(getattr(snap, "regime_bar_health", None), dict) else None
+            )
+            regime_bar_health = _bar_health_payload(regime_bar_health_raw)
+            regime2_bar_health_raw = (
+                snap.regime2_bar_health if isinstance(getattr(snap, "regime2_bar_health", None), dict) else None
+            )
+            regime2_bar_health = _bar_health_payload(regime2_bar_health_raw)
             stale_signal = bool(bar_health_raw and bar_health_raw.get("stale"))
             gap_signal = bool(bar_health_raw and bar_health_raw.get("gap_detected"))
+            regime_stale = bool(regime_bar_health_raw and regime_bar_health_raw.get("stale"))
+            regime_gap = bool(regime_bar_health_raw and regime_bar_health_raw.get("gap_detected"))
+            regime2_stale = bool(regime2_bar_health_raw and regime2_bar_health_raw.get("stale"))
+            regime2_gap = bool(regime2_bar_health_raw and regime2_bar_health_raw.get("gap_detected"))
             ema_fast = float(snap.signal.ema_fast) if snap.signal.ema_fast is not None else None
             ema_slow = float(snap.signal.ema_slow) if snap.signal.ema_slow is not None else None
             prev_ema_fast = float(snap.signal.prev_ema_fast) if snap.signal.prev_ema_fast is not None else None
@@ -294,6 +402,11 @@ class BotSignalRuntimeMixin:
                                 if getattr(snap, "shock_drawdown_dist_on_pct", None) is not None
                                 else None
                             ),
+                            "drawdown_dist_on_vel_pp": (
+                                float(getattr(snap, "shock_drawdown_dist_on_vel_pp", 0.0))
+                                if getattr(snap, "shock_drawdown_dist_on_vel_pp", None) is not None
+                                else None
+                            ),
                             "drawdown_dist_off_pct": (
                                 float(getattr(snap, "shock_drawdown_dist_off_pct", 0.0))
                                 if getattr(snap, "shock_drawdown_dist_off_pct", None) is not None
@@ -336,6 +449,8 @@ class BotSignalRuntimeMixin:
                         "volume_ema": float(snap.volume_ema) if snap.volume_ema is not None else None,
                         "volume_ema_ready": bool(snap.volume_ema_ready),
                         "bar_health": bar_health,
+                        "regime_bar_health": regime_bar_health,
+                        "regime2_bar_health": regime2_bar_health,
                         "meta": {
                             "entry_signal": str(instance.strategy.get("entry_signal") or "ema"),
                             "signal_bar_size": self._signal_bar_size(instance),
@@ -417,6 +532,36 @@ class BotSignalRuntimeMixin:
                         "bar_ts": snap.bar_ts.isoformat(),
                         "symbol": symbol,
                         "bar_health": bar_health,
+                    },
+                )
+
+            degraded_regime_streams: list[str] = []
+            if regime_stale or regime_gap:
+                degraded_regime_streams.append("regime")
+            if regime2_stale or regime2_gap:
+                degraded_regime_streams.append("regime2")
+            if degraded_regime_streams and not open_items:
+                self._clear_pending_entry(instance)
+                _gate(
+                    "WAITING_REGIME_HEALTH",
+                    {
+                        "bar_ts": snap.bar_ts.isoformat(),
+                        "symbol": symbol,
+                        "degraded_streams": degraded_regime_streams,
+                        "regime_bar_health": regime_bar_health,
+                        "regime2_bar_health": regime2_bar_health,
+                    },
+                )
+                continue
+            if degraded_regime_streams and open_items:
+                _gate(
+                    "REGIME_HEALTH_HOLDING",
+                    {
+                        "bar_ts": snap.bar_ts.isoformat(),
+                        "symbol": symbol,
+                        "degraded_streams": degraded_regime_streams,
+                        "regime_bar_health": regime_bar_health,
+                        "regime2_bar_health": regime2_bar_health,
                     },
                 )
 

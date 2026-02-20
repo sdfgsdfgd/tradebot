@@ -920,6 +920,8 @@ class BotOrderBuilderMixin:
                 shock_dir=snap.shock_dir,
                 shock_atr_pct=snap.shock_atr_pct,
                 shock_dir_down_streak_bars=getattr(snap, "shock_dir_down_streak_bars", None),
+                shock_drawdown_dist_on_pct=getattr(snap, "shock_drawdown_dist_on_pct", None),
+                shock_drawdown_dist_on_vel_pp=getattr(snap, "shock_drawdown_dist_on_vel_pp", None),
                 riskoff=riskoff,
                 risk_dir=snap.shock_dir,
                 riskpanic=riskpanic,
@@ -1131,6 +1133,11 @@ class BotOrderBuilderMixin:
                 "shock_drawdown_dist_on_pct": (
                     float(getattr(snap, "shock_drawdown_dist_on_pct", 0.0))
                     if snap is not None and getattr(snap, "shock_drawdown_dist_on_pct", None) is not None
+                    else None
+                ),
+                "shock_drawdown_dist_on_vel_pp": (
+                    float(getattr(snap, "shock_drawdown_dist_on_vel_pp", 0.0))
+                    if snap is not None and getattr(snap, "shock_drawdown_dist_on_vel_pp", None) is not None
                     else None
                 ),
                 "shock_drawdown_dist_off_pct": (

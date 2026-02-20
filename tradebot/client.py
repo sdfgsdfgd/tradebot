@@ -3,11 +3,15 @@ from __future__ import annotations
 
 import asyncio
 import copy
+import json
 import math
+import os
+import random
 import re
 import time
 from dataclasses import dataclass
 from datetime import date, datetime, time as dtime, timedelta, timezone
+from pathlib import Path
 from typing import Callable, Iterable
 
 from ib_insync import (
@@ -44,6 +48,29 @@ _OVERNIGHT_END = dtime(3, 50)
 _PROXY_CONTRACT_QUOTE_PROBE_INITIAL_SEC = 1.5
 _PROXY_CONTRACT_QUOTE_PROBE_RETRY_SEC = 12.0
 _INDEX_QUOTE_PROBE_INITIAL_SEC = 2.0
+_MAIN_CONTRACT_QUOTE_PROBE_INITIAL_SEC = 0.35
+_MAIN_CONTRACT_QUOTE_PROBE_RETRY_SEC = 4.0
+_MAIN_CONTRACT_STALE_WATCHDOG_SEC = 3.0
+_MAIN_CONTRACT_STALE_REPROBE_SEC = 18.0
+_MAIN_CONTRACT_TOPLINE_STALE_REPROBE_SEC = 45.0
+_MAIN_CONTRACT_STALE_RESUBSCRIBE_SEC = 75.0
+_MAIN_CONTRACT_SNAPSHOT_WAIT_SEC = 0.55
+_MAIN_CONTRACT_HISTORICAL_ATTEMPT_TIMEOUT_SEC = 4.5
+_HISTORICAL_REQUEST_TIMEOUT_SEC = 12.0
+_MAX_HISTORICAL_REQUEST_DIAG_ENTRIES = 256
+_ENTITLEMENT_ERROR_CODES = (10167, 354, 10089, 10090, 10091, 10168)
+_MATCHING_SYMBOL_TIMEOUT_INITIAL_SEC = 5.0
+_MATCHING_SYMBOL_TIMEOUT_RETRY_SEC = 7.0
+_MATCHING_SYMBOL_MAX_ATTEMPTS = 2
+_MATCHING_SYMBOL_RETRY_BASE_SEC = 0.12
+_CLIENT_ID_CONFLICT_PATTERNS = (
+    "client id already in use",
+    "clientid already in use",
+    "duplicate client id",
+    "duplicate clientid",
+    "already connected",
+    "already in use",
+)
 _SEARCH_TERM_ALIASES_BY_MODE: dict[str, dict[str, tuple[str, ...]]] = {
     "STK": {
         "SILVER": ("SLV",),
@@ -66,18 +93,21 @@ _SEARCH_TERM_ALIASES_BY_MODE: dict[str, dict[str, tuple[str, ...]]] = {
         "XAG": ("SI",),
         "GOLD": ("GC",),
         "XAU": ("GC",),
+        "MICRO CRUDE": ("MCL",),
+        "MICRO CRUDE OIL": ("MCL",),
         "BITCOIN": ("MBT", "BTC"),
         "BTC": ("MBT", "BITCOIN"),
-        "MICRO": ("MBT",),
     },
     "FOP": {
         "SILVER": ("SI",),
         "XAG": ("SI",),
         "GOLD": ("GC",),
         "XAU": ("GC",),
+        "1OZ": ("GC",),
+        "MICRO CRUDE": ("MCL",),
+        "MICRO CRUDE OIL": ("MCL",),
         "BITCOIN": ("MBT", "BTC"),
         "BTC": ("MBT", "BITCOIN"),
-        "MICRO": ("MBT",),
     },
 }
 _FUT_EXCHANGE_HINTS: dict[str, tuple[str, ...]] = {
@@ -95,6 +125,25 @@ _FUT_EXCHANGE_HINTS: dict[str, tuple[str, ...]] = {
     "MYM": ("CBOT", "ECBOT", "GLOBEX"),
     "RTY": ("GLOBEX", "CME"),
     "M2K": ("GLOBEX", "CME"),
+}
+_CONTRACT_LABEL_HINTS: dict[str, str] = {
+    # Common futures / futures-option roots where IB matching-symbol descriptions are often empty.
+    "CL": "WTI Crude Oil",
+    "MCL": "Micro WTI Crude Oil",
+    "NG": "Natural Gas",
+    "GC": "Gold",
+    "SI": "Silver",
+    "HG": "Copper",
+    "ES": "E-mini S&P 500",
+    "MES": "Micro E-mini S&P 500",
+    "NQ": "E-mini Nasdaq-100",
+    "MNQ": "Micro E-mini Nasdaq-100",
+    "YM": "E-mini Dow",
+    "MYM": "Micro E-mini Dow",
+    "RTY": "E-mini Russell 2000",
+    "M2K": "Micro E-mini Russell 2000",
+    "BTC": "Bitcoin",
+    "MBT": "Micro Bitcoin",
 }
 # endregion
 
@@ -131,18 +180,46 @@ def _session_bucket(now: datetime) -> str:
     if _RTH_END <= current < _AFTER_END:
         return "POST"
     return "OVERNIGHT"
+
+
+def _futures_session_is_open(now: datetime) -> bool:
+    """Approximate CME/COMEX session state in ET.
+
+    Most futures are open Sun 18:00 -> Fri 17:00 ET with a daily 17:00-18:00
+    maintenance break and a full Saturday closure.
+    """
+    current = now.time()
+    weekday = int(now.weekday())  # Monday=0 ... Sunday=6
+
+    if weekday == 5:
+        return False
+    if weekday == 6:
+        return current >= dtime(18, 0)
+    if weekday == 4 and current >= dtime(17, 0):
+        return False
+    if dtime(17, 0) <= current < dtime(18, 0):
+        return False
+    return True
+
+
+def _futures_md_ladder(now: datetime) -> tuple[int, ...]:
+    # During closed windows, frozen delayed first gives a more truthful last.
+    if _futures_session_is_open(now):
+        return (3, 4)
+    return (4, 3)
 # endregion
 
 
 # region Client
 class IBKRClient:
     async def _connect_ib(self, ib: IB, *, client_id: int) -> None:
+        timeout = max(1.0, float(self._config.connect_timeout_sec))
         if hasattr(ib, "connectAsync"):
             await ib.connectAsync(
                 self._config.host,
                 self._config.port,
                 clientId=int(client_id),
-                timeout=5,
+                timeout=timeout,
             )
             return
         await asyncio.to_thread(
@@ -150,7 +227,7 @@ class IBKRClient:
             self._config.host,
             self._config.port,
             int(client_id),
-            5,
+            timeout,
         )
 
     @staticmethod
@@ -173,6 +250,309 @@ class IBKRClient:
                 return True
         msg = str(exc)
         return "Connect call failed" in msg or "API connection failed" in msg
+
+    @staticmethod
+    def _is_client_id_conflict_error(exc: BaseException) -> bool:
+        message = str(exc or "").strip().lower()
+        if not message:
+            return False
+        if "client" not in message and "duplicate" not in message:
+            return False
+        return any(pattern in message for pattern in _CLIENT_ID_CONFLICT_PATTERNS)
+
+    @staticmethod
+    def _is_api_session_init_error(exc: BaseException) -> bool:
+        if isinstance(exc, (TimeoutError, asyncio.TimeoutError)):
+            return True
+        message = str(exc or "").strip().lower()
+        if not message:
+            return False
+        if "socket connection broken while connecting" in message:
+            return True
+        if "peer closed connection" in message:
+            return True
+        return "api connection failed" in message and "timeout" in message
+
+    @classmethod
+    def _is_pool_rotatable_connect_error(cls, exc: BaseException) -> bool:
+        return bool(
+            cls._is_client_id_conflict_error(exc)
+            or cls._is_api_session_init_error(exc)
+        )
+
+    @staticmethod
+    def _resolve_path_template(raw_path: str) -> str:
+        value = str(raw_path or "").strip()
+        if not value:
+            return ""
+
+        def _replace(match: re.Match[str]) -> str:
+            key = str(match.group(1) or "").strip()
+            fallback = str(match.group(2) or "")
+            if not key:
+                return fallback
+            env_value = os.getenv(key)
+            return env_value if env_value is not None and env_value != "" else fallback
+
+        templated = re.sub(r"\$\{([^}:]+):-([^}]+)\}", _replace, value)
+        return os.path.expandvars(os.path.expanduser(templated))
+
+    def _pair_is_in_pool(self, main_id: int, proxy_id: int) -> bool:
+        if proxy_id != (main_id + 1):
+            return False
+        return bool(
+            self._client_id_pool_start <= int(main_id) <= self._client_id_pool_end
+            and self._client_id_pool_start <= int(proxy_id) <= self._client_id_pool_end
+        )
+
+    def _normalize_seed_pair(self, main_id: int, proxy_id: int) -> tuple[int, int]:
+        if self._pair_is_in_pool(main_id, proxy_id):
+            return int(main_id), int(proxy_id)
+        if self._client_id_ring:
+            normalized_main = int(self._client_id_ring[0])
+            return normalized_main, int(normalized_main + 1)
+        normalized_main = max(1, int(main_id or 1))
+        return normalized_main, max(normalized_main + 1, int(proxy_id or 0))
+
+    def _candidate_pairs(
+        self,
+        *,
+        preferred_pair: tuple[int, int] | None = None,
+    ) -> list[tuple[int, int]]:
+        self._prune_pair_quarantine()
+        seen: set[tuple[int, int]] = set()
+        out: list[tuple[int, int]] = []
+
+        def _push(
+            pair: tuple[int, int] | None,
+            *,
+            require_pool: bool = True,
+            allow_quarantined: bool = False,
+        ) -> None:
+            if pair is None:
+                return
+            main_raw, proxy_raw = pair
+            main_id = int(main_raw or 0)
+            proxy_id = int(proxy_raw or 0)
+            if require_pool and not self._pair_is_in_pool(main_id, proxy_id):
+                return
+            key = (main_id, proxy_id)
+            if key in seen:
+                return
+            if not allow_quarantined and self._is_pair_quarantined(main_id, proxy_id):
+                return
+            seen.add(key)
+            out.append(key)
+
+        _push(preferred_pair)
+        _push((int(self._main_client_id), int(self._proxy_client_id)))
+        max_attempts = max(1, int(self._config.client_id_burst_attempts))
+        ring_size = len(self._client_id_ring)
+        spins = 0
+        while len(out) < max_attempts and ring_size > 0 and spins < (ring_size * 2):
+            idx = int(self._client_id_ring_index % ring_size)
+            main_id = int(self._client_id_ring[idx])
+            self._client_id_ring_index = (idx + 1) % ring_size
+            _push((main_id, main_id + 1))
+            spins += 1
+        if not out:
+            _push(
+                (
+                    int(self._main_client_id),
+                    int(self._proxy_client_id),
+                ),
+                require_pool=False,
+                allow_quarantined=True,
+            )
+        return out[:max_attempts]
+
+    def _prune_pair_quarantine(self) -> None:
+        if not self._pair_quarantine_until_mono:
+            return
+        now = time.monotonic()
+        stale = [
+            key for key, until_mono in self._pair_quarantine_until_mono.items() if float(until_mono) <= now
+        ]
+        for key in stale:
+            self._pair_quarantine_until_mono.pop(key, None)
+
+    def _is_pair_quarantined(self, main_id: int, proxy_id: int) -> bool:
+        self._prune_pair_quarantine()
+        key = (int(main_id), int(proxy_id))
+        until_mono = self._pair_quarantine_until_mono.get(key)
+        if until_mono is None:
+            return False
+        return bool(float(until_mono) > time.monotonic())
+
+    def _quarantine_pair(
+        self,
+        main_id: int,
+        proxy_id: int,
+        *,
+        delay_sec: float | None = None,
+    ) -> None:
+        if not self._pair_is_in_pool(int(main_id), int(proxy_id)):
+            return
+        ttl = float(delay_sec) if delay_sec is not None else float(self._config.client_id_quarantine_sec)
+        ttl = max(1.0, ttl)
+        key = (int(main_id), int(proxy_id))
+        until_mono = time.monotonic() + ttl
+        previous = self._pair_quarantine_until_mono.get(key)
+        if previous is None or float(until_mono) > float(previous):
+            self._pair_quarantine_until_mono[key] = float(until_mono)
+
+    def _client_id_backoff_remaining_sec(self) -> float:
+        until_mono = self._client_id_backoff_until_mono
+        if until_mono is None:
+            return 0.0
+        return max(0.0, float(until_mono) - time.monotonic())
+
+    def _arm_client_id_backoff(self) -> float:
+        attempts = max(0, int(self._client_id_backoff_failures))
+        base = max(0.5, float(self._config.client_id_backoff_initial_sec))
+        multiplier = max(1.0, float(self._config.client_id_backoff_multiplier))
+        capped = max(base, float(self._config.client_id_backoff_max_sec))
+        delay = min(capped, base * (multiplier ** float(attempts)))
+        jitter_ratio = max(0.0, min(0.9, float(self._config.client_id_backoff_jitter_ratio)))
+        if jitter_ratio > 0:
+            jitter = random.uniform(1.0 - jitter_ratio, 1.0 + jitter_ratio)
+            delay = max(0.5, float(delay) * float(jitter))
+        self._client_id_backoff_failures = attempts + 1
+        self._client_id_backoff_until_mono = time.monotonic() + float(delay)
+        return float(delay)
+
+    def _reset_client_id_backoff(self) -> None:
+        self._client_id_backoff_failures = 0
+        self._client_id_backoff_until_mono = None
+
+    def _maybe_persist_client_id_pair(self) -> None:
+        if not self._ib.isConnected() or not self._ib_proxy.isConnected():
+            return
+        main_id = self._connected_main_client_id
+        proxy_id = self._connected_proxy_client_id
+        if main_id is None or proxy_id is None:
+            return
+        if not self._pair_is_in_pool(int(main_id), int(proxy_id)):
+            return
+        path = self._client_id_state_path
+        if path is None:
+            return
+        payload = {
+            "main_client_id": int(main_id),
+            "proxy_client_id": int(proxy_id),
+            "updated_at_epoch": int(time.time()),
+        }
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            tmp_path = path.with_suffix(path.suffix + ".tmp")
+            tmp_path.write_text(json.dumps(payload, separators=(",", ":")), encoding="utf-8")
+            tmp_path.replace(path)
+        except Exception:
+            return
+
+    def _load_persisted_client_id_pair(self) -> tuple[int, int] | None:
+        path = self._client_id_state_path
+        if path is None or not path.exists():
+            return None
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            return None
+        if not isinstance(payload, dict):
+            return None
+        try:
+            main_id = int(payload.get("main_client_id") or 0)
+            proxy_id = int(payload.get("proxy_client_id") or 0)
+        except (TypeError, ValueError):
+            return None
+        if not self._pair_is_in_pool(main_id, proxy_id):
+            return None
+        return int(main_id), int(proxy_id)
+
+    async def _connect_main_with_client_id_pool(self) -> None:
+        cooldown = self._client_id_backoff_remaining_sec()
+        if cooldown > 0:
+            raise ConnectionError(f"IBKR client-id backoff active ({cooldown:.1f}s remaining)")
+        last_exc: Exception | None = None
+        conflict_detected = False
+        rotatable_detected = False
+        for main_id, proxy_id in self._candidate_pairs(preferred_pair=self._persisted_client_id_pair):
+            self._persisted_client_id_pair = None
+            self._main_client_id = int(main_id)
+            self._proxy_client_id = int(proxy_id)
+            try:
+                await self._connect_ib(self._ib, client_id=int(self._main_client_id))
+                self._connected_main_client_id = int(self._main_client_id)
+                self._reset_client_id_backoff()
+                self._maybe_persist_client_id_pair()
+                return
+            except Exception as exc:  # noqa: PERF203 - clarity for selective retry behavior
+                if self._is_pool_rotatable_connect_error(exc):
+                    if self._is_client_id_conflict_error(exc):
+                        conflict_detected = True
+                    else:
+                        rotatable_detected = True
+                    self._quarantine_pair(main_id, proxy_id)
+                    self._safe_disconnect(self._ib)
+                    self._connected_main_client_id = None
+                    last_exc = exc if isinstance(exc, Exception) else Exception(str(exc))
+                    continue
+                raise
+        if conflict_detected:
+            delay = self._arm_client_id_backoff()
+            raise ConnectionError(f"IBKR main client-id pool exhausted; backoff {delay:.1f}s")
+        if rotatable_detected:
+            delay = self._arm_client_id_backoff()
+            detail = type(last_exc).__name__ if last_exc is not None else "error"
+            raise ConnectionError(
+                f"IBKR main client-id connect retries exhausted; backoff {delay:.1f}s ({detail})"
+            )
+        if last_exc is not None:
+            raise last_exc
+        raise ConnectionError("IBKR main client connection failed")
+
+    async def _connect_proxy_with_client_id_pool(self) -> None:
+        cooldown = self._client_id_backoff_remaining_sec()
+        if cooldown > 0:
+            raise ConnectionError(f"IBKR client-id backoff active ({cooldown:.1f}s remaining)")
+        preferred = (int(self._main_client_id), int(self._proxy_client_id))
+        last_exc: Exception | None = None
+        conflict_detected = False
+        rotatable_detected = False
+        for main_id, proxy_id in self._candidate_pairs(preferred_pair=preferred):
+            self._main_client_id = int(main_id)
+            self._proxy_client_id = int(proxy_id)
+            try:
+                await self._connect_ib(self._ib_proxy, client_id=int(self._proxy_client_id))
+                self._connected_proxy_client_id = int(self._proxy_client_id)
+                self._proxy_error = None
+                self._reset_client_id_backoff()
+                self._maybe_persist_client_id_pair()
+                return
+            except Exception as exc:  # noqa: PERF203 - clarity for selective retry behavior
+                if self._is_pool_rotatable_connect_error(exc):
+                    if self._is_client_id_conflict_error(exc):
+                        conflict_detected = True
+                    else:
+                        rotatable_detected = True
+                    self._quarantine_pair(main_id, proxy_id)
+                    self._safe_disconnect(self._ib_proxy)
+                    self._connected_proxy_client_id = None
+                    last_exc = exc if isinstance(exc, Exception) else Exception(str(exc))
+                    continue
+                raise
+        if conflict_detected:
+            delay = self._arm_client_id_backoff()
+            raise ConnectionError(f"IBKR proxy client-id pool exhausted; backoff {delay:.1f}s")
+        if rotatable_detected:
+            delay = self._arm_client_id_backoff()
+            detail = type(last_exc).__name__ if last_exc is not None else "error"
+            raise ConnectionError(
+                f"IBKR proxy client-id connect retries exhausted; backoff {delay:.1f}s ({detail})"
+            )
+        if last_exc is not None:
+            raise last_exc
+        raise ConnectionError("IBKR proxy client connection failed")
 
     def _request_reconnect(self) -> None:
         if self._shutdown:
@@ -224,6 +604,8 @@ class IBKRClient:
         self._proxy_contract_probe_tasks: dict[int, asyncio.Task] = {}
         self._proxy_contract_live_tasks: dict[int, asyncio.Task] = {}
         self._proxy_contract_delayed_tasks: dict[int, asyncio.Task] = {}
+        self._main_contract_probe_tasks: dict[int, asyncio.Task] = {}
+        self._main_contract_watchdog_tasks: dict[int, asyncio.Task] = {}
         self._proxy_session_bucket: str | None = _session_bucket(_now_et())
         self._proxy_session_include_overnight: bool | None = None
         self._detail_tickers: dict[int, tuple[IB, Ticker]] = {}
@@ -244,8 +626,14 @@ class IBKRClient:
         self._pnl_single_by_con_id: dict[int, PnLSingle] = {}
         self._pnl_single_account: str | None = None
         self._account_value_cache: dict[tuple[str, str], tuple[float, datetime]] = {}
-        self._session_close_cache: dict[int, tuple[float | None, float | None, float]] = {}
+        self._session_close_cache: dict[
+            int, tuple[float | None, float | None, float | None, float]
+        ] = {}
+        self._last_historical_request: dict[str, object] | None = None
+        self._last_historical_request_by_con_id: dict[int, dict[str, object]] = {}
         self._order_error_cache: dict[int, tuple[float, int, str]] = {}
+        self._market_rule_increments: dict[int, tuple[tuple[float, float], ...]] = {}
+        self._contract_price_increments: dict[int, tuple[tuple[float, float], ...]] = {}
         self._fx_rate_cache: dict[tuple[str, str], tuple[float, float]] = {}
         self._farm_connectivity_lost = False
         self._reconnect_requested = False
@@ -253,6 +641,48 @@ class IBKRClient:
         self._resubscribe_proxy_needed = False
         self._reconnect_task: asyncio.Task | None = None
         self._reconnect_fast_deadline: float | None = None
+        pool_start = max(1, int(self._config.client_id_pool_start))
+        pool_end = int(self._config.client_id_pool_end)
+        if pool_end <= pool_start:
+            pool_start = 500
+            pool_end = 899
+        self._client_id_pool_start = int(pool_start)
+        self._client_id_pool_end = int(pool_end)
+        self._client_id_ring: list[int] = [
+            candidate
+            for candidate in range(self._client_id_pool_start, self._client_id_pool_end + 1, 2)
+            if (candidate + 1) <= self._client_id_pool_end
+        ]
+        if not self._client_id_ring:
+            fallback = max(1, int(self._config.client_id or 1))
+            self._client_id_ring = [fallback]
+        seed_main, seed_proxy = self._normalize_seed_pair(
+            int(self._config.client_id),
+            int(self._config.proxy_client_id),
+        )
+        self._main_client_id = int(seed_main)
+        self._proxy_client_id = int(seed_proxy)
+        self._client_id_ring_index = 0
+        if self._client_id_ring and self._main_client_id in self._client_id_ring:
+            self._client_id_ring_index = (
+                self._client_id_ring.index(self._main_client_id) + 1
+            ) % len(self._client_id_ring)
+        state_path = self._resolve_path_template(str(self._config.client_id_state_file))
+        self._client_id_state_path: Path | None = Path(state_path) if state_path else None
+        self._persisted_client_id_pair = self._load_persisted_client_id_pair()
+        if self._persisted_client_id_pair is not None:
+            persisted_main, persisted_proxy = self._persisted_client_id_pair
+            self._main_client_id = int(persisted_main)
+            self._proxy_client_id = int(persisted_proxy)
+            if self._client_id_ring and self._main_client_id in self._client_id_ring:
+                self._client_id_ring_index = (
+                    self._client_id_ring.index(self._main_client_id) + 1
+                ) % len(self._client_id_ring)
+        self._client_id_backoff_failures = 0
+        self._client_id_backoff_until_mono: float | None = None
+        self._pair_quarantine_until_mono: dict[tuple[int, int], float] = {}
+        self._connected_main_client_id: int | None = None
+        self._connected_proxy_client_id: int | None = None
         self._ib.errorEvent += self._on_error_main
         self._ib.disconnectedEvent += self._on_disconnected_main
         self._ib.updatePortfolioEvent += self._on_stream_update
@@ -300,9 +730,11 @@ class IBKRClient:
             if self._ib.isConnected():
                 return
             try:
-                await self._connect_ib(self._ib, client_id=int(self._config.client_id))
+                await self._connect_main_with_client_id_pool()
             except Exception as exc:
-                if self._is_retryable_connect_error(exc):
+                if self._is_retryable_connect_error(exc) or self._is_client_id_conflict_error(exc):
+                    self._request_reconnect()
+                elif "client-id" in str(exc).lower():
                     self._request_reconnect()
                 raise
 
@@ -316,11 +748,13 @@ class IBKRClient:
             if self._ib_proxy.isConnected():
                 return
             try:
-                await self._connect_ib(self._ib_proxy, client_id=int(self._config.proxy_client_id))
+                await self._connect_proxy_with_client_id_pool()
                 self._proxy_error = None
             except Exception as exc:
                 self._proxy_error = str(exc)
-                if self._is_retryable_connect_error(exc):
+                if self._is_retryable_connect_error(exc) or self._is_client_id_conflict_error(exc):
+                    self._request_reconnect()
+                elif "client-id" in str(exc).lower():
                     self._request_reconnect()
                 raise
 
@@ -360,9 +794,17 @@ class IBKRClient:
         for task in self._proxy_contract_delayed_tasks.values():
             if task and not task.done():
                 task.cancel()
+        for task in self._main_contract_probe_tasks.values():
+            if task and not task.done():
+                task.cancel()
+        for task in self._main_contract_watchdog_tasks.values():
+            if task and not task.done():
+                task.cancel()
         self._proxy_contract_probe_tasks = {}
         self._proxy_contract_live_tasks = {}
         self._proxy_contract_delayed_tasks = {}
+        self._main_contract_probe_tasks = {}
+        self._main_contract_watchdog_tasks = {}
         self._detail_tickers = {}
         self._ticker_owners = {}
         self._pnl = None
@@ -371,9 +813,14 @@ class IBKRClient:
         self._pnl_single_account = None
         self._account_value_cache = {}
         self._session_close_cache = {}
+        self._last_historical_request = None
+        self._last_historical_request_by_con_id = {}
         self._fx_rate_cache = {}
         self._resubscribe_main_needed = False
         self._resubscribe_proxy_needed = False
+        self._reset_client_id_backoff()
+        self._connected_main_client_id = None
+        self._connected_proxy_client_id = None
 
     async def fetch_portfolio(self) -> list[PortfolioItem]:
         """Fetch a snapshot of portfolio items (filtered by account if provided)."""
@@ -422,6 +869,21 @@ class IBKRClient:
     def proxy_error(self) -> str | None:
         return self._proxy_error
 
+    def last_historical_request(self, contract: Contract | None = None) -> dict[str, object] | None:
+        payload = None
+        if contract is not None:
+            try:
+                con_id = int(getattr(contract, "conId", 0) or 0)
+            except (TypeError, ValueError):
+                con_id = 0
+            if con_id > 0:
+                payload = self._last_historical_request_by_con_id.get(con_id)
+        if payload is None:
+            payload = self._last_historical_request
+        if not isinstance(payload, dict):
+            return None
+        return copy.deepcopy(payload)
+
     def set_update_callback(self, callback: Callable[[], None]) -> None:
         self._update_callback = callback
 
@@ -446,6 +908,24 @@ class IBKRClient:
             return None
         try:
             value = float(getattr(entry, "unrealizedPnL", None))
+        except (TypeError, ValueError):
+            return None
+        if math.isnan(value):
+            return None
+        return float(value)
+
+    def pnl_single_daily(self, con_id: int) -> float | None:
+        try:
+            key = int(con_id or 0)
+        except (TypeError, ValueError):
+            key = 0
+        if key <= 0:
+            return None
+        entry = self._pnl_single_by_con_id.get(key)
+        if entry is None:
+            return None
+        try:
+            value = float(getattr(entry, "dailyPnL", None))
         except (TypeError, ValueError):
             return None
         if math.isnan(value):
@@ -482,21 +962,276 @@ class IBKRClient:
         _ib, ticker = entry
         return ticker
 
+    @staticmethod
+    def _coerce_price_increments(raw: object) -> tuple[tuple[float, float], ...]:
+        if not isinstance(raw, (list, tuple)):
+            return ()
+        rows: list[tuple[float, float]] = []
+        for row in raw:
+            if not isinstance(row, (list, tuple)) or len(row) < 2:
+                continue
+            try:
+                low_edge = float(row[0])
+                increment = float(row[1])
+            except (TypeError, ValueError):
+                continue
+            if increment <= 0:
+                continue
+            rows.append((max(0.0, low_edge), increment))
+        if not rows:
+            return ()
+        rows.sort(key=lambda entry: entry[0])
+        deduped: list[tuple[float, float]] = []
+        for low_edge, increment in rows:
+            if deduped and abs(deduped[-1][0] - low_edge) < 1e-9:
+                deduped[-1] = (low_edge, increment)
+            else:
+                deduped.append((low_edge, increment))
+        return tuple(deduped)
+
+    @classmethod
+    def _price_increment_for_value(
+        cls,
+        increments: tuple[tuple[float, float], ...],
+        *,
+        price: float | None,
+    ) -> float | None:
+        normalized = cls._coerce_price_increments(list(increments))
+        if not normalized:
+            return None
+        try:
+            ref = float(price) if price is not None else 0.0
+        except (TypeError, ValueError):
+            ref = 0.0
+        ref = max(0.0, ref)
+        selected = normalized[0][1]
+        for low_edge, increment in normalized:
+            if ref >= low_edge:
+                selected = increment
+            else:
+                break
+        return selected if selected > 0 else None
+
+    @staticmethod
+    def _attach_price_increments(target: object | None, increments: tuple[tuple[float, float], ...]) -> None:
+        if target is None or not increments:
+            return
+        setattr(target, "tbPriceIncrements", increments)
+
+    async def _prime_contract_price_increments(
+        self,
+        contract: Contract,
+        *,
+        ticker: Ticker | None = None,
+    ) -> tuple[tuple[float, float], ...]:
+        source_contract = contract
+        sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
+        con_id = int(getattr(contract, "conId", 0) or 0)
+        if con_id > 0:
+            cached = self._contract_price_increments.get(con_id)
+            if cached:
+                # Self-heal older flat-minTick cache entries for FOP that can cause
+                # invalid prices above tier boundaries.
+                if (
+                    sec_type == "FOP"
+                    and len(cached) == 1
+                    and float(cached[0][0]) <= 0.0
+                    and float(cached[0][1]) <= 0.05
+                ):
+                    self._contract_price_increments.pop(con_id, None)
+                else:
+                    self._attach_price_increments(contract, cached)
+                    if source_contract is not contract:
+                        self._attach_price_increments(source_contract, cached)
+                    if ticker is not None:
+                        self._attach_price_increments(ticker, cached)
+                        self._attach_price_increments(getattr(ticker, "contract", None), cached)
+                    return cached
+        await self.connect()
+        details: list[object] = []
+        try:
+            details = list(await self._ib.reqContractDetailsAsync(contract) or [])
+        except Exception:
+            details = []
+        if con_id > 0 and not details:
+            try:
+                details = list(await self._ib.reqContractDetailsAsync(Contract(conId=con_id)) or [])
+            except Exception:
+                details = []
+        detail = None
+        if con_id > 0:
+            for candidate in details:
+                detail_contract = getattr(candidate, "contract", None)
+                try:
+                    detail_con_id = int(getattr(detail_contract, "conId", 0) or 0)
+                except (TypeError, ValueError):
+                    detail_con_id = 0
+                if detail_con_id and detail_con_id == con_id:
+                    detail = candidate
+                    break
+        if detail is None and details:
+            detail = details[0]
+        detail_contract = getattr(detail, "contract", None) if detail is not None else None
+        if detail_contract is not None:
+            contract = detail_contract
+            try:
+                con_id = int(getattr(detail_contract, "conId", 0) or con_id)
+            except (TypeError, ValueError):
+                pass
+        increments: tuple[tuple[float, float], ...] = ()
+        market_rule_ids = ""
+        if detail is not None:
+            market_rule_ids = str(getattr(detail, "marketRuleIds", "") or "").strip()
+            try:
+                detail_min_tick = float(getattr(detail, "minTick", 0.0) or 0.0)
+            except (TypeError, ValueError):
+                detail_min_tick = 0.0
+            if detail_min_tick > 0:
+                setattr(contract, "minTick", detail_min_tick)
+                if source_contract is not contract:
+                    setattr(source_contract, "minTick", detail_min_tick)
+                if ticker is not None:
+                    setattr(ticker, "minTick", detail_min_tick)
+                    ticker_contract = getattr(ticker, "contract", None)
+                    if ticker_contract is not None:
+                        setattr(ticker_contract, "minTick", detail_min_tick)
+        if con_id > 0 and not market_rule_ids:
+            try:
+                retry_details = list(await self._ib.reqContractDetailsAsync(Contract(conId=con_id)) or [])
+            except Exception:
+                retry_details = []
+            if retry_details:
+                retry_detail = retry_details[0]
+                retry_contract = getattr(retry_detail, "contract", None)
+                if retry_contract is not None:
+                    contract = retry_contract
+                    try:
+                        con_id = int(getattr(retry_contract, "conId", 0) or con_id)
+                    except (TypeError, ValueError):
+                        pass
+                market_rule_ids = str(getattr(retry_detail, "marketRuleIds", "") or "").strip()
+                try:
+                    retry_min_tick = float(getattr(retry_detail, "minTick", 0.0) or 0.0)
+                except (TypeError, ValueError):
+                    retry_min_tick = 0.0
+                if retry_min_tick > 0:
+                    setattr(contract, "minTick", retry_min_tick)
+                    if source_contract is not contract:
+                        setattr(source_contract, "minTick", retry_min_tick)
+                    if ticker is not None:
+                        setattr(ticker, "minTick", retry_min_tick)
+                        ticker_contract = getattr(ticker, "contract", None)
+                        if ticker_contract is not None:
+                            setattr(ticker_contract, "minTick", retry_min_tick)
+        for raw_rule_id in [segment.strip() for segment in market_rule_ids.split(",") if segment.strip()]:
+            try:
+                rule_id = int(raw_rule_id)
+            except (TypeError, ValueError):
+                continue
+            rule_increments = self._market_rule_increments.get(rule_id)
+            if not rule_increments:
+                rule_increments = ()
+                for _attempt in range(2):
+                    try:
+                        rows = list(await self._ib.reqMarketRuleAsync(rule_id) or [])
+                    except Exception:
+                        rows = []
+                    rule_increments = self._coerce_price_increments(
+                        [
+                            (
+                                getattr(row, "lowEdge", None),
+                                getattr(row, "increment", None),
+                            )
+                            for row in rows
+                        ]
+                    )
+                    if rule_increments:
+                        break
+                    await asyncio.sleep(0.05)
+                if rule_increments:
+                    self._market_rule_increments[rule_id] = rule_increments
+            if rule_increments:
+                increments = rule_increments
+                break
+        if not increments and con_id > 0:
+            entry = self._detail_tickers.get(con_id)
+            if entry is not None:
+                _entry_ib, entry_ticker = entry
+                increments = self._coerce_price_increments(getattr(entry_ticker, "tbPriceIncrements", None))
+                if not increments:
+                    increments = self._coerce_price_increments(
+                        getattr(getattr(entry_ticker, "contract", None), "tbPriceIncrements", None)
+                    )
+                if increments and ticker is not None:
+                    self._attach_price_increments(ticker, increments)
+                    self._attach_price_increments(getattr(ticker, "contract", None), increments)
+        if not increments:
+            increments = self._coerce_price_increments(getattr(source_contract, "tbPriceIncrements", None))
+        if con_id > 0 and increments:
+            self._contract_price_increments[con_id] = increments
+        self._attach_price_increments(contract, increments)
+        if source_contract is not contract:
+            self._attach_price_increments(source_contract, increments)
+        if ticker is not None:
+            self._attach_price_increments(ticker, increments)
+            self._attach_price_increments(getattr(ticker, "contract", None), increments)
+        return increments
+
+    def _normalize_limit_price_increment(self, contract: Contract, limit_price: float) -> float:
+        try:
+            price_value = float(limit_price)
+        except (TypeError, ValueError):
+            raise ValueError("limit_price must be numeric") from None
+        increments = self._coerce_price_increments(getattr(contract, "tbPriceIncrements", None))
+        if not increments:
+            con_id = int(getattr(contract, "conId", 0) or 0)
+            if con_id > 0:
+                increments = self._contract_price_increments.get(con_id, ())
+                if not increments:
+                    entry = self._detail_tickers.get(con_id)
+                    if entry is not None:
+                        _ib, detail_ticker = entry
+                        increments = self._coerce_price_increments(
+                            getattr(detail_ticker, "tbPriceIncrements", None)
+                        )
+                        if not increments:
+                            increments = self._coerce_price_increments(
+                                getattr(getattr(detail_ticker, "contract", None), "tbPriceIncrements", None)
+                            )
+                        if increments:
+                            self._contract_price_increments[con_id] = increments
+                            self._attach_price_increments(contract, increments)
+        increment = self._price_increment_for_value(increments, price=price_value)
+        if increment is None:
+            try:
+                raw_tick = float(getattr(contract, "minTick", 0.0) or 0.0)
+            except (TypeError, ValueError):
+                raw_tick = 0.0
+            increment = raw_tick if raw_tick > 0 else None
+        if increment is None or increment <= 0:
+            return float(price_value)
+        return round(float(price_value) / float(increment)) * float(increment)
+
     async def ensure_ticker(self, contract: Contract, *, owner: str = "default") -> Ticker:
         con_id = int(contract.conId or 0)
-        use_proxy = contract.secType in ("STK", "OPT")
+        sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
+        use_proxy = sec_type in ("STK", "OPT")
         contract_force_delayed = bool(
             use_proxy and con_id and con_id in self._proxy_contract_force_delayed
         )
+        requested_md_type = 1
         proxy_md_type = 1
         if use_proxy:
             await self.connect_proxy()
             proxy_md_type = 3 if self._proxy_force_delayed or contract_force_delayed else 1
             self._ib_proxy.reqMarketDataType(proxy_md_type)
+            requested_md_type = int(proxy_md_type)
             ib = self._ib_proxy
         else:
             await self.connect()
-            self._ib.reqMarketDataType(3)
+            md_ladder = _futures_md_ladder(_now_et()) if sec_type in ("FUT", "FOP") else (3,)
+            self._ib.reqMarketDataType(int(md_ladder[0]))
+            requested_md_type = int(md_ladder[0])
             ib = self._ib
         req_contract = contract
         if contract.secType == "STK":
@@ -506,22 +1241,20 @@ class IBKRClient:
                 include_overnight=include_overnight,
                 delayed=bool(use_proxy and proxy_md_type == 3),
             )
-        elif contract.secType in ("OPT", "FOP"):
-            if not contract.exchange:
-                req_contract = copy.copy(contract)
-                if contract.secType == "FOP":
-                    primary_exchange = getattr(contract, "primaryExchange", "") or ""
-                    req_contract.exchange = primary_exchange or "CME"
-                else:
-                    req_contract.exchange = "SMART"
+        elif sec_type in ("FUT", "OPT", "FOP"):
+            req_contract = self._normalize_derivative_market_data_contract(
+                contract,
+                sec_type=sec_type,
+            )
         cached = self._detail_tickers.get(con_id) if con_id else None
         if cached:
             if con_id:
                 self._ticker_owners.setdefault(con_id, set()).add(owner)
             cached_ib, cached_ticker = cached
-            desired_exchange = getattr(req_contract, "exchange", "") or ""
-            current_exchange = getattr(cached_ticker.contract, "exchange", "") or ""
-            if contract.secType == "STK" and desired_exchange and desired_exchange != current_exchange:
+            desired_exchange = str(getattr(req_contract, "exchange", "") or "").strip().upper()
+            current_exchange = str(getattr(cached_ticker.contract, "exchange", "") or "").strip().upper()
+            exchange_sensitive = sec_type in ("STK", "OPT", "FUT", "FOP")
+            if exchange_sensitive and desired_exchange and desired_exchange != current_exchange:
                 try:
                     cached_ib.cancelMktData(cached_ticker.contract)
                 except Exception:
@@ -534,6 +1267,19 @@ class IBKRClient:
                             self._start_proxy_contract_delayed_resubscribe(req_contract)
                     else:
                         self._start_proxy_contract_quote_probe(req_contract)
+                elif con_id and sec_type in ("FUT", "FOP"):
+                    self._start_main_contract_quote_watchdog(req_contract)
+                    if self._ticker_has_data(ticker):
+                        self._tag_ticker_quote_meta(ticker, source="stream")
+                    elif self._ticker_has_close_data(ticker):
+                        self._tag_ticker_quote_meta(ticker, source="stream-close-only")
+                    else:
+                        self._start_main_contract_quote_probe(req_contract)
+                if sec_type in ("OPT", "FOP", "FUT"):
+                    try:
+                        await self._prime_contract_price_increments(req_contract, ticker=ticker)
+                    except Exception:
+                        pass
                 return ticker
             if use_proxy and con_id:
                 if con_id in self._proxy_contract_force_delayed:
@@ -541,8 +1287,25 @@ class IBKRClient:
                         self._start_proxy_contract_delayed_resubscribe(req_contract)
                 elif not self._ticker_has_data(cached_ticker):
                     self._start_proxy_contract_quote_probe(req_contract)
+            elif con_id and sec_type in ("FUT", "FOP"):
+                self._start_main_contract_quote_watchdog(req_contract)
+                if self._ticker_has_data(cached_ticker):
+                    self._tag_ticker_quote_meta(cached_ticker, source="stream")
+                elif self._ticker_has_close_data(cached_ticker):
+                    self._tag_ticker_quote_meta(cached_ticker, source="stream-close-only")
+                else:
+                    self._start_main_contract_quote_probe(req_contract)
+            if sec_type in ("OPT", "FOP", "FUT"):
+                try:
+                    await self._prime_contract_price_increments(req_contract, ticker=cached_ticker)
+                except Exception:
+                    pass
             return cached_ticker
         ticker = ib.reqMktData(req_contract)
+        try:
+            ticker.marketDataType = int(requested_md_type)
+        except Exception:
+            pass
         if con_id:
             self._detail_tickers[con_id] = (ib, ticker)
             self._ticker_owners.setdefault(con_id, set()).add(owner)
@@ -552,7 +1315,49 @@ class IBKRClient:
                     self._start_proxy_contract_delayed_resubscribe(req_contract)
             else:
                 self._start_proxy_contract_quote_probe(req_contract)
+        elif con_id and sec_type in ("FUT", "FOP"):
+            self._start_main_contract_quote_watchdog(req_contract)
+            if self._ticker_has_data(ticker):
+                self._tag_ticker_quote_meta(ticker, source="stream")
+            elif self._ticker_has_close_data(ticker):
+                self._tag_ticker_quote_meta(ticker, source="stream-close-only")
+            else:
+                self._start_main_contract_quote_probe(req_contract)
+        if sec_type in ("OPT", "FOP", "FUT"):
+            try:
+                await self._prime_contract_price_increments(req_contract, ticker=ticker)
+            except Exception:
+                pass
         return ticker
+
+    async def refresh_live_snapshot_once(self, contract: Contract) -> str | None:
+        """Try a one-shot live snapshot for an already-bound FUT/FOP detail ticker.
+
+        Returns the applied quote-source label (for status text) on success, else None.
+        """
+        con_id = int(getattr(contract, "conId", 0) or 0)
+        if con_id <= 0:
+            return None
+        entry = self._detail_tickers.get(con_id)
+        if entry is None:
+            return None
+        ib, ticker = entry
+        if ib is not self._ib:
+            return None
+        sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
+        if sec_type not in ("FUT", "FOP"):
+            return None
+        await self.connect()
+        req_contract = getattr(ticker, "contract", None) or contract
+        ok = await self._attempt_main_contract_snapshot_quote(
+            req_contract,
+            ticker=ticker,
+            md_types=(1, 2),
+        )
+        if not ok:
+            return None
+        source = str(getattr(ticker, "tbQuoteSource", "") or "").strip()
+        return source or "snapshot"
 
     async def place_limit_order(
         self,
@@ -574,6 +1379,12 @@ class IBKRClient:
                 order_contract.exchange = "OVERNIGHT"
                 # IBKR rejects STK OVERNIGHT orders with GTC; DAY is required.
                 tif = "DAY"
+        if str(getattr(order_contract, "secType", "") or "").strip().upper() in ("OPT", "FOP", "FUT"):
+            try:
+                await self._prime_contract_price_increments(order_contract)
+            except Exception:
+                pass
+        limit_price = self._normalize_limit_price_increment(order_contract, float(limit_price))
         order = LimitOrder(action, quantity, limit_price, tif=tif)
         if contract.secType == "STK" and outside_rth and outside_session and not include_overnight:
             order.outsideRth = True
@@ -586,7 +1397,11 @@ class IBKRClient:
         order = trade.order
         if not hasattr(order, "lmtPrice"):
             raise ValueError("modify_limit_order: trade has no lmtPrice")
-        order.lmtPrice = float(limit_price)
+        try:
+            await self._prime_contract_price_increments(trade.contract)
+        except Exception:
+            pass
+        order.lmtPrice = self._normalize_limit_price_increment(trade.contract, float(limit_price))
         return self._ib.placeOrder(trade.contract, order)
 
     def open_trades_for_conids(self, con_ids: Iterable[int]) -> list[Trade]:
@@ -621,14 +1436,33 @@ class IBKRClient:
         if contract.secType == "FOP":
             under_con_id = int(getattr(contract, "underConId", 0) or 0)
             if not under_con_id:
+                symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
+                if not symbol:
+                    return None
+                preferred: list[str] = []
+                for exchange in (
+                    str(getattr(contract, "exchange", "") or "").strip().upper(),
+                    str(getattr(contract, "primaryExchange", "") or "").strip().upper(),
+                ):
+                    if not exchange or exchange in preferred:
+                        continue
+                    preferred.append(exchange)
+                for exchange in self._future_exchange_candidates(symbol, preferred):
+                    future = await self.front_future(
+                        symbol,
+                        exchange=exchange,
+                        cache_ttl_sec=900.0,
+                    )
+                    if future is not None:
+                        return future
                 return None
             candidate = Contract(conId=under_con_id)
             qualified = await self._qualify_contract(candidate, use_proxy=False)
             return qualified or candidate
         return None
 
-    @staticmethod
-    def _historical_request_contract(contract: Contract, *, sec_type: str) -> Contract:
+    @classmethod
+    def _historical_request_contract(cls, contract: Contract, *, sec_type: str) -> Contract:
         req_contract = contract
         if sec_type in ("STK", "OPT") and not getattr(contract, "exchange", ""):
             req_contract = copy.copy(contract)
@@ -636,7 +1470,17 @@ class IBKRClient:
         elif sec_type == "FOP" and not getattr(contract, "exchange", ""):
             req_contract = copy.copy(contract)
             primary_exchange = getattr(contract, "primaryExchange", "") or ""
-            req_contract.exchange = primary_exchange or "CME"
+            symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
+            preferred = [str(primary_exchange).strip().upper()] if primary_exchange else []
+            candidates = cls._future_exchange_candidates(symbol, preferred)
+            req_contract.exchange = candidates[0] if candidates else (primary_exchange or "CME")
+        elif sec_type == "FUT" and not getattr(contract, "exchange", ""):
+            req_contract = copy.copy(contract)
+            primary_exchange = str(getattr(contract, "primaryExchange", "") or "").strip().upper()
+            symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
+            preferred = [primary_exchange] if primary_exchange else []
+            candidates = cls._future_exchange_candidates(symbol, preferred)
+            req_contract.exchange = candidates[0] if candidates else (primary_exchange or "CME")
         return req_contract
 
     async def _request_historical_data(
@@ -648,8 +1492,58 @@ class IBKRClient:
         what_to_show: str,
         use_rth: bool,
     ):
-        sec_type = str(getattr(contract, "secType", "") or "")
+        sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
         use_proxy = sec_type in ("STK", "OPT")
+
+        def _record(
+            status: str,
+            *,
+            req_contract: Contract,
+            error: BaseException | None = None,
+            detail: str | None = None,
+            bars_count: int | None = None,
+        ) -> None:
+            request_ts = _now_et().isoformat()
+            con_id = 0
+            try:
+                con_id = int(getattr(req_contract, "conId", 0) or 0)
+            except (TypeError, ValueError):
+                con_id = 0
+            payload: dict[str, object] = {
+                "status": str(status),
+                "ts": request_ts,
+                "timeout_sec": float(_HISTORICAL_REQUEST_TIMEOUT_SEC),
+                "request": {
+                    "duration_str": str(duration_str),
+                    "bar_size": str(bar_size),
+                    "what_to_show": str(what_to_show),
+                    "use_rth": bool(use_rth),
+                    "use_proxy": bool(use_proxy),
+                },
+                "contract": {
+                    "con_id": int(con_id),
+                    "sec_type": str(getattr(req_contract, "secType", "") or "").strip().upper(),
+                    "symbol": str(getattr(req_contract, "symbol", "") or "").strip().upper(),
+                    "exchange": str(getattr(req_contract, "exchange", "") or "").strip().upper(),
+                    "primary_exchange": str(getattr(req_contract, "primaryExchange", "") or "").strip().upper(),
+                    "currency": str(getattr(req_contract, "currency", "") or "").strip().upper(),
+                },
+            }
+            if bars_count is not None:
+                payload["bars_count"] = int(bars_count)
+            if error is not None:
+                payload["error"] = str(error)
+                payload["error_type"] = type(error).__name__
+            if detail:
+                payload["detail"] = str(detail)
+            self._last_historical_request = payload
+            if con_id > 0:
+                self._last_historical_request_by_con_id[int(con_id)] = payload
+                if len(self._last_historical_request_by_con_id) > int(_MAX_HISTORICAL_REQUEST_DIAG_ENTRIES):
+                    oldest = next(iter(self._last_historical_request_by_con_id))
+                    self._last_historical_request_by_con_id.pop(oldest, None)
+
+        req_contract = self._historical_request_contract(contract, sec_type=sec_type)
         try:
             if use_proxy:
                 await self.connect_proxy()
@@ -660,21 +1554,61 @@ class IBKRClient:
         except Exception as exc:
             if use_proxy:
                 self._proxy_error = str(exc)
-            return []
-        req_contract = self._historical_request_contract(contract, sec_type=sec_type)
-        try:
-            return await ib.reqHistoricalDataAsync(
-                req_contract,
-                endDateTime="",
-                durationStr=str(duration_str),
-                barSizeSetting=str(bar_size),
-                whatToShow=str(what_to_show),
-                useRTH=1 if use_rth else 0,
-                formatDate=1,
-                keepUpToDate=False,
+            _record(
+                "connect_error",
+                req_contract=req_contract,
+                error=exc,
+                detail="historical connect failed",
             )
-        except Exception:
             return []
+        try:
+            bars = await asyncio.wait_for(
+                ib.reqHistoricalDataAsync(
+                    req_contract,
+                    endDateTime="",
+                    durationStr=str(duration_str),
+                    barSizeSetting=str(bar_size),
+                    whatToShow=str(what_to_show),
+                    useRTH=1 if use_rth else 0,
+                    formatDate=1,
+                    keepUpToDate=False,
+                ),
+                timeout=float(_HISTORICAL_REQUEST_TIMEOUT_SEC),
+            )
+        except asyncio.TimeoutError as exc:
+            _record(
+                "timeout",
+                req_contract=req_contract,
+                error=exc,
+                detail=f"historical request timed out after {_HISTORICAL_REQUEST_TIMEOUT_SEC:.1f}s",
+            )
+            return []
+        except Exception as exc:
+            _record(
+                "request_error",
+                req_contract=req_contract,
+                error=exc,
+                detail="historical request failed",
+            )
+            return []
+        try:
+            bars_count = int(len(bars)) if bars is not None else 0
+        except Exception:
+            bars_count = 0
+        if bars_count <= 0:
+            _record(
+                "empty",
+                req_contract=req_contract,
+                detail="historical response returned no bars",
+                bars_count=0,
+            )
+            return []
+        _record(
+            "ok",
+            req_contract=req_contract,
+            bars_count=bars_count,
+        )
+        return bars
 
     @staticmethod
     def _is_intraday_bar_size(bar_size: str) -> bool:
@@ -717,7 +1651,7 @@ class IBKRClient:
         what_to_show: str,
         use_rth: bool,
     ):
-        sec_type = str(getattr(contract, "secType", "") or "")
+        sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
         # For stocks, IBKR SMART full-session intraday misses OVERNIGHT. Stitch SMART+OVERNIGHT.
         if bool(use_rth) or sec_type != "STK" or not self._is_intraday_bar_size(str(bar_size)):
             return await self._request_historical_data(
@@ -762,13 +1696,13 @@ class IBKRClient:
             dt = datetime.combine(dt, dtime(0, 0))
         return _to_et_shared(dt, naive_ts_mode=NaiveTsMode.ET).replace(tzinfo=None)
 
-    async def session_closes(
+    async def session_close_anchors(
         self,
         contract: Contract,
         *,
         cache_ttl_sec: float = 900.0,
-    ) -> tuple[float | None, float | None]:
-        """Return (prev_close, close_3_sessions_ago) for the given contract.
+    ) -> tuple[float | None, float | None, float | None]:
+        """Return (prev_close, close_1_session_ago, close_3_sessions_ago).
 
         Uses daily bars first, then falls back to intraday TRADES/MIDPOINT anchoring
         for sparse option/FOP history, with a small in-memory TTL cache to
@@ -777,22 +1711,22 @@ class IBKRClient:
         sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
         con_id = int(getattr(contract, "conId", 0) or 0)
         if not con_id:
-            return None, None
+            return None, None, None
         cached = self._session_close_cache.get(con_id)
         if cached:
-            prev_close, close_3ago, cached_at = cached
+            prev_close, close_1ago, close_3ago, cached_at = cached
             ttl = 30.0 if close_3ago is None else cache_ttl_sec
             if time.monotonic() - cached_at < ttl:
-                return prev_close, close_3ago
+                return prev_close, close_1ago, close_3ago
         use_proxy = contract.secType in ("STK", "OPT")
         lock = self._historical_proxy_lock if use_proxy else self._historical_lock
         async with lock:
             cached = self._session_close_cache.get(con_id)
             if cached:
-                prev_close, close_3ago, cached_at = cached
+                prev_close, close_1ago, close_3ago, cached_at = cached
                 ttl = 30.0 if close_3ago is None else cache_ttl_sec
                 if time.monotonic() - cached_at < ttl:
-                    return prev_close, close_3ago
+                    return prev_close, close_1ago, close_3ago
             duration_str = "1 M" if sec_type in ("OPT", "FOP") else "2 W"
             use_rth = sec_type not in ("OPT", "FOP")
 
@@ -827,6 +1761,7 @@ class IBKRClient:
                 if len(midpoint_closes) > len(closes):
                     closes = midpoint_closes
             prev_close = closes[-1] if closes else None
+            close_1ago = closes[-2] if len(closes) >= 2 else None
             close_3ago = closes[-4] if len(closes) >= 4 else None
             if close_3ago is None and sec_type in ("OPT", "FOP"):
                 intraday: list[tuple[datetime, float]] = []
@@ -879,6 +1814,10 @@ class IBKRClient:
                             break
                     if prev_close is None and values:
                         prev_close = values[ref_idx]
+                    if close_1ago is None:
+                        prev1_idx = ref_idx - 1
+                        if prev1_idx >= 0:
+                            close_1ago = values[prev1_idx]
                     target_idx = ref_idx - 3
                     if target_idx >= 0:
                         close_3ago = values[target_idx]
@@ -889,10 +1828,24 @@ class IBKRClient:
                         close_3ago = candidates[-1][1] if candidates else None
             self._session_close_cache[con_id] = (
                 prev_close,
+                close_1ago,
                 close_3ago,
                 time.monotonic(),
             )
-            return prev_close, close_3ago
+            return prev_close, close_1ago, close_3ago
+
+    async def session_closes(
+        self,
+        contract: Contract,
+        *,
+        cache_ttl_sec: float = 900.0,
+    ) -> tuple[float | None, float | None]:
+        """Return (prev_close, close_3_sessions_ago) for the given contract."""
+        prev_close, _close_1ago, close_3ago = await self.session_close_anchors(
+            contract,
+            cache_ttl_sec=cache_ttl_sec,
+        )
+        return prev_close, close_3ago
 
     async def historical_bars(
         self,
@@ -1101,6 +2054,21 @@ class IBKRClient:
         values.sort()
         return values[len(values) // 2]
 
+    def _search_reference_price_from_ticker(self, ticker: object) -> float | None:
+        if ticker is None:
+            return None
+        bid = self._quote_num(getattr(ticker, "bid", None))
+        ask = self._quote_num(getattr(ticker, "ask", None))
+        last = self._quote_num(getattr(ticker, "last", None))
+        close = self._quote_num(getattr(ticker, "close", None))
+        if bid is not None and ask is not None and bid > 0 and ask > 0 and bid <= ask:
+            return (float(bid) + float(ask)) / 2.0
+        if last is not None and last > 0:
+            return float(last)
+        if close is not None and close > 0:
+            return float(close)
+        return None
+
     @staticmethod
     def _search_terms(query: str, *, mode: str | None = None) -> list[str]:
         cleaned = str(query or "").strip().upper()
@@ -1120,6 +2088,9 @@ class IBKRClient:
         _add(cleaned)
         for part in parts:
             _add(part)
+        if len(parts) > 1:
+            # Preserve compact symbol-like variants for inputs such as "1 oz".
+            _add("".join(parts))
         # Alias expansion for both full query and individual words.
         for seed in tuple(terms):
             for alias in aliases_by_seed.get(seed, ()):
@@ -1155,6 +2126,57 @@ class IBKRClient:
         symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
         return symbol
 
+    async def search_contract_labels(
+        self,
+        query: str,
+        *,
+        mode: str = "STK",
+        symbols: Iterable[str] | None = None,
+    ) -> dict[str, str]:
+        token = str(query or "").strip().upper()
+        if not token:
+            return {}
+        mode_clean = str(mode or "STK").strip().upper()
+        if mode_clean not in ("STK", "FUT", "OPT", "FOP"):
+            mode_clean = "STK"
+        target_symbols = {
+            str(symbol or "").strip().upper()
+            for symbol in (symbols or ())
+            if str(symbol or "").strip()
+        }
+        labels: dict[str, str] = {}
+        matches = await self._matching_symbols(
+            token,
+            use_proxy=mode_clean in ("STK", "OPT"),
+            mode=mode_clean,
+            raise_on_error=False,
+        )
+        for desc in matches:
+            contract = getattr(desc, "contract", None)
+            if contract is None:
+                continue
+            symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
+            if not symbol:
+                continue
+            if target_symbols and symbol not in target_symbols:
+                continue
+            if symbol in labels:
+                continue
+            label = str(self._desc_label(desc) or "").strip()
+            if not label:
+                continue
+            if label.upper() == symbol:
+                continue
+            labels[symbol] = label
+        for symbol in target_symbols:
+            if symbol in labels:
+                continue
+            hint = str(_CONTRACT_LABEL_HINTS.get(symbol, "") or "").strip()
+            if not hint:
+                continue
+            labels[symbol] = hint
+        return labels
+
     @staticmethod
     def _future_exchange_candidates(symbol: str, preferred: Iterable[str]) -> list[str]:
         sym = str(symbol or "").strip().upper()
@@ -1180,7 +2202,35 @@ class IBKRClient:
             out = ["CME"]
         return out
 
-    async def _matching_symbols(self, query: str, *, use_proxy: bool, mode: str | None = None) -> list[object]:
+    @staticmethod
+    def _is_retryable_matching_symbols_error(exc: BaseException) -> bool:
+        if isinstance(exc, (TimeoutError, asyncio.TimeoutError, ConnectionError, OSError)):
+            return True
+        text = str(exc or "").strip().lower()
+        if not text:
+            return False
+        return any(
+            needle in text
+            for needle in (
+                "timeout",
+                "timed out",
+                "already pending",
+                "failed to request matching symbols",
+                "pacing",
+                "connect",
+                "socket",
+                "temporarily",
+            )
+        )
+
+    async def _matching_symbols(
+        self,
+        query: str,
+        *,
+        use_proxy: bool,
+        mode: str | None = None,
+        raise_on_error: bool = False,
+    ) -> list[object]:
         terms = self._search_terms(query, mode=mode)
         if not terms:
             return []
@@ -1194,14 +2244,42 @@ class IBKRClient:
                 else:
                     await self.connect()
                     ib = self._ib
-            except Exception:
+            except Exception as exc:
+                if raise_on_error:
+                    raise RuntimeError(f"IBKR symbol lookup connect failed: {exc}") from exc
                 return []
             out: list[object] = []
             seen: set[tuple[int, str, str, str, str]] = set()
+            had_successful_term = False
+            term_errors: list[str] = []
             for term in search_terms:
-                try:
-                    matches = await ib.reqMatchingSymbolsAsync(term)
-                except Exception:
+                matches = []
+                last_exc: Exception | None = None
+                for attempt in range(_MATCHING_SYMBOL_MAX_ATTEMPTS):
+                    timeout_sec = (
+                        _MATCHING_SYMBOL_TIMEOUT_INITIAL_SEC
+                        if attempt == 0
+                        else _MATCHING_SYMBOL_TIMEOUT_RETRY_SEC
+                    )
+                    try:
+                        matches = await asyncio.wait_for(
+                            ib.reqMatchingSymbolsAsync(term),
+                            timeout=float(timeout_sec),
+                        )
+                        had_successful_term = True
+                        last_exc = None
+                        break
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception as exc:
+                        last_exc = exc
+                        retryable = self._is_retryable_matching_symbols_error(exc)
+                        if not retryable or (attempt + 1) >= _MATCHING_SYMBOL_MAX_ATTEMPTS:
+                            break
+                        await asyncio.sleep(_MATCHING_SYMBOL_RETRY_BASE_SEC * float(attempt + 1))
+                if last_exc is not None:
+                    detail = str(last_exc or "").strip() or type(last_exc).__name__
+                    term_errors.append(f"{term}: {detail}")
                     continue
                 for desc in list(matches or []):
                     contract = getattr(desc, "contract", None)
@@ -1220,6 +2298,11 @@ class IBKRClient:
                     out.append(desc)
                 if len(out) >= 160:
                     break
+            if not out and raise_on_error and term_errors and not had_successful_term:
+                raise RuntimeError(
+                    "IBKR symbol lookup unavailable: "
+                    + "; ".join(term_errors[:2])
+                )
         return out
 
     @staticmethod
@@ -1276,7 +2359,12 @@ class IBKRClient:
         mode_aliases = _SEARCH_TERM_ALIASES_BY_MODE.get("OPT", {})
         token_is_alias_seed = token in mode_aliases
         max_rows = max(1, min(int(limit or 8), 20))
-        matches = await self._matching_symbols(token, use_proxy=True, mode="OPT")
+        matches = await self._matching_symbols(
+            token,
+            use_proxy=True,
+            mode="OPT",
+            raise_on_error=True,
+        )
         if not matches:
             return []
         ranked_symbols = self._rank_opt_underlyer_symbols(
@@ -1330,19 +2418,30 @@ class IBKRClient:
         term_set = set(terms)
         mode_aliases = _SEARCH_TERM_ALIASES_BY_MODE.get(mode_clean, {})
         token_is_alias_seed = token in mode_aliases
-        max_cap = 160 if mode_clean == "OPT" else 20
+        max_cap = 160 if mode_clean in ("OPT", "FOP") else 20
         max_rows = max(1, min(int(limit or 5), max_cap))
         opt_symbol_override = ""
         if mode_clean == "OPT":
             opt_symbol_override = str(opt_underlyer_symbol or "").strip().upper()
         matches: list[object] = []
         if not (mode_clean == "OPT" and opt_symbol_override):
-            matches = await self._matching_symbols(
-                token,
-                use_proxy=mode_clean in ("STK", "OPT"),
-                mode=mode_clean,
-            )
-            if not matches:
+            lookup_terms = [token]
+            if mode_clean in ("FUT", "FOP"):
+                for term in terms:
+                    normalized = str(term or "").strip().upper()
+                    if not normalized or normalized in lookup_terms:
+                        continue
+                    lookup_terms.append(normalized)
+            for lookup in lookup_terms:
+                matches = await self._matching_symbols(
+                    lookup,
+                    use_proxy=mode_clean in ("STK", "OPT"),
+                    mode=mode_clean,
+                    raise_on_error=True,
+                )
+                if matches or mode_clean not in ("FUT", "FOP"):
+                    break
+            if not matches and mode_clean not in ("FUT", "FOP"):
                 return []
 
         if mode_clean == "STK":
@@ -1528,38 +2627,7 @@ class IBKRClient:
             ref_price = None
             try:
                 ticker = await self.ensure_ticker(underlying, owner="search")
-                bid = ticker.bid
-                ask = ticker.ask
-                last = ticker.last
-                close = ticker.close
-                try:
-                    bid_f = float(bid) if bid is not None else None
-                except (TypeError, ValueError):
-                    bid_f = None
-                try:
-                    ask_f = float(ask) if ask is not None else None
-                except (TypeError, ValueError):
-                    ask_f = None
-                try:
-                    last_f = float(last) if last is not None else None
-                except (TypeError, ValueError):
-                    last_f = None
-                try:
-                    close_f = float(close) if close is not None else None
-                except (TypeError, ValueError):
-                    close_f = None
-                if (
-                    bid_f is not None
-                    and ask_f is not None
-                    and bid_f > 0
-                    and ask_f > 0
-                    and bid_f <= ask_f
-                ):
-                    ref_price = (bid_f + ask_f) / 2.0
-                elif last_f is not None and last_f > 0:
-                    ref_price = last_f
-                elif close_f is not None and close_f > 0:
-                    ref_price = close_f
+                ref_price = self._search_reference_price_from_ticker(ticker)
             except Exception:
                 ref_price = None
             finally:
@@ -1638,12 +2706,14 @@ class IBKRClient:
                 out.append(resolved)
             return out[:max_rows]
 
-        roots: list[tuple[str, str]] = []
+        exact_roots: list[tuple[str, str]] = []
+        prefix_roots: list[tuple[str, str]] = []
+        contains_roots: list[tuple[str, str]] = []
+        desc_roots: list[tuple[str, str]] = []
+        seen_roots: set[tuple[str, str]] = set()
         for desc in matches:
             contract = getattr(desc, "contract", None)
             if not contract:
-                continue
-            if str(getattr(contract, "secType", "") or "").strip().upper() != "FUT":
                 continue
             deriv = {
                 str(sec).strip().upper()
@@ -1656,61 +2726,358 @@ class IBKRClient:
                 continue
             exchange = str(getattr(contract, "exchange", "") or "").strip().upper() or "CME"
             key = (symbol, exchange)
-            if key in roots:
+            if key in seen_roots:
                 continue
-            roots.append(key)
-            if len(roots) >= max_rows * 3:
+            seen_roots.add(key)
+            desc_text = self._desc_text(desc)
+            if symbol in term_set and not (token_is_alias_seed and symbol == token):
+                exact_roots.append(key)
+            elif any(symbol.startswith(term) for term in term_set):
+                prefix_roots.append(key)
+            elif any(term in symbol for term in term_set):
+                contains_roots.append(key)
+            elif any(term in desc_text for term in term_set):
+                desc_roots.append(key)
+            if len(seen_roots) >= max_rows * 8:
                 break
-        if not roots:
+
+        ranked_roots = [*exact_roots, *prefix_roots, *contains_roots, *desc_roots]
+        symbol_exchange_map: dict[str, list[str]] = {}
+        for symbol, exchange in ranked_roots:
+            symbol_exchange_map.setdefault(symbol, [])
+            if exchange not in symbol_exchange_map[symbol]:
+                symbol_exchange_map[symbol].append(exchange)
+
+        if exact_roots:
+            candidate_symbols: list[str] = []
+            for symbol, _exchange in exact_roots:
+                if symbol not in candidate_symbols:
+                    candidate_symbols.append(symbol)
+        else:
+            candidate_symbols = []
+            for symbol, _exchange in ranked_roots:
+                if symbol not in candidate_symbols:
+                    candidate_symbols.append(symbol)
+
+        if not candidate_symbols:
+            for term in terms:
+                if not term:
+                    continue
+                if len(term) > 8:
+                    continue
+                if not term.isalnum():
+                    continue
+                if term not in candidate_symbols:
+                    candidate_symbols.append(term)
+                if len(candidate_symbols) >= (max_rows * 6):
+                    break
+        if not candidate_symbols:
             return []
 
         out: list[Contract] = []
-        for symbol, exchange in roots:
-            future = await self.front_future(symbol, exchange=exchange, cache_ttl_sec=1800.0)
+        seen_contracts: set[tuple[str, str, str, str, float]] = set()
+        for symbol in candidate_symbols:
+            preferred = symbol_exchange_map.get(symbol, [])
+            future = None
+            for exchange in self._future_exchange_candidates(symbol, preferred):
+                future = await self.front_future(symbol, exchange=exchange, cache_ttl_sec=1800.0)
+                if future is not None:
+                    break
             if future is None:
                 continue
             try:
                 await self.connect()
             except Exception:
                 continue
-            try:
-                chains = await self._ib.reqSecDefOptParamsAsync(
-                    str(getattr(future, "symbol", "") or symbol),
-                    "",
-                    str(getattr(future, "secType", "") or "FUT"),
-                    int(getattr(future, "conId", 0) or 0),
-                )
-            except Exception:
-                chains = []
+
+            future_symbol = str(getattr(future, "symbol", "") or symbol).strip().upper()
+            future_ex = str(getattr(future, "exchange", "") or "").strip().upper()
+            fut_fop_exchanges: list[str] = []
+            for ex_value in (future_ex, *preferred):
+                ex_clean = str(ex_value or "").strip().upper()
+                if not ex_clean or ex_clean in fut_fop_exchanges:
+                    continue
+                fut_fop_exchanges.append(ex_clean)
+            if not fut_fop_exchanges:
+                fut_fop_exchanges = ["CME"]
+
+            chains: list[object] = []
+            for fut_fop_exchange in fut_fop_exchanges:
+                try:
+                    chains = await self._ib.reqSecDefOptParamsAsync(
+                        future_symbol,
+                        fut_fop_exchange,
+                        str(getattr(future, "secType", "") or "FUT"),
+                        int(getattr(future, "conId", 0) or 0),
+                    )
+                except Exception:
+                    chains = []
+                if chains:
+                    break
+            if not chains:
+                alt_details: list[object] = []
+                try:
+                    alt_details = await self._ib.reqContractDetailsAsync(
+                        Future(
+                            symbol=future_symbol,
+                            lastTradeDateOrContractMonth="",
+                            exchange=future_ex or "CME",
+                            currency=str(getattr(future, "currency", "") or "USD"),
+                        )
+                    )
+                except Exception:
+                    alt_details = []
+
+                def _parse_exp(raw: object) -> date | None:
+                    text = str(raw or "").strip()
+                    if len(text) >= 8 and text[:8].isdigit():
+                        try:
+                            return date(int(text[:4]), int(text[4:6]), int(text[6:8]))
+                        except ValueError:
+                            return None
+                    if len(text) >= 6 and text[:6].isdigit():
+                        try:
+                            return date(int(text[:4]), int(text[4:6]), 1)
+                        except ValueError:
+                            return None
+                    return None
+
+                ranked_alts: list[tuple[int, date, Contract]] = []
+                today = _now_et().date()
+                for detail in alt_details or []:
+                    alt_contract = getattr(detail, "contract", None)
+                    if alt_contract is None:
+                        continue
+                    if str(getattr(alt_contract, "secType", "") or "").strip().upper() != "FUT":
+                        continue
+                    alt_con_id = int(getattr(alt_contract, "conId", 0) or 0)
+                    if alt_con_id <= 0:
+                        continue
+                    if alt_con_id == int(getattr(future, "conId", 0) or 0):
+                        continue
+                    exp_raw = getattr(detail, "realExpirationDate", None) or getattr(
+                        alt_contract, "lastTradeDateOrContractMonth", None
+                    )
+                    exp = _parse_exp(exp_raw)
+                    if exp is None:
+                        continue
+                    past_flag = 0 if exp >= today else 1
+                    ranked_alts.append((past_flag, exp, alt_contract))
+                ranked_alts.sort(key=lambda row: (row[0], row[1]))
+
+                for _past_flag, _exp, alt_contract in ranked_alts[:14]:
+                    alt_symbol = str(getattr(alt_contract, "symbol", "") or future_symbol).strip().upper()
+                    alt_ex = str(getattr(alt_contract, "exchange", "") or "").strip().upper() or future_ex or "CME"
+                    try:
+                        alt_chains = await self._ib.reqSecDefOptParamsAsync(
+                            alt_symbol,
+                            alt_ex,
+                            str(getattr(alt_contract, "secType", "") or "FUT"),
+                            int(getattr(alt_contract, "conId", 0) or 0),
+                        )
+                    except Exception:
+                        alt_chains = []
+                    if not alt_chains:
+                        continue
+                    future = alt_contract
+                    future_symbol = alt_symbol
+                    future_ex = alt_ex
+                    chains = list(alt_chains)
+                    break
             if not chains:
                 continue
-            future_ex = str(getattr(future, "exchange", "") or "").strip().upper()
-            chain = next(
-                (
-                    value
-                    for value in chains
-                    if str(getattr(value, "exchange", "") or "").strip().upper() == future_ex
-                ),
-                chains[0],
-            )
-            expiry = self._nearest_expiry(getattr(chain, "expirations", ()) or ())
-            strike = self._median_strike(getattr(chain, "strikes", ()) or ())
-            if not expiry or strike is None:
+
+            chain_rows: list[tuple[str, str, str, list[str], list[float]]] = []
+            for value in chains:
+                exchange_value = str(getattr(value, "exchange", "") or "").strip().upper()
+                trading_class = str(getattr(value, "tradingClass", "") or "").strip().upper()
+                multiplier = str(getattr(value, "multiplier", "") or getattr(future, "multiplier", "") or "")
+                chain_expiries: list[str] = []
+                for raw in (getattr(value, "expirations", ()) or ()):
+                    text = str(raw or "").strip()
+                    if len(text) >= 8 and text[:8].isdigit():
+                        chain_expiries.append(text[:8])
+                chain_expiries = sorted(set(chain_expiries))
+                if not chain_expiries:
+                    continue
+                chain_strikes: list[float] = []
+                for raw in (getattr(value, "strikes", ()) or ()):
+                    try:
+                        strike = float(raw)
+                    except (TypeError, ValueError):
+                        continue
+                    if strike > 0:
+                        chain_strikes.append(strike)
+                chain_strikes = sorted(set(chain_strikes))
+                if not chain_strikes:
+                    continue
+                chain_rows.append(
+                    (
+                        exchange_value,
+                        trading_class,
+                        multiplier,
+                        chain_expiries,
+                        chain_strikes,
+                    )
+                )
+            if not chain_rows:
                 continue
-            option = Contract(
-                secType="FOP",
-                symbol=str(getattr(future, "symbol", "") or symbol).strip().upper(),
-                exchange=str(getattr(chain, "exchange", "") or future_ex or "CME").strip().upper()
-                or "CME",
-                currency=str(getattr(future, "currency", "") or "USD").strip().upper() or "USD",
-                lastTradeDateOrContractMonth=expiry,
-                strike=float(strike),
-                right="C",
-                multiplier=str(getattr(chain, "multiplier", "") or getattr(future, "multiplier", "") or ""),
-                tradingClass=str(getattr(chain, "tradingClass", "") or ""),
+
+            preferred_chain_rows = [row for row in chain_rows if row[0] == future_ex]
+            if not preferred_chain_rows:
+                preferred_chain_rows = list(chain_rows)
+
+            expiry_chain: dict[str, tuple[tuple[int, int], str, str, str, list[float]]] = {}
+            all_strikes: set[float] = set()
+            for exchange_value, trading_class, multiplier, chain_expiries, chain_strikes in preferred_chain_rows:
+                score = (len(chain_strikes), len(chain_expiries))
+                all_strikes.update(chain_strikes)
+                for expiry in chain_expiries:
+                    existing = expiry_chain.get(expiry)
+                    if existing is not None and existing[0] >= score:
+                        continue
+                    expiry_chain[expiry] = (
+                        score,
+                        exchange_value,
+                        trading_class,
+                        multiplier,
+                        chain_strikes,
+                    )
+
+            expiries = sorted(expiry_chain.keys())
+            if not expiries:
+                continue
+            future_ref: float | None = None
+            try:
+                future_ticker = await self.ensure_ticker(future, owner="search")
+                future_ref = self._search_reference_price_from_ticker(future_ticker)
+                if future_ref is None:
+                    try:
+                        await self._attempt_main_contract_snapshot_quote(future, ticker=future_ticker)
+                    except Exception:
+                        pass
+                    future_ref = self._search_reference_price_from_ticker(future_ticker)
+                if future_ref is None:
+                    try:
+                        await self._attempt_main_contract_historical_quote(future, ticker=future_ticker)
+                    except Exception:
+                        pass
+                    future_ref = self._search_reference_price_from_ticker(future_ticker)
+            except Exception:
+                future_ref = None
+            finally:
+                future_con_id = int(getattr(future, "conId", 0) or 0)
+                if future_con_id:
+                    self.release_ticker(future_con_id, owner="search")
+
+            strikes = sorted(all_strikes)
+            if not strikes:
+                continue
+            if future_ref is None:
+                future_ref = self._median_strike(strikes)
+            if future_ref is None:
+                continue
+            target_strikes_per_expiry = max(1, min(20, int(max_rows) // 2))
+            max_expiries = max(1, int(max_rows) // (2 * target_strikes_per_expiry))
+            def _expiry_rank(expiry: str) -> tuple[int, float, str]:
+                entry = expiry_chain.get(expiry)
+                expiry_strikes = entry[4] if entry is not None and entry[4] else strikes
+                if not expiry_strikes:
+                    return (1, float("inf"), expiry)
+                in_range = 0 if expiry_strikes[0] <= float(future_ref) <= expiry_strikes[-1] else 1
+                nearest = min(abs(float(strike) - float(future_ref)) for strike in expiry_strikes)
+                return (in_range, nearest, expiry)
+
+            ranked_expiries = sorted(expiries, key=_expiry_rank)
+            selected_expiries = sorted(ranked_expiries[:max_expiries])
+            rows_per_expiry = max(
+                target_strikes_per_expiry,
+                int(max_rows) // max(1, (2 * len(selected_expiries))),
             )
-            qualified = await self._qualify_contract(option, use_proxy=False)
-            out.append(qualified or option)
+            currency = str(getattr(future, "currency", "") or "USD").strip().upper() or "USD"
+            candidates: list[Contract] = []
+            for expiry in selected_expiries:
+                entry = expiry_chain.get(expiry)
+                if entry is None:
+                    continue
+                _score, exchange, trading_class, multiplier, expiry_strikes = entry
+                exchange = exchange or (future_ex or "CME")
+                ordered_strikes = sorted(
+                    expiry_strikes,
+                    key=lambda value: (abs(float(value) - float(future_ref)), float(value)),
+                )
+                nearby = sorted(ordered_strikes[:rows_per_expiry])
+                for strike in nearby:
+                    for right in ("C", "P"):
+                        candidate_key = (
+                            future_symbol,
+                            str(expiry),
+                            trading_class,
+                            right,
+                            round(float(strike), 6),
+                        )
+                        if candidate_key in seen_contracts:
+                            continue
+                        seen_contracts.add(candidate_key)
+                        candidates.append(
+                            Contract(
+                                secType="FOP",
+                                symbol=future_symbol,
+                                exchange=exchange,
+                                currency=currency,
+                                lastTradeDateOrContractMonth=expiry,
+                                strike=float(strike),
+                                right=right,
+                                multiplier=multiplier,
+                                tradingClass=trading_class,
+                            )
+                        )
+            if not candidates:
+                continue
+
+            qualified_rows: list[Contract] = []
+            batch_size = max(1, min(24, len(candidates)))
+            for start in range(0, len(candidates), batch_size):
+                batch = candidates[start : start + batch_size]
+                try:
+                    qualified_rows.extend(list(await self._ib.qualifyContractsAsync(*batch) or []))
+                except Exception:
+                    continue
+
+            by_key: dict[tuple[str, str, str, str, float], Contract] = {}
+            for contract in qualified_rows:
+                try:
+                    strike = float(getattr(contract, "strike", 0.0) or 0.0)
+                except (TypeError, ValueError):
+                    continue
+                key = (
+                    str(getattr(contract, "symbol", "") or "").strip().upper(),
+                    str(getattr(contract, "lastTradeDateOrContractMonth", "") or "").strip(),
+                    str(getattr(contract, "tradingClass", "") or "").strip().upper(),
+                    str(getattr(contract, "right", "") or "").strip().upper()[:1],
+                    round(strike, 6),
+                )
+                by_key[key] = contract
+
+            for candidate in candidates:
+                key = (
+                    str(getattr(candidate, "symbol", "") or "").strip().upper(),
+                    str(getattr(candidate, "lastTradeDateOrContractMonth", "") or "").strip(),
+                    str(getattr(candidate, "tradingClass", "") or "").strip().upper(),
+                    str(getattr(candidate, "right", "") or "").strip().upper()[:1],
+                    round(float(getattr(candidate, "strike", 0.0) or 0.0), 6),
+                )
+                resolved = by_key.get(key)
+                if resolved is None:
+                    resolved = await self._qualify_contract(candidate, use_proxy=False)
+                if resolved is None:
+                    continue
+                con_id = int(getattr(resolved, "conId", 0) or 0)
+                if con_id <= 0:
+                    continue
+                out.append(resolved)
+                if len(out) >= max_rows:
+                    break
             if len(out) >= max_rows:
                 break
         return out
@@ -1800,23 +3167,31 @@ class IBKRClient:
         ex = str(exchange or "").strip().upper() or "CME"
         key = (sym, ex)
         cached = self._front_future_cache.get(key)
+
         if cached:
             contract, cached_at = cached
-            if time.monotonic() - cached_at < float(cache_ttl_sec):
+            cached_month = str(getattr(contract, "lastTradeDateOrContractMonth", "") or "").strip()
+            if cached_month and time.monotonic() - cached_at < float(cache_ttl_sec):
                 return contract
 
         def _parse_expiry(raw: str | None) -> datetime | None:
             if not raw:
                 return None
             cleaned = str(raw).strip()
-            if len(cleaned) >= 8 and cleaned[:8].isdigit():
+            if not cleaned:
+                return None
+            m8 = re.search(r"(\d{8})", cleaned)
+            if m8:
                 try:
-                    return datetime(int(cleaned[:4]), int(cleaned[4:6]), int(cleaned[6:8]))
+                    text = m8.group(1)
+                    return datetime(int(text[:4]), int(text[4:6]), int(text[6:8]))
                 except ValueError:
                     return None
-            if len(cleaned) >= 6 and cleaned[:6].isdigit():
+            m6 = re.search(r"(\d{6})", cleaned)
+            if m6:
                 try:
-                    return datetime(int(cleaned[:4]), int(cleaned[4:6]), 1)
+                    text = m6.group(1)
+                    return datetime(int(text[:4]), int(text[4:6]), 1)
                 except ValueError:
                     return None
             return None
@@ -1825,7 +3200,8 @@ class IBKRClient:
             cached = self._front_future_cache.get(key)
             if cached:
                 contract, cached_at = cached
-                if time.monotonic() - cached_at < float(cache_ttl_sec):
+                cached_month = str(getattr(contract, "lastTradeDateOrContractMonth", "") or "").strip()
+                if cached_month and time.monotonic() - cached_at < float(cache_ttl_sec):
                     return contract
             try:
                 await self.connect()
@@ -1842,12 +3218,19 @@ class IBKRClient:
             today = _now_et().date()
             best = None
             best_dt = None
+            latest = None
+            latest_dt = None
+            with_month = None
             for d in details:
                 contract = getattr(d, "contract", None)
                 if not contract:
                     continue
                 if getattr(contract, "secType", "") != "FUT":
                     continue
+                if with_month is None:
+                    month_text = str(getattr(contract, "lastTradeDateOrContractMonth", "") or "").strip()
+                    if month_text:
+                        with_month = contract
                 exp_raw = getattr(d, "realExpirationDate", None) or getattr(
                     contract, "lastTradeDateOrContractMonth", None
                 )
@@ -1855,6 +3238,9 @@ class IBKRClient:
                 if exp_dt is None:
                     continue
                 exp_date = exp_dt.date()
+                if latest_dt is None or exp_date > latest_dt:
+                    latest_dt = exp_date
+                    latest = contract
                 if exp_date < today:
                     continue
                 if best_dt is None or exp_date < best_dt:
@@ -1862,11 +3248,16 @@ class IBKRClient:
                     best = contract
 
             if best is None:
-                for d in details:
-                    contract = getattr(d, "contract", None)
-                    if contract and getattr(contract, "secType", "") == "FUT":
-                        best = contract
-                        break
+                if latest is not None:
+                    best = latest
+                elif with_month is not None:
+                    best = with_month
+                else:
+                    for d in details:
+                        contract = getattr(d, "contract", None)
+                        if contract and getattr(contract, "secType", "") == "FUT":
+                            best = contract
+                            break
             if best is None:
                 return None
 
@@ -1904,6 +3295,12 @@ class IBKRClient:
         delayed_task = self._proxy_contract_delayed_tasks.pop(con_id, None)
         if delayed_task and not delayed_task.done():
             delayed_task.cancel()
+        main_probe_task = self._main_contract_probe_tasks.pop(con_id, None)
+        if main_probe_task and not main_probe_task.done():
+            main_probe_task.cancel()
+        main_watchdog_task = self._main_contract_watchdog_tasks.pop(con_id, None)
+        if main_watchdog_task and not main_watchdog_task.done():
+            main_watchdog_task.cancel()
 
     def account_value(
         self,
@@ -2110,9 +3507,17 @@ class IBKRClient:
             for task in self._proxy_contract_delayed_tasks.values():
                 if task and not task.done():
                     task.cancel()
+            for task in self._main_contract_probe_tasks.values():
+                if task and not task.done():
+                    task.cancel()
+            for task in self._main_contract_watchdog_tasks.values():
+                if task and not task.done():
+                    task.cancel()
             self._proxy_contract_probe_tasks = {}
             self._proxy_contract_live_tasks = {}
             self._proxy_contract_delayed_tasks = {}
+            self._main_contract_probe_tasks = {}
+            self._main_contract_watchdog_tasks = {}
             for ticker in self._proxy_tickers.values():
                 try:
                     self._ib_proxy.cancelMktData(ticker.contract)
@@ -2477,12 +3882,72 @@ class IBKRClient:
         except Exception as exc:
             self._proxy_error = str(exc)
 
+    @classmethod
+    def _ticker_has_quote_or_close(cls, ticker: Ticker | None) -> bool:
+        return bool(cls._ticker_has_data(ticker) or cls._ticker_has_close_data(ticker))
+
+    @staticmethod
+    def _set_ticker_quote_error(ticker: Ticker, *, error_code: int, error_text: str | None = None) -> None:
+        setattr(ticker, "tbQuoteErrorCode", int(error_code))
+        setattr(ticker, "tbQuoteError", str(error_text or "").strip())
+
+    @staticmethod
+    def _clear_ticker_quote_error(ticker: Ticker) -> None:
+        if hasattr(ticker, "tbQuoteErrorCode"):
+            setattr(ticker, "tbQuoteErrorCode", None)
+        if hasattr(ticker, "tbQuoteError"):
+            setattr(ticker, "tbQuoteError", None)
+
     def _on_error_main(self, reqId, errorCode, errorString, contract) -> None:
         self._remember_order_error(reqId, errorCode, errorString)
-        if errorCode in (10167, 354, 10089, 10090, 10091, 10168):
+        if errorCode in _ENTITLEMENT_ERROR_CODES:
             if self._is_index_contract(contract):
                 self._index_force_delayed = True
                 self._start_index_resubscribe(requalify=True)
+            con_id = int(getattr(contract, "conId", 0) or 0) if contract else 0
+            sec_type = (
+                str(getattr(contract, "secType", "") or "").strip().upper()
+                if contract is not None
+                else ""
+            )
+            if con_id and sec_type in ("FUT", "FOP"):
+                entry = self._detail_tickers.get(con_id)
+                if entry:
+                    _ib, ticker = entry
+                    req_contract = getattr(ticker, "contract", None) or contract
+                    if self._ticker_has_quote_or_close(ticker):
+                        self._clear_ticker_quote_error(ticker)
+                        if req_contract is not None:
+                            self._start_main_contract_quote_watchdog(req_contract)
+                    else:
+                        self._set_ticker_quote_error(
+                            ticker,
+                            error_code=int(errorCode),
+                            error_text=str(errorString or "").strip(),
+                        )
+                        self._resubscribe_main_contract_stream(ticker, md_type_override=4)
+                        if req_contract is not None:
+                            self._start_main_contract_quote_probe(req_contract)
+                elif contract is not None:
+                    self._start_main_contract_quote_probe(contract)
+            elif contract is None:
+                for _con_id, (ib, ticker) in list(self._detail_tickers.items()):
+                    if ib is not self._ib:
+                        continue
+                    req_contract = getattr(ticker, "contract", None)
+                    sec = str(getattr(req_contract, "secType", "") or "").strip().upper()
+                    if sec not in ("FUT", "FOP"):
+                        continue
+                    if self._ticker_has_quote_or_close(ticker):
+                        self._clear_ticker_quote_error(ticker)
+                        continue
+                    self._set_ticker_quote_error(
+                        ticker,
+                        error_code=int(errorCode),
+                        error_text=str(errorString or "").strip(),
+                    )
+                    if req_contract is not None:
+                        self._start_main_contract_quote_probe(req_contract)
         self._handle_conn_error(errorCode)
 
     def _on_error_proxy(self, reqId, errorCode, errorString, contract) -> None:
@@ -2517,7 +3982,7 @@ class IBKRClient:
         if not message:
             return
         # Keep order-related errors only; reqId is shared across other request types.
-        if code not in (201, 202, 10147, 10148, 10149) and "order" not in message.lower():
+        if code not in (110, 201, 202, 10147, 10148, 10149) and "order" not in message.lower():
             return
         self._order_error_cache[order_id] = (time.monotonic(), code, message)
         if len(self._order_error_cache) > 512:
@@ -2546,6 +4011,11 @@ class IBKRClient:
     def _on_disconnected_main(self) -> None:
         if self._shutdown:
             return
+        main_id = int(self._connected_main_client_id or self._main_client_id or 0)
+        proxy_id = int(self._connected_proxy_client_id or self._proxy_client_id or 0)
+        if main_id > 0 and proxy_id > 0:
+            self._quarantine_pair(main_id, proxy_id)
+        self._connected_main_client_id = None
         self._resubscribe_main_needed = True
         self._account_updates_started = False
         self._pnl = None
@@ -2561,6 +4031,14 @@ class IBKRClient:
         self._index_requalify_on_reload = False
         self._index_session_flags = None
         self._index_session_include_overnight = None
+        for task in self._main_contract_probe_tasks.values():
+            if task and not task.done():
+                task.cancel()
+        self._main_contract_probe_tasks = {}
+        for task in self._main_contract_watchdog_tasks.values():
+            if task and not task.done():
+                task.cancel()
+        self._main_contract_watchdog_tasks = {}
         self._reconnect_requested = True
         self._start_reconnect_loop()
         if self._update_callback:
@@ -2569,6 +4047,11 @@ class IBKRClient:
     def _on_disconnected_proxy(self) -> None:
         if self._shutdown:
             return
+        main_id = int(self._connected_main_client_id or self._main_client_id or 0)
+        proxy_id = int(self._connected_proxy_client_id or self._proxy_client_id or 0)
+        if main_id > 0 and proxy_id > 0:
+            self._quarantine_pair(main_id, proxy_id)
+        self._connected_proxy_client_id = None
         self._resubscribe_proxy_needed = True
         self._proxy_task = None
         self._proxy_tickers = {}
@@ -2663,6 +4146,30 @@ class IBKRClient:
             req_contract.exchange = "SMART"
         return req_contract
 
+    def _normalize_derivative_market_data_contract(
+        self,
+        contract: Contract,
+        *,
+        sec_type: str | None = None,
+    ) -> Contract:
+        normalized = contract
+        resolved_sec_type = str(sec_type or getattr(contract, "secType", "") or "").strip().upper()
+        if resolved_sec_type not in ("FUT", "FOP", "OPT"):
+            return normalized
+        current_exchange = str(getattr(contract, "exchange", "") or "").strip().upper()
+        if current_exchange:
+            return normalized
+        normalized = copy.copy(contract)
+        if resolved_sec_type in ("FUT", "FOP"):
+            primary_exchange = str(getattr(contract, "primaryExchange", "") or "").strip().upper()
+            symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
+            preferred = [primary_exchange] if primary_exchange else []
+            candidates = self._future_exchange_candidates(symbol, preferred)
+            normalized.exchange = candidates[0] if candidates else (primary_exchange or "CME")
+            return normalized
+        normalized.exchange = "SMART"
+        return normalized
+
     @staticmethod
     def _ticker_has_data(ticker: Ticker | None) -> bool:
         if ticker is None:
@@ -2693,6 +4200,593 @@ class IBKRClient:
         except (TypeError, ValueError):
             last_num = None
         return bool(last_num is not None and not math.isnan(last_num) and last_num > 0)
+
+    @staticmethod
+    def _ticker_has_close_data(ticker: Ticker | None) -> bool:
+        if ticker is None:
+            return False
+        for attr in ("close", "prevLast"):
+            value = getattr(ticker, attr, None)
+            try:
+                number = float(value) if value is not None else None
+            except (TypeError, ValueError):
+                number = None
+            if number is None or math.isnan(number) or number <= 0:
+                continue
+            return True
+        return False
+
+    @staticmethod
+    def _quote_num(value: object) -> float | None:
+        try:
+            number = float(value) if value is not None else None
+        except (TypeError, ValueError):
+            number = None
+        if number is None or math.isnan(number) or number <= 0:
+            return None
+        return float(number)
+
+    @staticmethod
+    def _quote_signature_num(value: object, *, allow_zero: bool = True) -> float | None:
+        try:
+            number = float(value) if value is not None else None
+        except (TypeError, ValueError):
+            number = None
+        if number is None or math.isnan(number):
+            return None
+        if allow_zero and number < 0:
+            return None
+        if not allow_zero and number <= 0:
+            return None
+        return float(number)
+
+    @classmethod
+    def _ticker_quote_signature(cls, ticker: Ticker | None) -> tuple[float | int | None, ...] | None:
+        if ticker is None:
+            return None
+        md_type_raw = getattr(ticker, "marketDataType", None)
+        try:
+            md_type = int(md_type_raw) if md_type_raw is not None else None
+        except (TypeError, ValueError):
+            md_type = None
+        return (
+            cls._quote_num(getattr(ticker, "bid", None)),
+            cls._quote_num(getattr(ticker, "ask", None)),
+            cls._quote_num(getattr(ticker, "last", None)),
+            cls._quote_num(getattr(ticker, "close", None)),
+            cls._quote_num(getattr(ticker, "prevLast", None)),
+            cls._quote_signature_num(getattr(ticker, "bidSize", None)),
+            cls._quote_signature_num(getattr(ticker, "askSize", None)),
+            cls._quote_signature_num(getattr(ticker, "lastSize", None)),
+            cls._quote_signature_num(getattr(ticker, "rtTradeVolume", None)),
+            cls._quote_signature_num(getattr(ticker, "rtVolume", None)),
+            cls._quote_signature_num(getattr(ticker, "volume", None)),
+            md_type,
+        )
+
+    @classmethod
+    def _ticker_top_quote_signature(cls, ticker: Ticker | None) -> tuple[float | None, ...] | None:
+        if ticker is None:
+            return None
+        return (
+            cls._quote_num(getattr(ticker, "bid", None)),
+            cls._quote_num(getattr(ticker, "ask", None)),
+            cls._quote_num(getattr(ticker, "last", None)),
+        )
+
+    @staticmethod
+    def _ticker_quote_age_sec(ticker: Ticker | None) -> float | None:
+        if ticker is None:
+            return None
+        updated_mono = getattr(ticker, "tbQuoteUpdatedMono", None)
+        try:
+            age_sec = (
+                max(0.0, time.monotonic() - float(updated_mono))
+                if updated_mono is not None
+                else None
+            )
+        except (TypeError, ValueError):
+            age_sec = None
+        return age_sec
+
+    @staticmethod
+    def _ticker_top_quote_age_sec(ticker: Ticker | None) -> float | None:
+        if ticker is None:
+            return None
+        updated_mono = getattr(ticker, "tbTopQuoteUpdatedMono", None)
+        try:
+            age_sec = (
+                max(0.0, time.monotonic() - float(updated_mono))
+                if updated_mono is not None
+                else None
+            )
+        except (TypeError, ValueError):
+            age_sec = None
+        return age_sec
+
+    @staticmethod
+    def _looks_like_ticker(value: object) -> bool:
+        return bool(
+            value is not None
+            and hasattr(value, "contract")
+            and any(
+                hasattr(value, attr)
+                for attr in ("bid", "ask", "last", "close", "prevLast", "marketDataType")
+            )
+        )
+
+    @classmethod
+    def _event_tickers(cls, *args, **kwargs) -> list[Ticker]:
+        seen: set[int] = set()
+        out: list[Ticker] = []
+
+        def _maybe_add(candidate: object) -> None:
+            if not cls._looks_like_ticker(candidate):
+                return
+            key = id(candidate)
+            if key in seen:
+                return
+            seen.add(key)
+            out.append(candidate)  # type: ignore[arg-type]
+
+        def _consume(value: object) -> None:
+            if isinstance(value, (list, tuple, set)):
+                for item in value:
+                    _maybe_add(item)
+                return
+            _maybe_add(value)
+
+        for arg in args:
+            _consume(arg)
+        for value in kwargs.values():
+            _consume(value)
+        return out
+
+    def _sync_top_quote_meta_for_ticker(self, ticker: Ticker) -> bool:
+        signature = self._ticker_top_quote_signature(ticker)
+        if signature is None:
+            return False
+        previous = getattr(ticker, "tbTopQuoteSignature", None)
+        if previous == signature:
+            return False
+        setattr(ticker, "tbTopQuoteSignature", signature)
+        if not any(value is not None for value in signature):
+            return False
+        setattr(ticker, "tbTopQuoteUpdatedMono", time.monotonic())
+        previous_moves = getattr(ticker, "tbTopQuoteMoveCount", None)
+        try:
+            moves = int(previous_moves) if previous_moves is not None else 0
+        except (TypeError, ValueError):
+            moves = 0
+        setattr(ticker, "tbTopQuoteMoveCount", max(0, moves) + 1)
+        return True
+
+    def _sync_stream_quote_meta_for_ticker(self, ticker: Ticker) -> bool:
+        signature = self._ticker_quote_signature(ticker)
+        if signature is None:
+            return False
+        self._sync_top_quote_meta_for_ticker(ticker)
+        previous = getattr(ticker, "tbQuoteSignature", None)
+        if previous == signature:
+            return False
+        setattr(ticker, "tbQuoteSignature", signature)
+        if self._ticker_has_data(ticker):
+            self._tag_ticker_quote_meta(ticker, source="stream")
+            return True
+        if self._ticker_has_close_data(ticker):
+            self._tag_ticker_quote_meta(ticker, source="stream-close-only")
+            return True
+        return False
+
+    def _tag_ticker_quote_meta(
+        self,
+        ticker: Ticker,
+        *,
+        source: str,
+        error_code: int | None = None,
+        error_text: str | None = None,
+        as_of: datetime | None = None,
+    ) -> None:
+        self._sync_top_quote_meta_for_ticker(ticker)
+        setattr(ticker, "tbQuoteSource", str(source or "").strip())
+        setattr(ticker, "tbQuoteUpdatedMono", time.monotonic())
+        if as_of is not None:
+            setattr(ticker, "tbQuoteAsOf", as_of.isoformat())
+        elif hasattr(ticker, "tbQuoteAsOf"):
+            setattr(ticker, "tbQuoteAsOf", None)
+        if error_code is not None:
+            setattr(ticker, "tbQuoteErrorCode", int(error_code))
+        elif hasattr(ticker, "tbQuoteErrorCode"):
+            setattr(ticker, "tbQuoteErrorCode", None)
+        if error_text:
+            setattr(ticker, "tbQuoteError", str(error_text).strip())
+        elif hasattr(ticker, "tbQuoteError"):
+            setattr(ticker, "tbQuoteError", None)
+
+    def _apply_ticker_fallback_quote(
+        self,
+        *,
+        ticker: Ticker,
+        source: str,
+        md_type: int | None = None,
+        bid: float | None = None,
+        ask: float | None = None,
+        last: float | None = None,
+        close: float | None = None,
+        prev_last: float | None = None,
+        as_of: datetime | None = None,
+    ) -> bool:
+        applied = False
+        clean_bid = self._quote_num(bid)
+        clean_ask = self._quote_num(ask)
+        clean_last = self._quote_num(last)
+        clean_close = self._quote_num(close)
+        clean_prev_last = self._quote_num(prev_last)
+        if clean_bid is not None:
+            ticker.bid = clean_bid
+            applied = True
+        if clean_ask is not None:
+            ticker.ask = clean_ask
+            applied = True
+        if clean_last is not None:
+            ticker.last = clean_last
+            applied = True
+        if clean_close is not None:
+            ticker.close = clean_close
+            applied = True
+        if clean_prev_last is not None:
+            ticker.prevLast = clean_prev_last
+            applied = True
+        if md_type is not None:
+            ticker.marketDataType = int(md_type)
+        if applied:
+            self._tag_ticker_quote_meta(ticker, source=source, as_of=as_of)
+            self._on_stream_update()
+        return applied
+
+    def _start_main_contract_quote_probe(self, contract: Contract) -> None:
+        con_id = int(getattr(contract, "conId", 0) or 0)
+        if not con_id:
+            return
+        self._start_main_contract_quote_watchdog(contract)
+        existing = self._main_contract_probe_tasks.get(con_id)
+        if existing is not None and not existing.done():
+            return
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        task = loop.create_task(self._probe_main_contract_quote(contract))
+        self._main_contract_probe_tasks[con_id] = task
+
+        def _cleanup(done_task: asyncio.Task, key: int = con_id) -> None:
+            current = self._main_contract_probe_tasks.get(key)
+            if current is done_task:
+                self._main_contract_probe_tasks.pop(key, None)
+
+        task.add_done_callback(_cleanup)
+
+    def _start_main_contract_quote_watchdog(self, contract: Contract) -> None:
+        con_id = int(getattr(contract, "conId", 0) or 0)
+        if not con_id:
+            return
+        existing = self._main_contract_watchdog_tasks.get(con_id)
+        if existing is not None and not existing.done():
+            return
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        task = loop.create_task(self._watch_main_contract_quote(contract))
+        self._main_contract_watchdog_tasks[con_id] = task
+
+        def _cleanup(done_task: asyncio.Task, key: int = con_id) -> None:
+            current = self._main_contract_watchdog_tasks.get(key)
+            if current is done_task:
+                self._main_contract_watchdog_tasks.pop(key, None)
+
+        task.add_done_callback(_cleanup)
+
+    def _resubscribe_main_contract_stream(
+        self,
+        ticker: Ticker,
+        *,
+        md_type_override: int | None = None,
+    ) -> Ticker | None:
+        if not self._ib.isConnected():
+            return None
+        contract = getattr(ticker, "contract", None)
+        if contract is None:
+            return None
+        sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
+        if sec_type not in ("FUT", "FOP"):
+            return None
+        req_contract = self._normalize_derivative_market_data_contract(contract, sec_type=sec_type)
+        md_type = int(md_type_override) if md_type_override is not None else int(_futures_md_ladder(_now_et())[0])
+        try:
+            self._ib.reqMarketDataType(int(md_type))
+        except Exception:
+            pass
+        try:
+            self._ib.cancelMktData(contract)
+        except Exception:
+            pass
+        try:
+            refreshed = self._ib.reqMktData(req_contract)
+        except Exception:
+            return None
+        con_id = int(getattr(req_contract, "conId", 0) or 0)
+        if con_id:
+            self._detail_tickers[con_id] = (self._ib, refreshed)
+        return refreshed
+
+    async def _watch_main_contract_quote(self, contract: Contract) -> None:
+        con_id = int(getattr(contract, "conId", 0) or 0)
+        last_probe_mono = 0.0
+        last_resubscribe_mono = 0.0
+        try:
+            await asyncio.sleep(float(_MAIN_CONTRACT_QUOTE_PROBE_INITIAL_SEC))
+            while True:
+                if not con_id:
+                    return
+                entry = self._detail_tickers.get(con_id)
+                if not entry:
+                    return
+                ib, ticker = entry
+                if ib is not self._ib:
+                    return
+                now_mono = time.monotonic()
+                age_sec = self._ticker_quote_age_sec(ticker)
+                top_age_sec = self._ticker_top_quote_age_sec(ticker)
+                has_actionable = self._ticker_has_data(ticker)
+                has_close = self._ticker_has_close_data(ticker)
+                stale_needs_probe = (
+                    (not has_actionable and not has_close)
+                    or age_sec is None
+                    or age_sec >= float(_MAIN_CONTRACT_STALE_REPROBE_SEC)
+                    or top_age_sec is None
+                    or top_age_sec >= float(_MAIN_CONTRACT_TOPLINE_STALE_REPROBE_SEC)
+                )
+                if stale_needs_probe and (
+                    now_mono - last_probe_mono
+                ) >= float(_MAIN_CONTRACT_QUOTE_PROBE_RETRY_SEC):
+                    req_contract = getattr(ticker, "contract", None) or contract
+                    self._start_main_contract_quote_probe(req_contract)
+                    last_probe_mono = now_mono
+                md_type_raw = getattr(ticker, "marketDataType", None)
+                try:
+                    md_type = int(md_type_raw) if md_type_raw is not None else None
+                except (TypeError, ValueError):
+                    md_type = None
+                promote_to_frozen = bool(
+                    top_age_sec is not None
+                    and top_age_sec >= float(_MAIN_CONTRACT_TOPLINE_STALE_REPROBE_SEC)
+                    and md_type == 3
+                )
+                resubscribe_due = bool(
+                    (age_sec is not None and age_sec >= float(_MAIN_CONTRACT_STALE_RESUBSCRIBE_SEC))
+                    or promote_to_frozen
+                )
+                if (
+                    resubscribe_due
+                    and (now_mono - last_resubscribe_mono) >= float(_MAIN_CONTRACT_STALE_REPROBE_SEC)
+                ):
+                    refreshed = self._resubscribe_main_contract_stream(
+                        ticker,
+                        md_type_override=4 if promote_to_frozen else None,
+                    )
+                    if refreshed is not None:
+                        if self._ticker_has_data(refreshed):
+                            self._tag_ticker_quote_meta(refreshed, source="stream")
+                        elif self._ticker_has_close_data(refreshed):
+                            self._tag_ticker_quote_meta(refreshed, source="stream-close-only")
+                        self._on_stream_update()
+                    last_resubscribe_mono = now_mono
+                await asyncio.sleep(float(_MAIN_CONTRACT_STALE_WATCHDOG_SEC))
+        finally:
+            current = self._main_contract_watchdog_tasks.get(con_id)
+            if current is asyncio.current_task():
+                self._main_contract_watchdog_tasks.pop(con_id, None)
+
+    async def _probe_main_contract_quote(self, contract: Contract) -> None:
+        con_id = int(getattr(contract, "conId", 0) or 0)
+        try:
+            await asyncio.sleep(float(_MAIN_CONTRACT_QUOTE_PROBE_INITIAL_SEC))
+            if not con_id:
+                return
+            entry = self._detail_tickers.get(con_id)
+            if not entry:
+                return
+            ib, ticker = entry
+            if ib is not self._ib:
+                return
+            if self._ticker_has_data(ticker):
+                self._tag_ticker_quote_meta(ticker, source="stream")
+                return
+            if self._ticker_has_close_data(ticker):
+                self._tag_ticker_quote_meta(ticker, source="stream-close-only")
+            if await self._attempt_main_contract_snapshot_quote(contract, ticker=ticker):
+                return
+            if await self._attempt_main_contract_historical_quote(contract, ticker=ticker):
+                return
+            await asyncio.sleep(float(_MAIN_CONTRACT_QUOTE_PROBE_RETRY_SEC))
+            entry = self._detail_tickers.get(con_id)
+            if not entry:
+                return
+            ib, ticker = entry
+            if ib is not self._ib:
+                return
+            if self._ticker_has_data(ticker):
+                self._tag_ticker_quote_meta(ticker, source="stream")
+                return
+            if self._ticker_has_close_data(ticker):
+                self._tag_ticker_quote_meta(ticker, source="stream-close-only")
+            if await self._attempt_main_contract_snapshot_quote(contract, ticker=ticker):
+                return
+            await self._attempt_main_contract_historical_quote(contract, ticker=ticker)
+        finally:
+            current = self._main_contract_probe_tasks.get(con_id)
+            if current is asyncio.current_task():
+                self._main_contract_probe_tasks.pop(con_id, None)
+
+    async def _attempt_main_contract_snapshot_quote(
+        self,
+        contract: Contract,
+        *,
+        ticker: Ticker,
+        md_types: Iterable[int] | None = None,
+    ) -> bool:
+        req_contract = contract
+        sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
+        if sec_type in ("FUT", "OPT", "FOP"):
+            req_contract = self._normalize_derivative_market_data_contract(
+                contract,
+                sec_type=sec_type,
+            )
+
+        ladder: list[int] = []
+        md_candidates: Iterable[int] = (
+            _futures_md_ladder(_now_et()) if md_types is None else md_types
+        )
+        for raw_md_type in md_candidates:
+            try:
+                md_type = int(raw_md_type)
+            except (TypeError, ValueError):
+                continue
+            if md_type <= 0:
+                continue
+            ladder.append(md_type)
+        if not ladder:
+            ladder = list(_futures_md_ladder(_now_et()))
+
+        for md_type in ladder:
+            try:
+                self._ib.reqMarketDataType(int(md_type))
+                snap = self._ib.reqMktData(req_contract, "", True, False)
+            except Exception:
+                continue
+            await asyncio.sleep(float(_MAIN_CONTRACT_SNAPSHOT_WAIT_SEC))
+            bid = self._quote_num(getattr(snap, "bid", None))
+            ask = self._quote_num(getattr(snap, "ask", None))
+            last = self._quote_num(getattr(snap, "last", None))
+            close = self._quote_num(getattr(snap, "close", None))
+            prev_last = self._quote_num(getattr(snap, "prevLast", None))
+            has_actionable = bool(
+                (bid is not None and ask is not None and ask >= bid)
+                or last is not None
+            )
+            has_close = bool(close is not None or prev_last is not None)
+            if not has_actionable and not has_close:
+                continue
+            source = {
+                1: "live-snapshot",
+                2: "live-frozen-snapshot",
+                3: "delayed-snapshot",
+                4: "delayed-frozen-snapshot",
+            }.get(int(md_type), f"snapshot-md{int(md_type)}")
+            applied = self._apply_ticker_fallback_quote(
+                ticker=ticker,
+                source=source,
+                md_type=int(md_type),
+                bid=bid,
+                ask=ask,
+                last=last,
+                close=close,
+                prev_last=prev_last,
+            )
+            if applied:
+                return True
+        return False
+
+    async def _attempt_main_contract_historical_quote(self, contract: Contract, *, ticker: Ticker) -> bool:
+        req_contract = contract
+        sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
+        if sec_type in ("FUT", "OPT", "FOP"):
+            req_contract = self._normalize_derivative_market_data_contract(
+                contract,
+                sec_type=sec_type,
+            )
+
+        async def _fetch(
+            *,
+            duration_str: str,
+            bar_size: str,
+            use_rth: bool,
+            what_to_show: str,
+            cache_ttl_sec: float,
+        ) -> list[tuple[datetime, float]]:
+            try:
+                return await asyncio.wait_for(
+                    self.historical_bars(
+                        req_contract,
+                        duration_str=duration_str,
+                        bar_size=bar_size,
+                        use_rth=use_rth,
+                        what_to_show=what_to_show,
+                        cache_ttl_sec=cache_ttl_sec,
+                    ),
+                    timeout=float(_MAIN_CONTRACT_HISTORICAL_ATTEMPT_TIMEOUT_SEC),
+                )
+            except asyncio.TimeoutError:
+                return []
+            except Exception:
+                return []
+
+        for what_to_show in ("TRADES", "MIDPOINT", "BID_ASK"):
+            bars = await _fetch(
+                duration_str="3 H",
+                bar_size="1 min",
+                use_rth=False,
+                what_to_show=what_to_show,
+                cache_ttl_sec=20.0,
+            )
+            if not bars:
+                continue
+            ts, close = bars[-1]
+            if close is None or float(close) <= 0:
+                continue
+            source = f"historical-{what_to_show.lower()}"
+            if self._apply_ticker_fallback_quote(
+                ticker=ticker,
+                source=source,
+                md_type=int(_futures_md_ladder(_now_et())[0]),
+                last=float(close),
+                close=float(close),
+                as_of=ts,
+            ):
+                return True
+        if sec_type in ("FUT", "OPT", "FOP"):
+            for what_to_show in ("TRADES", "MIDPOINT"):
+                bars = await _fetch(
+                    duration_str="2 M",
+                    bar_size="1 day",
+                    use_rth=False,
+                    what_to_show=what_to_show,
+                    cache_ttl_sec=120.0,
+                )
+                if not bars:
+                    continue
+                ts, close = bars[-1]
+                if close is None or float(close) <= 0:
+                    continue
+                source = f"historical-daily-{what_to_show.lower()}"
+                if self._apply_ticker_fallback_quote(
+                    ticker=ticker,
+                    source=source,
+                    md_type=int(_futures_md_ladder(_now_et())[0]),
+                    last=float(close),
+                    close=float(close),
+                    as_of=ts,
+                ):
+                    return True
+        if not self._ticker_has_data(ticker) and not self._ticker_has_close_data(ticker):
+            self._tag_ticker_quote_meta(
+                ticker,
+                source="unavailable",
+                error_text=str(getattr(ticker, "tbQuoteError", "") or "").strip(),
+            )
+            self._on_stream_update()
+        return False
 
     def _start_proxy_contract_quote_probe(self, contract: Contract) -> None:
         con_id = int(getattr(contract, "conId", 0) or 0)
@@ -2931,6 +5025,9 @@ class IBKRClient:
 
     def _on_stream_update(self, *_, **__) -> None:
         self._maybe_reset_proxy_contract_delay_on_session_change()
+        event_tickers = self._event_tickers(*_, **__)
+        for ticker in event_tickers:
+            self._sync_stream_quote_meta_for_ticker(ticker)
         if self._update_callback:
             self._update_callback()
         if not self._stream_listeners:
@@ -2995,6 +5092,9 @@ class IBKRClient:
             if not self._reconnect_requested:
                 break
             interval = fast_interval if time.monotonic() < fast_deadline else slow_interval
+            cooldown = self._client_id_backoff_remaining_sec()
+            if cooldown > interval:
+                interval = cooldown
             await asyncio.sleep(interval)
 
     async def _reconnect_once(self) -> None:
@@ -3012,10 +5112,30 @@ class IBKRClient:
                     if ib is not self._ib:
                         continue
                     try:
+                        req_contract = ticker.contract
+                        sec_type = str(getattr(req_contract, "secType", "") or "").strip().upper()
+                        if sec_type in ("FUT", "OPT", "FOP"):
+                            req_contract = self._normalize_derivative_market_data_contract(
+                                req_contract,
+                                sec_type=sec_type,
+                            )
+                        if sec_type in ("FUT", "FOP"):
+                            self._ib.reqMarketDataType(int(_futures_md_ladder(_now_et())[0]))
+                        else:
+                            self._ib.reqMarketDataType(3)
+                        refreshed = self._ib.reqMktData(req_contract)
                         self._detail_tickers[con_id] = (
                             self._ib,
-                            self._ib.reqMktData(ticker.contract),
+                            refreshed,
                         )
+                        if sec_type in ("FUT", "FOP"):
+                            self._start_main_contract_quote_watchdog(req_contract)
+                            if self._ticker_has_data(refreshed):
+                                self._tag_ticker_quote_meta(refreshed, source="stream")
+                            elif self._ticker_has_close_data(refreshed):
+                                self._tag_ticker_quote_meta(refreshed, source="stream-close-only")
+                            else:
+                                self._start_main_contract_quote_probe(req_contract)
                     except Exception:
                         continue
                 self._index_tickers = {}
@@ -3110,13 +5230,19 @@ def _normalize_order_contract(contract: Contract) -> Contract:
         return contract
     normalized = copy.copy(contract)
     sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
+    if sec_type == "FUT":
+        symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
+        exchange_hints = _FUT_EXCHANGE_HINTS.get(symbol, ())
+        primary_exchange = str(getattr(contract, "primaryExchange", "") or "").strip().upper()
+        normalized.exchange = primary_exchange or (exchange_hints[0] if exchange_hints else "CME")
+        return normalized
     if sec_type == "FOP":
         symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
         exchange_hints = _FUT_EXCHANGE_HINTS.get(symbol, ())
         primary_exchange = str(getattr(contract, "primaryExchange", "") or "").strip().upper()
         normalized.exchange = primary_exchange or (exchange_hints[0] if exchange_hints else "CME")
         return normalized
-    if sec_type in ("STK", "OPT", "FUT"):
+    if sec_type in ("STK", "OPT"):
         normalized.exchange = "SMART"
     return normalized
 # endregion

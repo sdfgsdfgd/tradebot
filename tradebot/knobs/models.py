@@ -89,6 +89,11 @@ class FiltersConfig:
     shock_short_boost_min_down_streak_bars: int = 1
     shock_short_boost_require_regime_down: bool = False
     shock_short_boost_require_entry_down: bool = False
+    shock_prearm_dist_on_max_pp: float = 0.0
+    shock_prearm_min_dist_on_vel_pp: float = 0.0
+    shock_prearm_short_risk_mult_factor: float = 1.0
+    shock_prearm_require_regime_down: bool = True
+    shock_prearm_require_entry_down: bool = True
     shock_long_risk_mult_factor: float = 1.0
     shock_long_risk_mult_factor_down: float = 1.0
     shock_stop_loss_pct_mult: float = 1.0
@@ -102,6 +107,13 @@ class FiltersConfig:
     shock_risk_scale_target_atr_pct: float | None = None
     shock_risk_scale_min_mult: float = 0.2
     shock_risk_scale_apply_to: str = "risk"  # "risk" | "cap" | "both"
+    liq_boost_enable: bool = False
+    liq_boost_score_min: float = 2.0
+    liq_boost_score_span: float = 2.0
+    liq_boost_max_risk_mult: float = 1.0
+    liq_boost_cap_floor_frac: float = 0.0
+    liq_boost_require_alignment: bool = True
+    liq_boost_require_shock: bool = False
     risk_entry_cutoff_hour_et: int | None = None
     riskoff_tr5_med_pct: float | None = None
     riskoff_tr5_lookback_days: int = 5

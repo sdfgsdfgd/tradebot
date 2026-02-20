@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections import deque
+from datetime import time as dtime
 import math
 from time import monotonic
 
@@ -25,6 +26,7 @@ from .common import (
     _exec_chase_quote_signature,
     _exec_chase_should_reprice,
     _EXEC_LADDER_TIMEOUT_SEC,
+    _EXEC_RELENTLESS_TIMEOUT_SEC,
     _fmt_expiry,
     _fmt_money,
     _fmt_qty,
@@ -48,6 +50,7 @@ from .common import (
     _ticker_price,
     _unrealized_pnl_values,
 )
+from .time_compat import now_et as _now_et
 
 _DETAIL_CHASE_STATE_BY_ORDER: dict[int, dict[str, object]] = {}
 
@@ -81,6 +84,18 @@ class PositionDetailScreen(Screen):
     _AURORA_TAPE_BIAS = 0.15
     _VOL_MAGENTA_STYLES = ("#4e1e57", "#6f2380", "#922aaa", "#b534d8", "#ff3dee")
     _TREND_ROWS = 5
+    _ORDER_PANEL_NOTICE_TTL_SEC = 5 * 60.0
+    _RELENTLESS_BASE_CROSS_SEC = 2.0
+    _RELENTLESS_STEP_SEC = 3.0
+    _RELENTLESS_STEP_SEC_SHOCK = 1.5
+    _RELENTLESS_MIN_REPRICE_SEC = 0.75
+    _RELENTLESS_MIN_REPRICE_SEC_SHOCK = 0.35
+    _RELENTLESS_MIN_REPRICE_SEC_HYPER = 0.25
+    _RELENTLESS_OPEN_SHOCK_WINDOW_SEC = 120.0
+    _RELENTLESS_STALE_TOP_AGE_SEC = 2.0
+    _RELENTLESS_SPREAD_PRESSURE_TRIGGER = 2.0
+    _RELENTLESS_SPREAD_PRESSURE_HYPER = 3.5
+    _RELENTLESS_MAX_EDGE_TICKS = 40
     _AURORA_PRESET_ORDER = ("calm", "normal", "feral")
     _AURORA_PRESETS = {
         "calm": {"buy_soft": 0.28, "buy_strong": 0.56, "sell_soft": -0.28, "sell_strong": -0.56, "burst_gain": 0.80},
@@ -104,8 +119,10 @@ class PositionDetailScreen(Screen):
         self._underlying_ticker: Ticker | None = None
         self._underlying_con_id: int | None = None
         self._underlying_label: str | None = None
-        self._exec_rows = ["ladder", "optimistic", "mid", "aggressive", "cross", "qty"]
+        self._exec_rows = ["ladder", "relentless", "optimistic", "mid", "aggressive", "cross", "custom", "qty"]
         self._exec_selected = 0
+        self._exec_custom_input = ""
+        self._exec_custom_price: float | None = None
         self._exec_qty_input = ""
         self._exec_qty = _default_order_qty(item)
         self._exec_status: str | None = None
@@ -113,6 +130,7 @@ class PositionDetailScreen(Screen):
         self._orders_selected = 0
         self._orders_scroll = 0
         self._orders_rows: list[Trade] = []
+        self._orders_notice: tuple[float, str, str] | None = None
         self._refresh_task = None
         self._chase_tasks: set[asyncio.Task] = set()
         self._mid_samples: deque[float] = deque(maxlen=240)
@@ -166,6 +184,7 @@ class PositionDetailScreen(Screen):
         self._detail_left = self.query_one("#detail-left", Static)
         self._detail_right = self.query_one("#detail-right", Static)
         self._detail_legend = self.query_one("#detail-legend", Static)
+        await self._maybe_align_front_future_contract()
         self._ticker = await self._client.ensure_ticker(self._item.contract, owner="details")
         self._client.add_stream_listener(self._capture_tick_mid)
         try:
@@ -188,6 +207,63 @@ class PositionDetailScreen(Screen):
             self._client.release_ticker(con_id, owner="details")
         if self._underlying_con_id:
             self._client.release_ticker(self._underlying_con_id, owner="details")
+
+    async def _maybe_align_front_future_contract(self) -> None:
+        contract = self._item.contract
+        if str(getattr(contract, "secType", "") or "").strip().upper() != "FUT":
+            return
+        try:
+            qty = float(getattr(self._item, "position", 0.0) or 0.0)
+        except (TypeError, ValueError):
+            qty = 0.0
+        # Search-opened synthetic rows are flat and account-less. Keep explicit live
+        # positions pinned to their exact contract.
+        if abs(qty) > 1e-12 or getattr(self._item, "account", None):
+            return
+        symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
+        if not symbol:
+            return
+        exchanges: list[str] = []
+        for raw_exchange in (
+            str(getattr(contract, "exchange", "") or "").strip().upper(),
+            str(getattr(contract, "primaryExchange", "") or "").strip().upper(),
+            "CME",
+        ):
+            if raw_exchange and raw_exchange not in exchanges:
+                exchanges.append(raw_exchange)
+        resolved = None
+        for exchange in exchanges:
+            try:
+                resolved = await self._client.front_future(
+                    symbol,
+                    exchange=exchange,
+                    cache_ttl_sec=180.0,
+                )
+            except Exception:
+                resolved = None
+            if resolved is not None:
+                break
+        if resolved is None:
+            return
+        current_con_id = int(getattr(contract, "conId", 0) or 0)
+        resolved_con_id = int(getattr(resolved, "conId", 0) or 0)
+        if current_con_id and resolved_con_id and current_con_id == resolved_con_id:
+            return
+        latest = self._client.portfolio_item(resolved_con_id) if resolved_con_id else None
+        if latest is not None:
+            self._item = latest
+            return
+        account = str(getattr(self._item, "account", "") or "")
+        self._item = PortfolioItem(
+            contract=resolved,
+            position=0.0,
+            marketPrice=0.0,
+            marketValue=0.0,
+            averageCost=0.0,
+            unrealizedPNL=0.0,
+            realizedPNL=0.0,
+            account=account,
+        )
 
     async def _load_session_closes(self) -> None:
         try:
@@ -261,11 +337,19 @@ class PositionDetailScreen(Screen):
             self._render_details(sample=False)
             return
         selected = self._exec_rows[self._exec_selected]
-        if self._active_panel != "exec" or selected != "qty":
+        if self._active_panel != "exec":
             self.app.pop_screen()
             return
-        self._adjust_qty(-1)
-        self._render_details(sample=False)
+        if selected == "qty":
+            self._adjust_qty(-1)
+            self._render_details(sample=False)
+            return
+        if selected == "custom":
+            self._adjust_custom_price(-1)
+            self._render_details(sample=False)
+            return
+        self.app.pop_screen()
+        return
 
     def action_exec_right(self) -> None:
         if self._active_panel == "orders":
@@ -274,6 +358,8 @@ class PositionDetailScreen(Screen):
         selected = self._exec_rows[self._exec_selected]
         if selected == "qty":
             self._adjust_qty(1)
+        elif selected == "custom":
+            self._adjust_custom_price(1)
         else:
             self._active_panel = "orders"
         self._render_details(sample=False)
@@ -298,17 +384,21 @@ class PositionDetailScreen(Screen):
         trade = self._selected_order()
         if not trade:
             self._exec_status = "Cancel: no order"
+            self._set_orders_notice(self._exec_status, level="warn")
             self._render_details(sample=False)
             return
         order_id = trade.order.orderId or trade.order.permId or 0
         self._exec_status = f"Canceling #{order_id}"
+        self._set_orders_notice(self._exec_status, level="warn")
         try:
             loop = asyncio.get_running_loop()
         except RuntimeError:
             self._exec_status = "Cancel: no loop"
+            self._set_orders_notice(self._exec_status, level="error")
             self._render_details(sample=False)
             return
         loop.create_task(self._cancel_order(trade))
+        self._render_details(sample=False)
 
     def action_cycle_aurora_preset(self) -> None:
         try:
@@ -330,7 +420,26 @@ class PositionDetailScreen(Screen):
             self._underlying_ticker = None
             self._underlying_label = None
             await self._load_underlying()
-        self._exec_status = "MD refreshed"
+        attempted_live_probe = False
+        live_source: str | None = None
+        sec_type = str(getattr(self._item.contract, "secType", "") or "").strip().upper()
+        md_type_raw = getattr(self._ticker, "marketDataType", None) if self._ticker else None
+        try:
+            md_type = int(md_type_raw) if md_type_raw is not None else None
+        except (TypeError, ValueError):
+            md_type = None
+        if sec_type in ("FUT", "FOP") and md_type in (3, 4):
+            attempted_live_probe = True
+            try:
+                live_source = await self._client.refresh_live_snapshot_once(self._item.contract)
+            except Exception:
+                live_source = None
+        if live_source:
+            self._exec_status = f"MD refreshed + 1-shot {live_source}"
+        elif attempted_live_probe:
+            self._exec_status = "MD refreshed (1-shot live unavailable)"
+        else:
+            self._exec_status = "MD refreshed"
         self._render_details()
 
     async def _load_underlying(self) -> None:
@@ -354,6 +463,17 @@ class PositionDetailScreen(Screen):
         if widget is None or not bool(getattr(widget, "is_mounted", False)):
             return
         self._render_details(sample=sample)
+
+    def _sync_bound_tickers(self) -> None:
+        con_id = int(getattr(self._item.contract, "conId", 0) or 0)
+        if con_id:
+            latest = self._client.ticker_for_con_id(con_id)
+            if latest is not None:
+                self._ticker = latest
+        if self._underlying_con_id:
+            latest_underlying = self._client.ticker_for_con_id(int(self._underlying_con_id))
+            if latest_underlying is not None:
+                self._underlying_ticker = latest_underlying
 
     @staticmethod
     def _clip(text: str, width: int) -> str:
@@ -382,6 +502,17 @@ class PositionDetailScreen(Screen):
         if math.isnan(num):
             return None
         return float(num)
+
+    def _official_unrealized(self) -> float | None:
+        con_id = int(getattr(self._item.contract, "conId", 0) or 0)
+        official = self._client.pnl_single_unrealized(con_id)
+        if official is None and not self._client.has_pnl_single_subscription(con_id):
+            official = self._float_or_none(getattr(self._item, "unrealizedPNL", None))
+        return official
+
+    def _official_daily_contract_pnl(self) -> float | None:
+        con_id = int(getattr(self._item.contract, "conId", 0) or 0)
+        return self._client.pnl_single_daily(con_id)
 
     def _live_unrealized(self, mark_price: float | None) -> float | None:
         mark = self._float_or_none(mark_price)
@@ -467,6 +598,101 @@ class PositionDetailScreen(Screen):
             return 0.0
         peak = max(samples)
         return max(peak - current, 0.0)
+
+    def _set_orders_notice(self, message: str, *, level: str = "info") -> None:
+        text = str(message or "").strip()
+        if not text:
+            return
+        cleaned_level = str(level or "info").strip().lower()
+        if cleaned_level not in ("info", "warn", "error"):
+            cleaned_level = "info"
+        self._orders_notice = (monotonic(), cleaned_level, text)
+
+    def _orders_notice_line(self) -> Text | None:
+        payload = self._orders_notice
+        if payload is None:
+            return None
+        ts_mono, level, message = payload
+        if (monotonic() - float(ts_mono)) > float(self._ORDER_PANEL_NOTICE_TTL_SEC):
+            self._orders_notice = None
+            return None
+        style = "bright_cyan"
+        label = "INFO"
+        if level == "warn":
+            style = "yellow"
+            label = "WARN"
+        elif level == "error":
+            style = "bold red"
+            label = "ERR"
+        line = Text(f"{label} ", style=style)
+        line.append(str(message), style=style)
+        return line
+
+    def _consume_order_error(self, order_id: int, perm_id: int = 0) -> tuple[int, str] | None:
+        candidate_ids: list[int] = []
+        for raw_id in (order_id, perm_id):
+            try:
+                candidate = int(raw_id or 0)
+            except (TypeError, ValueError):
+                candidate = 0
+            if candidate <= 0 or candidate in candidate_ids:
+                continue
+            candidate_ids.append(int(candidate))
+        if not candidate_ids:
+            return None
+        pop_order_error = getattr(self._client, "pop_order_error", None)
+        if not callable(pop_order_error):
+            return None
+
+        def _pop_error(order_ref: int):
+            try:
+                return pop_order_error(
+                    int(order_ref),
+                    max_age_sec=float(self._ORDER_PANEL_NOTICE_TTL_SEC),
+                )
+            except TypeError:
+                try:
+                    return pop_order_error(int(order_ref))
+                except Exception:
+                    return None
+            except Exception:
+                return None
+
+        payload = None
+        for candidate in candidate_ids:
+            payload = _pop_error(int(candidate))
+            if isinstance(payload, dict):
+                break
+        if not isinstance(payload, dict):
+            return None
+        try:
+            code = int(payload.get("code") or 0)
+        except (TypeError, ValueError):
+            code = 0
+        message = str(payload.get("message") or "").strip()
+        if not message:
+            return None
+        return code, message
+
+    async def _await_order_error(
+        self,
+        order_id: int,
+        perm_id: int = 0,
+        *,
+        attempts: int = 4,
+        interval_sec: float = 0.1,
+    ) -> tuple[int, str] | None:
+        payload = self._consume_order_error(order_id, perm_id)
+        if payload is not None:
+            return payload
+        loops = max(0, int(attempts) - 1)
+        pause = max(0.01, float(interval_sec))
+        for _ in range(loops):
+            await asyncio.sleep(pause)
+            payload = self._consume_order_error(order_id, perm_id)
+            if payload is not None:
+                return payload
+        return None
 
     def _trim_tapes(self, now: float) -> None:
         cutoff = now - max(float(self._TREND_RETENTION_SEC), float(self._TREND_WINDOW_SEC))
@@ -595,6 +821,7 @@ class PositionDetailScreen(Screen):
         return 1.0
 
     def _capture_tick_mid(self) -> None:
+        self._sync_bound_tickers()
         ticker = self._ticker
         if ticker is None:
             return
@@ -1253,6 +1480,10 @@ class PositionDetailScreen(Screen):
     def _exec_mode_label(mode: str) -> str:
         if mode == "AUTO":
             return "AUTO"
+        if mode == "RELENTLESS":
+            return "RLT"
+        if mode == "CUSTOM":
+            return "CUSTOM"
         if mode == "OPTIMISTIC":
             return "OPT"
         if mode == "AGGRESSIVE":
@@ -1261,6 +1492,8 @@ class PositionDetailScreen(Screen):
 
     def _selected_exec_mode(self) -> str:
         selected = self._exec_rows[self._exec_selected]
+        if selected == "relentless":
+            return "RELENTLESS"
         if selected == "optimistic":
             return "OPTIMISTIC"
         if selected == "mid":
@@ -1269,7 +1502,32 @@ class PositionDetailScreen(Screen):
             return "AGGRESSIVE"
         if selected == "cross":
             return "CROSS"
+        if selected == "custom":
+            return "CUSTOM"
         return "AUTO"
+
+    @staticmethod
+    def _contract_header_title(contract: object) -> str:
+        symbol = str(getattr(contract, "symbol", "") or "").strip().upper() or "?"
+        sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
+        if sec_type == "STK":
+            kind = "STOCK"
+        elif sec_type == "FUT":
+            kind = "FUTURES"
+        elif sec_type == "OPT":
+            kind = "OPTIONS"
+        elif sec_type == "FOP":
+            kind = "FOP"
+        else:
+            kind = sec_type or "UNKNOWN"
+        side = ""
+        if sec_type in ("OPT", "FOP"):
+            right = str(getattr(contract, "right", "") or "").strip().upper()[:1]
+            if right == "C":
+                side = " CALLS"
+            elif right == "P":
+                side = " PUTS"
+        return f"{symbol} {kind}{side}"
 
     def _box_top(self, title: str, inner_width: int, *, style: str) -> Text:
         label = f" {title} "
@@ -1312,6 +1570,7 @@ class PositionDetailScreen(Screen):
         return Text("└" + ("─" * inner_width) + "┘", style=style)
 
     def _render_details(self, *, sample: bool = True) -> None:
+        self._sync_bound_tickers()
         if hasattr(self, "_detail_legend"):
             self._detail_legend.update(self._render_aurora_legend())
         try:
@@ -1409,11 +1668,14 @@ class PositionDetailScreen(Screen):
         contract = self._item.contract
         inner = max(panel_width - 2, 24)
         spark_width = inner
-        official_unreal = self._float_or_none(getattr(self._item, "unrealizedPNL", None))
+        official_unreal = self._official_unrealized()
         fast_unreal = self._live_unrealized(price or mark)
-        pnl_value = official_unreal if official_unreal is not None else fast_unreal
-        official_label = _fmt_money(official_unreal) if official_unreal is not None else "n/a"
-        fast_label = _fmt_money(fast_unreal) if fast_unreal is not None else "n/a"
+        display_unreal = official_unreal if official_unreal is not None else fast_unreal
+        pnl_value = display_unreal
+        display_unreal_label = _fmt_money(display_unreal) if display_unreal is not None else "n/a"
+        unreal_is_estimate = official_unreal is None and fast_unreal is not None
+        day_pnl = self._official_daily_contract_pnl()
+        day_label = _fmt_money(day_pnl) if day_pnl is not None else "n/a"
         position_qty = float(self._item.position or 0.0)
         avg_cost = (
             _fmt_money(float(self._item.averageCost))
@@ -1426,11 +1688,8 @@ class PositionDetailScreen(Screen):
             if market_value_raw is not None
             else "n/a"
         )
-        realized = (
-            _fmt_money(float(self._item.realizedPNL))
-            if self._item.realizedPNL is not None
-            else "n/a"
-        )
+        realized_num = self._float_or_none(getattr(self._item, "realizedPNL", None))
+        realized = _fmt_money(realized_num) if realized_num is not None else "n/a"
 
         md_row = Text("MD: ")
         if self._ticker:
@@ -1455,7 +1714,7 @@ class PositionDetailScreen(Screen):
             if is_delayed and (not has_live_quote) and close is not None and close > 0:
                 close_only_badge_row = Text("CLOSE-ONLY DELAYED FEED", style="bold black on yellow")
         no_quote_badge_row: Text | None = None
-        if contract.secType == "OPT" and not has_live_quote:
+        if contract.secType in ("OPT", "FOP") and not has_live_quote:
             no_quote_badge_row = Text("NO ACTIONABLE OPTION QUOTE YET", style="bold black on yellow")
 
         quote_row = Text("Bid ")
@@ -1536,29 +1795,34 @@ class PositionDetailScreen(Screen):
                 pct24_value.stylize("green")
             elif pct24 < 0:
                 pct24_value.stylize("red")
-        pnl_prefix = "Unrealized "
         tail_row = Text("")
         tail_row.append_text(pct24_prefix)
         tail_row.append_text(pct24_value)
         tail_row.append("   ")
-        tail_row.append(pnl_prefix)
+        tail_row.append("✦ Unreal ", style="#8fbfff")
         pnl_start = len(tail_row.plain)
-        tail_row.append(official_label)
+        tail_row.append(display_unreal_label)
         pnl_end = len(tail_row.plain)
-        tail_row.append(" (")
-        est_start = len(tail_row.plain)
-        tail_row.append(fast_label)
-        est_end = len(tail_row.plain)
-        tail_row.append(" est)")
-        est_suffix_end = len(tail_row.plain)
-        tail_row.append("   Realized ")
+        if unreal_is_estimate:
+            tail_row.append(" ≈est", style="dim")
+        tail_row.append(" ", style="dim")
+        tail_row.append("(", style="dim")
+        tail_row.append("◷ Day ", style="#8aa0b6")
+        day_start = len(tail_row.plain)
+        tail_row.append(day_label)
+        day_end = len(tail_row.plain)
+        tail_row.append(")", style="dim")
+        tail_row.append("   ")
+        tail_row.append("Realized ", style="#8aa0b6")
+        realized_start = len(tail_row.plain)
         tail_row.append(realized)
+        realized_end = len(tail_row.plain)
         tail_row.stylize(self._pnl_style(pnl_value), pnl_start, pnl_end)
-        tail_row.stylize(self._pnl_style(fast_unreal), est_start, est_end)
-        tail_row.stylize("dim", est_end, est_suffix_end)
+        tail_row.stylize(self._pnl_style(day_pnl), day_start, day_end)
+        tail_row.stylize(self._pnl_style(realized_num), realized_start, realized_end)
 
         lines: list[Text] = [
-            self._box_top(f"{contract.symbol} {contract.secType}", inner, style="#2d8fd5"),
+            self._box_top(self._contract_header_title(contract), inner, style="#2d8fd5"),
             self._box_row(md_row, inner, style="#2d8fd5"),
             self._box_row(quote_status, inner, style="#2d8fd5"),
             self._box_row(headline, inner, style="#2d8fd5"),
@@ -1593,6 +1857,8 @@ class PositionDetailScreen(Screen):
             ubid = self._quote_num(self._underlying_ticker.bid)
             uask = self._quote_num(self._underlying_ticker.ask)
             ulast = self._quote_num(self._underlying_ticker.last)
+            if ulast is None:
+                ulast = _ticker_price(self._underlying_ticker) or _ticker_close(self._underlying_ticker)
             under_row = Text(f"{label}: ")
             under_row.append(f"{_fmt_quote(ubid)}/{_fmt_quote(uask)}/{_fmt_quote(ulast)}", style="cyan")
             lines.append(self._box_row(under_row, inner, style="#2d8fd5"))
@@ -1601,7 +1867,7 @@ class PositionDetailScreen(Screen):
 
     def _render_execution_block(self, *, panel_width: int) -> list[Text]:
         contract = self._item.contract
-        if contract.secType not in ("STK", "OPT", "FOP"):
+        if contract.secType not in ("STK", "OPT", "FOP", "FUT"):
             return []
         bid = self._quote_num(self._ticker.bid) if self._ticker else None
         ask = self._quote_num(self._ticker.ask) if self._ticker else None
@@ -1618,6 +1884,9 @@ class PositionDetailScreen(Screen):
         aggressive_sell = _round_to_tick(_aggressive_price(bid, ask, mid_raw, "SELL"), tick) or mid
         cross_buy = _round_to_tick(ask, tick) if ask is not None else None
         cross_sell = _round_to_tick(bid, tick) if bid is not None else None
+        custom = _round_to_tick(self._exec_custom_price, tick)
+        if custom is None:
+            custom = _round_to_tick(mid, tick)
         ask_size = _safe_num(getattr(self._ticker, "askSize", None)) if self._ticker else None
         bid_size = _safe_num(getattr(self._ticker, "bidSize", None)) if self._ticker else None
         size_scale = max(1.0, ask_size or 0.0, bid_size or 0.0)
@@ -1630,6 +1899,37 @@ class PositionDetailScreen(Screen):
         has_actionable_quote = bool(
             (bid is not None and ask is not None and bid <= ask)
             or (last is not None)
+        )
+        quote_stale = self._quote_is_stale_for_relentless(
+            ticker=self._ticker,
+            bid=bid,
+            ask=ask,
+            last=last,
+        )
+        open_shock = self._in_open_shock_window()
+        relentless_buy = self._relentless_price(
+            action="BUY",
+            bid=bid,
+            ask=ask,
+            last_ref=last_ref,
+            tick=tick,
+            elapsed_sec=0.0,
+            quote_stale=quote_stale,
+            open_shock=open_shock,
+            no_progress_reprices=0,
+            arrival_ref=mid_raw or last_ref,
+        )
+        relentless_sell = self._relentless_price(
+            action="SELL",
+            bid=bid,
+            ask=ask,
+            last_ref=last_ref,
+            tick=tick,
+            elapsed_sec=0.0,
+            quote_stale=quote_stale,
+            open_shock=open_shock,
+            no_progress_reprices=0,
+            arrival_ref=mid_raw or last_ref,
         )
         if contract.secType == "OPT" and not has_actionable_quote:
             lock_row = Text(
@@ -1693,6 +1993,10 @@ class PositionDetailScreen(Screen):
                 ),
             ),
             (
+                "relentless",
+                f"RLT Fill   B/S {_fmt_quote(relentless_buy)} / {_fmt_quote(relentless_sell)}",
+            ),
+            (
                 "optimistic",
                 f"OPT Only   B/S {_fmt_quote(optimistic_buy)} / {_fmt_quote(optimistic_sell)}",
             ),
@@ -1704,6 +2008,10 @@ class PositionDetailScreen(Screen):
             (
                 "cross",
                 f"CROSS Only B/S {_fmt_quote(cross_buy)} / {_fmt_quote(cross_sell)}",
+            ),
+            (
+                "custom",
+                f"CUSTOM     B/S {_fmt_quote(custom)} / {_fmt_quote(custom)}",
             ),
             (
                 "qty",
@@ -1765,6 +2073,10 @@ class PositionDetailScreen(Screen):
         lines.append(self._box_row(slip_row, inner, style="#2f78c4"))
         lines.append(self._box_row(self._armed_mode_line(), inner, style="#2f78c4"))
         lines.append(self._box_row(self._active_chase_line(trades), inner, style="#2f78c4"))
+        notice_line = self._orders_notice_line()
+        if notice_line is not None:
+            lines.append(self._box_rule("Order Feed", inner, style="#2f78c4"))
+            lines.append(self._box_row(notice_line, inner, style="#2f78c4"))
 
         if not trades:
             self._orders_selected = 0
@@ -1773,7 +2085,7 @@ class PositionDetailScreen(Screen):
         else:
             if self._orders_selected >= len(trades):
                 self._orders_selected = len(trades) - 1
-            reserved_without_trades = 7  # top + 4 metrics + header + bottom
+            reserved_without_trades = 7 + (2 if notice_line is not None else 0)
             visible = len(trades)
             if available:
                 visible = max(available - reserved_without_trades, 1)
@@ -1807,10 +2119,66 @@ class PositionDetailScreen(Screen):
         self._detail_right.update(Text("\n").join(lines))
 
     def _trade_order_id(self, trade: Trade) -> int:
-        order_id = int(getattr(getattr(trade, "order", None), "orderId", 0) or 0)
-        if not order_id:
-            order_id = int(getattr(getattr(trade, "order", None), "permId", 0) or 0)
-        return order_id
+        order_id, perm_id = self._trade_order_ids(trade)
+        return order_id or perm_id
+
+    @staticmethod
+    def _trade_order_ids(trade: Trade) -> tuple[int, int]:
+        order = getattr(trade, "order", None)
+        try:
+            order_id = int(getattr(order, "orderId", 0) or 0)
+        except (TypeError, ValueError):
+            order_id = 0
+        try:
+            perm_id = int(getattr(order, "permId", 0) or 0)
+        except (TypeError, ValueError):
+            perm_id = 0
+        return max(0, order_id), max(0, perm_id)
+
+    @staticmethod
+    def _state_order_keys(*, order_id: int, perm_id: int) -> list[int]:
+        keys: list[int] = []
+        if int(order_id or 0) > 0:
+            keys.append(int(order_id))
+        if int(perm_id or 0) > 0 and int(perm_id) not in keys:
+            keys.append(int(perm_id))
+        return keys
+
+    def _chase_state_for_ids(self, *, order_id: int, perm_id: int) -> dict[str, object] | None:
+        for key in self._state_order_keys(order_id=order_id, perm_id=perm_id):
+            state = _DETAIL_CHASE_STATE_BY_ORDER.get(int(key))
+            if isinstance(state, dict):
+                return state
+        return None
+
+    def _set_chase_state(
+        self,
+        *,
+        order_id: int,
+        perm_id: int,
+        updates: dict[str, object] | None = None,
+    ) -> dict[str, object] | None:
+        keys = self._state_order_keys(order_id=order_id, perm_id=perm_id)
+        if not keys:
+            return None
+        state = self._chase_state_for_ids(order_id=order_id, perm_id=perm_id)
+        if state is None:
+            state = {}
+        if updates:
+            state.update(dict(updates))
+        for key in keys:
+            _DETAIL_CHASE_STATE_BY_ORDER[int(key)] = state
+        return state
+
+    def _clear_chase_state(self, *, order_id: int, perm_id: int) -> None:
+        keys = self._state_order_keys(order_id=order_id, perm_id=perm_id)
+        state = self._chase_state_for_ids(order_id=order_id, perm_id=perm_id)
+        if isinstance(state, dict):
+            for key, value in list(_DETAIL_CHASE_STATE_BY_ORDER.items()):
+                if value is state:
+                    _DETAIL_CHASE_STATE_BY_ORDER.pop(int(key), None)
+        for key in keys:
+            _DETAIL_CHASE_STATE_BY_ORDER.pop(int(key), None)
 
     def _armed_mode_line(self) -> Text:
         selected = self._selected_exec_mode()
@@ -1821,14 +2189,17 @@ class PositionDetailScreen(Screen):
         line.append(selected_label, style="yellow")
         if selected == "AUTO":
             line.append(" (OPT->MID->AGG->CROSS)", style="dim")
+        elif selected == "RELENTLESS":
+            line.append(" (completion-first)", style="dim")
         line.append("  B/S ")
         line.append(f"{_fmt_quote(buy)}/{_fmt_quote(sell)}", style="bright_white")
         return line
 
     def _active_chase_line(self, trades: list[Trade]) -> Text:
         for trade in trades:
-            order_id = self._trade_order_id(trade)
-            state = _DETAIL_CHASE_STATE_BY_ORDER.get(order_id)
+            order_id, perm_id = self._trade_order_ids(trade)
+            display_id = order_id or perm_id
+            state = self._chase_state_for_ids(order_id=order_id, perm_id=perm_id)
             if not isinstance(state, dict):
                 continue
             selected = str(state.get("selected") or "-")
@@ -1838,7 +2209,7 @@ class PositionDetailScreen(Screen):
                 mods = int(state.get("mods") or 0)
             except (TypeError, ValueError):
                 mods = 0
-            line = Text(f"Chase #{order_id} ")
+            line = Text(f"Chase #{display_id} ")
             line.append(selected, style="yellow")
             if selected == "AUTO":
                 line.append("->", style="dim")
@@ -1850,8 +2221,8 @@ class PositionDetailScreen(Screen):
         return Text("Chase idle", style="dim")
 
     def _order_mode_for_trade(self, trade: Trade) -> str:
-        order_id = self._trade_order_id(trade)
-        state = _DETAIL_CHASE_STATE_BY_ORDER.get(order_id)
+        order_id, perm_id = self._trade_order_ids(trade)
+        state = self._chase_state_for_ids(order_id=order_id, perm_id=perm_id)
         if not isinstance(state, dict):
             return "-"
         selected = str(state.get("selected") or "-")
@@ -1902,32 +2273,70 @@ class PositionDetailScreen(Screen):
         return self._orders_rows[idx]
 
     async def _cancel_order(self, trade: Trade) -> None:
+        order_id, perm_id = self._trade_order_ids(trade)
+        order_ref = int(order_id or perm_id or 0)
         try:
             await self._client.cancel_trade(trade)
-            order_id = trade.order.orderId or trade.order.permId or 0
-            self._exec_status = f"Cancel sent #{order_id}"
         except Exception as exc:
             self._exec_status = f"Cancel error: {exc}"
+            self._set_orders_notice(self._exec_status, level="error")
+            self._render_details(sample=False)
+            return
+        error_payload = (
+            await self._await_order_error(order_id, perm_id, attempts=4, interval_sec=0.1)
+            if order_ref
+            else None
+        )
+        if error_payload is not None:
+            error_code, error_message = error_payload
+            error_prefix = f"IB {error_code}: " if error_code else "IB: "
+            level = "warn" if error_code in (10147, 10148, 10149) else "error"
+            if order_ref:
+                self._exec_status = f"Cancel #{order_ref}: {error_prefix}{error_message}"
+            else:
+                self._exec_status = f"Cancel: {error_prefix}{error_message}"
+            self._set_orders_notice(self._exec_status, level=level)
+        else:
+            if order_ref:
+                self._exec_status = f"Cancel sent #{order_ref}"
+            else:
+                self._exec_status = "Cancel sent"
+            self._set_orders_notice(self._exec_status, level="warn")
         self._render_details(sample=False)
 
     def _handle_digit(self, char: str) -> None:
-        if char not in "0123456789":
-            return
-        if self._exec_rows[self._exec_selected] != "qty":
-            self._exec_selected = self._exec_rows.index("qty")
-        self._exec_qty_input = _append_digit(self._exec_qty_input, char, allow_decimal=False)
-        parsed = _parse_int(self._exec_qty_input)
-        if parsed:
-            self._exec_qty = parsed
+        selected = self._exec_rows[self._exec_selected]
+        if selected == "custom":
+            if char not in "0123456789.":
+                return
+            self._exec_custom_input = _append_digit(self._exec_custom_input, char, allow_decimal=True)
+            parsed = self._parse_custom_price(self._exec_custom_input)
+            if parsed is not None:
+                self._exec_custom_price = parsed
+        else:
+            if char not in "0123456789":
+                return
+            if selected != "qty":
+                self._exec_selected = self._exec_rows.index("qty")
+            self._exec_qty_input = _append_digit(self._exec_qty_input, char, allow_decimal=False)
+            parsed = _parse_int(self._exec_qty_input)
+            if parsed:
+                self._exec_qty = parsed
         self._render_details(sample=False)
 
     def _handle_backspace(self) -> None:
-        if self._exec_rows[self._exec_selected] != "qty":
-            self._exec_selected = self._exec_rows.index("qty")
-        self._exec_qty_input = self._exec_qty_input[:-1]
-        parsed = _parse_int(self._exec_qty_input)
-        if parsed:
-            self._exec_qty = parsed
+        selected = self._exec_rows[self._exec_selected]
+        if selected == "custom":
+            self._exec_custom_input = self._exec_custom_input[:-1]
+            parsed = self._parse_custom_price(self._exec_custom_input)
+            self._exec_custom_price = parsed
+        else:
+            if selected != "qty":
+                self._exec_selected = self._exec_rows.index("qty")
+            self._exec_qty_input = self._exec_qty_input[:-1]
+            parsed = _parse_int(self._exec_qty_input)
+            if parsed:
+                self._exec_qty = parsed
         self._render_details(sample=False)
 
     def _adjust_qty(self, direction: int) -> None:
@@ -1935,9 +2344,196 @@ class PositionDetailScreen(Screen):
         self._exec_qty = next_qty
         self._exec_qty_input = str(next_qty)
 
+    @staticmethod
+    def _parse_custom_price(raw: str) -> float | None:
+        text = str(raw or "").strip()
+        if not text:
+            return None
+        try:
+            value = float(text)
+        except (TypeError, ValueError):
+            return None
+        if math.isnan(value) or value <= 0:
+            return None
+        return float(value)
+
+    def _adjust_custom_price(self, direction: int) -> None:
+        if direction == 0:
+            return
+        bid = self._quote_num(self._ticker.bid) if self._ticker else None
+        ask = self._quote_num(self._ticker.ask) if self._ticker else None
+        last = self._quote_num(self._ticker.last) if self._ticker else None
+        mark = _option_display_price(self._item, self._ticker) if self._item.contract.secType in ("OPT", "FOP") else _mark_price(self._item)
+        last_ref = last if last is not None else (bid if bid is not None else (ask if ask is not None else mark))
+        tick = _tick_size(self._item.contract, self._ticker, last_ref)
+        current = _round_to_tick(self._exec_custom_price, tick)
+        if current is None:
+            current = _round_to_tick(last_ref, tick)
+        if current is None:
+            return
+        next_value = _round_to_tick(float(current) + (float(direction) * float(tick)), tick)
+        if next_value is None or next_value <= 0:
+            return
+        self._exec_custom_price = float(next_value)
+        self._exec_custom_input = f"{self._exec_custom_price:.{_tick_decimals(tick)}f}"
+
+    @classmethod
+    def _in_open_shock_window(cls) -> bool:
+        now = _now_et().time()
+        if now < dtime(9, 30) or now >= dtime(16, 0):
+            return False
+        open_sec = (9 * 60 * 60) + (30 * 60)
+        now_sec = (now.hour * 60 * 60) + (now.minute * 60) + now.second
+        elapsed = max(0, now_sec - open_sec)
+        return elapsed <= int(cls._RELENTLESS_OPEN_SHOCK_WINDOW_SEC)
+
+    def _quote_is_stale_for_relentless(
+        self,
+        *,
+        ticker: Ticker | None,
+        bid: float | None,
+        ask: float | None,
+        last: float | None,
+    ) -> bool:
+        has_actionable = bool(
+            (bid is not None and ask is not None and bid <= ask)
+            or (last is not None)
+        )
+        if not has_actionable:
+            return True
+        if ticker is None:
+            return False
+        top_updated_mono = getattr(ticker, "tbTopQuoteUpdatedMono", None)
+        try:
+            top_age_sec = (
+                max(0.0, monotonic() - float(top_updated_mono))
+                if top_updated_mono is not None
+                else None
+            )
+        except (TypeError, ValueError):
+            top_age_sec = None
+        return bool(
+            top_age_sec is not None
+            and top_age_sec >= float(self._RELENTLESS_STALE_TOP_AGE_SEC)
+        )
+
+    def _relentless_spread_pressure(self, *, spread: float | None, tick: float) -> float:
+        if spread is None or spread <= 0 or tick <= 0:
+            return 1.0
+        recent = [float(value) for value in list(self._spread_samples)[-24:] if float(value) > 0]
+        if recent:
+            recent.sort()
+            baseline = float(recent[len(recent) // 2])
+        else:
+            baseline = float(spread)
+        baseline = max(float(tick), baseline)
+        return max(0.5, float(spread) / baseline)
+
+    def _relentless_min_reprice_sec(
+        self,
+        *,
+        quote_stale: bool,
+        open_shock: bool,
+        no_progress_reprices: int,
+        spread_pressure: float,
+    ) -> float:
+        if open_shock and (
+            no_progress_reprices >= 2
+            or spread_pressure >= float(self._RELENTLESS_SPREAD_PRESSURE_TRIGGER)
+        ):
+            return float(self._RELENTLESS_MIN_REPRICE_SEC_HYPER)
+        if quote_stale or open_shock:
+            return float(self._RELENTLESS_MIN_REPRICE_SEC_SHOCK)
+        if no_progress_reprices >= 4:
+            return float(self._RELENTLESS_MIN_REPRICE_SEC_SHOCK)
+        return float(self._RELENTLESS_MIN_REPRICE_SEC)
+
+    def _relentless_price(
+        self,
+        *,
+        action: str,
+        bid: float | None,
+        ask: float | None,
+        last_ref: float | None,
+        tick: float,
+        elapsed_sec: float,
+        quote_stale: bool,
+        open_shock: bool,
+        no_progress_reprices: int,
+        arrival_ref: float | None,
+    ) -> float | None:
+        cross = _round_to_tick(ask if action == "BUY" else bid, tick)
+        if cross is None:
+            cross = _round_to_tick(last_ref, tick)
+        if cross is None:
+            return None
+        spread = (
+            float(ask) - float(bid)
+            if bid is not None and ask is not None and ask >= bid
+            else None
+        )
+        if spread is None or spread <= 0:
+            spread = float(tick) * 2.0
+        spread_pressure = self._relentless_spread_pressure(spread=spread, tick=tick)
+        spread_cap_mult = 24.0 if open_shock else 12.0
+        if spread_pressure >= float(self._RELENTLESS_SPREAD_PRESSURE_TRIGGER):
+            spread_cap_mult = max(spread_cap_mult, 18.0)
+        spread_cap = max(float(tick), float(tick) * spread_cap_mult)
+        step = max(float(tick), min(float(spread) / 3.0, spread_cap))
+        if spread_pressure >= float(self._RELENTLESS_SPREAD_PRESSURE_HYPER):
+            step = max(step, float(tick) * 2.0)
+
+        elapsed = max(0.0, float(elapsed_sec))
+        if elapsed < float(self._RELENTLESS_BASE_CROSS_SEC):
+            x = 0
+        else:
+            interval = (
+                float(self._RELENTLESS_STEP_SEC_SHOCK)
+                if open_shock
+                else float(self._RELENTLESS_STEP_SEC)
+            )
+            if quote_stale:
+                interval *= 0.5
+            if int(no_progress_reprices) >= 2:
+                interval *= 0.5
+            x = 1 + int((elapsed - float(self._RELENTLESS_BASE_CROSS_SEC)) // max(interval, 0.5))
+
+        if quote_stale:
+            x += 2
+        if open_shock:
+            x += 1
+        if int(no_progress_reprices) >= 1:
+            x += min(8, int(no_progress_reprices))
+        if spread_pressure >= float(self._RELENTLESS_SPREAD_PRESSURE_TRIGGER):
+            x += min(4, int(spread_pressure))
+        if spread_pressure >= float(self._RELENTLESS_SPREAD_PRESSURE_HYPER):
+            x = max(x, 6)
+
+        current_ref = _midpoint(bid, ask) or last_ref
+        if arrival_ref is not None and current_ref is not None:
+            adverse = (
+                float(current_ref) - float(arrival_ref)
+                if action == "BUY"
+                else float(arrival_ref) - float(current_ref)
+            )
+            if adverse >= float(spread) * 0.75:
+                x += 1
+            if adverse >= float(spread) * 1.5:
+                x += 2
+            if adverse >= float(spread) * 2.5:
+                x = max(x, 8)
+
+        if open_shock and int(no_progress_reprices) >= 3:
+            x = max(x, 6)
+
+        x = max(0, min(int(self._RELENTLESS_MAX_EDGE_TICKS), int(x)))
+        side_sign = 1.0 if action == "BUY" else -1.0
+        target = float(cross) + (side_sign * float(step) * float(x))
+        return _round_to_tick(target, tick)
+
     def _submit_order(self, action: str) -> None:
         contract = self._item.contract
-        if contract.secType not in ("STK", "OPT", "FOP"):
+        if contract.secType not in ("STK", "OPT", "FOP", "FUT"):
             self._exec_status = "Exec: unsupported contract"
             self._render_details(sample=False)
             return
@@ -1985,19 +2581,35 @@ class PositionDetailScreen(Screen):
             trade = await self._client.place_limit_order(
                 self._item.contract, action, qty, price, outside_rth
             )
+            applied_price = _safe_num(getattr(getattr(trade, "order", None), "lmtPrice", None))
+            if applied_price is None or applied_price <= 0:
+                applied_price = float(price)
             mode_label = self._exec_mode_label(mode)
-            self._exec_status = f"Sent {action} {qty} @ {price:.2f} [{mode_label}]"
-            order_id = int(getattr(getattr(trade, "order", None), "orderId", 0) or 0)
-            if not order_id:
-                order_id = int(getattr(getattr(trade, "order", None), "permId", 0) or 0)
-            if order_id:
+            self._exec_status = f"Sent {action} {qty} @ {float(applied_price):.2f} [{mode_label}]"
+            order_id, perm_id = self._trade_order_ids(trade)
+            order_ref = order_id or perm_id
+            if order_ref:
+                self._set_orders_notice(
+                    f"Submitted #{order_ref} {action} {qty} @ {float(applied_price):.2f} [{mode_label}]",
+                    level="info",
+                )
+            else:
+                self._set_orders_notice(
+                    f"Submitted {action} {qty} @ {float(applied_price):.2f} [{mode_label}]",
+                    level="info",
+                )
+            if order_ref:
                 seeded = "OPTIMISTIC" if mode == "AUTO" else mode
-                _DETAIL_CHASE_STATE_BY_ORDER[order_id] = {
-                    "selected": self._exec_mode_label(mode),
-                    "active": self._exec_mode_label(seeded),
-                    "target_price": float(price),
-                    "mods": 0,
-                }
+                self._set_chase_state(
+                    order_id=order_id,
+                    perm_id=perm_id,
+                    updates={
+                        "selected": self._exec_mode_label(mode),
+                        "active": self._exec_mode_label(seeded),
+                        "target_price": float(applied_price),
+                        "mods": 0,
+                    },
+                )
             try:
                 loop = asyncio.get_running_loop()
             except RuntimeError:
@@ -2005,9 +2617,35 @@ class PositionDetailScreen(Screen):
             if loop is not None:
                 task = loop.create_task(self._chase_until_filled(trade, action, mode=mode))
                 self._chase_tasks.add(task)
-                task.add_done_callback(lambda t: self._chase_tasks.discard(t))
+
+                def _on_chase_done(
+                    done_task: asyncio.Task,
+                    *,
+                    seed_order_id: int = order_id,
+                    seed_perm_id: int = perm_id,
+                ) -> None:
+                    self._chase_tasks.discard(done_task)
+                    if done_task.cancelled():
+                        return
+                    try:
+                        exc = done_task.exception()
+                    except Exception:
+                        return
+                    if exc is None:
+                        return
+                    order_ref_local = int(seed_order_id or seed_perm_id or 0)
+                    order_label = f"#{order_ref_local}" if order_ref_local else "order"
+                    self._exec_status = f"Chase task error: {exc}"
+                    self._set_orders_notice(
+                        f"{order_label} chase task error: {exc}",
+                        level="error",
+                    )
+                    self._render_details_if_mounted(sample=False)
+
+                task.add_done_callback(_on_chase_done)
         except Exception as exc:
             self._exec_status = f"Exec error: {exc}"
+            self._set_orders_notice(self._exec_status, level="error")
         self._render_details_if_mounted(sample=False)
 
     def _initial_exec_price(self, action: str, *, mode: str = "AUTO") -> float | None:
@@ -2017,6 +2655,31 @@ class PositionDetailScreen(Screen):
         mark = _option_display_price(self._item, self._ticker) if self._item.contract.secType in ("OPT", "FOP") else _mark_price(self._item)
         last_ref = last if last is not None else (bid if bid is not None else (ask if ask is not None else mark))
         tick = _tick_size(self._item.contract, self._ticker, last_ref)
+        if mode == "CUSTOM":
+            custom = _round_to_tick(self._exec_custom_price, tick)
+            if custom is not None:
+                return custom
+            return _round_to_tick(last_ref, tick) if last_ref is not None else None
+        if mode == "RELENTLESS":
+            quote_stale = self._quote_is_stale_for_relentless(
+                ticker=self._ticker,
+                bid=bid,
+                ask=ask,
+                last=last,
+            )
+            return self._exec_price_for_mode(
+                mode,
+                action,
+                bid=bid,
+                ask=ask,
+                last=last,
+                ticker=self._ticker,
+                elapsed_sec=0.0,
+                quote_stale=quote_stale,
+                open_shock=self._in_open_shock_window(),
+                no_progress_reprices=0,
+                arrival_ref=_midpoint(bid, ask) or last_ref,
+            )
         selected_mode = "OPTIMISTIC" if mode == "AUTO" else mode
         value = (
             _limit_price_for_mode(bid, ask, last_ref, action=action, mode=selected_mode)
@@ -2036,6 +2699,11 @@ class PositionDetailScreen(Screen):
         ask: float | None = None,
         last: float | None = None,
         ticker: Ticker | None = None,
+        elapsed_sec: float = 0.0,
+        quote_stale: bool = False,
+        open_shock: bool = False,
+        no_progress_reprices: int = 0,
+        arrival_ref: float | None = None,
     ) -> float | None:
         bid = bid if bid is not None else (self._quote_num(self._ticker.bid) if self._ticker else None)
         ask = ask if ask is not None else (self._quote_num(self._ticker.ask) if self._ticker else None)
@@ -2044,17 +2712,33 @@ class PositionDetailScreen(Screen):
         mark = _option_display_price(self._item, ticker_ref) if self._item.contract.secType in ("OPT", "FOP") else _mark_price(self._item)
         last_ref = last if last is not None else (bid if bid is not None else (ask if ask is not None else mark))
         tick = _tick_size(self._item.contract, ticker_ref, last_ref)
+        if mode == "CUSTOM":
+            custom = _round_to_tick(self._exec_custom_price, tick)
+            if custom is not None:
+                return custom
+            return _round_to_tick(last_ref, tick) if last_ref is not None else None
+        if mode == "RELENTLESS":
+            return self._relentless_price(
+                action=action,
+                bid=bid,
+                ask=ask,
+                last_ref=last_ref,
+                tick=tick,
+                elapsed_sec=elapsed_sec,
+                quote_stale=bool(quote_stale),
+                open_shock=bool(open_shock),
+                no_progress_reprices=int(no_progress_reprices),
+                arrival_ref=arrival_ref,
+            )
         value = _limit_price_for_mode(bid, ask, last_ref, action=action, mode=mode)
         if value is None:
             return _round_to_tick(last_ref, tick) if last_ref is not None else None
         return _round_to_tick(float(value), tick)
 
     async def _chase_until_filled(self, trade: Trade, action: str, *, mode: str = "AUTO") -> None:
-        order_id = int(getattr(getattr(trade, "order", None), "orderId", 0) or 0)
-        if not order_id:
-            order_id = int(getattr(getattr(trade, "order", None), "permId", 0) or 0)
+        order_id, perm_id = self._trade_order_ids(trade)
         con_id = int(getattr(getattr(trade, "contract", None), "conId", 0) or 0)
-        chase_owner = f"details-chase:{order_id or con_id or id(trade)}"
+        chase_owner = f"details-chase:{order_id or perm_id or con_id or id(trade)}"
         try:
             await self._client.ensure_ticker(trade.contract, owner=chase_owner)
         except Exception:
@@ -2064,20 +2748,96 @@ class PositionDetailScreen(Screen):
         prev_mode: str | None = None
         prev_quote_sig: tuple[float | None, float | None, float | None] | None = None
         selected_label = self._exec_mode_label(mode)
+        arrival_ref: float | None = None
+        no_progress_reprices = 0
+        last_filled_qty = 0.0
+        last_live_probe_ts: float | None = None
         try:
             while True:
-                try:
-                    if trade.isDone():
-                        if order_id:
-                            _DETAIL_CHASE_STATE_BY_ORDER.pop(order_id, None)
-                        return
-                except Exception:
-                    pass
+                live_order_id, live_perm_id = self._trade_order_ids(trade)
+                if live_order_id > 0:
+                    order_id = int(live_order_id)
+                if live_perm_id > 0:
+                    perm_id = int(live_perm_id)
                 status_raw = str(getattr(getattr(trade, "orderStatus", None), "status", "") or "").strip()
-                if status_raw in ("Filled", "Cancelled", "ApiCancelled", "Inactive"):
-                    if order_id:
-                        _DETAIL_CHASE_STATE_BY_ORDER.pop(order_id, None)
+                terminal_statuses = ("Filled", "Cancelled", "ApiCancelled", "Inactive")
+                repricable_statuses = ("PreSubmitted", "Submitted")
+                try:
+                    filled_now = float(getattr(getattr(trade, "orderStatus", None), "filled", 0.0) or 0.0)
+                except (TypeError, ValueError):
+                    filled_now = 0.0
+                prev_filled_qty = float(last_filled_qty)
+                fill_progress = bool(filled_now > (prev_filled_qty + 1e-9))
+                if fill_progress:
+                    last_filled_qty = float(filled_now)
+                    no_progress_reprices = 0
+                is_done = False
+                try:
+                    is_done = bool(trade.isDone())
+                except Exception:
+                    is_done = False
+                if status_raw in terminal_statuses or is_done:
+                    order_ref = int(order_id or perm_id or 0)
+                    order_label = f"#{order_ref}" if order_ref else "order"
+                    error_payload = (
+                        self._consume_order_error(order_id, perm_id)
+                        if order_ref
+                        else None
+                    )
+                    status_label = status_raw
+                    if not status_label:
+                        status_label = "Done"
+                    elif is_done and status_label not in terminal_statuses:
+                        status_label = f"Done ({status_label})"
+                    if error_payload is not None:
+                        error_code, error_message = error_payload
+                        error_prefix = f"IB {error_code}: " if error_code else "IB: "
+                        self._set_orders_notice(
+                            f"{order_label} {status_label}: {error_prefix}{error_message}",
+                            level="error",
+                        )
+                    elif status_raw in ("Cancelled", "ApiCancelled", "Inactive"):
+                        why_held = str(
+                            getattr(getattr(trade, "orderStatus", None), "whyHeld", "") or ""
+                        ).strip()
+                        if why_held:
+                            self._set_orders_notice(
+                                f"{order_label} {status_raw}: {why_held}",
+                                level="warn",
+                            )
+                        else:
+                            self._set_orders_notice(
+                                f"{order_label} {status_raw}",
+                                level="warn",
+                            )
+                    elif status_raw == "Filled":
+                        self._set_orders_notice(f"Filled {order_label}", level="info")
+                    elif is_done:
+                        self._set_orders_notice(f"{order_label} {status_label}", level="warn")
+                    self._clear_chase_state(order_id=order_id, perm_id=perm_id)
+                    self._render_details_if_mounted(sample=False)
                     return
+
+                order_ref = int(order_id or perm_id or 0)
+                if order_ref:
+                    error_payload = self._consume_order_error(order_id, perm_id)
+                    if error_payload is not None:
+                        error_code, error_message = error_payload
+                        if error_code in (110, 201, 202, 10147, 10148, 10149):
+                            order_label = f"#{order_ref}"
+                            status_label = status_raw or "Pending"
+                            error_prefix = f"IB {error_code}: " if error_code else "IB: "
+                            level = "warn" if error_code in (10147, 10148, 10149) else "error"
+                            self._exec_status = (
+                                f"Chase halted {order_label} {status_label}: {error_prefix}{error_message}"
+                            )
+                            self._set_orders_notice(
+                                f"{order_label} {status_label}: {error_prefix}{error_message}",
+                                level=level,
+                            )
+                            self._clear_chase_state(order_id=order_id, perm_id=perm_id)
+                            self._render_details_if_mounted(sample=False)
+                            return
 
                 loop_now = asyncio.get_running_loop().time()
                 elapsed = loop_now - started
@@ -2085,14 +2845,43 @@ class PositionDetailScreen(Screen):
                 if mode_now is None:
                     try:
                         await self._client.cancel_trade(trade)
-                        order_id = trade.order.orderId or trade.order.permId or 0
-                        self._exec_status = (
-                            f"Timeout cancel sent #{order_id} (> {_EXEC_LADDER_TIMEOUT_SEC:.0f}s)"
+                        live_order_id, live_perm_id = self._trade_order_ids(trade)
+                        if live_order_id > 0:
+                            order_id = int(live_order_id)
+                        if live_perm_id > 0:
+                            perm_id = int(live_perm_id)
+                        order_ref = int(order_id or perm_id or 0)
+                        timeout_sec = (
+                            float(_EXEC_RELENTLESS_TIMEOUT_SEC)
+                            if str(mode or "").strip().upper() == "RELENTLESS"
+                            else float(_EXEC_LADDER_TIMEOUT_SEC)
                         )
+                        self._exec_status = (
+                            f"Timeout cancel sent #{order_ref} (> {timeout_sec:.0f}s)"
+                        )
+                        self._set_orders_notice(self._exec_status, level="warn")
+                        error_payload = (
+                            await self._await_order_error(
+                                int(order_id),
+                                int(perm_id),
+                                attempts=3,
+                                interval_sec=0.1,
+                            )
+                            if order_ref
+                            else None
+                        )
+                        if error_payload is not None:
+                            error_code, error_message = error_payload
+                            error_prefix = f"IB {error_code}: " if error_code else "IB: "
+                            level = "warn" if error_code in (10147, 10148, 10149) else "error"
+                            self._exec_status = (
+                                f"Timeout cancel #{order_ref}: {error_prefix}{error_message}"
+                            )
+                            self._set_orders_notice(self._exec_status, level=level)
                     except Exception as exc:
                         self._exec_status = f"Timeout cancel error: {exc}"
-                    if order_id:
-                        _DETAIL_CHASE_STATE_BY_ORDER.pop(order_id, None)
+                        self._set_orders_notice(self._exec_status, level="error")
+                    self._clear_chase_state(order_id=order_id, perm_id=perm_id)
                     self._render_details_if_mounted(sample=False)
                     return
 
@@ -2100,7 +2889,46 @@ class PositionDetailScreen(Screen):
                 bid = self._quote_num(getattr(ticker, "bid", None)) if ticker else None
                 ask = self._quote_num(getattr(ticker, "ask", None)) if ticker else None
                 last = self._quote_num(getattr(ticker, "last", None)) if ticker else None
+                if arrival_ref is None:
+                    arrival_ref = _midpoint(bid, ask) or last
+                is_relentless = str(mode_now or "").strip().upper() == "RELENTLESS"
+                quote_stale = self._quote_is_stale_for_relentless(
+                    ticker=ticker,
+                    bid=bid,
+                    ask=ask,
+                    last=last,
+                ) if is_relentless else False
+                open_shock = self._in_open_shock_window() if is_relentless else False
+                spread_now = (
+                    float(ask) - float(bid)
+                    if (is_relentless and bid is not None and ask is not None and ask >= bid)
+                    else None
+                )
+                last_ref_now = last if last is not None else (bid if bid is not None else ask)
+                tick_now = _tick_size(trade.contract, ticker, last_ref_now) if is_relentless else 0.0
+                spread_pressure = (
+                    self._relentless_spread_pressure(spread=spread_now, tick=tick_now)
+                    if is_relentless
+                    else 1.0
+                )
+                if is_relentless and quote_stale:
+                    if last_live_probe_ts is None or (loop_now - last_live_probe_ts) >= 4.0:
+                        try:
+                            await self._client.refresh_live_snapshot_once(trade.contract)
+                        except Exception:
+                            pass
+                        last_live_probe_ts = loop_now
                 quote_sig = _exec_chase_quote_signature(bid, ask, last)
+                min_interval_sec = (
+                    self._relentless_min_reprice_sec(
+                        quote_stale=bool(quote_stale),
+                        open_shock=bool(open_shock),
+                        no_progress_reprices=int(no_progress_reprices),
+                        spread_pressure=float(spread_pressure),
+                    )
+                    if is_relentless
+                    else 5.0
+                )
                 should_reprice = _exec_chase_should_reprice(
                     now_sec=loop_now,
                     last_reprice_sec=last_reprice_ts,
@@ -2108,15 +2936,21 @@ class PositionDetailScreen(Screen):
                     prev_mode=prev_mode,
                     quote_signature=quote_sig,
                     prev_quote_signature=prev_quote_sig,
-                    min_interval_sec=5.0,
+                    min_interval_sec=float(min_interval_sec),
                 )
+                if should_reprice and status_raw not in repricable_statuses:
+                    should_reprice = False
                 prev_mode = str(mode_now)
                 prev_quote_sig = quote_sig
-                if order_id:
-                    state = _DETAIL_CHASE_STATE_BY_ORDER.get(order_id) or {}
-                    state["selected"] = selected_label
-                    state["active"] = self._exec_mode_label(str(mode_now))
-                    _DETAIL_CHASE_STATE_BY_ORDER[order_id] = state
+                if order_id or perm_id:
+                    self._set_chase_state(
+                        order_id=order_id,
+                        perm_id=perm_id,
+                        updates={
+                            "selected": selected_label,
+                            "active": self._exec_mode_label(str(mode_now)),
+                        },
+                    )
 
                 if should_reprice:
                     price = self._exec_price_for_mode(
@@ -2126,43 +2960,70 @@ class PositionDetailScreen(Screen):
                         ask=ask,
                         last=last,
                         ticker=ticker,
+                        elapsed_sec=float(elapsed),
+                        quote_stale=bool(quote_stale),
+                        open_shock=bool(open_shock),
+                        no_progress_reprices=int(no_progress_reprices),
+                        arrival_ref=arrival_ref,
                     )
-                    if order_id and price is not None:
-                        state = _DETAIL_CHASE_STATE_BY_ORDER.get(order_id) or {}
-                        state["selected"] = selected_label
-                        state["active"] = self._exec_mode_label(str(mode_now))
-                        state["target_price"] = float(price)
-                        _DETAIL_CHASE_STATE_BY_ORDER[order_id] = state
+                    if (order_id or perm_id) and price is not None:
+                        self._set_chase_state(
+                            order_id=order_id,
+                            perm_id=perm_id,
+                            updates={
+                                "selected": selected_label,
+                                "active": self._exec_mode_label(str(mode_now)),
+                                "target_price": float(price),
+                            },
+                        )
                 else:
                     price = None
                 if price is not None:
                     try:
                         trade = await self._client.modify_limit_order(trade, float(price))
-                        order_id = trade.order.orderId or trade.order.permId or 0
+                        applied_price = _safe_num(getattr(getattr(trade, "order", None), "lmtPrice", None))
+                        if applied_price is None or applied_price <= 0:
+                            applied_price = float(price)
+                        live_order_id, live_perm_id = self._trade_order_ids(trade)
+                        if live_order_id > 0:
+                            order_id = int(live_order_id)
+                        if live_perm_id > 0:
+                            perm_id = int(live_perm_id)
+                        order_ref = int(order_id or perm_id or 0)
                         mode_label = self._exec_mode_label(str(mode_now))
                         mods = 1
-                        if order_id:
-                            state = _DETAIL_CHASE_STATE_BY_ORDER.get(order_id) or {}
+                        if order_ref:
+                            state = self._chase_state_for_ids(order_id=order_id, perm_id=perm_id) or {}
                             try:
                                 mods = int(state.get("mods") or 0) + 1
                             except (TypeError, ValueError):
                                 mods = 1
-                            state["selected"] = selected_label
-                            state["active"] = mode_label
-                            state["target_price"] = float(price)
-                            state["mods"] = mods
-                            _DETAIL_CHASE_STATE_BY_ORDER[order_id] = state
+                            self._set_chase_state(
+                                order_id=order_id,
+                                perm_id=perm_id,
+                                updates={
+                                    "selected": selected_label,
+                                    "active": mode_label,
+                                    "target_price": float(applied_price),
+                                    "mods": mods,
+                                },
+                            )
                         mode_view = f"{selected_label}->{mode_label}" if selected_label == "AUTO" else mode_label
-                        self._exec_status = f"Chasing #{order_id} [{mode_view}] @ {price:.2f} mod#{mods}"
+                        order_label = f"#{order_ref}" if order_ref else "order"
+                        self._exec_status = (
+                            f"Chasing {order_label} [{mode_view}] @ {float(applied_price):.2f} mod#{mods}"
+                        )
                         last_reprice_ts = loop_now
+                        if not fill_progress:
+                            no_progress_reprices += 1
                     except Exception as exc:
                         self._exec_status = f"Chase error: {exc}"
+                        self._set_orders_notice(self._exec_status, level="error")
                     self._render_details_if_mounted(sample=False)
 
                 await asyncio.sleep(0.25)
         finally:
-            if order_id:
-                _DETAIL_CHASE_STATE_BY_ORDER.pop(order_id, None)
+            self._clear_chase_state(order_id=order_id, perm_id=perm_id)
             if con_id:
                 try:
                     self._client.release_ticker(con_id, owner=chase_owner)

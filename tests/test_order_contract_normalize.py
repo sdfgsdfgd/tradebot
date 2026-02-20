@@ -19,3 +19,9 @@ def test_normalize_order_contract_fop_falls_back_to_cme() -> None:
     contract = Contract(secType="FOP", symbol="UNKNOWN")
     normalized = _normalize_order_contract(contract)
     assert normalized.exchange == "CME"
+
+
+def test_normalize_order_contract_fut_uses_symbol_exchange_hint() -> None:
+    contract = Contract(secType="FUT", symbol="MCL")
+    normalized = _normalize_order_contract(contract)
+    assert normalized.exchange == "NYMEX"

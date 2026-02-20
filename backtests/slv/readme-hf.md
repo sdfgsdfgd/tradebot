@@ -8,10 +8,10 @@ Canonical execution paths:
 - Full comprehensive suite (includes migrated HF profiles): `python -m tradebot.backtest spot --axis combo_full --offline`
 - HF timing corridor replay: `python -m tradebot.backtest spot --axis combo_full --combo-full-preset hf_timing_sniper --offline`
 
-Current HF champion replay (v19-exception streak6 stability-gated king; 2Y-scoped):
+Current HF champion replay (v20-exception prearm-tight king; 2Y-scoped):
 ```bash
 python -m tradebot.backtest spot_multitimeframe \
-  --milestones backtests/slv/archive/champion_history_20260214/slv_hf_champions_v19_exception_ddshock_lb10_on10_off5_streak6_20260218.json \
+  --milestones backtests/slv/archive/champion_history_20260214/slv_hf_champions_v20_exception_ddshock_lb10_on10_off5_streak6_prearmtight_20260218.json \
   --symbol SLV --bar-size "10 mins" --spot-exec-bar-size "5 mins" --offline --cache-dir db \
   --top 1 --min-trades 0 \
   --window 2024-02-14:2026-02-14 \
@@ -24,46 +24,50 @@ Historical evolution commands below are normalized to current wrappers:
 
 ## Current Champions (stack)
 
-### CURRENT (v19-exception-ddshock-lb10-on10-off5-streak6) — stability-gated drawdown king (2Y scope)
+### CURRENT (v20-exception-ddshock-lb10-on10-off5-streak6-prearm-tight) — pre-threshold approach king (2Y scope)
 Current promoted crown on Feb-14 windows under the active HF scope contract (`<=2Y`; 10Y excluded due overnight bar reliability corruption concerns before `2023-07-24`).
 
-**v19-exception kingmaker #01 [dd_lb10_on10_off5 + short-boost down-streak>=6 deterministic dethrone]**
-- Preset file: `backtests/slv/archive/champion_history_20260214/slv_hf_champions_v19_exception_ddshock_lb10_on10_off5_streak6_20260218.json`
-- Source eval: `backtests/slv/slv_hf_v18_stability_regimealign_1y2y_20260218_v2.json`
-- Determinism proof: `backtests/slv/slv_hf_v18_vs_streak6_6replay_1y2y_20260218_v2.json`
-- Predictive frontier audit: `backtests/slv/slv_hf_v18_streak6_predictive_frontier_1y2y_20260218.json`
-- Base seed: `backtests/slv/archive/champion_history_20260214/slv_hf_champions_v18_exception_ddshock_lb10_on10_off5_20260217.json`
-- Variant id: `r15_s02_sm_dn_fhard + dd_lb10_on10_off5 + shock_short_boost_min_down_streak_bars=6`
+**v20-exception kingmaker #01 [dd_lb10_on10_off5 + streak6 + prearm_tight deterministic dethrone]**
+- Preset file: `backtests/slv/archive/champion_history_20260214/slv_hf_champions_v20_exception_ddshock_lb10_on10_off5_streak6_prearmtight_20260218.json`
+- Source eval: `backtests/slv/slv_hf_v19_track23_refine_noresize_1y2y_20260218_v1.json`
+- Determinism proof: `backtests/slv/slv_hf_v19_vs_prearmtight_6replay_1y2y_20260218_v1.json`
+- Broad matrix audit: `backtests/slv/slv_hf_v19_track123_resize_prearm_liqboost_1y2y_20260218_v1.json`
+- Base seed: `backtests/slv/archive/champion_history_20260214/slv_hf_champions_v19_exception_ddshock_lb10_on10_off5_streak6_20260218.json`
+- Variant id: `r15_s02_sm_dn_fhard + dd_lb10_on10_off5 + streak6 + shock_prearm(dist<=1.0pp, vel>=0.25pp, short_factor=1.5)`
 - Timeframe: `signal=10 mins`, `exec=5 mins`, `full24/5`
-- 1y (`2025-02-14 -> 2026-02-14`): trades **697**, pnl **32,596.27**, dd **9,413.78**, pnl/dd **3.4626**
-- 2y (`2024-02-14 -> 2026-02-14`): trades **1,252**, pnl **45,575.04**, dd **15,178.39**, pnl/dd **3.0026**
-- Full working window (`2025-01-08 -> 2026-02-14`): pnl **38,222.00**, dd **9,933.11**, pnl/dd **3.8480**
-- Jan-Feb 2026 slice (`2026-01-01 -> 2026-02-14`): pnl **18,467.62** (v18 **17,090.27**)
-- Crash-leg slice (`2026-01-24 -> 2026-02-14`): pnl **7,099.02** (v18 **5,672.30**)
-- Last-2m slice (`2025-12-14 -> 2026-02-14`): pnl **26,827.70** (v18 **25,340.14**)
-- Jan-Feb short avg qty: **53.4** (v18 **84.2**)
-- Shock-short trace probe (`2025-01-08 -> 2026-02-14`):
-  - `shock_short_trades=70`
-  - `shock_short_boost_applied=0` (gate suppresses boost unless down-streak reaches 6 bars; observed streak max was 4 in this window)
+- 1y (`2025-02-14 -> 2026-02-14`): trades **697**, pnl **32,649.19**, dd **9,413.78**, pnl/dd **3.4682**
+- 2y (`2024-02-14 -> 2026-02-14`): trades **1,252**, pnl **45,611.02**, dd **15,178.39**, pnl/dd **3.0050**
+- Full working window (`2025-01-08 -> 2026-02-14`): pnl **38,252.49**, dd **9,933.11**, pnl/dd **3.8510**
+- Jan-Feb 2026 slice (`2026-01-01 -> 2026-02-14`): pnl **18,469.39** (v19 **18,467.62**)
+- Crash-leg slice (`2026-01-24 -> 2026-02-14`): pnl **7,100.04** (v19 **7,099.02**)
+- Last-2m slice (`2025-12-14 -> 2026-02-14`): pnl **26,828.01** (v19 **26,827.70**)
+- Jan-Feb short avg qty: **53.4** (unchanged vs v19)
+- Trace probe (`2025-01-08 -> 2026-02-14`):
+  - `entry_traces=753`
+  - `shock_prearm_applied=1` (tight pre-threshold accelerator hit once, additive edge without broad destabilization)
+  - `shock_short_boost_applied=0` (streak6 gate still suppresses noisy down-flip boosts)
 
 Promotion contract check (exception policy; user approved):
 - Hard throughput gate `>=700/year` on 1Y and 2Y: **FAIL** (`1Y=697`, `2Y=1252 -> 626/year`)
 - 6-run deterministic replay check: **PASS** (exactly stable; `distinct_rows=1` for all 1Y/2Y lanes)
-- 1Y/2Y dethrone vs prior crown `v18-exception`: **PASS** (`1Y pnl +1,519.18`, `2Y pnl +1,859.04`, both pnl/dd higher)
-- Stress-slice confirmation vs `v18-exception`: **PASS**
-  - `pre_2026 +147.47`
-  - `janfeb_2026 +1,377.35`
-  - `crash_leg +1,426.72`
-  - `last2m +1,487.56`
-  - `crash_short +1,381.96` (still negative sleeve, but materially less negative)
+- 1Y/2Y dethrone vs prior crown `v19-exception`: **PASS**
+  - `1Y pnl +52.92`
+  - `2Y pnl +35.98`
+  - both pnl/dd higher (`1Y +0.0056`, `2Y +0.0024`)
+- Stress-slice confirmation vs `v19-exception`: **PASS/NEUTRAL**
+  - `pre_2026 +28.72`
+  - `janfeb_2026 +1.77`
+  - `crash_leg +1.02`
+  - `last2m +0.32`
+  - `crash_short +0.00` (unchanged; short sleeve remains negative but controlled)
 
 Immediate predecessor (now dethroned):
+- Preset file: `backtests/slv/archive/champion_history_20260214/slv_hf_champions_v19_exception_ddshock_lb10_on10_off5_streak6_20260218.json`
+- Variant id: `r15_s02_sm_dn_fhard + dd_lb10_on10_off5 + shock_short_boost_min_down_streak_bars=6`
+
+Earlier predecessor:
 - Preset file: `backtests/slv/archive/champion_history_20260214/slv_hf_champions_v18_exception_ddshock_lb10_on10_off5_20260217.json`
 - Variant id: `r15_s02_sm_dn_fhard + dd_lb10_on10_off5`
-
-Earlier exception predecessor (kept for comparison):
-- Preset file: `backtests/slv/archive/champion_history_20260214/slv_hf_champions_v17_exception_ddshock_20260217.json`
-- Variant id: `r15_s02_sm_dn_fhard + dd_u2_l0p1`
 
 Historical strict predecessor:
 - Preset file: `backtests/slv/archive/champion_history_20260214/slv_hf_champions_v16_strict_1y2y_r15_20260217.json`
@@ -163,6 +167,78 @@ Decision:
 - 1y: trades **639**, pnl **28,265.14**, dd **11,446.03**, pnl/dd **2.4694**
 
 ## Evolutions (stack)
+
+### v20.0 — pre-threshold drawdown-velocity + telemetry hardening dethrone (PROMOTED BY USER EXCEPTION)
+Status: **DONE (promoted; deterministic 6-run pass + user-approved throughput exception)**
+
+Promotion decision (record):
+- Date: **2026-02-18**
+- Scope rule: **exclude 10Y** from promotion decisions for this HF lane due overnight-bar corruption risk beyond 2Y.
+- User-approved exception: crown can be promoted on 1Y/2Y economics even when strict throughput `>=700/year` is missed.
+- Round objective: execute requested #1/#2/#3 exploration package while preserving v19 broad fitness:
+  - `#1` adaptive resize/sizing path experiments
+  - `#2` pre-threshold shock approach (distance-to-on + velocity)
+  - `#3` confidence/liquidity boost path
+
+Promotion winner:
+- Variant: `prearm_tight_f1p5`
+- Base profile: `r15_s02_sm_dn_fhard + dd_lb10_on10_off5 + streak6`
+- New pre-threshold knobs:
+  - `shock_prearm_dist_on_max_pp=1.0`
+  - `shock_prearm_min_dist_on_vel_pp=0.25`
+  - `shock_prearm_short_risk_mult_factor=1.5`
+  - `shock_prearm_require_regime_down=true`
+  - `shock_prearm_require_entry_down=true`
+- Timeframe: `signal=10 mins`, `exec=5 mins`, `full24/5`
+
+Measured dethrone deltas vs `v19-exception-dd_lb10_on10_off5-streak6`:
+- 1Y (`2025-02-14 -> 2026-02-14`):
+  - trades `697 vs 697` (`+0`)
+  - pnl `32,649.19 vs 32,596.27` (`+52.92`)
+  - pnl/dd `3.4682 vs 3.4626` (`+0.0056`)
+- 2Y (`2024-02-14 -> 2026-02-14`):
+  - trades `1,252 vs 1,252` (`+0`)
+  - pnl `45,611.02 vs 45,575.04` (`+35.98`)
+  - pnl/dd `3.0050 vs 3.0026` (`+0.0024`)
+- Full working window (`2025-01-08 -> 2026-02-14`):
+  - pnl `38,252.49 vs 38,222.00` (`+30.50`)
+  - dd% `9.93% vs 9.93%` (`+0.00pp`)
+
+Expanded stress-slice confirmation (state-warm full-run slicing):
+- Pre-2026 (`2025-01-08 -> 2025-12-31`): `19,783.10 vs 19,754.38` (`+28.72`)
+- Last-2m (`2025-12-14 -> 2026-02-14`): `26,828.01 vs 26,827.70` (`+0.32`)
+- Jan-Feb 2026 (`2026-01-01 -> 2026-02-14`): `18,469.39 vs 18,467.62` (`+1.77`)
+- Crash leg (`2026-01-24 -> 2026-02-14`): `7,100.04 vs 7,099.02` (`+1.02`)
+- Crash short sleeve: unchanged (`-1,281.24 vs -1,281.24`)
+
+Determinism proof:
+- Replays: **6**
+- Variants: `baseline_v19`, `prearm_tight_f1p5`
+- Windows: `1Y` and `2Y`
+- Result: exact stability (all 6 tuples identical per variant/window).
+
+Exploration package result (#1/#2/#3):
+- `#1 resize`: broad degradation in this lane; not promoted.
+- `#2 pre-threshold`: tight profile improved both 1Y and 2Y while staying neutral-to-positive on stress slices.
+- `#3 liq boost`: triggered in multiple probes, but generally reduced broad fitness vs baseline in this 2Y contract.
+
+Telemetry/logging hardening completed in this round:
+- Signal/runtime now carries drawdown distance velocity (`shock_drawdown_dist_on_vel_pp`; shown as `ddv=...pp` in journal signal lines).
+- Order journal now emits explicit pre-threshold and liquidity-boost decisions:
+  - `shock_prearm`, `shock_prearm_reason`
+  - `liq_boost`, `liq_mult`, `liq_score`, `liq_reason`
+- Sizing trace now includes:
+  - `shock_drawdown_dist_on_pct`, `shock_drawdown_dist_on_vel_pp`
+  - cap-floor detail when liq boost is active.
+
+Throughput contract note:
+- Strict throughput rule `>=700/year` remains unmet (`1Y=697`, `2Y=626/year`), but promotion is approved under explicit user exception after deterministic/stress confirmation.
+
+Artifacts:
+- `backtests/slv/slv_hf_v19_track123_resize_prearm_liqboost_1y2y_20260218_v1.json`
+- `backtests/slv/slv_hf_v19_track23_refine_noresize_1y2y_20260218_v1.json`
+- `backtests/slv/slv_hf_v19_vs_prearmtight_6replay_1y2y_20260218_v1.json`
+- `backtests/slv/archive/champion_history_20260214/slv_hf_champions_v20_exception_ddshock_lb10_on10_off5_streak6_prearmtight_20260218.json`
 
 ### v19.0 — shock short-boost stability gate dethrone (PROMOTED BY USER EXCEPTION)
 Status: **DONE (promoted; deterministic 6-run pass + user-approved throughput exception)**

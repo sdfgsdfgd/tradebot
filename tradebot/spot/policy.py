@@ -67,6 +67,11 @@ class SpotPolicyConfigView:
     shock_short_boost_min_down_streak_bars: int = 1
     shock_short_boost_require_regime_down: bool = False
     shock_short_boost_require_entry_down: bool = False
+    shock_prearm_dist_on_max_pp: float = 0.0
+    shock_prearm_min_dist_on_vel_pp: float = 0.0
+    shock_prearm_short_risk_mult_factor: float = 1.0
+    shock_prearm_require_regime_down: bool = True
+    shock_prearm_require_entry_down: bool = True
     shock_long_risk_mult_factor: float = 1.0
     shock_long_risk_mult_factor_down: float = 1.0
     shock_stop_loss_pct_mult: float = 1.0
@@ -74,6 +79,13 @@ class SpotPolicyConfigView:
     shock_risk_scale_target_atr_pct: float | None = None
     shock_risk_scale_min_mult: float = 0.2
     shock_risk_scale_apply_to: str = "risk"
+    liq_boost_enable: bool = False
+    liq_boost_score_min: float = 2.0
+    liq_boost_score_span: float = 2.0
+    liq_boost_max_risk_mult: float = 1.0
+    liq_boost_cap_floor_frac: float = 0.0
+    liq_boost_require_alignment: bool = True
+    liq_boost_require_shock: bool = False
 
     risk_entry_cutoff_hour_et: int | None = None
 
@@ -311,6 +323,27 @@ class SpotPolicyConfigView:
             _fget("shock_short_boost_require_entry_down"),
             default=False,
         )
+        shock_prearm_dist_on_max_pp = cls._parse_float(
+            _fget("shock_prearm_dist_on_max_pp"),
+            default=0.0,
+        )
+        if shock_prearm_dist_on_max_pp < 0:
+            shock_prearm_dist_on_max_pp = 0.0
+        shock_prearm_min_dist_on_vel_pp = cls._parse_float(
+            _fget("shock_prearm_min_dist_on_vel_pp"),
+            default=0.0,
+        )
+        if shock_prearm_min_dist_on_vel_pp < 0:
+            shock_prearm_min_dist_on_vel_pp = 0.0
+        shock_prearm_short_risk_mult_factor = cls._parse_factor(_fget("shock_prearm_short_risk_mult_factor"))
+        shock_prearm_require_regime_down = cls._parse_bool(
+            _fget("shock_prearm_require_regime_down"),
+            default=True,
+        )
+        shock_prearm_require_entry_down = cls._parse_bool(
+            _fget("shock_prearm_require_entry_down"),
+            default=True,
+        )
         shock_long_risk_mult_factor = cls._parse_factor(_fget("shock_long_risk_mult_factor"))
         shock_long_risk_mult_factor_down = cls._parse_factor(_fget("shock_long_risk_mult_factor_down"))
 
@@ -331,6 +364,18 @@ class SpotPolicyConfigView:
         shock_risk_scale_min_mult = cls._parse_float(_fget("shock_risk_scale_min_mult"), default=0.2)
         shock_risk_scale_min_mult = float(max(0.0, min(1.0, shock_risk_scale_min_mult)))
         shock_risk_scale_apply_to = cls._normalize_shock_scale_apply_to(_fget("shock_risk_scale_apply_to"))
+        liq_boost_enable = cls._parse_bool(_fget("liq_boost_enable"), default=False)
+        liq_boost_score_min = cls._parse_float(_fget("liq_boost_score_min"), default=2.0)
+        liq_boost_score_span = cls._parse_float(_fget("liq_boost_score_span"), default=2.0)
+        if liq_boost_score_span <= 0:
+            liq_boost_score_span = 2.0
+        liq_boost_max_risk_mult = cls._parse_float(_fget("liq_boost_max_risk_mult"), default=1.0)
+        if liq_boost_max_risk_mult < 1.0:
+            liq_boost_max_risk_mult = 1.0
+        liq_boost_cap_floor_frac = cls._parse_float(_fget("liq_boost_cap_floor_frac"), default=0.0)
+        liq_boost_cap_floor_frac = float(max(0.0, min(1.0, liq_boost_cap_floor_frac)))
+        liq_boost_require_alignment = cls._parse_bool(_fget("liq_boost_require_alignment"), default=True)
+        liq_boost_require_shock = cls._parse_bool(_fget("liq_boost_require_shock"), default=False)
 
         risk_entry_cutoff_hour_et = cls._risk_entry_cutoff_hour_et(filters)
         if risk_entry_cutoff_hour_et is None:
@@ -374,6 +419,11 @@ class SpotPolicyConfigView:
             shock_short_boost_min_down_streak_bars=int(shock_short_boost_min_down_streak_bars),
             shock_short_boost_require_regime_down=bool(shock_short_boost_require_regime_down),
             shock_short_boost_require_entry_down=bool(shock_short_boost_require_entry_down),
+            shock_prearm_dist_on_max_pp=float(shock_prearm_dist_on_max_pp),
+            shock_prearm_min_dist_on_vel_pp=float(shock_prearm_min_dist_on_vel_pp),
+            shock_prearm_short_risk_mult_factor=float(shock_prearm_short_risk_mult_factor),
+            shock_prearm_require_regime_down=bool(shock_prearm_require_regime_down),
+            shock_prearm_require_entry_down=bool(shock_prearm_require_entry_down),
             shock_long_risk_mult_factor=float(shock_long_risk_mult_factor),
             shock_long_risk_mult_factor_down=float(shock_long_risk_mult_factor_down),
             shock_stop_loss_pct_mult=float(shock_stop_loss_pct_mult),
@@ -381,6 +431,13 @@ class SpotPolicyConfigView:
             shock_risk_scale_target_atr_pct=float(target_atr) if target_atr is not None else None,
             shock_risk_scale_min_mult=float(shock_risk_scale_min_mult),
             shock_risk_scale_apply_to=str(shock_risk_scale_apply_to),
+            liq_boost_enable=bool(liq_boost_enable),
+            liq_boost_score_min=float(liq_boost_score_min),
+            liq_boost_score_span=float(liq_boost_score_span),
+            liq_boost_max_risk_mult=float(liq_boost_max_risk_mult),
+            liq_boost_cap_floor_frac=float(liq_boost_cap_floor_frac),
+            liq_boost_require_alignment=bool(liq_boost_require_alignment),
+            liq_boost_require_shock=bool(liq_boost_require_shock),
             risk_entry_cutoff_hour_et=risk_entry_cutoff_hour_et,
         )
 
@@ -495,6 +552,8 @@ class SpotDecisionTrace:
     shock_dir: str | None
     shock_dir_down_streak_bars: int | None
     shock_atr_pct: float | None
+    shock_drawdown_dist_on_pct: float | None
+    shock_drawdown_dist_on_vel_pp: float | None
     riskoff_mode: str
     risk_dir: str | None
     signal_entry_dir: str | None
@@ -523,9 +582,18 @@ class SpotDecisionTrace:
     shock_short_factor: float | None = None
     shock_short_boost_applied: bool | None = None
     shock_short_boost_gate_reason: str | None = None
+    shock_prearm_applied: bool | None = None
+    shock_prearm_factor: float | None = None
+    shock_prearm_reason: str | None = None
 
     cap_pct_base: float | None = None
     cap_pct_final: float | None = None
+    liq_boost_applied: bool | None = None
+    liq_boost_score: float | None = None
+    liq_boost_mult: float | None = None
+    liq_boost_reason: str | None = None
+    liq_boost_cap_floor_frac: float | None = None
+    liq_boost_cap_floor_qty: int | None = None
 
     shock_scale_target_atr_pct: float | None = None
     shock_scale_mult: float | None = None
@@ -1000,6 +1068,8 @@ class SpotPolicy:
         shock_dir: str | None,
         shock_atr_pct: float | None,
         shock_dir_down_streak_bars: int | None = None,
+        shock_drawdown_dist_on_pct: float | None = None,
+        shock_drawdown_dist_on_vel_pp: float | None = None,
         riskoff: bool = False,
         risk_dir: str | None = None,
         riskpanic: bool = False,
@@ -1065,6 +1135,18 @@ class SpotPolicy:
                 shock_dir_down_streak_clean = max(0, int(shock_dir_down_streak_bars))
             except (TypeError, ValueError):
                 shock_dir_down_streak_clean = None
+        shock_drawdown_dist_on_clean: float | None = None
+        if shock_drawdown_dist_on_pct is not None:
+            try:
+                shock_drawdown_dist_on_clean = float(shock_drawdown_dist_on_pct)
+            except (TypeError, ValueError):
+                shock_drawdown_dist_on_clean = None
+        shock_drawdown_dist_on_vel_clean: float | None = None
+        if shock_drawdown_dist_on_vel_pp is not None:
+            try:
+                shock_drawdown_dist_on_vel_clean = float(shock_drawdown_dist_on_vel_pp)
+            except (TypeError, ValueError):
+                shock_drawdown_dist_on_vel_clean = None
 
         shock_atr_pct_clean = None
         if shock_atr_pct is not None:
@@ -1135,6 +1217,14 @@ class SpotPolicy:
             if shock_dir_down_streak_clean is not None
             else None,
             shock_atr_pct=float(shock_atr_pct_clean) if shock_atr_pct_clean is not None else None,
+            shock_drawdown_dist_on_pct=(
+                float(shock_drawdown_dist_on_clean) if shock_drawdown_dist_on_clean is not None else None
+            ),
+            shock_drawdown_dist_on_vel_pp=(
+                float(shock_drawdown_dist_on_vel_clean)
+                if shock_drawdown_dist_on_vel_clean is not None
+                else None
+            ),
             riskoff_mode=str(cfg.riskoff_mode),
             risk_dir=risk_dir_clean,
             signal_entry_dir=signal_entry_dir_clean,
@@ -1316,6 +1406,39 @@ class SpotPolicy:
                             shock_short_boost_applied=False,
                             shock_short_boost_gate_reason="shock_off",
                         )
+                        prearm_applied = False
+                        prearm_reason = "off"
+                        prearm_factor = 1.0
+                        dist_on = shock_drawdown_dist_on_clean
+                        dist_on_vel = shock_drawdown_dist_on_vel_clean
+                        near_band = float(cfg.shock_prearm_dist_on_max_pp)
+                        if near_band <= 0:
+                            prearm_reason = "disabled"
+                        elif dist_on is None:
+                            prearm_reason = "dist_on_missing"
+                        elif not (-float(near_band) <= float(dist_on) < 0.0):
+                            prearm_reason = "outside_band"
+                        elif dist_on_vel is None:
+                            prearm_reason = "dist_vel_missing"
+                        elif float(dist_on_vel) < float(cfg.shock_prearm_min_dist_on_vel_pp):
+                            prearm_reason = "dist_vel_low"
+                        elif bool(cfg.shock_prearm_require_regime_down) and signal_regime_dir_clean != "down":
+                            prearm_reason = "regime_not_down"
+                        elif bool(cfg.shock_prearm_require_entry_down) and signal_entry_dir_clean != "down":
+                            prearm_reason = "entry_not_down"
+                        else:
+                            prearm_factor = float(cfg.shock_prearm_short_risk_mult_factor)
+                            if prearm_factor > 0:
+                                short_mult *= float(prearm_factor)
+                                prearm_applied = True
+                                prearm_reason = "ok"
+                            else:
+                                prearm_reason = "factor_nonpositive"
+                        _update_trace(
+                            shock_prearm_applied=bool(prearm_applied),
+                            shock_prearm_factor=float(prearm_factor) if prearm_applied else None,
+                            shock_prearm_reason=str(prearm_reason),
+                        )
                     short_mult *= float(graph_overlay.short_risk_mult)
                     _update_trace(short_mult_final=float(short_mult))
                     if short_mult <= 0:
@@ -1349,6 +1472,66 @@ class SpotPolicy:
 
                 _update_trace(risk_dollars_final=float(risk_dollars), cap_pct_final=float(cap_pct))
 
+                liq_boost_applied = False
+                liq_boost_reason = "off"
+                liq_boost_mult = 1.0
+                liq_boost_score = None
+                if bool(cfg.liq_boost_enable):
+                    overlay_trace = graph_overlay.as_payload() if hasattr(graph_overlay, "as_payload") else {}
+                    raw_score = overlay_trace.get("trace", {}).get("score") if isinstance(overlay_trace, dict) else None
+                    if raw_score is None and isinstance(trace.graph_overlay_trace, dict):
+                        raw_score = trace.graph_overlay_trace.get("trace", {}).get("score")
+                    try:
+                        liq_boost_score = float(raw_score) if raw_score is not None else None
+                    except (TypeError, ValueError):
+                        liq_boost_score = None
+                    if liq_boost_score is None:
+                        # Fallback score keeps boost logic usable with non-trend-bias overlay policies.
+                        score = 0.0
+                        if risk_tr_ratio is not None:
+                            score += max(0.0, float(risk_tr_ratio) - 1.0)
+                        if risk_slope_med is not None:
+                            slope_signed = float(risk_slope_med) if raw_action == "BUY" else -float(risk_slope_med)
+                            score += max(0.0, slope_signed / 0.35)
+                        if risk_slope_vel is not None:
+                            vel_signed = float(risk_slope_vel) if raw_action == "BUY" else -float(risk_slope_vel)
+                            score += max(0.0, vel_signed / 0.20)
+                        liq_boost_score = float(score)
+                    action_dir = "up" if raw_action == "BUY" else "down"
+                    align_ok = True
+                    if bool(cfg.liq_boost_require_alignment):
+                        align_ok = (
+                            signal_entry_dir_clean == action_dir and signal_regime_dir_clean == action_dir
+                        )
+                    if bool(cfg.liq_boost_require_shock) and not bool(shock):
+                        align_ok = False
+                        liq_boost_reason = "shock_required"
+                    elif not align_ok:
+                        liq_boost_reason = "align_fail"
+                    elif liq_boost_score is None:
+                        liq_boost_reason = "score_missing"
+                    elif liq_boost_score < float(cfg.liq_boost_score_min):
+                        liq_boost_reason = "score_low"
+                    else:
+                        score_over = float(liq_boost_score) - float(cfg.liq_boost_score_min)
+                        intensity = min(1.0, max(0.0, score_over / float(cfg.liq_boost_score_span)))
+                        liq_boost_mult = 1.0 + (float(cfg.liq_boost_max_risk_mult) - 1.0) * float(intensity)
+                        if liq_boost_mult > 1.0:
+                            risk_dollars *= float(liq_boost_mult)
+                            liq_boost_applied = True
+                            liq_boost_reason = "ok"
+                        else:
+                            liq_boost_reason = "mult_unity"
+                    _update_trace(
+                        liq_boost_applied=bool(liq_boost_applied),
+                        liq_boost_score=float(liq_boost_score) if liq_boost_score is not None else None,
+                        liq_boost_mult=float(liq_boost_mult),
+                        liq_boost_reason=str(liq_boost_reason),
+                        liq_boost_cap_floor_frac=float(cfg.liq_boost_cap_floor_frac),
+                    )
+                    if liq_boost_applied:
+                        _update_trace(risk_dollars_final=float(risk_dollars), cap_pct_final=float(cap_pct))
+
                 if per_share_risk > 1e-9 and risk_dollars > 0:
                     desired_qty = int(risk_dollars / per_share_risk)
 
@@ -1362,6 +1545,16 @@ class SpotPolicy:
         if cap_pct > 0 and float(equity_ref_f) > 0:
             cap_qty = int((float(equity_ref_f) * float(cap_pct)) / float(entry_price_f))
             desired_qty = min(int(desired_qty), max(0, int(cap_qty)))
+            if (
+                bool(getattr(trace, "liq_boost_applied", False))
+                and float(getattr(cfg, "liq_boost_cap_floor_frac", 0.0)) > 0
+                and cap_qty is not None
+                and cap_qty > 0
+            ):
+                floor_qty = int(float(cap_qty) * float(cfg.liq_boost_cap_floor_frac))
+                if floor_qty > 0:
+                    desired_qty = max(int(desired_qty), int(floor_qty))
+                    _update_trace(liq_boost_cap_floor_qty=int(floor_qty))
 
         afford_qty = None
         if raw_action == "BUY" and cash_ref_f is not None and float(cash_ref_f) > 0:
@@ -1422,6 +1615,8 @@ class SpotPolicy:
         shock_dir: str | None,
         shock_atr_pct: float | None,
         shock_dir_down_streak_bars: int | None = None,
+        shock_drawdown_dist_on_pct: float | None = None,
+        shock_drawdown_dist_on_vel_pp: float | None = None,
         riskoff: bool = False,
         risk_dir: str | None = None,
         riskpanic: bool = False,
@@ -1444,6 +1639,8 @@ class SpotPolicy:
             shock_dir=shock_dir,
             shock_atr_pct=shock_atr_pct,
             shock_dir_down_streak_bars=shock_dir_down_streak_bars,
+            shock_drawdown_dist_on_pct=shock_drawdown_dist_on_pct,
+            shock_drawdown_dist_on_vel_pp=shock_drawdown_dist_on_vel_pp,
             riskoff=riskoff,
             risk_dir=risk_dir,
             riskpanic=riskpanic,

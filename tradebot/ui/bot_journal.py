@@ -753,6 +753,14 @@ class BotJournal:
                     post_bias_tokens.append(f"dd→on=[bold #73d89e]✓ +{dd_dist_on:.1f}pp[/]")
                 else:
                     post_bias_tokens.append(f"dd→on=[bold #ff5f87]… {dd_dist_on:+.1f}pp[/]")
+            try:
+                dd_dist_on_vel = (
+                    float(shock.get("drawdown_dist_on_vel_pp")) if shock.get("drawdown_dist_on_vel_pp") is not None else None
+                )
+            except (TypeError, ValueError):
+                dd_dist_on_vel = None
+            if dd_dist_on_vel is not None:
+                post_bias_tokens.append(f"ddv={dd_dist_on_vel:+.2f}pp")
 
             try:
                 dd_dist_off = float(shock.get("drawdown_dist_off_pct")) if shock.get("drawdown_dist_off_pct") is not None else None
@@ -1082,6 +1090,24 @@ class BotJournal:
             shock_boost_reason = str(spot_decision.get("shock_short_boost_gate_reason") or "").strip()
             if shock_boost_reason:
                 parts.append(f"shock_short_reason={shock_boost_reason}")
+            shock_prearm_applied = spot_decision.get("shock_prearm_applied")
+            if isinstance(shock_prearm_applied, bool):
+                parts.append(f"shock_prearm={'1' if shock_prearm_applied else '0'}")
+            shock_prearm_reason = str(spot_decision.get("shock_prearm_reason") or "").strip()
+            if shock_prearm_reason:
+                parts.append(f"shock_prearm_reason={shock_prearm_reason}")
+            liq_boost_applied = spot_decision.get("liq_boost_applied")
+            if isinstance(liq_boost_applied, bool):
+                parts.append(f"liq_boost={'1' if liq_boost_applied else '0'}")
+            liq_boost_mult = BotJournal._float_or_none(spot_decision.get("liq_boost_mult"))
+            if liq_boost_mult is not None:
+                parts.append(f"liq_mult={float(liq_boost_mult):.2f}")
+            liq_boost_score = BotJournal._float_or_none(spot_decision.get("liq_boost_score"))
+            if liq_boost_score is not None:
+                parts.append(f"liq_score={float(liq_boost_score):+.2f}")
+            liq_boost_reason = str(spot_decision.get("liq_boost_reason") or "").strip()
+            if liq_boost_reason:
+                parts.append(f"liq_reason={liq_boost_reason}")
             msg = " ".join(parts)
         return {
             "ts_et": now_et,
