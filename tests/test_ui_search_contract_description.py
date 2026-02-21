@@ -269,7 +269,7 @@ def test_render_search_hides_no_option_rows_while_loading() -> None:
     assert "No option chain rows" not in rendered_text
 
 
-def test_run_search_opt_initial_query_uses_single_pass_contract_lookup() -> None:
+def test_run_search_opt_initial_query_enables_progressive_contract_lookup() -> None:
     positions_app = _load_positions_app()
     app = positions_app.__new__(positions_app)
     generation = 14
@@ -367,14 +367,15 @@ def test_run_search_opt_initial_query_uses_single_pass_contract_lookup() -> None
         )
     )
 
-    assert "opt_first_limit" not in seen_search_kwargs
-    assert "opt_progress" not in seen_search_kwargs
+    expected_first_limit = app._search_opt_first_paint_limit(positions_app._SEARCH_OPT_FETCH_LIMIT)
+    assert int(seen_search_kwargs.get("opt_first_limit", 0) or 0) == expected_first_limit
+    assert callable(seen_search_kwargs.get("opt_progress"))
     assert len(app._search_results) == 2
     assert len(app._search_opt_chain_cache.get("NVDA", [])) == 2
     assert app._search_loading is False
 
 
-def test_run_search_opt_underlyer_uses_single_pass_contract_lookup() -> None:
+def test_run_search_opt_underlyer_enables_progressive_contract_lookup() -> None:
     positions_app = _load_positions_app()
     app = positions_app.__new__(positions_app)
     generation = 11
@@ -453,8 +454,9 @@ def test_run_search_opt_underlyer_uses_single_pass_contract_lookup() -> None:
         )
     )
 
-    assert "opt_first_limit" not in seen_search_kwargs
-    assert "opt_progress" not in seen_search_kwargs
+    expected_first_limit = app._search_opt_first_paint_limit(positions_app._SEARCH_OPT_FETCH_LIMIT)
+    assert int(seen_search_kwargs.get("opt_first_limit", 0) or 0) == expected_first_limit
+    assert callable(seen_search_kwargs.get("opt_progress"))
     assert len(app._search_opt_chain_cache.get("NVDA", [])) == 2
     assert len(app._search_results) == 2
     assert app._search_loading is False

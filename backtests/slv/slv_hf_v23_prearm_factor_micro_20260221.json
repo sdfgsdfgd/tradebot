@@ -1,0 +1,170 @@
+{
+  "champion": "backtests/slv/archive/champion_history_20260214/slv_hf_champions_v20_exception_ddshock_lb10_on10_off5_streak6_prearmtight_20260218.json",
+  "rows": [
+    {
+      "1y": {
+        "dd": 9413.783471999268,
+        "dd_pct": 0.09413783471999268,
+        "pnl": 32649.186535998662,
+        "pnl_dd": 3.468232154809137,
+        "roi": 0.32649186535998664,
+        "tr": 697
+      },
+      "2y": {
+        "dd": 15178.391383998649,
+        "dd_pct": 0.1517839138399865,
+        "pnl": 45611.024840002174,
+        "pnl_dd": 3.0049972810746066,
+        "roi": 0.45611024840002173,
+        "tr": 1252
+      },
+      "filters": {},
+      "full": {
+        "dd": 9933.10876799919,
+        "dd_pct": 0.09933108767999191,
+        "pnl": 38252.494191999,
+        "pnl_dd": 3.851009294817592,
+        "roi": 0.38252494191999004,
+        "tr": 753
+      },
+      "jan_short_avg": 53.40677966101695,
+      "prearm_applied": 1,
+      "prearm_applied_jan": 0,
+      "segments": {
+        "crash_leg_2026": 7100.043032000532,
+        "janfeb_2026": 18469.392592001303,
+        "pre_2026": 19783.101599997688
+      },
+      "variant": "v20_baseline"
+    },
+    {
+      "1y": {
+        "dd": 9386.376711999197,
+        "dd_pct": 0.09386376711999198,
+        "pnl": 32548.52912799866,
+        "pnl_dd": 3.4676350765242376,
+        "roi": 0.3254852912799866,
+        "tr": 697
+      },
+      "2y": {
+        "dd": 15470.321311998472,
+        "dd_pct": 0.15470321311998472,
+        "pnl": 44992.130904002195,
+        "pnl_dd": 2.9082867767657286,
+        "roi": 0.449921309040022,
+        "tr": 1251
+      },
+      "filters": {
+        "shock_prearm_dist_on_max_pp": 8.0,
+        "shock_prearm_min_dist_on_accel_pp": 0.0,
+        "shock_prearm_min_dist_on_vel_pp": 0.1,
+        "shock_prearm_min_drawdown_pct": -6.0,
+        "shock_prearm_min_streak_bars": 1,
+        "shock_prearm_short_risk_mult_factor": 1.5
+      },
+      "full": {
+        "dd": 9902.699071999203,
+        "dd_pct": 0.09902699071999203,
+        "pnl": 38163.64749599903,
+        "pnl_dd": 3.8538631961371292,
+        "roi": 0.3816364749599903,
+        "tr": 753
+      },
+      "jan_short_avg": 54.101694915254235,
+      "prearm_applied": 20,
+      "prearm_applied_jan": 1,
+      "segments": {
+        "crash_leg_2026": 7101.486528000533,
+        "janfeb_2026": 18408.422024001302,
+        "pre_2026": 19755.225471997685
+      },
+      "variant": "v25_dd6_f1p5"
+    },
+    {
+      "1y": {
+        "dd": 9357.641063999225,
+        "dd_pct": 0.09357641063999225,
+        "pnl": 32492.837959998647,
+        "pnl_dd": 3.4723321548424524,
+        "roi": 0.3249283795999865,
+        "tr": 697
+      },
+      "2y": {
+        "dd": 15810.41756799817,
+        "dd_pct": 0.1581041756799817,
+        "pnl": 44431.969536002194,
+        "pnl_dd": 2.8102970301010166,
+        "roi": 0.4443196953600219,
+        "tr": 1251
+      },
+      "filters": {
+        "shock_prearm_dist_on_max_pp": 8.0,
+        "shock_prearm_min_dist_on_accel_pp": 0.0,
+        "shock_prearm_min_dist_on_vel_pp": 0.1,
+        "shock_prearm_min_drawdown_pct": -6.0,
+        "shock_prearm_min_streak_bars": 1,
+        "shock_prearm_short_risk_mult_factor": 2.0
+      },
+      "full": {
+        "dd": 9875.004791999192,
+        "dd_pct": 0.09875004791999192,
+        "pnl": 38093.926063999024,
+        "pnl_dd": 3.8576108940081757,
+        "roi": 0.38093926063999023,
+        "tr": 753
+      },
+      "jan_short_avg": 54.779661016949156,
+      "prearm_applied": 20,
+      "prearm_applied_jan": 1,
+      "segments": {
+        "crash_leg_2026": 7089.428048000532,
+        "janfeb_2026": 18338.934448001302,
+        "pre_2026": 19754.991615997675
+      },
+      "variant": "v25_dd6_f2p0"
+    },
+    {
+      "1y": {
+        "dd": 9330.68354399917,
+        "dd_pct": 0.0933068354399917,
+        "pnl": 32424.562959998653,
+        "pnl_dd": 3.475046903809295,
+        "roi": 0.32424562959998654,
+        "tr": 697
+      },
+      "2y": {
+        "dd": 16153.951231998435,
+        "dd_pct": 0.16153951231998434,
+        "pnl": 43854.64252800218,
+        "pnl_dd": 2.7147935448222125,
+        "roi": 0.4385464252800218,
+        "tr": 1251
+      },
+      "filters": {
+        "shock_prearm_dist_on_max_pp": 8.0,
+        "shock_prearm_min_dist_on_accel_pp": 0.0,
+        "shock_prearm_min_dist_on_vel_pp": 0.1,
+        "shock_prearm_min_drawdown_pct": -6.0,
+        "shock_prearm_min_streak_bars": 1,
+        "shock_prearm_short_risk_mult_factor": 2.5
+      },
+      "full": {
+        "dd": 9847.007007999215,
+        "dd_pct": 0.09847007007999214,
+        "pnl": 38043.066375999035,
+        "pnl_dd": 3.8634141668727113,
+        "roi": 0.38043066375999035,
+        "tr": 753
+      },
+      "jan_short_avg": 55.45762711864407,
+      "prearm_applied": 20,
+      "prearm_applied_jan": 1,
+      "segments": {
+        "crash_leg_2026": 7095.181968000532,
+        "janfeb_2026": 18285.3992400013,
+        "pre_2026": 19757.66713599768
+      },
+      "variant": "v25_dd6_f2p5"
+    }
+  ]
+}

@@ -407,6 +407,16 @@ class BotSignalRuntimeMixin:
                                 if getattr(snap, "shock_drawdown_dist_on_vel_pp", None) is not None
                                 else None
                             ),
+                            "drawdown_dist_on_accel_pp": (
+                                float(getattr(snap, "shock_drawdown_dist_on_accel_pp", 0.0))
+                                if getattr(snap, "shock_drawdown_dist_on_accel_pp", None) is not None
+                                else None
+                            ),
+                            "prearm_down_streak_bars": (
+                                int(getattr(snap, "shock_prearm_down_streak_bars", 0))
+                                if getattr(snap, "shock_prearm_down_streak_bars", None) is not None
+                                else None
+                            ),
                             "drawdown_dist_off_pct": (
                                 float(getattr(snap, "shock_drawdown_dist_off_pct", 0.0))
                                 if getattr(snap, "shock_drawdown_dist_off_pct", None) is not None
@@ -430,6 +440,11 @@ class BotSignalRuntimeMixin:
                             "dir_up_streak_bars": (
                                 int(getattr(snap, "shock_dir_up_streak_bars", 0))
                                 if getattr(snap, "shock_dir_up_streak_bars", None) is not None
+                                else None
+                            ),
+                            "ramp": (
+                                dict(getattr(snap, "shock_ramp"))
+                                if isinstance(getattr(snap, "shock_ramp", None), dict)
                                 else None
                             ),
                         },

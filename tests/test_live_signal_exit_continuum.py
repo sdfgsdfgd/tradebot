@@ -1550,6 +1550,27 @@ def test_engine_inactive_exit_attaches_ib_reject_reason() -> None:
     assert "time-in-force GTC is invalid" in str(done_payload.get("ib_error_message") or "")
 
 
+def test_engine_canceling_order_timeout_resumes_working_chase() -> None:
+    bar_ts = datetime(2026, 2, 9, 10, 0)
+    instance = _new_instance()
+    order = _new_order(status="Submitted", signal_bar_ts=bar_ts)
+    order.status = "CANCELING"
+    order.cancel_requested_at = -999.0
+    order.trade = SimpleNamespace(
+        orderStatus=SimpleNamespace(status="Submitted", whyHeld=""),
+        log=[],
+        fills=[],
+        isDone=lambda: False,
+    )
+    harness = _EngineHarness(instance=instance, order=order)
+
+    asyncio.run(harness._chase_orders_tick())
+
+    assert order.status == "WORKING"
+    assert order.cancel_requested_at is None
+    assert any(event == "CANCEL_ACK_TIMEOUT" for event, _data in harness._events)
+
+
 def test_order_error_cache_pop_and_expiry() -> None:
     client = _new_client()
     client._remember_order_error(1001, 201, "bad tif")

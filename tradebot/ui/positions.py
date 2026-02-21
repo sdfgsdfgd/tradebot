@@ -99,7 +99,10 @@ class PositionDetailScreen(Screen):
     _RELENTLESS_MAX_EDGE_TICKS = 40
     _CHASE_PENDING_ACK_SEC = 0.9
     _CHASE_RECONCILE_INTERVAL_SEC = 0.9
+    _CHASE_FORCE_RECONCILE_INTERVAL_SEC = 5.0
+    _CHASE_MODIFY_ERROR_BACKOFF_SEC = 1.0
     _CANCEL_REQUEST_TTL_SEC = 90.0
+    _STREAM_RENDER_DEBOUNCE_SEC = 0.08
     _AURORA_PRESET_ORDER = ("calm", "normal", "feral")
     _AURORA_PRESETS = {
         "calm": {"buy_soft": 0.28, "buy_strong": 0.56, "sell_soft": -0.28, "sell_strong": -0.56, "burst_gain": 0.80},
@@ -176,6 +179,7 @@ class PositionDetailScreen(Screen):
         self._session_close_3ago: float | None = session_closes[1] if session_closes else None
         self._closes_task: asyncio.Task | None = None
         self._bootstrap_task: asyncio.Task | None = None
+        self._stream_render_task: asyncio.Task | None = None
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -205,6 +209,8 @@ class PositionDetailScreen(Screen):
         self._client.remove_stream_listener(self._capture_tick_mid)
         if self._refresh_task:
             self._refresh_task.stop()
+        if self._stream_render_task and not self._stream_render_task.done():
+            self._stream_render_task.cancel()
         if self._bootstrap_task and not self._bootstrap_task.done():
             self._bootstrap_task.cancel()
         if self._closes_task and not self._closes_task.done():
@@ -492,6 +498,25 @@ class PositionDetailScreen(Screen):
         if widget is None or not bool(getattr(widget, "is_mounted", False)):
             return
         self._render_details(sample=sample)
+
+    def _request_stream_render(self, *, sample: bool = False) -> None:
+        task = self._stream_render_task
+        if task is not None and not task.done():
+            return
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            self._render_details_if_mounted(sample=sample)
+            return
+
+        async def _run() -> None:
+            try:
+                await asyncio.sleep(max(0.0, float(self._STREAM_RENDER_DEBOUNCE_SEC)))
+                self._render_details_if_mounted(sample=sample)
+            finally:
+                self._stream_render_task = None
+
+        self._stream_render_task = loop.create_task(_run())
 
     def _sync_bound_tickers(self) -> None:
         con_id = int(getattr(self._item.contract, "conId", 0) or 0)
@@ -867,7 +892,7 @@ class PositionDetailScreen(Screen):
             total_volume,
         )
         if signature == self._last_tick_signature:
-            self._render_details_if_mounted(sample=False)
+            self._request_stream_render(sample=False)
             return
         self._last_tick_signature = signature
 
@@ -899,7 +924,7 @@ class PositionDetailScreen(Screen):
         if flow_qty is not None and flow_qty > 0:
             direction = self._flow_direction(price=last or mid_value, imbalance=imbalance)
             self._record_volume_flow(flow_qty * direction, ts=now)
-        self._render_details_if_mounted(sample=False)
+        self._request_stream_render(sample=False)
 
     def _record_market_samples(
         self,
@@ -2120,9 +2145,15 @@ class PositionDetailScreen(Screen):
             lines.append(self._box_row(header, inner, style="#2f78c4"))
             start = self._orders_scroll
             end = min(start + visible, len(trades))
+            visible_trades = list(trades[start:end])
+            state_snapshot = self._order_state_snapshot_for_trades(visible_trades)
             for idx in range(start, end):
                 trade = trades[idx]
-                line = self._format_order_line(trade, width=inner)
+                line = self._format_order_line(
+                    trade,
+                    width=inner,
+                    state_snapshot=state_snapshot,
+                )
                 if self._active_panel == "orders" and idx == self._orders_selected:
                     line.stylize("bold on #2b2b2b")
                 lines.append(self._box_row(line, inner, style="#2f78c4"))
@@ -2380,7 +2411,39 @@ class PositionDetailScreen(Screen):
             return f"{selected}>{active}"[:9]
         return selected[:9]
 
-    def _effective_status_for_trade(self, trade: Trade) -> str | None:
+    @staticmethod
+    def _should_probe_effective_status(raw_status: str) -> bool:
+        status = str(raw_status or "").strip()
+        return status in ("", "PendingSubmit", "PendingSubmission", "ApiPending")
+
+    def _order_state_snapshot_for_trades(
+        self,
+        trades: list[Trade],
+    ) -> dict[int, dict[str, object]]:
+        snapshot: dict[int, dict[str, object]] = {}
+        for trade in trades:
+            order_id, perm_id = self._trade_order_ids(trade)
+            keys = self._state_order_keys(order_id=order_id, perm_id=perm_id)
+            if not keys:
+                continue
+            if all(int(key) in snapshot for key in keys):
+                continue
+            raw_status = str(getattr(getattr(trade, "orderStatus", None), "status", "") or "").strip()
+            if not self._should_probe_effective_status(raw_status):
+                continue
+            payload = self._client_current_order_state(order_id=order_id, perm_id=perm_id)
+            if not isinstance(payload, dict):
+                continue
+            for key in keys:
+                snapshot[int(key)] = payload
+        return snapshot
+
+    def _effective_status_for_trade(
+        self,
+        trade: Trade,
+        *,
+        state_snapshot: dict[int, dict[str, object]] | None = None,
+    ) -> str | None:
         order_id, perm_id = self._trade_order_ids(trade)
         raw_status = str(getattr(getattr(trade, "orderStatus", None), "status", "") or "").strip()
         state = self._chase_state_for_ids(order_id=order_id, perm_id=perm_id)
@@ -2388,14 +2451,30 @@ class PositionDetailScreen(Screen):
             effective = str(state.get("effective_status") or "").strip()
             if effective and effective != raw_status:
                 return effective
-        payload = self._client_current_order_state(order_id=order_id, perm_id=perm_id)
+        payload = None
+        if isinstance(state_snapshot, dict):
+            for key in self._state_order_keys(order_id=order_id, perm_id=perm_id):
+                candidate = state_snapshot.get(int(key))
+                if isinstance(candidate, dict):
+                    payload = candidate
+                    break
+            if payload is None and not self._should_probe_effective_status(raw_status):
+                return None
+        if payload is None:
+            payload = self._client_current_order_state(order_id=order_id, perm_id=perm_id)
         if isinstance(payload, dict):
             effective = str(payload.get("effective_status") or "").strip()
             if effective and effective != raw_status:
                 return effective
         return None
 
-    def _format_order_line(self, trade: Trade, *, width: int) -> Text:
+    def _format_order_line(
+        self,
+        trade: Trade,
+        *,
+        width: int,
+        state_snapshot: dict[int, dict[str, object]] | None = None,
+    ) -> Text:
         contract = trade.contract
         label = getattr(contract, "localSymbol", "") or getattr(contract, "symbol", "") or "?"
         label = label[:10]
@@ -2414,7 +2493,7 @@ class PositionDetailScreen(Screen):
         filled = _fmt_qty(float(trade.orderStatus.filled or 0))
         remaining = _fmt_qty(float(trade.orderStatus.remaining or 0))
         order_id = trade.order.orderId or trade.order.permId or 0
-        effective_status = self._effective_status_for_trade(trade)
+        effective_status = self._effective_status_for_trade(trade, state_snapshot=state_snapshot)
         effective_hint = ""
         if effective_status:
             effective_hint = f" ~{self._status_compact(effective_status)}"
@@ -2956,6 +3035,8 @@ class PositionDetailScreen(Screen):
         last_filled_qty = 0.0
         last_live_probe_ts: float | None = None
         last_reconcile_ts: float | None = None
+        last_force_reconcile_ts: float | None = None
+        last_modify_error_ts: float | None = None
         pending_since_ts: float | None = None
         try:
             while True:
@@ -3021,19 +3102,33 @@ class PositionDetailScreen(Screen):
                 reconcile_payload: dict[str, object] | None = None
                 if order_id or perm_id:
                     should_reconcile = False
+                    force_reconcile = False
                     if status_raw in pending_statuses and pending_age >= float(self._CHASE_PENDING_ACK_SEC):
                         if (
                             last_reconcile_ts is None
                             or (loop_now - last_reconcile_ts) >= float(self._CHASE_RECONCILE_INTERVAL_SEC)
                         ):
                             should_reconcile = True
+                            force_candidate = bool(
+                                pending_age >= (float(self._CHASE_PENDING_ACK_SEC) * 2.0)
+                            )
+                            if force_candidate:
+                                force_reconcile = bool(
+                                    last_force_reconcile_ts is None
+                                    or (
+                                        (loop_now - last_force_reconcile_ts)
+                                        >= float(self._CHASE_FORCE_RECONCILE_INTERVAL_SEC)
+                                    )
+                                )
                     if should_reconcile:
                         reconcile_payload = await self._client_reconcile_order_state(
                             order_id=order_id,
                             perm_id=perm_id,
-                            force=bool(pending_age >= (float(self._CHASE_PENDING_ACK_SEC) * 2.0)),
+                            force=bool(force_reconcile),
                         )
                         last_reconcile_ts = loop_now
+                        if force_reconcile:
+                            last_force_reconcile_ts = loop_now
                 if reconcile_payload is not None:
                     reconciled_trade = reconcile_payload.get("trade")
                     if isinstance(reconciled_trade, Trade):
@@ -3252,6 +3347,12 @@ class PositionDetailScreen(Screen):
                     should_reprice = False
                 if should_reprice and working_status not in repricable_statuses:
                     should_reprice = False
+                if (
+                    should_reprice
+                    and last_modify_error_ts is not None
+                    and (loop_now - last_modify_error_ts) < float(self._CHASE_MODIFY_ERROR_BACKOFF_SEC)
+                ):
+                    should_reprice = False
                 prev_mode = str(mode_now)
                 prev_quote_sig = quote_sig
                 if order_id or perm_id:
@@ -3294,6 +3395,16 @@ class PositionDetailScreen(Screen):
                 else:
                     price = None
                 if price is not None:
+                    current_price = _safe_num(getattr(getattr(trade, "order", None), "lmtPrice", None))
+                    compare_tick = _tick_size(trade.contract, ticker, price) or 0.01
+                    if (
+                        current_price is not None
+                        and abs(float(price) - float(current_price))
+                        <= max(float(compare_tick) * 0.5, 1e-9)
+                    ):
+                        last_reprice_ts = loop_now
+                        price = None
+                if price is not None:
                     try:
                         trade = await self._client.modify_limit_order(trade, float(price))
                         applied_price = _safe_num(getattr(getattr(trade, "order", None), "lmtPrice", None))
@@ -3329,9 +3440,11 @@ class PositionDetailScreen(Screen):
                             f"Chasing {order_label} [{mode_view}] @ {float(applied_price):.2f} mod#{mods}"
                         )
                         last_reprice_ts = loop_now
+                        last_modify_error_ts = None
                         if not fill_progress:
                             no_progress_reprices += 1
                     except Exception as exc:
+                        last_modify_error_ts = loop_now
                         self._exec_status = f"Chase error: {exc}"
                         self._set_orders_notice(self._exec_status, level="error")
                     self._render_details_if_mounted(sample=False)

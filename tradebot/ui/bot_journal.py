@@ -761,6 +761,37 @@ class BotJournal:
                 dd_dist_on_vel = None
             if dd_dist_on_vel is not None:
                 post_bias_tokens.append(f"ddv={dd_dist_on_vel:+.2f}pp")
+            try:
+                dd_dist_on_accel = (
+                    float(shock.get("drawdown_dist_on_accel_pp"))
+                    if shock.get("drawdown_dist_on_accel_pp") is not None
+                    else None
+                )
+            except (TypeError, ValueError):
+                dd_dist_on_accel = None
+            if dd_dist_on_accel is not None:
+                post_bias_tokens.append(f"dda={dd_dist_on_accel:+.2f}pp")
+            prearm_down_streak = BotJournal._int_or_none(shock.get("prearm_down_streak_bars"))
+            if prearm_down_streak is not None and prearm_down_streak > 0:
+                post_bias_tokens.append(f"pre={int(prearm_down_streak)}b")
+
+            ramp = shock.get("ramp")
+            if isinstance(ramp, dict):
+                for key, glyph in (("down", "↓"), ("up", "↑")):
+                    node = ramp.get(key)
+                    if not isinstance(node, dict):
+                        continue
+                    mult = BotJournal._float_or_none(node.get("risk_mult"))
+                    intensity = BotJournal._float_or_none(node.get("intensity"))
+                    phase = str(node.get("phase") or "").strip()
+                    if mult is None:
+                        continue
+                    show = float(mult) > 1.01 or (intensity is not None and float(intensity) > 0.05)
+                    if not bool(show):
+                        continue
+                    phase_clean = phase if phase and phase != "off" else ""
+                    token = f"r{glyph}{phase_clean}:x{float(mult):.2f}" if phase_clean else f"r{glyph}x{float(mult):.2f}"
+                    post_bias_tokens.append(token)
 
             try:
                 dd_dist_off = float(shock.get("drawdown_dist_off_pct")) if shock.get("drawdown_dist_off_pct") is not None else None
@@ -1096,6 +1127,28 @@ class BotJournal:
             shock_prearm_reason = str(spot_decision.get("shock_prearm_reason") or "").strip()
             if shock_prearm_reason:
                 parts.append(f"shock_prearm_reason={shock_prearm_reason}")
+            ramp_mult = BotJournal._float_or_none(spot_decision.get("shock_ramp_risk_mult"))
+            ramp_floor_frac = BotJournal._float_or_none(spot_decision.get("shock_ramp_cap_floor_frac"))
+            ramp_applied = spot_decision.get("shock_ramp_applied")
+            if (
+                isinstance(ramp_applied, bool)
+                or (ramp_mult is not None and float(ramp_mult) > 1.01)
+                or (ramp_floor_frac is not None and float(ramp_floor_frac) > 0.01)
+            ):
+                ramp_dir = str(spot_decision.get("shock_ramp_dir") or "").strip()
+                ramp_phase = str(spot_decision.get("shock_ramp_phase") or "").strip()
+                ramp_intensity = BotJournal._float_or_none(spot_decision.get("shock_ramp_intensity"))
+                ramp_reason = str(spot_decision.get("shock_ramp_reason") or "").strip()
+                if ramp_dir or ramp_phase:
+                    parts.append(f"ramp={ramp_dir or '?'}:{ramp_phase or '?'}")
+                if ramp_mult is not None:
+                    parts.append(f"ramp_mult={float(ramp_mult):.2f}")
+                if ramp_intensity is not None:
+                    parts.append(f"ramp_i={float(ramp_intensity):.2f}")
+                if ramp_floor_frac is not None and float(ramp_floor_frac) > 0:
+                    parts.append(f"ramp_floor={float(ramp_floor_frac):.2f}")
+                if ramp_reason:
+                    parts.append(f"ramp_reason={ramp_reason}")
             liq_boost_applied = spot_decision.get("liq_boost_applied")
             if isinstance(liq_boost_applied, bool):
                 parts.append(f"liq_boost={'1' if liq_boost_applied else '0'}")

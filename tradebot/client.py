@@ -3390,9 +3390,11 @@ class IBKRClient:
                 timing["expiry_count"] = len(expiries)
             if not expiries:
                 return _opt_timing_finish([], stage="chain", reason="no-expiries")
-            # Keep each expiry deep enough to show meaningful C/P ladders near ATM.
-            target_strikes_per_expiry = max(1, min(20, int(max_rows) // 2))
-            max_expiries = max(1, int(max_rows) // (2 * target_strikes_per_expiry))
+            # Favor surfacing multiple expiries while keeping each expiry
+            # deep enough for a usable C/P ladder near ATM.
+            pair_budget = max(1, int(max_rows) // 2)
+            min_strikes_per_expiry = 6
+            max_expiries = max(1, pair_budget // min_strikes_per_expiry)
             expiry_take = min(len(expiries), max_expiries)
             selected_expiries = expiries[:expiry_take]
             strikes_raw = getattr(chain, "strikes", ()) or ()
@@ -3434,10 +3436,7 @@ class IBKRClient:
                 return _opt_timing_finish([], stage="reference", reason="no-reference-price")
             if timing is not None:
                 timing["ref_price_source"] = ref_source or "unknown"
-            rows_per_expiry = max(
-                target_strikes_per_expiry,
-                int(max_rows) // max(1, (2 * len(selected_expiries))),
-            )
+            rows_per_expiry = max(1, pair_budget // max(1, len(selected_expiries)))
             if timing is not None:
                 timing["selected_expiry_count"] = len(selected_expiries)
                 timing["rows_per_expiry"] = int(rows_per_expiry)

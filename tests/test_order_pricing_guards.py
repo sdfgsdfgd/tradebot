@@ -12,7 +12,14 @@ if "tradebot.ui" not in sys.modules:
     ui_pkg.__path__ = [str(_UI_DIR)]  # type: ignore[attr-defined]
     sys.modules["tradebot.ui"] = ui_pkg
 
-from tradebot.ui.common import _limit_price_for_mode, _quote_health, _sanitize_nbbo, _tick_size, _ticker_line
+from tradebot.ui.common import (
+    _exec_chase_should_reprice,
+    _limit_price_for_mode,
+    _quote_health,
+    _sanitize_nbbo,
+    _tick_size,
+    _ticker_line,
+)
 
 
 @pytest.mark.parametrize("action", ["BUY", "SELL"])
@@ -103,3 +110,29 @@ def test_tick_size_prefers_ticker_ladder_over_contract_defaults() -> None:
         tbPriceIncrements=((0.0, 0.05), (5.0, 0.25), (100.0, 0.5)),
     )
     assert _tick_size(contract, ticker, 101.3) == 0.5
+
+
+def test_exec_chase_quote_change_respects_min_interval() -> None:
+    should = _exec_chase_should_reprice(
+        now_sec=100.15,
+        last_reprice_sec=100.0,
+        mode_now="MID",
+        prev_mode="MID",
+        quote_signature=(100.0, 101.0, 100.6),
+        prev_quote_signature=(100.0, 101.0, 100.5),
+        min_interval_sec=0.5,
+    )
+    assert should is False
+
+
+def test_exec_chase_mode_change_reprices_immediately() -> None:
+    should = _exec_chase_should_reprice(
+        now_sec=100.05,
+        last_reprice_sec=100.0,
+        mode_now="AGGRESSIVE",
+        prev_mode="MID",
+        quote_signature=(100.0, 101.0, 100.5),
+        prev_quote_signature=(100.0, 101.0, 100.5),
+        min_interval_sec=5.0,
+    )
+    assert should is True

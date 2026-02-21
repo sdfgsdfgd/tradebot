@@ -922,6 +922,9 @@ class BotOrderBuilderMixin:
                 shock_dir_down_streak_bars=getattr(snap, "shock_dir_down_streak_bars", None),
                 shock_drawdown_dist_on_pct=getattr(snap, "shock_drawdown_dist_on_pct", None),
                 shock_drawdown_dist_on_vel_pp=getattr(snap, "shock_drawdown_dist_on_vel_pp", None),
+                shock_drawdown_dist_on_accel_pp=getattr(snap, "shock_drawdown_dist_on_accel_pp", None),
+                shock_prearm_down_streak_bars=getattr(snap, "shock_prearm_down_streak_bars", None),
+                shock_ramp=getattr(snap, "shock_ramp", None),
                 riskoff=riskoff,
                 risk_dir=snap.shock_dir,
                 riskpanic=riskpanic,
@@ -1138,6 +1141,16 @@ class BotOrderBuilderMixin:
                 "shock_drawdown_dist_on_vel_pp": (
                     float(getattr(snap, "shock_drawdown_dist_on_vel_pp", 0.0))
                     if snap is not None and getattr(snap, "shock_drawdown_dist_on_vel_pp", None) is not None
+                    else None
+                ),
+                "shock_drawdown_dist_on_accel_pp": (
+                    float(getattr(snap, "shock_drawdown_dist_on_accel_pp", 0.0))
+                    if snap is not None and getattr(snap, "shock_drawdown_dist_on_accel_pp", None) is not None
+                    else None
+                ),
+                "shock_prearm_down_streak_bars": (
+                    int(getattr(snap, "shock_prearm_down_streak_bars", 0))
+                    if snap is not None and getattr(snap, "shock_prearm_down_streak_bars", None) is not None
                     else None
                 ),
                 "shock_drawdown_dist_off_pct": (

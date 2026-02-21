@@ -249,6 +249,46 @@ class SpotPolicyKernelTests(unittest.TestCase):
         self.assertEqual(trace.shock_short_boost_gate_reason, "ok")
         self.assertAlmostEqual(float(trace.short_mult_final or 0.0), 2.5, places=6)
 
+    def test_short_shock_boost_respects_drawdown_depth_gate(self) -> None:
+        _qty, trace = SpotPolicy.calc_signed_qty_with_trace(
+            strategy={
+                "quantity": 1,
+                "spot_sizing_mode": "risk_pct",
+                "spot_risk_pct": 0.01,
+                "spot_short_risk_mult": 1.0,
+                "spot_max_notional_pct": 1.0,
+                "spot_min_qty": 1,
+                "spot_max_qty": 0,
+            },
+            filters={
+                "shock_short_risk_mult_factor": 2.5,
+                "shock_short_boost_min_down_streak_bars": 1,
+                "shock_short_boost_max_dist_on_pp": 2.0,
+            },
+            action="SELL",
+            lot=1,
+            entry_price=100.0,
+            stop_price=101.0,
+            stop_loss_pct=None,
+            shock=True,
+            shock_dir="down",
+            shock_atr_pct=12.0,
+            shock_dir_down_streak_bars=1,
+            shock_drawdown_dist_on_pct=3.0,
+            riskoff=False,
+            risk_dir=None,
+            riskpanic=False,
+            riskpop=False,
+            risk=None,
+            signal_entry_dir="down",
+            signal_regime_dir="down",
+            equity_ref=100_000.0,
+            cash_ref=100_000.0,
+        )
+        self.assertFalse(bool(trace.shock_short_boost_applied))
+        self.assertEqual(trace.shock_short_boost_gate_reason, "dd_dist_on_gt_2pp")
+        self.assertAlmostEqual(float(trace.short_mult_final or 0.0), 1.0, places=6)
+
     def test_short_prearm_applies_before_shock_when_dd_is_near_and_accelerating(self) -> None:
         _qty, trace = SpotPolicy.calc_signed_qty_with_trace(
             strategy={
@@ -337,6 +377,123 @@ class SpotPolicyKernelTests(unittest.TestCase):
         self.assertEqual(trace.liq_boost_reason, "ok")
         self.assertEqual(trace.cap_qty, 1000)
         self.assertEqual(trace.liq_boost_cap_floor_qty, 600)
+        self.assertGreaterEqual(int(trace.signed_qty_final), 600)
+
+    def test_shock_ramp_mult_scales_qty_when_enabled(self) -> None:
+        base_qty, base_trace = SpotPolicy.calc_signed_qty_with_trace(
+            strategy={
+                "quantity": 1,
+                "spot_sizing_mode": "risk_pct",
+                "spot_risk_pct": 0.002,
+                "spot_short_risk_mult": 1.0,
+                "spot_max_notional_pct": 1.0,
+                "spot_min_qty": 1,
+                "spot_max_qty": 0,
+            },
+            filters=None,
+            action="SELL",
+            lot=1,
+            entry_price=100.0,
+            stop_price=101.0,
+            stop_loss_pct=None,
+            shock=False,
+            shock_dir="down",
+            shock_atr_pct=8.0,
+            riskoff=False,
+            risk_dir=None,
+            riskpanic=False,
+            riskpop=False,
+            risk=None,
+            signal_entry_dir="down",
+            signal_regime_dir="down",
+            equity_ref=100_000.0,
+            cash_ref=100_000.0,
+        )
+        qty, trace = SpotPolicy.calc_signed_qty_with_trace(
+            strategy={
+                "quantity": 1,
+                "spot_sizing_mode": "risk_pct",
+                "spot_risk_pct": 0.002,
+                "spot_short_risk_mult": 1.0,
+                "spot_max_notional_pct": 1.0,
+                "spot_min_qty": 1,
+                "spot_max_qty": 0,
+            },
+            filters=None,
+            action="SELL",
+            lot=1,
+            entry_price=100.0,
+            stop_price=101.0,
+            stop_loss_pct=None,
+            shock=False,
+            shock_dir="down",
+            shock_atr_pct=8.0,
+            shock_ramp={
+                "down": {
+                    "risk_mult": 3.0,
+                    "cap_floor_frac": 0.0,
+                    "phase": "approach",
+                    "intensity": 0.7,
+                    "reason": "dd",
+                },
+                "up": {"risk_mult": 1.0, "cap_floor_frac": 0.0, "phase": "off", "intensity": 0.0},
+            },
+            riskoff=False,
+            risk_dir=None,
+            riskpanic=False,
+            riskpop=False,
+            risk=None,
+            signal_entry_dir="down",
+            signal_regime_dir="down",
+            equity_ref=100_000.0,
+            cash_ref=100_000.0,
+        )
+        self.assertIsNone(base_trace.shock_ramp_applied)
+        self.assertTrue(bool(trace.shock_ramp_applied))
+        self.assertAlmostEqual(float(trace.shock_ramp_risk_mult or 0.0), 3.0, places=6)
+        self.assertGreater(abs(int(qty)), abs(int(base_qty)))
+
+    def test_shock_ramp_can_floor_toward_cap(self) -> None:
+        _qty, trace = SpotPolicy.calc_signed_qty_with_trace(
+            strategy={
+                "quantity": 1,
+                "spot_sizing_mode": "risk_pct",
+                "spot_risk_pct": 0.0004,
+                "spot_max_notional_pct": 1.0,
+                "spot_min_qty": 1,
+                "spot_max_qty": 0,
+            },
+            filters=None,
+            action="BUY",
+            lot=1,
+            entry_price=100.0,
+            stop_price=99.0,
+            stop_loss_pct=None,
+            shock=False,
+            shock_dir="up",
+            shock_atr_pct=8.0,
+            shock_ramp={
+                "down": {"risk_mult": 1.0, "cap_floor_frac": 0.0, "phase": "off", "intensity": 0.0},
+                "up": {
+                    "risk_mult": 1.0,
+                    "cap_floor_frac": 0.60,
+                    "phase": "trend",
+                    "intensity": 1.0,
+                    "reason": "slope",
+                },
+            },
+            riskoff=False,
+            risk_dir=None,
+            riskpanic=False,
+            riskpop=False,
+            risk=None,
+            signal_entry_dir="up",
+            signal_regime_dir="up",
+            equity_ref=100_000.0,
+            cash_ref=100_000.0,
+        )
+        self.assertEqual(trace.cap_qty, 1000)
+        self.assertEqual(trace.shock_ramp_cap_floor_qty, 600)
         self.assertGreaterEqual(int(trace.signed_qty_final), 600)
 
     def test_resolve_position_intent_enter_from_flat(self) -> None:

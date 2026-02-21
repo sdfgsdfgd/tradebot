@@ -1230,7 +1230,12 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             self._refresh_orders_table()
             self._render_bot()
             return
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            loop = None
         order.status = "CANCELING"
+        order.cancel_requested_at = loop.time() if loop is not None else None
         self._journal_write(event="CANCEL_REQUEST", order=order, reason=None, data=None)
         self._refresh_orders_table()
         self._set_status(f"Canceling #{order.order_id or 0}...", render_bot=True)
@@ -1240,6 +1245,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             self._set_status(f"Cancel sent #{order.order_id or 0}")
         except Exception as exc:
             order.status = "WORKING"
+            order.cancel_requested_at = None
             order.error = f"Cancel error: {exc}"
             self._set_status(f"Cancel error: {exc}")
             self._journal_write(event="CANCEL_ERROR", order=order, reason=None, data={"exc": str(exc)})
@@ -3630,6 +3636,16 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                 if getattr(snap, "shock_drawdown_dist_on_vel_pp", None) is not None
                 else None
             ),
+            shock_drawdown_dist_on_accel_pp=(
+                float(getattr(snap, "shock_drawdown_dist_on_accel_pp", 0.0))
+                if getattr(snap, "shock_drawdown_dist_on_accel_pp", None) is not None
+                else None
+            ),
+            shock_prearm_down_streak_bars=(
+                int(getattr(snap, "shock_prearm_down_streak_bars", 0))
+                if getattr(snap, "shock_prearm_down_streak_bars", None) is not None
+                else None
+            ),
             shock_drawdown_dist_off_pct=(
                 float(getattr(snap, "shock_drawdown_dist_off_pct", 0.0))
                 if getattr(snap, "shock_drawdown_dist_off_pct", None) is not None
@@ -3700,6 +3716,11 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             ),
             shock_atr_accel_pct=(
                 float(snap.shock_atr_accel_pct) if getattr(snap, "shock_atr_accel_pct", None) is not None else None
+            ),
+            shock_ramp=(
+                dict(getattr(snap, "shock_ramp"))
+                if isinstance(getattr(snap, "shock_ramp", None), dict)
+                else None
             ),
             bar_health=bar_health,
             regime_bar_health=regime_bar_health,
@@ -4392,6 +4413,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             order.order_id = int(order_id or 0) or None
             order.trade = trade
             order.sent_at = loop.time() if loop is not None else None
+            order.cancel_requested_at = None
             self._set_status(f"Sent #{order_id} {order.action} {order.quantity} @ {order.limit_price:.2f}")
             self._journal_write(event="SENT", order=order, reason=order.reason, data=None)
         except Exception as exc:

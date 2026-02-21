@@ -17,6 +17,7 @@ from .common import (
 )
 
 _DEFAULT_EXIT_RETRY_COOLDOWN_SEC = 3.0
+_CANCEL_ACK_TIMEOUT_SEC = 6.0
 
 
 def _latest_trade_log_message(trade) -> str | None:
@@ -150,6 +151,7 @@ class BotEngineRuntimeMixin:
             if trade is None:
                 order.status = "ERROR"
                 order.error = "Missing IB trade handle for WORKING order"
+                order.cancel_requested_at = None
                 order.chase_last_reprice_ts = None
                 order.chase_quote_signature = None
                 updated = True
@@ -313,10 +315,32 @@ class BotEngineRuntimeMixin:
                         reason=None,
                         data=done_data,
                     )
+                order.cancel_requested_at = None
                 order.chase_last_reprice_ts = None
                 order.chase_quote_signature = None
                 updated = True
                 continue
+
+            if order.status == "CANCELING":
+                cancel_since = (
+                    float(order.cancel_requested_at)
+                    if order.cancel_requested_at is not None
+                    else float(order.sent_at if order.sent_at is not None else now)
+                )
+                cancel_age = max(0.0, float(now) - float(cancel_since))
+                if cancel_age < float(_CANCEL_ACK_TIMEOUT_SEC):
+                    continue
+                order.status = "WORKING"
+                order.cancel_requested_at = None
+                order.error = f"Cancel ack timeout after {cancel_age:.1f}s; resuming chase"
+                self._status = f"Cancel ack timeout #{order.order_id or 0}; resuming chase"
+                self._journal_write(
+                    event="CANCEL_ACK_TIMEOUT",
+                    order=order,
+                    reason="canceling-stale",
+                    data={"age_sec": float(cancel_age)},
+                )
+                updated = True
 
             if order.status != "WORKING":
                 continue
@@ -329,6 +353,7 @@ class BotEngineRuntimeMixin:
                 # Timed out: cancel and give up.
                 try:
                     order.status = "CANCELING"
+                    order.cancel_requested_at = float(now)
                     order.error = f"Timeout after {int(elapsed)}s"
                     self._journal_write(
                         event="ORDER_TIMEOUT_CANCEL",
@@ -349,6 +374,7 @@ class BotEngineRuntimeMixin:
                     self._status = f"Timeout cancel sent #{order.order_id or 0}"
                 except Exception as exc:
                     order.status = "WORKING"
+                    order.cancel_requested_at = None
                     order.error = f"Timeout cancel error: {exc}"
                     self._status = f"Timeout cancel error #{order.order_id or 0}: {exc}"
                     self._journal_write(

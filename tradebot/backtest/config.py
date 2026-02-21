@@ -582,12 +582,24 @@ def _parse_filters(raw) -> FiltersConfig | None:
         shock_short_boost_min_down_streak = 1
     shock_short_boost_require_regime_down = bool(raw.get("shock_short_boost_require_regime_down"))
     shock_short_boost_require_entry_down = bool(raw.get("shock_short_boost_require_entry_down"))
+    shock_short_boost_max_dist_on_pp = _f(raw.get("shock_short_boost_max_dist_on_pp"))
+    if shock_short_boost_max_dist_on_pp is None or shock_short_boost_max_dist_on_pp < 0:
+        shock_short_boost_max_dist_on_pp = 0.0
     shock_prearm_dist_on_max_pp = _f(raw.get("shock_prearm_dist_on_max_pp"))
     if shock_prearm_dist_on_max_pp is None or shock_prearm_dist_on_max_pp < 0:
         shock_prearm_dist_on_max_pp = 0.0
+    shock_prearm_min_drawdown_pct = _f(raw.get("shock_prearm_min_drawdown_pct"))
+    if shock_prearm_min_drawdown_pct is None:
+        shock_prearm_min_drawdown_pct = 0.0
     shock_prearm_min_dist_on_vel_pp = _f(raw.get("shock_prearm_min_dist_on_vel_pp"))
     if shock_prearm_min_dist_on_vel_pp is None or shock_prearm_min_dist_on_vel_pp < 0:
         shock_prearm_min_dist_on_vel_pp = 0.0
+    shock_prearm_min_dist_on_accel_pp = _f(raw.get("shock_prearm_min_dist_on_accel_pp"))
+    if shock_prearm_min_dist_on_accel_pp is None or shock_prearm_min_dist_on_accel_pp < 0:
+        shock_prearm_min_dist_on_accel_pp = 0.0
+    shock_prearm_min_streak_bars = _i(raw.get("shock_prearm_min_streak_bars"))
+    if shock_prearm_min_streak_bars is None or shock_prearm_min_streak_bars < 0:
+        shock_prearm_min_streak_bars = 0
     shock_prearm_short_mult = _f(raw.get("shock_prearm_short_risk_mult_factor"))
     if shock_prearm_short_mult is None or shock_prearm_short_mult < 0:
         shock_prearm_short_mult = 1.0
@@ -669,6 +681,26 @@ def _parse_filters(raw) -> FiltersConfig | None:
         shock_scale_apply_to = "both"
     else:
         shock_scale_apply_to = "risk"
+    shock_ramp_enable = bool(raw.get("shock_ramp_enable", False))
+    shock_ramp_apply_to = raw.get("shock_ramp_apply_to")
+    if shock_ramp_apply_to is not None:
+        shock_ramp_apply_to = str(shock_ramp_apply_to).strip().lower()
+    shock_ramp_apply_to = str(shock_ramp_apply_to or "down").strip().lower()
+    if shock_ramp_apply_to not in ("down", "up", "both"):
+        shock_ramp_apply_to = "down"
+    shock_ramp_max_risk_mult = _f(raw.get("shock_ramp_max_risk_mult"))
+    if shock_ramp_max_risk_mult is None or shock_ramp_max_risk_mult < 1.0:
+        shock_ramp_max_risk_mult = 1.0
+    shock_ramp_max_cap_floor_frac = _f(raw.get("shock_ramp_max_cap_floor_frac"))
+    if shock_ramp_max_cap_floor_frac is None:
+        shock_ramp_max_cap_floor_frac = 0.0
+    shock_ramp_max_cap_floor_frac = float(max(0.0, min(1.0, shock_ramp_max_cap_floor_frac)))
+    shock_ramp_min_slope_streak_bars = _i(raw.get("shock_ramp_min_slope_streak_bars"))
+    if shock_ramp_min_slope_streak_bars is None or shock_ramp_min_slope_streak_bars < 0:
+        shock_ramp_min_slope_streak_bars = 0
+    shock_ramp_min_slope_abs_pct = _f(raw.get("shock_ramp_min_slope_abs_pct"))
+    if shock_ramp_min_slope_abs_pct is None or shock_ramp_min_slope_abs_pct < 0.0:
+        shock_ramp_min_slope_abs_pct = 0.0
     liq_boost_enable = bool(raw.get("liq_boost_enable", False))
     liq_boost_score_min = _f(raw.get("liq_boost_score_min"))
     if liq_boost_score_min is None:
@@ -881,8 +913,12 @@ def _parse_filters(raw) -> FiltersConfig | None:
         shock_short_boost_min_down_streak_bars=int(shock_short_boost_min_down_streak),
         shock_short_boost_require_regime_down=bool(shock_short_boost_require_regime_down),
         shock_short_boost_require_entry_down=bool(shock_short_boost_require_entry_down),
+        shock_short_boost_max_dist_on_pp=float(shock_short_boost_max_dist_on_pp),
         shock_prearm_dist_on_max_pp=float(shock_prearm_dist_on_max_pp),
+        shock_prearm_min_drawdown_pct=float(shock_prearm_min_drawdown_pct),
         shock_prearm_min_dist_on_vel_pp=float(shock_prearm_min_dist_on_vel_pp),
+        shock_prearm_min_dist_on_accel_pp=float(shock_prearm_min_dist_on_accel_pp),
+        shock_prearm_min_streak_bars=int(shock_prearm_min_streak_bars),
         shock_prearm_short_risk_mult_factor=float(shock_prearm_short_mult),
         shock_prearm_require_regime_down=bool(shock_prearm_require_regime_down),
         shock_prearm_require_entry_down=bool(shock_prearm_require_entry_down),
@@ -899,6 +935,12 @@ def _parse_filters(raw) -> FiltersConfig | None:
         shock_risk_scale_target_atr_pct=shock_scale_target,
         shock_risk_scale_min_mult=shock_scale_min,
         shock_risk_scale_apply_to=str(shock_scale_apply_to),
+        shock_ramp_enable=bool(shock_ramp_enable),
+        shock_ramp_apply_to=str(shock_ramp_apply_to),
+        shock_ramp_max_risk_mult=float(shock_ramp_max_risk_mult),
+        shock_ramp_max_cap_floor_frac=float(shock_ramp_max_cap_floor_frac),
+        shock_ramp_min_slope_streak_bars=int(shock_ramp_min_slope_streak_bars),
+        shock_ramp_min_slope_abs_pct=float(shock_ramp_min_slope_abs_pct),
         liq_boost_enable=bool(liq_boost_enable),
         liq_boost_score_min=float(liq_boost_score_min),
         liq_boost_score_span=float(liq_boost_score_span),

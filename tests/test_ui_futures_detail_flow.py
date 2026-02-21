@@ -846,3 +846,221 @@ def test_place_order_surfaces_chase_task_exception_in_order_feed() -> None:
     line = screen._orders_notice_line()
     assert line is not None
     assert "#314 chase task error: md boom" in line.plain
+
+
+def test_capture_tick_mid_coalesces_stream_render_updates() -> None:
+    _ensure_event_loop()
+    contract = Contract(secType="FUT", symbol="MNQ", exchange="CME", currency="USD")
+    contract.conId = 750150193
+    ticker = SimpleNamespace(
+        contract=contract,
+        bid=100.0,
+        ask=101.0,
+        last=100.5,
+        lastSize=1.0,
+        bidSize=2.0,
+        askSize=2.0,
+        rtTradeVolume=None,
+        rtVolume=None,
+        volume=None,
+    )
+
+    class _Client:
+        @staticmethod
+        def ticker_for_con_id(_con_id: int):
+            return ticker
+
+    screen = PositionDetailScreen(_Client(), _fut_item(contract), refresh_sec=0.25)
+    screen._ticker = ticker
+    screen._STREAM_RENDER_DEBOUNCE_SEC = 0.05
+    calls = {"n": 0}
+    screen._render_details_if_mounted = lambda *args, **kwargs: calls.__setitem__("n", calls["n"] + 1)  # type: ignore[method-assign]
+
+    async def _run() -> int:
+        screen._capture_tick_mid()
+        screen._capture_tick_mid()
+        screen._capture_tick_mid()
+        await asyncio.sleep(0.08)
+        return int(calls["n"])
+
+    renders = asyncio.run(_run())
+    assert renders == 1
+
+
+def test_orders_panel_probes_effective_status_only_for_pending_rows() -> None:
+    _ensure_event_loop()
+    contract = Contract(secType="FUT", symbol="1OZ", exchange="COMEX", currency="USD")
+    contract.conId = 753716628
+    statuses = ["Submitted", "PendingSubmission", "Filled", "", "ApiPending"]
+    trades = [
+        SimpleNamespace(
+            contract=contract,
+            order=SimpleNamespace(orderId=1000 + idx, permId=0, action="BUY", totalQuantity=1, orderType="LMT", lmtPrice=100.0),
+            orderStatus=SimpleNamespace(status=status, filled=0.0, remaining=1.0),
+        )
+        for idx, status in enumerate(statuses)
+    ]
+
+    class _Client:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def open_trades_for_conids(self, _con_ids: list[int]):
+            return list(trades)
+
+        def current_order_state(self, *, order_id: int = 0, perm_id: int = 0):
+            self.calls += 1
+            return {
+                "order_id": int(order_id),
+                "perm_id": int(perm_id),
+                "effective_status": "Submitted",
+                "is_terminal": False,
+            }
+
+    class _RightPane:
+        def __init__(self) -> None:
+            self.size = SimpleNamespace(width=110, height=30)
+
+        @staticmethod
+        def update(_text) -> None:
+            return None
+
+    client = _Client()
+    screen = PositionDetailScreen(client, _fut_item(contract), refresh_sec=0.25)
+    screen._detail_right = _RightPane()  # type: ignore[attr-defined]
+
+    screen._render_orders_panel()
+
+    assert client.calls == 3
+
+
+def test_chase_skips_noop_modify_when_limit_price_unchanged() -> None:
+    _ensure_event_loop()
+    contract = Contract(secType="FUT", symbol="MNQ", exchange="CME", currency="USD")
+    contract.conId = 750150193
+    ticker = SimpleNamespace(contract=contract, bid=100.0, ask=101.0, last=100.5)
+
+    loop_count = {"n": 0}
+
+    def _is_done() -> bool:
+        loop_count["n"] += 1
+        return loop_count["n"] >= 3
+
+    trade = SimpleNamespace(
+        order=SimpleNamespace(orderId=616, permId=0, action="BUY", totalQuantity=1, orderType="LMT", lmtPrice=100.5),
+        orderStatus=SimpleNamespace(status="Submitted", whyHeld="", filled=0.0, remaining=1.0),
+        contract=contract,
+        isDone=_is_done,
+    )
+
+    class _Client:
+        def __init__(self) -> None:
+            self.modify_calls = 0
+
+        @staticmethod
+        async def ensure_ticker(_contract, *, owner: str = "details"):
+            return ticker
+
+        @staticmethod
+        def ticker_for_con_id(_con_id: int):
+            return ticker
+
+        @staticmethod
+        def release_ticker(_con_id: int, *, owner: str = "details") -> None:
+            return None
+
+        def current_order_state(self, *, order_id: int = 0, perm_id: int = 0):
+            return {
+                "order_id": int(order_id),
+                "perm_id": int(perm_id),
+                "effective_status": "Submitted",
+                "is_terminal": False,
+                "filled_qty": 0.0,
+            }
+
+        async def modify_limit_order(self, current_trade, _limit_price: float):
+            self.modify_calls += 1
+            return current_trade
+
+    client = _Client()
+    screen = PositionDetailScreen(client, _fut_item(contract), refresh_sec=0.25)
+
+    asyncio.run(screen._chase_until_filled(trade, "BUY", mode="MID"))
+
+    assert client.modify_calls == 0
+
+
+def test_chase_pending_reconcile_force_calls_are_rate_limited() -> None:
+    _ensure_event_loop()
+    contract = Contract(secType="FUT", symbol="MNQ", exchange="CME", currency="USD")
+    contract.conId = 750150193
+
+    loop_count = {"n": 0}
+
+    def _is_done() -> bool:
+        loop_count["n"] += 1
+        return loop_count["n"] >= 10
+
+    trade = SimpleNamespace(
+        order=SimpleNamespace(orderId=817, permId=0, action="BUY", totalQuantity=1, orderType="LMT", lmtPrice=100.5),
+        orderStatus=SimpleNamespace(status="PendingSubmission", whyHeld="", filled=0.0, remaining=1.0),
+        contract=contract,
+        isDone=_is_done,
+    )
+
+    class _Client:
+        def __init__(self) -> None:
+            self.force_flags: list[bool] = []
+
+        @staticmethod
+        async def ensure_ticker(_contract, *, owner: str = "details"):
+            return None
+
+        @staticmethod
+        def ticker_for_con_id(_con_id: int):
+            return None
+
+        @staticmethod
+        def release_ticker(_con_id: int, *, owner: str = "details") -> None:
+            return None
+
+        @staticmethod
+        def trade_for_order_ids(*, order_id: int = 0, perm_id: int = 0, include_closed: bool = True):
+            _ = include_closed
+            if int(order_id) == 817:
+                return trade
+            return None
+
+        def current_order_state(self, *, order_id: int = 0, perm_id: int = 0):
+            return {
+                "order_id": int(order_id),
+                "perm_id": int(perm_id),
+                "effective_status": "PendingSubmission",
+                "is_terminal": False,
+                "filled_qty": 0.0,
+                "trade": trade,
+            }
+
+        async def reconcile_order_state(self, *, order_id: int = 0, perm_id: int = 0, force: bool = False):
+            self.force_flags.append(bool(force))
+            return {
+                "order_id": int(order_id),
+                "perm_id": int(perm_id),
+                "effective_status": "PendingSubmission",
+                "is_terminal": False,
+                "filled_qty": 0.0,
+                "trade": trade,
+            }
+
+    client = _Client()
+    screen = PositionDetailScreen(client, _fut_item(contract), refresh_sec=0.25)
+    screen._CHASE_PENDING_ACK_SEC = 0.3
+    screen._CHASE_RECONCILE_INTERVAL_SEC = 0.2
+    screen._CHASE_FORCE_RECONCILE_INTERVAL_SEC = 0.8
+
+    asyncio.run(screen._chase_until_filled(trade, "BUY", mode="AUTO"))
+
+    assert client.force_flags
+    assert any(flag is False for flag in client.force_flags)
+    assert any(flag is True for flag in client.force_flags)
+    assert sum(1 for flag in client.force_flags if flag) < len(client.force_flags)

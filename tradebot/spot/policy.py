@@ -67,8 +67,11 @@ class SpotPolicyConfigView:
     shock_short_boost_min_down_streak_bars: int = 1
     shock_short_boost_require_regime_down: bool = False
     shock_short_boost_require_entry_down: bool = False
+    shock_short_boost_max_dist_on_pp: float = 0.0
     shock_prearm_dist_on_max_pp: float = 0.0
     shock_prearm_min_dist_on_vel_pp: float = 0.0
+    shock_prearm_min_dist_on_accel_pp: float = 0.0
+    shock_prearm_min_streak_bars: int = 0
     shock_prearm_short_risk_mult_factor: float = 1.0
     shock_prearm_require_regime_down: bool = True
     shock_prearm_require_entry_down: bool = True
@@ -323,6 +326,12 @@ class SpotPolicyConfigView:
             _fget("shock_short_boost_require_entry_down"),
             default=False,
         )
+        shock_short_boost_max_dist_on_pp = cls._parse_float(
+            _fget("shock_short_boost_max_dist_on_pp"),
+            default=0.0,
+        )
+        if shock_short_boost_max_dist_on_pp < 0:
+            shock_short_boost_max_dist_on_pp = 0.0
         shock_prearm_dist_on_max_pp = cls._parse_float(
             _fget("shock_prearm_dist_on_max_pp"),
             default=0.0,
@@ -335,6 +344,17 @@ class SpotPolicyConfigView:
         )
         if shock_prearm_min_dist_on_vel_pp < 0:
             shock_prearm_min_dist_on_vel_pp = 0.0
+        shock_prearm_min_dist_on_accel_pp = cls._parse_float(
+            _fget("shock_prearm_min_dist_on_accel_pp"),
+            default=0.0,
+        )
+        if shock_prearm_min_dist_on_accel_pp < 0:
+            shock_prearm_min_dist_on_accel_pp = 0.0
+        shock_prearm_min_streak_bars = cls._parse_int(
+            _fget("shock_prearm_min_streak_bars"),
+            default=0,
+            min_value=0,
+        )
         shock_prearm_short_risk_mult_factor = cls._parse_factor(_fget("shock_prearm_short_risk_mult_factor"))
         shock_prearm_require_regime_down = cls._parse_bool(
             _fget("shock_prearm_require_regime_down"),
@@ -419,8 +439,11 @@ class SpotPolicyConfigView:
             shock_short_boost_min_down_streak_bars=int(shock_short_boost_min_down_streak_bars),
             shock_short_boost_require_regime_down=bool(shock_short_boost_require_regime_down),
             shock_short_boost_require_entry_down=bool(shock_short_boost_require_entry_down),
+            shock_short_boost_max_dist_on_pp=float(shock_short_boost_max_dist_on_pp),
             shock_prearm_dist_on_max_pp=float(shock_prearm_dist_on_max_pp),
             shock_prearm_min_dist_on_vel_pp=float(shock_prearm_min_dist_on_vel_pp),
+            shock_prearm_min_dist_on_accel_pp=float(shock_prearm_min_dist_on_accel_pp),
+            shock_prearm_min_streak_bars=int(shock_prearm_min_streak_bars),
             shock_prearm_short_risk_mult_factor=float(shock_prearm_short_risk_mult_factor),
             shock_prearm_require_regime_down=bool(shock_prearm_require_regime_down),
             shock_prearm_require_entry_down=bool(shock_prearm_require_entry_down),
@@ -554,6 +577,8 @@ class SpotDecisionTrace:
     shock_atr_pct: float | None
     shock_drawdown_dist_on_pct: float | None
     shock_drawdown_dist_on_vel_pp: float | None
+    shock_drawdown_dist_on_accel_pp: float | None
+    shock_prearm_down_streak_bars: int | None
     riskoff_mode: str
     risk_dir: str | None
     signal_entry_dir: str | None
@@ -585,6 +610,14 @@ class SpotDecisionTrace:
     shock_prearm_applied: bool | None = None
     shock_prearm_factor: float | None = None
     shock_prearm_reason: str | None = None
+    shock_ramp_applied: bool | None = None
+    shock_ramp_dir: str | None = None
+    shock_ramp_phase: str | None = None
+    shock_ramp_intensity: float | None = None
+    shock_ramp_risk_mult: float | None = None
+    shock_ramp_cap_floor_frac: float | None = None
+    shock_ramp_reason: str | None = None
+    shock_ramp_cap_floor_qty: int | None = None
 
     cap_pct_base: float | None = None
     cap_pct_final: float | None = None
@@ -1070,6 +1103,9 @@ class SpotPolicy:
         shock_dir_down_streak_bars: int | None = None,
         shock_drawdown_dist_on_pct: float | None = None,
         shock_drawdown_dist_on_vel_pp: float | None = None,
+        shock_drawdown_dist_on_accel_pp: float | None = None,
+        shock_prearm_down_streak_bars: int | None = None,
+        shock_ramp: Mapping[str, object] | object | None = None,
         riskoff: bool = False,
         risk_dir: str | None = None,
         riskpanic: bool = False,
@@ -1147,6 +1183,18 @@ class SpotPolicy:
                 shock_drawdown_dist_on_vel_clean = float(shock_drawdown_dist_on_vel_pp)
             except (TypeError, ValueError):
                 shock_drawdown_dist_on_vel_clean = None
+        shock_drawdown_dist_on_accel_clean: float | None = None
+        if shock_drawdown_dist_on_accel_pp is not None:
+            try:
+                shock_drawdown_dist_on_accel_clean = float(shock_drawdown_dist_on_accel_pp)
+            except (TypeError, ValueError):
+                shock_drawdown_dist_on_accel_clean = None
+        shock_prearm_down_streak_clean: int | None = None
+        if shock_prearm_down_streak_bars is not None:
+            try:
+                shock_prearm_down_streak_clean = max(0, int(shock_prearm_down_streak_bars))
+            except (TypeError, ValueError):
+                shock_prearm_down_streak_clean = None
 
         shock_atr_pct_clean = None
         if shock_atr_pct is not None:
@@ -1224,6 +1272,14 @@ class SpotPolicy:
                 float(shock_drawdown_dist_on_vel_clean)
                 if shock_drawdown_dist_on_vel_clean is not None
                 else None
+            ),
+            shock_drawdown_dist_on_accel_pp=(
+                float(shock_drawdown_dist_on_accel_clean)
+                if shock_drawdown_dist_on_accel_clean is not None
+                else None
+            ),
+            shock_prearm_down_streak_bars=(
+                int(shock_prearm_down_streak_clean) if shock_prearm_down_streak_clean is not None else None
             ),
             riskoff_mode=str(cfg.riskoff_mode),
             risk_dir=risk_dir_clean,
@@ -1376,10 +1432,32 @@ class SpotPolicy:
                         if streak < min_streak:
                             boost_ok = False
                             gate_reason = f"down_streak_lt_{min_streak}"
-                        elif bool(cfg.shock_short_boost_require_regime_down) and signal_regime_dir_clean != "down":
+
+                        max_dist = float(cfg.shock_short_boost_max_dist_on_pp)
+                        if boost_ok and max_dist > 0:
+                            dist_on = shock_drawdown_dist_on_clean
+                            if dist_on is None:
+                                boost_ok = False
+                                gate_reason = "dd_dist_on_missing"
+                            else:
+                                try:
+                                    dist_on_f = float(dist_on)
+                                except (TypeError, ValueError):
+                                    dist_on_f = None
+                                if dist_on_f is None:
+                                    boost_ok = False
+                                    gate_reason = "dd_dist_on_invalid"
+                                elif dist_on_f < 0:
+                                    boost_ok = False
+                                    gate_reason = "dd_dist_on_lt_0"
+                                elif dist_on_f > float(max_dist):
+                                    boost_ok = False
+                                    gate_reason = f"dd_dist_on_gt_{float(max_dist):g}pp"
+
+                        if boost_ok and bool(cfg.shock_short_boost_require_regime_down) and signal_regime_dir_clean != "down":
                             boost_ok = False
                             gate_reason = "regime_not_down"
-                        elif bool(cfg.shock_short_boost_require_entry_down) and signal_entry_dir_clean != "down":
+                        if boost_ok and bool(cfg.shock_short_boost_require_entry_down) and signal_entry_dir_clean != "down":
                             boost_ok = False
                             gate_reason = "entry_not_down"
 
@@ -1411,17 +1489,34 @@ class SpotPolicy:
                         prearm_factor = 1.0
                         dist_on = shock_drawdown_dist_on_clean
                         dist_on_vel = shock_drawdown_dist_on_vel_clean
+                        dist_on_accel = shock_drawdown_dist_on_accel_clean
+                        prearm_streak = shock_prearm_down_streak_clean
                         near_band = float(cfg.shock_prearm_dist_on_max_pp)
+                        latch_enabled = int(cfg.shock_prearm_min_streak_bars) > 0
                         if near_band <= 0:
                             prearm_reason = "disabled"
                         elif dist_on is None:
                             prearm_reason = "dist_on_missing"
-                        elif not (-float(near_band) <= float(dist_on) < 0.0):
+                        elif bool(latch_enabled) and float(dist_on) < -float(near_band):
                             prearm_reason = "outside_band"
-                        elif dist_on_vel is None:
+                        elif (not bool(latch_enabled)) and not (-float(near_band) <= float(dist_on) < 0.0):
+                            prearm_reason = "outside_band"
+                        elif (not bool(latch_enabled)) and dist_on_vel is None:
                             prearm_reason = "dist_vel_missing"
-                        elif float(dist_on_vel) < float(cfg.shock_prearm_min_dist_on_vel_pp):
+                        elif (not bool(latch_enabled)) and float(dist_on_vel) < float(cfg.shock_prearm_min_dist_on_vel_pp):
                             prearm_reason = "dist_vel_low"
+                        elif (not bool(latch_enabled)) and float(cfg.shock_prearm_min_dist_on_accel_pp) > 0 and dist_on_accel is None:
+                            prearm_reason = "dist_accel_missing"
+                        elif (not bool(latch_enabled)) and float(cfg.shock_prearm_min_dist_on_accel_pp) > 0 and float(dist_on_accel) < float(
+                            cfg.shock_prearm_min_dist_on_accel_pp
+                        ):
+                            prearm_reason = "dist_accel_low"
+                        elif int(cfg.shock_prearm_min_streak_bars) > 0 and prearm_streak is None:
+                            prearm_reason = "streak_missing"
+                        elif int(cfg.shock_prearm_min_streak_bars) > 0 and int(prearm_streak) < int(
+                            cfg.shock_prearm_min_streak_bars
+                        ):
+                            prearm_reason = f"streak_lt_{int(cfg.shock_prearm_min_streak_bars)}"
                         elif bool(cfg.shock_prearm_require_regime_down) and signal_regime_dir_clean != "down":
                             prearm_reason = "regime_not_down"
                         elif bool(cfg.shock_prearm_require_entry_down) and signal_entry_dir_clean != "down":
@@ -1532,6 +1627,60 @@ class SpotPolicy:
                     if liq_boost_applied:
                         _update_trace(risk_dollars_final=float(risk_dollars), cap_pct_final=float(cap_pct))
 
+                if shock_ramp is not None:
+                    ramp_applied = False
+                    ramp_reason = "off"
+                    ramp_phase = None
+                    ramp_dir = "up" if raw_action == "BUY" else "down"
+                    ramp_intensity = None
+                    ramp_mult = 1.0
+                    ramp_floor_frac = 0.0
+                    ramp_node = None
+                    if isinstance(shock_ramp, Mapping):
+                        ramp_node = shock_ramp.get(str(ramp_dir))
+                    else:
+                        ramp_node = getattr(shock_ramp, str(ramp_dir), None)
+                    if isinstance(ramp_node, Mapping):
+                        raw_mult = ramp_node.get("risk_mult")
+                        raw_floor = ramp_node.get("cap_floor_frac")
+                        try:
+                            ramp_mult = float(raw_mult) if raw_mult is not None else 1.0
+                        except (TypeError, ValueError):
+                            ramp_mult = 1.0
+                        try:
+                            ramp_floor_frac = float(raw_floor) if raw_floor is not None else 0.0
+                        except (TypeError, ValueError):
+                            ramp_floor_frac = 0.0
+                        ramp_floor_frac = float(max(0.0, min(1.0, ramp_floor_frac)))
+                        ramp_phase_raw = ramp_node.get("phase")
+                        ramp_phase = str(ramp_phase_raw) if ramp_phase_raw is not None else None
+                        try:
+                            ramp_intensity = float(ramp_node.get("intensity")) if ramp_node.get("intensity") is not None else None
+                        except (TypeError, ValueError):
+                            ramp_intensity = None
+                        ramp_reason_raw = ramp_node.get("reason")
+                        ramp_reason = str(ramp_reason_raw) if ramp_reason_raw is not None else "ok"
+                        if ramp_mult > 1.0 and risk_dollars > 0:
+                            risk_dollars *= float(ramp_mult)
+                            ramp_applied = True
+                        else:
+                            ramp_reason = "mult_unity"
+                    elif ramp_node is not None:
+                        ramp_reason = "invalid_node"
+                    else:
+                        ramp_reason = "missing_dir"
+                    _update_trace(
+                        shock_ramp_applied=bool(ramp_applied),
+                        shock_ramp_dir=str(ramp_dir),
+                        shock_ramp_phase=str(ramp_phase) if ramp_phase is not None else None,
+                        shock_ramp_intensity=float(ramp_intensity) if ramp_intensity is not None else None,
+                        shock_ramp_risk_mult=float(ramp_mult),
+                        shock_ramp_cap_floor_frac=float(ramp_floor_frac),
+                        shock_ramp_reason=str(ramp_reason),
+                    )
+                    if ramp_applied:
+                        _update_trace(risk_dollars_final=float(risk_dollars), cap_pct_final=float(cap_pct))
+
                 if per_share_risk > 1e-9 and risk_dollars > 0:
                     desired_qty = int(risk_dollars / per_share_risk)
 
@@ -1555,6 +1704,15 @@ class SpotPolicy:
                 if floor_qty > 0:
                     desired_qty = max(int(desired_qty), int(floor_qty))
                     _update_trace(liq_boost_cap_floor_qty=int(floor_qty))
+            if (
+                float(getattr(trace, "shock_ramp_cap_floor_frac", 0.0) or 0.0) > 0
+                and cap_qty is not None
+                and cap_qty > 0
+            ):
+                floor_qty = int(float(cap_qty) * float(getattr(trace, "shock_ramp_cap_floor_frac", 0.0) or 0.0))
+                if floor_qty > 0:
+                    desired_qty = max(int(desired_qty), int(floor_qty))
+                    _update_trace(shock_ramp_cap_floor_qty=int(floor_qty))
 
         afford_qty = None
         if raw_action == "BUY" and cash_ref_f is not None and float(cash_ref_f) > 0:
@@ -1617,6 +1775,9 @@ class SpotPolicy:
         shock_dir_down_streak_bars: int | None = None,
         shock_drawdown_dist_on_pct: float | None = None,
         shock_drawdown_dist_on_vel_pp: float | None = None,
+        shock_drawdown_dist_on_accel_pp: float | None = None,
+        shock_prearm_down_streak_bars: int | None = None,
+        shock_ramp: Mapping[str, object] | object | None = None,
         riskoff: bool = False,
         risk_dir: str | None = None,
         riskpanic: bool = False,
@@ -1641,6 +1802,9 @@ class SpotPolicy:
             shock_dir_down_streak_bars=shock_dir_down_streak_bars,
             shock_drawdown_dist_on_pct=shock_drawdown_dist_on_pct,
             shock_drawdown_dist_on_vel_pp=shock_drawdown_dist_on_vel_pp,
+            shock_drawdown_dist_on_accel_pp=shock_drawdown_dist_on_accel_pp,
+            shock_prearm_down_streak_bars=shock_prearm_down_streak_bars,
+            shock_ramp=shock_ramp,
             riskoff=riskoff,
             risk_dir=risk_dir,
             riskpanic=riskpanic,

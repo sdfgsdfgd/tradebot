@@ -156,6 +156,7 @@ class _BotOrder:
     exec_mode: str | None = None  # OPTIMISTIC/MID/AGGRESSIVE/CROSS
     chase_last_reprice_ts: float | None = None  # asyncio loop time (monotonic)
     chase_quote_signature: tuple[float | None, float | None, float | None] | None = None
+    cancel_requested_at: float | None = None  # asyncio loop time (monotonic)
 
 
 @dataclass(frozen=True)
@@ -180,6 +181,8 @@ class _SignalSnapshot:
     shock_drawdown_off_pct: float | None = None
     shock_drawdown_dist_on_pct: float | None = None
     shock_drawdown_dist_on_vel_pp: float | None = None
+    shock_drawdown_dist_on_accel_pp: float | None = None
+    shock_prearm_down_streak_bars: int | None = None
     shock_drawdown_dist_off_pct: float | None = None
     shock_scale_drawdown_pct: float | None = None
     shock_peak_close: float | None = None
@@ -203,6 +206,7 @@ class _SignalSnapshot:
     ratsv_cross_age_bars: int | None = None
     shock_atr_vel_pct: float | None = None
     shock_atr_accel_pct: float | None = None
+    shock_ramp: dict | None = None
     bar_health: dict | None = None
     regime_bar_health: dict | None = None
     regime2_bar_health: dict | None = None

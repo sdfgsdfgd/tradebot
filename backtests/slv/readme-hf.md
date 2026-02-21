@@ -240,6 +240,146 @@ Artifacts:
 - `backtests/slv/slv_hf_v19_vs_prearmtight_6replay_1y2y_20260218_v1.json`
 - `backtests/slv/archive/champion_history_20260214/slv_hf_champions_v20_exception_ddshock_lb10_on10_off5_streak6_prearmtight_20260218.json`
 
+### v21.0 — slow-in/fast-out shock_ramp sizing controller + ramp telemetry (NOT PROMOTED)
+Status: **DONE (implemented; not promoted)**
+
+Objective:
+- Add a maintainable, centralized “slow-in / fast-out” sizing ramp that can pre-arm into crash regimes using *distance-to-drawdown-threshold* + *velocity* + *directional slope stability*, while keeping v20 reverse-compatible (disabled unless enabled in filters).
+
+Implementation (reverse-compatible; default OFF):
+- Added new shock-ramp knobs (filters):
+  - `shock_ramp_enable`
+  - `shock_ramp_apply_to=down|up|both` (safe default `down`)
+  - `shock_ramp_max_risk_mult`
+  - `shock_ramp_max_cap_floor_frac` (optional cap-floor funnel)
+  - `shock_ramp_min_slope_streak_bars`
+  - `shock_ramp_min_slope_abs_pct`
+- Added per-bar ramp snapshot: `shock_ramp` carried by signal runtime (live + backtest) and threaded into spot sizing.
+- Added unambiguous live telemetry:
+  - SIGNAL line: ramp tokens `r↓...` / `r↑...` appear when mult/intensity is non-trivial.
+  - ORDER line: ramp decisions are explicit (`ramp=dir:phase`, `ramp_mult`, `ramp_i`, optional `ramp_floor`).
+
+Key caution discovered (why not promoted):
+- Enabling `spot_resize_mode=target` in this lane remains **catastrophic** in broad 1Y/2Y economics (very large drawdown blowups), even with ramp gating.
+  - See: `backtests/slv/slv_hf_v20_shock_ramp_sweep_v1_20260221.json` (resize-on variants show negative pnl + extreme dd%).
+- Entry-only ramp variants *did* increase crash short sizing, but **still reduced** broad 1Y/2Y pnl and pnl/dd vs v20.
+
+Measured sweeps (<=2Y only; 10Y excluded):
+- Resize-on exploration: `backtests/slv/slv_hf_v20_shock_ramp_sweep_v1_20260221.json`
+- Entry-only exploration: `backtests/slv/slv_hf_v20_shock_ramp_sweep_v2_20260221.json`
+- Down-only + dd-coupled ramp exploration: `backtests/slv/slv_hf_v20_shock_ramp_sweep_v3_downonly_20260221.json`
+
+Bottom line:
+- The telemetry + ramp controller are now available for future crash-regime R&D.
+- Under the current HF promotion contract (1Y/2Y economics), no ramp configuration tested here dethroned v20.
+
+### v22.0 — unbiased prearm latch + drawdown-depth gates micro-matrix (NOT PROMOTED)
+Status: **DONE (investigation; not promoted)**
+
+Objective:
+- Test whether a *depth gate* can prevent prearm from waking up in mild pullbacks while still giving us earlier crash monetization.
+
+Setup:
+- Base: v20 king preset (`slv-hf-v20-exception-dd-lb10-on10-off5-streak6-prearm-tight`)
+- Enable unbiased latch persistence (`shock_prearm_min_streak_bars=1`) and widen band for test visibility:
+  - `shock_prearm_dist_on_max_pp=8.0`
+  - `shock_prearm_min_dist_on_vel_pp=0.10`
+  - `shock_prearm_min_dist_on_accel_pp=0.0`
+- Sweep only the depth gate:
+  - `shock_prearm_min_drawdown_pct ∈ {-6.0, -8.0, -9.0}` (note: `-10.0` is incompatible with prearm because prearm only runs while `shock=off`)
+
+Artifact:
+- `backtests/slv/slv_hf_v22_prearm_depth_gate_micro_20260221.json`
+
+Result (deterministic replay):
+- Baseline (v20): `2Y pnl=+45,611.0 pnl/dd=3.005 prearm_applied=1`
+- Depth `-6`: `2Y pnl=+44,992.1 pnl/dd=2.908 prearm_applied=20` (more prearms, worse broad fitness)
+- Depth `-8`: `2Y pnl=+45,480.7 pnl/dd=2.997 prearm_applied=3` (near-inert)
+- Depth `-9`: `2Y pnl=+45,469.3 pnl/dd=2.988 prearm_applied=1` (inert)
+
+Conclusion:
+- Depth gating alone does not create positive EV prearm; when it increases prearm frequency (dd<=-6), it slightly degrades 2Y economics.
+
+### v23.0 — prearm short-factor micro-matrix (NOT PROMOTED)
+Status: **DONE (investigation; not promoted)**
+
+Objective:
+- If prearm frequency is higher (dd<=-6 latch), see whether increasing `shock_prearm_short_risk_mult_factor` creates real edge.
+
+Artifact:
+- `backtests/slv/slv_hf_v23_prearm_factor_micro_20260221.json`
+
+Result (deterministic replay):
+- `shock_prearm_short_risk_mult_factor=1.5`: `2Y pnl=+44,992.1 pnl/dd=2.908`
+- `shock_prearm_short_risk_mult_factor=2.0`: `2Y pnl=+44,432.0 pnl/dd=2.810`
+- `shock_prearm_short_risk_mult_factor=2.5`: `2Y pnl=+43,854.6 pnl/dd=2.715`
+
+Conclusion:
+- Increasing prearm sizing in this band is toxic for broad 2Y fitness (monotonic degradation).
+
+### v24.0 — narrow-band prearm velocity tweak (NOT PROMOTED)
+Status: **DONE (investigation; not promoted)**
+
+Artifact:
+- `backtests/slv/slv_hf_v24_prearm_narrow_band_micro_20260221.json`
+
+Result:
+- Lowering `shock_prearm_min_dist_on_vel_pp` from `0.25 -> 0.10` while keeping tight band `dist_on<=1.0pp` did **not** increase `prearm_applied` beyond `1`.
+
+Conclusion:
+- v20’s prearm tightness is not “just the velocity threshold” problem; it’s mostly an *alignment/opportunity rarity* problem in this lane.
+
+### v25.0 — shock-on short sleeve EV vs drawdown depth (INSIGHT)
+Status: **DONE (analysis; used to guide next regime ideas)**
+
+Artifact:
+- `backtests/slv/slv_hf_v25_short_ev_by_dd_depth_20260221.json`
+
+Finding (v20 baseline, shock-on short trades; bucketed by `dd→on` in pp beyond activation):
+- `dd→on ∈ [0,2)pp`: **positive** short-trade EV (avg pnl per trade > 0)
+- `dd→on >= 2pp`: **negative** short-trade EV (avg pnl per trade < 0, gets worse deeper)
+
+Implication:
+- For this HF lane, “aggressive crash monetization” is not “keep boosting shorts deeper into drawdown”.
+- It looks more like a **fast-in then stop boosting** (or even flip contrarian) once the drawdown is *already deep*.
+
+### v26.0 — depth-aware shock short-boost dethrone (PROMOTED)
+Status: **DONE (promoted; deterministic micro-matrix replay)**
+
+Objective:
+- Let the short boost actually fire (reduce streak gate), but only in the “early shock-on” band where shorts have positive EV.
+- Avoid the classic failure mode: boosting deeper into drawdown, then getting snapbacked.
+
+Promotion winner:
+- Preset file: `backtests/slv/archive/champion_history_20260214/slv_hf_champions_v26_exception_ddshock_lb10_on10_off5_depth1pp_streak1_20260222.json`
+- Base: v20 king (`slv-hf-v20-exception-dd-lb10-on10-off5-streak6-prearm-tight`)
+
+New knobs (short boost only):
+- `shock_short_boost_min_down_streak_bars=1` (was `6`; allows boost to fire)
+- `shock_short_boost_max_dist_on_pp=1.0` (NEW; only boost when `0 <= dd→on <= 1.0pp`)
+- `shock_short_boost_require_regime_down=true`
+- `shock_short_boost_require_entry_down=true`
+
+Deterministic dethrone vs v20 baseline:
+- 1Y (`2025-02-14 -> 2026-02-14`):
+  - trades `697 vs 697` (`+0`)
+  - win `64.28% vs 63.99%` (`+0.29pp`)
+  - pnl `32,733.34 vs 32,649.19` (`+84.15`)
+  - pnl/dd `3.4772 vs 3.4682` (`+0.0089`)
+- 2Y (`2024-02-14 -> 2026-02-14`):
+  - trades `1,252 vs 1,252` (`+0`)
+  - win `66.85% vs 66.77%` (`+0.08pp`)
+  - pnl `45,612.18 vs 45,611.02` (`+1.15`)
+  - pnl/dd `3.0113 vs 3.0050` (`+0.0063`)
+
+Behavioral proof (from micro-matrix):
+- Boost applied **10** times total in the full working run, always in the intended early band:
+  - boosted `dd→on` range: `+0.12pp .. +0.98pp` (avg `+0.60pp`)
+- This implements the discovered shape: **fast-in boost**, then stop boosting once drawdown is deeper.
+
+Artifact:
+- `backtests/slv/slv_hf_v26_depth_aware_short_boost_micro_20260222.json`
+
 ### v19.0 — shock short-boost stability gate dethrone (PROMOTED BY USER EXCEPTION)
 Status: **DONE (promoted; deterministic 6-run pass + user-approved throughput exception)**
 

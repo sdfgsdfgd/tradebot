@@ -433,6 +433,76 @@ def test_search_contracts_opt_reports_timing_metrics() -> None:
     assert float(timing.get("total_ms", 0.0) or 0.0) >= 0.0
 
 
+def test_search_contracts_opt_spreads_limit_across_multiple_expiries() -> None:
+    client = _client()
+
+    async def _stock_option_chain(symbol: str):
+        normalized = str(symbol or "").strip().upper()
+        underlying = Contract(
+            secType="STK",
+            symbol=normalized,
+            exchange="SMART",
+            currency="USD",
+            conId=77,
+        )
+        chain = SimpleNamespace(
+            expirations=("20260220", "20260227", "20260306", "20260320", "20260417", "20260619"),
+            strikes=tuple(float(strike) for strike in range(140, 261)),
+            exchange="SMART",
+            multiplier="100",
+            tradingClass=normalized,
+        )
+        return underlying, chain
+
+    async def _ensure_ticker(_contract: Contract, *, owner: str = "default"):
+        return SimpleNamespace(bid=190.0, ask=190.2, last=190.1, close=190.0)
+
+    async def _qualify_proxy_contracts(*contracts: Contract):
+        out: list[Contract] = []
+        for idx, source in enumerate(contracts, start=1):
+            resolved = Contract(
+                secType="OPT",
+                symbol=str(getattr(source, "symbol", "") or ""),
+                exchange=str(getattr(source, "exchange", "") or ""),
+                currency=str(getattr(source, "currency", "") or ""),
+                lastTradeDateOrContractMonth=str(
+                    getattr(source, "lastTradeDateOrContractMonth", "") or ""
+                ),
+                strike=float(getattr(source, "strike", 0.0) or 0.0),
+                right=str(getattr(source, "right", "") or ""),
+            )
+            resolved.conId = 840000 + idx
+            out.append(resolved)
+        return out
+
+    client.stock_option_chain = _stock_option_chain
+    client.ensure_ticker = _ensure_ticker
+    client.qualify_proxy_contracts = _qualify_proxy_contracts
+    client.release_ticker = lambda *_args, **_kwargs: None
+
+    timing: dict[str, object] = {}
+    results = asyncio.run(
+        client.search_contracts(
+            "nvda",
+            mode="OPT",
+            limit=48,
+            opt_underlyer_symbol="NVDA",
+            timing=timing,
+        )
+    )
+
+    assert results
+    expiries = sorted(
+        {
+            str(getattr(contract, "lastTradeDateOrContractMonth", "") or "").strip()
+            for contract in results
+        }
+    )
+    assert len(expiries) >= 2
+    assert int(timing.get("selected_expiry_count", 0) or 0) >= 2
+    assert int(timing.get("rows_per_expiry", 0) or 0) >= 1
+
+
 def test_search_contracts_opt_progress_split_qualifies_in_two_passes() -> None:
     client = _client()
     qualify_batch_sizes: list[int] = []

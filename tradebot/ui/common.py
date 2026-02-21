@@ -1008,11 +1008,12 @@ def _exec_chase_should_reprice(
         return True
     if prev_quote_signature is None:
         return True
-    if quote_signature != prev_quote_signature:
-        return True
     if last_reprice_sec is None:
         return True
-    return float(now_sec) - float(last_reprice_sec) >= float(min_interval_sec)
+    elapsed = max(0.0, float(now_sec) - float(last_reprice_sec))
+    if quote_signature != prev_quote_signature:
+        return elapsed >= float(min_interval_sec)
+    return elapsed >= float(min_interval_sec)
 
 
 def _limit_price_for_mode(

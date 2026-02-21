@@ -89,8 +89,14 @@ class FiltersConfig:
     shock_short_boost_min_down_streak_bars: int = 1
     shock_short_boost_require_regime_down: bool = False
     shock_short_boost_require_entry_down: bool = False
+    # If >0, only allow the short boost when drawdown depth is near the ON threshold:
+    # 0 <= (dd→on) <= max_dist_pp. This avoids "boosting deeper into the hole".
+    shock_short_boost_max_dist_on_pp: float = 0.0
     shock_prearm_dist_on_max_pp: float = 0.0
+    shock_prearm_min_drawdown_pct: float = 0.0
     shock_prearm_min_dist_on_vel_pp: float = 0.0
+    shock_prearm_min_dist_on_accel_pp: float = 0.0
+    shock_prearm_min_streak_bars: int = 0
     shock_prearm_short_risk_mult_factor: float = 1.0
     shock_prearm_require_regime_down: bool = True
     shock_prearm_require_entry_down: bool = True
@@ -107,6 +113,12 @@ class FiltersConfig:
     shock_risk_scale_target_atr_pct: float | None = None
     shock_risk_scale_min_mult: float = 0.2
     shock_risk_scale_apply_to: str = "risk"  # "risk" | "cap" | "both"
+    shock_ramp_enable: bool = False
+    shock_ramp_apply_to: str = "down"  # "down" | "up" | "both"
+    shock_ramp_max_risk_mult: float = 1.0
+    shock_ramp_max_cap_floor_frac: float = 0.0
+    shock_ramp_min_slope_streak_bars: int = 0
+    shock_ramp_min_slope_abs_pct: float = 0.0
     liq_boost_enable: bool = False
     liq_boost_score_min: float = 2.0
     liq_boost_score_span: float = 2.0

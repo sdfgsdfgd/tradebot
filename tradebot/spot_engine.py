@@ -92,6 +92,8 @@ class SpotSignalSnapshot:
     shock_drawdown_off_pct: float | None
     shock_drawdown_dist_on_pct: float | None
     shock_drawdown_dist_on_vel_pp: float | None
+    shock_drawdown_dist_on_accel_pp: float | None
+    shock_prearm_down_streak_bars: int | None
     shock_drawdown_dist_off_pct: float | None
     shock_scale_drawdown_pct: float | None
     shock_peak_close: float | None
@@ -115,6 +117,7 @@ class SpotSignalSnapshot:
     ratsv_cross_age_bars: int | None = None
     shock_atr_vel_pct: float | None = None
     shock_atr_accel_pct: float | None = None
+    shock_ramp: dict[str, object] | None = None
 # endregion
 
 
@@ -550,6 +553,11 @@ class SpotSignalEvaluator:
         self._prev_shock_atr_pct: float | None = None
         self._prev_shock_atr_vel_pct: float | None = None
         self._prev_shock_drawdown_dist_on_pct: float | None = None
+        self._prev_shock_drawdown_dist_on_vel_pp: float | None = None
+        self._shock_prearm_down_streak_bars: int = 0
+        self._prev_ema_slope_pct: float | None = None
+        self._ema_slope_up_streak_bars: int = 0
+        self._ema_slope_down_streak_bars: int = 0
         self._shock_dir_down_streak_bars: int = 0
         self._shock_dir_up_streak_bars: int = 0
 
@@ -1152,6 +1160,33 @@ class SpotSignalEvaluator:
             )
             entry_dir_for_entries = signal.entry_dir if signal is not None else None
 
+        ema_slope_pct = None
+        if signal is not None and close:
+            ema_fast = getattr(signal, "ema_fast", None)
+            prev_ema_fast = getattr(signal, "prev_ema_fast", None)
+            if ema_fast is not None and prev_ema_fast is not None:
+                try:
+                    ema_slope_pct = ((float(ema_fast) - float(prev_ema_fast)) / float(close)) * 100.0
+                except (TypeError, ValueError, ZeroDivisionError):
+                    ema_slope_pct = None
+        ema_slope_vel_pct = None
+        if ema_slope_pct is not None and self._prev_ema_slope_pct is not None:
+            ema_slope_vel_pct = float(ema_slope_pct) - float(self._prev_ema_slope_pct)
+        self._prev_ema_slope_pct = float(ema_slope_pct) if ema_slope_pct is not None else None
+        min_slope_abs = float(_get(self._filters, "shock_ramp_min_slope_abs_pct", 0.0) or 0.0)
+        if ema_slope_pct is None or abs(float(ema_slope_pct)) < float(min_slope_abs):
+            self._ema_slope_up_streak_bars = 0
+            self._ema_slope_down_streak_bars = 0
+        elif float(ema_slope_pct) > 0:
+            self._ema_slope_up_streak_bars += 1
+            self._ema_slope_down_streak_bars = 0
+        elif float(ema_slope_pct) < 0:
+            self._ema_slope_down_streak_bars += 1
+            self._ema_slope_up_streak_bars = 0
+        else:
+            self._ema_slope_up_streak_bars = 0
+            self._ema_slope_down_streak_bars = 0
+
         # Primary regime gating + shock updates.
         if self._supertrend_engine is not None:
             if self._use_mtf_regime and self._regime_bars:
@@ -1424,6 +1459,7 @@ class SpotSignalEvaluator:
         shock_off_drawdown_pct = None
         shock_drawdown_dist_on_pct = None
         shock_drawdown_dist_on_vel_pp = None
+        shock_drawdown_dist_on_accel_pp = None
         shock_drawdown_dist_off_pct = None
         if str(self._shock_detector) == "daily_drawdown":
             shock_on_drawdown_pct = _float_or_none(_get(self._filters, "shock_on_drawdown_pct", -20.0))
@@ -1443,11 +1479,20 @@ class SpotSignalEvaluator:
                     shock_drawdown_dist_on_vel_pp = (
                         float(shock_drawdown_dist_on_pct) - float(self._prev_shock_drawdown_dist_on_pct)
                     )
+                    if self._prev_shock_drawdown_dist_on_vel_pp is not None:
+                        shock_drawdown_dist_on_accel_pp = (
+                            float(shock_drawdown_dist_on_vel_pp) - float(self._prev_shock_drawdown_dist_on_vel_pp)
+                        )
                 self._prev_shock_drawdown_dist_on_pct = float(shock_drawdown_dist_on_pct)
+                self._prev_shock_drawdown_dist_on_vel_pp = (
+                    float(shock_drawdown_dist_on_vel_pp) if shock_drawdown_dist_on_vel_pp is not None else None
+                )
             else:
                 self._prev_shock_drawdown_dist_on_pct = None
+                self._prev_shock_drawdown_dist_on_vel_pp = None
         else:
             self._prev_shock_drawdown_dist_on_pct = None
+            self._prev_shock_drawdown_dist_on_vel_pp = None
 
         if bool(shock) and shock_dir == "down":
             self._shock_dir_down_streak_bars += 1
@@ -1458,12 +1503,223 @@ class SpotSignalEvaluator:
         else:
             self._shock_dir_up_streak_bars = 0
 
+        prearm_streak = 0
+        if (
+            str(self._shock_detector) == "daily_drawdown"
+            and (not bool(shock))
+            and shock_drawdown_dist_on_pct is not None
+        ):
+            dd_band = float(_get(self._filters, "shock_prearm_dist_on_max_pp", 0.0) or 0.0)
+            dd_band = float(max(0.0, float(dd_band)))
+            min_dd = float(_get(self._filters, "shock_prearm_min_drawdown_pct", 0.0) or 0.0)
+            # Convenience: allow users to specify +6 to mean ">= 6% drawdown".
+            if min_dd > 0:
+                min_dd = -float(min_dd)
+            ddv_min = float(_get(self._filters, "shock_prearm_min_dist_on_vel_pp", 0.0) or 0.0)
+            ddv_min = float(max(0.0, float(ddv_min)))
+            dda_min = float(_get(self._filters, "shock_prearm_min_dist_on_accel_pp", 0.0) or 0.0)
+            dda_min = float(max(0.0, float(dda_min)))
+            latch_min_streak = int(_get(self._filters, "shock_prearm_min_streak_bars", 0) or 0)
+            latch_enabled = latch_min_streak > 0
+
+            dist_on = float(shock_drawdown_dist_on_pct)
+            dist_on_vel = float(shock_drawdown_dist_on_vel_pp) if shock_drawdown_dist_on_vel_pp is not None else None
+            dist_on_accel = (
+                float(shock_drawdown_dist_on_accel_pp) if shock_drawdown_dist_on_accel_pp is not None else None
+            )
+            dist_off = float(shock_drawdown_dist_off_pct) if shock_drawdown_dist_off_pct is not None else None
+
+            arm_ok = True
+            if dd_band <= 0:
+                arm_ok = False
+            if bool(arm_ok) and min_dd < 0:
+                # Depth gate: avoid arming prearm in mild pullbacks near ATH noise.
+                # Note: drawdown is negative (e.g., -7.2). We require dd <= min_dd (e.g., -6.0).
+                if shock_drawdown_pct is None:
+                    arm_ok = False
+                elif float(shock_drawdown_pct) > float(min_dd):
+                    arm_ok = False
+            if bool(arm_ok) and not (-float(dd_band) <= float(dist_on) < 0.0):
+                arm_ok = False
+            if bool(arm_ok) and dist_on_vel is None:
+                arm_ok = False
+            if bool(arm_ok) and float(dist_on_vel) < float(ddv_min):
+                arm_ok = False
+            if bool(arm_ok) and dda_min > 0:
+                if dist_on_accel is None:
+                    arm_ok = False
+                elif float(dist_on_accel) < float(dda_min):
+                    arm_ok = False
+
+            if not bool(latch_enabled):
+                # Legacy telemetry: 1-bar arm indicator (no persistence).
+                self._shock_prearm_down_streak_bars = 1 if bool(arm_ok) else 0
+            else:
+                latched = bool(self._shock_prearm_down_streak_bars > 0)
+                release = False
+                if dist_off is not None and float(dist_off) >= 0.0:
+                    release = True
+                elif dd_band > 0 and float(dist_on) < -float(dd_band):
+                    release = True
+                elif dist_on_vel is not None and float(dist_on) < 0.0 and float(dist_on_vel) < 0.0:
+                    release = True
+
+                if latched:
+                    if release:
+                        self._shock_prearm_down_streak_bars = 0
+                    else:
+                        self._shock_prearm_down_streak_bars += 1
+                else:
+                    self._shock_prearm_down_streak_bars = 1 if bool(arm_ok) else 0
+
+            prearm_streak = int(self._shock_prearm_down_streak_bars)
+        else:
+            self._shock_prearm_down_streak_bars = 0
+
         atr = (
             float(self._last_exit_atr.atr)
             if self._last_exit_atr is not None and bool(self._last_exit_atr.ready) and self._last_exit_atr.atr is not None
             else None
         )
         ratsv_metrics = self._ratsv_last_candidate_metrics.get(str(ratsv_branch_key)) if ratsv_branch_key else None
+
+        shock_ramp = None
+        if bool(_get(self._filters, "shock_ramp_enable", False)):
+            apply_to = str(_get(self._filters, "shock_ramp_apply_to", "down") or "down").strip().lower()
+            if apply_to not in ("down", "up", "both"):
+                apply_to = "down"
+
+            def _clamp01(x: float) -> float:
+                return float(max(0.0, min(1.0, float(x))))
+
+            def _node(dir_: str) -> dict[str, object]:
+                direction = str(dir_).strip().lower()
+                if direction not in ("up", "down"):
+                    direction = "down"
+                allow = bool(apply_to == "both" or apply_to == direction)
+                if not bool(allow):
+                    return {
+                        "phase": "off",
+                        "intensity": 0.0,
+                        "risk_mult": 1.0,
+                        "cap_floor_frac": 0.0,
+                        "align_ok": False,
+                        "streak_bars": 0,
+                        "min_streak_bars": 0,
+                        "ema_slope_pct": float(ema_slope_pct) if ema_slope_pct is not None else None,
+                        "ema_slope_vel_pct": float(ema_slope_vel_pct) if ema_slope_vel_pct is not None else None,
+                        "dd_prog": None,
+                        "ddv_strength": None,
+                        "reason": "disabled",
+                    }
+                entry_dir = str(getattr(signal, "entry_dir", "") or "")
+                regime_dir = str(getattr(signal, "regime_dir", "") or "")
+                align_ok = entry_dir == direction and regime_dir == direction
+
+                streak = int(self._ema_slope_up_streak_bars) if direction == "up" else int(self._ema_slope_down_streak_bars)
+                min_streak = int(_get(self._filters, "shock_ramp_min_slope_streak_bars", 0) or 0)
+                min_streak = max(0, int(min_streak))
+
+                slope_signed = 0.0
+                if ema_slope_pct is not None:
+                    slope_signed = float(ema_slope_pct) if direction == "up" else -float(ema_slope_pct)
+                slope_vel_signed = 0.0
+                if ema_slope_vel_pct is not None:
+                    slope_vel_signed = float(ema_slope_vel_pct) if direction == "up" else -float(ema_slope_vel_pct)
+
+                try:
+                    slope_ref = float(_get(self._strategy, "spot_graph_overlay_slope_ref_pct", 0.08) or 0.08)
+                except (TypeError, ValueError):
+                    slope_ref = 0.08
+                slope_ref = float(max(1e-9, float(slope_ref)))
+
+                slope_strength = _clamp01(float(slope_signed) / float(slope_ref))
+                intensity = float(slope_strength) if direction == "up" else 0.0
+                reason = "slope" if direction == "up" else "dd"
+                dd_prog = 0.0
+                ddv_strength = 0.0
+                if direction == "down" and shock_drawdown_dist_on_pct is not None:
+                    dd_band = float(_get(self._filters, "shock_prearm_dist_on_max_pp", 0.0) or 0.0)
+                    dd_band = float(max(0.0, float(dd_band)))
+                    dist_on = float(shock_drawdown_dist_on_pct)
+                    if dist_on >= 0:
+                        dd_prog = 1.0
+                    elif dd_band > 0 and dist_on >= -float(dd_band):
+                        dd_prog = 1.0 - (abs(float(dist_on)) / float(dd_band))
+                    else:
+                        dd_prog = 0.0
+                    dd_prog = _clamp01(float(dd_prog))
+
+                    if bool(shock) and shock_dir == "down":
+                        ddv_strength = 1.0
+                    elif shock_drawdown_dist_on_vel_pp is not None:
+                        ddv = float(shock_drawdown_dist_on_vel_pp)
+                        ddv_min = float(_get(self._filters, "shock_prearm_min_dist_on_vel_pp", 0.0) or 0.0)
+                        ddv_min = float(max(0.0, float(ddv_min)))
+                        ddv_ref = float(max(0.5, 2.0 * float(ddv_min))) if ddv_min > 0 else 0.5
+                        ddv_strength = _clamp01(max(0.0, float(ddv)) / float(ddv_ref))
+                    dd_comp = _clamp01(float(dd_prog) * float(ddv_strength))
+                    intensity = float(dd_comp)
+
+                if slope_vel_signed < 0:
+                    intensity *= 0.60
+                    reason = f"{reason}+vel<0"
+                if slope_signed <= 0:
+                    intensity = 0.0
+                    reason = "slope_opposite"
+
+                if min_streak > 0:
+                    if streak <= 0:
+                        intensity = 0.0
+                        reason = "streak=0"
+                    else:
+                        intensity *= _clamp01(float(streak) / float(min_streak))
+                        if streak < min_streak:
+                            reason = "streak_ramp"
+
+                if not bool(align_ok):
+                    intensity = 0.0
+                    reason = "align_fail"
+
+                try:
+                    max_mult = float(_get(self._filters, "shock_ramp_max_risk_mult", 1.0) or 1.0)
+                except (TypeError, ValueError):
+                    max_mult = 1.0
+                max_mult = float(max(1.0, float(max_mult)))
+                risk_mult = 1.0 + (float(max_mult) - 1.0) * float(_clamp01(float(intensity)))
+
+                try:
+                    max_floor = float(_get(self._filters, "shock_ramp_max_cap_floor_frac", 0.0) or 0.0)
+                except (TypeError, ValueError):
+                    max_floor = 0.0
+                max_floor = float(max(0.0, min(1.0, float(max_floor))))
+                floor_frac = float(max_floor) * float(_clamp01(float(intensity)))
+
+                phase = "off"
+                if float(intensity) > 1e-9:
+                    if direction == "down" and bool(shock) and shock_dir == "down":
+                        phase = "active"
+                    elif direction == "down" and dd_prog > 0 and dd_prog < 1:
+                        phase = "approach"
+                    else:
+                        phase = "trend"
+
+                return {
+                    "phase": str(phase),
+                    "intensity": float(_clamp01(float(intensity))),
+                    "risk_mult": float(risk_mult),
+                    "cap_floor_frac": float(floor_frac),
+                    "align_ok": bool(align_ok),
+                    "streak_bars": int(streak),
+                    "min_streak_bars": int(min_streak),
+                    "ema_slope_pct": float(ema_slope_pct) if ema_slope_pct is not None else None,
+                    "ema_slope_vel_pct": float(ema_slope_vel_pct) if ema_slope_vel_pct is not None else None,
+                    "dd_prog": float(dd_prog) if direction == "down" else None,
+                    "ddv_strength": float(ddv_strength) if direction == "down" else None,
+                    "reason": str(reason),
+                }
+
+            shock_ramp = {"up": _node("up"), "down": _node("down")}
 
         snap = SpotSignalSnapshot(
             bar_ts=bar.ts,
@@ -1486,6 +1742,8 @@ class SpotSignalEvaluator:
             shock_drawdown_off_pct=shock_off_drawdown_pct,
             shock_drawdown_dist_on_pct=shock_drawdown_dist_on_pct,
             shock_drawdown_dist_on_vel_pp=shock_drawdown_dist_on_vel_pp,
+            shock_drawdown_dist_on_accel_pp=shock_drawdown_dist_on_accel_pp,
+            shock_prearm_down_streak_bars=int(prearm_streak),
             shock_drawdown_dist_off_pct=shock_drawdown_dist_off_pct,
             shock_scale_drawdown_pct=shock_scale_drawdown_pct,
             shock_peak_close=shock_peak_close,
@@ -1545,6 +1803,7 @@ class SpotSignalEvaluator:
             ),
             shock_atr_vel_pct=float(shock_atr_vel_pct) if shock_atr_vel_pct is not None else None,
             shock_atr_accel_pct=float(shock_atr_accel_pct) if shock_atr_accel_pct is not None else None,
+            shock_ramp=shock_ramp,
         )
         self._last_signal = signal
         self._last_snapshot = snap
