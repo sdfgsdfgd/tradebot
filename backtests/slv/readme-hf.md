@@ -8,10 +8,10 @@ Canonical execution paths:
 - Full comprehensive suite (includes migrated HF profiles): `python -m tradebot.backtest spot --axis combo_full --offline`
 - HF timing corridor replay: `python -m tradebot.backtest spot --axis combo_full --combo-full-preset hf_timing_sniper --offline`
 
-Current HF champion replay (v20-exception prearm-tight king; 2Y-scoped):
+Current HF champion replay (v27 depth-aware short-boost sweet spot; 2Y-scoped):
 ```bash
 python -m tradebot.backtest spot_multitimeframe \
-  --milestones backtests/slv/archive/champion_history_20260214/slv_hf_champions_v20_exception_ddshock_lb10_on10_off5_streak6_prearmtight_20260218.json \
+  --milestones backtests/slv/archive/champion_history_20260214/slv_hf_champions_v27_exception_ddshock_lb10_on10_off5_depth1p25pp_streak1_20260222.json \
   --symbol SLV --bar-size "10 mins" --spot-exec-bar-size "5 mins" --offline --cache-dir db \
   --top 1 --min-trades 0 \
   --window 2024-02-14:2026-02-14 \
@@ -24,50 +24,43 @@ Historical evolution commands below are normalized to current wrappers:
 
 ## Current Champions (stack)
 
-### CURRENT (v20-exception-ddshock-lb10-on10-off5-streak6-prearm-tight) — pre-threshold approach king (2Y scope)
+### CURRENT (v27-exception-ddshock-lb10-on10-off5-depth1p25pp-streak1) — depth-aware short-boost sweet spot (2Y scope)
 Current promoted crown on Feb-14 windows under the active HF scope contract (`<=2Y`; 10Y excluded due overnight bar reliability corruption concerns before `2023-07-24`).
 
-**v20-exception kingmaker #01 [dd_lb10_on10_off5 + streak6 + prearm_tight deterministic dethrone]**
-- Preset file: `backtests/slv/archive/champion_history_20260214/slv_hf_champions_v20_exception_ddshock_lb10_on10_off5_streak6_prearmtight_20260218.json`
-- Source eval: `backtests/slv/slv_hf_v19_track23_refine_noresize_1y2y_20260218_v1.json`
-- Determinism proof: `backtests/slv/slv_hf_v19_vs_prearmtight_6replay_1y2y_20260218_v1.json`
-- Broad matrix audit: `backtests/slv/slv_hf_v19_track123_resize_prearm_liqboost_1y2y_20260218_v1.json`
-- Base seed: `backtests/slv/archive/champion_history_20260214/slv_hf_champions_v19_exception_ddshock_lb10_on10_off5_streak6_20260218.json`
-- Variant id: `r15_s02_sm_dn_fhard + dd_lb10_on10_off5 + streak6 + shock_prearm(dist<=1.0pp, vel>=0.25pp, short_factor=1.5)`
+**v27-exception kingmaker #01 [dd_lb10_on10_off5 + streak1 + depth-band short boost]**
+- Preset file: `backtests/slv/archive/champion_history_20260214/slv_hf_champions_v27_exception_ddshock_lb10_on10_off5_depth1p25pp_streak1_20260222.json`
+- Source eval: `backtests/slv/slv_hf_v27_short_boost_maxdist_sweetspot_20260222.json`
+- Base seed: `backtests/slv/archive/champion_history_20260214/slv_hf_champions_v26_exception_ddshock_lb10_on10_off5_depth1pp_streak1_20260222.json`
+- Variant id: `r15_s02_sm_dn_fhard + dd_lb10_on10_off5 + shock_short_boost(streak>=1, dist_on<=1.25pp, require_regime_down, require_entry_down)`
 - Timeframe: `signal=10 mins`, `exec=5 mins`, `full24/5`
-- 1y (`2025-02-14 -> 2026-02-14`): trades **697**, pnl **32,649.19**, dd **9,413.78**, pnl/dd **3.4682**
-- 2y (`2024-02-14 -> 2026-02-14`): trades **1,252**, pnl **45,611.02**, dd **15,178.39**, pnl/dd **3.0050**
-- Full working window (`2025-01-08 -> 2026-02-14`): pnl **38,252.49**, dd **9,933.11**, pnl/dd **3.8510**
-- Jan-Feb 2026 slice (`2026-01-01 -> 2026-02-14`): pnl **18,469.39** (v19 **18,467.62**)
-- Crash-leg slice (`2026-01-24 -> 2026-02-14`): pnl **7,100.04** (v19 **7,099.02**)
-- Last-2m slice (`2025-12-14 -> 2026-02-14`): pnl **26,828.01** (v19 **26,827.70**)
-- Jan-Feb short avg qty: **53.4** (unchanged vs v19)
+- 1y (`2025-02-14 -> 2026-02-14`): trades **697**, pnl **32,739.53**, dd **9,413.78**, pnl/dd **3.4778**
+- 2y (`2024-02-14 -> 2026-02-14`): trades **1,252**, pnl **45,627.81**, dd **15,146.82**, pnl/dd **3.0124**
+- Full working window (`2025-01-08 -> 2026-02-14`): pnl **38,366.52**, dd **9,933.11**, pnl/dd **3.8625**
+- Jan-Feb 2026 slice (`2026-01-01 -> 2026-02-14`): pnl **18,495.27** (long **20,698.28**, short **-2,203.01**)
+- Crash-leg slice (`2026-01-24 -> 2026-02-14`): pnl **7,115.12** (long **8,395.42**, short **-1,280.30**)
+- Last-2m slice (`2025-12-14 -> 2026-02-14`): pnl **26,858.29** (long **29,136.49**, short **-2,278.20**)
+- Jan-Feb short avg qty: **53.5**
 - Trace probe (`2025-01-08 -> 2026-02-14`):
   - `entry_traces=753`
-  - `shock_prearm_applied=1` (tight pre-threshold accelerator hit once, additive edge without broad destabilization)
-  - `shock_short_boost_applied=0` (streak6 gate still suppresses noisy down-flip boosts)
+  - `shock_prearm_applied=1` (rare; remains effectively inert in this lane)
+  - `shock_short_boost_applied=11` (boosted in early shock band; still **0** boosts in Jan-Feb crash window)
 
 Promotion contract check (exception policy; user approved):
 - Hard throughput gate `>=700/year` on 1Y and 2Y: **FAIL** (`1Y=697`, `2Y=1252 -> 626/year`)
-- 6-run deterministic replay check: **PASS** (exactly stable; `distinct_rows=1` for all 1Y/2Y lanes)
-- 1Y/2Y dethrone vs prior crown `v19-exception`: **PASS**
-  - `1Y pnl +52.92`
-  - `2Y pnl +35.98`
-  - both pnl/dd higher (`1Y +0.0056`, `2Y +0.0024`)
-- Stress-slice confirmation vs `v19-exception`: **PASS/NEUTRAL**
-  - `pre_2026 +28.72`
-  - `janfeb_2026 +1.77`
-  - `crash_leg +1.02`
-  - `last2m +0.32`
-  - `crash_short +0.00` (unchanged; short sleeve remains negative but controlled)
+- Deterministic micro-matrix replay check: **PASS** (stable; identical trade counts across maxdist variants)
+- 1Y/2Y dethrone vs prior crown `v26-exception`: **PASS**
+  - `1Y pnl +6.19` and `pnl/dd +0.00066`
+  - `2Y pnl +15.63` and `pnl/dd +0.00103`
+- Stress-slice confirmation vs `v26-exception`: **PASS/NEUTRAL**
+  - Jan-Feb and crash-leg remain long-dominant; short sleeve stays negative but contained.
 
 Immediate predecessor (now dethroned):
-- Preset file: `backtests/slv/archive/champion_history_20260214/slv_hf_champions_v19_exception_ddshock_lb10_on10_off5_streak6_20260218.json`
-- Variant id: `r15_s02_sm_dn_fhard + dd_lb10_on10_off5 + shock_short_boost_min_down_streak_bars=6`
+- Preset file: `backtests/slv/archive/champion_history_20260214/slv_hf_champions_v26_exception_ddshock_lb10_on10_off5_depth1pp_streak1_20260222.json`
+- Variant id: `r15_s02_sm_dn_fhard + dd_lb10_on10_off5 + shock_short_boost(dist_on<=1.0pp)`
 
 Earlier predecessor:
-- Preset file: `backtests/slv/archive/champion_history_20260214/slv_hf_champions_v18_exception_ddshock_lb10_on10_off5_20260217.json`
-- Variant id: `r15_s02_sm_dn_fhard + dd_lb10_on10_off5`
+- Preset file: `backtests/slv/archive/champion_history_20260214/slv_hf_champions_v20_exception_ddshock_lb10_on10_off5_streak6_prearmtight_20260218.json`
+- Variant id: `r15_s02_sm_dn_fhard + dd_lb10_on10_off5 + streak6 + prearm_tight`
 
 Historical strict predecessor:
 - Preset file: `backtests/slv/archive/champion_history_20260214/slv_hf_champions_v16_strict_1y2y_r15_20260217.json`
@@ -379,6 +372,37 @@ Behavioral proof (from micro-matrix):
 
 Artifact:
 - `backtests/slv/slv_hf_v26_depth_aware_short_boost_micro_20260222.json`
+
+### v27.0 — short-boost depth sweet spot (1.25pp) dethrone (PROMOTED)
+Status: **DONE (promoted; deterministic micro-matrix replay)**
+
+Objective:
+- Find the least-invasive sweet spot for `shock_short_boost_max_dist_on_pp` without touching resizing.
+- Preserve trade count (no behavior churn), but harvest any remaining edge in the early shock-on band.
+
+Promotion winner:
+- Preset file: `backtests/slv/archive/champion_history_20260214/slv_hf_champions_v27_exception_ddshock_lb10_on10_off5_depth1p25pp_streak1_20260222.json`
+- Base: v26 king (`slv-hf-v26-exception-dd-lb10-on10-off5-depth1pp-streak1`)
+
+Knob change (only):
+- `shock_short_boost_max_dist_on_pp: 1.0 -> 1.25`
+
+Deterministic dethrone vs v26 baseline:
+- 1Y (`2025-02-14 -> 2026-02-14`):
+  - trades `697 vs 697` (`+0`)
+  - pnl `32,739.53 vs 32,733.34` (`+6.19`)
+  - pnl/dd `3.4778 vs 3.4772` (`+0.00066`)
+- 2Y (`2024-02-14 -> 2026-02-14`):
+  - trades `1,252 vs 1,252` (`+0`)
+  - pnl `45,627.81 vs 45,612.18` (`+15.63`)
+  - pnl/dd `3.0124 vs 3.0113` (`+0.00103`)
+
+Notes:
+- The short boost still does **not** trigger inside the Jan-Feb 2026 crash window in this lane (0 boosted entries there).
+- So the improvement is a tiny broad stability edge, not “short sleeve crash monetization”.
+
+Artifact:
+- `backtests/slv/slv_hf_v27_short_boost_maxdist_sweetspot_20260222.json`
 
 ### v19.0 — shock short-boost stability gate dethrone (PROMOTED BY USER EXCEPTION)
 Status: **DONE (promoted; deterministic 6-run pass + user-approved throughput exception)**

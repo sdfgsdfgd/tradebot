@@ -1,21 +1,21 @@
 {
-  "generated_at": "2026-02-21T16:49:05.367335+00:00",
+  "generated_at": "2026-02-21T17:18:48.121660+00:00",
   "groups": [
     {
       "_eval": {
-        "stability_min_pnl": 32733.336463998647,
-        "stability_min_pnl_dd": 3.011336824411733,
-        "stability_min_roi": 0.32733336463998647,
-        "stability_min_roi_dd": 3.0113368244117327,
+        "stability_min_pnl": 32739.52846399865,
+        "stability_min_pnl_dd": 3.0123686428319965,
+        "stability_min_roi": 0.3273952846399865,
+        "stability_min_roi_dd": 3.0123686428319965,
         "windows": [
           {
             "dd": 9413.783471999268,
             "dd_pct": 0.09413783471999268,
             "end": "2026-02-14",
-            "pnl": 32733.336463998647,
-            "pnl_over_dd": 3.4771711672954857,
-            "roi": 0.32733336463998647,
-            "roi_over_dd_pct": 3.4771711672954857,
+            "pnl": 32739.52846399865,
+            "pnl_over_dd": 3.4778289262102113,
+            "roi": 0.3273952846399865,
+            "roi_over_dd_pct": 3.4778289262102113,
             "start": "2025-02-14",
             "trades": 697,
             "win_rate": 0.642754662840746
@@ -24,26 +24,26 @@
             "dd": 15146.820111998779,
             "dd_pct": 0.1514682011199878,
             "end": "2026-02-14",
-            "pnl": 45612.17717600217,
-            "pnl_over_dd": 3.011336824411733,
-            "roi": 0.4561217717600217,
-            "roi_over_dd_pct": 3.0113368244117327,
+            "pnl": 45627.80594400215,
+            "pnl_over_dd": 3.0123686428319965,
+            "roi": 0.45627805944002153,
+            "roi_over_dd_pct": 3.0123686428319965,
             "start": "2024-02-14",
             "trades": 1252,
             "win_rate": 0.6685303514376997
           }
         ]
       },
-      "_key": "slv-hf-v26-exception-dd-lb10-on10-off5-depth1pp-streak1",
+      "_key": "slv-hf-v27-exception-dd-lb10-on10-off5-depth1p25pp-streak1",
       "entries": [
         {
           "metrics": {
             "max_drawdown": 9413.783471999268,
             "max_drawdown_pct": 0.09413783471999268,
-            "pnl": 32733.336463998647,
-            "pnl_over_dd": 3.4771711672954857,
-            "roi": 0.32733336463998647,
-            "roi_over_dd_pct": 3.4771711672954857,
+            "pnl": 32739.52846399865,
+            "pnl_over_dd": 3.4778289262102113,
+            "roi": 0.3273952846399865,
+            "roi_over_dd_pct": 3.4778289262102113,
             "trades": 697,
             "win_rate": 0.642754662840746
           },
@@ -92,7 +92,7 @@
               "shock_prearm_require_entry_down": true,
               "shock_prearm_require_regime_down": true,
               "shock_prearm_short_risk_mult_factor": 1.5,
-              "shock_short_boost_max_dist_on_pp": 1.0,
+              "shock_short_boost_max_dist_on_pp": 1.25,
               "shock_short_boost_min_down_streak_bars": 1,
               "shock_short_boost_require_entry_down": true,
               "shock_short_boost_require_regime_down": true,
@@ -258,17 +258,17 @@
         "shock_risk_scale_min_mult": 0.6,
         "shock_risk_scale_target_atr_pct": 12.0,
         "shock_scale_detector": "tr_ratio",
-        "shock_short_boost_max_dist_on_pp": 1.0,
+        "shock_short_boost_max_dist_on_pp": 1.25,
         "shock_short_boost_min_down_streak_bars": 1,
         "shock_short_boost_require_entry_down": true,
         "shock_short_boost_require_regime_down": true,
         "shock_short_risk_mult_factor": 2.0
       },
-      "name": "Spot (SLV) KINGMAKER #01 roi/dd=3.48 roi=32.7% dd%=9.4% win=64.3% tr=697 pnl=32733.3"
+      "name": "Spot (SLV) KINGMAKER #01 roi/dd=3.48 roi=32.7% dd%=9.4% win=64.3% tr=697 pnl=32739.5"
     }
   ],
-  "name": "slv_hf_champions_v26_exception_ddshock_lb10_on10_off5_depth1pp_streak1_20260222",
-  "source": "backtests/slv/slv_hf_v26_depth_aware_short_boost_micro_20260222.json",
+  "name": "slv_hf_champions_v27_exception_ddshock_lb10_on10_off5_depth1p25pp_streak1_20260222",
+  "source": "backtests/slv/slv_hf_v27_short_boost_maxdist_sweetspot_20260222.json",
   "windows": [
     {
       "end": "2026-02-14",
