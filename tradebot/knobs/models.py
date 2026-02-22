@@ -92,6 +92,9 @@ class FiltersConfig:
     # If >0, only allow the short boost when drawdown depth is near the ON threshold:
     # 0 <= (dd→on) <= max_dist_pp. This avoids "boosting deeper into the hole".
     shock_short_boost_max_dist_on_pp: float = 0.0
+    # If >0, block new short sizing in shock-down when drawdown depth is beyond this band:
+    # allow only 0 <= (dd→on) <= max_dist_pp. This avoids late/deep short entries.
+    shock_short_entry_max_dist_on_pp: float = 0.0
     shock_prearm_dist_on_max_pp: float = 0.0
     shock_prearm_min_drawdown_pct: float = 0.0
     shock_prearm_min_dist_on_vel_pp: float = 0.0
@@ -102,6 +105,11 @@ class FiltersConfig:
     shock_prearm_require_entry_down: bool = True
     shock_long_risk_mult_factor: float = 1.0
     shock_long_risk_mult_factor_down: float = 1.0
+    shock_long_boost_require_regime_up: bool = False
+    shock_long_boost_require_entry_up: bool = False
+    # If >0, only apply the long "up-shock" boost when drawdown has mostly recovered:
+    # 0 <= abs(dd→off) <= max_dist_pp (still in shock hysteresis, but near OFF).
+    shock_long_boost_max_dist_off_pp: float = 0.0
     shock_stop_loss_pct_mult: float = 1.0
     shock_profit_target_pct_mult: float = 1.0
     shock_direction_lookback: int = 2

@@ -68,6 +68,7 @@ class SpotPolicyConfigView:
     shock_short_boost_require_regime_down: bool = False
     shock_short_boost_require_entry_down: bool = False
     shock_short_boost_max_dist_on_pp: float = 0.0
+    shock_short_entry_max_dist_on_pp: float = 0.0
     shock_prearm_dist_on_max_pp: float = 0.0
     shock_prearm_min_dist_on_vel_pp: float = 0.0
     shock_prearm_min_dist_on_accel_pp: float = 0.0
@@ -75,8 +76,13 @@ class SpotPolicyConfigView:
     shock_prearm_short_risk_mult_factor: float = 1.0
     shock_prearm_require_regime_down: bool = True
     shock_prearm_require_entry_down: bool = True
+    shock_on_drawdown_pct: float = -20.0
+    shock_off_drawdown_pct: float = -10.0
     shock_long_risk_mult_factor: float = 1.0
     shock_long_risk_mult_factor_down: float = 1.0
+    shock_long_boost_require_regime_up: bool = False
+    shock_long_boost_require_entry_up: bool = False
+    shock_long_boost_max_dist_off_pp: float = 0.0
     shock_stop_loss_pct_mult: float = 1.0
     shock_profit_target_pct_mult: float = 1.0
     shock_risk_scale_target_atr_pct: float | None = None
@@ -332,6 +338,12 @@ class SpotPolicyConfigView:
         )
         if shock_short_boost_max_dist_on_pp < 0:
             shock_short_boost_max_dist_on_pp = 0.0
+        shock_short_entry_max_dist_on_pp = cls._parse_float(
+            _fget("shock_short_entry_max_dist_on_pp"),
+            default=0.0,
+        )
+        if shock_short_entry_max_dist_on_pp < 0:
+            shock_short_entry_max_dist_on_pp = 0.0
         shock_prearm_dist_on_max_pp = cls._parse_float(
             _fget("shock_prearm_dist_on_max_pp"),
             default=0.0,
@@ -364,8 +376,32 @@ class SpotPolicyConfigView:
             _fget("shock_prearm_require_entry_down"),
             default=True,
         )
+        shock_on_drawdown_pct = cls._parse_float(
+            _fget("shock_on_drawdown_pct"),
+            default=-20.0,
+        )
+        shock_off_drawdown_pct = cls._parse_float(
+            _fget("shock_off_drawdown_pct"),
+            default=-10.0,
+        )
+        if float(shock_off_drawdown_pct) < float(shock_on_drawdown_pct):
+            shock_off_drawdown_pct = float(shock_on_drawdown_pct)
         shock_long_risk_mult_factor = cls._parse_factor(_fget("shock_long_risk_mult_factor"))
         shock_long_risk_mult_factor_down = cls._parse_factor(_fget("shock_long_risk_mult_factor_down"))
+        shock_long_boost_require_regime_up = cls._parse_bool(
+            _fget("shock_long_boost_require_regime_up"),
+            default=False,
+        )
+        shock_long_boost_require_entry_up = cls._parse_bool(
+            _fget("shock_long_boost_require_entry_up"),
+            default=False,
+        )
+        shock_long_boost_max_dist_off_pp = cls._parse_float(
+            _fget("shock_long_boost_max_dist_off_pp"),
+            default=0.0,
+        )
+        if shock_long_boost_max_dist_off_pp < 0:
+            shock_long_boost_max_dist_off_pp = 0.0
 
         shock_stop_loss_pct_mult = cls._parse_float(_fget("shock_stop_loss_pct_mult"), default=1.0)
         if shock_stop_loss_pct_mult <= 0:
@@ -440,6 +476,7 @@ class SpotPolicyConfigView:
             shock_short_boost_require_regime_down=bool(shock_short_boost_require_regime_down),
             shock_short_boost_require_entry_down=bool(shock_short_boost_require_entry_down),
             shock_short_boost_max_dist_on_pp=float(shock_short_boost_max_dist_on_pp),
+            shock_short_entry_max_dist_on_pp=float(shock_short_entry_max_dist_on_pp),
             shock_prearm_dist_on_max_pp=float(shock_prearm_dist_on_max_pp),
             shock_prearm_min_dist_on_vel_pp=float(shock_prearm_min_dist_on_vel_pp),
             shock_prearm_min_dist_on_accel_pp=float(shock_prearm_min_dist_on_accel_pp),
@@ -447,8 +484,13 @@ class SpotPolicyConfigView:
             shock_prearm_short_risk_mult_factor=float(shock_prearm_short_risk_mult_factor),
             shock_prearm_require_regime_down=bool(shock_prearm_require_regime_down),
             shock_prearm_require_entry_down=bool(shock_prearm_require_entry_down),
+            shock_on_drawdown_pct=float(shock_on_drawdown_pct),
+            shock_off_drawdown_pct=float(shock_off_drawdown_pct),
             shock_long_risk_mult_factor=float(shock_long_risk_mult_factor),
             shock_long_risk_mult_factor_down=float(shock_long_risk_mult_factor_down),
+            shock_long_boost_require_regime_up=bool(shock_long_boost_require_regime_up),
+            shock_long_boost_require_entry_up=bool(shock_long_boost_require_entry_up),
+            shock_long_boost_max_dist_off_pp=float(shock_long_boost_max_dist_off_pp),
             shock_stop_loss_pct_mult=float(shock_stop_loss_pct_mult),
             shock_profit_target_pct_mult=float(shock_profit_target_pct_mult),
             shock_risk_scale_target_atr_pct=float(target_atr) if target_atr is not None else None,
@@ -578,6 +620,7 @@ class SpotDecisionTrace:
     shock_drawdown_dist_on_pct: float | None
     shock_drawdown_dist_on_vel_pp: float | None
     shock_drawdown_dist_on_accel_pp: float | None
+    shock_drawdown_dist_off_pct: float | None
     shock_prearm_down_streak_bars: int | None
     riskoff_mode: str
     risk_dir: str | None
@@ -604,9 +647,13 @@ class SpotDecisionTrace:
     short_mult_base: float | None = None
     short_mult_final: float | None = None
     shock_long_factor: float | None = None
+    shock_long_boost_applied: bool | None = None
+    shock_long_boost_gate_reason: str | None = None
     shock_short_factor: float | None = None
     shock_short_boost_applied: bool | None = None
     shock_short_boost_gate_reason: str | None = None
+    shock_short_entry_blocked: bool | None = None
+    shock_short_entry_gate_reason: str | None = None
     shock_prearm_applied: bool | None = None
     shock_prearm_factor: float | None = None
     shock_prearm_reason: str | None = None
@@ -1196,6 +1243,17 @@ class SpotPolicy:
             except (TypeError, ValueError):
                 shock_prearm_down_streak_clean = None
 
+        shock_drawdown_dist_off_clean: float | None = None
+        if shock_drawdown_dist_on_clean is not None:
+            try:
+                dd_on = float(cfg.shock_on_drawdown_pct)
+                dd_off = float(cfg.shock_off_drawdown_pct)
+                dd_dist_on = float(shock_drawdown_dist_on_clean)
+                dd_pct = float(dd_on) - float(dd_dist_on)
+                shock_drawdown_dist_off_clean = float(dd_pct) - float(dd_off)
+            except (TypeError, ValueError):
+                shock_drawdown_dist_off_clean = None
+
         shock_atr_pct_clean = None
         if shock_atr_pct is not None:
             try:
@@ -1277,6 +1335,9 @@ class SpotPolicy:
                 float(shock_drawdown_dist_on_accel_clean)
                 if shock_drawdown_dist_on_accel_clean is not None
                 else None
+            ),
+            shock_drawdown_dist_off_pct=(
+                float(shock_drawdown_dist_off_clean) if shock_drawdown_dist_off_clean is not None else None
             ),
             shock_prearm_down_streak_bars=(
                 int(shock_prearm_down_streak_clean) if shock_prearm_down_streak_clean is not None else None
@@ -1402,11 +1463,61 @@ class SpotPolicy:
                             if shock_dir_clean == "up"
                             else float(cfg.shock_long_risk_mult_factor_down)
                         )
-                        _update_trace(shock_long_factor=float(shock_long_mult))
-                        if shock_long_mult == 0:
-                            _update_trace(zero_reason="shock_long_factor_zero", signed_qty_final=0)
-                            return 0, trace
-                        risk_dollars *= float(shock_long_mult)
+
+                        # Optional "rebound-aware" long boost gate: only apply the >1.0 boost
+                        # when drawdown is close to the OFF threshold (still shock-on but recovering).
+                        if shock_dir_clean == "up" and float(shock_long_mult) > 1.0:
+                            boost_ok = True
+                            gate_reason = "ok"
+                            max_dist = float(cfg.shock_long_boost_max_dist_off_pp)
+                            if max_dist > 0:
+                                dist_off = shock_drawdown_dist_off_clean
+                                if dist_off is None:
+                                    boost_ok = False
+                                    gate_reason = "dd_dist_off_missing"
+                                else:
+                                    try:
+                                        dist_off_f = float(dist_off)
+                                    except (TypeError, ValueError):
+                                        dist_off_f = None
+                                    if dist_off_f is None:
+                                        boost_ok = False
+                                        gate_reason = "dd_dist_off_invalid"
+                                    elif dist_off_f > 0:
+                                        boost_ok = False
+                                        gate_reason = "dd_dist_off_gt_0"
+                                    else:
+                                        dist_off_abs = abs(float(dist_off_f))
+                                        if dist_off_abs > float(max_dist):
+                                            boost_ok = False
+                                            gate_reason = f"dd_dist_off_abs_gt_{float(max_dist):g}pp"
+
+                            if boost_ok and bool(cfg.shock_long_boost_require_regime_up) and signal_regime_dir_clean != "up":
+                                boost_ok = False
+                                gate_reason = "regime_not_up"
+                            if boost_ok and bool(cfg.shock_long_boost_require_entry_up) and signal_entry_dir_clean != "up":
+                                boost_ok = False
+                                gate_reason = "entry_not_up"
+
+                            if boost_ok:
+                                _update_trace(
+                                    shock_long_factor=float(shock_long_mult),
+                                    shock_long_boost_applied=True,
+                                    shock_long_boost_gate_reason=gate_reason,
+                                )
+                                risk_dollars *= float(shock_long_mult)
+                            else:
+                                _update_trace(
+                                    shock_long_factor=1.0,
+                                    shock_long_boost_applied=False,
+                                    shock_long_boost_gate_reason=gate_reason,
+                                )
+                        else:
+                            _update_trace(shock_long_factor=float(shock_long_mult))
+                            if shock_long_mult == 0:
+                                _update_trace(zero_reason="shock_long_factor_zero", signed_qty_final=0)
+                                return 0, trace
+                            risk_dollars *= float(shock_long_mult)
 
                     risk_dollars *= float(graph_overlay.long_risk_mult)
                     risk_dollars *= float(graph_overlay.risk_mult)
@@ -1417,6 +1528,36 @@ class SpotPolicy:
                 else:
                     short_mult = float(cfg.spot_short_risk_mult)
                     _update_trace(short_mult_base=float(short_mult), short_mult_final=float(short_mult))
+
+                    if bool(shock) and str(shock_dir_clean) == "down":
+                        max_dist = float(cfg.shock_short_entry_max_dist_on_pp)
+                        if max_dist > 0:
+                            gate_ok = True
+                            gate_reason = "ok"
+                            dist_on = shock_drawdown_dist_on_clean
+                            if dist_on is None:
+                                gate_reason = "dd_dist_on_missing"
+                            else:
+                                try:
+                                    dist_on_f = float(dist_on)
+                                except (TypeError, ValueError):
+                                    dist_on_f = None
+                                if dist_on_f is None:
+                                    gate_ok = False
+                                    gate_reason = "dd_dist_on_invalid"
+                                elif dist_on_f < 0:
+                                    gate_ok = False
+                                    gate_reason = "dd_dist_on_lt_0"
+                                elif dist_on_f > float(max_dist):
+                                    gate_ok = False
+                                    gate_reason = f"dd_dist_on_gt_{float(max_dist):g}pp"
+                            _update_trace(
+                                shock_short_entry_blocked=(not bool(gate_ok)),
+                                shock_short_entry_gate_reason=str(gate_reason),
+                            )
+                            if not bool(gate_ok):
+                                _update_trace(zero_reason="shock_short_entry_depth_gate", signed_qty_final=0)
+                                return 0, trace
 
                     if bool(riskoff) and str(cfg.riskoff_mode) == "directional" and str(risk_dir_clean) == "down":
                         short_mult *= float(cfg.riskoff_short_factor)

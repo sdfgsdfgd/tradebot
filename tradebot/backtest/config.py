@@ -585,6 +585,9 @@ def _parse_filters(raw) -> FiltersConfig | None:
     shock_short_boost_max_dist_on_pp = _f(raw.get("shock_short_boost_max_dist_on_pp"))
     if shock_short_boost_max_dist_on_pp is None or shock_short_boost_max_dist_on_pp < 0:
         shock_short_boost_max_dist_on_pp = 0.0
+    shock_short_entry_max_dist_on_pp = _f(raw.get("shock_short_entry_max_dist_on_pp"))
+    if shock_short_entry_max_dist_on_pp is None or shock_short_entry_max_dist_on_pp < 0:
+        shock_short_entry_max_dist_on_pp = 0.0
     shock_prearm_dist_on_max_pp = _f(raw.get("shock_prearm_dist_on_max_pp"))
     if shock_prearm_dist_on_max_pp is None or shock_prearm_dist_on_max_pp < 0:
         shock_prearm_dist_on_max_pp = 0.0
@@ -611,6 +614,11 @@ def _parse_filters(raw) -> FiltersConfig | None:
     shock_long_mult_down = _f(raw.get("shock_long_risk_mult_factor_down"))
     if shock_long_mult_down is None or shock_long_mult_down < 0:
         shock_long_mult_down = 1.0
+    shock_long_boost_require_regime_up = bool(raw.get("shock_long_boost_require_regime_up"))
+    shock_long_boost_require_entry_up = bool(raw.get("shock_long_boost_require_entry_up"))
+    shock_long_boost_max_dist_off_pp = _f(raw.get("shock_long_boost_max_dist_off_pp"))
+    if shock_long_boost_max_dist_off_pp is None or shock_long_boost_max_dist_off_pp < 0:
+        shock_long_boost_max_dist_off_pp = 0.0
     shock_sl_mult = _f(raw.get("shock_stop_loss_pct_mult"))
     if shock_sl_mult is None or shock_sl_mult <= 0:
         shock_sl_mult = 1.0
@@ -914,6 +922,7 @@ def _parse_filters(raw) -> FiltersConfig | None:
         shock_short_boost_require_regime_down=bool(shock_short_boost_require_regime_down),
         shock_short_boost_require_entry_down=bool(shock_short_boost_require_entry_down),
         shock_short_boost_max_dist_on_pp=float(shock_short_boost_max_dist_on_pp),
+        shock_short_entry_max_dist_on_pp=float(shock_short_entry_max_dist_on_pp),
         shock_prearm_dist_on_max_pp=float(shock_prearm_dist_on_max_pp),
         shock_prearm_min_drawdown_pct=float(shock_prearm_min_drawdown_pct),
         shock_prearm_min_dist_on_vel_pp=float(shock_prearm_min_dist_on_vel_pp),
@@ -924,6 +933,9 @@ def _parse_filters(raw) -> FiltersConfig | None:
         shock_prearm_require_entry_down=bool(shock_prearm_require_entry_down),
         shock_long_risk_mult_factor=float(shock_long_mult),
         shock_long_risk_mult_factor_down=float(shock_long_mult_down),
+        shock_long_boost_require_regime_up=bool(shock_long_boost_require_regime_up),
+        shock_long_boost_require_entry_up=bool(shock_long_boost_require_entry_up),
+        shock_long_boost_max_dist_off_pp=float(shock_long_boost_max_dist_off_pp),
         shock_stop_loss_pct_mult=float(shock_sl_mult),
         shock_profit_target_pct_mult=float(shock_pt_mult),
         shock_direction_lookback=int(shock_dir_lb),

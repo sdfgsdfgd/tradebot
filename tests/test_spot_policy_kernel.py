@@ -289,6 +289,167 @@ class SpotPolicyKernelTests(unittest.TestCase):
         self.assertEqual(trace.shock_short_boost_gate_reason, "dd_dist_on_gt_2pp")
         self.assertAlmostEqual(float(trace.short_mult_final or 0.0), 1.0, places=6)
 
+    def test_short_entry_depth_gate_blocks_late_shock_down_entries(self) -> None:
+        qty, trace = SpotPolicy.calc_signed_qty_with_trace(
+            strategy={
+                "quantity": 1,
+                "spot_sizing_mode": "risk_pct",
+                "spot_risk_pct": 0.01,
+                "spot_short_risk_mult": 1.0,
+                "spot_max_notional_pct": 1.0,
+                "spot_min_qty": 1,
+                "spot_max_qty": 0,
+            },
+            filters={
+                "shock_short_entry_max_dist_on_pp": 1.25,
+            },
+            action="SELL",
+            lot=1,
+            entry_price=100.0,
+            stop_price=101.0,
+            stop_loss_pct=None,
+            shock=True,
+            shock_dir="down",
+            shock_atr_pct=12.0,
+            shock_dir_down_streak_bars=5,
+            shock_drawdown_dist_on_pct=2.0,
+            riskoff=False,
+            risk_dir=None,
+            riskpanic=False,
+            riskpop=False,
+            risk=None,
+            signal_entry_dir="down",
+            signal_regime_dir="down",
+            equity_ref=100_000.0,
+            cash_ref=100_000.0,
+        )
+        self.assertEqual(int(qty), 0)
+        self.assertEqual(trace.zero_reason, "shock_short_entry_depth_gate")
+        self.assertTrue(bool(trace.shock_short_entry_blocked))
+        self.assertEqual(trace.shock_short_entry_gate_reason, "dd_dist_on_gt_1.25pp")
+
+        qty, trace = SpotPolicy.calc_signed_qty_with_trace(
+            strategy={
+                "quantity": 1,
+                "spot_sizing_mode": "risk_pct",
+                "spot_risk_pct": 0.01,
+                "spot_short_risk_mult": 1.0,
+                "spot_max_notional_pct": 1.0,
+                "spot_min_qty": 1,
+                "spot_max_qty": 0,
+            },
+            filters={
+                "shock_short_entry_max_dist_on_pp": 1.25,
+            },
+            action="SELL",
+            lot=1,
+            entry_price=100.0,
+            stop_price=101.0,
+            stop_loss_pct=None,
+            shock=True,
+            shock_dir="down",
+            shock_atr_pct=12.0,
+            shock_dir_down_streak_bars=5,
+            shock_drawdown_dist_on_pct=1.0,
+            riskoff=False,
+            risk_dir=None,
+            riskpanic=False,
+            riskpop=False,
+            risk=None,
+            signal_entry_dir="down",
+            signal_regime_dir="down",
+            equity_ref=100_000.0,
+            cash_ref=100_000.0,
+        )
+        self.assertNotEqual(int(qty), 0)
+        self.assertFalse(bool(trace.shock_short_entry_blocked))
+        self.assertEqual(trace.shock_short_entry_gate_reason, "ok")
+
+    def test_long_shock_boost_respects_drawdown_recovery_gate(self) -> None:
+        # ON=-10, OFF=-5. Dist-on=-4.5 => dd=-5.5 => dd→off=-0.5 (within 1pp of OFF).
+        _qty, trace = SpotPolicy.calc_signed_qty_with_trace(
+            strategy={
+                "quantity": 1,
+                "spot_sizing_mode": "risk_pct",
+                "spot_risk_pct": 0.01,
+                "spot_short_risk_mult": 1.0,
+                "spot_max_notional_pct": 1.0,
+                "spot_min_qty": 1,
+                "spot_max_qty": 0,
+            },
+            filters={
+                "shock_on_drawdown_pct": -10.0,
+                "shock_off_drawdown_pct": -5.0,
+                "shock_long_risk_mult_factor": 1.5,
+                "shock_long_boost_max_dist_off_pp": 1.0,
+                "shock_long_boost_require_regime_up": True,
+                "shock_long_boost_require_entry_up": True,
+            },
+            action="BUY",
+            lot=1,
+            entry_price=100.0,
+            stop_price=99.0,
+            stop_loss_pct=None,
+            shock=True,
+            shock_dir="up",
+            shock_atr_pct=12.0,
+            shock_drawdown_dist_on_pct=-4.5,
+            riskoff=False,
+            risk_dir=None,
+            riskpanic=False,
+            riskpop=False,
+            risk=None,
+            signal_entry_dir="up",
+            signal_regime_dir="up",
+            equity_ref=100_000.0,
+            cash_ref=100_000.0,
+        )
+        self.assertTrue(bool(trace.shock_long_boost_applied))
+        self.assertEqual(trace.shock_long_boost_gate_reason, "ok")
+        self.assertAlmostEqual(float(trace.shock_long_factor or 0.0), 1.5, places=6)
+
+        # Dist-on=-2.0 => dd=-8.0 => dd→off=-3.0 (too far from OFF for 1pp max).
+        _qty, trace = SpotPolicy.calc_signed_qty_with_trace(
+            strategy={
+                "quantity": 1,
+                "spot_sizing_mode": "risk_pct",
+                "spot_risk_pct": 0.01,
+                "spot_short_risk_mult": 1.0,
+                "spot_max_notional_pct": 1.0,
+                "spot_min_qty": 1,
+                "spot_max_qty": 0,
+            },
+            filters={
+                "shock_on_drawdown_pct": -10.0,
+                "shock_off_drawdown_pct": -5.0,
+                "shock_long_risk_mult_factor": 1.5,
+                "shock_long_boost_max_dist_off_pp": 1.0,
+                "shock_long_boost_require_regime_up": True,
+                "shock_long_boost_require_entry_up": True,
+            },
+            action="BUY",
+            lot=1,
+            entry_price=100.0,
+            stop_price=99.0,
+            stop_loss_pct=None,
+            shock=True,
+            shock_dir="up",
+            shock_atr_pct=12.0,
+            shock_drawdown_dist_on_pct=-2.0,
+            riskoff=False,
+            risk_dir=None,
+            riskpanic=False,
+            riskpop=False,
+            risk=None,
+            signal_entry_dir="up",
+            signal_regime_dir="up",
+            equity_ref=100_000.0,
+            cash_ref=100_000.0,
+        )
+        self.assertFalse(bool(trace.shock_long_boost_applied))
+        self.assertEqual(trace.shock_long_boost_gate_reason, "dd_dist_off_abs_gt_1pp")
+        self.assertAlmostEqual(float(trace.shock_long_factor or 0.0), 1.0, places=6)
+
     def test_short_prearm_applies_before_shock_when_dd_is_near_and_accelerating(self) -> None:
         _qty, trace = SpotPolicy.calc_signed_qty_with_trace(
             strategy={

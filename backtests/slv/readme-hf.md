@@ -45,6 +45,29 @@ Current promoted crown on Feb-14 windows under the active HF scope contract (`<=
   - `shock_prearm_applied=1` (rare; remains effectively inert in this lane)
   - `shock_short_boost_applied=11` (boosted in early shock band; still **0** boosts in Jan-Feb crash window)
 
+Post-v27 investigations (not promoted; informative only):
+
+- v28: **Long “recovering shock” boost off-gate** (attempted rebound-aware long sizing)
+  - Artifact: `backtests/slv/slv_hf_v28_long_boost_offgate_micro_20260222.json`
+  - New knobs added (defaults keep baseline behavior):
+    - `shock_long_boost_max_dist_off_pp`
+    - `shock_long_boost_require_regime_up`
+    - `shock_long_boost_require_entry_up`
+  - Result: **no PnL or DD change** across tested variants (long entries are frequently notional-cap bound in this lane; boosting risk dollars does not change final qty).
+
+- v29: **Widen short-boost depth band** (try to catch more of the crash with shock short boost)
+  - Artifact: `backtests/slv/slv_hf_v29_short_boost_maxdist_widen_micro_20260222.json`
+  - Result: widening `shock_short_boost_max_dist_on_pp` beyond the v27 sweet spot **hurts** 2Y economics (more deep-in-drawdown shorts; more rebound donation).
+
+- v30: **Short entry depth gate** (block shock-down shorts that start too deep into drawdown)
+  - Artifact: `backtests/slv/slv_hf_v30_short_entry_depth_gate_micro_20260222.json`
+  - New knob added (default `0` disables):
+    - `shock_short_entry_max_dist_on_pp`
+  - Best tested: `shock_short_entry_max_dist_on_pp=1.25`
+    - 1y: trades **681**, pnl **33,075.26**, dd **9,519.90**, pnl/dd **3.4736** (baseline 1y pnl **32,739.53**, pnl/dd **3.4778**)
+    - 2y: trades **1,233**, pnl **46,186.41**, dd **15,140.71**, pnl/dd **3.0505** (baseline 2y pnl **45,627.81**, pnl/dd **3.0124**)
+  - Interpretation: this gate is directionally correct, but the **net uplift is ~1%** on 1Y/2Y, below the 3-5% improvement threshold.
+
 Promotion contract check (exception policy; user approved):
 - Hard throughput gate `>=700/year` on 1Y and 2Y: **FAIL** (`1Y=697`, `2Y=1252 -> 626/year`)
 - Deterministic micro-matrix replay check: **PASS** (stable; identical trade counts across maxdist variants)
