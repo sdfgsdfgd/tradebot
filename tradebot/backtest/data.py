@@ -1152,31 +1152,3 @@ def _uncovered_date_ranges(
     if cursor <= request_end:
         out.append((cursor, request_end))
     return out
-
-
-    bar_tokens = set(_bar_token_variants(bar_size))
-    tags = ("rth",) if use_rth else ("full24", "full")
-    tag_rank = {tag: rank for rank, tag in enumerate(tags)}
-    symbol_upper = str(symbol).upper()
-    start_d = start.date()
-    end_d = end.date()
-    candidates: list[tuple[int, int, Path]] = []
-    for path in folder.iterdir():
-        if not path.is_file():
-            continue
-        meta = parse_cache_filename(path)
-        if meta is None:
-            continue
-        if str(meta.symbol).upper() != symbol_upper:
-            continue
-        if meta.tag not in tag_rank:
-            continue
-        if meta.bar_token not in bar_tokens:
-            continue
-        if meta.start_date <= start_d and meta.end_date >= end_d:
-            span_days = (meta.end_date - meta.start_date).days
-            candidates.append((tag_rank[meta.tag], span_days, path))
-    if candidates:
-        candidates.sort(key=lambda t: (t[0], t[1]))
-        return candidates[0][2]
-    return None
