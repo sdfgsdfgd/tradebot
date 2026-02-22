@@ -80,7 +80,24 @@ def spot_multitimeframe_main() -> None:
     ap.add_argument("--symbol", default="TQQQ", help="Symbol to filter (default: TQQQ).")
     ap.add_argument("--bar-size", default="1 hour", help="Signal bar size filter (default: 1 hour).")
     ap.add_argument("--use-rth", action="store_true", help="Filter to RTH-only strategies.")
-    ap.add_argument("--offline", action="store_true", help="Use cached bars only (no IBKR fetch).")
+    ap.add_argument(
+        "--offline",
+        action="store_true",
+        help=(
+            "Use cached bars at evaluation time. "
+            "With --cache-policy=auto, preflight may hydrate missing caches before run."
+        ),
+    )
+    ap.add_argument(
+        "--cache-policy",
+        default="auto",
+        choices=("auto", "strict"),
+        help=(
+            "Offline cache preflight policy. "
+            "auto = hydrate via cache manager (resample-from-cache or fetch) before evaluating; "
+            "strict = fail on any missing cache."
+        ),
+    )
     ap.add_argument("--cache-dir", default="db", help="Bars cache dir (default: db).")
     ap.add_argument("--jobs", type=int, default=0, help="Worker processes (0 = auto). Requires --offline for >1.")
     ap.add_argument("--top", type=int, default=200, help="How many candidates to evaluate (after sorting).")
@@ -233,7 +250,7 @@ def spot_multitimeframe_main() -> None:
     print(
         "multitimeframe prep "
         f"candidates={len(candidates)} jobs={int(jobs_eff)} "
-        f"offline={bool(args.offline)} cache_dir={args.cache_dir}",
+        f"offline={bool(args.offline)} cache_policy={str(args.cache_policy).strip().lower()} cache_dir={args.cache_dir}",
         flush=True,
     )
 
@@ -999,6 +1016,7 @@ def spot_multitimeframe_main() -> None:
             signal_bar_size=str(args.bar_size),
             use_rth=use_rth,
             cache_dir=cache_dir,
+            cache_policy=str(args.cache_policy),
         )
 
         data = IBKRHistoricalData()
@@ -1028,6 +1046,7 @@ def spot_multitimeframe_main() -> None:
             signal_bar_size=str(args.bar_size),
             use_rth=use_rth,
             cache_dir=cache_dir,
+            cache_policy=str(args.cache_policy),
         )
 
         base_cli = _strip_flags(
@@ -1093,6 +1112,7 @@ def spot_multitimeframe_main() -> None:
             signal_bar_size=str(args.bar_size),
             use_rth=use_rth,
             cache_dir=cache_dir,
+            cache_policy=str(args.cache_policy),
         )
 
     _tested_serial, out_rows = _evaluate_candidate_multiwindow_shard(

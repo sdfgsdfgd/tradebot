@@ -4,8 +4,9 @@ from datetime import date, datetime, time, timedelta
 from pathlib import Path
 import time as pytime
 
+from .cache_ops_lib import ensure_cached_window_with_policy
 from .cli_utils import expected_cache_path
-from .data import IBKRHistoricalData, cache_covers_window, ensure_offline_cached_window
+from .data import IBKRHistoricalData, cache_covers_window
 from .spot_context import spot_bar_requirements_from_strategy
 from ..series import bars_list
 
@@ -116,6 +117,7 @@ def preflight_offline_cache_or_die(
     signal_bar_size: str,
     use_rth: bool,
     cache_dir: Path,
+    cache_policy: str = "strict",
 ) -> None:
     missing: list[dict] = []
     checked: set[tuple[str, str, str, str, bool]] = set()
@@ -140,7 +142,7 @@ def preflight_offline_cache_or_die(
 
     print(
         "multitimeframe preflight start "
-        f"candidates={len(candidates)} windows={len(windows)}",
+        f"candidates={len(candidates)} windows={len(windows)} cache_policy={str(cache_policy).strip().lower() or 'strict'}",
         flush=True,
     )
 
@@ -168,7 +170,7 @@ def preflight_offline_cache_or_die(
             return
         checked.add(key)
 
-        cache_ok, expected, _resolved, missing_ranges, err = ensure_offline_cached_window(
+        cache_ok, expected, _resolved, missing_ranges, err = ensure_cached_window_with_policy(
             data=data,
             cache_dir=cache_dir,
             symbol=str(req_symbol),
@@ -177,6 +179,7 @@ def preflight_offline_cache_or_die(
             end=end_dt,
             bar_size=str(bar_size),
             use_rth=bool(use_rth),
+            cache_policy=str(cache_policy),
         )
         if cache_ok:
             return

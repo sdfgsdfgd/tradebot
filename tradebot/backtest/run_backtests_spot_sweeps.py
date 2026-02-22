@@ -59,7 +59,8 @@ from .spot_codec import (
     spot_strategy_payload as _codec_spot_strategy_payload,
     strategy_from_payload as _codec_strategy_from_payload,
 )
-from .data import ContractMeta, IBKRHistoricalData, ensure_offline_cached_window
+from .cache_ops_lib import ensure_cached_window_with_policy
+from .data import ContractMeta, IBKRHistoricalData
 from .engine import (
     _run_spot_backtest_summary,
     _spot_multiplier,
@@ -104,8 +105,9 @@ def _require_offline_cache_or_die(
     end_dt: datetime,
     bar_size: str,
     use_rth: bool,
+    cache_policy: str = "strict",
 ) -> None:
-    cache_ok, expected, _resolved, missing_ranges, err = ensure_offline_cached_window(
+    cache_ok, expected, _resolved, missing_ranges, err = ensure_cached_window_with_policy(
         data=data,
         cache_dir=cache_dir,
         symbol=str(symbol),
@@ -114,6 +116,7 @@ def _require_offline_cache_or_die(
         end=end_dt,
         bar_size=str(bar_size),
         use_rth=bool(use_rth),
+        cache_policy=str(cache_policy),
     )
     if cache_ok:
         return
@@ -129,7 +132,7 @@ def _require_offline_cache_or_die(
     raise SystemExit(
         f"--offline was requested, but cached bars are missing for {symbol} {bar_size} {tag} "
         f"{start_dt.date().isoformat()}→{end_dt.date().isoformat()} "
-        f"(expected: {expected}{missing_note}{detail}). "
+        f"(expected: {expected}{missing_note}{detail}; cache_policy={str(cache_policy).strip().lower() or 'strict'}). "
         "Re-run without --offline to fetch via IBKR (or prefetch the cache first)."
     )
 # endregion
@@ -3064,7 +3067,20 @@ def main() -> None:
         "--offline",
         action="store_true",
         default=False,
-        help="Use cached bars only (no IBKR calls). Requires cache to be present.",
+        help=(
+            "Use cached bars at evaluation time. "
+            "With --cache-policy=auto, preflight may hydrate missing caches before run."
+        ),
+    )
+    parser.add_argument(
+        "--cache-policy",
+        default="auto",
+        choices=("auto", "strict"),
+        help=(
+            "Offline cache preflight policy. "
+            "auto = hydrate via cache manager (resample-from-cache or fetch) before evaluating; "
+            "strict = fail on any missing cache."
+        ),
     )
     parser.add_argument(
         "--jobs",
@@ -3312,6 +3328,7 @@ def main() -> None:
     end = _parse_date(args.end)
     use_rth = bool(args.use_rth)
     offline = bool(args.offline)
+    cache_policy = str(args.cache_policy).strip().lower() or "strict"
     cache_dir = Path(args.cache_dir)
     start_dt = datetime.combine(start, time(0, 0))
     end_dt = datetime.combine(end, time(23, 59))
@@ -3404,6 +3421,7 @@ def main() -> None:
             end_dt=end_dt,
             bar_size=signal_bar_size,
             use_rth=use_rth,
+            cache_policy=cache_policy,
         )
         if spot_exec_bar_size and str(spot_exec_bar_size) != str(signal_bar_size):
             _require_offline_cache_or_die(
@@ -3415,6 +3433,7 @@ def main() -> None:
                 end_dt=end_dt,
                 bar_size=spot_exec_bar_size,
                 use_rth=use_rth,
+                cache_policy=cache_policy,
             )
 
     if offline:
@@ -13504,6 +13523,7 @@ def main() -> None:
                         end_dt=end_dt,
                         bar_size="1 day",
                         use_rth=True,
+                        cache_policy=cache_policy,
                     )
                     tick_ok = True
                     break
@@ -13786,7 +13806,7 @@ def main() -> None:
     axis = str(args.axis).strip().lower()
     print(
         f"{symbol} spot evolve sweep ({start.isoformat()} -> {end.isoformat()}, use_rth={use_rth}, "
-        f"bar_size={signal_bar_size}, offline={offline}, base={args.base}, axis={axis}, "
+        f"bar_size={signal_bar_size}, offline={offline}, cache_policy={cache_policy}, base={args.base}, axis={axis}, "
         f"jobs={jobs}, "
         f"long_only={long_only} realism={'v2' if realism2 else 'off'} "
         f"spread={spot_spread:g} comm={spot_commission:g} comm_min={spot_commission_min:g} "

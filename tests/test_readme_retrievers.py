@@ -28,5 +28,8 @@ def test_extract_current_slv_lf_json_path() -> None:
 def test_extract_current_slv_hf_json_path() -> None:
     readme = (_ROOT / "backtests" / "slv" / "readme-hf.md").read_text()
     version, path = _RETRIEVERS.extract_current_slv_hf_json_path(readme)
-    assert version == "16-strict"
-    assert path == "backtests/slv/archive/champion_history_20260214/slv_hf_champions_v16_strict_1y2y_r15_20260217.json"
+    assert version == "28-exception-ddshock-lb10-on10-off5-depth1p25pp-streak1-shortmult0p028"
+    assert (
+        path
+        == "backtests/slv/archive/champion_history_20260214/slv_hf_champions_v28_exception_ddshock_lb10_on10_off5_depth1p25pp_streak1_shortmult0p028_20260222.json"
+    )

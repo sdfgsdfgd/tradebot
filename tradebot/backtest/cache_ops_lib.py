@@ -34,6 +34,7 @@ from .data import (
     CacheFileMeta,
     IBKRHistoricalData,
     cache_path,
+    ensure_offline_cached_window,
     parse_cache_filename,
     read_cache,
     write_cache,
@@ -86,6 +87,18 @@ class _FetchResult:
 class _ResampleStats:
     kept: int
     dropped_incomplete: int
+
+
+@dataclass(frozen=True)
+class CacheResampleOutcome:
+    ok: bool
+    dst_path: Path
+    src_bar_size: str | None = None
+    src_path: Path | None = None
+    src_rows: int = 0
+    dst_rows: int = 0
+    dropped_incomplete: int = 0
+    error: str | None = None
 
 
 @dataclass(frozen=True)
@@ -1094,6 +1107,205 @@ def _resample_intraday_ohlcv(
     return out, _ResampleStats(kept=len(out), dropped_incomplete=int(dropped))
 
 
+def _cache_resample_source_candidates(dst_bar_size: str) -> tuple[str, ...]:
+    dst = parse_bar_size(str(dst_bar_size))
+    if dst is None:
+        return tuple()
+    base = ("1 min", "2 mins", "5 mins", "10 mins", "15 mins", "30 mins", "1 hour", "4 hours", "1 day")
+    out: list[tuple[float, str]] = []
+    for src_label in base:
+        src = parse_bar_size(src_label)
+        if src is None:
+            continue
+        if src.duration >= dst.duration:
+            continue
+        if (dst.duration.total_seconds() % src.duration.total_seconds()) != 0:
+            continue
+        out.append((float(src.duration.total_seconds()), src.label))
+    out.sort(key=lambda row: row[0])
+    return tuple(label for _seconds, label in out)
+
+
+def resample_cached_window(
+    *,
+    data: IBKRHistoricalData,
+    cache_dir: Path,
+    symbol: str,
+    exchange: str | None,
+    start: datetime,
+    end: datetime,
+    dst_bar_size: str,
+    use_rth: bool,
+    src_bar_size: str | None = None,
+) -> CacheResampleOutcome:
+    dst_path = cache_path(cache_dir, symbol, start, end, dst_bar_size, use_rth)
+    src_candidates = (
+        (str(src_bar_size).strip(),)
+        if str(src_bar_size or "").strip()
+        else _cache_resample_source_candidates(dst_bar_size)
+    )
+    if not src_candidates:
+        return CacheResampleOutcome(
+            ok=False,
+            dst_path=dst_path,
+            error=f"no_resample_source_candidates for {dst_bar_size!r}",
+        )
+
+    last_err: str | None = None
+    for src_label in src_candidates:
+        try:
+            src_series = data.load_cached_bar_series(
+                symbol=symbol,
+                exchange=exchange,
+                start=start,
+                end=end,
+                bar_size=str(src_label),
+                use_rth=use_rth,
+                cache_dir=cache_dir,
+            )
+        except FileNotFoundError:
+            continue
+        except Exception as exc:
+            last_err = f"source_load_error({src_label}): {exc}"
+            continue
+
+        source_path_raw = str(getattr(src_series.meta, "source_path", "") or "").strip()
+        source_path = Path(source_path_raw) if source_path_raw else None
+        src_bars = [bar for bar in src_series.as_list() if start <= bar.ts <= end]
+        if not src_bars:
+            last_err = f"source_empty_after_slice({src_label})"
+            continue
+
+        try:
+            dst_bars, stats = _resample_intraday_ohlcv(
+                src_bars,
+                src_bar_size=str(src_label),
+                dst_bar_size=str(dst_bar_size),
+                allow_day_from_partial=bool(use_rth),
+            )
+        except SystemExit as exc:
+            last_err = f"resample_error({src_label}): {exc}"
+            continue
+
+        if not dst_bars:
+            last_err = f"resample_empty({src_label})"
+            continue
+
+        dst_path.parent.mkdir(parents=True, exist_ok=True)
+        write_cache(dst_path, dst_bars)
+        return CacheResampleOutcome(
+            ok=True,
+            dst_path=dst_path,
+            src_bar_size=str(src_label),
+            src_path=source_path,
+            src_rows=len(src_bars),
+            dst_rows=len(dst_bars),
+            dropped_incomplete=int(stats.dropped_incomplete),
+            error=None,
+        )
+
+    return CacheResampleOutcome(ok=False, dst_path=dst_path, error=last_err)
+
+
+def ensure_cached_window_with_policy(
+    *,
+    data: IBKRHistoricalData,
+    cache_dir: Path,
+    symbol: str,
+    exchange: str | None,
+    start: datetime,
+    end: datetime,
+    bar_size: str,
+    use_rth: bool,
+    cache_policy: str = "strict",
+) -> tuple[bool, Path, Path | None, list[tuple[date, date]], str | None]:
+    policy = str(cache_policy or "strict").strip().lower() or "strict"
+    if policy not in {"strict", "auto"}:
+        raise ValueError(f"Unsupported cache_policy: {cache_policy!r}")
+
+    ok, expected, resolved, missing_ranges, err = ensure_offline_cached_window(
+        data=data,
+        cache_dir=cache_dir,
+        symbol=symbol,
+        exchange=exchange,
+        start=start,
+        end=end,
+        bar_size=bar_size,
+        use_rth=use_rth,
+    )
+    if ok or policy == "strict":
+        return ok, expected, resolved, missing_ranges, err
+
+    attempt_notes: list[str] = []
+    rs_out = resample_cached_window(
+        data=data,
+        cache_dir=cache_dir,
+        symbol=symbol,
+        exchange=exchange,
+        start=start,
+        end=end,
+        dst_bar_size=bar_size,
+        use_rth=use_rth,
+        src_bar_size=None,
+    )
+    if rs_out.ok:
+        src_note = (
+            f"{rs_out.src_bar_size} ({rs_out.src_path})"
+            if rs_out.src_path is not None
+            else str(rs_out.src_bar_size)
+        )
+        attempt_notes.append(f"auto_resample_ok:{src_note}")
+        ok2, expected2, resolved2, missing2, err2 = ensure_offline_cached_window(
+            data=data,
+            cache_dir=cache_dir,
+            symbol=symbol,
+            exchange=exchange,
+            start=start,
+            end=end,
+            bar_size=bar_size,
+            use_rth=use_rth,
+        )
+        if ok2:
+            return ok2, expected2, resolved2, missing2, err2
+        err = err2
+        expected = expected2
+        resolved = resolved2
+        missing_ranges = missing2
+    elif rs_out.error:
+        attempt_notes.append(str(rs_out.error))
+
+    try:
+        data.load_or_fetch_bar_series(
+            symbol=symbol,
+            exchange=exchange,
+            start=start,
+            end=end,
+            bar_size=bar_size,
+            use_rth=use_rth,
+            cache_dir=cache_dir,
+        )
+        attempt_notes.append("auto_fetch_attempted")
+    except Exception as exc:
+        attempt_notes.append(f"auto_fetch_error:{exc}")
+
+    ok3, expected3, resolved3, missing3, err3 = ensure_offline_cached_window(
+        data=data,
+        cache_dir=cache_dir,
+        symbol=symbol,
+        exchange=exchange,
+        start=start,
+        end=end,
+        bar_size=bar_size,
+        use_rth=use_rth,
+    )
+    if ok3:
+        return ok3, expected3, resolved3, missing3, err3
+
+    details = [str(err3 or err or "").strip(), *[str(x).strip() for x in attempt_notes if str(x).strip()]]
+    err_out = "; ".join([x for x in details if x])
+    return ok3, expected3, resolved3, missing3, (err_out or None)
+
+
 def _repo_root() -> Path:
     return Path(__file__).resolve().parents[3]
 
@@ -1869,59 +2081,38 @@ def main_resample(argv: list[str]) -> None:
     use_rth = bool(args.use_rth)
     src_bar_size = str(args.src_bar_size).strip()
     dst_bar_size = str(args.dst_bar_size).strip()
-
-    src_path = cache_path(cache_dir, symbol, start_dt, end_dt, src_bar_size, use_rth)
-    if not src_path.exists():
-        # Reuse the same cache intelligence as backtest loaders:
-        # exact -> covering -> overlap-stitch (persisted exact file).
-        provider = IBKRHistoricalData()
+    provider = IBKRHistoricalData()
+    try:
+        out = resample_cached_window(
+            data=provider,
+            cache_dir=cache_dir,
+            symbol=symbol,
+            exchange=None,
+            start=start_dt,
+            end=end_dt,
+            dst_bar_size=dst_bar_size,
+            use_rth=use_rth,
+            src_bar_size=src_bar_size,
+        )
+    finally:
         try:
-            src_series = provider.load_cached_bar_series(
-                symbol=symbol,
-                exchange=None,
-                start=start_dt,
-                end=end_dt,
-                bar_size=src_bar_size,
-                use_rth=use_rth,
-                cache_dir=cache_dir,
-            )
-        except FileNotFoundError as exc:
-            raise SystemExit(f"Source cache not found: {src_path} ({exc})") from exc
-        finally:
-            try:
-                provider.disconnect()
-            except Exception:
-                pass
-        source_path = str(getattr(src_series.meta, "source_path", "") or "").strip()
-        if source_path:
-            src_path = Path(source_path)
-        if not src_path.exists():
-            raise SystemExit(f"Source cache not found after cache resolution: {src_path}")
-
-    src_bars = [b for b in read_cache(src_path) if start_dt <= b.ts <= end_dt]
-    if not src_bars:
-        raise SystemExit(f"Source cache is empty after slicing: {src_path}")
-
-    dst_bars, stats = _resample_intraday_ohlcv(
-        src_bars,
-        src_bar_size=src_bar_size,
-        dst_bar_size=dst_bar_size,
-        allow_day_from_partial=bool(use_rth),
-    )
-    if not dst_bars:
-        raise SystemExit("Resample produced 0 bars (likely misaligned source cache).")
-
-    dst_path = cache_path(cache_dir, symbol, start_dt, end_dt, dst_bar_size, use_rth)
-    dst_path.parent.mkdir(parents=True, exist_ok=True)
-    write_cache(dst_path, dst_bars)
+            provider.disconnect()
+        except Exception:
+            pass
+    if not out.ok:
+        raise SystemExit(f"Resample failed: {out.error or 'unknown_error'}")
+    if not out.src_path:
+        raise SystemExit("Resample failed to resolve source cache path.")
 
     print("")
     print("=== cache resample ===")
     print(f"- symbol={symbol} use_rth={use_rth}")
-    print(f"- src={src_bar_size} rows={len(src_bars)} path={src_path}")
-    print(f"- dst={dst_bar_size} rows={len(dst_bars)} path={dst_path}")
-    print(f"- dropped_incomplete={stats.dropped_incomplete}")
-    print(f"- first={dst_bars[0].ts} last={dst_bars[-1].ts}")
+    print(f"- src={src_bar_size} rows={int(out.src_rows)} path={out.src_path}")
+    print(f"- dst={dst_bar_size} rows={int(out.dst_rows)} path={out.dst_path}")
+    print(f"- dropped_incomplete={int(out.dropped_incomplete)}")
+    dst_bars = read_cache(out.dst_path)
+    if dst_bars:
+        print(f"- first={dst_bars[0].ts} last={dst_bars[-1].ts}")
     print("")
 
 
