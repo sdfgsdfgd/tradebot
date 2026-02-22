@@ -438,21 +438,6 @@ class IBKRHistoricalData:
         cache_dir: Path,
     ) -> BarSeries[Bar]:
         cache_file = cache_path(cache_dir, symbol, start, end, bar_size, use_rth)
-        if cache_file.exists():
-            normalized = _normalize_bars(read_cache(cache_file), symbol=symbol, bar_size=bar_size, use_rth=use_rth)
-            return BarSeries(
-                bars=tuple(normalized),
-                meta=_series_meta(
-                    symbol=symbol,
-                    bar_size=bar_size,
-                    use_rth=use_rth,
-                    source="cache",
-                    source_path=cache_file,
-                    start=start,
-                    end=end,
-                ),
-            )
-
         covering = find_covering_cache_path(
             cache_dir=cache_dir,
             symbol=symbol,
@@ -462,7 +447,12 @@ class IBKRHistoricalData:
             use_rth=use_rth,
         )
         if covering is not None:
-            sliced = [bar for bar in read_cache(covering) if start <= bar.ts <= end]
+            if covering == cache_file:
+                sliced = read_cache(cache_file)
+                source = "cache"
+            else:
+                sliced = [bar for bar in read_cache(covering) if start <= bar.ts <= end]
+                source = "cache-covering"
             normalized = _normalize_bars(sliced, symbol=symbol, bar_size=bar_size, use_rth=use_rth)
             return BarSeries(
                 bars=tuple(normalized),
@@ -470,7 +460,7 @@ class IBKRHistoricalData:
                     symbol=symbol,
                     bar_size=bar_size,
                     use_rth=use_rth,
-                    source="cache-covering",
+                    source=source,
                     source_path=covering,
                     start=start,
                     end=end,
@@ -943,7 +933,10 @@ def find_covering_cache_path(
             span_days = (meta.end_date - meta.start_date).days
             candidates.append((tag_rank[meta.tag], span_days, path))
     if candidates:
-        candidates.sort(key=lambda t: (t[0], t[1]))
+        # Prefer the broadest covering cache. Narrower window-specific caches can
+        # diverge from the canonical wide-range cache (IBKR replay drift), which
+        # breaks deterministic backtest parity.
+        candidates.sort(key=lambda t: (t[0], -t[1]))
         return candidates[0][2]
     return None
 

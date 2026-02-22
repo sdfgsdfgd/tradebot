@@ -88,6 +88,22 @@ def strategy_from_payload(strategy: dict, *, filters: FiltersConfig | None) -> S
         raise ValueError(f"strategy must be an object, got: {strategy!r}")
 
     raw = dict(strategy)
+
+    # Match live UI hydration semantics: if a spot-STK strategy is explicitly
+    # full24 (signal_use_rth=false) but does not set spot_next_open_session,
+    # force tradable_24x5 so deferred fill modes (next_open/next_tradable_bar)
+    # schedule against the intended session window.
+    instrument = str(raw.get("instrument", "spot") or "spot").strip().lower()
+    sec_type = str(raw.get("spot_sec_type") or "STK").strip().upper()
+    mode_raw = str(raw.get("spot_next_open_session") or "").strip()
+    use_rth_raw = raw.get("signal_use_rth")
+    if isinstance(use_rth_raw, str):
+        use_rth = use_rth_raw.strip().lower() in ("1", "true", "yes", "on")
+    else:
+        use_rth = bool(use_rth_raw)
+    if instrument == "spot" and sec_type == "STK" and not use_rth and not mode_raw:
+        raw["spot_next_open_session"] = "tradable_24x5"
+
     raw.pop("signal_bar_size", None)
     raw.pop("signal_use_rth", None)
     raw.pop("spot_sec_type", None)

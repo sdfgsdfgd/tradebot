@@ -67,6 +67,25 @@ def load_config(path: str | Path) -> ConfigBundle:
 
     backtest = BacktestConfig(**_parse_from_schema(backtest_raw, _backtest_schema()))
     instrument = _parse_instrument(strategy_raw.get("instrument"))
+
+    # Keep strategy session intent aligned across live + backtest:
+    # if a spot-STK strategy is full24 (signal_use_rth=false or backtest.use_rth=false)
+    # but spot_next_open_session is missing, force tradable_24x5 so deferred fills
+    # (next_open/next_tradable_bar) schedule correctly.
+    if instrument == "spot":
+        mode_raw = str(strategy_raw.get("spot_next_open_session") or "").strip()
+        sec_type = str(strategy_raw.get("spot_sec_type") or "STK").strip().upper()
+        use_rth_raw = strategy_raw.get("signal_use_rth")
+        if isinstance(use_rth_raw, str):
+            signal_use_rth = use_rth_raw.strip().lower() in ("1", "true", "yes", "on")
+        elif use_rth_raw is None:
+            signal_use_rth = bool(backtest.use_rth)
+        else:
+            signal_use_rth = bool(use_rth_raw)
+        if sec_type == "STK" and not bool(signal_use_rth) and not mode_raw:
+            strategy_raw = dict(strategy_raw)
+            strategy_raw["spot_next_open_session"] = "tradable_24x5"
+
     strategy_input = _translate_legacy_strategy_payload(strategy_raw, instrument=instrument)
     if instrument == "spot":
         strategy_payload = _parse_from_schema(strategy_input, _spot_strategy_schema())
