@@ -1,0 +1,6 @@
+{
+  "name": "spot_milestones",
+  "generated_at": "2026-02-22T09:33:04.296673Z",
+  "notes": "Auto-generated via evolve_spot.py (post-fix). window=2025-02-14\u21922026-02-14, bar_size=10 mins, use_rth=False. thresholds: win>=0.00, trades>=694, pnl/dd>=-99.00.",
+  "groups": []
+}
