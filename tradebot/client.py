@@ -5618,7 +5618,7 @@ class IBKRClient:
 
         for what_to_show in ("TRADES", "MIDPOINT", "BID_ASK"):
             bars = await _fetch(
-                duration_str="3 H",
+                duration_str="10800 S",
                 bar_size="1 min",
                 use_rth=False,
                 what_to_show=what_to_show,

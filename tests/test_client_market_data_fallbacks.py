@@ -963,7 +963,7 @@ def test_attempt_main_contract_historical_quote_populates_last(monkeypatch) -> N
         what_to_show: str,
         cache_ttl_sec: float,
     ):
-        assert duration_str == "3 H"
+        assert duration_str == "10800 S"
         assert bar_size == "1 min"
         assert use_rth is False
         assert cache_ttl_sec == 20.0
@@ -1026,7 +1026,7 @@ def test_attempt_main_contract_historical_quote_uses_daily_fallback_for_fop(monk
     assert float(ticker.last) == 41.75
     assert float(ticker.close) == 41.75
     assert str(getattr(ticker, "tbQuoteSource", "")) == "historical-daily-trades"
-    assert ("3 H", "1 min", "TRADES", False, 20.0) in seen_requests
+    assert ("10800 S", "1 min", "TRADES", False, 20.0) in seen_requests
     assert ("2 M", "1 day", "TRADES", False, 120.0) in seen_requests
 
 
@@ -1068,7 +1068,7 @@ def test_attempt_main_contract_historical_quote_uses_daily_fallback_for_fut(monk
     assert float(ticker.last) == 5010.5
     assert float(ticker.close) == 5010.5
     assert str(getattr(ticker, "tbQuoteSource", "")) == "historical-daily-trades"
-    assert ("3 H", "1 min", "TRADES", False, 20.0) in seen_requests
+    assert ("10800 S", "1 min", "TRADES", False, 20.0) in seen_requests
     assert ("2 M", "1 day", "TRADES", False, 120.0) in seen_requests
 
 
