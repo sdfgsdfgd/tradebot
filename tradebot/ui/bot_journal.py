@@ -875,6 +875,11 @@ class BotJournal:
         strategy = BotJournal._coerce_mapping(extra.get("strategy"))
         filters = BotJournal._coerce_mapping(extra.get("filters"))
 
+        def _health_faults(raw: object) -> tuple[bool, bool]:
+            if not isinstance(raw, dict):
+                return False, False
+            return bool(raw.get("stale")), bool(raw.get("gap_detected"))
+
         line1: list[str] = []
         BotJournal._append_hhmm(line1, label="time", value=detail.get("bar_ts"), min_len=16)
         if detail.get("direction") in ("up", "down"):
@@ -902,6 +907,31 @@ class BotJournal:
         state = detail.get("state")
         if state in ("up", "down"):
             line1.append(f"state={BotJournal._dir_badge(state)}")
+        signal_stale, signal_gap = _health_faults(detail.get("bar_health"))
+        regime_stale, regime_gap = _health_faults(detail.get("regime_bar_health"))
+        regime2_stale, regime2_gap = _health_faults(detail.get("regime2_bar_health"))
+        health_gate = ""
+        health_faults: list[str] = []
+        if regime_stale or regime_gap:
+            health_gate = "regime"
+            if regime_stale:
+                health_faults.append("stale")
+            if regime_gap:
+                health_faults.append("gap")
+        elif regime2_stale or regime2_gap:
+            health_gate = "regime2"
+            if regime2_stale:
+                health_faults.append("stale")
+            if regime2_gap:
+                health_faults.append("gap")
+        elif signal_stale or signal_gap:
+            health_gate = "signal"
+            if signal_stale:
+                health_faults.append("stale")
+            if signal_gap:
+                health_faults.append("gap")
+        if health_gate and health_faults:
+            line1.append(f"health_gate={health_gate}({','.join(health_faults)})")
         line1_text = BotJournal._join_tokens(line1)
         lines: list[str] = [line1_text] if line1_text else []
 

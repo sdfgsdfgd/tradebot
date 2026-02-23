@@ -29,6 +29,7 @@ from tradebot.ui.bot_journal import BotJournal
 from tradebot.ui.bot_models import _BotInstance, _BotOrder
 from tradebot.ui.bot_order_builder import BotOrderBuilderMixin
 from tradebot.ui.bot_signal_runtime import BotSignalRuntimeMixin
+from tradebot.ui.bot import BotScreen
 import tradebot.ui.bot_signal_runtime as bot_signal_runtime_module
 
 
@@ -913,6 +914,36 @@ def test_journal_gate_formats_filter_map_and_lifecycle_context() -> None:
     assert "graph_entry" in msg
 
 
+def test_journal_gate_health_token_distinguishes_signal_vs_regime_blockers() -> None:
+    signal_gate = BotJournal._in_app_entry(
+        now_et=datetime(2026, 2, 9, 11, 29),
+        event="GATE",
+        reason="WAITING_DATA_GAP",
+        instance_id="1",
+        symbol="SLV",
+        extra={},
+        detail={
+            "bar_ts": "2026-02-09T11:10:00",
+            "bar_health": {"stale": False, "gap_detected": True},
+        },
+    )
+    regime_gate = BotJournal._in_app_entry(
+        now_et=datetime(2026, 2, 9, 11, 29),
+        event="GATE",
+        reason="WAITING_REGIME_HEALTH",
+        instance_id="1",
+        symbol="SLV",
+        extra={},
+        detail={
+            "bar_ts": "2026-02-09T11:10:00",
+            "bar_health": {"stale": False, "gap_detected": False},
+            "regime_bar_health": {"stale": True, "gap_detected": False},
+        },
+    )
+    assert "health_gate=signal(gap)" in str(signal_gate["msg"])
+    assert "health_gate=regime(stale)" in str(regime_gate["msg"])
+
+
 def test_active_knob_tokens_ignore_max_tokens_limit() -> None:
     kwargs = dict(
         meta={
@@ -1175,6 +1206,94 @@ def test_auto_tick_blocks_waiting_regime_health_when_flat() -> None:
     asyncio.run(harness._auto_order_tick())
 
     assert any(
+        event == "GATE" and reason == "WAITING_REGIME_HEALTH"
+        for event, reason, _data in harness._events
+    )
+
+
+def test_auto_tick_does_not_block_regime_health_on_sunday_daily_carry() -> None:
+    try:
+        asyncio.get_event_loop()
+    except RuntimeError:
+        asyncio.set_event_loop(asyncio.new_event_loop())
+    screen = BotScreen(client=SimpleNamespace(), refresh_sec=1.0)
+
+    class _TsBar:
+        def __init__(self, ts: datetime) -> None:
+            self.ts = ts
+
+    regime_health = screen._signal_bar_health(
+        bars=[
+            _TsBar(datetime(2026, 2, 18, 0, 0)),
+            _TsBar(datetime(2026, 2, 19, 0, 0)),
+            _TsBar(datetime(2026, 2, 20, 0, 0)),
+        ],
+        bar_size="1 day",
+        now_ref=datetime(2026, 2, 22, 22, 49),
+        use_rth=False,
+        sec_type="STK",
+        source="TRADES",
+        strict_zero_gap=True,
+    )
+    assert regime_health["stale"] is False
+
+    bar_ts = datetime(2026, 2, 22, 22, 30)
+    signal = SimpleNamespace(
+        state="up",
+        entry_dir="up",
+        cross_up=False,
+        cross_down=False,
+        ema_ready=True,
+        regime_dir="up",
+        regime_ready=True,
+        ema_fast=74.0,
+        ema_slow=73.5,
+        prev_ema_fast=73.9,
+    )
+    snap = SimpleNamespace(
+        bar_ts=bar_ts,
+        close=74.2,
+        signal=signal,
+        bars_in_day=5,
+        rv=None,
+        volume=1000.0,
+        volume_ema=None,
+        volume_ema_ready=True,
+        shock=False,
+        shock_dir="up",
+        shock_atr_pct=0.4,
+        risk=None,
+        atr=None,
+        or_high=None,
+        or_low=None,
+        or_ready=False,
+        bar_health={
+            "stale": False,
+            "gap_detected": False,
+            "last_bar_ts": bar_ts,
+            "recent_gap_count": 0,
+            "max_gap_bars": 0.0,
+        },
+        regime_bar_health=regime_health,
+    )
+    instance = _new_instance(
+        strategy={
+            "entry_signal": "ema",
+            "ema_preset": "5/13",
+            "regime_mode": "supertrend",
+            "regime_bar_size": "1 day",
+            "instrument": "spot",
+        },
+        filters={
+            "entry_start_hour_et": 9,
+            "entry_end_hour_et": 10,
+        },
+    )
+    harness = _GapGateHarness(instance=instance, snap=snap)
+
+    asyncio.run(harness._auto_order_tick())
+
+    assert not any(
         event == "GATE" and reason == "WAITING_REGIME_HEALTH"
         for event, reason, _data in harness._events
     )

@@ -3001,6 +3001,45 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             return threshold
         return threshold
 
+    def _signal_effective_lag_bars(
+        self,
+        *,
+        last_bar_ts: datetime | None,
+        now_ref: datetime,
+        bar_seconds: float,
+        use_rth: bool,
+        sec_type: str,
+        stale_threshold_bars: float,
+    ) -> float:
+        if last_bar_ts is None or bar_seconds <= 0:
+            return float("inf")
+        age_sec = max(0.0, float((now_ref - last_bar_ts).total_seconds()))
+        age_lag_bars = float(age_sec / bar_seconds)
+        if bool(use_rth) or bar_seconds < 3600.0:
+            return age_lag_bars
+
+        # For HTF full24 bars, measure lag by expected live slot transitions instead
+        # of raw wall-clock time so weekends/holidays do not false-trigger staleness.
+        tolerance_sec = min(60.0, max(1.0, bar_seconds * 0.02))
+        probe_cap = max(4, int(math.ceil(stale_threshold_bars)) + 2)
+        live_slots = 0
+        probe_ts = last_bar_ts
+        step = timedelta(seconds=bar_seconds)
+        while live_slots < probe_cap:
+            probe_ts = probe_ts + step
+            if probe_ts > now_ref:
+                break
+            if (now_ref - probe_ts).total_seconds() < tolerance_sec:
+                continue
+            if not self._signal_expected_live_bars(
+                now_ref=probe_ts,
+                use_rth=use_rth,
+                sec_type=sec_type,
+            ):
+                continue
+            live_slots += 1
+        return float(1 + live_slots)
+
     def _signal_bar_health(
         self,
         *,
@@ -3024,7 +3063,6 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             else 300.0
         )
         age_sec = max(0.0, float((now_ref - last_bar_ts).total_seconds())) if last_bar_ts is not None else float("inf")
-        lag_bars = float(age_sec / bar_seconds) if bar_seconds > 0 else float("inf")
         expected_live = self._signal_expected_live_bars(
             now_ref=now_ref,
             use_rth=use_rth,
@@ -3036,6 +3074,14 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             sec_type=sec_type,
             source=source,
             bar_seconds=bar_seconds,
+        )
+        lag_bars = self._signal_effective_lag_bars(
+            last_bar_ts=last_bar_ts,
+            now_ref=now_ref,
+            bar_seconds=bar_seconds,
+            use_rth=use_rth,
+            sec_type=sec_type,
+            stale_threshold_bars=stale_threshold_bars,
         )
         stale = bool(last_bar_ts is None or (expected_live and lag_bars > stale_threshold_bars))
         gap_stats = self._signal_gap_stats(
@@ -3050,6 +3096,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             "last_bar_ts": last_bar_ts,
             "age_sec": None if math.isinf(age_sec) else float(age_sec),
             "lag_bars": None if math.isinf(lag_bars) else float(lag_bars),
+            "lag_bars_wall": None if math.isinf(age_sec) else float(age_sec / bar_seconds),
             "stale": bool(stale),
             "expected_live": bool(expected_live),
             "session": _market_session_bucket(now_ref),

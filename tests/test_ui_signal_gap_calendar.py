@@ -68,6 +68,46 @@ def test_expected_live_full24_respects_early_close_post_cutoff() -> None:
     ) is False
 
 
+def test_daily_full24_weekend_carry_does_not_mark_stale() -> None:
+    screen = _screen()
+    health = screen._signal_bar_health(
+        bars=[
+            _TsBar(datetime(2026, 2, 18, 0, 0)),
+            _TsBar(datetime(2026, 2, 19, 0, 0)),
+            _TsBar(datetime(2026, 2, 20, 0, 0)),
+        ],
+        bar_size="1 day",
+        now_ref=datetime(2026, 2, 22, 22, 49),
+        use_rth=False,
+        sec_type="STK",
+        source="TRADES",
+        strict_zero_gap=True,
+    )
+    assert health["expected_live"] is True
+    assert health["stale"] is False
+    assert health["lag_bars"] == 1.0
+
+
+def test_daily_full24_marks_stale_after_missed_trading_close() -> None:
+    screen = _screen()
+    health = screen._signal_bar_health(
+        bars=[
+            _TsBar(datetime(2026, 2, 18, 0, 0)),
+            _TsBar(datetime(2026, 2, 19, 0, 0)),
+            _TsBar(datetime(2026, 2, 20, 0, 0)),
+        ],
+        bar_size="1 day",
+        now_ref=datetime(2026, 2, 24, 12, 0),
+        use_rth=False,
+        sec_type="STK",
+        source="TRADES",
+        strict_zero_gap=True,
+    )
+    assert health["expected_live"] is True
+    assert health["stale"] is True
+    assert float(health["lag_bars"]) > float(health["stale_threshold_bars"])
+
+
 def test_daily_holiday_gap_is_not_flagged() -> None:
     screen = _screen()
     stats = screen._signal_gap_stats(
