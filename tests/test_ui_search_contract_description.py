@@ -617,3 +617,136 @@ def test_render_search_option_expiry_line_shows_more_hint() -> None:
     assert rendered
     rendered_text = str(getattr(rendered[-1], "plain", rendered[-1]))
     assert "[+more]" in rendered_text
+
+
+def test_run_search_opt_schedules_idle_expiry_prefetch_when_more_available() -> None:
+    positions_app = _load_positions_app()
+    app = positions_app.__new__(positions_app)
+    generation = 41
+    app._SEARCH_DEBOUNCE_SEC = 0.0
+    app._search_generation = generation
+    app._search_mode_index = positions_app._SEARCH_MODES.index("OPT")
+    app._search_loading = True
+    app._search_error = None
+    app._search_results = []
+    app._search_selected = 0
+    app._search_scroll = 0
+    app._search_side = 0
+    app._search_opt_expiry_index = 0
+    app._search_query = "NVDA"
+    app._search_timing = {"generation": generation}
+    app._search_opt_underlyers = []
+    app._search_opt_underlyer_descriptions = {}
+    app._search_symbol_labels = {}
+    app._search_opt_underlyer_index = 0
+    app._search_opt_chain_cache = {}
+    app._search_opt_chain_page_cache = {}
+    app._search_active = True
+    app._search_expiry_has_more = False
+    app._search_expiry_loading_more = False
+    app._render_search = lambda: None
+    app._ensure_search_visible = lambda: None
+    app._default_opt_row_index = lambda: 0
+    queued_prefetch: list[int] = []
+    app._queue_search_idle_expiry_prefetch = (
+        lambda *, generation: queued_prefetch.append(int(generation))
+    )
+
+    call_contract = Contract(
+        secType="OPT",
+        symbol="NVDA",
+        exchange="SMART",
+        currency="USD",
+        lastTradeDateOrContractMonth="20260220",
+        strike=190.0,
+        right="C",
+    )
+    call_contract.conId = 998101
+    put_contract = Contract(
+        secType="OPT",
+        symbol="NVDA",
+        exchange="SMART",
+        currency="USD",
+        lastTradeDateOrContractMonth="20260220",
+        strike=190.0,
+        right="P",
+    )
+    put_contract.conId = 998102
+
+    async def _search_option_underlyers(
+        _query: str,
+        *,
+        limit: int,
+        timing: dict[str, object] | None = None,
+    ):
+        assert limit == positions_app._SEARCH_OPT_UNDERLYER_LIMIT
+        if timing is not None:
+            timing.update({"total_ms": 1.0, "source": "direct"})
+        return [("NVDA", "Equity Option")]
+
+    async def _search_contracts(
+        _query: str,
+        *,
+        mode: str,
+        limit: int,
+        opt_underlyer_symbol: str | None = None,
+        timing: dict[str, object] | None = None,
+        **kwargs,
+    ) -> list[Contract]:
+        assert mode == "OPT"
+        assert limit == positions_app._SEARCH_OPT_FETCH_LIMIT
+        assert str(opt_underlyer_symbol or "").upper() == "NVDA"
+        assert callable(kwargs.get("opt_progress"))
+        if timing is not None:
+            timing.update(
+                {
+                    "candidate_count": 2,
+                    "qualified_count": 2,
+                    "stage": "done",
+                    "reason": "ok",
+                    "total_ms": 15.0,
+                    "has_more_expiries": True,
+                    "next_expiry_offset": 2,
+                    "expiry_count": 6,
+                }
+            )
+        return [call_contract, put_contract]
+
+    app._client = SimpleNamespace(
+        search_option_underlyers=_search_option_underlyers,
+        search_contracts=_search_contracts,
+    )
+
+    asyncio.run(
+        app._run_search(
+            generation,
+            "NVDA",
+            "OPT",
+            fetch_limit=positions_app._SEARCH_OPT_FETCH_LIMIT,
+        )
+    )
+
+    assert queued_prefetch == [generation]
+
+
+def test_run_search_idle_expiry_prefetch_queues_next_page() -> None:
+    positions_app = _load_positions_app()
+    app = positions_app.__new__(positions_app)
+    generation = 7
+    app._SEARCH_EXPIRY_IDLE_PREFETCH_SEC = 0.0
+    app._search_generation = generation
+    app._search_active = True
+    app._search_mode_index = positions_app._SEARCH_MODES.index("FOP")
+    app._search_expiry_has_more = True
+    app._search_expiry_loading_more = False
+    app._search_loading = False
+    app._search_query = "MNQ"
+    app._search_expiry_prefetch_generation = generation
+    app._search_expiry_prefetch_task = None
+    queued: list[bool] = []
+    app._queue_search_next_expiry_page = lambda: queued.append(True)
+
+    asyncio.run(app._run_search_idle_expiry_prefetch(generation))
+
+    assert queued == [True]
+    assert app._search_expiry_prefetch_task is None

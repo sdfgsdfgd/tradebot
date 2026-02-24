@@ -80,6 +80,7 @@ class PositionsApp(App):
     _SEARCH_OPT_FIRST_PAINT_LIMIT = 12
     _SEARCH_OPT_UNDERLYER_LIMIT = 8
     _SEARCH_DEBOUNCE_SEC = 0.18
+    _SEARCH_EXPIRY_IDLE_PREFETCH_SEC = 0.35
     _SNAPSHOT_THROTTLE_MIN_SEC = 1.0
 
     _SECTION_HEADER_STYLE_BY_TYPE = {
@@ -334,6 +335,8 @@ class PositionsApp(App):
         self._search_expiry_total = 0
         self._search_expiry_loading_more = False
         self._search_expiry_auto_advance_from: int | None = None
+        self._search_expiry_prefetch_task: asyncio.Task | None = None
+        self._search_expiry_prefetch_generation = -1
         self._search_timing: dict[str, object] = {}
         self._search_task: asyncio.Task | None = None
 
@@ -682,6 +685,13 @@ class PositionsApp(App):
         if self._search_task and not self._search_task.done():
             self._search_task.cancel()
         self._search_task = None
+        self._cancel_search_expiry_prefetch()
+
+    def _cancel_search_expiry_prefetch(self) -> None:
+        task = getattr(self, "_search_expiry_prefetch_task", None)
+        if task is not None and not task.done():
+            task.cancel()
+        self._search_expiry_prefetch_task = None
 
     def _reset_search_expiry_paging(self) -> None:
         self._search_expiry_has_more = False
@@ -1498,6 +1508,7 @@ class PositionsApp(App):
         symbol = self._current_opt_underlyer() if mode == "OPT" else None
         if mode == "OPT" and not symbol:
             return
+        self._cancel_search_expiry_prefetch()
         self._search_expiry_loading_more = True
         self._search_loading = True
         self._search_error = None
@@ -1530,6 +1541,53 @@ class PositionsApp(App):
                 opt_underlyer_symbol=symbol,
             )
         )
+
+    def _queue_search_idle_expiry_prefetch(self, *, generation: int) -> None:
+        if int(generation) != int(self._search_generation):
+            return
+        if not bool(getattr(self, "_search_active", True)):
+            return
+        mode = self._search_mode()
+        if not self._is_option_search_mode(mode):
+            return
+        if not bool(getattr(self, "_search_expiry_has_more", False)):
+            return
+        if bool(getattr(self, "_search_loading", False)) or bool(
+            getattr(self, "_search_expiry_loading_more", False)
+        ):
+            return
+        if int(getattr(self, "_search_expiry_prefetch_generation", -1)) == int(generation):
+            return
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        self._cancel_search_expiry_prefetch()
+        self._search_expiry_prefetch_generation = int(generation)
+        self._search_expiry_prefetch_task = loop.create_task(
+            self._run_search_idle_expiry_prefetch(int(generation))
+        )
+
+    async def _run_search_idle_expiry_prefetch(self, generation: int) -> None:
+        try:
+            await asyncio.sleep(float(self._SEARCH_EXPIRY_IDLE_PREFETCH_SEC))
+        except asyncio.CancelledError:
+            return
+        try:
+            if int(generation) != int(self._search_generation):
+                return
+            if not bool(getattr(self, "_search_active", True)):
+                return
+            if not bool(getattr(self, "_search_expiry_has_more", False)):
+                return
+            if bool(getattr(self, "_search_loading", False)) or bool(
+                getattr(self, "_search_expiry_loading_more", False)
+            ):
+                return
+            self._queue_search_next_expiry_page()
+        finally:
+            if int(generation) == int(getattr(self, "_search_expiry_prefetch_generation", -1)):
+                self._search_expiry_prefetch_task = None
 
     async def _run_search_next_expiry_page(
         self,
@@ -1633,6 +1691,8 @@ class PositionsApp(App):
             status="done",
             rows=len(self._search_results),
         )
+        if self._is_option_search_mode(mode):
+            self._queue_search_idle_expiry_prefetch(generation=generation)
         self._render_search()
 
     def _queue_search(self) -> None:
@@ -1898,6 +1958,7 @@ class PositionsApp(App):
             status="done",
             rows=len(self._search_results),
         )
+        self._queue_search_idle_expiry_prefetch(generation=generation)
         self._render_search()
 
     async def _run_search_opt_underlyer(
