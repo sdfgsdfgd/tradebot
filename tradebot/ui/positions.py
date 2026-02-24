@@ -492,7 +492,7 @@ class PositionDetailScreen(Screen):
             md_type = int(md_type_raw) if md_type_raw is not None else None
         except (TypeError, ValueError):
             md_type = None
-        if sec_type in ("FUT", "FOP") and md_type in (3, 4):
+        if sec_type in ("FUT", "FOP") and md_type in (2, 3, 4):
             attempted_live_probe = True
             try:
                 live_source = await self._client.refresh_live_snapshot_once(self._item.contract)
@@ -1795,10 +1795,6 @@ class PositionDetailScreen(Screen):
         spark_width = inner
         official_unreal = self._official_unrealized()
         fast_unreal = self._live_unrealized(price or mark)
-        display_unreal = official_unreal if official_unreal is not None else fast_unreal
-        pnl_value = display_unreal
-        display_unreal_label = _fmt_money(display_unreal) if display_unreal is not None else "n/a"
-        unreal_is_estimate = official_unreal is None and fast_unreal is not None
         day_pnl = self._official_daily_contract_pnl()
         day_label = _fmt_money(day_pnl) if day_pnl is not None else "n/a"
         position_qty = float(self._item.position or 0.0)
@@ -1925,11 +1921,27 @@ class PositionDetailScreen(Screen):
         tail_row.append_text(pct24_value)
         tail_row.append("   ")
         tail_row.append("✦ Unreal ", style="#8fbfff")
-        pnl_start = len(tail_row.plain)
-        tail_row.append(display_unreal_label)
-        pnl_end = len(tail_row.plain)
-        if unreal_is_estimate:
+        official_start = -1
+        official_end = -1
+        estimate_start = -1
+        estimate_end = -1
+        if official_unreal is not None:
+            official_start = len(tail_row.plain)
+            tail_row.append(_fmt_money(official_unreal))
+            official_end = len(tail_row.plain)
+            if fast_unreal is not None:
+                tail_row.append(" (", style="dim")
+                estimate_start = len(tail_row.plain)
+                tail_row.append(_fmt_money(fast_unreal))
+                estimate_end = len(tail_row.plain)
+                tail_row.append(")", style="dim")
+        elif fast_unreal is not None:
+            estimate_start = len(tail_row.plain)
+            tail_row.append(_fmt_money(fast_unreal))
+            estimate_end = len(tail_row.plain)
             tail_row.append(" ≈est", style="dim")
+        else:
+            tail_row.append("n/a", style="dim")
         tail_row.append(" ", style="dim")
         tail_row.append("(", style="dim")
         tail_row.append("◷ Day ", style="#8aa0b6")
@@ -1942,7 +1954,10 @@ class PositionDetailScreen(Screen):
         realized_start = len(tail_row.plain)
         tail_row.append(realized)
         realized_end = len(tail_row.plain)
-        tail_row.stylize(self._pnl_style(pnl_value), pnl_start, pnl_end)
+        if official_start >= 0 and official_end > official_start:
+            tail_row.stylize(self._pnl_style(official_unreal), official_start, official_end)
+        if estimate_start >= 0 and estimate_end > estimate_start:
+            tail_row.stylize(self._pnl_style(fast_unreal), estimate_start, estimate_end)
         tail_row.stylize(self._pnl_style(day_pnl), day_start, day_end)
         tail_row.stylize(self._pnl_style(realized_num), realized_start, realized_end)
 

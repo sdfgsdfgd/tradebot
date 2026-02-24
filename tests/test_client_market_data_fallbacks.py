@@ -525,11 +525,10 @@ def test_ensure_index_tickers_reloads_on_session_change(monkeypatch) -> None:
     async def _qualify_index_contracts() -> dict[str, object]:
         return {
             "NQ": SimpleNamespace(
-                symbol="QQQ",
-                exchange="SMART",
-                secType="STK",
+                symbol="NQ",
+                exchange="CME",
+                secType="FUT",
                 conId=8001,
-                primaryExchange="NASDAQ",
             )
         }
 
@@ -539,44 +538,126 @@ def test_ensure_index_tickers_reloads_on_session_change(monkeypatch) -> None:
     monkeypatch.setattr("tradebot.client._session_flags", lambda _now: (False, True))
     asyncio.run(client._ensure_index_tickers())
     assert len(fake_ib.requests) == 1
+    assert fake_ib.market_data_types[-1] == 1
     assert len(fake_ib.cancels) == 0
-    assert str(getattr(fake_ib.requests[-1], "exchange", "")).upper() == "OVERNIGHT"
+    assert str(getattr(fake_ib.requests[-1], "exchange", "")).upper() == "CME"
 
     monkeypatch.setattr("tradebot.client._session_flags", lambda _now: (False, False))
     asyncio.run(client._ensure_index_tickers())
-    assert len(fake_ib.cancels) >= 1
-    assert len(fake_ib.requests) == 2
-    assert str(getattr(fake_ib.requests[-1], "exchange", "")).upper() == "SMART"
+    assert len(fake_ib.cancels) == 0
+    assert len(fake_ib.requests) == 1
+    assert str(getattr(fake_ib.requests[-1], "exchange", "")).upper() == "CME"
 
 
-def test_qualify_index_contracts_resolves_stock_proxies(monkeypatch) -> None:
+def test_ensure_index_tickers_forced_delayed_tracks_futures_session(monkeypatch) -> None:
     client = _new_client()
-    monkeypatch.setattr("tradebot.client._INDEX_PROXY_SYMBOLS", {"NQ": "QQQ", "ES": "SPY"})
-    seen: list[str] = []
+    fake_ib = _FakeProxyIB()
+    client._ib = fake_ib
+    client._index_force_delayed = True
+
+    async def _connect() -> None:
+        return None
+
+    async def _qualify_index_contracts() -> dict[str, object]:
+        return {
+            "NQ": SimpleNamespace(symbol="NQ", exchange="CME", secType="FUT", conId=8201),
+        }
+
+    state = {"open": True}
+
+    def _ladder(_now):
+        return (1, 2, 3, 4) if state["open"] else (1, 2, 4, 3)
+
+    client.connect = _connect  # type: ignore[method-assign]
+    client._qualify_index_contracts = _qualify_index_contracts  # type: ignore[method-assign]
+    monkeypatch.setattr("tradebot.client._session_flags", lambda _now: (False, False))
+    monkeypatch.setattr("tradebot.client._futures_md_ladder", _ladder)
+
+    asyncio.run(client._ensure_index_tickers())
+    assert fake_ib.market_data_types[-1] == 3
+    assert len(fake_ib.requests) == 1
+    assert len(fake_ib.cancels) == 0
+
+    state["open"] = False
+    asyncio.run(client._ensure_index_tickers())
+    assert fake_ib.market_data_types[-1] == 4
+    assert len(fake_ib.requests) == 2
+    assert len(fake_ib.cancels) >= 1
+
+
+def test_index_delayed_strip_resubscribes_on_futures_session_transition(monkeypatch) -> None:
+    client = _new_client()
+    client._index_force_delayed = True
+    client._index_futures_session_open = True
+    client._index_tickers = {
+        "NQ": SimpleNamespace(contract=SimpleNamespace(symbol="NQ", secType="FUT", conId=8801))
+    }
+    calls: list[bool] = []
+
+    def _start_index_resubscribe(*, requalify: bool = False) -> None:
+        calls.append(bool(requalify))
+
+    client._start_index_resubscribe = _start_index_resubscribe  # type: ignore[method-assign]
+    monkeypatch.setattr("tradebot.client._futures_session_is_open", lambda _now: False)
+
+    client._maybe_resubscribe_index_on_session_transition()
+
+    assert client._index_futures_session_open is False
+    assert calls == [False]
+
+
+def test_index_live_strip_ignores_futures_session_transition(monkeypatch) -> None:
+    client = _new_client()
+    client._index_force_delayed = False
+    client._index_futures_session_open = True
+    client._index_tickers = {
+        "NQ": SimpleNamespace(contract=SimpleNamespace(symbol="NQ", secType="FUT", conId=8802))
+    }
+    calls: list[bool] = []
+
+    def _start_index_resubscribe(*, requalify: bool = False) -> None:
+        calls.append(bool(requalify))
+
+    client._start_index_resubscribe = _start_index_resubscribe  # type: ignore[method-assign]
+    monkeypatch.setattr("tradebot.client._futures_session_is_open", lambda _now: False)
+
+    client._maybe_resubscribe_index_on_session_transition()
+
+    assert client._index_futures_session_open is False
+    assert calls == []
+
+
+def test_qualify_index_contracts_resolves_front_futures(monkeypatch) -> None:
+    client = _new_client()
+    monkeypatch.setattr("tradebot.client._INDEX_STRIP_SYMBOLS", ("NQ", "ES"))
+    seen: list[tuple[str, str]] = []
     next_id = {"value": 91000}
 
-    async def _qualify(candidate, use_proxy: bool):
-        seen.append(str(getattr(candidate, "symbol", "")))
+    async def _front_future(symbol: str, *, exchange: str = "CME", cache_ttl_sec: float = 3600.0):
+        seen.append((str(symbol or "").upper(), str(exchange or "").upper()))
+        if str(exchange or "").upper() != "CME":
+            return None
         next_id["value"] += 1
         return SimpleNamespace(
-            symbol=str(getattr(candidate, "symbol", "")),
-            secType="STK",
-            exchange="SMART",
+            symbol=str(symbol or "").upper(),
+            secType="FUT",
+            exchange="CME",
             conId=int(next_id["value"]),
         )
 
-    client._qualify_contract = _qualify  # type: ignore[method-assign]
+    client.front_future = _front_future  # type: ignore[method-assign]
     qualified = asyncio.run(client._qualify_index_contracts())
     assert set(qualified.keys()) == {"NQ", "ES"}
-    assert str(getattr(qualified["NQ"], "symbol", "")) == "QQQ"
-    assert str(getattr(qualified["ES"], "symbol", "")) == "SPY"
-    assert set(seen) == {"QQQ", "SPY"}
+    assert str(getattr(qualified["NQ"], "symbol", "")).upper() == "NQ"
+    assert str(getattr(qualified["ES"], "symbol", "")).upper() == "ES"
+    assert ("NQ", "CME") in seen
+    assert ("ES", "CME") in seen
 
 
-def test_on_error_main_index_stock_permission_forces_delayed() -> None:
+def test_on_error_main_index_permission_forces_delayed() -> None:
     client = _new_client()
     client._index_contracts = {
-        "NQ": SimpleNamespace(symbol="QQQ", secType="STK", conId=93001),
+        "NQ": SimpleNamespace(symbol="NQ", secType="FUT", conId=93001),
     }
     called: dict[str, object] = {"value": False, "requalify": False}
 
@@ -586,7 +667,7 @@ def test_on_error_main_index_stock_permission_forces_delayed() -> None:
 
     client._start_index_resubscribe = _start_index_resubscribe  # type: ignore[method-assign]
 
-    contract = SimpleNamespace(symbol="QQQ", secType="STK", conId=93001)
+    contract = SimpleNamespace(symbol="NQ", secType="FUT", conId=93001)
     client._on_error_main(0, 354, "No market data subscription", contract)
 
     assert client._index_force_delayed is True
@@ -1283,6 +1364,49 @@ def test_watch_main_contract_quote_promotes_md3_to_delayed_frozen_when_topline_s
     assert seen_resubscribe == [4]
 
 
+def test_watch_main_contract_quote_promotes_md2_to_live_when_session_open(monkeypatch) -> None:
+    client = _new_client()
+    contract = Contract(secType="FUT", symbol="1OZ", exchange="COMEX", currency="USD")
+    contract.conId = 753716628
+    ticker = SimpleNamespace(
+        contract=contract,
+        bid=5017.0,
+        ask=5017.5,
+        last=5017.25,
+        close=5008.0,
+        prevLast=5008.0,
+        marketDataType=2,
+        tbQuoteUpdatedMono=198.0,
+        tbTopQuoteUpdatedMono=198.0,
+    )
+    client._detail_tickers[int(contract.conId)] = (client._ib, ticker)
+
+    seen_probe: list[int] = []
+    seen_resubscribe: list[int | None] = []
+
+    def _start_probe(req_contract) -> None:
+        seen_probe.append(int(getattr(req_contract, "conId", 0) or 0))
+
+    def _resubscribe(_ticker, *, md_type_override: int | None = None):
+        seen_resubscribe.append(md_type_override)
+        client._detail_tickers.pop(int(contract.conId), None)
+        return _ticker
+
+    client._start_main_contract_quote_probe = _start_probe  # type: ignore[method-assign]
+    client._resubscribe_main_contract_stream = _resubscribe  # type: ignore[method-assign]
+    monkeypatch.setattr("tradebot.client.time.monotonic", lambda: 200.0)
+    monkeypatch.setattr("tradebot.client._futures_session_is_open", lambda _now: True)
+
+    async def _sleep(_: float) -> None:
+        return None
+
+    monkeypatch.setattr("asyncio.sleep", _sleep)
+    asyncio.run(client._watch_main_contract_quote(contract))
+
+    assert seen_probe == []
+    assert seen_resubscribe == [1]
+
+
 def test_front_future_ignores_undated_cache_and_prefers_dated_contract() -> None:
     client = _new_client()
     stale = Contract(secType="FUT", symbol="1OZ", exchange="COMEX", currency="USD")
@@ -1589,6 +1713,59 @@ def test_proxy_contract_delayed_flags_clear_when_session_bucket_changes(monkeypa
     assert int(contract.conId) not in client._proxy_contract_force_delayed
     assert started_live == [550011]
     assert started_probe == [550011]
+
+
+def test_proxy_top_row_resubscribes_when_overnight_route_flips(monkeypatch) -> None:
+    client = _new_client()
+    client._proxy_session_bucket = "POST"
+    client._proxy_session_include_overnight = False
+    client._proxy_tickers = {
+        "QQQ": SimpleNamespace(contract=Stock(symbol="QQQ", exchange="SMART", currency="USD"))
+    }
+    calls: list[int] = []
+
+    def _start_proxy_resubscribe() -> None:
+        calls.append(1)
+
+    client._start_proxy_resubscribe = _start_proxy_resubscribe  # type: ignore[method-assign]
+    monkeypatch.setattr("tradebot.client._session_bucket", lambda _now: "OVERNIGHT")
+    monkeypatch.setattr("tradebot.client._session_flags", lambda _now: (False, True))
+
+    client._maybe_reset_proxy_contract_delay_on_session_change()
+
+    assert client._proxy_session_bucket == "OVERNIGHT"
+    assert client._proxy_session_include_overnight is True
+    assert calls == [1]
+
+
+def test_qualify_proxy_contracts_resolves_all_proxy_symbols(monkeypatch) -> None:
+    client = _new_client()
+    monkeypatch.setattr("tradebot.client._PROXY_SYMBOLS", ("QQQ", "SPY", "DIA", "TQQQ"))
+
+    class _ProxyIB:
+        def __init__(self) -> None:
+            self.seen: list[str] = []
+
+        async def qualifyContractsAsync(self, contract):
+            symbol = str(getattr(contract, "symbol", "")).upper()
+            self.seen.append(symbol)
+            return [
+                SimpleNamespace(
+                    symbol=symbol,
+                    secType="STK",
+                    exchange="SMART",
+                    conId=1000 + len(self.seen),
+                )
+            ]
+
+    proxy_ib = _ProxyIB()
+    client._ib_proxy = proxy_ib
+
+    qualified = asyncio.run(client._qualify_proxy_contracts())
+
+    assert set(proxy_ib.seen) == {"QQQ", "SPY", "DIA", "TQQQ"}
+    assert set(qualified.keys()) == {"QQQ", "SPY", "DIA", "TQQQ"}
+    assert all(str(getattr(contract, "exchange", "")).upper() == "SMART" for contract in qualified.values())
 
 
 def test_sync_pnl_single_subscriptions_tracks_portfolio_con_ids() -> None:

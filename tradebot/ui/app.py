@@ -19,6 +19,8 @@ from ..config import load_config
 from ..time_utils import to_et as _to_et_shared
 from .bot_runtime import BotRuntime
 from .common import (
+    _INDEX_FUT_LABELS,
+    _INDEX_FUT_ORDER,
     _INDEX_LABELS,
     _INDEX_ORDER,
     _PROXY_LABELS,
@@ -107,7 +109,7 @@ class PositionsApp(App):
     }
 
     #ticker {
-        height: 2;
+        height: 3;
         padding: 0 1;
     }
 
@@ -3563,13 +3565,20 @@ class PositionsApp(App):
         return None, False
     def _render_ticker_bar(self) -> None:
         prefix = f"MKT:{_market_session_label()} | "
-        line1 = _ticker_line(
-            _INDEX_ORDER,
-            _INDEX_LABELS,
+        line0 = _ticker_line(
+            _INDEX_FUT_ORDER,
+            _INDEX_FUT_LABELS,
             self._index_tickers,
             self._index_error,
             prefix,
             allow_display_fallback=True,
+        )
+        line1 = _ticker_line(
+            _INDEX_ORDER,
+            _INDEX_LABELS,
+            self._proxy_tickers,
+            self._proxy_error,
+            " " * len(prefix),
         )
         line2 = _ticker_line(
             _PROXY_ORDER,
@@ -3579,6 +3588,8 @@ class PositionsApp(App):
             " " * len(prefix),
         )
         text = Text()
+        text.append_text(line0)
+        text.append("\n")
         text.append_text(line1)
         text.append("\n")
         text.append_text(line2)

@@ -325,15 +325,20 @@ _SECTION_ORDER = (
 )
 _SECTION_TYPES = {sec_type for _, sec_type in _SECTION_ORDER}
 
-_INDEX_ORDER = ("NQ", "ES", "YM")
-_INDEX_LABELS = {
-    "NQ": "NASDAQ",
-    "ES": "S&P",
-    "YM": "DOW",
+_INDEX_FUT_ORDER = ("NQ", "ES", "YM")
+_INDEX_FUT_LABELS = {
+    "NQ": "NQ",
+    "ES": "ES",
+    "YM": "YM",
 }
-_PROXY_ORDER = ("QQQ", "TQQQ")
+_INDEX_ORDER = ("QQQ", "SPY", "DIA")
+_INDEX_LABELS = {
+    "QQQ": "NASDAQ",
+    "SPY": "S&P",
+    "DIA": "DOW",
+}
+_PROXY_ORDER = ("TQQQ",)
 _PROXY_LABELS = {
-    "QQQ": "QQQ",
     "TQQQ": "TQQQ",
 }
 _TICKER_WIDTHS = {

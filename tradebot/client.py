@@ -36,12 +36,13 @@ from .config import IBKRConfig
 from .time_utils import NaiveTsMode, now_et as _now_et, now_et_naive as _now_et_naive, to_et as _to_et_shared
 
 # region Constants
-_INDEX_PROXY_SYMBOLS: dict[str, str] = {
-    "NQ": "QQQ",
-    "ES": "SPY",
-    "YM": "DIA",
+_INDEX_STRIP_SYMBOLS = ("NQ", "ES", "YM")
+_INDEX_STRIP_EXCHANGE_HINTS: dict[str, str] = {
+    "NQ": "CME",
+    "ES": "CME",
+    "YM": "CBOT",
 }
-_PROXY_SYMBOLS = ("QQQ", "TQQQ")
+_PROXY_SYMBOLS = ("QQQ", "SPY", "DIA", "TQQQ")
 _PREMARKET_START = dtime(4, 0)
 _RTH_START = dtime(9, 30)
 _RTH_END = dtime(16, 0)
@@ -630,6 +631,7 @@ class IBKRClient:
         self._index_probe_task: asyncio.Task | None = None
         self._index_requalify_on_reload = False
         self._index_session_flags: tuple[bool, bool] | None = None
+        self._index_futures_session_open: bool | None = None
         self._index_session_include_overnight: bool | None = None
         self._index_error: str | None = None
         # Index strip starts live-first and degrades to delayed when needed.
@@ -832,6 +834,7 @@ class IBKRClient:
         self._index_probe_task = None
         self._index_requalify_on_reload = False
         self._index_session_flags = None
+        self._index_futures_session_open = None
         self._index_session_include_overnight = None
         self._index_error = None
         self._index_force_delayed = False
@@ -4455,6 +4458,7 @@ class IBKRClient:
             self._index_probe_task = None
             self._index_requalify_on_reload = False
             self._index_session_flags = None
+            self._index_futures_session_open = None
             self._index_session_include_overnight = None
             self._index_tickers = {}
             self._index_task = None
@@ -4593,45 +4597,80 @@ class IBKRClient:
         self._pnl_single_by_con_id = {}
         self._pnl_single_account = None
 
+    def _index_market_data_type(self, contract: Contract, *, now: datetime) -> int:
+        sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
+        if sec_type in ("FUT", "FOP"):
+            ladder = _futures_md_ladder(now)
+            if self._index_force_delayed:
+                delayed_types = [int(md) for md in ladder if int(md) in (3, 4)]
+                return int(delayed_types[0]) if delayed_types else 3
+            return int(ladder[0]) if ladder else 1
+        return 3 if self._index_force_delayed else 1
+
+    def _index_market_data_contract(
+        self,
+        contract: Contract,
+        *,
+        md_type: int,
+        now: datetime,
+    ) -> Contract:
+        sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
+        if sec_type == "STK":
+            _, include_overnight = _session_flags(now)
+            return self._stock_market_data_contract(
+                contract,
+                include_overnight=include_overnight,
+                delayed=bool(int(md_type) in (3, 4)),
+            )
+        if sec_type in ("FUT", "FOP", "OPT"):
+            return self._normalize_derivative_market_data_contract(
+                contract,
+                sec_type=sec_type,
+            )
+        return contract
+
     async def _ensure_index_tickers(self) -> None:
         await self.connect()
-        current_session_flags = tuple(bool(v) for v in _session_flags(_now_et()))
-        reload_needed = False
-        if self._index_session_flags is None:
-            self._index_session_flags = current_session_flags
-        elif current_session_flags != self._index_session_flags:
-            self._index_session_flags = current_session_flags
-            reload_needed = True
-        md_type = 3 if self._index_force_delayed else 1
-        self._ib.reqMarketDataType(md_type)
+        now = _now_et()
+        current_session_flags = tuple(bool(v) for v in _session_flags(now))
+        self._index_futures_session_open = bool(_futures_session_is_open(now))
+        self._index_session_flags = current_session_flags
+        self._index_session_include_overnight = bool(current_session_flags[1])
         if not self._index_contracts:
             self._index_contracts = await self._qualify_index_contracts()
-        _, include_overnight = _session_flags(_now_et())
-        delayed = bool(md_type == 3)
-        desired_contracts: dict[str, Contract] = {}
+
+        desired_specs: dict[str, tuple[Contract, int]] = {}
         for symbol, contract in self._index_contracts.items():
-            req_contract = contract
-            if str(getattr(contract, "secType", "") or "").strip().upper() == "STK":
-                req_contract = self._stock_market_data_contract(
-                    contract,
-                    include_overnight=include_overnight,
-                    delayed=delayed,
-                )
-            desired_contracts[symbol] = req_contract
-        self._index_session_include_overnight = include_overnight
-        reload_needed = reload_needed or (set(self._index_tickers.keys()) != set(desired_contracts.keys()))
+            md_type = int(self._index_market_data_type(contract, now=now))
+            req_contract = self._index_market_data_contract(
+                contract,
+                md_type=md_type,
+                now=now,
+            )
+            desired_specs[symbol] = (req_contract, md_type)
+
+        reload_needed = set(self._index_tickers.keys()) != set(desired_specs.keys())
         if not reload_needed:
-            for symbol, req_contract in desired_contracts.items():
+            for symbol, (req_contract, req_md_type) in desired_specs.items():
                 ticker = self._index_tickers.get(symbol)
                 if ticker is None:
                     reload_needed = True
                     break
-                current = ticker.contract
+                current = getattr(ticker, "contract", None) or Contract()
                 cur_con_id = int(getattr(current, "conId", 0) or 0)
                 req_con_id = int(getattr(req_contract, "conId", 0) or 0)
                 cur_exchange = str(getattr(current, "exchange", "") or "").strip().upper()
                 req_exchange = str(getattr(req_contract, "exchange", "") or "").strip().upper()
-                if cur_exchange != req_exchange or (req_con_id and cur_con_id != req_con_id):
+                current_req_md_raw = getattr(ticker, "tbRequestedMdType", None)
+                try:
+                    current_req_md = int(current_req_md_raw) if current_req_md_raw is not None else None
+                except (TypeError, ValueError):
+                    current_req_md = None
+                if (
+                    cur_exchange != req_exchange
+                    or (req_con_id and cur_con_id != req_con_id)
+                    or current_req_md != int(req_md_type)
+                ):
                     reload_needed = True
                     break
         if reload_needed:
@@ -4642,8 +4681,11 @@ class IBKRClient:
                     pass
             self._index_tickers = {}
         if not self._index_tickers:
-            for symbol, req_contract in desired_contracts.items():
-                self._index_tickers[symbol] = self._ib.reqMktData(req_contract)
+            for symbol, (req_contract, req_md_type) in desired_specs.items():
+                self._ib.reqMarketDataType(int(req_md_type))
+                ticker = self._ib.reqMktData(req_contract)
+                setattr(ticker, "tbRequestedMdType", int(req_md_type))
+                self._index_tickers[symbol] = ticker
 
     async def _ensure_proxy_tickers(self) -> None:
         await self.connect_proxy()
@@ -4692,15 +4734,22 @@ class IBKRClient:
                 self._proxy_tickers[symbol] = self._ib_proxy.reqMktData(req_contract)
 
     async def _qualify_proxy_contracts(self) -> dict[str, Contract]:
-        qualified: dict[str, Contract] = {}
-        for symbol in _PROXY_SYMBOLS:
+        async def _resolve(symbol: str) -> tuple[str, Contract | None]:
             candidate = Stock(symbol=symbol, exchange="SMART", currency="USD")
             try:
                 result = await self._ib_proxy.qualifyContractsAsync(candidate)
             except Exception:
+                return symbol, None
+            return symbol, (result[0] if result else None)
+
+        tasks = [_resolve(symbol) for symbol in _PROXY_SYMBOLS]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+        qualified: dict[str, Contract] = {}
+        for result in results:
+            if isinstance(result, Exception):
                 continue
-            if result:
-                contract = result[0]
+            symbol, contract = result
+            if contract is not None:
                 qualified[symbol] = contract
         return qualified
 
@@ -4721,15 +4770,30 @@ class IBKRClient:
         return result[0] if result else None
 
     async def _qualify_index_contracts(self) -> dict[str, Contract]:
-        async def _resolve(symbol: str, proxy_symbol: str) -> tuple[str, Contract | None]:
-            candidate = Stock(symbol=proxy_symbol, exchange="SMART", currency="USD")
-            contract = await self._qualify_contract(candidate, use_proxy=False)
+        async def _resolve(symbol: str) -> tuple[str, Contract | None]:
+            contract = None
+            preferred_exchange = str(
+                _INDEX_STRIP_EXCHANGE_HINTS.get(str(symbol or "").strip().upper(), "")
+            ).strip().upper()
+            exchanges: list[str] = []
+            if preferred_exchange:
+                exchanges.append(preferred_exchange)
+            for candidate in self._future_exchange_candidates(symbol, ()):
+                exchange = str(candidate or "").strip().upper()
+                if not exchange or exchange in exchanges:
+                    continue
+                exchanges.append(exchange)
+            for exchange in exchanges:
+                contract = await self.front_future(
+                    symbol,
+                    exchange=exchange,
+                    cache_ttl_sec=1800.0,
+                )
+                if contract is not None:
+                    break
             return symbol, contract
 
-        tasks = [
-            _resolve(symbol, proxy_symbol)
-            for symbol, proxy_symbol in _INDEX_PROXY_SYMBOLS.items()
-        ]
+        tasks = [_resolve(symbol) for symbol in _INDEX_STRIP_SYMBOLS]
         results = await asyncio.gather(*tasks, return_exceptions=True)
         qualified: dict[str, Contract] = {}
         for result in results:
@@ -4753,8 +4817,6 @@ class IBKRClient:
         try:
             async with self._index_lock:
                 await self.connect()
-                md_type = 3 if self._index_force_delayed else 1
-                self._ib.reqMarketDataType(md_type)
                 for ticker in self._index_tickers.values():
                     try:
                         self._ib.cancelMktData(ticker.contract)
@@ -4825,7 +4887,7 @@ class IBKRClient:
         if contract is None:
             return False
         symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
-        if symbol in _INDEX_PROXY_SYMBOLS or symbol in set(_INDEX_PROXY_SYMBOLS.values()):
+        if symbol in _INDEX_STRIP_SYMBOLS:
             return True
         try:
             con_id = int(getattr(contract, "conId", 0) or 0)
@@ -5004,6 +5066,7 @@ class IBKRClient:
         self._index_probe_task = None
         self._index_requalify_on_reload = False
         self._index_session_flags = None
+        self._index_futures_session_open = None
         self._index_session_include_overnight = None
         for task in self._main_contract_probe_tasks.values():
             if task and not task.done():
@@ -5537,17 +5600,29 @@ class IBKRClient:
                     and top_age_sec >= float(_MAIN_CONTRACT_TOPLINE_STALE_REPROBE_SEC)
                     and md_type == 3
                 )
+                promote_live_frozen_to_live = bool(
+                    md_type == 2
+                    and _futures_session_is_open(_now_et())
+                    and (now_mono - last_resubscribe_mono)
+                    >= float(_MAIN_CONTRACT_STALE_RESUBSCRIBE_SEC)
+                )
                 resubscribe_due = bool(
                     (age_sec is not None and age_sec >= float(_MAIN_CONTRACT_STALE_RESUBSCRIBE_SEC))
                     or promote_to_frozen
+                    or promote_live_frozen_to_live
                 )
                 if (
                     resubscribe_due
                     and (now_mono - last_resubscribe_mono) >= float(_MAIN_CONTRACT_STALE_REPROBE_SEC)
                 ):
+                    md_type_override: int | None = None
+                    if promote_to_frozen:
+                        md_type_override = 4
+                    elif promote_live_frozen_to_live:
+                        md_type_override = 1
                     refreshed = self._resubscribe_main_contract_stream(
                         ticker,
-                        md_type_override=4 if promote_to_frozen else None,
+                        md_type_override=md_type_override,
                     )
                     if refreshed is not None:
                         if self._ticker_has_data(refreshed):
@@ -5889,13 +5964,23 @@ class IBKRClient:
                 self._proxy_tickers[symbol] = ticker
 
     def _maybe_reset_proxy_contract_delay_on_session_change(self) -> None:
-        current_bucket = _session_bucket(_now_et())
+        now = _now_et()
+        current_bucket = _session_bucket(now)
+        _, include_overnight = _session_flags(now)
+        current_include_overnight = bool(include_overnight)
         if self._proxy_session_bucket is None:
             self._proxy_session_bucket = current_bucket
+            self._proxy_session_include_overnight = current_include_overnight
             return
         if current_bucket == self._proxy_session_bucket:
             return
+        previous_include_overnight = self._proxy_session_include_overnight
         self._proxy_session_bucket = current_bucket
+        self._proxy_session_include_overnight = current_include_overnight
+        overnight_route_changed = (
+            previous_include_overnight is not None
+            and bool(previous_include_overnight) != current_include_overnight
+        )
         if self._proxy_contract_force_delayed:
             self._proxy_contract_force_delayed = set()
         for _con_id, (ib, ticker) in list(self._detail_tickers.items()):
@@ -5909,6 +5994,8 @@ class IBKRClient:
                 continue
             self._start_proxy_contract_live_resubscribe(contract)
             self._start_proxy_contract_quote_probe(contract)
+        if overnight_route_changed and self._proxy_tickers:
+            self._start_proxy_resubscribe()
 
     def _handle_conn_error(self, error_code: int) -> None:
         if error_code == 1100:
@@ -5997,7 +6084,18 @@ class IBKRClient:
                 )
             await self._ensure_proxy_tickers()
 
+    def _maybe_resubscribe_index_on_session_transition(self) -> None:
+        now = _now_et()
+        futures_open = bool(_futures_session_is_open(now))
+        previous = self._index_futures_session_open
+        self._index_futures_session_open = futures_open
+        if previous is None or previous == futures_open:
+            return
+        if self._index_force_delayed and self._index_tickers:
+            self._start_index_resubscribe(requalify=False)
+
     def _on_stream_update(self, *_, **__) -> None:
+        self._maybe_resubscribe_index_on_session_transition()
         self._maybe_reset_proxy_contract_delay_on_session_change()
         event_tickers = self._event_tickers(*_, **__)
         for ticker in event_tickers:

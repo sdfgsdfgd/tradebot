@@ -30,6 +30,103 @@ def _ensure_event_loop() -> None:
         asyncio.set_event_loop(asyncio.new_event_loop())
 
 
+def test_market_hud_unreal_shows_official_and_estimate() -> None:
+    _ensure_event_loop()
+    contract = Contract(secType="FOP", symbol="MNQ", exchange="CME", currency="USD")
+    contract.conId = 750150193
+    item = PortfolioItem(
+        contract=contract,
+        position=2.0,
+        marketPrice=90.0,
+        marketValue=180.0,
+        averageCost=0.0,
+        unrealizedPNL=15.0,
+        realizedPNL=-3.0,
+        account="",
+    )
+
+    class _Client:
+        @staticmethod
+        def pnl_single_unrealized(_con_id: int) -> float | None:
+            return 15.0
+
+        @staticmethod
+        def pnl_single_daily(_con_id: int) -> float | None:
+            return -2.0
+
+    screen = PositionDetailScreen(_Client(), item, refresh_sec=0.25)
+    screen._ticker = SimpleNamespace(
+        contract=contract,
+        bid=99.0,
+        ask=101.0,
+        last=100.0,
+        marketDataType=1,
+    )
+    lines = screen._render_market_hud(
+        panel_width=80,
+        bid=99.0,
+        ask=101.0,
+        last=100.0,
+        price=100.0,
+        mid=100.0,
+        close=98.0,
+        mark=100.0,
+        spread=2.0,
+    )
+
+    tail_row = next(line.plain for line in lines if "✦ Unreal " in line.plain)
+    assert "✦ Unreal 15.00 (35.00)" in tail_row
+    assert "≈est" not in tail_row
+
+
+def test_market_hud_unreal_shows_estimate_only_when_official_missing() -> None:
+    _ensure_event_loop()
+    contract = Contract(secType="FOP", symbol="MNQ", exchange="CME", currency="USD")
+    contract.conId = 750150194
+    item = PortfolioItem(
+        contract=contract,
+        position=2.0,
+        marketPrice=90.0,
+        marketValue=0.0,
+        averageCost=80.0,
+        unrealizedPNL=None,
+        realizedPNL=-3.0,
+        account="",
+    )
+
+    class _Client:
+        @staticmethod
+        def pnl_single_unrealized(_con_id: int) -> float | None:
+            return None
+
+        @staticmethod
+        def pnl_single_daily(_con_id: int) -> float | None:
+            return None
+
+    screen = PositionDetailScreen(_Client(), item, refresh_sec=0.25)
+    screen._ticker = SimpleNamespace(
+        contract=contract,
+        bid=99.0,
+        ask=101.0,
+        last=100.0,
+        marketDataType=1,
+    )
+    lines = screen._render_market_hud(
+        panel_width=80,
+        bid=99.0,
+        ask=101.0,
+        last=100.0,
+        price=100.0,
+        mid=100.0,
+        close=98.0,
+        mark=100.0,
+        spread=2.0,
+    )
+
+    tail_row = next(line.plain for line in lines if "✦ Unreal " in line.plain)
+    assert "✦ Unreal 40.00 ≈est" in tail_row
+
+
 def test_render_execution_block_supports_fut_contracts() -> None:
     _ensure_event_loop()
     contract = Contract(secType="FUT", symbol="1OZ", exchange="COMEX", currency="USD")
@@ -1110,6 +1207,47 @@ def test_refresh_ticker_attempts_one_shot_live_probe_for_delayed_fop() -> None:
     assert client.live_snapshot_calls == 1
     assert "1-shot live-snapshot" in str(screen._exec_status or "")
     assert screen._md_probe_requested_type == 3
+    assert float(screen._md_probe_started_mono) > 0.0
+
+
+def test_refresh_ticker_attempts_one_shot_live_probe_for_live_frozen_fop() -> None:
+    _ensure_event_loop()
+    contract = Contract(secType="FOP", symbol="MNQ", exchange="CME", currency="USD")
+    contract.conId = 750150193
+
+    class _Client:
+        def __init__(self) -> None:
+            self.live_snapshot_calls = 0
+
+        @staticmethod
+        def release_ticker(_con_id: int, *, owner: str = "details") -> None:
+            return None
+
+        @staticmethod
+        async def ensure_ticker(_contract, *, owner: str = "details"):
+            return SimpleNamespace(
+                contract=contract,
+                marketDataType=2,
+                bid=112.0,
+                ask=112.5,
+                last=112.25,
+                close=112.0,
+                prevLast=112.0,
+            )
+
+        async def refresh_live_snapshot_once(self, _contract) -> str | None:
+            self.live_snapshot_calls += 1
+            return "live-snapshot"
+
+    client = _Client()
+    screen = PositionDetailScreen(client, _fut_item(contract), refresh_sec=0.25)
+    screen._render_details = lambda *args, **kwargs: None  # type: ignore[method-assign]
+
+    asyncio.run(screen.action_refresh_ticker())
+
+    assert client.live_snapshot_calls == 1
+    assert "1-shot live-snapshot" in str(screen._exec_status or "")
+    assert screen._md_probe_requested_type == 2
     assert float(screen._md_probe_started_mono) > 0.0
 
 
