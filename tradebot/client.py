@@ -2695,6 +2695,19 @@ class IBKRClient:
             return float(close)
         return None
 
+    def _search_actionable_reference_price_from_ticker(self, ticker: object) -> float | None:
+        """Return a near-live search reference price from top-of-book/last fields."""
+        if ticker is None:
+            return None
+        bid = self._quote_num(getattr(ticker, "bid", None))
+        ask = self._quote_num(getattr(ticker, "ask", None))
+        last = self._quote_num(getattr(ticker, "last", None))
+        if bid is not None and ask is not None and bid > 0 and ask > 0 and bid <= ask:
+            return (float(bid) + float(ask)) / 2.0
+        if last is not None and last > 0:
+            return float(last)
+        return None
+
     @staticmethod
     def _search_terms(query: str, *, mode: str | None = None) -> list[str]:
         cleaned = str(query or "").strip().upper()
@@ -3433,9 +3446,47 @@ class IBKRClient:
             ref_started = time.monotonic()
             try:
                 ticker = await self.ensure_ticker(underlying, owner="search")
-                ref_price = self._search_reference_price_from_ticker(ticker)
+                ref_price = self._search_actionable_reference_price_from_ticker(ticker)
+                if ref_price is None:
+                    settle_wait_sec = 0.3
+                    settle_poll_sec = 0.05
+                    settle_deadline = time.monotonic() + settle_wait_sec
+                    while time.monotonic() < settle_deadline:
+                        await asyncio.sleep(settle_poll_sec)
+                        ref_price = self._search_actionable_reference_price_from_ticker(ticker)
+                        if ref_price is not None:
+                            break
+                if ref_price is None:
+                    ref_price = self._search_reference_price_from_ticker(ticker)
                 if ref_price is not None:
                     ref_source = "ticker"
+                if ref_price is None:
+                    for what_to_show in ("TRADES", "MIDPOINT"):
+                        try:
+                            bars = await asyncio.wait_for(
+                                self.historical_bars(
+                                    underlying,
+                                    duration_str="10800 S",
+                                    bar_size="1 min",
+                                    use_rth=False,
+                                    what_to_show=what_to_show,
+                                    cache_ttl_sec=10.0,
+                                ),
+                                timeout=1.0,
+                            )
+                        except asyncio.TimeoutError:
+                            bars = []
+                        except Exception:
+                            bars = []
+                        if not bars:
+                            continue
+                        _ts, close = bars[-1]
+                        close_num = self._quote_num(close)
+                        if close_num is None:
+                            continue
+                        ref_price = float(close_num)
+                        ref_source = f"historical-{what_to_show.lower()}"
+                        break
             except Exception:
                 ref_price = None
             finally:

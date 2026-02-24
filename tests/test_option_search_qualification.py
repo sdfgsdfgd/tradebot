@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime
 from types import SimpleNamespace
 
 import pytest
@@ -687,6 +688,163 @@ def test_search_contracts_opt_progress_split_qualifies_in_two_passes() -> None:
     assert int(timing.get("first_limit", 0) or 0) == 4
     assert float(timing.get("qualify_ms_first", 0.0) or 0.0) >= 0.0
     assert float(timing.get("qualify_ms_rest", 0.0) or 0.0) >= 0.0
+
+
+def test_search_contracts_opt_waits_briefly_for_ticker_reference_before_median() -> None:
+    client = _client()
+
+    async def _stock_option_chain(symbol: str):
+        normalized = str(symbol or "").strip().upper()
+        underlying = Contract(
+            secType="STK",
+            symbol=normalized,
+            exchange="SMART",
+            currency="USD",
+            conId=123,
+        )
+        chain = SimpleNamespace(
+            expirations=("20260320",),
+            strikes=tuple(float(strike) for strike in range(300, 501, 5)),
+            exchange="SMART",
+            multiplier="100",
+            tradingClass=normalized,
+        )
+        return underlying, chain
+
+    async def _ensure_ticker(_contract: Contract, *, owner: str = "default"):
+        ticker = SimpleNamespace(bid=None, ask=None, last=None, close=None)
+
+        async def _delayed_fill() -> None:
+            await asyncio.sleep(0.08)
+            ticker.bid = 383.9
+            ticker.ask = 384.1
+
+        asyncio.create_task(_delayed_fill())
+        return ticker
+
+    async def _qualify_proxy_contracts(*contracts: Contract):
+        out: list[Contract] = []
+        for idx, source in enumerate(contracts, start=1):
+            resolved = Contract(
+                secType="OPT",
+                symbol=str(getattr(source, "symbol", "") or ""),
+                exchange=str(getattr(source, "exchange", "") or ""),
+                currency=str(getattr(source, "currency", "") or ""),
+                lastTradeDateOrContractMonth=str(
+                    getattr(source, "lastTradeDateOrContractMonth", "") or ""
+                ),
+                strike=float(getattr(source, "strike", 0.0) or 0.0),
+                right=str(getattr(source, "right", "") or ""),
+            )
+            resolved.conId = 860000 + idx
+            out.append(resolved)
+        return out
+
+    client.stock_option_chain = _stock_option_chain
+    client.ensure_ticker = _ensure_ticker
+    client.qualify_proxy_contracts = _qualify_proxy_contracts
+    client.release_ticker = lambda *_args, **_kwargs: None
+
+    timing: dict[str, object] = {}
+    results = asyncio.run(
+        client.search_contracts(
+            "msft",
+            mode="OPT",
+            limit=8,
+            opt_underlyer_symbol="MSFT",
+            timing=timing,
+        )
+    )
+
+    assert results
+    assert str(timing.get("ref_price_source", "")) == "ticker"
+    strikes = sorted({float(getattr(contract, "strike", 0.0) or 0.0) for contract in results})
+    assert strikes == [375.0, 380.0, 385.0, 390.0]
+
+
+def test_search_contracts_opt_uses_historical_reference_when_ticker_unavailable() -> None:
+    client = _client()
+    historical_calls: list[str] = []
+
+    async def _stock_option_chain(symbol: str):
+        normalized = str(symbol or "").strip().upper()
+        underlying = Contract(
+            secType="STK",
+            symbol=normalized,
+            exchange="SMART",
+            currency="USD",
+            conId=124,
+        )
+        chain = SimpleNamespace(
+            expirations=("20260320",),
+            strikes=tuple(float(strike) for strike in range(300, 501, 5)),
+            exchange="SMART",
+            multiplier="100",
+            tradingClass=normalized,
+        )
+        return underlying, chain
+
+    async def _ensure_ticker(_contract: Contract, *, owner: str = "default"):
+        return SimpleNamespace(bid=None, ask=None, last=None, close=None)
+
+    async def _historical_bars(
+        _contract: Contract,
+        *,
+        duration_str: str,
+        bar_size: str,
+        use_rth: bool,
+        what_to_show: str = "TRADES",
+        cache_ttl_sec: float = 30.0,
+    ):
+        historical_calls.append(str(what_to_show))
+        assert duration_str == "10800 S"
+        assert bar_size == "1 min"
+        assert use_rth is False
+        _ = cache_ttl_sec
+        if str(what_to_show).upper() == "TRADES":
+            return [(datetime(2026, 2, 24, 10, 0, 0), 384.0)]
+        return []
+
+    async def _qualify_proxy_contracts(*contracts: Contract):
+        out: list[Contract] = []
+        for idx, source in enumerate(contracts, start=1):
+            resolved = Contract(
+                secType="OPT",
+                symbol=str(getattr(source, "symbol", "") or ""),
+                exchange=str(getattr(source, "exchange", "") or ""),
+                currency=str(getattr(source, "currency", "") or ""),
+                lastTradeDateOrContractMonth=str(
+                    getattr(source, "lastTradeDateOrContractMonth", "") or ""
+                ),
+                strike=float(getattr(source, "strike", 0.0) or 0.0),
+                right=str(getattr(source, "right", "") or ""),
+            )
+            resolved.conId = 861000 + idx
+            out.append(resolved)
+        return out
+
+    client.stock_option_chain = _stock_option_chain
+    client.ensure_ticker = _ensure_ticker
+    client.historical_bars = _historical_bars
+    client.qualify_proxy_contracts = _qualify_proxy_contracts
+    client.release_ticker = lambda *_args, **_kwargs: None
+
+    timing: dict[str, object] = {}
+    results = asyncio.run(
+        client.search_contracts(
+            "msft",
+            mode="OPT",
+            limit=8,
+            opt_underlyer_symbol="MSFT",
+            timing=timing,
+        )
+    )
+
+    assert results
+    assert str(timing.get("ref_price_source", "")) == "historical-trades"
+    assert historical_calls and historical_calls[0] == "TRADES"
+    strikes = sorted({float(getattr(contract, "strike", 0.0) or 0.0) for contract in results})
+    assert strikes == [375.0, 380.0, 385.0, 390.0]
 
 
 def test_matching_symbols_retries_transient_timeout() -> None:
