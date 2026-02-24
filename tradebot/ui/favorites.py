@@ -634,6 +634,9 @@ class FavoritesScreen(Screen):
     @staticmethod
     def _market_data_text(ticker: Ticker) -> Text:
         md_type = getattr(ticker, "marketDataType", None)
+        source = str(getattr(ticker, "tbQuoteSource", "") or "").strip().lower()
+        if source.startswith("stream") or source.startswith("live-"):
+            return Text("[L]", style="bold #73d89e")
         if md_type in (1, 2):
             return Text("[L]", style="bold #73d89e")
         if md_type in (3, 4):
