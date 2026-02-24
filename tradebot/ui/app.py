@@ -1554,10 +1554,11 @@ class PositionsApp(App):
                 kwargs["opt_underlyer_symbol"] = str(opt_underlyer_symbol or "").strip().upper()
             rows = await self._client.search_contracts(query, **kwargs)
         except asyncio.CancelledError:
-            self._search_expiry_loading_more = False
-            self._search_loading = False
-            self._set_search_timing(generation=generation, phase="cancelled")
-            self._finalize_search_timing(generation=generation, status="cancelled")
+            if generation == self._search_generation:
+                self._search_expiry_loading_more = False
+                self._search_loading = False
+                self._set_search_timing(generation=generation, phase="cancelled")
+                self._finalize_search_timing(generation=generation, status="cancelled")
             return
         except Exception as exc:
             if generation != self._search_generation:

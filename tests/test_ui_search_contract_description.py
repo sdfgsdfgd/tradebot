@@ -523,3 +523,97 @@ def test_apply_opt_progress_rows_does_not_regress_full_rows() -> None:
 
     assert len(app._search_results) == 2
     assert len(app._search_opt_chain_cache.get("NVDA", [])) == 2
+
+
+def test_cycle_search_expiry_at_tail_queues_next_page_when_available() -> None:
+    positions_app = _load_positions_app()
+    app = positions_app.__new__(positions_app)
+    app._search_mode_index = positions_app._SEARCH_MODES.index("FOP")
+    app._search_opt_expiry_index = 1
+    app._search_selected = 0
+    app._search_scroll = 0
+    app._search_expiry_has_more = True
+    app._search_expiry_auto_advance_from = None
+    app._default_opt_row_index = lambda: 0
+    app._ensure_search_visible = lambda: None
+    app._render_search = lambda: None
+    queued: list[bool] = []
+    app._queue_search_next_expiry_page = lambda: queued.append(True)
+    row_a = Contract(
+        secType="FOP",
+        symbol="MNQ",
+        exchange="CME",
+        currency="USD",
+        lastTradeDateOrContractMonth="20260327",
+        strike=22000.0,
+        right="C",
+    )
+    row_b = Contract(
+        secType="FOP",
+        symbol="MNQ",
+        exchange="CME",
+        currency="USD",
+        lastTradeDateOrContractMonth="20260424",
+        strike=22000.0,
+        right="C",
+    )
+    app._search_results = [row_a, row_b]
+
+    app._cycle_search_expiry(1)
+
+    assert queued == [True]
+    assert app._search_opt_expiry_index == 1
+    assert int(app._search_expiry_auto_advance_from or 0) == 2
+
+
+def test_render_search_option_expiry_line_shows_more_hint() -> None:
+    positions_app = _load_positions_app()
+    app = positions_app.__new__(positions_app)
+    rendered: list[object] = []
+    app._search_active = True
+    app._search = SimpleNamespace(display=False, update=lambda value: rendered.append(value))
+    app._search_mode_index = positions_app._SEARCH_MODES.index("FOP")
+    app._search_query = "MNQ"
+    app._search_error = None
+    app._search_loading = False
+    app._search_results = []
+    app._search_side = 0
+    app._search_scroll = 0
+    app._search_selected = 0
+    app._search_opt_expiry_index = 0
+    app._search_opt_underlyers = []
+    app._search_opt_underlyer_index = 0
+    app._search_opt_underlyer_descriptions = {}
+    app._search_symbol_labels = {}
+    app._search_timing = {"generation": 1}
+    app._search_expiry_has_more = True
+    app._search_expiry_loading_more = False
+    app._search_name_line = lambda: None
+    app._search_timing_line = lambda: None
+    app._sync_search_option_tickers = lambda: None
+    app._clear_search_tickers = lambda: None
+    call_contract = Contract(
+        secType="FOP",
+        symbol="MNQ",
+        exchange="CME",
+        currency="USD",
+        lastTradeDateOrContractMonth="20260327",
+        strike=22000.0,
+        right="C",
+    )
+    put_contract = Contract(
+        secType="FOP",
+        symbol="MNQ",
+        exchange="CME",
+        currency="USD",
+        lastTradeDateOrContractMonth="20260327",
+        strike=22000.0,
+        right="P",
+    )
+    app._search_results = [call_contract, put_contract]
+
+    app._render_search()
+
+    assert rendered
+    rendered_text = str(getattr(rendered[-1], "plain", rendered[-1]))
+    assert "[+more]" in rendered_text
