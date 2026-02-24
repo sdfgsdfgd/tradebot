@@ -6,6 +6,8 @@ import asyncio
 from collections import deque
 from datetime import time as dtime
 import math
+import re
+import textwrap
 from time import monotonic
 
 from ib_insync import PortfolioItem, Ticker, Trade
@@ -97,12 +99,25 @@ class PositionDetailScreen(Screen):
     _RELENTLESS_SPREAD_PRESSURE_TRIGGER = 2.0
     _RELENTLESS_SPREAD_PRESSURE_HYPER = 3.5
     _RELENTLESS_MAX_EDGE_TICKS = 40
+    _RELENTLESS_DELAY_RECOVER_ATTEMPTS = 24
+    _RELENTLESS_DELAY_RECOVER_COOLDOWN_SEC = 0.35
+    _RELENTLESS_DELAY_RECOVER_WINDOW_SEC = 25.0
+    _RELENTLESS_DELAY_RECOVER_SETTLE_SEC = 2.0
+    _RELENTLESS_DELAY_FAVORABLE_PCT = 0.06
+    _RELENTLESS_DELAY_ADVERSE_PCT = 0.12
+    _RELENTLESS_DELAY_FAVORABLE_SPREAD_MULT = 0.8
+    _RELENTLESS_DELAY_ADVERSE_SPREAD_MULT = 2.0
+    _RELENTLESS_DELAY_FAVORABLE_MAX_TICKS = 20
+    _RELENTLESS_DELAY_ADVERSE_MAX_TICKS = 60
+    _RELENTLESS_DELAY_SHRINK_PER_REJECT = 0.75
+    _RELENTLESS_DELAY_PRICE_HINT_RE = re.compile(r"(?<!\d)(\d[\d,]*\.\d+)")
     _CHASE_PENDING_ACK_SEC = 0.9
     _CHASE_RECONCILE_INTERVAL_SEC = 0.9
     _CHASE_FORCE_RECONCILE_INTERVAL_SEC = 5.0
     _CHASE_MODIFY_ERROR_BACKOFF_SEC = 1.0
     _CANCEL_REQUEST_TTL_SEC = 90.0
     _STREAM_RENDER_DEBOUNCE_SEC = 0.08
+    _MD_PROBE_BANNER_TTL_SEC = 10.0
     _AURORA_PRESET_ORDER = ("calm", "normal", "feral")
     _AURORA_PRESETS = {
         "calm": {"buy_soft": 0.28, "buy_strong": 0.56, "sell_soft": -0.28, "sell_strong": -0.56, "burst_gain": 0.80},
@@ -126,7 +141,17 @@ class PositionDetailScreen(Screen):
         self._underlying_ticker: Ticker | None = None
         self._underlying_con_id: int | None = None
         self._underlying_label: str | None = None
-        self._exec_rows = ["ladder", "relentless", "optimistic", "mid", "aggressive", "cross", "custom", "qty"]
+        self._exec_rows = [
+            "ladder",
+            "relentless",
+            "relentless_delay",
+            "optimistic",
+            "mid",
+            "aggressive",
+            "cross",
+            "custom",
+            "qty",
+        ]
         self._exec_selected = 0
         self._exec_custom_input = ""
         self._exec_custom_price: float | None = None
@@ -180,6 +205,8 @@ class PositionDetailScreen(Screen):
         self._closes_task: asyncio.Task | None = None
         self._bootstrap_task: asyncio.Task | None = None
         self._stream_render_task: asyncio.Task | None = None
+        self._md_probe_requested_type: int | None = None
+        self._md_probe_started_mono: float = 0.0
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -449,6 +476,8 @@ class PositionDetailScreen(Screen):
         if con_id:
             self._client.release_ticker(con_id, owner="details")
         self._ticker = await self._client.ensure_ticker(self._item.contract, owner="details")
+        self._md_probe_requested_type = self._md_type_value(self._ticker)
+        self._md_probe_started_mono = monotonic()
         if self._underlying_con_id:
             self._client.release_ticker(self._underlying_con_id, owner="details")
             self._underlying_con_id = None
@@ -476,6 +505,52 @@ class PositionDetailScreen(Screen):
         else:
             self._exec_status = "MD refreshed"
         self._render_details()
+
+    @staticmethod
+    def _md_type_value(ticker: Ticker | None) -> int | None:
+        if ticker is None:
+            return None
+        raw = getattr(ticker, "marketDataType", None)
+        try:
+            value = int(raw) if raw is not None else None
+        except (TypeError, ValueError):
+            value = None
+        if value in (1, 2, 3, 4):
+            return value
+        return None
+
+    @staticmethod
+    def _md_type_name(md_type: int | None) -> str:
+        if md_type == 1:
+            return "Live"
+        if md_type == 2:
+            return "Live-Frozen"
+        if md_type == 3:
+            return "Delayed"
+        if md_type == 4:
+            return "Delayed-Frozen"
+        return "n/a"
+
+    def _market_data_probe_row(self) -> Text | None:
+        started_mono = float(self._md_probe_started_mono or 0.0)
+        if started_mono <= 0:
+            return None
+        elapsed_sec = max(0.0, monotonic() - started_mono)
+        if elapsed_sec > float(self._MD_PROBE_BANNER_TTL_SEC):
+            return None
+        req_type = self._md_probe_requested_type
+        actual_type = self._md_type_value(self._ticker)
+        remaining_sec = max(0.0, float(self._MD_PROBE_BANNER_TTL_SEC) - elapsed_sec)
+        row = Text("MD Probe ", style="yellow")
+        row.append("req ")
+        row.append(self._md_type_name(req_type), style="bright_white")
+        row.append(f" ({req_type if req_type is not None else 'n/a'})", style="dim")
+        row.append(" -> now ")
+        actual_style = "green" if req_type is not None and req_type == actual_type else "yellow"
+        row.append(self._md_type_name(actual_type), style=actual_style)
+        row.append(f" ({actual_type if actual_type is not None else 'n/a'})", style="dim")
+        row.append(f"  {remaining_sec:.0f}s", style="dim")
+        return row
 
     async def _load_underlying(self) -> None:
         contract = self._item.contract
@@ -1528,6 +1603,8 @@ class PositionDetailScreen(Screen):
             return "AUTO"
         if mode == "RELENTLESS":
             return "RLT"
+        if mode == "RELENTLESS_DELAY":
+            return "RLT⚔Delay"
         if mode == "CUSTOM":
             return "CUSTOM"
         if mode == "OPTIMISTIC":
@@ -1540,6 +1617,8 @@ class PositionDetailScreen(Screen):
         selected = self._exec_rows[self._exec_selected]
         if selected == "relentless":
             return "RELENTLESS"
+        if selected == "relentless_delay":
+            return "RELENTLESS_DELAY"
         if selected == "optimistic":
             return "OPTIMISTIC"
         if selected == "mid":
@@ -1886,10 +1965,16 @@ class PositionDetailScreen(Screen):
             self._box_row(momentum_label_row, inner, style="#2d8fd5"),
             self._box_row(momentum_row, inner, style="#2d8fd5"),
         ]
+        md_probe_row = self._market_data_probe_row()
+        if md_probe_row is not None:
+            lines.insert(3, self._box_row(md_probe_row, inner, style="#2d8fd5"))
         if no_quote_badge_row is not None:
-            lines.insert(3, self._box_row(no_quote_badge_row, inner, style="#2d8fd5"))
+            lines.insert(4 if md_probe_row is not None else 3, self._box_row(no_quote_badge_row, inner, style="#2d8fd5"))
         if close_only_badge_row is not None:
-            lines.insert(4 if no_quote_badge_row is not None else 3, self._box_row(close_only_badge_row, inner, style="#2d8fd5"))
+            close_insert_idx = 4 if no_quote_badge_row is not None else 3
+            if md_probe_row is not None:
+                close_insert_idx += 1
+            lines.insert(close_insert_idx, self._box_row(close_only_badge_row, inner, style="#2d8fd5"))
         if contract.lastTradeDateOrContractMonth:
             expiry = _fmt_expiry(contract.lastTradeDateOrContractMonth)
             meta = Text(f"Expiry {expiry}")
@@ -1977,6 +2062,32 @@ class PositionDetailScreen(Screen):
             no_progress_reprices=0,
             arrival_ref=mid_raw or last_ref,
         )
+        relentless_delay_buy = self._exec_price_for_mode(
+            "RELENTLESS_DELAY",
+            "BUY",
+            bid=bid,
+            ask=ask,
+            last=last,
+            ticker=self._ticker,
+            elapsed_sec=0.0,
+            quote_stale=quote_stale,
+            open_shock=open_shock,
+            no_progress_reprices=0,
+            arrival_ref=mid_raw or last_ref,
+        )
+        relentless_delay_sell = self._exec_price_for_mode(
+            "RELENTLESS_DELAY",
+            "SELL",
+            bid=bid,
+            ask=ask,
+            last=last,
+            ticker=self._ticker,
+            elapsed_sec=0.0,
+            quote_stale=quote_stale,
+            open_shock=open_shock,
+            no_progress_reprices=0,
+            arrival_ref=mid_raw or last_ref,
+        )
         if contract.secType == "OPT" and not has_actionable_quote:
             lock_row = Text(
                 "B/S locked: no actionable option quote yet (waiting for bid/ask/last)",
@@ -2040,7 +2151,11 @@ class PositionDetailScreen(Screen):
             ),
             (
                 "relentless",
-                f"RLT Fill   B/S {_fmt_quote(relentless_buy)} / {_fmt_quote(relentless_sell)}",
+                f"RLT       B/S {_fmt_quote(relentless_buy)} / {_fmt_quote(relentless_sell)}",
+            ),
+            (
+                "relentless_delay",
+                f"RLT ⚔ Delay B/S {_fmt_quote(relentless_delay_buy)} / {_fmt_quote(relentless_delay_sell)}",
             ),
             (
                 "optimistic",
@@ -2120,9 +2235,34 @@ class PositionDetailScreen(Screen):
         lines.append(self._box_row(self._armed_mode_line(), inner, style="#2f78c4"))
         lines.append(self._box_row(self._active_chase_line(trades), inner, style="#2f78c4"))
         notice_line = self._orders_notice_line()
+        notice_reserved_rows = 0
         if notice_line is not None:
             lines.append(self._box_rule("Order Feed", inner, style="#2f78c4"))
-            lines.append(self._box_row(notice_line, inner, style="#2f78c4"))
+            notice_plain = notice_line.plain
+            prefix, sep, message = notice_plain.partition(" ")
+            if sep:
+                prefix_with_space = f"{prefix}{sep}"
+                wrapped_notice = textwrap.wrap(
+                    message,
+                    width=max(inner, 1),
+                    initial_indent=prefix_with_space,
+                    subsequent_indent=" " * len(prefix_with_space),
+                    break_long_words=True,
+                    break_on_hyphens=False,
+                )
+            else:
+                wrapped_notice = textwrap.wrap(
+                    notice_plain,
+                    width=max(inner, 1),
+                    break_long_words=True,
+                    break_on_hyphens=False,
+                )
+            if not wrapped_notice:
+                wrapped_notice = [""]
+            notice_style = notice_line.style
+            for chunk in wrapped_notice:
+                lines.append(self._box_row(Text(chunk, style=notice_style), inner, style="#2f78c4"))
+            notice_reserved_rows = 1 + len(wrapped_notice)
 
         if not trades:
             self._orders_selected = 0
@@ -2131,7 +2271,7 @@ class PositionDetailScreen(Screen):
         else:
             if self._orders_selected >= len(trades):
                 self._orders_selected = len(trades) - 1
-            reserved_without_trades = 7 + (2 if notice_line is not None else 0)
+            reserved_without_trades = 7 + notice_reserved_rows
             visible = len(trades)
             if available:
                 visible = max(available - reserved_without_trades, 1)
@@ -2369,6 +2509,8 @@ class PositionDetailScreen(Screen):
             line.append(" (OPT->MID->AGG->CROSS)", style="dim")
         elif selected == "RELENTLESS":
             line.append(" (completion-first)", style="dim")
+        elif selected == "RELENTLESS_DELAY":
+            line.append(" (delay-aware offense)", style="dim")
         line.append("  B/S ")
         line.append(f"{_fmt_quote(buy)}/{_fmt_quote(sell)}", style="bright_white")
         return line
@@ -2596,8 +2738,6 @@ class PositionDetailScreen(Screen):
         else:
             if char not in "0123456789":
                 return
-            if selected != "qty":
-                self._exec_selected = self._exec_rows.index("qty")
             self._exec_qty_input = _append_digit(self._exec_qty_input, char, allow_decimal=False)
             parsed = _parse_int(self._exec_qty_input)
             if parsed:
@@ -2611,8 +2751,6 @@ class PositionDetailScreen(Screen):
             parsed = self._parse_custom_price(self._exec_custom_input)
             self._exec_custom_price = parsed
         else:
-            if selected != "qty":
-                self._exec_selected = self._exec_rows.index("qty")
             self._exec_qty_input = self._exec_qty_input[:-1]
             parsed = _parse_int(self._exec_qty_input)
             if parsed:
@@ -2741,6 +2879,7 @@ class PositionDetailScreen(Screen):
         open_shock: bool,
         no_progress_reprices: int,
         arrival_ref: float | None,
+        direction_sign_override: float | None = None,
     ) -> float | None:
         cross = _round_to_tick(ask if action == "BUY" else bid, tick)
         if cross is None:
@@ -2808,8 +2947,161 @@ class PositionDetailScreen(Screen):
 
         x = max(0, min(int(self._RELENTLESS_MAX_EDGE_TICKS), int(x)))
         side_sign = 1.0 if action == "BUY" else -1.0
+        if direction_sign_override is not None and math.isfinite(float(direction_sign_override)):
+            side_sign = 1.0 if float(direction_sign_override) >= 0 else -1.0
         target = float(cross) + (side_sign * float(step) * float(x))
         return _round_to_tick(target, tick)
+
+    def _relentless_delay_cap_ticks(
+        self,
+        *,
+        anchor_price: float,
+        spread: float | None,
+        tick: float,
+        favorable: bool,
+        recoveries: int,
+    ) -> int:
+        if tick <= 0 or anchor_price <= 0:
+            return 1
+        pct_cap = (
+            float(anchor_price) * float(self._RELENTLESS_DELAY_FAVORABLE_PCT)
+            if favorable
+            else float(anchor_price) * float(self._RELENTLESS_DELAY_ADVERSE_PCT)
+        )
+        spread_mult = (
+            float(self._RELENTLESS_DELAY_FAVORABLE_SPREAD_MULT)
+            if favorable
+            else float(self._RELENTLESS_DELAY_ADVERSE_SPREAD_MULT)
+        )
+        hard_cap = (
+            max(1, int(self._RELENTLESS_DELAY_FAVORABLE_MAX_TICKS))
+            if favorable
+            else max(1, int(self._RELENTLESS_DELAY_ADVERSE_MAX_TICKS))
+        )
+        spread_cap = (
+            float(spread) * spread_mult
+            if spread is not None and spread > 0
+            else float(hard_cap) * float(tick)
+        )
+        cap_ticks = min(
+            float(pct_cap) / float(tick),
+            float(spread_cap) / float(tick),
+            float(hard_cap),
+        )
+        shrink_base = min(0.95, max(0.25, float(self._RELENTLESS_DELAY_SHRINK_PER_REJECT)))
+        shrink = float(shrink_base) ** max(0, int(recoveries) - 1)
+        shrunk_ticks = max(1.0, float(cap_ticks) * float(shrink))
+        return max(1, min(hard_cap, int(math.floor(shrunk_ticks))))
+
+    @staticmethod
+    def _cap_price_hint_from_trade(trade: Trade) -> float | None:
+        cap = _safe_float(getattr(getattr(trade, "orderStatus", None), "mktCapPrice", None))
+        if cap is None or cap <= 0:
+            return None
+        return float(cap)
+
+    @classmethod
+    def _price_hint_from_error_message(cls, message: str) -> float | None:
+        text = str(message or "").strip()
+        if not text:
+            return None
+        candidates: list[float] = []
+        for match in cls._RELENTLESS_DELAY_PRICE_HINT_RE.finditer(text):
+            token = str(match.group(1) or "").replace(",", "")
+            try:
+                value = float(token)
+            except (TypeError, ValueError):
+                continue
+            if value <= 0 or not math.isfinite(value):
+                continue
+            candidates.append(float(value))
+        if not candidates:
+            return None
+        return float(candidates[-1])
+
+    def _relentless_delay_price(
+        self,
+        *,
+        action: str,
+        bid: float | None,
+        ask: float | None,
+        last_ref: float | None,
+        tick: float,
+        ticker: Ticker | None,
+        elapsed_sec: float,
+        no_progress_reprices: int,
+        delay_recoveries: int = 0,
+        delay_anchor_price: float | None = None,
+        delay_sweep_anchor_price: float | None = None,
+    ) -> float | None:
+        cross = _round_to_tick(ask if action == "BUY" else bid, tick)
+        if cross is None:
+            cross = _round_to_tick(last_ref, tick)
+        if cross is None:
+            return None
+        mid = _round_to_tick(_midpoint(bid, ask), tick)
+        last_rounded = _round_to_tick(last_ref, tick)
+        base_ref = mid if mid is not None else (last_rounded if last_rounded is not None else cross)
+        anchor = _round_to_tick(_safe_float(delay_sweep_anchor_price), tick)
+        if anchor is None:
+            anchor = base_ref
+        if anchor is None or anchor <= 0:
+            return None
+        recoveries = max(1, int(delay_recoveries))
+        spread = (
+            float(ask) - float(bid)
+            if (ask is not None and bid is not None and ask >= bid)
+            else None
+        )
+        favorable_cap_ticks = self._relentless_delay_cap_ticks(
+            anchor_price=float(anchor),
+            spread=spread,
+            tick=tick,
+            favorable=True,
+            recoveries=recoveries,
+        )
+        adverse_cap_ticks = self._relentless_delay_cap_ticks(
+            anchor_price=float(anchor),
+            spread=spread,
+            tick=tick,
+            favorable=False,
+            recoveries=recoveries,
+        )
+        seq_step = 1 + ((recoveries - 1) // 2)
+        favorable_leg, leg_sign = self._relentless_delay_leg(action, recoveries)
+        leg_cap = favorable_cap_ticks if favorable_leg else adverse_cap_ticks
+        step_ticks = max(1, min(int(leg_cap), int(seq_step)))
+        target = float(anchor) + (leg_sign * float(tick) * float(step_ticks))
+        cap_hint = _safe_float(delay_anchor_price)
+        if cap_hint is not None and cap_hint > 0:
+            if action == "BUY":
+                target = min(float(target), float(cap_hint))
+            else:
+                target = max(float(target), float(cap_hint))
+        rounded = _round_to_tick(target, tick)
+        if rounded is None or rounded <= 0:
+            return None
+        return float(rounded)
+
+    def _relentless_delay_sweep_span(self) -> int:
+        span = max(2, int(self._RELENTLESS_DELAY_RECOVER_ATTEMPTS))
+        # Keep span even so wrap points preserve the favorable/adverse alternation.
+        if (span % 2) != 0:
+            span += 1
+        return int(span)
+
+    def _relentless_delay_next_step(self, *, prior_recoveries: int) -> int:
+        span = self._relentless_delay_sweep_span()
+        base = max(0, int(prior_recoveries))
+        return 1 + (base % span)
+
+    @staticmethod
+    def _relentless_delay_leg(action: str, recoveries: int) -> tuple[bool, float]:
+        step = max(1, int(recoveries))
+        favorable_leg = (step % 2) == 1
+        side_sign = 1.0 if str(action or "").strip().upper() == "BUY" else -1.0
+        leg_sign = (-1.0 * side_sign) if favorable_leg else side_sign
+        return favorable_leg, float(leg_sign)
 
     def _submit_order(self, action: str) -> None:
         contract = self._item.contract
@@ -2880,15 +3172,29 @@ class PositionDetailScreen(Screen):
                 )
             if order_ref:
                 seeded = "OPTIMISTIC" if mode == "AUTO" else mode
+                updates: dict[str, object] = {
+                    "selected": self._exec_mode_label(mode),
+                    "active": self._exec_mode_label(seeded),
+                    "target_price": float(applied_price),
+                    "mods": 0,
+                }
+                if str(mode).strip().upper() == "RELENTLESS_DELAY":
+                    updates.update(
+                        {
+                            "delay_recoveries": 0,
+                            "delay_anchor_price": None,
+                            "delay_sweep_anchor_price": float(applied_price),
+                            "delay_first_202_ts": None,
+                            "delay_last_202_ts": None,
+                            "delay_last_leg_sign": None,
+                            "delay_last_leg_name": None,
+                            "delay_locked_price_dir": None,
+                        }
+                    )
                 self._set_chase_state(
                     order_id=order_id,
                     perm_id=perm_id,
-                    updates={
-                        "selected": self._exec_mode_label(mode),
-                        "active": self._exec_mode_label(seeded),
-                        "target_price": float(applied_price),
-                        "mods": 0,
-                    },
+                    updates=updates,
                 )
             try:
                 loop = asyncio.get_running_loop()
@@ -2942,7 +3248,7 @@ class PositionDetailScreen(Screen):
             if custom is not None:
                 return custom
             return _round_to_tick(last_ref, tick) if last_ref is not None else None
-        if mode == "RELENTLESS":
+        if mode in ("RELENTLESS", "RELENTLESS_DELAY"):
             quote_stale = self._quote_is_stale_for_relentless(
                 ticker=self._ticker,
                 bid=bid,
@@ -2986,6 +3292,10 @@ class PositionDetailScreen(Screen):
         open_shock: bool = False,
         no_progress_reprices: int = 0,
         arrival_ref: float | None = None,
+        delay_recoveries: int = 0,
+        delay_anchor_price: float | None = None,
+        delay_sweep_anchor_price: float | None = None,
+        delay_locked_price_dir: float | None = None,
     ) -> float | None:
         bid = bid if bid is not None else (self._quote_num(self._ticker.bid) if self._ticker else None)
         ask = ask if ask is not None else (self._quote_num(self._ticker.ask) if self._ticker else None)
@@ -3012,6 +3322,37 @@ class PositionDetailScreen(Screen):
                 no_progress_reprices=int(no_progress_reprices),
                 arrival_ref=arrival_ref,
             )
+        if mode == "RELENTLESS_DELAY":
+            if int(delay_recoveries) <= 0:
+                locked_sign = _safe_float(delay_locked_price_dir)
+                if locked_sign is not None and math.isfinite(float(locked_sign)):
+                    locked_sign = 1.0 if float(locked_sign) >= 0 else -1.0
+                return self._relentless_price(
+                    action=action,
+                    bid=bid,
+                    ask=ask,
+                    last_ref=last_ref,
+                    tick=tick,
+                    elapsed_sec=elapsed_sec,
+                    quote_stale=bool(quote_stale),
+                    open_shock=bool(open_shock),
+                    no_progress_reprices=int(no_progress_reprices),
+                    arrival_ref=arrival_ref,
+                    direction_sign_override=locked_sign,
+                )
+            return self._relentless_delay_price(
+                action=action,
+                bid=bid,
+                ask=ask,
+                last_ref=last_ref,
+                tick=tick,
+                ticker=ticker_ref,
+                elapsed_sec=elapsed_sec,
+                no_progress_reprices=int(no_progress_reprices),
+                delay_recoveries=int(delay_recoveries),
+                delay_anchor_price=delay_anchor_price,
+                delay_sweep_anchor_price=delay_sweep_anchor_price,
+            )
         value = _limit_price_for_mode(bid, ask, last_ref, action=action, mode=mode)
         if value is None:
             return _round_to_tick(last_ref, tick) if last_ref is not None else None
@@ -3030,6 +3371,8 @@ class PositionDetailScreen(Screen):
         prev_mode: str | None = None
         prev_quote_sig: tuple[float | None, float | None, float | None] | None = None
         selected_label = self._exec_mode_label(mode)
+        selected_mode_clean = str(mode or "").strip().upper()
+        selected_is_delay_mode = selected_mode_clean == "RELENTLESS_DELAY"
         arrival_ref: float | None = None
         no_progress_reprices = 0
         last_filled_qty = 0.0
@@ -3194,6 +3537,181 @@ class PositionDetailScreen(Screen):
                         status_label = f"{status_label} [{status_raw}]"
                     if error_payload is not None:
                         error_code, error_message = error_payload
+                        if selected_is_delay_mode and error_code == 202 and not cancel_requested:
+                            state = self._chase_state_for_ids(order_id=order_id, perm_id=perm_id) or {}
+                            try:
+                                prior_recoveries = int(state.get("delay_recoveries") or 0)
+                            except (TypeError, ValueError):
+                                prior_recoveries = 0
+                            first_202_ts = _safe_float(state.get("delay_first_202_ts"))
+                            recover_window_sec = max(
+                                1.0,
+                                float(self._RELENTLESS_DELAY_RECOVER_WINDOW_SEC),
+                            )
+                            if (
+                                first_202_ts is None
+                                or first_202_ts <= 0
+                                or (float(loop_now) - float(first_202_ts)) > recover_window_sec
+                            ):
+                                first_202_ts = float(loop_now)
+                            sweep_span = self._relentless_delay_sweep_span()
+                            next_recoveries = self._relentless_delay_next_step(
+                                prior_recoveries=prior_recoveries
+                            )
+                            favorable_leg, leg_sign = self._relentless_delay_leg(
+                                action,
+                                next_recoveries,
+                            )
+                            anchor_hint = (
+                                self._cap_price_hint_from_trade(trade)
+                                or self._price_hint_from_error_message(error_message)
+                                or _safe_float(state.get("delay_anchor_price"))
+                            )
+                            ticker_retry = self._client.ticker_for_con_id(con_id) if con_id else None
+                            bid_retry = (
+                                self._quote_num(getattr(ticker_retry, "bid", None))
+                                if ticker_retry
+                                else None
+                            )
+                            ask_retry = (
+                                self._quote_num(getattr(ticker_retry, "ask", None))
+                                if ticker_retry
+                                else None
+                            )
+                            last_retry = (
+                                self._quote_num(getattr(ticker_retry, "last", None))
+                                if ticker_retry
+                                else None
+                            )
+                            order_price_now = _safe_num(
+                                getattr(getattr(trade, "order", None), "lmtPrice", None)
+                            )
+                            sweep_anchor = _safe_float(state.get("delay_sweep_anchor_price"))
+                            if (
+                                prior_recoveries <= 0
+                                and order_price_now is not None
+                                and order_price_now > 0
+                            ):
+                                sweep_anchor = float(order_price_now)
+                            if sweep_anchor is None or sweep_anchor <= 0:
+                                sweep_anchor = order_price_now
+                            if sweep_anchor is None or sweep_anchor <= 0:
+                                last_ref_retry = (
+                                    last_retry
+                                    if last_retry is not None
+                                    else (bid_retry if bid_retry is not None else ask_retry)
+                                )
+                                tick_retry = _tick_size(trade.contract, ticker_retry, last_ref_retry)
+                                sweep_anchor = _round_to_tick(
+                                    _midpoint(bid_retry, ask_retry) or last_ref_retry,
+                                    tick_retry,
+                                )
+                            delay_updates_base: dict[str, object] = {
+                                "selected": selected_label,
+                                "active": self._exec_mode_label("RELENTLESS_DELAY"),
+                                "delay_recoveries": next_recoveries,
+                                "delay_first_202_ts": float(first_202_ts),
+                                "delay_last_202_ts": float(loop_now),
+                                "delay_last_leg_sign": float(leg_sign),
+                                "delay_last_leg_name": "FAV" if favorable_leg else "ADV",
+                                "delay_locked_price_dir": None,
+                            }
+                            if anchor_hint is not None and anchor_hint > 0:
+                                delay_updates_base["delay_anchor_price"] = float(anchor_hint)
+                            if sweep_anchor is not None and sweep_anchor > 0:
+                                delay_updates_base["delay_sweep_anchor_price"] = float(sweep_anchor)
+                            if order_id or perm_id:
+                                self._set_chase_state(
+                                    order_id=order_id,
+                                    perm_id=perm_id,
+                                    updates=delay_updates_base,
+                                )
+                            retry_price = self._exec_price_for_mode(
+                                "RELENTLESS_DELAY",
+                                action,
+                                bid=bid_retry,
+                                ask=ask_retry,
+                                last=last_retry,
+                                ticker=ticker_retry,
+                                elapsed_sec=float(loop_now - started),
+                                quote_stale=self._quote_is_stale_for_relentless(
+                                    ticker=ticker_retry,
+                                    bid=bid_retry,
+                                    ask=ask_retry,
+                                    last=last_retry,
+                                ),
+                                open_shock=self._in_open_shock_window(),
+                                no_progress_reprices=int(no_progress_reprices),
+                                arrival_ref=arrival_ref,
+                                delay_recoveries=next_recoveries,
+                                delay_anchor_price=anchor_hint,
+                                delay_sweep_anchor_price=sweep_anchor,
+                            )
+                            if retry_price is None:
+                                retry_price = _safe_num(
+                                    getattr(getattr(trade, "order", None), "lmtPrice", None)
+                                )
+                            try:
+                                qty_retry = float(
+                                    getattr(getattr(trade, "order", None), "totalQuantity", 0.0) or 0.0
+                                )
+                            except (TypeError, ValueError):
+                                qty_retry = 0.0
+                            if retry_price is not None and qty_retry > 0:
+                                try:
+                                    replacement = await self._client.place_limit_order(
+                                        trade.contract,
+                                        action,
+                                        qty_retry,
+                                        float(retry_price),
+                                        str(getattr(trade.contract, "secType", "") or "").strip().upper() == "STK",
+                                    )
+                                    trade = replacement
+                                    live_order_id, live_perm_id = self._trade_order_ids(trade)
+                                    if live_order_id > 0:
+                                        order_id = int(live_order_id)
+                                    if live_perm_id > 0:
+                                        perm_id = int(live_perm_id)
+                                    order_ref = int(order_id or perm_id or 0)
+                                    updates = dict(delay_updates_base)
+                                    updates["target_price"] = float(retry_price)
+                                    self._set_chase_state(
+                                        order_id=order_id,
+                                        perm_id=perm_id,
+                                        updates=updates,
+                                    )
+                                    hint_text = (
+                                        f" cap {float(anchor_hint):.2f}"
+                                        if anchor_hint is not None and anchor_hint > 0
+                                        else ""
+                                    )
+                                    leg_text = "FAV" if favorable_leg else "ADV"
+                                    self._exec_status = (
+                                        f"RLT⚔Delay sweep #{order_ref} @ {float(retry_price):.2f}"
+                                        f" {leg_text} step {next_recoveries}/{sweep_span}{hint_text}"
+                                    )
+                                    self._set_orders_notice(
+                                        self._exec_status,
+                                        level="warn",
+                                    )
+                                    self._render_details_if_mounted(sample=False)
+                                    await asyncio.sleep(float(self._RELENTLESS_DELAY_RECOVER_COOLDOWN_SEC))
+                                    continue
+                                except Exception as exc:
+                                    self._set_orders_notice(
+                                        f"RLT⚔Delay retry failed #{order_ref}: {exc}",
+                                        level="warn",
+                                    )
+                                    self._render_details_if_mounted(sample=False)
+                                    await asyncio.sleep(float(self._RELENTLESS_DELAY_RECOVER_COOLDOWN_SEC))
+                                    continue
+                            self._set_orders_notice(
+                                f"RLT⚔Delay no retryable qty/price for #{order_ref}",
+                                level="warn",
+                            )
+                            self._render_details_if_mounted(sample=False)
+                            await asyncio.sleep(float(self._RELENTLESS_DELAY_RECOVER_COOLDOWN_SEC))
+                            continue
                         error_prefix = f"IB {error_code}: " if error_code else "IB: "
                         self._set_orders_notice(
                             f"{order_label} {status_label}: {error_prefix}{error_message}",
@@ -3228,6 +3746,82 @@ class PositionDetailScreen(Screen):
                     if error_payload is not None:
                         error_code, error_message = error_payload
                         if error_code in (110, 201, 202, 10147, 10148, 10149):
+                            if selected_is_delay_mode and error_code == 202:
+                                state = self._chase_state_for_ids(order_id=order_id, perm_id=perm_id) or {}
+                                try:
+                                    prior_recoveries = int(state.get("delay_recoveries") or 0)
+                                except (TypeError, ValueError):
+                                    prior_recoveries = 0
+                                first_202_ts = _safe_float(state.get("delay_first_202_ts"))
+                                recover_window_sec = max(
+                                    1.0,
+                                    float(self._RELENTLESS_DELAY_RECOVER_WINDOW_SEC),
+                                )
+                                if (
+                                    first_202_ts is None
+                                    or first_202_ts <= 0
+                                    or (float(loop_now) - float(first_202_ts)) > recover_window_sec
+                                ):
+                                    first_202_ts = float(loop_now)
+                                sweep_span = self._relentless_delay_sweep_span()
+                                next_recoveries = self._relentless_delay_next_step(
+                                    prior_recoveries=prior_recoveries
+                                )
+                                favorable_leg, leg_sign = self._relentless_delay_leg(
+                                    action,
+                                    next_recoveries,
+                                )
+                                anchor_hint = (
+                                    self._cap_price_hint_from_trade(trade)
+                                    or self._price_hint_from_error_message(error_message)
+                                    or _safe_float(state.get("delay_anchor_price"))
+                                )
+                                order_price_now = _safe_num(
+                                    getattr(getattr(trade, "order", None), "lmtPrice", None)
+                                )
+                                sweep_anchor = _safe_float(state.get("delay_sweep_anchor_price"))
+                                if (
+                                    prior_recoveries <= 0
+                                    and order_price_now is not None
+                                    and order_price_now > 0
+                                ):
+                                    sweep_anchor = float(order_price_now)
+                                if sweep_anchor is None or sweep_anchor <= 0:
+                                    sweep_anchor = order_price_now
+                                updates: dict[str, object] = {
+                                    "selected": selected_label,
+                                    "active": self._exec_mode_label("RELENTLESS_DELAY"),
+                                    "delay_recoveries": next_recoveries,
+                                    "delay_first_202_ts": float(first_202_ts),
+                                    "delay_last_202_ts": float(loop_now),
+                                    "delay_last_leg_sign": float(leg_sign),
+                                    "delay_last_leg_name": "FAV" if favorable_leg else "ADV",
+                                    "delay_locked_price_dir": None,
+                                }
+                                if anchor_hint is not None and anchor_hint > 0:
+                                    updates["delay_anchor_price"] = float(anchor_hint)
+                                if sweep_anchor is not None and sweep_anchor > 0:
+                                    updates["delay_sweep_anchor_price"] = float(sweep_anchor)
+                                self._set_chase_state(
+                                    order_id=order_id,
+                                    perm_id=perm_id,
+                                    updates=updates,
+                                )
+                                hint_text = (
+                                    f" cap {float(anchor_hint):.2f}"
+                                    if anchor_hint is not None and anchor_hint > 0
+                                    else ""
+                                )
+                                leg_text = "FAV" if favorable_leg else "ADV"
+                                self._exec_status = (
+                                    f"RLT⚔Delay sweep #{order_ref} "
+                                    f"{leg_text} step {next_recoveries}/{sweep_span}{hint_text}"
+                                )
+                                self._set_orders_notice(self._exec_status, level="warn")
+                                last_modify_error_ts = loop_now
+                                self._render_details_if_mounted(sample=False)
+                                await asyncio.sleep(float(self._RELENTLESS_DELAY_RECOVER_COOLDOWN_SEC))
+                                continue
                             order_label = f"#{order_ref}"
                             status_label = status_raw or "Pending"
                             error_prefix = f"IB {error_code}: " if error_code else "IB: "
@@ -3257,7 +3851,7 @@ class PositionDetailScreen(Screen):
                         order_ref = int(order_id or perm_id or 0)
                         timeout_sec = (
                             float(_EXEC_RELENTLESS_TIMEOUT_SEC)
-                            if str(mode or "").strip().upper() == "RELENTLESS"
+                            if str(mode or "").strip().upper() in ("RELENTLESS", "RELENTLESS_DELAY")
                             else float(_EXEC_LADDER_TIMEOUT_SEC)
                         )
                         self._exec_status = (
@@ -3295,7 +3889,9 @@ class PositionDetailScreen(Screen):
                 last = self._quote_num(getattr(ticker, "last", None)) if ticker else None
                 if arrival_ref is None:
                     arrival_ref = _midpoint(bid, ask) or last
-                is_relentless = str(mode_now or "").strip().upper() == "RELENTLESS"
+                mode_now_clean = str(mode_now or "").strip().upper()
+                is_relentless = mode_now_clean in ("RELENTLESS", "RELENTLESS_DELAY")
+                is_relentless_delay = mode_now_clean == "RELENTLESS_DELAY"
                 quote_stale = self._quote_is_stale_for_relentless(
                     ticker=ticker,
                     bid=bid,
@@ -3369,6 +3965,60 @@ class PositionDetailScreen(Screen):
                     )
 
                 if should_reprice:
+                    chase_state = self._chase_state_for_ids(order_id=order_id, perm_id=perm_id) or {}
+                    try:
+                        delay_recoveries = int(chase_state.get("delay_recoveries") or 0)
+                    except (TypeError, ValueError):
+                        delay_recoveries = 0
+                    delay_anchor_price = _safe_float(chase_state.get("delay_anchor_price"))
+                    delay_sweep_anchor_price = _safe_float(chase_state.get("delay_sweep_anchor_price"))
+                    delay_last_202_ts = _safe_float(chase_state.get("delay_last_202_ts"))
+                    delay_locked_price_dir = _safe_float(chase_state.get("delay_locked_price_dir"))
+                    if (
+                        is_relentless_delay
+                        and delay_recoveries > 0
+                        and delay_last_202_ts is not None
+                        and (float(loop_now) - float(delay_last_202_ts))
+                        >= max(
+                            float(self._RELENTLESS_DELAY_RECOVER_SETTLE_SEC),
+                            float(self._RELENTLESS_DELAY_RECOVER_COOLDOWN_SEC),
+                        )
+                    ):
+                        delay_last_leg_sign = _safe_float(chase_state.get("delay_last_leg_sign"))
+                        lock_dir = (
+                            (1.0 if float(delay_last_leg_sign) >= 0 else -1.0)
+                            if delay_last_leg_sign is not None
+                            else None
+                        )
+                        delay_recoveries = 0
+                        delay_anchor_price = None
+                        delay_sweep_anchor_price = None
+                        delay_locked_price_dir = lock_dir
+                        if order_id or perm_id:
+                            updates: dict[str, object] = {
+                                "delay_recoveries": 0,
+                                "delay_anchor_price": None,
+                                "delay_sweep_anchor_price": None,
+                                "delay_first_202_ts": None,
+                                "delay_last_202_ts": None,
+                                "delay_last_leg_sign": None,
+                                "delay_last_leg_name": None,
+                            }
+                            if lock_dir is None:
+                                updates["delay_locked_price_dir"] = None
+                            else:
+                                updates["delay_locked_price_dir"] = float(lock_dir)
+                            self._set_chase_state(
+                                order_id=order_id,
+                                perm_id=perm_id,
+                                updates=updates,
+                            )
+                        if lock_dir is not None:
+                            leg_text = "up" if float(lock_dir) > 0 else "down"
+                            self._set_orders_notice(
+                                f"RLT⚔Delay lock engaged ({leg_text} side) after 202 settle",
+                                level="info",
+                            )
                     price = self._exec_price_for_mode(
                         str(mode_now),
                         action,
@@ -3381,6 +4031,14 @@ class PositionDetailScreen(Screen):
                         open_shock=bool(open_shock),
                         no_progress_reprices=int(no_progress_reprices),
                         arrival_ref=arrival_ref,
+                        delay_recoveries=int(delay_recoveries) if is_relentless_delay else 0,
+                        delay_anchor_price=delay_anchor_price if is_relentless_delay else None,
+                        delay_sweep_anchor_price=(
+                            delay_sweep_anchor_price if is_relentless_delay else None
+                        ),
+                        delay_locked_price_dir=(
+                            delay_locked_price_dir if is_relentless_delay else None
+                        ),
                     )
                     if (order_id or perm_id) and price is not None:
                         self._set_chase_state(

@@ -47,6 +47,11 @@ def test_exec_chase_mode_relentless_has_extended_timeout() -> None:
     assert _exec_chase_mode(2_000.0, selected_mode="RELENTLESS") is None
 
 
+def test_exec_chase_mode_relentless_delay_has_extended_timeout() -> None:
+    assert _exec_chase_mode(100.0, selected_mode="RELENTLESS_DELAY") == "RELENTLESS_DELAY"
+    assert _exec_chase_mode(2_000.0, selected_mode="RELENTLESS_DELAY") is None
+
+
 def test_render_execution_block_includes_custom_price_row() -> None:
     _ensure_event_loop()
     contract = Contract(secType="FUT", symbol="MNQ", exchange="CME", currency="USD")
@@ -68,7 +73,19 @@ def test_render_execution_block_includes_relentless_row() -> None:
     lines = screen._render_execution_block(panel_width=80)
     plain = "\n".join(line.plain for line in lines)
 
-    assert "RLT Fill" in plain
+    assert "RLT       B/S" in plain
+
+
+def test_render_execution_block_includes_relentless_delay_row() -> None:
+    _ensure_event_loop()
+    contract = Contract(secType="FUT", symbol="MNQ", exchange="CME", currency="USD")
+    contract.conId = 750150193
+    screen = PositionDetailScreen(SimpleNamespace(), _fut_item(contract), refresh_sec=0.25)
+
+    lines = screen._render_execution_block(panel_width=80)
+    plain = "\n".join(line.plain for line in lines)
+
+    assert "RLT ⚔ Delay" in plain
 
 
 def test_submit_order_does_not_reject_fut_as_unsupported() -> None:
@@ -104,6 +121,27 @@ def test_custom_price_input_sets_custom_exec_mode_price() -> None:
     price = screen._initial_exec_price("BUY", mode="CUSTOM")
     assert price is not None
     assert abs(float(price) - 112.5) < 1e-9
+
+
+def test_qty_input_keeps_selected_exec_row_when_not_qty() -> None:
+    _ensure_event_loop()
+    contract = Contract(secType="FUT", symbol="MNQ", exchange="CME", currency="USD")
+    contract.conId = 750150193
+    screen = PositionDetailScreen(SimpleNamespace(), _fut_item(contract), refresh_sec=0.25)
+    screen._render_details = lambda *args, **kwargs: None  # type: ignore[method-assign]
+
+    cross_idx = screen._exec_rows.index("cross")
+    screen._exec_selected = cross_idx
+    screen._exec_qty_input = ""
+
+    screen._handle_digit("2")
+    screen._handle_digit("5")
+    assert screen._exec_selected == cross_idx
+    assert screen._exec_qty == 25
+
+    screen._handle_backspace()
+    assert screen._exec_selected == cross_idx
+    assert screen._exec_qty == 2
 
 
 def test_relentless_price_escalates_over_time() -> None:
@@ -198,6 +236,401 @@ def test_relentless_spread_pressure_boosts_target() -> None:
     assert float(pressure) > float(baseline)
 
 
+def test_relentless_delay_price_stays_conservative_on_delayed_wide_spread() -> None:
+    _ensure_event_loop()
+    contract = Contract(secType="FOP", symbol="MNQ", exchange="CME", currency="USD")
+    contract.conId = 750150193
+    contract.minTick = 0.5
+    screen = PositionDetailScreen(SimpleNamespace(), _fut_item(contract, market_price=110.5), refresh_sec=0.25)
+    ticker = SimpleNamespace(contract=contract, bid=106.0, ask=115.0, last=110.5, marketDataType=3, minTick=0.5)
+
+    price = screen._exec_price_for_mode(
+        "RELENTLESS_DELAY",
+        "BUY",
+        bid=106.0,
+        ask=115.0,
+        last=110.5,
+        ticker=ticker,
+        delay_recoveries=1,
+        delay_sweep_anchor_price=110.5,
+    )
+
+    assert price is not None
+    assert float(price) <= 111.0
+
+
+def test_relentless_delay_price_sweeps_optimistic_then_pessimistic() -> None:
+    _ensure_event_loop()
+    contract = Contract(secType="FOP", symbol="MNQ", exchange="CME", currency="USD")
+    contract.conId = 750150193
+    contract.minTick = 0.5
+    screen = PositionDetailScreen(SimpleNamespace(), _fut_item(contract, market_price=110.5), refresh_sec=0.25)
+    ticker = SimpleNamespace(contract=contract, bid=106.0, ask=115.0, last=110.5, marketDataType=3, minTick=0.5)
+
+    p1 = screen._exec_price_for_mode(
+        "RELENTLESS_DELAY",
+        "BUY",
+        bid=106.0,
+        ask=115.0,
+        last=110.5,
+        ticker=ticker,
+        delay_recoveries=1,
+        delay_sweep_anchor_price=110.5,
+    )
+    p2 = screen._exec_price_for_mode(
+        "RELENTLESS_DELAY",
+        "BUY",
+        bid=106.0,
+        ask=115.0,
+        last=110.5,
+        ticker=ticker,
+        delay_recoveries=2,
+        delay_sweep_anchor_price=110.5,
+    )
+    p3 = screen._exec_price_for_mode(
+        "RELENTLESS_DELAY",
+        "BUY",
+        bid=106.0,
+        ask=115.0,
+        last=110.5,
+        ticker=ticker,
+        delay_recoveries=3,
+        delay_sweep_anchor_price=110.5,
+    )
+    p4 = screen._exec_price_for_mode(
+        "RELENTLESS_DELAY",
+        "BUY",
+        bid=106.0,
+        ask=115.0,
+        last=110.5,
+        ticker=ticker,
+        delay_recoveries=4,
+        delay_sweep_anchor_price=110.5,
+    )
+
+    assert p1 is not None and p2 is not None and p3 is not None and p4 is not None
+    assert float(p1) < 110.5
+    assert float(p2) > 110.5
+    assert float(p3) < float(p1)
+    assert float(p4) > float(p2)
+
+
+def test_relentless_delay_anchor_caps_pessimistic_sweep() -> None:
+    _ensure_event_loop()
+    contract = Contract(secType="FOP", symbol="MNQ", exchange="CME", currency="USD")
+    contract.conId = 750150193
+    contract.minTick = 0.5
+    screen = PositionDetailScreen(SimpleNamespace(), _fut_item(contract, market_price=110.5), refresh_sec=0.25)
+    ticker = SimpleNamespace(contract=contract, bid=106.0, ask=115.0, last=110.5, marketDataType=3, minTick=0.5)
+
+    capped = screen._exec_price_for_mode(
+        "RELENTLESS_DELAY",
+        "BUY",
+        bid=106.0,
+        ask=115.0,
+        last=110.5,
+        ticker=ticker,
+        delay_recoveries=2,
+        delay_anchor_price=110.5,
+        delay_sweep_anchor_price=110.5,
+    )
+
+    assert capped is not None
+    assert abs(float(capped) - 110.5) < 1e-9
+
+
+def test_relentless_delay_matches_relentless_before_any_202() -> None:
+    _ensure_event_loop()
+    contract = Contract(secType="FOP", symbol="MNQ", exchange="CME", currency="USD")
+    contract.conId = 750150193
+    contract.minTick = 0.5
+    screen = PositionDetailScreen(SimpleNamespace(), _fut_item(contract, market_price=110.5), refresh_sec=0.25)
+    ticker = SimpleNamespace(contract=contract, bid=106.0, ask=115.0, last=110.5, marketDataType=3, minTick=0.5)
+
+    relentless = screen._exec_price_for_mode(
+        "RELENTLESS",
+        "BUY",
+        bid=106.0,
+        ask=115.0,
+        last=110.5,
+        ticker=ticker,
+        elapsed_sec=5.0,
+        quote_stale=True,
+        open_shock=True,
+        no_progress_reprices=1,
+        arrival_ref=110.5,
+    )
+    delay_idle = screen._exec_price_for_mode(
+        "RELENTLESS_DELAY",
+        "BUY",
+        bid=106.0,
+        ask=115.0,
+        last=110.5,
+        ticker=ticker,
+        elapsed_sec=5.0,
+        quote_stale=True,
+        open_shock=True,
+        no_progress_reprices=1,
+        arrival_ref=110.5,
+        delay_recoveries=0,
+    )
+
+    assert relentless is not None and delay_idle is not None
+    assert abs(float(relentless) - float(delay_idle)) < 1e-9
+
+
+def test_relentless_delay_locked_direction_biases_relentless_continuation() -> None:
+    _ensure_event_loop()
+    contract = Contract(secType="FOP", symbol="MNQ", exchange="CME", currency="USD")
+    contract.conId = 750150193
+    contract.minTick = 0.5
+    screen = PositionDetailScreen(SimpleNamespace(), _fut_item(contract, market_price=110.5), refresh_sec=0.25)
+    ticker = SimpleNamespace(
+        contract=contract,
+        bid=106.0,
+        ask=115.0,
+        last=110.5,
+        marketDataType=3,
+        minTick=0.5,
+        tbTopQuoteUpdatedMono=monotonic() - 16.0,
+    )
+
+    unlocked = screen._exec_price_for_mode(
+        "RELENTLESS_DELAY",
+        "BUY",
+        bid=106.0,
+        ask=115.0,
+        last=110.5,
+        ticker=ticker,
+        elapsed_sec=8.0,
+        quote_stale=True,
+        open_shock=True,
+        no_progress_reprices=2,
+        arrival_ref=110.5,
+        delay_recoveries=0,
+    )
+    locked_down = screen._exec_price_for_mode(
+        "RELENTLESS_DELAY",
+        "BUY",
+        bid=106.0,
+        ask=115.0,
+        last=110.5,
+        ticker=ticker,
+        elapsed_sec=8.0,
+        quote_stale=True,
+        open_shock=True,
+        no_progress_reprices=2,
+        arrival_ref=110.5,
+        delay_recoveries=0,
+        delay_locked_price_dir=-1.0,
+    )
+
+    assert unlocked is not None and locked_down is not None
+    assert float(locked_down) < float(unlocked)
+
+
+def test_relentless_delay_first_202_reanchors_to_rejected_price() -> None:
+    _ensure_event_loop()
+    _DETAIL_CHASE_STATE_BY_ORDER.clear()
+    contract = Contract(secType="FOP", symbol="MNQ", exchange="CME", currency="USD")
+    contract.conId = 750150193
+    contract.minTick = 0.5
+    loops = {"n": 0}
+
+    class _Client:
+        def __init__(self) -> None:
+            self.error_served = False
+            self._ticker = SimpleNamespace(
+                contract=contract,
+                bid=106.0,
+                ask=115.0,
+                last=110.5,
+                marketDataType=3,
+                minTick=0.5,
+                tbTopQuoteUpdatedMono=monotonic() - 16.0,
+            )
+
+        async def ensure_ticker(self, _contract, *, owner: str = "details"):
+            return self._ticker
+
+        def ticker_for_con_id(self, _con_id: int):
+            return self._ticker
+
+        @staticmethod
+        def release_ticker(_con_id: int, *, owner: str = "details") -> None:
+            return None
+
+        def pop_order_error(self, order_id: int, *, max_age_sec: float = 120.0):
+            assert int(order_id) == 612
+            assert float(max_age_sec) >= 120.0
+            if self.error_served:
+                return None
+            self.error_served = True
+            return {"code": 202, "message": "Order price is outside price limits"}
+
+        @staticmethod
+        async def modify_limit_order(trade, limit_price: float):
+            trade.order.lmtPrice = float(limit_price)
+            return trade
+
+    def _is_done() -> bool:
+        loops["n"] += 1
+        return loops["n"] >= 2
+
+    trade = SimpleNamespace(
+        order=SimpleNamespace(
+            orderId=612,
+            permId=0,
+            action="BUY",
+            totalQuantity=1,
+            orderType="LMT",
+            lmtPrice=121.0,
+        ),
+        orderStatus=SimpleNamespace(status="Submitted", whyHeld="", filled=0.0, remaining=1.0),
+        contract=contract,
+        isDone=_is_done,
+    )
+    client = _Client()
+    screen = PositionDetailScreen(client, _fut_item(contract, market_price=110.5), refresh_sec=0.25)
+    screen._RELENTLESS_DELAY_RECOVER_COOLDOWN_SEC = 0.0
+    screen._RELENTLESS_MIN_REPRICE_SEC = 0.0
+    screen._RELENTLESS_MIN_REPRICE_SEC_SHOCK = 0.0
+    screen._RELENTLESS_MIN_REPRICE_SEC_HYPER = 0.0
+    screen._set_chase_state(
+        order_id=612,
+        perm_id=0,
+        updates={
+            "delay_recoveries": 0,
+            "delay_sweep_anchor_price": 110.5,
+            "delay_locked_price_dir": 1.0,
+        },
+    )
+    captured_updates: list[dict[str, object]] = []
+    original_set_chase_state = screen._set_chase_state
+
+    def _capture_set_chase_state(
+        *,
+        order_id: int,
+        perm_id: int,
+        updates: dict[str, object] | None = None,
+    ):
+        if updates:
+            captured_updates.append(dict(updates))
+        return original_set_chase_state(order_id=order_id, perm_id=perm_id, updates=updates)
+
+    screen._set_chase_state = _capture_set_chase_state  # type: ignore[method-assign]
+    try:
+        asyncio.run(screen._chase_until_filled(trade, "BUY", mode="RELENTLESS_DELAY"))
+    finally:
+        _DETAIL_CHASE_STATE_BY_ORDER.clear()
+
+    sweep_updates = [
+        payload
+        for payload in captured_updates
+        if "delay_recoveries" in payload and "delay_sweep_anchor_price" in payload
+    ]
+    assert sweep_updates
+    assert any(abs(float(payload["delay_sweep_anchor_price"]) - 121.0) < 1e-9 for payload in sweep_updates)
+    assert any(payload.get("delay_locked_price_dir") is None for payload in sweep_updates)
+
+
+def test_relentless_delay_settle_locks_winning_side_for_directional_relentless() -> None:
+    _ensure_event_loop()
+    _DETAIL_CHASE_STATE_BY_ORDER.clear()
+    contract = Contract(secType="FOP", symbol="MNQ", exchange="CME", currency="USD")
+    contract.conId = 750150193
+    contract.minTick = 0.5
+    done = {"value": False}
+    modified_prices: list[float] = []
+
+    class _Client:
+        def __init__(self) -> None:
+            self._ticker = SimpleNamespace(
+                contract=contract,
+                bid=106.0,
+                ask=115.0,
+                last=110.5,
+                marketDataType=3,
+                minTick=0.5,
+                tbTopQuoteUpdatedMono=monotonic() - 16.0,
+            )
+
+        async def ensure_ticker(self, _contract, *, owner: str = "details"):
+            return self._ticker
+
+        def ticker_for_con_id(self, _con_id: int):
+            return self._ticker
+
+        @staticmethod
+        def release_ticker(_con_id: int, *, owner: str = "details") -> None:
+            return None
+
+        @staticmethod
+        def pop_order_error(_order_id: int, *, max_age_sec: float = 120.0):
+            assert float(max_age_sec) >= 120.0
+            return None
+
+        async def modify_limit_order(self, trade, limit_price: float):
+            modified_prices.append(float(limit_price))
+            trade.order.lmtPrice = float(limit_price)
+            done["value"] = True
+            return trade
+
+    trade = SimpleNamespace(
+        order=SimpleNamespace(
+            orderId=613,
+            permId=0,
+            action="SELL",
+            totalQuantity=1,
+            orderType="LMT",
+            lmtPrice=110.5,
+        ),
+        orderStatus=SimpleNamespace(status="Submitted", whyHeld="", filled=0.0, remaining=1.0),
+        contract=contract,
+        isDone=lambda: bool(done["value"]),
+    )
+    client = _Client()
+    screen = PositionDetailScreen(client, _fut_item(contract, market_price=110.5), refresh_sec=0.25)
+    screen._CHASE_MODIFY_ERROR_BACKOFF_SEC = 0.0
+    screen._RELENTLESS_MIN_REPRICE_SEC = 0.0
+    screen._RELENTLESS_MIN_REPRICE_SEC_SHOCK = 0.0
+    screen._RELENTLESS_MIN_REPRICE_SEC_HYPER = 0.0
+    screen._RELENTLESS_DELAY_RECOVER_COOLDOWN_SEC = 0.0
+    screen._set_chase_state(
+        order_id=613,
+        perm_id=0,
+        updates={
+            "delay_recoveries": 4,
+            "delay_last_202_ts": monotonic() - 8.0,
+            "delay_last_leg_sign": 1.0,
+            "delay_last_leg_name": "FAV",
+            "delay_sweep_anchor_price": 110.5,
+        },
+    )
+    captured_updates: list[dict[str, object]] = []
+    original_set_chase_state = screen._set_chase_state
+
+    def _capture_set_chase_state(
+        *,
+        order_id: int,
+        perm_id: int,
+        updates: dict[str, object] | None = None,
+    ):
+        if updates:
+            captured_updates.append(dict(updates))
+        return original_set_chase_state(order_id=order_id, perm_id=perm_id, updates=updates)
+
+    screen._set_chase_state = _capture_set_chase_state  # type: ignore[method-assign]
+    try:
+        asyncio.run(screen._chase_until_filled(trade, "SELL", mode="RELENTLESS_DELAY"))
+    finally:
+        _DETAIL_CHASE_STATE_BY_ORDER.clear()
+
+    assert modified_prices
+    assert float(modified_prices[0]) > 106.0
+    assert any(payload.get("delay_locked_price_dir") == 1.0 for payload in captured_updates)
+
+
 def test_relentless_min_reprice_hyper_in_open_shock_when_no_progress() -> None:
     _ensure_event_loop()
     contract = Contract(secType="FUT", symbol="MNQ", exchange="CME", currency="USD")
@@ -275,6 +708,44 @@ def test_orders_panel_renders_order_feed_notice() -> None:
     plain = rendered.plain
     assert "Order Feed" in plain
     assert "IB 201: bad tif" in plain
+
+
+def test_orders_panel_wraps_long_order_feed_notice() -> None:
+    _ensure_event_loop()
+    contract = Contract(secType="FUT", symbol="1OZ", exchange="COMEX", currency="USD")
+    contract.conId = 753716628
+
+    class _Client:
+        @staticmethod
+        def open_trades_for_conids(_con_ids: list[int]):
+            return []
+
+    class _RightPane:
+        def __init__(self) -> None:
+            self.size = SimpleNamespace(width=46, height=24)
+            self.value = None
+
+        def update(self, text) -> None:
+            self.value = text
+
+    screen = PositionDetailScreen(_Client(), _fut_item(contract), refresh_sec=0.25)
+    screen._detail_right = _RightPane()  # type: ignore[attr-defined]
+    screen._set_orders_notice(
+        "IB 201: We are unable to accept your order because this contract is not available for trading",
+        level="error",
+    )
+
+    screen._render_orders_panel()
+
+    rendered = screen._detail_right.value  # type: ignore[attr-defined]
+    assert rendered is not None
+    plain = rendered.plain
+    assert "Order Feed" in plain
+    assert "ERR IB 201: We are unable to accept your" in plain
+    wrapped_lines = [line for line in plain.splitlines() if "order because this contract is not" in line]
+    assert wrapped_lines
+    assert wrapped_lines[0].startswith("│    ")
+    assert "available for trading" in plain
 
 
 def test_orders_panel_notice_replaces_previous_and_expires() -> None:
@@ -421,6 +892,186 @@ def test_chase_pending_submission_surfaces_ib_reject_without_terminal_status() -
     assert "#991 PendingSubmission: IB 110: price does not conform to minimum increment" in line.plain
 
 
+def test_relentless_delay_recovers_from_ib202_before_repricing() -> None:
+    _ensure_event_loop()
+    contract = Contract(secType="FOP", symbol="MNQ", exchange="CME", currency="USD")
+    contract.conId = 750150193
+    contract.minTick = 0.5
+    done = {"value": False}
+
+    class _Client:
+        def __init__(self) -> None:
+            self.modify_calls = 0
+            self.error_served = False
+            self._ticker = SimpleNamespace(
+                contract=contract,
+                bid=106.0,
+                ask=115.0,
+                last=110.5,
+                marketDataType=3,
+                minTick=0.5,
+                tbTopQuoteUpdatedMono=monotonic() - 16.0,
+            )
+
+        async def ensure_ticker(self, _contract, *, owner: str = "details"):
+            return self._ticker
+
+        def ticker_for_con_id(self, _con_id: int):
+            return self._ticker
+
+        @staticmethod
+        def release_ticker(_con_id: int, *, owner: str = "details") -> None:
+            return None
+
+        def pop_order_error(self, order_id: int, *, max_age_sec: float = 120.0):
+            assert int(order_id) == 611
+            assert float(max_age_sec) >= 120.0
+            if self.error_served:
+                return None
+            self.error_served = True
+            return {"code": 202, "message": "Order price is outside price limits"}
+
+        async def modify_limit_order(self, trade, limit_price: float):
+            self.modify_calls += 1
+            assert float(limit_price) <= 110.5
+            trade.order.lmtPrice = float(limit_price)
+            done["value"] = True
+            return trade
+
+    trade = SimpleNamespace(
+        order=SimpleNamespace(
+            orderId=611,
+            permId=0,
+            action="BUY",
+            totalQuantity=1,
+            orderType="LMT",
+            lmtPrice=121.0,
+        ),
+        orderStatus=SimpleNamespace(
+            status="Submitted",
+            whyHeld="",
+            filled=0.0,
+            remaining=1.0,
+            mktCapPrice=110.5,
+        ),
+        contract=contract,
+        isDone=lambda: bool(done["value"]),
+    )
+    client = _Client()
+    screen = PositionDetailScreen(client, _fut_item(contract, market_price=110.5), refresh_sec=0.25)
+    screen._CHASE_MODIFY_ERROR_BACKOFF_SEC = 0.0
+    screen._RELENTLESS_MIN_REPRICE_SEC = 0.0
+    screen._RELENTLESS_MIN_REPRICE_SEC_SHOCK = 0.0
+    screen._RELENTLESS_MIN_REPRICE_SEC_HYPER = 0.0
+    screen._RELENTLESS_DELAY_RECOVER_COOLDOWN_SEC = 0.0
+
+    asyncio.run(screen._chase_until_filled(trade, "BUY", mode="RELENTLESS_DELAY"))
+
+    assert client.modify_calls >= 1
+
+
+def test_relentless_delay_wraps_202_sweep_instead_of_halting_at_attempt_cap() -> None:
+    _ensure_event_loop()
+    contract = Contract(secType="FOP", symbol="MNQ", exchange="CME", currency="USD")
+    contract.conId = 750150193
+    contract.minTick = 0.5
+
+    class _Client:
+        def __init__(self) -> None:
+            self.error_budget = 7
+            self.errors_served = 0
+            self.place_calls = 0
+            self._ticker = SimpleNamespace(
+                contract=contract,
+                bid=106.0,
+                ask=115.0,
+                last=110.5,
+                marketDataType=3,
+                minTick=0.5,
+                tbTopQuoteUpdatedMono=monotonic() - 16.0,
+            )
+
+        async def ensure_ticker(self, _contract, *, owner: str = "details"):
+            return self._ticker
+
+        def ticker_for_con_id(self, _con_id: int):
+            return self._ticker
+
+        @staticmethod
+        def release_ticker(_con_id: int, *, owner: str = "details") -> None:
+            return None
+
+        def pop_order_error(self, _order_id: int, *, max_age_sec: float = 120.0):
+            assert float(max_age_sec) >= 120.0
+            if self.errors_served >= self.error_budget:
+                return None
+            self.errors_served += 1
+            return {"code": 202, "message": "Order price is outside price limits"}
+
+        async def place_limit_order(
+            self,
+            order_contract,
+            action: str,
+            qty: float,
+            price: float,
+            _outside_rth: bool,
+        ):
+            self.place_calls += 1
+            status = "Filled" if self.place_calls >= self.error_budget else "Cancelled"
+            filled = float(qty) if status == "Filled" else 0.0
+            remaining = 0.0 if status == "Filled" else float(qty)
+            return SimpleNamespace(
+                order=SimpleNamespace(
+                    orderId=800 + self.place_calls,
+                    permId=0,
+                    action=action,
+                    totalQuantity=float(qty),
+                    orderType="LMT",
+                    lmtPrice=float(price),
+                ),
+                orderStatus=SimpleNamespace(
+                    status=status,
+                    whyHeld="",
+                    filled=filled,
+                    remaining=remaining,
+                    mktCapPrice=0.0,
+                ),
+                contract=order_contract,
+                isDone=lambda resolved=status: resolved == "Filled",
+            )
+
+    trade = SimpleNamespace(
+        order=SimpleNamespace(
+            orderId=799,
+            permId=0,
+            action="BUY",
+            totalQuantity=1.0,
+            orderType="LMT",
+            lmtPrice=110.5,
+        ),
+        orderStatus=SimpleNamespace(
+            status="Cancelled",
+            whyHeld="",
+            filled=0.0,
+            remaining=1.0,
+            mktCapPrice=0.0,
+        ),
+        contract=contract,
+        isDone=lambda: False,
+    )
+    client = _Client()
+    screen = PositionDetailScreen(client, _fut_item(contract, market_price=110.5), refresh_sec=0.25)
+    screen._RELENTLESS_DELAY_RECOVER_ATTEMPTS = 4
+    screen._RELENTLESS_DELAY_RECOVER_COOLDOWN_SEC = 0.0
+
+    asyncio.run(screen._chase_until_filled(trade, "BUY", mode="RELENTLESS_DELAY"))
+
+    assert client.place_calls > int(screen._RELENTLESS_DELAY_RECOVER_ATTEMPTS)
+    notice = screen._orders_notice_line()
+    if notice is not None:
+        assert "Chase halted" not in notice.plain
+
+
 def test_refresh_ticker_attempts_one_shot_live_probe_for_delayed_fop() -> None:
     _ensure_event_loop()
     contract = Contract(secType="FOP", symbol="MNQ", exchange="CME", currency="USD")
@@ -458,6 +1109,25 @@ def test_refresh_ticker_attempts_one_shot_live_probe_for_delayed_fop() -> None:
 
     assert client.live_snapshot_calls == 1
     assert "1-shot live-snapshot" in str(screen._exec_status or "")
+    assert screen._md_probe_requested_type == 3
+    assert float(screen._md_probe_started_mono) > 0.0
+
+
+def test_market_data_probe_row_shows_transition_and_expires() -> None:
+    _ensure_event_loop()
+    contract = Contract(secType="FUT", symbol="MNQ", exchange="CME", currency="USD")
+    contract.conId = 750150193
+    screen = PositionDetailScreen(SimpleNamespace(), _fut_item(contract), refresh_sec=0.25)
+    screen._ticker = SimpleNamespace(contract=contract, marketDataType=1)
+    screen._md_probe_requested_type = 3
+    screen._md_probe_started_mono = monotonic()
+
+    row = screen._market_data_probe_row()
+    assert row is not None
+    assert "req Delayed (3) -> now Live (1)" in row.plain
+
+    screen._md_probe_started_mono = monotonic() - (screen._MD_PROBE_BANNER_TTL_SEC + 0.5)
+    assert screen._market_data_probe_row() is None
 
 
 def test_chase_pending_submission_does_not_modify_before_accept() -> None:

@@ -69,6 +69,7 @@ class _SearchDrawer(Static):
 class PositionsApp(App):
     _PX_24_72_COL_WIDTH = 36
     _QTY_COL_WIDTH = 7
+    _AVG_COL_WIDTH = 20
     _UNREAL_COL_WIDTH = 36
     _REALIZED_COL_WIDTH = 14
     _CLOSES_RETRY_SEC = 30.0
@@ -327,6 +328,12 @@ class PositionsApp(App):
         self._search_symbol_labels: dict[str, str] = {}
         self._search_opt_underlyer_index = 0
         self._search_opt_chain_cache: dict[str, list[Contract]] = {}
+        self._search_opt_chain_page_cache: dict[str, dict[str, object]] = {}
+        self._search_expiry_has_more = False
+        self._search_expiry_next_offset = 0
+        self._search_expiry_total = 0
+        self._search_expiry_loading_more = False
+        self._search_expiry_auto_advance_from: int | None = None
         self._search_timing: dict[str, object] = {}
         self._search_task: asyncio.Task | None = None
 
@@ -369,7 +376,7 @@ class PositionsApp(App):
         self._columns = [
             "Symbol",
             "Qty",
-            "AvgCost",
+            "Entry¦Now",
             "Px 24-72",
             "Unreal (Pos)",
             "Realized (Pos)",
@@ -385,6 +392,11 @@ class PositionsApp(App):
                 self._table.add_column(
                     label.center(self._QTY_COL_WIDTH),
                     width=self._QTY_COL_WIDTH,
+                )
+            elif "¦" in label:
+                self._table.add_column(
+                    label.center(self._AVG_COL_WIDTH),
+                    width=self._AVG_COL_WIDTH,
                 )
             elif label.startswith("Unreal"):
                 self._table.add_column(
@@ -630,7 +642,9 @@ class PositionsApp(App):
         self._search_symbol_labels = {}
         self._search_opt_underlyer_index = 0
         self._search_opt_chain_cache = {}
+        self._search_opt_chain_page_cache = {}
         self._search_timing = {}
+        self._reset_search_expiry_paging()
         self._search_loading = False
         self._search_error = None
         self._search_generation += 1
@@ -652,7 +666,9 @@ class PositionsApp(App):
         self._search_symbol_labels = {}
         self._search_opt_underlyer_index = 0
         self._search_opt_chain_cache = {}
+        self._search_opt_chain_page_cache = {}
         self._search_timing = {}
+        self._reset_search_expiry_paging()
         self._search_loading = False
         self._search_error = None
         self._search_generation += 1
@@ -666,6 +682,13 @@ class PositionsApp(App):
         if self._search_task and not self._search_task.done():
             self._search_task.cancel()
         self._search_task = None
+
+    def _reset_search_expiry_paging(self) -> None:
+        self._search_expiry_has_more = False
+        self._search_expiry_next_offset = 0
+        self._search_expiry_total = 0
+        self._search_expiry_loading_more = False
+        self._search_expiry_auto_advance_from = None
 
     def _cycle_search_mode(self, step: int) -> None:
         count = len(self._SEARCH_MODES)
@@ -681,7 +704,9 @@ class PositionsApp(App):
         self._search_symbol_labels = {}
         self._search_opt_underlyer_index = 0
         self._search_opt_chain_cache = {}
+        self._search_opt_chain_page_cache = {}
         self._search_timing = {}
+        self._reset_search_expiry_paging()
         self._queue_search()
 
     def _move_search_selection(self, delta: int) -> None:
@@ -734,8 +759,18 @@ class PositionsApp(App):
         expiries = self._search_opt_expiries()
         if not expiries:
             return
+        direction = int(step)
+        at_last_expiry = self._search_opt_expiry_index >= (len(expiries) - 1)
+        if (
+            direction > 0
+            and at_last_expiry
+            and bool(getattr(self, "_search_expiry_has_more", False))
+        ):
+            self._search_expiry_auto_advance_from = len(expiries)
+            self._queue_search_next_expiry_page()
+            return
         count = len(expiries)
-        self._search_opt_expiry_index = (self._search_opt_expiry_index + int(step)) % count
+        self._search_opt_expiry_index = (self._search_opt_expiry_index + direction) % count
         self._search_selected = self._default_opt_row_index()
         self._search_scroll = 0
         self._ensure_search_visible()
@@ -831,6 +866,7 @@ class PositionsApp(App):
         self._search_scroll = 0
         self._search_side = 0
         self._search_opt_expiry_index = 0
+        self._reset_search_expiry_paging()
         self._queue_search_opt_underlyer_load()
 
     def _queue_search_opt_underlyer_load(self) -> None:
@@ -842,13 +878,16 @@ class PositionsApp(App):
             self._search_results = []
             self._search_loading = False
             self._search_timing = {}
+            self._reset_search_expiry_paging()
             self._render_search()
             return
         cached = self._search_opt_chain_cache.get(symbol)
         if cached is not None:
             self._search_loading = False
+            self._search_expiry_loading_more = False
             self._search_error = None
             self._search_results = list(cached)
+            self._apply_cached_opt_chain_paging(symbol)
             self._search_selected = self._default_opt_row_index()
             self._ensure_search_visible()
             self._init_search_timing(
@@ -880,6 +919,7 @@ class PositionsApp(App):
         )
         self._set_search_timing(phase="contracts", opt_deepen_pending=False)
         self._search_loading = True
+        self._search_expiry_loading_more = False
         self._search_error = None
         self._search_results = []
         self._render_search()
@@ -1149,6 +1189,48 @@ class PositionsApp(App):
         if total_ms is not None:
             timing["total_ms"] = float(total_ms)
 
+    def _set_search_expiry_paging_from_timing(self, timing: dict[str, object] | None) -> None:
+        payload = timing if isinstance(timing, dict) else {}
+        self._search_expiry_has_more = bool(payload.get("has_more_expiries"))
+        self._search_expiry_next_offset = max(
+            0,
+            self._timing_int(payload.get("next_expiry_offset")),
+        )
+        self._search_expiry_total = max(
+            0,
+            self._timing_int(payload.get("expiry_count")),
+        )
+        self._search_expiry_loading_more = False
+
+    def _cache_opt_chain_paging(self, symbol: str, timing: dict[str, object] | None) -> None:
+        key = str(symbol or "").strip().upper()
+        if not key:
+            return
+        payload = timing if isinstance(timing, dict) else {}
+        state = {
+            "has_more_expiries": bool(payload.get("has_more_expiries")),
+            "next_expiry_offset": max(0, self._timing_int(payload.get("next_expiry_offset"))),
+            "expiry_count": max(0, self._timing_int(payload.get("expiry_count"))),
+        }
+        if not hasattr(self, "_search_opt_chain_page_cache"):
+            self._search_opt_chain_page_cache = {}
+        self._search_opt_chain_page_cache[key] = state
+
+    def _apply_cached_opt_chain_paging(self, symbol: str) -> None:
+        key = str(symbol or "").strip().upper()
+        if not key:
+            self._reset_search_expiry_paging()
+            return
+        cache = getattr(self, "_search_opt_chain_page_cache", {})
+        if not isinstance(cache, dict):
+            self._reset_search_expiry_paging()
+            return
+        payload = cache.get(key)
+        if not isinstance(payload, dict):
+            self._reset_search_expiry_paging()
+            return
+        self._set_search_expiry_paging_from_timing(payload)
+
     @staticmethod
     def _timing_ms_text(value: object) -> str:
         try:
@@ -1353,6 +1435,205 @@ class PositionsApp(App):
         line.append(" | ".join(parts), style="dim")
         return line
 
+    def _search_fetch_limit_for_mode(self, mode: str) -> int:
+        cleaned = str(mode or "").strip().upper()
+        if cleaned == "OPT":
+            return int(self._SEARCH_OPT_FETCH_LIMIT)
+        if self._is_option_search_mode(cleaned):
+            return int(self._SEARCH_FETCH_LIMIT)
+        return int(self._SEARCH_LIMIT)
+
+    @staticmethod
+    def _search_contract_key(contract: Contract | None) -> tuple[object, ...] | None:
+        if contract is None:
+            return None
+        con_id = int(getattr(contract, "conId", 0) or 0)
+        if con_id > 0:
+            return ("conid", con_id)
+        strike_raw = getattr(contract, "strike", None)
+        try:
+            strike = round(float(strike_raw or 0.0), 6)
+        except (TypeError, ValueError):
+            strike = 0.0
+        return (
+            str(getattr(contract, "secType", "") or "").strip().upper(),
+            str(getattr(contract, "symbol", "") or "").strip().upper(),
+            str(getattr(contract, "lastTradeDateOrContractMonth", "") or "").strip(),
+            str(getattr(contract, "right", "") or "").strip().upper()[:1],
+            float(strike),
+            str(getattr(contract, "exchange", "") or "").strip().upper(),
+            str(getattr(contract, "tradingClass", "") or "").strip().upper(),
+        )
+
+    def _merge_search_contract_rows(
+        self,
+        existing: list[Contract],
+        incoming: list[Contract],
+    ) -> list[Contract]:
+        out: list[Contract] = []
+        seen: set[tuple[object, ...]] = set()
+        for contract in list(existing or []) + list(incoming or []):
+            key = self._search_contract_key(contract)
+            if key is None or key in seen:
+                continue
+            seen.add(key)
+            out.append(contract)
+        return out
+
+    def _queue_search_next_expiry_page(self) -> None:
+        if not self._search_active:
+            return
+        mode = self._search_mode()
+        if not self._is_option_search_mode(mode):
+            return
+        if self._search_loading or self._search_expiry_loading_more:
+            return
+        if not bool(self._search_expiry_has_more):
+            return
+        query = self._search_query.strip()
+        if not query:
+            return
+        offset = max(0, int(self._search_expiry_next_offset))
+        generation = int(self._search_generation)
+        symbol = self._current_opt_underlyer() if mode == "OPT" else None
+        if mode == "OPT" and not symbol:
+            return
+        self._search_expiry_loading_more = True
+        self._search_loading = True
+        self._search_error = None
+        self._set_search_timing(
+            generation=generation,
+            phase="contracts-paging",
+            opt_deepen_pending=True,
+        )
+        self._render_search()
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            self._search_loading = False
+            self._search_expiry_loading_more = False
+            self._finalize_search_timing(
+                generation=generation,
+                status="error",
+                error="runtime_loop_unavailable",
+            )
+            self._render_search()
+            return
+        fetch_limit = self._search_fetch_limit_for_mode(mode)
+        self._search_task = loop.create_task(
+            self._run_search_next_expiry_page(
+                generation=generation,
+                query=query,
+                mode=mode,
+                fetch_limit=fetch_limit,
+                expiry_offset=offset,
+                opt_underlyer_symbol=symbol,
+            )
+        )
+
+    async def _run_search_next_expiry_page(
+        self,
+        *,
+        generation: int,
+        query: str,
+        mode: str,
+        fetch_limit: int,
+        expiry_offset: int,
+        opt_underlyer_symbol: str | None,
+    ) -> None:
+        contracts_started = time.monotonic()
+        contract_timing: dict[str, object] = {}
+        try:
+            kwargs: dict[str, object] = {
+                "mode": str(mode or "").strip().upper(),
+                "limit": int(fetch_limit),
+                "timing": contract_timing,
+                "expiry_offset": int(max(0, expiry_offset)),
+            }
+            if str(mode or "").strip().upper() == "OPT":
+                kwargs["opt_underlyer_symbol"] = str(opt_underlyer_symbol or "").strip().upper()
+            rows = await self._client.search_contracts(query, **kwargs)
+        except asyncio.CancelledError:
+            self._search_expiry_loading_more = False
+            self._search_loading = False
+            self._set_search_timing(generation=generation, phase="cancelled")
+            self._finalize_search_timing(generation=generation, status="cancelled")
+            return
+        except Exception as exc:
+            if generation != self._search_generation:
+                return
+            self._search_expiry_loading_more = False
+            self._search_loading = False
+            self._search_error = str(exc)
+            self._set_search_timing(generation=generation, phase="error")
+            self._finalize_search_timing(
+                generation=generation,
+                status="error",
+                error=str(exc),
+            )
+            self._render_search()
+            return
+        if generation != self._search_generation:
+            return
+        merged_rows = self._merge_search_contract_rows(self._search_results, list(rows or []))
+        self._search_results = merged_rows
+        mode_clean = str(mode or "").strip().upper()
+        if mode_clean == "OPT":
+            symbol = str(opt_underlyer_symbol or "").strip().upper()
+            if symbol:
+                self._search_opt_chain_cache[symbol] = list(self._search_results)
+                self._cache_opt_chain_paging(symbol, contract_timing)
+            self._set_opt_search_contract_timing(
+                generation=generation,
+                contract_timing=contract_timing,
+                contracts_started=contracts_started,
+                phase="contracts-paging",
+                deepen_pending=bool(contract_timing.get("has_more_expiries")),
+            )
+        else:
+            self._set_search_timing(
+                generation=generation,
+                phase="contracts-paging",
+                contracts_ms=contract_timing.get(
+                    "total_ms",
+                    (time.monotonic() - contracts_started) * 1000.0,
+                ),
+                candidate_count=self._timing_int(contract_timing.get("candidate_count")),
+                qualified_count=self._timing_int(contract_timing.get("qualified_count")),
+                contract_stage=str(contract_timing.get("stage", "") or ""),
+                contract_reason=str(contract_timing.get("reason", "") or ""),
+                selected_expiry_count=self._timing_int(contract_timing.get("selected_expiry_count")),
+                expiry_count=self._timing_int(contract_timing.get("expiry_count")),
+                rows_per_expiry=self._timing_int(contract_timing.get("rows_per_expiry")),
+                opt_deepen_pending=bool(contract_timing.get("has_more_expiries")),
+            )
+        self._set_search_expiry_paging_from_timing(contract_timing)
+        if not self._search_expiry_has_more:
+            self._search_expiry_auto_advance_from = None
+        auto_from = self._search_expiry_auto_advance_from
+        if auto_from is not None:
+            expiries_now = self._search_opt_expiries()
+            if len(expiries_now) > int(auto_from):
+                self._search_opt_expiry_index = int(auto_from)
+                self._search_selected = self._default_opt_row_index()
+                self._search_scroll = 0
+            self._search_expiry_auto_advance_from = None
+        self._search_expiry_loading_more = False
+        self._search_loading = False
+        self._ensure_search_visible()
+        self._set_search_timing(
+            generation=generation,
+            phase="done",
+            opt_deepen_pending=False,
+            rows=len(self._search_results),
+        )
+        self._finalize_search_timing(
+            generation=generation,
+            status="done",
+            rows=len(self._search_results),
+        )
+        self._render_search()
+
     def _queue_search(self) -> None:
         self._search_error = None
         self._search_selected = 0
@@ -1363,7 +1644,9 @@ class PositionsApp(App):
         self._search_symbol_labels = {}
         self._search_opt_underlyer_index = 0
         self._search_opt_chain_cache = {}
+        self._search_opt_chain_page_cache = {}
         self._search_timing = {}
+        self._reset_search_expiry_paging()
         self._cancel_search_task()
         query = self._search_query.strip()
         if not query:
@@ -1376,15 +1659,7 @@ class PositionsApp(App):
         self._search_generation += 1
         generation = self._search_generation
         mode = self._search_mode()
-        fetch_limit = (
-            self._SEARCH_OPT_FETCH_LIMIT
-            if mode == "OPT"
-            else (
-                self._SEARCH_FETCH_LIMIT
-                if self._is_option_search_mode(mode)
-                else self._SEARCH_LIMIT
-            )
-        )
+        fetch_limit = self._search_fetch_limit_for_mode(mode)
         self._init_search_timing(
             generation=generation,
             query=query,
@@ -1520,8 +1795,11 @@ class PositionsApp(App):
                         if generation != self._search_generation:
                             return
                         self._search_opt_chain_cache[symbol] = list(results)
+                        self._cache_opt_chain_paging(symbol, contract_timing)
+                        self._set_search_expiry_paging_from_timing(contract_timing)
                     else:
                         results = list(cached)
+                        self._apply_cached_opt_chain_paging(symbol)
                         self._set_search_timing(
                             generation=generation,
                             phase="contracts",
@@ -1536,11 +1814,22 @@ class PositionsApp(App):
             else:
                 self._set_search_timing(generation=generation, phase="contracts")
                 contracts_started = time.monotonic()
-                results = await self._client.search_contracts(query, mode=mode, limit=fetch_limit)
+                contract_timing: dict[str, object] = {}
+                results = await self._client.search_contracts(
+                    query,
+                    mode=mode,
+                    limit=fetch_limit,
+                    timing=contract_timing if self._is_option_search_mode(mode) else None,
+                )
                 self._set_search_timing(
                     generation=generation,
-                    contracts_ms=(time.monotonic() - contracts_started) * 1000.0,
+                    contracts_ms=contract_timing.get(
+                        "total_ms",
+                        (time.monotonic() - contracts_started) * 1000.0,
+                    ),
                 )
+                if self._is_option_search_mode(mode):
+                    self._set_search_expiry_paging_from_timing(contract_timing)
                 if generation != self._search_generation:
                     return
                 symbols: list[str] = []
@@ -1565,6 +1854,7 @@ class PositionsApp(App):
                     if generation != self._search_generation:
                         return
         except asyncio.CancelledError:
+            self._search_expiry_loading_more = False
             self._set_search_timing(generation=generation, phase="cancelled")
             self._finalize_search_timing(generation=generation, status="cancelled")
             return
@@ -1572,6 +1862,7 @@ class PositionsApp(App):
             if generation != self._search_generation:
                 return
             self._search_loading = False
+            self._search_expiry_loading_more = False
             self._search_results = []
             self._search_error = str(exc)
             self._set_search_timing(generation=generation, phase="error")
@@ -1587,6 +1878,7 @@ class PositionsApp(App):
             return
         had_partial_opt_rows = mode == "OPT" and bool(self._search_results)
         self._search_loading = False
+        self._search_expiry_loading_more = False
         self._search_results = list(results)
         total = self._search_row_count()
         if mode == "OPT":
@@ -1646,7 +1938,10 @@ class PositionsApp(App):
                 phase="contracts",
                 deepen_pending=False,
             )
+            self._cache_opt_chain_paging(symbol, contract_timing)
+            self._set_search_expiry_paging_from_timing(contract_timing)
         except asyncio.CancelledError:
+            self._search_expiry_loading_more = False
             self._set_search_timing(generation=generation, phase="cancelled")
             self._finalize_search_timing(generation=generation, status="cancelled")
             return
@@ -1654,6 +1949,7 @@ class PositionsApp(App):
             if generation != self._search_generation:
                 return
             self._search_loading = False
+            self._search_expiry_loading_more = False
             self._search_results = []
             self._search_error = str(exc)
             self._set_search_timing(generation=generation, phase="error")
@@ -1670,6 +1966,7 @@ class PositionsApp(App):
         self._search_opt_chain_cache[symbol] = list(results)
         had_partial_opt_rows = bool(self._search_results)
         self._search_loading = False
+        self._search_expiry_loading_more = False
         self._search_results = list(results)
         if had_partial_opt_rows:
             total = self._search_row_count()
@@ -1766,6 +2063,12 @@ class PositionsApp(App):
                             expiry_line.append(f"[{expiry}]", style="bold #0d1117 on #ffcc84")
                         else:
                             expiry_line.append(expiry, style="bold #ffcc84")
+                    if bool(getattr(self, "_search_expiry_loading_more", False)):
+                        expiry_line.append(" ", style="dim")
+                        expiry_line.append("[+...]", style="bold yellow")
+                    elif bool(getattr(self, "_search_expiry_has_more", False)):
+                        expiry_line.append(" ", style="dim")
+                        expiry_line.append("[+more]", style="bold #86dca9")
                     expiry_line.append("  ([ / ])", style="dim")
                 else:
                     expiry_line.append("n/a", style="dim")
@@ -2239,7 +2542,9 @@ class PositionsApp(App):
                 unreal_text=unreal_text,
                 unreal_pct_text=unreal_pct_text,
             )
+            row_values[2] = self._avg_cost_cell(item)
             row_values[1] = self._center_cell(row_values[1], self._QTY_COL_WIDTH)
+            row_values[2] = self._center_cell(row_values[2], self._AVG_COL_WIDTH)
             row_values[4] = self._center_cell(row_values[4], self._UNREAL_COL_WIDTH)
             row_values[5] = self._center_cell(row_values[5], self._REALIZED_COL_WIDTH)
             self._table.add_row(
@@ -2957,6 +3262,92 @@ class PositionsApp(App):
         denom = abs(float(cost_basis)) if float(cost_basis) else abs(mark_value)
         pct = (unreal / denom * 100.0) if denom > 0 else None
         return unreal, pct
+
+    @staticmethod
+    def _entry_now_value(value: float | None) -> str:
+        if value is None:
+            return "n/a"
+        return f"{float(value):,.2f}"
+
+    def _entry_now_inputs(
+        self,
+        item: PortfolioItem,
+    ) -> tuple[float | None, float | None, float | None]:
+        avg_cost = self._float_or_none(getattr(item, "averageCost", None))
+        mark_price, _is_estimate = self._mark_price(item)
+        mark = self._float_or_none(mark_price)
+        if avg_cost is None:
+            return None, mark, None
+
+        sec_type = str(getattr(item.contract, "secType", "") or "").strip().upper()
+        multiplier = abs(float(_infer_multiplier(item)))
+        entry = float(avg_cost)
+        if sec_type in ("OPT", "FOP", "FUT") and multiplier > 0 and abs(multiplier - 1.0) > 1e-9:
+            entry = entry / float(multiplier)
+
+        edge_pct: float | None = None
+        if mark is not None and abs(entry) > 1e-12:
+            raw_pct = ((float(mark) - float(entry)) / abs(float(entry))) * 100.0
+            qty = self._float_or_none(getattr(item, "position", None))
+            if qty is not None and qty < 0:
+                raw_pct *= -1.0
+            edge_pct = raw_pct
+        return entry, mark, edge_pct
+
+    def _avg_cost_cell(self, item: PortfolioItem) -> Text:
+        width = max(int(self._AVG_COL_WIDTH), 10)
+        outer_pad = 1
+        sep = "¦"
+        core_width = max(width - (outer_pad * 2), 1)
+        left_width = max((core_width - len(sep)) // 2, 1)
+        right_width = max(core_width - left_width - len(sep), 1)
+
+        entry, now, edge_pct = self._entry_now_inputs(item)
+        entry_plain = self._entry_now_value(entry)
+        now_plain = self._entry_now_value(now)
+
+        glyph = "•"
+        edge_style = "dim"
+        if edge_pct is not None:
+            if edge_pct > 1e-6:
+                glyph = "▲"
+                edge_style = "green"
+            elif edge_pct < -1e-6:
+                glyph = "▼"
+                edge_style = "red"
+
+        left_plain = f"{glyph} {entry_plain}"
+        if len(left_plain) > left_width:
+            left_plain = left_plain[:left_width]
+        if len(now_plain) > right_width:
+            now_plain = now_plain[:right_width]
+        left_block = self._center_with_sep_bias(left_plain, left_width, max_right_gap=1)
+        right_block = self._center_with_sep_bias(now_plain, right_width, max_left_gap=1)
+        core_plain = f"{left_block}{sep}{right_block}"
+
+        if len(core_plain) < core_width:
+            core_plain = f"{core_plain}{' ' * (core_width - len(core_plain))}"
+        elif len(core_plain) > core_width:
+            core_plain = core_plain[:core_width]
+
+        text = Text(f"{' ' * outer_pad}{core_plain}{' ' * outer_pad}")
+        left_start = outer_pad
+        left_end = left_start + len(left_block)
+        sep_start = left_end
+        right_start = sep_start + len(sep)
+        right_end = right_start + len(right_block)
+
+        text.stylize("grey50", left_start, left_end)
+        glyph_idx = left_block.find(glyph)
+        if glyph_idx >= 0:
+            text.stylize(
+                edge_style,
+                left_start + glyph_idx,
+                left_start + glyph_idx + len(glyph),
+            )
+        text.stylize("grey35", sep_start, sep_start + len(sep))
+        text.stylize(edge_style if now is not None else "dim", right_start, right_end)
+        return text
 
     def _aligned_unreal_cell(
         self,

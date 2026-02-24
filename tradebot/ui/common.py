@@ -975,7 +975,7 @@ def _exec_chase_mode(elapsed_sec: float, *, selected_mode: str | None = "AUTO") 
         elapsed = float(elapsed_sec)
     except (TypeError, ValueError):
         elapsed = 0.0
-    if cleaned == "RELENTLESS":
+    if cleaned in ("RELENTLESS", "RELENTLESS_DELAY"):
         return cleaned if elapsed <= _EXEC_RELENTLESS_TIMEOUT_SEC else None
     if cleaned and cleaned not in ("AUTO", "LADDER"):
         return cleaned if elapsed <= _EXEC_LADDER_TIMEOUT_SEC else None

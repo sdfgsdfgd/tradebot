@@ -503,6 +503,107 @@ def test_search_contracts_opt_spreads_limit_across_multiple_expiries() -> None:
     assert int(timing.get("rows_per_expiry", 0) or 0) >= 1
 
 
+def test_search_contracts_opt_supports_expiry_offset_paging() -> None:
+    client = _client()
+
+    async def _stock_option_chain(symbol: str):
+        normalized = str(symbol or "").strip().upper()
+        underlying = Contract(
+            secType="STK",
+            symbol=normalized,
+            exchange="SMART",
+            currency="USD",
+            conId=91,
+        )
+        chain = SimpleNamespace(
+            expirations=("20260220", "20260227", "20260306", "20260320", "20260417", "20260619"),
+            strikes=tuple(float(strike) for strike in range(140, 261)),
+            exchange="SMART",
+            multiplier="100",
+            tradingClass=normalized,
+        )
+        return underlying, chain
+
+    async def _ensure_ticker(_contract: Contract, *, owner: str = "default"):
+        return SimpleNamespace(bid=190.0, ask=190.2, last=190.1, close=190.0)
+
+    async def _qualify_proxy_contracts(*contracts: Contract):
+        out: list[Contract] = []
+        for idx, source in enumerate(contracts, start=1):
+            resolved = Contract(
+                secType="OPT",
+                symbol=str(getattr(source, "symbol", "") or ""),
+                exchange=str(getattr(source, "exchange", "") or ""),
+                currency=str(getattr(source, "currency", "") or ""),
+                lastTradeDateOrContractMonth=str(
+                    getattr(source, "lastTradeDateOrContractMonth", "") or ""
+                ),
+                strike=float(getattr(source, "strike", 0.0) or 0.0),
+                right=str(getattr(source, "right", "") or ""),
+            )
+            resolved.conId = 845000 + idx
+            out.append(resolved)
+        return out
+
+    client.stock_option_chain = _stock_option_chain
+    client.ensure_ticker = _ensure_ticker
+    client.qualify_proxy_contracts = _qualify_proxy_contracts
+    client.release_ticker = lambda *_args, **_kwargs: None
+
+    timing_first: dict[str, object] = {}
+    first_page = asyncio.run(
+        client.search_contracts(
+            "nvda",
+            mode="OPT",
+            limit=48,
+            opt_underlyer_symbol="NVDA",
+            timing=timing_first,
+            expiry_offset=0,
+        )
+    )
+    first_expiries = sorted(
+        {
+            str(getattr(contract, "lastTradeDateOrContractMonth", "") or "").strip()
+            for contract in first_page
+        }
+    )
+    assert first_page
+    assert first_expiries
+    assert bool(timing_first.get("has_more_expiries")) is True
+
+    next_offset = int(timing_first.get("next_expiry_offset", 0) or 0)
+    assert next_offset > 0
+
+    timing_second: dict[str, object] = {}
+    second_page = asyncio.run(
+        client.search_contracts(
+            "nvda",
+            mode="OPT",
+            limit=48,
+            opt_underlyer_symbol="NVDA",
+            timing=timing_second,
+            expiry_offset=next_offset,
+        )
+    )
+    second_expiries = sorted(
+        {
+            str(getattr(contract, "lastTradeDateOrContractMonth", "") or "").strip()
+            for contract in second_page
+        }
+    )
+    assert second_page
+    assert second_expiries
+    assert set(second_expiries).isdisjoint(set(first_expiries))
+    assert set(first_expiries).union(second_expiries) == {
+        "20260220",
+        "20260227",
+        "20260306",
+        "20260320",
+        "20260417",
+        "20260619",
+    }
+
+
 def test_search_contracts_opt_progress_split_qualifies_in_two_passes() -> None:
     client = _client()
     qualify_batch_sizes: list[int] = []
@@ -1097,6 +1198,120 @@ def test_search_contracts_fop_merges_expiries_across_chain_classes() -> None:
         and str(getattr(contract, "tradingClass", "") or "").strip().upper() == "OG"
         for contract in results
     )
+
+
+def test_search_contracts_fop_supports_expiry_offset_paging() -> None:
+    client = _client()
+
+    async def _matching_symbols(*_args, **_kwargs):
+        return [
+            SimpleNamespace(
+                contract=Contract(secType="IND", symbol="GC", exchange="COMEX", currency="USD"),
+                derivativeSecTypes=("FOP", "FUT"),
+            )
+        ]
+
+    async def _front_future(symbol: str, *, exchange: str = "CME", cache_ttl_sec: float = 3600.0):
+        if str(symbol).strip().upper() != "GC":
+            return None
+        fut = Contract(secType="FUT", symbol="GC", exchange="COMEX", currency="USD")
+        fut.conId = 693609539
+        fut.multiplier = "100"
+        return fut
+
+    async def _connect() -> None:
+        return None
+
+    async def _req_secdef(symbol: str, fut_fop_exchange: str, sec_type: str, con_id: int):
+        assert symbol == "GC"
+        assert sec_type == "FUT"
+        assert con_id == 693609539
+        assert fut_fop_exchange == "COMEX"
+        return [
+            SimpleNamespace(
+                exchange="COMEX",
+                tradingClass="OG",
+                expirations=("20260220", "20260224", "20260326", "20260424", "20260521"),
+                strikes=(4985.0, 4990.0, 4995.0, 5000.0, 5005.0, 5010.0),
+                multiplier="100",
+            )
+        ]
+
+    async def _ensure_ticker(_contract: Contract, *, owner: str = "default"):
+        return SimpleNamespace(bid=4998.0, ask=5002.0, last=5000.0, close=4995.0)
+
+    async def _qualify_contract(contract: Contract, use_proxy: bool):
+        assert use_proxy is False
+        right = str(getattr(contract, "right", "") or "").strip().upper()[:1]
+        strike = float(getattr(contract, "strike", 0.0) or 0.0)
+        expiry = str(getattr(contract, "lastTradeDateOrContractMonth", "") or "").strip()
+        if right not in ("C", "P"):
+            return None
+        resolved = Contract(
+            secType="FOP",
+            symbol=str(getattr(contract, "symbol", "") or ""),
+            exchange=str(getattr(contract, "exchange", "") or ""),
+            currency=str(getattr(contract, "currency", "") or ""),
+            lastTradeDateOrContractMonth=expiry,
+            strike=strike,
+            right=right,
+            tradingClass=str(getattr(contract, "tradingClass", "") or ""),
+            multiplier=str(getattr(contract, "multiplier", "") or ""),
+        )
+        base = 952000 if right == "C" else 953000
+        resolved.conId = base + int(round(strike)) + int(expiry[-2:])
+        return resolved
+
+    client._matching_symbols = _matching_symbols
+    client.front_future = _front_future
+    client.connect = _connect
+    client.ensure_ticker = _ensure_ticker
+    client.release_ticker = lambda *_args, **_kwargs: None
+    client._ib = SimpleNamespace(reqSecDefOptParamsAsync=_req_secdef)
+    client._qualify_contract = _qualify_contract
+
+    timing_first: dict[str, object] = {}
+    first_page = asyncio.run(
+        client.search_contracts(
+            "1oz",
+            mode="FOP",
+            limit=96,
+            timing=timing_first,
+            expiry_offset=0,
+        )
+    )
+    first_expiries = sorted(
+        {
+            str(getattr(contract, "lastTradeDateOrContractMonth", "") or "").strip()
+            for contract in first_page
+        }
+    )
+    assert first_page
+    assert first_expiries
+    assert bool(timing_first.get("has_more_expiries")) is True
+
+    next_offset = int(timing_first.get("next_expiry_offset", 0) or 0)
+    assert next_offset > 0
+
+    timing_second: dict[str, object] = {}
+    second_page = asyncio.run(
+        client.search_contracts(
+            "1oz",
+            mode="FOP",
+            limit=96,
+            timing=timing_second,
+            expiry_offset=next_offset,
+        )
+    )
+    second_expiries = sorted(
+        {
+            str(getattr(contract, "lastTradeDateOrContractMonth", "") or "").strip()
+            for contract in second_page
+        }
+    )
+    assert second_page
+    assert second_expiries
+    assert set(second_expiries).isdisjoint(set(first_expiries))
 
 
 def test_search_contracts_fop_uses_snapshot_reference_for_atm_rows() -> None:

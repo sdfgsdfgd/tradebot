@@ -143,6 +143,42 @@ def test_netliq_amount_cell_shows_raw_and_estimate_when_present() -> None:
     assert text.plain == "5,796.18 (5,840.25)"
 
 
+def test_avg_cost_cell_normalizes_derivative_entry_to_unit_price() -> None:
+    _ensure_event_loop()
+    app = PositionsApp()
+    app._mark_price = lambda _item: (1.57, False)  # type: ignore[method-assign]
+    item = SimpleNamespace(
+        contract=SimpleNamespace(secType="OPT", multiplier="100"),
+        averageCost=165.02,
+        position=1.0,
+    )
+
+    text = app._avg_cost_cell(item)
+
+    assert "¦" in text.plain
+    assert "▼" in text.plain
+    assert "1.65" in text.plain
+    assert "1.57" in text.plain
+
+
+def test_avg_cost_cell_uses_position_aware_direction_for_shorts() -> None:
+    _ensure_event_loop()
+    app = PositionsApp()
+    app._mark_price = lambda _item: (9.0, False)  # type: ignore[method-assign]
+    item = SimpleNamespace(
+        contract=SimpleNamespace(secType="STK", multiplier="1"),
+        averageCost=10.0,
+        position=-5.0,
+    )
+
+    text = app._avg_cost_cell(item)
+
+    assert "¦" in text.plain
+    assert "▲" in text.plain
+    assert "10.00" in text.plain
+    assert "9.00" in text.plain
+
+
 class _CaptureTable:
     def __init__(self) -> None:
         self.rows: list[tuple[tuple[object, ...], dict[str, object]]] = []

@@ -151,6 +151,15 @@ def test_ticker_has_data_requires_actionable_quote() -> None:
     assert IBKRClient._ticker_has_data(with_nbbo) is True
 
 
+def test_futures_md_ladder_prefers_live_then_delayed() -> None:
+    open_ladder = client_module._futures_md_ladder(datetime(2026, 2, 24, 11, 0, 0))
+    closed_ladder = client_module._futures_md_ladder(datetime(2026, 2, 28, 11, 0, 0))
+    assert open_ladder[:2] == (1, 2)
+    assert open_ladder[2:] == (3, 4)
+    assert closed_ladder[:2] == (1, 2)
+    assert closed_ladder[2:] == (4, 3)
+
+
 def test_ensure_ticker_primes_price_increments_for_fop() -> None:
     client = _new_client()
     fake_ib = _FakeMainIBForRules()
@@ -978,6 +987,43 @@ def test_attempt_main_contract_historical_quote_populates_last(monkeypatch) -> N
     assert float(ticker.last) == 25011.5
     assert float(ticker.close) == 25011.5
     assert str(getattr(ticker, "tbQuoteSource", "")) == "historical-trades"
+
+
+def test_attempt_main_contract_historical_quote_marks_delayed_when_ladder_live_first(monkeypatch) -> None:
+    client = _new_client()
+    contract = Contract(secType="FUT", symbol="MNQ", exchange="CME", currency="USD")
+    contract.conId = 750150193
+    ticker = SimpleNamespace(
+        contract=contract,
+        bid=None,
+        ask=None,
+        last=None,
+        close=None,
+        prevLast=None,
+        marketDataType=1,
+    )
+    client._on_stream_update = lambda *args, **kwargs: None  # type: ignore[method-assign]
+    monkeypatch.setattr("tradebot.client._futures_md_ladder", lambda _now: (1, 2, 3, 4))
+    monkeypatch.setattr("tradebot.client._futures_session_is_open", lambda _now: True)
+
+    async def _historical_bars(
+        _contract,
+        *,
+        duration_str: str,
+        bar_size: str,
+        use_rth: bool,
+        what_to_show: str,
+        cache_ttl_sec: float,
+    ):
+        if what_to_show == "TRADES":
+            return [(datetime(2026, 2, 18, 10, 0, 0), 25011.5)]
+        return []
+
+    client.historical_bars = _historical_bars  # type: ignore[method-assign]
+    ok = asyncio.run(client._attempt_main_contract_historical_quote(contract, ticker=ticker))
+
+    assert ok is True
+    assert int(getattr(ticker, "marketDataType", 0) or 0) == 3
 
 
 def test_attempt_main_contract_historical_quote_uses_daily_fallback_for_fop(monkeypatch) -> None:

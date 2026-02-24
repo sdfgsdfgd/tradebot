@@ -211,10 +211,11 @@ def _futures_session_is_open(now: datetime) -> bool:
 
 
 def _futures_md_ladder(now: datetime) -> tuple[int, ...]:
-    # During closed windows, frozen delayed first gives a more truthful last.
+    # Prefer live streams first; gracefully fall back to delayed types when
+    # entitlement or venue availability does not permit live quotes.
     if _futures_session_is_open(now):
-        return (3, 4)
-    return (4, 3)
+        return (1, 2, 3, 4)
+    return (1, 2, 4, 3)
 # endregion
 
 
@@ -3141,9 +3142,14 @@ class IBKRClient:
         timing: dict[str, object] | None = None,
         opt_first_limit: int | None = None,
         opt_progress: Callable[[list[Contract], dict[str, object]], object] | None = None,
+        expiry_offset: int = 0,
     ) -> list[Contract]:
         started_mono = time.monotonic()
         token = str(query or "").strip().upper()
+        try:
+            expiry_offset_clean = max(0, int(expiry_offset or 0))
+        except (TypeError, ValueError):
+            expiry_offset_clean = 0
         if timing is not None:
             timing.clear()
             timing.update(
@@ -3154,6 +3160,7 @@ class IBKRClient:
                     "source": "",
                     "candidate_count": 0,
                     "qualified_count": 0,
+                    "expiry_offset": int(expiry_offset_clean),
                 }
             )
         if not token:
@@ -3395,8 +3402,18 @@ class IBKRClient:
             pair_budget = max(1, int(max_rows) // 2)
             min_strikes_per_expiry = 6
             max_expiries = max(1, pair_budget // min_strikes_per_expiry)
-            expiry_take = min(len(expiries), max_expiries)
-            selected_expiries = expiries[:expiry_take]
+            expiry_page_size = max(1, int(max_expiries))
+            expiry_start = min(int(expiry_offset_clean), len(expiries))
+            expiry_end = min(len(expiries), int(expiry_start) + int(expiry_page_size))
+            selected_expiries = expiries[expiry_start:expiry_end]
+            next_expiry_offset = int(expiry_end)
+            has_more_expiries = bool(next_expiry_offset < len(expiries))
+            if timing is not None:
+                timing["has_more_expiries"] = bool(has_more_expiries)
+                timing["next_expiry_offset"] = int(next_expiry_offset)
+                timing["expiry_page_size"] = int(expiry_page_size)
+            if not selected_expiries:
+                return _opt_timing_finish([], stage="chain", reason="expiry-page-empty")
             strikes_raw = getattr(chain, "strikes", ()) or ()
             strikes: list[float] = []
             for raw in strikes_raw:
@@ -3873,11 +3890,27 @@ class IBKRClient:
                 return (in_range, nearest, expiry)
 
             ranked_expiries = sorted(expiries, key=_expiry_rank)
-            selected_expiries = sorted(ranked_expiries[:max_expiries])
+            expiry_page_size = max(1, int(max_expiries))
+            expiry_start = min(int(expiry_offset_clean), len(ranked_expiries))
+            expiry_end = min(len(ranked_expiries), int(expiry_start) + int(expiry_page_size))
+            selected_ranked_expiries = ranked_expiries[expiry_start:expiry_end]
+            selected_expiries = sorted(selected_ranked_expiries)
+            next_expiry_offset = int(expiry_end)
+            has_more_expiries = bool(next_expiry_offset < len(ranked_expiries))
+            if timing is not None:
+                timing["expiry_count"] = len(expiries)
+                timing["selected_expiry_count"] = len(selected_expiries)
+                timing["has_more_expiries"] = bool(has_more_expiries)
+                timing["next_expiry_offset"] = int(next_expiry_offset)
+                timing["expiry_page_size"] = int(expiry_page_size)
+            if not selected_expiries:
+                continue
             rows_per_expiry = max(
                 target_strikes_per_expiry,
                 int(max_rows) // max(1, (2 * len(selected_expiries))),
             )
+            if timing is not None:
+                timing["rows_per_expiry"] = int(rows_per_expiry)
             currency = str(getattr(future, "currency", "") or "USD").strip().upper() or "USD"
             candidates: list[Contract] = []
             for expiry in selected_expiries:
@@ -3964,6 +3997,12 @@ class IBKRClient:
                     break
             if len(out) >= max_rows:
                 break
+        if timing is not None:
+            timing["source"] = "search_contracts_fop"
+            timing["stage"] = "done"
+            timing["reason"] = "ok" if out else "empty"
+            timing["result_count"] = len(out)
+            timing["total_ms"] = (time.monotonic() - started_mono) * 1000.0
         return out
 
     async def stock_option_chain(self, symbol: str):
@@ -5633,7 +5672,7 @@ class IBKRClient:
             if self._apply_ticker_fallback_quote(
                 ticker=ticker,
                 source=source,
-                md_type=int(_futures_md_ladder(_now_et())[0]),
+                md_type=3 if _futures_session_is_open(_now_et()) else 4,
                 last=float(close),
                 close=float(close),
                 as_of=ts,
@@ -5657,7 +5696,7 @@ class IBKRClient:
                 if self._apply_ticker_fallback_quote(
                     ticker=ticker,
                     source=source,
-                    md_type=int(_futures_md_ladder(_now_et())[0]),
+                    md_type=3 if _futures_session_is_open(_now_et()) else 4,
                     last=float(close),
                     close=float(close),
                     as_of=ts,
