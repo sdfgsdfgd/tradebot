@@ -69,9 +69,9 @@ class _SearchDrawer(Static):
 
 # region Positions UI
 class PositionsApp(App):
-    _PX_24_72_COL_WIDTH = 36
+    _PX_24_72_COL_WIDTH = 27
     _QTY_COL_WIDTH = 7
-    _AVG_COL_WIDTH = 20
+    _AVG_COL_WIDTH = 23
     _UNREAL_COL_WIDTH = 36
     _REALIZED_COL_WIDTH = 14
     _CLOSES_RETRY_SEC = 30.0
@@ -3163,7 +3163,6 @@ class PositionsApp(App):
         age_sec = self._quote_age_seconds(con_id, ticker, price if price is not None else quote_price)
         ribbon = self._quote_age_ribbon(age_sec)
         text = self._aligned_px_change_text(
-            price=price,
             pct24=pct24,
             pct72=pct72,
             ribbon=ribbon,
@@ -3195,47 +3194,24 @@ class PositionsApp(App):
     def _aligned_px_change_text(
         self,
         *,
-        price: float | None,
         pct24: float | None,
         pct72: float | None,
         ribbon: Text | None = None,
     ) -> Text:
-        # Fixed 3-column layout so left/mid/right stay centered and separators align vertically.
-        left_width = 9
-        mid_width = 8
-        right_width = 8
+        # Compact layout: keep glyph/divider/percentages tightly coupled.
         ribbon_width = 4
 
-        ref = pct24 if pct24 is not None else pct72
-        if ref is None:
+        if pct24 is None:
             glyph = Text("•", style="dim")
-        elif ref > 0:
+        elif pct24 > 0:
             glyph = Text("▲", style="bold green")
-        elif ref < 0:
+        elif pct24 < 0:
             glyph = Text("▼", style="bold red")
         else:
             glyph = Text("•", style="dim")
 
-        price_plain = f"{price:,.2f}" if price is not None else "n/a"
-        left_plain = f"{glyph.plain} {price_plain}"
-        mid_plain = f"{pct24:.2f}%" if pct24 is not None else "n/a"
-        right_plain = f"{pct72:.2f}%" if pct72 is not None else "n/a"
-
-        if len(left_plain) > left_width:
-            left_plain = left_plain[:left_width]
-        if len(mid_plain) > mid_width:
-            mid_plain = mid_plain[:mid_width]
-        if len(right_plain) > right_width:
-            right_plain = right_plain[:right_width]
-
-        left_block = self._center_with_sep_bias(left_plain, left_width, max_right_gap=1)
-        mid_block = self._center_with_sep_bias(
-            mid_plain,
-            mid_width,
-            max_left_gap=1,
-            max_right_gap=1,
-        )
-        right_block = self._center_with_sep_bias(right_plain, right_width, max_left_gap=1)
+        mid_text = "n/a" if pct24 is None else f"{float(pct24):.2f}%"
+        right_text = "n/a" if pct72 is None else f"{float(pct72):.2f}%"
 
         ribbon_text = Text(" " * ribbon_width)
         if ribbon is not None and ribbon.plain:
@@ -3247,11 +3223,11 @@ class PositionsApp(App):
             ribbon_text.append(" " * right_pad)
 
         text = Text("")
-        text.append(left_block, style=self._pct_text_style(pct24 if pct24 is not None else ref))
-        text.append("¦", style="grey35")
-        text.append(mid_block, style=self._pct_text_style(pct24))
-        text.append("·", style="dim")
-        text.append(right_block, style=self._pct_text_style(pct72))
+        text.append(glyph.plain, style=self._pct_text_style(pct24))
+        text.append(" ¦ ", style="grey35")
+        text.append(mid_text, style=self._pct_text_style(pct24))
+        text.append(" · ", style="dim")
+        text.append(right_text, style=self._pct_text_style(pct72))
         text.append(" ", style="dim")
         text.append_text(ribbon_text)
         return text
@@ -3328,10 +3304,47 @@ class PositionsApp(App):
         return unreal, pct
 
     @staticmethod
-    def _entry_now_value(value: float | None) -> str:
+    def _entry_now_value(value: float | None, *, max_width: int | None = None) -> str:
         if value is None:
             return "n/a"
-        return f"{float(value):,.2f}"
+        parsed = float(value)
+        if max_width is None:
+            return f"{parsed:,.2f}"
+
+        candidates = (
+            f"{parsed:,.2f}",
+            f"{parsed:,.1f}",
+            f"{parsed:,.0f}",
+            f"{parsed:.2f}",
+            f"{parsed:.1f}",
+            f"{parsed:.0f}",
+        )
+        for candidate in candidates:
+            if len(candidate) <= max_width:
+                return candidate
+
+        abs_value = abs(parsed)
+        for scale, suffix in (
+            (1_000.0, "K"),
+            (1_000_000.0, "M"),
+            (1_000_000_000.0, "B"),
+            (1_000_000_000_000.0, "T"),
+        ):
+            if abs_value < scale:
+                continue
+            compact_candidates = (
+                f"{parsed / scale:.2f}{suffix}",
+                f"{parsed / scale:.1f}{suffix}",
+                f"{parsed / scale:.0f}{suffix}",
+            )
+            for compact in compact_candidates:
+                if len(compact) <= max_width:
+                    return compact
+
+        fallback = f"{parsed:.0f}"
+        if len(fallback) <= max_width:
+            return fallback
+        return fallback[: max(1, max_width)]
 
     def _entry_now_inputs(
         self,
@@ -3367,8 +3380,8 @@ class PositionsApp(App):
         right_width = max(core_width - left_width - len(sep), 1)
 
         entry, now, edge_pct = self._entry_now_inputs(item)
-        entry_plain = self._entry_now_value(entry)
-        now_plain = self._entry_now_value(now)
+        entry_plain = self._entry_now_value(entry, max_width=max(1, left_width - 2))
+        now_plain = self._entry_now_value(now, max_width=right_width)
 
         glyph = "•"
         edge_style = "dim"

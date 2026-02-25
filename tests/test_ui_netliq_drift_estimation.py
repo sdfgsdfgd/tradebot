@@ -179,6 +179,23 @@ def test_avg_cost_cell_uses_position_aware_direction_for_shorts() -> None:
     assert "9.00" in text.plain
 
 
+def test_entry_now_value_compacts_without_truncation_when_width_is_tight() -> None:
+    compact = PositionsApp._entry_now_value(123_456.78, max_width=6)
+    assert len(compact) <= 6
+    assert compact
+
+
+def test_px_change_glyph_tracks_24h_direction() -> None:
+    _ensure_event_loop()
+    app = PositionsApp()
+
+    down = app._aligned_px_change_text(pct24=-0.5, pct72=9.0, ribbon=None)
+    unknown = app._aligned_px_change_text(pct24=None, pct72=9.0, ribbon=None)
+
+    assert down.plain.lstrip().startswith("▼")
+    assert unknown.plain.lstrip().startswith("•")
+
+
 class _CaptureTable:
     def __init__(self) -> None:
         self.rows: list[tuple[tuple[object, ...], dict[str, object]]] = []
