@@ -434,7 +434,7 @@ def test_search_contracts_opt_reports_timing_metrics() -> None:
     assert float(timing.get("total_ms", 0.0) or 0.0) >= 0.0
 
 
-def test_search_contracts_opt_spreads_limit_across_multiple_expiries() -> None:
+def test_search_contracts_opt_frontloads_nearest_expiry_before_paging() -> None:
     client = _client()
 
     async def _stock_option_chain(symbol: str):
@@ -499,9 +499,10 @@ def test_search_contracts_opt_spreads_limit_across_multiple_expiries() -> None:
             for contract in results
         }
     )
-    assert len(expiries) >= 2
-    assert int(timing.get("selected_expiry_count", 0) or 0) >= 2
-    assert int(timing.get("rows_per_expiry", 0) or 0) >= 1
+    assert len(expiries) == 1
+    assert int(timing.get("selected_expiry_count", 0) or 0) == 1
+    assert int(timing.get("rows_per_expiry", 0) or 0) == 20
+    assert int(timing.get("candidate_count", 0) or 0) == 40
 
 
 def test_search_contracts_opt_supports_expiry_offset_paging() -> None:
@@ -551,51 +552,46 @@ def test_search_contracts_opt_supports_expiry_offset_paging() -> None:
     client.qualify_proxy_contracts = _qualify_proxy_contracts
     client.release_ticker = lambda *_args, **_kwargs: None
 
-    timing_first: dict[str, object] = {}
-    first_page = asyncio.run(
-        client.search_contracts(
-            "nvda",
-            mode="OPT",
-            limit=48,
-            opt_underlyer_symbol="NVDA",
-            timing=timing_first,
-            expiry_offset=0,
+    seen_expiries: set[str] = set()
+    offset = 0
+    first_page_count: int | None = None
+    page_count = 0
+    while True:
+        timing_page: dict[str, object] = {}
+        page = asyncio.run(
+            client.search_contracts(
+                "nvda",
+                mode="OPT",
+                limit=48,
+                opt_underlyer_symbol="NVDA",
+                timing=timing_page,
+                expiry_offset=offset,
+            )
         )
-    )
-    first_expiries = sorted(
-        {
-            str(getattr(contract, "lastTradeDateOrContractMonth", "") or "").strip()
-            for contract in first_page
-        }
-    )
-    assert first_page
-    assert first_expiries
-    assert bool(timing_first.get("has_more_expiries")) is True
-
-    next_offset = int(timing_first.get("next_expiry_offset", 0) or 0)
-    assert next_offset > 0
-
-    timing_second: dict[str, object] = {}
-    second_page = asyncio.run(
-        client.search_contracts(
-            "nvda",
-            mode="OPT",
-            limit=48,
-            opt_underlyer_symbol="NVDA",
-            timing=timing_second,
-            expiry_offset=next_offset,
+        page_expiries = sorted(
+            {
+                str(getattr(contract, "lastTradeDateOrContractMonth", "") or "").strip()
+                for contract in page
+            }
         )
-    )
-    second_expiries = sorted(
-        {
-            str(getattr(contract, "lastTradeDateOrContractMonth", "") or "").strip()
-            for contract in second_page
-        }
-    )
-    assert second_page
-    assert second_expiries
-    assert set(second_expiries).isdisjoint(set(first_expiries))
-    assert set(first_expiries).union(second_expiries) == {
+        assert page
+        assert page_expiries
+        if first_page_count is None:
+            first_page_count = len(page_expiries)
+        assert set(page_expiries).isdisjoint(seen_expiries)
+        seen_expiries.update(page_expiries)
+        page_count += 1
+
+        has_more = bool(timing_page.get("has_more_expiries"))
+        next_offset = int(timing_page.get("next_expiry_offset", 0) or 0)
+        if not has_more:
+            break
+        assert next_offset > offset
+        offset = next_offset
+
+    assert first_page_count == 1
+    assert page_count >= 2
+    assert seen_expiries == {
         "20260220",
         "20260227",
         "20260306",
@@ -1340,21 +1336,43 @@ def test_search_contracts_fop_merges_expiries_across_chain_classes() -> None:
     client._ib = SimpleNamespace(reqSecDefOptParamsAsync=_req_secdef)
     client._qualify_contract = _qualify_contract
 
-    results = asyncio.run(client.search_contracts("1oz", mode="FOP", limit=96))
-
-    assert results
-    expiries = sorted(
+    timing_first: dict[str, object] = {}
+    first_page = asyncio.run(
+        client.search_contracts(
+            "1oz",
+            mode="FOP",
+            limit=96,
+            timing=timing_first,
+            expiry_offset=0,
+        )
+    )
+    first_expiries = sorted(
         {
             str(getattr(contract, "lastTradeDateOrContractMonth", "") or "").strip()
-            for contract in results
+            for contract in first_page
         }
     )
-    # Search fetch limit should include more than the first single-expiry chain class.
-    assert expiries[:2] == ["20260220", "20260224"]
+    assert first_page
+    assert first_expiries == ["20260220"]
+    assert int(timing_first.get("selected_expiry_count", 0) or 0) == 1
+    assert bool(timing_first.get("has_more_expiries")) is True
+
+    next_offset = int(timing_first.get("next_expiry_offset", 0) or 0)
+    assert next_offset > 0
+
+    second_page = asyncio.run(
+        client.search_contracts(
+            "1oz",
+            mode="FOP",
+            limit=96,
+            expiry_offset=next_offset,
+        )
+    )
+    # Later pages should still surface the monthly class expiries.
     assert any(
         str(getattr(contract, "lastTradeDateOrContractMonth", "") or "").strip() == "20260224"
         and str(getattr(contract, "tradingClass", "") or "").strip().upper() == "OG"
-        for contract in results
+        for contract in second_page
     )
 
 
@@ -1446,6 +1464,8 @@ def test_search_contracts_fop_supports_expiry_offset_paging() -> None:
     )
     assert first_page
     assert first_expiries
+    assert int(timing_first.get("selected_expiry_count", 0) or 0) == 1
+    assert int(timing_first.get("rows_per_expiry", 0) or 0) == 20
     assert bool(timing_first.get("has_more_expiries")) is True
 
     next_offset = int(timing_first.get("next_expiry_offset", 0) or 0)

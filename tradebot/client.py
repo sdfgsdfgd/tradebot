@@ -3413,12 +3413,13 @@ class IBKRClient:
                 timing["expiry_count"] = len(expiries)
             if not expiries:
                 return _opt_timing_finish([], stage="chain", reason="no-expiries")
-            # Favor surfacing multiple expiries while keeping each expiry
-            # deep enough for a usable C/P ladder near ATM.
+            # Keep first paint dense around ATM on the nearest expiry; expand to
+            # broader expiry pages only after the initial page.
             pair_budget = max(1, int(max_rows) // 2)
+            first_page_strikes = max(1, min(20, pair_budget))
             min_strikes_per_expiry = 6
             max_expiries = max(1, pair_budget // min_strikes_per_expiry)
-            expiry_page_size = max(1, int(max_expiries))
+            expiry_page_size = 1 if int(expiry_offset_clean) <= 0 else max(1, int(max_expiries))
             expiry_start = min(int(expiry_offset_clean), len(expiries))
             expiry_end = min(len(expiries), int(expiry_start) + int(expiry_page_size))
             selected_expiries = expiries[expiry_start:expiry_end]
@@ -3507,7 +3508,10 @@ class IBKRClient:
                 return _opt_timing_finish([], stage="reference", reason="no-reference-price")
             if timing is not None:
                 timing["ref_price_source"] = ref_source or "unknown"
-            rows_per_expiry = max(1, pair_budget // max(1, len(selected_expiries)))
+            if int(expiry_offset_clean) <= 0:
+                rows_per_expiry = int(first_page_strikes)
+            else:
+                rows_per_expiry = max(1, pair_budget // max(1, len(selected_expiries)))
             if timing is not None:
                 timing["selected_expiry_count"] = len(selected_expiries)
                 timing["rows_per_expiry"] = int(rows_per_expiry)
@@ -3932,8 +3936,9 @@ class IBKRClient:
                 future_ref = self._median_strike(strikes)
             if future_ref is None:
                 continue
-            target_strikes_per_expiry = max(1, min(20, int(max_rows) // 2))
-            max_expiries = max(1, int(max_rows) // (2 * target_strikes_per_expiry))
+            # Keep first paint dense on nearest expiry; page broader expiries after.
+            first_page_strikes = max(1, min(20, int(max_rows) // 2))
+            max_expiries = max(1, int(max_rows) // (2 * first_page_strikes))
             def _expiry_rank(expiry: str) -> tuple[int, float, str]:
                 entry = expiry_chain.get(expiry)
                 expiry_strikes = entry[4] if entry is not None and entry[4] else strikes
@@ -3944,7 +3949,7 @@ class IBKRClient:
                 return (in_range, nearest, expiry)
 
             ranked_expiries = sorted(expiries, key=_expiry_rank)
-            expiry_page_size = max(1, int(max_expiries))
+            expiry_page_size = 1 if int(expiry_offset_clean) <= 0 else max(1, int(max_expiries))
             expiry_start = min(int(expiry_offset_clean), len(ranked_expiries))
             expiry_end = min(len(ranked_expiries), int(expiry_start) + int(expiry_page_size))
             selected_ranked_expiries = ranked_expiries[expiry_start:expiry_end]
@@ -3959,10 +3964,13 @@ class IBKRClient:
                 timing["expiry_page_size"] = int(expiry_page_size)
             if not selected_expiries:
                 continue
-            rows_per_expiry = max(
-                target_strikes_per_expiry,
-                int(max_rows) // max(1, (2 * len(selected_expiries))),
-            )
+            if int(expiry_offset_clean) <= 0:
+                rows_per_expiry = int(first_page_strikes)
+            else:
+                rows_per_expiry = max(
+                    first_page_strikes,
+                    int(max_rows) // max(1, (2 * len(selected_expiries))),
+                )
             if timing is not None:
                 timing["rows_per_expiry"] = int(rows_per_expiry)
             currency = str(getattr(future, "currency", "") or "USD").strip().upper() or "USD"
