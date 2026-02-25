@@ -133,9 +133,6 @@ See `backtest.sample.json`. Core fields:
   - If omitted or empty, defaults to all weekdays.
 - `max_entries_per_day` (optional; defaults to `1`)
   - `0` means unlimited.
-- `open_position_cap` (optional; defaults to `1`)
-  - For `instrument="spot"`, this field is ignored; spot backtests always run single-position (live parity).
-  - For `instrument="options"`, this limits concurrent open trades; `0` means unlimited.
 - `dte` (0 for 0DTE)
 - `otm_pct` (percent OTM for short strike)
   - Negative values mean ITM (e.g., `-1.0` = 1% ITM).
@@ -345,7 +342,7 @@ Example:
 ## Leaderboard (SLV 1h sweeps)
 PnL is reported in **premium points * contract multiplier**.
 - Equity options use multiplier `100`, so values are approximately **USD per contract**.
-- For options-style runs, `max_entries_per_day=0` and `open_position_cap=0` reflect **stacking / pyramiding** subject to `starting_cash` and margin.
+- For options-style runs, `max_entries_per_day=0` reflects an unconstrained daily entry budget, subject to `starting_cash` and margin.
 
 Full leaderboard is in `tradebot/backtest/LEADERBOARD.md`.
 Machine-readable presets are in `tradebot/backtest/leaderboard.json` (regenerate with `python -m tradebot.backtest options_leaderboard`; spot milestones are appended by default).
@@ -364,7 +361,7 @@ These spot presets are **12-month only** (no 6m snapshot entries) and are filter
 - trades `>= 200`
 - pnl/dd `>= 8`
 - sorted by pnl/dd (desc)
-- spot position mode is parity-locked to a single net position (the `open_position_cap` field is ignored for spot)
+- spot position mode is parity-locked to a single net position (live parity behavior)
 
 Regenerate (offline, uses cached bars in `db/`; realism is default):
 ```bash
@@ -522,5 +519,4 @@ This improves synthetic pricing without requiring OPRA/CME bid/ask.
 - Historical rates source
 - Multi-strategy runs
 - Live broker adapter
-
 

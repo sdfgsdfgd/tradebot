@@ -870,6 +870,7 @@ _AXIS_DIMENSION_REGISTRY: dict[str, dict[str, object]] = {
         ),
         "tod_variants": (
             ("tod=off", None, None),
+            ("tod=09-11 ET", 9, 11),
             ("tod=09-16 ET", 9, 16),
             ("tod=10-15 ET", 10, 15),
             ("tod=18-04 ET", 18, 4),
@@ -1714,7 +1715,7 @@ _SHOCK_SWEEP_PROFILE: dict[str, tuple] = {
     "daily_atr_rows": tuple(_AXIS_DIMENSION_REGISTRY.get("shock", {}).get("daily_atr_rows") or ()),
     "drawdown_rows": tuple(_AXIS_DIMENSION_REGISTRY.get("shock", {}).get("drawdown_rows") or ()),
 }
-_RUN_CFG_CACHE_ENGINE_VERSION = "spot_stage_v8"
+_RUN_CFG_CACHE_ENGINE_VERSION = "spot_stage_v9"
 _RANK_BIN_SIZE = 2048
 _AXIS_DIMENSION_FINGERPRINT_KEYS: tuple[str, ...] = tuple(
     str(k)
@@ -11286,7 +11287,12 @@ def main() -> None:
         print(f"HF scalper: stage2 seeds={len(shortlisted)} (pool={len(shortlist_pool)} target_trades={target_trades})", flush=True)
 
         confirm_vals = [0, 1]
-        tod_variants = [(9, 16, "tod=9-16 ET"), (10, 15, "tod=10-15 ET"), (11, 16, "tod=11-16 ET")]
+        tod_variants = [
+            (9, 11, "tod=9-11 ET"),
+            (9, 16, "tod=9-16 ET"),
+            (10, 15, "tod=10-15 ET"),
+            (11, 16, "tod=11-16 ET"),
+        ]
         cooldown_vals = [0, 2]
         skip_open_vals = [0, 1, 2]
         close_eod_vals = [False]

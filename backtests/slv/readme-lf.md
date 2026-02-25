@@ -12,7 +12,7 @@ We are explicitly targeting the new contract:
 - **Goal:** dual-track optimization across **10y / 2y / 1y**
   - **Track A (pnl-first dethrone):** beat v25 on total PnL in all windows (and keep `pnl/dd` healthy)
   - **Track B (high-trade):** increase trade count while preserving all-window positivity and avoiding the high-churn negative basin
-  - **Parity rule (promotion gate):** promoted CURRENT must run `open_position_cap=1` to match live single-position behavior
+  - **Parity rule (promotion gate):** promoted CURRENT must run single-position behavior to match live parity
 
 ## Current Champions (stack)
 
@@ -35,25 +35,25 @@ python -m tradebot.backtest spot_multitimeframe \
 
 ### CURRENT (v31.2) — FULL24 10m single-position parity dethrone (single-process verified)
 This is the current SLV dethroner under a **live-parity-first contract**:
-- Enforces single-position behavior: `open_position_cap=1` (matches live net-position handling)
+- Enforces single-position behavior (matches live net-position handling)
 - Removes simultaneous-position holding from the promoted lane (no live parity)
 - Keeps the v31.1 shock wall core (`shock_on/off=1.35/1.25`) and retunes sizing for single-position mode
 - Verified via single-process (`--jobs 1`) multiwindow sweeps with fixed windows
 
 **v31.2 kingmaker #01** (from `backtests/slv/slv_v31_2_singlepos_parity_eval_20260212_top1.json`)
-- `open_position_cap=1`, `spot_max_notional_pct=0.7`, `spot_risk_pct=0.016`, `spot_stop_loss_pct=0.016`
+- Single-position mode with `spot_max_notional_pct=0.7`, `spot_risk_pct=0.016`, `spot_stop_loss_pct=0.016`
 - Worst-window `roi/dd`: **4.546495578** (worst window is **1y**)
 - 10y: `roi/dd=6.541506284`, ROI ≈ **384.54%**, DD% ≈ **58.78%**, trades ≈ **798**
 - 2y:  `roi/dd=6.093215523`, ROI ≈ **183.52%**, DD% ≈ **30.12%**, trades ≈ **162**
 - 1y:  `roi/dd=4.546495578`, ROI ≈ **93.99%**, DD% ≈ **20.67%**, trades ≈ **69**
 
-Single-run delta vs prior v31.1 stacked champ (`open_position_cap=3`, same windows):
+Single-run delta vs prior v31.1 stacked champ (higher stacking mode, same windows):
 - 10y: `pnl -158,849.52` (`543,388.44 -> 384,538.92`), `roi/dd +0.151931987`
 - 2y:  `pnl -80,142.10` (`263,658.96 -> 183,516.87`), `roi/dd +0.607742995`
 - 1y:  `pnl -31,623.56` (`125,609.17 -> 93,985.61`), `roi/dd +0.342315486`
 
 Defining delta vs v31.1:
-- Structural parity change: `open_position_cap: 3 -> 1` (single-position only)
+- Structural parity change: stacked mode -> single-position mode
 - Single-position sizing retune: `spot_max_notional_pct=0.7`, `spot_risk_pct=0.016`, `spot_stop_loss_pct=0.016`
 - Same lane core: `signal_bar_size="10 mins"`, `spot_exec_bar_size="5 mins"`, `signal_use_rth=false`, `ema_preset=5/13`, `supertrend @ 1 day`, `shock_on/off=1.35/1.25`
 
@@ -152,7 +152,7 @@ Defining shape (abridged):
 - Regime: `supertrend @ 1 day`
 - Shock: `shock_gate_mode=surf` with `shock_detector=daily_atr_pct`
 - Session/TOD: **off** (FULL24)
-- `open_position_cap=5`, `spot_close_eod=false`, `spot_short_risk_mult=0.02`
+- High-stacking mode, `spot_close_eod=false`, `spot_short_risk_mult=0.02`
 
 ### LEGACY (timestamp-bug) — archived (pre-ET-fix SLV “champs”)
 
@@ -183,7 +183,7 @@ Defining shape (abridged):
   with `flip_exit_only_if_profit=true` and a longer debounce `flip_exit_min_hold_bars=4`
 - Regime: `supertrend @ 4 hours` (`ST(5,0.75,hl2)`)
 - Session: `entry_start/end=9–16 ET`
-- `open_position_cap=5`, `spot_close_eod=false`, `spot_short_risk_mult=0.01`
+- High-stacking mode, `spot_close_eod=false`, `spot_short_risk_mult=0.01`
 - Note: this winner is still “simple” (no extra shock/risk overlays); the gain came from a better Supertrend + hold pocket.
 
 #### (legacy) v4 — First decade stability lift from the v3 baseline (timestamp-bug era; do not use)
@@ -204,7 +204,7 @@ Defining shape (abridged):
   with `flip_exit_only_if_profit=true` and `flip_exit_min_hold_bars=0`
 - Regime: `supertrend @ 4 hours` (`ST(7,0.65,hl2)`)
 - Session: `entry_start/end=9–16 ET`
-- `open_position_cap=5`, `spot_close_eod=false`, `spot_short_risk_mult=0.01`
+- High-stacking mode, `spot_close_eod=false`, `spot_short_risk_mult=0.01`
 - Note: even though v4 sweeps expanded shock/risk scaling pockets, the current best is still **shock=off** (pure regime+stack wins again).
 
 #### (legacy) v3 — First stability lift above the v2 baseline (timestamp-bug era; do not use)
@@ -225,7 +225,7 @@ Defining shape (abridged):
   with `flip_exit_only_if_profit=true` and `flip_exit_min_hold_bars=0`
 - Regime: `supertrend @ 4 hours` (`ST(14,0.6,hl2)`)
 - Session: `entry_start/end=9–16 ET`
-- `open_position_cap=5` (stacking; currently required for decade positivity at this cadence)
+- High-stacking mode (currently required for decade positivity at this cadence)
 - `spot_close_eod=false`, `spot_short_risk_mult=0.01`
 - No extra permission/shock/risk-pop overlays in this top pick (surprisingly, the simple regime+stack wins here)
 
@@ -248,7 +248,7 @@ Defining shape (abridged):
 - `exit_on_signal_flip=true`, `flip_exit_only_if_profit=true`, `flip_exit_min_hold_bars=0`
 - Regime: `supertrend @ 4 hours` (`ST(7,0.5,hl2)`)
 - Session: `entry_start/end=9–16 ET`
-- `open_position_cap=5` (stacking; currently required for decade positivity at this cadence)
+- High-stacking mode (currently required for decade positivity at this cadence)
 
 Promotion checklist (minimum):
 - Positive PnL in **all 3** windows (10y + 2y + 1y)
@@ -482,7 +482,7 @@ Outcome:
 Status: **DONE** (raised worst-window stability vs v3; still below `roi/dd>=1.5..2.0` floor)
 
 Key intent vs v3:
-- Keep cadence **hard locked**: `tod=9–16`, no skip/cooldown, and lock `open_position_cap=5`.
+- Keep cadence **hard locked**: `tod=9–16`, no skip/cooldown, and lock high-stacking mode.
 - Sweep a **wider shock detection + risk scaling pocket** (primarily `shock_gate_mode=detect`, volatility-aware position scaling)
   without using `block` (avoid killing trade count).
 - Add a small exit neighborhood for SLV (hold micro + optional `spot_close_eod=true` pocket).
@@ -508,7 +508,7 @@ Outcome (2026-01-31):
 
 Ranges swept (abridged):
 - TOD: locked to `9–16 ET`, `skip_first_bars=0`, `cooldown_bars=0`
-- `open_position_cap`: locked to `5`
+- stacking mode: locked high
 - SL stop neighborhood: `spot_stop_loss_pct ∈ {0.008, 0.010, 0.012, 0.015, 0.020}`
 - Flip hold neighborhood (SLV-only): `flip_exit_min_hold_bars ∈ {0, 2, 4}`
 - Close EOD pocket (SLV-only): try `spot_close_eod=true` on the core stop+flip variant for `sl=1%`
@@ -1244,7 +1244,7 @@ Milestones + eval:
 
 Scaling ranges:
 - `spot_risk_pct ∈ {0.01,0.015,0.02,0.03,0.04,0.05,0.07}`
-- `open_position_cap ∈ {3,5,8}`
+- stacking mode ∈ `{3,5,8}` (legacy parameter values)
 - `spot_max_notional_pct ∈ {0.5,0.75,1.0}`
 
 Outcome:
@@ -1285,7 +1285,7 @@ Artifacts:
 Search matrix:
 - Stage A (96):
   - `ema_preset ∈ {"8/21","5/13"}`; `entry_confirm_bars ∈ {1,0}`
-  - `spot_stop_loss_pct ∈ {0.018,0.020}`; `open_position_cap ∈ {3,4}`
+  - `spot_stop_loss_pct ∈ {0.018,0.020}`; stacking mode ∈ `{3,4}` (legacy parameter values)
   - entry windows `(8,15)`, `(9,16)`, `off`; `spot_short_risk_mult ∈ {1.0,0.0025}`
   - fixed: `signal_bar_size=10 mins`, `spot_exec_bar_size=5 mins`, `signal_use_rth=false`
 - Stage B (360):
@@ -1343,14 +1343,14 @@ Search matrix:
 - `hour_expansion` Stage A (288):
   - entry windows from `6..9` start and `14..16` end, `risk_cutoff` aligned to end hour
   - `ema_preset ∈ {"8/21","5/13"}`, `entry_confirm_bars=1`
-  - `spot_stop_loss_pct ∈ {0.020,0.022}`, `open_position_cap ∈ {3,4}`, `spot_short_risk_mult ∈ {0.0,0.0025}`
+  - `spot_stop_loss_pct ∈ {0.020,0.022}`, stacking mode ∈ `{3,4}` (legacy parameter values), `spot_short_risk_mult ∈ {0.0,0.0025}`
   - geometry pocket: `(spread, spread_down, slope) ∈ {(0.0015,0.02,0.01),(0.0025,0.03,0.02)}`
 - `hour_expansion` Stage B (832):
   - drawdown throttle + TR-ratio detect/surf + riskpanic velocity + tiny cross tuples
   - includes `shock_scale_detector ∈ {"daily_drawdown","tr_ratio"}`, `shock_gate_mode ∈ {"detect","surf"}`
 - `precision_guard` Stage A (96):
   - entry windows `{8,9}` to `{14,15}`, `ema_preset="8/21"`, `entry_confirm_bars ∈ {1,2}`
-  - `spot_stop_loss_pct ∈ {0.018,0.020}`, `open_position_cap ∈ {2,3}`, `spot_short_risk_mult=0.0`
+  - `spot_stop_loss_pct ∈ {0.018,0.020}`, stacking mode ∈ `{2,3}` (legacy parameter values), `spot_short_risk_mult=0.0`
 - `precision_guard` Stage B (330):
   - narrow drawdown/TR-ratio/riskpanic overlays; `shock_gate_mode="detect"` only
   - `spot_short_risk_mult ∈ {0.0,0.001}` in staged variants
@@ -1450,7 +1450,7 @@ Goal:
 - Promote a live-parity single-position config as CURRENT.
 
 What changed:
-- Forced single-position behavior in the promoted preset: `open_position_cap=1`
+- Forced single-position behavior in the promoted preset
 - Retuned single-position sizing/exits:
   - `spot_max_notional_pct=0.7`
   - `spot_risk_pct=0.016`

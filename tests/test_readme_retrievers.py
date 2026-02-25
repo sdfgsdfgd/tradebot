@@ -38,15 +38,21 @@ def test_extract_current_slv_hf_json_path() -> None:
 def test_extract_current_tqqq_lf_json_path() -> None:
     readme = (_ROOT / "backtests" / "tqqq" / "readme-lf.md").read_text()
     version, path = _RETRIEVERS.extract_current_tqqq_lf_json_path(readme)
-    assert version == "39"
-    assert path == "backtests/out/tqqq_exec5m_v39_shock_velocity_scale_wide_30m_10y2y1y_mintr100_top200_2026-02-05_192159.json"
+    assert version == "34"
+    assert path == "backtests/out/tqqq_exec5m_v34_shock_alpha_refine_wide_30m_10y2y1y_mintr100_top100.json"
 
 
 def test_extract_current_tqqq_hf_json_path() -> None:
     readme = (_ROOT / "backtests" / "tqqq" / "readme-hf.md").read_text()
     version, path = _RETRIEVERS.extract_current_tqqq_hf_json_path(readme)
-    assert version == "1-shock-throttle-seed"
-    assert (
-        path
-        == "backtests/out/tqqq_exec5m_v37_shock_throttle_refine_30m_10y2y1y_mintr100_top54_2026-02-05_180208.json"
-    )
+    assert version is None
+    assert path is None
+
+
+def test_required_current_champion_artifacts_exist() -> None:
+    required_paths = [
+        "backtests/slv/archive/champion_history_20260214/slv_hf_champions_v28_exception_ddshock_lb10_on10_off5_depth1p25pp_streak1_shortmult0p028_20260222.json",
+        "backtests/out/tqqq_exec5m_v34_shock_alpha_refine_wide_30m_10y2y1y_mintr100_top100.json",
+    ]
+    for rel_path in required_paths:
+        assert (_ROOT / rel_path).exists(), rel_path

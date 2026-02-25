@@ -4101,41 +4101,86 @@ class IBKRClient:
         if not cleaned:
             return []
 
-        try:
-            result = await self._ib_proxy.qualifyContractsAsync(*cleaned)
-            if result:
-                return list(result)
-        except Exception:
-            pass
-
-        # Fallback path for market-open bursts/pacing: recover partial results
-        # via smaller batches and finally single-contract qualification.
-        resolved: list[Contract] = []
-        seen_con_ids: set[int] = set()
-        chunk_size = max(1, min(24, len(cleaned)))
-        for start in range(0, len(cleaned), chunk_size):
-            batch = cleaned[start : start + chunk_size]
+        def _proxy_key(contract: Contract | None) -> tuple[str, str, str, str, float] | None:
+            if contract is None:
+                return None
             try:
-                qualified = list(await self._ib_proxy.qualifyContractsAsync(*batch) or [])
-            except Exception:
-                qualified = []
+                strike = round(float(getattr(contract, "strike", 0.0) or 0.0), 6)
+            except (TypeError, ValueError):
+                strike = 0.0
+            return (
+                str(getattr(contract, "secType", "") or "").strip().upper(),
+                str(getattr(contract, "symbol", "") or "").strip().upper(),
+                str(getattr(contract, "lastTradeDateOrContractMonth", "") or "").strip(),
+                str(getattr(contract, "right", "") or "").strip().upper()[:1],
+                strike,
+            )
 
-            if not qualified and len(batch) > 1:
-                for candidate in batch:
-                    try:
-                        single = list(await self._ib_proxy.qualifyContractsAsync(candidate) or [])
-                    except Exception:
-                        continue
-                    qualified.extend(single)
+        resolved_by_key: dict[tuple[str, str, str, str, float], Contract] = {}
+        seen_con_ids: set[int] = set()
 
-            for contract in qualified:
+        def _add_qualified(rows: list[Contract]) -> None:
+            for contract in rows:
+                key = _proxy_key(contract)
+                if key is None:
+                    continue
+                if key in resolved_by_key:
+                    continue
                 con_id = int(getattr(contract, "conId", 0) or 0)
                 if con_id > 0:
                     if con_id in seen_con_ids:
                         continue
                     seen_con_ids.add(con_id)
-                resolved.append(contract)
-        return resolved
+                resolved_by_key[key] = contract
+
+        async def _qualify_batch(batch: list[Contract]) -> None:
+            if not batch:
+                return
+            try:
+                qualified = list(await self._ib_proxy.qualifyContractsAsync(*batch) or [])
+            except Exception:
+                qualified = []
+            _add_qualified(qualified)
+
+        def _pending_candidates() -> list[Contract]:
+            return [contract for contract in cleaned if _proxy_key(contract) not in resolved_by_key]
+
+        await _qualify_batch(cleaned)
+
+        pending = _pending_candidates()
+        if pending:
+            max_recovery_calls = max(2, min(6, len(cleaned) // 8))
+            recovery_calls = 0
+
+            while len(pending) > 4 and recovery_calls < max_recovery_calls:
+                chunk_size = max(4, min(16, len(pending)))
+                pending_before = len(pending)
+                for start in range(0, len(pending), chunk_size):
+                    if recovery_calls >= max_recovery_calls:
+                        break
+                    batch = pending[start : start + chunk_size]
+                    await _qualify_batch(batch)
+                    recovery_calls += 1
+                pending = _pending_candidates()
+                if len(pending) >= pending_before:
+                    break
+
+            if pending and len(pending) <= 4:
+                for candidate in pending[:4]:
+                    await _qualify_batch([candidate])
+
+        out: list[Contract] = []
+        seen_keys: set[tuple[str, str, str, str, float]] = set()
+        for candidate in cleaned:
+            key = _proxy_key(candidate)
+            if key is None or key in seen_keys:
+                continue
+            resolved = resolved_by_key.get(key)
+            if resolved is None:
+                continue
+            seen_keys.add(key)
+            out.append(resolved)
+        return out
 
     async def front_future(
         self,

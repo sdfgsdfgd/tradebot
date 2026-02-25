@@ -5,7 +5,7 @@ This file captures **top-performing grid combos** from offline sweeps.
 **Sweep assumptions (important):**
 - Offline cached bars only (`use_rth=False`)
 - Starting cash: `$10,000` (capital constrained)
-- **Max-potential mode**: `max_entries_per_day=0`, `open_position_cap=0` (stacking allowed subject to cash/margin)
+- **Max-potential mode**: `max_entries_per_day=0` (stacking allowed subject to cash/margin)
 - Equity option multiplier assumed `100` (PnL shown is approx USD)
 - Multi-leg fills use a **single combo bid/ask edge** (not leg-by-leg).
 - Flip-exit (when enabled): `min_hold_bars=6`, `only_if_profit=true`

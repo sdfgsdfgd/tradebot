@@ -5700,6 +5700,11 @@ def _run_spot_backtest_exec_loop_summary_fast(
         flip_due_ts: datetime | None,
     ) -> bool:
         nonlocal sig_cursor
+        # Full spot engine only queues an immediate flip re-entry when controlled flip is enabled.
+        # Without that knob, a flip exit just closes the position and the next entry is evaluated
+        # on subsequent signal bars. Keeping this aligned avoids over-trading in fast summary mode.
+        if not bool(getattr(strat, "spot_controlled_flip", False)):
+            return False
         if exit_reason != "flip" or flip_sig_idx is None or flip_exec_idx is None or flip_due_ts is None:
             return False
         sig_idx = int(flip_sig_idx)

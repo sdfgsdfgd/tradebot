@@ -1261,7 +1261,9 @@ class PositionsApp(App):
             return 0
 
     def _search_opt_first_paint_limit(self, fetch_limit: int) -> int:
-        return max(1, min(int(fetch_limit or 1), int(self._SEARCH_OPT_FIRST_PAINT_LIMIT)))
+        # Run OPT first page as a single deterministic pass to avoid
+        # partial-table regressions during qualify-first/qualify-rest splits.
+        return max(1, int(fetch_limit or 1))
 
     def _set_opt_search_contract_timing(
         self,

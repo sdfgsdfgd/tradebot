@@ -10,37 +10,14 @@ Canonical execution paths:
 
 ## Evolutions (stack)
 
-### v1.0 - shock-throttle HF bootstrap seed (PROMOTED)
-Status: **DONE (promoted as first TQQQ HF anchor)**
+### Timing-first HF crown (in progress)
+Status: **IN PROGRESS**
 
-Promotion rationale:
-- Establish a real, existing milestone-backed HF baseline in `backtests/tqqq/readme-hf.md` so Bot UI can auto-load TQQQ HF from a dedicated track.
-- Keep all-window positivity and strong stability while nudging turnover above the LF v39 baseline.
+This track is intentionally timing-first:
+- build precision around the open (first 1-2 hours) on short windows first (1w/3m),
+- then scale only the survivors to 1y/2y/10y.
 
-Selected artifact:
-- Ranked top set: `backtests/out/tqqq_exec5m_v37_shock_throttle_refine_30m_10y2y1y_mintr100_top54_2026-02-05_180208.json`
-- Source variants: `backtests/out/tqqq_exec5m_v37_shock_throttle_refine_variants_30m_2y_2026-02-05_180134.json`
-
-Observed kingmaker #01 windows:
-- 10y (`2016-01-01 -> 2026-01-19`): trades **1057**, pnl **71,510.39**, dd **16,006.54**, pnl/dd **4.4676**
-- 2y (`2024-01-01 -> 2026-01-19`): trades **206**, pnl **35,727.55**, dd **4,587.49**, pnl/dd **7.7880**
-- 1y (`2025-01-01 -> 2026-01-19`): trades **107**, pnl **15,934.55**, dd **3,868.21**, pnl/dd **4.1194**
-
-## Current Champions (stack)
-
-### CURRENT (v1-shock-throttle-seed) - first TQQQ HF promoted anchor
-- Preset file: `backtests/out/tqqq_exec5m_v37_shock_throttle_refine_30m_10y2y1y_mintr100_top54_2026-02-05_180208.json`
-- Source eval: `backtests/out/tqqq_exec5m_v37_shock_throttle_refine_30m_10y2y1y_mintr100_top54_2026-02-05_180208.json`
-- Source variants: `backtests/out/tqqq_exec5m_v37_shock_throttle_refine_variants_30m_2y_2026-02-05_180134.json`
-
-Current HF champion replay:
-```bash
-python -m tradebot.backtest spot_multitimeframe \
-  --milestones backtests/out/tqqq_exec5m_v37_shock_throttle_refine_30m_10y2y1y_mintr100_top54_2026-02-05_180208.json \
-  --symbol TQQQ --bar-size "30 mins" --use-rth --offline --cache-dir db \
-  --top 1 --max-open 1 --require-positive-pnl --min-trades 100 \
-  --window 2016-01-01:2026-01-19 --window 2024-01-01:2026-01-19 --window 2025-01-01:2026-01-19
-```
+This file intentionally has no promoted HF champion block until a promotion-grade HF winner exists.
 
 ## Research Notes (migrated)
 
@@ -277,4 +254,3 @@ python -m tradebot.backtest spot_multitimeframe \
   - Exit semantics (e.g., allow flip-at-loss only when risk_dir opposes your position)
 
   That keeps your core alpha logic stable, and isolates the “narrative risk” system.
-
