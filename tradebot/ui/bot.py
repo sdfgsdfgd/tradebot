@@ -50,6 +50,7 @@ from .common import (
     _fmt_quote,
     _infer_multiplier,
     _limit_price_for_mode,
+    _market_data_label,
     _market_session_bucket,
     _market_session_label,
     _midpoint,
@@ -58,12 +59,16 @@ from .common import (
     _parse_float,
     _parse_int,
     _portfolio_sort_key,
+    _price_pct_dual_text,
+    _pct24_72_from_price,
     _pnl_text,
     _quote_status_line,
     _round_to_tick,
     _safe_num,
     _sanitize_nbbo,
     _tick_size,
+    _ticker_actionable_price,
+    _ticker_close,
     _ticker_price,
     _trade_sort_key,
     _unrealized_pnl_values,
@@ -2282,9 +2287,8 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         return float(market_price) if market_price is not None else None
 
     def _position_pnl_values(self, item: PortfolioItem) -> tuple[float | None, float | None]:
+        unreal, _official, _estimate, _mark_price = self._position_unrealized_values(item)
         realized = _safe_num(getattr(item, "realizedPNL", None))
-        mark_price = self._position_mark_price(item)
-        unreal, _ = _unrealized_pnl_values(item, mark_price=mark_price)
         return unreal, realized
 
     @staticmethod
@@ -2313,6 +2317,105 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         multiplier = _infer_multiplier(item)
         cost_basis = _cost_basis(item)
         return (float(mark) * float(qty) * float(multiplier)) - float(cost_basis)
+
+    def _position_unrealized_values(
+        self,
+        item: PortfolioItem,
+    ) -> tuple[float | None, float | None, float | None, float | None]:
+        mark_price = self._position_mark_price(item)
+        official = self._official_unrealized_value(item)
+        estimate = self._live_unrealized_value(item, mark_price)
+        unreal = official if official is not None else estimate
+        return unreal, official, estimate, mark_price
+
+    @staticmethod
+    def _edge_glyph_style(value: float | None) -> tuple[str, str]:
+        if value is None:
+            return "•", "dim"
+        if value > 1e-6:
+            return "▲", "green"
+        if value < -1e-6:
+            return "▼", "red"
+        return "•", "dim"
+
+    def _position_entry_now_cell(self, item: PortfolioItem, mark_price: float | None) -> Text:
+        avg_cost = _safe_num(getattr(item, "averageCost", None))
+        mark = _safe_num(mark_price)
+        if mark is None:
+            mark = _safe_num(getattr(item, "marketPrice", None))
+
+        sec_type = str(getattr(getattr(item, "contract", None), "secType", "") or "").strip().upper()
+        multiplier = abs(float(_infer_multiplier(item)))
+        entry = float(avg_cost) if avg_cost is not None else None
+        if (
+            entry is not None
+            and sec_type in ("OPT", "FOP", "FUT")
+            and multiplier > 0
+            and abs(multiplier - 1.0) > 1e-9
+        ):
+            entry = float(entry) / float(multiplier)
+
+        edge_pct: float | None = None
+        if entry is not None and mark is not None and abs(float(entry)) > 1e-12:
+            raw_pct = ((float(mark) - float(entry)) / abs(float(entry))) * 100.0
+            qty = _safe_num(getattr(item, "position", None))
+            if qty is not None and qty < 0:
+                raw_pct *= -1.0
+            edge_pct = float(raw_pct)
+
+        glyph, glyph_style = self._edge_glyph_style(edge_pct)
+        entry_plain = _fmt_quote(entry)
+        now_plain = _fmt_quote(mark)
+        text = Text("")
+        text.append(f"{glyph} ", style=glyph_style)
+        text.append(entry_plain, style="grey50" if entry is not None else "dim")
+        text.append("¦", style="grey35")
+        text.append(f" {now_plain}", style=glyph_style if mark is not None else "dim")
+        return text
+
+    def _position_px_change_cell(self, item: PortfolioItem, mark_price: float | None) -> Text:
+        contract = getattr(item, "contract", None)
+        con_id = int(getattr(contract, "conId", 0) or 0) if contract is not None else 0
+        ticker = self._client.ticker_for_con_id(con_id) if con_id else None
+        price = _safe_num(mark_price)
+        if price is None:
+            price = _ticker_price(ticker) if ticker is not None else None
+        if price is None:
+            price = _safe_num(getattr(item, "marketPrice", None))
+
+        actionable = _ticker_actionable_price(ticker) if ticker is not None else None
+        latest_close = _ticker_close(ticker) if ticker is not None else None
+        pct24, pct72 = _pct24_72_from_price(
+            price=price,
+            ticker=ticker,
+            session_prev_close=latest_close,
+            session_prev_close_1ago=latest_close,
+            session_close_3ago=None,
+            has_actionable_quote=actionable is not None,
+        )
+        ref = pct24 if pct24 is not None else pct72
+        glyph, glyph_style = self._edge_glyph_style(ref)
+
+        dual = _price_pct_dual_text(price, pct24, pct72, separator="·")
+        text = Text("")
+        text.append(f"{glyph} ", style=glyph_style)
+        text.append_text(dual if dual.plain else Text("n/a", style="dim"))
+        return text
+
+    def _position_md_badge_cell(self, item: PortfolioItem) -> Text:
+        contract = getattr(item, "contract", None)
+        con_id = int(getattr(contract, "conId", 0) or 0) if contract is not None else 0
+        ticker = self._client.ticker_for_con_id(con_id) if con_id else None
+        if ticker is None:
+            return Text("")
+        label = _market_data_label(ticker)
+        code, style = {
+            "Live": ("L", "bold black on #73d89e"),
+            "Live-Frozen": ("LF", "bold black on #7fc79f"),
+            "Delayed": ("D", "bold black on #cfb473"),
+            "Delayed-Frozen": ("DF", "bold black on #ad9b79"),
+        }.get(label, ("?", "bold black on #7a8792"))
+        return Text(f" {code} ", style=style)
 
     def _spot_instance_positions(self, instance: _BotInstance) -> list[PortfolioItem]:
         symbol = str(instance.symbol or "").strip().upper()
@@ -2399,16 +2502,12 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         unreal_estimate_seen = False
         unreal_official_seen = False
         for item in items:
-            official = self._official_unrealized_value(item)
-            mark_price = self._position_mark_price(item)
-            estimate = self._live_unrealized_value(item, mark_price)
+            unreal, official, estimate, _mark_price = self._position_unrealized_values(item)
+            if unreal is not None:
+                unreal_hybrid += float(unreal)
+                unreal_hybrid_seen = True
             if official is not None:
-                unreal_hybrid += float(official)
-                unreal_hybrid_seen = True
                 unreal_official_seen = True
-            elif estimate is not None:
-                unreal_hybrid += float(estimate)
-                unreal_hybrid_seen = True
             if estimate is not None:
                 unreal_estimate += float(estimate)
                 unreal_estimate_seen = True
@@ -4631,6 +4730,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             self._sync_row_marker(self._orders_table, force=True)
             return
         self._orders_table.add_row("", "", "", "", Text("POSITIONS", style="bold"), "", "", "", "", "")
+        self._orders_table.add_row(*_positions_subheader_row())
         for item in self._positions:
             try:
                 con_id = int(getattr(item.contract, "conId", 0) or 0)
@@ -4638,13 +4738,21 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                 con_id = 0
             if con_id not in con_ids:
                 continue
-            unreal, realized = self._position_pnl_values(item)
+            unreal, _official_unreal, _estimate_unreal, mark_price = self._position_unrealized_values(item)
+            realized = _safe_num(getattr(item, "realizedPNL", None))
+            entry_now_text = self._position_entry_now_cell(item, mark_price)
+            px_change_text = self._position_px_change_cell(item, mark_price)
+            md_badge_text = self._position_md_badge_cell(item)
             self._orders_table.add_row(
                 *_position_as_order_row(
                     item,
                     scope=scope,
                     unreal=unreal,
                     realized=realized,
+                    market_price=mark_price,
+                    entry_now_text=entry_now_text,
+                    px_change_text=px_change_text,
+                    md_badge_text=md_badge_text,
                 )
             )
         self._sync_row_marker(self._orders_table, force=True)
@@ -4999,6 +5107,10 @@ def _position_as_order_row(
     scope: int | None,
     unreal: float | None = None,
     realized: float | None = None,
+    market_price: float | None = None,
+    entry_now_text: Text | None = None,
+    px_change_text: Text | None = None,
+    md_badge_text: Text | None = None,
 ) -> tuple[str, str, str, str, str, str, str, str, Text, Text]:
     contract = getattr(item, "contract", None)
     sec_type = str(getattr(contract, "secType", "") or "") if contract is not None else ""
@@ -5036,7 +5148,9 @@ def _position_as_order_row(
         qty = str(int(abs_pos))
 
     avg = _safe_num(getattr(item, "averageCost", None))
-    mkt = _safe_num(getattr(item, "marketPrice", None))
+    mkt = _safe_num(market_price)
+    if mkt is None:
+        mkt = _safe_num(getattr(item, "marketPrice", None))
     if unreal is None:
         unreal, _ = _unrealized_pnl_values(item)
     if realized is None:
@@ -5051,11 +5165,27 @@ def _position_as_order_row(
         side,
         qty,
         local,
-        _fmt_quote(avg),
-        _fmt_quote(mkt),
-        "",
+        entry_now_text if entry_now_text is not None else _fmt_quote(avg),
+        px_change_text if px_change_text is not None else _fmt_quote(mkt),
+        md_badge_text if md_badge_text is not None else "",
         unreal_cell,
         realized_cell,
+    )
+
+
+def _positions_subheader_row() -> tuple[Text | str, Text | str, Text | str, Text | str, Text | str, Text | str, Text | str, Text | str, Text | str, Text | str]:
+    style = "bold #7f8fa0"
+    return (
+        "",
+        "",
+        "",
+        Text("Qty", style=style),
+        Text("Contract", style=style),
+        Text("Entry¦Now", style=style),
+        Text("Px 24-72", style=style),
+        Text("MD", style=style),
+        Text("Unreal (Pos)", style=style),
+        Text("Realized", style=style),
     )
 
 
