@@ -2159,18 +2159,32 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
 
     def _setup_tables(self) -> None:
         self._instances_table.clear(columns=True)
-        self._instances_table.add_column("ID", width=4)
-        self._instances_table.add_column("Strategy", width=26)
-        self._instances_table.add_column("DTE", width=5)
-        self._instances_table.add_column("State", width=9)
-        self._instances_table.add_column("BT PnL", width=12)
-        self._instances_table.add_column("Unreal", width=16)
-        self._instances_table.add_column("Realized", width=12)
-        self._instances_table.add_column("Total", width=12)
+        self._instances_table.add_column(_center_table_cell("ID"), width=4)
+        self._instances_table.add_column(_center_table_cell("Strategy"), width=26)
+        self._instances_table.add_column(_center_table_cell("DTE"), width=5)
+        self._instances_table.add_column(_center_table_cell("State"), width=9)
+        self._instances_table.add_column(_center_table_cell("BT PnL"), width=12)
+        self._instances_table.add_column(_center_table_cell("Unreal"), width=16)
+        self._instances_table.add_column(_center_table_cell("Realized"), width=12)
+        self._instances_table.add_column(_center_table_cell("Total"), width=12)
 
         self._orders_table.clear(columns=True)
         self._orders_table.add_columns(
-            "When ET", "Inst", "Side", "Qty", "Contract", "Lmt", "B/A", "Status", "Unreal", "Realized"
+            *(
+                _center_table_cell(label)
+                for label in (
+                    "When ET",
+                    "Inst",
+                    "Side",
+                    "Qty",
+                    "Contract",
+                    "Lmt",
+                    "B/A",
+                    "Status",
+                    "Unreal",
+                    "Realized",
+                )
+            )
         )
 
         self._logs_table.clear(columns=True)
@@ -2226,14 +2240,16 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             unreal_cell, realized_cell, total_cell, live_total = self._instance_live_cells(instance)
             live_total_by_id[int(instance.instance_id)] = live_total
             self._instances_table.add_row(
-                str(instance.instance_id),
-                instance.group[:24],
-                str(dte),
-                state_cell,
-                bt_pnl,
-                unreal_cell,
-                realized_cell,
-                total_cell,
+                *_center_table_row(
+                    str(instance.instance_id),
+                    instance.group[:24],
+                    str(dte),
+                    state_cell,
+                    bt_pnl,
+                    unreal_cell,
+                    realized_cell,
+                    total_cell,
+                )
             )
             self._instance_rows.append(instance)
         self._instance_live_total_by_id = live_total_by_id
@@ -2423,6 +2439,9 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         glyph, glyph_style = self._edge_glyph_style(ref)
 
         dual = _price_pct_dual_text(price, pct24, pct72, separator="·")
+        # Remove internal left-pad from the shared formatter so glyph and value stay visually coupled.
+        while dual.plain.startswith(" "):
+            dual = dual[1:]
         text = Text("")
         text.append(f"{glyph} ", style=glyph_style)
         text.append_text(dual if dual.plain else Text("n/a", style="dim"))
@@ -4753,7 +4772,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         for order in self._orders:
             if scope is not None and order.instance_id != scope:
                 continue
-            self._orders_table.add_row(*_order_row(order))
+            self._orders_table.add_row(*_center_table_row(*_order_row(order)))
             self._order_rows.append(order)
 
         # Unify positions into the Orders table (so the bottom pane can be Logs).
@@ -4765,8 +4784,10 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         if not con_ids:
             self._sync_row_marker(self._orders_table, force=True)
             return
-        self._orders_table.add_row("", "", "", "", Text("POSITIONS", style="bold"), "", "", "", "", "")
-        self._orders_table.add_row(*_positions_subheader_row())
+        self._orders_table.add_row(
+            *_center_table_row("", "", "", "", Text("POSITIONS", style="bold"), "", "", "", "", "")
+        )
+        self._orders_table.add_row(*_center_table_row(*_positions_subheader_row()))
         for item in self._positions:
             try:
                 con_id = int(getattr(item.contract, "conId", 0) or 0)
@@ -4780,15 +4801,17 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             px_change_text = self._position_px_change_cell(item, mark_price)
             md_badge_text = self._position_md_badge_cell(item)
             self._orders_table.add_row(
-                *_position_as_order_row(
-                    item,
-                    scope=scope,
-                    unreal=unreal,
-                    realized=realized,
-                    market_price=mark_price,
-                    entry_now_text=entry_now_text,
-                    px_change_text=px_change_text,
-                    md_badge_text=md_badge_text,
+                *_center_table_row(
+                    *_position_as_order_row(
+                        item,
+                        scope=scope,
+                        unreal=unreal,
+                        realized=realized,
+                        market_price=mark_price,
+                        entry_now_text=entry_now_text,
+                        px_change_text=px_change_text,
+                        md_badge_text=md_badge_text,
+                    )
                 )
             )
         self._sync_row_marker(self._orders_table, force=True)
@@ -5108,6 +5131,19 @@ def _set_path(root: object, path: str, value: object) -> None:
 
 
 # region Table Row Helpers
+def _center_table_cell(value: object) -> Text:
+    if isinstance(value, Text):
+        centered = value.copy()
+    else:
+        centered = Text("" if value is None else str(value))
+    centered.justify = "center"
+    return centered
+
+
+def _center_table_row(*cells: object) -> tuple[Text, ...]:
+    return tuple(_center_table_cell(cell) for cell in cells)
+
+
 def _order_row(order: _BotOrder) -> tuple[str, str, str, str, str, str, str, str, str, str]:
     ts = _to_et_shared(order.created_at, naive_ts_mode="et", default_naive_ts_mode="et").strftime("%H:%M:%S")
     inst = str(order.instance_id)
