@@ -1,7 +1,7 @@
 # SLV HF Research (High-Frequency Spot Track)
 
-This file is the dedicated SLV high-frequency evolution track, separate from `backtests/slv/README.md`.
-- `README.md` remains the low-frequency/live-parity representative champion track.
+This file is the dedicated SLV high-frequency evolution track, separate from `backtests/slv/readme-lf.md`.
+- `readme-lf.md` remains the low-frequency/live-parity representative champion track.
 - This file tracks the high-turnover RATS line and its own HF crowns.
 
 Canonical execution paths:

@@ -1373,7 +1373,7 @@ def _extract_current_json_from_readme(readme_path: Path) -> Path | None:
 def _discover_current_champion_jsons() -> list[Path]:
     repo_root = _repo_root()
     out: list[Path] = []
-    slv_lf = _extract_current_json_from_readme(repo_root / "backtests" / "slv" / "README.md")
+    slv_lf = _extract_current_json_from_readme(repo_root / "backtests" / "slv" / "readme-lf.md")
     slv_hf = _extract_current_json_from_readme(repo_root / "backtests" / "slv" / "readme-hf.md")
     tqqq = (repo_root / "tradebot" / "backtest" / "spot_champions.json").resolve()
     if slv_lf is not None:

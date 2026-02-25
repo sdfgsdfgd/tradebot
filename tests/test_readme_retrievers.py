@@ -19,7 +19,7 @@ _RETRIEVERS = _load_retrievers_module()
 
 
 def test_extract_current_slv_lf_json_path() -> None:
-    readme = (_ROOT / "backtests" / "slv" / "README.md").read_text()
+    readme = (_ROOT / "backtests" / "slv" / "readme-lf.md").read_text()
     version, path = _RETRIEVERS.extract_current_slv_lf_json_path(readme)
     assert version == "31.2"
     assert path == "backtests/slv/slv_v31_2_singlepos_parity_eval_20260212_top1.json"
@@ -32,4 +32,21 @@ def test_extract_current_slv_hf_json_path() -> None:
     assert (
         path
         == "backtests/slv/archive/champion_history_20260214/slv_hf_champions_v28_exception_ddshock_lb10_on10_off5_depth1p25pp_streak1_shortmult0p028_20260222.json"
+    )
+
+
+def test_extract_current_tqqq_lf_json_path() -> None:
+    readme = (_ROOT / "backtests" / "tqqq" / "readme-lf.md").read_text()
+    version, path = _RETRIEVERS.extract_current_tqqq_lf_json_path(readme)
+    assert version == "39"
+    assert path == "backtests/out/tqqq_exec5m_v39_shock_velocity_scale_wide_30m_10y2y1y_mintr100_top200_2026-02-05_192159.json"
+
+
+def test_extract_current_tqqq_hf_json_path() -> None:
+    readme = (_ROOT / "backtests" / "tqqq" / "readme-hf.md").read_text()
+    version, path = _RETRIEVERS.extract_current_tqqq_hf_json_path(readme)
+    assert version == "1-shock-throttle-seed"
+    assert (
+        path
+        == "backtests/out/tqqq_exec5m_v37_shock_throttle_refine_30m_10y2y1y_mintr100_top54_2026-02-05_180208.json"
     )
