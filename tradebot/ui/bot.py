@@ -7,6 +7,7 @@ import copy
 import json
 import math
 import re
+import time as pytime
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
@@ -42,7 +43,12 @@ from ..time_utils import now_et as _now_et
 from ..time_utils import now_et_naive as _now_et_naive
 from ..time_utils import to_et as _to_et_shared
 from ..utils.date_utils import business_days_until
-from .readme_retrievers import extract_current_slv_hf_json_path, extract_current_slv_lf_json_path
+from .readme_retrievers import (
+    extract_current_slv_hf_json_path,
+    extract_current_slv_lf_json_path,
+    extract_current_tqqq_hf_json_path,
+    extract_current_tqqq_lf_json_path,
+)
 from .common import (
     _SECTION_TYPES,
     _cost_basis,
@@ -64,6 +70,7 @@ from .common import (
     _pnl_text,
     _quote_status_line,
     _round_to_tick,
+    _safe_float,
     _safe_num,
     _sanitize_nbbo,
     _tick_size,
@@ -684,6 +691,7 @@ class BotConfigScreen(Screen[Optional[_BotConfigResult]]):
 
 class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMixin, Screen):
     _LOG_CAP = 99_999
+    _UNREAL_STICKY_SEC = 20.0
     BINDINGS = [
         ("escape", "app.pop_screen", "Back"),
         ("q", "app.pop_screen", "Back"),
@@ -737,7 +745,6 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         self._leaderboard_path = base / "backtest" / "leaderboard.json"
         self._spot_milestones_path = base / "backtest" / "spot_milestones.json"
         self._spot_champions_path = base / "backtest" / "spot_champions.json"
-        self._backtest_readme_path = base / "backtest" / "README.md"
         self._group_eval_by_name: dict[str, dict] = {}
         self._payload: dict | None = None
         self._presets: list[_BotPreset] = []
@@ -769,6 +776,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         self._tracked_conids: set[int] = set()
         self._instance_pnl_state_by_id: dict[int, _InstancePnlState] = {}
         self._instance_live_total_by_id: dict[int, float | None] = {}
+        self._last_unreal_by_conid: dict[int, tuple[float, float]] = {}
         self._stream_refresh_task: asyncio.Task | None = None
         self._stream_dirty = False
         self._active_panel = "presets"
@@ -1377,8 +1385,9 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         """Load CURRENT champion presets (README-driven).
 
         Bot Hub presets are intentionally limited to promoted CURRENT champions documented in:
-        - `tradebot/backtest/README.md` (TQQQ spot champ)
-        - `backtests/slv/README.md` (SLV spot champ)
+        - `backtests/tqqq/readme-lf.md` (TQQQ LF spot champ)
+        - `backtests/tqqq/readme-hf.md` (TQQQ HF spot champ)
+        - `backtests/slv/readme-lf.md` (SLV spot champ)
         - `backtests/slv/readme-hf.md` (SLV HF spot champ)
         """
 
@@ -1457,37 +1466,15 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         groups: list[dict] = []
         self._spot_champ_version = None
 
-        # TQQQ CURRENT (from tradebot/backtest/README.md)
-        backtest_readme = _read_text(self._backtest_readme_path)
+        # TQQQ LF CURRENT (from backtests/tqqq/readme-lf.md)
+        tqqq_lf_readme_path = repo_root / "backtests" / "tqqq" / "readme-lf.md"
+        tqqq_lf_readme = _read_text(tqqq_lf_readme_path)
         tqqq_ver: str | None = None
         tqqq_path: Path | None = None
-        if backtest_readme:
-            bullet = re.search(
-                r"^- CURRENT \(v(?P<ver>\d+(?:\.\d+)?)\): `(?P<path>backtests/out/[^`]+\.json)`",
-                backtest_readme,
-                flags=re.MULTILINE,
-            )
-            if bullet:
-                tqqq_ver = bullet.group("ver")
-                tqqq_path = _resolve_existing_json(bullet.group("path"))
-
-            if tqqq_ver is None:
-                head = re.search(r"^#### CURRENT \(v(?P<ver>\d+(?:\.\d+)?)\)", backtest_readme, flags=re.MULTILINE)
-                if head:
-                    tqqq_ver = head.group("ver")
-                    tail = backtest_readme[head.end() :]
-                    next_head = re.search(r"^####\s+", tail, flags=re.MULTILINE)
-                    section = tail[: next_head.start()] if next_head else tail
-                    match = re.search(r"`(?P<path>backtests/out/[^`]+\.json)`", section)
-                    if match:
-                        tqqq_path = _resolve_existing_json(match.group("path"))
-
-            if tqqq_ver and tqqq_path is None:
-                out_dir = repo_root / "backtests" / "out"
-                if out_dir.exists():
-                    candidates = sorted(out_dir.glob(f"tqqq_exec5m_v{tqqq_ver}_*top*.json"))
-                    if candidates:
-                        tqqq_path = candidates[0]
+        if tqqq_lf_readme:
+            tqqq_ver, tqqq_rel_path = extract_current_tqqq_lf_json_path(tqqq_lf_readme)
+            if tqqq_rel_path:
+                tqqq_path = _resolve_existing_json(tqqq_rel_path)
 
         if tqqq_ver and tqqq_path:
             group = _load_champion_group(symbol="TQQQ", version=tqqq_ver, path=tqqq_path)
@@ -1495,8 +1482,28 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                 self._spot_champ_version = tqqq_ver
                 groups.append(group)
 
-        # SLV CURRENT (from backtests/slv/README.md)
-        slv_readme_path = repo_root / "backtests" / "slv" / "README.md"
+        # TQQQ HF CURRENT (from backtests/tqqq/readme-hf.md)
+        tqqq_hf_readme_path = repo_root / "backtests" / "tqqq" / "readme-hf.md"
+        tqqq_hf_readme = _read_text(tqqq_hf_readme_path)
+        tqqq_hf_ver: str | None = None
+        tqqq_hf_path: Path | None = None
+        if tqqq_hf_readme:
+            tqqq_hf_ver, tqqq_hf_rel_path = extract_current_tqqq_hf_json_path(tqqq_hf_readme)
+            if tqqq_hf_rel_path:
+                tqqq_hf_path = _resolve_existing_json(tqqq_hf_rel_path)
+
+        if tqqq_hf_path:
+            version_label = f"HF{tqqq_hf_ver}" if tqqq_hf_ver else "HF?"
+            group = _load_champion_group(symbol="TQQQ", version=version_label, path=tqqq_hf_path)
+            if group is not None:
+                group["_source"] = f"champion:TQQQ:HF:v{tqqq_hf_ver or '?'}"
+                name = str(group.get("name") or "")
+                if name and "[HF]" not in name:
+                    group["name"] = f"{name} [HF]"
+                groups.append(group)
+
+        # SLV CURRENT (from backtests/slv/readme-lf.md)
+        slv_readme_path = repo_root / "backtests" / "slv" / "readme-lf.md"
         slv_readme = _read_text(slv_readme_path)
         slv_ver: str | None = None
         slv_path: Path | None = None
@@ -2152,16 +2159,14 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
 
     def _setup_tables(self) -> None:
         self._instances_table.clear(columns=True)
-        self._instances_table.add_columns(
-            "ID",
-            "Strategy",
-            "DTE",
-            "State",
-            "BT PnL",
-            "Live Unreal",
-            "Live Realized",
-            "Live Total",
-        )
+        self._instances_table.add_column("ID", width=4)
+        self._instances_table.add_column("Strategy", width=26)
+        self._instances_table.add_column("DTE", width=5)
+        self._instances_table.add_column("State", width=9)
+        self._instances_table.add_column("BT PnL", width=12)
+        self._instances_table.add_column("Unreal", width=16)
+        self._instances_table.add_column("Realized", width=12)
+        self._instances_table.add_column("Total", width=12)
 
         self._orders_table.clear(columns=True)
         self._orders_table.add_columns(
@@ -2211,13 +2216,20 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                     bt_pnl = _pnl_text(float(instance.metrics.get("pnl", 0.0)))
                 except (TypeError, ValueError):
                     bt_pnl = ""
+            state_value = str(instance.state or "").strip().upper() or "UNKNOWN"
+            if state_value == "RUNNING":
+                state_cell: Text | str = Text(state_value, style="bold #73d89e")
+            elif state_value == "PAUSED":
+                state_cell = Text(state_value, style="bold #b8c0cb")
+            else:
+                state_cell = Text(state_value, style="bold #d6a56f")
             unreal_cell, realized_cell, total_cell, live_total = self._instance_live_cells(instance)
             live_total_by_id[int(instance.instance_id)] = live_total
             self._instances_table.add_row(
                 str(instance.instance_id),
                 instance.group[:24],
                 str(dte),
-                instance.state,
+                state_cell,
                 bt_pnl,
                 unreal_cell,
                 realized_cell,
@@ -2304,7 +2316,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         official = self._client.pnl_single_unrealized(con_id)
         if official is not None:
             return float(official)
-        fallback = _safe_num(getattr(item, "unrealizedPNL", None))
+        fallback = _safe_float(getattr(item, "unrealizedPNL", None))
         return float(fallback) if fallback is not None else None
 
     def _live_unrealized_value(self, item: PortfolioItem, mark_price: float | None) -> float | None:
@@ -2322,10 +2334,24 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         self,
         item: PortfolioItem,
     ) -> tuple[float | None, float | None, float | None, float | None]:
+        con_id = self._item_con_id(item)
         mark_price = self._position_mark_price(item)
         official = self._official_unrealized_value(item)
         estimate = self._live_unrealized_value(item, mark_price)
+        snapshot_unreal = _safe_float(getattr(item, "unrealizedPNL", None))
         unreal = official if official is not None else estimate
+        if unreal is None and snapshot_unreal is not None:
+            unreal = float(snapshot_unreal)
+
+        now_mono = pytime.monotonic()
+        if con_id > 0 and unreal is not None:
+            self._last_unreal_by_conid[int(con_id)] = (float(unreal), float(now_mono))
+        elif con_id > 0 and unreal is None:
+            cached = self._last_unreal_by_conid.get(int(con_id))
+            if cached is not None:
+                cached_unreal, cached_mono = cached
+                if (float(now_mono) - float(cached_mono)) <= float(self._UNREAL_STICKY_SEC):
+                    unreal = float(cached_unreal)
         return unreal, official, estimate, mark_price
 
     @staticmethod
@@ -2520,6 +2546,11 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         live_total = float(total_value) if has_live else None
 
         unreal_cell = _pnl_text(unreal_value)
+        unreal_glyph, unreal_glyph_style = self._edge_glyph_style(unreal_value)
+        unreal_with_glyph = Text("")
+        unreal_with_glyph.append(f"{unreal_glyph} ", style=unreal_glyph_style)
+        unreal_with_glyph.append_text(unreal_cell)
+        unreal_cell = unreal_with_glyph
         if unreal_estimate_seen and not unreal_official_seen:
             unreal_cell.append(" ≈", style="dim")
         elif unreal_estimate_seen and unreal_hybrid_seen and abs(float(unreal_estimate) - float(unreal_hybrid)) >= 0.01:
@@ -2530,6 +2561,11 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
 
         realized_cell = _pnl_text(realized_value)
         total_cell = _pnl_text(total_value)
+        total_glyph, total_glyph_style = self._edge_glyph_style(total_value)
+        total_with_glyph = Text("")
+        total_with_glyph.append(f"{total_glyph} ", style=total_glyph_style)
+        total_with_glyph.append_text(total_cell)
+        total_cell = total_with_glyph
         return unreal_cell, realized_cell, total_cell, live_total
 
     @staticmethod

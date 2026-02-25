@@ -30,6 +30,7 @@ class _OrdersTableStub:
 
 class _OrdersRefreshProbe:
     _scope_all = False
+    _UNREAL_STICKY_SEC = 20.0
     _item_con_id = staticmethod(BotScreen._item_con_id)
     _edge_glyph_style = staticmethod(BotScreen._edge_glyph_style)
     _live_unrealized_value = BotScreen._live_unrealized_value
@@ -44,6 +45,7 @@ class _OrdersRefreshProbe:
         self._orders: list = []
         self._order_rows: list = []
         self._positions = [item]
+        self._last_unreal_by_conid: dict[int, tuple[float, float]] = {}
         self._instances = [SimpleNamespace(instance_id=1, touched_conids={123})]
         ticker = SimpleNamespace(
             bid=82.37,
@@ -89,3 +91,20 @@ def test_bot_orders_positions_row_uses_live_mark_for_now_column() -> None:
     row = _position_row_after_refresh()
     # stale snapshot marketPrice is 79.21, live mark is 81.78.
     assert "81.78" in row[5].plain
+
+
+def test_position_unrealized_sticky_holds_last_value_during_short_stream_gap() -> None:
+    item = _portfolio_item_stub()
+    item.unrealizedPNL = None
+    probe = _OrdersRefreshProbe(item)
+    probe._position_mark_price = lambda _item: None  # type: ignore[method-assign]
+
+    state = {"official": 4.56}
+    probe._client.pnl_single_unrealized = lambda _con_id: state["official"]  # type: ignore[attr-defined]
+
+    first_unreal, _official, _estimate, _mark = BotScreen._position_unrealized_values(probe, item)
+    assert first_unreal == 4.56
+
+    state["official"] = None
+    second_unreal, _official2, _estimate2, _mark2 = BotScreen._position_unrealized_values(probe, item)
+    assert second_unreal == 4.56
