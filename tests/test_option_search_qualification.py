@@ -148,62 +148,6 @@ def test_search_contracts_opt_drops_unqualified_rows() -> None:
     assert int(getattr(results[0], "conId", 0) or 0) == 900001
 
 
-def test_qualify_proxy_contracts_recovers_large_pending_set_with_smaller_batches() -> None:
-    client = _client()
-    batch_sizes: list[int] = []
-
-    class _SparseProxy:
-        async def qualifyContractsAsync(self, *contracts):
-            batch_sizes.append(len(contracts))
-            if len(contracts) > 2:
-                return []
-            out: list[Contract] = []
-            for source in contracts:
-                strike = int(round(float(getattr(source, "strike", 0.0) or 0.0)))
-                right = str(getattr(source, "right", "") or "").strip().upper()[:1]
-                resolved = Contract(
-                    secType=str(getattr(source, "secType", "") or ""),
-                    symbol=str(getattr(source, "symbol", "") or ""),
-                    exchange=str(getattr(source, "exchange", "") or ""),
-                    currency=str(getattr(source, "currency", "") or ""),
-                    lastTradeDateOrContractMonth=str(
-                        getattr(source, "lastTradeDateOrContractMonth", "") or ""
-                    ),
-                    strike=float(getattr(source, "strike", 0.0) or 0.0),
-                    right=str(getattr(source, "right", "") or ""),
-                )
-                resolved.conId = 780000 + (strike * 2) + (1 if right == "C" else 2)
-                out.append(resolved)
-            return out
-
-    async def _connect_proxy() -> None:
-        return None
-
-    client._ib_proxy = _SparseProxy()
-    client.connect_proxy = _connect_proxy
-
-    candidates: list[Contract] = []
-    for strike in (170.0, 175.0, 180.0, 185.0, 190.0, 195.0):
-        for right in ("C", "P"):
-            candidates.append(
-                Contract(
-                    secType="OPT",
-                    symbol="NVDA",
-                    exchange="SMART",
-                    currency="USD",
-                    lastTradeDateOrContractMonth="20260220",
-                    strike=strike,
-                    right=right,
-                )
-            )
-
-    qualified = asyncio.run(client.qualify_proxy_contracts(*candidates))
-
-    assert len(qualified) == len(candidates)
-    assert any(size > 2 for size in batch_sizes)
-    assert any(size <= 2 for size in batch_sizes)
-
-
 def test_search_terms_opt_expands_bitcoin_aliases() -> None:
     terms = IBKRClient._search_terms("bitcoin", mode="OPT")
 

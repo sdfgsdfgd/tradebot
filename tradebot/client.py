@@ -3456,7 +3456,12 @@ class IBKRClient:
                 ticker = await self.ensure_ticker(underlying, owner="search")
                 ref_price = self._search_actionable_reference_price_from_ticker(ticker)
                 if ref_price is None:
-                    settle_wait_sec = 0.3
+                    # The proxy quote probe resubscribes after `_PROXY_CONTRACT_QUOTE_PROBE_INITIAL_SEC`,
+                    # so wait long enough to benefit from that before falling back to median strikes.
+                    settle_wait_sec = max(
+                        0.3,
+                        float(_PROXY_CONTRACT_QUOTE_PROBE_INITIAL_SEC) + 0.25,
+                    )
                     settle_poll_sec = 0.05
                     settle_deadline = time.monotonic() + settle_wait_sec
                     while time.monotonic() < settle_deadline:
@@ -3495,6 +3500,10 @@ class IBKRClient:
                         ref_price = float(close_num)
                         ref_source = f"historical-{what_to_show.lower()}"
                         break
+                if ref_price is None:
+                    ref_price = self._search_reference_price_from_ticker(ticker)
+                    if ref_price is not None:
+                        ref_source = "ticker"
             except Exception:
                 ref_price = None
             finally:
@@ -4154,12 +4163,25 @@ class IBKRClient:
 
         pending = _pending_candidates()
         if pending:
-            for chunk_size in (16, 8, 4, 2, 1):
-                pending = _pending_candidates()
-                if not pending:
-                    break
+            max_recovery_calls = max(2, min(6, len(cleaned) // 8))
+            recovery_calls = 0
+
+            while len(pending) > 4 and recovery_calls < max_recovery_calls:
+                chunk_size = max(4, min(16, len(pending)))
+                pending_before = len(pending)
                 for start in range(0, len(pending), chunk_size):
-                    await _qualify_batch(pending[start : start + chunk_size])
+                    if recovery_calls >= max_recovery_calls:
+                        break
+                    batch = pending[start : start + chunk_size]
+                    await _qualify_batch(batch)
+                    recovery_calls += 1
+                pending = _pending_candidates()
+                if len(pending) >= pending_before:
+                    break
+
+            if pending and len(pending) <= 4:
+                for candidate in pending[:4]:
+                    await _qualify_batch([candidate])
 
         out: list[Contract] = []
         seen_keys: set[tuple[str, str, str, str, float]] = set()
