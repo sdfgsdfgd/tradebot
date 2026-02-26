@@ -763,14 +763,6 @@ def test_probe_index_quotes_degrades_to_delayed_when_strip_totally_dead(monkeypa
             close=None,
             prevLast=None,
         ),
-        "MYM": SimpleNamespace(
-            contract=SimpleNamespace(symbol="MYM", conId=9003),
-            bid=None,
-            ask=None,
-            last=None,
-            close=None,
-            prevLast=None,
-        ),
     }
     calls: list[bool] = []
 
@@ -809,14 +801,6 @@ def test_probe_index_quotes_degrades_to_delayed_after_warmup_without_actionable(
             close=6_000.0,
             prevLast=6_000.0,
         ),
-        "MYM": SimpleNamespace(
-            contract=SimpleNamespace(symbol="MYM", conId=9012),
-            bid=None,
-            ask=None,
-            last=None,
-            close=45_000.0,
-            prevLast=45_000.0,
-        ),
     }
     calls: list[bool] = []
 
@@ -849,14 +833,6 @@ def test_probe_index_quotes_partial_strip_resubscribes_without_degrading(monkeyp
         ),
         "ES": SimpleNamespace(
             contract=SimpleNamespace(symbol="ES", conId=9021),
-            bid=6_000.0,
-            ask=6_000.25,
-            last=None,
-            close=None,
-            prevLast=None,
-        ),
-        "MYM": SimpleNamespace(
-            contract=SimpleNamespace(symbol="MYM", conId=9022),
             bid=None,
             ask=None,
             last=None,

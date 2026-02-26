@@ -36,11 +36,10 @@ from .config import IBKRConfig
 from .time_utils import NaiveTsMode, now_et as _now_et, now_et_naive as _now_et_naive, to_et as _to_et_shared
 
 # region Constants
-_INDEX_STRIP_SYMBOLS = ("NQ", "ES", "MYM")
+_INDEX_STRIP_SYMBOLS = ("NQ", "ES")
 _INDEX_STRIP_EXCHANGE_HINTS: dict[str, str] = {
     "NQ": "CME",
     "ES": "CME",
-    "MYM": "CBOT",
 }
 _PROXY_SYMBOLS = ("QQQ", "SPY", "DIA", "TQQQ")
 _PREMARKET_START = dtime(4, 0)
@@ -4664,11 +4663,7 @@ class IBKRClient:
         sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
         if sec_type in ("FUT", "FOP"):
             ladder = _futures_md_ladder(now)
-            symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
-            # Mix entitlement-friendly legs: MYM is often delayed-only, while
-            # NQ/ES may be entitled live.
-            force_delayed = bool(self._index_force_delayed or symbol == "MYM")
-            if force_delayed:
+            if self._index_force_delayed:
                 delayed_types = [int(md) for md in ladder if int(md) in (3, 4)]
                 return int(delayed_types[0]) if delayed_types else 3
             return int(ladder[0]) if ladder else 1
