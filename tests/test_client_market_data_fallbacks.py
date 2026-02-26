@@ -670,8 +670,7 @@ def test_on_error_main_index_permission_forces_delayed() -> None:
     contract = SimpleNamespace(symbol="NQ", secType="FUT", conId=93001)
     client._on_error_main(0, 354, "No market data subscription", contract)
 
-    assert client._index_force_delayed is False
-    assert client._index_symbol_force_delayed == {"NQ"}
+    assert client._index_force_delayed is True
     assert called["value"] is True
     assert called["requalify"] is True
 
@@ -764,8 +763,8 @@ def test_probe_index_quotes_degrades_to_delayed_when_strip_totally_dead(monkeypa
             close=None,
             prevLast=None,
         ),
-        "YM": SimpleNamespace(
-            contract=SimpleNamespace(symbol="YM", conId=9003),
+        "MYM": SimpleNamespace(
+            contract=SimpleNamespace(symbol="MYM", conId=9003),
             bid=None,
             ask=None,
             last=None,
@@ -786,7 +785,6 @@ def test_probe_index_quotes_degrades_to_delayed_when_strip_totally_dead(monkeypa
     asyncio.run(client._probe_index_quotes())
 
     assert client._index_force_delayed is True
-    assert client._index_symbol_force_delayed == set()
     assert calls == [False]
 
 
@@ -811,8 +809,8 @@ def test_probe_index_quotes_degrades_to_delayed_after_warmup_without_actionable(
             close=6_000.0,
             prevLast=6_000.0,
         ),
-        "YM": SimpleNamespace(
-            contract=SimpleNamespace(symbol="YM", conId=9012),
+        "MYM": SimpleNamespace(
+            contract=SimpleNamespace(symbol="MYM", conId=9012),
             bid=None,
             ask=None,
             last=None,
@@ -833,11 +831,10 @@ def test_probe_index_quotes_degrades_to_delayed_after_warmup_without_actionable(
     asyncio.run(client._probe_index_quotes())
 
     assert client._index_force_delayed is True
-    assert client._index_symbol_force_delayed == set()
     assert calls == [False]
 
 
-def test_probe_index_quotes_partial_strip_forces_missing_leg_delayed(monkeypatch) -> None:
+def test_probe_index_quotes_partial_strip_resubscribes_without_degrading(monkeypatch) -> None:
     client = _new_client()
     client._index_force_delayed = False
     client._index_futures_session_open = True
@@ -858,8 +855,8 @@ def test_probe_index_quotes_partial_strip_forces_missing_leg_delayed(monkeypatch
             close=None,
             prevLast=None,
         ),
-        "YM": SimpleNamespace(
-            contract=SimpleNamespace(symbol="YM", conId=9022),
+        "MYM": SimpleNamespace(
+            contract=SimpleNamespace(symbol="MYM", conId=9022),
             bid=None,
             ask=None,
             last=None,
@@ -880,8 +877,7 @@ def test_probe_index_quotes_partial_strip_forces_missing_leg_delayed(monkeypatch
     asyncio.run(client._probe_index_quotes())
 
     assert client._index_force_delayed is False
-    assert client._index_symbol_force_delayed == {"YM"}
-    assert calls == [False]
+    assert calls == [False, False]
 
 
 def test_ensure_ticker_overnight_delayed_prefers_overnight_route(monkeypatch) -> None:

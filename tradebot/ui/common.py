@@ -325,11 +325,11 @@ _SECTION_ORDER = (
 )
 _SECTION_TYPES = {sec_type for _, sec_type in _SECTION_ORDER}
 
-_INDEX_FUT_ORDER = ("NQ", "ES", "YM")
+_INDEX_FUT_ORDER = ("NQ", "ES", "MYM")
 _INDEX_FUT_LABELS = {
     "NQ": "NQ",
     "ES": "ES",
-    "YM": "YM",
+    "MYM": "MYM",
 }
 _INDEX_ORDER = ("QQQ", "SPY", "DIA")
 _INDEX_LABELS = {
