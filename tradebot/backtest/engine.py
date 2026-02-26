@@ -598,6 +598,16 @@ def _spot_bars_signature(bars: list[Bar] | None) -> tuple[object, ...]:
 
 def _spot_signal_series_signature(*, cfg: ConfigBundle) -> tuple[object, ...]:
     strat = cfg.strategy
+    filters = getattr(strat, "filters", None)
+    ratsv_sig: tuple[object, ...] = ("off",)
+    if filters is not None and bool(getattr(filters, "ratsv_enabled", False)):
+        # RATS-V gating lives in the signal evaluator (can change entry_dir), so it must be part
+        # of the reusable signal-series signature when enabled.
+        ratsv_sig = _spot_filter_signature(
+            filters,
+            include_prefixes=("ratsv_",),
+            include_keys=(),
+        )
     return (
         str(cfg.backtest.bar_size),
         bool(cfg.backtest.use_rth),
@@ -639,6 +649,7 @@ def _spot_signal_series_signature(*, cfg: ConfigBundle) -> tuple[object, ...]:
         int(getattr(strat, "regime2_supertrend_atr_period", 10) or 10),
         float(getattr(strat, "regime2_supertrend_multiplier", 3.0) or 3.0),
         str(getattr(strat, "regime2_supertrend_source", "hl2") or "hl2"),
+        ratsv_sig,
     )
 
 
@@ -1723,8 +1734,6 @@ def _spot_resolve_entry_dir(
 ) -> tuple[str | None, bool]:
     ema_ready = bool(signal is not None and bool(getattr(signal, "ema_ready", False)))
     resolved = entry_dir
-    if resolved is None and signal is not None:
-        resolved = signal.entry_dir
     if bool(ema_needed) and not bool(ema_ready):
         resolved = None
     if (
@@ -1837,6 +1846,9 @@ def _spot_signal_series(
 
     This intentionally runs with `filters=None` so the series is reusable across the sweep
     (permission gates / shock / overlays are evaluated per-config).
+
+    Exception: when RATS-V is enabled, entry gating can change `entry_dir`, so we feed the
+    evaluator a minimal RATS-V-only filter view and include it in the series signature.
     """
     strat = cfg.strategy
     key = (
@@ -1851,9 +1863,22 @@ def _spot_signal_series(
 
     from ..spot_engine import SpotSignalEvaluator
 
+    filters_for_signal: dict[str, object] | None = None
+    if strat.filters is not None and bool(getattr(strat.filters, "ratsv_enabled", False)):
+        # Keep this intentionally narrow: we want RATS-V gating without pulling in other
+        # filter-driven behavior (shock engines, volume EMA, etc) into the reusable signal series.
+        try:
+            filters_for_signal = {
+                k: getattr(strat.filters, k)
+                for k in vars(strat.filters).keys()
+                if str(k).startswith("ratsv_")
+            }
+        except Exception:
+            filters_for_signal = None
+
     evaluator = SpotSignalEvaluator(
         strategy=strat,
-        filters=None,
+        filters=filters_for_signal,
         bar_size=str(cfg.backtest.bar_size),
         use_rth=bool(cfg.backtest.use_rth),
         naive_ts_mode="utc",

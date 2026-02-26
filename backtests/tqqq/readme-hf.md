@@ -4,20 +4,93 @@ This file is the dedicated TQQQ high-frequency evolution track.
 - `readme-lf.md` holds the low-frequency and broader historical TQQQ lineage.
 - This file tracks the throughput-biased HF line and its own HF crowns.
 
+Promotion contract (current):
+- Promote based on `1Y` first, then reproduce on `2Y`.
+- `10Y` is a later reality check (deferred for now).
+
 Canonical execution paths:
 - Spot sweeps/evolution: `python -m tradebot.backtest spot ...`
 - Multiwindow kingmaker eval: `python -m tradebot.backtest spot_multitimeframe ...`
 
+## Current Champions (stack)
+
+### CURRENT (v6-km01-riskoff8.5-cut15-ratsv) — KINGMAKER #01 lineage + TR5 riskoff overlay + RATS-V entry gate (1Y/2Y promotion)
+
+- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260226/tqqq_hf_champions_v6_km01_riskoff8p5_cut15_ratsv_rank0p11_slope0p0001_vel0p00008_20260226.json`
+- Dojo replay (last-5-trading-days tape): `backtests/tqqq/replays/tqqq_hf_v6_km01_riskoff8p5_cut15_ratsv_rank0p11_slope0p0001_vel0p00008_dojo_5d_20260219_20260225.json`
+- Timeframe: `signal=5 mins`, `exec=1 min`, `RTH`
+- Entry window: `09:00–16:00 ET` (RTH-only data; first tradable entries begin after 09:30 ET)
+- Risk overlay: `riskoff_tr5_med_pct=8.5` + `risk_entry_cutoff_hour_et=15` (`riskoff_mode=hygiene`)
+- RATS-V entry gate:
+  - `ratsv_enabled=true`, `ratsv_slope_window_bars=5`, `ratsv_tr_fast_bars=5`, `ratsv_tr_slow_bars=20`
+  - `ratsv_rank_min=0.11`, `ratsv_slope_med_min_pct=0.00010`, `ratsv_slope_vel_min_pct=0.00008`
+- 1Y (`2025-01-01 -> 2026-01-19`): trades **594**, pnl **37,324.0**, dd **11,835.3**, pnl/dd **3.154**
+- 2Y (`2024-01-01 -> 2026-01-19`): trades **1,150**, pnl **45,063.1**, dd **15,509.5**, pnl/dd **2.906**
+
+Replay / verify:
+```bash
+python -m tradebot.backtest spot_multitimeframe \
+  --milestones backtests/tqqq/archive/champion_history_20260226/tqqq_hf_champions_v6_km01_riskoff8p5_cut15_ratsv_rank0p11_slope0p0001_vel0p00008_20260226.json \
+  --symbol TQQQ --bar-size "5 mins" --spot-exec-bar-size "1 min" --use-rth --offline --cache-dir db \
+  --top 1 --min-trades 0 \
+  --window 2025-01-01:2026-01-19 \
+  --window 2024-01-01:2026-01-19
+```
+
 ## Evolutions (stack)
 
-### Timing-first HF crown (in progress)
-Status: **IN PROGRESS**
+### v6 (2026-02-26) — dethroned v5 (RATS-V threshold tightened)
+- Contract: `1Y` then `2Y` (10Y deferred).
+- Needle-thread:
+  - Keep v5 structure unchanged (riskoff overlay + RATS-V gate), only tighten the RATS-V “velocity” edge:
+    - `ratsv_rank_min: 0.10 -> 0.11`
+    - `ratsv_slope_vel_min_pct: 0.00006 -> 0.00008` (keep `slope_med_min_pct=0.00010`)
+  - Outcome: huge stability jump (same trade floor):
+    - `1Y` pnl/dd: **1.975 -> 3.154**
+    - `2Y` pnl/dd: **2.182 -> 2.906**
+- Preset: `backtests/tqqq/archive/champion_history_20260226/tqqq_hf_champions_v6_km01_riskoff8p5_cut15_ratsv_rank0p11_slope0p0001_vel0p00008_20260226.json`
 
-This track is intentionally timing-first:
-- build precision around the open (first 1-2 hours) on short windows first (1w/3m),
-- then scale only the survivors to 1y/2y/10y.
+### v5 (2026-02-26) — dethroned v4 (RATS-V entry gate)
+- Contract: `1Y` then `2Y` (10Y deferred).
+- Needle-thread:
+  - Keep the riskoff overlay from v4 unchanged.
+  - Add a strict-but-simple RATS-V entry gate (global thresholds; no probe-cancel/release exits):
+    - `ratsv_rank_min=0.10` + `ratsv_slope_med_min_pct=0.00010` + `ratsv_slope_vel_min_pct=0.00006`
+  - Outcome: materially higher stability floor:
+    - `1Y` pnl/dd: **1.749 -> 1.975**
+    - `2Y` pnl/dd: **1.918 -> 2.182**
+    - Throughput remains HF-grade (still **~600 trades/year**).
+- Preset: `backtests/tqqq/archive/champion_history_20260226/tqqq_hf_champions_v5_km01_riskoff8p5_cut15_ratsv_rank0p1_slope0p0001_vel0p00006_20260226.json`
 
-This file intentionally has no promoted HF champion block until a promotion-grade HF winner exists.
+### v4 (2026-02-26) — dethroned v3 (riskoff threshold tuned)
+- Contract: `1Y` then `2Y` (10Y deferred).
+- Needle-thread:
+  - Tighten the TR5 riskoff trigger: `riskoff_tr5_med_pct: 9.0 -> 8.5` (keep `cutoff=15`).
+  - Outcome: higher `1Y` and `2Y` pnl/dd with essentially unchanged throughput.
+- Preset: `backtests/tqqq/archive/champion_history_20260226/tqqq_hf_champions_v4_km01_riskoff8p5_cut15_20260226.json`
+
+### v3 (2026-02-26) — dethroned v2 (TR5 riskoff overlay + 3pm cutoff)
+- Contract: `1Y` then `2Y` (10Y deferred).
+- Needle-thread:
+  - Add TR5-based risk overlay: `riskoff_tr5_med_pct=9.0`, `riskoff_mode=hygiene`, `risk_entry_cutoff_hour_et=15`.
+  - Outcome: materially higher `1Y` and `2Y` pnl/dd (better DD control + higher PnL) with essentially unchanged throughput.
+- Preset: `backtests/tqqq/archive/champion_history_20260226/tqqq_hf_champions_v3_km01_riskoff9_cut15_20260226.json`
+
+### v2 (2026-02-26) — dethroned v1 (flip hold=1)
+- Contract: `1Y` then `2Y` (10Y deferred).
+- Needle-thread:
+  - `flip_exit_min_hold_bars: 0 -> 1` (no other changes) improved stability floor across `1Y/2Y`
+    while keeping throughput essentially unchanged.
+  - This is specifically anti-churn: stop rapid flip-flop re-entries on the next tradable bar.
+- Preset: `backtests/tqqq/archive/champion_history_20260226/tqqq_hf_champions_v2_km01_cd3_hold1_20260226.json`
+
+### v1 (2026-02-26) — first HF promotion (KINGMAKER #34 lineage; cooldown needle)
+- Contract: `1Y` then `2Y` (10Y deferred).
+- Needle-thread:
+  - This is the only config found in the current HF search lane that held positive economics on both `1Y` and `2Y`
+    while still printing on the last-5-days timing tape.
+  - `cooldown_bars=3` improved `1Y` and `2Y` pnl/dd without killing throughput.
+- Preset: `backtests/tqqq/archive/champion_history_20260226/tqqq_hf_champions_v1_km34_cd3_20260226.json`
 
 ## Research Notes (migrated)
 

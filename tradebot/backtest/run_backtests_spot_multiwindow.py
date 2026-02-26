@@ -53,7 +53,7 @@ from ..time_utils import now_et as _now_et
 _SERIES_CACHE = series_cache_service()
 _SWEEP_MULTIWINDOW_BARS_NAMESPACE = "spot.sweeps.multiwindow.bars"
 # Bump whenever evaluation semantics change so stale cached rows don't mask runtime fixes.
-_MULTIWINDOW_CACHE_ENGINE_VERSION = "spot_multiwindow_v8"
+_MULTIWINDOW_CACHE_ENGINE_VERSION = "spot_multiwindow_v9"
 
 def _score_key(item: dict) -> tuple:
     return (
