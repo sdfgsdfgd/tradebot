@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 
 _ROOT = Path(__file__).resolve().parents[1]
@@ -18,41 +19,34 @@ def _load_retrievers_module():
 _RETRIEVERS = _load_retrievers_module()
 
 
-def test_extract_current_slv_lf_json_path() -> None:
-    readme = (_ROOT / "backtests" / "slv" / "readme-lf.md").read_text()
-    version, path = _RETRIEVERS.extract_current_slv_lf_json_path(readme)
-    assert version == "31.2"
-    assert path == "backtests/slv/slv_v31_2_singlepos_parity_eval_20260212_top1.json"
-
-
-def test_extract_current_slv_hf_json_path() -> None:
-    readme = (_ROOT / "backtests" / "slv" / "readme-hf.md").read_text()
-    version, path = _RETRIEVERS.extract_current_slv_hf_json_path(readme)
-    assert version == "28-exception-ddshock-lb10-on10-off5-depth1p25pp-streak1-shortmult0p028"
-    assert (
-        path
-        == "backtests/slv/archive/champion_history_20260214/slv_hf_champions_v28_exception_ddshock_lb10_on10_off5_depth1p25pp_streak1_shortmult0p028_20260222.json"
-    )
-
-
-def test_extract_current_tqqq_lf_json_path() -> None:
-    readme = (_ROOT / "backtests" / "tqqq" / "readme-lf.md").read_text()
-    version, path = _RETRIEVERS.extract_current_tqqq_lf_json_path(readme)
-    assert version == "34"
-    assert path == "backtests/out/tqqq_exec5m_v34_shock_alpha_refine_wide_30m_10y2y1y_mintr100_top100.json"
-
-
-def test_extract_current_tqqq_hf_json_path() -> None:
-    readme = (_ROOT / "backtests" / "tqqq" / "readme-hf.md").read_text()
-    version, path = _RETRIEVERS.extract_current_tqqq_hf_json_path(readme)
-    assert version is None
-    assert path is None
-
-
-def test_required_current_champion_artifacts_exist() -> None:
-    required_paths = [
-        "backtests/slv/archive/champion_history_20260214/slv_hf_champions_v28_exception_ddshock_lb10_on10_off5_depth1p25pp_streak1_shortmult0p028_20260222.json",
-        "backtests/out/tqqq_exec5m_v34_shock_alpha_refine_wide_30m_10y2y1y_mintr100_top100.json",
+def test_repo_current_champions_resolve_to_loadable_json() -> None:
+    cases = [
+        ("backtests/tqqq/readme-lf.md", _RETRIEVERS.extract_current_tqqq_lf_json_path, "TQQQ LF"),
+        ("backtests/tqqq/readme-hf.md", _RETRIEVERS.extract_current_tqqq_hf_json_path, "TQQQ HF"),
+        ("backtests/slv/readme-lf.md", _RETRIEVERS.extract_current_slv_lf_json_path, "SLV LF"),
+        ("backtests/slv/readme-hf.md", _RETRIEVERS.extract_current_slv_hf_json_path, "SLV HF"),
     ]
-    for rel_path in required_paths:
-        assert (_ROOT / rel_path).exists(), rel_path
+
+    for rel_readme_path, extractor, label in cases:
+        readme_path = (_ROOT / rel_readme_path).resolve()
+        assert readme_path.exists(), rel_readme_path
+
+        readme_text = readme_path.read_text()
+        _, rel_json_path = extractor(readme_text)
+        assert rel_json_path, f"{label}: unable to extract CURRENT json path from {rel_readme_path}"
+
+        rel_json_path = str(rel_json_path).strip()
+        assert rel_json_path.startswith("backtests/"), f"{label}: unexpected CURRENT path {rel_json_path}"
+        assert rel_json_path.endswith(".json"), f"{label}: unexpected CURRENT path {rel_json_path}"
+
+        json_path = (_ROOT / rel_json_path).resolve()
+        assert str(json_path).startswith(str(_ROOT.resolve())), f"{label}: path escapes repo root: {rel_json_path}"
+        assert json_path.exists(), f"{label}: CURRENT points to missing artifact {rel_json_path}"
+
+        payload = json.loads(json_path.read_text())
+        assert isinstance(payload, dict), f"{label}: CURRENT json is not an object: {rel_json_path}"
+        groups = payload.get("groups")
+        assert isinstance(groups, list) and groups, f"{label}: CURRENT json has no groups: {rel_json_path}"
+        assert any(
+            isinstance(g, dict) and isinstance(g.get("entries"), list) and g.get("entries") for g in groups
+        ), f"{label}: CURRENT json has no entries: {rel_json_path}"

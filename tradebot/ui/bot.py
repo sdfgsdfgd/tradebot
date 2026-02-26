@@ -1789,6 +1789,9 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                     base = base[1:].strip()
             return base or group_name
 
+        def _track_label(*, source: str) -> str:
+            return "HF" if ":HF:" in str(source or "") else "LF"
+
         contracts: dict[str, dict] = {}
         for group in groups:
             if not isinstance(group, dict):
@@ -1849,7 +1852,8 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                 }
                 bucket = contracts.setdefault(symbol, {"spot": {}, "options": {}})
                 if instrument == "spot":
-                    bucket["spot"].setdefault(tf, []).append(item)
+                    track = _track_label(source=source)
+                    bucket["spot"].setdefault(track, []).append(item)
                 else:
                     bucket["options"].setdefault(dte, []).append(item)
 
@@ -2050,8 +2054,8 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         for symbol in symbols:
             bucket = contracts[symbol]
             all_items: list[dict] = []
-            for tf_items in bucket["spot"].values():
-                all_items.extend(tf_items)
+            for track_items in bucket["spot"].values():
+                all_items.extend(track_items)
             for dte_items in bucket["options"].values():
                 all_items.extend(dte_items)
 
@@ -2068,7 +2072,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                 continue
 
             spot_node = f"{contract_node}|spot"
-            spot_items = [it for tf_items in bucket["spot"].values() for it in tf_items]
+            spot_items = [it for track_items in bucket["spot"].values() for it in track_items]
             spot_best = _best(spot_items)
             spot_expanded = _add_header(
                 spot_node,
@@ -2078,26 +2082,30 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                 items=spot_items,
             )
             if spot_expanded:
-                spot_tfs = sorted(bucket["spot"].keys())
-                if len(spot_tfs) == 1:
-                    tf_items = bucket["spot"][spot_tfs[0]]
-                    ordered = sorted(tf_items, key=lambda it: (-float(it.get("score", float("-inf"))), it["name"]))
+                spot_tracks = list(bucket["spot"].keys())
+                spot_tracks.sort(key=lambda t: (0 if t == "LF" else 1 if t == "HF" else 2, t))
+                if len(spot_tracks) == 1:
+                    track_items = bucket["spot"][spot_tracks[0]]
+                    ordered = sorted(
+                        track_items,
+                        key=lambda it: (-float(it.get("score", float("-inf"))), it["name"]),
+                    )
                     for item in ordered:
                         _add_leaf(item, depth=2)
                 else:
-                    for tf in spot_tfs:
-                        tf_items = bucket["spot"][tf]
-                        tf_node = f"{spot_node}|tf:{tf}"
-                        tf_expanded = _add_header(
-                            tf_node,
+                    for track in spot_tracks:
+                        track_items = bucket["spot"][track]
+                        track_node = f"{spot_node}|track:{track}"
+                        track_expanded = _add_header(
+                            track_node,
                             depth=2,
-                            label=str(tf),
-                            best=_best(tf_items),
-                            items=tf_items,
+                            label=str(track),
+                            best=_best(track_items),
+                            items=track_items,
                         )
-                        if tf_expanded:
+                        if track_expanded:
                             ordered = sorted(
-                                tf_items,
+                                track_items,
                                 key=lambda it: (-float(it.get("score", float("-inf"))), it["name"]),
                             )
                             for item in ordered:
