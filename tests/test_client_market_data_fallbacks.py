@@ -517,9 +517,12 @@ def test_ensure_proxy_tickers_reloads_on_session_route_change(monkeypatch) -> No
 def test_ensure_index_tickers_reloads_on_session_change(monkeypatch) -> None:
     client = _new_client()
     fake_ib = _FakeProxyIB()
-    client._ib = fake_ib
+    client._ib_index = fake_ib
 
     async def _connect() -> None:
+        return None
+
+    async def _connect_index() -> None:
         return None
 
     async def _qualify_index_contracts() -> dict[str, object]:
@@ -533,6 +536,7 @@ def test_ensure_index_tickers_reloads_on_session_change(monkeypatch) -> None:
         }
 
     client.connect = _connect  # type: ignore[method-assign]
+    client.connect_index = _connect_index  # type: ignore[method-assign]
     client._qualify_index_contracts = _qualify_index_contracts  # type: ignore[method-assign]
 
     monkeypatch.setattr("tradebot.client._session_flags", lambda _now: (False, True))
@@ -552,10 +556,13 @@ def test_ensure_index_tickers_reloads_on_session_change(monkeypatch) -> None:
 def test_ensure_index_tickers_forced_delayed_tracks_futures_session(monkeypatch) -> None:
     client = _new_client()
     fake_ib = _FakeProxyIB()
-    client._ib = fake_ib
+    client._ib_index = fake_ib
     client._index_force_delayed = True
 
     async def _connect() -> None:
+        return None
+
+    async def _connect_index() -> None:
         return None
 
     async def _qualify_index_contracts() -> dict[str, object]:
@@ -569,6 +576,7 @@ def test_ensure_index_tickers_forced_delayed_tracks_futures_session(monkeypatch)
         return (1, 2, 3, 4) if state["open"] else (1, 2, 4, 3)
 
     client.connect = _connect  # type: ignore[method-assign]
+    client.connect_index = _connect_index  # type: ignore[method-assign]
     client._qualify_index_contracts = _qualify_index_contracts  # type: ignore[method-assign]
     monkeypatch.setattr("tradebot.client._session_flags", lambda _now: (False, False))
     monkeypatch.setattr("tradebot.client._futures_md_ladder", _ladder)
@@ -675,28 +683,34 @@ def test_on_error_main_index_permission_forces_delayed() -> None:
     assert called["requalify"] is True
 
 
-def test_on_error_main_future_permission_starts_main_probe() -> None:
+def test_on_error_main_future_permission_arms_watchdog_without_starting_probe() -> None:
     client = _new_client()
     contract = Contract(secType="FUT", symbol="1OZ", exchange="COMEX", currency="USD")
     contract.conId = 753716628
     ticker = SimpleNamespace(contract=contract, bid=None, ask=None, last=None)
     client._detail_tickers[int(contract.conId)] = (client._ib, ticker)
-    seen: list[int] = []
+    seen_probe: list[int] = []
+    seen_watchdog: list[int] = []
     resubscribe_md: list[int | None] = []
 
     def _start_probe(req_contract) -> None:
-        seen.append(int(getattr(req_contract, "conId", 0) or 0))
+        seen_probe.append(int(getattr(req_contract, "conId", 0) or 0))
+
+    def _start_watchdog(req_contract) -> None:
+        seen_watchdog.append(int(getattr(req_contract, "conId", 0) or 0))
 
     def _resubscribe(_ticker, *, md_type_override: int | None = None):
         resubscribe_md.append(md_type_override)
         return _ticker
 
     client._start_main_contract_quote_probe = _start_probe  # type: ignore[method-assign]
+    client._start_main_contract_quote_watchdog = _start_watchdog  # type: ignore[method-assign]
     client._resubscribe_main_contract_stream = _resubscribe  # type: ignore[method-assign]
 
     client._on_error_main(0, 354, "No market data subscription", contract)
 
-    assert seen == [753716628]
+    assert seen_probe == []
+    assert seen_watchdog == [753716628]
     assert resubscribe_md == [4]
     assert getattr(ticker, "tbQuoteErrorCode", None) == 354
 
@@ -780,7 +794,7 @@ def test_probe_index_quotes_degrades_to_delayed_when_strip_totally_dead(monkeypa
     assert calls == [False]
 
 
-def test_probe_index_quotes_degrades_to_delayed_after_warmup_without_actionable(monkeypatch) -> None:
+def test_probe_index_quotes_does_not_degrade_when_close_only_present(monkeypatch) -> None:
     client = _new_client()
     client._index_force_delayed = False
     client._index_futures_session_open = True
@@ -814,11 +828,11 @@ def test_probe_index_quotes_degrades_to_delayed_after_warmup_without_actionable(
     monkeypatch.setattr("asyncio.sleep", _sleep)
     asyncio.run(client._probe_index_quotes())
 
-    assert client._index_force_delayed is True
-    assert calls == [False]
+    assert client._index_force_delayed is False
+    assert calls == []
 
 
-def test_probe_index_quotes_partial_strip_resubscribes_without_degrading(monkeypatch) -> None:
+def test_probe_index_quotes_partial_strip_does_not_resubscribe_when_any_quote_present(monkeypatch) -> None:
     client = _new_client()
     client._index_force_delayed = False
     client._index_futures_session_open = True
@@ -853,7 +867,7 @@ def test_probe_index_quotes_partial_strip_resubscribes_without_degrading(monkeyp
     asyncio.run(client._probe_index_quotes())
 
     assert client._index_force_delayed is False
-    assert calls == [False, False]
+    assert calls == []
 
 
 def test_ensure_ticker_overnight_delayed_prefers_overnight_route(monkeypatch) -> None:
@@ -952,7 +966,7 @@ def test_probe_proxy_contract_quote_retries_live_without_forcing_delayed(monkeyp
     assert 792492697 not in client._proxy_contract_force_delayed
 
 
-def test_attempt_main_contract_snapshot_quote_populates_fallback(monkeypatch) -> None:
+def test_attempt_main_contract_snapshot_quote_is_disabled(monkeypatch) -> None:
     client = _new_client()
     contract = Contract(secType="FUT", symbol="1OZ", exchange="COMEX", currency="USD")
     contract.conId = 753716628
@@ -975,16 +989,6 @@ def test_attempt_main_contract_snapshot_quote_populates_fallback(monkeypatch) ->
 
         def reqMktData(self, _contract, _generic: str = "", snapshot: bool = False, _reg: bool = False):
             self.calls += 1
-            if snapshot and self.calls >= 2:
-                return SimpleNamespace(
-                    contract=contract,
-                    marketDataType=3,
-                    bid=5016.5,
-                    ask=5017.25,
-                    last=5017.0,
-                    close=4906.0,
-                    prevLast=5019.25,
-                )
             return SimpleNamespace(
                 contract=contract,
                 marketDataType=3,
@@ -1005,17 +1009,11 @@ def test_attempt_main_contract_snapshot_quote_populates_fallback(monkeypatch) ->
     monkeypatch.setattr("asyncio.sleep", _sleep)
     ok = asyncio.run(client._attempt_main_contract_snapshot_quote(contract, ticker=ticker))
 
-    assert ok is True
-    assert float(ticker.last) == 5017.0
-    assert float(ticker.bid) == 5016.5
-    assert float(ticker.ask) == 5017.25
-    assert str(getattr(ticker, "tbQuoteSource", "")) in {
-        "delayed-snapshot",
-        "delayed-frozen-snapshot",
-    }
+    assert ok is False
+    assert getattr(client._ib, "calls", 0) == 0
 
 
-def test_refresh_live_snapshot_once_prefers_live_snapshot(monkeypatch) -> None:
+def test_refresh_live_snapshot_once_is_disabled(monkeypatch) -> None:
     client = _new_client()
     contract = Contract(secType="FOP", symbol="MNQ", exchange="CME", currency="USD")
     contract.conId = 750150193
@@ -1044,16 +1042,6 @@ def test_refresh_live_snapshot_once_prefers_live_snapshot(monkeypatch) -> None:
             _reg: bool = False,
         ):
             md_type = self.market_data_types[-1] if self.market_data_types else 0
-            if snapshot and md_type == 1:
-                return SimpleNamespace(
-                    contract=contract,
-                    marketDataType=1,
-                    bid=116.0,
-                    ask=116.5,
-                    last=116.25,
-                    close=114.0,
-                    prevLast=114.0,
-                )
             return SimpleNamespace(
                 contract=contract,
                 marketDataType=md_type,
@@ -1078,11 +1066,8 @@ def test_refresh_live_snapshot_once_prefers_live_snapshot(monkeypatch) -> None:
     monkeypatch.setattr("asyncio.sleep", _sleep)
     source = asyncio.run(client.refresh_live_snapshot_once(contract))
 
-    assert source == "live-snapshot"
-    assert float(ticker.last) == 116.25
-    assert float(ticker.bid) == 116.0
-    assert float(ticker.ask) == 116.5
-    assert client._ib.market_data_types == [1]
+    assert source is None
+    assert client._ib.market_data_types == []
 
 
 def test_attempt_main_contract_historical_quote_populates_last(monkeypatch) -> None:
@@ -1345,7 +1330,7 @@ def test_on_stream_update_size_only_change_keeps_top_change_timestamp(monkeypatc
     assert int(getattr(ticker, "tbTopQuoteMoveCount", 0) or 0) == 1
 
 
-def test_watch_main_contract_quote_reprobes_when_quote_is_stale(monkeypatch) -> None:
+def test_watch_main_contract_quote_does_not_start_probe_when_quote_is_stale(monkeypatch) -> None:
     client = _new_client()
     contract = Contract(secType="FUT", symbol="1OZ", exchange="COMEX", currency="USD")
     contract.conId = 753716628
@@ -1365,18 +1350,18 @@ def test_watch_main_contract_quote_reprobes_when_quote_is_stale(monkeypatch) -> 
 
     def _start_probe(req_contract) -> None:
         seen.append(int(getattr(req_contract, "conId", 0) or 0))
-        client._detail_tickers.pop(int(contract.conId), None)
 
     client._start_main_contract_quote_probe = _start_probe  # type: ignore[method-assign]
     monkeypatch.setattr("tradebot.client.time.monotonic", lambda: 200.0)
 
     async def _sleep(_: float) -> None:
+        client._detail_tickers.pop(int(contract.conId), None)
         return None
 
     monkeypatch.setattr("asyncio.sleep", _sleep)
     asyncio.run(client._watch_main_contract_quote(contract))
 
-    assert seen == [753716628]
+    assert seen == []
 
 
 def test_watch_main_contract_quote_promotes_md3_to_delayed_frozen_when_topline_stale(monkeypatch) -> None:
@@ -1417,7 +1402,7 @@ def test_watch_main_contract_quote_promotes_md3_to_delayed_frozen_when_topline_s
     monkeypatch.setattr("asyncio.sleep", _sleep)
     asyncio.run(client._watch_main_contract_quote(contract))
 
-    assert seen_probe == [753716628]
+    assert seen_probe == []
     assert seen_resubscribe == [4]
 
 
@@ -1496,7 +1481,7 @@ def test_front_future_ignores_undated_cache_and_prefers_dated_contract() -> None
     assert int(getattr(resolved, "conId", 0) or 0) == 753716628
 
 
-def test_ensure_ticker_future_starts_main_probe_when_stream_empty(monkeypatch) -> None:
+def test_ensure_ticker_future_does_not_start_main_probe_when_stream_empty(monkeypatch) -> None:
     client = _new_client()
 
     class _MainIB:
@@ -1539,7 +1524,7 @@ def test_ensure_ticker_future_starts_main_probe_when_stream_empty(monkeypatch) -
     ticker = asyncio.run(client.ensure_ticker(contract, owner="test"))
 
     assert int(getattr(ticker, "marketDataType", 0) or 0) == 3
-    assert probes == [753716628]
+    assert probes == []
 
 
 def test_ensure_ticker_future_defaults_exchange_when_missing(monkeypatch) -> None:
@@ -1654,7 +1639,7 @@ def test_ensure_ticker_future_replaces_cached_empty_exchange(monkeypatch) -> Non
     assert str(getattr(fake_ib.requests[-1], "exchange", "") or "").strip().upper() == "COMEX"
     assert str(getattr(ticker.contract, "exchange", "") or "").strip().upper() == "COMEX"
     assert started_watchdog == ["COMEX"]
-    assert started_probe == ["COMEX"]
+    assert started_probe == []
 
 
 def test_ensure_ticker_future_arms_watchdog_even_when_stream_has_data(monkeypatch) -> None:

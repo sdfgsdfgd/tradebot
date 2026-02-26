@@ -593,6 +593,61 @@ class IBKRClient:
             raise last_exc
         raise ConnectionError("IBKR proxy client connection failed")
 
+    def _candidate_index_client_ids(self) -> list[int]:
+        used = {int(self._main_client_id), int(self._proxy_client_id)}
+        pool_start = int(self._client_id_pool_start)
+        pool_end = int(self._client_id_pool_end)
+        max_attempts = max(1, int(self._config.client_id_burst_attempts))
+        seen: set[int] = set()
+        out: list[int] = []
+
+        def _push(candidate: int, *, require_pool: bool = True) -> None:
+            cid = int(candidate or 0)
+            if cid <= 0 or cid in used:
+                return
+            if require_pool and not (pool_start <= cid <= pool_end):
+                return
+            if cid in seen:
+                return
+            seen.add(cid)
+            out.append(cid)
+
+        _push(int(self._index_client_id))
+        _push(int(self._proxy_client_id) + 1)
+        _push(int(self._main_client_id) + 2)
+        for main_id in self._client_id_ring:
+            _push(int(main_id) + 2)
+            if len(out) >= max_attempts:
+                break
+        for cid in range(pool_start, pool_end + 1):
+            _push(cid)
+            if len(out) >= max_attempts:
+                break
+        if not out:
+            _push(int(self._proxy_client_id) + 1, require_pool=False)
+            _push(int(self._main_client_id) + 2, require_pool=False)
+        return out[:max_attempts]
+
+    async def _connect_index_with_client_id_pool(self) -> None:
+        last_exc: Exception | None = None
+        candidates = self._candidate_index_client_ids()
+        for cid in candidates:
+            try:
+                await self._connect_ib(self._ib_index, client_id=int(cid))
+                self._index_client_id = int(cid)
+                self._connected_index_client_id = int(cid)
+                return
+            except Exception as exc:  # noqa: PERF203 - clarity for selective retry behavior
+                if self._is_pool_rotatable_connect_error(exc):
+                    self._safe_disconnect(self._ib_index)
+                    self._connected_index_client_id = None
+                    last_exc = exc if isinstance(exc, Exception) else Exception(str(exc))
+                    continue
+                raise
+        if last_exc is not None:
+            raise last_exc
+        raise ConnectionError("IBKR index client connection failed")
+
     def _request_reconnect(self) -> None:
         if self._shutdown:
             return
@@ -614,9 +669,11 @@ class IBKRClient:
         self._config = config
         self._ib = IB()
         self._ib_proxy = IB()
+        self._ib_index = IB()
         self._shutdown = False
         self._connect_lock = asyncio.Lock()
         self._connect_proxy_lock = asyncio.Lock()
+        self._connect_index_lock = asyncio.Lock()
         self._lock = asyncio.Lock()
         self._index_lock = asyncio.Lock()
         self._proxy_lock = asyncio.Lock()
@@ -727,6 +784,8 @@ class IBKRClient:
         self._pair_quarantine_until_mono: dict[tuple[int, int], float] = {}
         self._connected_main_client_id: int | None = None
         self._connected_proxy_client_id: int | None = None
+        self._index_client_id = int(self._proxy_client_id + 1)
+        self._connected_index_client_id: int | None = None
         self._ib.errorEvent += self._on_error_main
         self._ib.disconnectedEvent += self._on_disconnected_main
         self._ib.updatePortfolioEvent += self._on_stream_update
@@ -752,6 +811,9 @@ class IBKRClient:
         self._ib_proxy.errorEvent += self._on_error_proxy
         self._ib_proxy.disconnectedEvent += self._on_disconnected_proxy
         self._ib_proxy.pendingTickersEvent += self._on_stream_update
+        self._ib_index.errorEvent += self._on_error_index
+        self._ib_index.disconnectedEvent += self._on_disconnected_index
+        self._ib_index.pendingTickersEvent += self._on_stream_update
 
     @property
     def is_connected(self) -> bool:
@@ -817,6 +879,21 @@ class IBKRClient:
                     self._request_reconnect()
                 raise
 
+    async def connect_index(self) -> None:
+        self._shutdown = False
+        if self._ib_index.isConnected():
+            return
+        if self._reconnect_in_progress() and asyncio.current_task() is not self._reconnect_task:
+            raise ConnectionError("IBKR reconnect in progress")
+        async with self._connect_index_lock:
+            if self._ib_index.isConnected():
+                return
+            try:
+                await self._connect_index_with_client_id_pool()
+            except Exception as exc:
+                self._index_error = str(exc)
+                raise
+
     async def disconnect(self) -> None:
         self._shutdown = True
         self._stop_reconnect_loop()
@@ -825,6 +902,7 @@ class IBKRClient:
         self._clear_pnl_single_subscriptions(cancel=True)
         self._safe_disconnect(self._ib)
         self._safe_disconnect(self._ib_proxy)
+        self._safe_disconnect(self._ib_index)
         self._account_updates_started = False
         self._index_tickers = {}
         self._index_task = None
@@ -886,6 +964,7 @@ class IBKRClient:
         self._reset_client_id_backoff()
         self._connected_main_client_id = None
         self._connected_proxy_client_id = None
+        self._connected_index_client_id = None
         self._last_order_reconcile_mono = 0.0
 
     async def fetch_portfolio(self) -> list[PortfolioItem]:
@@ -1422,6 +1501,10 @@ class IBKRClient:
             if con_id:
                 self._ticker_owners.setdefault(con_id, set()).add(owner)
             cached_ib, cached_ticker = cached
+            try:
+                setattr(cached_ticker, "tbRequestedMdType", int(requested_md_type))
+            except Exception:
+                pass
             desired_exchange = str(getattr(req_contract, "exchange", "") or "").strip().upper()
             current_exchange = str(getattr(cached_ticker.contract, "exchange", "") or "").strip().upper()
             exchange_sensitive = sec_type in ("STK", "OPT", "FUT", "FOP")
@@ -1431,6 +1514,10 @@ class IBKRClient:
                 except Exception:
                     pass
                 ticker = ib.reqMktData(req_contract)
+                try:
+                    setattr(ticker, "tbRequestedMdType", int(requested_md_type))
+                except Exception:
+                    pass
                 self._detail_tickers[con_id] = (ib, ticker)
                 if use_proxy and con_id:
                     if con_id in self._proxy_contract_force_delayed:
@@ -1444,8 +1531,6 @@ class IBKRClient:
                         self._tag_ticker_quote_meta(ticker, source="stream")
                     elif self._ticker_has_close_data(ticker):
                         self._tag_ticker_quote_meta(ticker, source="stream-close-only")
-                    else:
-                        self._start_main_contract_quote_probe(req_contract)
                 await self._prime_price_increments_for_ticker(
                     req_contract,
                     sec_type=sec_type,
@@ -1465,8 +1550,6 @@ class IBKRClient:
                     self._tag_ticker_quote_meta(cached_ticker, source="stream")
                 elif self._ticker_has_close_data(cached_ticker):
                     self._tag_ticker_quote_meta(cached_ticker, source="stream-close-only")
-                else:
-                    self._start_main_contract_quote_probe(req_contract)
             await self._prime_price_increments_for_ticker(
                 req_contract,
                 sec_type=sec_type,
@@ -1476,7 +1559,7 @@ class IBKRClient:
             return cached_ticker
         ticker = ib.reqMktData(req_contract)
         try:
-            ticker.marketDataType = int(requested_md_type)
+            setattr(ticker, "tbRequestedMdType", int(requested_md_type))
         except Exception:
             pass
         if con_id:
@@ -1494,8 +1577,6 @@ class IBKRClient:
                 self._tag_ticker_quote_meta(ticker, source="stream")
             elif self._ticker_has_close_data(ticker):
                 self._tag_ticker_quote_meta(ticker, source="stream-close-only")
-            else:
-                self._start_main_contract_quote_probe(req_contract)
         await self._prime_price_increments_for_ticker(
             req_contract,
             sec_type=sec_type,
@@ -1505,33 +1586,8 @@ class IBKRClient:
         return ticker
 
     async def refresh_live_snapshot_once(self, contract: Contract) -> str | None:
-        """Try a one-shot live snapshot for an already-bound FUT/FOP detail ticker.
-
-        Returns the applied quote-source label (for status text) on success, else None.
-        """
-        con_id = int(getattr(contract, "conId", 0) or 0)
-        if con_id <= 0:
-            return None
-        entry = self._detail_tickers.get(con_id)
-        if entry is None:
-            return None
-        ib, ticker = entry
-        if ib is not self._ib:
-            return None
-        sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
-        if sec_type not in ("FUT", "FOP"):
-            return None
-        await self.connect()
-        req_contract = getattr(ticker, "contract", None) or contract
-        ok = await self._attempt_main_contract_snapshot_quote(
-            req_contract,
-            ticker=ticker,
-            md_types=(1, 2),
-        )
-        if not ok:
-            return None
-        source = str(getattr(ticker, "tbQuoteSource", "") or "").strip()
-        return source or "snapshot"
+        """Snapshot quotes are disabled (they can incur per-snapshot fees)."""
+        return None
 
     async def place_limit_order(
         self,
@@ -4510,22 +4566,31 @@ class IBKRClient:
             self._session_close_cache = {}
             await self._ensure_account_updates()
         async with self._index_lock:
-            for ticker in self._index_tickers.values():
-                try:
-                    self._ib.cancelMktData(ticker.contract)
-                except Exception:
-                    pass
-            if self._index_probe_task and not self._index_probe_task.done():
-                self._index_probe_task.cancel()
-            self._index_probe_task = None
-            self._index_requalify_on_reload = False
-            self._index_session_flags = None
-            self._index_futures_session_open = None
-            self._index_session_include_overnight = None
-            self._index_tickers = {}
-            self._index_task = None
-            await self._ensure_index_tickers()
-            self._start_index_probe()
+            index_ready = True
+            try:
+                await self.connect_index()
+            except Exception as exc:
+                self._index_error = str(exc)
+                self._index_tickers = {}
+                self._index_task = None
+                index_ready = False
+            if index_ready:
+                for ticker in self._index_tickers.values():
+                    try:
+                        self._ib_index.cancelMktData(ticker.contract)
+                    except Exception:
+                        pass
+                if self._index_probe_task and not self._index_probe_task.done():
+                    self._index_probe_task.cancel()
+                self._index_probe_task = None
+                self._index_requalify_on_reload = False
+                self._index_session_flags = None
+                self._index_futures_session_open = None
+                self._index_session_include_overnight = None
+                self._index_tickers = {}
+                self._index_task = None
+                await self._ensure_index_tickers()
+                self._start_index_probe()
         async with self._proxy_lock:
             try:
                 await self.connect_proxy()
@@ -4693,6 +4758,7 @@ class IBKRClient:
 
     async def _ensure_index_tickers(self) -> None:
         await self.connect()
+        await self.connect_index()
         now = _now_et()
         current_session_flags = tuple(bool(v) for v in _session_flags(now))
         self._index_futures_session_open = bool(_futures_session_is_open(now))
@@ -4738,14 +4804,14 @@ class IBKRClient:
         if reload_needed:
             for ticker in self._index_tickers.values():
                 try:
-                    self._ib.cancelMktData(ticker.contract)
+                    self._ib_index.cancelMktData(ticker.contract)
                 except Exception:
                     pass
             self._index_tickers = {}
         if not self._index_tickers:
             for symbol, (req_contract, req_md_type) in desired_specs.items():
-                self._ib.reqMarketDataType(int(req_md_type))
-                ticker = self._ib.reqMktData(req_contract)
+                self._ib_index.reqMarketDataType(int(req_md_type))
+                ticker = self._ib_index.reqMktData(req_contract)
                 setattr(ticker, "tbRequestedMdType", int(req_md_type))
                 self._index_tickers[symbol] = ticker
 
@@ -4878,10 +4944,10 @@ class IBKRClient:
     async def _reload_index_tickers(self) -> None:
         try:
             async with self._index_lock:
-                await self.connect()
+                await self.connect_index()
                 for ticker in self._index_tickers.values():
                     try:
-                        self._ib.cancelMktData(ticker.contract)
+                        self._ib_index.cancelMktData(ticker.contract)
                     except Exception:
                         pass
                 self._index_tickers = {}
@@ -4934,23 +5000,11 @@ class IBKRClient:
             self._index_force_delayed = True
             self._start_index_resubscribe(requalify=False)
             return
-        futures_open = self._index_futures_session_open
-        require_actionable = futures_open is not False
-        if require_actionable and (not self._index_force_delayed):
-            has_any_actionable = any(
-                self._ticker_has_data(ticker) for ticker in self._index_tickers.values()
-            )
-            if not has_any_actionable:
-                self._index_force_delayed = True
-                self._start_index_resubscribe(requalify=False)
-                return
-        self._start_index_resubscribe(requalify=False)
-        await asyncio.sleep(float(_INDEX_QUOTE_PROBE_INITIAL_SEC))
-        if not self._index_tickers:
-            return
-        if self._index_has_data():
-            return
-        self._start_index_resubscribe(requalify=False)
+        # If we have *any* quote/close, keep the subscriptions in place and allow them
+        # to settle naturally. Aggressive 2s resubscribe loops can thrash the shared IB
+        # session (reqMarketDataType is per-connection) and destabilize unrelated FUT/FOP
+        # streams (e.g., MNQ options on futures).
+        return
 
     def _index_has_data(self) -> bool:
         expected = tuple(str(sym or "").strip().upper() for sym in _INDEX_STRIP_SYMBOLS)
@@ -5049,9 +5103,9 @@ class IBKRClient:
                         )
                         self._resubscribe_main_contract_stream(ticker, md_type_override=4)
                         if req_contract is not None:
-                            self._start_main_contract_quote_probe(req_contract)
+                            self._start_main_contract_quote_watchdog(req_contract)
                 elif contract is not None:
-                    self._start_main_contract_quote_probe(contract)
+                    self._start_main_contract_quote_watchdog(contract)
             elif contract is None:
                 for _con_id, (ib, ticker) in list(self._detail_tickers.items()):
                     if ib is not self._ib:
@@ -5069,7 +5123,13 @@ class IBKRClient:
                         error_text=str(errorString or "").strip(),
                     )
                     if req_contract is not None:
-                        self._start_main_contract_quote_probe(req_contract)
+                        self._start_main_contract_quote_watchdog(req_contract)
+        self._handle_conn_error(errorCode)
+
+    def _on_error_index(self, reqId, errorCode, errorString, contract) -> None:
+        if errorCode in _ENTITLEMENT_ERROR_CODES and self._is_index_contract(contract):
+            self._index_force_delayed = True
+            self._start_index_resubscribe(requalify=True)
         self._handle_conn_error(errorCode)
 
     def _on_error_proxy(self, reqId, errorCode, errorString, contract) -> None:
@@ -5145,15 +5205,6 @@ class IBKRClient:
         self._clear_pnl_single_subscriptions(cancel=False)
         self._account_value_cache = {}
         self._fx_rate_cache = {}
-        self._index_tickers = {}
-        self._index_task = None
-        if self._index_probe_task and not self._index_probe_task.done():
-            self._index_probe_task.cancel()
-        self._index_probe_task = None
-        self._index_requalify_on_reload = False
-        self._index_session_flags = None
-        self._index_futures_session_open = None
-        self._index_session_include_overnight = None
         for task in self._main_contract_probe_tasks.values():
             if task and not task.done():
                 task.cancel()
@@ -5195,6 +5246,22 @@ class IBKRClient:
         self._proxy_contract_delayed_tasks = {}
         self._reconnect_requested = True
         self._start_reconnect_loop()
+        if self._update_callback:
+            self._update_callback()
+
+    def _on_disconnected_index(self) -> None:
+        if self._shutdown:
+            return
+        self._connected_index_client_id = None
+        self._index_task = None
+        if self._index_probe_task and not self._index_probe_task.done():
+            self._index_probe_task.cancel()
+        self._index_probe_task = None
+        self._index_session_flags = None
+        self._index_futures_session_open = None
+        self._index_session_include_overnight = None
+        self._index_tickers = {}
+        self._start_index_resubscribe(requalify=False)
         if self._update_callback:
             self._update_callback()
 
@@ -5638,6 +5705,10 @@ class IBKRClient:
             refreshed = self._ib.reqMktData(req_contract)
         except Exception:
             return None
+        try:
+            setattr(refreshed, "tbRequestedMdType", int(md_type))
+        except Exception:
+            pass
         con_id = int(getattr(req_contract, "conId", 0) or 0)
         if con_id:
             self._detail_tickers[con_id] = (self._ib, refreshed)
@@ -5645,7 +5716,6 @@ class IBKRClient:
 
     async def _watch_main_contract_quote(self, contract: Contract) -> None:
         con_id = int(getattr(contract, "conId", 0) or 0)
-        last_probe_mono = 0.0
         last_resubscribe_mono = 0.0
         try:
             await asyncio.sleep(float(_MAIN_CONTRACT_QUOTE_PROBE_INITIAL_SEC))
@@ -5663,19 +5733,6 @@ class IBKRClient:
                 top_age_sec = self._ticker_top_quote_age_sec(ticker)
                 has_actionable = self._ticker_has_data(ticker)
                 has_close = self._ticker_has_close_data(ticker)
-                stale_needs_probe = (
-                    (not has_actionable and not has_close)
-                    or age_sec is None
-                    or age_sec >= float(_MAIN_CONTRACT_STALE_REPROBE_SEC)
-                    or top_age_sec is None
-                    or top_age_sec >= float(_MAIN_CONTRACT_TOPLINE_STALE_REPROBE_SEC)
-                )
-                if stale_needs_probe and (
-                    now_mono - last_probe_mono
-                ) >= float(_MAIN_CONTRACT_QUOTE_PROBE_RETRY_SEC):
-                    req_contract = getattr(ticker, "contract", None) or contract
-                    self._start_main_contract_quote_probe(req_contract)
-                    last_probe_mono = now_mono
                 md_type_raw = getattr(ticker, "marketDataType", None)
                 try:
                     md_type = int(md_type_raw) if md_type_raw is not None else None
@@ -5740,25 +5797,6 @@ class IBKRClient:
                 return
             if self._ticker_has_close_data(ticker):
                 self._tag_ticker_quote_meta(ticker, source="stream-close-only")
-            if await self._attempt_main_contract_snapshot_quote(contract, ticker=ticker):
-                return
-            if await self._attempt_main_contract_historical_quote(contract, ticker=ticker):
-                return
-            await asyncio.sleep(float(_MAIN_CONTRACT_QUOTE_PROBE_RETRY_SEC))
-            entry = self._detail_tickers.get(con_id)
-            if not entry:
-                return
-            ib, ticker = entry
-            if ib is not self._ib:
-                return
-            if self._ticker_has_data(ticker):
-                self._tag_ticker_quote_meta(ticker, source="stream")
-                return
-            if self._ticker_has_close_data(ticker):
-                self._tag_ticker_quote_meta(ticker, source="stream-close-only")
-            if await self._attempt_main_contract_snapshot_quote(contract, ticker=ticker):
-                return
-            await self._attempt_main_contract_historical_quote(contract, ticker=ticker)
         finally:
             current = self._main_contract_probe_tasks.get(con_id)
             if current is asyncio.current_task():
@@ -5771,66 +5809,6 @@ class IBKRClient:
         ticker: Ticker,
         md_types: Iterable[int] | None = None,
     ) -> bool:
-        req_contract = contract
-        sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
-        if sec_type in ("FUT", "OPT", "FOP"):
-            req_contract = self._normalize_derivative_market_data_contract(
-                contract,
-                sec_type=sec_type,
-            )
-
-        ladder: list[int] = []
-        md_candidates: Iterable[int] = (
-            _futures_md_ladder(_now_et()) if md_types is None else md_types
-        )
-        for raw_md_type in md_candidates:
-            try:
-                md_type = int(raw_md_type)
-            except (TypeError, ValueError):
-                continue
-            if md_type <= 0:
-                continue
-            ladder.append(md_type)
-        if not ladder:
-            ladder = list(_futures_md_ladder(_now_et()))
-
-        for md_type in ladder:
-            try:
-                self._ib.reqMarketDataType(int(md_type))
-                snap = self._ib.reqMktData(req_contract, "", True, False)
-            except Exception:
-                continue
-            await asyncio.sleep(float(_MAIN_CONTRACT_SNAPSHOT_WAIT_SEC))
-            bid = self._quote_num(getattr(snap, "bid", None))
-            ask = self._quote_num(getattr(snap, "ask", None))
-            last = self._quote_num(getattr(snap, "last", None))
-            close = self._quote_num(getattr(snap, "close", None))
-            prev_last = self._quote_num(getattr(snap, "prevLast", None))
-            has_actionable = bool(
-                (bid is not None and ask is not None and ask >= bid)
-                or last is not None
-            )
-            has_close = bool(close is not None or prev_last is not None)
-            if not has_actionable and not has_close:
-                continue
-            source = {
-                1: "live-snapshot",
-                2: "live-frozen-snapshot",
-                3: "delayed-snapshot",
-                4: "delayed-frozen-snapshot",
-            }.get(int(md_type), f"snapshot-md{int(md_type)}")
-            applied = self._apply_ticker_fallback_quote(
-                ticker=ticker,
-                source=source,
-                md_type=int(md_type),
-                bid=bid,
-                ask=ask,
-                last=last,
-                close=close,
-                prev_last=prev_last,
-            )
-            if applied:
-                return True
         return False
 
     async def _attempt_main_contract_historical_quote(self, contract: Contract, *, ticker: Ticker) -> bool:
@@ -5998,6 +5976,10 @@ class IBKRClient:
             except Exception:
                 pass
             ticker = self._ib_proxy.reqMktData(req_contract)
+            try:
+                setattr(ticker, "tbRequestedMdType", 1)
+            except Exception:
+                pass
             con_id = int(getattr(req_contract, "conId", 0) or 0)
             if con_id and con_id in self._detail_tickers:
                 self._detail_tickers[con_id] = (self._ib_proxy, ticker)
@@ -6042,6 +6024,10 @@ class IBKRClient:
             except Exception:
                 pass
             ticker = self._ib_proxy.reqMktData(req_contract)
+            try:
+                setattr(ticker, "tbRequestedMdType", 3)
+            except Exception:
+                pass
             con_id = int(getattr(req_contract, "conId", 0) or 0)
             if con_id and con_id in self._detail_tickers:
                 self._detail_tickers[con_id] = (self._ib_proxy, ticker)
@@ -6275,10 +6261,16 @@ class IBKRClient:
                                 sec_type=sec_type,
                             )
                         if sec_type in ("FUT", "FOP"):
-                            self._ib.reqMarketDataType(int(_futures_md_ladder(_now_et())[0]))
+                            md_type = int(_futures_md_ladder(_now_et())[0])
+                            self._ib.reqMarketDataType(md_type)
                         else:
-                            self._ib.reqMarketDataType(3)
+                            md_type = 3
+                            self._ib.reqMarketDataType(md_type)
                         refreshed = self._ib.reqMktData(req_contract)
+                        try:
+                            setattr(refreshed, "tbRequestedMdType", int(md_type))
+                        except Exception:
+                            pass
                         self._detail_tickers[con_id] = (
                             self._ib,
                             refreshed,
@@ -6289,17 +6281,8 @@ class IBKRClient:
                                 self._tag_ticker_quote_meta(refreshed, source="stream")
                             elif self._ticker_has_close_data(refreshed):
                                 self._tag_ticker_quote_meta(refreshed, source="stream-close-only")
-                            else:
-                                self._start_main_contract_quote_probe(req_contract)
                     except Exception:
                         continue
-                self._index_tickers = {}
-                self._index_task = None
-                if self._index_probe_task and not self._index_probe_task.done():
-                    self._index_probe_task.cancel()
-                self._index_probe_task = None
-                await self._ensure_index_tickers()
-                self._start_index_probe()
                 self._resubscribe_main_needed = False
         async with self._proxy_lock:
             if not self._ib_proxy.isConnected():
@@ -6332,10 +6315,12 @@ class IBKRClient:
                         else:
                             req_contract.exchange = "SMART"
                     try:
-                        self._detail_tickers[con_id] = (
-                            self._ib_proxy,
-                            self._ib_proxy.reqMktData(req_contract),
-                        )
+                        refreshed = self._ib_proxy.reqMktData(req_contract)
+                        try:
+                            setattr(refreshed, "tbRequestedMdType", int(md_type))
+                        except Exception:
+                            pass
+                        self._detail_tickers[con_id] = (self._ib_proxy, refreshed)
                     except Exception:
                         continue
                 self._proxy_tickers = {}

@@ -118,6 +118,7 @@ class PositionDetailScreen(Screen):
     _CANCEL_REQUEST_TTL_SEC = 90.0
     _STREAM_RENDER_DEBOUNCE_SEC = 0.08
     _MD_PROBE_BANNER_TTL_SEC = 10.0
+    _DERIVATIVE_ACTIONABLE_STICKY_SEC = 20.0
     _AURORA_PRESET_ORDER = ("calm", "normal", "feral")
     _AURORA_PRESETS = {
         "calm": {"buy_soft": 0.28, "buy_strong": 0.56, "sell_soft": -0.28, "sell_strong": -0.56, "burst_gain": 0.80},
@@ -207,6 +208,8 @@ class PositionDetailScreen(Screen):
         self._stream_render_task: asyncio.Task | None = None
         self._md_probe_requested_type: int | None = None
         self._md_probe_started_mono: float = 0.0
+        self._derivative_actionable_px: float | None = None
+        self._derivative_actionable_px_until_mono: float = 0.0
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -476,7 +479,14 @@ class PositionDetailScreen(Screen):
         if con_id:
             self._client.release_ticker(con_id, owner="details")
         self._ticker = await self._client.ensure_ticker(self._item.contract, owner="details")
-        self._md_probe_requested_type = self._md_type_value(self._ticker)
+        req_type_raw = getattr(self._ticker, "tbRequestedMdType", None) if self._ticker else None
+        try:
+            req_type = int(req_type_raw) if req_type_raw is not None else None
+        except (TypeError, ValueError):
+            req_type = None
+        self._md_probe_requested_type = (
+            req_type if req_type in (1, 2, 3, 4) else self._md_type_value(self._ticker)
+        )
         self._md_probe_started_mono = monotonic()
         if self._underlying_con_id:
             self._client.release_ticker(self._underlying_con_id, owner="details")
@@ -484,26 +494,7 @@ class PositionDetailScreen(Screen):
             self._underlying_ticker = None
             self._underlying_label = None
             await self._load_underlying()
-        attempted_live_probe = False
-        live_source: str | None = None
-        sec_type = str(getattr(self._item.contract, "secType", "") or "").strip().upper()
-        md_type_raw = getattr(self._ticker, "marketDataType", None) if self._ticker else None
-        try:
-            md_type = int(md_type_raw) if md_type_raw is not None else None
-        except (TypeError, ValueError):
-            md_type = None
-        if sec_type in ("FUT", "FOP") and md_type in (2, 3, 4):
-            attempted_live_probe = True
-            try:
-                live_source = await self._client.refresh_live_snapshot_once(self._item.contract)
-            except Exception:
-                live_source = None
-        if live_source:
-            self._exec_status = f"MD refreshed + 1-shot {live_source}"
-        elif attempted_live_probe:
-            self._exec_status = "MD refreshed (1-shot live unavailable)"
-        else:
-            self._exec_status = "MD refreshed"
+        self._exec_status = "MD refreshed"
         self._render_details()
 
     @staticmethod
@@ -603,6 +594,17 @@ class PositionDetailScreen(Screen):
             latest_underlying = self._client.ticker_for_con_id(int(self._underlying_con_id))
             if latest_underlying is not None:
                 self._underlying_ticker = latest_underlying
+
+    def _sticky_derivative_actionable_px(self, *, now_mono: float | None = None) -> float | None:
+        px = self._derivative_actionable_px
+        if px is None:
+            return None
+        now = float(now_mono) if now_mono is not None else monotonic()
+        if now <= float(self._derivative_actionable_px_until_mono or 0.0):
+            return float(px)
+        self._derivative_actionable_px = None
+        self._derivative_actionable_px_until_mono = 0.0
+        return None
 
     @staticmethod
     def _clip(text: str, width: int) -> str:
@@ -946,6 +948,7 @@ class PositionDetailScreen(Screen):
         ticker = self._ticker
         if ticker is None:
             return
+        contract = self._item.contract
         bid = self._quote_num(getattr(ticker, "bid", None))
         ask = self._quote_num(getattr(ticker, "ask", None))
         last = self._quote_num(getattr(ticker, "last", None))
@@ -972,6 +975,16 @@ class PositionDetailScreen(Screen):
         self._last_tick_signature = signature
 
         mid = _midpoint(bid, ask)
+        if contract.secType in ("OPT", "FOP"):
+            now_mono = monotonic()
+            actionable = mid or last
+            if actionable is not None:
+                self._derivative_actionable_px = float(actionable)
+                self._derivative_actionable_px_until_mono = now_mono + float(
+                    self._DERIVATIVE_ACTIONABLE_STICKY_SEC
+                )
+            if mid is None:
+                mid = self._sticky_derivative_actionable_px(now_mono=now_mono)
         if mid is None:
             mid = _ticker_price(ticker)
         if mid is None:
@@ -1710,11 +1723,22 @@ class PositionDetailScreen(Screen):
             bid = self._quote_num(self._ticker.bid) if self._ticker else None
             ask = self._quote_num(self._ticker.ask) if self._ticker else None
             last = self._quote_num(self._ticker.last) if self._ticker else None
+            mid = _midpoint(bid, ask)
             if contract.secType in ("OPT", "FOP"):
-                price = _option_display_price(self._item, self._ticker)
+                now_mono = monotonic()
+                actionable = mid or last
+                if actionable is not None:
+                    self._derivative_actionable_px = float(actionable)
+                    self._derivative_actionable_px_until_mono = now_mono + float(
+                        self._DERIVATIVE_ACTIONABLE_STICKY_SEC
+                    )
+                sticky = self._sticky_derivative_actionable_px(now_mono=now_mono)
+                if actionable is None and sticky is not None:
+                    price = float(sticky)
+                else:
+                    price = _option_display_price(self._item, self._ticker)
             else:
                 price = _ticker_price(self._ticker) if self._ticker else None
-            mid = _midpoint(bid, ask)
             close = _ticker_close(self._ticker) if self._ticker else None
             mark = _mark_price(self._item)
             live_mark = price or mark
@@ -1817,6 +1841,14 @@ class PositionDetailScreen(Screen):
             md_exchange = getattr(self._ticker.contract, "exchange", "") or "n/a"
             md_label = _market_data_label(self._ticker)
             md_row.append(f"{md_exchange} ({md_label})", style="bright_cyan")
+            req_type_raw = getattr(self._ticker, "tbRequestedMdType", None)
+            try:
+                req_type = int(req_type_raw) if req_type_raw is not None else None
+            except (TypeError, ValueError):
+                req_type = None
+            if req_type in (1, 2, 3, 4):
+                md_row.append(" req ", style="dim")
+                md_row.append(self._md_type_name(req_type), style="dim")
         else:
             md_row.append("n/a", style="dim")
         quote_status = (
@@ -1824,18 +1856,34 @@ class PositionDetailScreen(Screen):
             if self._ticker
             else Text("MD Quotes: n/a", style="dim")
         )
-        has_live_quote = bool(
+        has_live_quote_now = bool(
             (bid is not None and ask is not None and bid <= ask)
             or (last is not None)
         )
+        sticky_actionable = (
+            self._sticky_derivative_actionable_px()
+            if contract.secType in ("OPT", "FOP") and (not has_live_quote_now)
+            else None
+        )
+        has_live_quote_effective = has_live_quote_now or (sticky_actionable is not None)
+        held_quote_row: Text | None = None
+        if sticky_actionable is not None and (not has_live_quote_now):
+            remaining = max(
+                0.0,
+                float(self._derivative_actionable_px_until_mono or 0.0) - float(monotonic()),
+            )
+            held_quote_row = Text(
+                f"NBBO GAP · holding {_fmt_quote(sticky_actionable)} ({remaining:.0f}s)",
+                style="dim",
+            )
         close_only_badge_row: Text | None = None
         if self._ticker:
             md_type = getattr(self._ticker, "marketDataType", None)
             is_delayed = md_type in (3, 4)
-            if is_delayed and (not has_live_quote) and close is not None and close > 0:
+            if is_delayed and (not has_live_quote_now) and close is not None and close > 0:
                 close_only_badge_row = Text("CLOSE-ONLY DELAYED FEED", style="bold black on yellow")
         no_quote_badge_row: Text | None = None
-        if contract.secType in ("OPT", "FOP") and not has_live_quote:
+        if contract.secType in ("OPT", "FOP") and not has_live_quote_effective:
             no_quote_badge_row = Text("NO ACTIONABLE OPTION QUOTE YET", style="bold black on yellow")
 
         quote_row = Text("Bid ")
@@ -1896,7 +1944,7 @@ class PositionDetailScreen(Screen):
         pct_baseline = close
         if (
             contract.secType in ("OPT", "FOP")
-            and not has_live_quote
+            and not has_live_quote_effective
             and self._session_prev_close is not None
             and self._session_prev_close > 0
         ):
@@ -1981,15 +2029,15 @@ class PositionDetailScreen(Screen):
             self._box_row(momentum_row, inner, style="#2d8fd5"),
         ]
         md_probe_row = self._market_data_probe_row()
+        badge_insert_idx = 3
         if md_probe_row is not None:
-            lines.insert(3, self._box_row(md_probe_row, inner, style="#2d8fd5"))
-        if no_quote_badge_row is not None:
-            lines.insert(4 if md_probe_row is not None else 3, self._box_row(no_quote_badge_row, inner, style="#2d8fd5"))
-        if close_only_badge_row is not None:
-            close_insert_idx = 4 if no_quote_badge_row is not None else 3
-            if md_probe_row is not None:
-                close_insert_idx += 1
-            lines.insert(close_insert_idx, self._box_row(close_only_badge_row, inner, style="#2d8fd5"))
+            lines.insert(badge_insert_idx, self._box_row(md_probe_row, inner, style="#2d8fd5"))
+            badge_insert_idx += 1
+        for badge_row in (held_quote_row, no_quote_badge_row, close_only_badge_row):
+            if badge_row is None:
+                continue
+            lines.insert(badge_insert_idx, self._box_row(badge_row, inner, style="#2d8fd5"))
+            badge_insert_idx += 1
         if contract.lastTradeDateOrContractMonth:
             expiry = _fmt_expiry(contract.lastTradeDateOrContractMonth)
             meta = Text(f"Expiry {expiry}")

@@ -1169,7 +1169,7 @@ def test_relentless_delay_wraps_202_sweep_instead_of_halting_at_attempt_cap() ->
         assert "Chase halted" not in notice.plain
 
 
-def test_refresh_ticker_attempts_one_shot_live_probe_for_delayed_fop() -> None:
+def test_refresh_ticker_does_not_attempt_one_shot_live_probe_for_delayed_fop() -> None:
     _ensure_event_loop()
     contract = Contract(secType="FOP", symbol="MNQ", exchange="CME", currency="USD")
     contract.conId = 750150193
@@ -1204,13 +1204,13 @@ def test_refresh_ticker_attempts_one_shot_live_probe_for_delayed_fop() -> None:
 
     asyncio.run(screen.action_refresh_ticker())
 
-    assert client.live_snapshot_calls == 1
-    assert "1-shot live-snapshot" in str(screen._exec_status or "")
+    assert client.live_snapshot_calls == 0
+    assert str(screen._exec_status or "") == "MD refreshed"
     assert screen._md_probe_requested_type == 3
     assert float(screen._md_probe_started_mono) > 0.0
 
 
-def test_refresh_ticker_attempts_one_shot_live_probe_for_live_frozen_fop() -> None:
+def test_refresh_ticker_does_not_attempt_one_shot_live_probe_for_live_frozen_fop() -> None:
     _ensure_event_loop()
     contract = Contract(secType="FOP", symbol="MNQ", exchange="CME", currency="USD")
     contract.conId = 750150193
@@ -1245,8 +1245,8 @@ def test_refresh_ticker_attempts_one_shot_live_probe_for_live_frozen_fop() -> No
 
     asyncio.run(screen.action_refresh_ticker())
 
-    assert client.live_snapshot_calls == 1
-    assert "1-shot live-snapshot" in str(screen._exec_status or "")
+    assert client.live_snapshot_calls == 0
+    assert str(screen._exec_status or "") == "MD refreshed"
     assert screen._md_probe_requested_type == 2
     assert float(screen._md_probe_started_mono) > 0.0
 

@@ -84,6 +84,7 @@ class PositionsApp(App):
     _SEARCH_DEBOUNCE_SEC = 0.18
     _SEARCH_EXPIRY_IDLE_PREFETCH_SEC = 0.35
     _SNAPSHOT_THROTTLE_MIN_SEC = 1.0
+    _DERIVATIVE_MARK_STICKY_SEC = 8.0
 
     _SECTION_HEADER_STYLE_BY_TYPE = {
         "OPT": "bold #8fbfff",
@@ -309,6 +310,7 @@ class PositionsApp(App):
         self._buying_power_daily_anchor: float | None = None
         self._today_ibkr_day: date | None = None
         self._today_ibkr_last_value: float | None = None
+        self._derivative_actionable_px_by_con_id: dict[int, tuple[float, float]] = {}
         self._quote_signature_by_con_id: dict[
             int, tuple[float | None, float | None, float | None, float | None]
         ] = {}
@@ -2571,6 +2573,7 @@ class PositionsApp(App):
         self._md_session = session
         self._ticker_con_ids.clear()
         self._ticker_loading.clear()
+        self._derivative_actionable_px_by_con_id.clear()
         self._quote_signature_by_con_id.clear()
         self._quote_updated_mono_by_con_id.clear()
 
@@ -3540,30 +3543,34 @@ class PositionsApp(App):
     def _option_estimated_mark(
         self, item: PortfolioItem, option_ticker: Ticker | None
     ) -> tuple[float | None, bool]:
-        bid = _safe_num(getattr(option_ticker, "bid", None)) if option_ticker else None
-        ask = _safe_num(getattr(option_ticker, "ask", None)) if option_ticker else None
+        now_mono = time.monotonic()
+        option_con_id = int(getattr(item.contract, "conId", 0) or 0)
+
+        actionable = _ticker_actionable_price(option_ticker) if option_ticker else None
+        if actionable is not None:
+            if option_con_id:
+                self._derivative_actionable_px_by_con_id[int(option_con_id)] = (
+                    float(actionable),
+                    float(now_mono),
+                )
+            return float(actionable), False
+
+        if option_con_id:
+            cached = self._derivative_actionable_px_by_con_id.get(int(option_con_id))
+            if cached is not None:
+                cached_px, cached_mono = cached
+                if (float(now_mono) - float(cached_mono)) <= float(
+                    self._DERIVATIVE_MARK_STICKY_SEC
+                ):
+                    return float(cached_px), False
+                self._derivative_actionable_px_by_con_id.pop(int(option_con_id), None)
+
         portfolio_mark = _safe_num(getattr(item, "marketPrice", None))
-        direct_price = None
-        if (
-            bid is not None
-            and ask is not None
-            and bid > 0
-            and ask > 0
-            and bid <= ask
-        ):
-            direct_price = (float(bid) + float(ask)) / 2.0
-        else:
-            last = _safe_num(getattr(option_ticker, "last", None)) if option_ticker else None
-            if last is not None and last > 0:
-                direct_price = float(last)
-        if direct_price is not None:
-            return direct_price, False
         if item.contract.secType == "FOP":
             if portfolio_mark is not None and portfolio_mark > 0:
                 return float(portfolio_mark), False
             return None, False
 
-        option_con_id = int(getattr(item.contract, "conId", 0) or 0)
         under_con_id = self._option_underlying_con_id.get(option_con_id)
         under_ticker = self._client.ticker_for_con_id(under_con_id) if under_con_id else None
         under_price = _ticker_price(under_ticker) if under_ticker else None
