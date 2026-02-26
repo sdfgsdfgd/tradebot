@@ -692,6 +692,7 @@ class BotConfigScreen(Screen[Optional[_BotConfigResult]]):
 class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMixin, Screen):
     _LOG_CAP = 99_999
     _UNREAL_STICKY_SEC = 20.0
+    _CLOSES_RETRY_SEC = 30.0
     BINDINGS = [
         ("escape", "app.pop_screen", "Back"),
         ("q", "app.pop_screen", "Back"),
@@ -774,6 +775,10 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         self._send_task: asyncio.Task | None = None
         self._cancel_task: asyncio.Task | None = None
         self._tracked_conids: set[int] = set()
+        self._session_closes_by_con_id: dict[int, tuple[float | None, float | None]] = {}
+        self._session_close_1ago_by_con_id: dict[int, float | None] = {}
+        self._closes_loading: set[int] = set()
+        self._closes_retry_at_by_con_id: dict[int, float] = {}
         self._instance_pnl_state_by_id: dict[int, _InstancePnlState] = {}
         self._instance_live_total_by_id: dict[int, float | None] = {}
         self._last_unreal_by_conid: dict[int, tuple[float, float]] = {}
@@ -2305,6 +2310,53 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             except Exception:
                 continue
             self._tracked_conids.add(con_id)
+            self._start_closes_load(con_id, contract)
+
+    def _start_closes_load(self, con_id: int, contract: Contract) -> None:
+        if not callable(getattr(self._client, "session_close_anchors", None)):
+            return
+        con_id = int(con_id or 0)
+        if con_id <= 0:
+            return
+        cached = self._session_closes_by_con_id.get(con_id)
+        if cached is not None and cached[1] is not None:
+            return
+        if con_id in self._closes_loading:
+            return
+        if cached is not None:
+            now = pytime.monotonic()
+            retry_at = float(self._closes_retry_at_by_con_id.get(con_id, 0.0) or 0.0)
+            if now < retry_at:
+                return
+            self._closes_retry_at_by_con_id[con_id] = now + float(self._CLOSES_RETRY_SEC)
+        else:
+            self._closes_retry_at_by_con_id.pop(con_id, None)
+        try:
+            loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        self._closes_loading.add(con_id)
+        loop.create_task(self._load_closes(con_id, contract))
+
+    async def _load_closes(self, con_id: int, contract: Contract) -> None:
+        try:
+            prev_close, close_1ago, close_3ago = await self._client.session_close_anchors(contract)
+            self._session_closes_by_con_id[int(con_id)] = (prev_close, close_3ago)
+            self._session_close_1ago_by_con_id[int(con_id)] = close_1ago
+            if close_3ago is not None:
+                self._closes_retry_at_by_con_id.pop(int(con_id), None)
+            else:
+                self._closes_retry_at_by_con_id[int(con_id)] = (
+                    pytime.monotonic() + float(self._CLOSES_RETRY_SEC)
+                )
+        except Exception:
+            self._closes_retry_at_by_con_id[int(con_id)] = (
+                pytime.monotonic() + float(self._CLOSES_RETRY_SEC)
+            )
+            return
+        finally:
+            self._closes_loading.discard(int(con_id))
+        self._on_client_stream_update()
 
     def _position_mark_price(self, item: PortfolioItem) -> float | None:
         contract = getattr(item, "contract", None)
@@ -2433,13 +2485,31 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             price = _safe_num(getattr(item, "marketPrice", None))
 
         actionable = _ticker_actionable_price(ticker) if ticker is not None else None
+        if con_id and contract is not None:
+            start_closes = getattr(self, "_start_closes_load", None)
+            if callable(start_closes):
+                start_closes(con_id, contract)
+        closes_by_con_id = getattr(self, "_session_closes_by_con_id", None)
+        cached = closes_by_con_id.get(con_id) if con_id and isinstance(closes_by_con_id, dict) else None
+        session_prev_close = cached[0] if cached else None
+        close_1ago_by_con_id = getattr(self, "_session_close_1ago_by_con_id", None)
+        session_prev_close_1ago = (
+            close_1ago_by_con_id.get(con_id)
+            if con_id and isinstance(close_1ago_by_con_id, dict)
+            else None
+        )
+        close_3ago = cached[1] if cached else None
         latest_close = _ticker_close(ticker) if ticker is not None else None
+        if session_prev_close is None:
+            session_prev_close = latest_close
+        if session_prev_close_1ago is None:
+            session_prev_close_1ago = latest_close
         pct24, pct72 = _pct24_72_from_price(
             price=price,
             ticker=ticker,
-            session_prev_close=latest_close,
-            session_prev_close_1ago=latest_close,
-            session_close_3ago=None,
+            session_prev_close=session_prev_close,
+            session_prev_close_1ago=session_prev_close_1ago,
+            session_close_3ago=close_3ago,
             has_actionable_quote=actionable is not None,
         )
         ref = pct24 if pct24 is not None else pct72
