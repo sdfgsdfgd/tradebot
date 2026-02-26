@@ -118,7 +118,7 @@ class PositionDetailScreen(Screen):
     _CANCEL_REQUEST_TTL_SEC = 90.0
     _STREAM_RENDER_DEBOUNCE_SEC = 0.08
     _MD_PROBE_BANNER_TTL_SEC = 10.0
-    _DERIVATIVE_ACTIONABLE_STICKY_SEC = 20.0
+    _DERIVATIVE_ACTIONABLE_STICKY_SEC = 40.0
     _AURORA_PRESET_ORDER = ("calm", "normal", "feral")
     _AURORA_PRESETS = {
         "calm": {"buy_soft": 0.28, "buy_strong": 0.56, "sell_soft": -0.28, "sell_strong": -0.56, "burst_gain": 0.80},
