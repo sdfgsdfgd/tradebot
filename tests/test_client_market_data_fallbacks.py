@@ -670,7 +670,8 @@ def test_on_error_main_index_permission_forces_delayed() -> None:
     contract = SimpleNamespace(symbol="NQ", secType="FUT", conId=93001)
     client._on_error_main(0, 354, "No market data subscription", contract)
 
-    assert client._index_force_delayed is True
+    assert client._index_force_delayed is False
+    assert client._index_symbol_force_delayed == {"NQ"}
     assert called["value"] is True
     assert called["requalify"] is True
 
@@ -742,46 +743,35 @@ def test_on_error_main_future_permission_skips_error_stamp_when_close_only_exist
     assert getattr(ticker, "tbQuoteErrorCode", None) is None
 
 
-def test_probe_index_quotes_triggers_requalifying_resubscribe(monkeypatch) -> None:
+def test_probe_index_quotes_degrades_to_delayed_when_strip_totally_dead(monkeypatch) -> None:
     client = _new_client()
+    client._index_force_delayed = False
+    client._index_futures_session_open = True
     client._index_tickers = {
         "NQ": SimpleNamespace(
             contract=SimpleNamespace(symbol="NQ", conId=9001),
             bid=None,
             ask=None,
             last=None,
-            close=100.0,
-            prevLast=100.0,
-        )
-    }
-    called: dict[str, object] = {"value": False, "requalify": False}
-
-    def _start_index_resubscribe(*, requalify: bool = False) -> None:
-        called["value"] = True
-        called["requalify"] = bool(requalify)
-
-    async def _sleep(_: float) -> None:
-        return None
-
-    client._start_index_resubscribe = _start_index_resubscribe  # type: ignore[method-assign]
-    monkeypatch.setattr("asyncio.sleep", _sleep)
-    asyncio.run(client._probe_index_quotes())
-    assert called["value"] is True
-    assert called["requalify"] is False
-
-
-def test_probe_index_quotes_degrades_to_delayed_before_requalify(monkeypatch) -> None:
-    client = _new_client()
-    client._index_force_delayed = False
-    client._index_tickers = {
+            close=None,
+            prevLast=None,
+        ),
         "ES": SimpleNamespace(
-            contract=SimpleNamespace(symbol="SPY", conId=9010),
+            contract=SimpleNamespace(symbol="ES", conId=9002),
             bid=None,
             ask=None,
             last=None,
             close=None,
             prevLast=None,
-        )
+        ),
+        "YM": SimpleNamespace(
+            contract=SimpleNamespace(symbol="YM", conId=9003),
+            bid=None,
+            ask=None,
+            last=None,
+            close=None,
+            prevLast=None,
+        ),
     }
     calls: list[bool] = []
 
@@ -796,7 +786,102 @@ def test_probe_index_quotes_degrades_to_delayed_before_requalify(monkeypatch) ->
     asyncio.run(client._probe_index_quotes())
 
     assert client._index_force_delayed is True
-    assert calls == [False, False]
+    assert client._index_symbol_force_delayed == set()
+    assert calls == [False]
+
+
+def test_probe_index_quotes_degrades_to_delayed_after_warmup_without_actionable(monkeypatch) -> None:
+    client = _new_client()
+    client._index_force_delayed = False
+    client._index_futures_session_open = True
+    client._index_tickers = {
+        "NQ": SimpleNamespace(
+            contract=SimpleNamespace(symbol="NQ", conId=9010),
+            bid=None,
+            ask=None,
+            last=None,
+            close=25_000.0,
+            prevLast=25_000.0,
+        ),
+        "ES": SimpleNamespace(
+            contract=SimpleNamespace(symbol="ES", conId=9011),
+            bid=None,
+            ask=None,
+            last=None,
+            close=6_000.0,
+            prevLast=6_000.0,
+        ),
+        "YM": SimpleNamespace(
+            contract=SimpleNamespace(symbol="YM", conId=9012),
+            bid=None,
+            ask=None,
+            last=None,
+            close=45_000.0,
+            prevLast=45_000.0,
+        ),
+    }
+    calls: list[bool] = []
+
+    def _start_index_resubscribe(*, requalify: bool = False) -> None:
+        calls.append(bool(requalify))
+
+    async def _sleep(_: float) -> None:
+        return None
+
+    client._start_index_resubscribe = _start_index_resubscribe  # type: ignore[method-assign]
+    monkeypatch.setattr("asyncio.sleep", _sleep)
+    asyncio.run(client._probe_index_quotes())
+
+    assert client._index_force_delayed is True
+    assert client._index_symbol_force_delayed == set()
+    assert calls == [False]
+
+
+def test_probe_index_quotes_partial_strip_forces_missing_leg_delayed(monkeypatch) -> None:
+    client = _new_client()
+    client._index_force_delayed = False
+    client._index_futures_session_open = True
+    client._index_tickers = {
+        "NQ": SimpleNamespace(
+            contract=SimpleNamespace(symbol="NQ", conId=9020),
+            bid=25_000.0,
+            ask=25_000.25,
+            last=None,
+            close=None,
+            prevLast=None,
+        ),
+        "ES": SimpleNamespace(
+            contract=SimpleNamespace(symbol="ES", conId=9021),
+            bid=6_000.0,
+            ask=6_000.25,
+            last=None,
+            close=None,
+            prevLast=None,
+        ),
+        "YM": SimpleNamespace(
+            contract=SimpleNamespace(symbol="YM", conId=9022),
+            bid=None,
+            ask=None,
+            last=None,
+            close=None,
+            prevLast=None,
+        ),
+    }
+    calls: list[bool] = []
+
+    def _start_index_resubscribe(*, requalify: bool = False) -> None:
+        calls.append(bool(requalify))
+
+    async def _sleep(_: float) -> None:
+        return None
+
+    client._start_index_resubscribe = _start_index_resubscribe  # type: ignore[method-assign]
+    monkeypatch.setattr("asyncio.sleep", _sleep)
+    asyncio.run(client._probe_index_quotes())
+
+    assert client._index_force_delayed is False
+    assert client._index_symbol_force_delayed == {"YM"}
+    assert calls == [False]
 
 
 def test_ensure_ticker_overnight_delayed_prefers_overnight_route(monkeypatch) -> None:

@@ -636,6 +636,9 @@ class IBKRClient:
         self._index_error: str | None = None
         # Index strip starts live-first and degrades to delayed when needed.
         self._index_force_delayed = False
+        # Track per-symbol degradation so the strip can mix live + delayed legs
+        # (e.g. CME live but CBOT delayed).
+        self._index_symbol_force_delayed: set[str] = set()
         self._proxy_contracts: dict[str, Contract] = {}
         self._proxy_tickers: dict[str, Ticker] = {}
         self._proxy_task: asyncio.Task | None = None
@@ -838,6 +841,7 @@ class IBKRClient:
         self._index_session_include_overnight = None
         self._index_error = None
         self._index_force_delayed = False
+        self._index_symbol_force_delayed = set()
         self._proxy_tickers = {}
         self._proxy_task = None
         self._proxy_error = None
@@ -4654,7 +4658,9 @@ class IBKRClient:
         sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
         if sec_type in ("FUT", "FOP"):
             ladder = _futures_md_ladder(now)
-            if self._index_force_delayed:
+            symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
+            force_delayed = bool(self._index_force_delayed or symbol in self._index_symbol_force_delayed)
+            if force_delayed:
                 delayed_types = [int(md) for md in ladder if int(md) in (3, 4)]
                 return int(delayed_types[0]) if delayed_types else 3
             return int(ladder[0]) if ladder else 1
@@ -4913,28 +4919,79 @@ class IBKRClient:
         self._index_probe_task = loop.create_task(self._probe_index_quotes())
 
     async def _probe_index_quotes(self) -> None:
-        await asyncio.sleep(float(_INDEX_QUOTE_PROBE_INITIAL_SEC))
-        if not self._index_tickers:
+        expected = tuple(str(sym or "").strip().upper() for sym in _INDEX_STRIP_SYMBOLS)
+        if not expected:
             return
-        if self._index_has_data():
+
+        futures_open = self._index_futures_session_open
+        require_actionable = futures_open is not False
+
+        # Give streams a moment to warm up before deciding they're dead.
+        attempts = 2 if require_actionable else 1
+        for attempt in range(attempts):
+            await asyncio.sleep(float(_INDEX_QUOTE_PROBE_INITIAL_SEC))
+            if not self._index_tickers:
+                return
+            if self._index_has_data():
+                return
+
+            has_any_quote_or_close = any(
+                self._ticker_has_quote_or_close(ticker) for ticker in self._index_tickers.values()
+            )
+            if not has_any_quote_or_close:
+                if not self._index_force_delayed:
+                    self._index_force_delayed = True
+                self._start_index_resubscribe(requalify=False)
+                return
+
+            missing: list[str] = []
+            if require_actionable:
+                has_any_actionable = any(
+                    self._ticker_has_data(ticker) for ticker in self._index_tickers.values()
+                )
+                if not has_any_actionable:
+                    # Close-only / warming-up state; wait another probe cycle.
+                    continue
+                for sym in expected:
+                    ticker = self._index_tickers.get(sym)
+                    if ticker is None or not self._ticker_has_data(ticker):
+                        missing.append(sym)
+            else:
+                for sym in expected:
+                    ticker = self._index_tickers.get(sym)
+                    if ticker is None or not self._ticker_has_quote_or_close(ticker):
+                        missing.append(sym)
+
+            if not missing:
+                return
+
+            added = [sym for sym in missing if sym not in self._index_symbol_force_delayed]
+            if not added:
+                return
+            self._index_symbol_force_delayed.update(added)
+            self._start_index_resubscribe(requalify=False)
             return
+
         if not self._index_force_delayed:
             self._index_force_delayed = True
-            self._start_index_resubscribe(requalify=False)
-        else:
-            self._start_index_resubscribe(requalify=False)
-        await asyncio.sleep(float(_INDEX_QUOTE_PROBE_INITIAL_SEC))
-        if not self._index_tickers:
-            return
-        if self._index_has_data():
-            return
         self._start_index_resubscribe(requalify=False)
 
     def _index_has_data(self) -> bool:
-        for ticker in self._index_tickers.values():
-            if self._ticker_has_data(ticker):
-                return True
-        return False
+        expected = tuple(str(sym or "").strip().upper() for sym in _INDEX_STRIP_SYMBOLS)
+        if not expected:
+            return False
+        if any(sym not in self._index_tickers for sym in expected):
+            return False
+        futures_open = self._index_futures_session_open
+        require_actionable = futures_open is not False
+        for sym in expected:
+            ticker = self._index_tickers.get(sym)
+            if require_actionable:
+                if not self._ticker_has_data(ticker):
+                    return False
+            elif not self._ticker_has_quote_or_close(ticker):
+                return False
+        return True
 
     def _is_index_contract(self, contract: Contract | None) -> bool:
         if contract is None:
@@ -4991,7 +5048,11 @@ class IBKRClient:
         self._remember_order_error(reqId, errorCode, errorString)
         if errorCode in _ENTITLEMENT_ERROR_CODES:
             if self._is_index_contract(contract):
-                self._index_force_delayed = True
+                symbol = str(getattr(contract, "symbol", "") or "").strip().upper() if contract else ""
+                if symbol in _INDEX_STRIP_SYMBOLS:
+                    self._index_symbol_force_delayed.add(symbol)
+                else:
+                    self._index_force_delayed = True
                 self._start_index_resubscribe(requalify=True)
             con_id = int(getattr(contract, "conId", 0) or 0) if contract else 0
             sec_type = (
