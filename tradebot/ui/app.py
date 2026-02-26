@@ -694,6 +694,7 @@ class PositionsApp(App):
         if task is not None and not task.done():
             task.cancel()
         self._search_expiry_prefetch_task = None
+        self._search_expiry_prefetch_generation = -1
 
     def _reset_search_expiry_paging(self) -> None:
         self._search_expiry_has_more = False
@@ -1084,6 +1085,19 @@ class PositionsApp(App):
             return None
         return strike if strike > 0 else None
 
+    def _opt_reference_price(self) -> float | None:
+        timing = getattr(self, "_search_timing", None)
+        if not isinstance(timing, dict):
+            return None
+        mode = str(timing.get("mode", "") or "").strip().upper()
+        if mode != "OPT":
+            return None
+        try:
+            value = float(timing.get("ref_price"))
+        except (TypeError, ValueError):
+            return None
+        return float(value) if value > 0 else None
+
     def _default_opt_row_index(self) -> int:
         rows = self._option_pair_rows()
         if not rows:
@@ -1095,7 +1109,9 @@ class PositionsApp(App):
                 strikes.append(float(strike))
         if not strikes:
             return 0
-        target = strikes[len(strikes) // 2]
+        target = self._opt_reference_price()
+        if target is None:
+            target = strikes[len(strikes) // 2]
         best_idx = 0
         best_delta = float("inf")
         for idx, (call_contract, put_contract) in enumerate(rows):
@@ -1286,6 +1302,7 @@ class PositionsApp(App):
             "contract_reason": str(contract_timing.get("reason", "") or ""),
             "chain_ms": contract_timing.get("chain_ms"),
             "ref_price_ms": contract_timing.get("ref_price_ms"),
+            "ref_price": contract_timing.get("ref_price"),
             "ref_price_source": str(contract_timing.get("ref_price_source", "") or ""),
             "qualify_ms": contract_timing.get("qualify_ms"),
             "selected_expiry_count": self._timing_int(contract_timing.get("selected_expiry_count")),
@@ -1592,6 +1609,7 @@ class PositionsApp(App):
         finally:
             if int(generation) == int(getattr(self, "_search_expiry_prefetch_generation", -1)):
                 self._search_expiry_prefetch_task = None
+                self._search_expiry_prefetch_generation = -1
 
     async def _run_search_next_expiry_page(
         self,

@@ -750,3 +750,38 @@ def test_run_search_idle_expiry_prefetch_queues_next_page() -> None:
 
     assert queued == [True]
     assert app._search_expiry_prefetch_task is None
+    assert app._search_expiry_prefetch_generation == -1
+
+
+def test_cancel_search_expiry_prefetch_resets_generation_without_task() -> None:
+    positions_app = _load_positions_app()
+    app = positions_app.__new__(positions_app)
+    app._search_expiry_prefetch_task = None
+    app._search_expiry_prefetch_generation = 42
+
+    app._cancel_search_expiry_prefetch()
+
+    assert app._search_expiry_prefetch_task is None
+    assert app._search_expiry_prefetch_generation == -1
+
+
+def test_default_opt_row_index_prefers_search_reference_price() -> None:
+    positions_app = _load_positions_app()
+    app = positions_app.__new__(positions_app)
+    app._search_timing = {"mode": "OPT", "ref_price": 123.4}
+
+    def _row(strike: float):
+        call = Contract(
+            secType="OPT",
+            symbol="NVDA",
+            exchange="SMART",
+            currency="USD",
+            lastTradeDateOrContractMonth="20260227",
+            strike=float(strike),
+            right="C",
+        )
+        return (call, None)
+
+    app._option_pair_rows = lambda: [_row(110.0), _row(115.0), _row(120.0), _row(125.0), _row(130.0)]
+
+    assert app._default_opt_row_index() == 3

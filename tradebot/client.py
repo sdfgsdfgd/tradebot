@@ -3511,6 +3511,7 @@ class IBKRClient:
             if ref_price is None:
                 return _opt_timing_finish([], stage="reference", reason="no-reference-price")
             if timing is not None:
+                timing["ref_price"] = float(ref_price)
                 timing["ref_price_source"] = ref_source or "unknown"
             if int(expiry_offset_clean) <= 0:
                 rows_per_expiry = int(first_page_strikes)
@@ -4153,25 +4154,12 @@ class IBKRClient:
 
         pending = _pending_candidates()
         if pending:
-            max_recovery_calls = max(2, min(6, len(cleaned) // 8))
-            recovery_calls = 0
-
-            while len(pending) > 4 and recovery_calls < max_recovery_calls:
-                chunk_size = max(4, min(16, len(pending)))
-                pending_before = len(pending)
-                for start in range(0, len(pending), chunk_size):
-                    if recovery_calls >= max_recovery_calls:
-                        break
-                    batch = pending[start : start + chunk_size]
-                    await _qualify_batch(batch)
-                    recovery_calls += 1
+            for chunk_size in (16, 8, 4, 2, 1):
                 pending = _pending_candidates()
-                if len(pending) >= pending_before:
+                if not pending:
                     break
-
-            if pending and len(pending) <= 4:
-                for candidate in pending[:4]:
-                    await _qualify_batch([candidate])
+                for start in range(0, len(pending), chunk_size):
+                    await _qualify_batch(pending[start : start + chunk_size])
 
         out: list[Contract] = []
         seen_keys: set[tuple[str, str, str, str, float]] = set()
