@@ -2515,7 +2515,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         ref = pct24 if pct24 is not None else pct72
         glyph, glyph_style = self._edge_glyph_style(ref)
 
-        dual = _price_pct_dual_text(price, pct24, pct72, separator="·")
+        dual = _price_pct_dual_text(None, pct24, pct72, separator="·")
         # Remove internal left-pad from the shared formatter so glyph and value stay visually coupled.
         while dual.plain.startswith(" "):
             dual = dual[1:]
