@@ -14,30 +14,41 @@ Canonical execution paths:
 
 ## Current Champions (stack)
 
-### CURRENT (v7-km01-riskoff8.5-cut15-ratsv-cd4-hold0) — KINGMAKER #01 lineage + TR5 riskoff overlay + RATS-V entry gate (1Y/2Y promotion)
+### CURRENT (v8-km01-riskoff8.5-cut15-ratsv-cd4-hold0-permDn0.05) — KINGMAKER #01 lineage + TR5 riskoff overlay + RATS-V entry gate + tightened down-permission gate (1Y/2Y promotion)
 
-- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260226/tqqq_hf_champions_v7_km01_riskoff8p5_cut15_ratsv_rank0p11_slope0p0001_vel0p00008_cd4_hold0_20260226.json`
-- Dojo replay (last-5-trading-days tape): `backtests/tqqq/replays/tqqq_hf_v7_km01_riskoff8p5_cut15_ratsv_rank0p11_slope0p0001_vel0p00008_cd4_hold0_dojo_5d_20260219_20260225.json`
+- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260226/tqqq_hf_champions_v8_km01_riskoff8p5_cut15_ratsv_rank0p11_slope0p0001_vel0p00008_cd4_hold0_permDn0p05_20260226.json`
+- Dojo replay (last-5-trading-days tape): `backtests/tqqq/replays/tqqq_hf_v8_km01_riskoff8p5_cut15_ratsv_rank0p11_slope0p0001_vel0p00008_cd4_hold0_permDn0p05_dojo_5d_20260219_20260225.json`
 - Timeframe: `signal=5 mins`, `exec=1 min`, `RTH`
 - Entry window: `09:00–16:00 ET` (RTH-only data; first tradable entries begin after 09:30 ET)
 - Risk overlay: `riskoff_tr5_med_pct=8.5` + `risk_entry_cutoff_hour_et=15` (`riskoff_mode=hygiene`)
+- Permission gate (needle-thread in v8): `ema_slope_min_pct=0.03`, `ema_spread_min_pct=0.003`, `ema_spread_min_pct_down=0.05`
 - RATS-V entry gate:
   - `ratsv_enabled=true`, `ratsv_slope_window_bars=5`, `ratsv_tr_fast_bars=5`, `ratsv_tr_slow_bars=20`
   - `ratsv_rank_min=0.11`, `ratsv_slope_med_min_pct=0.00010`, `ratsv_slope_vel_min_pct=0.00008`
-- 1Y (`2025-01-01 -> 2026-01-19`): trades **592**, pnl **37,593.5**, dd **12,037.5**, pnl/dd **3.123**
-- 2Y (`2024-01-01 -> 2026-01-19`): trades **1,146**, pnl **44,938.5**, dd **14,702.0**, pnl/dd **3.057**
+- 1Y (`2025-01-01 -> 2026-01-19`): trades **587**, pnl **41,589.5**, dd **11,685.9**, pnl/dd **3.559**
+- 2Y (`2024-01-01 -> 2026-01-19`): trades **1,138**, pnl **49,692.8**, dd **13,984.8**, pnl/dd **3.553**
 
 Replay / verify:
 ```bash
 python -m tradebot.backtest spot_multitimeframe \
-  --milestones backtests/tqqq/archive/champion_history_20260226/tqqq_hf_champions_v7_km01_riskoff8p5_cut15_ratsv_rank0p11_slope0p0001_vel0p00008_cd4_hold0_20260226.json \
-  --symbol TQQQ --bar-size "5 mins" --spot-exec-bar-size "1 min" --use-rth --offline --cache-dir db \
+  --milestones backtests/tqqq/archive/champion_history_20260226/tqqq_hf_champions_v8_km01_riskoff8p5_cut15_ratsv_rank0p11_slope0p0001_vel0p00008_cd4_hold0_permDn0p05_20260226.json \
+  --symbol TQQQ --bar-size "5 mins" --use-rth --offline --cache-dir db \
   --top 1 --min-trades 0 \
   --window 2025-01-01:2026-01-19 \
   --window 2024-01-01:2026-01-19
 ```
 
 ## Evolutions (stack)
+
+### v8 (2026-02-26) — dethroned v7 (tighten down-permission gate)
+- Contract: `1Y` then `2Y` (10Y deferred).
+- Needle-thread:
+  - v7 was already extremely stable; we only tightened the down-direction permission gate:
+    - `ema_spread_min_pct_down: 0.04 -> 0.05`
+  - Outcome: big stability floor lift (both windows improved, throughput essentially unchanged):
+    - `1Y` pnl/dd: **3.123 -> 3.559**
+    - `2Y` pnl/dd: **3.057 -> 3.553**
+- Preset: `backtests/tqqq/archive/champion_history_20260226/tqqq_hf_champions_v8_km01_riskoff8p5_cut15_ratsv_rank0p11_slope0p0001_vel0p00008_cd4_hold0_permDn0p05_20260226.json`
 
 ### v7 (2026-02-26) — dethroned v6 (cooldown+flip-hold rebalance)
 - Contract: `1Y` then `2Y` (10Y deferred).
