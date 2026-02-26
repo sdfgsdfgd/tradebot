@@ -2188,7 +2188,6 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                     "Contract",
                     "Lmt",
                     "B/A",
-                    "Status",
                     "Unreal",
                     "Realized",
                 )
@@ -4793,7 +4792,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             self._sync_row_marker(self._orders_table, force=True)
             return
         self._orders_table.add_row(
-            *_center_table_row("", "", "", "", Text("POSITIONS", style="bold"), "", "", "", "", "")
+            *_center_table_row("", "", "", "", Text("POSITIONS", style="bold"), "", "", "", "")
         )
         self._orders_table.add_row(*_center_table_row(*_positions_subheader_row()))
         for item in self._positions:
@@ -4807,7 +4806,6 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             realized = _safe_num(getattr(item, "realizedPNL", None))
             entry_now_text = self._position_entry_now_cell(item, mark_price)
             px_change_text = self._position_px_change_cell(item, mark_price)
-            md_badge_text = self._position_md_badge_cell(item)
             self._orders_table.add_row(
                 *_center_table_row(
                     *_position_as_order_row(
@@ -4818,7 +4816,6 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                         market_price=mark_price,
                         entry_now_text=entry_now_text,
                         px_change_text=px_change_text,
-                        md_badge_text=md_badge_text,
                     )
                 )
             )
@@ -5152,7 +5149,7 @@ def _center_table_row(*cells: object) -> tuple[Text, ...]:
     return tuple(_center_table_cell(cell) for cell in cells)
 
 
-def _order_row(order: _BotOrder) -> tuple[str, str, str, str, str, str, str, str, str, str]:
+def _order_row(order: _BotOrder) -> tuple[str, str, str, str, str, str, str, str, str]:
     ts = _to_et_shared(order.created_at, naive_ts_mode="et", default_naive_ts_mode="et").strftime("%H:%M:%S")
     inst = str(order.instance_id)
     contract = order.order_contract
@@ -5169,16 +5166,7 @@ def _order_row(order: _BotOrder) -> tuple[str, str, str, str, str, str, str, str
     bid = _fmt_quote(order.bid)
     ask = _fmt_quote(order.ask)
     bid_ask = f"{bid}/{ask}"
-    status = order.status
-    if order.exec_mode and order.status in ("STAGED", "WORKING", "CANCELING"):
-        status = f"{status} {order.exec_mode}"
-    if order.order_id:
-        status = f"{status} #{order.order_id}"
-    if order.error and order.status == "ERROR":
-        status = f"ERROR {order.error}"[:32]
-    elif order.error and order.status == "WORKING":
-        status = f"{status} !{order.error}"[:32]
-    return (ts, inst, side, qty, local, limit, bid_ask, status, "", "")
+    return (ts, inst, side, qty, local, limit, bid_ask, "", "")
 
 
 def _position_as_order_row(
@@ -5190,8 +5178,7 @@ def _position_as_order_row(
     market_price: float | None = None,
     entry_now_text: Text | None = None,
     px_change_text: Text | None = None,
-    md_badge_text: Text | None = None,
-) -> tuple[str, str, str, str, str, str, str, str, Text, Text]:
+) -> tuple[str, str, str, str, str, str, str, Text, Text]:
     contract = getattr(item, "contract", None)
     sec_type = str(getattr(contract, "secType", "") or "") if contract is not None else ""
     symbol = str(getattr(contract, "symbol", "") or "") if contract is not None else ""
@@ -5247,13 +5234,12 @@ def _position_as_order_row(
         local,
         entry_now_text if entry_now_text is not None else _fmt_quote(avg),
         px_change_text if px_change_text is not None else _fmt_quote(mkt),
-        md_badge_text if md_badge_text is not None else "",
         unreal_cell,
         realized_cell,
     )
 
 
-def _positions_subheader_row() -> tuple[Text | str, Text | str, Text | str, Text | str, Text | str, Text | str, Text | str, Text | str, Text | str, Text | str]:
+def _positions_subheader_row() -> tuple[Text | str, Text | str, Text | str, Text | str, Text | str, Text | str, Text | str, Text | str, Text | str]:
     style = "bold #7f8fa0"
     return (
         "",
@@ -5263,7 +5249,6 @@ def _positions_subheader_row() -> tuple[Text | str, Text | str, Text | str, Text
         Text("Contract", style=style),
         Text("Entry¦Now", style=style),
         Text("Px 24-72", style=style),
-        Text("MD", style=style),
         Text("Unreal (Pos)", style=style),
         Text("Realized", style=style),
     )

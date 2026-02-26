@@ -84,7 +84,7 @@ def _position_row_after_refresh() -> tuple:
 def test_bot_orders_positions_row_prefers_live_official_unrealized() -> None:
     row = _position_row_after_refresh()
     # stale snapshot unrealized is -0.69, live broker unrealized is +7.02.
-    assert row[8].plain == "7.02"
+    assert row[7].plain == "7.02"
 
 
 def test_bot_orders_positions_row_uses_live_mark_for_now_column() -> None:
