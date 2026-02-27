@@ -14,24 +14,27 @@ Canonical execution paths:
 
 ## Current Champions (stack)
 
-### CURRENT (v8-km01-riskoff8.5-cut15-ratsv-cd4-hold0-permDn0.05) — KINGMAKER #01 lineage + TR5 riskoff overlay + RATS-V entry gate + tightened down-permission gate (1Y/2Y promotion)
+### CURRENT (v9-km01-riskoff8.5-cut15-ratsv-cd4-hold0-permDn0.05-graphEntryVel0.00012) — KINGMAKER #01 lineage + TR5 riskoff overlay + RATS-V entry gate + graph entry slope-velocity gate (1Y/2Y promotion)
 
-- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260226/tqqq_hf_champions_v8_km01_riskoff8p5_cut15_ratsv_rank0p11_slope0p0001_vel0p00008_cd4_hold0_permDn0p05_20260226.json`
-- Dojo replay (last-5-trading-days tape): `backtests/tqqq/replays/tqqq_hf_v8_km01_riskoff8p5_cut15_ratsv_rank0p11_slope0p0001_vel0p00008_cd4_hold0_permDn0p05_dojo_5d_20260219_20260225.json`
+- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260227/tqqq_hf_champions_v9_km01_riskoff8p5_cut15_ratsv_rank0p11_slope0p0001_vel0p00008_cd4_hold0_permDn0p05_graphEntryVel0p00012_20260227.json`
+- Dojo replay (last-5-trading-days tape): `backtests/tqqq/replays/tqqq_hf_v9_km01_riskoff8p5_cut15_ratsv_rank0p11_slope0p0001_vel0p00008_cd4_hold0_permDn0p05_graphEntryVel0p00012_dojo_5d_20260219_20260225.json`
 - Timeframe: `signal=5 mins`, `exec=1 min`, `RTH`
 - Entry window: `09:00–16:00 ET` (RTH-only data; first tradable entries begin after 09:30 ET)
 - Risk overlay: `riskoff_tr5_med_pct=8.5` + `risk_entry_cutoff_hour_et=15` (`riskoff_mode=hygiene`)
 - Permission gate (needle-thread in v8): `ema_slope_min_pct=0.03`, `ema_spread_min_pct=0.003`, `ema_spread_min_pct_down=0.05`
+- Graph entry gate (needle-thread in v9):
+  - `spot_entry_policy=slope_tr_guard`
+  - `spot_entry_slope_vel_abs_min_pct=0.00012` (leave other graph entry thresholds off)
 - RATS-V entry gate:
   - `ratsv_enabled=true`, `ratsv_slope_window_bars=5`, `ratsv_tr_fast_bars=5`, `ratsv_tr_slow_bars=20`
   - `ratsv_rank_min=0.11`, `ratsv_slope_med_min_pct=0.00010`, `ratsv_slope_vel_min_pct=0.00008`
-- 1Y (`2025-01-01 -> 2026-01-19`): trades **587**, pnl **41,589.5**, dd **11,685.9**, pnl/dd **3.559**
-- 2Y (`2024-01-01 -> 2026-01-19`): trades **1,138**, pnl **49,692.8**, dd **13,984.8**, pnl/dd **3.553**
+- 1Y (`2025-01-01 -> 2026-01-19`): trades **583**, pnl **43,026.6**, dd **11,684.8**, pnl/dd **3.682**
+- 2Y (`2024-01-01 -> 2026-01-19`): trades **1,123**, pnl **56,159.7**, dd **14,266.7**, pnl/dd **3.936**
 
 Replay / verify:
 ```bash
 python -m tradebot.backtest spot_multitimeframe \
-  --milestones backtests/tqqq/archive/champion_history_20260226/tqqq_hf_champions_v8_km01_riskoff8p5_cut15_ratsv_rank0p11_slope0p0001_vel0p00008_cd4_hold0_permDn0p05_20260226.json \
+  --milestones backtests/tqqq/archive/champion_history_20260227/tqqq_hf_champions_v9_km01_riskoff8p5_cut15_ratsv_rank0p11_slope0p0001_vel0p00008_cd4_hold0_permDn0p05_graphEntryVel0p00012_20260227.json \
   --symbol TQQQ --bar-size "5 mins" --use-rth --offline --cache-dir db \
   --top 1 --min-trades 0 \
   --window 2025-01-01:2026-01-19 \
@@ -39,6 +42,17 @@ python -m tradebot.backtest spot_multitimeframe \
 ```
 
 ## Evolutions (stack)
+
+### v9 (2026-02-27) — dethroned v8 (graph slope-velocity entry gate)
+- Contract: `1Y` then `2Y` (10Y deferred).
+- Needle-thread:
+  - Keep v8 structure unchanged (riskoff overlay + permission gate + RATS-V), but add a micro guard at the lifecycle gate:
+    - `spot_entry_policy=slope_tr_guard`
+    - `spot_entry_slope_vel_abs_min_pct: off -> 0.00012` (leave other graph entry thresholds off)
+  - Outcome: stability floor lifted materially while keeping HF throughput:
+    - `1Y` pnl/dd: **3.559 -> 3.682**
+    - `2Y` pnl/dd: **3.553 -> 3.936**
+- Preset: `backtests/tqqq/archive/champion_history_20260227/tqqq_hf_champions_v9_km01_riskoff8p5_cut15_ratsv_rank0p11_slope0p0001_vel0p00008_cd4_hold0_permDn0p05_graphEntryVel0p00012_20260227.json`
 
 ### v8 (2026-02-26) — dethroned v7 (tighten down-permission gate)
 - Contract: `1Y` then `2Y` (10Y deferred).
