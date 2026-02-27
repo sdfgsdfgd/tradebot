@@ -14,10 +14,10 @@ Canonical execution paths:
 
 ## Current Champions (stack)
 
-### CURRENT (v15-km01-riskoff8.5-cut15-ratsv-cd3-hold0-permDn0.05-graphEntryVel0.00012-graphExitHoldSlope0.00008-shockDetect(atr_ratio f7/s50)-overlay(atr_compress hi=1.2 min=0.5)) — v14 + ATR compress overlay (1Y/2Y promotion)
+### CURRENT (v16-km01-riskoff8.5-cut15-ratsv-cd3-hold0-permDn0.05-graphEntryVel0.00012-graphExitHoldSlope0.00008-shockDetect(atr_ratio f7/s50)-overlay(atr_compress hi=1.3 min=0.4)) — v15 + ATR compress tune (1Y/2Y promotion)
 
-- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260227/tqqq_hf_champions_v15_km01_riskoff8p5_cut15_ratsv_rank0p1_slope0p0001_vel0p00006_cd3_hold0_permDn0p05_graphEntryVel0p00012_graphExitHoldSlope0p00008_shockDetect_atrRatio_f7s50_overlayAtrCompress_hi1p2_min0p5_20260227.json`
-- Dojo replay (last-5-trading-days tape): `backtests/tqqq/replays/tqqq_hf_v15_km01_riskoff8p5_cut15_ratsv_rank0p1_slope0p0001_vel0p00006_cd3_hold0_permDn0p05_graphEntryVel0p00012_graphExitHoldSlope0p00008_shockDetect_atrRatio_f7s50_overlayAtrCompress_hi1p2_min0p5_dojo_5d_20260219_20260225.json`
+- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260227/tqqq_hf_champions_v16_km01_riskoff8p5_cut15_ratsv_rank0p1_slope0p0001_vel0p00006_cd3_hold0_permDn0p05_graphEntryVel0p00012_graphExitHoldSlope0p00008_shockDetect_atrRatio_f7s50_overlayAtrCompress_hi1p3_min0p4_20260227.json`
+- Dojo replay (last-5-trading-days tape): `backtests/tqqq/replays/tqqq_hf_v16_km01_riskoff8p5_cut15_ratsv_rank0p1_slope0p0001_vel0p00006_cd3_hold0_permDn0p05_graphEntryVel0p00012_graphExitHoldSlope0p00008_shockDetect_atrRatio_f7s50_overlayAtrCompress_hi1p3_min0p4_dojo_5d_20260219_20260225.json`
 - Timeframe: `signal=5 mins`, `exec=1 min`, `RTH`
 - Entry window: `09:00–16:00 ET` (RTH-only data; first tradable entries begin after 09:30 ET)
 - Risk overlay: `riskoff_tr5_med_pct=8.5` + `risk_entry_cutoff_hour_et=15` (`riskoff_mode=hygiene`)
@@ -26,7 +26,7 @@ Canonical execution paths:
   - `shock_gate_mode=detect`, `shock_detector=atr_ratio`, `shock_atr_fast_period=7`, `shock_atr_slow_period=50`
 - Graph risk overlay (ATR compress):
   - `spot_risk_overlay_policy=atr_compress`
-  - `spot_graph_overlay_atr_hi_pct=1.2`, `spot_graph_overlay_atr_hi_min_mult=0.5`
+  - `spot_graph_overlay_atr_hi_pct=1.3`, `spot_graph_overlay_atr_hi_min_mult=0.4`
 - Permission gate (needle-thread in v8): `ema_slope_min_pct=0.03`, `ema_spread_min_pct=0.003`, `ema_spread_min_pct_down=0.05`
 - Graph entry gate (needle-thread in v9):
   - `spot_entry_policy=slope_tr_guard`
@@ -37,13 +37,13 @@ Canonical execution paths:
 - RATS-V entry gate:
   - `ratsv_enabled=true`, `ratsv_slope_window_bars=5`, `ratsv_tr_fast_bars=5`, `ratsv_tr_slow_bars=20`
   - `ratsv_rank_min=0.10`, `ratsv_slope_med_min_pct=0.00010`, `ratsv_slope_vel_min_pct=0.00006`
-- 1Y (`2025-01-01 -> 2026-01-19`): trades **582**, pnl **49,443.9**, dd **8,172.9**, pnl/dd **6.050**
-- 2Y (`2024-01-01 -> 2026-01-19`): trades **1,127**, pnl **64,292.9**, dd **12,579.3**, pnl/dd **5.111**
+- 1Y (`2025-01-01 -> 2026-01-19`): trades **582**, pnl **50,097.4**, dd **8,207.9**, pnl/dd **6.104**
+- 2Y (`2024-01-01 -> 2026-01-19`): trades **1,127**, pnl **65,085.3**, dd **12,570.4**, pnl/dd **5.178**
 
 Replay / verify:
 ```bash
 python -m tradebot.backtest spot_multitimeframe \
-  --milestones backtests/tqqq/archive/champion_history_20260227/tqqq_hf_champions_v15_km01_riskoff8p5_cut15_ratsv_rank0p1_slope0p0001_vel0p00006_cd3_hold0_permDn0p05_graphEntryVel0p00012_graphExitHoldSlope0p00008_shockDetect_atrRatio_f7s50_overlayAtrCompress_hi1p2_min0p5_20260227.json \
+  --milestones backtests/tqqq/archive/champion_history_20260227/tqqq_hf_champions_v16_km01_riskoff8p5_cut15_ratsv_rank0p1_slope0p0001_vel0p00006_cd3_hold0_permDn0p05_graphEntryVel0p00012_graphExitHoldSlope0p00008_shockDetect_atrRatio_f7s50_overlayAtrCompress_hi1p3_min0p4_20260227.json \
   --symbol TQQQ --bar-size "5 mins" --use-rth --offline --cache-dir db \
   --top 1 --min-trades 0 \
   --window 2025-01-01:2026-01-19 \
@@ -51,6 +51,18 @@ python -m tradebot.backtest spot_multitimeframe \
 ```
 
 ## Evolutions (stack)
+
+### v16 (2026-02-27) — dethroned v15 (ATR compress tune)
+- Contract: `1Y` then `2Y` (10Y deferred).
+- Needle-thread:
+  - Keep v15 unchanged, but retune the ATR compress envelope:
+    - `spot_graph_overlay_atr_hi_pct: 1.2 -> 1.3`
+    - `spot_graph_overlay_atr_hi_min_mult: 0.5 -> 0.4`
+  - Outcome: stability floor lifted again:
+    - stability floor (min `1Y/2Y` pnl/dd): **5.111 -> 5.178**
+    - `1Y` pnl/dd: **6.050 -> 6.104**
+    - `2Y` pnl/dd: **5.111 -> 5.178**
+- Preset: `backtests/tqqq/archive/champion_history_20260227/tqqq_hf_champions_v16_km01_riskoff8p5_cut15_ratsv_rank0p1_slope0p0001_vel0p00006_cd3_hold0_permDn0p05_graphEntryVel0p00012_graphExitHoldSlope0p00008_shockDetect_atrRatio_f7s50_overlayAtrCompress_hi1p3_min0p4_20260227.json`
 
 ### v15 (2026-02-27) — dethroned v14 (ATR compress overlay)
 - Contract: `1Y` then `2Y` (10Y deferred).
