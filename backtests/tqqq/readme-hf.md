@@ -14,13 +14,14 @@ Canonical execution paths:
 
 ## Current Champions (stack)
 
-### CURRENT (v11-km01-riskoff8.5-cut15-ratsv-cd4-hold0-permDn0.05-graphEntryVel0.00012-graphExitHoldSlope0.00008) — v10 + lower graph exit flip-hold slope threshold (1Y/2Y promotion)
+### CURRENT (v12-km01-riskoff8.5-cut15-ratsv-cd2-hold0-permDn0.05-graphEntryVel0.00012-graphExitHoldSlope0.00008) — v11 + cooldown needle (cd4->cd2) (1Y/2Y promotion)
 
-- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260227/tqqq_hf_champions_v11_km01_riskoff8p5_cut15_ratsv_rank0p11_slope0p0001_vel0p00008_cd4_hold0_permDn0p05_graphEntryVel0p00012_graphExitHoldSlope0p00008_20260227.json`
-- Dojo replay (last-5-trading-days tape): `backtests/tqqq/replays/tqqq_hf_v11_km01_riskoff8p5_cut15_ratsv_rank0p11_slope0p0001_vel0p00008_cd4_hold0_permDn0p05_graphEntryVel0p00012_graphExitHoldSlope0p00008_dojo_5d_20260219_20260225.json`
+- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260227/tqqq_hf_champions_v12_km01_riskoff8p5_cut15_ratsv_rank0p11_slope0p0001_vel0p00008_cd2_hold0_permDn0p05_graphEntryVel0p00012_graphExitHoldSlope0p00008_20260227.json`
+- Dojo replay (last-5-trading-days tape): `backtests/tqqq/replays/tqqq_hf_v12_km01_riskoff8p5_cut15_ratsv_rank0p11_slope0p0001_vel0p00008_cd2_hold0_permDn0p05_graphEntryVel0p00012_graphExitHoldSlope0p00008_dojo_5d_20260219_20260225.json`
 - Timeframe: `signal=5 mins`, `exec=1 min`, `RTH`
 - Entry window: `09:00–16:00 ET` (RTH-only data; first tradable entries begin after 09:30 ET)
 - Risk overlay: `riskoff_tr5_med_pct=8.5` + `risk_entry_cutoff_hour_et=15` (`riskoff_mode=hygiene`)
+- Cooldown needle-thread: `cooldown_bars=2` (v11 was `4`)
 - Permission gate (needle-thread in v8): `ema_slope_min_pct=0.03`, `ema_spread_min_pct=0.003`, `ema_spread_min_pct_down=0.05`
 - Graph entry gate (needle-thread in v9):
   - `spot_entry_policy=slope_tr_guard`
@@ -31,13 +32,13 @@ Canonical execution paths:
 - RATS-V entry gate:
   - `ratsv_enabled=true`, `ratsv_slope_window_bars=5`, `ratsv_tr_fast_bars=5`, `ratsv_tr_slow_bars=20`
   - `ratsv_rank_min=0.11`, `ratsv_slope_med_min_pct=0.00010`, `ratsv_slope_vel_min_pct=0.00008`
-- 1Y (`2025-01-01 -> 2026-01-19`): trades **578**, pnl **49,386.5**, dd **10,062.6**, pnl/dd **4.908**
-- 2Y (`2024-01-01 -> 2026-01-19`): trades **1,121**, pnl **60,735.5**, dd **13,186.7**, pnl/dd **4.606**
+- 1Y (`2025-01-01 -> 2026-01-19`): trades **580**, pnl **51,434.1**, dd **10,548.8**, pnl/dd **4.876**
+- 2Y (`2024-01-01 -> 2026-01-19`): trades **1,126**, pnl **62,488.1**, dd **13,221.6**, pnl/dd **4.726**
 
 Replay / verify:
 ```bash
 python -m tradebot.backtest spot_multitimeframe \
-  --milestones backtests/tqqq/archive/champion_history_20260227/tqqq_hf_champions_v11_km01_riskoff8p5_cut15_ratsv_rank0p11_slope0p0001_vel0p00008_cd4_hold0_permDn0p05_graphEntryVel0p00012_graphExitHoldSlope0p00008_20260227.json \
+  --milestones backtests/tqqq/archive/champion_history_20260227/tqqq_hf_champions_v12_km01_riskoff8p5_cut15_ratsv_rank0p11_slope0p0001_vel0p00008_cd2_hold0_permDn0p05_graphEntryVel0p00012_graphExitHoldSlope0p00008_20260227.json \
   --symbol TQQQ --bar-size "5 mins" --use-rth --offline --cache-dir db \
   --top 1 --min-trades 0 \
   --window 2025-01-01:2026-01-19 \
@@ -45,6 +46,16 @@ python -m tradebot.backtest spot_multitimeframe \
 ```
 
 ## Evolutions (stack)
+
+### v12 (2026-02-27) — dethroned v11 (cooldown needle cd4->cd2)
+- Contract: `1Y` then `2Y` (10Y deferred).
+- Needle-thread:
+  - Keep v11 unchanged, but re-arm faster after a fill:
+    - `cooldown_bars: 4 -> 2`
+  - Outcome: this is a pure stability-floor dethrone (2Y lifts materially, 1Y stays strong):
+    - `1Y` pnl/dd: **4.908 -> 4.876**
+    - `2Y` pnl/dd: **4.606 -> 4.726**
+- Preset: `backtests/tqqq/archive/champion_history_20260227/tqqq_hf_champions_v12_km01_riskoff8p5_cut15_ratsv_rank0p11_slope0p0001_vel0p00008_cd2_hold0_permDn0p05_graphEntryVel0p00012_graphExitHoldSlope0p00008_20260227.json`
 
 ### v11 (2026-02-27) — dethroned v10 (lower exit flip-hold slope threshold)
 - Contract: `1Y` then `2Y` (10Y deferred).
