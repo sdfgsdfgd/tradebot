@@ -14,14 +14,14 @@ Canonical execution paths:
 
 ## Current Champions (stack)
 
-### CURRENT (v13-km01-riskoff8.5-cut15-ratsv-cd3-hold0-permDn0.05-graphEntryVel0.00012-graphExitHoldSlope0.00008) — v12 + cooldown needle (cd2->cd3) (1Y/2Y promotion)
+### CURRENT (v14-km01-riskoff8.5-cut15-ratsv(rank=0.10 vel=0.00006)-cd3-hold0-permDn0.05-graphEntryVel0.00012-graphExitHoldSlope0.00008) — v13 + RATS-V loosen needle (1Y/2Y promotion)
 
-- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260227/tqqq_hf_champions_v13_km01_riskoff8p5_cut15_ratsv_rank0p11_slope0p0001_vel0p00008_cd3_hold0_permDn0p05_graphEntryVel0p00012_graphExitHoldSlope0p00008_20260227.json`
-- Dojo replay (last-5-trading-days tape): `backtests/tqqq/replays/tqqq_hf_v13_km01_riskoff8p5_cut15_ratsv_rank0p11_slope0p0001_vel0p00008_cd3_hold0_permDn0p05_graphEntryVel0p00012_graphExitHoldSlope0p00008_dojo_5d_20260219_20260225.json`
+- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260227/tqqq_hf_champions_v14_km01_riskoff8p5_cut15_ratsv_rank0p1_slope0p0001_vel0p00006_cd3_hold0_permDn0p05_graphEntryVel0p00012_graphExitHoldSlope0p00008_20260227.json`
+- Dojo replay (last-5-trading-days tape): `backtests/tqqq/replays/tqqq_hf_v14_km01_riskoff8p5_cut15_ratsv_rank0p1_slope0p0001_vel0p00006_cd3_hold0_permDn0p05_graphEntryVel0p00012_graphExitHoldSlope0p00008_dojo_5d_20260219_20260225.json`
 - Timeframe: `signal=5 mins`, `exec=1 min`, `RTH`
 - Entry window: `09:00–16:00 ET` (RTH-only data; first tradable entries begin after 09:30 ET)
 - Risk overlay: `riskoff_tr5_med_pct=8.5` + `risk_entry_cutoff_hour_et=15` (`riskoff_mode=hygiene`)
-- Cooldown needle-thread: `cooldown_bars=3` (v12 was `2`)
+- Cooldown: `cooldown_bars=3`
 - Permission gate (needle-thread in v8): `ema_slope_min_pct=0.03`, `ema_spread_min_pct=0.003`, `ema_spread_min_pct_down=0.05`
 - Graph entry gate (needle-thread in v9):
   - `spot_entry_policy=slope_tr_guard`
@@ -31,14 +31,14 @@ Canonical execution paths:
   - `spot_exit_flip_hold_slope_min_pct=0.00008` (leave other flip-hold thresholds off)
 - RATS-V entry gate:
   - `ratsv_enabled=true`, `ratsv_slope_window_bars=5`, `ratsv_tr_fast_bars=5`, `ratsv_tr_slow_bars=20`
-  - `ratsv_rank_min=0.11`, `ratsv_slope_med_min_pct=0.00010`, `ratsv_slope_vel_min_pct=0.00008`
-- 1Y (`2025-01-01 -> 2026-01-19`): trades **579**, pnl **52,543.4**, dd **9,860.7**, pnl/dd **5.329**
-- 2Y (`2024-01-01 -> 2026-01-19`): trades **1,125**, pnl **63,678.4**, dd **13,221.5**, pnl/dd **4.816**
+  - `ratsv_rank_min=0.10`, `ratsv_slope_med_min_pct=0.00010`, `ratsv_slope_vel_min_pct=0.00006`
+- 1Y (`2025-01-01 -> 2026-01-19`): trades **580**, pnl **48,300.1**, dd **9,860.7**, pnl/dd **4.898**
+- 2Y (`2024-01-01 -> 2026-01-19`): trades **1,125**, pnl **62,976.0**, dd **12,789.0**, pnl/dd **4.924**
 
 Replay / verify:
 ```bash
 python -m tradebot.backtest spot_multitimeframe \
-  --milestones backtests/tqqq/archive/champion_history_20260227/tqqq_hf_champions_v13_km01_riskoff8p5_cut15_ratsv_rank0p11_slope0p0001_vel0p00008_cd3_hold0_permDn0p05_graphEntryVel0p00012_graphExitHoldSlope0p00008_20260227.json \
+  --milestones backtests/tqqq/archive/champion_history_20260227/tqqq_hf_champions_v14_km01_riskoff8p5_cut15_ratsv_rank0p1_slope0p0001_vel0p00006_cd3_hold0_permDn0p05_graphEntryVel0p00012_graphExitHoldSlope0p00008_20260227.json \
   --symbol TQQQ --bar-size "5 mins" --use-rth --offline --cache-dir db \
   --top 1 --min-trades 0 \
   --window 2025-01-01:2026-01-19 \
@@ -46,6 +46,18 @@ python -m tradebot.backtest spot_multitimeframe \
 ```
 
 ## Evolutions (stack)
+
+### v14 (2026-02-27) — dethroned v13 (RATS-V loosen needle)
+- Contract: `1Y` then `2Y` (10Y deferred).
+- Needle-thread:
+  - Keep v13 unchanged, but loosen the RATS-V gate slightly:
+    - `ratsv_rank_min: 0.11 -> 0.10`
+    - `ratsv_slope_vel_min_pct: 0.00008 -> 0.00006`
+  - Outcome: stability floor lifted:
+    - stability floor (min `1Y/2Y` pnl/dd): **4.816 -> 4.898**
+    - `1Y` pnl/dd: **5.329 -> 4.898**
+    - `2Y` pnl/dd: **4.816 -> 4.924**
+- Preset: `backtests/tqqq/archive/champion_history_20260227/tqqq_hf_champions_v14_km01_riskoff8p5_cut15_ratsv_rank0p1_slope0p0001_vel0p00006_cd3_hold0_permDn0p05_graphEntryVel0p00012_graphExitHoldSlope0p00008_20260227.json`
 
 ### v13 (2026-02-27) — dethroned v12 (cooldown needle cd2->cd3)
 - Contract: `1Y` then `2Y` (10Y deferred).
