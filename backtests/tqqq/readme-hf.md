@@ -14,14 +14,19 @@ Canonical execution paths:
 
 ## Current Champions (stack)
 
-### CURRENT (v14-km01-riskoff8.5-cut15-ratsv(rank=0.10 vel=0.00006)-cd3-hold0-permDn0.05-graphEntryVel0.00012-graphExitHoldSlope0.00008) — v13 + RATS-V loosen needle (1Y/2Y promotion)
+### CURRENT (v15-km01-riskoff8.5-cut15-ratsv-cd3-hold0-permDn0.05-graphEntryVel0.00012-graphExitHoldSlope0.00008-shockDetect(atr_ratio f7/s50)-overlay(atr_compress hi=1.2 min=0.5)) — v14 + ATR compress overlay (1Y/2Y promotion)
 
-- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260227/tqqq_hf_champions_v14_km01_riskoff8p5_cut15_ratsv_rank0p1_slope0p0001_vel0p00006_cd3_hold0_permDn0p05_graphEntryVel0p00012_graphExitHoldSlope0p00008_20260227.json`
-- Dojo replay (last-5-trading-days tape): `backtests/tqqq/replays/tqqq_hf_v14_km01_riskoff8p5_cut15_ratsv_rank0p1_slope0p0001_vel0p00006_cd3_hold0_permDn0p05_graphEntryVel0p00012_graphExitHoldSlope0p00008_dojo_5d_20260219_20260225.json`
+- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260227/tqqq_hf_champions_v15_km01_riskoff8p5_cut15_ratsv_rank0p1_slope0p0001_vel0p00006_cd3_hold0_permDn0p05_graphEntryVel0p00012_graphExitHoldSlope0p00008_shockDetect_atrRatio_f7s50_overlayAtrCompress_hi1p2_min0p5_20260227.json`
+- Dojo replay (last-5-trading-days tape): `backtests/tqqq/replays/tqqq_hf_v15_km01_riskoff8p5_cut15_ratsv_rank0p1_slope0p0001_vel0p00006_cd3_hold0_permDn0p05_graphEntryVel0p00012_graphExitHoldSlope0p00008_shockDetect_atrRatio_f7s50_overlayAtrCompress_hi1p2_min0p5_dojo_5d_20260219_20260225.json`
 - Timeframe: `signal=5 mins`, `exec=1 min`, `RTH`
 - Entry window: `09:00–16:00 ET` (RTH-only data; first tradable entries begin after 09:30 ET)
 - Risk overlay: `riskoff_tr5_med_pct=8.5` + `risk_entry_cutoff_hour_et=15` (`riskoff_mode=hygiene`)
 - Cooldown: `cooldown_bars=3`
+- Shock detect (no entry gating; enables `atr_fast_pct` for overlay):
+  - `shock_gate_mode=detect`, `shock_detector=atr_ratio`, `shock_atr_fast_period=7`, `shock_atr_slow_period=50`
+- Graph risk overlay (ATR compress):
+  - `spot_risk_overlay_policy=atr_compress`
+  - `spot_graph_overlay_atr_hi_pct=1.2`, `spot_graph_overlay_atr_hi_min_mult=0.5`
 - Permission gate (needle-thread in v8): `ema_slope_min_pct=0.03`, `ema_spread_min_pct=0.003`, `ema_spread_min_pct_down=0.05`
 - Graph entry gate (needle-thread in v9):
   - `spot_entry_policy=slope_tr_guard`
@@ -32,13 +37,13 @@ Canonical execution paths:
 - RATS-V entry gate:
   - `ratsv_enabled=true`, `ratsv_slope_window_bars=5`, `ratsv_tr_fast_bars=5`, `ratsv_tr_slow_bars=20`
   - `ratsv_rank_min=0.10`, `ratsv_slope_med_min_pct=0.00010`, `ratsv_slope_vel_min_pct=0.00006`
-- 1Y (`2025-01-01 -> 2026-01-19`): trades **580**, pnl **48,300.1**, dd **9,860.7**, pnl/dd **4.898**
-- 2Y (`2024-01-01 -> 2026-01-19`): trades **1,125**, pnl **62,976.0**, dd **12,789.0**, pnl/dd **4.924**
+- 1Y (`2025-01-01 -> 2026-01-19`): trades **582**, pnl **49,443.9**, dd **8,172.9**, pnl/dd **6.050**
+- 2Y (`2024-01-01 -> 2026-01-19`): trades **1,127**, pnl **64,292.9**, dd **12,579.3**, pnl/dd **5.111**
 
 Replay / verify:
 ```bash
 python -m tradebot.backtest spot_multitimeframe \
-  --milestones backtests/tqqq/archive/champion_history_20260227/tqqq_hf_champions_v14_km01_riskoff8p5_cut15_ratsv_rank0p1_slope0p0001_vel0p00006_cd3_hold0_permDn0p05_graphEntryVel0p00012_graphExitHoldSlope0p00008_20260227.json \
+  --milestones backtests/tqqq/archive/champion_history_20260227/tqqq_hf_champions_v15_km01_riskoff8p5_cut15_ratsv_rank0p1_slope0p0001_vel0p00006_cd3_hold0_permDn0p05_graphEntryVel0p00012_graphExitHoldSlope0p00008_shockDetect_atrRatio_f7s50_overlayAtrCompress_hi1p2_min0p5_20260227.json \
   --symbol TQQQ --bar-size "5 mins" --use-rth --offline --cache-dir db \
   --top 1 --min-trades 0 \
   --window 2025-01-01:2026-01-19 \
@@ -46,6 +51,21 @@ python -m tradebot.backtest spot_multitimeframe \
 ```
 
 ## Evolutions (stack)
+
+### v15 (2026-02-27) — dethroned v14 (ATR compress overlay)
+- Contract: `1Y` then `2Y` (10Y deferred).
+- Needle-thread:
+  - Enable shock detector in `detect` mode (no entry gating) so we can compute intraday `atr_fast_pct`:
+    - `shock_gate_mode: off -> detect` (detector: `atr_ratio`, `fast=7`, `slow=50`)
+  - Use ATR-aware risk overlay to compress both risk + cap in high-volatility bars (without touching the base entry/exit logic):
+    - `spot_risk_overlay_policy: legacy -> atr_compress`
+    - `spot_graph_overlay_atr_hi_pct: off -> 1.2`
+    - `spot_graph_overlay_atr_hi_min_mult: 0.5` (floor)
+  - Outcome: massive stability-floor lift (same throughput band):
+    - stability floor (min `1Y/2Y` pnl/dd): **4.898 -> 5.111**
+    - `1Y` pnl/dd: **4.898 -> 6.050**
+    - `2Y` pnl/dd: **4.924 -> 5.111**
+- Preset: `backtests/tqqq/archive/champion_history_20260227/tqqq_hf_champions_v15_km01_riskoff8p5_cut15_ratsv_rank0p1_slope0p0001_vel0p00006_cd3_hold0_permDn0p05_graphEntryVel0p00012_graphExitHoldSlope0p00008_shockDetect_atrRatio_f7s50_overlayAtrCompress_hi1p2_min0p5_20260227.json`
 
 ### v14 (2026-02-27) — dethroned v13 (RATS-V loosen needle)
 - Contract: `1Y` then `2Y` (10Y deferred).
