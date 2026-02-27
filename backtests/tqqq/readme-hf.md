@@ -14,19 +14,22 @@ Canonical execution paths:
 
 ## Current Champions (stack)
 
-### CURRENT (v18-km01-riskpanic(tr_med>=5.0 neg_gap_ratio>=0.6 long_factor=0.4)-overlay(atr_compress hi=1.4 min=0.30)) — v17 + ATR compress tune (1Y/2Y promotion)
+### CURRENT (v19-km01-riskpanic(tr_med>=5.0 neg_gap_ratio>=0.6 long_factor=0.4)-linear(tr_delta_max=0.5)-overlay(atr_compress hi=1.4 min=0.30)) — v18 + riskpanic linear sizing (1Y/2Y promotion)
 
-- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260228/tqqq_hf_champions_v18_km01_panicTr5med5p0_neg0p6_long0p4_atrC_hi1p4_min0p3_20260228.json`
+- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260228/tqqq_hf_champions_v19_km01_panicTr5med5p0_neg0p6_long0p4_linDmax0p5_atrC_hi1p4_min0p3_20260228.json`
 - Dojo replay (warmup+focus tape):
   - Warmup window: `2026-02-10 -> 2026-02-25` (so TR5/gap overlays have state)
   - Focus window: `2026-02-19 -> 2026-02-25` (the last-5-trading-days chop tape)
-  - Replay config: `backtests/tqqq/replays/tqqq_hf_v18_km01_panicTr5med5p0_neg0p6_long0p4_atrC_hi1p4_min0p3_dojo_warmup_20260210_20260225.json`
+  - Replay config: `backtests/tqqq/replays/tqqq_hf_v19_km01_panicTr5med5p0_neg0p6_long0p4_linDmax0p5_atrC_hi1p4_min0p3_dojo_warmup_20260210_20260225.json`
 - Timeframe: `signal=5 mins`, `exec=1 min`, `RTH`
 - Entry window: `09:00–16:00 ET` (RTH-only data; first tradable entries begin after 09:30 ET)
 - Risk overlay: `riskoff_tr5_med_pct=8.5` + `risk_entry_cutoff_hour_et=15` (`riskoff_mode=hygiene`)
 - Riskpanic sizing overlay (chop/crisis belt):
   - Trigger: `riskpanic_tr5_med_pct=5.0` + `riskpanic_neg_gap_ratio_min=0.6`
   - Effect: `riskpanic_long_risk_mult_factor=0.4` (short factor stays `1.0`)
+- Riskpanic linear sizing overlay (pre-panic downshift, volatility ramp aware):
+  - `riskpanic_long_scale_mode=linear`
+  - `riskpanic_long_scale_tr_delta_max_pct=0.5`
 - Cooldown: `cooldown_bars=3`
 - Shock detect (no entry gating; enables `atr_fast_pct` for overlay):
   - `shock_gate_mode=detect`, `shock_detector=atr_ratio`, `shock_atr_fast_period=7`, `shock_atr_slow_period=50`
@@ -43,14 +46,14 @@ Canonical execution paths:
 - RATS-V entry gate:
   - `ratsv_enabled=true`, `ratsv_slope_window_bars=5`, `ratsv_tr_fast_bars=5`, `ratsv_tr_slow_bars=20`
   - `ratsv_rank_min=0.10`, `ratsv_slope_med_min_pct=0.00010`, `ratsv_slope_vel_min_pct=0.00006`
-- 1Y (`2025-01-01 -> 2026-01-19`): trades **577**, pnl **46,290.9**, dd **8,005.2**, pnl/dd **5.783**
-- 2Y (`2024-01-01 -> 2026-01-19`): trades **1,119**, pnl **63,115.3**, dd **11,732.0**, pnl/dd **5.380**
+- 1Y (`2025-01-01 -> 2026-01-19`): trades **577**, pnl **46,585.6**, dd **7,870.8**, pnl/dd **5.919**
+- 2Y (`2024-01-01 -> 2026-01-19`): trades **1,119**, pnl **63,400.7**, dd **11,732.0**, pnl/dd **5.404**
 - Dojo focus window (`2026-02-19 -> 2026-02-25`): pnl **+535.8** (v16 was **-331.9**)
 
 Replay / verify:
 ```bash
 python -m tradebot.backtest spot_multitimeframe \
-  --milestones backtests/tqqq/archive/champion_history_20260228/tqqq_hf_champions_v18_km01_panicTr5med5p0_neg0p6_long0p4_atrC_hi1p4_min0p3_20260228.json \
+  --milestones backtests/tqqq/archive/champion_history_20260228/tqqq_hf_champions_v19_km01_panicTr5med5p0_neg0p6_long0p4_linDmax0p5_atrC_hi1p4_min0p3_20260228.json \
   --symbol TQQQ --bar-size "5 mins" --use-rth --offline --cache-dir db \
   --top 1 --min-trades 0 \
   --window 2025-01-01:2026-01-19 \
@@ -58,6 +61,19 @@ python -m tradebot.backtest spot_multitimeframe \
 ```
 
 ## Evolutions (stack)
+
+### v19 (2026-02-28) — dethroned v18 (riskpanic linear sizing overlay)
+- Contract: `1Y` then `2Y` (10Y deferred).
+- Needle-thread:
+  - Keep v18 unchanged, but enable the existing linear sizing overlay so we downshift long risk earlier during volatility ramp (without forcing a full panic day):
+    - `riskpanic_long_scale_mode: off -> linear`
+    - `riskpanic_long_scale_tr_delta_max_pct: off -> 0.5`
+  - Outcome: small but real stability-floor lift (throughput unchanged):
+    - stability floor (min `1Y/2Y` pnl/dd): **5.380 -> 5.404**
+    - `1Y` pnl/dd: **5.783 -> 5.919**
+    - `2Y` pnl/dd: **5.380 -> 5.404**
+  - Dojo focus: unchanged (**+535.8**) on the chop tape slice.
+- Preset: `backtests/tqqq/archive/champion_history_20260228/tqqq_hf_champions_v19_km01_panicTr5med5p0_neg0p6_long0p4_linDmax0p5_atrC_hi1p4_min0p3_20260228.json`
 
 ### v18 (2026-02-28) — dethroned v17 (ATR compress tune)
 - Contract: `1Y` then `2Y` (10Y deferred).
