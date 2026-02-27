@@ -14,13 +14,19 @@ Canonical execution paths:
 
 ## Current Champions (stack)
 
-### CURRENT (v16-km01-riskoff8.5-cut15-ratsv-cd3-hold0-permDn0.05-graphEntryVel0.00012-graphExitHoldSlope0.00008-shockDetect(atr_ratio f7/s50)-overlay(atr_compress hi=1.3 min=0.4)) — v15 + ATR compress tune (1Y/2Y promotion)
+### CURRENT (v17-km01-riskpanic(tr_med>=5.0 neg_gap_ratio>=0.6 long_factor=0.4)) — v16 + riskpanic sizing overlay (1Y/2Y promotion)
 
-- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260227/tqqq_hf_champions_v16_km01_riskoff8p5_cut15_ratsv_rank0p1_slope0p0001_vel0p00006_cd3_hold0_permDn0p05_graphEntryVel0p00012_graphExitHoldSlope0p00008_shockDetect_atrRatio_f7s50_overlayAtrCompress_hi1p3_min0p4_20260227.json`
-- Dojo replay (last-5-trading-days tape): `backtests/tqqq/replays/tqqq_hf_v16_km01_riskoff8p5_cut15_ratsv_rank0p1_slope0p0001_vel0p00006_cd3_hold0_permDn0p05_graphEntryVel0p00012_graphExitHoldSlope0p00008_shockDetect_atrRatio_f7s50_overlayAtrCompress_hi1p3_min0p4_dojo_5d_20260219_20260225.json`
+- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260228/tqqq_hf_champions_v17_km01_panicTr5med5p0_neg0p6_long0p4_20260228.json`
+- Dojo replay (warmup+focus tape):
+  - Warmup window: `2026-02-10 -> 2026-02-25` (so TR5/gap overlays have state)
+  - Focus window: `2026-02-19 -> 2026-02-25` (the last-5-trading-days chop tape)
+  - Replay config: `backtests/tqqq/replays/tqqq_hf_v17_km01_panicTr5med5p0_neg0p6_long0p4_dojo_warmup_20260210_20260225.json`
 - Timeframe: `signal=5 mins`, `exec=1 min`, `RTH`
 - Entry window: `09:00–16:00 ET` (RTH-only data; first tradable entries begin after 09:30 ET)
 - Risk overlay: `riskoff_tr5_med_pct=8.5` + `risk_entry_cutoff_hour_et=15` (`riskoff_mode=hygiene`)
+- Riskpanic sizing overlay (chop/crisis belt):
+  - Trigger: `riskpanic_tr5_med_pct=5.0` + `riskpanic_neg_gap_ratio_min=0.6`
+  - Effect: `riskpanic_long_risk_mult_factor=0.4` (short factor stays `1.0`)
 - Cooldown: `cooldown_bars=3`
 - Shock detect (no entry gating; enables `atr_fast_pct` for overlay):
   - `shock_gate_mode=detect`, `shock_detector=atr_ratio`, `shock_atr_fast_period=7`, `shock_atr_slow_period=50`
@@ -37,13 +43,14 @@ Canonical execution paths:
 - RATS-V entry gate:
   - `ratsv_enabled=true`, `ratsv_slope_window_bars=5`, `ratsv_tr_fast_bars=5`, `ratsv_tr_slow_bars=20`
   - `ratsv_rank_min=0.10`, `ratsv_slope_med_min_pct=0.00010`, `ratsv_slope_vel_min_pct=0.00006`
-- 1Y (`2025-01-01 -> 2026-01-19`): trades **582**, pnl **50,097.4**, dd **8,207.9**, pnl/dd **6.104**
-- 2Y (`2024-01-01 -> 2026-01-19`): trades **1,127**, pnl **65,085.3**, dd **12,570.4**, pnl/dd **5.178**
+- 1Y (`2025-01-01 -> 2026-01-19`): trades **577**, pnl **45,984.8**, dd **7,988.5**, pnl/dd **5.756**
+- 2Y (`2024-01-01 -> 2026-01-19`): trades **1,119**, pnl **62,696.1**, dd **11,738.8**, pnl/dd **5.341**
+- Dojo focus window (`2026-02-19 -> 2026-02-25`): pnl **+535.8** (v16 was **-331.9**)
 
 Replay / verify:
 ```bash
 python -m tradebot.backtest spot_multitimeframe \
-  --milestones backtests/tqqq/archive/champion_history_20260227/tqqq_hf_champions_v16_km01_riskoff8p5_cut15_ratsv_rank0p1_slope0p0001_vel0p00006_cd3_hold0_permDn0p05_graphEntryVel0p00012_graphExitHoldSlope0p00008_shockDetect_atrRatio_f7s50_overlayAtrCompress_hi1p3_min0p4_20260227.json \
+  --milestones backtests/tqqq/archive/champion_history_20260228/tqqq_hf_champions_v17_km01_panicTr5med5p0_neg0p6_long0p4_20260228.json \
   --symbol TQQQ --bar-size "5 mins" --use-rth --offline --cache-dir db \
   --top 1 --min-trades 0 \
   --window 2025-01-01:2026-01-19 \
@@ -51,6 +58,19 @@ python -m tradebot.backtest spot_multitimeframe \
 ```
 
 ## Evolutions (stack)
+
+### v17 (2026-02-28) — dethroned v16 (riskpanic sizing overlay)
+- Contract: `1Y` then `2Y` (10Y deferred).
+- Needle-thread:
+  - Keep v16 unchanged, but add a targeted TR%+gap-driven sizing overlay so we downshift long risk on chop/crisis tapes:
+    - `riskpanic_tr5_med_pct: off -> 5.0`
+    - `riskpanic_neg_gap_ratio_min: off -> 0.6`
+    - `riskpanic_long_risk_mult_factor: 1.0 -> 0.4`
+  - Outcome: stability floor lifted again (and the chop tape improved materially):
+    - stability floor (min `1Y/2Y` pnl/dd): **5.178 -> 5.341**
+    - `1Y` pnl/dd: **6.104 -> 5.756**
+    - `2Y` pnl/dd: **5.178 -> 5.341**
+- Preset: `backtests/tqqq/archive/champion_history_20260228/tqqq_hf_champions_v17_km01_panicTr5med5p0_neg0p6_long0p4_20260228.json`
 
 ### v16 (2026-02-27) — dethroned v15 (ATR compress tune)
 - Contract: `1Y` then `2Y` (10Y deferred).
