@@ -14,10 +14,10 @@ Canonical execution paths:
 
 ## Current Champions (stack)
 
-### CURRENT (v9-km01-riskoff8.5-cut15-ratsv-cd4-hold0-permDn0.05-graphEntryVel0.00012) — KINGMAKER #01 lineage + TR5 riskoff overlay + RATS-V entry gate + graph entry slope-velocity gate (1Y/2Y promotion)
+### CURRENT (v10-km01-riskoff8.5-cut15-ratsv-cd4-hold0-permDn0.05-graphEntryVel0.00012-graphExitHoldSlope0.0001) — v9 + graph exit flip-hold slope gate (1Y/2Y promotion)
 
-- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260227/tqqq_hf_champions_v9_km01_riskoff8p5_cut15_ratsv_rank0p11_slope0p0001_vel0p00008_cd4_hold0_permDn0p05_graphEntryVel0p00012_20260227.json`
-- Dojo replay (last-5-trading-days tape): `backtests/tqqq/replays/tqqq_hf_v9_km01_riskoff8p5_cut15_ratsv_rank0p11_slope0p0001_vel0p00008_cd4_hold0_permDn0p05_graphEntryVel0p00012_dojo_5d_20260219_20260225.json`
+- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260227/tqqq_hf_champions_v10_km01_riskoff8p5_cut15_ratsv_rank0p11_slope0p0001_vel0p00008_cd4_hold0_permDn0p05_graphEntryVel0p00012_graphExitHoldSlope0p0001_20260227.json`
+- Dojo replay (last-5-trading-days tape): `backtests/tqqq/replays/tqqq_hf_v10_km01_riskoff8p5_cut15_ratsv_rank0p11_slope0p0001_vel0p00008_cd4_hold0_permDn0p05_graphEntryVel0p00012_graphExitHoldSlope0p0001_dojo_5d_20260219_20260225.json`
 - Timeframe: `signal=5 mins`, `exec=1 min`, `RTH`
 - Entry window: `09:00–16:00 ET` (RTH-only data; first tradable entries begin after 09:30 ET)
 - Risk overlay: `riskoff_tr5_med_pct=8.5` + `risk_entry_cutoff_hour_et=15` (`riskoff_mode=hygiene`)
@@ -25,16 +25,19 @@ Canonical execution paths:
 - Graph entry gate (needle-thread in v9):
   - `spot_entry_policy=slope_tr_guard`
   - `spot_entry_slope_vel_abs_min_pct=0.00012` (leave other graph entry thresholds off)
+- Graph exit flip-hold gate (needle-thread in v10):
+  - `spot_exit_policy=slope_flip_guard`
+  - `spot_exit_flip_hold_slope_min_pct=0.00010` (leave other flip-hold thresholds off)
 - RATS-V entry gate:
   - `ratsv_enabled=true`, `ratsv_slope_window_bars=5`, `ratsv_tr_fast_bars=5`, `ratsv_tr_slow_bars=20`
   - `ratsv_rank_min=0.11`, `ratsv_slope_med_min_pct=0.00010`, `ratsv_slope_vel_min_pct=0.00008`
-- 1Y (`2025-01-01 -> 2026-01-19`): trades **583**, pnl **43,026.6**, dd **11,684.8**, pnl/dd **3.682**
-- 2Y (`2024-01-01 -> 2026-01-19`): trades **1,123**, pnl **56,159.7**, dd **14,266.7**, pnl/dd **3.936**
+- 1Y (`2025-01-01 -> 2026-01-19`): trades **579**, pnl **48,269.8**, dd **10,771.7**, pnl/dd **4.481**
+- 2Y (`2024-01-01 -> 2026-01-19`): trades **1,123**, pnl **59,397.6**, dd **13,177.0**, pnl/dd **4.508**
 
 Replay / verify:
 ```bash
 python -m tradebot.backtest spot_multitimeframe \
-  --milestones backtests/tqqq/archive/champion_history_20260227/tqqq_hf_champions_v9_km01_riskoff8p5_cut15_ratsv_rank0p11_slope0p0001_vel0p00008_cd4_hold0_permDn0p05_graphEntryVel0p00012_20260227.json \
+  --milestones backtests/tqqq/archive/champion_history_20260227/tqqq_hf_champions_v10_km01_riskoff8p5_cut15_ratsv_rank0p11_slope0p0001_vel0p00008_cd4_hold0_permDn0p05_graphEntryVel0p00012_graphExitHoldSlope0p0001_20260227.json \
   --symbol TQQQ --bar-size "5 mins" --use-rth --offline --cache-dir db \
   --top 1 --min-trades 0 \
   --window 2025-01-01:2026-01-19 \
@@ -42,6 +45,17 @@ python -m tradebot.backtest spot_multitimeframe \
 ```
 
 ## Evolutions (stack)
+
+### v10 (2026-02-27) — dethroned v9 (graph exit flip-hold slope gate)
+- Contract: `1Y` then `2Y` (10Y deferred).
+- Needle-thread:
+  - Keep v9 unchanged (riskoff overlay + permission gate + RATS-V + graph entry vel gate), but stop flipping out of winners while slope is still strong:
+    - `spot_exit_policy: priority -> slope_flip_guard`
+    - `spot_exit_flip_hold_slope_min_pct: off -> 0.00010` (leave other flip-hold thresholds off)
+  - Outcome: stability floor jumped hard while maintaining HF throughput:
+    - `1Y` pnl/dd: **3.682 -> 4.481**
+    - `2Y` pnl/dd: **3.936 -> 4.508**
+- Preset: `backtests/tqqq/archive/champion_history_20260227/tqqq_hf_champions_v10_km01_riskoff8p5_cut15_ratsv_rank0p11_slope0p0001_vel0p00008_cd4_hold0_permDn0p05_graphEntryVel0p00012_graphExitHoldSlope0p0001_20260227.json`
 
 ### v9 (2026-02-27) — dethroned v8 (graph slope-velocity entry gate)
 - Contract: `1Y` then `2Y` (10Y deferred).
