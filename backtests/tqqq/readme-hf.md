@@ -14,13 +14,13 @@ Canonical execution paths:
 
 ## Current Champions (stack)
 
-### CURRENT (v19-km01-riskpanic(tr_med>=5.0 neg_gap_ratio>=0.6 long_factor=0.4)-linear(tr_delta_max=0.5)-overlay(atr_compress hi=1.4 min=0.30)) — v18 + riskpanic linear sizing (1Y/2Y promotion)
+### CURRENT (v20-km01-riskpanic(tr_med>=5.0 neg_gap_ratio>=0.6 long_factor=0.4)-linear(tr_delta_max=0.5)-overlay(atr_compress+trend_bias sref=0.00015 boost=1.0 hi=1.4 min=0.30)) — v19 + direction-aware overlay (1Y/2Y promotion)
 
-- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260228/tqqq_hf_champions_v19_km01_panicTr5med5p0_neg0p6_long0p4_linDmax0p5_atrC_hi1p4_min0p3_20260228.json`
+- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260228/tqqq_hf_champions_v20_km01_panicTr5med5p0_neg0p6_long0p4_linDmax0p5_overlayAtrCTrendBias_sref0p00015_boost1p0_hi1p4_min0p3_20260228.json`
 - Dojo replay (warmup+focus tape):
   - Warmup window: `2026-02-10 -> 2026-02-25` (so TR5/gap overlays have state)
   - Focus window: `2026-02-19 -> 2026-02-25` (the last-5-trading-days chop tape)
-  - Replay config: `backtests/tqqq/replays/tqqq_hf_v19_km01_panicTr5med5p0_neg0p6_long0p4_linDmax0p5_atrC_hi1p4_min0p3_dojo_warmup_20260210_20260225.json`
+  - Replay config: `backtests/tqqq/replays/tqqq_hf_v20_km01_panicTr5med5p0_neg0p6_long0p4_linDmax0p5_overlayAtrCTrendBias_sref0p00015_boost1p0_hi1p4_min0p3_dojo_warmup_20260210_20260225.json`
 - Timeframe: `signal=5 mins`, `exec=1 min`, `RTH`
 - Entry window: `09:00–16:00 ET` (RTH-only data; first tradable entries begin after 09:30 ET)
 - Risk overlay: `riskoff_tr5_med_pct=8.5` + `risk_entry_cutoff_hour_et=15` (`riskoff_mode=hygiene`)
@@ -33,9 +33,10 @@ Canonical execution paths:
 - Cooldown: `cooldown_bars=3`
 - Shock detect (no entry gating; enables `atr_fast_pct` for overlay):
   - `shock_gate_mode=detect`, `shock_detector=atr_ratio`, `shock_atr_fast_period=7`, `shock_atr_slow_period=50`
-- Graph risk overlay (ATR compress):
-  - `spot_risk_overlay_policy=atr_compress`
+- Graph risk overlay (ATR compress + trend bias):
+  - `spot_risk_overlay_policy=atr_compress_trend_bias`
   - `spot_graph_overlay_atr_hi_pct=1.4`, `spot_graph_overlay_atr_hi_min_mult=0.30`
+  - `spot_graph_overlay_slope_ref_pct=0.00015`, `spot_graph_overlay_trend_boost_max=1.0`, `spot_graph_overlay_trend_floor_mult=0.65`
 - Permission gate (needle-thread in v8): `ema_slope_min_pct=0.03`, `ema_spread_min_pct=0.003`, `ema_spread_min_pct_down=0.05`
 - Graph entry gate (needle-thread in v9):
   - `spot_entry_policy=slope_tr_guard`
@@ -46,14 +47,14 @@ Canonical execution paths:
 - RATS-V entry gate:
   - `ratsv_enabled=true`, `ratsv_slope_window_bars=5`, `ratsv_tr_fast_bars=5`, `ratsv_tr_slow_bars=20`
   - `ratsv_rank_min=0.10`, `ratsv_slope_med_min_pct=0.00010`, `ratsv_slope_vel_min_pct=0.00006`
-- 1Y (`2025-01-01 -> 2026-01-19`): trades **577**, pnl **46,585.6**, dd **7,870.8**, pnl/dd **5.919**
-- 2Y (`2024-01-01 -> 2026-01-19`): trades **1,119**, pnl **63,400.7**, dd **11,732.0**, pnl/dd **5.404**
-- Dojo focus window (`2026-02-19 -> 2026-02-25`): pnl **+535.8** (v16 was **-331.9**)
+- 1Y (`2025-01-01 -> 2026-01-19`): trades **570**, pnl **47,847.9**, dd **7,486.8**, pnl/dd **6.391**
+- 2Y (`2024-01-01 -> 2026-01-19`): trades **1,117**, pnl **64,979.5**, dd **11,251.6**, pnl/dd **5.775**
+- Dojo focus window (`2026-02-19 -> 2026-02-25`): pnl **+441.8** (v19 was **+539.0**)
 
 Replay / verify:
 ```bash
 python -m tradebot.backtest spot_multitimeframe \
-  --milestones backtests/tqqq/archive/champion_history_20260228/tqqq_hf_champions_v19_km01_panicTr5med5p0_neg0p6_long0p4_linDmax0p5_atrC_hi1p4_min0p3_20260228.json \
+  --milestones backtests/tqqq/archive/champion_history_20260228/tqqq_hf_champions_v20_km01_panicTr5med5p0_neg0p6_long0p4_linDmax0p5_overlayAtrCTrendBias_sref0p00015_boost1p0_hi1p4_min0p3_20260228.json \
   --symbol TQQQ --bar-size "5 mins" --use-rth --offline --cache-dir db \
   --top 1 --min-trades 0 \
   --window 2025-01-01:2026-01-19 \
@@ -61,6 +62,20 @@ python -m tradebot.backtest spot_multitimeframe \
 ```
 
 ## Evolutions (stack)
+
+### v20 (2026-02-28) — dethroned v19 (ATR compress + trend-bias overlay)
+- Contract: `1Y` then `2Y` (10Y deferred).
+- Needle-thread:
+  - Keep v19 unchanged, but swap the graph overlay from pure ATR compression to an ATR+trend hybrid so drift-down tapes don’t get treated as “no event” just because volatility is stable:
+    - `spot_risk_overlay_policy: atr_compress -> atr_compress_trend_bias`
+  - Make the trend overlay actually bind on real intraday slope magnitudes and disable leverage-up:
+    - `spot_graph_overlay_slope_ref_pct: 0.08 -> 0.00015`
+    - `spot_graph_overlay_trend_boost_max: 1.35 -> 1.0` (no boosting; downshift-only)
+  - Outcome: real stability-floor lift (trade count stays in the HF band):
+    - stability floor (min `1Y/2Y` pnl/dd): **5.404 -> 5.775**
+    - `1Y` pnl/dd: **5.919 -> 6.391**
+    - `2Y` pnl/dd: **5.404 -> 5.775**
+- Preset: `backtests/tqqq/archive/champion_history_20260228/tqqq_hf_champions_v20_km01_panicTr5med5p0_neg0p6_long0p4_linDmax0p5_overlayAtrCTrendBias_sref0p00015_boost1p0_hi1p4_min0p3_20260228.json`
 
 ### v19 (2026-02-28) — dethroned v18 (riskpanic linear sizing overlay)
 - Contract: `1Y` then `2Y` (10Y deferred).

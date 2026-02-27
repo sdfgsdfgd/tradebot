@@ -1242,6 +1242,79 @@ def _risk_overlay_policy_trend_bias(
     )
 
 
+def _risk_overlay_policy_atr_compress_trend_bias(
+    graph: SpotPolicyGraph,
+    *,
+    strategy: Mapping[str, object] | object | None,
+    filters: Mapping[str, object] | object | None,
+    action: str,
+    shock_atr_pct: float | None,
+    shock_atr_vel_pct: float | None,
+    shock_atr_accel_pct: float | None,
+    tr_ratio: float | None,
+    slope_med_pct: float | None,
+    slope_vel_pct: float | None,
+    slope_med_slow_pct: float | None,
+    slope_vel_slow_pct: float | None,
+    riskoff: bool,
+    riskpanic: bool,
+    riskpop: bool,
+    shock: bool,
+    shock_dir: str | None,
+) -> SpotRiskOverlayAdjustments:
+    # Keep ATR compression (crash hygiene) while also biasing long/short risk
+    # based on signed trend strength (drift-down detection, chop defense).
+    atr = _risk_overlay_policy_atr_compress(
+        graph,
+        strategy=strategy,
+        filters=filters,
+        action=action,
+        shock_atr_pct=shock_atr_pct,
+        shock_atr_vel_pct=shock_atr_vel_pct,
+        shock_atr_accel_pct=shock_atr_accel_pct,
+        tr_ratio=tr_ratio,
+        slope_med_pct=slope_med_pct,
+        slope_vel_pct=slope_vel_pct,
+        slope_med_slow_pct=slope_med_slow_pct,
+        slope_vel_slow_pct=slope_vel_slow_pct,
+        riskoff=riskoff,
+        riskpanic=riskpanic,
+        riskpop=riskpop,
+        shock=shock,
+        shock_dir=shock_dir,
+    )
+    trend = _risk_overlay_policy_trend_bias(
+        graph,
+        strategy=strategy,
+        filters=filters,
+        action=action,
+        shock_atr_pct=shock_atr_pct,
+        shock_atr_vel_pct=shock_atr_vel_pct,
+        shock_atr_accel_pct=shock_atr_accel_pct,
+        tr_ratio=tr_ratio,
+        slope_med_pct=slope_med_pct,
+        slope_vel_pct=slope_vel_pct,
+        slope_med_slow_pct=slope_med_slow_pct,
+        slope_vel_slow_pct=slope_vel_slow_pct,
+        riskoff=riskoff,
+        riskpanic=riskpanic,
+        riskpop=riskpop,
+        shock=shock,
+        shock_dir=shock_dir,
+    )
+    return SpotRiskOverlayAdjustments(
+        risk_mult=float(atr.risk_mult) * float(trend.risk_mult),
+        cap_mult=float(atr.cap_mult) * float(trend.cap_mult),
+        long_risk_mult=float(trend.long_risk_mult),
+        short_risk_mult=float(trend.short_risk_mult),
+        trace={
+            "policy": "atr_compress_trend_bias",
+            "atr_compress": dict(atr.trace or {}),
+            "trend_bias": dict(trend.trace or {}),
+        },
+    )
+
+
 class SpotPolicyGraph:
     def __init__(
         self,
@@ -1491,5 +1564,6 @@ _RESIZE_POLICY_REGISTRY: dict[str, Callable[..., SpotResizeTargetResult]] = {
 _RISK_OVERLAY_POLICY_REGISTRY: dict[str, Callable[..., SpotRiskOverlayAdjustments]] = {
     "legacy": _risk_overlay_policy_legacy,
     "atr_compress": _risk_overlay_policy_atr_compress,
+    "atr_compress_trend_bias": _risk_overlay_policy_atr_compress_trend_bias,
     "trend_bias": _risk_overlay_policy_trend_bias,
 }

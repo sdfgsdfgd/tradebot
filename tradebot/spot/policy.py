@@ -1407,11 +1407,21 @@ class SpotPolicy:
                 )
 
                 if raw_action == "BUY":
-                    if bool(riskoff) and str(cfg.riskoff_mode) == "directional" and str(risk_dir_clean) == "up":
-                        if float(cfg.riskoff_long_factor) == 0:
-                            _update_trace(zero_reason="riskoff_long_factor_zero", signed_qty_final=0)
-                            return 0, trace
-                        risk_dollars *= float(cfg.riskoff_long_factor)
+                    if bool(riskoff):
+                        # In `directional` mode we only apply the long factor when the risk direction is explicitly up.
+                        # In `hygiene` mode we apply the long factor unconditionally on riskoff days.
+                        # (Default factor=1.0 keeps legacy behavior unchanged.)
+                        if str(cfg.riskoff_mode) == "directional":
+                            if str(risk_dir_clean) == "up":
+                                if float(cfg.riskoff_long_factor) == 0:
+                                    _update_trace(zero_reason="riskoff_long_factor_zero", signed_qty_final=0)
+                                    return 0, trace
+                                risk_dollars *= float(cfg.riskoff_long_factor)
+                        else:
+                            if float(cfg.riskoff_long_factor) == 0:
+                                _update_trace(zero_reason="riskoff_long_factor_zero", signed_qty_final=0)
+                                return 0, trace
+                            risk_dollars *= float(cfg.riskoff_long_factor)
 
                     if bool(riskpanic):
                         if float(cfg.riskpanic_long_factor) == 0:
@@ -1559,8 +1569,14 @@ class SpotPolicy:
                                 _update_trace(zero_reason="shock_short_entry_depth_gate", signed_qty_final=0)
                                 return 0, trace
 
-                    if bool(riskoff) and str(cfg.riskoff_mode) == "directional" and str(risk_dir_clean) == "down":
-                        short_mult *= float(cfg.riskoff_short_factor)
+                    if bool(riskoff):
+                        # In `directional` mode we only apply the short factor when the risk direction is explicitly down.
+                        # In `hygiene` mode we apply the short factor unconditionally on riskoff days.
+                        if str(cfg.riskoff_mode) == "directional":
+                            if str(risk_dir_clean) == "down":
+                                short_mult *= float(cfg.riskoff_short_factor)
+                        else:
+                            short_mult *= float(cfg.riskoff_short_factor)
                     if bool(riskpanic):
                         short_mult *= float(cfg.riskpanic_short_factor)
                     if bool(riskpop):
