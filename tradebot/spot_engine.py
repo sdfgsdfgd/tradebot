@@ -508,6 +508,43 @@ class SpotSignalEvaluator:
                     }
                     self._shock_scale_engine = build_shock_engine(scale_filters, source=st_src_for_shock)
 
+        # Optional: auxiliary daily-drawdown engine.
+        #
+        # Motivation: dd-based gates (prearm / depth bands / rebound boost / ramp) operate on
+        # `shock_drawdown_*` telemetry, but the main shock detector is often ATR/TR ratio for
+        # HF. In slow downturn regimes the ratio shock can stay off, and the dd gates never
+        # get their inputs. We keep shock detector semantics unchanged, and only compute the
+        # dd telemetry when a dd gate is configured.
+        self._aux_drawdown_engine = None
+        self._last_aux_drawdown = None
+        if filters is not None and str(self._shock_detector) != "daily_drawdown":
+            dd_needed = bool(_get(filters, "shock_ramp_enable", False))
+            if not dd_needed:
+                for k in (
+                    "shock_prearm_dist_on_max_pp",
+                    "shock_short_boost_max_dist_on_pp",
+                    "shock_short_entry_max_dist_on_pp",
+                    "shock_long_boost_max_dist_off_pp",
+                ):
+                    raw = _get(filters, k, 0.0)
+                    try:
+                        v = float(raw) if raw is not None else 0.0
+                    except (TypeError, ValueError):
+                        v = 0.0
+                    if v > 0:
+                        dd_needed = True
+                        break
+            if dd_needed:
+                dd_filters: dict[str, object] = {
+                    "shock_gate_mode": "detect",
+                    "shock_detector": "daily_drawdown",
+                    "shock_drawdown_lookback_days": _get(filters, "shock_drawdown_lookback_days", 20),
+                    "shock_on_drawdown_pct": _get(filters, "shock_on_drawdown_pct", -20.0),
+                    "shock_off_drawdown_pct": _get(filters, "shock_off_drawdown_pct", -10.0),
+                    "shock_direction_lookback": _get(filters, "shock_direction_lookback", 2),
+                }
+                self._aux_drawdown_engine = build_shock_engine(dd_filters, source=st_src_for_shock)
+
         # Risk overlay (daily TR% heuristics)
         self._risk_overlay = build_tr_pct_risk_overlay_engine(filters)
         self._last_risk: RiskOverlaySnapshot | None = None
@@ -1037,6 +1074,15 @@ class SpotSignalEvaluator:
                 update_direction=False,
             )
 
+        if self._aux_drawdown_engine is not None:
+            self._last_aux_drawdown = self._aux_drawdown_engine.update(
+                day=self._trade_date(bar.ts),
+                high=float(bar.high),
+                low=float(bar.low),
+                close=float(bar.close),
+                update_direction=False,
+            )
+
     def _shock_view(self) -> tuple[bool | None, str | None, float | None]:
         def _atr_pct_from(snap: object | None) -> float | None:
             if snap is None:
@@ -1451,17 +1497,26 @@ class SpotSignalEvaluator:
             except (TypeError, ValueError):
                 return None
 
-        shock_drawdown_pct = _float_or_none(getattr(self._last_shock, "drawdown_pct", None))
-        shock_scale_drawdown_pct = _float_or_none(getattr(self._last_shock_scale, "drawdown_pct", None))
         shock_peak_close = _float_or_none(getattr(self._last_shock, "peak_close", None))
         shock_dir_ret_sum_pct = _float_or_none(getattr(self._last_shock, "direction_ret_sum_pct", None))
+
+        dd_snap = self._last_shock if str(self._shock_detector) == "daily_drawdown" else None
+        if dd_snap is None:
+            dd_snap = self._last_aux_drawdown
+
+        shock_drawdown_pct = _float_or_none(getattr(dd_snap, "drawdown_pct", None))
+        shock_scale_drawdown_pct = _float_or_none(getattr(self._last_shock_scale, "drawdown_pct", None))
+        if shock_peak_close is None:
+            shock_peak_close = _float_or_none(getattr(dd_snap, "peak_close", None))
+        if shock_dir_ret_sum_pct is None:
+            shock_dir_ret_sum_pct = _float_or_none(getattr(dd_snap, "direction_ret_sum_pct", None))
         shock_on_drawdown_pct = None
         shock_off_drawdown_pct = None
         shock_drawdown_dist_on_pct = None
         shock_drawdown_dist_on_vel_pp = None
         shock_drawdown_dist_on_accel_pp = None
         shock_drawdown_dist_off_pct = None
-        if str(self._shock_detector) == "daily_drawdown":
+        if dd_snap is not None:
             shock_on_drawdown_pct = _float_or_none(_get(self._filters, "shock_on_drawdown_pct", -20.0))
             shock_off_drawdown_pct = _float_or_none(_get(self._filters, "shock_off_drawdown_pct", -10.0))
             if shock_on_drawdown_pct is not None and shock_off_drawdown_pct is not None and shock_off_drawdown_pct < shock_on_drawdown_pct:
@@ -1505,7 +1560,7 @@ class SpotSignalEvaluator:
 
         prearm_streak = 0
         if (
-            str(self._shock_detector) == "daily_drawdown"
+            dd_snap is not None
             and (not bool(shock))
             and shock_drawdown_dist_on_pct is not None
         ):

@@ -1637,10 +1637,84 @@ class SpotPolicy:
                             shock_short_boost_gate_reason="shock_not_down",
                         )
                     else:
-                        _update_trace(
-                            shock_short_boost_applied=False,
-                            shock_short_boost_gate_reason="shock_off",
-                        )
+                        dd_boost_applied = False
+                        dd_boost_reason = "shock_off"
+
+                        # Drawdown-based short boost (shock-off):
+                        # When configured, allow the same short boost to fire off drawdown
+                        # telemetry even if the main shock detector (ATR/TR ratio) stays off.
+                        #
+                        # Guarded by `shock_short_boost_max_dist_on_pp > 0` so existing configs
+                        # that only rely on factor != 1.0 do not change behavior.
+                        if str(shock_dir_clean) == "down":
+                            boost_ok = True
+                            gate_reason = "ok"
+                            max_dist = float(cfg.shock_short_boost_max_dist_on_pp)
+                            if max_dist <= 0:
+                                boost_ok = False
+                                gate_reason = "dd_boost_disabled"
+                            else:
+                                dist_on = shock_drawdown_dist_on_clean
+                                if dist_on is None:
+                                    boost_ok = False
+                                    gate_reason = "dd_dist_on_missing"
+                                else:
+                                    try:
+                                        dist_on_f = float(dist_on)
+                                    except (TypeError, ValueError):
+                                        dist_on_f = None
+                                    if dist_on_f is None:
+                                        boost_ok = False
+                                        gate_reason = "dd_dist_on_invalid"
+                                    elif dist_on_f < 0:
+                                        boost_ok = False
+                                        gate_reason = "dd_dist_on_lt_0"
+                                    elif dist_on_f > float(max_dist):
+                                        boost_ok = False
+                                        gate_reason = f"dd_dist_on_gt_{float(max_dist):g}pp"
+
+                            # Optional persistence gates (reuse prearm vel/accel knobs).
+                            if boost_ok and float(cfg.shock_prearm_min_dist_on_vel_pp) > 0:
+                                if shock_drawdown_dist_on_vel_clean is None:
+                                    boost_ok = False
+                                    gate_reason = "dd_dist_on_vel_missing"
+                                elif float(shock_drawdown_dist_on_vel_clean) < float(cfg.shock_prearm_min_dist_on_vel_pp):
+                                    boost_ok = False
+                                    gate_reason = "dd_dist_on_vel_low"
+                            if boost_ok and float(cfg.shock_prearm_min_dist_on_accel_pp) > 0:
+                                if shock_drawdown_dist_on_accel_clean is None:
+                                    boost_ok = False
+                                    gate_reason = "dd_dist_on_accel_missing"
+                                elif float(shock_drawdown_dist_on_accel_clean) < float(cfg.shock_prearm_min_dist_on_accel_pp):
+                                    boost_ok = False
+                                    gate_reason = "dd_dist_on_accel_low"
+
+                            if boost_ok and bool(cfg.shock_short_boost_require_regime_down) and signal_regime_dir_clean != "down":
+                                boost_ok = False
+                                gate_reason = "regime_not_down"
+                            if boost_ok and bool(cfg.shock_short_boost_require_entry_down) and signal_entry_dir_clean != "down":
+                                boost_ok = False
+                                gate_reason = "entry_not_down"
+
+                            if boost_ok:
+                                shock_short_mult = float(cfg.shock_short_risk_mult_factor)
+                                short_mult *= float(shock_short_mult)
+                                dd_boost_applied = True
+                                dd_boost_reason = str(gate_reason)
+                                _update_trace(
+                                    shock_short_factor=float(shock_short_mult),
+                                    shock_short_boost_applied=True,
+                                    shock_short_boost_gate_reason=f"dd:{gate_reason}",
+                                )
+                            else:
+                                dd_boost_reason = str(gate_reason)
+
+                        if not bool(dd_boost_applied):
+                            _update_trace(
+                                shock_short_boost_applied=False,
+                                shock_short_boost_gate_reason=str(dd_boost_reason),
+                            )
+
                         prearm_applied = False
                         prearm_reason = "off"
                         prearm_factor = 1.0
