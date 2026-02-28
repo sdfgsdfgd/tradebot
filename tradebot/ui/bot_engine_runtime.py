@@ -7,7 +7,7 @@ from datetime import datetime, timedelta
 
 from ..time_utils import now_et_naive as _now_et_naive
 from .common import (
-    _EXEC_LADDER_TIMEOUT_SEC,
+    _EXEC_AUTO_TIMEOUT_SEC,
     _exec_chase_mode,
     _exec_chase_quote_signature,
     _exec_chase_should_reprice,
@@ -361,7 +361,7 @@ class BotEngineRuntimeMixin:
                         reason="timeout",
                         data={
                             "elapsed_sec": float(elapsed),
-                            "timeout_sec": float(_EXEC_LADDER_TIMEOUT_SEC),
+                            "timeout_sec": float(_EXEC_AUTO_TIMEOUT_SEC),
                         },
                     )
                     await self._client.cancel_trade(trade)

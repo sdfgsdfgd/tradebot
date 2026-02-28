@@ -187,8 +187,22 @@ def test_search_terms_fop_collapses_spaced_1oz_alias_to_gc() -> None:
     assert "GC" in terms
 
 
-def test_search_contract_labels_uses_hint_when_matching_symbols_missing_label() -> None:
+def test_search_contract_labels_fetches_future_long_name_when_matching_symbols_missing_label() -> None:
     client = _client()
+
+    class _StubIB:
+        def __init__(self) -> None:
+            self.calls: list[tuple[str, str, str]] = []
+
+        async def reqContractDetailsAsync(self, contract):
+            sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
+            symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
+            exchange = str(getattr(contract, "exchange", "") or "").strip().upper()
+            self.calls.append((sec_type, symbol, exchange))
+            return [SimpleNamespace(longName="Micro WTI Crude Oil", marketName="MCL")]
+
+    async def _connect() -> None:
+        return None
 
     async def _matching_symbols(*_args, **_kwargs):
         return [
@@ -201,6 +215,8 @@ def test_search_contract_labels_uses_hint_when_matching_symbols_missing_label() 
             )
         ]
 
+    client._ib = _StubIB()
+    client.connect = _connect
     client._matching_symbols = _matching_symbols
 
     labels = asyncio.run(
@@ -208,6 +224,200 @@ def test_search_contract_labels_uses_hint_when_matching_symbols_missing_label() 
     )
 
     assert labels.get("MCL") == "Micro WTI Crude Oil"
+    assert ("FUT", "MCL", "") in client._ib.calls
+
+
+def test_search_contracts_fut_matches_crude_via_contract_details_long_name() -> None:
+    client = _client()
+    calls: list[str] = []
+
+    class _StubIB:
+        async def reqContractDetailsAsync(self, contract):
+            symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
+            calls.append(symbol)
+            if symbol == "CL":
+                return [SimpleNamespace(longName="Light Sweet Crude Oil", marketName="CL")]
+            if symbol == "MCL":
+                return [SimpleNamespace(longName="Micro WTI Crude Oil", marketName="MCL")]
+            return []
+
+    async def _connect() -> None:
+        return None
+
+    async def _matching_symbols(*_args, **_kwargs):
+        return [
+            SimpleNamespace(
+                contract=Contract(secType="IND", symbol="CL", exchange="", currency="USD"),
+                derivativeSecTypes=("FUT", "FOP"),
+                description=None,
+                longName=None,
+                companyName=None,
+            ),
+            SimpleNamespace(
+                contract=Contract(secType="IND", symbol="MCL", exchange="", currency="USD"),
+                derivativeSecTypes=("FUT", "FOP"),
+                description=None,
+                longName=None,
+                companyName=None,
+            ),
+        ]
+
+    async def _front_future(symbol: str, *, exchange: str = "CME", cache_ttl_sec: float = 3600.0):
+        if symbol not in ("CL", "MCL"):
+            return None
+        resolved = Contract(
+            secType="FUT",
+            symbol=symbol,
+            exchange=exchange,
+            currency="USD",
+            lastTradeDateOrContractMonth="202603",
+        )
+        resolved.conId = 800000 + (1 if symbol == "CL" else 2)
+        return resolved
+
+    client._matching_symbols = _matching_symbols
+    client._ib = _StubIB()
+    client.connect = _connect
+    client.front_future = _front_future
+
+    results = asyncio.run(client.search_contracts("crude", mode="FUT", limit=8))
+
+    assert [str(getattr(contract, "symbol", "") or "").strip().upper() for contract in results] == [
+        "CL",
+        "MCL",
+    ]
+    assert "CL" in calls
+    assert "MCL" in calls
+
+
+def test_search_contracts_fop_matches_crude_via_contract_details_long_name() -> None:
+    client = _client()
+    calls: list[str] = []
+
+    class _StubIB:
+        async def reqSecDefOptParamsAsync(self, *_args, **_kwargs):
+            return []
+
+        async def reqContractDetailsAsync(self, contract):
+            symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
+            if symbol == "CL":
+                return [SimpleNamespace(longName="Light Sweet Crude Oil", marketName="CL")]
+            if symbol == "MCL":
+                return [SimpleNamespace(longName="Micro WTI Crude Oil", marketName="MCL")]
+            return []
+
+        async def qualifyContractsAsync(self, *_args, **_kwargs):
+            return []
+
+    async def _connect():
+        return None
+
+    async def _matching_symbols(*_args, **_kwargs):
+        return [
+            SimpleNamespace(
+                contract=Contract(secType="IND", symbol="CL", exchange="", currency="USD"),
+                derivativeSecTypes=("FOP", "FUT"),
+                description=None,
+                longName=None,
+                companyName=None,
+            ),
+            SimpleNamespace(
+                contract=Contract(secType="IND", symbol="MCL", exchange="", currency="USD"),
+                derivativeSecTypes=("FOP", "FUT"),
+                description=None,
+                longName=None,
+                companyName=None,
+            ),
+        ]
+
+    async def _front_future(symbol: str, *, exchange: str = "CME", cache_ttl_sec: float = 3600.0):
+        calls.append(str(symbol or "").strip().upper())
+        if symbol not in ("CL", "MCL"):
+            return None
+        resolved = Contract(
+            secType="FUT",
+            symbol=symbol,
+            exchange=exchange,
+            currency="USD",
+            lastTradeDateOrContractMonth="202603",
+        )
+        resolved.conId = 810000 + (1 if symbol == "CL" else 2)
+        return resolved
+
+    client._ib = _StubIB()
+    client.connect = _connect
+    client._matching_symbols = _matching_symbols
+    client.front_future = _front_future
+
+    results = asyncio.run(client.search_contracts("crude", mode="FOP", limit=16))
+
+    assert results == []
+    assert set(calls) == {"CL", "MCL"}
+
+
+def test_search_contracts_fop_keeps_desc_matches_when_exact_symbol_untradable() -> None:
+    client = _client()
+    calls: list[str] = []
+
+    class _StubIB:
+        async def reqSecDefOptParamsAsync(self, *_args, **_kwargs):
+            return []
+
+        async def reqContractDetailsAsync(self, contract):
+            symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
+            if symbol == "MCL":
+                return [SimpleNamespace(longName="Micro WTI Crude Oil", marketName="MCL")]
+            return []
+
+        async def qualifyContractsAsync(self, *_args, **_kwargs):
+            return []
+
+    async def _connect():
+        return None
+
+    async def _matching_symbols(*_args, **_kwargs):
+        return [
+            SimpleNamespace(
+                contract=Contract(secType="IND", symbol="WTI", exchange="", currency="USD"),
+                derivativeSecTypes=("FOP", "FUT"),
+                description=None,
+                longName=None,
+                companyName=None,
+            ),
+            SimpleNamespace(
+                contract=Contract(secType="IND", symbol="MCL", exchange="", currency="USD"),
+                derivativeSecTypes=("FOP", "FUT"),
+                description=None,
+                longName=None,
+                companyName=None,
+            ),
+        ]
+
+    async def _front_future(symbol: str, *, exchange: str = "CME", cache_ttl_sec: float = 3600.0):
+        normalized = str(symbol or "").strip().upper()
+        calls.append(normalized)
+        if normalized != "MCL":
+            return None
+        resolved = Contract(
+            secType="FUT",
+            symbol="MCL",
+            exchange=exchange,
+            currency="USD",
+            lastTradeDateOrContractMonth="202603",
+        )
+        resolved.conId = 812345
+        return resolved
+
+    client._ib = _StubIB()
+    client.connect = _connect
+    client._matching_symbols = _matching_symbols
+    client.front_future = _front_future
+
+    results = asyncio.run(client.search_contracts("WTI", mode="FOP", limit=16))
+
+    assert results == []
+    assert calls and calls[0] == "WTI"
+    assert "MCL" in calls
 
 
 def test_search_option_underlyers_returns_ranked_symbols() -> None:

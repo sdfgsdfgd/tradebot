@@ -495,7 +495,8 @@ class BotJournal:
                 value = BotJournal._float_or_none(trace.get(key))
                 if value is None:
                     continue
-                tokens.append(f"{key}={value:.3f}")
+                # Use repr() to preserve full float precision; many thresholds live near ~1e-4.
+                tokens.append(f"{key}={value!r}")
         if not tokens:
             return None
         return "[dim]graph_entry[/] " + BotJournal._join_tokens(tokens)

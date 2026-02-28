@@ -27,6 +27,7 @@ from .common import (
     _exec_chase_mode,
     _exec_chase_quote_signature,
     _exec_chase_should_reprice,
+    _EXEC_AUTO_TIMEOUT_SEC,
     _EXEC_LADDER_TIMEOUT_SEC,
     _EXEC_RELENTLESS_TIMEOUT_SEC,
     _fmt_expiry,
@@ -3912,11 +3913,13 @@ class PositionDetailScreen(Screen):
                         if live_perm_id > 0:
                             perm_id = int(live_perm_id)
                         order_ref = int(order_id or perm_id or 0)
-                        timeout_sec = (
-                            float(_EXEC_RELENTLESS_TIMEOUT_SEC)
-                            if str(mode or "").strip().upper() in ("RELENTLESS", "RELENTLESS_DELAY")
-                            else float(_EXEC_LADDER_TIMEOUT_SEC)
-                        )
+                        mode_clean = str(mode or "").strip().upper()
+                        if mode_clean in ("RELENTLESS", "RELENTLESS_DELAY"):
+                            timeout_sec = float(_EXEC_RELENTLESS_TIMEOUT_SEC)
+                        elif mode_clean in ("AUTO", "LADDER"):
+                            timeout_sec = float(_EXEC_AUTO_TIMEOUT_SEC)
+                        else:
+                            timeout_sec = float(_EXEC_LADDER_TIMEOUT_SEC)
                         self._exec_status = (
                             f"Timeout cancel sent #{order_ref} (> {timeout_sec:.0f}s)"
                         )

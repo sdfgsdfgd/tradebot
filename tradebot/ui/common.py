@@ -930,24 +930,34 @@ def _cross_price(bid: float | None, ask: float | None, action: str) -> float | N
     return bid
 
 
-_EXEC_LADDER_OPTIMISTIC_SEC = 15.0
-_EXEC_LADDER_MID_SEC = 15.0
-_EXEC_LADDER_AGGRESSIVE_SEC = 15.0
-_EXEC_LADDER_CROSS_SEC = 5 * 60.0
-_EXEC_RELENTLESS_TIMEOUT_SEC = 15 * 60.0
-_EXEC_LADDER_TIMEOUT_SEC = (
+_EXEC_LADDER_OPTIMISTIC_SEC = 6.0
+_EXEC_LADDER_MID_SEC = 6.0
+_EXEC_LADDER_AGGRESSIVE_SEC = 6.0
+_EXEC_LADDER_CROSS_SEC = 6.0
+
+# "RELENTLESS" chase timeout (manual, or after AUTO ladder finishes).
+_EXEC_RELENTLESS_TIMEOUT_SEC = 5 * 60.0
+
+# Fixed-mode timeout for non-AUTO modes (MID/CROSS/etc). Kept long to avoid surprise cancels.
+_EXEC_LADDER_TIMEOUT_SEC = 5 * 60.0 + 45.0
+
+# AUTO/LADDER ladder stage duration (before switching into RELENTLESS).
+_EXEC_LADDER_PHASES_SEC = (
     _EXEC_LADDER_OPTIMISTIC_SEC
     + _EXEC_LADDER_MID_SEC
     + _EXEC_LADDER_AGGRESSIVE_SEC
     + _EXEC_LADDER_CROSS_SEC
 )
 
+# Total AUTO timeout: ladder (6/6/6/6) then RELENTLESS (5m).
+_EXEC_AUTO_TIMEOUT_SEC = _EXEC_LADDER_PHASES_SEC + _EXEC_RELENTLESS_TIMEOUT_SEC
+
 
 def _exec_ladder_mode(elapsed_sec: float) -> str | None:
     """Return current execution ladder phase for an order.
 
     Phases:
-      OPTIMISTIC (15s) -> MID (15s) -> AGGRESSIVE (15s) -> CROSS (5m) -> timeout.
+      OPTIMISTIC (6s) -> MID (6s) -> AGGRESSIVE (6s) -> CROSS (6s).
     """
     try:
         t = float(elapsed_sec)
@@ -979,11 +989,17 @@ def _exec_chase_mode(elapsed_sec: float, *, selected_mode: str | None = "AUTO") 
         elapsed = float(elapsed_sec)
     except (TypeError, ValueError):
         elapsed = 0.0
+    if elapsed < 0:
+        elapsed = 0.0
     if cleaned in ("RELENTLESS", "RELENTLESS_DELAY"):
         return cleaned if elapsed <= _EXEC_RELENTLESS_TIMEOUT_SEC else None
     if cleaned and cleaned not in ("AUTO", "LADDER"):
         return cleaned if elapsed <= _EXEC_LADDER_TIMEOUT_SEC else None
-    return _exec_ladder_mode(elapsed)
+    ladder = _exec_ladder_mode(elapsed)
+    if ladder is not None:
+        return ladder
+    relentless_elapsed = max(0.0, float(elapsed) - float(_EXEC_LADDER_PHASES_SEC))
+    return "RELENTLESS" if relentless_elapsed <= _EXEC_RELENTLESS_TIMEOUT_SEC else None
 
 
 def _exec_chase_quote_signature(
@@ -1033,7 +1049,7 @@ def _limit_price_for_mode(
     last = last if last is not None and last > 0 else None
     mid = _midpoint(bid, ask)
     cleaned = str(mode or "").strip().upper()
-    if cleaned == "CROSS":
+    if cleaned in ("CROSS", "RELENTLESS", "RELENTLESS_DELAY"):
         value = _cross_price(bid, ask, action)
     elif cleaned == "MID":
         value = mid

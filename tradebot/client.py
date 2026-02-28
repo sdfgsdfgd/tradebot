@@ -121,6 +121,7 @@ _SEARCH_TERM_ALIASES_BY_MODE: dict[str, dict[str, tuple[str, ...]]] = {
 _FUT_EXCHANGE_HINTS: dict[str, tuple[str, ...]] = {
     "SI": ("COMEX", "NYMEX"),
     "GC": ("COMEX", "NYMEX"),
+    "1OZ": ("COMEX",),
     "CL": ("NYMEX",),
     "MCL": ("NYMEX",),
     "NG": ("NYMEX",),
@@ -134,25 +135,9 @@ _FUT_EXCHANGE_HINTS: dict[str, tuple[str, ...]] = {
     "RTY": ("GLOBEX", "CME"),
     "M2K": ("GLOBEX", "CME"),
 }
-_CONTRACT_LABEL_HINTS: dict[str, str] = {
-    # Common futures / futures-option roots where IB matching-symbol descriptions are often empty.
-    "CL": "WTI Crude Oil",
-    "MCL": "Micro WTI Crude Oil",
-    "NG": "Natural Gas",
-    "GC": "Gold",
-    "SI": "Silver",
-    "HG": "Copper",
-    "ES": "E-mini S&P 500",
-    "MES": "Micro E-mini S&P 500",
-    "NQ": "E-mini Nasdaq-100",
-    "MNQ": "Micro E-mini Nasdaq-100",
-    "YM": "E-mini Dow",
-    "MYM": "Micro E-mini Dow",
-    "RTY": "E-mini Russell 2000",
-    "M2K": "Micro E-mini Russell 2000",
-    "BTC": "Bitcoin",
-    "MBT": "Micro Bitcoin",
-}
+_FUT_ROOT_NAME_CACHE_TTL_SEC = 6 * 3600
+_FUT_ROOT_NAME_CACHE_EMPTY_TTL_SEC = 10 * 60
+_FUT_ROOT_NAME_LOOKUP_BUDGET = 12
 # endregion
 
 
@@ -717,6 +702,7 @@ class IBKRClient:
             tuple[list[OhlcvBar], float] | tuple[list[OhlcvBar], float, float],
         ] = {}
         self._front_future_cache: dict[tuple[str, str], tuple[Contract, float]] = {}
+        self._future_root_name_cache: dict[str, tuple[str, float]] = {}
         self._update_callback: Callable[[], None] | None = None
         self._stream_listeners: set[Callable[[], None]] = set()
         self._pnl: PnL | None = None
@@ -2823,6 +2809,48 @@ class IBKRClient:
         symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
         return symbol
 
+    async def _future_root_long_name(self, symbol: str) -> str:
+        sym = str(symbol or "").strip().upper()
+        if not sym:
+            return ""
+        cached = self._future_root_name_cache.get(sym)
+        if cached:
+            cached_name, cached_at = cached
+            ttl = (
+                float(_FUT_ROOT_NAME_CACHE_EMPTY_TTL_SEC)
+                if not cached_name
+                else float(_FUT_ROOT_NAME_CACHE_TTL_SEC)
+            )
+            if time.monotonic() - float(cached_at) < ttl:
+                return str(cached_name)
+        try:
+            await self.connect()
+        except Exception:
+            return ""
+        try:
+            details = await self._ib.reqContractDetailsAsync(
+                Future(
+                    symbol=sym,
+                    exchange="",
+                    currency="USD",
+                )
+            )
+        except Exception:
+            details = []
+        name = ""
+        market = ""
+        for d in details or []:
+            if not name:
+                name = str(getattr(d, "longName", "") or "").strip()
+            if not market:
+                market = str(getattr(d, "marketName", "") or "").strip()
+            if name and market:
+                break
+        if not name:
+            name = market
+        self._future_root_name_cache[sym] = (name, time.monotonic())
+        return name
+
     async def search_contract_labels(
         self,
         query: str,
@@ -2865,13 +2893,16 @@ class IBKRClient:
             if label.upper() == symbol:
                 continue
             labels[symbol] = label
-        for symbol in target_symbols:
-            if symbol in labels:
-                continue
-            hint = str(_CONTRACT_LABEL_HINTS.get(symbol, "") or "").strip()
-            if not hint:
-                continue
-            labels[symbol] = hint
+        if mode_clean in ("FUT", "FOP") and target_symbols:
+            for symbol in target_symbols:
+                if symbol in labels:
+                    continue
+                name = str(await self._future_root_long_name(symbol) or "").strip()
+                if not name:
+                    continue
+                if name.upper() == symbol:
+                    continue
+                labels[symbol] = name
         return labels
 
     @staticmethod
@@ -3354,21 +3385,39 @@ class IBKRClient:
             contains_roots: list[tuple[str, str]] = []
             desc_roots: list[tuple[str, str]] = []
             seen_roots: set[tuple[str, str]] = set()
+            root_names: dict[str, str] = {}
+            root_budget = int(_FUT_ROOT_NAME_LOOKUP_BUDGET)
             for desc in matches:
                 contract = getattr(desc, "contract", None)
                 if not contract:
                     continue
-                if str(getattr(contract, "secType", "") or "").strip().upper() != "FUT":
-                    continue
+                sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
                 symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
                 if not symbol:
                     continue
-                exchange = str(getattr(contract, "exchange", "") or "").strip().upper() or "CME"
+                if sec_type != "FUT":
+                    if sec_type != "IND":
+                        continue
+                    deriv = {
+                        str(sec).strip().upper()
+                        for sec in (getattr(desc, "derivativeSecTypes", None) or [])
+                    }
+                    if "FUT" not in deriv:
+                        continue
+                exchange = str(getattr(contract, "exchange", "") or "").strip().upper()
                 key = (symbol, exchange)
                 if key in seen_roots:
                     continue
                 seen_roots.add(key)
                 desc_text = self._desc_text(desc)
+                if root_budget > 0 and symbol not in root_names and not any(
+                    term in desc_text for term in term_set
+                ):
+                    root_names[symbol] = str(await self._future_root_long_name(symbol) or "").strip().upper()
+                    root_budget -= 1
+                extra = root_names.get(symbol, "")
+                if extra:
+                    desc_text = f"{desc_text} {extra}"
                 if symbol in term_set and not (token_is_alias_seed and symbol == token):
                     exact_roots.append(key)
                 elif any(symbol.startswith(term) for term in term_set):
@@ -3386,16 +3435,18 @@ class IBKRClient:
                 if exchange not in symbol_exchange_map[symbol]:
                     symbol_exchange_map[symbol].append(exchange)
 
+            ranked_symbols: list[str] = []
+            for symbol, _exchange in ranked_roots:
+                if symbol not in ranked_symbols:
+                    ranked_symbols.append(symbol)
+
             if exact_roots:
                 candidate_symbols: list[str] = []
                 for symbol, _exchange in exact_roots:
                     if symbol not in candidate_symbols:
                         candidate_symbols.append(symbol)
             else:
-                candidate_symbols = []
-                for symbol, _exchange in ranked_roots:
-                    if symbol not in candidate_symbols:
-                        candidate_symbols.append(symbol)
+                candidate_symbols = list(ranked_symbols)
 
             # Hard fallback: derive plausible future roots directly from expanded terms.
             if not candidate_symbols:
@@ -3415,7 +3466,9 @@ class IBKRClient:
                 return []
             out: list[Contract] = []
             seen_con_ids: set[int] = set()
+            attempted_symbols: set[str] = set()
             for symbol in candidate_symbols:
+                attempted_symbols.add(symbol)
                 preferred = symbol_exchange_map.get(symbol, [])
                 future = None
                 for exchange in self._future_exchange_candidates(symbol, preferred):
@@ -3432,6 +3485,27 @@ class IBKRClient:
                 out.append(future)
                 if len(out) >= max_rows:
                     break
+            if exact_roots and not out and ranked_symbols:
+                for symbol in ranked_symbols:
+                    if symbol in attempted_symbols:
+                        continue
+                    attempted_symbols.add(symbol)
+                    preferred = symbol_exchange_map.get(symbol, [])
+                    future = None
+                    for exchange in self._future_exchange_candidates(symbol, preferred):
+                        future = await self.front_future(symbol, exchange=exchange, cache_ttl_sec=1800.0)
+                        if future is not None:
+                            break
+                    if future is None:
+                        continue
+                    con_id = int(getattr(future, "conId", 0) or 0)
+                    if con_id and con_id in seen_con_ids:
+                        continue
+                    if con_id:
+                        seen_con_ids.add(con_id)
+                    out.append(future)
+                    if len(out) >= max_rows:
+                        break
             return out
 
         if mode_clean == "OPT":
@@ -3735,6 +3809,8 @@ class IBKRClient:
         contains_roots: list[tuple[str, str]] = []
         desc_roots: list[tuple[str, str]] = []
         seen_roots: set[tuple[str, str]] = set()
+        root_names: dict[str, str] = {}
+        root_budget = int(_FUT_ROOT_NAME_LOOKUP_BUDGET)
         for desc in matches:
             contract = getattr(desc, "contract", None)
             if not contract:
@@ -3748,12 +3824,20 @@ class IBKRClient:
             symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
             if not symbol:
                 continue
-            exchange = str(getattr(contract, "exchange", "") or "").strip().upper() or "CME"
+            exchange = str(getattr(contract, "exchange", "") or "").strip().upper()
             key = (symbol, exchange)
             if key in seen_roots:
                 continue
             seen_roots.add(key)
             desc_text = self._desc_text(desc)
+            if root_budget > 0 and symbol not in root_names and not any(
+                term in desc_text for term in term_set
+            ):
+                root_names[symbol] = str(await self._future_root_long_name(symbol) or "").strip().upper()
+                root_budget -= 1
+            extra = root_names.get(symbol, "")
+            if extra:
+                desc_text = f"{desc_text} {extra}"
             if symbol in term_set and not (token_is_alias_seed and symbol == token):
                 exact_roots.append(key)
             elif any(symbol.startswith(term) for term in term_set):
@@ -3772,16 +3856,10 @@ class IBKRClient:
             if exchange not in symbol_exchange_map[symbol]:
                 symbol_exchange_map[symbol].append(exchange)
 
-        if exact_roots:
-            candidate_symbols: list[str] = []
-            for symbol, _exchange in exact_roots:
-                if symbol not in candidate_symbols:
-                    candidate_symbols.append(symbol)
-        else:
-            candidate_symbols = []
-            for symbol, _exchange in ranked_roots:
-                if symbol not in candidate_symbols:
-                    candidate_symbols.append(symbol)
+        candidate_symbols: list[str] = []
+        for symbol, _exchange in ranked_roots:
+            if symbol not in candidate_symbols:
+                candidate_symbols.append(symbol)
 
         if not candidate_symbols:
             for term in terms:
@@ -3801,6 +3879,7 @@ class IBKRClient:
         out: list[Contract] = []
         seen_contracts: set[tuple[str, str, str, str, float]] = set()
         for symbol in candidate_symbols:
+            symbol_out_before = len(out)
             preferred = symbol_exchange_map.get(symbol, [])
             future = None
             for exchange in self._future_exchange_candidates(symbol, preferred):
@@ -4122,7 +4201,7 @@ class IBKRClient:
                 out.append(resolved)
                 if len(out) >= max_rows:
                     break
-            if len(out) >= max_rows:
+            if len(out) > symbol_out_before:
                 break
         if timing is not None:
             timing["source"] = "search_contracts_fop"
