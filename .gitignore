@@ -14,3 +14,4 @@ docs/todo/
 tradebot/backtest/spot_milestones.tqqq_*.json
 tradebot/ui/out/
 .codex/
+spot_series_pack_mmap/
