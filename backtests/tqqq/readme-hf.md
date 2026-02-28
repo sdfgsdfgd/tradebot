@@ -14,19 +14,19 @@ Canonical execution paths:
 
 ## Current Champions (stack)
 
-### CURRENT (v22-km01-riskpanic(tr_med>=5.0 neg_gap_ratio>=0.6 long_factor=0.4)-linear(tr_delta_max=0.5)-overlay(atr_compress+shock_dir lb=78 floor=0.65 boost=1.0 hi=1.4 min=0.30)-cd4) — v21 + anti-churn spacing (1Y/2Y promotion)
+### CURRENT (v23-km01-riskpanic(tr_med>=5.0 neg_gap_ratio>=0.6 long_factor=0.4 short_factor=1.5)-linear(tr_delta_max=0.5)-overlay(atr_compress+shock_dir lb=78 floor=0.65 boost=1.0 hi=1.4 min=0.30)-cd4) — v22 + crash/chop short weaponization (1Y/2Y promotion)
 
-- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260228/tqqq_hf_champions_v22_km01_panicTr5med5p0_neg0p6_long0p4_linDmax0p5_overlayAtrCShockDir_lb78_floor0p65_boost1p0_hi1p4_min0p3_20260228.json`
+- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260228/tqqq_hf_champions_v23_km01_panicTr5med5p0_neg0p6_long0p4_linDmax0p5_overlayAtrCShockDir_lb78_floor0p65_boost1p0_hi1p4_min0p3_rpShort1p5_20260228.json`
 - Dojo replay (warmup+focus tape):
   - Warmup window: `2026-02-10 -> 2026-02-25` (so TR5/gap overlays have state)
   - Focus window: `2026-02-19 -> 2026-02-25` (the last-5-trading-days chop tape)
-  - Replay config: `backtests/tqqq/replays/tqqq_hf_v22_km01_panicTr5med5p0_neg0p6_long0p4_linDmax0p5_overlayAtrCShockDir_lb78_floor0p65_boost1p0_hi1p4_min0p3_dojo_warmup_20260210_20260225.json`
+  - Replay config: `backtests/tqqq/replays/tqqq_hf_v23_km01_panicTr5med5p0_neg0p6_long0p4_linDmax0p5_overlayAtrCShockDir_lb78_floor0p65_boost1p0_hi1p4_min0p3_rpShort1p5_dojo_warmup_20260210_20260225.json`
 - Timeframe: `signal=5 mins`, `exec=1 min`, `RTH`
 - Entry window: `09:00–16:00 ET` (RTH-only data; first tradable entries begin after 09:30 ET)
 - Risk overlay: `riskoff_tr5_med_pct=8.5` + `risk_entry_cutoff_hour_et=15` (`riskoff_mode=hygiene`)
 - Riskpanic sizing overlay (chop/crisis belt):
   - Trigger: `riskpanic_tr5_med_pct=5.0` + `riskpanic_neg_gap_ratio_min=0.6`
-  - Effect: `riskpanic_long_risk_mult_factor=0.4` (short factor stays `1.0`)
+  - Effect: `riskpanic_long_risk_mult_factor=0.4` + `riskpanic_short_risk_mult_factor=1.5`
 - Riskpanic linear sizing overlay (pre-panic downshift, volatility ramp aware):
   - `riskpanic_long_scale_mode=linear`
   - `riskpanic_long_scale_tr_delta_max_pct=0.5`
@@ -48,14 +48,14 @@ Canonical execution paths:
 - RATS-V entry gate:
   - `ratsv_enabled=true`, `ratsv_slope_window_bars=5`, `ratsv_tr_fast_bars=5`, `ratsv_tr_slow_bars=20`
   - `ratsv_rank_min=0.10`, `ratsv_slope_med_min_pct=0.00010`, `ratsv_slope_vel_min_pct=0.00006`
-- 1Y (`2025-01-01 -> 2026-01-19`): trades **564**, pnl **43,706.9**, dd **6,717.3**, pnl/dd **6.507**
-- 2Y (`2024-01-01 -> 2026-01-19`): trades **1,103**, pnl **64,719.7**, dd **10,124.7**, pnl/dd **6.392**
-- Dojo focus window (`2026-02-19 -> 2026-02-25`): pnl **+547.2** (unchanged vs v21)
+- 1Y (`2025-01-01 -> 2026-01-19`): trades **567**, pnl **43,344.6**, dd **6,697.7**, pnl/dd **6.472**
+- 2Y (`2024-01-01 -> 2026-01-19`): trades **1,104**, pnl **64,766.9**, dd **10,122.6**, pnl/dd **6.398**
+- Dojo focus window (`2026-02-19 -> 2026-02-25`): pnl **+1,206.1** (**+547.2 -> +1,206.1**)
 
 Replay / verify:
 ```bash
 python -m tradebot.backtest spot_multitimeframe \
-  --milestones backtests/tqqq/archive/champion_history_20260228/tqqq_hf_champions_v22_km01_panicTr5med5p0_neg0p6_long0p4_linDmax0p5_overlayAtrCShockDir_lb78_floor0p65_boost1p0_hi1p4_min0p3_20260228.json \
+  --milestones backtests/tqqq/archive/champion_history_20260228/tqqq_hf_champions_v23_km01_panicTr5med5p0_neg0p6_long0p4_linDmax0p5_overlayAtrCShockDir_lb78_floor0p65_boost1p0_hi1p4_min0p3_rpShort1p5_20260228.json \
   --symbol TQQQ --bar-size "5 mins" --use-rth --offline --cache-dir db \
   --top 1 --min-trades 0 \
   --window 2025-01-01:2026-01-19 \
@@ -63,6 +63,19 @@ python -m tradebot.backtest spot_multitimeframe \
 ```
 
 ## Evolutions (stack)
+
+### v23 (2026-02-28) — dethroned v22 (riskpanic short weaponization)
+- Contract: `1Y` then `2Y` (10Y deferred).
+- Needle-thread:
+  - Keep v22 unchanged, but weaponize shorts only during true riskpanic days (so we monetize crash/chop tapes without touching the normal uptrend behavior):
+    - `riskpanic_short_risk_mult_factor: 1.0 -> 1.5`
+- Outcome:
+  - stability floor (min `1Y/2Y` pnl/dd): **6.392 -> 6.398**
+  - `1Y` pnl/dd: **6.507 -> 6.472** (small giveback)
+  - `2Y` pnl/dd: **6.392 -> 6.398** (small lift; the dethrone)
+  - dojo focus pnl (2026-02-19..2026-02-25): **+547.2 -> +1,206.1** (big lift in the chop tape)
+  - downturn lab (`2024-12-02 -> 2025-03-31`): pnl/dd **0.700 -> 0.706**
+- Preset: `backtests/tqqq/archive/champion_history_20260228/tqqq_hf_champions_v23_km01_panicTr5med5p0_neg0p6_long0p4_linDmax0p5_overlayAtrCShockDir_lb78_floor0p65_boost1p0_hi1p4_min0p3_rpShort1p5_20260228.json`
 
 ### v22 (2026-02-28) — dethroned v21 (anti-churn spacing cd3->cd4)
 - Contract: `1Y` then `2Y` (10Y deferred).
