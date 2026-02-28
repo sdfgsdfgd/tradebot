@@ -14,13 +14,13 @@ Canonical execution paths:
 
 ## Current Champions (stack)
 
-### CURRENT (v21-km01-riskpanic(tr_med>=5.0 neg_gap_ratio>=0.6 long_factor=0.4)-linear(tr_delta_max=0.5)-overlay(atr_compress+shock_dir lb=78 floor=0.65 boost=1.0 hi=1.4 min=0.30)) — v20 + direction-bias overlay (1Y/2Y promotion)
+### CURRENT (v22-km01-riskpanic(tr_med>=5.0 neg_gap_ratio>=0.6 long_factor=0.4)-linear(tr_delta_max=0.5)-overlay(atr_compress+shock_dir lb=78 floor=0.65 boost=1.0 hi=1.4 min=0.30)-cd4) — v21 + anti-churn spacing (1Y/2Y promotion)
 
-- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260228/tqqq_hf_champions_v21_km01_panicTr5med5p0_neg0p6_long0p4_linDmax0p5_overlayAtrCShockDir_lb78_floor0p65_boost1p0_hi1p4_min0p3_20260228.json`
+- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260228/tqqq_hf_champions_v22_km01_panicTr5med5p0_neg0p6_long0p4_linDmax0p5_overlayAtrCShockDir_lb78_floor0p65_boost1p0_hi1p4_min0p3_20260228.json`
 - Dojo replay (warmup+focus tape):
   - Warmup window: `2026-02-10 -> 2026-02-25` (so TR5/gap overlays have state)
   - Focus window: `2026-02-19 -> 2026-02-25` (the last-5-trading-days chop tape)
-  - Replay config: `backtests/tqqq/replays/tqqq_hf_v21_km01_panicTr5med5p0_neg0p6_long0p4_linDmax0p5_overlayAtrCShockDir_lb78_floor0p65_boost1p0_hi1p4_min0p3_dojo_warmup_20260210_20260225.json`
+  - Replay config: `backtests/tqqq/replays/tqqq_hf_v22_km01_panicTr5med5p0_neg0p6_long0p4_linDmax0p5_overlayAtrCShockDir_lb78_floor0p65_boost1p0_hi1p4_min0p3_dojo_warmup_20260210_20260225.json`
 - Timeframe: `signal=5 mins`, `exec=1 min`, `RTH`
 - Entry window: `09:00–16:00 ET` (RTH-only data; first tradable entries begin after 09:30 ET)
 - Risk overlay: `riskoff_tr5_med_pct=8.5` + `risk_entry_cutoff_hour_et=15` (`riskoff_mode=hygiene`)
@@ -30,7 +30,7 @@ Canonical execution paths:
 - Riskpanic linear sizing overlay (pre-panic downshift, volatility ramp aware):
   - `riskpanic_long_scale_mode=linear`
   - `riskpanic_long_scale_tr_delta_max_pct=0.5`
-- Cooldown: `cooldown_bars=3`
+- Cooldown: `cooldown_bars=4`
 - Shock detect (no entry gating; enables `atr_fast_pct` for overlay):
   - `shock_gate_mode=detect`, `shock_detector=atr_ratio`, `shock_atr_fast_period=7`, `shock_atr_slow_period=50`
 - Graph risk overlay (ATR compress + direction-bias via shock direction):
@@ -48,14 +48,14 @@ Canonical execution paths:
 - RATS-V entry gate:
   - `ratsv_enabled=true`, `ratsv_slope_window_bars=5`, `ratsv_tr_fast_bars=5`, `ratsv_tr_slow_bars=20`
   - `ratsv_rank_min=0.10`, `ratsv_slope_med_min_pct=0.00010`, `ratsv_slope_vel_min_pct=0.00006`
-- 1Y (`2025-01-01 -> 2026-01-19`): trades **565**, pnl **43,815.6**, dd **6,720.9**, pnl/dd **6.519**
-- 2Y (`2024-01-01 -> 2026-01-19`): trades **1,110**, pnl **62,364.4**, dd **10,150.1**, pnl/dd **6.144**
-- Dojo focus window (`2026-02-19 -> 2026-02-25`): pnl **+547.2** (v20 was **+441.8**, v19 was **+539.0**)
+- 1Y (`2025-01-01 -> 2026-01-19`): trades **564**, pnl **43,706.9**, dd **6,717.3**, pnl/dd **6.507**
+- 2Y (`2024-01-01 -> 2026-01-19`): trades **1,103**, pnl **64,719.7**, dd **10,124.7**, pnl/dd **6.392**
+- Dojo focus window (`2026-02-19 -> 2026-02-25`): pnl **+547.2** (unchanged vs v21)
 
 Replay / verify:
 ```bash
 python -m tradebot.backtest spot_multitimeframe \
-  --milestones backtests/tqqq/archive/champion_history_20260228/tqqq_hf_champions_v21_km01_panicTr5med5p0_neg0p6_long0p4_linDmax0p5_overlayAtrCShockDir_lb78_floor0p65_boost1p0_hi1p4_min0p3_20260228.json \
+  --milestones backtests/tqqq/archive/champion_history_20260228/tqqq_hf_champions_v22_km01_panicTr5med5p0_neg0p6_long0p4_linDmax0p5_overlayAtrCShockDir_lb78_floor0p65_boost1p0_hi1p4_min0p3_20260228.json \
   --symbol TQQQ --bar-size "5 mins" --use-rth --offline --cache-dir db \
   --top 1 --min-trades 0 \
   --window 2025-01-01:2026-01-19 \
@@ -63,6 +63,19 @@ python -m tradebot.backtest spot_multitimeframe \
 ```
 
 ## Evolutions (stack)
+
+### v22 (2026-02-28) — dethroned v21 (anti-churn spacing cd3->cd4)
+- Contract: `1Y` then `2Y` (10Y deferred).
+- Needle-thread:
+  - Increase the cooldown slightly so we stop re-entering too quickly after a fill (this is the smallest change that materially changes chop/downturn behavior without widening the surface area):
+    - `cooldown_bars: 3 -> 4`
+- Outcome:
+  - stability floor (min `1Y/2Y` pnl/dd): **6.144 -> 6.392**
+  - `1Y` pnl/dd: **6.519 -> 6.507** (tiny giveback, still elite)
+  - `2Y` pnl/dd: **6.144 -> 6.392** (big lift; this is the dethrone)
+  - dojo focus pnl (2026-02-19..2026-02-25): **+547.2 -> +547.2** (no regression in the chop tape)
+  - downturn lab (`2024-12-02 -> 2025-03-31`): pnl/dd **0.464 -> 0.700**
+- Preset: `backtests/tqqq/archive/champion_history_20260228/tqqq_hf_champions_v22_km01_panicTr5med5p0_neg0p6_long0p4_linDmax0p5_overlayAtrCShockDir_lb78_floor0p65_boost1p0_hi1p4_min0p3_20260228.json`
 
 ### v21 (2026-02-28) — dethroned v20 (ATR compress + shock-direction bias overlay)
 - Contract: `1Y` then `2Y` (10Y deferred).

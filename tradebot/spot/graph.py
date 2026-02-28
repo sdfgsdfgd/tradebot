@@ -1323,6 +1323,96 @@ def _risk_overlay_policy_shock_dir_bias(
     )
 
 
+def _risk_overlay_policy_shock_dir_shortboost(
+    graph: SpotPolicyGraph,
+    *,
+    strategy: Mapping[str, object] | object | None,
+    filters: Mapping[str, object] | object | None,
+    action: str,
+    shock_atr_pct: float | None,
+    shock_atr_vel_pct: float | None,
+    shock_atr_accel_pct: float | None,
+    tr_ratio: float | None,
+    slope_med_pct: float | None,
+    slope_vel_pct: float | None,
+    slope_med_slow_pct: float | None,
+    slope_vel_slow_pct: float | None,
+    riskoff: bool,
+    riskpanic: bool,
+    riskpop: bool,
+    shock: bool,
+    shock_dir: str | None,
+) -> SpotRiskOverlayAdjustments:
+    # Downshift-only on longs, boost-enabled on shorts:
+    # - BUY: align => 1.0, misalign => floor_mult
+    # - SELL: align => boost_max, misalign => floor_mult
+    _ = (
+        graph,
+        filters,
+        shock_atr_pct,
+        shock_atr_vel_pct,
+        shock_atr_accel_pct,
+        tr_ratio,
+        slope_med_pct,
+        slope_vel_pct,
+        slope_med_slow_pct,
+        slope_vel_slow_pct,
+        riskoff,
+        riskpanic,
+        riskpop,
+        shock,
+    )
+    action_u = str(action or "BUY").strip().upper()
+    shock_dir_u = str(shock_dir) if shock_dir in ("up", "down") else None
+
+    boost_max = max(1.0, _parse_float(_get(strategy, "spot_graph_overlay_trend_boost_max"), default=1.15))
+    floor_mult = max(0.05, _parse_float(_get(strategy, "spot_graph_overlay_trend_floor_mult"), default=0.65))
+
+    align = None
+    if shock_dir_u is not None:
+        if action_u == "BUY":
+            align = shock_dir_u == "up"
+        elif action_u == "SELL":
+            align = shock_dir_u == "down"
+
+    if align is None:
+        mult = 1.0
+        reason = "dir_missing"
+    elif action_u == "BUY":
+        if align:
+            mult = 1.0
+            reason = "align_no_boost"
+        else:
+            mult = float(floor_mult)
+            reason = "misalign"
+    else:
+        if align:
+            mult = float(boost_max)
+            reason = "align_boost"
+        else:
+            mult = float(floor_mult)
+            reason = "misalign"
+
+    long_mult = float(mult) if action_u == "BUY" else 1.0
+    short_mult = float(mult) if action_u == "SELL" else 1.0
+    return SpotRiskOverlayAdjustments(
+        risk_mult=1.0,
+        long_risk_mult=float(long_mult),
+        short_risk_mult=float(short_mult),
+        cap_mult=1.0,
+        trace={
+            "policy": "shock_dir_shortboost",
+            "action": str(action_u),
+            "shock_dir": shock_dir_u,
+            "align": align,
+            "reason": str(reason),
+            "mult": float(mult),
+            "floor_mult": float(floor_mult),
+            "boost_max": float(boost_max),
+        },
+    )
+
+
 def _risk_overlay_policy_atr_compress_trend_bias(
     graph: SpotPolicyGraph,
     *,
@@ -1463,6 +1553,77 @@ def _risk_overlay_policy_atr_compress_shock_dir_bias(
             "policy": "atr_compress_shock_dir_bias",
             "atr_compress": dict(atr.trace or {}),
             "shock_dir_bias": dict(bias.trace or {}),
+        },
+    )
+
+
+def _risk_overlay_policy_atr_compress_shock_dir_shortboost(
+    graph: SpotPolicyGraph,
+    *,
+    strategy: Mapping[str, object] | object | None,
+    filters: Mapping[str, object] | object | None,
+    action: str,
+    shock_atr_pct: float | None,
+    shock_atr_vel_pct: float | None,
+    shock_atr_accel_pct: float | None,
+    tr_ratio: float | None,
+    slope_med_pct: float | None,
+    slope_vel_pct: float | None,
+    slope_med_slow_pct: float | None,
+    slope_vel_slow_pct: float | None,
+    riskoff: bool,
+    riskpanic: bool,
+    riskpop: bool,
+    shock: bool,
+    shock_dir: str | None,
+) -> SpotRiskOverlayAdjustments:
+    atr = _risk_overlay_policy_atr_compress(
+        graph,
+        strategy=strategy,
+        filters=filters,
+        action=action,
+        shock_atr_pct=shock_atr_pct,
+        shock_atr_vel_pct=shock_atr_vel_pct,
+        shock_atr_accel_pct=shock_atr_accel_pct,
+        tr_ratio=tr_ratio,
+        slope_med_pct=slope_med_pct,
+        slope_vel_pct=slope_vel_pct,
+        slope_med_slow_pct=slope_med_slow_pct,
+        slope_vel_slow_pct=slope_vel_slow_pct,
+        riskoff=riskoff,
+        riskpanic=riskpanic,
+        riskpop=riskpop,
+        shock=shock,
+        shock_dir=shock_dir,
+    )
+    bias = _risk_overlay_policy_shock_dir_shortboost(
+        graph,
+        strategy=strategy,
+        filters=filters,
+        action=action,
+        shock_atr_pct=shock_atr_pct,
+        shock_atr_vel_pct=shock_atr_vel_pct,
+        shock_atr_accel_pct=shock_atr_accel_pct,
+        tr_ratio=tr_ratio,
+        slope_med_pct=slope_med_pct,
+        slope_vel_pct=slope_vel_pct,
+        slope_med_slow_pct=slope_med_slow_pct,
+        slope_vel_slow_pct=slope_vel_slow_pct,
+        riskoff=riskoff,
+        riskpanic=riskpanic,
+        riskpop=riskpop,
+        shock=shock,
+        shock_dir=shock_dir,
+    )
+    return SpotRiskOverlayAdjustments(
+        risk_mult=float(atr.risk_mult) * float(bias.risk_mult),
+        cap_mult=float(atr.cap_mult) * float(bias.cap_mult),
+        long_risk_mult=float(bias.long_risk_mult),
+        short_risk_mult=float(bias.short_risk_mult),
+        trace={
+            "policy": "atr_compress_shock_dir_shortboost",
+            "atr_compress": dict(atr.trace or {}),
+            "shock_dir_shortboost": dict(bias.trace or {}),
         },
     )
 
@@ -1717,7 +1878,9 @@ _RISK_OVERLAY_POLICY_REGISTRY: dict[str, Callable[..., SpotRiskOverlayAdjustment
     "legacy": _risk_overlay_policy_legacy,
     "atr_compress": _risk_overlay_policy_atr_compress,
     "atr_compress_shock_dir_bias": _risk_overlay_policy_atr_compress_shock_dir_bias,
+    "atr_compress_shock_dir_shortboost": _risk_overlay_policy_atr_compress_shock_dir_shortboost,
     "atr_compress_trend_bias": _risk_overlay_policy_atr_compress_trend_bias,
     "shock_dir_bias": _risk_overlay_policy_shock_dir_bias,
+    "shock_dir_shortboost": _risk_overlay_policy_shock_dir_shortboost,
     "trend_bias": _risk_overlay_policy_trend_bias,
 }
