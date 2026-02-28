@@ -14,13 +14,13 @@ Canonical execution paths:
 
 ## Current Champions (stack)
 
-### CURRENT (v24-km01-riskpanic(tr_med>=5.0 neg_gap_ratio>=0.6 long_factor=0.4 short_factor=1.5)-linear(tr_delta_max=0.5)-overlay(atr_compress+shock_dir lb=78 floor=0.65 boost=1.0 hi=1.4 min=0.30)-cd4-ddBoost(lb=20 on=-20 off=-15 max_dist=10 factor=10)) — v23 + crash-regime weaponization (1Y/2Y promotion)
+### CURRENT (v25-km01-riskpanic(tr_med>=5.0 neg_gap_ratio>=0.6 long_factor=0.4 short_factor=1.5)-linear(tr_delta_max=0.5)-overlay(atr_compress+shock_dir lb=78 floor=0.65 boost=1.0 hi=1.4 min=0.30)-cd4-ddBoost(lb=20 on=-20 off=-15 max_dist=15 factor=12)) — v24 + crash-regime weaponization v2 (1Y/2Y promotion)
 
-- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260228/tqqq_hf_champions_v24_km01_panicTr5med5p0_neg0p6_long0p4_linDmax0p5_overlayAtrCShockDir_lb78_floor0p65_boost1p0_hi1p4_min0p3_rpShort1p5_ddBoost_lb20_on20_off15_max10_fac10_20260228.json`
+- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v25_km01_panicTr5med5p0_neg0p6_long0p4_linDmax0p5_overlayAtrCShockDir_lb78_floor0p65_boost1p0_hi1p4_min0p3_rpShort1p5_ddBoost_lb20_on20_off15_max15_fac12_20260301.json`
 - Dojo replay (warmup+focus tape):
-  - Warmup window: `2026-02-10 -> 2026-02-25` (so TR5/gap overlays have state)
-  - Focus window: `2026-02-19 -> 2026-02-25` (the last-5-trading-days chop tape)
-  - Replay config: `backtests/tqqq/replays/tqqq_hf_v24_km01_panicTr5med5p0_neg0p6_long0p4_linDmax0p5_overlayAtrCShockDir_lb78_floor0p65_boost1p0_hi1p4_min0p3_rpShort1p5_ddBoost_lb20_on20_off15_max10_fac10_dojo_warmup_20260210_20260225.json`
+  - Warmup window: `2026-02-10 -> 2026-02-28` (so TR5/gap overlays have state)
+  - Focus window: `2026-02-23 -> 2026-02-27` (the newest choppy-week tape)
+  - Replay config: `backtests/tqqq/replays/tqqq_hf_v25_km01_panicTr5med5p0_neg0p6_long0p4_linDmax0p5_overlayAtrCShockDir_lb78_floor0p65_boost1p0_hi1p4_min0p3_rpShort1p5_ddBoost_lb20_on20_off15_max15_fac12_dojo_warmup_20260210_20260228.json`
 - Timeframe: `signal=5 mins`, `exec=1 min`, `RTH`
 - Entry window: `09:00–16:00 ET` (RTH-only data; first tradable entries begin after 09:30 ET)
 - Risk overlay: `riskoff_tr5_med_pct=8.5` + `risk_entry_cutoff_hour_et=15` (`riskoff_mode=hygiene`)
@@ -36,8 +36,8 @@ Canonical execution paths:
 - Crash-regime short boost (drawdown-based, shock-off compatible):
   - `shock_drawdown_lookback_days=20`
   - `shock_on_drawdown_pct=-20`, `shock_off_drawdown_pct=-15`
-  - Boost band: `0 <= (dd→on) <= 10pp` (meaning roughly `-20% .. -30%` drawdown on the rolling lookback)
-  - `shock_short_risk_mult_factor=10.0` (scales `spot_short_risk_mult=0.01 -> 0.10` only inside the crash band)
+  - Boost band: `0 <= (dd→on) <= 15pp` (meaning roughly `-20% .. -35%` drawdown on the rolling lookback)
+  - `shock_short_risk_mult_factor=12.0` (scales `spot_short_risk_mult=0.01 -> 0.12` only inside the crash band)
 - Graph risk overlay (ATR compress + direction-bias via shock direction):
   - `spot_risk_overlay_policy=atr_compress_shock_dir_bias`
   - `spot_graph_overlay_atr_hi_pct=1.4`, `spot_graph_overlay_atr_hi_min_mult=0.30`
@@ -53,14 +53,14 @@ Canonical execution paths:
 - RATS-V entry gate:
   - `ratsv_enabled=true`, `ratsv_slope_window_bars=5`, `ratsv_tr_fast_bars=5`, `ratsv_tr_slow_bars=20`
   - `ratsv_rank_min=0.10`, `ratsv_slope_med_min_pct=0.00010`, `ratsv_slope_vel_min_pct=0.00006`
-- 1Y (`2025-01-01 -> 2026-01-19`): trades **567**, pnl **44,155.4**, dd **6,735.6**, pnl/dd **6.556**
-- 2Y (`2024-01-01 -> 2026-01-19`): trades **1,104**, pnl **66,100.4**, dd **10,113.1**, pnl/dd **6.536**
-- Dojo focus window (`2026-02-19 -> 2026-02-25`): pnl **+1,206.1** (**+547.2 -> +1,206.1**)
+- 1Y (`2025-01-01 -> 2026-01-19`): trades **567**, pnl **44,804.8**, dd **6,765.5**, pnl/dd **6.623**
+- 2Y (`2024-01-01 -> 2026-01-19`): trades **1,105**, pnl **66,718.7**, dd **10,169.2**, pnl/dd **6.561**
+- Dojo focus window (`2026-02-23 -> 2026-02-27`): pnl **+465.7** (dd **1,764.3**, pnl/dd **0.264**)
 
 Replay / verify:
 ```bash
 python -m tradebot.backtest spot_multitimeframe \
-  --milestones backtests/tqqq/archive/champion_history_20260228/tqqq_hf_champions_v24_km01_panicTr5med5p0_neg0p6_long0p4_linDmax0p5_overlayAtrCShockDir_lb78_floor0p65_boost1p0_hi1p4_min0p3_rpShort1p5_ddBoost_lb20_on20_off15_max10_fac10_20260228.json \
+  --milestones backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v25_km01_panicTr5med5p0_neg0p6_long0p4_linDmax0p5_overlayAtrCShockDir_lb78_floor0p65_boost1p0_hi1p4_min0p3_rpShort1p5_ddBoost_lb20_on20_off15_max15_fac12_20260301.json \
   --symbol TQQQ --bar-size "5 mins" --use-rth --offline --cache-dir db \
   --top 1 --min-trades 0 \
   --window 2025-01-01:2026-01-19 \
@@ -68,6 +68,21 @@ python -m tradebot.backtest spot_multitimeframe \
 ```
 
 ## Evolutions (stack)
+
+### v25 (2026-03-01) — dethroned v24 (crash-regime drawdown boost v2)
+- Contract: `1Y` then `2Y` (10Y deferred).
+- Needle-thread:
+  - Expanded the crash short-boost so it can actually monetize the deeper drawdown tail (without touching normal uptrend behavior):
+    - `shock_short_boost_max_dist_on_pp: 10 -> 15`
+    - `shock_short_risk_mult_factor: 10.0 -> 12.0` (scales `spot_short_risk_mult=0.01 -> 0.12` only inside the crash band)
+- Outcome:
+  - stability floor (min `1Y/2Y` pnl/dd): **6.536 -> 6.561** (dethrone)
+  - `1Y` pnl/dd: **6.556 -> 6.623**
+  - `2Y` pnl/dd: **6.536 -> 6.561**
+  - crash lab (warmup `2024-01-01 -> 2025-03-31`, scored `2025-01-01 -> 2025-03-31`):
+    - pnl/dd **0.565 -> 0.666** (material lift in the Jan–Mar 2025 downturn tape)
+  - chop dojo focus pnl (2026-02-23..2026-02-27): unchanged (**+465.7**, pnl/dd **0.264**)
+- Preset: `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v25_km01_panicTr5med5p0_neg0p6_long0p4_linDmax0p5_overlayAtrCShockDir_lb78_floor0p65_boost1p0_hi1p4_min0p3_rpShort1p5_ddBoost_lb20_on20_off15_max15_fac12_20260301.json`
 
 ### v24 (2026-02-28) — dethroned v23 (crash-regime drawdown boost)
 - Contract: `1Y` then `2Y` (10Y deferred).
