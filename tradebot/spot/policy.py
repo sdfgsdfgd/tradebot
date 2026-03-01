@@ -1539,35 +1539,44 @@ class SpotPolicy:
                     short_mult = float(cfg.spot_short_risk_mult)
                     _update_trace(short_mult_base=float(short_mult), short_mult_final=float(short_mult))
 
-                    if bool(shock) and str(shock_dir_clean) == "down":
-                        max_dist = float(cfg.shock_short_entry_max_dist_on_pp)
-                        if max_dist > 0:
-                            gate_ok = True
-                            gate_reason = "ok"
-                            dist_on = shock_drawdown_dist_on_clean
-                            if dist_on is None:
-                                gate_reason = "dd_dist_on_missing"
-                            else:
-                                try:
-                                    dist_on_f = float(dist_on)
-                                except (TypeError, ValueError):
-                                    dist_on_f = None
-                                if dist_on_f is None:
-                                    gate_ok = False
-                                    gate_reason = "dd_dist_on_invalid"
-                                elif dist_on_f < 0:
-                                    gate_ok = False
-                                    gate_reason = "dd_dist_on_lt_0"
-                                elif dist_on_f > float(max_dist):
-                                    gate_ok = False
-                                    gate_reason = f"dd_dist_on_gt_{float(max_dist):g}pp"
-                            _update_trace(
-                                shock_short_entry_blocked=(not bool(gate_ok)),
-                                shock_short_entry_gate_reason=str(gate_reason),
-                            )
-                            if not bool(gate_ok):
-                                _update_trace(zero_reason="shock_short_entry_depth_gate", signed_qty_final=0)
-                                return 0, trace
+                    # Drawdown depth gate for shorts:
+                    # Historically we only applied this when the main shock detector was ON and the direction was DOWN.
+                    # For HF chop defense, the same drawdown telemetry can be present even when shock stays OFF
+                    # (ex: atr_ratio is muted), so we apply the same gate whenever it's configured.
+                    #
+                    # Semantics: gate around the ON threshold (dd->on distance in percentage points).
+                    # - dist_on == 0: at ON threshold (ex: -20% dd if on=-20)
+                    # - dist_on < 0: above ON threshold (milder drawdown / near ATH)
+                    # - dist_on > 0: below ON threshold (deeper crash)
+                    # We allow short entries only when dist_on is within [-max_dist, +max_dist].
+                    max_dist = float(cfg.shock_short_entry_max_dist_on_pp)
+                    if max_dist > 0:
+                        gate_ok = True
+                        gate_reason = "ok"
+                        dist_on = shock_drawdown_dist_on_clean
+                        if dist_on is None:
+                            gate_reason = "dd_dist_on_missing"
+                        else:
+                            try:
+                                dist_on_f = float(dist_on)
+                            except (TypeError, ValueError):
+                                dist_on_f = None
+                            if dist_on_f is None:
+                                gate_ok = False
+                                gate_reason = "dd_dist_on_invalid"
+                            elif dist_on_f < -float(max_dist):
+                                gate_ok = False
+                                gate_reason = f"dd_dist_on_lt_-{float(max_dist):g}pp"
+                            elif dist_on_f > float(max_dist):
+                                gate_ok = False
+                                gate_reason = f"dd_dist_on_gt_{float(max_dist):g}pp"
+                        _update_trace(
+                            shock_short_entry_blocked=(not bool(gate_ok)),
+                            shock_short_entry_gate_reason=str(gate_reason),
+                        )
+                        if not bool(gate_ok):
+                            _update_trace(zero_reason="shock_short_entry_depth_gate", signed_qty_final=0)
+                            return 0, trace
 
                     if bool(riskoff):
                         # In `directional` mode we only apply the short factor when the risk direction is explicitly down.
