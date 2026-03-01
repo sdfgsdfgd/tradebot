@@ -67,6 +67,7 @@ class SpotPolicyConfigView:
     shock_short_boost_min_down_streak_bars: int = 1
     shock_short_boost_require_regime_down: bool = False
     shock_short_boost_require_entry_down: bool = False
+    shock_short_boost_min_dist_on_pp: float = 0.0
     shock_short_boost_max_dist_on_pp: float = 0.0
     shock_short_entry_max_dist_on_pp: float = 0.0
     shock_prearm_dist_on_max_pp: float = 0.0
@@ -332,6 +333,12 @@ class SpotPolicyConfigView:
             _fget("shock_short_boost_require_entry_down"),
             default=False,
         )
+        shock_short_boost_min_dist_on_pp = cls._parse_float(
+            _fget("shock_short_boost_min_dist_on_pp"),
+            default=0.0,
+        )
+        if shock_short_boost_min_dist_on_pp < 0:
+            shock_short_boost_min_dist_on_pp = 0.0
         shock_short_boost_max_dist_on_pp = cls._parse_float(
             _fget("shock_short_boost_max_dist_on_pp"),
             default=0.0,
@@ -475,6 +482,7 @@ class SpotPolicyConfigView:
             shock_short_boost_min_down_streak_bars=int(shock_short_boost_min_down_streak_bars),
             shock_short_boost_require_regime_down=bool(shock_short_boost_require_regime_down),
             shock_short_boost_require_entry_down=bool(shock_short_boost_require_entry_down),
+            shock_short_boost_min_dist_on_pp=float(shock_short_boost_min_dist_on_pp),
             shock_short_boost_max_dist_on_pp=float(shock_short_boost_max_dist_on_pp),
             shock_short_entry_max_dist_on_pp=float(shock_short_entry_max_dist_on_pp),
             shock_prearm_dist_on_max_pp=float(shock_prearm_dist_on_max_pp),
@@ -1601,6 +1609,7 @@ class SpotPolicy:
 
                         max_dist = float(cfg.shock_short_boost_max_dist_on_pp)
                         if boost_ok and max_dist > 0:
+                            min_dist = float(cfg.shock_short_boost_min_dist_on_pp)
                             dist_on = shock_drawdown_dist_on_clean
                             if dist_on is None:
                                 boost_ok = False
@@ -1613,9 +1622,11 @@ class SpotPolicy:
                                 if dist_on_f is None:
                                     boost_ok = False
                                     gate_reason = "dd_dist_on_invalid"
-                                elif dist_on_f < 0:
+                                elif dist_on_f < float(min_dist):
                                     boost_ok = False
-                                    gate_reason = "dd_dist_on_lt_0"
+                                    gate_reason = (
+                                        "dd_dist_on_lt_0" if float(min_dist) <= 0 else f"dd_dist_on_lt_{float(min_dist):g}pp"
+                                    )
                                 elif dist_on_f > float(max_dist):
                                     boost_ok = False
                                     gate_reason = f"dd_dist_on_gt_{float(max_dist):g}pp"
@@ -1663,6 +1674,7 @@ class SpotPolicy:
                                 boost_ok = False
                                 gate_reason = "dd_boost_disabled"
                             else:
+                                min_dist = float(cfg.shock_short_boost_min_dist_on_pp)
                                 dist_on = shock_drawdown_dist_on_clean
                                 if dist_on is None:
                                     boost_ok = False
@@ -1675,9 +1687,11 @@ class SpotPolicy:
                                     if dist_on_f is None:
                                         boost_ok = False
                                         gate_reason = "dd_dist_on_invalid"
-                                    elif dist_on_f < 0:
+                                    elif dist_on_f < float(min_dist):
                                         boost_ok = False
-                                        gate_reason = "dd_dist_on_lt_0"
+                                        gate_reason = (
+                                            "dd_dist_on_lt_0" if float(min_dist) <= 0 else f"dd_dist_on_lt_{float(min_dist):g}pp"
+                                        )
                                     elif dist_on_f > float(max_dist):
                                         boost_ok = False
                                         gate_reason = f"dd_dist_on_gt_{float(max_dist):g}pp"

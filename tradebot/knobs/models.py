@@ -89,8 +89,11 @@ class FiltersConfig:
     shock_short_boost_min_down_streak_bars: int = 1
     shock_short_boost_require_regime_down: bool = False
     shock_short_boost_require_entry_down: bool = False
+    # If >0, only allow the short boost when drawdown depth is past this band floor:
+    # (dd->on) >= min_dist_pp. This avoids boosting right on the ON threshold where chop/mean-revert is common.
+    shock_short_boost_min_dist_on_pp: float = 0.0
     # If >0, only allow the short boost when drawdown depth is near the ON threshold:
-    # 0 <= (dd→on) <= max_dist_pp. This avoids "boosting deeper into the hole".
+    # min_dist_pp <= (dd→on) <= max_dist_pp. This avoids "boosting deeper into the hole".
     shock_short_boost_max_dist_on_pp: float = 0.0
     # If >0, block new short sizing in shock-down when drawdown depth is beyond this band:
     # allow only 0 <= (dd→on) <= max_dist_pp. This avoids late/deep short entries.

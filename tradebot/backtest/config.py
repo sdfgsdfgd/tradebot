@@ -601,6 +601,9 @@ def _parse_filters(raw) -> FiltersConfig | None:
         shock_short_boost_min_down_streak = 1
     shock_short_boost_require_regime_down = bool(raw.get("shock_short_boost_require_regime_down"))
     shock_short_boost_require_entry_down = bool(raw.get("shock_short_boost_require_entry_down"))
+    shock_short_boost_min_dist_on_pp = _f(raw.get("shock_short_boost_min_dist_on_pp"))
+    if shock_short_boost_min_dist_on_pp is None or shock_short_boost_min_dist_on_pp < 0:
+        shock_short_boost_min_dist_on_pp = 0.0
     shock_short_boost_max_dist_on_pp = _f(raw.get("shock_short_boost_max_dist_on_pp"))
     if shock_short_boost_max_dist_on_pp is None or shock_short_boost_max_dist_on_pp < 0:
         shock_short_boost_max_dist_on_pp = 0.0
@@ -940,6 +943,7 @@ def _parse_filters(raw) -> FiltersConfig | None:
         shock_short_boost_min_down_streak_bars=int(shock_short_boost_min_down_streak),
         shock_short_boost_require_regime_down=bool(shock_short_boost_require_regime_down),
         shock_short_boost_require_entry_down=bool(shock_short_boost_require_entry_down),
+        shock_short_boost_min_dist_on_pp=float(shock_short_boost_min_dist_on_pp),
         shock_short_boost_max_dist_on_pp=float(shock_short_boost_max_dist_on_pp),
         shock_short_entry_max_dist_on_pp=float(shock_short_entry_max_dist_on_pp),
         shock_prearm_dist_on_max_pp=float(shock_prearm_dist_on_max_pp),
