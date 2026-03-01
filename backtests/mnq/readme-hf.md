@@ -13,10 +13,9 @@ MNQ reality constraints (must be respected before trusting any “champion”):
 
 ## Current Champions (stack)
 
-### CURRENT (v1-port(TQQQ-HF-v31)->MNQ-FUT-unscored) — bootstrap port of the current TQQQ-HF crown to MNQ
+### CURRENT (v1-port_TQQQ-HF-v31_to_MNQ-FUT-unscored) — bootstrap port of the current TQQQ-HF crown to MNQ
 
 - Preset file (UI loads this): `backtests/mnq/archive/champion_history_20260301/mnq_hf_champions_v1_port_from_tqqq_hf_v31_20260301.json`
 - Status: config port is wired, but MNQ backtests + live realism verification are still pending.
 
 ## Evolutions (stack)
-
