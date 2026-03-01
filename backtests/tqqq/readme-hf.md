@@ -14,13 +14,13 @@ Canonical execution paths:
 
 ## Current Champions (stack)
 
-### CURRENT (v30-km01-dualBranch(minSlope=0.00075 b_mult=0.70 priority=a_then_b)-riskpanic(tr_med>=5.0 neg_gap_ratio>=0.6 long_factor=0.4 short_factor=1.5)-linear(tr_delta_max=0.5)-overlay(atr_compress+shock_dir lb=78 floor=0.65 boost=1.0 hi=1.4 min=0.30)-cd4-ddBoost(lb=20 on=-20 off=-15 max_dist=15 factor=16 vel_gate=0.2)-dynGuard(atr_vel_direct min_mult=1.0)-shortEntryBand(max_dist=20)) — v29 + dual-branch slope-gated sizing downshift (1Y/2Y promotion)
+### CURRENT (v31-km01-dualBranch(minSlope=0.00075 b_mult=0.70 priority=a_then_b)-riskpanic(tr_med>=5.0 neg_gap_ratio>=0.5 long_factor=0.4 short_factor=1.5)-linear(tr_delta_max=0.5)-overlay(atr_compress+shock_dir lb=78 floor=0.65 boost=1.0 hi=1.4 min=0.30)-cd4-ddBoost(lb=20 on=-20 off=-15 max_dist=15 factor=16 vel_gate=0.2)-dynGuard(atr_vel_direct min_mult=1.0)-shortEntryBand(max_dist=20)) — v30 + riskpanic neg-gap sensitivity tighten (1Y/2Y promotion)
 
-- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v30_km01_dualbranchSlope0p00075_bmult0p70_20260301.json`
+- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v31_km01_dualbranchSlope0p00075_bmult0p70_panicNeg0p50_20260301.json`
 - Dojo replay (warmup+focus tape):
   - Warmup window: `2026-02-10 -> 2026-02-28` (so TR5/gap overlays have state)
   - Focus window: `2026-02-23 -> 2026-02-27` (the newest choppy-week tape)
-  - Replay config: `backtests/tqqq/replays/tqqq_hf_v30_km01_dualbranch_slope0p00075_bmult0p70_dojo_warmup_20260210_20260228.json`
+  - Replay config: `backtests/tqqq/replays/tqqq_hf_v31_km01_dualbranch_slope0p00075_bmult0p70_panicNeg0p50_dojo_warmup_20260210_20260228.json`
 - Timeframe: `signal=5 mins`, `exec=1 min`, `RTH`
 - Entry window: `09:00–16:00 ET` (RTH-only data; first tradable entries begin after 09:30 ET)
 - Risk overlay: `riskoff_tr5_med_pct=8.5` + `risk_entry_cutoff_hour_et=15` (`riskoff_mode=hygiene`)
@@ -30,7 +30,7 @@ Canonical execution paths:
   - Branch A (full size): `spot_branch_a_size_mult=1.0`, `spot_branch_a_min_signed_slope_pct=0.00075`
   - Branch B (downshift): `spot_branch_b_size_mult=0.70`
 - Riskpanic sizing overlay (chop/crisis belt):
-  - Trigger: `riskpanic_tr5_med_pct=5.0` + `riskpanic_neg_gap_ratio_min=0.6`
+  - Trigger: `riskpanic_tr5_med_pct=5.0` + `riskpanic_neg_gap_ratio_min=0.5`
   - Effect: `riskpanic_long_risk_mult_factor=0.4` + `riskpanic_short_risk_mult_factor=1.5`
 - Riskpanic linear sizing overlay (pre-panic downshift, volatility ramp aware):
   - `riskpanic_long_scale_mode=linear`
@@ -67,16 +67,16 @@ Canonical execution paths:
 - RATS-V entry gate:
   - `ratsv_enabled=true`, `ratsv_slope_window_bars=5`, `ratsv_tr_fast_bars=5`, `ratsv_tr_slow_bars=20`
   - `ratsv_rank_min=0.10`, `ratsv_slope_med_min_pct=0.00010`, `ratsv_slope_vel_min_pct=0.00006`
-- Stability floor (min `1Y/2Y` pnl/dd): **7.337**
-- 1Y (`2025-01-01 -> 2026-01-19`): trades **556**, pnl **49,722.5**, dd **6,131.6**, pnl/dd **8.109**
-- 2Y (`2024-01-01 -> 2026-01-19`): trades **1,095**, pnl **73,326.4**, dd **9,994.2**, pnl/dd **7.337**
+- Stability floor (min `1Y/2Y` pnl/dd): **7.356**
+- 1Y (`2025-01-01 -> 2026-01-19`): trades **556**, pnl **50,100.5**, dd **5,915.0**, pnl/dd **8.470**
+- 2Y (`2024-01-01 -> 2026-01-19`): trades **1,095**, pnl **73,442.5**, dd **9,983.6**, pnl/dd **7.356**
 - Dojo focus tape (`2026-02-23 -> 2026-02-27`, realized-trade dd): trades **10**, pnl **+511.9** (trade-dd **769.0**, pnl/dd **0.666**)
-- Crashlab scored (`2025-01-01 -> 2025-03-31`, realized-trade dd): trades **147**, pnl **+4,599.0** (trade-dd **3,635.9**, pnl/dd **1.265**)
+- Crashlab scored (`2025-01-01 -> 2025-03-31`, realized-trade dd): trades **147**, pnl **+4,509.3** (trade-dd **3,629.6**, pnl/dd **1.242**)
 
 Replay / verify:
 ```bash
 python -m tradebot.backtest spot_multitimeframe \
-  --milestones backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v30_km01_dualbranchSlope0p00075_bmult0p70_20260301.json \
+  --milestones backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v31_km01_dualbranchSlope0p00075_bmult0p70_panicNeg0p50_20260301.json \
   --symbol TQQQ --bar-size "5 mins" --use-rth --offline --cache-dir db \
   --top 1 --min-trades 0 \
   --window 2025-01-01:2026-01-19 \
@@ -84,6 +84,19 @@ python -m tradebot.backtest spot_multitimeframe \
 ```
 
 ## Evolutions (stack)
+
+### v31 (2026-03-01) — dethroned v30 (riskpanic neg-gap sensitivity tighten)
+- Contract: `1Y` then `2Y` (10Y deferred).
+- Needle-thread:
+  - Trigger riskpanic slightly earlier on gap-down tapes (defensive downshift without touching the core entry/exit family):
+    - `riskpanic_neg_gap_ratio_min: 0.6 -> 0.5`
+- Outcome:
+  - stability floor (min `1Y/2Y` pnl/dd): **7.337 -> 7.356** (dethrone)
+  - `1Y` pnl/dd: **8.109 -> 8.470**
+  - `2Y` pnl/dd: **7.337 -> 7.356**
+  - crashlab scored (`2025-01-01 -> 2025-03-31`, realized-trade dd): **1.265 -> 1.242** (regressed slightly; tracked for next evolution)
+- Preset: `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v31_km01_dualbranchSlope0p00075_bmult0p70_panicNeg0p50_20260301.json`
+- Previous: `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v30_km01_dualbranchSlope0p00075_bmult0p70_20260301.json`
 
 ### v30 (2026-03-01) — dethroned v29 (dual-branch slope-gated sizing downshift)
 - Contract: `1Y` then `2Y` (10Y deferred).
