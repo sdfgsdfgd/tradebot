@@ -44,6 +44,7 @@ from ..time_utils import now_et_naive as _now_et_naive
 from ..time_utils import to_et as _to_et_shared
 from ..utils.date_utils import business_days_until
 from .readme_retrievers import (
+    extract_current_mnq_hf_json_path,
     extract_current_slv_hf_json_path,
     extract_current_slv_lf_json_path,
     extract_current_tqqq_hf_json_path,
@@ -1392,6 +1393,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         Bot Hub presets are intentionally limited to promoted CURRENT champions documented in:
         - `backtests/tqqq/readme-lf.md` (TQQQ LF spot champ)
         - `backtests/tqqq/readme-hf.md` (TQQQ HF spot champ)
+        - `backtests/mnq/readme-hf.md` (MNQ HF spot-futures champ)
         - `backtests/slv/readme-lf.md` (SLV spot champ)
         - `backtests/slv/readme-hf.md` (SLV HF spot champ)
         """
@@ -1502,6 +1504,26 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             group = _load_champion_group(symbol="TQQQ", version=version_label, path=tqqq_hf_path)
             if group is not None:
                 group["_source"] = f"champion:TQQQ:HF:v{tqqq_hf_ver or '?'}"
+                name = str(group.get("name") or "")
+                if name and "[HF]" not in name:
+                    group["name"] = f"{name} [HF]"
+                groups.append(group)
+
+        # MNQ HF CURRENT (from backtests/mnq/readme-hf.md)
+        mnq_hf_readme_path = repo_root / "backtests" / "mnq" / "readme-hf.md"
+        mnq_hf_readme = _read_text(mnq_hf_readme_path)
+        mnq_hf_ver: str | None = None
+        mnq_hf_path: Path | None = None
+        if mnq_hf_readme:
+            mnq_hf_ver, mnq_hf_rel_path = extract_current_mnq_hf_json_path(mnq_hf_readme)
+            if mnq_hf_rel_path:
+                mnq_hf_path = _resolve_existing_json(mnq_hf_rel_path)
+
+        if mnq_hf_path:
+            version_label = f"HF{mnq_hf_ver}" if mnq_hf_ver else "HF?"
+            group = _load_champion_group(symbol="MNQ", version=version_label, path=mnq_hf_path)
+            if group is not None:
+                group["_source"] = f"champion:MNQ:HF:v{mnq_hf_ver or '?'}"
                 name = str(group.get("name") or "")
                 if name and "[HF]" not in name:
                     group["name"] = f"{name} [HF]"

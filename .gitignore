@@ -9,6 +9,8 @@ backtests/*
 !backtests/slv/**
 !backtests/tqqq/
 !backtests/tqqq/**
+!backtests/mnq/
+!backtests/mnq/**
 db/quotes/
 docs/todo/
 tradebot/backtest/spot_milestones.tqqq_*.json

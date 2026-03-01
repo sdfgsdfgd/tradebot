@@ -12,6 +12,8 @@ _SLV_JSON_BACKTICK_RE = re.compile(r"`(?P<path>backtests/slv/[^`]+\.json)`")
 _SLV_JSON_INLINE_RE = re.compile(r"(?P<path>backtests/slv/[^\s)]+\.json)")
 _TQQQ_JSON_BACKTICK_RE = re.compile(r"`(?P<path>backtests/(?:out|tqqq)/[^`]+\.json)`")
 _TQQQ_JSON_INLINE_RE = re.compile(r"(?P<path>backtests/(?:out|tqqq)/[^\s)]+\.json)")
+_MNQ_JSON_BACKTICK_RE = re.compile(r"`(?P<path>backtests/mnq/[^`]+\.json)`")
+_MNQ_JSON_INLINE_RE = re.compile(r"(?P<path>backtests/mnq/[^\s)]+\.json)")
 
 
 def _extract_current(
@@ -67,4 +69,13 @@ def extract_current_tqqq_hf_json_path(readme_text: str) -> tuple[str | None, str
         readme_text,
         backtick_re=_TQQQ_JSON_BACKTICK_RE,
         inline_re=_TQQQ_JSON_INLINE_RE,
+    )
+
+
+def extract_current_mnq_hf_json_path(readme_text: str) -> tuple[str | None, str | None]:
+    """Return (version, json_path) from backtests/mnq/readme-hf.md CURRENT section."""
+    return _extract_current(
+        readme_text,
+        backtick_re=_MNQ_JSON_BACKTICK_RE,
+        inline_re=_MNQ_JSON_INLINE_RE,
     )
