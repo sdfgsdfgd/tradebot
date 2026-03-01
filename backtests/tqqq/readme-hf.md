@@ -14,13 +14,13 @@ Canonical execution paths:
 
 ## Current Champions (stack)
 
-### CURRENT (v28-km01-riskpanic(tr_med>=5.0 neg_gap_ratio>=0.6 long_factor=0.4 short_factor=1.5)-linear(tr_delta_max=0.5)-overlay(atr_compress+shock_dir lb=78 floor=0.65 boost=1.0 hi=1.4 min=0.30)-cd4-ddBoost(lb=20 on=-20 off=-15 max_dist=12 factor=14)-dynGuard(atr_vel_direct min_mult=1.0)-shortEntryBand(max_dist=20)) — v27 + vol-adaptive guard scaling + tighter crash dd band (1Y/2Y promotion)
+### CURRENT (v29-km01-riskpanic(tr_med>=5.0 neg_gap_ratio>=0.6 long_factor=0.4 short_factor=1.5)-linear(tr_delta_max=0.5)-overlay(atr_compress+shock_dir lb=78 floor=0.65 boost=1.0 hi=1.4 min=0.30)-cd4-ddBoost(lb=20 on=-20 off=-15 max_dist=15 factor=16 vel_gate=0.2)-dynGuard(atr_vel_direct min_mult=1.0)-shortEntryBand(max_dist=20)) — v28 + widen crash dd band but *velocity-gated* (1Y/2Y promotion)
 
-- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v28_km01_panicTr5med5p0_neg0p6_long0p4_linDmax0p5_overlayAtrCShockDir_lb78_floor0p65_boost1p0_hi1p4_min0p3_rpShort1p5_ddBoost_lb20_on20_off15_max12_fac14_dynAtrVelDirect_shortEntryBand20_20260301.json`
+- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v29_km01_panicTr5med5p0_neg0p6_long0p4_linDmax0p5_overlayAtrCShockDir_lb78_floor0p65_boost1p0_hi1p4_min0p3_rpShort1p5_ddBoost_lb20_on20_off15_max15_fac16_velGate0p2_dynAtrVelDirect_shortEntryBand20_20260301.json`
 - Dojo replay (warmup+focus tape):
   - Warmup window: `2026-02-10 -> 2026-02-28` (so TR5/gap overlays have state)
   - Focus window: `2026-02-23 -> 2026-02-27` (the newest choppy-week tape)
-  - Replay config: `backtests/tqqq/replays/tqqq_hf_v28_km01_ddBoostmax12_fac14_dynAtrVelDirect_shortEntryBand20_dojo_warmup_20260210_20260228.json`
+  - Replay config: `backtests/tqqq/replays/tqqq_hf_v29_km01_ddBoostmax15_fac16_velGate0p2_dynAtrVelDirect_shortEntryBand20_dojo_warmup_20260210_20260228.json`
 - Timeframe: `signal=5 mins`, `exec=1 min`, `RTH`
 - Entry window: `09:00–16:00 ET` (RTH-only data; first tradable entries begin after 09:30 ET)
 - Risk overlay: `riskoff_tr5_med_pct=8.5` + `risk_entry_cutoff_hour_et=15` (`riskoff_mode=hygiene`)
@@ -33,11 +33,14 @@ Canonical execution paths:
 - Cooldown: `cooldown_bars=4`
 - Shock detect (no entry gating; enables `atr_fast_pct` for overlay):
   - `shock_gate_mode=detect`, `shock_detector=atr_ratio`, `shock_atr_fast_period=7`, `shock_atr_slow_period=50`
-- Crash-regime short boost (drawdown-based, shock-off compatible):
+- Crash-regime short boost (drawdown-based, shock-off compatible, *velocity gated*):
   - `shock_drawdown_lookback_days=20`
   - `shock_on_drawdown_pct=-20`, `shock_off_drawdown_pct=-15`
-  - Boost band: `0 <= (dd→on) <= 12pp` (meaning roughly `-20% .. -32%` drawdown on the rolling lookback)
-  - `shock_short_risk_mult_factor=14.0` (scales `spot_short_risk_mult=0.01 -> 0.14` only inside the crash band)
+  - Boost band: `0 <= (dd→on) <= 15pp` (meaning roughly `-20% .. -35%` drawdown on the rolling lookback)
+  - `shock_short_risk_mult_factor=16.0` (scales `spot_short_risk_mult=0.01 -> 0.16` only inside the crash band)
+  - Velocity gate (persistence precondition):
+    - `shock_prearm_dist_on_max_pp=0.0` (keep prearm disabled)
+    - `shock_prearm_min_dist_on_vel_pp=0.2` (ddBoost only when drawdown-velocity clears the floor)
 - Short-entry depth band (tail-chase blocker; only matters in the deep tail):
   - `shock_short_entry_max_dist_on_pp=20.0`
   - Interpreted as: allow new shorts only when `(dd→on) ∈ [-20pp, +20pp]` (practically blocks opening new shorts beyond ~`-40%` drawdown on the rolling lookback)
@@ -59,14 +62,15 @@ Canonical execution paths:
 - RATS-V entry gate:
   - `ratsv_enabled=true`, `ratsv_slope_window_bars=5`, `ratsv_tr_fast_bars=5`, `ratsv_tr_slow_bars=20`
   - `ratsv_rank_min=0.10`, `ratsv_slope_med_min_pct=0.00010`, `ratsv_slope_vel_min_pct=0.00006`
-- 1Y (`2025-01-01 -> 2026-01-19`): trades **560**, pnl **45,903.8**, dd **6,816.6**, pnl/dd **6.734**
-- 2Y (`2024-01-01 -> 2026-01-19`): trades **1,099**, pnl **68,257.2**, dd **10,224.0**, pnl/dd **6.676**
+- 1Y (`2025-01-01 -> 2026-01-19`): trades **560**, pnl **46,187.7**, dd **6,830.3**, pnl/dd **6.762**
+- 2Y (`2024-01-01 -> 2026-01-19`): trades **1,099**, pnl **68,248.6**, dd **10,121.7**, pnl/dd **6.743**
 - Dojo focus window (`2026-02-23 -> 2026-02-27`): pnl **+465.7** (dd **1,764.3**, pnl/dd **0.264**)
+- Crashlab scored (`2025-01-01 -> 2025-03-31`): pnl **+2,576.4** (dd **5,493.5**, pnl/dd **0.469**)
 
 Replay / verify:
 ```bash
 python -m tradebot.backtest spot_multitimeframe \
-  --milestones backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v28_km01_panicTr5med5p0_neg0p6_long0p4_linDmax0p5_overlayAtrCShockDir_lb78_floor0p65_boost1p0_hi1p4_min0p3_rpShort1p5_ddBoost_lb20_on20_off15_max12_fac14_dynAtrVelDirect_shortEntryBand20_20260301.json \
+  --milestones backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v29_km01_panicTr5med5p0_neg0p6_long0p4_linDmax0p5_overlayAtrCShockDir_lb78_floor0p65_boost1p0_hi1p4_min0p3_rpShort1p5_ddBoost_lb20_on20_off15_max15_fac16_velGate0p2_dynAtrVelDirect_shortEntryBand20_20260301.json \
   --symbol TQQQ --bar-size "5 mins" --use-rth --offline --cache-dir db \
   --top 1 --min-trades 0 \
   --window 2025-01-01:2026-01-19 \
@@ -74,6 +78,23 @@ python -m tradebot.backtest spot_multitimeframe \
 ```
 
 ## Evolutions (stack)
+
+### v29 (2026-03-01) — dethroned v28 (crash dd boost widen, but vel-gated)
+- Contract: `1Y` then `2Y` (10Y deferred).
+- Needle-thread:
+  - Restore a wider crash drawdown short-boost band and higher boost factor, but add a persistence gate so we only boost when drawdown is actually moving (avoid false boosts / whipsaw tails):
+    - `shock_short_boost_max_dist_on_pp: 12.0 -> 15.0`
+    - `shock_short_risk_mult_factor: 14.0 -> 16.0`
+    - `shock_prearm_min_dist_on_vel_pp: 0.0 -> 0.2` (vel gate)
+    - `shock_prearm_dist_on_max_pp: None -> 0.0` (keep prearm disabled; vel gate still binds ddBoost)
+- Outcome:
+  - stability floor (min `1Y/2Y` pnl/dd): **6.676 -> 6.743** (dethrone)
+  - `1Y` pnl/dd: **6.734 -> 6.762**
+  - `2Y` pnl/dd: **6.676 -> 6.743**
+  - dojo focus (`2026-02-23 -> 2026-02-27`): unchanged (**+465.7**, pnl/dd **0.264**)
+  - crashlab scored (`2025-01-01 -> 2025-03-31`): regressed vs v28 (**0.657 -> 0.469**, still positive; target for next evolution)
+- Preset: `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v29_km01_panicTr5med5p0_neg0p6_long0p4_linDmax0p5_overlayAtrCShockDir_lb78_floor0p65_boost1p0_hi1p4_min0p3_rpShort1p5_ddBoost_lb20_on20_off15_max15_fac16_velGate0p2_dynAtrVelDirect_shortEntryBand20_20260301.json`
+- Previous: `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v28_km01_panicTr5med5p0_neg0p6_long0p4_linDmax0p5_overlayAtrCShockDir_lb78_floor0p65_boost1p0_hi1p4_min0p3_rpShort1p5_ddBoost_lb20_on20_off15_max12_fac14_dynAtrVelDirect_shortEntryBand20_20260301.json`
 
 ### v28 (2026-03-01) — dethroned v27 (dyn guard scaling + tighten crash dd band)
 - Contract: `1Y` then `2Y` (10Y deferred).
