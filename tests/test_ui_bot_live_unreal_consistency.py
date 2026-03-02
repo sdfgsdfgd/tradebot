@@ -34,6 +34,7 @@ class _OrdersRefreshProbe:
     _item_con_id = staticmethod(BotScreen._item_con_id)
     _edge_glyph_style = staticmethod(BotScreen._edge_glyph_style)
     _live_unrealized_value = BotScreen._live_unrealized_value
+    _official_daily_value = BotScreen._official_daily_value
     _official_unrealized_value = BotScreen._official_unrealized_value
     _position_unrealized_values = BotScreen._position_unrealized_values
     _position_entry_now_cell = BotScreen._position_entry_now_cell
@@ -55,6 +56,7 @@ class _OrdersRefreshProbe:
             marketDataType=1,
         )
         self._client = SimpleNamespace(
+            pnl_single_daily=lambda con_id: 12.34 if int(con_id) == 123 else None,
             pnl_single_unrealized=lambda con_id: 7.02 if int(con_id) == 123 else None,
             ticker_for_con_id=lambda con_id: ticker if int(con_id) == 123 else None,
         )
@@ -83,8 +85,8 @@ def _position_row_after_refresh() -> tuple:
 
 def test_bot_orders_positions_row_prefers_live_official_unrealized() -> None:
     row = _position_row_after_refresh()
-    # stale snapshot unrealized is -0.69, live broker unrealized is +7.02.
-    assert row[7].plain == "7.02"
+    # stale snapshot unrealized is -0.69, broker streams are daily +12.34 and unrealized +7.02.
+    assert row[7].plain == "D +12.34 · U +7.02"
 
 
 def test_bot_orders_positions_row_uses_live_mark_for_now_column() -> None:

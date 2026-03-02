@@ -196,6 +196,41 @@ def test_px_change_glyph_tracks_24h_direction() -> None:
     assert unknown.plain.lstrip().startswith("•")
 
 
+def test_unreal_texts_renders_daily_then_unrealized_from_ibkr_streams() -> None:
+    _ensure_event_loop()
+    app = PositionsApp()
+    app._client = SimpleNamespace(
+        pnl_single_daily=lambda con_id: 355.263427734375 if int(con_id) == 11 else None,
+        pnl_single_unrealized=lambda con_id: 89.79342773437497 if int(con_id) == 11 else None,
+    )
+    item = SimpleNamespace(
+        contract=SimpleNamespace(conId=11, secType="FOP"),
+        unrealizedPNL=85.4,
+    )
+
+    value_text, pct_text = app._unreal_texts(item)
+
+    assert value_text.plain == "D +355.26 · U +89.79"
+    assert pct_text.plain == ""
+
+
+def test_unreal_texts_uses_unrealized_fallback_when_daily_stream_missing() -> None:
+    _ensure_event_loop()
+    app = PositionsApp()
+    app._client = SimpleNamespace(
+        pnl_single_daily=lambda _con_id: None,
+        pnl_single_unrealized=lambda _con_id: None,
+    )
+    item = SimpleNamespace(
+        contract=SimpleNamespace(conId=11, secType="FOP"),
+        unrealizedPNL=85.4,
+    )
+
+    value_text, _pct_text = app._unreal_texts(item)
+
+    assert value_text.plain == "D warm · U +85.40"
+
+
 class _CaptureTable:
     def __init__(self) -> None:
         self.rows: list[tuple[tuple[object, ...], dict[str, object]]] = []

@@ -385,7 +385,7 @@ class PositionsApp(App):
             "Qty",
             "Entry¦Now",
             "Px 24-72",
-            "Unreal (Pos)",
+            "PnL D|U (Pos, IBKR)",
             "Realized (Pos)",
         ]
         self._column_count = len(self._columns)
@@ -405,7 +405,7 @@ class PositionsApp(App):
                     label.center(self._AVG_COL_WIDTH),
                     width=self._AVG_COL_WIDTH,
                 )
-            elif label.startswith("Unreal"):
+            elif label.startswith("Unreal") or label.startswith("PnL D|U"):
                 self._table.add_column(
                     label.center(self._UNREAL_COL_WIDTH),
                     width=self._UNREAL_COL_WIDTH,
@@ -2588,8 +2588,8 @@ class PositionsApp(App):
         base = f"IBKR {conn} | last update: {ts} | rows: {self._row_count}"
         base = f"{base} | MKT: {session} | MD: [L]=Live [D]=Delayed"
         base = (
-            f"{base} | PnL rows: total=account(U+R), "
-            "today(IBKR)=broker daily"
+            f"{base} | PnL rows: pos(D|U)=broker daily/unrealized, "
+            "total=account(U+R), today(IBKR)=broker daily"
         )
         if self._snapshot.error:
             return f"{base} | error: {self._snapshot.error}"
@@ -2864,6 +2864,13 @@ class PositionsApp(App):
             # Keep broker truth available even when pnlSingle is warming/stale.
             official_unreal = self._float_or_none(getattr(item, "unrealizedPNL", None))
         return official_unreal
+
+    def _official_daily_value(self, item: PortfolioItem) -> float | None:
+        contract = getattr(item, "contract", None)
+        con_id = int(getattr(contract, "conId", 0) or 0)
+        if con_id <= 0:
+            return None
+        return self._float_or_none(self._client.pnl_single_daily(con_id))
 
     def _account_metric_value(
         self,
@@ -3449,82 +3456,32 @@ class PositionsApp(App):
         text.stylize(edge_style if now is not None else "dim", right_start, right_end)
         return text
 
-    def _aligned_unreal_cell(
-        self,
-        official: float | None,
-        estimate: float | None,
-        pct: float | None,
-    ) -> Text:
-        width = max(int(self._UNREAL_COL_WIDTH), 12)
-        official_plain = _fmt_money(official) if official is not None else "n/a"
-        estimate_plain = _fmt_money(estimate) if estimate is not None else "n/a"
-        left_plain = f"{official_plain} ({estimate_plain})"
-        pct_plain = f"({pct:.2f}%)" if pct is not None else "n/a"
+    def _aligned_unreal_cell(self, daily: float | None, unreal: float | None) -> Text:
+        if daily is None and unreal is None:
+            return Text("warming...", style="dim")
 
-        # Ordered layout:
-        # [outer pad][left value col][separator][right pct col][outer pad]
-        outer_pad = 3
-        sep = "·"
-        right_width = 10
-        core_width = max(width - (outer_pad * 2), 1)
-        left_width = max(core_width - len(sep) - right_width, 1)
+        text = Text("")
+        text.append("D ", style="dim")
+        if daily is None:
+            text.append("warm", style="dim")
+        else:
+            text.append(f"{float(daily):+,.2f}", style=self._pnl_style(float(daily)))
 
-        if len(left_plain) > left_width:
-            left_plain = left_plain[:left_width]
-        left_part = self._center_with_sep_bias(left_plain, left_width, max_right_gap=1)
-        right_part = self._center_with_sep_bias(pct_plain, right_width, max_left_gap=1)
-        core_plain = f"{left_part}{sep}{right_part}"
-
-        if len(core_plain) < core_width:
-            core_plain = f"{core_plain}{' ' * (core_width - len(core_plain))}"
-        elif len(core_plain) > core_width:
-            core_plain = core_plain[:core_width]
-
-        text = Text(f"{' ' * outer_pad}{core_plain}{' ' * outer_pad}")
-
-        official_idx = core_plain.find(official_plain)
-        if official_idx >= 0:
-            text.stylize(
-                self._pnl_style(official),
-                outer_pad + official_idx,
-                outer_pad + official_idx + len(official_plain),
-            )
-        est_idx = core_plain.find(estimate_plain)
-        if est_idx >= 0:
-            text.stylize(
-                self._pnl_style(estimate),
-                outer_pad + est_idx,
-                outer_pad + est_idx + len(estimate_plain),
-            )
-        sep_idx = core_plain.find("·")
-        if sep_idx >= 0:
-            text.stylize("dim", outer_pad + sep_idx, outer_pad + sep_idx + 1)
-
-        pct_idx = core_plain.rfind(pct_plain)
-        if pct_idx >= 0:
-            pct_style = "dim"
-            if pct is not None:
-                if pct > 0:
-                    pct_style = "green"
-                elif pct < 0:
-                    pct_style = "red"
-            text.stylize(
-                pct_style,
-                outer_pad + pct_idx,
-                outer_pad + pct_idx + len(pct_plain),
-            )
+        text.append(" · ", style="dim")
+        text.append("U ", style="dim")
+        if unreal is None:
+            text.append("warm", style="dim")
+        else:
+            text.append(f"{float(unreal):+,.2f}", style=self._pnl_style(float(unreal)))
         return text
 
     def _unreal_texts(self, item: PortfolioItem) -> tuple[Text, Text]:
         contract = item.contract
         if contract.secType not in _SECTION_TYPES:
             return Text(""), Text("")
-        mark_price, _is_estimate = self._mark_price(item)
+        official_daily = self._official_daily_value(item)
         official_unreal = self._official_unrealized_value(item)
-        est_unreal, est_pct = self._live_unrealized_metrics(item, mark_price)
-        _official_pnl, official_pct = _unrealized_pnl_values(item, mark_price=mark_price)
-        display_pct = est_pct if est_pct is not None else official_pct
-        return self._aligned_unreal_cell(official_unreal, est_unreal, display_pct), Text("")
+        return self._aligned_unreal_cell(official_daily, official_unreal), Text("")
 
     def _mark_price(self, item: PortfolioItem) -> tuple[float | None, bool]:
         contract = item.contract

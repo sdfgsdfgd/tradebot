@@ -2464,6 +2464,13 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         fallback = _safe_float(getattr(item, "unrealizedPNL", None))
         return float(fallback) if fallback is not None else None
 
+    def _official_daily_value(self, item: PortfolioItem) -> float | None:
+        con_id = self._item_con_id(item)
+        if con_id <= 0:
+            return None
+        daily = self._client.pnl_single_daily(con_id)
+        return float(daily) if daily is not None else None
+
     def _live_unrealized_value(self, item: PortfolioItem, mark_price: float | None) -> float | None:
         mark = _safe_num(mark_price)
         qty = _safe_num(getattr(item, "position", None))
@@ -5027,6 +5034,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             if con_id not in con_ids:
                 continue
             unreal, _official_unreal, _estimate_unreal, mark_price = self._position_unrealized_values(item)
+            daily = self._official_daily_value(item)
             realized = _safe_num(getattr(item, "realizedPNL", None))
             entry_now_text = self._position_entry_now_cell(item, mark_price)
             px_change_text = self._position_px_change_cell(item, mark_price)
@@ -5035,6 +5043,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                     *_position_as_order_row(
                         item,
                         scope=scope,
+                        daily=daily,
                         unreal=unreal,
                         realized=realized,
                         market_price=mark_price,
@@ -5397,6 +5406,7 @@ def _position_as_order_row(
     item: PortfolioItem,
     *,
     scope: int | None,
+    daily: float | None = None,
     unreal: float | None = None,
     realized: float | None = None,
     market_price: float | None = None,
@@ -5447,7 +5457,30 @@ def _position_as_order_row(
     if realized is None:
         realized = _safe_num(getattr(item, "realizedPNL", None))
 
-    unreal_cell = _pnl_text(unreal) if unreal is not None else Text("")
+    def _pnl_style(value: float | None) -> str:
+        if value is None:
+            return "dim"
+        if value > 0:
+            return "green"
+        if value < 0:
+            return "red"
+        return ""
+
+    if daily is None and unreal is None:
+        unreal_cell = Text("warming...", style="dim")
+    else:
+        unreal_cell = Text("")
+        unreal_cell.append("D ", style="dim")
+        if daily is None:
+            unreal_cell.append("warm", style="dim")
+        else:
+            unreal_cell.append(f"{float(daily):+,.2f}", style=_pnl_style(float(daily)))
+        unreal_cell.append(" · ", style="dim")
+        unreal_cell.append("U ", style="dim")
+        if unreal is None:
+            unreal_cell.append("warm", style="dim")
+        else:
+            unreal_cell.append(f"{float(unreal):+,.2f}", style=_pnl_style(float(unreal)))
     realized_cell = _pnl_text(realized) if realized is not None else Text("")
 
     return (
@@ -5473,7 +5506,7 @@ def _positions_subheader_row() -> tuple[Text | str, Text | str, Text | str, Text
         Text("Contract", style=style),
         Text("Entry¦Now", style=style),
         Text("Px 24-72", style=style),
-        Text("Unreal (Pos)", style=style),
+        Text("PnL D|U (Pos)", style=style),
         Text("Realized", style=style),
     )
 
