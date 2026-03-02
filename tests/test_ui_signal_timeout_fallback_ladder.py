@@ -147,3 +147,35 @@ def test_signal_fetch_bars_fallback_reaches_1w_when_months_fail() -> None:
     assert bool(health.get("timeout_fallback_used")) is True
     assert str(health.get("timeout_fallback_from_duration")) == "3 M"
     assert list(health.get("timeout_fallback_attempts") or []) == ["2 M", "1 M", "1 W"]
+
+
+def test_signal_timeout_fallback_ladder_respects_min_duration_floor() -> None:
+    screen = _screen()
+    assert screen._signal_timeout_fallback_durations("2 M", min_duration="1 M") == ("1 M",)
+    assert screen._signal_timeout_fallback_durations("2 M", min_duration="2 M") == ()
+
+
+def test_signal_fetch_bars_fallback_stops_at_min_duration_floor() -> None:
+    client = _FallbackClient(fail_durations={"3 M", "2 M", "1 M"})
+    screen = _screen_with_client(client)
+    contract = Stock("SLV", "SMART", "USD")
+    contract.conId = 10003
+
+    bars, health = asyncio.run(
+        screen._signal_fetch_bars(
+            contract=contract,
+            duration_str="3 M",
+            min_duration_str="1 M",
+            bar_size="10 mins",
+            use_rth=False,
+            now_ref=datetime(2026, 2, 20, 12, 5),
+            strict_zero_gap=False,
+            heal_if_stale=False,
+        )
+    )
+
+    assert bars is None
+    assert client.calls == ["3 M", "2 M", "1 M"]
+    assert isinstance(health, dict)
+    assert str(health.get("duration_str")) == "3 M"
+    assert list(health.get("timeout_fallback_attempts") or []) == ["2 M", "1 M"]

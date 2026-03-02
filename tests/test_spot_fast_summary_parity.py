@@ -144,6 +144,7 @@ def test_spot_fast_summary_matches_slow_summary_on_flip_reentry_path() -> None:
         spot_exec_bar_size="5 mins",
         spot_entry_fill_mode="next_open",
         spot_flip_exit_fill_mode="next_open",
+        spot_controlled_flip=True,
         spot_intrabar_exits=True,
         spot_spread=0.0,
         spot_commission_per_share=0.0,

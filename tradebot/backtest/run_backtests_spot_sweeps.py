@@ -52,6 +52,7 @@ from .config import (
     _parse_filters,
 )
 from .spot_codec import (
+    effective_filters_payload as _codec_effective_filters_payload,
     filters_from_payload as _codec_filters_from_payload,
     filters_payload as _codec_filters_payload,
     make_bundle as _codec_make_bundle,
@@ -2550,12 +2551,9 @@ def _milestone_entry_for(
                 comm_min = 0.0
             if comm <= 0.0 and comm_min <= 0.0:
                 continue
-        # Prefer strategy-embedded filters (newer milestones); fall back to group-level
-        # filters for legacy payloads.
-        filters = strategy.get("filters")
-        if not isinstance(filters, dict):
-            filters = group.get("filters")
-        candidates.append((strategy, filters if isinstance(filters, dict) else None, metrics))
+        group_filters = group.get("filters") if isinstance(group.get("filters"), dict) else None
+        effective_filters = _codec_effective_filters_payload(group_filters=group_filters, strategy=strategy)
+        candidates.append((strategy, effective_filters, metrics))
 
     if not candidates:
         return None
@@ -2574,14 +2572,10 @@ def _apply_milestone_base(
 ) -> ConfigBundle:
     # Decode milestone payload through the shared codec so sweep baselines inherit
     # the same shape as runtime/backtest payloads (including dual-branch/rats filters).
-    merged_filters: dict[str, object] | None = None
-    if isinstance(filters, dict):
-        merged_filters = dict(filters)
-    nested_filters = strategy.get("filters") if isinstance(strategy, dict) else None
-    if isinstance(nested_filters, dict):
-        if merged_filters is None:
-            merged_filters = {}
-        merged_filters.update(nested_filters)
+    merged_filters = _codec_effective_filters_payload(
+        group_filters=filters if isinstance(filters, dict) else None,
+        strategy=strategy,
+    )
 
     parsed_filters: FiltersConfig | None = None
     if isinstance(merged_filters, dict):

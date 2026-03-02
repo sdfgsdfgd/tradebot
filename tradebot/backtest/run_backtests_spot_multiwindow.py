@@ -27,6 +27,7 @@ from .multiwindow_helpers import (
     preflight_offline_cache_or_die as _mw_preflight_offline_cache_or_die,
 )
 from .spot_codec import (
+    effective_filters_payload as _codec_effective_filters_payload,
     filters_from_payload as _codec_filters_from_payload,
     make_bundle as _codec_make_bundle,
     metrics_from_summary as _codec_metrics_from_summary,
@@ -53,7 +54,7 @@ from ..time_utils import now_et as _now_et
 _SERIES_CACHE = series_cache_service()
 _SWEEP_MULTIWINDOW_BARS_NAMESPACE = "spot.sweeps.multiwindow.bars"
 # Bump whenever evaluation semantics change so stale cached rows don't mask runtime fixes.
-_MULTIWINDOW_CACHE_ENGINE_VERSION = "spot_multiwindow_v10"
+_MULTIWINDOW_CACHE_ENGINE_VERSION = "spot_multiwindow_v11"
 
 def _score_key(item: dict) -> tuple:
     return (
@@ -214,10 +215,14 @@ def spot_multitimeframe_main() -> None:
             continue
         if bool(strat.get("signal_use_rth")) != use_rth:
             continue
+        effective_filters = _codec_effective_filters_payload(
+            group_filters=filters_payload if isinstance(filters_payload, dict) else None,
+            strategy=strat,
+        )
         candidates.append(
             {
                 "group_name": str(group.get("name") or ""),
-                "filters": filters_payload,
+                "filters": effective_filters,
                 "strategy": strat,
                 "metrics": metrics,
             }

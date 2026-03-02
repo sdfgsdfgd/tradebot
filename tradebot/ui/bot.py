@@ -8,7 +8,7 @@ import json
 import math
 import re
 import time as pytime
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
 from typing import Optional
@@ -22,6 +22,7 @@ from textual.screen import Screen
 from textual.widgets import DataTable, Footer, Header, Static
 
 from ..backtest.trading_calendar import full24_post_close_time_et, is_trading_day, session_label_et
+from ..backtest.spot_codec import effective_filters_payload as _effective_filters_payload
 from ..client import IBKRClient, _session_flags
 from ..engine import (
     normalize_spot_entry_signal,
@@ -44,7 +45,6 @@ from ..time_utils import now_et_naive as _now_et_naive
 from ..time_utils import to_et as _to_et_shared
 from ..utils.date_utils import business_days_until
 from .readme_retrievers import (
-    extract_current_mnq_hf_json_path,
     extract_current_slv_hf_json_path,
     extract_current_slv_lf_json_path,
     extract_current_tqqq_hf_json_path,
@@ -1299,6 +1299,72 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         instance = self._selected_instance()
         return instance.instance_id if instance else None
 
+    def _heal_strategy_filters_payload(self, *, strategy: dict, base_filters: dict | None) -> dict | None:
+        """Normalize milestone-style payloads into live UI shape.
+
+        Live UI stores filters separately from strategy. Milestone payloads may embed filters
+        under `strategy.filters` and (historically) may accidentally place filter-shaped keys at
+        the strategy root (e.g. `ratsv_*`). This method:
+        - resolves the effective filters payload (group + strategy + hoisted keys)
+        - removes embedded filter payload from the strategy dict so UI edits are unambiguous
+        """
+        effective = _effective_filters_payload(
+            group_filters=base_filters if isinstance(base_filters, dict) else None,
+            strategy=strategy if isinstance(strategy, dict) else None,
+        )
+        if not isinstance(strategy, dict):
+            return effective
+
+        nested = strategy.get("filters")
+        if isinstance(nested, dict):
+            strategy.pop("filters", None)
+
+        try:
+            from ..knobs.models import FiltersConfig as _FiltersConfig
+        except Exception:
+            _FiltersConfig = None
+
+        if _FiltersConfig is None:
+            return effective
+
+        filter_keys = {field.name for field in fields(_FiltersConfig)}
+        for key in list(strategy.keys()):
+            if key in filter_keys:
+                strategy.pop(key, None)
+        return effective
+
+    def _heal_instance_effective_filters(self, instance: _BotInstance) -> None:
+        strategy = instance.strategy
+        if not isinstance(strategy, dict):
+            return
+        base_filters = instance.filters if isinstance(instance.filters, dict) else None
+
+        try:
+            from ..knobs.models import FiltersConfig as _FiltersConfig
+        except Exception:
+            _FiltersConfig = None
+
+        root_filter_keys: list[str] = []
+        if _FiltersConfig is not None:
+            filter_keys = {field.name for field in fields(_FiltersConfig)}
+            root_filter_keys = sorted([key for key in strategy.keys() if key in filter_keys])
+
+        embedded_filters = strategy.get("filters") if isinstance(strategy.get("filters"), dict) else None
+        if embedded_filters is None and not root_filter_keys:
+            return
+
+        effective = self._heal_strategy_filters_payload(strategy=strategy, base_filters=base_filters)
+        instance.filters = effective
+        self._journal_write(
+            event="INSTANCE_HEAL",
+            instance=instance,
+            reason="EFFECTIVE_FILTERS",
+            data={
+                "migrated_strategy_filters": bool(embedded_filters is not None),
+                "hoisted_strategy_filter_keys": root_filter_keys or None,
+            },
+        )
+
     def _open_config_for_preset(self, preset: _BotPreset) -> None:
         entry = preset.entry
         strategy = copy.deepcopy(entry.get("strategy", {}) or {})
@@ -1315,7 +1381,8 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         strategy.setdefault("spot_close_eod", False)
         if "directional_spot" not in strategy:
             strategy["directional_spot"] = {"up": {"action": "BUY", "qty": 1}, "down": {"action": "SELL", "qty": 1}}
-        filters = _filters_for_group(self._payload, preset.group) if self._payload else None
+        group_filters = _filters_for_group(self._payload, preset.group) if self._payload else None
+        filters = self._heal_strategy_filters_payload(strategy=strategy, base_filters=group_filters)
         symbol = str(
             entry.get("symbol")
             or strategy.get("symbol")
@@ -1362,6 +1429,8 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         )
 
     def _open_config_for_instance(self, instance: _BotInstance) -> None:
+        self._heal_instance_effective_filters(instance)
+
         def _on_done(result: _BotConfigResult | None) -> None:
             if not result:
                 self._set_status("Config: cancelled")
@@ -1393,7 +1462,6 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         Bot Hub presets are intentionally limited to promoted CURRENT champions documented in:
         - `backtests/tqqq/readme-lf.md` (TQQQ LF spot champ)
         - `backtests/tqqq/readme-hf.md` (TQQQ HF spot champ)
-        - `backtests/mnq/readme-hf.md` (MNQ HF spot-futures champ)
         - `backtests/slv/readme-lf.md` (SLV spot champ)
         - `backtests/slv/readme-hf.md` (SLV HF spot champ)
         """
@@ -1504,26 +1572,6 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             group = _load_champion_group(symbol="TQQQ", version=version_label, path=tqqq_hf_path)
             if group is not None:
                 group["_source"] = f"champion:TQQQ:HF:v{tqqq_hf_ver or '?'}"
-                name = str(group.get("name") or "")
-                if name and "[HF]" not in name:
-                    group["name"] = f"{name} [HF]"
-                groups.append(group)
-
-        # MNQ HF CURRENT (from backtests/mnq/readme-hf.md)
-        mnq_hf_readme_path = repo_root / "backtests" / "mnq" / "readme-hf.md"
-        mnq_hf_readme = _read_text(mnq_hf_readme_path)
-        mnq_hf_ver: str | None = None
-        mnq_hf_path: Path | None = None
-        if mnq_hf_readme:
-            mnq_hf_ver, mnq_hf_rel_path = extract_current_mnq_hf_json_path(mnq_hf_readme)
-            if mnq_hf_rel_path:
-                mnq_hf_path = _resolve_existing_json(mnq_hf_rel_path)
-
-        if mnq_hf_path:
-            version_label = f"HF{mnq_hf_ver}" if mnq_hf_ver else "HF?"
-            group = _load_champion_group(symbol="MNQ", version=version_label, path=mnq_hf_path)
-            if group is not None:
-                group["_source"] = f"champion:MNQ:HF:v{mnq_hf_ver or '?'}"
                 name = str(group.get("name") or "")
                 if name and "[HF]" not in name:
                     group["name"] = f"{name} [HF]"
@@ -3049,6 +3097,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         include_orb: bool = False,
         include_spot_exit: bool = False,
     ) -> dict[str, object]:
+        self._heal_instance_effective_filters(instance)
         strat = strategy if isinstance(strategy, dict) else (instance.strategy or {})
         kwargs: dict[str, object] = {
             "ema_preset_raw": ema_preset_raw,
@@ -3157,6 +3206,46 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             needed = "1 Y"
         return _max_duration(base, needed)
 
+    def _signal_min_duration_str(self, bar_size: str, *, filters: dict | None = None) -> str | None:
+        _ = bar_size
+        if not isinstance(filters, dict) or not filters:
+            return None
+        from ..engine import normalize_shock_detector, normalize_shock_gate_mode
+
+        shock_mode = normalize_shock_gate_mode(filters)
+        if shock_mode == "off":
+            return None
+        detector = normalize_shock_detector(filters)
+        if detector not in ("daily_atr_pct", "daily_drawdown"):
+            return None
+
+        days_needed = None
+        if detector == "daily_atr_pct":
+            raw = filters.get("shock_daily_atr_period", 14)
+            try:
+                days_needed = int(raw or 14)
+            except (TypeError, ValueError):
+                days_needed = 14
+            days_needed = max(1, int(days_needed))
+        else:
+            raw = filters.get("shock_drawdown_lookback_days", 20)
+            try:
+                days_needed = int(raw or 20)
+            except (TypeError, ValueError):
+                days_needed = 20
+            days_needed = max(2, int(days_needed))
+
+        # Floor for timeout fallbacks: keep enough daily history for readiness.
+        if days_needed <= 25:
+            return "1 M"
+        if days_needed <= 50:
+            return "2 M"
+        if days_needed <= 95:
+            return "3 M"
+        if days_needed <= 180:
+            return "6 M"
+        return "1 Y"
+
     @staticmethod
     def _signal_expand_duration(duration: str) -> str:
         order = ("1 D", "2 D", "1 W", "2 W", "1 M", "2 M", "3 M", "6 M", "1 Y", "2 Y")
@@ -3176,8 +3265,14 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         except ValueError:
             return -1
 
-    def _signal_timeout_fallback_durations(self, duration: str) -> tuple[str, ...]:
+    def _signal_timeout_fallback_durations(
+        self,
+        duration: str,
+        *,
+        min_duration: str | None = None,
+    ) -> tuple[str, ...]:
         requested_rank = self._signal_duration_rank(str(duration))
+        min_rank = self._signal_duration_rank(str(min_duration)) if min_duration else -1
         week_rank = self._signal_duration_rank("1 W")
         if requested_rank <= week_rank:
             return ()
@@ -3187,6 +3282,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             for fallback in fallbacks
             if self._signal_duration_rank(fallback) >= 0
             and self._signal_duration_rank(fallback) < requested_rank
+            and (min_rank < 0 or self._signal_duration_rank(fallback) >= min_rank)
         )
 
     @staticmethod
@@ -3510,6 +3606,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         *,
         contract: Contract,
         duration_str: str,
+        min_duration_str: str | None = None,
         bar_size: str,
         use_rth: bool,
         now_ref: datetime,
@@ -3563,7 +3660,10 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             if not bars and IBKRClient._is_intraday_bar_size(str(bar_size)):
                 last_diag = self._client.last_historical_request(contract)
                 if _request_timed_out(last_diag, duration=req_duration):
-                    for fallback_duration in self._signal_timeout_fallback_durations(req_duration):
+                    for fallback_duration in self._signal_timeout_fallback_durations(
+                        req_duration,
+                        min_duration=min_duration_str,
+                    ):
                         fallback_attempts.append(str(fallback_duration))
                         candidate = await self._client.historical_bars_ohlcv(
                             contract,
@@ -4136,10 +4236,15 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         # IB intraday bars are timestamped in ET wall-clock for this flow; use ET here so
         # trim_incomplete_last_bar drops the in-progress bar instead of treating it as complete.
         now_ref = _now_et_naive()
-        _set_diag("signal_fetch")
+        min_duration_str = self._signal_min_duration_str(bar_size, filters=filters)
+        _set_diag(
+            "signal_fetch",
+            min_duration_str=str(min_duration_str) if min_duration_str is not None else None,
+        )
         bars, bar_health = await self._signal_fetch_bars(
             contract=contract,
             duration_str=self._signal_duration_str(bar_size, filters=filters),
+            min_duration_str=min_duration_str,
             bar_size=bar_size,
             use_rth=use_rth,
             now_ref=now_ref,
@@ -4332,6 +4437,33 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                 bar_health=self._signal_health_payload(bar_health),
             )
             return None
+
+        # Non-negotiable readiness: if a daily shock detector is configured, do not emit a
+        # snapshot until the daily engine is actually ready. Silent degradation here breaks
+        # live-vs-backtest parity because shock gating/overlays won't engage.
+        from ..engine import normalize_shock_detector, normalize_shock_gate_mode
+
+        shock_mode = normalize_shock_gate_mode(filters)
+        if shock_mode != "off":
+            detector = normalize_shock_detector(filters)
+            if detector == "daily_drawdown" and getattr(last_snap, "shock_drawdown_pct", None) is None:
+                _set_diag(
+                    "daily_shock_not_ready",
+                    shock_detector=str(detector),
+                    bars_count=int(len(bars_list)),
+                    min_duration_str=str(min_duration_str) if min_duration_str is not None else None,
+                    bar_health=self._signal_health_payload(bar_health),
+                )
+                return None
+            if detector == "daily_atr_pct" and getattr(last_snap, "shock_atr_pct", None) is None:
+                _set_diag(
+                    "daily_shock_not_ready",
+                    shock_detector=str(detector),
+                    bars_count=int(len(bars_list)),
+                    min_duration_str=str(min_duration_str) if min_duration_str is not None else None,
+                    bar_health=self._signal_health_payload(bar_health),
+                )
+                return None
 
         _set_diag(
             "ok",
