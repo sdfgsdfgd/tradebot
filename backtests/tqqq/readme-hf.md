@@ -14,7 +14,19 @@ Canonical execution paths:
 
 ## Current Champions (stack)
 
-### CURRENT (v32-km01-dualBranch(minSlope=0.00075 b_mult=0.70 priority=a_then_b)-riskpanic(tr_med>=5.0 neg_gap_ratio>=0.5 long_factor=0.4 short_factor=1.5)-linear(tr_delta_max=0.5)-overlay(atr_compress+shock_dir lb=78 floor=0.65 boost=1.0 hi=1.4 min=0.30)-cd4-ddBoost(lb=20 on=-20 off=-15 max_dist=15 factor=18 vel_gate=0.2)-dynGuard(atr_vel_direct min_mult=1.0)-shortEntryBand(max_dist=20)) — v31 + crash ddBoost factor lift (1Y/2Y promotion)
+### CURRENT (v33-km01-dualBranch(minSlope=0.00075 b_mult=0.70 priority=a_then_b)-riskpanic(tr_med>=5.0 neg_gap_ratio>=0.5 long_factor=0.10 short_factor=1.5)-linear(tr_delta_max=0.5)-overlay(atr_compress+shock_dir lb=78 floor=0.65 boost=1.0 hi=1.4 min=0.30)-cd4-ddBoost(lb=20 on=-20 off=-15 max_dist=15 factor=18 vel_gate=0.2)-dynGuard(atr_vel_direct min_mult=1.0)-shortEntryBand(max_dist=20)) — dethroned v32 (riskpanic long downshift; 1Y/2Y promotion)
+
+- Delta vs v32: `riskpanic_long_risk_mult_factor: 0.4 -> 0.10` (everything else identical; see v32 section below for the full knob map).
+- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v33_km01_dualbranchSlope0p00075_bmult0p70_panicNeg0p50_rpLong0p10_ddFac18_20260302.json`
+- Dojo replay (warmup+focus tape):
+  - Warmup window: `2026-02-10 -> 2026-02-28`
+  - Focus window: `2026-02-23 -> 2026-02-27`
+  - Replay config: `backtests/tqqq/replays/tqqq_hf_v33_km01_dualbranch_slope0p00075_bmult0p70_panicNeg0p50_rpLong0p10_ddFac18_dojo_warmup_20260210_20260228.json`
+- Stability floor (min `1Y/2Y` pnl/dd): **7.732**
+- 1Y (`2025-01-01 -> 2026-01-19`): trades **556**, pnl **50,902.0**, dd **5,531.8**, pnl/dd **9.202**
+- 2Y (`2024-01-01 -> 2026-01-19`): trades **1,095**, pnl **74,367.0**, dd **9,618.5**, pnl/dd **7.732**
+
+### v32 (2026-03-02) — dethroned by v33 (riskpanic long downshift)
 
 - Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v32_km01_dualbranchSlope0p00075_bmult0p70_panicNeg0p50_ddFac18_20260301.json`
 - Dojo replay (warmup+focus tape):
@@ -84,6 +96,18 @@ python -m tradebot.backtest spot_multitimeframe \
 ```
 
 ## Evolutions (stack)
+
+### v33 (2026-03-02) — dethroned v32 (riskpanic long downshift)
+- Contract: `1Y` then `2Y` (10Y deferred).
+- Needle-thread:
+  - Riskpanic long downshift: reduce long sizing only in riskpanic tapes (chop/crisis belt), without touching the core entry/exit family:
+    - `riskpanic_long_risk_mult_factor: 0.4 -> 0.10`
+- Outcome:
+  - stability floor (min `1Y/2Y` pnl/dd): **7.361 -> 7.732** (dethrone)
+  - `1Y` pnl/dd: **8.497 -> 9.202**
+  - `2Y` pnl/dd: **7.361 -> 7.732**
+- Preset: `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v33_km01_dualbranchSlope0p00075_bmult0p70_panicNeg0p50_rpLong0p10_ddFac18_20260302.json`
+- Previous: `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v32_km01_dualbranchSlope0p00075_bmult0p70_panicNeg0p50_ddFac18_20260301.json`
 
 ### v32 (2026-03-01) — dethroned v31 (crash ddBoost factor lift)
 - Contract: `1Y` then `2Y` (10Y deferred).
