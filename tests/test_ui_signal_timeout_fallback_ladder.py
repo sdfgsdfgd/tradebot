@@ -48,6 +48,16 @@ def test_signal_timeout_fallback_ladder_stops_at_week_or_lower() -> None:
     assert screen._signal_timeout_fallback_durations("1 D") == ()
 
 
+def test_signal_duration_str_starts_at_floor_for_daily_shock() -> None:
+    screen = _screen()
+    filters = {
+        "shock_gate_mode": "detect",
+        "shock_detector": "daily_drawdown",
+        "shock_drawdown_lookback_days": 10,
+    }
+    assert screen._signal_duration_str("10 mins", filters=filters) == "1 M"
+
+
 class _FallbackClient:
     def __init__(self, *, fail_durations: set[str]) -> None:
         self.fail_durations = {str(item).strip() for item in fail_durations}

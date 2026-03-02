@@ -3186,32 +3186,11 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         if detector not in ("daily_atr_pct", "daily_drawdown"):
             return base
 
-        days_needed = None
-        if detector == "daily_atr_pct":
-            raw = filters.get("shock_daily_atr_period", 14)
-            try:
-                days_needed = int(raw or 14)
-            except (TypeError, ValueError):
-                days_needed = 14
-            days_needed = max(1, int(days_needed))
-        else:
-            raw = filters.get("shock_drawdown_lookback_days", 20)
-            try:
-                days_needed = int(raw or 20)
-            except (TypeError, ValueError):
-                days_needed = 20
-            days_needed = max(2, int(days_needed))
-
-        # Map required daily lookback into an IB duration string.
-        if days_needed <= 20:
-            needed = "2 M"
-        elif days_needed <= 45:
-            needed = "3 M"
-        elif days_needed <= 90:
-            needed = "6 M"
-        else:
-            needed = "1 Y"
-        return _max_duration(base, needed)
+        # Start at the minimum viable duration for daily readiness instead of requesting a
+        # larger window and then timing out / stitching-incomplete into the floor anyway.
+        # This reduces load/latency and improves full24 stitch reliability.
+        floor = self._signal_min_duration_str(bar_size, filters=filters)
+        return _max_duration(base, str(floor)) if floor else base
 
     def _signal_min_duration_str(self, bar_size: str, *, filters: dict | None = None) -> str | None:
         _ = bar_size
