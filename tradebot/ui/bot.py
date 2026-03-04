@@ -2561,7 +2561,6 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         if price is None:
             price = _safe_num(getattr(item, "marketPrice", None))
 
-        actionable = _ticker_actionable_price(ticker) if ticker is not None else None
         if con_id and contract is not None:
             start_closes = getattr(self, "_start_closes_load", None)
             if callable(start_closes):
@@ -2569,25 +2568,15 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         closes_by_con_id = getattr(self, "_session_closes_by_con_id", None)
         cached = closes_by_con_id.get(con_id) if con_id and isinstance(closes_by_con_id, dict) else None
         session_prev_close = cached[0] if cached else None
-        close_1ago_by_con_id = getattr(self, "_session_close_1ago_by_con_id", None)
-        session_prev_close_1ago = (
-            close_1ago_by_con_id.get(con_id)
-            if con_id and isinstance(close_1ago_by_con_id, dict)
-            else None
-        )
         close_3ago = cached[1] if cached else None
         latest_close = _ticker_close(ticker) if ticker is not None else None
         if session_prev_close is None:
             session_prev_close = latest_close
-        if session_prev_close_1ago is None:
-            session_prev_close_1ago = latest_close
         pct24, pct72 = _pct24_72_from_price(
             price=price,
             ticker=ticker,
             session_prev_close=session_prev_close,
-            session_prev_close_1ago=session_prev_close_1ago,
             session_close_3ago=close_3ago,
-            has_actionable_quote=actionable is not None,
         )
         ref = pct24 if pct24 is not None else pct72
         glyph, glyph_style = self._edge_glyph_style(ref)

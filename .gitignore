@@ -2,6 +2,8 @@ __pycache__/
 *.pyc
 .DS_Store
 .idea/
+*.sqlite3
+*.sqlite3-*
 db/
 # Backtest outputs are generally large/noisy, but we track curated symbol research folders.
 backtests/*

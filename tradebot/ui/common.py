@@ -209,25 +209,16 @@ def _pct24_72_from_price(
     price: float | None,
     ticker: Ticker | None,
     session_prev_close: float | None,
-    session_prev_close_1ago: float | None,
     session_close_3ago: float | None,
-    has_actionable_quote: bool | None = None,
 ) -> tuple[float | None, float | None]:
-    """Return (24h_pct, 72h_pct) with truthful fallback baselines.
+    """Return (24h_pct, 72h_pct) using stable close baselines.
 
-    If an actionable quote is present (NBBO/last), 24h compares against the latest close.
-    If not, 24h falls back to previous-session close so close-only rows don't pin to 0.00%.
+    24h always compares against the latest close (ticker.close/prevLast when present,
+    otherwise the cached session close anchor). This avoids oscillation when
+    actionable quotes (NBBO/last) appear/disappear between refresh ticks.
     """
-    actionable = bool(has_actionable_quote)
-    if has_actionable_quote is None:
-        actionable = bool(_ticker_actionable_price(ticker)) if ticker is not None else False
-
-    if actionable:
-        ticker_close = _ticker_close(ticker) if ticker is not None else None
-        baseline_24 = ticker_close if ticker_close is not None else session_prev_close
-    else:
-        baseline_24 = session_prev_close_1ago
-
+    ticker_close = _ticker_close(ticker) if ticker is not None else None
+    baseline_24 = ticker_close if ticker_close is not None else session_prev_close
     pct24 = _pct_change(price, baseline_24)
     pct72 = _pct_change(price, session_close_3ago)
     return pct24, pct72

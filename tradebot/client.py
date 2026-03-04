@@ -4230,7 +4230,33 @@ class IBKRClient:
             chains = []
         if not chains:
             return None
-        chain = next((c for c in chains if getattr(c, "exchange", None) == "SMART"), chains[0])
+        underlying_symbol = str(getattr(underlying, "symbol", "") or symbol).strip().upper()
+        underlying_symbol_key = re.sub(r"[^A-Z0-9]", "", underlying_symbol)
+        chain_candidates = [
+            chain for chain in chains if str(getattr(chain, "exchange", "") or "").strip().upper() == "SMART"
+        ] or list(chains)
+
+        def _chain_score(chain: object) -> tuple[int, int, int, int, int]:
+            expirations = getattr(chain, "expirations", ()) or ()
+            strikes = getattr(chain, "strikes", ()) or ()
+            try:
+                exp_count = len(expirations)
+            except TypeError:
+                exp_count = 0
+            try:
+                strike_count = len(strikes)
+            except TypeError:
+                strike_count = 0
+            trading_class = str(getattr(chain, "tradingClass", "") or "").strip().upper()
+            trading_class_key = re.sub(r"[^A-Z0-9]", "", trading_class)
+            completeness = int(exp_count) * int(strike_count)
+            trading_class_match = 1 if trading_class_key and trading_class_key == underlying_symbol_key else 0
+            exchange_smart = (
+                1 if str(getattr(chain, "exchange", "") or "").strip().upper() == "SMART" else 0
+            )
+            return (completeness, trading_class_match, exchange_smart, exp_count, strike_count)
+
+        chain = max(chain_candidates, key=_chain_score)
         return underlying, chain
 
     async def qualify_proxy_contracts(self, *contracts: Contract) -> list[Contract]:
@@ -5998,30 +6024,38 @@ class IBKRClient:
         con_id = int(getattr(contract, "conId", 0) or 0)
         try:
             await asyncio.sleep(float(_PROXY_CONTRACT_QUOTE_PROBE_INITIAL_SEC))
-            if not con_id or con_id in self._proxy_contract_force_delayed:
+            sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
+            if sec_type not in ("STK", "OPT"):
                 return
-            entry = self._detail_tickers.get(con_id)
-            if not entry:
-                return
-            ib, ticker = entry
-            if ib is not self._ib_proxy:
-                return
-            if self._ticker_has_data(ticker):
-                return
-            self._start_proxy_contract_live_resubscribe(contract)
-            await asyncio.sleep(float(_PROXY_CONTRACT_QUOTE_PROBE_RETRY_SEC))
-            if not con_id or con_id in self._proxy_contract_force_delayed:
-                return
-            entry = self._detail_tickers.get(con_id)
-            if not entry:
-                return
-            ib, ticker = entry
-            if ib is not self._ib_proxy:
-                return
-            if self._ticker_has_data(ticker):
-                return
-            if contract.secType == "OPT":
+
+            attempts = 0
+            retry_sec = float(_PROXY_CONTRACT_QUOTE_PROBE_RETRY_SEC)
+            max_retry_sec = 75.0
+            while True:
+                if not con_id or con_id in self._proxy_contract_force_delayed:
+                    return
+                entry = self._detail_tickers.get(con_id)
+                if not entry:
+                    return
+                ib, ticker = entry
+                if ib is not self._ib_proxy:
+                    return
+                if self._ticker_has_data(ticker):
+                    return
+
                 self._start_proxy_contract_live_resubscribe(contract)
+                attempts += 1
+
+                if sec_type != "STK":
+                    if sec_type == "OPT" and attempts < 2:
+                        await asyncio.sleep(float(_PROXY_CONTRACT_QUOTE_PROBE_RETRY_SEC))
+                        continue
+                    return
+
+                jitter = retry_sec * 0.15
+                sleep_sec = max(0.25, retry_sec + random.uniform(-jitter, jitter))
+                await asyncio.sleep(float(sleep_sec))
+                retry_sec = min(max_retry_sec, max(0.25, retry_sec * 1.6))
         finally:
             current = self._proxy_contract_probe_tasks.get(con_id)
             if current is asyncio.current_task():

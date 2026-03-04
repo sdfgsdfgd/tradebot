@@ -534,14 +534,12 @@ class FavoritesScreen(Screen):
         ticker_price = _ticker_price(ticker) if ticker else None
         cached = self._session_closes_by_con_id.get(con_id)
         session_prev_close = cached[0] if cached else None
-        session_prev_close_1ago = self._session_close_1ago_by_con_id.get(con_id)
         price = ticker_price if ticker_price is not None else session_prev_close
         close_3ago = cached[1] if cached else None
         _pct24, pct72 = _pct24_72_from_price(
             price=price,
             ticker=ticker,
             session_prev_close=session_prev_close,
-            session_prev_close_1ago=session_prev_close_1ago,
             session_close_3ago=close_3ago,
         )
         return pct72
@@ -567,14 +565,12 @@ class FavoritesScreen(Screen):
         ticker_price = _ticker_price(ticker) if ticker else None
         cached = self._session_closes_by_con_id.get(con_id)
         session_prev_close = cached[0] if cached else None
-        session_prev_close_1ago = self._session_close_1ago_by_con_id.get(con_id)
         price = ticker_price if ticker_price is not None else session_prev_close
         close_3ago = cached[1] if cached else None
         pct24, pct72 = _pct24_72_from_price(
             price=price,
             ticker=ticker,
             session_prev_close=session_prev_close,
-            session_prev_close_1ago=session_prev_close_1ago,
             session_close_3ago=close_3ago,
         )
         text = _price_pct_dual_text(price, pct24, pct72, separator="·")

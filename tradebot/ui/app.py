@@ -3168,27 +3168,26 @@ class PositionsApp(App):
         if not con_id:
             return Text("")
         ticker = self._client.ticker_for_con_id(con_id)
-        actionable_quote = _ticker_actionable_price(ticker) if ticker else None
-        has_live_quote = actionable_quote is not None
         quote_price = _ticker_price(ticker) if ticker else None
         price = quote_price
         if item is not None:
             sec_type = str(getattr(item.contract, "secType", "") or "").strip().upper()
             if sec_type in ("OPT", "FOP"):
-                display_price = _option_display_price(item, ticker)
-                if display_price is not None:
-                    price = float(display_price)
+                mark_price, _is_estimate = self._option_estimated_mark(item, ticker)
+                if mark_price is not None:
+                    price = float(mark_price)
+                else:
+                    display_price = _option_display_price(item, ticker)
+                    if display_price is not None:
+                        price = float(display_price)
         cached = self._session_closes_by_con_id.get(con_id)
         session_prev_close = cached[0] if cached else None
-        session_prev_close_1ago = self._session_close_1ago_by_con_id.get(con_id)
         close_3ago = cached[1] if cached else None
         pct24, pct72 = _pct24_72_from_price(
             price=price,
             ticker=ticker,
             session_prev_close=session_prev_close,
-            session_prev_close_1ago=session_prev_close_1ago,
             session_close_3ago=close_3ago,
-            has_actionable_quote=has_live_quote,
         )
         age_sec = self._quote_age_seconds(con_id, ticker, price if price is not None else quote_price)
         ribbon = self._quote_age_ribbon(age_sec)
