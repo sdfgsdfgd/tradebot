@@ -4315,7 +4315,23 @@ class IBKRClient:
         def _pending_candidates() -> list[Contract]:
             return [contract for contract in cleaned if _proxy_key(contract) not in resolved_by_key]
 
-        await _qualify_batch(cleaned)
+        # Avoid large initial qualify batches for paging-heavy option loads.
+        # The OPT search first paint stays below this threshold (~40), while
+        # deeper expiry pages tend to hit 48 contracts (4 expiries * 6 strikes * 2 rights).
+        should_chunk_initial = (
+            len(cleaned) >= 48
+            and any(
+                str(getattr(contract, "secType", "") or "").strip().upper() in ("OPT", "FOP")
+                for contract in cleaned
+            )
+        )
+        if should_chunk_initial:
+            batch_size = 12
+            for start in range(0, len(cleaned), batch_size):
+                await _qualify_batch(cleaned[start : start + batch_size])
+                await asyncio.sleep(0.02)
+        else:
+            await _qualify_batch(cleaned)
 
         pending = _pending_candidates()
         if pending:
