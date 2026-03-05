@@ -122,12 +122,18 @@ def main(argv: list[str] | None = None) -> int:
     lines.append("")
     lines.append("## Monthly (grouped by trade entry month, ET)")
     lines.append("")
-    lines.append("| Month | Trades | PnL | Trade DD | PnL/DD | Long PnL | Short PnL | Riskpanic% | Shock% | ddBoost% | BranchB% | Open2h% |")
-    lines.append("|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|")
+    lines.append(
+        "| Month | Trades | PnL | Trade DD | PnL/DD | Long PnL | Short PnL | "
+        "StopPnL | FlipPnL | Stop% | Flip% | "
+        "Riskoff% | Riskpanic% | Shock% | ddBoost% | BranchB% | Open2h% |"
+    )
+    lines.append("|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|")
 
     months = sorted(by_month.keys())
     worst_by_pdd: list[tuple[float, str]] = []
     worst_by_dd: list[tuple[float, str]] = []
+    worst_by_stop_pnl: list[tuple[float, str]] = []
+    best_by_flip_pnl: list[tuple[float, str]] = []
 
     for m in months:
         mt = by_month[m]
@@ -138,14 +144,32 @@ def main(argv: list[str] | None = None) -> int:
         long_pnl = sum(t.pnl(multiplier=1.0) for t in mt if t.qty > 0)
         short_pnl = sum(t.pnl(multiplier=1.0) for t in mt if t.qty < 0)
 
+        riskoff_n = 0
         riskpanic_n = 0
         shock_n = 0
         ddboost_n = 0
         branch_b_n = 0
         open2h_n = 0
 
+        stop_n = 0
+        flip_n = 0
+        stop_pnl = 0.0
+        flip_pnl = 0.0
+
         for t in mt:
+            # Outcome attribution (exit-reason PnL mass).
+            # This is the fastest “root cause” lens for crash/chop years.
+            reason = str(t.exit_reason or "").strip().lower()
+            if reason == "stop_loss_pct":
+                stop_n += 1
+                stop_pnl += t.pnl(multiplier=1.0)
+            elif reason == "flip":
+                flip_n += 1
+                flip_pnl += t.pnl(multiplier=1.0)
+
             dt = t.decision_trace or {}
+            if bool(dt.get("riskoff")):
+                riskoff_n += 1
             if bool(dt.get("riskpanic")):
                 riskpanic_n += 1
             if bool(dt.get("shock")):
@@ -163,15 +187,20 @@ def main(argv: list[str] | None = None) -> int:
                 open2h_n += 1
 
         denom = max(len(mt), 1)
+        riskoff_pct = 100.0 * riskoff_n / denom
         riskpanic_pct = 100.0 * riskpanic_n / denom
         shock_pct = 100.0 * shock_n / denom
         ddboost_pct = 100.0 * ddboost_n / denom
         branchb_pct = 100.0 * branch_b_n / denom
         open2h_pct = 100.0 * open2h_n / denom
+        stop_pct = 100.0 * stop_n / denom
+        flip_pct = 100.0 * flip_n / denom
 
         if pdd is not None and not math.isinf(pdd):
             worst_by_pdd.append((pdd, m))
         worst_by_dd.append((trade_dd, m))
+        worst_by_stop_pnl.append((stop_pnl, m))
+        best_by_flip_pnl.append((flip_pnl, m))
 
         lines.append(
             "| "
@@ -184,6 +213,11 @@ def main(argv: list[str] | None = None) -> int:
                     _fmt_ratio(pdd),
                     _fmt_money(long_pnl),
                     _fmt_money(short_pnl),
+                    _fmt_money(stop_pnl),
+                    _fmt_money(flip_pnl),
+                    f"{stop_pct:5.1f}",
+                    f"{flip_pct:5.1f}",
+                    f"{riskoff_pct:5.1f}",
                     f"{riskpanic_pct:5.1f}",
                     f"{shock_pct:5.1f}",
                     f"{ddboost_pct:5.1f}",
@@ -211,6 +245,8 @@ def main(argv: list[str] | None = None) -> int:
     # Worst-month callouts (trade-level).
     worst_by_pdd.sort(key=lambda t: t[0])
     worst_by_dd.sort(key=lambda t: t[0], reverse=True)
+    worst_by_stop_pnl.sort(key=lambda t: t[0])  # most negative stop-loss months first
+    best_by_flip_pnl.sort(key=lambda t: t[0], reverse=True)
 
     lines.append("")
     lines.append("## Callouts")
@@ -224,6 +260,12 @@ def main(argv: list[str] | None = None) -> int:
         for dd, m in worst_by_dd[:5]:
             lines.append(f"  - `{m}` trade-DD={dd:,.1f}")
 
+    lines.append("- Stop-vs-flip attribution (pnl mass, entry-month attribution):")
+    for pnl_s, m in worst_by_stop_pnl[:5]:
+        lines.append(f"  - worst stop month `{m}` stop_pnl={_fmt_money(pnl_s)}")
+    for pnl_f, m in best_by_flip_pnl[:5]:
+        lines.append(f"  - best flip month `{m}` flip_pnl={_fmt_money(pnl_f)}")
+
     out_path = Path(args.out)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text("\n".join(lines) + "\n")
@@ -233,4 +275,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
