@@ -14,9 +14,22 @@ Canonical execution paths:
 
 ## Current Champions (stack)
 
-### CURRENT (v33-km01-dualBranch(minSlope=0.00075 b_mult=0.70 priority=a_then_b)-riskpanic(tr_med>=5.0 neg_gap_ratio>=0.5 long_factor=0.10 short_factor=1.5)-linear(tr_delta_max=0.5)-overlay(atr_compress+shock_dir lb=78 floor=0.65 boost=1.0 hi=1.4 min=0.30)-cd4-ddBoost(lb=20 on=-20 off=-15 max_dist=15 factor=18 vel_gate=0.2)-dynGuard(atr_vel_direct min_mult=1.0)-shortEntryBand(max_dist=20)) — dethroned v32 (riskpanic long downshift; 1Y/2Y promotion)
+### CURRENT (v34-km01-shockMin(1.25)-shockDownLong(0.10)-dualBranch(minSlope=0.00075 b_mult=0.70 priority=a_then_b)-riskpanic(tr_med>=5.0 neg_gap_ratio>=0.5 long_factor=0.10 short_factor=1.5)-linear(tr_delta_max=0.5)-overlay(atr_compress+shock_dir lb=78 floor=0.65 boost=1.0 hi=1.4 min=0.30)-cd4-ddBoost(lb=20 on=-20 off=-15 max_dist=15 factor=18 vel_gate=0.2)-dynGuard(atr_vel_direct min_mult=1.0)-shortEntryBand(max_dist=20)) — dethroned v33 (shock detector armed; shock-down long downshift; 1Y/2Y promotion)
 
-- Delta vs v32: `riskpanic_long_risk_mult_factor: 0.4 -> 0.10` (everything else identical; see v32 section below for the full knob map).
+- Delta vs v33 (needle-thread):
+  - `shock_min_atr_pct: 7.0 -> 1.25` (shock detector no longer inert on `signal=5 mins` bars)
+  - `shock_long_risk_mult_factor_down: 1.0 -> 0.10` (downshift long sizing only when `shock=on` and `shock_dir=down`)
+- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v34_km01_shockMin1p25_downLong0p10_dualbranchSlope0p00075_bmult0p70_panicNeg0p50_rpLong0p10_ddFac18_20260305.json`
+- Dojo replay (warmup+focus tape):
+  - Warmup window: `2026-02-10 -> 2026-02-28`
+  - Focus window: `2026-02-23 -> 2026-02-27`
+  - Replay config: `backtests/tqqq/replays/tqqq_hf_v34_km01_shockMin1p25_downLong0p10_dualbranch_slope0p00075_bmult0p70_panicNeg0p50_rpLong0p10_ddFac18_dojo_warmup_20260210_20260228.json`
+- Stability floor (min `1Y/2Y` pnl/dd): **7.901**
+- 1Y (`2025-01-01 -> 2026-01-19`): trades **556**, pnl **52,189.5**, dd **5,579.7**, pnl/dd **9.353**
+- 2Y (`2024-01-01 -> 2026-01-19`): trades **1,095**, pnl **75,995.6**, dd **9,618.5**, pnl/dd **7.901**
+
+### v33 (2026-03-02) — dethroned by v34 (shock detector was effectively inert at `shock_min_atr_pct=7.0` for 5m bars)
+
 - Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v33_km01_dualbranchSlope0p00075_bmult0p70_panicNeg0p50_rpLong0p10_ddFac18_20260302.json`
 - Dojo replay (warmup+focus tape):
   - Warmup window: `2026-02-10 -> 2026-02-28`
