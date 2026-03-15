@@ -634,6 +634,8 @@ class SpotDecisionTrace:
     risk_dir: str | None
     signal_entry_dir: str | None
     signal_regime_dir: str | None
+    regime2_dir: str | None
+    regime2_ready: bool
 
     riskoff_long_factor: float
     riskoff_short_factor: float
@@ -1168,6 +1170,8 @@ class SpotPolicy:
         risk: object | None = None,
         signal_entry_dir: str | None = None,
         signal_regime_dir: str | None = None,
+        regime2_dir: str | None = None,
+        regime2_ready: bool = False,
         equity_ref: float = 0.0,
         cash_ref: float | None = None,
     ) -> tuple[int, SpotDecisionTrace]:
@@ -1220,6 +1224,8 @@ class SpotPolicy:
         risk_dir_clean = str(risk_dir) if risk_dir in ("up", "down") else None
         signal_entry_dir_clean = str(signal_entry_dir) if signal_entry_dir in ("up", "down") else None
         signal_regime_dir_clean = str(signal_regime_dir) if signal_regime_dir in ("up", "down") else None
+        regime2_dir_clean = str(regime2_dir) if regime2_dir in ("up", "down") else None
+        regime2_ready_clean = bool(regime2_ready)
         shock_dir_down_streak_clean: int | None = None
         if shock_dir_down_streak_bars is not None:
             try:
@@ -1354,6 +1360,8 @@ class SpotPolicy:
             risk_dir=risk_dir_clean,
             signal_entry_dir=signal_entry_dir_clean,
             signal_regime_dir=signal_regime_dir_clean,
+            regime2_dir=regime2_dir_clean,
+            regime2_ready=bool(regime2_ready_clean),
             riskoff_long_factor=float(cfg.riskoff_long_factor),
             riskoff_short_factor=float(cfg.riskoff_short_factor),
             riskpanic_long_factor=float(cfg.riskpanic_long_factor),

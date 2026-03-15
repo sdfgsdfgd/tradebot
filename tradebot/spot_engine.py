@@ -16,7 +16,7 @@ from __future__ import annotations
 import math
 from collections import deque
 from statistics import median
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime, time
 from collections.abc import Mapping
 from typing import Protocol
@@ -29,6 +29,7 @@ from .engine import (
     RiskOverlaySnapshot,
     SupertrendEngine,
     _trade_date as _trade_date_shared,
+    _trade_hour_et as _trade_hour_et_shared,
     annualized_ewma_vol,
     build_shock_engine,
     build_tr_pct_risk_overlay_engine,
@@ -101,6 +102,14 @@ class SpotSignalSnapshot:
     shock_dir_up_streak_bars: int | None
     risk: RiskOverlaySnapshot | None
     atr: float | None
+    regime2_dir: str | None
+    regime2_ready: bool
+    regime2_bear_hard_dir: str | None
+    regime2_bear_hard_ready: bool
+    regime2_bear_hard_release_age_bars: int | None
+    regime4_state: str | None
+    regime4_transition_hot: bool
+    regime4_owner: str | None
     or_high: float | None
     or_low: float | None
     or_ready: bool
@@ -137,6 +146,7 @@ class SpotSignalEvaluator:
         rv_ewma_lambda: float = 0.94,
         regime_bars: list[BarLike] | BarSeries[BarLike] | None = None,
         regime2_bars: list[BarLike] | BarSeries[BarLike] | None = None,
+        regime2_bear_hard_bars: list[BarLike] | BarSeries[BarLike] | None = None,
     ) -> None:
         self._strategy = strategy
         self._filters = filters
@@ -298,6 +308,16 @@ class SpotSignalEvaluator:
         )
         self._ratsv_branch_a_slope_vel_slow_min_pct = (
             _ratsv_pos_float(_get(filters, "ratsv_branch_a_slope_vel_slow_min_pct", None)) if filters is not None else None
+        )
+        self._regime2_soft_bear_branch_a_slope_med_slow_min_pct = (
+            _ratsv_pos_float(_get(filters, "regime2_soft_bear_branch_a_slope_med_slow_min_pct", None))
+            if filters is not None
+            else None
+        )
+        self._regime2_soft_bear_branch_a_slope_vel_slow_min_pct = (
+            _ratsv_pos_float(_get(filters, "regime2_soft_bear_branch_a_slope_vel_slow_min_pct", None))
+            if filters is not None
+            else None
         )
         self._ratsv_branch_a_slope_vel_consistency_min = (
             _ratsv_ratio(_get(filters, "ratsv_branch_a_slope_vel_consistency_min", None)) if filters is not None else None
@@ -584,6 +604,285 @@ class SpotSignalEvaluator:
             self._supertrend2_engine = SupertrendEngine(atr_period=int(atr_p), multiplier=float(mult), source=src)
         self._last_regime2 = None
         self._last_supertrend2 = None
+        self._active_regime2_dir: str | None = None
+        self._active_regime2_ready: bool = False
+        self._regime2_clean_host_enable = bool(_get(strategy, "regime2_clean_host_enable", False))
+        self._regime2_clean_host_takeover_state = str(
+            _get(strategy, "regime2_clean_host_takeover_state", "trend_up_clean") or "trend_up_clean"
+        ).strip().lower()
+        if self._regime2_clean_host_takeover_state not in (
+            "trend_up_clean",
+            "crash_down",
+            "transition_up_hot",
+            "crash_or_transition_up_hot",
+        ):
+            self._regime2_clean_host_takeover_state = "trend_up_clean"
+        self._clean_supertrend2_engine: SupertrendEngine | None = None
+        self._last_clean_supertrend2 = None
+        self._clean_regime2_idx = 0
+        self._active_clean_regime2_dir: str | None = None
+        self._active_clean_regime2_ready: bool = False
+        if self._regime2_clean_host_enable and regime2_mode == "supertrend":
+            raw_clean_mult = _get(strategy, "regime2_clean_host_supertrend_multiplier", None)
+            try:
+                clean_mult = (
+                    float(raw_clean_mult)
+                    if raw_clean_mult is not None
+                    else float(_get(strategy, "regime2_supertrend_multiplier", 3.0) or 3.0)
+                )
+            except (TypeError, ValueError):
+                clean_mult = float(_get(strategy, "regime2_supertrend_multiplier", 3.0) or 3.0)
+            self._clean_supertrend2_engine = SupertrendEngine(
+                atr_period=int(atr_p),
+                multiplier=max(0.01, float(clean_mult)),
+                source=src,
+            )
+        self._regime2_bear_hard_mode = str(_get(strategy, "regime2_bear_hard_mode", "off") or "off").strip().lower()
+        if self._regime2_bear_hard_mode not in ("off", "supertrend"):
+            self._regime2_bear_hard_mode = "off"
+        self._use_mtf_regime2_bear_hard = bool(regime2_bear_hard_bars)
+        self._regime2_bear_hard_bars = _bars_input_list(regime2_bear_hard_bars)
+        self._regime2_bear_hard_idx = 0
+        self._bear_hard_supertrend_engine: SupertrendEngine | None = None
+        self._last_bear_hard_supertrend = None
+        self._active_regime2_bear_hard_dir: str | None = None
+        self._active_regime2_bear_hard_ready: bool = False
+        self._clean_bear_hard_supertrend_engine: SupertrendEngine | None = None
+        self._last_clean_bear_hard_supertrend = None
+        self._clean_regime2_bear_hard_idx = 0
+        self._active_clean_regime2_bear_hard_dir: str | None = None
+        self._active_clean_regime2_bear_hard_ready: bool = False
+        if self._regime2_bear_hard_mode == "supertrend":
+            raw_hard_atr = _get(strategy, "regime2_bear_hard_supertrend_atr_period", None)
+            raw_hard_mult = _get(strategy, "regime2_bear_hard_supertrend_multiplier", None)
+            raw_hard_src = _get(strategy, "regime2_bear_hard_supertrend_source", None)
+            try:
+                hard_atr = int(raw_hard_atr) if raw_hard_atr is not None else int(_get(strategy, "regime2_supertrend_atr_period", 10) or 10)
+            except (TypeError, ValueError):
+                hard_atr = int(_get(strategy, "regime2_supertrend_atr_period", 10) or 10)
+            try:
+                hard_mult = (
+                    float(raw_hard_mult)
+                    if raw_hard_mult is not None
+                    else float(_get(strategy, "regime2_supertrend_multiplier", 3.0) or 3.0)
+                )
+            except (TypeError, ValueError):
+                hard_mult = float(_get(strategy, "regime2_supertrend_multiplier", 3.0) or 3.0)
+            hard_src = str(raw_hard_src or _get(strategy, "regime2_supertrend_source", "hl2") or "hl2").strip() or "hl2"
+            self._bear_hard_supertrend_engine = SupertrendEngine(
+                atr_period=max(1, int(hard_atr)),
+                multiplier=max(0.01, float(hard_mult)),
+                source=hard_src,
+            )
+            if self._regime2_clean_host_enable:
+                raw_clean_hard_mult = _get(strategy, "regime2_clean_host_bear_hard_supertrend_multiplier", None)
+                try:
+                    clean_hard_mult = (
+                        float(raw_clean_hard_mult)
+                        if raw_clean_hard_mult is not None
+                        else float(_get(strategy, "regime2_bear_hard_supertrend_multiplier", hard_mult) or hard_mult)
+                    )
+                except (TypeError, ValueError):
+                    clean_hard_mult = float(_get(strategy, "regime2_bear_hard_supertrend_multiplier", hard_mult) or hard_mult)
+                self._clean_bear_hard_supertrend_engine = SupertrendEngine(
+                    atr_period=max(1, int(hard_atr)),
+                    multiplier=max(0.01, float(clean_hard_mult)),
+                    source=hard_src,
+                )
+        self._regime2_bear_entry_mode = str(_get(strategy, "regime2_bear_entry_mode", "off") or "off").strip().lower()
+        if self._regime2_bear_entry_mode not in ("off", "supertrend"):
+            self._regime2_bear_entry_mode = "off"
+        self._regime2_bear_allow_long_recovery = bool(_get(strategy, "regime2_bear_allow_long_recovery", True))
+        self._regime2_bear_takeover_mode = str(
+            _get(strategy, "regime2_bear_takeover_mode", "always") or "always"
+        ).strip().lower()
+        if self._regime2_bear_takeover_mode not in (
+            "always",
+            "hostile",
+            "riskoff",
+            "riskpanic",
+            "shockdown",
+            "hostile_or_shockdown",
+        ):
+            self._regime2_bear_takeover_mode = "always"
+        raw_crash_atr_min = _get(strategy, "regime2_crash_atr_pct_min", None)
+        try:
+            self._regime2_crash_atr_pct_min = (
+                float(raw_crash_atr_min) if raw_crash_atr_min is not None else None
+            )
+        except (TypeError, ValueError):
+            self._regime2_crash_atr_pct_min = None
+        if self._regime2_crash_atr_pct_min is not None and self._regime2_crash_atr_pct_min < 0:
+            self._regime2_crash_atr_pct_min = None
+        self._regime2_crash_block_longs = bool(_get(strategy, "regime2_crash_block_longs", False))
+        self._regime2_repair_block_branch_b_longs = bool(
+            _get(strategy, "regime2_repair_block_branch_b_longs", False)
+        )
+        raw_repair_b_atr_max = _get(strategy, "regime2_repair_branch_b_long_max_shock_atr_pct", None)
+        try:
+            self._regime2_repair_branch_b_long_max_shock_atr_pct = (
+                float(raw_repair_b_atr_max) if raw_repair_b_atr_max is not None else None
+            )
+        except (TypeError, ValueError):
+            self._regime2_repair_branch_b_long_max_shock_atr_pct = None
+        if (
+            self._regime2_repair_branch_b_long_max_shock_atr_pct is not None
+            and self._regime2_repair_branch_b_long_max_shock_atr_pct < 0
+        ):
+            self._regime2_repair_branch_b_long_max_shock_atr_pct = None
+        raw_repair_b_after_hour = _get(strategy, "regime2_repair_branch_b_long_block_after_hour_et", None)
+        try:
+            self._regime2_repair_branch_b_long_block_after_hour_et = (
+                int(raw_repair_b_after_hour) if raw_repair_b_after_hour is not None else None
+            )
+        except (TypeError, ValueError):
+            self._regime2_repair_branch_b_long_block_after_hour_et = None
+        if self._regime2_repair_branch_b_long_block_after_hour_et is not None:
+            self._regime2_repair_branch_b_long_block_after_hour_et = max(
+                0,
+                min(23, int(self._regime2_repair_branch_b_long_block_after_hour_et)),
+            )
+        raw_transition_hot_shock_atr = _get(strategy, "regime2_transition_hot_shock_atr_pct_min", None)
+        try:
+            self._regime2_transition_hot_shock_atr_pct_min = (
+                float(raw_transition_hot_shock_atr) if raw_transition_hot_shock_atr is not None else None
+            )
+        except (TypeError, ValueError):
+            self._regime2_transition_hot_shock_atr_pct_min = None
+        if (
+            self._regime2_transition_hot_shock_atr_pct_min is not None
+            and self._regime2_transition_hot_shock_atr_pct_min < 0
+        ):
+            self._regime2_transition_hot_shock_atr_pct_min = None
+        raw_transition_hot_release = _get(strategy, "regime2_transition_hot_release_max_bars", None)
+        try:
+            self._regime2_transition_hot_release_max_bars = (
+                int(raw_transition_hot_release) if raw_transition_hot_release is not None else None
+            )
+        except (TypeError, ValueError):
+            self._regime2_transition_hot_release_max_bars = None
+        if self._regime2_transition_hot_release_max_bars is not None:
+            self._regime2_transition_hot_release_max_bars = max(0, int(self._regime2_transition_hot_release_max_bars))
+        raw_upcorridor_mid_min = _get(strategy, "regime2_upcorridor_branch_a_long_mid_shock_atr_pct_min", None)
+        try:
+            self._regime2_upcorridor_branch_a_long_mid_shock_atr_pct_min = (
+                float(raw_upcorridor_mid_min) if raw_upcorridor_mid_min is not None else None
+            )
+        except (TypeError, ValueError):
+            self._regime2_upcorridor_branch_a_long_mid_shock_atr_pct_min = None
+        if (
+            self._regime2_upcorridor_branch_a_long_mid_shock_atr_pct_min is not None
+            and self._regime2_upcorridor_branch_a_long_mid_shock_atr_pct_min < 0
+        ):
+            self._regime2_upcorridor_branch_a_long_mid_shock_atr_pct_min = None
+        raw_upcorridor_mid_max = _get(strategy, "regime2_upcorridor_branch_a_long_mid_shock_atr_pct_max", None)
+        try:
+            self._regime2_upcorridor_branch_a_long_mid_shock_atr_pct_max = (
+                float(raw_upcorridor_mid_max) if raw_upcorridor_mid_max is not None else None
+            )
+        except (TypeError, ValueError):
+            self._regime2_upcorridor_branch_a_long_mid_shock_atr_pct_max = None
+        if (
+            self._regime2_upcorridor_branch_a_long_mid_shock_atr_pct_max is not None
+            and self._regime2_upcorridor_branch_a_long_mid_shock_atr_pct_max < 0
+        ):
+            self._regime2_upcorridor_branch_a_long_mid_shock_atr_pct_max = None
+        if (
+            self._regime2_upcorridor_branch_a_long_mid_shock_atr_pct_min is not None
+            and self._regime2_upcorridor_branch_a_long_mid_shock_atr_pct_max is not None
+            and self._regime2_upcorridor_branch_a_long_mid_shock_atr_pct_max
+            < self._regime2_upcorridor_branch_a_long_mid_shock_atr_pct_min
+        ):
+            self._regime2_upcorridor_branch_a_long_mid_shock_atr_pct_max = (
+                self._regime2_upcorridor_branch_a_long_mid_shock_atr_pct_min
+            )
+        raw_upcorridor_extreme_min = _get(strategy, "regime2_upcorridor_branch_a_long_extreme_shock_atr_pct_min", None)
+        try:
+            self._regime2_upcorridor_branch_a_long_extreme_shock_atr_pct_min = (
+                float(raw_upcorridor_extreme_min) if raw_upcorridor_extreme_min is not None else None
+            )
+        except (TypeError, ValueError):
+            self._regime2_upcorridor_branch_a_long_extreme_shock_atr_pct_min = None
+        if (
+            self._regime2_upcorridor_branch_a_long_extreme_shock_atr_pct_min is not None
+            and self._regime2_upcorridor_branch_a_long_extreme_shock_atr_pct_min < 0
+        ):
+            self._regime2_upcorridor_branch_a_long_extreme_shock_atr_pct_min = None
+        raw_upcorridor_fresh_max = _get(
+            strategy,
+            "regime2_upcorridor_branch_a_long_fresh_release_age_max_bars",
+            None,
+        )
+        try:
+            self._regime2_upcorridor_branch_a_long_fresh_release_age_max_bars = (
+                int(raw_upcorridor_fresh_max) if raw_upcorridor_fresh_max is not None else None
+            )
+        except (TypeError, ValueError):
+            self._regime2_upcorridor_branch_a_long_fresh_release_age_max_bars = None
+        if self._regime2_upcorridor_branch_a_long_fresh_release_age_max_bars is not None:
+            self._regime2_upcorridor_branch_a_long_fresh_release_age_max_bars = max(
+                0,
+                int(self._regime2_upcorridor_branch_a_long_fresh_release_age_max_bars),
+            )
+        raw_upcorridor_stale_min = _get(
+            strategy,
+            "regime2_upcorridor_branch_a_long_stale_release_age_min_bars",
+            None,
+        )
+        try:
+            self._regime2_upcorridor_branch_a_long_stale_release_age_min_bars = (
+                int(raw_upcorridor_stale_min) if raw_upcorridor_stale_min is not None else None
+            )
+        except (TypeError, ValueError):
+            self._regime2_upcorridor_branch_a_long_stale_release_age_min_bars = None
+        if self._regime2_upcorridor_branch_a_long_stale_release_age_min_bars is not None:
+            self._regime2_upcorridor_branch_a_long_stale_release_age_min_bars = max(
+                0,
+                int(self._regime2_upcorridor_branch_a_long_stale_release_age_min_bars),
+            )
+        self._bear_supertrend_engine: SupertrendEngine | None = None
+        self._last_bear_supertrend = None
+        self._bear_prev_dir: str | None = None
+        self._clean_bear_supertrend_engine: SupertrendEngine | None = None
+        self._last_clean_bear_supertrend = None
+        self._clean_bear_prev_dir: str | None = None
+        if self._regime2_bear_entry_mode == "supertrend":
+            raw_bear_atr = _get(strategy, "regime2_bear_supertrend_atr_period", None)
+            raw_bear_mult = _get(strategy, "regime2_bear_supertrend_multiplier", None)
+            raw_bear_src = _get(strategy, "regime2_bear_supertrend_source", None)
+            try:
+                bear_atr = int(raw_bear_atr) if raw_bear_atr is not None else int(_get(strategy, "supertrend_atr_period", 10) or 10)
+            except (TypeError, ValueError):
+                bear_atr = int(_get(strategy, "supertrend_atr_period", 10) or 10)
+            try:
+                bear_mult = (
+                    float(raw_bear_mult)
+                    if raw_bear_mult is not None
+                    else float(_get(strategy, "supertrend_multiplier", 3.0) or 3.0)
+                )
+            except (TypeError, ValueError):
+                bear_mult = float(_get(strategy, "supertrend_multiplier", 3.0) or 3.0)
+            bear_src = str(raw_bear_src or _get(strategy, "supertrend_source", "hl2") or "hl2").strip() or "hl2"
+            self._bear_supertrend_engine = SupertrendEngine(
+                atr_period=max(1, int(bear_atr)),
+                multiplier=max(0.01, float(bear_mult)),
+                source=bear_src,
+            )
+            if self._regime2_clean_host_enable:
+                raw_clean_bear_mult = _get(strategy, "regime2_clean_host_bear_supertrend_multiplier", None)
+                try:
+                    clean_bear_mult = (
+                        float(raw_clean_bear_mult)
+                        if raw_clean_bear_mult is not None
+                        else float(_get(strategy, "regime2_bear_supertrend_multiplier", bear_mult) or bear_mult)
+                    )
+                except (TypeError, ValueError):
+                    clean_bear_mult = float(_get(strategy, "regime2_bear_supertrend_multiplier", bear_mult) or bear_mult)
+                self._clean_bear_supertrend_engine = SupertrendEngine(
+                    atr_period=max(1, int(bear_atr)),
+                    multiplier=max(0.01, float(clean_bear_mult)),
+                    source=bear_src,
+                )
 
         self._last_signal: EmaDecisionSnapshot | None = None
         self._last_snapshot: SpotSignalSnapshot | None = None
@@ -597,6 +896,13 @@ class SpotSignalEvaluator:
         self._ema_slope_down_streak_bars: int = 0
         self._shock_dir_down_streak_bars: int = 0
         self._shock_dir_up_streak_bars: int = 0
+        self._regime2_bear_hard_prev_was_down: bool = False
+        self._regime2_bear_hard_release_age_bars: int | None = None
+        self._clean_regime2_bear_hard_prev_was_down: bool = False
+        self._clean_regime2_bear_hard_release_age_bars: int | None = None
+        self._active_regime2_bear_hard_release_age_bars: int | None = None
+        self._regime4_transition_hot: bool = False
+        self._regime4_owner: str | None = None
 
         # Validate EMA presets early for UI ergonomics.
         if entry_signal == "ema":
@@ -742,6 +1048,17 @@ class SpotSignalEvaluator:
                 if self._ratsv_branch_a_slope_vel_slow_min_pct is not None
                 else slope_vel_slow_min
             )
+            if self._active_regime2_ready and self._active_regime2_dir == "down":
+                if self._regime2_soft_bear_branch_a_slope_med_slow_min_pct is not None:
+                    slope_med_slow_min = max(
+                        float(slope_med_slow_min or 0.0),
+                        float(self._regime2_soft_bear_branch_a_slope_med_slow_min_pct),
+                    )
+                if self._regime2_soft_bear_branch_a_slope_vel_slow_min_pct is not None:
+                    slope_vel_slow_min = max(
+                        float(slope_vel_slow_min or 0.0),
+                        float(self._regime2_soft_bear_branch_a_slope_vel_slow_min_pct),
+                    )
             if self._ratsv_branch_a_slope_vel_consistency_bars is not None:
                 slope_vel_consistency_bars = max(0, int(self._ratsv_branch_a_slope_vel_consistency_bars))
             if self._ratsv_branch_a_slope_vel_consistency_min is not None:
@@ -966,19 +1283,27 @@ class SpotSignalEvaluator:
                 return False
         return True
 
-    def _branch_entry_dir(
+    def _branch_signed_slope_thresholds(self, *, branch_key: str) -> tuple[float | None, float | None]:
+        if branch_key == "a":
+            return self._branch_a_min_signed_slope_pct, self._branch_a_max_signed_slope_pct
+        if branch_key == "b":
+            return self._branch_b_min_signed_slope_pct, self._branch_b_max_signed_slope_pct
+        return None, None
+
+    def _candidate_entry_dir(
         self,
         *,
         branch_key: str,
         signal: EmaDecisionSnapshot | None,
         close: float,
+        candidate_dir: str | None,
         min_signed_slope_pct: float | None,
         max_signed_slope_pct: float | None,
     ) -> str | None:
         if signal is None or not bool(signal.ema_ready):
             self._ratsv_branch_metrics(branch_key=branch_key, signal=signal, close=float(close), entry_dir=None)
             return None
-        entry_dir = signal.entry_dir
+        entry_dir = candidate_dir
         if entry_dir not in ("up", "down"):
             self._ratsv_branch_metrics(branch_key=branch_key, signal=signal, close=float(close), entry_dir=None)
             return None
@@ -1005,6 +1330,252 @@ class SpotSignalEvaluator:
         if not self._ratsv_entry_ok(branch_key=branch_key, entry_dir=str(entry_dir), metrics=metrics):
             return None
         return str(entry_dir)
+
+    def _branch_entry_dir(
+        self,
+        *,
+        branch_key: str,
+        signal: EmaDecisionSnapshot | None,
+        close: float,
+        min_signed_slope_pct: float | None,
+        max_signed_slope_pct: float | None,
+    ) -> str | None:
+        return self._candidate_entry_dir(
+            branch_key=branch_key,
+            signal=signal,
+            close=float(close),
+            candidate_dir=getattr(signal, "entry_dir", None),
+            min_signed_slope_pct=min_signed_slope_pct,
+            max_signed_slope_pct=max_signed_slope_pct,
+        )
+
+    def _apply_regime2_bear_primary(
+        self,
+        *,
+        branch_key: str,
+        signal: EmaDecisionSnapshot | None,
+        bar: BarLike,
+        close: float,
+    ) -> tuple[EmaDecisionSnapshot | None, str | None]:
+        if (
+            signal is None
+            or not bool(signal.ema_ready)
+            or self._bear_supertrend_engine is None
+            or not self._active_regime2_ready
+            or self._active_regime2_dir != "down"
+        ):
+            return signal, None
+        if self._regime2_bear_hard_mode != "off":
+            if not self._active_regime2_bear_hard_ready or self._active_regime2_bear_hard_dir != "down":
+                return signal, None
+        if not self._regime2_bear_takeover_allowed():
+            return signal, None
+
+        use_clean_host = bool(self._regime4_owner == "clean_host" and self._clean_bear_supertrend_engine is not None)
+        bear_engine = self._clean_bear_supertrend_engine if use_clean_host else self._bear_supertrend_engine
+        if bear_engine is None:
+            return signal, None
+
+        last_bear_supertrend = self._clean_bear_supertrend_engine.update(
+            high=float(bar.high),
+            low=float(bar.low),
+            close=float(bar.close),
+        ) if use_clean_host else self._bear_supertrend_engine.update(
+            high=float(bar.high),
+            low=float(bar.low),
+            close=float(bar.close),
+        )
+        if use_clean_host:
+            self._last_clean_bear_supertrend = last_bear_supertrend
+        else:
+            self._last_bear_supertrend = last_bear_supertrend
+
+        bear_ready = bool(last_bear_supertrend and last_bear_supertrend.ready)
+        bear_dir = last_bear_supertrend.direction if last_bear_supertrend is not None else None
+        bear_dir = str(bear_dir) if bear_dir in ("up", "down") else None
+        prev_dir = self._clean_bear_prev_dir if use_clean_host else self._bear_prev_dir
+        cross_up = bool(bear_ready and bear_dir == "up" and prev_dir == "down")
+        cross_down = bool(bear_ready and bear_dir == "down" and prev_dir == "up")
+        if bear_ready:
+            if use_clean_host:
+                self._clean_bear_prev_dir = bear_dir
+            else:
+                self._bear_prev_dir = bear_dir
+
+        min_signed_slope_pct, max_signed_slope_pct = self._branch_signed_slope_thresholds(branch_key=branch_key)
+        candidate_dir: str | None = None
+        if bear_dir == "down":
+            candidate_dir = self._candidate_entry_dir(
+                branch_key=branch_key,
+                signal=signal,
+                close=float(close),
+                candidate_dir="down",
+                min_signed_slope_pct=min_signed_slope_pct,
+                max_signed_slope_pct=max_signed_slope_pct,
+            )
+        elif bear_dir == "up" and bool(self._regime2_bear_allow_long_recovery) and bool(cross_up):
+            candidate_dir = self._candidate_entry_dir(
+                branch_key=branch_key,
+                signal=signal,
+                close=float(close),
+                candidate_dir="up",
+                min_signed_slope_pct=min_signed_slope_pct,
+                max_signed_slope_pct=max_signed_slope_pct,
+            )
+
+        return (
+            replace(
+                signal,
+                cross_up=bool(cross_up),
+                cross_down=bool(cross_down),
+                state=bear_dir,
+                entry_dir=candidate_dir,
+                regime_dir=bear_dir,
+                regime_ready=bool(bear_ready),
+            ),
+            candidate_dir,
+        )
+
+    def _regime2_bear_takeover_allowed(self) -> bool:
+        mode = str(self._regime2_bear_takeover_mode or "always").strip().lower()
+        if mode == "always":
+            return True
+        risk = self._last_risk
+        riskoff = bool(getattr(risk, "riskoff", False))
+        riskpanic = bool(getattr(risk, "riskpanic", False))
+        hostile = bool(riskoff or riskpanic)
+        shock, shock_dir, _shock_atr_pct = self._shock_view()
+        shockdown = bool(shock) and shock_dir == "down"
+        if mode == "hostile":
+            return hostile
+        if mode == "riskoff":
+            return riskoff
+        if mode == "riskpanic":
+            return riskpanic
+        if mode == "shockdown":
+            return shockdown
+        if mode == "hostile_or_shockdown":
+            return bool(hostile or shockdown)
+        return True
+
+    def _classify_regime4_state(
+        self,
+        *,
+        shock_atr_pct: float | None,
+        fast_dir: str | None,
+        fast_ready: bool,
+        hard_dir: str | None,
+        hard_ready: bool,
+        hard_release_age_bars: int | None,
+    ) -> tuple[str | None, bool]:
+        fast_dir = str(fast_dir) if bool(fast_ready) and fast_dir in ("up", "down") else None
+        hard_dir = str(hard_dir) if bool(hard_ready) and hard_dir in ("up", "down") else None
+        if hard_dir == "down":
+            if fast_dir == "up":
+                return "transition_up_hot", True
+            if fast_dir == "down" or fast_dir is None:
+                if (
+                    self._regime2_crash_atr_pct_min is not None
+                    and shock_atr_pct is not None
+                    and float(shock_atr_pct) >= float(self._regime2_crash_atr_pct_min)
+                ):
+                    return "crash_down", False
+                return "trend_down", False
+        if fast_dir == "up":
+            transition_hot = False
+            if (
+                self._regime2_transition_hot_shock_atr_pct_min is not None
+                and shock_atr_pct is not None
+                and float(shock_atr_pct) >= float(self._regime2_transition_hot_shock_atr_pct_min)
+            ):
+                transition_hot = True
+            if (
+                not transition_hot
+                and self._regime2_transition_hot_release_max_bars is not None
+                and hard_release_age_bars is not None
+                and int(hard_release_age_bars) <= int(self._regime2_transition_hot_release_max_bars)
+            ):
+                transition_hot = True
+            return ("transition_up_hot" if transition_hot else "trend_up_clean"), bool(transition_hot)
+        if fast_dir == "down":
+            return "trend_down", False
+        return None, False
+
+    def _regime2_crash_blocks_long(self, *, regime4_state: str | None, entry_dir: str | None) -> bool:
+        return bool(self._regime2_crash_block_longs and regime4_state == "crash_down" and entry_dir == "up")
+
+    def _regime2_repair_blocks_branch_b_long(
+        self,
+        *,
+        regime4_state: str | None,
+        entry_dir: str | None,
+        entry_branch: str | None,
+        shock_atr_pct: float | None,
+        bar_ts: datetime,
+    ) -> bool:
+        if not (
+            self._dual_branch_enabled
+            and regime4_state == "transition_up_hot"
+            and entry_branch == "b"
+            and entry_dir == "up"
+        ):
+            return False
+        if self._regime2_repair_block_branch_b_longs:
+            return True
+        if (
+            self._regime2_repair_branch_b_long_max_shock_atr_pct is not None
+            and shock_atr_pct is not None
+            and float(shock_atr_pct) >= float(self._regime2_repair_branch_b_long_max_shock_atr_pct)
+        ):
+            return True
+        if self._regime2_repair_branch_b_long_block_after_hour_et is not None:
+            hour_et = _trade_hour_et_shared(bar_ts, naive_ts_mode=self._naive_ts_mode)
+            if int(hour_et) >= int(self._regime2_repair_branch_b_long_block_after_hour_et):
+                return True
+        return False
+
+    def _regime2_upcorridor_blocks_branch_a_long(
+        self,
+        *,
+        regime4_state: str | None,
+        entry_dir: str | None,
+        entry_branch: str | None,
+        shock_atr_pct: float | None,
+    ) -> bool:
+        if not (
+            self._dual_branch_enabled
+            and regime4_state in ("transition_up_hot", "trend_up_clean")
+            and entry_branch == "a"
+            and entry_dir == "up"
+        ):
+            return False
+        if shock_atr_pct is None:
+            return False
+        atr_value = float(shock_atr_pct)
+        in_mid_band = False
+        if (
+            self._regime2_upcorridor_branch_a_long_mid_shock_atr_pct_min is not None
+            and self._regime2_upcorridor_branch_a_long_mid_shock_atr_pct_max is not None
+        ):
+            in_mid_band = (
+                float(self._regime2_upcorridor_branch_a_long_mid_shock_atr_pct_min)
+                <= atr_value
+                < float(self._regime2_upcorridor_branch_a_long_mid_shock_atr_pct_max)
+            )
+        in_extreme_band = (
+            self._regime2_upcorridor_branch_a_long_extreme_shock_atr_pct_min is not None
+            and atr_value >= float(self._regime2_upcorridor_branch_a_long_extreme_shock_atr_pct_min)
+        )
+        if not (in_mid_band or in_extreme_band):
+            return False
+        release_age = self._active_regime2_bear_hard_release_age_bars
+        if release_age is None:
+            return False
+        if regime4_state == "transition_up_hot":
+            fresh_max = self._regime2_upcorridor_branch_a_long_fresh_release_age_max_bars
+            return fresh_max is not None and int(release_age) <= int(fresh_max)
+        stale_min = self._regime2_upcorridor_branch_a_long_stale_release_age_min_bars
+        return stale_min is not None and int(release_age) >= int(stale_min)
 
     def _select_dual_signal(
         self,
@@ -1134,6 +1705,159 @@ class SpotSignalEvaluator:
 
         return shock, shock_dir, _atr_pct_from(self._last_shock)
 
+    def _advance_supertrend_state(
+        self,
+        *,
+        bar: BarLike,
+        engine: SupertrendEngine | None,
+        use_mtf: bool,
+        bars: list[BarLike],
+        idx: int,
+        last_snapshot,
+    ) -> tuple[object | None, int, str | None, bool]:
+        if engine is None:
+            return last_snapshot, idx, None, False
+        if use_mtf and bars:
+            while idx < len(bars) and bars[idx].ts <= bar.ts:
+                reg_bar = bars[idx]
+                last_snapshot = engine.update(
+                    high=float(reg_bar.high),
+                    low=float(reg_bar.low),
+                    close=float(reg_bar.close),
+                )
+                idx += 1
+        else:
+            last_snapshot = engine.update(
+                high=float(bar.high),
+                low=float(bar.low),
+                close=float(bar.close),
+            )
+        direction = last_snapshot.direction if last_snapshot is not None else None
+        ready = bool(last_snapshot and last_snapshot.ready)
+        direction = str(direction) if direction in ("up", "down") else None
+        return last_snapshot, int(idx), direction, bool(ready)
+
+    def _advance_regime2_state(self, *, bar: BarLike) -> tuple[str | None, bool]:
+        regime2_dir: str | None = None
+        regime2_ready = False
+        if self._supertrend2_engine is not None:
+            self._last_supertrend2, self._regime2_idx, regime2_dir, regime2_ready = self._advance_supertrend_state(
+                bar=bar,
+                engine=self._supertrend2_engine,
+                use_mtf=bool(self._use_mtf_regime2),
+                bars=self._regime2_bars,
+                idx=int(self._regime2_idx),
+                last_snapshot=self._last_supertrend2,
+            )
+        elif self._regime2_engine is not None:
+            if self._use_mtf_regime2 and self._regime2_bars:
+                while self._regime2_idx < len(self._regime2_bars) and self._regime2_bars[self._regime2_idx].ts <= bar.ts:
+                    reg_bar = self._regime2_bars[self._regime2_idx]
+                    if float(reg_bar.close) > 0:
+                        self._last_regime2 = self._regime2_engine.update(float(reg_bar.close))
+                    self._regime2_idx += 1
+            else:
+                self._last_regime2 = self._regime2_engine.update(float(bar.close))
+            regime2_dir = self._last_regime2.state if self._last_regime2 is not None else None
+            regime2_ready = bool(self._last_regime2 and self._last_regime2.ema_ready)
+        self._active_regime2_dir = str(regime2_dir) if regime2_dir in ("up", "down") else None
+        self._active_regime2_ready = bool(regime2_ready)
+        return self._active_regime2_dir, bool(self._active_regime2_ready)
+
+    def _advance_regime2_bear_hard_state(self, *, bar: BarLike) -> tuple[str | None, bool]:
+        hard_dir: str | None = None
+        hard_ready = False
+        if self._bear_hard_supertrend_engine is not None:
+            (
+                self._last_bear_hard_supertrend,
+                self._regime2_bear_hard_idx,
+                hard_dir,
+                hard_ready,
+            ) = self._advance_supertrend_state(
+                bar=bar,
+                engine=self._bear_hard_supertrend_engine,
+                use_mtf=bool(self._use_mtf_regime2_bear_hard),
+                bars=self._regime2_bear_hard_bars,
+                idx=int(self._regime2_bear_hard_idx),
+                last_snapshot=self._last_bear_hard_supertrend,
+            )
+        self._active_regime2_bear_hard_dir = str(hard_dir) if hard_dir in ("up", "down") else None
+        self._active_regime2_bear_hard_ready = bool(hard_ready)
+        return self._active_regime2_bear_hard_dir, bool(self._active_regime2_bear_hard_ready)
+
+    def _advance_clean_regime2_state(self, *, bar: BarLike) -> tuple[str | None, bool]:
+        clean_dir: str | None = None
+        clean_ready = False
+        if self._clean_supertrend2_engine is not None:
+            (
+                self._last_clean_supertrend2,
+                self._clean_regime2_idx,
+                clean_dir,
+                clean_ready,
+            ) = self._advance_supertrend_state(
+                bar=bar,
+                engine=self._clean_supertrend2_engine,
+                use_mtf=bool(self._use_mtf_regime2),
+                bars=self._regime2_bars,
+                idx=int(self._clean_regime2_idx),
+                last_snapshot=self._last_clean_supertrend2,
+            )
+        self._active_clean_regime2_dir = str(clean_dir) if clean_dir in ("up", "down") else None
+        self._active_clean_regime2_ready = bool(clean_ready)
+        return self._active_clean_regime2_dir, bool(self._active_clean_regime2_ready)
+
+    def _advance_clean_regime2_bear_hard_state(self, *, bar: BarLike) -> tuple[str | None, bool]:
+        clean_hard_dir: str | None = None
+        clean_hard_ready = False
+        if self._clean_bear_hard_supertrend_engine is not None:
+            (
+                self._last_clean_bear_hard_supertrend,
+                self._clean_regime2_bear_hard_idx,
+                clean_hard_dir,
+                clean_hard_ready,
+            ) = self._advance_supertrend_state(
+                bar=bar,
+                engine=self._clean_bear_hard_supertrend_engine,
+                use_mtf=bool(self._use_mtf_regime2_bear_hard),
+                bars=self._regime2_bear_hard_bars,
+                idx=int(self._clean_regime2_bear_hard_idx),
+                last_snapshot=self._last_clean_bear_hard_supertrend,
+            )
+        self._active_clean_regime2_bear_hard_dir = (
+            str(clean_hard_dir) if clean_hard_dir in ("up", "down") else None
+        )
+        self._active_clean_regime2_bear_hard_ready = bool(clean_hard_ready)
+        return self._active_clean_regime2_bear_hard_dir, bool(self._active_clean_regime2_bear_hard_ready)
+
+    @staticmethod
+    def _next_regime2_bear_hard_release_age(
+        *,
+        hard_dir: str | None,
+        hard_ready: bool,
+        prev_was_down: bool,
+        release_age_bars: int | None,
+    ) -> tuple[int | None, bool]:
+        is_down = bool(hard_ready and hard_dir == "down")
+        if is_down:
+            release_age_bars = 0
+        elif prev_was_down:
+            release_age_bars = 1
+        elif release_age_bars is not None:
+            release_age_bars = int(release_age_bars) + 1
+        return release_age_bars, bool(is_down)
+
+    def _update_regime2_bear_hard_release_age(self, *, hard_dir: str | None, hard_ready: bool) -> int | None:
+        (
+            self._regime2_bear_hard_release_age_bars,
+            self._regime2_bear_hard_prev_was_down,
+        ) = self._next_regime2_bear_hard_release_age(
+            hard_dir=hard_dir,
+            hard_ready=bool(hard_ready),
+            prev_was_down=bool(self._regime2_bear_hard_prev_was_down),
+            release_age_bars=self._regime2_bear_hard_release_age_bars,
+        )
+        return self._regime2_bear_hard_release_age_bars
+
     def update_signal_bar(self, bar: BarLike) -> SpotSignalSnapshot | None:
         """Update the evaluator for a single signal bar close."""
         close = float(bar.close)
@@ -1169,6 +1893,31 @@ class SpotSignalEvaluator:
                 high=float(bar.high),
                 low=float(bar.low),
                 close=float(bar.close),
+            )
+
+        regime2_dir, regime2_ready = self._advance_regime2_state(bar=bar)
+        regime2_bear_hard_dir, regime2_bear_hard_ready = self._advance_regime2_bear_hard_state(bar=bar)
+        self._update_regime2_bear_hard_release_age(
+            hard_dir=regime2_bear_hard_dir,
+            hard_ready=bool(regime2_bear_hard_ready),
+        )
+        clean_regime2_dir: str | None = None
+        clean_regime2_ready = False
+        clean_regime2_bear_hard_dir: str | None = None
+        clean_regime2_bear_hard_ready = False
+        if self._regime2_clean_host_enable:
+            clean_regime2_dir, clean_regime2_ready = self._advance_clean_regime2_state(bar=bar)
+            clean_regime2_bear_hard_dir, clean_regime2_bear_hard_ready = self._advance_clean_regime2_bear_hard_state(
+                bar=bar
+            )
+            (
+                self._clean_regime2_bear_hard_release_age_bars,
+                self._clean_regime2_bear_hard_prev_was_down,
+            ) = self._next_regime2_bear_hard_release_age(
+                hard_dir=clean_regime2_bear_hard_dir,
+                hard_ready=bool(clean_regime2_bear_hard_ready),
+                prev_was_down=bool(self._clean_regime2_bear_hard_prev_was_down),
+                release_age_bars=self._clean_regime2_bear_hard_release_age_bars,
             )
 
         signal = None
@@ -1410,52 +2159,99 @@ class SpotSignalEvaluator:
                 update_direction=False,
             )
 
+        shock, shock_dir, shock_atr_pct = self._shock_view()
+        regime4_state, regime4_transition_hot = self._classify_regime4_state(
+            shock_atr_pct=shock_atr_pct,
+            fast_dir=regime2_dir,
+            fast_ready=bool(regime2_ready),
+            hard_dir=regime2_bear_hard_dir,
+            hard_ready=bool(regime2_bear_hard_ready),
+            hard_release_age_bars=self._regime2_bear_hard_release_age_bars,
+        )
+        regime4_owner = "primary"
+        active_regime2_dir = str(regime2_dir) if regime2_dir in ("up", "down") else None
+        active_regime2_ready = bool(regime2_ready)
+        active_regime2_bear_hard_dir = (
+            str(regime2_bear_hard_dir) if regime2_bear_hard_dir in ("up", "down") else None
+        )
+        active_regime2_bear_hard_ready = bool(regime2_bear_hard_ready)
+        active_regime2_bear_hard_release_age_bars = self._regime2_bear_hard_release_age_bars
+        if self._regime2_clean_host_enable:
+            clean_regime4_state, clean_regime4_transition_hot = self._classify_regime4_state(
+                shock_atr_pct=shock_atr_pct,
+                fast_dir=clean_regime2_dir,
+                fast_ready=bool(clean_regime2_ready),
+                hard_dir=clean_regime2_bear_hard_dir,
+                hard_ready=bool(clean_regime2_bear_hard_ready),
+                hard_release_age_bars=self._clean_regime2_bear_hard_release_age_bars,
+            )
+            clean_takeover = False
+            if self._regime2_clean_host_takeover_state == "trend_up_clean":
+                clean_takeover = bool(
+                    regime4_state == "trend_up_clean" and clean_regime4_state == "trend_up_clean"
+                )
+            elif self._regime2_clean_host_takeover_state == "crash_down":
+                clean_takeover = bool(clean_regime4_state == "crash_down")
+            elif self._regime2_clean_host_takeover_state == "transition_up_hot":
+                clean_takeover = bool(clean_regime4_state == "transition_up_hot")
+            elif self._regime2_clean_host_takeover_state == "crash_or_transition_up_hot":
+                clean_takeover = bool(clean_regime4_state in ("crash_down", "transition_up_hot"))
+            if clean_takeover:
+                regime4_owner = "clean_host"
+                regime4_state = clean_regime4_state
+                regime4_transition_hot = bool(clean_regime4_transition_hot)
+                active_regime2_dir = str(clean_regime2_dir) if clean_regime2_dir in ("up", "down") else None
+                active_regime2_ready = bool(clean_regime2_ready)
+                active_regime2_bear_hard_dir = (
+                    str(clean_regime2_bear_hard_dir) if clean_regime2_bear_hard_dir in ("up", "down") else None
+                )
+                active_regime2_bear_hard_ready = bool(clean_regime2_bear_hard_ready)
+                active_regime2_bear_hard_release_age_bars = self._clean_regime2_bear_hard_release_age_bars
+        self._active_regime2_dir = active_regime2_dir
+        self._active_regime2_ready = bool(active_regime2_ready)
+        self._active_regime2_bear_hard_dir = active_regime2_bear_hard_dir
+        self._active_regime2_bear_hard_ready = bool(active_regime2_bear_hard_ready)
+        self._active_regime2_bear_hard_release_age_bars = active_regime2_bear_hard_release_age_bars
+        self._regime4_transition_hot = bool(regime4_transition_hot)
+        self._regime4_owner = str(regime4_owner)
+
         # Secondary regime2 gating.
         if self._supertrend2_engine is not None:
-            if self._use_mtf_regime2 and self._regime2_bars:
-                while self._regime2_idx < len(self._regime2_bars) and self._regime2_bars[self._regime2_idx].ts <= bar.ts:
-                    reg_bar = self._regime2_bars[self._regime2_idx]
-                    self._last_supertrend2 = self._supertrend2_engine.update(
-                        high=float(reg_bar.high),
-                        low=float(reg_bar.low),
-                        close=float(reg_bar.close),
-                    )
-                    self._regime2_idx += 1
-            else:
-                self._last_supertrend2 = self._supertrend2_engine.update(
-                    high=float(bar.high),
-                    low=float(bar.low),
-                    close=float(bar.close),
-                )
-
             if spot_regime_apply_matches_direction(
                 apply_to_raw=_get(self._strategy, "regime2_apply_to", "both"),
                 entry_dir=getattr(signal, "entry_dir", None),
             ):
                 signal = apply_regime_gate(
                     signal,
-                    regime_dir=self._last_supertrend2.direction if self._last_supertrend2 is not None else None,
-                    regime_ready=bool(self._last_supertrend2 and self._last_supertrend2.ready),
+                    regime_dir=active_regime2_dir,
+                    regime_ready=bool(active_regime2_ready),
                 )
         elif self._regime2_engine is not None:
-            if self._use_mtf_regime2 and self._regime2_bars:
-                while self._regime2_idx < len(self._regime2_bars) and self._regime2_bars[self._regime2_idx].ts <= bar.ts:
-                    reg_bar = self._regime2_bars[self._regime2_idx]
-                    if float(reg_bar.close) > 0:
-                        self._last_regime2 = self._regime2_engine.update(float(reg_bar.close))
-                    self._regime2_idx += 1
-            else:
-                self._last_regime2 = self._regime2_engine.update(float(bar.close))
-
             if spot_regime_apply_matches_direction(
                 apply_to_raw=_get(self._strategy, "regime2_apply_to", "both"),
                 entry_dir=getattr(signal, "entry_dir", None),
             ):
                 signal = apply_regime_gate(
                     signal,
-                    regime_dir=self._last_regime2.state if self._last_regime2 is not None else None,
-                    regime_ready=bool(self._last_regime2 and self._last_regime2.ema_ready),
+                    regime_dir=active_regime2_dir,
+                    regime_ready=bool(active_regime2_ready),
                 )
+
+        if signal is not None and self._regime2_bear_entry_mode == "supertrend":
+            signal, bear_entry_dir = self._apply_regime2_bear_primary(
+                branch_key=str(ratsv_branch_key or "single"),
+                signal=signal,
+                bar=bar,
+                close=float(close),
+            )
+            if bear_entry_dir in ("up", "down"):
+                if self._dual_branch_enabled and entry_branch not in ("a", "b"):
+                    entry_dir_for_entries = None
+                    entry_branch = None
+                else:
+                    entry_dir_for_entries = str(bear_entry_dir)
+                    if entry_branch not in ("a", "b") or getattr(signal, "entry_dir", None) != entry_dir_for_entries:
+                        entry_branch = None
 
         if signal is None:
             return None
@@ -1476,7 +2272,6 @@ class SpotSignalEvaluator:
                 entry_dir_for_entries = None
             entry_branch = None
 
-        shock, shock_dir, shock_atr_pct = self._shock_view()
         shock_atr_vel_pct = None
         shock_atr_accel_pct = None
         if shock_atr_pct is not None:
@@ -1548,6 +2343,29 @@ class SpotSignalEvaluator:
         else:
             self._prev_shock_drawdown_dist_on_pct = None
             self._prev_shock_drawdown_dist_on_vel_pp = None
+
+        if self._regime2_crash_blocks_long(regime4_state=regime4_state, entry_dir=entry_dir_for_entries):
+            entry_dir_for_entries = None
+            entry_branch = None
+
+        if self._regime2_repair_blocks_branch_b_long(
+            regime4_state=regime4_state,
+            entry_dir=entry_dir_for_entries,
+            entry_branch=entry_branch,
+            shock_atr_pct=shock_atr_pct,
+            bar_ts=bar.ts,
+        ):
+            entry_dir_for_entries = None
+            entry_branch = None
+
+        if self._regime2_upcorridor_blocks_branch_a_long(
+            regime4_state=regime4_state,
+            entry_dir=entry_dir_for_entries,
+            entry_branch=entry_branch,
+            shock_atr_pct=shock_atr_pct,
+        ):
+            entry_dir_for_entries = None
+            entry_branch = None
 
         if bool(shock) and shock_dir == "down":
             self._shock_dir_down_streak_bars += 1
@@ -1806,6 +2624,22 @@ class SpotSignalEvaluator:
             shock_dir_up_streak_bars=int(self._shock_dir_up_streak_bars),
             risk=self._last_risk,
             atr=atr,
+            regime2_dir=str(self._active_regime2_dir) if self._active_regime2_dir in ("up", "down") else None,
+            regime2_ready=bool(self._active_regime2_ready),
+            regime2_bear_hard_dir=(
+                str(self._active_regime2_bear_hard_dir)
+                if self._active_regime2_bear_hard_dir in ("up", "down")
+                else None
+            ),
+            regime2_bear_hard_ready=bool(self._active_regime2_bear_hard_ready),
+            regime2_bear_hard_release_age_bars=(
+                int(self._active_regime2_bear_hard_release_age_bars)
+                if self._active_regime2_bear_hard_release_age_bars is not None
+                else None
+            ),
+            regime4_state=str(regime4_state) if regime4_state is not None else None,
+            regime4_transition_hot=bool(self._regime4_transition_hot),
+            regime4_owner=str(self._regime4_owner) if self._regime4_owner is not None else None,
             or_high=self._orb_engine.or_high if self._orb_engine is not None else None,
             or_low=self._orb_engine.or_low if self._orb_engine is not None else None,
             or_ready=bool(self._orb_engine and self._orb_engine.or_ready),

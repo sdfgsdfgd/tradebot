@@ -193,6 +193,85 @@ def _strategy_schema_common() -> dict[str, _FieldSpec]:
         "regime2_supertrend_atr_period": _field(lambda value: _parse_positive_int(value, default=10), 10),
         "regime2_supertrend_multiplier": _field(lambda value: _parse_positive_float(value, default=3.0), 3.0),
         "regime2_supertrend_source": _field(_parse_supertrend_source, None),
+        "regime2_bear_entry_mode": _field(_parse_regime2_bear_entry_mode, None),
+        "regime2_bear_allow_long_recovery": _field(bool, True),
+        "regime2_bear_supertrend_atr_period": _field(
+            lambda value: None if value is None else _parse_positive_int(value, default=10),
+            None,
+        ),
+        "regime2_bear_supertrend_multiplier": _field(
+            lambda value: None if value is None else _parse_positive_float(value, default=3.0),
+            None,
+        ),
+        "regime2_bear_supertrend_source": _field(_parse_supertrend_source, None),
+        "regime2_bear_takeover_mode": _field(_parse_regime2_bear_takeover_mode, None),
+        "regime2_crash_atr_pct_min": _field(
+            lambda value: None if value is None else _parse_non_negative_float_or_default(value, default=0.0),
+            None,
+        ),
+        "regime2_crash_block_longs": _field(bool, False),
+        "regime2_repair_block_branch_b_longs": _field(bool, False),
+        "regime2_repair_branch_b_long_max_shock_atr_pct": _field(
+            lambda value: None if value is None else _parse_non_negative_float_or_default(value, default=0.0),
+            None,
+        ),
+        "regime2_repair_branch_b_long_block_after_hour_et": _field(
+            lambda value: None if value is None else max(0, min(23, _parse_non_negative_int(value, default=0))),
+            None,
+        ),
+        "regime2_transition_hot_shock_atr_pct_min": _field(
+            lambda value: None if value is None else _parse_non_negative_float_or_default(value, default=0.0),
+            None,
+        ),
+        "regime2_transition_hot_release_max_bars": _field(
+            lambda value: None if value is None else _parse_non_negative_int(value, default=0),
+            None,
+        ),
+        "regime2_upcorridor_branch_a_long_mid_shock_atr_pct_min": _field(
+            lambda value: None if value is None else _parse_non_negative_float_or_default(value, default=0.0),
+            None,
+        ),
+        "regime2_upcorridor_branch_a_long_mid_shock_atr_pct_max": _field(
+            lambda value: None if value is None else _parse_non_negative_float_or_default(value, default=0.0),
+            None,
+        ),
+        "regime2_upcorridor_branch_a_long_extreme_shock_atr_pct_min": _field(
+            lambda value: None if value is None else _parse_non_negative_float_or_default(value, default=0.0),
+            None,
+        ),
+        "regime2_upcorridor_branch_a_long_fresh_release_age_max_bars": _field(
+            lambda value: None if value is None else _parse_non_negative_int(value, default=0),
+            None,
+        ),
+        "regime2_upcorridor_branch_a_long_stale_release_age_min_bars": _field(
+            lambda value: None if value is None else _parse_non_negative_int(value, default=0),
+            None,
+        ),
+        "regime2_clean_host_enable": _field(bool, False),
+        "regime2_clean_host_takeover_state": _field(_parse_regime2_clean_host_takeover_state, None),
+        "regime2_clean_host_supertrend_multiplier": _field(
+            lambda value: None if value is None else _parse_positive_float(value, default=3.0),
+            None,
+        ),
+        "regime2_clean_host_bear_supertrend_multiplier": _field(
+            lambda value: None if value is None else _parse_positive_float(value, default=3.0),
+            None,
+        ),
+        "regime2_clean_host_bear_hard_supertrend_multiplier": _field(
+            lambda value: None if value is None else _parse_positive_float(value, default=3.0),
+            None,
+        ),
+        "regime2_bear_hard_mode": _field(_parse_regime2_bear_entry_mode, None),
+        "regime2_bear_hard_bar_size": _field(_parse_bar_size, None),
+        "regime2_bear_hard_supertrend_atr_period": _field(
+            lambda value: None if value is None else _parse_positive_int(value, default=10),
+            None,
+        ),
+        "regime2_bear_hard_supertrend_multiplier": _field(
+            lambda value: None if value is None else _parse_positive_float(value, default=3.0),
+            None,
+        ),
+        "regime2_bear_hard_supertrend_source": _field(_parse_supertrend_source, None),
         "supertrend_atr_period": _field(lambda value: _parse_positive_int(value, default=10), 10),
         "supertrend_multiplier": _field(lambda value: _parse_positive_float(value, default=3.0), 3.0),
         "supertrend_source": _field(_parse_supertrend_source, None),
@@ -814,7 +893,6 @@ def _parse_filters(raw) -> FiltersConfig | None:
         riskpanic_short_factor = 1.0
     if riskpanic_short_factor < 0:
         riskpanic_short_factor = 1.0
-
     riskpop_tr5_med = _f(raw.get("riskpop_tr5_med_pct"))
     if riskpop_tr5_med is not None and riskpop_tr5_med <= 0:
         riskpop_tr5_med = None
@@ -878,6 +956,12 @@ def _parse_filters(raw) -> FiltersConfig | None:
     ratsv_branch_a_slope_vel_min_pct = _pos_float_or_none(raw.get("ratsv_branch_a_slope_vel_min_pct"))
     ratsv_branch_a_slope_med_slow_min_pct = _pos_float_or_none(raw.get("ratsv_branch_a_slope_med_slow_min_pct"))
     ratsv_branch_a_slope_vel_slow_min_pct = _pos_float_or_none(raw.get("ratsv_branch_a_slope_vel_slow_min_pct"))
+    regime2_soft_bear_branch_a_slope_med_slow_min_pct = _pos_float_or_none(
+        raw.get("regime2_soft_bear_branch_a_slope_med_slow_min_pct")
+    )
+    regime2_soft_bear_branch_a_slope_vel_slow_min_pct = _pos_float_or_none(
+        raw.get("regime2_soft_bear_branch_a_slope_vel_slow_min_pct")
+    )
     ratsv_branch_a_slope_vel_consistency_bars = _i(raw.get("ratsv_branch_a_slope_vel_consistency_bars"))
     if ratsv_branch_a_slope_vel_consistency_bars is not None and ratsv_branch_a_slope_vel_consistency_bars < 0:
         ratsv_branch_a_slope_vel_consistency_bars = None
@@ -1027,6 +1111,8 @@ def _parse_filters(raw) -> FiltersConfig | None:
         ratsv_branch_a_slope_vel_min_pct=ratsv_branch_a_slope_vel_min_pct,
         ratsv_branch_a_slope_med_slow_min_pct=ratsv_branch_a_slope_med_slow_min_pct,
         ratsv_branch_a_slope_vel_slow_min_pct=ratsv_branch_a_slope_vel_slow_min_pct,
+        regime2_soft_bear_branch_a_slope_med_slow_min_pct=regime2_soft_bear_branch_a_slope_med_slow_min_pct,
+        regime2_soft_bear_branch_a_slope_vel_slow_min_pct=regime2_soft_bear_branch_a_slope_vel_slow_min_pct,
         ratsv_branch_a_slope_vel_consistency_bars=(
             int(ratsv_branch_a_slope_vel_consistency_bars)
             if ratsv_branch_a_slope_vel_consistency_bars is not None
@@ -1127,6 +1213,8 @@ def _parse_regime2_apply_to(value) -> str:
         return "both"
     if isinstance(value, str):
         cleaned = value.strip().lower()
+        if cleaned in ("off", "none", "disabled", "false", "0", "soft"):
+            return "off"
         if cleaned in ("both", "all", "default", ""):
             return "both"
         if cleaned in ("long", "longs", "up", "buy"):
@@ -1134,6 +1222,59 @@ def _parse_regime2_apply_to(value) -> str:
         if cleaned in ("short", "shorts", "down", "sell"):
             return "shorts"
     return "both"
+
+
+def _parse_regime2_bear_entry_mode(value) -> str:
+    if value is None:
+        return "off"
+    if isinstance(value, str):
+        cleaned = value.strip().lower()
+        if cleaned in ("", "off", "none", "disabled", "false", "0"):
+            return "off"
+        if cleaned in ("supertrend", "st", "supertrend_confirmed", "st_confirmed"):
+            return "supertrend"
+    return "off"
+
+
+def _parse_regime2_bear_takeover_mode(value) -> str:
+    if value is None:
+        return "always"
+    if isinstance(value, str):
+        cleaned = value.strip().lower()
+        if cleaned in ("", "always", "on", "true", "1"):
+            return "always"
+        if cleaned in ("hostile", "risk", "risk_or_panic"):
+            return "hostile"
+        if cleaned in ("riskoff", "off_risk"):
+            return "riskoff"
+        if cleaned in ("riskpanic", "panic"):
+            return "riskpanic"
+        if cleaned in ("shockdown", "shock_down", "shock-down"):
+            return "shockdown"
+        if cleaned in ("hostile_or_shockdown", "hostile+shockdown", "hostile_shockdown"):
+            return "hostile_or_shockdown"
+    return "always"
+
+
+def _parse_regime2_clean_host_takeover_state(value) -> str:
+    if value is None:
+        return "trend_up_clean"
+    if isinstance(value, str):
+        cleaned = value.strip().lower()
+        if cleaned in ("", "trend_up_clean", "clean_up", "trendup", "clean"):
+            return "trend_up_clean"
+        if cleaned in ("crash_down", "crash", "crashdown"):
+            return "crash_down"
+        if cleaned in ("transition_up_hot", "transition", "repair_up", "hot_transition"):
+            return "transition_up_hot"
+        if cleaned in (
+            "crash_or_transition_up_hot",
+            "crash_or_transition",
+            "crash+transition",
+            "crash_transition",
+        ):
+            return "crash_or_transition_up_hot"
+    return "trend_up_clean"
 
 
 def _parse_tick_gate_mode(value) -> str:

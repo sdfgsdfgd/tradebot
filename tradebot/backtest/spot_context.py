@@ -25,6 +25,7 @@ class SpotBarRequirement:
 class SpotContextBars:
     regime_bars: object | None = None
     regime2_bars: object | None = None
+    regime2_bear_hard_bars: object | None = None
     tick_bars: object | None = None
     exec_bars: object | None = None
 
@@ -130,6 +131,21 @@ def spot_bar_requirements_from_strategy(
                 warmup_days=0,
             )
         )
+    regime2_bear_hard_mode = str(_get(strategy, "regime2_bear_hard_mode", "off") or "off").strip().lower()
+    regime2_bear_hard_bar = str(_get(strategy, "regime2_bear_hard_bar_size", "") or "").strip()
+    if not regime2_bear_hard_bar or regime2_bear_hard_bar.lower() in ("same", "default"):
+        regime2_bear_hard_bar = str(regime2_bar)
+    if regime2_bear_hard_mode == "supertrend" and str(regime2_bear_hard_bar) != str(signal_bar_size):
+        out.append(
+            SpotBarRequirement(
+                kind="regime2_bear_hard",
+                symbol=symbol,
+                exchange=exchange,
+                bar_size=str(regime2_bear_hard_bar),
+                use_rth=bool(signal_use_rth),
+                warmup_days=0,
+            )
+        )
 
     tick_mode = str(_get(strategy, "tick_gate_mode", "off") or "off").strip().lower()
     if tick_mode not in ("off", "raschke"):
@@ -221,6 +237,7 @@ def load_spot_context_bars(
     return SpotContextBars(
         regime_bars=by_kind.get("regime"),
         regime2_bars=by_kind.get("regime2"),
+        regime2_bear_hard_bars=by_kind.get("regime2_bear_hard"),
         tick_bars=by_kind.get("tick"),
         exec_bars=by_kind.get("exec"),
     )

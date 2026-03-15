@@ -1397,6 +1397,7 @@ def _spot_series_pack_key_info(
     exec_bars: list[Bar],
     regime_bars: list[Bar] | None,
     regime2_bars: list[Bar] | None,
+    regime2_bear_hard_bars: list[Bar] | None,
     tick_bars: list[Bar] | None,
     include_rv: bool,
     include_volume: bool,
@@ -1416,6 +1417,7 @@ def _spot_series_pack_key_info(
         _spot_bars_signature(exec_bars),
         _spot_bars_signature(regime_bars),
         _spot_bars_signature(regime2_bars),
+        _spot_bars_signature(regime2_bear_hard_bars),
         _spot_bars_signature(tick_bars if include_tick else None),
         _spot_signal_series_signature(cfg=cfg),
         _spot_tick_gate_settings(strat),
@@ -1457,6 +1459,7 @@ def _spot_series_pack_cache_state(
     exec_bars: list[Bar],
     regime_bars: list[Bar] | None,
     regime2_bars: list[Bar] | None,
+    regime2_bear_hard_bars: list[Bar] | None,
     tick_bars: list[Bar] | None,
     include_rv: bool,
     include_volume: bool,
@@ -1468,6 +1471,7 @@ def _spot_series_pack_cache_state(
         exec_bars=exec_bars,
         regime_bars=regime_bars,
         regime2_bars=regime2_bars,
+        regime2_bear_hard_bars=regime2_bear_hard_bars,
         tick_bars=tick_bars,
         include_rv=bool(include_rv),
         include_volume=bool(include_volume),
@@ -1504,6 +1508,7 @@ def _spot_prepare_summary_series_pack(
     signal_bars: BarSeriesInput,
     regime_bars: BarSeriesInput | None = None,
     regime2_bars: BarSeriesInput | None = None,
+    regime2_bear_hard_bars: BarSeriesInput | None = None,
     tick_bars: BarSeriesInput | None = None,
     exec_bars: BarSeriesInput | None = None,
 ) -> tuple[str, object | None]:
@@ -1516,6 +1521,7 @@ def _spot_prepare_summary_series_pack(
     signal_list = _bars_input_list(signal_bars)
     regime_list = _bars_input_optional_list(regime_bars)
     regime2_list = _bars_input_optional_list(regime2_bars)
+    regime2_bear_hard_list = _bars_input_optional_list(regime2_bear_hard_bars)
     tick_list = _bars_input_optional_list(tick_bars)
     exec_list = _bars_input_optional_list(exec_bars)
 
@@ -1552,6 +1558,7 @@ def _spot_prepare_summary_series_pack(
         exec_bars=exec_list,
         regime_bars=regime_list,
         regime2_bars=regime2_list,
+        regime2_bear_hard_bars=regime2_bear_hard_list,
         tick_bars=tick_list,
         include_rv=bool(include_rv),
         include_volume=bool(include_volume),
@@ -1566,6 +1573,7 @@ def _spot_prepare_summary_series_pack(
         exec_bars=exec_list,
         regime_bars=regime_list,
         regime2_bars=regime2_list,
+        regime2_bear_hard_bars=regime2_bear_hard_list,
         tick_bars=tick_list,
         include_rv=bool(include_rv),
         include_volume=bool(include_volume),
@@ -1581,6 +1589,7 @@ def _spot_build_series_pack(
     exec_bars: list[Bar],
     regime_bars: list[Bar] | None,
     regime2_bars: list[Bar] | None,
+    regime2_bear_hard_bars: list[Bar] | None,
     tick_bars: list[Bar] | None,
     include_rv: bool,
     include_volume: bool,
@@ -1595,6 +1604,7 @@ def _spot_build_series_pack(
         exec_bars=exec_bars,
         regime_bars=regime_bars,
         regime2_bars=regime2_bars,
+        regime2_bear_hard_bars=regime2_bear_hard_bars,
         tick_bars=tick_bars,
         include_rv=bool(include_rv),
         include_volume=bool(include_volume),
@@ -1635,6 +1645,7 @@ def _spot_build_series_pack(
                     signal_bars=signal_bars,
                     regime_bars=regime_bars,
                     regime2_bars=regime2_bars,
+                    regime2_bear_hard_bars=regime2_bear_hard_bars,
                 ),
                 tick_series=(
                     _spot_tick_gate_series(
@@ -1841,6 +1852,7 @@ def _spot_signal_series(
     signal_bars: list[Bar],
     regime_bars: list[Bar] | None,
     regime2_bars: list[Bar] | None,
+    regime2_bear_hard_bars: list[Bar] | None,
 ) -> _SpotSignalSeries:
     """Precompute EMA/regime-gated signal snapshots once per bar set + strategy params.
 
@@ -1855,6 +1867,7 @@ def _spot_signal_series(
         id(signal_bars),
         id(regime_bars) if regime_bars else 0,
         id(regime2_bars) if regime2_bars else 0,
+        id(regime2_bear_hard_bars) if regime2_bear_hard_bars else 0,
         *_spot_signal_series_signature(cfg=cfg),
     )
     cached = _SERIES_CACHE.get(namespace=_SPOT_SIGNAL_SERIES_NAMESPACE, key=key)
@@ -1886,6 +1899,7 @@ def _spot_signal_series(
         rv_ewma_lambda=float(cfg.synthetic.rv_ewma_lambda),
         regime_bars=regime_bars,
         regime2_bars=regime2_bars,
+        regime2_bear_hard_bars=regime2_bear_hard_bars,
     )
     signal_by_sig_idx: list[EmaDecisionSnapshot | None] = [None] * len(signal_bars)
     bars_in_day_by_sig_idx: list[int] = [0] * len(signal_bars)
@@ -2847,7 +2861,13 @@ def _load_spot_backtest_context_bars(
     cfg: ConfigBundle,
     start_dt: datetime,
     end_dt: datetime,
-) -> tuple[BarSeries[Bar] | None, BarSeries[Bar] | None, BarSeries[Bar] | None, BarSeries[Bar] | None]:
+) -> tuple[
+    BarSeries[Bar] | None,
+    BarSeries[Bar] | None,
+    BarSeries[Bar] | None,
+    BarSeries[Bar] | None,
+    BarSeries[Bar] | None,
+]:
     def _load_requirement(req: SpotBarRequirement, req_start: datetime, req_end: datetime):
         if str(req.kind) == "regime":
             return _load_backtest_bars_offline_fallback_start(
@@ -2882,7 +2902,13 @@ def _load_spot_backtest_context_bars(
         end_dt=end_dt,
         load_requirement=_load_requirement,
     )
-    return context.regime_bars, context.regime2_bars, context.tick_bars, context.exec_bars
+    return (
+        context.regime_bars,
+        context.regime2_bars,
+        context.regime2_bear_hard_bars,
+        context.tick_bars,
+        context.exec_bars,
+    )
 
 
 def run_backtest(cfg: ConfigBundle) -> BacktestResult:
@@ -2905,7 +2931,7 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
     meta = _resolve_backtest_contract_meta(data=data, cfg=cfg)
 
     if cfg.strategy.instrument == "spot":
-        regime_bars, regime2_bars, tick_bars, exec_bars = _load_spot_backtest_context_bars(
+        regime_bars, regime2_bars, regime2_bear_hard_bars, tick_bars, exec_bars = _load_spot_backtest_context_bars(
             data=data,
             cfg=cfg,
             start_dt=start_dt,
@@ -2918,6 +2944,7 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
             meta,
             regime_bars=regime_bars,
             regime2_bars=regime2_bars,
+            regime2_bear_hard_bars=regime2_bear_hard_bars,
             tick_bars=tick_bars,
             exec_bars=exec_bars,
         )
@@ -3479,6 +3506,13 @@ def _spot_try_open_entry(
     shock_ramp_now: dict[str, object] | None = None,
     signal_entry_dir_now: str | None,
     signal_regime_dir_now: str | None,
+    regime2_dir_now: str | None,
+    regime2_ready_now: bool,
+    regime2_bear_hard_dir_now: str | None,
+    regime2_bear_hard_ready_now: bool,
+    regime2_bear_hard_release_age_bars_now: int | None,
+    regime4_state_now: str | None,
+    regime4_transition_hot_now: bool,
     riskoff_today: bool,
     riskpanic_today: bool,
     riskpop_today: bool,
@@ -3491,6 +3525,7 @@ def _spot_try_open_entry(
     commission_min: float,
     slippage_per_share: float,
     mark_to_market: str,
+    regime4_owner_now: str | None = None,
 ) -> tuple[SpotTrade, float, float] | None:
     action = str(getattr(entry_leg, "action", "BUY") or "BUY").strip().upper()
     side = "buy" if action == "BUY" else "sell"
@@ -3609,6 +3644,8 @@ def _spot_try_open_entry(
             risk=risk_snapshot,
             signal_entry_dir=signal_entry_dir_now,
             signal_regime_dir=signal_regime_dir_now,
+            regime2_dir=regime2_dir_now,
+            regime2_ready=bool(regime2_ready_now),
             equity_ref=float(cash) + float(liquidation_value),
             cash_ref=float(cash),
         )
@@ -3655,6 +3692,18 @@ def _spot_try_open_entry(
             else:
                 signed_qty = int(intent_decision.delta_qty)
                 decision_trace_payload = decision_trace.as_payload()
+                decision_trace_payload["regime2_bear_hard_dir"] = (
+                    str(regime2_bear_hard_dir_now) if regime2_bear_hard_dir_now in ("up", "down") else None
+                )
+                decision_trace_payload["regime2_bear_hard_ready"] = bool(regime2_bear_hard_ready_now)
+                decision_trace_payload["regime2_bear_hard_release_age_bars"] = (
+                    int(regime2_bear_hard_release_age_bars_now)
+                    if regime2_bear_hard_release_age_bars_now is not None
+                    else None
+                )
+                decision_trace_payload["regime4_state"] = str(regime4_state_now) if regime4_state_now else None
+                decision_trace_payload["regime4_transition_hot"] = bool(regime4_transition_hot_now)
+                decision_trace_payload["regime4_owner"] = str(regime4_owner_now) if regime4_owner_now else None
                 decision_trace_payload["spot_intent"] = intent_decision.as_payload()
                 decision_trace_payload["spot_lifecycle"] = lifecycle.as_payload()
     else:
@@ -3884,12 +3933,14 @@ def _run_spot_backtest(
     *,
     regime_bars: BarSeriesInput | None = None,
     regime2_bars: BarSeriesInput | None = None,
+    regime2_bear_hard_bars: BarSeriesInput | None = None,
     tick_bars: BarSeriesInput | None = None,
     exec_bars: BarSeriesInput | None = None,
 ) -> BacktestResult:
     signal_bars = _bars_input_list(bars)
     regime_bars_list = _bars_input_optional_list(regime_bars)
     regime2_bars_list = _bars_input_optional_list(regime2_bars)
+    regime2_bear_hard_bars_list = _bars_input_optional_list(regime2_bear_hard_bars)
     tick_bars_list = _bars_input_optional_list(tick_bars)
     exec_bars_list = _bars_input_optional_list(exec_bars)
 
@@ -3912,6 +3963,7 @@ def _run_spot_backtest(
             meta=meta,
             regime_bars=regime_bars_list,
             regime2_bars=regime2_bars_list,
+            regime2_bear_hard_bars=regime2_bear_hard_bars_list,
             tick_bars=tick_bars_list,
         )
 
@@ -3923,6 +3975,7 @@ def _run_spot_backtest(
         meta=meta,
         regime_bars=regime_bars_list,
         regime2_bars=regime2_bars_list,
+        regime2_bear_hard_bars=regime2_bear_hard_bars_list,
         tick_bars=tick_bars_list,
     )
 
@@ -3934,6 +3987,7 @@ def _run_spot_backtest_summary(
     *,
     regime_bars: BarSeriesInput | None = None,
     regime2_bars: BarSeriesInput | None = None,
+    regime2_bear_hard_bars: BarSeriesInput | None = None,
     tick_bars: BarSeriesInput | None = None,
     exec_bars: BarSeriesInput | None = None,
     prepared_series_pack: object | None = None,
@@ -3947,6 +4001,7 @@ def _run_spot_backtest_summary(
     signal_bars = _bars_input_list(bars)
     regime_bars_list = _bars_input_optional_list(regime_bars)
     regime2_bars_list = _bars_input_optional_list(regime2_bars)
+    regime2_bear_hard_bars_list = _bars_input_optional_list(regime2_bear_hard_bars)
     tick_bars_list = _bars_input_optional_list(tick_bars)
     exec_bars_list = _bars_input_optional_list(exec_bars)
 
@@ -3975,6 +4030,7 @@ def _run_spot_backtest_summary(
             meta=meta,
             regime_bars=regime_bars_list,
             regime2_bars=regime2_bars_list,
+            regime2_bear_hard_bars=regime2_bear_hard_bars_list,
             tick_bars=tick_bars_list,
             prepared_series_pack=prepared_series_pack,
             progress_callback=progress_callback,
@@ -3988,6 +4044,7 @@ def _run_spot_backtest_summary(
         meta=meta,
         regime_bars=regime_bars_list,
         regime2_bars=regime2_bars_list,
+        regime2_bear_hard_bars=regime2_bear_hard_bars_list,
         tick_bars=tick_bars_list,
         prepared_series_pack=prepared_series_pack,
         progress_callback=progress_callback,
@@ -4004,6 +4061,7 @@ def _run_spot_backtest_exec_loop(
     meta: ContractMeta,
     regime_bars: BarSeriesInput | None = None,
     regime2_bars: BarSeriesInput | None = None,
+    regime2_bear_hard_bars: BarSeriesInput | None = None,
     tick_bars: BarSeriesInput | None = None,
     capture_equity: bool = True,
     prepared_series_pack: object | None = None,
@@ -4020,6 +4078,7 @@ def _run_spot_backtest_exec_loop(
     exec_bars = _bars_input_list(exec_bars)
     regime_bars = _bars_input_optional_list(regime_bars)
     regime2_bars = _bars_input_optional_list(regime2_bars)
+    regime2_bear_hard_bars = _bars_input_optional_list(regime2_bear_hard_bars)
     tick_bars = _bars_input_optional_list(tick_bars)
 
     cash = cfg.backtest.starting_cash
@@ -4077,6 +4136,7 @@ def _run_spot_backtest_exec_loop(
         rv_ewma_lambda=float(cfg.synthetic.rv_ewma_lambda),
         regime_bars=regime_bars if use_mtf_regime else None,
         regime2_bars=regime2_bars if use_mtf_regime2 else None,
+        regime2_bear_hard_bars=regime2_bear_hard_bars,
     )
     orb_engine = evaluator.orb_engine
     last_sig_snap: SpotSignalSnapshot | None = None
@@ -4100,6 +4160,7 @@ def _run_spot_backtest_exec_loop(
             exec_bars=exec_bars,
             regime_bars=regime_bars,
             regime2_bars=regime2_bars,
+            regime2_bear_hard_bars=regime2_bear_hard_bars,
             tick_bars=tick_bars,
             include_rv=False,
             include_volume=False,
@@ -4204,6 +4265,12 @@ def _run_spot_backtest_exec_loop(
     pending_entry_branch: str | None = None
     pending_entry_set_date: date | None = None
     pending_entry_due_ts: datetime | None = None
+    pending_entry_regime2_bear_hard_dir: str | None = None
+    pending_entry_regime2_bear_hard_ready = False
+    pending_entry_regime2_bear_hard_release_age_bars: int | None = None
+    pending_entry_regime4_state: str | None = None
+    pending_entry_regime4_transition_hot = False
+    pending_entry_regime4_owner: str | None = None
     pending_exit_all = False
     pending_exit_reason = ""
     pending_exit_due_ts: datetime | None = None
@@ -4326,10 +4393,22 @@ def _run_spot_backtest_exec_loop(
             if can_fill_pending:
                 entry_dir = pending_entry_dir
                 entry_branch = pending_entry_branch if pending_entry_branch in ("a", "b") else None
+                entry_regime2_bear_hard_dir_now = pending_entry_regime2_bear_hard_dir
+                entry_regime2_bear_hard_ready_now = bool(pending_entry_regime2_bear_hard_ready)
+                entry_regime2_bear_hard_release_age_bars_now = pending_entry_regime2_bear_hard_release_age_bars
+                entry_regime4_state_now = pending_entry_regime4_state
+                entry_regime4_transition_hot_now = bool(pending_entry_regime4_transition_hot)
+                entry_regime4_owner_now = pending_entry_regime4_owner
                 pending_entry_dir = None
                 pending_entry_branch = None
                 pending_entry_set_date = None
                 pending_entry_due_ts = None
+                pending_entry_regime2_bear_hard_dir = None
+                pending_entry_regime2_bear_hard_ready = False
+                pending_entry_regime2_bear_hard_release_age_bars = None
+                pending_entry_regime4_state = None
+                pending_entry_regime4_transition_hot = False
+                pending_entry_regime4_owner = None
 
                 entry_leg = _spot_entry_leg_for_direction(
                     strategy=cfg.strategy,
@@ -4399,6 +4478,26 @@ def _run_spot_backtest_exec_loop(
                             and getattr(getattr(last_sig_snap, "signal", None), "regime_dir", None) in ("up", "down")
                             else None
                         ),
+                        regime2_dir_now=(
+                            str(getattr(last_sig_snap, "regime2_dir", None))
+                            if last_sig_snap is not None and getattr(last_sig_snap, "regime2_dir", None) in ("up", "down")
+                            else None
+                        ),
+                        regime2_ready_now=bool(getattr(last_sig_snap, "regime2_ready", False)) if last_sig_snap is not None else False,
+                        regime2_bear_hard_dir_now=(
+                            str(entry_regime2_bear_hard_dir_now)
+                            if entry_regime2_bear_hard_dir_now in ("up", "down")
+                            else None
+                        ),
+                        regime2_bear_hard_ready_now=bool(entry_regime2_bear_hard_ready_now),
+                        regime2_bear_hard_release_age_bars_now=(
+                            int(entry_regime2_bear_hard_release_age_bars_now)
+                            if entry_regime2_bear_hard_release_age_bars_now is not None
+                            else None
+                        ),
+                        regime4_state_now=str(entry_regime4_state_now) if entry_regime4_state_now else None,
+                        regime4_transition_hot_now=bool(entry_regime4_transition_hot_now),
+                        regime4_owner_now=str(entry_regime4_owner_now) if entry_regime4_owner_now else None,
                         riskoff_today=bool(riskoff_today),
                         riskpanic_today=bool(riskpanic_today),
                         riskpop_today=bool(riskpop_today),
@@ -4420,12 +4519,24 @@ def _run_spot_backtest_exec_loop(
                 pending_entry_branch = None
                 pending_entry_set_date = None
                 pending_entry_due_ts = None
+                pending_entry_regime2_bear_hard_dir = None
+                pending_entry_regime2_bear_hard_ready = False
+                pending_entry_regime2_bear_hard_release_age_bars = None
+                pending_entry_regime4_state = None
+                pending_entry_regime4_transition_hot = False
+                pending_entry_regime4_owner = None
 
         if pending_decision.pending_clear_entry:
             pending_entry_dir = None
             pending_entry_branch = None
             pending_entry_set_date = None
             pending_entry_due_ts = None
+            pending_entry_regime2_bear_hard_dir = None
+            pending_entry_regime2_bear_hard_ready = False
+            pending_entry_regime2_bear_hard_release_age_bars = None
+            pending_entry_regime4_state = None
+            pending_entry_regime4_transition_hot = False
+            pending_entry_regime4_owner = None
 
         # Dynamic shock SL/PT: apply the shock multipliers to *open* trades using the shock
         # state from the prior execution bar (no lookahead within this bar).
@@ -4466,6 +4577,14 @@ def _run_spot_backtest_exec_loop(
         signal = None
         entry_signal_dir = None
         entry_regime_dir = None
+        entry_regime2_dir = None
+        entry_regime2_ready = False
+        entry_regime2_bear_hard_dir = None
+        entry_regime2_bear_hard_ready = False
+        entry_regime2_bear_hard_release_age_bars = None
+        entry_regime4_state = None
+        entry_regime4_transition_hot = False
+        entry_regime4_owner = None
         entry_signal_branch = None
         shock_dir_down_streak_bars = None
         ratsv_tr_ratio = None
@@ -4494,6 +4613,18 @@ def _run_spot_backtest_exec_loop(
                 signal = sig_snap.signal
                 entry_signal_dir = sig_snap.entry_dir
                 entry_regime_dir = sig_snap.signal.regime_dir if sig_snap.signal is not None else None
+                entry_regime2_dir = getattr(sig_snap, "regime2_dir", None)
+                entry_regime2_ready = bool(getattr(sig_snap, "regime2_ready", False))
+                entry_regime2_bear_hard_dir = getattr(sig_snap, "regime2_bear_hard_dir", None)
+                entry_regime2_bear_hard_ready = bool(getattr(sig_snap, "regime2_bear_hard_ready", False))
+                entry_regime2_bear_hard_release_age_bars = getattr(
+                    sig_snap,
+                    "regime2_bear_hard_release_age_bars",
+                    None,
+                )
+                entry_regime4_state = getattr(sig_snap, "regime4_state", None)
+                entry_regime4_transition_hot = bool(getattr(sig_snap, "regime4_transition_hot", False))
+                entry_regime4_owner = getattr(sig_snap, "regime4_owner", None)
                 entry_signal_branch = sig_snap.entry_branch
                 shock_dir_down_streak_bars = getattr(sig_snap, "shock_dir_down_streak_bars", None)
                 ratsv_tr_ratio = sig_snap.ratsv_tr_ratio
@@ -4741,6 +4872,18 @@ def _run_spot_backtest_exec_loop(
                         pending_entry_branch = entry_signal_branch if entry_signal_branch in ("a", "b") else None
                         pending_entry_set_date = _trade_date(bar.ts)
                         pending_entry_due_ts = due_ts
+                        pending_entry_regime2_bear_hard_dir = (
+                            str(entry_regime2_bear_hard_dir) if entry_regime2_bear_hard_dir in ("up", "down") else None
+                        )
+                        pending_entry_regime2_bear_hard_ready = bool(entry_regime2_bear_hard_ready)
+                        pending_entry_regime2_bear_hard_release_age_bars = (
+                            int(entry_regime2_bear_hard_release_age_bars)
+                            if entry_regime2_bear_hard_release_age_bars is not None
+                            else None
+                        )
+                        pending_entry_regime4_state = str(entry_regime4_state) if entry_regime4_state else None
+                        pending_entry_regime4_transition_hot = bool(entry_regime4_transition_hot)
+                        pending_entry_regime4_owner = str(entry_regime4_owner) if entry_regime4_owner else None
                     still_open.append(trade)
                     continue
 
@@ -4899,6 +5042,17 @@ def _run_spot_backtest_exec_loop(
                         pending_entry_branch = entry_signal_branch if entry_signal_branch in ("a", "b") else None
                         pending_entry_set_date = _trade_date(bar.ts)
                         pending_entry_due_ts = entry_schedule.due_ts
+                        pending_entry_regime2_bear_hard_dir = (
+                            str(entry_regime2_bear_hard_dir) if entry_regime2_bear_hard_dir in ("up", "down") else None
+                        )
+                        pending_entry_regime2_bear_hard_ready = bool(entry_regime2_bear_hard_ready)
+                        pending_entry_regime2_bear_hard_release_age_bars = (
+                            int(entry_regime2_bear_hard_release_age_bars)
+                            if entry_regime2_bear_hard_release_age_bars is not None
+                            else None
+                        )
+                        pending_entry_regime4_state = str(entry_regime4_state) if entry_regime4_state else None
+                        pending_entry_regime4_transition_hot = bool(entry_regime4_transition_hot)
                         last_entry_sig_idx = int(sig_idx)
                 else:
                     liquidation_close = _spot_liquidation(float(bar.close))
@@ -4951,6 +5105,24 @@ def _run_spot_backtest_exec_loop(
                         signal_regime_dir_now=(
                             str(entry_regime_dir) if entry_regime_dir in ("up", "down") else None
                         ),
+                        regime2_dir_now=(
+                            str(entry_regime2_dir) if entry_regime2_dir in ("up", "down") else None
+                        ),
+                        regime2_ready_now=bool(entry_regime2_ready),
+                        regime2_bear_hard_dir_now=(
+                            str(entry_regime2_bear_hard_dir)
+                            if entry_regime2_bear_hard_dir in ("up", "down")
+                            else None
+                        ),
+                        regime2_bear_hard_ready_now=bool(entry_regime2_bear_hard_ready),
+                        regime2_bear_hard_release_age_bars_now=(
+                            int(entry_regime2_bear_hard_release_age_bars)
+                            if entry_regime2_bear_hard_release_age_bars is not None
+                            else None
+                        ),
+                        regime4_state_now=str(entry_regime4_state) if entry_regime4_state else None,
+                        regime4_transition_hot_now=bool(entry_regime4_transition_hot),
+                        regime4_owner_now=str(entry_regime4_owner) if entry_regime4_owner else None,
                         riskoff_today=bool(riskoff_today),
                         riskpanic_today=bool(riskpanic_today),
                         riskpop_today=bool(riskpop_today),
@@ -5042,6 +5214,8 @@ def _run_spot_backtest_exec_loop(
                     risk=evaluator.last_risk if risk_overlay_enabled else None,
                     signal_entry_dir=str(entry_signal_dir) if entry_signal_dir in ("up", "down") else None,
                     signal_regime_dir=str(entry_regime_dir) if entry_regime_dir in ("up", "down") else None,
+                    regime2_dir=str(entry_regime2_dir) if entry_regime2_dir in ("up", "down") else None,
+                    regime2_ready=bool(entry_regime2_ready),
                     equity_ref=float(cash) + float(liquidation_close),
                     cash_ref=float(cash),
                 )
@@ -5205,6 +5379,7 @@ def _run_spot_backtest_exec_loop_summary_fast(
     meta: ContractMeta,
     regime_bars: BarSeriesInput | None = None,
     regime2_bars: BarSeriesInput | None = None,
+    regime2_bear_hard_bars: BarSeriesInput | None = None,
     tick_bars: BarSeriesInput | None = None,
     debug_trades: list[dict[str, object]] | None = None,
     prepared_series_pack: object | None = None,
@@ -5221,6 +5396,7 @@ def _run_spot_backtest_exec_loop_summary_fast(
     exec_bars = _bars_input_list(exec_bars)
     regime_bars = _bars_input_optional_list(regime_bars)
     regime2_bars = _bars_input_optional_list(regime2_bars)
+    regime2_bear_hard_bars = _bars_input_optional_list(regime2_bear_hard_bars)
     tick_bars = _bars_input_optional_list(tick_bars)
 
     if not signal_bars:
@@ -5295,6 +5471,7 @@ def _run_spot_backtest_exec_loop_summary_fast(
             exec_bars=exec_bars,
             regime_bars=regime_bars,
             regime2_bars=regime2_bars,
+            regime2_bear_hard_bars=regime2_bear_hard_bars,
             tick_bars=tick_bars,
             include_rv=bool(needs_rv),
             include_volume=bool(needs_volume),
@@ -5698,6 +5875,14 @@ def _run_spot_backtest_exec_loop_summary_fast(
             signal_regime_dir_now=(
                 str(getattr(sig, "regime_dir", None)) if getattr(sig, "regime_dir", None) in ("up", "down") else None
             ),
+            regime2_dir_now=None,
+            regime2_ready_now=False,
+            regime2_bear_hard_dir_now=None,
+            regime2_bear_hard_ready_now=False,
+            regime2_bear_hard_release_age_bars_now=None,
+            regime4_state_now=None,
+            regime4_transition_hot_now=False,
+            regime4_owner_now=None,
             riskoff_today=bool(riskoff_fill),
             riskpanic_today=bool(riskpanic_fill),
             riskpop_today=bool(riskpop_fill),
@@ -6193,6 +6378,7 @@ def _run_spot_backtest_exec_loop_summary(
     meta: ContractMeta,
     regime_bars: BarSeriesInput | None = None,
     regime2_bars: BarSeriesInput | None = None,
+    regime2_bear_hard_bars: BarSeriesInput | None = None,
     tick_bars: BarSeriesInput | None = None,
     prepared_series_pack: object | None = None,
     progress_callback=None,
@@ -6202,6 +6388,7 @@ def _run_spot_backtest_exec_loop_summary(
     exec_bars = _bars_input_list(exec_bars)
     regime_bars = _bars_input_optional_list(regime_bars)
     regime2_bars = _bars_input_optional_list(regime2_bars)
+    regime2_bear_hard_bars = _bars_input_optional_list(regime2_bear_hard_bars)
     tick_bars = _bars_input_optional_list(tick_bars)
 
     if _can_use_fast_summary_path(
@@ -6224,6 +6411,7 @@ def _run_spot_backtest_exec_loop_summary(
             meta=meta,
             regime_bars=regime_bars,
             regime2_bars=regime2_bars,
+            regime2_bear_hard_bars=regime2_bear_hard_bars,
             tick_bars=tick_bars,
             prepared_series_pack=prepared_series_pack,
             progress_callback=progress_callback,
@@ -6243,6 +6431,7 @@ def _run_spot_backtest_exec_loop_summary(
         meta=meta,
         regime_bars=regime_bars,
         regime2_bars=regime2_bars,
+        regime2_bear_hard_bars=regime2_bear_hard_bars,
         tick_bars=tick_bars,
         capture_equity=False,
         prepared_series_pack=prepared_series_pack,

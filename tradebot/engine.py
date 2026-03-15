@@ -210,6 +210,8 @@ def resolve_spot_regime2_spec(
 
 def spot_regime_apply_matches_direction(*, apply_to_raw: object | None, entry_dir: str | None) -> bool:
     apply_to = str(apply_to_raw or "both").strip().lower()
+    if apply_to in ("off", "none", "disabled", "false", "0", "soft"):
+        return False
     if apply_to == "longs":
         return str(entry_dir) == "up"
     if apply_to == "shorts":
@@ -694,6 +696,8 @@ def spot_calc_signed_qty(
     risk: RiskOverlaySnapshot | None = None,
     signal_entry_dir: str | None = None,
     signal_regime_dir: str | None = None,
+    regime2_dir: str | None = None,
+    regime2_ready: bool = False,
     equity_ref: float,
     cash_ref: float | None,
 ) -> int:
@@ -722,6 +726,8 @@ def spot_calc_signed_qty(
         risk=risk,
         signal_entry_dir=signal_entry_dir,
         signal_regime_dir=signal_regime_dir,
+        regime2_dir=regime2_dir,
+        regime2_ready=bool(regime2_ready),
         equity_ref=equity_ref,
         cash_ref=cash_ref,
     )
@@ -752,6 +758,8 @@ def spot_calc_signed_qty_with_trace(
     risk: RiskOverlaySnapshot | None = None,
     signal_entry_dir: str | None = None,
     signal_regime_dir: str | None = None,
+    regime2_dir: str | None = None,
+    regime2_ready: bool = False,
     equity_ref: float = 0.0,
     cash_ref: float | None = None,
 ) -> tuple[int, SpotDecisionTrace]:
@@ -780,6 +788,8 @@ def spot_calc_signed_qty_with_trace(
         risk=risk,
         signal_entry_dir=signal_entry_dir,
         signal_regime_dir=signal_regime_dir,
+        regime2_dir=regime2_dir,
+        regime2_ready=bool(regime2_ready),
         equity_ref=equity_ref,
         cash_ref=cash_ref,
     )

@@ -8,13 +8,153 @@ Promotion contract (current):
 - Promote based on `1Y` first, then reproduce on `2Y`.
 - `10Y` is a later reality check (deferred for now).
 
+Sovereignty contract (current phase):
+- Promote based on coexistence across:
+  - `2020` crash-transition / hot repair
+  - `2022` persistent downtrend
+  - `2025` persistent uptrend
+- `v34` remains the raw `1Y/2Y` modern crown under the original contract.
+- `v35` remains the bridge-only dethrone that first unified `2022/2025`.
+- `v37` Heat-Lip Sovereignty is the active multi-regime dethrone.
+
 Canonical execution paths:
 - Spot sweeps/evolution: `python -m tradebot.backtest spot ...`
 - Multiwindow kingmaker eval: `python -m tradebot.backtest spot_multitimeframe ...`
 
 ## Current Champions (stack)
 
-### CURRENT (v34-km01-shockMin(1.25)-shockDownLong(0.10)-dualBranch(minSlope=0.00075 b_mult=0.70 priority=a_then_b)-riskpanic(tr_med>=5.0 neg_gap_ratio>=0.5 long_factor=0.10 short_factor=1.5)-linear(tr_delta_max=0.5)-overlay(atr_compress+shock_dir lb=78 floor=0.65 boost=1.0 hi=1.4 min=0.30)-cd4-ddBoost(lb=20 on=-20 off=-15 max_dist=15 factor=18 vel_gate=0.2)-dynGuard(atr_vel_direct min_mult=1.0)-shortEntryBand(max_dist=20)) — dethroned v33 (shock detector armed; shock-down long downshift; 1Y/2Y promotion)
+### CURRENT MULTI-REGIME DETHRONE (v37-Heat-Lip Sovereignty) — dethroned v36 for the `2020/2022/2025` sovereignty contract
+
+- Delta vs `v36` (needle-thread):
+  - Keep the whole v36 sovereignty seam intact:
+    - Bridge host remains the default sovereign
+    - alternate host still owns `crash_down + transition_up_hot`
+    - keep the living crash / repair / pocket scaffold unchanged
+  - Discover the real next truth:
+    - the broad heat family was not wrong, it was too low
+    - the real signal is the upper-lip transition heat seam around `0.79 - 0.80`
+    - `0.81+` already loses too much of the `2020` magic
+  - Final heat-lip addition:
+    - `regime2_transition_hot_shock_atr_pct_min=0.8`
+  - Why it dethroned:
+    - `2020` gain came mostly from cutting rebound poison, especially `branch-b long` drag
+    - `2022` gain came from killing fake rebound `branch-b long` damage inside the persistent bear
+    - `2025` stayed strong because the sacred `branch-a long` kingdom remained mostly intact; the tax was mainly clipped `branch-b` continuation
+- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v37_heatLipSovereignty_20260315.json`
+- Sovereignty floor (min `2020/2022/2025` pnl/dd): **1.994**
+- `2020` (`2020-01-01 -> 2021-01-01`): trades **492**, pnl **10,748.3**, dd **5,390.3**, pnl/dd **1.994**
+- `2022` (`2022-01-01 -> 2023-01-01`): trades **536**, pnl **28,147.8**, dd **9,183.5**, pnl/dd **3.065**
+- `2025` (`2025-01-01 -> 2026-01-19`): trades **478**, pnl **25,907.4**, dd **4,983.2**, pnl/dd **5.199**
+- Distinct anatomy:
+  - `2020`: still not a raw crash god, but rebound poison gets cut materially; `branch-b long` drag collapses from about `-6.8k` to `-3.2k`, which is what pulls the year to the edge of `2.0`
+  - `2022`: the heat lip acts like a fake-rebound long killer in a real bear; `branch-b long` poison collapses from about `-9.3k` to `-3.7k` while `branch-a short` stays broad and real
+  - `2025`: the modern host survives; `branch-a long` only gives back modestly, and most of the tax comes from trimming `branch-b long` continuation
+- Adjacent crowns that still define the ridge:
+  - Previous king, v36 Balanced Combined Sovereignty:
+    - `regime2_clean_host_takeover_state="crash_or_transition_up_hot"`
+    - `regime2_clean_host_supertrend_multiplier=2.32`
+    - `regime2_clean_host_bear_supertrend_multiplier=1.45`
+    - `regime2_clean_host_bear_hard_supertrend_multiplier=2.18`
+    - Result: `2020 pnl/dd = 1.459`, `2022 pnl/dd = 2.828`, `2025 pnl/dd = 5.468`
+  - Soft heat-lip sibling:
+    - add `regime2_transition_hot_shock_atr_pct_min=0.78`
+    - Result: `2020 pnl/dd = 1.866`, `2022 pnl/dd = 3.052`, `2025 pnl/dd = 5.228`
+    - Distinct truth: nearly the same beast, a bit less hostile, a bit more modern grace
+  - `0.82+` heat siblings:
+    - `regime2_transition_hot_shock_atr_pct_min=0.82` and above
+    - Result example: `2020 pnl/dd = 1.423`, `2022 pnl/dd = 3.067`, `2025 pnl/dd = 5.392`
+    - Distinct truth: once the lip gets too high, `2020` drops off a cliff; the useful edge really does live near `0.79 - 0.80`
+
+### PREVIOUS MULTI-REGIME DETHRONE (v36-Balanced Combined Sovereignty) — dethroned v35 for the `2020/2022/2025` sovereignty contract
+
+- Delta vs `v35` (needle-thread):
+  - Keep the Bridge Crown host as the default sovereign instead of throwing away the modern kingdom.
+  - Keep the pocket-law / crash-repair scaffolding that made `2020 > 1` real:
+    - `regime2_crash_atr_pct_min=0.9`
+    - `regime2_crash_block_longs=true`
+    - `regime2_repair_block_branch_b_longs=true`
+    - up-corridor `branch-a long` pocket map:
+      - mid ATR band `0.35-0.5`
+      - extreme ATR `>= 0.75`
+      - fresh hard-release age `<= 1`
+      - stale hard-release age `>= 17`
+  - Real breakthrough:
+    - the mutant never truly beat the bridge in the raw COVID crash
+    - its edge lived in the violent `transition_up_hot` corridor
+    - the dethrone came from letting the alternate host own `crash_down + transition_up_hot`, not from generic crash detection
+  - Combined sovereignty saddle that held:
+    - `regime2_clean_host_enable=true`
+    - `regime2_clean_host_takeover_state="crash_or_transition_up_hot"`
+    - `regime2_clean_host_supertrend_multiplier=2.32`
+    - `regime2_clean_host_bear_supertrend_multiplier=1.45`
+    - `regime2_clean_host_bear_hard_supertrend_multiplier=2.18`
+- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v36_balancedCombinedSovereignty_20260315.json`
+- Sovereignty floor (min `2020/2022/2025` pnl/dd): **1.459**
+- `2020` (`2020-01-01 -> 2021-01-01`): trades **498**, pnl **8,970.5**, dd **6,149.6**, pnl/dd **1.459**
+- `2022` (`2022-01-01 -> 2023-01-01`): trades **535**, pnl **27,671.4**, dd **9,783.3**, pnl/dd **2.828**
+- `2025` (`2025-01-01 -> 2026-01-19`): trades **478**, pnl **27,408.8**, dd **5,012.5**, pnl/dd **5.468**
+
+### PREVIOUS BIDIRECTIONAL DETHRONE (v35-Bridge Crown Throne) — dethroned v34 for the `2022/2025` bridge contract
+
+- Delta vs raw `v34` (needle-thread):
+  - Keep `v34` as the host instead of replacing the organism.
+  - Add a two-strength bear architecture:
+    - soft wakeup: `regime2_mode=supertrend`, `regime2_bar_size="30 mins"`, `regime2_supertrend_multiplier=2.5`
+    - hard takeover confirm: `regime2_bear_hard_mode=supertrend`, `regime2_bear_hard_bar_size="4 hours"`, `regime2_bear_hard_supertrend_multiplier=2.5`
+  - Semantic fix that unlocked the bridge: soft bear no longer clears host entries when hard bear does not explicitly fire.
+  - Hard-bear takeover sweet spot: `regime2_bear_takeover_mode=always`
+  - Bear primary sweet spot: `regime2_bear_supertrend_multiplier=1.5`
+  - Keep rebound participation alive: `regime2_bear_allow_long_recovery=true`
+  - Modern-protection nerve: `regime2_soft_bear_branch_a_slope_vel_slow_min_pct=0.00002`
+  - Keep soft bear slow-med hugging the base instead of over-tightening it: `regime2_soft_bear_branch_a_slope_med_slow_min_pct=0.00008`
+- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v35_bridgeCrownThrone_bidirectional_20260315.json`
+- Contract floor (min `2022/2025` pnl/dd): **2.327**
+- `2022` (`2022-01-01 -> 2023-01-01`): trades **639**, pnl **22,816.1**, dd **9,803.4**, pnl/dd **2.327**
+- `2025` (`2025-01-01 -> 2026-01-19`): trades **513**, pnl **31,666.8**, dd **5,972.8**, pnl/dd **5.302**
+- Distinct anatomy:
+  - `2022`: real downside alpha is alive, led by `branch-a short pnl = +18.1k` while `branch-a long` still contributes `+12.6k`
+  - `2025`: the host long kingdom is alive again, led by `branch-a long pnl = +17.5k`, with meaningful help from `branch-b short pnl = +6.0k`
+- Adjacent crowns that still define the ridge:
+  - Shared base for the ridge:
+    - `spot_short_risk_mult=0.03`
+    - `ratsv_branch_a_slope_med_slow_min_pct=0.00008`
+    - `riskoff_long_risk_mult_factor=0.25`
+    - `riskpanic_long_risk_mult_factor=0.05`
+    - `regime2_mode=supertrend`, `regime2_apply_to=off`, `regime2_bar_size="30 mins"`
+    - `regime2_supertrend_atr_period=10`, `regime2_supertrend_source="hl2"`
+    - `regime2_bear_entry_mode=supertrend`
+    - `regime2_bear_supertrend_atr_period=10`, `regime2_bear_supertrend_source="hl2"`
+    - `regime2_bear_hard_mode=supertrend`, `regime2_bear_hard_bar_size="4 hours"`
+    - `regime2_bear_hard_supertrend_atr_period=10`, `regime2_bear_hard_supertrend_source="hl2"`
+  - Modern Crown:
+    - `regime2_bear_takeover_mode=riskpanic`
+    - `regime2_supertrend_multiplier=2.5`
+    - `regime2_bear_hard_supertrend_multiplier=2.5`
+    - `regime2_bear_supertrend_multiplier=1.5`
+    - `regime2_bear_allow_long_recovery=false`
+    - `regime2_soft_bear_branch_a_slope_med_slow_min_pct=0.00012`
+    - `regime2_soft_bear_branch_a_slope_vel_slow_min_pct=null`
+    - Result: `2022 pnl/dd = 1.478`, `2025 pnl/dd = 7.308`
+  - Bear Crown:
+    - `regime2_bear_takeover_mode=always`
+    - `regime2_supertrend_multiplier=2.5`
+    - `regime2_bear_hard_supertrend_multiplier=2.0`
+    - `regime2_bear_supertrend_multiplier=1.75`
+    - `regime2_bear_allow_long_recovery=true`
+    - `regime2_soft_bear_branch_a_slope_med_slow_min_pct=0.00012`
+    - `regime2_soft_bear_branch_a_slope_vel_slow_min_pct=null`
+    - Result: `2022 pnl/dd = 2.844`, `2025 pnl/dd = 2.844`
+  - Bear-leaning bridge sibling:
+    - `regime2_bear_takeover_mode=always`
+    - `regime2_supertrend_multiplier=2.5`
+    - `regime2_bear_hard_supertrend_multiplier=2.5`
+    - `regime2_bear_supertrend_multiplier=1.6`
+    - `regime2_bear_allow_long_recovery=true`
+    - `regime2_soft_bear_branch_a_slope_med_slow_min_pct=0.00008`
+    - `regime2_soft_bear_branch_a_slope_vel_slow_min_pct=0.00002`
+    - Result: `2022 pnl/dd = 2.455`, `2025 pnl/dd = 5.076`
+
+### RAW MODERN CROWN (v34-km01-shockMin(1.25)-shockDownLong(0.10)-dualBranch(minSlope=0.00075 b_mult=0.70 priority=a_then_b)-riskpanic(tr_med>=5.0 neg_gap_ratio>=0.5 long_factor=0.10 short_factor=1.5)-linear(tr_delta_max=0.5)-overlay(atr_compress+shock_dir lb=78 floor=0.65 boost=1.0 hi=1.4 min=0.30)-cd4-ddBoost(lb=20 on=-20 off=-15 max_dist=15 factor=18 vel_gate=0.2)-dynGuard(atr_vel_direct min_mult=1.0)-shortEntryBand(max_dist=20)) — dethroned v33 (shock detector armed; shock-down long downshift; 1Y/2Y promotion)
 
 - Delta vs v33 (needle-thread):
   - `shock_min_atr_pct: 7.0 -> 1.25` (shock detector no longer inert on `signal=5 mins` bars)
@@ -109,6 +249,89 @@ python -m tradebot.backtest spot_multitimeframe \
 ```
 
 ## Evolutions (stack)
+
+### v37 (2026-03-15) — Heat-Lip Sovereignty dethroned v36 for the multi-regime sovereignty contract
+- Contract: coexistence across `2020` crash-transition, `2022` persistent downtrend, and `2025` persistent uptrend.
+- Needle-thread:
+  - Keep the whole v36 ownership seam unchanged.
+  - Stop treating broad transition heat as one monotonic god.
+  - Discover the real next signal:
+    - the useful edge lives at the upper-lip transition heat seam around `0.79 - 0.80`
+    - below that, heat is too broad
+    - above that, `2020` falls off a cliff
+  - Final dethrone cut:
+    - add `regime2_transition_hot_shock_atr_pct_min=0.8`
+  - What it really fixed:
+    - `2020` rebound poison, especially `branch-b long`
+    - fake `2022` rebound-long damage
+    - while only shaving some `2025` continuation, mostly on `branch-b long`
+- Outcome:
+  - sovereignty floor (min `2020/2022/2025` pnl/dd): **1.459 -> 1.994** (dethrone)
+  - `2020` pnl/dd: **1.459 -> 1.994**
+  - `2022` pnl/dd: **2.828 -> 3.065**
+  - `2025` pnl/dd: **5.468 -> 5.199**
+  - soft sibling also proved the lip is real:
+    - `regime2_transition_hot_shock_atr_pct_min=0.78`
+    - `2020 = 1.866`, `2022 = 3.052`, `2025 = 5.228`
+- Preset: `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v37_heatLipSovereignty_20260315.json`
+- Previous: `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v36_balancedCombinedSovereignty_20260315.json`
+
+### v36 (2026-03-15) — Balanced Combined Sovereignty dethroned v35 for the multi-regime sovereignty contract
+- Contract: coexistence across `2020` crash-transition, `2022` persistent downtrend, and `2025` persistent uptrend.
+- Needle-thread:
+  - Keep the v35 Bridge Crown host.
+  - Stop treating crash-only invasion as the answer.
+  - Discover the real truth:
+    - the mutant did not materially beat the bridge in the raw COVID crash
+    - its edge lived in `transition_up_hot`
+  - Extend alternate-host sovereignty from:
+    - `trend_up_clean` / `crash_down` experiments
+    - to the real winning corridor:
+      - `regime2_clean_host_takeover_state="crash_or_transition_up_hot"`
+  - Final balanced saddle:
+    - `regime2_clean_host_supertrend_multiplier=2.32`
+    - `regime2_clean_host_bear_supertrend_multiplier=1.45`
+    - `regime2_clean_host_bear_hard_supertrend_multiplier=2.18`
+  - Keep the living `2020` scaffolding:
+    - `regime2_crash_atr_pct_min=0.9`
+    - `regime2_crash_block_longs=true`
+    - `regime2_repair_block_branch_b_longs=true`
+    - up-corridor `branch-a long` pocket map unchanged
+- Outcome:
+  - sovereignty floor (min `2020/2022/2025` pnl/dd): **-0.597 -> 1.459** (dethrone)
+  - `2020` pnl/dd: **-0.597 -> 1.459**
+  - `2022` pnl/dd: **2.327 -> 2.828**
+  - `2025` pnl/dd: **5.302 -> 5.468**
+  - final probe also exposed a separate heat crown:
+    - `regime2_transition_hot_shock_atr_pct_min=0.65`
+    - `2020 = 1.852`, `2022 = 1.917`, `2025 = 6.196`
+    - preserved as a clue, not the dethrone, because it taxed `2022` too hard
+- Preset: `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v36_balancedCombinedSovereignty_20260315.json`
+- Previous: `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v35_bridgeCrownThrone_bidirectional_20260315.json`
+
+### v35 (2026-03-15) — Bridge Crown Throne dethroned v34 for the bidirectional bridge contract (`v34` remains the raw modern crown)
+- Contract: opposite-regime bridge before `2020` (`2022` persistent downtrend + `2025` persistent uptrend).
+- Needle-thread:
+  - Keep `v34` as the host and stop trying to replace the core modern long engine.
+  - Add a two-strength bear regime:
+    - soft wakeup on `30 mins` supertrend
+    - hard takeover confirm on `4 hours` supertrend
+  - Fix the real semantic bug:
+    - soft bear must not zero host entries when hard bear does not explicitly fire
+  - Bridge saddle that actually held:
+    - `regime2_bear_takeover_mode=always`
+    - `regime2_bear_hard_supertrend_multiplier: 2.25/2.75 probes -> 2.5` (sweet spot)
+    - `regime2_bear_supertrend_multiplier: 1.45/1.6 probes -> 1.5` (modern-leaning bridge throne)
+    - `regime2_soft_bear_branch_a_slope_med_slow_min_pct: 0.00012+ -> 0.00008` (hug the base floor)
+    - `regime2_soft_bear_branch_a_slope_vel_slow_min_pct: null -> 0.00002` (the real modern-protection nerve)
+    - `regime2_bear_allow_long_recovery=true`
+- Outcome:
+  - opposite-regime floor (min `2022/2025` pnl/dd): **-0.567 -> 2.327** (dethrone)
+  - `2022` pnl/dd: **-0.567 -> 2.327**
+  - `2025` pnl/dd: **9.353 -> 5.302**
+  - `2020` preview: **-0.909 -> -0.597** (material lift before any shock-transition overlay work)
+- Preset: `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v35_bridgeCrownThrone_bidirectional_20260315.json`
+- Previous: `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v34_km01_shockMin1p25_downLong0p10_dualbranchSlope0p00075_bmult0p70_panicNeg0p50_rpLong0p10_ddFac18_20260305.json`
 
 ### v33 (2026-03-02) — dethroned v32 (riskpanic long downshift)
 - Contract: `1Y` then `2Y` (10Y deferred).
