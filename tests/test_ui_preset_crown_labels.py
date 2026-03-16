@@ -4,6 +4,7 @@ import asyncio
 from types import SimpleNamespace
 
 from tradebot.ui.bot import BotScreen
+from tradebot.ui.bot_models import _BotPreset
 
 
 class _TableStub:
@@ -67,3 +68,36 @@ def test_tqqq_preset_track_headers_show_loaded_crown_versions_and_clean_leaf_tit
     hf_leaf = next(label for label in labels if "ASYMMETRIC CRASH PREARM SOVEREIGNTY" in label)
     assert "floor=" not in hf_leaf
     assert " 2025=" not in hf_leaf
+
+
+def test_open_config_for_preset_refuses_missing_signal_transport_defaults() -> None:
+    events: list[str] = []
+
+    class _Harness:
+        _payload = None
+
+        def _strategy_instrument(self, strategy: dict) -> str:
+            return BotScreen._strategy_instrument(self, strategy)
+
+        @staticmethod
+        def _heal_strategy_filters_payload(*, strategy: dict, base_filters: dict | None):
+            return base_filters
+
+        def _set_status(self, message: str, **_kwargs) -> None:
+            events.append(str(message))
+
+    preset = _BotPreset(
+        group="Spot (TQQQ) broken crown",
+        entry={
+            "strategy": {
+                "instrument": "spot",
+                "symbol": "TQQQ",
+                "spot_exec_bar_size": "1 min",
+            }
+        },
+        key="broken",
+    )
+
+    BotScreen._open_config_for_preset(_Harness(), preset)
+    assert events
+    assert "missing signal_bar_size, signal_use_rth" in events[-1]

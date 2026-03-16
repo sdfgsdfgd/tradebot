@@ -1368,6 +1368,14 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
     def _open_config_for_preset(self, preset: _BotPreset) -> None:
         entry = preset.entry
         strategy = copy.deepcopy(entry.get("strategy", {}) or {})
+        if self._strategy_instrument(strategy) == "spot":
+            missing_transport = _missing_signal_transport_keys(strategy)
+            if missing_transport:
+                missing_text = ", ".join(missing_transport)
+                self._set_status(
+                    f"Preset artifact missing {missing_text}; refusing silent signal transport defaults"
+                )
+                return
         strategy.setdefault("instrument", "options")
         strategy.setdefault("max_entries_per_day", 1)
         strategy.setdefault("exit_dte", 0)
@@ -5076,6 +5084,16 @@ def _version_tag(raw: str | None) -> str | None:
     if match is not None:
         return f"v{match.group(0)}"
     return value if value.lower().startswith("v") else f"v{value}"
+
+
+def _missing_signal_transport_keys(strategy: dict | None) -> tuple[str, ...]:
+    if not isinstance(strategy, dict):
+        return ("signal_bar_size", "signal_use_rth")
+    missing: list[str] = []
+    for key in ("signal_bar_size", "signal_use_rth"):
+        if strategy.get(key) is None:
+            missing.append(key)
+    return tuple(missing)
 
 
 def _clean_group_label(raw: str) -> str:

@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from tradebot.backtest.data import IBKRHistoricalData, cache_path, write_cache
+from tradebot.backtest.data import IBKRHistoricalData, cache_path, read_cache, write_cache
 from tradebot.backtest.models import Bar
 from tradebot.series import BarSeries, BarSeriesMeta
 from tradebot.series_cache import SeriesCacheService
@@ -57,6 +57,91 @@ def test_load_cached_bar_series_returns_metadata() -> None:
     assert series.meta.tz_mode == "utc_naive"
     assert series.meta.session_mode == "full24"
     assert series.meta.source in {"cache", "cache-covering"}
+
+
+def test_load_cached_bar_series_resamples_from_1min_when_same_frequency_cache_is_absent() -> None:
+    start = datetime(2025, 1, 6, 14, 30)
+    end = datetime(2025, 1, 6, 14, 39)
+    one_min = [
+        Bar(ts=start + timedelta(minutes=i), open=10.0 + i, high=10.2 + i, low=9.8 + i, close=10.1 + i, volume=100 + i)
+        for i in range(10)
+    ]
+    with TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        one_min_path = cache_path(root, "SLV", start, end, "1 min", use_rth=True)
+        one_min_path.parent.mkdir(parents=True, exist_ok=True)
+        write_cache(one_min_path, one_min)
+
+        data = IBKRHistoricalData()
+        series = data.load_cached_bar_series(
+            symbol="SLV",
+            exchange=None,
+            start=start,
+            end=end,
+            bar_size="5 mins",
+            use_rth=True,
+            cache_dir=root,
+        )
+
+    got = [(bar.ts.isoformat(), bar.open, bar.high, bar.low, bar.close, bar.volume) for bar in series.as_list()]
+    assert got == [
+        ((start + timedelta(minutes=5)).isoformat(), 10.0, 14.2, 9.8, 14.1, 510.0),
+        ((start + timedelta(minutes=10)).isoformat(), 15.0, 19.2, 14.8, 19.1, 535.0),
+    ]
+    assert series.meta.source == "cache-resampled"
+
+
+def test_load_cached_bar_series_resamples_rth_4hours_from_session_open() -> None:
+    start = datetime(2025, 1, 6, 14, 30)
+    end = datetime(2025, 1, 6, 20, 59)
+    one_min = [
+        Bar(
+            ts=start + timedelta(minutes=i),
+            open=100.0 + i,
+            high=100.5 + i,
+            low=99.5 + i,
+            close=100.25 + i,
+            volume=10.0 + i,
+        )
+        for i in range(390)
+    ]
+    with TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        one_min_path = cache_path(root, "SLV", start, end, "1 min", use_rth=True)
+        one_min_path.parent.mkdir(parents=True, exist_ok=True)
+        write_cache(one_min_path, one_min)
+
+        data = IBKRHistoricalData()
+        series = data.load_cached_bar_series(
+            symbol="SLV",
+            exchange=None,
+            start=start,
+            end=end,
+            bar_size="4 hours",
+            use_rth=True,
+            cache_dir=root,
+        )
+
+    got = [(bar.ts.isoformat(), bar.open, bar.high, bar.low, bar.close, bar.volume) for bar in series.as_list()]
+    assert got == [
+        ((start + timedelta(hours=5, minutes=30)).isoformat(), 190.0, 429.5, 189.5, 429.25, 52680.0),
+    ]
+    assert series.meta.source == "cache-resampled"
+
+
+def test_write_cache_invalidates_read_cache_lru() -> None:
+    start = datetime(2025, 1, 6, 14, 30)
+    end = datetime(2025, 1, 6, 14, 30)
+    with TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        path = cache_path(root, "SLV", start, end, "1 min", use_rth=True)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        write_cache(path, [Bar(ts=start, open=1.0, high=1.0, low=1.0, close=1.0, volume=1.0)])
+        first = read_cache(path)
+        write_cache(path, [Bar(ts=start, open=2.0, high=2.0, low=2.0, close=2.0, volume=2.0)])
+        second = read_cache(path)
+    assert first[0].close == 1.0
+    assert second[0].close == 2.0
 
 
 def test_spot_signal_evaluator_accepts_bar_series_inputs() -> None:

@@ -1021,6 +1021,7 @@ def _resample_intraday_ohlcv(
     *,
     src_bar_size: str,
     dst_bar_size: str,
+    use_rth: bool = False,
     allow_day_from_partial: bool = False,
 ) -> tuple[list[Bar], _ResampleStats]:
     src = parse_bar_size(src_bar_size)
@@ -1093,15 +1094,43 @@ def _resample_intraday_ohlcv(
             )
         )
 
-    for bar in bars:
-        bucket_start = _floor_bucket_start(bar.ts, bucket=dst.duration)
-        if cur_bucket is None:
-            cur_bucket = bucket_start
-        if bucket_start != cur_bucket:
-            _flush(cur_bucket, cur)
-            cur_bucket = bucket_start
+    if bool(use_rth) and src.duration < timedelta(days=1) and dst.duration < timedelta(days=1):
+        by_day: dict[date, list[Bar]] = defaultdict(list)
+        for bar in bars:
+            day = _to_et_shared(bar.ts, naive_ts_mode=NaiveTsMode.UTC).date()
+            by_day[day].append(bar)
+        for day in sorted(by_day.keys()):
+            session_bars = sorted(by_day[day], key=lambda b: b.ts)
+            if not session_bars:
+                continue
+            session_start = session_bars[0].ts
+            cur_bucket = None
             cur = []
-        cur.append(bar)
+            for bar in session_bars:
+                delta = bar.ts - session_start
+                if delta < timedelta(0):
+                    continue
+                offset = int(delta.total_seconds() // src.duration.total_seconds())
+                bucket_idx = int(offset // factor)
+                bucket_start = session_start + (dst.duration * int(bucket_idx))
+                if cur_bucket is None:
+                    cur_bucket = bucket_start
+                if bucket_start != cur_bucket:
+                    _flush(cur_bucket, cur)
+                    cur_bucket = bucket_start
+                    cur = []
+                cur.append(bar)
+            _flush(cur_bucket, cur)
+    else:
+        for bar in bars:
+            bucket_start = _floor_bucket_start(bar.ts, bucket=dst.duration)
+            if cur_bucket is None:
+                cur_bucket = bucket_start
+            if bucket_start != cur_bucket:
+                _flush(cur_bucket, cur)
+                cur_bucket = bucket_start
+                cur = []
+            cur.append(bar)
     _flush(cur_bucket, cur)
 
     return out, _ResampleStats(kept=len(out), dropped_incomplete=int(dropped))
@@ -1124,6 +1153,15 @@ def _cache_resample_source_candidates(dst_bar_size: str) -> tuple[str, ...]:
         out.append((float(src.duration.total_seconds()), src.label))
     out.sort(key=lambda row: row[0])
     return tuple(label for _seconds, label in out)
+
+
+def _native_rth_epoch_resample(dst_bar_size: str, *, use_rth: bool) -> bool:
+    if not bool(use_rth):
+        return False
+    dst = parse_bar_size(str(dst_bar_size))
+    if dst is None:
+        return False
+    return dst.duration == timedelta(hours=4)
 
 
 def resample_cached_window(
@@ -1152,6 +1190,7 @@ def resample_cached_window(
         )
 
     last_err: str | None = None
+    resample_use_rth = bool(use_rth) and not _native_rth_epoch_resample(dst_bar_size, use_rth=use_rth)
     for src_label in src_candidates:
         try:
             src_series = data.load_cached_bar_series(
@@ -1171,7 +1210,10 @@ def resample_cached_window(
 
         source_path_raw = str(getattr(src_series.meta, "source_path", "") or "").strip()
         source_path = Path(source_path_raw) if source_path_raw else None
-        src_bars = [bar for bar in src_series.as_list() if start <= bar.ts <= end]
+        if source_path is not None and source_path.exists():
+            src_bars = [bar for bar in read_cache(source_path) if start <= bar.ts <= end]
+        else:
+            src_bars = [bar for bar in src_series.as_list() if start <= bar.ts <= end]
         if not src_bars:
             last_err = f"source_empty_after_slice({src_label})"
             continue
@@ -1181,6 +1223,7 @@ def resample_cached_window(
                 src_bars,
                 src_bar_size=str(src_label),
                 dst_bar_size=str(dst_bar_size),
+                use_rth=bool(resample_use_rth),
                 allow_day_from_partial=bool(use_rth),
             )
         except SystemExit as exc:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import datetime, timedelta
@@ -9,6 +10,7 @@ from ..engine import (
     resolve_spot_regime2_spec,
     resolve_spot_regime_spec,
 )
+from ..signals import ema_periods, parse_bar_size
 
 
 @dataclass(frozen=True)
@@ -59,6 +61,115 @@ def _normalize_exchange(value: object, *, default: str | None = None) -> str | N
     return raw
 
 
+def _supertrend_warmup_days(period: object, *, default: int = 10) -> int:
+    atr_period = _parse_int(period, default=default, min_value=1)
+    return max(60, int(atr_period) * 6)
+
+
+def _ema_warmup_days(preset_raw: object) -> int:
+    preset = str(preset_raw or "").strip()
+    if not preset:
+        return 0
+    periods = ema_periods(preset)
+    if periods is None:
+        return 0
+    return max(0, max(int(periods[0]), int(periods[1])))
+
+
+def _bars_to_warmup_days(*, bar_size: str, use_rth: bool, bars: int) -> int:
+    needed_bars = max(0, int(bars))
+    if needed_bars <= 0:
+        return 0
+    parsed = parse_bar_size(str(bar_size))
+    if parsed is None:
+        return max(1, int(needed_bars))
+    duration_minutes = max(1.0, float(parsed.duration.total_seconds()) / 60.0)
+    trading_minutes_per_day = 390.0 if bool(use_rth) else (24.0 * 60.0)
+    bars_per_day = max(1.0, trading_minutes_per_day / duration_minutes)
+    return max(1, int(math.ceil(float(needed_bars) / float(bars_per_day))) + 1)
+
+
+def spot_signal_warmup_days_from_strategy(
+    *,
+    strategy: Mapping[str, object] | object,
+    default_signal_bar_size: str,
+    default_signal_use_rth: bool,
+) -> int:
+    signal_bar_size = str(_get(strategy, "signal_bar_size", default_signal_bar_size) or default_signal_bar_size).strip()
+    if not signal_bar_size:
+        signal_bar_size = str(default_signal_bar_size)
+    signal_use_rth_raw = _get(strategy, "signal_use_rth", None)
+    signal_use_rth = bool(default_signal_use_rth if signal_use_rth_raw is None else signal_use_rth_raw)
+    filters = _get(strategy, "filters", None)
+
+    bars_needed = 0
+
+    entry_signal = str(_get(strategy, "entry_signal", "ema") or "ema").strip().lower()
+    if entry_signal == "ema":
+        bars_needed = max(bars_needed, _ema_warmup_days(_get(strategy, "ema_preset", None)))
+
+    if _get(strategy, "spot_exit_mode", "pct") == "atr":
+        bars_needed = max(bars_needed, _parse_int(_get(strategy, "spot_atr_period", 14), default=14, min_value=1))
+
+    if _get(filters, "volume_ratio_min", None) is not None:
+        bars_needed = max(bars_needed, _parse_int(_get(filters, "volume_ema_period", 20), default=20, min_value=1))
+
+    if normalize_shock_gate_mode(filters) != "off":
+        bars_needed = max(bars_needed, _parse_int(_get(filters, "shock_atr_slow_period", 50), default=50, min_value=1))
+
+    regime_mode, regime_preset, _regime_bar, use_mtf_regime = resolve_spot_regime_spec(
+        bar_size=str(signal_bar_size),
+        regime_mode_raw=_get(strategy, "regime_mode", "ema"),
+        regime_ema_preset_raw=_get(strategy, "regime_ema_preset", None),
+        regime_bar_size_raw=_get(strategy, "regime_bar_size", None),
+    )
+    if not bool(use_mtf_regime):
+        if str(regime_mode) == "supertrend":
+            bars_needed = max(
+                bars_needed,
+                _supertrend_warmup_days(_get(strategy, "supertrend_atr_period", 10), default=10),
+            )
+        elif str(regime_mode) == "ema":
+            bars_needed = max(bars_needed, _ema_warmup_days(regime_preset))
+
+    regime2_mode, regime2_preset, _regime2_bar, use_mtf_regime2 = resolve_spot_regime2_spec(
+        bar_size=str(signal_bar_size),
+        regime2_mode_raw=_get(strategy, "regime2_mode", "off"),
+        regime2_ema_preset_raw=_get(strategy, "regime2_ema_preset", None),
+        regime2_bar_size_raw=_get(strategy, "regime2_bar_size", None),
+    )
+    if not bool(use_mtf_regime2):
+        if str(regime2_mode) == "supertrend":
+            bars_needed = max(
+                bars_needed,
+                _supertrend_warmup_days(_get(strategy, "regime2_supertrend_atr_period", 10), default=10),
+            )
+        elif str(regime2_mode) == "ema":
+            bars_needed = max(bars_needed, _ema_warmup_days(regime2_preset))
+
+    warmup_days = _bars_to_warmup_days(
+        bar_size=str(signal_bar_size),
+        use_rth=bool(signal_use_rth),
+        bars=int(bars_needed),
+    )
+    parsed_signal = parse_bar_size(str(signal_bar_size))
+    if (
+        entry_signal == "ema"
+        and bool(signal_use_rth)
+        and parsed_signal is not None
+        and parsed_signal.duration < timedelta(days=1)
+    ):
+        warmup_days = max(
+            7,
+            _bars_to_warmup_days(
+            bar_size=str(signal_bar_size),
+            use_rth=bool(signal_use_rth),
+            bars=int(max(bars_needed, _ema_warmup_days(_get(strategy, "ema_preset", None)))),
+            ),
+        )
+    return int(warmup_days)
+
+
 def spot_bar_requirements_from_strategy(
     *,
     strategy: Mapping[str, object] | object,
@@ -76,6 +187,11 @@ def spot_bar_requirements_from_strategy(
         signal_bar_size = str(default_signal_bar_size)
     signal_use_rth_raw = _get(strategy, "signal_use_rth", None)
     signal_use_rth = bool(default_signal_use_rth if signal_use_rth_raw is None else signal_use_rth_raw)
+    signal_warmup_days = spot_signal_warmup_days_from_strategy(
+        strategy=strategy,
+        default_signal_bar_size=str(signal_bar_size),
+        default_signal_use_rth=bool(signal_use_rth),
+    )
 
     out: list[SpotBarRequirement] = []
     if include_signal:
@@ -86,7 +202,7 @@ def spot_bar_requirements_from_strategy(
                 exchange=exchange,
                 bar_size=str(signal_bar_size),
                 use_rth=bool(signal_use_rth),
-                warmup_days=0,
+                warmup_days=int(signal_warmup_days),
             )
         )
 
@@ -103,6 +219,13 @@ def spot_bar_requirements_from_strategy(
         if normalize_shock_gate_mode(filters) != "off":
             slow_period = _parse_int(_get(filters, "shock_atr_slow_period", 50), default=50, min_value=1)
             regime_warm_days = max(30, int(slow_period))
+        if str(_regime_mode) == "supertrend":
+            regime_warm_days = max(
+                int(regime_warm_days),
+                _supertrend_warmup_days(_get(strategy, "supertrend_atr_period", 10), default=10),
+            )
+        elif str(_regime_mode) == "ema":
+            regime_warm_days = max(int(regime_warm_days), _ema_warmup_days(_regime_preset))
         out.append(
             SpotBarRequirement(
                 kind="regime",
@@ -120,6 +243,11 @@ def spot_bar_requirements_from_strategy(
         regime2_ema_preset_raw=_get(strategy, "regime2_ema_preset", None),
         regime2_bar_size_raw=_get(strategy, "regime2_bar_size", None),
     )
+    regime2_warm_days = 0
+    if str(_r2_mode) == "supertrend":
+        regime2_warm_days = _supertrend_warmup_days(_get(strategy, "regime2_supertrend_atr_period", 10), default=10)
+    elif str(_r2_mode) == "ema":
+        regime2_warm_days = _ema_warmup_days(_r2_preset)
     if bool(use_mtf_regime2):
         out.append(
             SpotBarRequirement(
@@ -128,7 +256,7 @@ def spot_bar_requirements_from_strategy(
                 exchange=exchange,
                 bar_size=str(regime2_bar),
                 use_rth=bool(signal_use_rth),
-                warmup_days=0,
+                warmup_days=int(regime2_warm_days),
             )
         )
     regime2_bear_hard_mode = str(_get(strategy, "regime2_bear_hard_mode", "off") or "off").strip().lower()
@@ -136,6 +264,14 @@ def spot_bar_requirements_from_strategy(
     if not regime2_bear_hard_bar or regime2_bear_hard_bar.lower() in ("same", "default"):
         regime2_bear_hard_bar = str(regime2_bar)
     if regime2_bear_hard_mode == "supertrend" and str(regime2_bear_hard_bar) != str(signal_bar_size):
+        hard_warm_days = _supertrend_warmup_days(
+            _get(
+                strategy,
+                "regime2_bear_hard_supertrend_atr_period",
+                _get(strategy, "regime2_supertrend_atr_period", 10),
+            ),
+            default=_parse_int(_get(strategy, "regime2_supertrend_atr_period", 10), default=10, min_value=1),
+        )
         out.append(
             SpotBarRequirement(
                 kind="regime2_bear_hard",
@@ -143,7 +279,7 @@ def spot_bar_requirements_from_strategy(
                 exchange=exchange,
                 bar_size=str(regime2_bear_hard_bar),
                 use_rth=bool(signal_use_rth),
-                warmup_days=0,
+                warmup_days=int(hard_warm_days),
             )
         )
 
@@ -177,7 +313,7 @@ def spot_bar_requirements_from_strategy(
                 exchange=exchange,
                 bar_size=str(exec_bar_size),
                 use_rth=bool(signal_use_rth),
-                warmup_days=0,
+                warmup_days=int(signal_warmup_days),
             )
         )
 

@@ -761,6 +761,11 @@ class BotSignalRuntimeMixin:
             return 0
         return max(int(periods[0]), int(periods[1]))
 
+    @classmethod
+    def _supertrend_warmup_bars(cls, raw_period: object, *, default: int = 10) -> int:
+        period = cls._int_from(raw_period, default=default, min_value=1)
+        return max(60, int(period) * 6)
+
     def _signal_preflight_requirements(self, instance: _BotInstance) -> dict[str, object]:
         strategy = instance.strategy if isinstance(instance.strategy, dict) else {}
         filters = instance.filters if isinstance(instance.filters, dict) else {}
@@ -816,7 +821,7 @@ class BotSignalRuntimeMixin:
             regime_bar_size_raw=strategy.get("regime_bar_size"),
         )
         if regime_mode == "supertrend":
-            st_period = self._int_from(strategy.get("supertrend_atr_period"), default=10, min_value=1)
+            st_period = self._supertrend_warmup_bars(strategy.get("supertrend_atr_period"), default=10)
             _register("regime" if use_mtf_regime else "signal", "regime_supertrend", st_period)
         elif regime_mode == "ema":
             regime_slow = self._ema_slow_period(regime_preset)
@@ -830,12 +835,23 @@ class BotSignalRuntimeMixin:
             regime2_bar_size_raw=strategy.get("regime2_bar_size"),
         )
         if regime2_mode == "supertrend":
-            st2_period = self._int_from(strategy.get("regime2_supertrend_atr_period"), default=10, min_value=1)
+            st2_period = self._supertrend_warmup_bars(strategy.get("regime2_supertrend_atr_period"), default=10)
             _register("regime2" if use_mtf_regime2 else "signal", "regime2_supertrend", st2_period)
         elif regime2_mode == "ema":
             regime2_slow = self._ema_slow_period(regime2_preset)
             if regime2_slow > 0:
                 _register("regime2" if use_mtf_regime2 else "signal", "regime2_ema", regime2_slow)
+
+        regime2_bear_hard_mode = str(strategy.get("regime2_bear_hard_mode") or "off").strip().lower()
+        regime2_bear_hard_bar = str(strategy.get("regime2_bear_hard_bar_size") or "").strip()
+        if not regime2_bear_hard_bar or regime2_bear_hard_bar.lower() in ("same", "default"):
+            regime2_bear_hard_bar = str(strategy.get("regime2_bar_size") or bar_size)
+        if regime2_bear_hard_mode == "supertrend" and regime2_bear_hard_bar != bar_size:
+            hard_need = self._supertrend_warmup_bars(
+                strategy.get("regime2_bear_hard_supertrend_atr_period", strategy.get("regime2_supertrend_atr_period")),
+                default=self._int_from(strategy.get("regime2_supertrend_atr_period"), default=10, min_value=1),
+            )
+            _register("regime2", "regime2_bear_hard_supertrend", hard_need)
 
         return {
             "signal_bars_min": int(signal_need),

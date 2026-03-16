@@ -85,6 +85,8 @@
             "ema_preset": "5/13",
             "ema_entry_mode": "trend",
             "entry_confirm_bars": 0,
+            "signal_bar_size": "5 mins",
+            "signal_use_rth": true,
             "regime_ema_preset": null,
             "regime_bar_size": "5 mins",
             "ema_directional": false,

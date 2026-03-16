@@ -16,7 +16,7 @@ import sqlite3
 import sys
 import threading
 import time as pytime
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from pathlib import Path
 
 from .cli_utils import parse_date as _parse_date, parse_window as _parse_window
@@ -33,7 +33,7 @@ from .spot_codec import (
     metrics_from_summary as _codec_metrics_from_summary,
     strategy_from_payload as _codec_strategy_from_payload,
 )
-from .spot_context import SpotBarRequirement, load_spot_context_bars
+from .spot_context import SpotBarRequirement, load_spot_context_bars, spot_signal_warmup_days_from_strategy
 from .data import ContractMeta, IBKRHistoricalData
 from .engine import _run_spot_backtest_summary, _spot_multiplier
 from .sweep_fingerprint import _strategy_fingerprint
@@ -54,7 +54,7 @@ from ..time_utils import now_et as _now_et
 _SERIES_CACHE = series_cache_service()
 _SWEEP_MULTIWINDOW_BARS_NAMESPACE = "spot.sweeps.multiwindow.bars"
 # Bump whenever evaluation semantics change so stale cached rows don't mask runtime fixes.
-_MULTIWINDOW_CACHE_ENGINE_VERSION = "spot_multiwindow_v11"
+_MULTIWINDOW_CACHE_ENGINE_VERSION = "spot_multiwindow_v12"
 
 def _score_key(item: dict) -> tuple:
     return (
@@ -567,10 +567,22 @@ def spot_multitimeframe_main() -> None:
 
             start_dt = datetime.combine(bundle.backtest.start, time(0, 0))
             end_dt = datetime.combine(bundle.backtest.end, time(23, 59))
+            signal_start_dt = start_dt - timedelta(
+                days=max(
+                    0,
+                    int(
+                        spot_signal_warmup_days_from_strategy(
+                            strategy=bundle.strategy,
+                            default_signal_bar_size=str(bundle.backtest.bar_size),
+                            default_signal_use_rth=bool(bundle.backtest.use_rth),
+                        )
+                    ),
+                )
+            )
             bars_sig = load_bars_cached(
                 symbol=bundle.strategy.symbol,
                 exchange=bundle.strategy.exchange,
-                start_dt=start_dt,
+                start_dt=signal_start_dt,
                 end_dt=end_dt,
                 bar_size=bundle.backtest.bar_size,
                 use_rth=bundle.backtest.use_rth,
@@ -938,7 +950,9 @@ def spot_multitimeframe_main() -> None:
         now = utc_now_iso_z()
         groups_out: list[dict] = []
         for idx, item in enumerate(out_rows[:top_k], start=1):
-            strategy = item["strategy"]
+            strategy = dict(item["strategy"])
+            strategy.setdefault("signal_bar_size", str(args.bar_size))
+            strategy.setdefault("signal_use_rth", bool(use_rth))
             filters_payload = item.get("filters")
             key = _strategy_key(strategy, filters=filters_payload)
             metrics = {
@@ -972,6 +986,8 @@ def spot_multitimeframe_main() -> None:
             "name": "multitimeframe_top",
             "generated_at": now,
             "source": str(milestones_path),
+            "bar_size": str(args.bar_size),
+            "use_rth": bool(use_rth),
             "windows": [{"start": a.isoformat(), "end": b.isoformat()} for a, b in windows],
             "groups": groups_out,
         }

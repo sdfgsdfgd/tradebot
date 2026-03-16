@@ -22,7 +22,7 @@ from .config import ConfigBundle, SpotLegConfig
 from .calibration import ensure_calibration, load_calibration
 from .data import IBKRHistoricalData, ContractMeta
 from .models import Bar, EquityPoint, OptionLeg, OptionTrade, SpotTrade, SummaryStats
-from .spot_context import SpotBarRequirement, load_spot_context_bars
+from .spot_context import SpotBarRequirement, load_spot_context_bars, spot_signal_warmup_days_from_strategy
 from .strategy import CreditSpreadStrategy, TradeSpec
 from ..series import BarSeries, bars_list
 from ..series_cache import series_cache_service
@@ -2915,12 +2915,24 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
     data = IBKRHistoricalData()
     start_dt = datetime.combine(cfg.backtest.start, time(0, 0))
     end_dt = datetime.combine(cfg.backtest.end, time(23, 59))
+    signal_start_dt = start_dt - timedelta(
+        days=max(
+            0,
+            int(
+                spot_signal_warmup_days_from_strategy(
+                    strategy=cfg.strategy,
+                    default_signal_bar_size=str(cfg.backtest.bar_size),
+                    default_signal_use_rth=bool(cfg.backtest.use_rth),
+                )
+            ),
+        )
+    )
     bar_series = _load_backtest_series(
         data=data,
         cfg=cfg,
         symbol=cfg.strategy.symbol,
         exchange=cfg.strategy.exchange,
-        start=start_dt,
+        start=signal_start_dt,
         end=end_dt,
         bar_size=cfg.backtest.bar_size,
         use_rth=cfg.backtest.use_rth,
@@ -4296,13 +4308,38 @@ def _run_spot_backtest_exec_loop(
     entries_today = 0
     exec_total = int(len(exec_bars))
     progress_stride = max(1, int(max(64, exec_total // 200)))
+    score_start_dt = _spot_score_start_dt(cfg)
+    start_exec_idx = bisect_left([bar.ts for bar in exec_bars], score_start_dt)
+    if start_exec_idx > 0:
+        for warm_idx in range(int(start_exec_idx)):
+            warm_bar = exec_bars[int(warm_idx)]
+            warm_next = exec_bars[int(warm_idx) + 1] if int(warm_idx) + 1 < len(exec_bars) else None
+            warm_is_last_bar = warm_next is None or _trade_date(warm_next.ts) != _trade_date(warm_bar.ts)
+            evaluator.update_exec_bar(warm_bar, is_last_bar=bool(warm_is_last_bar))
+            warm_sig_map_idx = align.sig_idx_by_exec_idx[int(warm_idx)] if int(warm_idx) < len(align.sig_idx_by_exec_idx) else -1
+            warm_sig_idx = int(warm_sig_map_idx) if int(warm_sig_map_idx) >= 0 else None
+            if warm_sig_idx is None or int(warm_sig_idx) >= len(signal_bars):
+                shock_prev, shock_dir_prev, shock_atr_pct_prev = evaluator.shock_view
+                continue
+            warm_sig_bar = signal_bars[int(warm_sig_idx)]
+            if warm_sig_bar.ts >= score_start_dt:
+                shock_prev, shock_dir_prev, shock_atr_pct_prev = evaluator.shock_view
+                continue
+            warm_sig_snap = evaluator.update_signal_bar(warm_sig_bar)
+            if warm_sig_snap is not None:
+                last_sig_snap = warm_sig_snap
+            shock_prev, shock_dir_prev, shock_atr_pct_prev = evaluator.shock_view
 
-    for idx, bar in enumerate(exec_bars):
+    for idx in range(int(start_exec_idx), len(exec_bars)):
+        bar = exec_bars[int(idx)]
         next_bar = exec_bars[idx + 1] if idx + 1 < len(exec_bars) else None
         is_last_bar = next_bar is None or _trade_date(next_bar.ts) != _trade_date(bar.ts)
         sig_map_idx = align.sig_idx_by_exec_idx[idx] if idx < len(align.sig_idx_by_exec_idx) else -1
         sig_idx = int(sig_map_idx) if int(sig_map_idx) >= 0 else None
         sig_bar = signal_bars[int(sig_idx)] if sig_idx is not None and int(sig_idx) < len(signal_bars) else None
+        if sig_bar is not None and sig_bar.ts < score_start_dt:
+            sig_idx = None
+            sig_bar = None
         if int(idx) == 0 or int((idx + 1) % int(progress_stride)) == 0 or int(idx + 1) >= int(exec_total):
             _spot_emit_progress(
                 progress_callback,
@@ -5549,6 +5586,8 @@ def _run_spot_backtest_exec_loop_summary_fast(
 
     signal_ts = [b.ts for b in signal_bars]
     exec_ts = [b.ts for b in exec_bars]
+    score_start_dt = _spot_score_start_dt(cfg)
+    start_sig_idx = int(bisect_left(signal_ts, score_start_dt))
 
     def _next_fill_from_signal_exec_idx(sig_exec_idx: int, *, fill_mode: str) -> tuple[int, datetime] | None:
         if sig_exec_idx < 0 or sig_exec_idx >= len(exec_bars):
@@ -5651,7 +5690,7 @@ def _run_spot_backtest_exec_loop_summary_fast(
     open_margin_required = 0.0
     open_decision_trace: dict[str, object] | None = None
 
-    sig_cursor = 0
+    sig_cursor = int(start_sig_idx)
     sig_total = int(len(signal_bars))
     exec_total = int(len(exec_bars))
     progress_stride = max(1, int(max(16, sig_total // 200)))
@@ -6437,6 +6476,10 @@ def _run_spot_backtest_exec_loop_summary(
         prepared_series_pack=prepared_series_pack,
         progress_callback=progress_callback,
     ).summary
+
+
+def _spot_score_start_dt(cfg: ConfigBundle) -> datetime:
+    return datetime.combine(cfg.backtest.start, time(0, 0))
 
 
 def _flip_exit_base_checks(

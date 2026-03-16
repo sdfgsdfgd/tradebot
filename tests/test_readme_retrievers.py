@@ -82,3 +82,15 @@ def test_fuzzy_current_heading_with_version_still_extracts_hf_crown() -> None:
         "38-Asymmetric Crash Prearm Sovereignty",
         "backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v38_asymmetricCrashPrearmSovereignty_20260316.json",
     )
+
+
+def test_current_tqqq_hf_crown_preserves_signal_transport_fields() -> None:
+    readme_path = (_ROOT / "backtests/tqqq/readme-hf.md").resolve()
+    version, rel_json_path = _RETRIEVERS.extract_current_tqqq_hf_json_path(readme_path.read_text())
+    assert version == "38"
+    assert rel_json_path
+
+    payload = json.loads((_ROOT / str(rel_json_path)).read_text())
+    strategy = payload["groups"][0]["entries"][0]["strategy"]
+    assert strategy.get("signal_bar_size") == "5 mins"
+    assert strategy.get("signal_use_rth") is True

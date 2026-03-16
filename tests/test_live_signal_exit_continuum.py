@@ -198,6 +198,10 @@ class _EntryDayHarness(BotSignalRuntimeMixin):
         return "spot" if cleaned == "spot" else "options"
 
     @staticmethod
+    def _signal_bar_size(instance: _BotInstance) -> str:
+        return str(instance.strategy.get("signal_bar_size") or "1 hour")
+
+    @staticmethod
     def _signal_use_rth(instance: _BotInstance) -> bool:
         raw = instance.strategy.get("signal_use_rth")
         return bool(raw)
@@ -493,6 +497,31 @@ def test_entry_weekday_allows_numeric_entry_days_from_champion_payload() -> None
     sunday_overnight = datetime(2026, 2, 8, 23, 32)
     assert harness._entry_weekday_for_ts(instance, sunday_overnight) == 0
     assert harness._can_order_now(instance, now_et=sunday_overnight) is True
+
+
+def test_signal_preflight_requires_regime2_supertrend_warmup_for_tqqq_hf_style_payload() -> None:
+    harness = _EntryDayHarness()
+    instance = _new_instance(
+        strategy={
+            "instrument": "spot",
+            "signal_bar_size": "5 mins",
+            "signal_use_rth": True,
+            "ema_preset": "5/13",
+            "entry_signal": "ema",
+            "regime_mode": "ema",
+            "regime_bar_size": "5 mins",
+            "regime2_mode": "supertrend",
+            "regime2_bar_size": "30 mins",
+            "regime2_supertrend_atr_period": 10,
+            "regime2_bear_hard_mode": "supertrend",
+            "regime2_bear_hard_bar_size": "4 hours",
+            "regime2_bear_hard_supertrend_atr_period": 10,
+        },
+        filters={},
+    )
+    req = harness._signal_preflight_requirements(instance)
+    assert req["signal_bars_min"] >= 13
+    assert req["regime2_bars_min"] >= 60
 
 
 def test_signal_filter_time_respects_runtime_et_wall_clock_bars() -> None:
