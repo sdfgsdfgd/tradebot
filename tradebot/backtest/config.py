@@ -210,6 +210,22 @@ def _strategy_schema_common() -> dict[str, _FieldSpec]:
             None,
         ),
         "regime2_crash_block_longs": _field(bool, False),
+        "regime2_crash_prearm_apply_to": _field(_parse_regime2_crash_prearm_apply_to, None),
+        "regime2_crash_prearm_shock_atr_pct_min": _field(
+            lambda value: None if value is None else _parse_non_negative_float_or_default(value, default=0.0),
+            None,
+        ),
+        "regime2_crash_prearm_shock_dir_ret_sum_pct_max": _field(_parse_optional_float, None),
+        "regime2_crash_prearm_branch_a_shock_atr_pct_min": _field(
+            lambda value: None if value is None else _parse_non_negative_float_or_default(value, default=0.0),
+            None,
+        ),
+        "regime2_crash_prearm_branch_a_shock_dir_ret_sum_pct_max": _field(_parse_optional_float, None),
+        "regime2_crash_prearm_branch_b_shock_atr_pct_min": _field(
+            lambda value: None if value is None else _parse_non_negative_float_or_default(value, default=0.0),
+            None,
+        ),
+        "regime2_crash_prearm_branch_b_shock_dir_ret_sum_pct_max": _field(_parse_optional_float, None),
         "regime2_repair_block_branch_b_longs": _field(bool, False),
         "regime2_repair_branch_b_long_max_shock_atr_pct": _field(
             lambda value: None if value is None else _parse_non_negative_float_or_default(value, default=0.0),
@@ -1254,6 +1270,20 @@ def _parse_regime2_bear_takeover_mode(value) -> str:
         if cleaned in ("hostile_or_shockdown", "hostile+shockdown", "hostile_shockdown"):
             return "hostile_or_shockdown"
     return "always"
+
+
+def _parse_regime2_crash_prearm_apply_to(value) -> str:
+    if value is None:
+        return "off"
+    if isinstance(value, str):
+        cleaned = value.strip().lower()
+        if cleaned in ("", "off", "none", "disabled", "false", "0"):
+            return "off"
+        if cleaned in ("branch_b_longs", "b_longs", "branchb", "b"):
+            return "branch_b_longs"
+        if cleaned in ("all_longs", "longs", "all"):
+            return "all_longs"
+    return "off"
 
 
 def _parse_regime2_clean_host_takeover_state(value) -> str:

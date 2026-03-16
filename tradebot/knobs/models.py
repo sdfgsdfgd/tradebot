@@ -268,6 +268,13 @@ class StrategyConfigBase:
     regime2_bear_takeover_mode: str = "always"
     regime2_crash_atr_pct_min: float | None = None
     regime2_crash_block_longs: bool = False
+    regime2_crash_prearm_apply_to: str = "off"
+    regime2_crash_prearm_shock_atr_pct_min: float | None = None
+    regime2_crash_prearm_shock_dir_ret_sum_pct_max: float | None = None
+    regime2_crash_prearm_branch_a_shock_atr_pct_min: float | None = None
+    regime2_crash_prearm_branch_a_shock_dir_ret_sum_pct_max: float | None = None
+    regime2_crash_prearm_branch_b_shock_atr_pct_min: float | None = None
+    regime2_crash_prearm_branch_b_shock_dir_ret_sum_pct_max: float | None = None
     regime2_repair_block_branch_b_longs: bool = False
     regime2_repair_branch_b_long_max_shock_atr_pct: float | None = None
     regime2_repair_branch_b_long_block_after_hour_et: int | None = None

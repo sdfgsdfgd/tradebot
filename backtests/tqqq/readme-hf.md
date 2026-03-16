@@ -15,7 +15,7 @@ Sovereignty contract (current phase):
   - `2025` persistent uptrend
 - `v34` remains the raw `1Y/2Y` modern crown under the original contract.
 - `v35` remains the bridge-only dethrone that first unified `2022/2025`.
-- `v37` Heat-Lip Sovereignty is the active multi-regime dethrone.
+- `v38` Asymmetric Crash Prearm Sovereignty is the active multi-regime dethrone.
 
 Canonical execution paths:
 - Spot sweeps/evolution: `python -m tradebot.backtest spot ...`
@@ -23,7 +23,53 @@ Canonical execution paths:
 
 ## Current Champions (stack)
 
-### CURRENT MULTI-REGIME DETHRONE (v37-Heat-Lip Sovereignty) — dethroned v36 for the `2020/2022/2025` sovereignty contract
+### CURRENT MULTI-REGIME DETHRONE (v38-Asymmetric Crash Prearm Sovereignty) — dethroned v37 for the `2020/2022/2025` sovereignty contract
+
+- Delta vs `v37` (needle-thread):
+  - Keep the whole `v37` sovereignty organism intact:
+    - Bridge host stays sovereign in cleaner tape
+    - alternate host still owns `crash_down + transition_up_hot`
+    - keep the living heat-lip, crash, repair, and pocket scaffold unchanged
+  - Real new truth:
+    - the next edge was not broader crash mode and not more ATR heat
+    - `branch-b` wanted the existing early-crash purifier untouched
+    - `branch-a` wanted a stricter early-crash **directional persistence** lip, not a stricter ATR lip
+    - `-5.5` and `-5.75` were one discrete step, `-6.0` was better, and `-6.25` already gave back too much `2020`
+  - Final asymmetric prearm seam:
+    - `regime2_crash_prearm_apply_to="all_longs"`
+    - `regime2_crash_prearm_shock_atr_pct_min=0.55`
+    - `regime2_crash_prearm_shock_dir_ret_sum_pct_max=-5.0`
+    - `regime2_crash_prearm_branch_a_shock_dir_ret_sum_pct_max=-6.0`
+  - Why it dethroned:
+    - `2020` gain came from almost flattening rebound poison while leaving `2020 H2` unchanged
+    - `2022` improved because `branch-a` quality got sharper instead of being bludgeoned by a blunt all-longs prearm
+    - `2025` improved slightly because modern host tissue stayed alive and `branch-b` continuation improved instead of getting clipped
+- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v38_asymmetricCrashPrearmSovereignty_20260316.json`
+- Sovereignty floor (min `2020/2022/2025` pnl/dd): **2.197**
+- `2020` (`2020-01-01 -> 2021-01-01`): trades **488**, pnl **12,062.6**, dd **5,490.0**, pnl/dd **2.197**
+- `2022` (`2022-01-01 -> 2023-01-01`): trades **530**, pnl **28,592.8**, dd **9,162.3**, pnl/dd **3.121**
+- `2025` (`2025-01-01 -> 2026-01-19`): trades **478**, pnl **26,416.1**, dd **5,001.8**, pnl/dd **5.281**
+- Distinct anatomy:
+  - `2020`: still not a raw crash god, but rebound poison is almost neutralized; `2020 rebound pnl/dd` improves from about `-0.143` to about `-0.004`, driven mainly by `branch-a long` recovering from about `+2.24k` to `+3.80k`
+  - `2022`: the gain is broad and honest; `branch-a long` and `branch-a short` both improve while the persistent-downtrend predator stays alive
+  - `2025`: the sacred modern host remains intact; `branch-a long` even improves slightly, and `branch-b long` continuation lifts from about `+1.0k` to about `+1.4k`
+- Adjacent crowns that still define the ridge:
+  - Previous king, `v37` Heat-Lip Sovereignty:
+    - `regime2_transition_hot_shock_atr_pct_min=0.8`
+    - Result: `2020 pnl/dd = 1.994`, `2022 pnl/dd = 3.065`, `2025 pnl/dd = 5.199`
+    - Distinct truth: the upper-lip transition heat seam was the first real post-v36 leap, but it was still too blunt inside the early crash prearm
+  - Branch-`b` purifier sibling:
+    - add `regime2_crash_prearm_apply_to="branch_b_longs"`
+    - add `regime2_crash_prearm_shock_atr_pct_min=0.55`
+    - add `regime2_crash_prearm_shock_dir_ret_sum_pct_max=-5.0`
+    - Result: `2020 pnl/dd = 1.967`, `2022 pnl/dd = 3.114`, `2025 pnl/dd = 5.281`
+    - Distinct truth: beautiful modern/bear purifier, but not enough `2020` theft on its own
+  - Blunt all-longs prearm sibling:
+    - add the shared prearm above for all longs without the branch-`a` stricter lip
+    - Result: `2020 pnl/dd = 2.144`, `2022 pnl/dd = 2.643`, `2025 pnl/dd = 5.281`
+    - Distinct truth: proved the early-crash prearm family was real, but taxed `2022` too much until the branch asymmetry was discovered
+
+### PREVIOUS MULTI-REGIME DETHRONE (v37-Heat-Lip Sovereignty) — dethroned v36 for the `2020/2022/2025` sovereignty contract
 
 - Delta vs `v36` (needle-thread):
   - Keep the whole v36 sovereignty seam intact:
@@ -65,7 +111,7 @@ Canonical execution paths:
     - Result example: `2020 pnl/dd = 1.423`, `2022 pnl/dd = 3.067`, `2025 pnl/dd = 5.392`
     - Distinct truth: once the lip gets too high, `2020` drops off a cliff; the useful edge really does live near `0.79 - 0.80`
 
-### PREVIOUS MULTI-REGIME DETHRONE (v36-Balanced Combined Sovereignty) — dethroned v35 for the `2020/2022/2025` sovereignty contract
+### EARLIER MULTI-REGIME DETHRONE (v36-Balanced Combined Sovereignty) — dethroned v35 for the `2020/2022/2025` sovereignty contract
 
 - Delta vs `v35` (needle-thread):
   - Keep the Bridge Crown host as the default sovereign instead of throwing away the modern kingdom.

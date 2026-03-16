@@ -715,6 +715,80 @@ class SpotSignalEvaluator:
         if self._regime2_crash_atr_pct_min is not None and self._regime2_crash_atr_pct_min < 0:
             self._regime2_crash_atr_pct_min = None
         self._regime2_crash_block_longs = bool(_get(strategy, "regime2_crash_block_longs", False))
+        self._regime2_crash_prearm_apply_to = (
+            str(_get(strategy, "regime2_crash_prearm_apply_to", "off") or "off").strip().lower()
+        )
+        if self._regime2_crash_prearm_apply_to not in ("off", "branch_b_longs", "all_longs"):
+            self._regime2_crash_prearm_apply_to = "off"
+        raw_crash_prearm_atr_min = _get(strategy, "regime2_crash_prearm_shock_atr_pct_min", None)
+        try:
+            self._regime2_crash_prearm_shock_atr_pct_min = (
+                float(raw_crash_prearm_atr_min) if raw_crash_prearm_atr_min is not None else None
+            )
+        except (TypeError, ValueError):
+            self._regime2_crash_prearm_shock_atr_pct_min = None
+        if (
+            self._regime2_crash_prearm_shock_atr_pct_min is not None
+            and self._regime2_crash_prearm_shock_atr_pct_min < 0
+        ):
+            self._regime2_crash_prearm_shock_atr_pct_min = None
+        raw_crash_prearm_ret_sum_max = _get(strategy, "regime2_crash_prearm_shock_dir_ret_sum_pct_max", None)
+        try:
+            self._regime2_crash_prearm_shock_dir_ret_sum_pct_max = (
+                float(raw_crash_prearm_ret_sum_max) if raw_crash_prearm_ret_sum_max is not None else None
+            )
+        except (TypeError, ValueError):
+            self._regime2_crash_prearm_shock_dir_ret_sum_pct_max = None
+        raw_crash_prearm_branch_a_atr_min = _get(strategy, "regime2_crash_prearm_branch_a_shock_atr_pct_min", None)
+        try:
+            self._regime2_crash_prearm_branch_a_shock_atr_pct_min = (
+                float(raw_crash_prearm_branch_a_atr_min) if raw_crash_prearm_branch_a_atr_min is not None else None
+            )
+        except (TypeError, ValueError):
+            self._regime2_crash_prearm_branch_a_shock_atr_pct_min = None
+        if (
+            self._regime2_crash_prearm_branch_a_shock_atr_pct_min is not None
+            and self._regime2_crash_prearm_branch_a_shock_atr_pct_min < 0
+        ):
+            self._regime2_crash_prearm_branch_a_shock_atr_pct_min = None
+        raw_crash_prearm_branch_a_ret_sum_max = _get(
+            strategy,
+            "regime2_crash_prearm_branch_a_shock_dir_ret_sum_pct_max",
+            None,
+        )
+        try:
+            self._regime2_crash_prearm_branch_a_shock_dir_ret_sum_pct_max = (
+                float(raw_crash_prearm_branch_a_ret_sum_max)
+                if raw_crash_prearm_branch_a_ret_sum_max is not None
+                else None
+            )
+        except (TypeError, ValueError):
+            self._regime2_crash_prearm_branch_a_shock_dir_ret_sum_pct_max = None
+        raw_crash_prearm_branch_b_atr_min = _get(strategy, "regime2_crash_prearm_branch_b_shock_atr_pct_min", None)
+        try:
+            self._regime2_crash_prearm_branch_b_shock_atr_pct_min = (
+                float(raw_crash_prearm_branch_b_atr_min) if raw_crash_prearm_branch_b_atr_min is not None else None
+            )
+        except (TypeError, ValueError):
+            self._regime2_crash_prearm_branch_b_shock_atr_pct_min = None
+        if (
+            self._regime2_crash_prearm_branch_b_shock_atr_pct_min is not None
+            and self._regime2_crash_prearm_branch_b_shock_atr_pct_min < 0
+        ):
+            self._regime2_crash_prearm_branch_b_shock_atr_pct_min = None
+        raw_crash_prearm_branch_b_ret_sum_max = _get(
+            strategy,
+            "regime2_crash_prearm_branch_b_shock_dir_ret_sum_pct_max",
+            None,
+        )
+        try:
+            self._regime2_crash_prearm_branch_b_shock_dir_ret_sum_pct_max = (
+                float(raw_crash_prearm_branch_b_ret_sum_max)
+                if raw_crash_prearm_branch_b_ret_sum_max is not None
+                else None
+            )
+        except (TypeError, ValueError):
+            self._regime2_crash_prearm_branch_b_shock_dir_ret_sum_pct_max = None
         self._regime2_repair_block_branch_b_longs = bool(
             _get(strategy, "regime2_repair_block_branch_b_longs", False)
         )
@@ -1503,6 +1577,51 @@ class SpotSignalEvaluator:
 
     def _regime2_crash_blocks_long(self, *, regime4_state: str | None, entry_dir: str | None) -> bool:
         return bool(self._regime2_crash_block_longs and regime4_state == "crash_down" and entry_dir == "up")
+
+    def _regime2_crash_prearm_blocks_long(
+        self,
+        *,
+        regime4_state: str | None,
+        entry_dir: str | None,
+        entry_branch: str | None,
+        shock_dir: str | None,
+        shock_atr_pct: float | None,
+        shock_dir_ret_sum_pct: float | None,
+    ) -> bool:
+        apply_to = str(self._regime2_crash_prearm_apply_to or "off")
+        if apply_to == "off":
+            return False
+        if regime4_state != "trend_down" or entry_dir != "up" or shock_dir != "down":
+            return False
+        branch_key = str(entry_branch or "")
+        atr_pct_min = self._regime2_crash_prearm_shock_atr_pct_min
+        ret_sum_pct_max = self._regime2_crash_prearm_shock_dir_ret_sum_pct_max
+        if branch_key == "a":
+            if self._regime2_crash_prearm_branch_a_shock_atr_pct_min is not None:
+                atr_pct_min = self._regime2_crash_prearm_branch_a_shock_atr_pct_min
+            if self._regime2_crash_prearm_branch_a_shock_dir_ret_sum_pct_max is not None:
+                ret_sum_pct_max = self._regime2_crash_prearm_branch_a_shock_dir_ret_sum_pct_max
+        elif branch_key == "b":
+            if self._regime2_crash_prearm_branch_b_shock_atr_pct_min is not None:
+                atr_pct_min = self._regime2_crash_prearm_branch_b_shock_atr_pct_min
+            if self._regime2_crash_prearm_branch_b_shock_dir_ret_sum_pct_max is not None:
+                ret_sum_pct_max = self._regime2_crash_prearm_branch_b_shock_dir_ret_sum_pct_max
+        if (
+            atr_pct_min is not None
+            and (shock_atr_pct is None or float(shock_atr_pct) < float(atr_pct_min))
+        ):
+            return False
+        if (
+            ret_sum_pct_max is not None
+            and (
+                shock_dir_ret_sum_pct is None
+                or float(shock_dir_ret_sum_pct) > float(ret_sum_pct_max)
+            )
+        ):
+            return False
+        if apply_to == "branch_b_longs":
+            return branch_key == "b"
+        return True
 
     def _regime2_repair_blocks_branch_b_long(
         self,
@@ -2345,6 +2464,17 @@ class SpotSignalEvaluator:
             self._prev_shock_drawdown_dist_on_vel_pp = None
 
         if self._regime2_crash_blocks_long(regime4_state=regime4_state, entry_dir=entry_dir_for_entries):
+            entry_dir_for_entries = None
+            entry_branch = None
+
+        if self._regime2_crash_prearm_blocks_long(
+            regime4_state=regime4_state,
+            entry_dir=entry_dir_for_entries,
+            entry_branch=entry_branch,
+            shock_dir=shock_dir,
+            shock_atr_pct=shock_atr_pct,
+            shock_dir_ret_sum_pct=shock_dir_ret_sum_pct,
+        ):
             entry_dir_for_entries = None
             entry_branch = None
 
