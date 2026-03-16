@@ -445,6 +445,44 @@ class IBKRHistoricalData:
         cache_dir: Path,
     ) -> BarSeries[Bar]:
         cache_file = cache_path(cache_dir, symbol, start, end, bar_size, use_rth)
+        def _try_resampled() -> BarSeries[Bar] | None:
+            if not _intraday_resample_preferred(bar_size):
+                return None
+            try:
+                from .cache_ops_lib import resample_cached_window
+
+                rs_out = resample_cached_window(
+                    data=self,
+                    cache_dir=cache_dir,
+                    symbol=symbol,
+                    exchange=exchange,
+                    start=start,
+                    end=end,
+                    dst_bar_size=bar_size,
+                    use_rth=use_rth,
+                    src_bar_size=None,
+                )
+                if not (rs_out.ok and rs_out.dst_path.exists()):
+                    return None
+                normalized = _normalize_bars(read_cache(cache_file), symbol=symbol, bar_size=bar_size, use_rth=use_rth)
+                return BarSeries(
+                    bars=tuple(normalized),
+                    meta=_series_meta(
+                        symbol=symbol,
+                        bar_size=bar_size,
+                        use_rth=use_rth,
+                        source="cache-resampled",
+                        source_path=cache_file,
+                        start=start,
+                        end=end,
+                    ),
+                )
+            except Exception:
+                return None
+
+        resampled = _try_resampled()
+        if resampled is not None:
+            return resampled
         covering = find_covering_cache_path(
             cache_dir=cache_dir,
             symbol=symbol,
@@ -482,37 +520,6 @@ class IBKRHistoricalData:
             bar_size=bar_size,
             use_rth=use_rth,
         )
-        if not overlap_paths and _intraday_resample_preferred(bar_size):
-            try:
-                from .cache_ops_lib import resample_cached_window
-
-                rs_out = resample_cached_window(
-                    data=self,
-                    cache_dir=cache_dir,
-                    symbol=symbol,
-                    exchange=exchange,
-                    start=start,
-                    end=end,
-                    dst_bar_size=bar_size,
-                    use_rth=use_rth,
-                    src_bar_size=None,
-                )
-                if rs_out.ok and rs_out.dst_path.exists():
-                    normalized = _normalize_bars(read_cache(cache_file), symbol=symbol, bar_size=bar_size, use_rth=use_rth)
-                    return BarSeries(
-                        bars=tuple(normalized),
-                        meta=_series_meta(
-                            symbol=symbol,
-                            bar_size=bar_size,
-                            use_rth=use_rth,
-                            source="cache-resampled",
-                            source_path=cache_file,
-                            start=start,
-                            end=end,
-                        ),
-                    )
-            except Exception:
-                pass
         if not overlap_paths:
             raise FileNotFoundError(f"No cached bars found at {cache_file}")
 
@@ -532,37 +539,9 @@ class IBKRHistoricalData:
             covered_ranges=covered_ranges,
         )
         if uncovered_ranges:
-            if _intraday_resample_preferred(bar_size):
-                try:
-                    from .cache_ops_lib import resample_cached_window
-
-                    rs_out = resample_cached_window(
-                        data=self,
-                        cache_dir=cache_dir,
-                        symbol=symbol,
-                        exchange=exchange,
-                        start=start,
-                        end=end,
-                        dst_bar_size=bar_size,
-                        use_rth=use_rth,
-                        src_bar_size=None,
-                    )
-                    if rs_out.ok and rs_out.dst_path.exists():
-                        normalized = _normalize_bars(read_cache(cache_file), symbol=symbol, bar_size=bar_size, use_rth=use_rth)
-                        return BarSeries(
-                            bars=tuple(normalized),
-                            meta=_series_meta(
-                                symbol=symbol,
-                                bar_size=bar_size,
-                                use_rth=use_rth,
-                                source="cache-resampled",
-                                source_path=cache_file,
-                                start=start,
-                                end=end,
-                            ),
-                        )
-                except Exception:
-                    pass
+            resampled = _try_resampled()
+            if resampled is not None:
+                return resampled
             missing = []
             for s, e in uncovered_ranges:
                 if s == e:

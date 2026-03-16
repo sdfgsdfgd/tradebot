@@ -91,6 +91,44 @@ def test_load_cached_bar_series_resamples_from_1min_when_same_frequency_cache_is
     assert series.meta.source == "cache-resampled"
 
 
+def test_load_cached_bar_series_prefers_canonical_resample_over_conflicting_same_frequency_cache() -> None:
+    start = datetime(2025, 1, 6, 14, 30)
+    end = datetime(2025, 1, 6, 14, 39)
+    one_min = [
+        Bar(ts=start + timedelta(minutes=i), open=10.0 + i, high=10.2 + i, low=9.8 + i, close=10.1 + i, volume=100 + i)
+        for i in range(10)
+    ]
+    poisoned_five_min = [
+        Bar(ts=start + timedelta(minutes=5), open=1.0, high=1.0, low=1.0, close=1.0, volume=1.0),
+        Bar(ts=start + timedelta(minutes=10), open=2.0, high=2.0, low=2.0, close=2.0, volume=2.0),
+    ]
+    with TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        one_min_path = cache_path(root, "SLV", start, end, "1 min", use_rth=True)
+        five_min_path = cache_path(root, "SLV", start, end, "5 mins", use_rth=True)
+        one_min_path.parent.mkdir(parents=True, exist_ok=True)
+        write_cache(one_min_path, one_min)
+        write_cache(five_min_path, poisoned_five_min)
+
+        data = IBKRHistoricalData()
+        series = data.load_cached_bar_series(
+            symbol="SLV",
+            exchange=None,
+            start=start,
+            end=end,
+            bar_size="5 mins",
+            use_rth=True,
+            cache_dir=root,
+        )
+
+    got = [(bar.ts.isoformat(), bar.open, bar.high, bar.low, bar.close, bar.volume) for bar in series.as_list()]
+    assert got == [
+        ((start + timedelta(minutes=5)).isoformat(), 10.0, 14.2, 9.8, 14.1, 510.0),
+        ((start + timedelta(minutes=10)).isoformat(), 15.0, 19.2, 14.8, 19.1, 535.0),
+    ]
+    assert series.meta.source == "cache-resampled"
+
+
 def test_load_cached_bar_series_resamples_rth_4hours_from_session_open() -> None:
     start = datetime(2025, 1, 6, 14, 30)
     end = datetime(2025, 1, 6, 20, 59)
