@@ -52,8 +52,21 @@ _BID_TICK_TYPES = {1, 66}
 _ASK_TICK_TYPES = {2, 67}
 
 
-def _weekday_num(label: str) -> int:
-    key = label.strip().upper()[:3]
+def _weekday_num(label: object) -> int:
+    if isinstance(label, bool):
+        return int(label)
+    if isinstance(label, int):
+        return label if 0 <= label <= 6 else 0
+    if isinstance(label, float) and label.is_integer():
+        value = int(label)
+        return value if 0 <= value <= 6 else 0
+    text = str(label or "").strip()
+    if not text:
+        return 0
+    if text.isdigit():
+        value = int(text)
+        return value if 0 <= value <= 6 else 0
+    key = text.upper()[:3]
     mapping = {"MON": 0, "TUE": 1, "WED": 2, "THU": 3, "FRI": 4, "SAT": 5, "SUN": 6}
     return mapping.get(key, 0)
 

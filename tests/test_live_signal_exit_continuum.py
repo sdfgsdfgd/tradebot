@@ -480,6 +480,21 @@ def test_entry_weekday_keeps_sunday_for_rth_mode() -> None:
     assert harness._can_order_now(instance, now_et=sunday_overnight) is False
 
 
+def test_entry_weekday_allows_numeric_entry_days_from_champion_payload() -> None:
+    harness = _EntryDayHarness()
+    instance = _new_instance(
+        strategy={
+            "instrument": "spot",
+            "signal_use_rth": False,
+            "spot_sec_type": "STK",
+            "entry_days": [0, 1, 2, 3, 4],
+        }
+    )
+    sunday_overnight = datetime(2026, 2, 8, 23, 32)
+    assert harness._entry_weekday_for_ts(instance, sunday_overnight) == 0
+    assert harness._can_order_now(instance, now_et=sunday_overnight) is True
+
+
 def test_signal_filter_time_respects_runtime_et_wall_clock_bars() -> None:
     harness = _EntryDayHarness()
     filters = {"entry_start_hour_et": 10, "entry_end_hour_et": 15}
