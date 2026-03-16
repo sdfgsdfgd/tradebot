@@ -23,7 +23,7 @@ Canonical execution paths:
 
 ## Current Champions (stack)
 
-### CURRENT MULTI-REGIME DETHRONE (v38-Asymmetric Crash Prearm Sovereignty) — dethroned v37 for the `2020/2022/2025` sovereignty contract
+### CURRENT (v38) — Asymmetric Crash Prearm Sovereignty; multi-regime dethrone over the `2020/2022/2025` sovereignty contract
 
 - Delta vs `v37` (needle-thread):
   - Keep the whole `v37` sovereignty organism intact:

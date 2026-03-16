@@ -45,10 +45,10 @@ from ..time_utils import now_et_naive as _now_et_naive
 from ..time_utils import to_et as _to_et_shared
 from ..utils.date_utils import business_days_until
 from .readme_retrievers import (
-    extract_current_slv_hf_json_path,
-    extract_current_slv_lf_json_path,
-    extract_current_tqqq_hf_json_path,
-    extract_current_tqqq_lf_json_path,
+    extract_current_slv_hf_json_candidates,
+    extract_current_slv_lf_json_candidates,
+    extract_current_tqqq_hf_json_candidates,
+    extract_current_tqqq_lf_json_candidates,
 )
 from .common import (
     _SECTION_TYPES,
@@ -1467,6 +1467,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         """
 
         repo_root = Path(__file__).resolve().parents[2]
+        warnings: list[str] = []
 
         def _read_text(path: Path) -> str | None:
             try:
@@ -1477,6 +1478,26 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         def _resolve_existing_json(rel_path: str) -> Path | None:
             candidate = repo_root / rel_path
             return candidate if candidate.exists() else None
+
+        def _resolve_current(
+            *,
+            label: str,
+            candidates: list[tuple[str | None, str | None]],
+        ) -> tuple[str | None, Path | None]:
+            lead_version = candidates[0][0] if candidates else None
+            lead_path = _resolve_existing_json(candidates[0][1]) if candidates and candidates[0][1] else None
+            for version, rel_path in candidates:
+                if not rel_path:
+                    continue
+                resolved = _resolve_existing_json(rel_path)
+                if resolved is None:
+                    continue
+                if lead_path is None and lead_version and version and version != lead_version:
+                    warnings.append(
+                        f"{label} crown {_version_tag(lead_version) or '?'} missing; loaded {_version_tag(version) or '?'}"
+                    )
+                return version, resolved
+            return lead_version, lead_path
 
         def _pick_group(payload: dict) -> dict | None:
             groups = payload.get("groups", [])
@@ -1491,7 +1512,13 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             first = groups[0]
             return first if isinstance(first, dict) else None
 
-        def _load_champion_group(*, symbol: str, version: str, path: Path) -> dict | None:
+        def _load_champion_group(
+            *,
+            symbol: str,
+            version: str | None,
+            path: Path,
+            track: str,
+        ) -> dict | None:
             try:
                 payload = json.loads(path.read_text())
             except Exception:
@@ -1502,7 +1529,9 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             if not isinstance(group, dict):
                 return None
             group = dict(group)
-            group["_source"] = f"champion:{symbol}:v{version}"
+            group["_source"] = f"champion:{symbol}:{track}:v{version or '?'}"
+            group["_track"] = track
+            group["_version"] = version
             entries = group.get("entries")
             if isinstance(entries, list):
                 hydrated_entries: list[dict] = []
@@ -1534,8 +1563,9 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
 
             name = str(group.get("name") or "")
             spot_tag = f"Spot ({symbol})"
-            if spot_tag in name:
-                group["name"] = name.replace(spot_tag, f"{spot_tag} v{version}", 1)
+            version_tag = _version_tag(version)
+            if spot_tag in name and version_tag and not re.search(rf"\b{re.escape(version_tag)}\b", name, flags=re.IGNORECASE):
+                group["name"] = name.replace(spot_tag, f"{spot_tag} {version_tag}", 1)
             return group
 
         groups: list[dict] = []
@@ -1547,12 +1577,13 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         tqqq_ver: str | None = None
         tqqq_path: Path | None = None
         if tqqq_lf_readme:
-            tqqq_ver, tqqq_rel_path = extract_current_tqqq_lf_json_path(tqqq_lf_readme)
-            if tqqq_rel_path:
-                tqqq_path = _resolve_existing_json(tqqq_rel_path)
+            tqqq_ver, tqqq_path = _resolve_current(
+                label="TQQQ LF",
+                candidates=extract_current_tqqq_lf_json_candidates(tqqq_lf_readme),
+            )
 
         if tqqq_ver and tqqq_path:
-            group = _load_champion_group(symbol="TQQQ", version=tqqq_ver, path=tqqq_path)
+            group = _load_champion_group(symbol="TQQQ", version=tqqq_ver, path=tqqq_path, track="LF")
             if group is not None:
                 self._spot_champ_version = tqqq_ver
                 groups.append(group)
@@ -1563,15 +1594,14 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         tqqq_hf_ver: str | None = None
         tqqq_hf_path: Path | None = None
         if tqqq_hf_readme:
-            tqqq_hf_ver, tqqq_hf_rel_path = extract_current_tqqq_hf_json_path(tqqq_hf_readme)
-            if tqqq_hf_rel_path:
-                tqqq_hf_path = _resolve_existing_json(tqqq_hf_rel_path)
+            tqqq_hf_ver, tqqq_hf_path = _resolve_current(
+                label="TQQQ HF",
+                candidates=extract_current_tqqq_hf_json_candidates(tqqq_hf_readme),
+            )
 
         if tqqq_hf_path:
-            version_label = f"HF{tqqq_hf_ver}" if tqqq_hf_ver else "HF?"
-            group = _load_champion_group(symbol="TQQQ", version=version_label, path=tqqq_hf_path)
+            group = _load_champion_group(symbol="TQQQ", version=tqqq_hf_ver, path=tqqq_hf_path, track="HF")
             if group is not None:
-                group["_source"] = f"champion:TQQQ:HF:v{tqqq_hf_ver or '?'}"
                 name = str(group.get("name") or "")
                 if name and "[HF]" not in name:
                     group["name"] = f"{name} [HF]"
@@ -1583,13 +1613,13 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         slv_ver: str | None = None
         slv_path: Path | None = None
         if slv_readme:
-            slv_ver, slv_rel_path = extract_current_slv_lf_json_path(slv_readme)
-            if slv_rel_path:
-                slv_path = _resolve_existing_json(slv_rel_path)
+            slv_ver, slv_path = _resolve_current(
+                label="SLV LF",
+                candidates=extract_current_slv_lf_json_candidates(slv_readme),
+            )
 
         if slv_path:
-            version_label = slv_ver or "?"
-            group = _load_champion_group(symbol="SLV", version=version_label, path=slv_path)
+            group = _load_champion_group(symbol="SLV", version=slv_ver, path=slv_path, track="LF")
             if group is not None:
                 groups.append(group)
 
@@ -1599,22 +1629,23 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         slv_hf_ver: str | None = None
         slv_hf_path: Path | None = None
         if slv_hf_readme:
-            slv_hf_ver, slv_hf_rel_path = extract_current_slv_hf_json_path(slv_hf_readme)
-            if slv_hf_rel_path:
-                slv_hf_path = _resolve_existing_json(slv_hf_rel_path)
+            slv_hf_ver, slv_hf_path = _resolve_current(
+                label="SLV HF",
+                candidates=extract_current_slv_hf_json_candidates(slv_hf_readme),
+            )
 
         if slv_hf_path:
-            version_label = f"HF{slv_hf_ver}" if slv_hf_ver else "HF?"
-            group = _load_champion_group(symbol="SLV", version=version_label, path=slv_hf_path)
+            group = _load_champion_group(symbol="SLV", version=slv_hf_ver, path=slv_hf_path, track="HF")
             if group is not None:
-                group["_source"] = f"champion:SLV:HF:v{slv_hf_ver or '?'}"
                 name = str(group.get("name") or "")
                 if name and "[HF]" not in name:
                     group["name"] = f"{name} [HF]"
                 groups.append(group)
 
         has_champions = bool(groups)
-        if not has_champions:
+        if warnings:
+            self._set_status(" | ".join(warnings))
+        elif not has_champions:
             self._set_status("No CURRENT champions found. Check README paths.")
 
         self._payload = {"groups": groups}
@@ -1919,6 +1950,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                     "symbol": symbol,
                     "instrument": instrument,
                     "source": source,
+                    "version": group.get("_version"),
                     "tf": tf,
                     "dte": dte,
                     "metrics": metrics,
@@ -1951,6 +1983,9 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         def _best_version(best: dict | None) -> str | None:
             if best is None:
                 return None
+            version_tag = _version_tag(best.get("version"))
+            if version_tag:
+                return version_tag
             raw = str(best.get("name") or "")
             match = re.search(r"\bv(?P<ver>\d+(?:\.\d+)?)\b", raw, flags=re.IGNORECASE)
             if match:
@@ -1964,7 +1999,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             ver = _best_version(best)
             if not ver:
                 return label
-            if re.search(rf"\\b{re.escape(ver)}\\b", label):
+            if re.search(rf"\b{re.escape(ver)}\b", label, flags=re.IGNORECASE):
                 return label
             return f"{label} {ver}"
 
@@ -2128,6 +2163,8 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
 
         for symbol in symbols:
             bucket = contracts[symbol]
+            spot_tracks = list(bucket["spot"].keys())
+            multi_track_spot = len(spot_tracks) > 1
             all_items: list[dict] = []
             for track_items in bucket["spot"].values():
                 all_items.extend(track_items)
@@ -2139,7 +2176,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             contract_expanded = _add_header(
                 contract_node,
                 depth=0,
-                label=_label_with_version(symbol, contract_best),
+                label=symbol if multi_track_spot else _label_with_version(symbol, contract_best),
                 best=contract_best,
                 items=all_items,
             )
@@ -2152,12 +2189,11 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             spot_expanded = _add_header(
                 spot_node,
                 depth=1,
-                label=_label_with_version(f"{symbol} - Spot", spot_best),
+                label=f"{symbol} - Spot" if multi_track_spot else _label_with_version(f"{symbol} - Spot", spot_best),
                 best=spot_best,
                 items=spot_items,
             )
             if spot_expanded:
-                spot_tracks = list(bucket["spot"].keys())
                 spot_tracks.sort(key=lambda t: (0 if t == "LF" else 1 if t == "HF" else 2, t))
                 if len(spot_tracks) == 1:
                     track_items = bucket["spot"][spot_tracks[0]]
@@ -2174,7 +2210,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                         track_expanded = _add_header(
                             track_node,
                             depth=2,
-                            label=str(track),
+                            label=_label_with_version(str(track), _best(track_items)),
                             best=_best(track_items),
                             items=track_items,
                         )
@@ -5032,6 +5068,16 @@ def _fmt_pct(value: float) -> str:
     return f"{value:.0f}%"
 
 
+def _version_tag(raw: str | None) -> str | None:
+    value = str(raw or "").strip()
+    if not value:
+        return None
+    match = re.search(r"\d+(?:\.\d+)?", value)
+    if match is not None:
+        return f"v{match.group(0)}"
+    return value if value.lower().startswith("v") else f"v{value}"
+
+
 def _clean_group_label(raw: str) -> str:
     """Shorten leaderboard group names for table display.
 
@@ -5041,9 +5087,12 @@ def _clean_group_label(raw: str) -> str:
     value = str(raw or "").strip()
     if not value:
         return value
-    for token in (" roi/dd=", " pnl/dd=", " roi=", " pnl="):
-        if token in value:
-            return value.split(token, 1)[0].strip()
+    cut = min(
+        (value.index(token) for token in (" floor=", " roi/dd=", " pnl/dd=", " roi=", " pnl=", " dd%=", " win=", " tr=", " 2020=", " 2022=", " 2025=") if token in value),
+        default=-1,
+    )
+    if cut >= 0:
+        return value[:cut].strip()
     return value
 
 
