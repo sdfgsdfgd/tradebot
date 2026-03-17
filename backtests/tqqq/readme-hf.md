@@ -15,7 +15,7 @@ Sovereignty contract (current phase):
   - `2025` persistent uptrend
 - `v34` remains the raw `1Y/2Y` modern crown under the original contract.
 - `v35` remains the bridge-only dethrone that first unified `2022/2025`.
-- `v38` Asymmetric Crash Prearm Sovereignty is the active multi-regime dethrone.
+- `v41` Universal Floor Continuation Confidence is the active multi-regime crown on canonical-cache numbers.
 
 Canonical execution paths:
 - Spot sweeps/evolution: `python -m tradebot.backtest spot ...`
@@ -23,51 +23,46 @@ Canonical execution paths:
 
 ## Current Champions (stack)
 
-### CURRENT (v38) — Asymmetric Crash Prearm Sovereignty; multi-regime dethrone over the `2020/2022/2025` sovereignty contract
+### CURRENT (v41) — Universal Floor Continuation Confidence; canonical-cache reigning organism over the `2020..2025` universal-floor contract
 
-- Delta vs `v37` (needle-thread):
-  - Keep the whole `v37` sovereignty organism intact:
-    - Bridge host stays sovereign in cleaner tape
-    - alternate host still owns `crash_down + transition_up_hot`
-    - keep the living heat-lip, crash, repair, and pocket scaffold unchanged
+- Delta vs `v40` and the earlier truthful-cache crowns:
+  - Keep the whole `v40` organism intact:
+    - corrected `v38` host still owns the broader sovereignty map
+    - split-age `trend_up_clean / branch-b` repair still lives
+    - `trend_down / branch-b` purifier still lives
+    - the hard-regime shelf still lives
+  - Add only two things:
+    - the branch-`b` low-ATR recovery shelf
+    - one centralized continuation-confidence rule for `trend_up_clean / branch-b / up / up / age 100..499`
   - Real new truth:
-    - the next edge was not broader crash mode and not more ATR heat
-    - `branch-b` wanted the existing early-crash purifier untouched
-    - `branch-a` wanted a stricter early-crash **directional persistence** lip, not a stricter ATR lip
-    - `-5.5` and `-5.75` were one discrete step, `-6.0` was better, and `-6.25` already gave back too much `2020`
-  - Final asymmetric prearm seam:
-    - `regime2_crash_prearm_apply_to="all_longs"`
-    - `regime2_crash_prearm_shock_atr_pct_min=0.55`
-    - `regime2_crash_prearm_shock_dir_ret_sum_pct_max=-5.0`
-    - `regime2_crash_prearm_branch_a_shock_dir_ret_sum_pct_max=-6.0`
-  - Why it dethroned:
-    - `2020` gain came from almost flattening rebound poison while leaving `2020 H2` unchanged
-    - `2022` improved because `branch-a` quality got sharper instead of being bludgeoned by a blunt all-longs prearm
-    - `2025` improved slightly because modern host tissue stayed alive and `branch-b` continuation improved instead of getting clipped
-- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v38_asymmetricCrashPrearmSovereignty_20260316.json`
-- Sovereignty floor (min `2020/2022/2025` pnl/dd): **2.197**
-- `2020` (`2020-01-01 -> 2021-01-01`): trades **488**, pnl **12,062.6**, dd **5,490.0**, pnl/dd **2.197**
-- `2022` (`2022-01-01 -> 2023-01-01`): trades **530**, pnl **28,592.8**, dd **9,162.3**, pnl/dd **3.121**
-- `2025` (`2025-01-01 -> 2026-01-19`): trades **478**, pnl **26,416.1**, dd **5,001.8**, pnl/dd **5.281**
+    - the weak-year enemy was not another calendar-specific gate
+    - it was mid-age branch-`b` continuation being trusted too easily
+    - one centralized rule moved the family from `5/6` positive to “almost flat in the only bad year”
+- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v41_universalFloorContinuationConfidence_20260317.json`
+- Universal-floor floor (min `2020..2025` pnl/dd): **-0.039**
+- `2020` (`2020-01-01 -> 2021-01-01`): trades **499**, pnl **10,631.6**, dd **9,649.2**, pnl/dd **1.102**
+- `2021` (`2021-01-01 -> 2022-01-01`): trades **442**, pnl **-364.2**, dd **9,333.9**, pnl/dd **-0.039**
+- `2022` (`2022-01-01 -> 2023-01-01`): trades **514**, pnl **33,018.3**, dd **10,912.0**, pnl/dd **3.026**
+- `2023` (`2023-01-01 -> 2024-01-01`): trades **480**, pnl **2,444.2**, dd **14,204.8**, pnl/dd **0.172**
+- `2024` (`2024-01-01 -> 2025-01-01`): trades **430**, pnl **6,197.5**, dd **12,414.8**, pnl/dd **0.499**
+- `2025` (`2025-01-01 -> 2026-01-19`): trades **466**, pnl **29,356.9**, dd **4,991.4**, pnl/dd **5.882**
 - Distinct anatomy:
-  - `2020`: still not a raw crash god, but rebound poison is almost neutralized; `2020 rebound pnl/dd` improves from about `-0.143` to about `-0.004`, driven mainly by `branch-a long` recovering from about `+2.24k` to `+3.80k`
-  - `2022`: the gain is broad and honest; `branch-a long` and `branch-a short` both improve while the persistent-downtrend predator stays alive
-  - `2025`: the sacred modern host remains intact; `branch-a long` even improves slightly, and `branch-b long` continuation lifts from about `+1.0k` to about `+1.4k`
-- Adjacent crowns that still define the ridge:
-  - Previous king, `v37` Heat-Lip Sovereignty:
-    - `regime2_transition_hot_shock_atr_pct_min=0.8`
-    - Result: `2020 pnl/dd = 1.994`, `2022 pnl/dd = 3.065`, `2025 pnl/dd = 5.199`
-    - Distinct truth: the upper-lip transition heat seam was the first real post-v36 leap, but it was still too blunt inside the early crash prearm
-  - Branch-`b` purifier sibling:
-    - add `regime2_crash_prearm_apply_to="branch_b_longs"`
-    - add `regime2_crash_prearm_shock_atr_pct_min=0.55`
-    - add `regime2_crash_prearm_shock_dir_ret_sum_pct_max=-5.0`
-    - Result: `2020 pnl/dd = 1.967`, `2022 pnl/dd = 3.114`, `2025 pnl/dd = 5.281`
-    - Distinct truth: beautiful modern/bear purifier, but not enough `2020` theft on its own
-  - Blunt all-longs prearm sibling:
-    - add the shared prearm above for all longs without the branch-`a` stricter lip
-    - Result: `2020 pnl/dd = 2.144`, `2022 pnl/dd = 2.643`, `2025 pnl/dd = 5.281`
-    - Distinct truth: proved the early-crash prearm family was real, but taxed `2022` too much until the branch asymmetry was discovered
+  - `2020`: back above `1.0` while the universal-floor year is nearly neutralized
+  - `2021`: still slightly negative, but this is the closest the family has come to crossing the line without destroying the strong years
+  - `2022` and `2025`: remain genuinely strong; the universal-floor fix did not hollow them out
+- Adjacent crowns that still define the truthful-cache ridge:
+  - Previous crown, `v40` Hard Regime Shelf Sovereignty:
+    - Result across `2020..2025`: floor **-0.331**, median **0.646**, positive years **5/6**
+    - Distinct truth: pure regime sharpening gave the first real 5-of-6-positive organism
+  - Universal-floor sibling:
+    - branch-`b` low-ATR recovery shelf only
+    - Result across `2020..2025`: floor **-0.278**, median **0.589**, positive years **5/6**
+    - Preset file: `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v40_branchBLowAtrRecoveryUniversalFloorSibling_20260317.json`
+    - Distinct truth: real floor lift, but not enough by itself
+  - Hard-shelf one-knob sibling:
+    - only change `regime2_bear_hard_supertrend_multiplier = 2.30`
+    - Result: `2020 pnl/dd = 0.928`, `2022 pnl/dd = 3.031`, `2025 pnl/dd = 6.953`
+    - Distinct truth: the hard-regime shelf itself was the real precondition for the universal-floor jump
 
 ### PREVIOUS MULTI-REGIME DETHRONE (v37-Heat-Lip Sovereignty) — dethroned v36 for the `2020/2022/2025` sovereignty contract
 

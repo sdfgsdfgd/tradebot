@@ -764,31 +764,6 @@ class SpotSignalEvaluator:
             )
         except (TypeError, ValueError):
             self._regime2_crash_prearm_branch_a_shock_dir_ret_sum_pct_max = None
-        raw_crash_prearm_branch_b_atr_min = _get(strategy, "regime2_crash_prearm_branch_b_shock_atr_pct_min", None)
-        try:
-            self._regime2_crash_prearm_branch_b_shock_atr_pct_min = (
-                float(raw_crash_prearm_branch_b_atr_min) if raw_crash_prearm_branch_b_atr_min is not None else None
-            )
-        except (TypeError, ValueError):
-            self._regime2_crash_prearm_branch_b_shock_atr_pct_min = None
-        if (
-            self._regime2_crash_prearm_branch_b_shock_atr_pct_min is not None
-            and self._regime2_crash_prearm_branch_b_shock_atr_pct_min < 0
-        ):
-            self._regime2_crash_prearm_branch_b_shock_atr_pct_min = None
-        raw_crash_prearm_branch_b_ret_sum_max = _get(
-            strategy,
-            "regime2_crash_prearm_branch_b_shock_dir_ret_sum_pct_max",
-            None,
-        )
-        try:
-            self._regime2_crash_prearm_branch_b_shock_dir_ret_sum_pct_max = (
-                float(raw_crash_prearm_branch_b_ret_sum_max)
-                if raw_crash_prearm_branch_b_ret_sum_max is not None
-                else None
-            )
-        except (TypeError, ValueError):
-            self._regime2_crash_prearm_branch_b_shock_dir_ret_sum_pct_max = None
         self._regime2_repair_block_branch_b_longs = bool(
             _get(strategy, "regime2_repair_block_branch_b_longs", False)
         )
@@ -913,6 +888,316 @@ class SpotSignalEvaluator:
             self._regime2_upcorridor_branch_a_long_stale_release_age_min_bars = max(
                 0,
                 int(self._regime2_upcorridor_branch_a_long_stale_release_age_min_bars),
+            )
+        raw_upcorridor_b_stale_min = _get(
+            strategy,
+            "regime2_upcorridor_branch_b_long_stale_release_age_min_bars",
+            None,
+        )
+        try:
+            self._regime2_upcorridor_branch_b_long_stale_release_age_min_bars = (
+                int(raw_upcorridor_b_stale_min) if raw_upcorridor_b_stale_min is not None else None
+            )
+        except (TypeError, ValueError):
+            self._regime2_upcorridor_branch_b_long_stale_release_age_min_bars = None
+        if self._regime2_upcorridor_branch_b_long_stale_release_age_min_bars is not None:
+            self._regime2_upcorridor_branch_b_long_stale_release_age_min_bars = max(
+                0,
+                int(self._regime2_upcorridor_branch_b_long_stale_release_age_min_bars),
+            )
+        raw_upcorridor_b_flat_low_atr_max = _get(
+            strategy,
+            "regime2_upcorridor_branch_b_long_flat_low_shock_atr_pct_max",
+            None,
+        )
+        try:
+            self._regime2_upcorridor_branch_b_long_flat_low_shock_atr_pct_max = (
+                float(raw_upcorridor_b_flat_low_atr_max)
+                if raw_upcorridor_b_flat_low_atr_max is not None
+                else None
+            )
+        except (TypeError, ValueError):
+            self._regime2_upcorridor_branch_b_long_flat_low_shock_atr_pct_max = None
+        if (
+            self._regime2_upcorridor_branch_b_long_flat_low_shock_atr_pct_max is not None
+            and self._regime2_upcorridor_branch_b_long_flat_low_shock_atr_pct_max < 0
+        ):
+            self._regime2_upcorridor_branch_b_long_flat_low_shock_atr_pct_max = None
+        raw_upcorridor_b_flat_low_stale_min = _get(
+            strategy,
+            "regime2_upcorridor_branch_b_long_flat_low_stale_release_age_min_bars",
+            None,
+        )
+        try:
+            self._regime2_upcorridor_branch_b_long_flat_low_stale_release_age_min_bars = (
+                int(raw_upcorridor_b_flat_low_stale_min)
+                if raw_upcorridor_b_flat_low_stale_min is not None
+                else None
+            )
+        except (TypeError, ValueError):
+            self._regime2_upcorridor_branch_b_long_flat_low_stale_release_age_min_bars = None
+        if self._regime2_upcorridor_branch_b_long_flat_low_stale_release_age_min_bars is not None:
+            self._regime2_upcorridor_branch_b_long_flat_low_stale_release_age_min_bars = max(
+                0,
+                int(self._regime2_upcorridor_branch_b_long_flat_low_stale_release_age_min_bars),
+            )
+        raw_upcorridor_b_flat_atr_max = _get(
+            strategy,
+            "regime2_upcorridor_branch_b_long_flat_shock_atr_pct_max",
+            None,
+        )
+        try:
+            self._regime2_upcorridor_branch_b_long_flat_shock_atr_pct_max = (
+                float(raw_upcorridor_b_flat_atr_max) if raw_upcorridor_b_flat_atr_max is not None else None
+            )
+        except (TypeError, ValueError):
+            self._regime2_upcorridor_branch_b_long_flat_shock_atr_pct_max = None
+        if (
+            self._regime2_upcorridor_branch_b_long_flat_shock_atr_pct_max is not None
+            and self._regime2_upcorridor_branch_b_long_flat_shock_atr_pct_max < 0
+        ):
+            self._regime2_upcorridor_branch_b_long_flat_shock_atr_pct_max = None
+        raw_upcorridor_b_flat_ddv_abs_max = _get(
+            strategy,
+            "regime2_upcorridor_branch_b_long_flat_ddv_abs_max_pp",
+            None,
+        )
+        try:
+            self._regime2_upcorridor_branch_b_long_flat_ddv_abs_max_pp = (
+                float(raw_upcorridor_b_flat_ddv_abs_max) if raw_upcorridor_b_flat_ddv_abs_max is not None else None
+            )
+        except (TypeError, ValueError):
+            self._regime2_upcorridor_branch_b_long_flat_ddv_abs_max_pp = None
+        if (
+            self._regime2_upcorridor_branch_b_long_flat_ddv_abs_max_pp is not None
+            and self._regime2_upcorridor_branch_b_long_flat_ddv_abs_max_pp < 0
+        ):
+            self._regime2_upcorridor_branch_b_long_flat_ddv_abs_max_pp = None
+        raw_trenddown_b_hard_up_age_min = _get(
+            strategy,
+            "regime2_trenddown_branch_b_long_hard_up_release_age_min_bars",
+            None,
+        )
+        try:
+            self._regime2_trenddown_branch_b_long_hard_up_release_age_min_bars = (
+                int(raw_trenddown_b_hard_up_age_min) if raw_trenddown_b_hard_up_age_min is not None else None
+            )
+        except (TypeError, ValueError):
+            self._regime2_trenddown_branch_b_long_hard_up_release_age_min_bars = None
+        if self._regime2_trenddown_branch_b_long_hard_up_release_age_min_bars is not None:
+            self._regime2_trenddown_branch_b_long_hard_up_release_age_min_bars = max(
+                0,
+                int(self._regime2_trenddown_branch_b_long_hard_up_release_age_min_bars),
+            )
+        raw_trenddown_b_hard_up_age_max = _get(
+            strategy,
+            "regime2_trenddown_branch_b_long_hard_up_release_age_max_bars",
+            None,
+        )
+        try:
+            self._regime2_trenddown_branch_b_long_hard_up_release_age_max_bars = (
+                int(raw_trenddown_b_hard_up_age_max) if raw_trenddown_b_hard_up_age_max is not None else None
+            )
+        except (TypeError, ValueError):
+            self._regime2_trenddown_branch_b_long_hard_up_release_age_max_bars = None
+        if self._regime2_trenddown_branch_b_long_hard_up_release_age_max_bars is not None:
+            self._regime2_trenddown_branch_b_long_hard_up_release_age_max_bars = max(
+                0,
+                int(self._regime2_trenddown_branch_b_long_hard_up_release_age_max_bars),
+            )
+        if (
+            self._regime2_trenddown_branch_b_long_hard_up_release_age_min_bars is not None
+            and self._regime2_trenddown_branch_b_long_hard_up_release_age_max_bars is not None
+            and self._regime2_trenddown_branch_b_long_hard_up_release_age_max_bars
+            < self._regime2_trenddown_branch_b_long_hard_up_release_age_min_bars
+        ):
+            self._regime2_trenddown_branch_b_long_hard_up_release_age_max_bars = (
+                self._regime2_trenddown_branch_b_long_hard_up_release_age_min_bars
+            )
+        raw_trenddown_b_hard_up_atr_min = _get(
+            strategy,
+            "regime2_trenddown_branch_b_long_hard_up_shock_atr_pct_min",
+            None,
+        )
+        try:
+            self._regime2_trenddown_branch_b_long_hard_up_shock_atr_pct_min = (
+                float(raw_trenddown_b_hard_up_atr_min) if raw_trenddown_b_hard_up_atr_min is not None else None
+            )
+        except (TypeError, ValueError):
+            self._regime2_trenddown_branch_b_long_hard_up_shock_atr_pct_min = None
+        if (
+            self._regime2_trenddown_branch_b_long_hard_up_shock_atr_pct_min is not None
+            and self._regime2_trenddown_branch_b_long_hard_up_shock_atr_pct_min < 0
+        ):
+            self._regime2_trenddown_branch_b_long_hard_up_shock_atr_pct_min = None
+        raw_trenddown_b_hard_up_atr_max = _get(
+            strategy,
+            "regime2_trenddown_branch_b_long_hard_up_shock_atr_pct_max",
+            None,
+        )
+        try:
+            self._regime2_trenddown_branch_b_long_hard_up_shock_atr_pct_max = (
+                float(raw_trenddown_b_hard_up_atr_max) if raw_trenddown_b_hard_up_atr_max is not None else None
+            )
+        except (TypeError, ValueError):
+            self._regime2_trenddown_branch_b_long_hard_up_shock_atr_pct_max = None
+        if (
+            self._regime2_trenddown_branch_b_long_hard_up_shock_atr_pct_max is not None
+            and self._regime2_trenddown_branch_b_long_hard_up_shock_atr_pct_max < 0
+        ):
+            self._regime2_trenddown_branch_b_long_hard_up_shock_atr_pct_max = None
+        if (
+            self._regime2_trenddown_branch_b_long_hard_up_shock_atr_pct_min is not None
+            and self._regime2_trenddown_branch_b_long_hard_up_shock_atr_pct_max is not None
+            and self._regime2_trenddown_branch_b_long_hard_up_shock_atr_pct_max
+            < self._regime2_trenddown_branch_b_long_hard_up_shock_atr_pct_min
+        ):
+            self._regime2_trenddown_branch_b_long_hard_up_shock_atr_pct_max = (
+                self._regime2_trenddown_branch_b_long_hard_up_shock_atr_pct_min
+            )
+        raw_trenddown_b_hard_up_ddv_min = _get(
+            strategy,
+            "regime2_trenddown_branch_b_long_hard_up_ddv_min_pp",
+            None,
+        )
+        try:
+            self._regime2_trenddown_branch_b_long_hard_up_ddv_min_pp = (
+                float(raw_trenddown_b_hard_up_ddv_min) if raw_trenddown_b_hard_up_ddv_min is not None else None
+            )
+        except (TypeError, ValueError):
+            self._regime2_trenddown_branch_b_long_hard_up_ddv_min_pp = None
+        raw_trenddown_b_hard_up_ddv_max = _get(
+            strategy,
+            "regime2_trenddown_branch_b_long_hard_up_ddv_max_pp",
+            None,
+        )
+        try:
+            self._regime2_trenddown_branch_b_long_hard_up_ddv_max_pp = (
+                float(raw_trenddown_b_hard_up_ddv_max) if raw_trenddown_b_hard_up_ddv_max is not None else None
+            )
+        except (TypeError, ValueError):
+            self._regime2_trenddown_branch_b_long_hard_up_ddv_max_pp = None
+        if (
+            self._regime2_trenddown_branch_b_long_hard_up_ddv_min_pp is not None
+            and self._regime2_trenddown_branch_b_long_hard_up_ddv_max_pp is not None
+            and self._regime2_trenddown_branch_b_long_hard_up_ddv_max_pp
+            < self._regime2_trenddown_branch_b_long_hard_up_ddv_min_pp
+        ):
+            self._regime2_trenddown_branch_b_long_hard_up_ddv_max_pp = (
+                self._regime2_trenddown_branch_b_long_hard_up_ddv_min_pp
+            )
+        raw_trenddown_recovery_atr_min = _get(
+            strategy,
+            "regime2_trenddown_branch_b_long_hard_up_recovery_shock_atr_pct_min",
+            None,
+        )
+        try:
+            self._regime2_trenddown_branch_b_long_hard_up_recovery_shock_atr_pct_min = (
+                float(raw_trenddown_recovery_atr_min) if raw_trenddown_recovery_atr_min is not None else None
+            )
+        except (TypeError, ValueError):
+            self._regime2_trenddown_branch_b_long_hard_up_recovery_shock_atr_pct_min = None
+        if (
+            self._regime2_trenddown_branch_b_long_hard_up_recovery_shock_atr_pct_min is not None
+            and self._regime2_trenddown_branch_b_long_hard_up_recovery_shock_atr_pct_min < 0
+        ):
+            self._regime2_trenddown_branch_b_long_hard_up_recovery_shock_atr_pct_min = None
+        raw_trenddown_recovery_atr_max = _get(
+            strategy,
+            "regime2_trenddown_branch_b_long_hard_up_recovery_shock_atr_pct_max",
+            None,
+        )
+        try:
+            self._regime2_trenddown_branch_b_long_hard_up_recovery_shock_atr_pct_max = (
+                float(raw_trenddown_recovery_atr_max) if raw_trenddown_recovery_atr_max is not None else None
+            )
+        except (TypeError, ValueError):
+            self._regime2_trenddown_branch_b_long_hard_up_recovery_shock_atr_pct_max = None
+        if (
+            self._regime2_trenddown_branch_b_long_hard_up_recovery_shock_atr_pct_max is not None
+            and self._regime2_trenddown_branch_b_long_hard_up_recovery_shock_atr_pct_max < 0
+        ):
+            self._regime2_trenddown_branch_b_long_hard_up_recovery_shock_atr_pct_max = None
+        if (
+            self._regime2_trenddown_branch_b_long_hard_up_recovery_shock_atr_pct_min is not None
+            and self._regime2_trenddown_branch_b_long_hard_up_recovery_shock_atr_pct_max is not None
+            and self._regime2_trenddown_branch_b_long_hard_up_recovery_shock_atr_pct_max
+            < self._regime2_trenddown_branch_b_long_hard_up_recovery_shock_atr_pct_min
+        ):
+            self._regime2_trenddown_branch_b_long_hard_up_recovery_shock_atr_pct_max = (
+                self._regime2_trenddown_branch_b_long_hard_up_recovery_shock_atr_pct_min
+            )
+        raw_trenddown_recovery_ddv_min = _get(
+            strategy,
+            "regime2_trenddown_branch_b_long_hard_up_recovery_ddv_min_pp",
+            None,
+        )
+        try:
+            self._regime2_trenddown_branch_b_long_hard_up_recovery_ddv_min_pp = (
+                float(raw_trenddown_recovery_ddv_min) if raw_trenddown_recovery_ddv_min is not None else None
+            )
+        except (TypeError, ValueError):
+            self._regime2_trenddown_branch_b_long_hard_up_recovery_ddv_min_pp = None
+        raw_trenddown_recovery_ddv_max = _get(
+            strategy,
+            "regime2_trenddown_branch_b_long_hard_up_recovery_ddv_max_pp",
+            None,
+        )
+        try:
+            self._regime2_trenddown_branch_b_long_hard_up_recovery_ddv_max_pp = (
+                float(raw_trenddown_recovery_ddv_max) if raw_trenddown_recovery_ddv_max is not None else None
+            )
+        except (TypeError, ValueError):
+            self._regime2_trenddown_branch_b_long_hard_up_recovery_ddv_max_pp = None
+        if (
+            self._regime2_trenddown_branch_b_long_hard_up_recovery_ddv_min_pp is not None
+            and self._regime2_trenddown_branch_b_long_hard_up_recovery_ddv_max_pp is not None
+            and self._regime2_trenddown_branch_b_long_hard_up_recovery_ddv_max_pp
+            < self._regime2_trenddown_branch_b_long_hard_up_recovery_ddv_min_pp
+        ):
+            self._regime2_trenddown_branch_b_long_hard_up_recovery_ddv_max_pp = (
+                self._regime2_trenddown_branch_b_long_hard_up_recovery_ddv_min_pp
+            )
+        raw_continuation_conf_age_min = _get(
+            strategy,
+            "regime2_continuation_confidence_branch_b_trend_up_clean_release_age_min_bars",
+            None,
+        )
+        try:
+            self._regime2_continuation_confidence_branch_b_trend_up_clean_release_age_min_bars = (
+                int(raw_continuation_conf_age_min) if raw_continuation_conf_age_min is not None else None
+            )
+        except (TypeError, ValueError):
+            self._regime2_continuation_confidence_branch_b_trend_up_clean_release_age_min_bars = None
+        if self._regime2_continuation_confidence_branch_b_trend_up_clean_release_age_min_bars is not None:
+            self._regime2_continuation_confidence_branch_b_trend_up_clean_release_age_min_bars = max(
+                0,
+                int(self._regime2_continuation_confidence_branch_b_trend_up_clean_release_age_min_bars),
+            )
+        raw_continuation_conf_age_max = _get(
+            strategy,
+            "regime2_continuation_confidence_branch_b_trend_up_clean_release_age_max_bars",
+            None,
+        )
+        try:
+            self._regime2_continuation_confidence_branch_b_trend_up_clean_release_age_max_bars = (
+                int(raw_continuation_conf_age_max) if raw_continuation_conf_age_max is not None else None
+            )
+        except (TypeError, ValueError):
+            self._regime2_continuation_confidence_branch_b_trend_up_clean_release_age_max_bars = None
+        if self._regime2_continuation_confidence_branch_b_trend_up_clean_release_age_max_bars is not None:
+            self._regime2_continuation_confidence_branch_b_trend_up_clean_release_age_max_bars = max(
+                0,
+                int(self._regime2_continuation_confidence_branch_b_trend_up_clean_release_age_max_bars),
+            )
+        if (
+            self._regime2_continuation_confidence_branch_b_trend_up_clean_release_age_min_bars is not None
+            and self._regime2_continuation_confidence_branch_b_trend_up_clean_release_age_max_bars is not None
+            and self._regime2_continuation_confidence_branch_b_trend_up_clean_release_age_max_bars
+            < self._regime2_continuation_confidence_branch_b_trend_up_clean_release_age_min_bars
+        ):
+            self._regime2_continuation_confidence_branch_b_trend_up_clean_release_age_max_bars = (
+                self._regime2_continuation_confidence_branch_b_trend_up_clean_release_age_min_bars
             )
         self._bear_supertrend_engine: SupertrendEngine | None = None
         self._last_bear_supertrend = None
@@ -1601,11 +1886,6 @@ class SpotSignalEvaluator:
                 atr_pct_min = self._regime2_crash_prearm_branch_a_shock_atr_pct_min
             if self._regime2_crash_prearm_branch_a_shock_dir_ret_sum_pct_max is not None:
                 ret_sum_pct_max = self._regime2_crash_prearm_branch_a_shock_dir_ret_sum_pct_max
-        elif branch_key == "b":
-            if self._regime2_crash_prearm_branch_b_shock_atr_pct_min is not None:
-                atr_pct_min = self._regime2_crash_prearm_branch_b_shock_atr_pct_min
-            if self._regime2_crash_prearm_branch_b_shock_dir_ret_sum_pct_max is not None:
-                ret_sum_pct_max = self._regime2_crash_prearm_branch_b_shock_dir_ret_sum_pct_max
         if (
             atr_pct_min is not None
             and (shock_atr_pct is None or float(shock_atr_pct) < float(atr_pct_min))
@@ -1623,35 +1903,111 @@ class SpotSignalEvaluator:
             return branch_key == "b"
         return True
 
-    def _regime2_repair_blocks_branch_b_long(
+    def _regime2_blocks_branch_b_long(
         self,
         *,
         regime4_state: str | None,
         entry_dir: str | None,
         entry_branch: str | None,
+        shock_dir: str | None,
         shock_atr_pct: float | None,
+        shock_drawdown_dist_on_vel_pp: float | None,
         bar_ts: datetime,
     ) -> bool:
+        if not (self._dual_branch_enabled and entry_branch == "b" and entry_dir == "up"):
+            return False
+        if regime4_state == "transition_up_hot":
+            if self._regime2_repair_block_branch_b_longs:
+                return True
+            if (
+                self._regime2_repair_branch_b_long_max_shock_atr_pct is not None
+                and shock_atr_pct is not None
+                and float(shock_atr_pct) >= float(self._regime2_repair_branch_b_long_max_shock_atr_pct)
+            ):
+                return True
+            if self._regime2_repair_branch_b_long_block_after_hour_et is not None:
+                hour_et = _trade_hour_et_shared(bar_ts, naive_ts_mode=self._naive_ts_mode)
+                return int(hour_et) >= int(self._regime2_repair_branch_b_long_block_after_hour_et)
+            return False
+
+        if shock_atr_pct is None or shock_drawdown_dist_on_vel_pp is None:
+            return False
+        atr_value = float(shock_atr_pct)
+        ddv_value = float(shock_drawdown_dist_on_vel_pp)
+        release_age = self._active_regime2_bear_hard_release_age_bars
+        release_age_value = int(release_age) if release_age is not None else None
+        if regime4_state == "trend_down":
+            age_min = self._regime2_trenddown_branch_b_long_hard_up_release_age_min_bars
+            age_max = self._regime2_trenddown_branch_b_long_hard_up_release_age_max_bars
+            atr_min = self._regime2_trenddown_branch_b_long_hard_up_shock_atr_pct_min
+            atr_max = self._regime2_trenddown_branch_b_long_hard_up_shock_atr_pct_max
+            ddv_min = self._regime2_trenddown_branch_b_long_hard_up_ddv_min_pp
+            ddv_max = self._regime2_trenddown_branch_b_long_hard_up_ddv_max_pp
+            in_primary_band = bool(
+                shock_dir == "down"
+                and self._active_regime2_bear_hard_dir == "up"
+                and release_age_value is not None
+                and age_min is not None
+                and age_max is not None
+                and int(age_min) <= release_age_value < int(age_max)
+                and atr_min is not None
+                and atr_max is not None
+                and float(atr_min) <= atr_value < float(atr_max)
+                and ddv_min is not None
+                and ddv_max is not None
+                and float(ddv_min) <= ddv_value < float(ddv_max)
+            )
+            recovery_atr_min = self._regime2_trenddown_branch_b_long_hard_up_recovery_shock_atr_pct_min
+            recovery_atr_max = self._regime2_trenddown_branch_b_long_hard_up_recovery_shock_atr_pct_max
+            recovery_ddv_min = self._regime2_trenddown_branch_b_long_hard_up_recovery_ddv_min_pp
+            recovery_ddv_max = self._regime2_trenddown_branch_b_long_hard_up_recovery_ddv_max_pp
+            in_recovery_band = bool(
+                shock_dir == "up"
+                and self._active_regime2_bear_hard_dir == "up"
+                and release_age_value is not None
+                and age_min is not None
+                and age_max is not None
+                and int(age_min) <= release_age_value < int(age_max)
+                and recovery_atr_min is not None
+                and recovery_atr_max is not None
+                and float(recovery_atr_min) <= atr_value < float(recovery_atr_max)
+                and recovery_ddv_min is not None
+                and recovery_ddv_max is not None
+                and float(recovery_ddv_min) <= ddv_value < float(recovery_ddv_max)
+            )
+            return bool(in_primary_band or in_recovery_band)
+        if regime4_state != "trend_up_clean":
+            return False
+        stale_min = self._regime2_upcorridor_branch_b_long_stale_release_age_min_bars
         if not (
-            self._dual_branch_enabled
-            and regime4_state == "transition_up_hot"
-            and entry_branch == "b"
-            and entry_dir == "up"
+            shock_dir == "up"
+            and self._active_regime2_bear_hard_dir == "up"
+            and release_age_value is not None
         ):
             return False
-        if self._regime2_repair_block_branch_b_longs:
-            return True
-        if (
-            self._regime2_repair_branch_b_long_max_shock_atr_pct is not None
-            and shock_atr_pct is not None
-            and float(shock_atr_pct) >= float(self._regime2_repair_branch_b_long_max_shock_atr_pct)
-        ):
-            return True
-        if self._regime2_repair_branch_b_long_block_after_hour_et is not None:
-            hour_et = _trade_hour_et_shared(bar_ts, naive_ts_mode=self._naive_ts_mode)
-            if int(hour_et) >= int(self._regime2_repair_branch_b_long_block_after_hour_et):
-                return True
-        return False
+        flat_ddv_abs_max = self._regime2_upcorridor_branch_b_long_flat_ddv_abs_max_pp
+        flat_low_atr_max = self._regime2_upcorridor_branch_b_long_flat_low_shock_atr_pct_max
+        flat_low_stale_min = self._regime2_upcorridor_branch_b_long_flat_low_stale_release_age_min_bars
+        flat_high_atr_max = self._regime2_upcorridor_branch_b_long_flat_shock_atr_pct_max
+        return bool(
+            flat_ddv_abs_max is not None
+            and abs(ddv_value) < float(flat_ddv_abs_max)
+            and (
+                (
+                    flat_low_atr_max is not None
+                    and flat_low_stale_min is not None
+                    and atr_value < float(flat_low_atr_max)
+                    and release_age_value >= int(flat_low_stale_min)
+                )
+                or (
+                    flat_high_atr_max is not None
+                    and stale_min is not None
+                    and atr_value < float(flat_high_atr_max)
+                    and (flat_low_atr_max is None or atr_value >= float(flat_low_atr_max))
+                    and release_age_value >= int(stale_min)
+                )
+            )
+        )
 
     def _regime2_upcorridor_blocks_branch_a_long(
         self,
@@ -1695,6 +2051,32 @@ class SpotSignalEvaluator:
             return fresh_max is not None and int(release_age) <= int(fresh_max)
         stale_min = self._regime2_upcorridor_branch_a_long_stale_release_age_min_bars
         return stale_min is not None and int(release_age) >= int(stale_min)
+
+    def _continuation_confidence_blocks_long(
+        self,
+        *,
+        regime4_state: str | None,
+        entry_dir: str | None,
+        entry_branch: str | None,
+        shock_dir: str | None,
+    ) -> bool:
+        if not (
+            entry_dir == "up"
+            and entry_branch == "b"
+            and regime4_state == "trend_up_clean"
+            and shock_dir == "up"
+            and self._active_regime2_bear_hard_dir == "up"
+        ):
+            return False
+        release_age = self._active_regime2_bear_hard_release_age_bars
+        age_min = self._regime2_continuation_confidence_branch_b_trend_up_clean_release_age_min_bars
+        age_max = self._regime2_continuation_confidence_branch_b_trend_up_clean_release_age_max_bars
+        return bool(
+            release_age is not None
+            and age_min is not None
+            and age_max is not None
+            and int(age_min) <= int(release_age) < int(age_max)
+        )
 
     def _select_dual_signal(
         self,
@@ -2478,11 +2860,13 @@ class SpotSignalEvaluator:
             entry_dir_for_entries = None
             entry_branch = None
 
-        if self._regime2_repair_blocks_branch_b_long(
+        if self._regime2_blocks_branch_b_long(
             regime4_state=regime4_state,
             entry_dir=entry_dir_for_entries,
             entry_branch=entry_branch,
+            shock_dir=shock_dir,
             shock_atr_pct=shock_atr_pct,
+            shock_drawdown_dist_on_vel_pp=shock_drawdown_dist_on_vel_pp,
             bar_ts=bar.ts,
         ):
             entry_dir_for_entries = None
@@ -2493,6 +2877,15 @@ class SpotSignalEvaluator:
             entry_dir=entry_dir_for_entries,
             entry_branch=entry_branch,
             shock_atr_pct=shock_atr_pct,
+        ):
+            entry_dir_for_entries = None
+            entry_branch = None
+
+        if self._continuation_confidence_blocks_long(
+            regime4_state=regime4_state,
+            entry_dir=entry_dir_for_entries,
+            entry_branch=entry_branch,
+            shock_dir=shock_dir,
         ):
             entry_dir_for_entries = None
             entry_branch = None

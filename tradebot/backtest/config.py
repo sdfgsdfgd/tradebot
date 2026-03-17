@@ -221,11 +221,6 @@ def _strategy_schema_common() -> dict[str, _FieldSpec]:
             None,
         ),
         "regime2_crash_prearm_branch_a_shock_dir_ret_sum_pct_max": _field(_parse_optional_float, None),
-        "regime2_crash_prearm_branch_b_shock_atr_pct_min": _field(
-            lambda value: None if value is None else _parse_non_negative_float_or_default(value, default=0.0),
-            None,
-        ),
-        "regime2_crash_prearm_branch_b_shock_dir_ret_sum_pct_max": _field(_parse_optional_float, None),
         "regime2_repair_block_branch_b_longs": _field(bool, False),
         "regime2_repair_branch_b_long_max_shock_atr_pct": _field(
             lambda value: None if value is None else _parse_non_negative_float_or_default(value, default=0.0),
@@ -260,6 +255,62 @@ def _strategy_schema_common() -> dict[str, _FieldSpec]:
             None,
         ),
         "regime2_upcorridor_branch_a_long_stale_release_age_min_bars": _field(
+            lambda value: None if value is None else _parse_non_negative_int(value, default=0),
+            None,
+        ),
+        "regime2_upcorridor_branch_b_long_stale_release_age_min_bars": _field(
+            lambda value: None if value is None else _parse_non_negative_int(value, default=0),
+            None,
+        ),
+        "regime2_upcorridor_branch_b_long_flat_low_shock_atr_pct_max": _field(
+            lambda value: None if value is None else _parse_non_negative_float_or_default(value, default=0.0),
+            None,
+        ),
+        "regime2_upcorridor_branch_b_long_flat_low_stale_release_age_min_bars": _field(
+            lambda value: None if value is None else _parse_non_negative_int(value, default=0),
+            None,
+        ),
+        "regime2_upcorridor_branch_b_long_flat_shock_atr_pct_max": _field(
+            lambda value: None if value is None else _parse_non_negative_float_or_default(value, default=0.0),
+            None,
+        ),
+        "regime2_upcorridor_branch_b_long_flat_ddv_abs_max_pp": _field(
+            lambda value: None if value is None else _parse_non_negative_float_or_default(value, default=0.0),
+            None,
+        ),
+        "regime2_trenddown_branch_b_long_hard_up_release_age_min_bars": _field(
+            lambda value: None if value is None else _parse_non_negative_int(value, default=0),
+            None,
+        ),
+        "regime2_trenddown_branch_b_long_hard_up_release_age_max_bars": _field(
+            lambda value: None if value is None else _parse_non_negative_int(value, default=0),
+            None,
+        ),
+        "regime2_trenddown_branch_b_long_hard_up_shock_atr_pct_min": _field(
+            lambda value: None if value is None else _parse_non_negative_float_or_default(value, default=0.0),
+            None,
+        ),
+        "regime2_trenddown_branch_b_long_hard_up_shock_atr_pct_max": _field(
+            lambda value: None if value is None else _parse_non_negative_float_or_default(value, default=0.0),
+            None,
+        ),
+        "regime2_trenddown_branch_b_long_hard_up_ddv_min_pp": _field(_parse_optional_float, None),
+        "regime2_trenddown_branch_b_long_hard_up_ddv_max_pp": _field(_parse_optional_float, None),
+        "regime2_trenddown_branch_b_long_hard_up_recovery_shock_atr_pct_min": _field(
+            lambda value: None if value is None else _parse_non_negative_float_or_default(value, default=0.0),
+            None,
+        ),
+        "regime2_trenddown_branch_b_long_hard_up_recovery_shock_atr_pct_max": _field(
+            lambda value: None if value is None else _parse_non_negative_float_or_default(value, default=0.0),
+            None,
+        ),
+        "regime2_trenddown_branch_b_long_hard_up_recovery_ddv_min_pp": _field(_parse_optional_float, None),
+        "regime2_trenddown_branch_b_long_hard_up_recovery_ddv_max_pp": _field(_parse_optional_float, None),
+        "regime2_continuation_confidence_branch_b_trend_up_clean_release_age_min_bars": _field(
+            lambda value: None if value is None else _parse_non_negative_int(value, default=0),
+            None,
+        ),
+        "regime2_continuation_confidence_branch_b_trend_up_clean_release_age_max_bars": _field(
             lambda value: None if value is None else _parse_non_negative_int(value, default=0),
             None,
         ),
