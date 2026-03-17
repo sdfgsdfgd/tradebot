@@ -314,6 +314,19 @@ def _strategy_schema_common() -> dict[str, _FieldSpec]:
             lambda value: None if value is None else _parse_non_negative_int(value, default=0),
             None,
         ),
+        "regime2_continuation_confidence_branch_a_transition_release_age_max_bars": _field(
+            lambda value: None if value is None else _parse_non_negative_int(value, default=0),
+            None,
+        ),
+        "regime2_continuation_confidence_branch_a_transition_shock_atr_pct_min": _field(
+            lambda value: None if value is None else _parse_non_negative_float_or_default(value, default=0.0),
+            None,
+        ),
+        "regime2_continuation_confidence_branch_a_transition_shock_atr_pct_max": _field(
+            lambda value: None if value is None else _parse_non_negative_float_or_default(value, default=0.0),
+            None,
+        ),
+        "regime2_continuation_confidence_branch_a_transition_ddv_max_pp": _field(_parse_optional_float, None),
         "regime2_clean_host_enable": _field(bool, False),
         "regime2_clean_host_takeover_state": _field(_parse_regime2_clean_host_takeover_state, None),
         "regime2_clean_host_supertrend_multiplier": _field(

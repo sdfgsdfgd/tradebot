@@ -15,7 +15,7 @@ Sovereignty contract (current phase):
   - `2025` persistent uptrend
 - `v34` remains the raw `1Y/2Y` modern crown under the original contract.
 - `v35` remains the bridge-only dethrone that first unified `2022/2025`.
-- `v41` Universal Floor Continuation Confidence is the active multi-regime crown on canonical-cache numbers.
+- `v42` All-Green Continuation Confidence is the active multi-regime crown on canonical-cache numbers.
 
 Canonical execution paths:
 - Spot sweeps/evolution: `python -m tradebot.backtest spot ...`
@@ -23,37 +23,44 @@ Canonical execution paths:
 
 ## Current Champions (stack)
 
-### CURRENT (v41) — Universal Floor Continuation Confidence; canonical-cache reigning organism over the `2020..2025` universal-floor contract
+### CURRENT (v42) — All-Green Continuation Confidence; canonical-cache reigning organism over the `2020..2025` universal-floor contract
 
-- Delta vs `v40` and the earlier truthful-cache crowns:
-  - Keep the whole `v40` organism intact:
+- Delta vs `v41` and the earlier truthful-cache crowns:
+  - Keep the whole `v41` organism intact:
     - corrected `v38` host still owns the broader sovereignty map
     - split-age `trend_up_clean / branch-b` repair still lives
     - `trend_down / branch-b` purifier still lives
     - the hard-regime shelf still lives
-  - Add only two things:
-    - the branch-`b` low-ATR recovery shelf
-    - one centralized continuation-confidence rule for `trend_up_clean / branch-b / up / up / age 100..499`
+    - branch-`b` continuation confidence still lives
+  - Add only one thing:
+    - a branch-`a` transition continuation-confidence rule for:
+      - `transition_up_hot`
+      - `shock_dir = up`
+      - `hard_dir = down`
+      - `release_age <= 4`
+      - `ATR 0.2 .. 0.35`
+      - `ddv <= 0.0`
   - Real new truth:
-    - the weak-year enemy was not another calendar-specific gate
-    - it was mid-age branch-`b` continuation being trusted too easily
-    - one centralized rule moved the family from `5/6` positive to “almost flat in the only bad year”
-- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v41_universalFloorContinuationConfidence_20260317.json`
-- Universal-floor floor (min `2020..2025` pnl/dd): **-0.039**
-- `2020` (`2020-01-01 -> 2021-01-01`): trades **499**, pnl **10,631.6**, dd **9,649.2**, pnl/dd **1.102**
-- `2021` (`2021-01-01 -> 2022-01-01`): trades **442**, pnl **-364.2**, dd **9,333.9**, pnl/dd **-0.039**
+    - the last bad year was not solved by more regime splitting
+    - it was solved by refusing fresh low-ATR branch-`a` transition optimism when the hard regime was still down
+    - this is the first all-green line in the lineage
+- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v42_allGreenContinuationConfidence_20260318.json`
+- Universal-floor floor (min `2020..2025` pnl/dd): **0.046**
+- `2020` (`2020-01-01 -> 2021-01-01`): trades **497**, pnl **10,298.5**, dd **9,621.8**, pnl/dd **1.070**
+- `2021` (`2021-01-01 -> 2022-01-01`): trades **438**, pnl **3,272.4**, dd **6,805.0**, pnl/dd **0.481**
 - `2022` (`2022-01-01 -> 2023-01-01`): trades **514**, pnl **33,018.3**, dd **10,912.0**, pnl/dd **3.026**
-- `2023` (`2023-01-01 -> 2024-01-01`): trades **480**, pnl **2,444.2**, dd **14,204.8**, pnl/dd **0.172**
-- `2024` (`2024-01-01 -> 2025-01-01`): trades **430**, pnl **6,197.5**, dd **12,414.8**, pnl/dd **0.499**
-- `2025` (`2025-01-01 -> 2026-01-19`): trades **466**, pnl **29,356.9**, dd **4,991.4**, pnl/dd **5.882**
+- `2023` (`2023-01-01 -> 2024-01-01`): trades **478**, pnl **639.8**, dd **13,789.1**, pnl/dd **0.046**
+- `2024` (`2024-01-01 -> 2025-01-01`): trades **423**, pnl **5,745.6**, dd **11,789.4**, pnl/dd **0.487**
+- `2025` (`2025-01-01 -> 2026-01-19`): trades **460**, pnl **27,974.6**, dd **4,951.4**, pnl/dd **5.650**
 - Distinct anatomy:
-  - `2020`: back above `1.0` while the universal-floor year is nearly neutralized
-  - `2021`: still slightly negative, but this is the closest the family has come to crossing the line without destroying the strong years
-  - `2022` and `2025`: remain genuinely strong; the universal-floor fix did not hollow them out
+  - `2020`: stays above `1.0` even after the last weak-year fix
+  - `2021`: flipped materially positive; the old floor year is no longer red
+  - `2023`: now the thinnest year in the whole contract, but still positive
+  - `2022` and `2025`: remain strong enough that this is not just a floor hack
 - Adjacent crowns that still define the truthful-cache ridge:
-  - Previous crown, `v40` Hard Regime Shelf Sovereignty:
-    - Result across `2020..2025`: floor **-0.331**, median **0.646**, positive years **5/6**
-    - Distinct truth: pure regime sharpening gave the first real 5-of-6-positive organism
+  - Previous crown, `v41` Universal Floor Continuation Confidence:
+    - Result across `2020..2025`: floor **-0.039**, median **0.801**, positive years **5/6**
+    - Distinct truth: one centralized branch-`b` continuation-confidence rule nearly neutralized the last bad year
   - Universal-floor sibling:
     - branch-`b` low-ATR recovery shelf only
     - Result across `2020..2025`: floor **-0.278**, median **0.589**, positive years **5/6**

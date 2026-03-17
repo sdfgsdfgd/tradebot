@@ -1199,6 +1199,74 @@ class SpotSignalEvaluator:
             self._regime2_continuation_confidence_branch_b_trend_up_clean_release_age_max_bars = (
                 self._regime2_continuation_confidence_branch_b_trend_up_clean_release_age_min_bars
             )
+        raw_continuation_conf_a_age_max = _get(
+            strategy,
+            "regime2_continuation_confidence_branch_a_transition_release_age_max_bars",
+            None,
+        )
+        try:
+            self._regime2_continuation_confidence_branch_a_transition_release_age_max_bars = (
+                int(raw_continuation_conf_a_age_max) if raw_continuation_conf_a_age_max is not None else None
+            )
+        except (TypeError, ValueError):
+            self._regime2_continuation_confidence_branch_a_transition_release_age_max_bars = None
+        if self._regime2_continuation_confidence_branch_a_transition_release_age_max_bars is not None:
+            self._regime2_continuation_confidence_branch_a_transition_release_age_max_bars = max(
+                0,
+                int(self._regime2_continuation_confidence_branch_a_transition_release_age_max_bars),
+            )
+        raw_continuation_conf_a_atr_min = _get(
+            strategy,
+            "regime2_continuation_confidence_branch_a_transition_shock_atr_pct_min",
+            None,
+        )
+        try:
+            self._regime2_continuation_confidence_branch_a_transition_shock_atr_pct_min = (
+                float(raw_continuation_conf_a_atr_min) if raw_continuation_conf_a_atr_min is not None else None
+            )
+        except (TypeError, ValueError):
+            self._regime2_continuation_confidence_branch_a_transition_shock_atr_pct_min = None
+        if (
+            self._regime2_continuation_confidence_branch_a_transition_shock_atr_pct_min is not None
+            and self._regime2_continuation_confidence_branch_a_transition_shock_atr_pct_min < 0
+        ):
+            self._regime2_continuation_confidence_branch_a_transition_shock_atr_pct_min = None
+        raw_continuation_conf_a_atr_max = _get(
+            strategy,
+            "regime2_continuation_confidence_branch_a_transition_shock_atr_pct_max",
+            None,
+        )
+        try:
+            self._regime2_continuation_confidence_branch_a_transition_shock_atr_pct_max = (
+                float(raw_continuation_conf_a_atr_max) if raw_continuation_conf_a_atr_max is not None else None
+            )
+        except (TypeError, ValueError):
+            self._regime2_continuation_confidence_branch_a_transition_shock_atr_pct_max = None
+        if (
+            self._regime2_continuation_confidence_branch_a_transition_shock_atr_pct_max is not None
+            and self._regime2_continuation_confidence_branch_a_transition_shock_atr_pct_max < 0
+        ):
+            self._regime2_continuation_confidence_branch_a_transition_shock_atr_pct_max = None
+        if (
+            self._regime2_continuation_confidence_branch_a_transition_shock_atr_pct_min is not None
+            and self._regime2_continuation_confidence_branch_a_transition_shock_atr_pct_max is not None
+            and self._regime2_continuation_confidence_branch_a_transition_shock_atr_pct_max
+            < self._regime2_continuation_confidence_branch_a_transition_shock_atr_pct_min
+        ):
+            self._regime2_continuation_confidence_branch_a_transition_shock_atr_pct_max = (
+                self._regime2_continuation_confidence_branch_a_transition_shock_atr_pct_min
+            )
+        raw_continuation_conf_a_ddv_max = _get(
+            strategy,
+            "regime2_continuation_confidence_branch_a_transition_ddv_max_pp",
+            None,
+        )
+        try:
+            self._regime2_continuation_confidence_branch_a_transition_ddv_max_pp = (
+                float(raw_continuation_conf_a_ddv_max) if raw_continuation_conf_a_ddv_max is not None else None
+            )
+        except (TypeError, ValueError):
+            self._regime2_continuation_confidence_branch_a_transition_ddv_max_pp = None
         self._bear_supertrend_engine: SupertrendEngine | None = None
         self._last_bear_supertrend = None
         self._bear_prev_dir: str | None = None
@@ -2059,23 +2127,43 @@ class SpotSignalEvaluator:
         entry_dir: str | None,
         entry_branch: str | None,
         shock_dir: str | None,
+        shock_atr_pct: float | None,
+        shock_drawdown_dist_on_vel_pp: float | None,
     ) -> bool:
-        if not (
+        release_age = self._active_regime2_bear_hard_release_age_bars
+        if (
             entry_dir == "up"
             and entry_branch == "b"
             and regime4_state == "trend_up_clean"
             and shock_dir == "up"
             and self._active_regime2_bear_hard_dir == "up"
         ):
-            return False
-        release_age = self._active_regime2_bear_hard_release_age_bars
-        age_min = self._regime2_continuation_confidence_branch_b_trend_up_clean_release_age_min_bars
-        age_max = self._regime2_continuation_confidence_branch_b_trend_up_clean_release_age_max_bars
+            age_min = self._regime2_continuation_confidence_branch_b_trend_up_clean_release_age_min_bars
+            age_max = self._regime2_continuation_confidence_branch_b_trend_up_clean_release_age_max_bars
+            return bool(
+                release_age is not None
+                and age_min is not None
+                and age_max is not None
+                and int(age_min) <= int(release_age) < int(age_max)
+            )
         return bool(
-            release_age is not None
-            and age_min is not None
-            and age_max is not None
-            and int(age_min) <= int(release_age) < int(age_max)
+            entry_dir == "up"
+            and entry_branch == "a"
+            and regime4_state == "transition_up_hot"
+            and shock_dir == "up"
+            and self._active_regime2_bear_hard_dir == "down"
+            and release_age is not None
+            and self._regime2_continuation_confidence_branch_a_transition_release_age_max_bars is not None
+            and int(release_age) <= int(self._regime2_continuation_confidence_branch_a_transition_release_age_max_bars)
+            and shock_atr_pct is not None
+            and self._regime2_continuation_confidence_branch_a_transition_shock_atr_pct_min is not None
+            and self._regime2_continuation_confidence_branch_a_transition_shock_atr_pct_max is not None
+            and float(self._regime2_continuation_confidence_branch_a_transition_shock_atr_pct_min)
+            <= float(shock_atr_pct)
+            < float(self._regime2_continuation_confidence_branch_a_transition_shock_atr_pct_max)
+            and shock_drawdown_dist_on_vel_pp is not None
+            and self._regime2_continuation_confidence_branch_a_transition_ddv_max_pp is not None
+            and float(shock_drawdown_dist_on_vel_pp) <= float(self._regime2_continuation_confidence_branch_a_transition_ddv_max_pp)
         )
 
     def _select_dual_signal(
@@ -2886,6 +2974,8 @@ class SpotSignalEvaluator:
             entry_dir=entry_dir_for_entries,
             entry_branch=entry_branch,
             shock_dir=shock_dir,
+            shock_atr_pct=shock_atr_pct,
+            shock_drawdown_dist_on_vel_pp=shock_drawdown_dist_on_vel_pp,
         ):
             entry_dir_for_entries = None
             entry_branch = None

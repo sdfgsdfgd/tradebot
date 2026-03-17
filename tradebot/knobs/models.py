@@ -300,6 +300,10 @@ class StrategyConfigBase:
     regime2_trenddown_branch_b_long_hard_up_recovery_ddv_max_pp: float | None = None
     regime2_continuation_confidence_branch_b_trend_up_clean_release_age_min_bars: int | None = None
     regime2_continuation_confidence_branch_b_trend_up_clean_release_age_max_bars: int | None = None
+    regime2_continuation_confidence_branch_a_transition_release_age_max_bars: int | None = None
+    regime2_continuation_confidence_branch_a_transition_shock_atr_pct_min: float | None = None
+    regime2_continuation_confidence_branch_a_transition_shock_atr_pct_max: float | None = None
+    regime2_continuation_confidence_branch_a_transition_ddv_max_pp: float | None = None
     regime2_clean_host_enable: bool = False
     regime2_clean_host_takeover_state: str = "trend_up_clean"
     regime2_clean_host_supertrend_multiplier: float | None = None
