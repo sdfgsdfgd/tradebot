@@ -3529,6 +3529,8 @@ def _spot_try_open_entry(
     riskpanic_today: bool,
     riskpop_today: bool,
     risk_snapshot,
+    entry_guard_probe_now: dict[str, object] | None = None,
+    entry_guard_inputs_now: dict[str, object] | None = None,
     cash: float,
     margin_used: float,
     liquidation_value: float,
@@ -3716,6 +3718,12 @@ def _spot_try_open_entry(
                 decision_trace_payload["regime4_state"] = str(regime4_state_now) if regime4_state_now else None
                 decision_trace_payload["regime4_transition_hot"] = bool(regime4_transition_hot_now)
                 decision_trace_payload["regime4_owner"] = str(regime4_owner_now) if regime4_owner_now else None
+                decision_trace_payload["entry_guard_probe"] = (
+                    dict(entry_guard_probe_now) if isinstance(entry_guard_probe_now, dict) else None
+                )
+                decision_trace_payload["entry_guard_inputs"] = (
+                    dict(entry_guard_inputs_now) if isinstance(entry_guard_inputs_now, dict) else None
+                )
                 decision_trace_payload["spot_intent"] = intent_decision.as_payload()
                 decision_trace_payload["spot_lifecycle"] = lifecycle.as_payload()
     else:
@@ -4283,6 +4291,8 @@ def _run_spot_backtest_exec_loop(
     pending_entry_regime4_state: str | None = None
     pending_entry_regime4_transition_hot = False
     pending_entry_regime4_owner: str | None = None
+    pending_entry_guard_probe: dict[str, object] | None = None
+    pending_entry_guard_inputs: dict[str, object] | None = None
     pending_exit_all = False
     pending_exit_reason = ""
     pending_exit_due_ts: datetime | None = None
@@ -4436,6 +4446,8 @@ def _run_spot_backtest_exec_loop(
                 entry_regime4_state_now = pending_entry_regime4_state
                 entry_regime4_transition_hot_now = bool(pending_entry_regime4_transition_hot)
                 entry_regime4_owner_now = pending_entry_regime4_owner
+                entry_guard_probe_now = pending_entry_guard_probe
+                entry_guard_inputs_now = pending_entry_guard_inputs
                 pending_entry_dir = None
                 pending_entry_branch = None
                 pending_entry_set_date = None
@@ -4446,6 +4458,8 @@ def _run_spot_backtest_exec_loop(
                 pending_entry_regime4_state = None
                 pending_entry_regime4_transition_hot = False
                 pending_entry_regime4_owner = None
+                pending_entry_guard_probe = None
+                pending_entry_guard_inputs = None
 
                 entry_leg = _spot_entry_leg_for_direction(
                     strategy=cfg.strategy,
@@ -4539,6 +4553,8 @@ def _run_spot_backtest_exec_loop(
                         riskpanic_today=bool(riskpanic_today),
                         riskpop_today=bool(riskpop_today),
                         risk_snapshot=evaluator.last_risk if risk_overlay_enabled else None,
+                        entry_guard_probe_now=entry_guard_probe_now,
+                        entry_guard_inputs_now=entry_guard_inputs_now,
                         cash=float(cash),
                         margin_used=float(margin_used),
                         liquidation_value=float(liquidation_open),
@@ -5041,6 +5057,22 @@ def _run_spot_backtest_exec_loop(
                 ),
             },
         )
+        entry_guard_probe_now = None
+        if isinstance(getattr(entry_decision, "trace", None), dict):
+            raw_graph_entry = entry_decision.trace.get("graph_entry")
+            if isinstance(raw_graph_entry, dict):
+                entry_guard_probe_now = dict(raw_graph_entry)
+        entry_guard_inputs_now = {
+            "shock_atr_pct": float(shock_atr_pct) if shock_atr_pct is not None else None,
+            "shock_atr_vel_pct": float(shock_atr_vel) if shock_atr_vel is not None else None,
+            "shock_atr_accel_pct": float(shock_atr_accel) if shock_atr_accel is not None else None,
+            "tr_ratio": float(ratsv_tr_ratio) if ratsv_tr_ratio is not None else None,
+            "tr_median_pct": float(risk_tr_median_pct) if risk_tr_median_pct is not None else None,
+            "slope_med_pct": float(ratsv_fast_slope_med) if ratsv_fast_slope_med is not None else None,
+            "slope_vel_pct": float(ratsv_fast_slope_vel) if ratsv_fast_slope_vel is not None else None,
+            "slope_med_slow_pct": float(ratsv_slow_slope_med) if ratsv_slow_slope_med is not None else None,
+            "slope_vel_slow_pct": float(ratsv_slow_slope_vel) if ratsv_slow_slope_vel is not None else None,
+        }
         if entry_decision.intent == "enter":
             direction = str(entry_decision.direction or direction)
             spot_leg = _spot_entry_leg_for_direction(
@@ -5090,6 +5122,12 @@ def _run_spot_backtest_exec_loop(
                         )
                         pending_entry_regime4_state = str(entry_regime4_state) if entry_regime4_state else None
                         pending_entry_regime4_transition_hot = bool(entry_regime4_transition_hot)
+                        pending_entry_guard_probe = (
+                            dict(entry_guard_probe_now) if isinstance(entry_guard_probe_now, dict) else None
+                        )
+                        pending_entry_guard_inputs = (
+                            dict(entry_guard_inputs_now) if isinstance(entry_guard_inputs_now, dict) else None
+                        )
                         last_entry_sig_idx = int(sig_idx)
                 else:
                     liquidation_close = _spot_liquidation(float(bar.close))
@@ -5164,6 +5202,8 @@ def _run_spot_backtest_exec_loop(
                         riskpanic_today=bool(riskpanic_today),
                         riskpop_today=bool(riskpop_today),
                         risk_snapshot=evaluator.last_risk if risk_overlay_enabled else None,
+                        entry_guard_probe_now=entry_guard_probe_now,
+                        entry_guard_inputs_now=entry_guard_inputs_now,
                         cash=float(cash),
                         margin_used=float(margin_used),
                         liquidation_value=float(liquidation_close),
