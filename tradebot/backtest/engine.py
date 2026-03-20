@@ -3272,6 +3272,7 @@ def _spot_flat_entry_intent(
     strategy,
     bar_ts: datetime,
     direction: str | None,
+    entry_context: dict[str, object] | None,
     filters_ok: bool,
     entry_capacity: bool,
     pending_exists: bool,
@@ -3297,6 +3298,7 @@ def _spot_flat_entry_intent(
         strategy=strategy,
         bar_ts=bar_ts,
         entry_dir=direction,
+        entry_context=entry_context,
         allowed_directions=("up", "down"),
         can_order_now=bool(can_order_now),
         preflight_ok=bool(preflight_ok),
@@ -3326,6 +3328,7 @@ def _spot_flat_entry_decision_from_signal(
     signal_bar: Bar,
     signal: EmaDecisionSnapshot | None,
     direction: str | None,
+    entry_context: dict[str, object] | None,
     bars_in_day: int,
     volume_ema: float | None,
     volume_ema_ready: bool,
@@ -3374,6 +3377,7 @@ def _spot_flat_entry_decision_from_signal(
         strategy=strategy,
         bar_ts=signal_bar.ts,
         direction=direction,
+        entry_context=entry_context,
         filters_ok=bool(filters_ok),
         entry_capacity=bool(entry_capacity),
         pending_exists=bool(pending_exists),
@@ -3531,6 +3535,7 @@ def _spot_try_open_entry(
     risk_snapshot,
     entry_guard_probe_now: dict[str, object] | None = None,
     entry_guard_inputs_now: dict[str, object] | None = None,
+    entry_local_extrema_probe_now: dict[str, object] | None = None,
     cash: float,
     margin_used: float,
     liquidation_value: float,
@@ -3723,6 +3728,9 @@ def _spot_try_open_entry(
                 )
                 decision_trace_payload["entry_guard_inputs"] = (
                     dict(entry_guard_inputs_now) if isinstance(entry_guard_inputs_now, dict) else None
+                )
+                decision_trace_payload["entry_local_extrema_probe"] = (
+                    dict(entry_local_extrema_probe_now) if isinstance(entry_local_extrema_probe_now, dict) else None
                 )
                 decision_trace_payload["spot_intent"] = intent_decision.as_payload()
                 decision_trace_payload["spot_lifecycle"] = lifecycle.as_payload()
@@ -4262,8 +4270,10 @@ def _run_spot_backtest_exec_loop(
         exit_time: datetime,
         reason: str,
         apply_slippage: bool | None = None,
+        exit_trace_payload: dict[str, object] | None = None,
+        exit_exec_idx: int | None = None,
     ) -> tuple[float, float, float]:
-        return _spot_exec_exit_common(
+        exit_price, next_cash, next_margin_used = _spot_exec_exit_common(
             qty=int(trade.qty),
             margin_required=float(trade.margin_required),
             exit_ref_price=float(exit_ref_price),
@@ -4280,6 +4290,22 @@ def _run_spot_backtest_exec_loop(
             trade=trade,
             trades=trades,
         )
+        trace = trade.decision_trace if isinstance(trade.decision_trace, dict) else {}
+        rows_raw = trace.get("exits")
+        rows = list(rows_raw) if isinstance(rows_raw, list) else []
+        payload = dict(exit_trace_payload) if isinstance(exit_trace_payload, dict) else {}
+        if exit_exec_idx is not None:
+            payload["local_extrema_probe"] = _spot_local_extrema_probe(
+                bars=exec_bars,
+                exec_idx=int(exit_exec_idx),
+                ref_price=float(exit_price),
+                bar_size=spot_exec_bar_size,
+            )
+        if payload:
+            rows.append(payload)
+            trace["exits"] = rows
+            trade.decision_trace = trace
+        return float(exit_price), float(next_cash), float(next_margin_used)
 
     pending_entry_dir: str | None = None
     pending_entry_branch: str | None = None
@@ -4426,6 +4452,15 @@ def _run_spot_backtest_exec_loop(
                     exit_time=bar.ts,
                     reason=str(pending_decision.reason or pending_exit_reason or "flip"),
                     apply_slippage=True,
+                    exit_trace_payload={
+                        "stage": "pending_exit",
+                        "bar_ts": bar.ts.isoformat(),
+                        "exit_ref_price": float(exit_ref),
+                        "apply_slippage": True,
+                        "pending_exit_reason": str(pending_exit_reason or "") or None,
+                        "lifecycle": pending_decision.as_payload(),
+                    },
+                    exit_exec_idx=int(idx),
                 )
             open_trades = []
 
@@ -4555,6 +4590,12 @@ def _run_spot_backtest_exec_loop(
                         risk_snapshot=evaluator.last_risk if risk_overlay_enabled else None,
                         entry_guard_probe_now=entry_guard_probe_now,
                         entry_guard_inputs_now=entry_guard_inputs_now,
+                        entry_local_extrema_probe_now=_spot_local_extrema_probe(
+                            bars=exec_bars,
+                            exec_idx=int(idx),
+                            ref_price=float(bar.open),
+                            bar_size=spot_exec_bar_size,
+                        ),
                         cash=float(cash),
                         margin_used=float(margin_used),
                         liquidation_value=float(liquidation_open),
@@ -4950,6 +4991,16 @@ def _run_spot_backtest_exec_loop(
                         exit_time=bar.ts,
                         reason=reason,
                         apply_slippage=bool(apply_slippage),
+                        exit_trace_payload={
+                            "stage": "open_exit",
+                            "bar_ts": bar.ts.isoformat(),
+                            "exit_ref_price": float(exit_ref),
+                            "apply_slippage": bool(apply_slippage),
+                            "resolved_exit_reason": str(reason),
+                            "exit_candidates": dict(exit_candidates) if isinstance(exit_candidates, dict) else None,
+                            "lifecycle": lifecycle.as_payload(),
+                        },
+                        exit_exec_idx=int(idx),
                     )
                 else:
                     still_open.append(trade)
@@ -5011,6 +5062,19 @@ def _run_spot_backtest_exec_loop(
             signal_bar=sig_bar,
             signal=signal,
             direction=direction,
+            entry_context={
+                "branch": entry_signal_branch if entry_signal_branch in ("a", "b") else None,
+                "regime4_state": str(entry_regime4_state) if entry_regime4_state else None,
+                "shock_dir": str(shock_dir) if shock_dir in ("up", "down") else None,
+                "hard_dir": (
+                    str(entry_regime2_bear_hard_dir) if entry_regime2_bear_hard_dir in ("up", "down") else None
+                ),
+                "release_age_bars": (
+                    int(entry_regime2_bear_hard_release_age_bars)
+                    if entry_regime2_bear_hard_release_age_bars is not None
+                    else None
+                ),
+            },
             bars_in_day=int(sig_bars_in_day),
             volume_ema=float(volume_ema) if volume_ema is not None else None,
             volume_ema_ready=bool(volume_ema_ready),
@@ -5063,6 +5127,17 @@ def _run_spot_backtest_exec_loop(
             if isinstance(raw_graph_entry, dict):
                 entry_guard_probe_now = dict(raw_graph_entry)
         entry_guard_inputs_now = {
+            "branch": entry_signal_branch if entry_signal_branch in ("a", "b") else None,
+            "regime4_state": str(entry_regime4_state) if entry_regime4_state else None,
+            "shock_dir": str(shock_dir) if shock_dir in ("up", "down") else None,
+            "hard_dir": (
+                str(entry_regime2_bear_hard_dir) if entry_regime2_bear_hard_dir in ("up", "down") else None
+            ),
+            "release_age_bars": (
+                int(entry_regime2_bear_hard_release_age_bars)
+                if entry_regime2_bear_hard_release_age_bars is not None
+                else None
+            ),
             "shock_atr_pct": float(shock_atr_pct) if shock_atr_pct is not None else None,
             "shock_atr_vel_pct": float(shock_atr_vel) if shock_atr_vel is not None else None,
             "shock_atr_accel_pct": float(shock_atr_accel) if shock_atr_accel is not None else None,
@@ -5204,6 +5279,12 @@ def _run_spot_backtest_exec_loop(
                         risk_snapshot=evaluator.last_risk if risk_overlay_enabled else None,
                         entry_guard_probe_now=entry_guard_probe_now,
                         entry_guard_inputs_now=entry_guard_inputs_now,
+                        entry_local_extrema_probe_now=_spot_local_extrema_probe(
+                            bars=exec_bars,
+                            exec_idx=int(idx),
+                            ref_price=float(bar.close),
+                            bar_size=spot_exec_bar_size,
+                        ),
                         cash=float(cash),
                         margin_used=float(margin_used),
                         liquidation_value=float(liquidation_close),
@@ -5403,6 +5484,15 @@ def _run_spot_backtest_exec_loop(
                                     exit_time=bar.ts,
                                     reason=str(lifecycle.reason or "target_zero"),
                                     apply_slippage=True,
+                                    exit_trace_payload={
+                                        "stage": "open_resize_exit",
+                                        "bar_ts": bar.ts.isoformat(),
+                                        "exit_ref_price": float(bar.close),
+                                        "apply_slippage": True,
+                                        "resolved_exit_reason": str(lifecycle.reason or "target_zero"),
+                                        "lifecycle": lifecycle.as_payload(),
+                                    },
+                                    exit_exec_idx=int(idx),
                                 )
                                 open_trades = []
                         else:
@@ -5412,6 +5502,15 @@ def _run_spot_backtest_exec_loop(
                                 exit_time=bar.ts,
                                 reason=str(lifecycle.reason or "target_zero"),
                                 apply_slippage=True,
+                                exit_trace_payload={
+                                    "stage": "open_resize_exit",
+                                    "bar_ts": bar.ts.isoformat(),
+                                    "exit_ref_price": float(bar.close),
+                                    "apply_slippage": True,
+                                    "resolved_exit_reason": str(lifecycle.reason or "target_zero"),
+                                    "lifecycle": lifecycle.as_payload(),
+                                },
+                                exit_exec_idx=int(idx),
                             )
                             open_trades = []
 
@@ -5426,6 +5525,14 @@ def _run_spot_backtest_exec_loop(
                 exit_time=last_bar.ts,
                 reason="end",
                 apply_slippage=True,
+                exit_trace_payload={
+                    "stage": "close_all",
+                    "bar_ts": last_bar.ts.isoformat(),
+                    "exit_ref_price": float(last_bar.close),
+                    "apply_slippage": True,
+                    "resolved_exit_reason": "end",
+                },
+                exit_exec_idx=int(len(exec_bars) - 1),
             )
 
     summary = _summarize_from_trades_and_max_dd(
@@ -5861,6 +5968,7 @@ def _run_spot_backtest_exec_loop_summary_fast(
             signal_bar=signal_bars[sig_idx],
             signal=sig,
             direction=str(entry_dir) if entry_dir in ("up", "down") else None,
+            entry_context=None,
             bars_in_day=int(signal_series.bars_in_day_by_sig_idx[sig_idx]),
             volume_ema=float(volume_ema_now) if volume_ema_now is not None else None,
             volume_ema_ready=bool(volume_ema_ready_now),
@@ -5966,6 +6074,12 @@ def _run_spot_backtest_exec_loop_summary_fast(
             riskpanic_today=bool(riskpanic_fill),
             riskpop_today=bool(riskpop_fill),
             risk_snapshot=risk_by_day.get(_trade_date(bar.ts)),
+            entry_local_extrema_probe_now=_spot_local_extrema_probe(
+                bars=exec_bars,
+                exec_idx=int(entry_exec_idx),
+                ref_price=float(bar.open),
+                bar_size=spot_exec_bar_size,
+            ),
             cash=float(cash),
             margin_used=0.0,
             liquidation_value=0.0,
@@ -6933,6 +7047,41 @@ def _bar_hours(bar_size: str) -> float:
         except ValueError:
             return 24.0
     return 1.0
+
+
+def _spot_local_extrema_probe(
+    *,
+    bars: list[Bar],
+    exec_idx: int,
+    ref_price: float,
+    bar_size: str,
+) -> dict[str, object] | None:
+    if exec_idx < 0 or exec_idx >= len(bars):
+        return None
+    ref = float(ref_price)
+    if not math.isfinite(ref) or ref <= 0.0:
+        return None
+    bar_hours = max(float(_bar_hours(bar_size)), 1e-9)
+    out: dict[str, object] = {}
+    for label, window_hours in (("15m", 0.25), ("1h", 1.0), ("6h30m", 6.5)):
+        lookback_bars = max(1, int(math.ceil(float(window_hours) / float(bar_hours))))
+        start_idx = max(0, int(exec_idx) - int(lookback_bars) + 1)
+        window = bars[start_idx : int(exec_idx) + 1]
+        if not window:
+            continue
+        low = min(float(b.low) for b in window)
+        high = max(float(b.high) for b in window)
+        span = max(float(high) - float(low), 1e-9)
+        out[str(label)] = {
+            "bars": int(len(window)),
+            "minutes": int(round(float(window_hours) * 60.0)),
+            "low": float(low),
+            "high": float(high),
+            "dist_from_low_pct": ((float(ref) - float(low)) / max(abs(float(low)), 1e-9)) * 100.0,
+            "dist_from_high_pct": ((float(high) - float(ref)) / max(abs(float(high)), 1e-9)) * 100.0,
+            "range_pos": max(0.0, min(1.0, (float(ref) - float(low)) / float(span))),
+        }
+    return out or None
 
 
 def _close_trade(trade: OptionTrade, ts: datetime, price: float, reason: str, trades: list[OptionTrade]) -> None:

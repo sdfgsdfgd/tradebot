@@ -582,6 +582,7 @@ def _entry_policy_default(
     strategy: Mapping[str, object] | object | None,
     bar_ts: datetime,
     entry_dir: str | None,
+    entry_context: Mapping[str, object] | None,
     shock_atr_pct: float | None,
     shock_atr_vel_pct: float | None,
     shock_atr_accel_pct: float | None,
@@ -597,6 +598,7 @@ def _entry_policy_default(
         strategy,
         bar_ts,
         entry_dir,
+        entry_context,
         shock_atr_pct,
         shock_atr_vel_pct,
         shock_atr_accel_pct,
@@ -615,12 +617,72 @@ def _entry_policy_default(
     )
 
 
+def _entry_context_continuation_v1(
+    *,
+    entry_dir: str | None,
+    entry_context: Mapping[str, object] | None,
+) -> tuple[int, dict[str, object]]:
+    context = entry_context if isinstance(entry_context, Mapping) else {}
+    state = str(context.get("regime4_state") or "").strip().lower()
+    branch = str(context.get("branch") or "").strip().lower()
+    shock_dir = str(context.get("shock_dir") or "").strip().lower()
+    hard_dir = str(context.get("hard_dir") or "").strip().lower()
+    release_age_raw = context.get("release_age_bars")
+    try:
+        release_age = int(release_age_raw) if release_age_raw is not None else None
+    except (TypeError, ValueError):
+        release_age = None
+    flags = {
+        "long_entry": str(entry_dir or "").strip().lower() == "up",
+        "clean_downshock_mid_age": (
+            state == "trend_up_clean"
+            and hard_dir == "up"
+            and shock_dir == "down"
+            and release_age is not None
+            and 500 <= int(release_age) < 1600
+        ),
+        "trend_down_branch_b_mid_age": (
+            state == "trend_down"
+            and branch == "b"
+            and hard_dir == "up"
+            and shock_dir == "down"
+            and release_age is not None
+            and 500 <= int(release_age) < 1600
+        ),
+        "transition_hot_stale_branch_a": (
+            state == "transition_up_hot"
+            and branch == "a"
+            and hard_dir == "up"
+            and shock_dir == "up"
+            and release_age is not None
+            and int(release_age) >= 1600
+        ),
+    }
+    score = (
+        int(bool(flags["clean_downshock_mid_age"]))
+        + int(bool(flags["trend_down_branch_b_mid_age"]))
+        + int(bool(flags["transition_hot_stale_branch_a"]))
+    )
+    return score, {
+        "mode": "continuation_v1",
+        "state": state or None,
+        "branch": branch or None,
+        "shock_dir": shock_dir or None,
+        "hard_dir": hard_dir or None,
+        "release_age_bars": int(release_age) if release_age is not None else None,
+        "flags": flags,
+        "score": int(score),
+        "block_min_score": 1,
+    }
+
+
 def _entry_policy_slope_tr_guard(
     graph: SpotPolicyGraph,
     *,
     strategy: Mapping[str, object] | object | None,
     bar_ts: datetime,
     entry_dir: str | None,
+    entry_context: Mapping[str, object] | None,
     shock_atr_pct: float | None,
     shock_atr_vel_pct: float | None,
     shock_atr_accel_pct: float | None,
@@ -648,6 +710,24 @@ def _entry_policy_slope_tr_guard(
     slope_vel_min *= float(threshold_scale)
     slope_slow_min *= float(threshold_scale)
     slope_vel_slow_min *= float(threshold_scale)
+    context_mode = str(_get(strategy, "spot_entry_context_confidence_mode", "off") or "off").strip().lower()
+    context_trace: dict[str, object] | None = None
+    if context_mode == "continuation_v1":
+        context_score, context_trace = _entry_context_continuation_v1(
+            entry_dir=entry_dir,
+            entry_context=entry_context,
+        )
+        if bool(context_trace.get("flags", {}).get("long_entry")) and int(context_score) >= 1:
+            return SpotEntryGateResult(
+                allow=False,
+                reason="graph_entry_context_confidence",
+                gate="BLOCKED_GRAPH_ENTRY_CONTEXT_CONFIDENCE",
+                trace={
+                    "policy": "slope_tr_guard",
+                    "context_confidence_mode": str(context_mode),
+                    "context_confidence": dict(context_trace),
+                },
+            )
     atr_max = max(0.0, _parse_float(_get(strategy, "spot_entry_shock_atr_max_pct"), default=0.0))
     atr_vel_min = max(0.0, _parse_float(_get(strategy, "spot_entry_atr_vel_min_pct"), default=0.0))
     atr_accel_min = max(0.0, _parse_float(_get(strategy, "spot_entry_atr_accel_min_pct"), default=0.0))
@@ -791,6 +871,8 @@ def _entry_policy_slope_tr_guard(
             "policy": "slope_tr_guard",
             "guard_threshold_scale": float(threshold_scale),
             "guard_threshold_trace": dict(threshold_trace),
+            "context_confidence_mode": str(context_mode),
+            "context_confidence": dict(context_trace) if isinstance(context_trace, dict) else None,
         },
     )
 
@@ -1700,6 +1782,7 @@ class SpotPolicyGraph:
         strategy: Mapping[str, object] | object | None,
         bar_ts: datetime,
         entry_dir: str | None,
+        entry_context: Mapping[str, object] | None = None,
         shock_atr_pct: float | None = None,
         shock_atr_vel_pct: float | None = None,
         shock_atr_accel_pct: float | None = None,
@@ -1716,6 +1799,7 @@ class SpotPolicyGraph:
             strategy=strategy,
             bar_ts=bar_ts,
             entry_dir=entry_dir,
+            entry_context=entry_context,
             shock_atr_pct=shock_atr_pct,
             shock_atr_vel_pct=shock_atr_vel_pct,
             shock_atr_accel_pct=shock_atr_accel_pct,

@@ -110,3 +110,28 @@ def test_position_unrealized_sticky_holds_last_value_during_short_stream_gap() -
     state["official"] = None
     second_unreal, _official2, _estimate2, _mark2 = BotScreen._position_unrealized_values(probe, item)
     assert second_unreal == 4.56
+
+
+def test_fop_position_entry_now_cell_does_not_revive_snapshot_market_price() -> None:
+    item = SimpleNamespace(
+        contract=SimpleNamespace(conId=123, secType="FOP", symbol="MNQ", localSymbol="MNQ"),
+        position=1.0,
+        averageCost=480.24,
+        marketPrice=234.0,
+        marketValue=234.0,
+        unrealizedPNL=0.0,
+        realizedPNL=0.0,
+    )
+    probe = _OrdersRefreshProbe(item)
+    probe._client = SimpleNamespace(
+        pnl_single_daily=lambda _con_id: None,
+        pnl_single_unrealized=lambda _con_id: None,
+        ticker_for_con_id=lambda _con_id: None,
+    )
+
+    mark_price = BotScreen._position_mark_price(probe, item)
+    text = BotScreen._position_entry_now_cell(probe, item, mark_price)
+
+    assert mark_price is None
+    assert "234.00" not in text.plain
+    assert "n/a" in text.plain

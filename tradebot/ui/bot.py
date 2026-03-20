@@ -2476,6 +2476,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         contract = getattr(item, "contract", None)
         if contract is None:
             return None
+        sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
         try:
             con_id = int(getattr(contract, "conId", 0) or 0)
         except (TypeError, ValueError):
@@ -2484,6 +2485,8 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         price = _ticker_price(ticker) if ticker else None
         if price is not None:
             return float(price)
+        if sec_type == "FOP":
+            return None
         market_price = _safe_num(getattr(item, "marketPrice", None))
         return float(market_price) if market_price is not None else None
 
@@ -2563,10 +2566,9 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
     def _position_entry_now_cell(self, item: PortfolioItem, mark_price: float | None) -> Text:
         avg_cost = _safe_num(getattr(item, "averageCost", None))
         mark = _safe_num(mark_price)
-        if mark is None:
-            mark = _safe_num(getattr(item, "marketPrice", None))
-
         sec_type = str(getattr(getattr(item, "contract", None), "secType", "") or "").strip().upper()
+        if mark is None and sec_type != "FOP":
+            mark = _safe_num(getattr(item, "marketPrice", None))
         multiplier = abs(float(_infer_multiplier(item)))
         entry = float(avg_cost) if avg_cost is not None else None
         if (
@@ -2598,11 +2600,12 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
     def _position_px_change_cell(self, item: PortfolioItem, mark_price: float | None) -> Text:
         contract = getattr(item, "contract", None)
         con_id = int(getattr(contract, "conId", 0) or 0) if contract is not None else 0
+        sec_type = str(getattr(contract, "secType", "") or "").strip().upper() if contract is not None else ""
         ticker = self._client.ticker_for_con_id(con_id) if con_id else None
         price = _safe_num(mark_price)
         if price is None:
             price = _ticker_price(ticker) if ticker is not None else None
-        if price is None:
+        if price is None and sec_type != "FOP":
             price = _safe_num(getattr(item, "marketPrice", None))
 
         if con_id and contract is not None:

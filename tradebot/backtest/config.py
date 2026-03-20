@@ -429,6 +429,7 @@ def _strategy_schema_common() -> dict[str, _FieldSpec]:
         "spot_entry_shock_atr_max_pct": _field(_parse_optional_float, None),
         "spot_entry_atr_vel_min_pct": _field(_parse_optional_float, None),
         "spot_entry_atr_accel_min_pct": _field(_parse_optional_float, None),
+        "spot_entry_context_confidence_mode": _field(_identity, None),
         "spot_guard_threshold_scale_mode": _field(_identity, None),
         "spot_guard_threshold_scale_min_mult": _field(lambda value: _parse_positive_float(value, default=0.70), 0.70),
         "spot_guard_threshold_scale_max_mult": _field(lambda value: _parse_positive_float(value, default=1.80), 1.80),

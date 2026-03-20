@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import sys
 import asyncio
+import time
 from datetime import date
 from pathlib import Path
 from types import SimpleNamespace
@@ -177,6 +178,38 @@ def test_avg_cost_cell_uses_position_aware_direction_for_shorts() -> None:
     assert "▲" in text.plain
     assert "10.00" in text.plain
     assert "9.00" in text.plain
+
+
+def test_fop_mark_price_uses_sticky_actionable_quote_before_snapshot_mark() -> None:
+    _ensure_event_loop()
+    app = PositionsApp()
+    app._client = SimpleNamespace(ticker_for_con_id=lambda _con_id: None)
+    item = SimpleNamespace(
+        contract=SimpleNamespace(secType="FOP", conId=11),
+        marketPrice=234.0,
+    )
+    app._derivative_actionable_px_by_con_id[11] = (367.0, time.monotonic() - 20.0)
+
+    mark, is_estimate = app._mark_price(item)
+
+    assert mark == pytest.approx(367.0)
+    assert is_estimate is False
+
+
+def test_fop_mark_price_does_not_fall_back_to_snapshot_mark_after_sticky_expires() -> None:
+    _ensure_event_loop()
+    app = PositionsApp()
+    app._client = SimpleNamespace(ticker_for_con_id=lambda _con_id: None)
+    item = SimpleNamespace(
+        contract=SimpleNamespace(secType="FOP", conId=11),
+        marketPrice=234.0,
+    )
+    app._derivative_actionable_px_by_con_id[11] = (367.0, time.monotonic() - 60.0)
+
+    mark, is_estimate = app._mark_price(item)
+
+    assert mark is None
+    assert is_estimate is False
 
 
 def test_entry_now_value_compacts_without_truncation_when_width_is_tight() -> None:

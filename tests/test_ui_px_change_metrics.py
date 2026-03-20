@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from tradebot.ui.common import _pct24_72_from_price
+from tradebot.ui.common import _option_display_price, _pct24_72_from_price
 
 
 def test_pct24_uses_latest_close_when_ticker_close_exists() -> None:
@@ -41,3 +41,9 @@ def test_pct24_is_none_when_close_baseline_missing() -> None:
     )
     assert pct24 is None
     assert pct72 == pytest.approx(((67_000.0 - 64_500.0) / 64_500.0) * 100.0)
+
+
+def test_option_display_price_ignores_snapshot_market_price_for_fop_without_quote() -> None:
+    item = SimpleNamespace(contract=SimpleNamespace(secType="FOP"), marketPrice=234.0)
+
+    assert _option_display_price(item, None) is None

@@ -84,7 +84,7 @@ class PositionsApp(App):
     _SEARCH_DEBOUNCE_SEC = 0.18
     _SEARCH_EXPIRY_IDLE_PREFETCH_SEC = 0.35
     _SNAPSHOT_THROTTLE_MIN_SEC = 1.0
-    _DERIVATIVE_MARK_STICKY_SEC = 8.0
+    _DERIVATIVE_MARK_STICKY_SEC = 40.0
 
     _SECTION_HEADER_STYLE_BY_TYPE = {
         "OPT": "bold #8fbfff",
@@ -3521,11 +3521,9 @@ class PositionsApp(App):
                     return float(cached_px), False
                 self._derivative_actionable_px_by_con_id.pop(int(option_con_id), None)
 
-        portfolio_mark = _safe_num(getattr(item, "marketPrice", None))
         if item.contract.secType == "FOP":
-            if portfolio_mark is not None and portfolio_mark > 0:
-                return float(portfolio_mark), False
             return None, False
+        portfolio_mark = _safe_num(getattr(item, "marketPrice", None))
 
         under_con_id = self._option_underlying_con_id.get(option_con_id)
         under_ticker = self._client.ticker_for_con_id(under_con_id) if under_con_id else None

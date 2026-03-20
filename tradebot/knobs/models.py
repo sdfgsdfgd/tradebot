@@ -386,6 +386,7 @@ class StrategyConfigBase:
     spot_entry_shock_atr_max_pct: float | None = None
     spot_entry_atr_vel_min_pct: float | None = None
     spot_entry_atr_accel_min_pct: float | None = None
+    spot_entry_context_confidence_mode: str | None = None
     spot_guard_threshold_scale_mode: str | None = None
     spot_guard_threshold_scale_min_mult: float = 0.70
     spot_guard_threshold_scale_max_mult: float = 1.80

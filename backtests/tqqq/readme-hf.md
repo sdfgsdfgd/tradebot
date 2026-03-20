@@ -15,7 +15,7 @@ Sovereignty contract (current phase):
   - `2025` persistent uptrend
 - `v34` remains the raw `1Y/2Y` modern crown under the original contract.
 - `v35` remains the bridge-only dethrone that first unified `2022/2025`.
-- `v42` All-Green Continuation Confidence is the active multi-regime crown on canonical-cache numbers.
+- `v43` Composite Context Confidence is the active multi-regime crown on canonical-cache numbers.
 
 Canonical execution paths:
 - Spot sweeps/evolution: `python -m tradebot.backtest spot ...`
@@ -23,7 +23,58 @@ Canonical execution paths:
 
 ## Current Champions (stack)
 
-### CURRENT (v42) — All-Green Continuation Confidence; canonical-cache reigning organism over the `2020..2025` universal-floor contract
+### CURRENT (v43) — Composite Context Confidence; canonical-cache reigning organism over the `2020..2025` universal-floor contract
+
+- Delta vs `v42`:
+  - Keep the all-green `v42` organism intact.
+  - Add one centralized thing only:
+    - `spot_entry_context_confidence_mode="continuation_v1"`
+  - That mode is fed by the actual entry decision context:
+    - `regime4_state`
+    - `branch`
+    - `shock_dir`
+    - `hard_dir`
+    - `release_age_bars`
+  - Real new truth:
+    - the post-`v42` scalar guard-knob path was dead
+    - the next edge was a composite ambiguity score, not another threshold
+    - the winning motifs were:
+      - `trend_up_clean` long continuation with `shock_dir=down`, `hard_dir=up`, `age 500..1599`
+      - `trend_down / branch-b` long continuation with `shock_dir=down`, `hard_dir=up`, `age 500..1599`
+      - `transition_up_hot / branch-a` long continuation with `shock_dir=up`, `hard_dir=up`, `age 1600+`
+- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v43_compositeContextConfidence_20260319.json`
+- Universal-floor floor (min `2020..2025` pnl/dd): **0.449**
+- `2020` (`2020-01-01 -> 2021-01-01`): trades **488**, pnl **14,711.6**, dd **8,492.9**, pnl/dd **1.732**
+- `2021` (`2021-01-01 -> 2022-01-01`): trades **430**, pnl **4,047.9**, dd **6,987.0**, pnl/dd **0.579**
+- `2022` (`2022-01-01 -> 2023-01-01`): trades **506**, pnl **32,942.8**, dd **10,933.1**, pnl/dd **3.013**
+- `2023` (`2023-01-01 -> 2024-01-01`): trades **470**, pnl **5,139.3**, dd **11,447.9**, pnl/dd **0.449**
+- `2024` (`2024-01-01 -> 2025-01-01`): trades **413**, pnl **5,942.0**, dd **11,813.6**, pnl/dd **0.503**
+- `2025` (`2025-01-01 -> 2026-01-19`): trades **453**, pnl **30,401.3**, dd **5,013.3**, pnl/dd **6.064**
+- Distinct anatomy:
+  - `2023`: weak-year floor lifted materially, from `0.046` to `0.449`
+  - `2020`, `2021`, `2024`, and `2025`: all improved
+  - `2022`: only a tiny tax versus `v42`
+  - this is not a threshold hack; it is the first post-`v42` composite-confidence dethrone
+- Adjacent crowns that still define the truthful-cache ridge:
+  - Previous crown, `v42` All-Green Continuation Confidence:
+    - Result across `2020..2025`: floor **0.046**, median **0.779**, positive years **6/6**
+    - Distinct truth: the first all-green line in the lineage; branch-`b` continuation confidence plus branch-`a` fresh-transition skepticism
+  - Previous crown, `v41` Universal Floor Continuation Confidence:
+    - Result across `2020..2025`: floor **-0.039**, median **0.801**, positive years **5/6**
+    - Distinct truth: one centralized branch-`b` continuation-confidence rule nearly neutralized the last bad year
+  - Universal-floor sibling:
+    - branch-`b` low-ATR recovery shelf only
+    - Result across `2020..2025`: floor **-0.278**, median **0.589**, positive years **5/6**
+    - Preset file: `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v40_branchBLowAtrRecoveryUniversalFloorSibling_20260317.json`
+    - Distinct truth: real floor lift, but not enough by itself
+  - Hard-shelf one-knob sibling:
+    - only change `regime2_bear_hard_supertrend_multiplier = 2.30`
+    - Result: `2020 pnl/dd = 0.928`, `2022 pnl/dd = 3.031`, `2025 pnl/dd = 6.953`
+    - Distinct truth: the hard-regime shelf itself was the real precondition for the universal-floor jump
+
+## Evolutionary Log
+
+### v42 (2026-03-18) — All-Green Continuation Confidence; first all-green organism over the `2020..2025` universal-floor contract
 
 - Delta vs `v41` and the earlier truthful-cache crowns:
   - Keep the whole `v41` organism intact:
@@ -43,8 +94,8 @@ Canonical execution paths:
   - Real new truth:
     - the last bad year was not solved by more regime splitting
     - it was solved by refusing fresh low-ATR branch-`a` transition optimism when the hard regime was still down
-    - this is the first all-green line in the lineage
-- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v42_allGreenContinuationConfidence_20260318.json`
+    - this was the first all-green line in the lineage
+- Preset file: `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v42_allGreenContinuationConfidence_20260318.json`
 - Universal-floor floor (min `2020..2025` pnl/dd): **0.046**
 - `2020` (`2020-01-01 -> 2021-01-01`): trades **497**, pnl **10,298.5**, dd **9,621.8**, pnl/dd **1.070**
 - `2021` (`2021-01-01 -> 2022-01-01`): trades **438**, pnl **3,272.4**, dd **6,805.0**, pnl/dd **0.481**
@@ -53,23 +104,10 @@ Canonical execution paths:
 - `2024` (`2024-01-01 -> 2025-01-01`): trades **423**, pnl **5,745.6**, dd **11,789.4**, pnl/dd **0.487**
 - `2025` (`2025-01-01 -> 2026-01-19`): trades **460**, pnl **27,974.6**, dd **4,951.4**, pnl/dd **5.650**
 - Distinct anatomy:
-  - `2020`: stays above `1.0` even after the last weak-year fix
-  - `2021`: flipped materially positive; the old floor year is no longer red
-  - `2023`: now the thinnest year in the whole contract, but still positive
-  - `2022` and `2025`: remain strong enough that this is not just a floor hack
-- Adjacent crowns that still define the truthful-cache ridge:
-  - Previous crown, `v41` Universal Floor Continuation Confidence:
-    - Result across `2020..2025`: floor **-0.039**, median **0.801**, positive years **5/6**
-    - Distinct truth: one centralized branch-`b` continuation-confidence rule nearly neutralized the last bad year
-  - Universal-floor sibling:
-    - branch-`b` low-ATR recovery shelf only
-    - Result across `2020..2025`: floor **-0.278**, median **0.589**, positive years **5/6**
-    - Preset file: `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v40_branchBLowAtrRecoveryUniversalFloorSibling_20260317.json`
-    - Distinct truth: real floor lift, but not enough by itself
-  - Hard-shelf one-knob sibling:
-    - only change `regime2_bear_hard_supertrend_multiplier = 2.30`
-    - Result: `2020 pnl/dd = 0.928`, `2022 pnl/dd = 3.031`, `2025 pnl/dd = 6.953`
-    - Distinct truth: the hard-regime shelf itself was the real precondition for the universal-floor jump
+  - `2020`: stayed above `1.0` even after the weak-year fix
+  - `2021`: flipped materially positive; the old floor year was no longer red
+  - `2023`: became the thinnest year in the contract
+  - `2022` and `2025`: stayed strong enough that this was not just a floor hack
 
 ### PREVIOUS MULTI-REGIME DETHRONE (v37-Heat-Lip Sovereignty) — dethroned v36 for the `2020/2022/2025` sovereignty contract
 
