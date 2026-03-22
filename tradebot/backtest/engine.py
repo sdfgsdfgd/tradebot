@@ -4168,6 +4168,7 @@ def _run_spot_backtest_exec_loop(
     )
     orb_engine = evaluator.orb_engine
     last_sig_snap: SpotSignalSnapshot | None = None
+    last_sig_exec_idx = -1
     shock_prev, shock_dir_prev, shock_atr_pct_prev = evaluator.shock_view
 
     (
@@ -4253,6 +4254,49 @@ def _run_spot_backtest_exec_loop(
                 context=merged_context,
             )
         )
+
+    def _latest_signal_snapshot_probe(*, exec_idx: int) -> dict[str, object] | None:
+        if last_sig_snap is None:
+            return None
+        risk_snap = getattr(last_sig_snap, "risk", None)
+        age_bars = int(exec_idx) - int(last_sig_exec_idx) if int(last_sig_exec_idx) >= 0 else None
+        return {
+            "signal_bar_ts": last_sig_snap.bar_ts.isoformat(),
+            "signal_snapshot_age_bars": int(age_bars) if age_bars is not None and age_bars >= 0 else None,
+            "shock_atr_pct": float(last_sig_snap.shock_atr_pct) if last_sig_snap.shock_atr_pct is not None else None,
+            "shock_atr_vel_pct": (
+                float(last_sig_snap.shock_atr_vel_pct) if getattr(last_sig_snap, "shock_atr_vel_pct", None) is not None else None
+            ),
+            "shock_atr_accel_pct": (
+                float(last_sig_snap.shock_atr_accel_pct) if getattr(last_sig_snap, "shock_atr_accel_pct", None) is not None else None
+            ),
+            "tr_ratio": float(last_sig_snap.ratsv_tr_ratio) if last_sig_snap.ratsv_tr_ratio is not None else None,
+            "tr_median_pct": (
+                float(getattr(risk_snap, "tr_median_pct"))
+                if risk_snap is not None and getattr(risk_snap, "tr_median_pct", None) is not None
+                else None
+            ),
+            "slope_med_pct": (
+                float(last_sig_snap.ratsv_fast_slope_med_pct) if last_sig_snap.ratsv_fast_slope_med_pct is not None else None
+            ),
+            "slope_vel_pct": (
+                float(last_sig_snap.ratsv_fast_slope_vel_pct) if last_sig_snap.ratsv_fast_slope_vel_pct is not None else None
+            ),
+            "slope_med_slow_pct": (
+                float(last_sig_snap.ratsv_slow_slope_med_pct) if last_sig_snap.ratsv_slow_slope_med_pct is not None else None
+            ),
+            "slope_vel_slow_pct": (
+                float(last_sig_snap.ratsv_slow_slope_vel_pct) if last_sig_snap.ratsv_slow_slope_vel_pct is not None else None
+            ),
+            "entry_dir": str(last_sig_snap.entry_dir) if last_sig_snap.entry_dir in ("up", "down") else None,
+            "entry_branch": str(last_sig_snap.entry_branch) if last_sig_snap.entry_branch in ("a", "b") else None,
+            "regime4_state": str(last_sig_snap.regime4_state) if last_sig_snap.regime4_state else None,
+            "hard_dir": (
+                str(last_sig_snap.regime2_bear_hard_dir)
+                if last_sig_snap.regime2_bear_hard_dir in ("up", "down")
+                else None
+            ),
+        }
 
     def _spot_liquidation(ref_price: float) -> float:
         return _spot_liquidation_value(
@@ -4458,6 +4502,7 @@ def _run_spot_backtest_exec_loop(
                         "exit_ref_price": float(exit_ref),
                         "apply_slippage": True,
                         "pending_exit_reason": str(pending_exit_reason or "") or None,
+                        "signal_snapshot": _latest_signal_snapshot_probe(exec_idx=int(idx)),
                         "lifecycle": pending_decision.as_payload(),
                     },
                     exit_exec_idx=int(idx),
@@ -4692,6 +4737,7 @@ def _run_spot_backtest_exec_loop(
             sig_snap = evaluator.update_signal_bar(sig_bar)
             if sig_snap is not None:
                 last_sig_snap = sig_snap
+                last_sig_exec_idx = int(idx)
                 rv = sig_snap.rv
                 sig_bars_in_day = int(sig_snap.bars_in_day)
                 volume_ema = sig_snap.volume_ema
@@ -4998,6 +5044,7 @@ def _run_spot_backtest_exec_loop(
                             "apply_slippage": bool(apply_slippage),
                             "resolved_exit_reason": str(reason),
                             "exit_candidates": dict(exit_candidates) if isinstance(exit_candidates, dict) else None,
+                            "signal_snapshot": _latest_signal_snapshot_probe(exec_idx=int(idx)),
                             "lifecycle": lifecycle.as_payload(),
                         },
                         exit_exec_idx=int(idx),
@@ -5490,6 +5537,7 @@ def _run_spot_backtest_exec_loop(
                                         "exit_ref_price": float(bar.close),
                                         "apply_slippage": True,
                                         "resolved_exit_reason": str(lifecycle.reason or "target_zero"),
+                                        "signal_snapshot": _latest_signal_snapshot_probe(exec_idx=int(idx)),
                                         "lifecycle": lifecycle.as_payload(),
                                     },
                                     exit_exec_idx=int(idx),
@@ -5508,6 +5556,7 @@ def _run_spot_backtest_exec_loop(
                                     "exit_ref_price": float(bar.close),
                                     "apply_slippage": True,
                                     "resolved_exit_reason": str(lifecycle.reason or "target_zero"),
+                                    "signal_snapshot": _latest_signal_snapshot_probe(exec_idx=int(idx)),
                                     "lifecycle": lifecycle.as_payload(),
                                 },
                                 exit_exec_idx=int(idx),
@@ -5531,6 +5580,7 @@ def _run_spot_backtest_exec_loop(
                     "exit_ref_price": float(last_bar.close),
                     "apply_slippage": True,
                     "resolved_exit_reason": "end",
+                    "signal_snapshot": _latest_signal_snapshot_probe(exec_idx=int(len(exec_bars) - 1)),
                 },
                 exit_exec_idx=int(len(exec_bars) - 1),
             )
