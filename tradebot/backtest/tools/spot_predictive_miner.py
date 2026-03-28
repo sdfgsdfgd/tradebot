@@ -31,6 +31,40 @@ def _parse_float(value: str | None) -> float | None:
         return None
 
 
+def _derive_sequence_fields(row: dict[str, object]) -> dict[str, object]:
+    def _num(name: str) -> float | None:
+        value = row.get(name)
+        return float(value) if isinstance(value, (int, float)) else None
+
+    fast_bars = _num("first_fast_adverse_bars")
+    slow_bars = _num("first_slow_adverse_bars")
+    tr_bars = _num("first_tr_stretch_bars")
+    stale_bars = _num("first_stale_signal_ge2_bars")
+    collapse_bars = _num("first_local_collapse_bars")
+
+    def _gap(later: float | None, earlier: float | None) -> float | None:
+        if later is None or earlier is None:
+            return None
+        return float(later) - float(earlier)
+
+    return {
+        "has_fast_adverse": 1.0 if fast_bars is not None else 0.0,
+        "has_slow_adverse": 1.0 if slow_bars is not None else 0.0,
+        "has_tr_stretch": 1.0 if tr_bars is not None else 0.0,
+        "has_stale_signal_ge2": 1.0 if stale_bars is not None else 0.0,
+        "has_local_collapse": 1.0 if collapse_bars is not None else 0.0,
+        "fast_before_collapse": 1.0 if fast_bars is not None and collapse_bars is not None and fast_bars <= collapse_bars else 0.0,
+        "slow_before_collapse": 1.0 if slow_bars is not None and collapse_bars is not None and slow_bars <= collapse_bars else 0.0,
+        "tr_stretch_before_collapse": 1.0 if tr_bars is not None and collapse_bars is not None and tr_bars <= collapse_bars else 0.0,
+        "stale_before_collapse": 1.0 if stale_bars is not None and collapse_bars is not None and stale_bars <= collapse_bars else 0.0,
+        "collapse_after_fast_bars": _gap(collapse_bars, fast_bars),
+        "collapse_after_slow_bars": _gap(collapse_bars, slow_bars),
+        "collapse_after_tr_stretch_bars": _gap(collapse_bars, tr_bars),
+        "stale_after_fast_bars": _gap(stale_bars, fast_bars),
+        "stale_after_slow_bars": _gap(stale_bars, slow_bars),
+    }
+
+
 def _quantile_picks(values: list[float]) -> list[float]:
     if not values:
         return []
@@ -114,6 +148,25 @@ def main(argv: list[str] | None = None) -> int:
         "shock_atr_vel_pct",
         "shock_atr_accel_pct",
         "exit_signal_age_bars",
+        "first_fast_adverse_bars",
+        "first_slow_adverse_bars",
+        "first_tr_stretch_bars",
+        "first_stale_signal_ge2_bars",
+        "first_local_collapse_bars",
+        "has_fast_adverse",
+        "has_slow_adverse",
+        "has_tr_stretch",
+        "has_stale_signal_ge2",
+        "has_local_collapse",
+        "fast_before_collapse",
+        "slow_before_collapse",
+        "tr_stretch_before_collapse",
+        "stale_before_collapse",
+        "collapse_after_fast_bars",
+        "collapse_after_slow_bars",
+        "collapse_after_tr_stretch_bars",
+        "stale_after_fast_bars",
+        "stale_after_slow_bars",
     ]
     fields = list(dict.fromkeys([*(args.field or []), *([] if args.field else default_fields)]))
 
@@ -129,6 +182,9 @@ def main(argv: list[str] | None = None) -> int:
             }
             for field in fields:
                 row[field] = _parse_float(raw.get(field))
+            derived = _derive_sequence_fields(row)
+            for field, value in derived.items():
+                row[field] = value
             rows.append(row)
     if not rows:
         raise SystemExit("No rows matched the requested seam filters.")

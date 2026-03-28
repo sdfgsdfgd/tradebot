@@ -100,6 +100,90 @@ def _load_candidate(
     )
 
 
+def _local_extrema_probe(*, bars: list, idx: int, ref_price: float, exec_bar_size: str) -> dict[str, object] | None:
+    if idx < 0 or idx >= len(bars):
+        return None
+    try:
+        ref = float(ref_price)
+    except (TypeError, ValueError):
+        return None
+    if ref <= 0.0:
+        return None
+
+    label = str(exec_bar_size or "").strip().lower()
+    if label.startswith("1 min"):
+        specs = (("15m", 15), ("1h", 60), ("6h30m", 390))
+    elif label.startswith("2 min"):
+        specs = (("15m", 8), ("1h", 30), ("6h30m", 195))
+    elif label.startswith("5 min"):
+        specs = (("15m", 3), ("1h", 12), ("6h30m", 78))
+    else:
+        specs = (("15m", 3), ("1h", 12), ("6h30m", 78))
+
+    out: dict[str, object] = {}
+    for key, lookback in specs:
+        start = max(0, int(idx) - int(lookback) + 1)
+        window = bars[start : int(idx) + 1]
+        if not window:
+            continue
+        low = min(float(b.low) for b in window)
+        high = max(float(b.high) for b in window)
+        span = max(float(high) - float(low), 1e-9)
+        out[key] = {
+            "range_pos": max(0.0, min(1.0, (float(ref) - float(low)) / float(span))),
+        }
+    return out or None
+
+
+def _signed_move_pct(*, qty: int, start_price: float, end_price: float) -> float | None:
+    try:
+        start = float(start_price)
+        end = float(end_price)
+    except (TypeError, ValueError):
+        return None
+    if start <= 0.0:
+        return None
+    sign = 1.0 if int(qty) > 0 else -1.0
+    return ((float(end) - float(start)) / float(start)) * 100.0 * sign
+
+
+def _event_outcome(
+    *,
+    bars: list,
+    qty: int,
+    event_idx: int | None,
+    exit_idx: int,
+    exit_price: float,
+) -> tuple[float | None, float | None, float | None]:
+    if event_idx is None or event_idx < 0 or event_idx >= len(bars):
+        return None, None, None
+    if exit_idx < event_idx:
+        return None, None, None
+    ref_price = float(bars[int(event_idx)].close)
+    window = bars[int(event_idx) : int(exit_idx) + 1]
+    if not window:
+        return None, None, None
+    move_exit = _signed_move_pct(qty=int(qty), start_price=ref_price, end_price=float(exit_price))
+    if int(qty) > 0:
+        mfe = _signed_move_pct(qty=int(qty), start_price=ref_price, end_price=max(float(b.high) for b in window))
+        mae = _signed_move_pct(qty=int(qty), start_price=ref_price, end_price=min(float(b.low) for b in window))
+    else:
+        mfe = _signed_move_pct(qty=int(qty), start_price=ref_price, end_price=min(float(b.low) for b in window))
+        mae = _signed_move_pct(qty=int(qty), start_price=ref_price, end_price=max(float(b.high) for b in window))
+    return move_exit, mfe, mae
+
+
+def _first_matching_lifecycle_row(
+    *,
+    lifecycle_rows: list[dict[str, object]],
+    predicate,
+) -> dict[str, object] | None:
+    for row in lifecycle_rows:
+        if predicate(row):
+            return row
+    return None
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Export a predictive spot trade table from a milestones preset.")
     ap.add_argument("--milestones", required=True, help="Input milestones / champion JSON.")
@@ -172,6 +256,28 @@ def main(argv: list[str] | None = None) -> int:
         "shock_atr_vel_pct",
         "shock_atr_accel_pct",
         "exit_signal_age_bars",
+        "first_fast_adverse_ts",
+        "first_fast_adverse_bars",
+        "first_fast_adverse_slope_med_pct",
+        "first_fast_adverse_tr_ratio",
+        "first_fast_adverse_to_exit_pct",
+        "first_slow_adverse_ts",
+        "first_slow_adverse_bars",
+        "first_slow_adverse_slope_med_slow_pct",
+        "first_slow_adverse_tr_ratio",
+        "first_slow_adverse_to_exit_pct",
+        "first_tr_stretch_ts",
+        "first_tr_stretch_bars",
+        "first_tr_stretch_tr_ratio",
+        "first_tr_stretch_to_exit_pct",
+        "first_stale_signal_ge2_ts",
+        "first_stale_signal_ge2_bars",
+        "first_stale_signal_ge2_to_exit_pct",
+        "first_local_collapse_ts",
+        "first_local_collapse_bars",
+        "first_local_collapse_15m_pos",
+        "first_local_collapse_1h_pos",
+        "first_local_collapse_to_exit_pct",
     ]
     for label, _bars in horizon_specs:
         fieldnames.extend([f"{label}_fwd_close_pct", f"{label}_mfe_pct", f"{label}_mae_pct"])
@@ -248,6 +354,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         exec_bars = ctx.exec_bars if isinstance(ctx.exec_bars, list) else bars_sig
         ts_to_idx = {bar.ts: i for i, bar in enumerate(exec_bars)}
+        lifecycle_rows = [dict(r) for r in (result.lifecycle_trace or []) if isinstance(r, dict)]
         window_label = f"{start.isoformat()}->{end.isoformat()}"
         for trade in result.trades:
             if not isinstance(trade, SpotTrade) or trade.exit_time is None:
@@ -259,8 +366,91 @@ def main(argv: list[str] | None = None) -> int:
             last_exit = exits[-1] if exits else {}
             signal_snapshot = last_exit.get("signal_snapshot") if isinstance(last_exit, dict) else {}
             entry_idx = ts_to_idx.get(trade.entry_time)
-            if entry_idx is None:
+            exit_idx = ts_to_idx.get(trade.exit_time)
+            if entry_idx is None or exit_idx is None:
                 continue
+            trade_rows = [
+                row
+                for row in lifecycle_rows
+                if str(row.get("stage") or "") == "open_exit"
+                and isinstance(row.get("exec_idx"), (int, float))
+                and int(entry_idx) <= int(row["exec_idx"]) <= int(exit_idx)
+            ]
+            trade_sign = 1.0 if int(trade.qty) > 0 else -1.0
+            first_fast_adverse = _first_matching_lifecycle_row(
+                lifecycle_rows=trade_rows,
+                predicate=lambda row: (
+                    isinstance(row.get("ratsv_fast_slope_med_pct"), (int, float))
+                    and float(row["ratsv_fast_slope_med_pct"]) * float(trade_sign) <= 0.0
+                ),
+            )
+            first_slow_adverse = _first_matching_lifecycle_row(
+                lifecycle_rows=trade_rows,
+                predicate=lambda row: (
+                    isinstance(row.get("ratsv_slow_slope_med_pct"), (int, float))
+                    and float(row["ratsv_slow_slope_med_pct"]) * float(trade_sign) <= 0.0
+                ),
+            )
+            first_tr_stretch = _first_matching_lifecycle_row(
+                lifecycle_rows=trade_rows,
+                predicate=lambda row: (
+                    isinstance(row.get("ratsv_tr_ratio"), (int, float))
+                    and float(row["ratsv_tr_ratio"]) >= 1.0
+                ),
+            )
+            signal_exec_idxs = sorted(
+                int(row["exec_idx"]) for row in trade_rows if isinstance(row.get("exec_idx"), (int, float))
+            )
+            first_stale_signal_ge2_idx = None
+            for sig_exec_idx in signal_exec_idxs:
+                candidate_idx = int(sig_exec_idx) + 2
+                if candidate_idx <= int(exit_idx):
+                    first_stale_signal_ge2_idx = int(candidate_idx)
+                    break
+            first_local_collapse_idx = None
+            first_local_collapse_probe = None
+            for idx in range(int(entry_idx), int(exit_idx) + 1):
+                probe = _local_extrema_probe(
+                    bars=exec_bars,
+                    idx=int(idx),
+                    ref_price=float(exec_bars[int(idx)].close),
+                    exec_bar_size=exec_bar_size,
+                )
+                pos_15m = (probe.get("15m") or {}).get("range_pos") if isinstance(probe, dict) else None
+                pos_1h = (probe.get("1h") or {}).get("range_pos") if isinstance(probe, dict) else None
+                collapse_hit = (
+                    (int(trade.qty) > 0 and ((isinstance(pos_15m, (int, float)) and float(pos_15m) <= 0.25) or (isinstance(pos_1h, (int, float)) and float(pos_1h) <= 0.20)))
+                    or
+                    (int(trade.qty) < 0 and ((isinstance(pos_15m, (int, float)) and float(pos_15m) >= 0.75) or (isinstance(pos_1h, (int, float)) and float(pos_1h) >= 0.80)))
+                )
+                if collapse_hit:
+                    first_local_collapse_idx = int(idx)
+                    first_local_collapse_probe = probe
+                    break
+
+            def _row_idx(row: dict[str, object] | None) -> int | None:
+                if not isinstance(row, dict) or not isinstance(row.get("exec_idx"), (int, float)):
+                    return None
+                return int(row["exec_idx"])
+
+            fast_idx = _row_idx(first_fast_adverse)
+            slow_idx = _row_idx(first_slow_adverse)
+            tr_idx = _row_idx(first_tr_stretch)
+            fast_exit, _fast_mfe, _fast_mae = _event_outcome(
+                bars=exec_bars, qty=int(trade.qty), event_idx=fast_idx, exit_idx=int(exit_idx), exit_price=float(trade.exit_price)
+            )
+            slow_exit, _slow_mfe, _slow_mae = _event_outcome(
+                bars=exec_bars, qty=int(trade.qty), event_idx=slow_idx, exit_idx=int(exit_idx), exit_price=float(trade.exit_price)
+            )
+            tr_exit, _tr_mfe, _tr_mae = _event_outcome(
+                bars=exec_bars, qty=int(trade.qty), event_idx=tr_idx, exit_idx=int(exit_idx), exit_price=float(trade.exit_price)
+            )
+            stale_exit, _stale_mfe, _stale_mae = _event_outcome(
+                bars=exec_bars, qty=int(trade.qty), event_idx=first_stale_signal_ge2_idx, exit_idx=int(exit_idx), exit_price=float(trade.exit_price)
+            )
+            collapse_exit, _collapse_mfe, _collapse_mae = _event_outcome(
+                bars=exec_bars, qty=int(trade.qty), event_idx=first_local_collapse_idx, exit_idx=int(exit_idx), exit_price=float(trade.exit_price)
+            )
             row = {
                 "window": window_label,
                 "symbol": trade.symbol,
@@ -290,6 +480,54 @@ def main(argv: list[str] | None = None) -> int:
                 "exit_signal_age_bars": (
                     signal_snapshot.get("signal_snapshot_age_bars") if isinstance(signal_snapshot, dict) else None
                 ),
+                "first_fast_adverse_ts": first_fast_adverse.get("bar_ts") if isinstance(first_fast_adverse, dict) else None,
+                "first_fast_adverse_bars": (int(fast_idx) - int(entry_idx)) if fast_idx is not None else None,
+                "first_fast_adverse_slope_med_pct": (
+                    first_fast_adverse.get("ratsv_fast_slope_med_pct") if isinstance(first_fast_adverse, dict) else None
+                ),
+                "first_fast_adverse_tr_ratio": (
+                    first_fast_adverse.get("ratsv_tr_ratio") if isinstance(first_fast_adverse, dict) else None
+                ),
+                "first_fast_adverse_to_exit_pct": fast_exit,
+                "first_slow_adverse_ts": first_slow_adverse.get("bar_ts") if isinstance(first_slow_adverse, dict) else None,
+                "first_slow_adverse_bars": (int(slow_idx) - int(entry_idx)) if slow_idx is not None else None,
+                "first_slow_adverse_slope_med_slow_pct": (
+                    first_slow_adverse.get("ratsv_slow_slope_med_pct") if isinstance(first_slow_adverse, dict) else None
+                ),
+                "first_slow_adverse_tr_ratio": (
+                    first_slow_adverse.get("ratsv_tr_ratio") if isinstance(first_slow_adverse, dict) else None
+                ),
+                "first_slow_adverse_to_exit_pct": slow_exit,
+                "first_tr_stretch_ts": first_tr_stretch.get("bar_ts") if isinstance(first_tr_stretch, dict) else None,
+                "first_tr_stretch_bars": (int(tr_idx) - int(entry_idx)) if tr_idx is not None else None,
+                "first_tr_stretch_tr_ratio": (
+                    first_tr_stretch.get("ratsv_tr_ratio") if isinstance(first_tr_stretch, dict) else None
+                ),
+                "first_tr_stretch_to_exit_pct": tr_exit,
+                "first_stale_signal_ge2_ts": (
+                    exec_bars[int(first_stale_signal_ge2_idx)].ts.isoformat() if first_stale_signal_ge2_idx is not None else None
+                ),
+                "first_stale_signal_ge2_bars": (
+                    int(first_stale_signal_ge2_idx) - int(entry_idx) if first_stale_signal_ge2_idx is not None else None
+                ),
+                "first_stale_signal_ge2_to_exit_pct": stale_exit,
+                "first_local_collapse_ts": (
+                    exec_bars[int(first_local_collapse_idx)].ts.isoformat() if first_local_collapse_idx is not None else None
+                ),
+                "first_local_collapse_bars": (
+                    int(first_local_collapse_idx) - int(entry_idx) if first_local_collapse_idx is not None else None
+                ),
+                "first_local_collapse_15m_pos": (
+                    ((first_local_collapse_probe.get("15m") or {}).get("range_pos"))
+                    if isinstance(first_local_collapse_probe, dict)
+                    else None
+                ),
+                "first_local_collapse_1h_pos": (
+                    ((first_local_collapse_probe.get("1h") or {}).get("range_pos"))
+                    if isinstance(first_local_collapse_probe, dict)
+                    else None
+                ),
+                "first_local_collapse_to_exit_pct": collapse_exit,
             }
             entry_price = float(trade.entry_price)
             for label, bars_ahead in horizon_specs:
