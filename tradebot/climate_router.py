@@ -182,6 +182,25 @@ def classify_climate_v3(features: YearFeatures) -> ClimateDecision:
     return ClimateDecision(climate="negative_transition_bear", chosen_host="lf_defensive_long_v1")
 
 
+def classify_climate_v4(features: YearFeatures) -> ClimateDecision:
+    if (
+        features.ret > 0.0
+        and features.maxdd <= 0.40
+        and features.rv <= 0.55
+        and features.dd_frac_ge_10pct < 0.45
+    ):
+        return ClimateDecision(climate="bull_grind_low_vol", chosen_host="buyhold")
+    if features.ret > 0.0:
+        return ClimateDecision(climate="positive_high_stress_transition", chosen_host="hf_host")
+    if (
+        features.maxdd >= 0.70
+        or features.rv >= 0.85
+        or features.dd_frac_ge_10pct >= 0.80
+    ):
+        return ClimateDecision(climate="negative_extreme_bear", chosen_host="hf_host")
+    return ClimateDecision(climate="negative_transition_bear", chosen_host="lf_defensive_long_v2")
+
+
 def _pdd_from_equity_curve(curve: list[float]) -> tuple[float, float, float]:
     equity = curve[-1] if curve else 100_000.0
     peak = 100_000.0
@@ -249,6 +268,54 @@ def moving_average_year_pdd(
     return _pdd_from_equity_curve(curve)
 
 
+def drawdown_kill_year_pdd(
+    days: list[DailyBar],
+    year: int,
+    *,
+    on_dd: float,
+    off_dd: float,
+    ma_window: int = 0,
+    reentry_buffer: float = 0.0,
+) -> tuple[float, float, float]:
+    idxs = [i for i, bar in enumerate(days) if f"{year:04d}-" <= bar.ts < f"{year + 1:04d}-"]
+    if len(idxs) < 2:
+        raise SystemExit(f"Not enough daily bars for year {year}")
+
+    closes = [bar.close for bar in days]
+    sma: list[float | None] = [None] * len(days)
+    if int(ma_window) > 0:
+        for i in range(int(ma_window) - 1, len(days)):
+            sma[i] = sum(closes[i - int(ma_window) + 1 : i + 1]) / float(ma_window)
+
+    equity = 100_000.0
+    curve: list[float] = []
+    prev_close = days[idxs[0] - 1].close if idxs[0] > 0 else days[idxs[0]].close
+    price_peak = days[idxs[0]].close
+    pos = 1.0
+    for i in idxs:
+        close = days[i].close
+        if close > price_peak:
+            price_peak = close
+        price_dd = (price_peak - close) / price_peak if price_peak > 0 else 0.0
+        if pos > 0.0 and price_dd >= float(on_dd):
+            pos = 0.0
+        elif pos <= 0.0:
+            ma_ok = True
+            if int(ma_window) > 0:
+                prev_idx = i - 1
+                prev_ma = sma[prev_idx] if prev_idx >= 0 else None
+                prev_price = days[prev_idx].close if prev_idx >= 0 else close
+                ma_ok = prev_ma is not None and prev_price >= float(prev_ma) * (1.0 + float(reentry_buffer))
+            if price_dd <= float(off_dd) and bool(ma_ok):
+                pos = 1.0
+                price_peak = close
+        ret = (close / prev_close) - 1.0
+        equity *= 1.0 + (pos * ret)
+        curve.append(equity)
+        prev_close = close
+    return _pdd_from_equity_curve(curve)
+
+
 def named_host_year_pdd(days: list[DailyBar], year: int, host_name: str) -> tuple[float, float, float]:
     host = str(host_name).strip().lower()
     if host == "buyhold":
@@ -257,6 +324,8 @@ def named_host_year_pdd(days: list[DailyBar], year: int, host_name: str) -> tupl
         return moving_average_year_pdd(days, year, window=200)
     if host == "lf_defensive_long_v1":
         return moving_average_year_pdd(days, year, window=50, entry_buffer=0.02, exit_buffer=0.0)
+    if host == "lf_defensive_long_v2":
+        return drawdown_kill_year_pdd(days, year, on_dd=0.15, off_dd=0.08, ma_window=0, reentry_buffer=0.0)
     raise SystemExit(f"Unknown host: {host_name!r}")
 
 

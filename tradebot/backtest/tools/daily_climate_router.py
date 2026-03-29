@@ -11,6 +11,7 @@ from ...climate_router import (
     buyhold_year_pdd,
     classify_climate_v2,
     classify_climate_v3,
+    classify_climate_v4,
     compute_year_features,
     hf_host_year_stats,
     load_daily_bars_from_intraday_csv,
@@ -30,7 +31,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--hf-label", default="v43")
     ap.add_argument("--start-year", type=int, default=2017)
     ap.add_argument("--end-year", type=int, default=2025)
-    ap.add_argument("--router-version", choices=("v2", "v3"), default="v3")
+    ap.add_argument("--router-version", choices=("v2", "v3", "v4"), default="v4")
     ap.add_argument("--out-csv", default="/tmp/tqqq_daily_climate_years_v2.csv")
     ap.add_argument("--out-md", default="/tmp/tqqq_daily_climate_router_v2.md")
     args = ap.parse_args(argv)
@@ -46,10 +47,16 @@ def main(argv: list[str] | None = None) -> int:
     rows: list[dict[str, object]] = []
     for year in range(int(args.start_year), int(args.end_year) + 1):
         features = compute_year_features(daily_bars, year)
-        decision = classify_climate_v2(features) if str(args.router_version) == "v2" else classify_climate_v3(features)
+        if str(args.router_version) == "v2":
+            decision = classify_climate_v2(features)
+        elif str(args.router_version) == "v3":
+            decision = classify_climate_v3(features)
+        else:
+            decision = classify_climate_v4(features)
         buy_pnl, buy_dd, buy_pdd = buyhold_year_pdd(daily_bars, year)
         sma_pnl, sma_dd, sma_pdd = moving_average_year_pdd(daily_bars, year, window=200)
         lf_pnl, lf_dd, lf_pdd = named_host_year_pdd(daily_bars, year, "lf_defensive_long_v1")
+        lf2_pnl, lf2_dd, lf2_pdd = named_host_year_pdd(daily_bars, year, "lf_defensive_long_v2")
         hf_pnl, hf_dd, hf_pdd, hf_trades, hf_win_rate = hf_host_year_stats(
             strategy=hf_strategy,
             year=year,
@@ -61,6 +68,7 @@ def main(argv: list[str] | None = None) -> int:
             "buyhold": ("buyhold", buy_pnl, buy_dd, buy_pdd, 0, 0.0),
             "sma200": ("sma200", sma_pnl, sma_dd, sma_pdd, 0, 0.0),
             "lf_defensive_long_v1": ("lf_defensive_long_v1", lf_pnl, lf_dd, lf_pdd, 0, 0.0),
+            "lf_defensive_long_v2": ("lf_defensive_long_v2", lf2_pnl, lf2_dd, lf2_pdd, 0, 0.0),
             "hf_host": (str(args.hf_label), hf_pnl, hf_dd, hf_pdd, hf_trades, hf_win_rate),
         }[decision.chosen_host]
 
@@ -85,6 +93,9 @@ def main(argv: list[str] | None = None) -> int:
                 "lf_defensive_long_v1_pnl": float(lf_pnl),
                 "lf_defensive_long_v1_dd_pct": float(lf_dd),
                 "lf_defensive_long_v1_pdd": float(lf_pdd),
+                "lf_defensive_long_v2_pnl": float(lf2_pnl),
+                "lf_defensive_long_v2_dd_pct": float(lf2_dd),
+                "lf_defensive_long_v2_pdd": float(lf2_pdd),
                 "hf_host_label": str(args.hf_label),
                 "hf_host_pnl": float(hf_pnl),
                 "hf_host_dd_pct": float(hf_dd),
@@ -114,16 +125,18 @@ def main(argv: list[str] | None = None) -> int:
     lines.append("- `negative_extreme_bear`: `ret<=0` and (`maxdd>=0.70` or `rv>=0.85` or `dd_frac_ge_10pct>=0.80`) -> host=`hf_host`")
     if str(args.router_version) == "v2":
         lines.append("- `negative_transition_bear`: otherwise -> host=`sma200`")
-    else:
+    elif str(args.router_version) == "v3":
         lines.append("- `negative_transition_bear`: otherwise -> host=`lf_defensive_long_v1` (`ma50`, `entry_buffer=2%`, `exit_buffer=0`) ")
+    else:
+        lines.append("- `negative_transition_bear`: otherwise -> host=`lf_defensive_long_v2` (`drawdown_kill`, `on=15%`, `off=8%`, no MA re-entry gate`) ")
     lines.append("")
-    lines.append("| Year | ret | maxdd | rv | eff | dd>=10% frac | climate | buyhold | sma200 | lf_def_v1 | hf_host | chosen | chosen pdd |")
-    lines.append("| --- | ---: | ---: | ---: | ---: | ---: | --- | ---: | ---: | ---: | ---: | --- | ---: |")
+    lines.append("| Year | ret | maxdd | rv | eff | dd>=10% frac | climate | buyhold | sma200 | lf_def_v1 | lf_def_v2 | hf_host | chosen | chosen pdd |")
+    lines.append("| --- | ---: | ---: | ---: | ---: | ---: | --- | ---: | ---: | ---: | ---: | ---: | --- | ---: |")
     for row in rows:
         lines.append(
             f"| {int(row['year'])} | {float(row['ret']):.3f} | {float(row['maxdd']):.3f} | "
             f"{float(row['rv']):.3f} | {float(row['efficiency']):.3f} | {float(row['dd_frac_ge_10pct']):.3f} | "
-            f"{row['climate_v2']} | {float(row['buyhold_pdd']):.3f} | {float(row['sma200_pdd']):.3f} | {float(row['lf_defensive_long_v1_pdd']):.3f} | "
+            f"{row['climate_v2']} | {float(row['buyhold_pdd']):.3f} | {float(row['sma200_pdd']):.3f} | {float(row['lf_defensive_long_v1_pdd']):.3f} | {float(row['lf_defensive_long_v2_pdd']):.3f} | "
             f"{float(row['hf_host_pdd']):.3f} | {row['chosen_host_v2']} | {float(row['chosen_pdd_v2']):.3f} |"
         )
     lines.append("")

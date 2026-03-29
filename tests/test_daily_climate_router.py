@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from tradebot.climate_router import ClimateDecision, YearFeatures, classify_climate_v2, classify_climate_v3
+from tradebot.climate_router import ClimateDecision, YearFeatures, classify_climate_v2, classify_climate_v3, classify_climate_v4
 
 
 def test_classify_climate_v2_bull_grind_low_vol() -> None:
@@ -81,3 +81,19 @@ def test_classify_climate_v3_negative_transition_bear_uses_defensive_host() -> N
     )
     out = classify_climate_v3(features)
     assert out == ClimateDecision(climate="negative_transition_bear", chosen_host="lf_defensive_long_v1")
+
+
+def test_classify_climate_v4_negative_transition_bear_uses_drawdown_kill_host() -> None:
+    features = YearFeatures(
+        year=2018,
+        ret=-0.24,
+        maxdd=0.58,
+        rv=0.68,
+        atr_med=0.04,
+        atr_mean=0.05,
+        up_frac=0.54,
+        efficiency=0.03,
+        dd_frac_ge_10pct=0.52,
+    )
+    out = classify_climate_v4(features)
+    assert out == ClimateDecision(climate="negative_transition_bear", chosen_host="lf_defensive_long_v2")
