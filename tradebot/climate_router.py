@@ -163,6 +163,25 @@ def classify_climate_v2(features: YearFeatures) -> ClimateDecision:
     return ClimateDecision(climate="negative_transition_bear", chosen_host="sma200")
 
 
+def classify_climate_v3(features: YearFeatures) -> ClimateDecision:
+    if (
+        features.ret > 0.0
+        and features.maxdd <= 0.40
+        and features.rv <= 0.55
+        and features.dd_frac_ge_10pct < 0.45
+    ):
+        return ClimateDecision(climate="bull_grind_low_vol", chosen_host="buyhold")
+    if features.ret > 0.0:
+        return ClimateDecision(climate="positive_high_stress_transition", chosen_host="hf_host")
+    if (
+        features.maxdd >= 0.70
+        or features.rv >= 0.85
+        or features.dd_frac_ge_10pct >= 0.80
+    ):
+        return ClimateDecision(climate="negative_extreme_bear", chosen_host="hf_host")
+    return ClimateDecision(climate="negative_transition_bear", chosen_host="lf_defensive_long_v1")
+
+
 def _pdd_from_equity_curve(curve: list[float]) -> tuple[float, float, float]:
     equity = curve[-1] if curve else 100_000.0
     peak = 100_000.0
@@ -228,6 +247,17 @@ def moving_average_year_pdd(
         curve.append(equity)
         prev_close = days[i].close
     return _pdd_from_equity_curve(curve)
+
+
+def named_host_year_pdd(days: list[DailyBar], year: int, host_name: str) -> tuple[float, float, float]:
+    host = str(host_name).strip().lower()
+    if host == "buyhold":
+        return buyhold_year_pdd(days, year)
+    if host == "sma200":
+        return moving_average_year_pdd(days, year, window=200)
+    if host == "lf_defensive_long_v1":
+        return moving_average_year_pdd(days, year, window=50, entry_buffer=0.02, exit_buffer=0.0)
+    raise SystemExit(f"Unknown host: {host_name!r}")
 
 
 def load_hf_host_strategy(milestones_path: Path):
