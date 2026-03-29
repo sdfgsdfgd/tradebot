@@ -39,6 +39,9 @@ Canonical execution paths:
   - `positive_high_stress_transition / negative_extreme_bear -> v43`
 - Result:
   - worst-year chosen `pnl/dd ≈ 0.312`
+- Status:
+  - diagnostic only; later steward-host evaluation uncovered lookahead in the daily host prototypes
+  - kept for lineage truth, not for promotion
 
 ### Router v3
 - First steward-host dethrone:
@@ -46,6 +49,8 @@ Canonical execution paths:
   - `lf_defensive_long_v1 = ma50, entry_buffer=2%, exit_buffer=0`
 - Result:
   - worst-year chosen `pnl/dd ≈ 0.713`
+- Status:
+  - diagnostic only; later recalibration superseded this host under corrected no-lookahead semantics
 
 ### Router v4
 - Steward-host upgrade:
@@ -64,6 +69,9 @@ Canonical execution paths:
     - `2023 5.774`
     - `2024 1.500`
     - `2025 6.951`
+- Status:
+  - invalid as a promotion result; later found to contain lookahead in the daily host evaluation path
+  - the architecture survived, the quoted ladder did not
 
 ## Current Champions (stack)
 
