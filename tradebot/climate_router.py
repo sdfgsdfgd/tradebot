@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 from statistics import mean, median, pstdev
+from collections.abc import Mapping
 
 from .engine import SupertrendEngine
 from .backtest.engine import run_backtest
@@ -62,6 +63,44 @@ class RollingClimateState:
     proposed: ClimateDecision
     active: ClimateDecision
     dwell_days: int
+
+
+@dataclass(frozen=True)
+class RegimeRouterConfig:
+    enabled: bool = False
+    fast_window_days: int = 63
+    slow_window_days: int = 126
+    min_dwell_days: int = 10
+
+
+@dataclass(frozen=True)
+class RegimeRouterSnapshot:
+    ready: bool
+    climate: str | None
+    chosen_host: str | None
+    effective_entry_dir: str | None
+    dwell_days: int = 0
+
+
+def _get(source: Mapping[str, object] | object | None, key: str, default: object = None):
+    if source is None:
+        return default
+    if isinstance(source, Mapping):
+        return source.get(key, default)
+    return getattr(source, key, default)
+
+
+def regime_router_config(strategy: Mapping[str, object] | object | None) -> RegimeRouterConfig:
+    enabled = bool(_get(strategy, "regime_router", False))
+    fast = int(_get(strategy, "regime_router_fast_window_days", 63) or 63)
+    slow = int(_get(strategy, "regime_router_slow_window_days", 126) or 126)
+    dwell = int(_get(strategy, "regime_router_min_dwell_days", 10) or 10)
+    return RegimeRouterConfig(
+        enabled=bool(enabled),
+        fast_window_days=max(2, int(fast)),
+        slow_window_days=max(max(2, int(fast)), int(slow)),
+        min_dwell_days=max(1, int(dwell)),
+    )
 
 
 def load_daily_bars_from_intraday_csv(path: Path) -> list[DailyBar]:
@@ -408,6 +447,10 @@ def drawdown_kill_year_pdd(
     pos = 1.0
     for i in idxs:
         close = days[i].close
+        ret = (close / prev_close) - 1.0
+        equity *= 1.0 + (pos * ret)
+        curve.append(equity)
+        prev_close = close
         if close > price_peak:
             price_peak = close
         price_dd = (price_peak - close) / price_peak if price_peak > 0 else 0.0
@@ -416,17 +459,11 @@ def drawdown_kill_year_pdd(
         elif pos <= 0.0:
             ma_ok = True
             if int(ma_window) > 0:
-                prev_idx = i - 1
-                prev_ma = sma[prev_idx] if prev_idx >= 0 else None
-                prev_price = days[prev_idx].close if prev_idx >= 0 else close
-                ma_ok = prev_ma is not None and prev_price >= float(prev_ma) * (1.0 + float(reentry_buffer))
+                prev_ma = sma[i]
+                ma_ok = prev_ma is not None and close >= float(prev_ma) * (1.0 + float(reentry_buffer))
             if price_dd <= float(off_dd) and bool(ma_ok):
                 pos = 1.0
                 price_peak = close
-        ret = (close / prev_close) - 1.0
-        equity *= 1.0 + (pos * ret)
-        curve.append(equity)
-        prev_close = close
     return _pdd_from_equity_curve(curve)
 
 
@@ -465,6 +502,10 @@ def supertrend_long_year_pdd(
     pending_up = 0
     pending_down = 0
     for bar in seg:
+        ret = (bar.close / prev_close) - 1.0
+        equity *= 1.0 + (pos * ret)
+        curve.append(equity)
+        prev_close = bar.close
         snap = engine.update(high=float(bar.high), low=float(bar.low), close=float(bar.close))
         if snap.ready and snap.direction in ("up", "down"):
             if str(snap.direction) == "up":
@@ -477,11 +518,238 @@ def supertrend_long_year_pdd(
                 pos = 1.0
             elif str(snap.direction) == "down" and pending_down >= 1:
                 pos = 0.0
-        ret = (bar.close / prev_close) - 1.0
-        equity *= 1.0 + (pos * ret)
-        curve.append(equity)
-        prev_close = bar.close
     return _pdd_from_equity_curve(curve)
+
+
+def moving_average_target_dir(
+    days: list[DailyBar],
+    *,
+    window: int,
+    entry_buffer: float = 0.0,
+    exit_buffer: float = 0.0,
+) -> str | None:
+    if len(days) < max(2, int(window)):
+        return None
+    closes = [bar.close for bar in days]
+    ma: list[float | None] = [None] * len(days)
+    for i in range(int(window) - 1, len(days)):
+        ma[i] = sum(closes[i - int(window) + 1 : i + 1]) / float(window)
+    pos = 0.0
+    for i in range(1, len(days)):
+        prev_ma = ma[i - 1]
+        prev_price = days[i - 1].close
+        if prev_ma is not None:
+            if pos <= 0.0 and prev_price >= float(prev_ma) * (1.0 + float(entry_buffer)):
+                pos = 1.0
+            elif pos > 0.0 and prev_price <= float(prev_ma) * (1.0 - float(exit_buffer)):
+                pos = 0.0
+    return "up" if pos > 0.0 else None
+
+
+def drawdown_kill_target_dir(
+    days: list[DailyBar],
+    *,
+    on_dd: float,
+    off_dd: float,
+    ma_window: int = 0,
+    reentry_buffer: float = 0.0,
+) -> str | None:
+    if len(days) < 2:
+        return None
+    closes = [bar.close for bar in days]
+    sma: list[float | None] = [None] * len(days)
+    if int(ma_window) > 0:
+        for i in range(int(ma_window) - 1, len(days)):
+            sma[i] = sum(closes[i - int(ma_window) + 1 : i + 1]) / float(ma_window)
+
+    price_peak = days[0].close
+    pos = 1.0
+    for i, bar in enumerate(days):
+        close = float(bar.close)
+        if close > price_peak:
+            price_peak = close
+        price_dd = (price_peak - close) / price_peak if price_peak > 0 else 0.0
+        if pos > 0.0 and price_dd >= float(on_dd):
+            pos = 0.0
+        elif pos <= 0.0:
+            ma_ok = True
+            if int(ma_window) > 0:
+                ma_now = sma[i]
+                ma_ok = ma_now is not None and close >= float(ma_now) * (1.0 + float(reentry_buffer))
+            if price_dd <= float(off_dd) and bool(ma_ok):
+                pos = 1.0
+                price_peak = close
+    return "up" if pos > 0.0 else None
+
+
+def supertrend_long_target_dir(
+    days: list[DailyBar],
+    *,
+    atr_period: int,
+    multiplier: float,
+    reentry_confirm_days: int = 0,
+) -> str | None:
+    if len(days) < max(2, int(atr_period)):
+        return None
+    engine = SupertrendEngine(atr_period=int(atr_period), multiplier=float(multiplier), source="hl2")
+    pos = 0.0
+    pending_up = 0
+    pending_down = 0
+    for bar in days:
+        snap = engine.update(high=float(bar.high), low=float(bar.low), close=float(bar.close))
+        if snap.ready and snap.direction in ("up", "down"):
+            if str(snap.direction) == "up":
+                pending_up += 1
+                pending_down = 0
+            else:
+                pending_down += 1
+                pending_up = 0
+            if str(snap.direction) == "up" and pending_up >= max(1, int(reentry_confirm_days) + 1):
+                pos = 1.0
+            elif str(snap.direction) == "down" and pending_down >= 1:
+                pos = 0.0
+    return "up" if pos > 0.0 else None
+
+
+def named_host_target_dir(days: list[DailyBar], host_name: str) -> str | None:
+    host = str(host_name).strip().lower()
+    if host == "buyhold":
+        return "up" if days else None
+    if host == "sma200":
+        return moving_average_target_dir(days, window=200)
+    if host == "lf_defensive_long_v1":
+        return moving_average_target_dir(days, window=50, entry_buffer=0.02, exit_buffer=0.0)
+    if host == "lf_defensive_long_v2":
+        return drawdown_kill_target_dir(days, on_dd=0.15, off_dd=0.08, ma_window=0, reentry_buffer=0.0)
+    if host == "lf_defensive_long_st_v1":
+        return supertrend_long_target_dir(days, atr_period=21, multiplier=1.5, reentry_confirm_days=0)
+    if host == "hf_host":
+        return None
+    raise SystemExit(f"Unknown host: {host_name!r}")
+
+
+class DailyRegimeRouterEngine:
+    def __init__(self, *, config: RegimeRouterConfig) -> None:
+        self._cfg = config
+        self._completed_days: list[DailyBar] = []
+        self._current_day: str | None = None
+        self._day_open = 0.0
+        self._day_high = 0.0
+        self._day_low = 0.0
+        self._day_close = 0.0
+        self._active: ClimateDecision | None = None
+        self._pending: ClimateDecision | None = None
+        self._pending_days = 0
+
+    def _finalize_day(self) -> None:
+        if self._current_day is None:
+            return
+        self._completed_days.append(
+            DailyBar(
+                ts=str(self._current_day),
+                open=float(self._day_open),
+                high=float(self._day_high),
+                low=float(self._day_low),
+                close=float(self._day_close),
+            )
+        )
+        self._recompute_state()
+
+    def _recompute_state(self) -> None:
+        if len(self._completed_days) < int(self._cfg.slow_window_days):
+            self._active = None
+            self._pending = None
+            self._pending_days = 0
+            return
+        fast = compute_window_features(
+            self._completed_days,
+            label=len(self._completed_days),
+            start_idx=len(self._completed_days) - int(self._cfg.fast_window_days),
+            end_idx=len(self._completed_days),
+        )
+        slow = compute_window_features(
+            self._completed_days,
+            label=len(self._completed_days),
+            start_idx=len(self._completed_days) - int(self._cfg.slow_window_days),
+            end_idx=len(self._completed_days),
+        )
+        proposed = classify_climate_v4(slow)
+        if self._active is None:
+            self._active = proposed
+            self._pending = None
+            self._pending_days = 0
+            return
+        if proposed == self._active:
+            self._pending = None
+            self._pending_days = 0
+            return
+        if self._pending is None or self._pending != proposed:
+            self._pending = proposed
+            self._pending_days = 1
+        else:
+            self._pending_days += 1
+        if self._pending_days >= int(self._cfg.min_dwell_days):
+            self._active = proposed
+            self._pending = None
+            self._pending_days = 0
+
+    def update_bar(
+        self,
+        *,
+        ts: str,
+        open: float,
+        high: float,
+        low: float,
+        close: float,
+        hf_entry_dir: str | None,
+    ) -> RegimeRouterSnapshot:
+        day = str(ts)[:10]
+        if self._current_day is None:
+            self._current_day = day
+            self._day_open = float(open)
+            self._day_high = float(high)
+            self._day_low = float(low)
+            self._day_close = float(close)
+        elif day != self._current_day:
+            self._finalize_day()
+            self._current_day = day
+            self._day_open = float(open)
+            self._day_high = float(high)
+            self._day_low = float(low)
+            self._day_close = float(close)
+        else:
+            self._day_high = max(float(self._day_high), float(high))
+            self._day_low = min(float(self._day_low), float(low))
+            self._day_close = float(close)
+
+        if not bool(self._cfg.enabled):
+            return RegimeRouterSnapshot(
+                ready=False,
+                climate=None,
+                chosen_host=None,
+                effective_entry_dir=str(hf_entry_dir) if hf_entry_dir in ("up", "down") else None,
+                dwell_days=0,
+            )
+        if self._active is None:
+            return RegimeRouterSnapshot(
+                ready=False,
+                climate=None,
+                chosen_host="hf_host",
+                effective_entry_dir=str(hf_entry_dir) if hf_entry_dir in ("up", "down") else None,
+                dwell_days=int(self._pending_days),
+            )
+        chosen_host = str(self._active.chosen_host)
+        if chosen_host == "hf_host":
+            effective_dir = str(hf_entry_dir) if hf_entry_dir in ("up", "down") else None
+        else:
+            effective_dir = named_host_target_dir(self._completed_days, chosen_host)
+        return RegimeRouterSnapshot(
+            ready=True,
+            climate=str(self._active.climate),
+            chosen_host=chosen_host,
+            effective_entry_dir=str(effective_dir) if effective_dir in ("up", "down") else None,
+            dwell_days=int(self._pending_days),
+        )
 
 
 def load_hf_host_strategy(milestones_path: Path):

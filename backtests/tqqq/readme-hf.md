@@ -21,6 +21,50 @@ Canonical execution paths:
 - Spot sweeps/evolution: `python -m tradebot.backtest spot ...`
 - Multiwindow kingmaker eval: `python -m tradebot.backtest spot_multitimeframe ...`
 
+## Climate Router Log
+
+- `regime_router` is now the top-level opt-in contract for host routing.
+- Current central implementation lives in `tradebot/climate_router.py`.
+- This is intentionally above the HF host line; it exists to stop forcing one host to trade every climate.
+
+### Router v1
+- First prototype insight only:
+  - split the world into a bull-grind long host, a defensive host, and the HF host
+  - proved the architecture, not kept as a durable implementation
+
+### Router v2
+- First validated annual prototype:
+  - `bull_grind_low_vol -> buyhold`
+  - `negative_transition_bear -> sma200`
+  - `positive_high_stress_transition / negative_extreme_bear -> v43`
+- Result:
+  - worst-year chosen `pnl/dd ≈ 0.312`
+
+### Router v3
+- First steward-host dethrone:
+  - replace `sma200` with `lf_defensive_long_v1`
+  - `lf_defensive_long_v1 = ma50, entry_buffer=2%, exit_buffer=0`
+- Result:
+  - worst-year chosen `pnl/dd ≈ 0.713`
+
+### Router v4
+- Steward-host upgrade:
+  - replace `lf_defensive_long_v1` with `lf_defensive_long_v2`
+  - `lf_defensive_long_v2 = long-only daily drawdown kill-switch`
+  - `on_dd=15%`, `off_dd=8%`
+- Result:
+  - worst-year chosen `pnl/dd ≈ 1.500`
+  - chosen annual ladder:
+    - `2017 8.059`
+    - `2018 3.045`
+    - `2019 4.346`
+    - `2020 1.732`
+    - `2021 2.724`
+    - `2022 3.013`
+    - `2023 5.774`
+    - `2024 1.500`
+    - `2025 6.951`
+
 ## Current Champions (stack)
 
 ### CURRENT (v43) — Composite Context Confidence; canonical-cache reigning organism over the `2020..2025` universal-floor contract

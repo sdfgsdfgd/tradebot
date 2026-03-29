@@ -360,10 +360,10 @@ class StrategyConfigBase:
     spot_policy_pack: str | None = None
     spot_policy_graph: str | None = None
     spot_graph_profile: str | None = None
-    top_level_host_router_mode: str = "off"
-    top_level_host_router_fast_window_days: int = 63
-    top_level_host_router_slow_window_days: int = 126
-    top_level_host_router_min_dwell_days: int = 10
+    regime_router: bool = False
+    regime_router_fast_window_days: int = 63
+    regime_router_slow_window_days: int = 126
+    regime_router_min_dwell_days: int = 10
     spot_entry_policy: str | None = None
     spot_exit_policy: str | None = None
     spot_resize_policy: str | None = None

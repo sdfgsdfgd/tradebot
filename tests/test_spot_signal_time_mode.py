@@ -29,6 +29,37 @@ def _risk_filters() -> dict[str, object]:
 
 
 class SpotSignalTimeModeTests(unittest.TestCase):
+    def test_regime_router_overrides_entry_dir_and_emits_metadata(self) -> None:
+        strategy = {
+            **_strategy(),
+            "regime_router": True,
+            "regime_router_fast_window_days": 2,
+            "regime_router_slow_window_days": 4,
+            "regime_router_min_dwell_days": 1,
+        }
+        evaluator = SpotSignalEvaluator(
+            strategy=strategy,
+            filters=None,
+            bar_size="5 mins",
+            use_rth=False,
+            naive_ts_mode="utc",
+        )
+        bars = [
+            _bar(datetime(2025, 1, 1, 23, 55), 100.0),
+            _bar(datetime(2025, 1, 2, 23, 55), 101.0),
+            _bar(datetime(2025, 1, 3, 23, 55), 102.0),
+            _bar(datetime(2025, 1, 4, 23, 55), 103.0),
+            _bar(datetime(2025, 1, 5, 23, 55), 101.0),
+        ]
+        snap = None
+        for bar in bars:
+            snap = evaluator.update_signal_bar(bar)
+        self.assertIsNotNone(snap)
+        assert snap is not None
+        self.assertTrue(bool(snap.regime_router_ready))
+        self.assertEqual(str(snap.regime_router_host), "buyhold")
+        self.assertEqual(str(snap.entry_dir), "up")
+
     def test_utc_mode_keeps_same_et_trade_date_across_utc_midnight(self) -> None:
         evaluator = SpotSignalEvaluator(
             strategy=_strategy(),

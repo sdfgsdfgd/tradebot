@@ -4725,6 +4725,7 @@ def _run_spot_backtest_exec_loop(
         entry_regime4_transition_hot = False
         entry_regime4_owner = None
         entry_signal_branch = None
+        entry_regime_router_ready = False
         shock_dir_down_streak_bars = None
         ratsv_tr_ratio = None
         risk_tr_median_pct = None
@@ -4766,6 +4767,7 @@ def _run_spot_backtest_exec_loop(
                 entry_regime4_transition_hot = bool(getattr(sig_snap, "regime4_transition_hot", False))
                 entry_regime4_owner = getattr(sig_snap, "regime4_owner", None)
                 entry_signal_branch = sig_snap.entry_branch
+                entry_regime_router_ready = bool(getattr(sig_snap, "regime_router_ready", False))
                 shock_dir_down_streak_bars = getattr(sig_snap, "shock_dir_down_streak_bars", None)
                 ratsv_tr_ratio = sig_snap.ratsv_tr_ratio
                 risk_snap = getattr(sig_snap, "risk", None)
@@ -4908,6 +4910,12 @@ def _run_spot_backtest_exec_loop(
                     exit_candidates["flip"] = True
                     exit_ref_by_reason["flip"] = float(bar.close)
                     apply_slippage_by_reason["flip"] = True
+                elif is_signal_close and bool(entry_regime_router_ready):
+                    trade_dir = "up" if int(trade.qty) > 0 else "down" if int(trade.qty) < 0 else None
+                    if trade_dir in ("up", "down") and entry_signal_dir != trade_dir:
+                        exit_candidates["flip"] = True
+                        exit_ref_by_reason["flip"] = float(bar.close)
+                        apply_slippage_by_reason["flip"] = True
                 if spot_exit_time is not None:
                     ts_et = _ts_to_et(bar.ts)
                     if ts_et.time() >= spot_exit_time:

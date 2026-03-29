@@ -4747,6 +4747,14 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         open_dir: str | None,
         open_items: list[PortfolioItem],
     ) -> bool:
+        if bool(getattr(snap, "regime_router_ready", False)):
+            routed_dir = (
+                str(getattr(snap, "entry_dir", None))
+                if getattr(snap, "entry_dir", None) in ("up", "down")
+                else None
+            )
+            if open_dir in ("up", "down") and routed_dir != str(open_dir):
+                return True
         if not flip_exit_hit(
             exit_on_signal_flip=bool(instance.strategy.get("exit_on_signal_flip")),
             open_dir=open_dir,

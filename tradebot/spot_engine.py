@@ -41,6 +41,7 @@ from .engine import (
     resolve_spot_regime2_spec,
     spot_regime_apply_matches_direction,
 )
+from .climate_router import DailyRegimeRouterEngine, regime_router_config
 from .spot.lifecycle import apply_regime_gate
 from .signals import ema_next, ema_periods
 from .time_utils import NaiveTsModeInput, normalize_naive_ts_mode
@@ -127,6 +128,10 @@ class SpotSignalSnapshot:
     shock_atr_vel_pct: float | None = None
     shock_atr_accel_pct: float | None = None
     shock_ramp: dict[str, object] | None = None
+    regime_router_ready: bool = False
+    regime_router_climate: str | None = None
+    regime_router_host: str | None = None
+    regime_router_entry_dir: str | None = None
 # endregion
 
 
@@ -164,6 +169,8 @@ class SpotSignalEvaluator:
 
         self._sig_last_date = None
         self._sig_bars_in_day = 0
+        self._regime_router_cfg = regime_router_config(strategy)
+        self._regime_router = DailyRegimeRouterEngine(config=self._regime_router_cfg)
 
         # Entry signal
         entry_signal = normalize_spot_entry_signal(_get(strategy, "entry_signal", "ema"))
@@ -2861,6 +2868,21 @@ class SpotSignalEvaluator:
                 entry_dir_for_entries = None
             entry_branch = None
 
+        router_snap = self._regime_router.update_bar(
+            ts=str(bar.ts.isoformat()),
+            open=float(bar.open),
+            high=float(bar.high),
+            low=float(bar.low),
+            close=float(bar.close),
+            hf_entry_dir=str(entry_dir_for_entries) if entry_dir_for_entries in ("up", "down") else None,
+        )
+        if bool(self._regime_router_cfg.enabled):
+            entry_dir_for_entries = (
+                str(router_snap.effective_entry_dir) if router_snap.effective_entry_dir in ("up", "down") else None
+            )
+            if str(router_snap.chosen_host or "") != "hf_host":
+                entry_branch = None
+
         shock_atr_vel_pct = None
         shock_atr_accel_pct = None
         if shock_atr_pct is not None:
@@ -3306,6 +3328,12 @@ class SpotSignalEvaluator:
             shock_atr_vel_pct=float(shock_atr_vel_pct) if shock_atr_vel_pct is not None else None,
             shock_atr_accel_pct=float(shock_atr_accel_pct) if shock_atr_accel_pct is not None else None,
             shock_ramp=shock_ramp,
+            regime_router_ready=bool(router_snap.ready),
+            regime_router_climate=str(router_snap.climate) if router_snap.climate else None,
+            regime_router_host=str(router_snap.chosen_host) if router_snap.chosen_host else None,
+            regime_router_entry_dir=(
+                str(router_snap.effective_entry_dir) if router_snap.effective_entry_dir in ("up", "down") else None
+            ),
         )
         self._last_signal = signal
         self._last_snapshot = snap
