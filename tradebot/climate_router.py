@@ -21,6 +21,7 @@ from datetime import date
 from pathlib import Path
 from statistics import mean, median, pstdev
 
+from .engine import SupertrendEngine
 from .backtest.engine import run_backtest
 from .backtest.spot_codec import effective_filters_payload, filters_from_payload, make_bundle, metrics_from_summary, strategy_from_payload
 
@@ -51,6 +52,16 @@ class YearFeatures:
 class ClimateDecision:
     climate: str
     chosen_host: str
+
+
+@dataclass(frozen=True)
+class RollingClimateState:
+    ts: str
+    fast_features: YearFeatures
+    slow_features: YearFeatures
+    proposed: ClimateDecision
+    active: ClimateDecision
+    dwell_days: int
 
 
 def load_daily_bars_from_intraday_csv(path: Path) -> list[DailyBar]:
@@ -144,6 +155,55 @@ def compute_year_features(days: list[DailyBar], year: int) -> YearFeatures:
     )
 
 
+def compute_window_features(days: list[DailyBar], *, label: int, start_idx: int, end_idx: int) -> YearFeatures:
+    seg = days[int(start_idx) : int(end_idx)]
+    if len(seg) < 2:
+        raise SystemExit(f"Not enough daily bars for label {label}")
+
+    closes = [bar.close for bar in seg]
+    rets = [(seg[i].close / seg[i - 1].close) - 1.0 for i in range(1, len(seg))]
+    tr_pcts: list[float] = []
+    for i in range(1, len(seg)):
+        prev = seg[i - 1].close
+        tr = max(
+            seg[i].high - seg[i].low,
+            abs(seg[i].high - prev),
+            abs(seg[i].low - prev),
+        ) / prev
+        tr_pcts.append(tr)
+
+    peak = closes[0]
+    maxdd = 0.0
+    dd_days = 0
+    for close in closes:
+        if close > peak:
+            peak = close
+        dd = (peak - close) / peak
+        if dd > maxdd:
+            maxdd = dd
+        if dd >= 0.10:
+            dd_days += 1
+
+    total_ret = (closes[-1] / closes[0]) - 1.0
+    rv = (pstdev(rets) * math.sqrt(252)) if len(rets) > 1 else 0.0
+    path = sum(abs(ret) for ret in rets)
+    efficiency = (abs(total_ret) / path) if path > 0 else 0.0
+    up_frac = (sum(1 for ret in rets if ret > 0) / len(rets)) if rets else 0.0
+    dd_frac = dd_days / len(closes)
+
+    return YearFeatures(
+        year=int(label),
+        ret=float(total_ret),
+        maxdd=float(maxdd),
+        rv=float(rv),
+        atr_med=float(median(tr_pcts)) if tr_pcts else 0.0,
+        atr_mean=float(mean(tr_pcts)) if tr_pcts else 0.0,
+        up_frac=float(up_frac),
+        efficiency=float(efficiency),
+        dd_frac_ge_10pct=float(dd_frac),
+    )
+
+
 def classify_climate_v2(features: YearFeatures) -> ClimateDecision:
     if (
         features.ret > 0.0
@@ -199,6 +259,60 @@ def classify_climate_v4(features: YearFeatures) -> ClimateDecision:
     ):
         return ClimateDecision(climate="negative_extreme_bear", chosen_host="hf_host")
     return ClimateDecision(climate="negative_transition_bear", chosen_host="lf_defensive_long_v2")
+
+
+def rolling_climate_states(
+    days: list[DailyBar],
+    *,
+    fast_window_days: int = 63,
+    slow_window_days: int = 126,
+    min_dwell_days: int = 10,
+) -> list[RollingClimateState]:
+    fast_n = max(2, int(fast_window_days))
+    slow_n = max(int(fast_n), int(slow_window_days))
+    dwell_min = max(1, int(min_dwell_days))
+    if len(days) < slow_n:
+        return []
+
+    out: list[RollingClimateState] = []
+    active: ClimateDecision | None = None
+    pending: ClimateDecision | None = None
+    pending_days = 0
+
+    for end in range(slow_n, len(days) + 1):
+        fast = compute_window_features(days, label=end, start_idx=end - fast_n, end_idx=end)
+        slow = compute_window_features(days, label=end, start_idx=end - slow_n, end_idx=end)
+        proposed = classify_climate_v4(slow)
+
+        if active is None:
+            active = proposed
+            pending = None
+            pending_days = 0
+        elif proposed == active:
+            pending = None
+            pending_days = 0
+        else:
+            if pending is None or pending != proposed:
+                pending = proposed
+                pending_days = 1
+            else:
+                pending_days += 1
+            if pending_days >= dwell_min:
+                active = proposed
+                pending = None
+                pending_days = 0
+
+        out.append(
+            RollingClimateState(
+                ts=str(days[end - 1].ts),
+                fast_features=fast,
+                slow_features=slow,
+                proposed=proposed,
+                active=active,
+                dwell_days=int(pending_days),
+            )
+        )
+    return out
 
 
 def _pdd_from_equity_curve(curve: list[float]) -> tuple[float, float, float]:
@@ -326,7 +440,48 @@ def named_host_year_pdd(days: list[DailyBar], year: int, host_name: str) -> tupl
         return moving_average_year_pdd(days, year, window=50, entry_buffer=0.02, exit_buffer=0.0)
     if host == "lf_defensive_long_v2":
         return drawdown_kill_year_pdd(days, year, on_dd=0.15, off_dd=0.08, ma_window=0, reentry_buffer=0.0)
+    if host == "lf_defensive_long_st_v1":
+        return supertrend_long_year_pdd(days, year, atr_period=21, multiplier=1.5, reentry_confirm_days=0)
     raise SystemExit(f"Unknown host: {host_name!r}")
+
+
+def supertrend_long_year_pdd(
+    days: list[DailyBar],
+    year: int,
+    *,
+    atr_period: int,
+    multiplier: float,
+    reentry_confirm_days: int = 0,
+) -> tuple[float, float, float]:
+    seg = year_slice(days, year)
+    if len(seg) < 2:
+        raise SystemExit(f"Not enough daily bars for year {year}")
+
+    engine = SupertrendEngine(atr_period=int(atr_period), multiplier=float(multiplier), source="hl2")
+    equity = 100_000.0
+    curve: list[float] = []
+    prev_close = seg[0].close
+    pos = 0.0
+    pending_up = 0
+    pending_down = 0
+    for bar in seg:
+        snap = engine.update(high=float(bar.high), low=float(bar.low), close=float(bar.close))
+        if snap.ready and snap.direction in ("up", "down"):
+            if str(snap.direction) == "up":
+                pending_up += 1
+                pending_down = 0
+            else:
+                pending_down += 1
+                pending_up = 0
+            if str(snap.direction) == "up" and pending_up >= max(1, int(reentry_confirm_days) + 1):
+                pos = 1.0
+            elif str(snap.direction) == "down" and pending_down >= 1:
+                pos = 0.0
+        ret = (bar.close / prev_close) - 1.0
+        equity *= 1.0 + (pos * ret)
+        curve.append(equity)
+        prev_close = bar.close
+    return _pdd_from_equity_curve(curve)
 
 
 def load_hf_host_strategy(milestones_path: Path):
