@@ -140,10 +140,10 @@ def test_daily_regime_router_emits_host_managed_for_buyhold() -> None:
         )
     assert snap is not None
     assert snap.ready is True
-    assert snap.chosen_host == "bull_ma200_v1"
+    assert snap.chosen_host == "buyhold"
     assert snap.host_managed is True
-    assert snap.bull_sovereign_ok is True
-    assert snap.effective_entry_dir is None
+    assert snap.bull_sovereign_ok is False
+    assert snap.effective_entry_dir == "up"
 
 
 def test_classify_rolling_climate_v4_uses_fast_bull_recovery_when_hf_active() -> None:
@@ -290,6 +290,49 @@ def test_classify_rolling_climate_v5_uses_crash_sentinel() -> None:
     assert out == ClimateDecision(climate="negative_extreme_bear", chosen_host="hf_host")
 
 
+def test_classify_rolling_climate_v5_uses_learned_pre_bear_handoff() -> None:
+    crash = YearFeatures(
+        year=1,
+        ret=-0.05,
+        maxdd=0.20,
+        rv=0.55,
+        atr_med=0.02,
+        atr_mean=0.03,
+        up_frac=0.48,
+        efficiency=0.10,
+        dd_frac_ge_10pct=0.12,
+    )
+    fast = YearFeatures(
+        year=1,
+        ret=-0.12,
+        maxdd=0.23,
+        rv=0.60,
+        atr_med=0.02,
+        atr_mean=0.03,
+        up_frac=0.46,
+        efficiency=0.09,
+        dd_frac_ge_10pct=0.22,
+    )
+    slow = YearFeatures(
+        year=1,
+        ret=0.08,
+        maxdd=0.22,
+        rv=0.55,
+        atr_med=0.02,
+        atr_mean=0.03,
+        up_frac=0.55,
+        efficiency=0.04,
+        dd_frac_ge_10pct=0.18,
+    )
+    out = classify_rolling_climate_v5(
+        crash_features=crash,
+        fast_features=fast,
+        slow_features=slow,
+        active=None,
+    )
+    assert out == ClimateDecision(climate="pre_bear_handoff", chosen_host="hf_host")
+
+
 
 
 def test_regime_router_dwell_days_is_asymmetric() -> None:
@@ -304,7 +347,7 @@ def test_bull_sovereign_entry_ok_requires_confident_bull_path() -> None:
     fast = YearFeatures(
         year=1,
         ret=0.22,
-        maxdd=0.20,
+        maxdd=0.15,
         rv=0.50,
         atr_med=0.02,
         atr_mean=0.03,
@@ -315,12 +358,12 @@ def test_bull_sovereign_entry_ok_requires_confident_bull_path() -> None:
     slow = YearFeatures(
         year=1,
         ret=0.30,
-        maxdd=0.32,
-        rv=0.70,
+        maxdd=0.30,
+        rv=0.60,
         atr_med=0.03,
         atr_mean=0.04,
-        up_frac=0.55,
-        efficiency=0.10,
+        up_frac=0.54,
+        efficiency=0.05,
         dd_frac_ge_10pct=0.35,
     )
     assert bull_sovereign_entry_ok(
@@ -336,14 +379,14 @@ def test_bull_sovereign_entry_ok_requires_confident_bull_path() -> None:
         rv=0.61,
         atr_med=0.02,
         atr_mean=0.03,
-        up_frac=0.52,
-        efficiency=0.05,
+        up_frac=0.58,
+        efficiency=0.06,
         dd_frac_ge_10pct=0.31,
     )
     weak_fast = YearFeatures(
         year=1,
         ret=0.17,
-        maxdd=0.19,
+        maxdd=0.10,
         rv=0.55,
         atr_med=0.02,
         atr_mean=0.03,

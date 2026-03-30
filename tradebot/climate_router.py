@@ -101,7 +101,7 @@ def _get(source: Mapping[str, object] | object | None, key: str, default: object
 def regime_router_config(strategy: Mapping[str, object] | object | None) -> RegimeRouterConfig:
     enabled = bool(_get(strategy, "regime_router", False))
     fast = int(_get(strategy, "regime_router_fast_window_days", 63) or 63)
-    slow = int(_get(strategy, "regime_router_slow_window_days", 126) or 126)
+    slow = int(_get(strategy, "regime_router_slow_window_days", 84) or 84)
     dwell = int(_get(strategy, "regime_router_min_dwell_days", 10) or 10)
     return RegimeRouterConfig(
         enabled=bool(enabled),
@@ -160,19 +160,11 @@ def bull_sovereign_entry_ok(
     if fast_features is None or slow_features is None:
         return False
     return bool(
-        (
-            fast_features.efficiency >= 0.10
-            and slow_features.efficiency >= 0.09
-            and fast_features.maxdd <= 0.24
-            and slow_features.maxdd <= 0.38
-            and slow_features.rv <= 0.75
-        )
-        or (
-            fast_features.efficiency >= 0.15
-            and slow_features.efficiency >= 0.06
-            and fast_features.maxdd <= 0.20
-            and slow_features.maxdd <= 0.30
-        )
+        slow_features.rv >= 0.55
+        and slow_features.efficiency <= 0.05
+        and slow_features.maxdd >= 0.26
+        and fast_features.maxdd >= 0.14
+        and slow_features.up_frac <= 0.56
     )
 
 
@@ -382,6 +374,17 @@ def classify_rolling_climate_v5(
 ) -> ClimateDecision:
     slow = classify_climate_v4(slow_features)
     fast = classify_climate_v4(fast_features)
+
+    learned_pre_bear = (
+        slow_features.ret <= 0.10
+        and slow_features.maxdd >= 0.20
+        and slow_features.rv >= 0.50
+        and slow_features.efficiency <= 0.05
+        and fast_features.ret <= -0.10
+        and fast_features.maxdd >= 0.22
+    )
+    if learned_pre_bear:
+        return ClimateDecision(climate="pre_bear_handoff", chosen_host="hf_host")
 
     crash_now = (
         crash_features.ret <= -0.18

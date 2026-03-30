@@ -110,10 +110,10 @@ class SpotSignalTimeModeTests(unittest.TestCase):
         self.assertIsNotNone(snap)
         assert snap is not None
         self.assertTrue(bool(snap.regime_router_ready))
-        self.assertEqual(str(snap.regime_router_host), "bull_ma200_v1")
+        self.assertEqual(str(snap.regime_router_host), "buyhold")
         self.assertTrue(bool(snap.regime_router_host_managed))
-        self.assertTrue(bool(snap.regime_router_bull_sovereign_ok))
-        self.assertIsNone(snap.entry_dir)
+        self.assertFalse(bool(snap.regime_router_bull_sovereign_ok))
+        self.assertEqual(str(snap.entry_dir), "up")
 
     def test_utc_mode_keeps_same_et_trade_date_across_utc_midnight(self) -> None:
         evaluator = SpotSignalEvaluator(
