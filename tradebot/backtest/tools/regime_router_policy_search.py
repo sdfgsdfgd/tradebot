@@ -140,7 +140,7 @@ def _exact_replay(
 
     orig = cr.classify_rolling_climate_v5
 
-    def patched(*, crash_features, mid_features, fast_features, slow_features, active=None):
+    def patched(*, crash_features, fast_features, slow_features, active=None):
         if bear_rule.matches(
             {
                 "slow_ret": str(slow_features.ret),
@@ -155,7 +155,6 @@ def _exact_replay(
             return ClimateDecision(climate="pre_bear_handoff", chosen_host="hf_host")
         out = orig(
             crash_features=crash_features,
-            mid_features=mid_features,
             fast_features=fast_features,
             slow_features=slow_features,
             active=active,
