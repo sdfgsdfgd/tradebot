@@ -7,7 +7,7 @@ import csv
 from pathlib import Path
 from statistics import mean
 
-from ...climate_router import bull_sovereign_entry_ok, load_daily_bars_from_intraday_csv, rolling_climate_states
+from ...climate_router import bull_sovereign_entry_ok, load_daily_bars_from_intraday_csv, moving_average_target_dir, rolling_climate_states
 
 
 def _future_stats(days, start_idx: int, horizon: int) -> tuple[float | None, float | None]:
@@ -31,6 +31,27 @@ def _future_stats(days, start_idx: int, horizon: int) -> tuple[float | None, flo
     return (end_close / start_close) - 1.0, maxdd
 
 
+def _precompute_ma200_dirs(days) -> list[str | None]:
+    out: list[str | None] = []
+    for idx in range(len(days)):
+        out.append(moving_average_target_dir(days[: idx + 1], window=200))
+    return out
+
+
+def _forward_host_ret(days, *, start_idx: int, horizon: int, dir_by_idx: list[str | None]) -> float | None:
+    end_idx = min(len(days) - 1, int(start_idx) + int(horizon))
+    if end_idx <= int(start_idx):
+        return None
+    equity = 1.0
+    prev_close = float(days[start_idx].close)
+    for idx in range(int(start_idx) + 1, int(end_idx) + 1):
+        pos = 1.0 if dir_by_idx[int(idx)] == "up" else 0.0
+        close = float(days[idx].close)
+        equity *= 1.0 + (pos * ((close / prev_close) - 1.0))
+        prev_close = close
+    return equity - 1.0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Export daily regime-router feature rows for host-path distillation.")
     ap.add_argument("--intraday-csv", default="db/TQQQ/TQQQ_2016-01-01_2026-01-19_1min_rth.csv")
@@ -48,6 +69,7 @@ def main(argv: list[str] | None = None) -> int:
         slow_window_days=int(args.slow_window),
         min_dwell_days=int(args.dwell),
     )
+    ma200_dir_by_idx = _precompute_ma200_dirs(days)
     idx_by_ts = {str(bar.ts): i for i, bar in enumerate(days)}
 
     rows: list[dict[str, object]] = []
@@ -69,6 +91,7 @@ def main(argv: list[str] | None = None) -> int:
         f5_ret, f5_dd = _future_stats(days, idx, 5)
         f10_ret, f10_dd = _future_stats(days, idx, 10)
         f21_ret, f21_dd = _future_stats(days, idx, 21)
+        bull_ma200_fwd_21d_ret = _forward_host_ret(days, start_idx=idx, horizon=21, dir_by_idx=ma200_dir_by_idx)
         rows.append(
             {
                 "ts": ts,
@@ -96,6 +119,14 @@ def main(argv: list[str] | None = None) -> int:
                 "fwd_10d_maxdd": float(f10_dd) if f10_dd is not None else None,
                 "fwd_21d_ret": float(f21_ret) if f21_ret is not None else None,
                 "fwd_21d_maxdd": float(f21_dd) if f21_dd is not None else None,
+                "bull_ma200_fwd_21d_ret": (
+                    float(bull_ma200_fwd_21d_ret) if bull_ma200_fwd_21d_ret is not None else None
+                ),
+                "bull_ma200_adv_21d": (
+                    float(bull_ma200_fwd_21d_ret) - float(f21_ret)
+                    if bull_ma200_fwd_21d_ret is not None and f21_ret is not None
+                    else None
+                ),
             }
         )
 
