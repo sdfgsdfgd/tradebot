@@ -4144,6 +4144,20 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                 if isinstance(getattr(snap, "shock_ramp", None), dict)
                 else None
             ),
+            regime_router_ready=bool(getattr(snap, "regime_router_ready", False)),
+            regime_router_climate=(
+                str(getattr(snap, "regime_router_climate", "") or "") or None
+            ),
+            regime_router_host=(
+                str(getattr(snap, "regime_router_host", "") or "") or None
+            ),
+            regime_router_entry_dir=(
+                str(getattr(snap, "regime_router_entry_dir", None))
+                if getattr(snap, "regime_router_entry_dir", None) in ("up", "down")
+                else None
+            ),
+            regime_router_host_managed=bool(getattr(snap, "regime_router_host_managed", False)),
+            regime_router_bull_sovereign_ok=bool(getattr(snap, "regime_router_bull_sovereign_ok", False)),
             bar_health=bar_health,
             regime_bar_health=regime_bar_health,
             regime2_bar_health=regime2_bar_health,
@@ -4747,6 +4761,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         open_dir: str | None,
         open_items: list[PortfolioItem],
     ) -> bool:
+        router_host_managed = bool(getattr(snap, "regime_router_host_managed", False))
         if bool(getattr(snap, "regime_router_ready", False)):
             routed_dir = (
                 str(getattr(snap, "entry_dir", None))
@@ -4755,6 +4770,8 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             )
             if open_dir in ("up", "down") and routed_dir != str(open_dir):
                 return True
+        if router_host_managed:
+            return False
         if not flip_exit_hit(
             exit_on_signal_flip=bool(instance.strategy.get("exit_on_signal_flip")),
             open_dir=open_dir,

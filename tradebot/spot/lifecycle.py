@@ -906,6 +906,7 @@ def signal_filter_checks(
     cooldown_ok: bool = True,
     shock: bool | None = None,
     shock_dir: str | None = None,
+    entry_gate_bypass: bool = False,
 ) -> dict[str, bool]:
     if filters is None:
         return {name: True for name, _predicate in _SIGNAL_FILTER_REGISTRY}
@@ -924,6 +925,9 @@ def signal_filter_checks(
     )
     checks: dict[str, bool] = {}
     for name, predicate in _SIGNAL_FILTER_REGISTRY:
+        if bool(entry_gate_bypass) and str(name) in ("shock_gate", "permission"):
+            checks[str(name)] = True
+            continue
         checks[str(name)] = bool(predicate(filters, ctx))
     return checks
 
@@ -942,6 +946,7 @@ def signal_filters_ok(
     cooldown_ok: bool = True,
     shock: bool | None = None,
     shock_dir: str | None = None,
+    entry_gate_bypass: bool = False,
 ) -> bool:
     checks = signal_filter_checks(
         filters,
@@ -956,6 +961,7 @@ def signal_filters_ok(
         cooldown_ok=bool(cooldown_ok),
         shock=shock,
         shock_dir=shock_dir,
+        entry_gate_bypass=bool(entry_gate_bypass),
     )
     return all(bool(v) for v in checks.values())
 
@@ -1309,6 +1315,7 @@ def decide_flat_position_intent(
     slope_vel_pct: float | None = None,
     slope_med_slow_pct: float | None = None,
     slope_vel_slow_pct: float | None = None,
+    entry_gate_bypass: bool = False,
 ) -> SpotLifecycleDecision:
     if bool(stale_signal):
         return SpotLifecycleDecision(
@@ -1405,37 +1412,46 @@ def decide_flat_position_intent(
             fill_mode=str(fill_mode),
             trace={"stage": "flat", "bar_ts": bar_ts.isoformat()},
         )
-    graph = SpotPolicyGraph.from_sources(strategy=strategy, filters=None)
-    entry_gate = graph.evaluate_entry_gate(
-        strategy=strategy,
-        bar_ts=bar_ts,
-        entry_dir=str(entry_dir) if entry_dir in ("up", "down") else None,
-        entry_context=entry_context,
-        shock_atr_pct=shock_atr_pct,
-        shock_atr_vel_pct=shock_atr_vel_pct,
-        shock_atr_accel_pct=shock_atr_accel_pct,
-        tr_ratio=tr_ratio,
-        tr_median_pct=tr_median_pct,
-        slope_med_pct=slope_med_pct,
-        slope_vel_pct=slope_vel_pct,
-        slope_med_slow_pct=slope_med_slow_pct,
-        slope_vel_slow_pct=slope_vel_slow_pct,
-    )
-    if not bool(entry_gate.allow):
-        return SpotLifecycleDecision(
-            intent="hold",
-            reason=str(entry_gate.reason or "graph_entry_gate"),
-            gate=str(entry_gate.gate or "BLOCKED_GRAPH_ENTRY"),
-            direction=str(entry_dir) if entry_dir in ("up", "down") else None,
-            fill_mode=str(fill_mode),
-            blocked=True,
-            trace={
-                "stage": "flat",
-                "bar_ts": bar_ts.isoformat(),
-                "fill_mode": str(fill_mode),
-                "graph_entry": entry_gate.as_payload(),
-            },
+    graph_payload: dict[str, object]
+    if bool(entry_gate_bypass):
+        graph_payload = {
+            "allow": True,
+            "reason": "entry_gate_bypass",
+            "gate": "ENTRY_GATE_BYPASS",
+        }
+    else:
+        graph = SpotPolicyGraph.from_sources(strategy=strategy, filters=None)
+        entry_gate = graph.evaluate_entry_gate(
+            strategy=strategy,
+            bar_ts=bar_ts,
+            entry_dir=str(entry_dir) if entry_dir in ("up", "down") else None,
+            entry_context=entry_context,
+            shock_atr_pct=shock_atr_pct,
+            shock_atr_vel_pct=shock_atr_vel_pct,
+            shock_atr_accel_pct=shock_atr_accel_pct,
+            tr_ratio=tr_ratio,
+            tr_median_pct=tr_median_pct,
+            slope_med_pct=slope_med_pct,
+            slope_vel_pct=slope_vel_pct,
+            slope_med_slow_pct=slope_med_slow_pct,
+            slope_vel_slow_pct=slope_vel_slow_pct,
         )
+        graph_payload = entry_gate.as_payload()
+        if not bool(entry_gate.allow):
+            return SpotLifecycleDecision(
+                intent="hold",
+                reason=str(entry_gate.reason or "graph_entry_gate"),
+                gate=str(entry_gate.gate or "BLOCKED_GRAPH_ENTRY"),
+                direction=str(entry_dir) if entry_dir in ("up", "down") else None,
+                fill_mode=str(fill_mode),
+                blocked=True,
+                trace={
+                    "stage": "flat",
+                    "bar_ts": bar_ts.isoformat(),
+                    "fill_mode": str(fill_mode),
+                    "graph_entry": graph_payload,
+                },
+            )
     return SpotLifecycleDecision(
         intent="enter",
         reason="entry",
@@ -1447,6 +1463,6 @@ def decide_flat_position_intent(
             "stage": "flat",
             "bar_ts": bar_ts.isoformat(),
             "fill_mode": str(fill_mode),
-            "graph_entry": entry_gate.as_payload(),
+            "graph_entry": graph_payload,
         },
     )

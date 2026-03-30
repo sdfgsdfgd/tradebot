@@ -2092,6 +2092,7 @@ class BotSignalRuntimeMixin:
 
             target_price = instance.spot_profit_target_price
             stop_price = instance.spot_stop_loss_price
+            router_host_managed = bool(getattr(snap, "regime_router_host_managed", False))
 
             try:
                 pt = (
@@ -2153,6 +2154,7 @@ class BotSignalRuntimeMixin:
             intrabar_enabled = bool(runtime_spec.intrabar_exits)
             if (
                 pos
+                and not router_host_managed
                 and intrabar_enabled
                 and exec_bar_open is not None
                 and exec_bar_high is not None
@@ -2193,7 +2195,13 @@ class BotSignalRuntimeMixin:
                 if pos < 0:
                     move = -move
 
-            if pos and market_price is not None and market_price > 0 and (stop_level is not None or profit_level is not None):
+            if (
+                pos
+                and not router_host_managed
+                and market_price is not None
+                and market_price > 0
+                and (stop_level is not None or profit_level is not None)
+            ):
                 try:
                     mp = float(market_price)
                 except (TypeError, ValueError):
@@ -2232,8 +2240,9 @@ class BotSignalRuntimeMixin:
                                 ),
                             )
 
-            exit_candidates: dict[str, bool] = {
-                "ratsv_probe_cancel": bool(
+            exit_candidates: dict[str, bool] = {}
+            if not router_host_managed:
+                exit_candidates["ratsv_probe_cancel"] = bool(
                     self._spot_ratsv_probe_cancel_hit(
                         instance=instance,
                         pos=pos,
@@ -2242,8 +2251,8 @@ class BotSignalRuntimeMixin:
                         tr_ratio=ratsv_tr_ratio,
                         slope_med=ratsv_slope_med,
                     )
-                ),
-                "ratsv_adverse_release": bool(
+                )
+                exit_candidates["ratsv_adverse_release"] = bool(
                     self._spot_ratsv_adverse_release_hit(
                         instance=instance,
                         pos=pos,
@@ -2252,17 +2261,16 @@ class BotSignalRuntimeMixin:
                         slope_med=ratsv_slope_med,
                         slope_vel=ratsv_slope_vel,
                     )
-                ),
-            }
+                )
 
-            exit_time = parse_time_hhmm(instance.strategy.get("spot_exit_time_et"))
-            if exit_time is not None and now_et.time() >= exit_time:
-                exit_candidates["exit_time"] = True
+                exit_time = parse_time_hhmm(instance.strategy.get("spot_exit_time_et"))
+                if exit_time is not None and now_et.time() >= exit_time:
+                    exit_candidates["exit_time"] = True
 
-            if bool(instance.strategy.get("spot_close_eod")) and (
-                now_et.hour > 15 or now_et.hour == 15 and now_et.minute >= 55
-            ):
-                exit_candidates["close_eod"] = True
+                if bool(instance.strategy.get("spot_close_eod")) and (
+                    now_et.hour > 15 or now_et.hour == 15 and now_et.minute >= 55
+                ):
+                    exit_candidates["close_eod"] = True
 
             exit_candidates["flip"] = bool(self._should_exit_on_flip(instance, snap, open_dir, open_items))
 
@@ -2273,7 +2281,11 @@ class BotSignalRuntimeMixin:
                 open_dir=open_dir,
                 current_qty=int(pos),
                 exit_candidates=exit_candidates,
-                signal_entry_dir=getattr(getattr(snap, "signal", None), "entry_dir", None),
+                signal_entry_dir=(
+                    str(getattr(snap, "entry_dir", None))
+                    if getattr(snap, "entry_dir", None) in ("up", "down")
+                    else None
+                ),
                 shock_atr_pct=float(snap.shock_atr_pct) if snap.shock_atr_pct is not None else None,
                 shock_atr_vel_pct=(
                     float(getattr(snap, "shock_atr_vel_pct", 0.0))
@@ -2525,6 +2537,7 @@ class BotSignalRuntimeMixin:
             slope_vel_slow_pct=float(getattr(snap, "ratsv_slow_slope_vel_pct", 0.0))
             if getattr(snap, "ratsv_slow_slope_vel_pct", None) is not None
             else None,
+            entry_gate_bypass=bool(getattr(snap, "regime_router_bull_sovereign_ok", False)),
         )
         if decision.intent != "enter":
             payload = {

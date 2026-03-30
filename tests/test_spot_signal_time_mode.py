@@ -1,7 +1,9 @@
 import unittest
 from datetime import datetime
+from types import SimpleNamespace
 
 from tradebot.backtest.models import Bar
+from tradebot.spot.lifecycle import decide_flat_position_intent, signal_filters_ok
 from tradebot.spot_engine import SpotSignalEvaluator
 
 
@@ -29,6 +31,57 @@ def _risk_filters() -> dict[str, object]:
 
 
 class SpotSignalTimeModeTests(unittest.TestCase):
+    def test_signal_filters_entry_gate_bypass_ignores_permission_and_shock_gate(self) -> None:
+        filters = {
+            "shock_mode": "block_longs",
+            "ema_spread_min_pct": 99.0,
+        }
+        signal = SimpleNamespace(entry_dir="up", ema_ready=False)
+        blocked = signal_filters_ok(
+            filters,
+            bar_ts=datetime(2025, 1, 2, 10, 0),
+            bars_in_day=5,
+            close=100.0,
+            signal=signal,
+            cooldown_ok=True,
+            shock=True,
+            shock_dir="down",
+            entry_gate_bypass=False,
+        )
+        bypassed = signal_filters_ok(
+            filters,
+            bar_ts=datetime(2025, 1, 2, 10, 0),
+            bars_in_day=5,
+            close=100.0,
+            signal=signal,
+            cooldown_ok=True,
+            shock=True,
+            shock_dir="down",
+            entry_gate_bypass=True,
+        )
+        self.assertFalse(bool(blocked))
+        self.assertTrue(bool(bypassed))
+
+    def test_entry_gate_bypass_short_circuits_graph_entry_gate(self) -> None:
+        decision = decide_flat_position_intent(
+            strategy={"spot_entry_context_confidence_mode": "continuation_v1"},
+            bar_ts=datetime(2025, 1, 2, 10, 0),
+            entry_dir="up",
+            entry_context=None,
+            allowed_directions=("up", "down"),
+            can_order_now=True,
+            preflight_ok=True,
+            filters_ok=True,
+            entry_capacity=True,
+            entry_gate_bypass=True,
+        )
+        self.assertEqual(str(decision.intent), "enter")
+        self.assertEqual(str(decision.gate), "TRIGGER_ENTRY")
+        self.assertEqual(
+            str(((decision.trace or {}).get("graph_entry") or {}).get("gate")),
+            "ENTRY_GATE_BYPASS",
+        )
+
     def test_regime_router_overrides_entry_dir_and_emits_metadata(self) -> None:
         strategy = {
             **_strategy(),
@@ -57,8 +110,10 @@ class SpotSignalTimeModeTests(unittest.TestCase):
         self.assertIsNotNone(snap)
         assert snap is not None
         self.assertTrue(bool(snap.regime_router_ready))
-        self.assertEqual(str(snap.regime_router_host), "buyhold")
-        self.assertEqual(str(snap.entry_dir), "up")
+        self.assertEqual(str(snap.regime_router_host), "bull_ma200_v1")
+        self.assertTrue(bool(snap.regime_router_host_managed))
+        self.assertTrue(bool(snap.regime_router_bull_sovereign_ok))
+        self.assertIsNone(snap.entry_dir)
 
     def test_utc_mode_keeps_same_et_trade_date_across_utc_midnight(self) -> None:
         evaluator = SpotSignalEvaluator(

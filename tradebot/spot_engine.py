@@ -132,6 +132,8 @@ class SpotSignalSnapshot:
     regime_router_climate: str | None = None
     regime_router_host: str | None = None
     regime_router_entry_dir: str | None = None
+    regime_router_host_managed: bool = False
+    regime_router_bull_sovereign_ok: bool = False
 # endregion
 
 
@@ -3334,6 +3336,8 @@ class SpotSignalEvaluator:
             regime_router_entry_dir=(
                 str(router_snap.effective_entry_dir) if router_snap.effective_entry_dir in ("up", "down") else None
             ),
+            regime_router_host_managed=bool(router_snap.host_managed),
+            regime_router_bull_sovereign_ok=bool(router_snap.bull_sovereign_ok),
         )
         self._last_signal = signal
         self._last_snapshot = snap

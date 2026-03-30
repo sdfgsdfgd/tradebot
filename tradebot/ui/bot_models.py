@@ -210,3 +210,9 @@ class _SignalSnapshot:
     bar_health: dict | None = None
     regime_bar_health: dict | None = None
     regime2_bar_health: dict | None = None
+    regime_router_ready: bool = False
+    regime_router_climate: str | None = None
+    regime_router_host: str | None = None
+    regime_router_entry_dir: str | None = None
+    regime_router_host_managed: bool = False
+    regime_router_bull_sovereign_ok: bool = False

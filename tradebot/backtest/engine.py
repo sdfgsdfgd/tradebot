@@ -3292,6 +3292,7 @@ def _spot_flat_entry_intent(
     slope_vel_pct: float | None,
     slope_med_slow_pct: float | None,
     slope_vel_slow_pct: float | None,
+    entry_gate_bypass: bool = False,
 ):
     atr_ready = bool(str(exit_mode) != "atr" or (atr_value is not None and float(atr_value) > 0.0))
     return decide_flat_position_intent(
@@ -3318,6 +3319,7 @@ def _spot_flat_entry_intent(
         slope_vel_pct=float(slope_vel_pct) if slope_vel_pct is not None else None,
         slope_med_slow_pct=float(slope_med_slow_pct) if slope_med_slow_pct is not None else None,
         slope_vel_slow_pct=float(slope_vel_slow_pct) if slope_vel_slow_pct is not None else None,
+        entry_gate_bypass=bool(entry_gate_bypass),
     )
 
 
@@ -3351,6 +3353,7 @@ def _spot_flat_entry_decision_from_signal(
     slope_vel_pct: float | None,
     slope_med_slow_pct: float | None,
     slope_vel_slow_pct: float | None,
+    entry_gate_bypass: bool = False,
 ):
     filters_ok = lifecycle_signal_filters_ok(
         filters,
@@ -3365,6 +3368,7 @@ def _spot_flat_entry_decision_from_signal(
         cooldown_ok=bool(cooldown_ok),
         shock=shock,
         shock_dir=shock_dir,
+        entry_gate_bypass=bool(entry_gate_bypass),
     )
     entry_capacity = _spot_entry_capacity_ok(
         open_count=int(open_count),
@@ -3397,6 +3401,7 @@ def _spot_flat_entry_decision_from_signal(
         slope_vel_pct=float(slope_vel_pct) if slope_vel_pct is not None else None,
         slope_med_slow_pct=float(slope_med_slow_pct) if slope_med_slow_pct is not None else None,
         slope_vel_slow_pct=float(slope_vel_slow_pct) if slope_vel_slow_pct is not None else None,
+        entry_gate_bypass=bool(entry_gate_bypass),
     )
 
 
@@ -4726,6 +4731,7 @@ def _run_spot_backtest_exec_loop(
         entry_regime4_owner = None
         entry_signal_branch = None
         entry_regime_router_ready = False
+        entry_regime_router_host_managed = False
         shock_dir_down_streak_bars = None
         ratsv_tr_ratio = None
         risk_tr_median_pct = None
@@ -4768,6 +4774,7 @@ def _run_spot_backtest_exec_loop(
                 entry_regime4_owner = getattr(sig_snap, "regime4_owner", None)
                 entry_signal_branch = sig_snap.entry_branch
                 entry_regime_router_ready = bool(getattr(sig_snap, "regime_router_ready", False))
+                entry_regime_router_host_managed = bool(getattr(sig_snap, "regime_router_host_managed", False))
                 shock_dir_down_streak_bars = getattr(sig_snap, "shock_dir_down_streak_bars", None)
                 ratsv_tr_ratio = sig_snap.ratsv_tr_ratio
                 risk_snap = getattr(sig_snap, "risk", None)
@@ -4790,7 +4797,7 @@ def _run_spot_backtest_exec_loop(
                     float(trade.entry_price),
                     int(trade.qty),
                     stop_loss_price=trade.stop_loss_price,
-                    stop_loss_pct=trade.stop_loss_pct,
+                    stop_loss_pct=(None if entry_regime_router_host_managed else trade.stop_loss_pct),
                 )
                 worst_ref = spot_intrabar_worst_ref(
                     qty=int(trade.qty),
@@ -4810,11 +4817,12 @@ def _run_spot_backtest_exec_loop(
         if open_trades:
             still_open: list[SpotTrade] = []
             for trade in open_trades:
+                router_host_managed = bool(entry_regime_router_host_managed)
                 exit_candidates: dict[str, bool] = {}
                 exit_ref_by_reason: dict[str, float] = {}
                 apply_slippage_by_reason: dict[str, bool] = {}
 
-                if spot_intrabar_exits:
+                if (not router_host_managed) and spot_intrabar_exits:
                     stop_level = spot_stop_level(
                         float(trade.entry_price),
                         int(trade.qty),
@@ -4844,7 +4852,7 @@ def _run_spot_backtest_exec_loop(
                         exit_candidates[reason] = True
                         exit_ref_by_reason[reason] = float(ref)
                         apply_slippage_by_reason[reason] = (kind != "profit")
-                else:
+                elif not router_host_managed:
                     if spot_hit_profit(
                         entry_price=float(trade.entry_price),
                         qty=int(trade.qty),
@@ -4871,6 +4879,7 @@ def _run_spot_backtest_exec_loop(
                 is_signal_close = sig_idx is not None
                 if (
                     is_signal_close
+                    and not router_host_managed
                     and _spot_ratsv_probe_cancel_hit(
                         cfg,
                         trade=trade,
@@ -4884,6 +4893,7 @@ def _run_spot_backtest_exec_loop(
                     apply_slippage_by_reason["ratsv_probe_cancel"] = True
                 if (
                     is_signal_close
+                    and not router_host_managed
                     and _spot_ratsv_adverse_release_hit(
                         cfg,
                         trade=trade,
@@ -4896,7 +4906,7 @@ def _run_spot_backtest_exec_loop(
                     exit_candidates["ratsv_adverse_release"] = True
                     exit_ref_by_reason["ratsv_adverse_release"] = float(bar.close)
                     apply_slippage_by_reason["ratsv_adverse_release"] = True
-                if is_signal_close and _spot_hit_flip_exit(
+                if is_signal_close and (not router_host_managed) and _spot_hit_flip_exit(
                     cfg,
                     trade,
                     bar,
@@ -4916,13 +4926,13 @@ def _run_spot_backtest_exec_loop(
                         exit_candidates["flip"] = True
                         exit_ref_by_reason["flip"] = float(bar.close)
                         apply_slippage_by_reason["flip"] = True
-                if spot_exit_time is not None:
+                if (not router_host_managed) and spot_exit_time is not None:
                     ts_et = _ts_to_et(bar.ts)
                     if ts_et.time() >= spot_exit_time:
                         exit_candidates["exit_time"] = True
                         exit_ref_by_reason["exit_time"] = float(bar.close)
                         apply_slippage_by_reason["exit_time"] = True
-                if bool(spot_close_eod) and is_last_bar:
+                if (not router_host_managed) and bool(spot_close_eod) and is_last_bar:
                     exit_candidates["close_eod"] = True
                     exit_ref_by_reason["close_eod"] = float(bar.close)
                     apply_slippage_by_reason["close_eod"] = True
@@ -5152,6 +5162,7 @@ def _run_spot_backtest_exec_loop(
             slope_vel_pct=float(ratsv_fast_slope_vel) if ratsv_fast_slope_vel is not None else None,
             slope_med_slow_pct=float(ratsv_slow_slope_med) if ratsv_slow_slope_med is not None else None,
             slope_vel_slow_pct=float(ratsv_slow_slope_vel) if ratsv_slow_slope_vel is not None else None,
+            entry_gate_bypass=bool(getattr(sig_snap, "regime_router_bull_sovereign_ok", False)),
         )
         _capture_lifecycle(
             stage="flat_entry",
