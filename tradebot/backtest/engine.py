@@ -2869,28 +2869,42 @@ def _load_spot_backtest_context_bars(
     BarSeries[Bar] | None,
 ]:
     def _load_requirement(req: SpotBarRequirement, req_start: datetime, req_end: datetime):
-        if str(req.kind) == "regime":
-            return _load_backtest_bars_offline_fallback_start(
+        if not bool(cfg.backtest.offline) or req_start == start_dt:
+            return _load_backtest_series(
                 data=data,
                 cfg=cfg,
                 symbol=req.symbol,
                 exchange=req.exchange,
                 start=req_start,
-                fallback_start=start_dt,
                 end=req_end,
                 bar_size=str(req.bar_size),
                 use_rth=bool(req.use_rth),
             )
-        return _load_backtest_series(
-            data=data,
-            cfg=cfg,
-            symbol=req.symbol,
-            exchange=req.exchange,
-            start=req_start,
-            end=req_end,
-            bar_size=str(req.bar_size),
-            use_rth=bool(req.use_rth),
-        )
+        try:
+            return _load_backtest_series(
+                data=data,
+                cfg=cfg,
+                symbol=req.symbol,
+                exchange=req.exchange,
+                start=req_start,
+                end=req_end,
+                bar_size=str(req.bar_size),
+                use_rth=bool(req.use_rth),
+            )
+        except FileNotFoundError:
+            # Router/indicator warmup can request earlier context windows than the cache contains.
+            # Falling back to the scoring start preserves run continuity while still warming up
+            # any slow indicators as bars arrive.
+            return _load_backtest_series(
+                data=data,
+                cfg=cfg,
+                symbol=req.symbol,
+                exchange=req.exchange,
+                start=start_dt,
+                end=req_end,
+                bar_size=str(req.bar_size),
+                use_rth=bool(req.use_rth),
+            )
 
     context = load_spot_context_bars(
         strategy=cfg.strategy,
@@ -2927,16 +2941,30 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
             ),
         )
     )
-    bar_series = _load_backtest_series(
-        data=data,
-        cfg=cfg,
-        symbol=cfg.strategy.symbol,
-        exchange=cfg.strategy.exchange,
-        start=signal_start_dt,
-        end=end_dt,
-        bar_size=cfg.backtest.bar_size,
-        use_rth=cfg.backtest.use_rth,
-    )
+    try:
+        bar_series = _load_backtest_series(
+            data=data,
+            cfg=cfg,
+            symbol=cfg.strategy.symbol,
+            exchange=cfg.strategy.exchange,
+            start=signal_start_dt,
+            end=end_dt,
+            bar_size=cfg.backtest.bar_size,
+            use_rth=cfg.backtest.use_rth,
+        )
+    except FileNotFoundError:
+        # Warmup can request bars earlier than the cached dataset starts (e.g. the first year in the cache).
+        # Fall back to the scoring start; downstream indicators will still warm up as bars arrive.
+        bar_series = _load_backtest_series(
+            data=data,
+            cfg=cfg,
+            symbol=cfg.strategy.symbol,
+            exchange=cfg.strategy.exchange,
+            start=start_dt,
+            end=end_dt,
+            bar_size=cfg.backtest.bar_size,
+            use_rth=cfg.backtest.use_rth,
+        )
     bars = bar_series.as_list()
     if not bars:
         raise RuntimeError("No bars loaded for backtest")
@@ -4920,7 +4948,7 @@ def _run_spot_backtest_exec_loop(
                     exit_candidates["flip"] = True
                     exit_ref_by_reason["flip"] = float(bar.close)
                     apply_slippage_by_reason["flip"] = True
-                elif is_signal_close and bool(entry_regime_router_ready):
+                elif is_signal_close and bool(entry_regime_router_ready) and bool(router_host_managed):
                     trade_dir = "up" if int(trade.qty) > 0 else "down" if int(trade.qty) < 0 else None
                     if trade_dir in ("up", "down") and entry_signal_dir != trade_dir:
                         exit_candidates["flip"] = True
@@ -5162,7 +5190,8 @@ def _run_spot_backtest_exec_loop(
             slope_vel_pct=float(ratsv_fast_slope_vel) if ratsv_fast_slope_vel is not None else None,
             slope_med_slow_pct=float(ratsv_slow_slope_med) if ratsv_slow_slope_med is not None else None,
             slope_vel_slow_pct=float(ratsv_slow_slope_vel) if ratsv_slow_slope_vel is not None else None,
-            entry_gate_bypass=bool(getattr(sig_snap, "regime_router_bull_sovereign_ok", False)),
+            entry_gate_bypass=bool(getattr(sig_snap, "regime_router_host_managed", False))
+            or bool(getattr(sig_snap, "regime_router_bull_sovereign_ok", False)),
         )
         _capture_lifecycle(
             stage="flat_entry",

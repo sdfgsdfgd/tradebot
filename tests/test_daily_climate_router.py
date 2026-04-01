@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from tradebot.climate_router import ClimateDecision, DailyBar, DailyRegimeRouterEngine, RegimeRouterConfig, RollingClimateState, YearFeatures, bull_sovereign_entry_ok, classify_climate_v2, classify_climate_v3, classify_climate_v4, classify_rolling_climate_v4, classify_rolling_climate_v5, host_policy, regime_router_dwell_days, rolling_climate_states
+from tradebot.climate_router import ClimateDecision, DailyBar, DailyRegimeRouterEngine, RegimeRouterConfig, RollingClimateState, YearFeatures, bull_sovereign_entry_ok, classify_climate_v2, classify_climate_v3, classify_climate_v4, classify_rolling_climate_v4, classify_rolling_climate_v5, damage_positive_lock_hit, host_policy, regime_router_dwell_days, rolling_climate_states
 
 
 def test_classify_climate_v2_bull_grind_low_vol() -> None:
@@ -287,7 +287,93 @@ def test_classify_rolling_climate_v5_uses_crash_sentinel() -> None:
         slow_features=slow,
         active=None,
     )
+    assert out == ClimateDecision(climate="negative_extreme_bear", chosen_host="lf_defensive_long_v1")
+
+
+def test_classify_rolling_climate_v5_keeps_hf_host_for_crash_when_slow_tape_is_bearish() -> None:
+    crash = YearFeatures(
+        year=1,
+        ret=-0.25,
+        maxdd=0.35,
+        rv=0.90,
+        atr_med=0.05,
+        atr_mean=0.06,
+        up_frac=0.30,
+        efficiency=0.10,
+        dd_frac_ge_10pct=0.30,
+    )
+    fast = YearFeatures(
+        year=1,
+        ret=0.02,
+        maxdd=0.18,
+        rv=0.45,
+        atr_med=0.02,
+        atr_mean=0.03,
+        up_frac=0.51,
+        efficiency=0.02,
+        dd_frac_ge_10pct=0.10,
+    )
+    slow = YearFeatures(
+        year=1,
+        ret=-0.50,
+        maxdd=0.65,
+        rv=0.80,
+        atr_med=0.03,
+        atr_mean=0.04,
+        up_frac=0.35,
+        efficiency=0.10,
+        dd_frac_ge_10pct=0.65,
+    )
+    out = classify_rolling_climate_v5(
+        crash_features=crash,
+        fast_features=fast,
+        slow_features=slow,
+        active=None,
+    )
     assert out == ClimateDecision(climate="negative_extreme_bear", chosen_host="hf_host")
+
+
+def test_classify_rolling_climate_v5_uses_episode_crash_takeover() -> None:
+    crash = YearFeatures(
+        year=1,
+        ret=-0.10,
+        maxdd=0.22,
+        rv=0.50,
+        atr_med=0.03,
+        atr_mean=0.04,
+        up_frac=0.40,
+        efficiency=0.08,
+        dd_frac_ge_10pct=0.20,
+    )
+    fast = YearFeatures(
+        year=1,
+        ret=0.08,
+        maxdd=0.16,
+        rv=0.45,
+        atr_med=0.02,
+        atr_mean=0.03,
+        up_frac=0.55,
+        efficiency=0.12,
+        dd_frac_ge_10pct=0.12,
+    )
+    slow = YearFeatures(
+        year=1,
+        ret=0.20,
+        maxdd=0.18,
+        rv=0.50,
+        atr_med=0.02,
+        atr_mean=0.03,
+        up_frac=0.55,
+        efficiency=0.15,
+        dd_frac_ge_10pct=0.12,
+    )
+    out = classify_rolling_climate_v5(
+        crash_features=crash,
+        fast_features=fast,
+        slow_features=slow,
+        active=None,
+    )
+    assert out == ClimateDecision(climate="episode_crash_takeover", chosen_host="hf_host")
 
 
 def test_classify_rolling_climate_v5_uses_learned_pre_bear_handoff() -> None:
@@ -331,6 +417,135 @@ def test_classify_rolling_climate_v5_uses_learned_pre_bear_handoff() -> None:
         active=None,
     )
     assert out == ClimateDecision(climate="pre_bear_handoff", chosen_host="hf_host")
+
+
+def test_classify_rolling_climate_v5_uses_defensive_host_on_pre_bear_rebound() -> None:
+    crash = YearFeatures(
+        year=1,
+        ret=0.25,
+        maxdd=0.18,
+        rv=0.95,
+        atr_med=0.02,
+        atr_mean=0.03,
+        up_frac=0.55,
+        efficiency=0.30,
+        dd_frac_ge_10pct=0.15,
+    )
+    fast = YearFeatures(
+        year=1,
+        ret=-0.15,
+        maxdd=0.25,
+        rv=0.75,
+        atr_med=0.02,
+        atr_mean=0.03,
+        up_frac=0.52,
+        efficiency=0.05,
+        dd_frac_ge_10pct=0.45,
+    )
+    slow = YearFeatures(
+        year=1,
+        ret=0.05,
+        maxdd=0.25,
+        rv=0.60,
+        atr_med=0.02,
+        atr_mean=0.03,
+        up_frac=0.52,
+        efficiency=0.04,
+        dd_frac_ge_10pct=0.45,
+    )
+    out = classify_rolling_climate_v5(
+        crash_features=crash,
+        fast_features=fast,
+        slow_features=slow,
+        active=None,
+    )
+    assert out == ClimateDecision(climate="pre_bear_handoff", chosen_host="lf_defensive_long_v1")
+
+
+def test_classify_rolling_climate_v5_uses_damage_positive_lock() -> None:
+    crash = YearFeatures(
+        year=1,
+        ret=0.05,
+        maxdd=0.05,
+        rv=0.30,
+        atr_med=0.01,
+        atr_mean=0.02,
+        up_frac=0.55,
+        efficiency=0.20,
+        dd_frac_ge_10pct=0.0,
+    )
+    fast = YearFeatures(
+        year=1,
+        ret=0.08,
+        maxdd=0.16,
+        rv=0.45,
+        atr_med=0.02,
+        atr_mean=0.03,
+        up_frac=0.55,
+        efficiency=0.12,
+        dd_frac_ge_10pct=0.12,
+    )
+    slow = YearFeatures(
+        year=1,
+        ret=0.18,
+        maxdd=0.25,
+        rv=0.55,
+        atr_med=0.03,
+        atr_mean=0.04,
+        up_frac=0.54,
+        efficiency=0.10,
+        dd_frac_ge_10pct=0.35,
+    )
+    out = classify_rolling_climate_v5(
+        crash_features=crash,
+        fast_features=fast,
+        slow_features=slow,
+        active=None,
+    )
+    assert out == ClimateDecision(climate="damage_positive_lock", chosen_host="lf_defensive_long_v1")
+
+
+def test_classify_rolling_climate_v5_uses_v1_for_negative_transition_bear() -> None:
+    crash = YearFeatures(
+        year=1,
+        ret=-0.05,
+        maxdd=0.10,
+        rv=0.40,
+        atr_med=0.02,
+        atr_mean=0.03,
+        up_frac=0.48,
+        efficiency=0.08,
+        dd_frac_ge_10pct=0.10,
+    )
+    fast = YearFeatures(
+        year=1,
+        ret=-0.08,
+        maxdd=0.26,
+        rv=0.60,
+        atr_med=0.03,
+        atr_mean=0.04,
+        up_frac=0.46,
+        efficiency=0.06,
+        dd_frac_ge_10pct=0.30,
+    )
+    slow = YearFeatures(
+        year=1,
+        ret=-0.14,
+        maxdd=0.34,
+        rv=0.62,
+        atr_med=0.03,
+        atr_mean=0.04,
+        up_frac=0.47,
+        efficiency=0.07,
+        dd_frac_ge_10pct=0.40,
+    )
+    out = classify_rolling_climate_v5(
+        crash_features=crash,
+        fast_features=fast,
+        slow_features=slow,
+        active=None,
+    )
+    assert out == ClimateDecision(climate="negative_transition_bear", chosen_host="lf_defensive_long_v1")
 
 
 
@@ -400,3 +615,39 @@ def test_bull_sovereign_entry_ok_requires_confident_bull_path() -> None:
         fast_features=weak_fast,
         slow_features=weak_slow,
     )
+
+
+def test_damage_positive_lock_hit_requires_damaged_positive_tape() -> None:
+    cfg = RegimeRouterConfig(
+        enabled=True,
+        fast_window_days=63,
+        slow_window_days=84,
+        min_dwell_days=10,
+        damage_positive_lock_maxdd_min=0.24,
+        damage_positive_lock_ret_max=0.20,
+        damage_positive_lock_eff_max=0.10,
+    )
+    slow_bad = YearFeatures(
+        year=1,
+        ret=0.19,
+        maxdd=0.25,
+        rv=0.55,
+        atr_med=0.03,
+        atr_mean=0.04,
+        up_frac=0.54,
+        efficiency=0.10,
+        dd_frac_ge_10pct=0.35,
+    )
+    slow_good = YearFeatures(
+        year=1,
+        ret=0.24,
+        maxdd=0.18,
+        rv=0.50,
+        atr_med=0.03,
+        atr_mean=0.04,
+        up_frac=0.56,
+        efficiency=0.10,
+        dd_frac_ge_10pct=0.22,
+    )
+    assert damage_positive_lock_hit(slow_features=slow_bad, config=cfg)
+    assert not damage_positive_lock_hit(slow_features=slow_good, config=cfg)

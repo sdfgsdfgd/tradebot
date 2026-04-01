@@ -62,7 +62,7 @@ def _patch_router(*, bull_mode: str, bear_mode: str):
     orig_classify = cr.classify_rolling_climate_v5
     orig_bull_ok = cr.bull_sovereign_entry_ok
 
-    def patched_classify(*, crash_features, fast_features, slow_features, active=None):
+    def patched_classify(*, crash_features, fast_features, slow_features, active=None, config=None):
         forced = _apply_bear_mode(
             mode=str(bear_mode),
             crash_features=crash_features,
@@ -77,6 +77,7 @@ def _patch_router(*, bull_mode: str, bear_mode: str):
             fast_features=fast_features,
             slow_features=slow_features,
             active=active,
+            config=config,
         )
         return _apply_bull_mode(
             mode=str(bull_mode),

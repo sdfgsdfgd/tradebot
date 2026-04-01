@@ -2537,7 +2537,8 @@ class BotSignalRuntimeMixin:
             slope_vel_slow_pct=float(getattr(snap, "ratsv_slow_slope_vel_pct", 0.0))
             if getattr(snap, "ratsv_slow_slope_vel_pct", None) is not None
             else None,
-            entry_gate_bypass=bool(getattr(snap, "regime_router_bull_sovereign_ok", False)),
+            entry_gate_bypass=bool(getattr(snap, "regime_router_host_managed", False))
+            or bool(getattr(snap, "regime_router_bull_sovereign_ok", False)),
         )
         if decision.intent != "enter":
             payload = {

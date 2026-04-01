@@ -4762,7 +4762,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         open_items: list[PortfolioItem],
     ) -> bool:
         router_host_managed = bool(getattr(snap, "regime_router_host_managed", False))
-        if bool(getattr(snap, "regime_router_ready", False)):
+        if router_host_managed and bool(getattr(snap, "regime_router_ready", False)):
             routed_dir = (
                 str(getattr(snap, "entry_dir", None))
                 if getattr(snap, "entry_dir", None) in ("up", "down")

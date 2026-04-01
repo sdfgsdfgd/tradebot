@@ -75,8 +75,17 @@ class RollingClimateState:
 class RegimeRouterConfig:
     enabled: bool = False
     fast_window_days: int = 63
-    slow_window_days: int = 126
+    slow_window_days: int = 84
     min_dwell_days: int = 10
+    crash_hf_slow_ret_max: float = -0.25
+    hf_takeover_crash_ret_max: float = -0.08
+    hf_takeover_crash_maxdd_min: float = 0.20
+    hf_takeover_crash_rv_max: float = 0.55
+    damage_positive_lock_maxdd_min: float = 0.24
+    damage_positive_lock_ret_max: float = 0.20
+    damage_positive_lock_eff_max: float = 0.10
+    bull_sovereign_on_confirm_days: int = 1
+    bull_sovereign_off_confirm_days: int = 7
 
 
 @dataclass(frozen=True)
@@ -103,11 +112,33 @@ def regime_router_config(strategy: Mapping[str, object] | object | None) -> Regi
     fast = int(_get(strategy, "regime_router_fast_window_days", 63) or 63)
     slow = int(_get(strategy, "regime_router_slow_window_days", 84) or 84)
     dwell = int(_get(strategy, "regime_router_min_dwell_days", 10) or 10)
+    crash_hf_slow_ret_max_raw = _get(strategy, "regime_router_crash_hf_slow_ret_max", -0.25)
+    crash_hf_slow_ret_max = float(crash_hf_slow_ret_max_raw) if crash_hf_slow_ret_max_raw is not None else -0.25
+    hf_take_ret_raw = _get(strategy, "regime_router_hf_takeover_crash_ret_max", -0.08)
+    hf_take_ret = float(hf_take_ret_raw) if hf_take_ret_raw is not None else -0.08
+    hf_take_dd_raw = _get(strategy, "regime_router_hf_takeover_crash_maxdd_min", 0.20)
+    hf_take_dd = float(hf_take_dd_raw) if hf_take_dd_raw is not None else 0.20
+    hf_take_rv_raw = _get(strategy, "regime_router_hf_takeover_crash_rv_max", 0.55)
+    hf_take_rv = float(hf_take_rv_raw) if hf_take_rv_raw is not None else 0.55
+    damage_dd = float(_get(strategy, "regime_router_damage_positive_lock_maxdd_min", 0.24) or 0.24)
+    damage_ret = float(_get(strategy, "regime_router_damage_positive_lock_ret_max", 0.20) or 0.20)
+    damage_eff = float(_get(strategy, "regime_router_damage_positive_lock_eff_max", 0.10) or 0.10)
+    bull_on = int(_get(strategy, "regime_router_bull_sovereign_on_confirm_days", 1) or 1)
+    bull_off = int(_get(strategy, "regime_router_bull_sovereign_off_confirm_days", 7) or 7)
     return RegimeRouterConfig(
         enabled=bool(enabled),
         fast_window_days=max(2, int(fast)),
         slow_window_days=max(max(2, int(fast)), int(slow)),
         min_dwell_days=max(1, int(dwell)),
+        crash_hf_slow_ret_max=float(crash_hf_slow_ret_max),
+        hf_takeover_crash_ret_max=float(hf_take_ret),
+        hf_takeover_crash_maxdd_min=max(0.0, float(hf_take_dd)),
+        hf_takeover_crash_rv_max=max(0.0, float(hf_take_rv)),
+        damage_positive_lock_maxdd_min=max(0.0, float(damage_dd)),
+        damage_positive_lock_ret_max=float(damage_ret),
+        damage_positive_lock_eff_max=max(0.0, float(damage_eff)),
+        bull_sovereign_on_confirm_days=max(1, int(bull_on)),
+        bull_sovereign_off_confirm_days=max(1, int(bull_off)),
     )
 
 
@@ -120,7 +151,6 @@ _HOST_POLICIES: dict[str, HostPolicy] = {
     "lf_defensive_long_v2": HostPolicy(name="lf_defensive_long_v2", host_managed=True),
     "lf_defensive_long_st_v1": HostPolicy(name="lf_defensive_long_st_v1", host_managed=True),
 }
-
 
 def host_policy(host_name: str) -> HostPolicy:
     key = str(host_name).strip().lower()
@@ -143,6 +173,10 @@ def regime_router_dwell_days(
         return dwell
     if proposed.climate == "negative_extreme_bear" and active.chosen_host != "hf_host":
         return 1
+    if proposed.climate == "episode_crash_takeover" and active.chosen_host != "hf_host":
+        return 1
+    if proposed.climate == "negative_transition_bear" and active.chosen_host == "buyhold":
+        return 1
     if active.chosen_host == "hf_host" and proposed.chosen_host != "hf_host":
         return max(1, min(dwell, 5))
     return dwell
@@ -160,11 +194,26 @@ def bull_sovereign_entry_ok(
     if fast_features is None or slow_features is None:
         return False
     return bool(
-        slow_features.rv >= 0.55
-        and slow_features.efficiency <= 0.05
-        and slow_features.maxdd >= 0.26
+        slow_features.rv >= 0.50
+        and slow_features.efficiency <= 0.08
+        and slow_features.maxdd >= 0.22
         and fast_features.maxdd >= 0.14
-        and slow_features.up_frac <= 0.56
+        and slow_features.up_frac <= 0.58
+    )
+
+
+def damage_positive_lock_hit(
+    *,
+    slow_features: YearFeatures | None,
+    config: RegimeRouterConfig,
+) -> bool:
+    if slow_features is None:
+        return False
+    return bool(
+        slow_features.ret > 0.0
+        and slow_features.maxdd >= float(config.damage_positive_lock_maxdd_min)
+        and slow_features.ret <= float(config.damage_positive_lock_ret_max)
+        and slow_features.efficiency <= float(config.damage_positive_lock_eff_max)
     )
 
 
@@ -371,7 +420,9 @@ def classify_rolling_climate_v5(
     fast_features: YearFeatures,
     slow_features: YearFeatures,
     active: ClimateDecision | None = None,
+    config: RegimeRouterConfig | None = None,
 ) -> ClimateDecision:
+    cfg = config or RegimeRouterConfig(enabled=True)
     slow = classify_climate_v4(slow_features)
     fast = classify_climate_v4(fast_features)
 
@@ -384,6 +435,8 @@ def classify_rolling_climate_v5(
         and fast_features.maxdd >= 0.22
     )
     if learned_pre_bear:
+        if float(crash_features.ret) > 0.10:
+            return ClimateDecision(climate="pre_bear_handoff", chosen_host="lf_defensive_long_v1")
         return ClimateDecision(climate="pre_bear_handoff", chosen_host="hf_host")
 
     crash_now = (
@@ -392,7 +445,20 @@ def classify_rolling_climate_v5(
         and crash_features.rv >= 0.80
     )
     if crash_now:
+        if float(slow_features.ret) > float(cfg.crash_hf_slow_ret_max):
+            return ClimateDecision(climate="negative_extreme_bear", chosen_host="lf_defensive_long_v1")
         return ClimateDecision(climate="negative_extreme_bear", chosen_host="hf_host")
+
+    episode_crash_takeover = (
+        crash_features.ret <= float(cfg.hf_takeover_crash_ret_max)
+        and crash_features.maxdd >= float(cfg.hf_takeover_crash_maxdd_min)
+        and crash_features.rv <= float(cfg.hf_takeover_crash_rv_max)
+    )
+    if episode_crash_takeover:
+        return ClimateDecision(climate="episode_crash_takeover", chosen_host="hf_host")
+
+    if damage_positive_lock_hit(slow_features=slow_features, config=cfg):
+        return ClimateDecision(climate="damage_positive_lock", chosen_host="lf_defensive_long_v1")
 
     if slow_features.ret > 0.0:
         fast_bull_recovery = (
@@ -425,7 +491,7 @@ def classify_rolling_climate_v5(
 
     if fast.climate == "negative_extreme_bear" or slow.climate == "negative_extreme_bear":
         return ClimateDecision(climate="negative_extreme_bear", chosen_host="hf_host")
-    return ClimateDecision(climate="negative_transition_bear", chosen_host="lf_defensive_long_v2")
+    return ClimateDecision(climate="negative_transition_bear", chosen_host="lf_defensive_long_v1")
 
 
 def classify_rolling_climate_v4(
@@ -447,7 +513,7 @@ def rolling_climate_states(
     days: list[DailyBar],
     *,
     fast_window_days: int = 63,
-    slow_window_days: int = 126,
+    slow_window_days: int = 84,
     min_dwell_days: int = 10,
 ) -> list[RollingClimateState]:
     fast_n = max(2, int(fast_window_days))
@@ -471,6 +537,7 @@ def rolling_climate_states(
             fast_features=fast,
             slow_features=slow,
             active=active,
+            config=RegimeRouterConfig(enabled=True),
         )
 
         if active is None:
@@ -797,6 +864,10 @@ class DailyRegimeRouterEngine:
         self._pending_days = 0
         self._last_fast_features: YearFeatures | None = None
         self._last_slow_features: YearFeatures | None = None
+        self._bull_sovereign_active = False
+        self._bull_sovereign_on_streak = 0
+        self._bull_sovereign_off_streak = 0
+        self._bull_sovereign_raw_ok = False
 
     def _finalize_day(self) -> None:
         if self._current_day is None:
@@ -817,6 +888,10 @@ class DailyRegimeRouterEngine:
             self._active = None
             self._pending = None
             self._pending_days = 0
+            self._bull_sovereign_active = False
+            self._bull_sovereign_on_streak = 0
+            self._bull_sovereign_off_streak = 0
+            self._bull_sovereign_raw_ok = False
             return
         crash_n = max(2, min(21, int(self._cfg.fast_window_days)))
         crash = compute_window_features(
@@ -844,30 +919,74 @@ class DailyRegimeRouterEngine:
             fast_features=fast,
             slow_features=slow,
             active=self._active,
+            config=self._cfg,
         )
         if self._active is None:
             self._active = proposed
             self._pending = None
             self._pending_days = 0
-            return
-        if proposed == self._active:
+        elif proposed == self._active:
             self._pending = None
             self._pending_days = 0
-            return
-        if self._pending is None or self._pending != proposed:
-            self._pending = proposed
-            self._pending_days = 1
         else:
-            self._pending_days += 1
-        dwell_req = regime_router_dwell_days(
-            active=self._active,
-            proposed=proposed,
-            base_dwell_days=int(self._cfg.min_dwell_days),
+            if self._pending is None or self._pending != proposed:
+                self._pending = proposed
+                self._pending_days = 1
+            else:
+                self._pending_days += 1
+            dwell_req = regime_router_dwell_days(
+                active=self._active,
+                proposed=proposed,
+                base_dwell_days=int(self._cfg.min_dwell_days),
+            )
+            if self._pending_days >= int(dwell_req):
+                self._active = proposed
+                self._pending = None
+                self._pending_days = 0
+
+        if self._active is None:
+            self._bull_sovereign_active = False
+            self._bull_sovereign_on_streak = 0
+            self._bull_sovereign_off_streak = 0
+            self._bull_sovereign_raw_ok = False
+            return
+
+        base_climate = str(self._active.climate)
+        base_host = str(self._active.chosen_host)
+        if base_climate != "bull_grind_low_vol" or base_host != "buyhold":
+            self._bull_sovereign_active = False
+            self._bull_sovereign_on_streak = 0
+            self._bull_sovereign_off_streak = 0
+            self._bull_sovereign_raw_ok = False
+            return
+
+        raw_ok = bull_sovereign_entry_ok(
+            climate=base_climate,
+            chosen_host=base_host,
+            fast_features=self._last_fast_features,
+            slow_features=self._last_slow_features,
         )
-        if self._pending_days >= int(dwell_req):
-            self._active = proposed
-            self._pending = None
-            self._pending_days = 0
+        self._bull_sovereign_raw_ok = bool(raw_ok)
+        on_confirm = max(1, int(self._cfg.bull_sovereign_on_confirm_days))
+        off_confirm = max(1, int(self._cfg.bull_sovereign_off_confirm_days))
+        if bool(raw_ok):
+            self._bull_sovereign_off_streak = 0
+            if bool(self._bull_sovereign_active):
+                self._bull_sovereign_on_streak = 0
+            else:
+                self._bull_sovereign_on_streak += 1
+                if int(self._bull_sovereign_on_streak) >= int(on_confirm):
+                    self._bull_sovereign_active = True
+                    self._bull_sovereign_on_streak = 0
+        else:
+            self._bull_sovereign_on_streak = 0
+            if bool(self._bull_sovereign_active):
+                self._bull_sovereign_off_streak += 1
+                if int(self._bull_sovereign_off_streak) >= int(off_confirm):
+                    self._bull_sovereign_active = False
+                    self._bull_sovereign_off_streak = 0
+            else:
+                self._bull_sovereign_off_streak = 0
 
     def update_bar(
         self,
@@ -919,12 +1038,7 @@ class DailyRegimeRouterEngine:
                 dwell_days=int(self._pending_days),
             )
         chosen_host = str(self._active.chosen_host)
-        bull_sovereign_ok = bull_sovereign_entry_ok(
-            climate=str(self._active.climate),
-            chosen_host=chosen_host,
-            fast_features=self._last_fast_features,
-            slow_features=self._last_slow_features,
-        )
+        bull_sovereign_ok = bool(self._bull_sovereign_active)
         effective_host = "bull_ma200_v1" if bool(bull_sovereign_ok) and chosen_host == "buyhold" else chosen_host
         policy = host_policy(effective_host)
         if policy.name == "hf_host":

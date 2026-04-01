@@ -15,7 +15,8 @@ Sovereignty contract (current phase):
   - `2025` persistent uptrend
 - `v34` remains the raw `1Y/2Y` modern crown under the original contract.
 - `v35` remains the bridge-only dethrone that first unified `2022/2025`.
-- `v43` Composite Context Confidence is the active multi-regime crown on canonical-cache numbers.
+- `v44` Router-On Composite Context Confidence is the active router-on crown for live deployment.
+  - `v43` remains the raw HF-host organism (router-off), preserved as the base sovereign.
 
 Canonical execution paths:
 - Spot sweeps/evolution: `python -m tradebot.backtest spot ...`
@@ -73,9 +74,68 @@ Canonical execution paths:
   - invalid as a promotion result; later found to contain lookahead in the daily host evaluation path
   - the architecture survived, the quoted ladder did not
 
+### Router v5 (2026-04-01) — Switch-Twitch Exorcism; canonical-cache stability crown
+- Fix:
+  - put the bull-sovereign `buyhold -> bull_ma200_v1` override behind confirm-days hysteresis
+    - eliminates daily host strobing when features wobble around the threshold
+  - warm up enough days for router readiness at the scoring start in per-year backtests
+  - offline backtests no longer hard-fail when warmup reaches earlier than cache coverage
+- Steward-host map:
+  - `negative_transition_bear -> lf_defensive_long_v1` (ma50, entry_buffer=2%)
+- New crash / slow-crash minimal gates:
+  - `regime_router_crash_hf_slow_ret_max=-0.25` (prevents `crash_now` from always forcing `hf_host` during mild slow-crashes)
+  - `damage_positive_lock` (route to `lf_defensive_long_v1` when slow-window is weak-positive but inefficient with high dd)
+- Result (TQQQ, v43 preset, router ON; fast/slow/dwell=`63/84/10`, bull confirm=`1/7`):
+  - `2017 pnl/dd=4.071` switches=0
+  - `2018 pnl/dd=0.006` switches=7  (positive; no more strobe-spam)
+  - `2019 pnl/dd=0.191` switches=4
+  - `2020 pnl/dd=0.610` switches=10
+  - `2021 pnl/dd=0.341` switches=4
+  - `2022 pnl/dd=2.257` switches=6
+  - `2023 pnl/dd=1.125` switches=7
+  - `2024 pnl/dd=1.077` switches=8
+  - `2025 pnl/dd=1.312` switches=7
+  - Avg (2017–2025): **1.221**
+  - Worst (2017–2025): **0.006**
+
+### Router v6 (2026-04-01) — Oracle Episode Takeover; bad-window distilled
+- New rule:
+  - `episode_crash_takeover -> hf_host`
+  - knobs:
+    - `regime_router_hf_takeover_crash_ret_max=-0.08`
+    - `regime_router_hf_takeover_crash_maxdd_min=0.20`
+    - `regime_router_hf_takeover_crash_rv_max=0.55`
+- Result (TQQQ, v43 preset, router ON; fast/slow/dwell=`63/84/10`, bull confirm=`1/7`, crash gate `-0.25`):
+  - `2017 pnl/dd=4.071` switches=0
+  - `2018 pnl/dd=0.006` switches=7  (positive; no more strobe-spam)
+  - `2019 pnl/dd=0.255` switches=5
+  - `2020 pnl/dd=0.610` switches=10
+  - `2021 pnl/dd=0.326` switches=6
+  - `2022 pnl/dd=2.257` switches=6
+  - `2023 pnl/dd=1.125` switches=7
+  - `2024 pnl/dd=1.051` switches=8
+  - `2025 pnl/dd=1.620` switches=8
+  - Avg (2017–2025): **1.258**
+  - Worst (2017–2025): **0.006**
+
 ## Current Champions (stack)
 
-### CURRENT (v43) — Composite Context Confidence; canonical-cache reigning organism over the `2020..2025` universal-floor contract
+### CURRENT (v44) — Router-On Composite Context Confidence; first router-on dethrone (live preset)
+
+- Delta vs `v43`:
+  - enable `regime_router` (Router v6) for stable host routing + episode-takeover defense
+  - underlying HF host organism remains `v43` (no changes to the champion filters/knobs)
+- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v44_routerOnCompositeContextConfidence_20260401.json`
+- Universal-floor floor (min `2020..2025` pnl/dd): **0.326**
+- `2020` (`2020-01-01 -> 2021-01-01`): trades **327**, pnl **9,677.3**, dd **15,854.8**, pnl/dd **0.610**
+- `2021` (`2021-01-01 -> 2022-01-01`): trades **111**, pnl **5,263.7**, dd **16,164.1**, pnl/dd **0.326**
+- `2022` (`2022-01-01 -> 2023-01-01`): trades **438**, pnl **22,798.7**, dd **10,100.6**, pnl/dd **2.257**
+- `2023` (`2023-01-01 -> 2024-01-01`): trades **156**, pnl **18,625.6**, dd **16,549.3**, pnl/dd **1.125**
+- `2024` (`2024-01-01 -> 2025-01-01`): trades **151**, pnl **16,298.2**, dd **15,508.9**, pnl/dd **1.051**
+- `2025` (`2025-01-01 -> 2026-01-19`): trades **248**, pnl **18,707.6**, dd **10,802.7**, pnl/dd **1.732**
+- Underlying HF host (router-off): `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v43_compositeContextConfidence_20260319.json`
+
+### PREVIOUS (v43) — Composite Context Confidence; canonical-cache reigning organism over the `2020..2025` universal-floor contract
 
 - Delta vs `v42`:
   - Keep the all-green `v42` organism intact.
@@ -125,6 +185,15 @@ Canonical execution paths:
     - Distinct truth: the hard-regime shelf itself was the real precondition for the universal-floor jump
 
 ## Evolutionary Log
+
+### v44 (2026-04-01) — Router-On Composite Context Confidence; first router-on dethrone (stability contract)
+
+- Delta vs `v43`:
+  - enable `regime_router` (switch-twitch hysteresis + oracle episode takeover)
+  - per-year router backtests warm up correctly; offline cache gaps no longer hard-fail
+- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v44_routerOnCompositeContextConfidence_20260401.json`
+- Underlying HF host (router-off): `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v43_compositeContextConfidence_20260319.json`
+- Router year table (2017–2025): avg **1.258**, worst **0.006**
 
 ### v42 (2026-03-18) — All-Green Continuation Confidence; first all-green organism over the `2020..2025` universal-floor contract
 

@@ -58,14 +58,14 @@ def test_tqqq_preset_track_headers_show_loaded_crown_versions_and_clean_leaf_tit
     assert labels[0] == "▾ TQQQ"
     assert labels[1] == "  ▾ TQQQ - Spot"
     assert "    ▸ LF v34" in labels
-    assert "    ▸ HF v38" in labels
+    assert "    ▸ HF v44" in labels
     assert not any("HF?" in label for label in labels)
 
     screen._preset_expanded.add("contract:TQQQ|spot|track:HF")
     screen._rebuild_presets_table()
     labels = _labels(screen)
 
-    hf_leaf = next(label for label in labels if "ASYMMETRIC CRASH PREARM SOVEREIGNTY" in label)
+    hf_leaf = next(label for label in labels if "COMPOSITE CONTEXT CONFIDENCE" in label)
     assert "floor=" not in hf_leaf
     assert " 2025=" not in hf_leaf
 

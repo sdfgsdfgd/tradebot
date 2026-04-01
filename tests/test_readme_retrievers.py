@@ -87,7 +87,7 @@ def test_fuzzy_current_heading_with_version_still_extracts_hf_crown() -> None:
 def test_current_tqqq_hf_crown_preserves_signal_transport_fields() -> None:
     readme_path = (_ROOT / "backtests/tqqq/readme-hf.md").resolve()
     version, rel_json_path = _RETRIEVERS.extract_current_tqqq_hf_json_path(readme_path.read_text())
-    assert version == "38"
+    assert version == "44"
     assert rel_json_path
 
     payload = json.loads((_ROOT / str(rel_json_path)).read_text())

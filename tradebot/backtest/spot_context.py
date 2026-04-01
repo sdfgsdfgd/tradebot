@@ -167,6 +167,18 @@ def spot_signal_warmup_days_from_strategy(
             bars=int(max(bars_needed, _ema_warmup_days(_get(strategy, "ema_preset", None)))),
             ),
         )
+    if bool(_get(strategy, "regime_router", False)):
+        # Regime router needs enough *completed days* to become ready at the scoring start.
+        # Without this, per-year backtests spend weeks/months in the default hf_host path,
+        # skewing both performance and stability metrics.
+        router_slow = _parse_int(_get(strategy, "regime_router_slow_window_days", 0), default=0, min_value=0)
+        if router_slow > 0:
+            # Router windows are in *trading days*; warmup is in *calendar days*.
+            # Approximate trading→calendar expansion when running RTH-only data.
+            router_warmup_days = int(router_slow) + 5
+            if bool(signal_use_rth):
+                router_warmup_days = int(math.ceil(float(router_slow) * (7.0 / 5.0))) + 7
+            warmup_days = max(int(warmup_days), int(router_warmup_days))
     return int(warmup_days)
 
 
