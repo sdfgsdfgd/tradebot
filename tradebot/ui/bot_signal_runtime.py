@@ -794,6 +794,20 @@ class BotSignalRuntimeMixin:
             slow = self._ema_slow_period(strategy.get("ema_preset"))
             _register("signal", "entry_ema", slow)
 
+        if bool(strategy.get("regime_router")):
+            router_slow_days = self._int_from(strategy.get("regime_router_slow_window_days"), default=0, min_value=0)
+            if router_slow_days > 0:
+                bar_def = parse_bar_size(bar_size)
+                if bar_def is None or float(bar_def.duration.total_seconds()) <= 0.0:
+                    bars_per_day = 1
+                else:
+                    session_hours = 6.5 if bool(self._signal_use_rth(instance)) else 24.0
+                    bars_per_day = max(
+                        1,
+                        int(round((float(session_hours) * 3600.0) / float(bar_def.duration.total_seconds()))),
+                    )
+                _register("signal", "regime_router_daily", int(router_slow_days) * int(bars_per_day))
+
         strategy_instrument = "spot"
         strategy_instrument_fn = getattr(self, "_strategy_instrument", None)
         if callable(strategy_instrument_fn):
@@ -2478,6 +2492,21 @@ class BotSignalRuntimeMixin:
         except (TypeError, ValueError):
             max_entries_per_day = 1
         direction_ok = direction in set(allowed_directions) if direction in ("up", "down") else None
+        entry_context = {
+            "branch": getattr(snap, "entry_branch", None) if getattr(snap, "entry_branch", None) in ("a", "b") else None,
+            "regime4_state": str(getattr(snap, "regime4_state", None)) if getattr(snap, "regime4_state", None) else None,
+            "shock_dir": getattr(snap, "shock_dir", None) if getattr(snap, "shock_dir", None) in ("up", "down") else None,
+            "hard_dir": (
+                getattr(snap, "regime2_bear_hard_dir", None)
+                if getattr(snap, "regime2_bear_hard_dir", None) in ("up", "down")
+                else None
+            ),
+            "release_age_bars": (
+                int(getattr(snap, "regime2_bear_hard_release_age_bars", 0))
+                if getattr(snap, "regime2_bear_hard_release_age_bars", None) is not None
+                else None
+            ),
+        }
         entry_ctx = {
             "entry_dir": direction,
             "allowed_directions": [str(d) for d in sorted(str(v) for v in allowed_directions)],
@@ -2502,6 +2531,7 @@ class BotSignalRuntimeMixin:
             strategy=instance.strategy,
             bar_ts=snap.bar_ts,
             entry_dir=direction,
+            entry_context=entry_context,
             allowed_directions=allowed_directions,
             can_order_now=True,
             preflight_ok=True,

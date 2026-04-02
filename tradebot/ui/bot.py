@@ -3143,6 +3143,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         self._heal_instance_effective_filters(instance)
         strat = strategy if isinstance(strategy, dict) else (instance.strategy or {})
         kwargs: dict[str, object] = {
+            "base_strategy_raw": strat if isinstance(strat, dict) else None,
             "ema_preset_raw": ema_preset_raw,
             "bar_size": self._signal_bar_size(instance),
             "use_rth": self._signal_use_rth(instance),
@@ -3184,7 +3185,14 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             kwargs["spot_atr_period_raw"] = strat.get("spot_atr_period")
         return kwargs
 
-    def _signal_duration_str(self, bar_size: str, *, filters: dict | None = None) -> str:
+    def _signal_duration_str(
+        self,
+        bar_size: str,
+        *,
+        filters: dict | None = None,
+        strategy: dict | None = None,
+        use_rth: bool | None = None,
+    ) -> str:
         label = str(bar_size or "").strip().lower()
 
         def _rank(duration: str) -> int:
@@ -3208,65 +3216,72 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         elif "day" in label:
             base = "1 Y"
 
-        if not isinstance(filters, dict) or not filters:
-            return base
-
-        # Daily shock detectors need enough sessions to become ready; otherwise shock gating and
-        # shock-based overlays never engage (even if configured in filters).
-        from ..engine import normalize_shock_detector, normalize_shock_gate_mode
-
-        shock_mode = normalize_shock_gate_mode(filters)
-        if shock_mode == "off":
-            return base
-        detector = normalize_shock_detector(filters)
-        if detector not in ("daily_atr_pct", "daily_drawdown"):
-            return base
-
-        # Start at the minimum viable duration for daily readiness instead of requesting a
-        # larger window and then timing out / stitching-incomplete into the floor anyway.
-        # This reduces load/latency and improves full24 stitch reliability.
-        floor = self._signal_min_duration_str(bar_size, filters=filters)
+        # Start at the minimum viable duration for readiness instead of requesting a larger
+        # window and then timing out / stitching-incomplete into the floor anyway.
+        floor = self._signal_min_duration_str(
+            bar_size,
+            filters=filters,
+            strategy=strategy,
+            use_rth=use_rth,
+        )
         return _max_duration(base, str(floor)) if floor else base
 
-    def _signal_min_duration_str(self, bar_size: str, *, filters: dict | None = None) -> str | None:
+    def _signal_min_duration_str(
+        self,
+        bar_size: str,
+        *,
+        filters: dict | None = None,
+        strategy: dict | None = None,
+        use_rth: bool | None = None,
+    ) -> str | None:
         _ = bar_size
-        if not isinstance(filters, dict) or not filters:
-            return None
-        from ..engine import normalize_shock_detector, normalize_shock_gate_mode
+        floors: list[str] = []
 
-        shock_mode = normalize_shock_gate_mode(filters)
-        if shock_mode == "off":
-            return None
-        detector = normalize_shock_detector(filters)
-        if detector not in ("daily_atr_pct", "daily_drawdown"):
-            return None
+        def _duration_for_days(days_needed: int) -> str:
+            if days_needed <= 25:
+                return "1 M"
+            if days_needed <= 50:
+                return "2 M"
+            if days_needed <= 95:
+                return "3 M"
+            if days_needed <= 180:
+                return "6 M"
+            return "1 Y"
 
-        days_needed = None
-        if detector == "daily_atr_pct":
-            raw = filters.get("shock_daily_atr_period", 14)
-            try:
-                days_needed = int(raw or 14)
-            except (TypeError, ValueError):
-                days_needed = 14
-            days_needed = max(1, int(days_needed))
-        else:
-            raw = filters.get("shock_drawdown_lookback_days", 20)
-            try:
-                days_needed = int(raw or 20)
-            except (TypeError, ValueError):
-                days_needed = 20
-            days_needed = max(2, int(days_needed))
+        if isinstance(filters, dict) and filters:
+            from ..engine import normalize_shock_detector, normalize_shock_gate_mode
 
-        # Floor for timeout fallbacks: keep enough daily history for readiness.
-        if days_needed <= 25:
-            return "1 M"
-        if days_needed <= 50:
-            return "2 M"
-        if days_needed <= 95:
-            return "3 M"
-        if days_needed <= 180:
-            return "6 M"
-        return "1 Y"
+            shock_mode = normalize_shock_gate_mode(filters)
+            if shock_mode != "off":
+                detector = normalize_shock_detector(filters)
+                if detector in ("daily_atr_pct", "daily_drawdown"):
+                    if detector == "daily_atr_pct":
+                        raw = filters.get("shock_daily_atr_period", 14)
+                        try:
+                            days_needed = int(raw or 14)
+                        except (TypeError, ValueError):
+                            days_needed = 14
+                        days_needed = max(1, int(days_needed))
+                    else:
+                        raw = filters.get("shock_drawdown_lookback_days", 20)
+                        try:
+                            days_needed = int(raw or 20)
+                        except (TypeError, ValueError):
+                            days_needed = 20
+                        days_needed = max(2, int(days_needed))
+                    floors.append(_duration_for_days(days_needed))
+
+        if isinstance(strategy, dict) and bool(strategy.get("regime_router")):
+            slow_days = self._int_from(strategy.get("regime_router_slow_window_days"), default=0, min_value=0)
+            if slow_days > 0:
+                warmup_days = int(slow_days) + 5
+                if bool(use_rth):
+                    warmup_days = int(math.ceil(float(slow_days) * (7.0 / 5.0))) + 7
+                floors.append(_duration_for_days(max(2, int(warmup_days))))
+
+        if not floors:
+            return None
+        return max(floors, key=self._signal_duration_rank)
 
     @staticmethod
     def _signal_expand_duration(duration: str) -> str:
@@ -3922,6 +3937,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
     def _signal_strategy_payload(
         self,
         *,
+        base_strategy_raw: dict | None = None,
         entry_signal: str,
         ema_preset_raw: str | None,
         entry_mode_raw: str | None,
@@ -3953,11 +3969,22 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         regime2_supertrend_multiplier_raw: float | None,
         regime2_supertrend_source_raw: str | None,
     ) -> dict:
-        return {
-            "entry_signal": entry_signal,
+        strategy = copy.deepcopy(base_strategy_raw) if isinstance(base_strategy_raw, dict) else {}
+        strategy["entry_signal"] = entry_signal
+        strategy["regime_mode"] = regime_mode
+        strategy["regime2_mode"] = regime2_mode
+        try:
+            strategy["entry_confirm_bars"] = int(entry_confirm_bars)
+        except (TypeError, ValueError):
+            strategy["entry_confirm_bars"] = 0
+        if regime_mode == "ema" or regime_preset is not None:
+            strategy["regime_ema_preset"] = regime_preset
+        if regime2_mode == "ema" or regime2_preset is not None:
+            strategy["regime2_ema_preset"] = regime2_preset
+
+        optional_values: dict[str, object] = {
             "ema_preset": ema_preset_raw,
             "ema_entry_mode": entry_mode_raw,
-            "entry_confirm_bars": entry_confirm_bars,
             "spot_dual_branch_enabled": spot_dual_branch_enabled_raw,
             "spot_dual_branch_priority": spot_dual_branch_priority_raw,
             "spot_branch_a_ema_preset": spot_branch_a_ema_preset_raw,
@@ -3974,17 +4001,17 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             "orb_open_time_et": orb_open_time_et_raw,
             "spot_exit_mode": spot_exit_mode_raw,
             "spot_atr_period": spot_atr_period_raw,
-            "regime_mode": regime_mode,
-            "regime_ema_preset": regime_preset,
             "supertrend_atr_period": supertrend_atr_period_raw,
             "supertrend_multiplier": supertrend_multiplier_raw,
             "supertrend_source": supertrend_source_raw,
-            "regime2_mode": regime2_mode,
-            "regime2_ema_preset": regime2_preset,
             "regime2_supertrend_atr_period": regime2_supertrend_atr_period_raw,
             "regime2_supertrend_multiplier": regime2_supertrend_multiplier_raw,
             "regime2_supertrend_source": regime2_supertrend_source_raw,
         }
+        for key, value in optional_values.items():
+            if value is not None:
+                strategy[key] = value
+        return strategy
 
     def _signal_eval_last_snapshot(self, *, evaluator: object, bars: list) -> object | None:
         last_snap = None
@@ -4245,6 +4272,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         regime2_supertrend_atr_period_raw: int | None = None,
         regime2_supertrend_multiplier_raw: float | None = None,
         regime2_supertrend_source_raw: str | None = None,
+        base_strategy_raw: dict | None = None,
         filters: dict | None = None,
     ) -> _SignalSnapshot | None:
         from ..spot_engine import SpotSignalEvaluator
@@ -4272,14 +4300,24 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         # IB intraday bars are timestamped in ET wall-clock for this flow; use ET here so
         # trim_incomplete_last_bar drops the in-progress bar instead of treating it as complete.
         now_ref = _now_et_naive()
-        min_duration_str = self._signal_min_duration_str(bar_size, filters=filters)
+        min_duration_str = self._signal_min_duration_str(
+            bar_size,
+            filters=filters,
+            strategy=base_strategy_raw,
+            use_rth=use_rth,
+        )
         _set_diag(
             "signal_fetch",
             min_duration_str=str(min_duration_str) if min_duration_str is not None else None,
         )
         bars, bar_health = await self._signal_fetch_bars(
             contract=contract,
-            duration_str=self._signal_duration_str(bar_size, filters=filters),
+            duration_str=self._signal_duration_str(
+                bar_size,
+                filters=filters,
+                strategy=base_strategy_raw,
+                use_rth=use_rth,
+            ),
             min_duration_str=min_duration_str,
             bar_size=bar_size,
             use_rth=use_rth,
@@ -4373,6 +4411,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                 )
                 return None
         strategy = self._signal_strategy_payload(
+            base_strategy_raw=base_strategy_raw,
             entry_signal=entry_signal,
             ema_preset_raw=ema_preset_raw,
             entry_mode_raw=entry_mode_raw,
@@ -4470,6 +4509,15 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                 signal_state=str(last_snap.signal.state or ""),
                 entry_dir=str(last_snap.signal.entry_dir or ""),
                 regime_dir=str(last_snap.signal.regime_dir or ""),
+                bar_health=self._signal_health_payload(bar_health),
+            )
+            return None
+
+        if bool(strategy.get("regime_router")) and not bool(getattr(last_snap, "regime_router_ready", False)):
+            _set_diag(
+                "regime_router_not_ready",
+                bars_count=int(len(bars_list)),
+                min_duration_str=str(min_duration_str) if min_duration_str is not None else None,
                 bar_health=self._signal_health_payload(bar_health),
             )
             return None

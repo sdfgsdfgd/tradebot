@@ -353,6 +353,60 @@ class _PendingEntryGuardHarness(BotSignalRuntimeMixin):
         return True
 
 
+class _EntryContextGateHarness(BotSignalRuntimeMixin):
+    def __init__(self) -> None:
+        self.queued: list[dict[str, object]] = []
+
+    @staticmethod
+    def _strategy_instrument(strategy: dict) -> str:
+        value = strategy.get("instrument", "spot")
+        cleaned = str(value or "spot").strip().lower()
+        return "spot" if cleaned == "spot" else "options"
+
+    @staticmethod
+    def _entry_limit_ok(instance: _BotInstance) -> bool:
+        return True
+
+    @staticmethod
+    def _signal_bar_size(instance: _BotInstance) -> str:
+        return str(instance.strategy.get("signal_bar_size") or "5 mins")
+
+    @staticmethod
+    def _signal_use_rth(instance: _BotInstance) -> bool:
+        return bool(instance.strategy.get("signal_use_rth"))
+
+    @staticmethod
+    def _entry_direction_for_instance(instance: _BotInstance, snap) -> str | None:
+        _ = (instance, snap)
+        return "up"
+
+    @staticmethod
+    def _allowed_entry_directions(instance: _BotInstance) -> set[str]:
+        _ = instance
+        return {"up"}
+
+    def _queue_order(
+        self,
+        instance: _BotInstance,
+        *,
+        intent: str,
+        direction: str | None,
+        signal_bar_ts: datetime | None,
+        trigger_reason: str | None = None,
+        trigger_mode: str | None = None,
+    ) -> None:
+        self.queued.append(
+            {
+                "instance_id": int(instance.instance_id),
+                "intent": str(intent),
+                "direction": direction,
+                "signal_bar_ts": signal_bar_ts,
+                "trigger_reason": trigger_reason,
+                "trigger_mode": trigger_mode,
+            }
+        )
+
+
 def _new_instance(*, strategy: dict | None = None, filters: dict | None = None) -> _BotInstance:
     return _BotInstance(
         instance_id=1,
@@ -524,6 +578,26 @@ def test_signal_preflight_requires_regime2_supertrend_warmup_for_tqqq_hf_style_p
     assert req["regime2_bars_min"] >= 60
 
 
+def test_signal_preflight_requires_router_daily_warmup_for_router_enabled_payload() -> None:
+    harness = _EntryDayHarness()
+    instance = _new_instance(
+        strategy={
+            "instrument": "spot",
+            "signal_bar_size": "5 mins",
+            "signal_use_rth": True,
+            "entry_signal": "ema",
+            "ema_preset": "5/13",
+            "regime_router": True,
+            "regime_router_slow_window_days": 84,
+        },
+        filters={},
+    )
+    req = harness._signal_preflight_requirements(instance)
+    assert req["signal_bars_min"] >= 84 * 70
+    active = list(req.get("active_requirements") or [])
+    assert any(str(item.get("name")) == "regime_router_daily" for item in active)
+
+
 def test_signal_filter_time_respects_runtime_et_wall_clock_bars() -> None:
     harness = _EntryDayHarness()
     filters = {"entry_start_hour_et": 10, "entry_end_hour_et": 15}
@@ -591,6 +665,43 @@ def test_auto_try_queue_entry_skips_recheck_when_pending_next_open_exists() -> N
 
     assert fired is False
     assert gates == []
+
+
+def test_auto_try_queue_entry_passes_entry_context_into_graph_gate() -> None:
+    harness = _EntryContextGateHarness()
+    instance = _new_instance(
+        strategy={
+            "instrument": "spot",
+            "signal_bar_size": "5 mins",
+            "signal_use_rth": True,
+            "spot_entry_policy": "slope_tr_guard",
+            "spot_entry_context_confidence_mode": "continuation_v1",
+        },
+        filters={},
+    )
+    gates: list[str] = []
+
+    fired = harness._auto_try_queue_entry(
+        instance=instance,
+        snap=SimpleNamespace(
+            bar_ts=datetime(2026, 2, 9, 10, 0),
+            close=100.0,
+            atr=None,
+            entry_branch="a",
+            regime4_state="trend_up_clean",
+            shock_dir="down",
+            regime2_bear_hard_dir="up",
+            regime2_bear_hard_release_age_bars=1000,
+            regime_router_host_managed=False,
+            regime_router_bull_sovereign_ok=False,
+        ),
+        gate=lambda status, data=None: gates.append(str(status)),
+        now_et=datetime(2026, 2, 9, 10, 0),
+    )
+
+    assert fired is False
+    assert not harness.queued
+    assert "BLOCKED_GRAPH_ENTRY_CONTEXT_CONFIDENCE" in gates
 
 
 def test_pending_next_open_cancels_on_directional_shock_mismatch() -> None:

@@ -58,6 +58,64 @@ def test_signal_duration_str_starts_at_floor_for_daily_shock() -> None:
     assert screen._signal_duration_str("10 mins", filters=filters) == "1 M"
 
 
+def test_signal_duration_str_starts_at_floor_for_regime_router() -> None:
+    screen = _screen()
+    strategy = {
+        "regime_router": True,
+        "regime_router_slow_window_days": 84,
+    }
+    assert screen._signal_duration_str("5 mins", strategy=strategy, use_rth=True) == "6 M"
+
+
+def test_signal_strategy_payload_preserves_router_and_unknown_fields() -> None:
+    screen = _screen()
+    base_strategy = {
+        "regime_router": True,
+        "regime_router_fast_window_days": 63,
+        "regime_router_slow_window_days": 84,
+        "regime_router_min_dwell_days": 10,
+        "regime_router_bull_sovereign_on_confirm_days": 1,
+        "regime_router_bull_sovereign_off_confirm_days": 7,
+        "custom_transport_key": "keep_me",
+    }
+    payload = screen._signal_strategy_payload(
+        base_strategy_raw=base_strategy,
+        entry_signal="ema",
+        ema_preset_raw="5/13",
+        entry_mode_raw="cross",
+        entry_confirm_bars=1,
+        spot_dual_branch_enabled_raw=None,
+        spot_dual_branch_priority_raw=None,
+        spot_branch_a_ema_preset_raw=None,
+        spot_branch_a_entry_confirm_bars_raw=None,
+        spot_branch_a_min_signed_slope_pct_raw=None,
+        spot_branch_a_max_signed_slope_pct_raw=None,
+        spot_branch_a_size_mult_raw=None,
+        spot_branch_b_ema_preset_raw=None,
+        spot_branch_b_entry_confirm_bars_raw=None,
+        spot_branch_b_min_signed_slope_pct_raw=None,
+        spot_branch_b_max_signed_slope_pct_raw=None,
+        spot_branch_b_size_mult_raw=None,
+        orb_window_mins_raw=None,
+        orb_open_time_et_raw=None,
+        spot_exit_mode_raw=None,
+        spot_atr_period_raw=None,
+        regime_mode="ema",
+        regime_preset="20/50",
+        supertrend_atr_period_raw=None,
+        supertrend_multiplier_raw=None,
+        supertrend_source_raw=None,
+        regime2_mode="off",
+        regime2_preset=None,
+        regime2_supertrend_atr_period_raw=None,
+        regime2_supertrend_multiplier_raw=None,
+        regime2_supertrend_source_raw=None,
+    )
+    assert payload.get("custom_transport_key") == "keep_me"
+    assert payload.get("regime_router") is True
+    assert payload.get("regime_router_bull_sovereign_off_confirm_days") == 7
+
+
 class _FallbackClient:
     def __init__(self, *, fail_durations: set[str]) -> None:
         self.fail_durations = {str(item).strip() for item in fail_durations}
