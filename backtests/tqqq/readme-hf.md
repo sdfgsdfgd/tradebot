@@ -15,7 +15,8 @@ Sovereignty contract (current phase):
   - `2025` persistent uptrend
 - `v34` remains the raw `1Y/2Y` modern crown under the original contract.
 - `v35` remains the bridge-only dethrone that first unified `2022/2025`.
-- `v44` Router-On Composite Context Confidence is the active router-on crown for live deployment.
+- `v45` Router-On Composite Context Confidence is the active router-on crown for live deployment.
+  - `v44` remains the prior router-on crown (lineage truth).
   - `v43` remains the raw HF-host organism (router-off), preserved as the base sovereign.
 
 Canonical execution paths:
@@ -118,9 +119,31 @@ Canonical execution paths:
   - Avg (2017–2025): **1.258**
   - Worst (2017–2025): **0.006**
 
+### Router v7 (2026-04-02) — Bull-Sovereign Ret Cap; stop nuking 2023 to fix 2018
+- Fix:
+  - bull-sovereign override now requires `slow_ret <= 0.40` (stops bull-ma200 from eating strong bull expansions like `2023`)
+  - removed the `slow_eff <= 0.08` constraint (so 2018’s Feb/March fragility actually trips bull-ma200)
+- Status:
+  - policy remains interpretable and knob-light (no new strategy knobs; one rule change)
+
 ## Current Champions (stack)
 
-### CURRENT (v44) — Router-On Composite Context Confidence; first router-on dethrone (live preset)
+### CURRENT (v45) — Router-On Composite Context Confidence; 2018 ≥ 0.5 floor crown (live preset)
+
+- Delta vs `v44`:
+  - Router v7 bull-sovereign ret-cap (keeps 2018 protection but stops 2023 cannibalization)
+  - HF-host loss-cut mode: `flip_exit_only_if_profit=False` + `flip_exit_min_hold_bars=30`
+- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v45_routerOnCompositeContextConfidence_20260402.json`
+- Universal-floor floor (min `2020..2025` pnl/dd): **0.398**
+- `2020` (`2020-01-01 -> 2021-01-01`): trades **328**, pnl **8,880.4**, dd **16,432.7**, pnl/dd **0.540**
+- `2021` (`2021-01-01 -> 2022-01-01`): trades **106**, pnl **6,132.0**, dd **15,422.4**, pnl/dd **0.398**
+- `2022` (`2022-01-01 -> 2023-01-01`): trades **406**, pnl **13,767.5**, dd **7,872.5**, pnl/dd **1.749**
+- `2023` (`2023-01-01 -> 2024-01-01`): trades **154**, pnl **19,101.0**, dd **16,615.1**, pnl/dd **1.150**
+- `2024` (`2024-01-01 -> 2025-01-01`): trades **152**, pnl **13,983.8**, dd **15,340.3**, pnl/dd **0.912**
+- `2025` (`2025-01-01 -> 2026-01-19`): trades **244**, pnl **15,657.7**, dd **11,611.3**, pnl/dd **1.348**
+- Underlying HF host base filters: `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v43_compositeContextConfidence_20260319.json`
+
+### PREVIOUS (v44) — Router-On Composite Context Confidence; first router-on dethrone (baseline)
 
 - Delta vs `v43`:
   - enable `regime_router` (Router v6) for stable host routing + episode-takeover defense
@@ -185,6 +208,14 @@ Canonical execution paths:
     - Distinct truth: the hard-regime shelf itself was the real precondition for the universal-floor jump
 
 ## Evolutionary Log
+
+### v45 (2026-04-02) — Router-On Composite Context Confidence; 2018 ≥ 0.5 floor crown
+
+- Delta vs `v44`:
+  - Router v7 bull-sovereign ret cap: preserve 2018 defense without consuming 2023
+  - `flip_exit_only_if_profit=False` + `flip_exit_min_hold_bars=30` (loss-cut without strobe-churn)
+- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v45_routerOnCompositeContextConfidence_20260402.json`
+- Router year table (2017–2025): avg **1.200**, worst **0.193**, and `2018 pnl/dd=0.538`
 
 ### v44 (2026-04-01) — Router-On Composite Context Confidence; first router-on dethrone (stability contract)
 

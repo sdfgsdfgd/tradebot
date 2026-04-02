@@ -169,11 +169,13 @@ def _top_rules(
 
 def _exact_replay(
     *,
+    preset: Path,
     bull_rule: BullRule,
     bear_rule: BearRule,
     fast_window: int,
     slow_window: int,
     dwell: int,
+    years: tuple[int, ...],
 ) -> tuple[dict[int, float], float, float]:
     import tradebot.climate_router as cr
 
@@ -215,7 +217,6 @@ def _exact_replay(
     cr.classify_rolling_climate_v5 = patched
     cr.bull_sovereign_entry_ok = patched_bull_ok
     try:
-        preset = Path("backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v43_compositeContextConfidence_20260319.json")
         strategy, bar_size, use_rth = load_hf_host_strategy(preset)
         strategy = replace(
             strategy,
@@ -224,7 +225,6 @@ def _exact_replay(
             regime_router_slow_window_days=int(slow_window),
             regime_router_min_dwell_days=int(dwell),
         )
-        years = (2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025)
         vals: dict[int, float] = {}
         for year in years:
             cfg = make_bundle(
@@ -246,8 +246,7 @@ def _exact_replay(
         cr.bull_sovereign_entry_ok = orig_bull_ok
 
 
-def _baseline_replay(*, fast_window: int, slow_window: int, dwell: int) -> dict[int, float]:
-    preset = Path("backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v43_compositeContextConfidence_20260319.json")
+def _baseline_replay(*, preset: Path, fast_window: int, slow_window: int, dwell: int, years: tuple[int, ...]) -> dict[int, float]:
     strategy, bar_size, use_rth = load_hf_host_strategy(preset)
     strategy = replace(
         strategy,
@@ -256,7 +255,6 @@ def _baseline_replay(*, fast_window: int, slow_window: int, dwell: int) -> dict[
         regime_router_slow_window_days=int(slow_window),
         regime_router_min_dwell_days=int(dwell),
     )
-    years = (2017, 2018, 2019, 2020, 2021, 2022, 2023, 2024, 2025)
     vals: dict[int, float] = {}
     for year in years:
         cfg = make_bundle(
@@ -351,6 +349,11 @@ def _render_report(
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="Search interpretable router policies using the distillation dataset.")
     ap.add_argument("--csv", default="/tmp/tqqq_regime_router_distill.csv")
+    ap.add_argument(
+        "--preset",
+        default="backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v45_routerOnCompositeContextConfidence_20260402.json",
+    )
+    ap.add_argument("--years", default="2017,2018,2019,2020,2021,2022,2023,2024,2025")
     ap.add_argument("--top-k", type=int, default=3)
     ap.add_argument("--fast-values", default="42,63,84")
     ap.add_argument("--slow-values", default="84,105,126")
@@ -378,6 +381,11 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--progress-every", type=int, default=1)
     ap.add_argument("--out-md", default="/tmp/tqqq_regime_router_policy_search.md")
     args = ap.parse_args(argv)
+
+    preset = Path(args.preset)
+    years = tuple(int(part.strip()) for part in str(args.years).split(",") if str(part).strip())
+    if not years:
+        raise SystemExit("No --years specified")
 
     rows = _load_rows(Path(args.csv))
     bull_rules, bear_rules = _top_rules(
@@ -416,9 +424,11 @@ def main(argv: list[str] | None = None) -> int:
             flush=True,
         )
         baseline = _baseline_replay(
+            preset=preset,
             fast_window=int(args.baseline_fast),
             slow_window=int(args.baseline_slow),
             dwell=int(args.baseline_dwell),
+            years=years,
         )
         baseline_elapsed = monotonic() - baseline_started
         print(
@@ -440,11 +450,13 @@ def main(argv: list[str] | None = None) -> int:
             for bear in bear_rules:
                 seen += 1
                 vals, avg, worst = _exact_replay(
+                    preset=preset,
                     bull_rule=bull,
                     bear_rule=bear,
                     fast_window=int(windows[0]),
                     slow_window=int(windows[1]),
                     dwell=int(windows[2]),
+                    years=years,
                 )
                 objective, below_floor = _objective_score(
                     vals,

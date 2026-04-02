@@ -195,10 +195,10 @@ def bull_sovereign_entry_ok(
         return False
     return bool(
         slow_features.rv >= 0.50
-        and slow_features.efficiency <= 0.08
         and slow_features.maxdd >= 0.22
         and fast_features.maxdd >= 0.14
         and slow_features.up_frac <= 0.58
+        and slow_features.ret <= 0.40
     )
 
 
