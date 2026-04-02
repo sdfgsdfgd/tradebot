@@ -374,6 +374,8 @@ class StrategyConfigBase:
     regime_router_damage_positive_lock_eff_max: float = 0.10
     regime_router_bull_sovereign_on_confirm_days: int = 1
     regime_router_bull_sovereign_off_confirm_days: int = 7
+    regime_router_bull_overextended_hf_fast_ret_min: float = 999.0
+    regime_router_bull_overextended_hf_slow_ret_min: float = 0.0
     spot_entry_policy: str | None = None
     spot_exit_policy: str | None = None
     spot_resize_policy: str | None = None

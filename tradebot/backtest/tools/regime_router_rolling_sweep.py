@@ -334,6 +334,12 @@ def main(argv: list[str] | None = None) -> int:
         damage_positive_lock_maxdd_min=float(getattr(baseline_strategy, "regime_router_damage_positive_lock_maxdd_min", 0.24) or 0.24),
         damage_positive_lock_ret_max=float(getattr(baseline_strategy, "regime_router_damage_positive_lock_ret_max", 0.20) or 0.20),
         damage_positive_lock_eff_max=float(getattr(baseline_strategy, "regime_router_damage_positive_lock_eff_max", 0.10) or 0.10),
+        bull_overextended_hf_fast_ret_min=float(
+            getattr(baseline_strategy, "regime_router_bull_overextended_hf_fast_ret_min", 999.0) or 999.0
+        ),
+        bull_overextended_hf_slow_ret_min=float(
+            getattr(baseline_strategy, "regime_router_bull_overextended_hf_slow_ret_min", 0.0) or 0.0
+        ),
     )
     day_states = _router_day_states(daily_bars, cfg=baseline_router_cfg)
 

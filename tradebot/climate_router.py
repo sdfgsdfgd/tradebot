@@ -84,6 +84,8 @@ class RegimeRouterConfig:
     damage_positive_lock_maxdd_min: float = 0.24
     damage_positive_lock_ret_max: float = 0.20
     damage_positive_lock_eff_max: float = 0.10
+    bull_overextended_hf_fast_ret_min: float = 999.0
+    bull_overextended_hf_slow_ret_min: float = 0.0
     bull_sovereign_on_confirm_days: int = 1
     bull_sovereign_off_confirm_days: int = 7
 
@@ -123,6 +125,10 @@ def regime_router_config(strategy: Mapping[str, object] | object | None) -> Regi
     damage_dd = float(_get(strategy, "regime_router_damage_positive_lock_maxdd_min", 0.24) or 0.24)
     damage_ret = float(_get(strategy, "regime_router_damage_positive_lock_ret_max", 0.20) or 0.20)
     damage_eff = float(_get(strategy, "regime_router_damage_positive_lock_eff_max", 0.10) or 0.10)
+    bull_overext_ret_raw = _get(strategy, "regime_router_bull_overextended_hf_fast_ret_min", 999.0)
+    bull_overext_ret = float(bull_overext_ret_raw) if bull_overext_ret_raw is not None else 999.0
+    bull_overext_slow_ret_raw = _get(strategy, "regime_router_bull_overextended_hf_slow_ret_min", 0.0)
+    bull_overext_slow_ret = float(bull_overext_slow_ret_raw) if bull_overext_slow_ret_raw is not None else 0.0
     bull_on = int(_get(strategy, "regime_router_bull_sovereign_on_confirm_days", 1) or 1)
     bull_off = int(_get(strategy, "regime_router_bull_sovereign_off_confirm_days", 7) or 7)
     return RegimeRouterConfig(
@@ -137,6 +143,8 @@ def regime_router_config(strategy: Mapping[str, object] | object | None) -> Regi
         damage_positive_lock_maxdd_min=max(0.0, float(damage_dd)),
         damage_positive_lock_ret_max=float(damage_ret),
         damage_positive_lock_eff_max=max(0.0, float(damage_eff)),
+        bull_overextended_hf_fast_ret_min=float(bull_overext_ret),
+        bull_overextended_hf_slow_ret_min=float(bull_overext_slow_ret),
         bull_sovereign_on_confirm_days=max(1, int(bull_on)),
         bull_sovereign_off_confirm_days=max(1, int(bull_off)),
     )
@@ -484,10 +492,21 @@ def classify_rolling_climate_v5(
         if active is not None and active.chosen_host == "hf_host" and fast_bull_recovery:
             return ClimateDecision(climate="bull_grind_low_vol", chosen_host="buyhold")
         if slow.climate == "bull_grind_low_vol":
-            return slow
-        if stressed_positive:
-            return ClimateDecision(climate="positive_high_stress_transition", chosen_host="hf_host")
-        return ClimateDecision(climate="bull_grind_low_vol", chosen_host="buyhold")
+            decision = slow
+        elif stressed_positive:
+            decision = ClimateDecision(climate="positive_high_stress_transition", chosen_host="hf_host")
+        else:
+            decision = ClimateDecision(climate="bull_grind_low_vol", chosen_host="buyhold")
+
+        if (
+            str(decision.climate) == "bull_grind_low_vol"
+            and str(decision.chosen_host) == "buyhold"
+            and float(fast_features.ret) >= float(cfg.bull_overextended_hf_fast_ret_min)
+            and float(slow_features.ret) >= float(cfg.bull_overextended_hf_slow_ret_min)
+        ):
+            return ClimateDecision(climate="bull_overextended_hf", chosen_host="hf_host")
+
+        return decision
 
     if fast.climate == "negative_extreme_bear" or slow.climate == "negative_extreme_bear":
         return ClimateDecision(climate="negative_extreme_bear", chosen_host="hf_host")

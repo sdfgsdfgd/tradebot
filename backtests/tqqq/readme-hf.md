@@ -15,7 +15,8 @@ Sovereignty contract (current phase):
   - `2025` persistent uptrend
 - `v34` remains the raw `1Y/2Y` modern crown under the original contract.
 - `v35` remains the bridge-only dethrone that first unified `2022/2025`.
-- `v46` Router-On Composite Context Confidence is the active router-on crown for live deployment.
+- `v47` Router-On Composite Context Confidence is the active router-on crown for live deployment.
+  - `v46` remains the prior router-on crown (lineage truth).
   - `v45` remains the prior router-on crown (lineage truth).
   - `v44` remains the first router-on dethrone (baseline truth).
   - `v43` remains the raw HF-host organism (router-off), preserved as the base sovereign.
@@ -129,7 +130,26 @@ Canonical execution paths:
 
 ## Current Champions (stack)
 
-### CURRENT (v46) — Router-On Composite Context Confidence; universal-floor lift via trend-down long gate (live preset)
+### CURRENT (v47) — Router-On Composite Context Confidence; overextended-bull HF takeover (live preset)
+
+- Delta vs `v46`:
+  - add overextended-bull escape hatch:
+    - if the router would pick `bull_grind_low_vol -> buyhold` but both fast+slow windows are overextended,
+      route to `hf_host` instead (prevents bull-only long forcing in mean-reversion traps)
+  - new knobs:
+    - `regime_router_bull_overextended_hf_fast_ret_min=0.40`
+    - `regime_router_bull_overextended_hf_slow_ret_min=0.60`
+- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v47_routerOnCompositeContextConfidence_20260403_2.json`
+- Universal-floor floor (min `2020..2025` pnl/dd): **0.823**
+- `2020` (`2020-01-01 -> 2021-01-01`): trades **364**, pnl **27,803.3**, dd **12,044.8**, pnl/dd **2.308**
+- `2021` (`2021-01-01 -> 2022-01-01`): trades **81**, pnl **14,808.1**, dd **10,497.9**, pnl/dd **1.411**
+- `2022` (`2022-01-01 -> 2023-01-01`): trades **400**, pnl **14,812.0**, dd **7,999.3**, pnl/dd **1.852**
+- `2023` (`2023-01-01 -> 2024-01-01`): trades **155**, pnl **20,516.7**, dd **16,874.6**, pnl/dd **1.216**
+- `2024` (`2024-01-01 -> 2025-01-01`): trades **111**, pnl **14,112.6**, dd **17,151.1**, pnl/dd **0.823**
+- `2025` (`2025-01-01 -> 2026-01-19`): trades **224**, pnl **17,683.1**, dd **9,450.9**, pnl/dd **1.871**
+- Underlying HF host base filters: `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v43_compositeContextConfidence_20260319.json`
+
+### PREVIOUS (v46) — Router-On Composite Context Confidence; universal-floor lift via trend-down long gate (live preset)
 
 - Delta vs `v45`:
   - add `regime4_trenddown_block_longs=True` (blocks new long entries when `regime4_state=trend_down` and `hard_dir=down`)
@@ -223,6 +243,18 @@ Canonical execution paths:
     - Distinct truth: the hard-regime shelf itself was the real precondition for the universal-floor jump
 
 ## Evolutionary Log
+
+### v47 (2026-04-03) — Router-On Composite Context Confidence; overextended-bull HF takeover
+
+- Delta vs `v46`:
+  - add the overextended-bull escape hatch inside `tradebot/climate_router.py`:
+    - when the router would force `bull_grind_low_vol -> buyhold` but both windows are overextended,
+      route to `hf_host` instead
+  - knobs:
+    - `regime_router_bull_overextended_hf_fast_ret_min=0.40`
+    - `regime_router_bull_overextended_hf_slow_ret_min=0.60`
+- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v47_routerOnCompositeContextConfidence_20260403_2.json`
+- Router year table (2017–2025): avg **1.495**, worst **0.774**, and `2020 pnl/dd=2.308`
 
 ### v46 (2026-04-03) — Router-On Composite Context Confidence; trend-down long-gate universal-floor lift
 

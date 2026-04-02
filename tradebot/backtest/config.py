@@ -416,6 +416,8 @@ def _strategy_schema_common() -> dict[str, _FieldSpec]:
         "regime_router_damage_positive_lock_eff_max": _field(_parse_optional_float, 0.10),
         "regime_router_bull_sovereign_on_confirm_days": _field(lambda value: _parse_positive_int(value, default=1), 1),
         "regime_router_bull_sovereign_off_confirm_days": _field(lambda value: _parse_positive_int(value, default=7), 7),
+        "regime_router_bull_overextended_hf_fast_ret_min": _field(_parse_optional_float, 999.0),
+        "regime_router_bull_overextended_hf_slow_ret_min": _field(_parse_optional_float, 0.0),
         "spot_entry_policy": _field(_identity, None),
         "spot_exit_policy": _field(_identity, None),
         "spot_resize_policy": _field(_identity, None),
