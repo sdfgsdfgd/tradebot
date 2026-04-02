@@ -351,7 +351,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--csv", default="/tmp/tqqq_regime_router_distill.csv")
     ap.add_argument(
         "--preset",
-        default="backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v45_routerOnCompositeContextConfidence_20260402.json",
+        default="backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v46_routerOnCompositeContextConfidence_20260403.json",
     )
     ap.add_argument("--years", default="2017,2018,2019,2020,2021,2022,2023,2024,2025")
     ap.add_argument("--top-k", type=int, default=3)

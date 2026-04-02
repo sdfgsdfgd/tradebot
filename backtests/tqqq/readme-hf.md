@@ -15,8 +15,9 @@ Sovereignty contract (current phase):
   - `2025` persistent uptrend
 - `v34` remains the raw `1Y/2Y` modern crown under the original contract.
 - `v35` remains the bridge-only dethrone that first unified `2022/2025`.
-- `v45` Router-On Composite Context Confidence is the active router-on crown for live deployment.
-  - `v44` remains the prior router-on crown (lineage truth).
+- `v46` Router-On Composite Context Confidence is the active router-on crown for live deployment.
+  - `v45` remains the prior router-on crown (lineage truth).
+  - `v44` remains the first router-on dethrone (baseline truth).
   - `v43` remains the raw HF-host organism (router-off), preserved as the base sovereign.
 
 Canonical execution paths:
@@ -128,7 +129,21 @@ Canonical execution paths:
 
 ## Current Champions (stack)
 
-### CURRENT (v45) — Router-On Composite Context Confidence; 2018 ≥ 0.5 floor crown (live preset)
+### CURRENT (v46) — Router-On Composite Context Confidence; universal-floor lift via trend-down long gate (live preset)
+
+- Delta vs `v45`:
+  - add `regime4_trenddown_block_longs=True` (blocks new long entries when `regime4_state=trend_down` and `hard_dir=down`)
+- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v46_routerOnCompositeContextConfidence_20260403.json`
+- Universal-floor floor (min `2020..2025` pnl/dd): **0.659**
+- `2020` (`2020-01-01 -> 2021-01-01`): trades **313**, pnl **10,176.3**, dd **15,448.7**, pnl/dd **0.659**
+- `2021` (`2021-01-01 -> 2022-01-01`): trades **81**, pnl **14,808.1**, dd **10,497.9**, pnl/dd **1.411**
+- `2022` (`2022-01-01 -> 2023-01-01`): trades **400**, pnl **14,812.0**, dd **7,999.3**, pnl/dd **1.852**
+- `2023` (`2023-01-01 -> 2024-01-01`): trades **137**, pnl **20,388.9**, dd **14,567.0**, pnl/dd **1.400**
+- `2024` (`2024-01-01 -> 2025-01-01`): trades **111**, pnl **14,112.6**, dd **17,151.1**, pnl/dd **0.823**
+- `2025` (`2025-01-01 -> 2026-01-19`): trades **224**, pnl **17,683.1**, dd **9,450.9**, pnl/dd **1.871**
+- Underlying HF host base filters: `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v43_compositeContextConfidence_20260319.json`
+
+### PREVIOUS (v45) — Router-On Composite Context Confidence; 2018 ≥ 0.5 floor crown (live preset)
 
 - Delta vs `v44`:
   - Router v7 bull-sovereign ret-cap (keeps 2018 protection but stops 2023 cannibalization)
@@ -208,6 +223,15 @@ Canonical execution paths:
     - Distinct truth: the hard-regime shelf itself was the real precondition for the universal-floor jump
 
 ## Evolutionary Log
+
+### v46 (2026-04-03) — Router-On Composite Context Confidence; trend-down long-gate universal-floor lift
+
+- Delta vs `v45`:
+  - add `regime4_trenddown_block_longs=True`
+    - blocks new long entries when `regime4_state=trend_down` and `hard_dir=down`
+    - used to stop weak-year bleed clusters without harming the router itself
+- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v46_routerOnCompositeContextConfidence_20260403.json`
+- Router year table (2017–2025): avg **1.332**, worst **0.659**, and `2018 pnl/dd=0.774`
 
 ### v45 (2026-04-02) — Router-On Composite Context Confidence; 2018 ≥ 0.5 floor crown
 
