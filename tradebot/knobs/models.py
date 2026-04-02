@@ -268,6 +268,7 @@ class StrategyConfigBase:
     regime2_bear_takeover_mode: str = "always"
     regime2_crash_atr_pct_min: float | None = None
     regime2_crash_block_longs: bool = False
+    regime4_trenddown_block_longs: bool = False
     regime2_crash_prearm_apply_to: str = "off"
     regime2_crash_prearm_shock_atr_pct_min: float | None = None
     regime2_crash_prearm_shock_dir_ret_sum_pct_max: float | None = None

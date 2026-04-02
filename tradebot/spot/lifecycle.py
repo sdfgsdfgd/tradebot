@@ -1412,6 +1412,30 @@ def decide_flat_position_intent(
             fill_mode=str(fill_mode),
             trace={"stage": "flat", "bar_ts": bar_ts.isoformat()},
         )
+
+    if (
+        bool(_get(strategy, "regime4_trenddown_block_longs", False))
+        and str(entry_dir) == "up"
+    ):
+        context = entry_context if isinstance(entry_context, Mapping) else {}
+        regime4_state = str(context.get("regime4_state") or "").strip().lower()
+        hard_dir = str(context.get("hard_dir") or "").strip().lower()
+        if regime4_state == "trend_down" and hard_dir == "down":
+            return SpotLifecycleDecision(
+                intent="hold",
+                reason="regime4_trend_down",
+                gate="BLOCKED_REGIME4_TREND_DOWN",
+                direction=str(entry_dir),
+                blocked=True,
+                fill_mode=str(fill_mode),
+                trace={
+                    "stage": "flat",
+                    "bar_ts": bar_ts.isoformat(),
+                    "fill_mode": str(fill_mode),
+                    "regime4_state": str(regime4_state),
+                    "hard_dir": str(hard_dir) if hard_dir else None,
+                },
+            )
     graph_payload: dict[str, object]
     if bool(entry_gate_bypass):
         graph_payload = {
