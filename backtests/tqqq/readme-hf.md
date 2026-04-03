@@ -130,7 +130,24 @@ Canonical execution paths:
 
 ## Current Champions (stack)
 
-### CURRENT (v47) — Router-On Composite Context Confidence; overextended-bull HF takeover (live preset)
+### CURRENT (v48) — Router-On Composite Context Confidence; 2016-positive reality fix (live preset)
+
+- Delta vs `v47`:
+  - backtest semantic fix (no more phantom stop exits in host-managed lanes):
+    - persist `regime_router_host_managed` / `regime_router_ready` across exec bars (multi-res backtests)
+  - loosen crash-prearm choke (stops 2016 from getting strangled by false “crash prearm”):
+    - `regime2_crash_prearm_shock_dir_ret_sum_pct_max=-10.0` (was `-5.0`)
+- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v48_routerOnCompositeContextConfidence_20260404.json`
+- Universal-floor floor (min `2020..2025` pnl/dd): **0.116**
+- `2020` (`2020-01-01 -> 2021-01-01`): trades **298**, pnl **24,820.2**, dd **14,639.7**, pnl/dd **1.695**
+- `2021` (`2021-01-01 -> 2022-01-01`): trades **21**, pnl **11,321.6**, dd **19,000.7**, pnl/dd **0.596**
+- `2022` (`2022-01-01 -> 2023-01-01`): trades **390**, pnl **13,723.8**, dd **7,922.3**, pnl/dd **1.732**
+- `2023` (`2023-01-01 -> 2024-01-01`): trades **58**, pnl **32,043.5**, dd **22,955.5**, pnl/dd **1.396**
+- `2024` (`2024-01-01 -> 2025-01-01`): trades **20**, pnl **2,337.1**, dd **20,083.0**, pnl/dd **0.116**
+- `2025` (`2025-01-01 -> 2026-01-19`): trades **127**, pnl **13,236.9**, dd **12,202.1**, pnl/dd **1.085**
+- Underlying HF host base filters: `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v43_compositeContextConfidence_20260319.json`
+
+### PREVIOUS (v47) — Router-On Composite Context Confidence; overextended-bull HF takeover (live preset)
 
 - Delta vs `v46`:
   - add overextended-bull escape hatch:
@@ -243,6 +260,17 @@ Canonical execution paths:
     - Distinct truth: the hard-regime shelf itself was the real precondition for the universal-floor jump
 
 ## Evolutionary Log
+
+### v48 (2026-04-04) — Router-On Composite Context Confidence; 2016-positive reality fix
+
+- Delta vs `v47`:
+  - fix multi-resolution backtest semantics in `tradebot/backtest/engine.py`:
+    - persist the router’s `host_managed` metadata across exec bars (prevents phantom `stop_loss_pct` exits)
+  - update the preset knob:
+    - `regime2_crash_prearm_shock_dir_ret_sum_pct_max=-10.0` (was `-5.0`)
+  - add a regression test:
+    - `tests/test_regime_router_exec_bar_state_persistence.py`
+- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v48_routerOnCompositeContextConfidence_20260404.json`
 
 ### v47 (2026-04-03) — Router-On Composite Context Confidence; overextended-bull HF takeover
 

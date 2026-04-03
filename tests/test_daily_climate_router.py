@@ -373,7 +373,7 @@ def test_classify_rolling_climate_v5_uses_episode_crash_takeover() -> None:
         slow_features=slow,
         active=None,
     )
-    assert out == ClimateDecision(climate="episode_crash_takeover", chosen_host="hf_host")
+    assert out == ClimateDecision(climate="episode_crash_takeover", chosen_host="bull_ma200_v1")
 
 
 def test_classify_rolling_climate_v5_uses_learned_pre_bear_handoff() -> None:

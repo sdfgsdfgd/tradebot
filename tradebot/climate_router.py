@@ -463,6 +463,11 @@ def classify_rolling_climate_v5(
         and crash_features.rv <= float(cfg.hf_takeover_crash_rv_max)
     )
     if episode_crash_takeover:
+        # Episode takeovers are meant to handle sharp crash bursts, but in mild / hangover-ish
+        # slow climates the HF host tends to stop-spam. When the slow window is not deeply
+        # negative, prefer a host-managed trend lane instead of forced HF trading.
+        if float(slow_features.ret) > float(cfg.crash_hf_slow_ret_max):
+            return ClimateDecision(climate="episode_crash_takeover", chosen_host="bull_ma200_v1")
         return ClimateDecision(climate="episode_crash_takeover", chosen_host="hf_host")
 
     if damage_positive_lock_hit(slow_features=slow_features, config=cfg):
@@ -507,6 +512,14 @@ def classify_rolling_climate_v5(
             return ClimateDecision(climate="bull_overextended_hf", chosen_host="hf_host")
 
         return decision
+
+    crash_hangover_release = (
+        (fast.climate == "negative_extreme_bear" or slow.climate == "negative_extreme_bear")
+        and float(slow_features.ret) > float(cfg.crash_hf_slow_ret_max)
+        and float(crash_features.maxdd) <= 0.20
+    )
+    if crash_hangover_release:
+        return ClimateDecision(climate="crash_hangover_release", chosen_host="bull_ma200_v1")
 
     if fast.climate == "negative_extreme_bear" or slow.climate == "negative_extreme_bear":
         return ClimateDecision(climate="negative_extreme_bear", chosen_host="hf_host")

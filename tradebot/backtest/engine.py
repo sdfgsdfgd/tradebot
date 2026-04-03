@@ -4758,8 +4758,13 @@ def _run_spot_backtest_exec_loop(
         entry_regime4_transition_hot = False
         entry_regime4_owner = None
         entry_signal_branch = None
-        entry_regime_router_ready = False
-        entry_regime_router_host_managed = False
+        # Multi-resolution backtests (signal bars slower than exec bars) must keep the latest
+        # router metadata across exec bars. Otherwise, non-signal exec bars would incorrectly
+        # default to `host_managed=False`, re-enabling pct stops/targets for host-managed lanes.
+        entry_regime_router_ready = bool(getattr(last_sig_snap, "regime_router_ready", False)) if last_sig_snap is not None else False
+        entry_regime_router_host_managed = (
+            bool(getattr(last_sig_snap, "regime_router_host_managed", False)) if last_sig_snap is not None else False
+        )
         shock_dir_down_streak_bars = None
         ratsv_tr_ratio = None
         risk_tr_median_pct = None
