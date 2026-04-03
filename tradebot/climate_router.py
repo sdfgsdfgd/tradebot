@@ -465,9 +465,11 @@ def classify_rolling_climate_v5(
     if episode_crash_takeover:
         # Episode takeovers are meant to handle sharp crash bursts, but in mild / hangover-ish
         # slow climates the HF host tends to stop-spam. When the slow window is not deeply
-        # negative, prefer a host-managed trend lane instead of forced HF trading.
+        # negative, prefer a host-managed defensive lane instead of forced HF trading.
         if float(slow_features.ret) > float(cfg.crash_hf_slow_ret_max):
-            return ClimateDecision(climate="episode_crash_takeover", chosen_host="bull_ma200_v1")
+            # In corrections like April-2024, MA200 isn't defensive enough. Prefer the drawdown-kill
+            # lane so the router can go flat while the episode is unresolved.
+            return ClimateDecision(climate="episode_crash_takeover", chosen_host="lf_defensive_long_v2")
         return ClimateDecision(climate="episode_crash_takeover", chosen_host="hf_host")
 
     if damage_positive_lock_hit(slow_features=slow_features, config=cfg):

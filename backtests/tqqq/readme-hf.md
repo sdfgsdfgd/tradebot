@@ -130,7 +130,23 @@ Canonical execution paths:
 
 ## Current Champions (stack)
 
-### CURRENT (v48) — Router-On Composite Context Confidence; 2016-positive reality fix (live preset)
+### CURRENT (v49) — Router-On Composite Context Confidence; episode-crash goes flat (live preset)
+
+- Delta vs `v48`:
+  - in `tradebot/climate_router.py`:
+    - `episode_crash_takeover` now routes to `lf_defensive_long_v2` (drawdown-kill) when slow is not deeply negative
+    - this prevents MA200 “false defense” during correction episodes (April-2024 was the poster child)
+- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v49_routerOnCompositeContextConfidence_20260404.json`
+- Universal-floor floor (min `2020..2025` pnl/dd): **0.219**
+- `2020` (`2020-01-01 -> 2021-01-01`): trades **298**, pnl **24,820.2**, dd **14,639.7**, pnl/dd **1.695**
+- `2021` (`2021-01-01 -> 2022-01-01`): trades **20**, pnl **7,412.6**, dd **19,000.7**, pnl/dd **0.390**
+- `2022` (`2022-01-01 -> 2023-01-01`): trades **390**, pnl **13,723.8**, dd **7,922.3**, pnl/dd **1.732**
+- `2023` (`2023-01-01 -> 2024-01-01`): trades **58**, pnl **32,043.5**, dd **22,955.5**, pnl/dd **1.396**
+- `2024` (`2024-01-01 -> 2025-01-01`): trades **20**, pnl **4,673.5**, dd **21,364.3**, pnl/dd **0.219**
+- `2025` (`2025-01-01 -> 2026-01-19`): trades **127**, pnl **13,236.9**, dd **12,202.1**, pnl/dd **1.085**
+- Underlying HF host base filters: `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v43_compositeContextConfidence_20260319.json`
+
+### PREVIOUS (v48) — Router-On Composite Context Confidence; 2016-positive reality fix (live preset)
 
 - Delta vs `v47`:
   - backtest semantic fix (no more phantom stop exits in host-managed lanes):
@@ -260,6 +276,16 @@ Canonical execution paths:
     - Distinct truth: the hard-regime shelf itself was the real precondition for the universal-floor jump
 
 ## Evolutionary Log
+
+### v49 (2026-04-04) — Router-On Composite Context Confidence; episode-crash goes flat
+
+- Delta vs `v48`:
+  - router rule in `tradebot/climate_router.py`:
+    - `episode_crash_takeover` now routes to `lf_defensive_long_v2` (instead of `bull_ma200_v1`)
+      when the slow window is not deeply negative
+  - add investigation tooling:
+    - `tradebot/backtest/tools/regime_router_flip_autopsy.py`
+- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v49_routerOnCompositeContextConfidence_20260404.json`
 
 ### v48 (2026-04-04) — Router-On Composite Context Confidence; 2016-positive reality fix
 

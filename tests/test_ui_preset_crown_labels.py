@@ -58,7 +58,7 @@ def test_tqqq_preset_track_headers_show_loaded_crown_versions_and_clean_leaf_tit
     assert labels[0] == "▾ TQQQ"
     assert labels[1] == "  ▾ TQQQ - Spot"
     assert "    ▸ LF v34" in labels
-    assert "    ▸ HF v48" in labels
+    assert "    ▸ HF v49" in labels
     assert not any("HF?" in label for label in labels)
 
     screen._preset_expanded.add("contract:TQQQ|spot|track:HF")
