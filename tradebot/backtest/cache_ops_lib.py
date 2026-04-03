@@ -817,7 +817,6 @@ def _ibkr_overlay_adaptive(
         "threads": int(base_threads),
         "adaptive_threads_enabled": bool(adaptive_threads),
         "thread_plan": [int(x) for x in thread_plan],
-        "max_primary_span_days": int(max_primary_span_days),
         "pass_stats": pass_stats,
         "retries": int(retries),
         "timeout_sec": float(timeout_sec),

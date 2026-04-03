@@ -1047,12 +1047,18 @@ class DailyRegimeRouterEngine:
                 dwell_days=0,
             )
         if self._active is None:
+            # Cold-start guard: when the router is not ready (insufficient completed days),
+            # do *not* default into HF trading. Use a conservative, host-managed fallback
+            # that is allowed to remain flat until it has enough history.
+            fallback_host = "lf_defensive_long_v1"
+            policy = host_policy(fallback_host)
+            effective_dir = named_host_target_dir(self._completed_days, policy.name)
             return RegimeRouterSnapshot(
                 ready=False,
                 climate=None,
-                chosen_host="hf_host",
-                effective_entry_dir=str(hf_entry_dir) if hf_entry_dir in ("up", "down") else None,
-                host_managed=False,
+                chosen_host=policy.name,
+                effective_entry_dir=str(effective_dir) if effective_dir in ("up", "down") else None,
+                host_managed=bool(policy.host_managed),
                 bull_sovereign_ok=False,
                 dwell_days=int(self._pending_days),
             )
