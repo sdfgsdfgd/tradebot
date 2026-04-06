@@ -53,7 +53,10 @@ class RouterDay:
 
 
 def _simulate_router_days(*, days, cfg: RegimeRouterConfig) -> list[RouterDay]:
-    completed = []
+    # IMPORTANT: This simulation matches `DailyRegimeRouterEngine` semantics:
+    # - Router state used *during* day D is computed from completed days up to D-1.
+    # - The bar for day D is only incorporated after the day finishes (i.e., affects day D+1).
+    completed: list = []
     active: ClimateDecision | None = None
     pending: ClimateDecision | None = None
     pending_days = 0
@@ -69,17 +72,10 @@ def _simulate_router_days(*, days, cfg: RegimeRouterConfig) -> list[RouterDay]:
     crash_n = max(2, min(21, int(fast_n)))
 
     for bar in days:
-        completed.append(bar)
         day = str(bar.ts)[:10]
 
-        if len(completed) < int(slow_n):
-            active = None
-            pending = None
-            pending_days = 0
-            bull_active = False
-            bull_on_streak = 0
-            bull_off_streak = 0
-            bull_raw_ok = False
+        # Snapshot *for this day* (state computed from prior completed days; no lookahead).
+        if len(completed) < int(slow_n) or active is None:
             out.append(
                 RouterDay(
                     day=day,
@@ -91,37 +87,91 @@ def _simulate_router_days(*, days, cfg: RegimeRouterConfig) -> list[RouterDay]:
                     bull_sovereign_active=False,
                     bull_on_streak=0,
                     bull_off_streak=0,
-                    effective_host=None,
+                    effective_host="lf_defensive_long_v1",
                     effective_dir=None,
                     crash=None,
                     fast=None,
                     slow=None,
                 )
             )
+        else:
+            crash = compute_window_features(
+                completed,
+                label=len(completed),
+                start_idx=len(completed) - int(crash_n),
+                end_idx=len(completed),
+            )
+            fast = compute_window_features(
+                completed,
+                label=len(completed),
+                start_idx=len(completed) - int(fast_n),
+                end_idx=len(completed),
+            )
+            slow = compute_window_features(
+                completed,
+                label=len(completed),
+                start_idx=len(completed) - int(slow_n),
+                end_idx=len(completed),
+            )
+
+            base_climate = str(active.climate)
+            base_host = str(active.chosen_host)
+            effective_host = "bull_ma200_v1" if bool(bull_active) and base_host == "buyhold" else base_host
+            dir_raw = named_host_target_dir(completed, effective_host)
+            effective_dir = str(dir_raw) if dir_raw in ("up", "down") else None
+            out.append(
+                RouterDay(
+                    day=day,
+                    ready=True,
+                    proposed=None,
+                    active=active,
+                    pending_days=int(pending_days),
+                    bull_sovereign_raw_ok=bool(bull_raw_ok),
+                    bull_sovereign_active=bool(bull_active),
+                    bull_on_streak=int(bull_on_streak),
+                    bull_off_streak=int(bull_off_streak),
+                    effective_host=effective_host,
+                    effective_dir=effective_dir,
+                    crash=crash,
+                    fast=fast,
+                    slow=slow,
+                )
+            )
+
+        # End-of-day: incorporate today's bar and recompute state for the *next* day.
+        completed.append(bar)
+        if len(completed) < int(slow_n):
+            active = None
+            pending = None
+            pending_days = 0
+            bull_active = False
+            bull_on_streak = 0
+            bull_off_streak = 0
+            bull_raw_ok = False
             continue
 
-        crash = compute_window_features(
+        crash_eod = compute_window_features(
             completed,
             label=len(completed),
             start_idx=len(completed) - int(crash_n),
             end_idx=len(completed),
         )
-        fast = compute_window_features(
+        fast_eod = compute_window_features(
             completed,
             label=len(completed),
             start_idx=len(completed) - int(fast_n),
             end_idx=len(completed),
         )
-        slow = compute_window_features(
+        slow_eod = compute_window_features(
             completed,
             label=len(completed),
             start_idx=len(completed) - int(slow_n),
             end_idx=len(completed),
         )
         proposed = classify_rolling_climate_v5(
-            crash_features=crash,
-            fast_features=fast,
-            slow_features=slow,
+            crash_features=crash_eod,
+            fast_features=fast_eod,
+            slow_features=slow_eod,
             active=active,
             config=cfg,
         )
@@ -149,70 +199,50 @@ def _simulate_router_days(*, days, cfg: RegimeRouterConfig) -> list[RouterDay]:
                 pending = None
                 pending_days = 0
 
-        base_climate = str(active.climate) if active is not None else None
-        base_host = str(active.chosen_host) if active is not None else None
-
-        if base_climate != "bull_grind_low_vol" or base_host != "buyhold":
+        if active is None:
             bull_active = False
             bull_on_streak = 0
             bull_off_streak = 0
             bull_raw_ok = False
-        else:
-            bull_raw_ok = bool(
-                bull_sovereign_entry_ok(
-                    climate=base_climate,
-                    chosen_host=base_host,
-                    fast_features=fast,
-                    slow_features=slow,
-                )
+            continue
+
+        base_climate_eod = str(active.climate)
+        base_host_eod = str(active.chosen_host)
+        if base_climate_eod != "bull_grind_low_vol" or base_host_eod != "buyhold":
+            bull_active = False
+            bull_on_streak = 0
+            bull_off_streak = 0
+            bull_raw_ok = False
+            continue
+
+        bull_raw_ok = bool(
+            bull_sovereign_entry_ok(
+                climate=base_climate_eod,
+                chosen_host=base_host_eod,
+                fast_features=fast_eod,
+                slow_features=slow_eod,
             )
-            on_confirm = max(1, int(cfg.bull_sovereign_on_confirm_days))
-            off_confirm = max(1, int(cfg.bull_sovereign_off_confirm_days))
-            if bull_raw_ok:
-                bull_off_streak = 0
-                if bull_active:
-                    bull_on_streak = 0
-                else:
-                    bull_on_streak += 1
-                    if int(bull_on_streak) >= int(on_confirm):
-                        bull_active = True
-                        bull_on_streak = 0
-            else:
+        )
+        on_confirm = max(1, int(cfg.bull_sovereign_on_confirm_days))
+        off_confirm = max(1, int(cfg.bull_sovereign_off_confirm_days))
+        if bull_raw_ok:
+            bull_off_streak = 0
+            if bull_active:
                 bull_on_streak = 0
-                if bull_active:
-                    bull_off_streak += 1
-                    if int(bull_off_streak) >= int(off_confirm):
-                        bull_active = False
-                        bull_off_streak = 0
-                else:
+            else:
+                bull_on_streak += 1
+                if int(bull_on_streak) >= int(on_confirm):
+                    bull_active = True
+                    bull_on_streak = 0
+        else:
+            bull_on_streak = 0
+            if bull_active:
+                bull_off_streak += 1
+                if int(bull_off_streak) >= int(off_confirm):
+                    bull_active = False
                     bull_off_streak = 0
-
-        effective_host = (
-            "bull_ma200_v1"
-            if bool(bull_active) and str(base_host or "") == "buyhold"
-            else str(base_host) if base_host is not None else None
-        )
-        dir_raw = named_host_target_dir(completed, effective_host) if effective_host is not None else None
-        effective_dir = str(dir_raw) if dir_raw in ("up", "down") else None
-
-        out.append(
-            RouterDay(
-                day=day,
-                ready=True,
-                proposed=proposed,
-                active=active,
-                pending_days=int(pending_days),
-                bull_sovereign_raw_ok=bool(bull_raw_ok),
-                bull_sovereign_active=bool(bull_active),
-                bull_on_streak=int(bull_on_streak),
-                bull_off_streak=int(bull_off_streak),
-                effective_host=effective_host,
-                effective_dir=effective_dir,
-                crash=crash,
-                fast=fast,
-                slow=slow,
-            )
-        )
+            else:
+                bull_off_streak = 0
 
     return out
 
@@ -350,4 +380,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-
