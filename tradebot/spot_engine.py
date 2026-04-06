@@ -2960,6 +2960,37 @@ class SpotSignalEvaluator:
         if self._regime2_crash_blocks_long(regime4_state=regime4_state, entry_dir=entry_dir_for_entries):
             entry_dir_for_entries = None
             entry_branch = None
+        else:
+            # Router-aware crash sensitivity:
+            # When the *daily* router's crash window already shows meaningful damage (but Regime4
+            # is still only `trend_down`), tighten the crash ATR threshold slightly. This helps
+            # exit earlier in correction->crash sequences without globally lowering the crash
+            # threshold (which tends to overreact in gentler years).
+            if (
+                self._regime2_crash_block_longs
+                and bool(self._regime_router_cfg.enabled)
+                and bool(router_snap.ready)
+                and entry_dir_for_entries == "up"
+                and regime4_state == "trend_down"
+                and shock_dir == "down"
+                and self._active_regime2_bear_hard_dir == "down"
+                and shock_atr_pct is not None
+                and self._regime2_crash_atr_pct_min is not None
+                and router_snap.crash_maxdd is not None
+                and router_snap.crash_ret is not None
+            ):
+                # Scale off the router's own episode takeover thresholds (keeps this interpretable
+                # and avoids introducing more knobs).
+                router_dd_min = float(self._regime_router_cfg.hf_takeover_crash_maxdd_min) * 0.75
+                # Base is ~0.9; tighten to ~0.8 in damaged windows.
+                atr_min = max(0.0, float(self._regime2_crash_atr_pct_min) - 0.1)
+                if (
+                    float(router_snap.crash_maxdd) >= float(router_dd_min)
+                    and float(router_snap.crash_ret) <= 0.0
+                    and float(shock_atr_pct) >= float(atr_min)
+                ):
+                    entry_dir_for_entries = None
+                    entry_branch = None
 
         if self._regime2_crash_prearm_blocks_long(
             regime4_state=regime4_state,

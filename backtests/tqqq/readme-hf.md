@@ -130,7 +130,25 @@ Canonical execution paths:
 
 ## Current Champions (stack)
 
-### CURRENT (v49) — Router-On Composite Context Confidence; episode-crash goes flat (live preset)
+### CURRENT (v50) — Router-On Composite Context Confidence; router-aware crash sensitivity (live preset)
+
+- Delta vs `v49`:
+  - in `tradebot/spot_engine.py`:
+    - add router-aware crash sensitivity: when the daily router’s crash window already shows damage,
+      tighten the crash ATR threshold slightly to exit earlier in correction→crash sequences (April-2024)
+  - in `tradebot/climate_router.py`:
+    - expose router crash/fast/slow probes on `RegimeRouterSnapshot` (no-lookahead; computed from completed daily bars)
+- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v50_routerOnCompositeContextConfidence_20260406.json`
+- Universal-floor floor (min `2020..2025` pnl/dd): **0.328**
+- `2020` (`2020-01-01 -> 2021-01-01`): trades **298**, pnl **26,104.1**, dd **13,431.6**, pnl/dd **1.943**
+- `2021` (`2021-01-01 -> 2022-01-01`): trades **20**, pnl **6,216.6**, dd **18,978.3**, pnl/dd **0.328**
+- `2022` (`2022-01-01 -> 2023-01-01`): trades **390**, pnl **13,723.8**, dd **7,922.3**, pnl/dd **1.732**
+- `2023` (`2023-01-01 -> 2024-01-01`): trades **59**, pnl **35,609.7**, dd **23,578.1**, pnl/dd **1.510**
+- `2024` (`2024-01-01 -> 2025-01-01`): trades **20**, pnl **9,042.9**, dd **19,090.0**, pnl/dd **0.474**
+- `2025` (`2025-01-01 -> 2026-01-19`): trades **127**, pnl **13,273.6**, dd **12,214.5**, pnl/dd **1.087**
+- Underlying HF host base filters: `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v43_compositeContextConfidence_20260319.json`
+
+### PREVIOUS (v49) — Router-On Composite Context Confidence; episode-crash goes flat (live preset)
 
 - Delta vs `v48`:
   - in `tradebot/climate_router.py`:
@@ -276,6 +294,16 @@ Canonical execution paths:
     - Distinct truth: the hard-regime shelf itself was the real precondition for the universal-floor jump
 
 ## Evolutionary Log
+
+### v50 (2026-04-06) — Router-On Composite Context Confidence; router-aware crash sensitivity
+
+- Delta vs `v49`:
+  - router-aware crash sensitivity gate in `tradebot/spot_engine.py`:
+    - uses the daily router’s crash window damage to tighten crash detection only when needed
+    - improves April-2024 without globally lowering `regime2_crash_atr_pct_min`
+  - expose router crash/fast/slow probes in `tradebot/climate_router.py`:
+    - adds optional fields on `RegimeRouterSnapshot` (computed from completed daily bars; no lookahead)
+- Preset file (UI loads this): `backtests/tqqq/archive/champion_history_20260301/tqqq_hf_champions_v50_routerOnCompositeContextConfidence_20260406.json`
 
 ### v49 (2026-04-04) — Router-On Composite Context Confidence; episode-crash goes flat
 

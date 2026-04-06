@@ -99,6 +99,12 @@ class RegimeRouterSnapshot:
     host_managed: bool = False
     bull_sovereign_ok: bool = False
     dwell_days: int = 0
+    # Optional feature probes (computed from completed daily bars; no lookahead).
+    crash_ret: float | None = None
+    crash_maxdd: float | None = None
+    crash_rv: float | None = None
+    fast_ret: float | None = None
+    slow_ret: float | None = None
 
 
 def _get(source: Mapping[str, object] | object | None, key: str, default: object = None):
@@ -896,6 +902,7 @@ class DailyRegimeRouterEngine:
         self._active: ClimateDecision | None = None
         self._pending: ClimateDecision | None = None
         self._pending_days = 0
+        self._last_crash_features: YearFeatures | None = None
         self._last_fast_features: YearFeatures | None = None
         self._last_slow_features: YearFeatures | None = None
         self._bull_sovereign_active = False
@@ -922,6 +929,7 @@ class DailyRegimeRouterEngine:
             self._active = None
             self._pending = None
             self._pending_days = 0
+            self._last_crash_features = None
             self._bull_sovereign_active = False
             self._bull_sovereign_on_streak = 0
             self._bull_sovereign_off_streak = 0
@@ -934,6 +942,7 @@ class DailyRegimeRouterEngine:
             start_idx=len(self._completed_days) - int(crash_n),
             end_idx=len(self._completed_days),
         )
+        self._last_crash_features = crash
         fast = compute_window_features(
             self._completed_days,
             label=len(self._completed_days),
@@ -1060,6 +1069,11 @@ class DailyRegimeRouterEngine:
                 host_managed=False,
                 bull_sovereign_ok=False,
                 dwell_days=0,
+                crash_ret=None,
+                crash_maxdd=None,
+                crash_rv=None,
+                fast_ret=None,
+                slow_ret=None,
             )
         if self._active is None:
             # Cold-start guard: when the router is not ready (insufficient completed days),
@@ -1076,6 +1090,11 @@ class DailyRegimeRouterEngine:
                 host_managed=bool(policy.host_managed),
                 bull_sovereign_ok=False,
                 dwell_days=int(self._pending_days),
+                crash_ret=None,
+                crash_maxdd=None,
+                crash_rv=None,
+                fast_ret=None,
+                slow_ret=None,
             )
         chosen_host = str(self._active.chosen_host)
         bull_sovereign_ok = bool(self._bull_sovereign_active)
@@ -1085,6 +1104,9 @@ class DailyRegimeRouterEngine:
             effective_dir = str(hf_entry_dir) if hf_entry_dir in ("up", "down") else None
         else:
             effective_dir = named_host_target_dir(self._completed_days, policy.name)
+        crash = self._last_crash_features
+        fast = self._last_fast_features
+        slow = self._last_slow_features
         return RegimeRouterSnapshot(
             ready=True,
             climate=str(self._active.climate),
@@ -1093,6 +1115,11 @@ class DailyRegimeRouterEngine:
             host_managed=bool(policy.host_managed),
             bull_sovereign_ok=bool(bull_sovereign_ok),
             dwell_days=int(self._pending_days),
+            crash_ret=(float(crash.ret) if crash is not None and crash.ret is not None else None),
+            crash_maxdd=(float(crash.maxdd) if crash is not None and crash.maxdd is not None else None),
+            crash_rv=(float(crash.rv) if crash is not None and crash.rv is not None else None),
+            fast_ret=(float(fast.ret) if fast is not None and fast.ret is not None else None),
+            slow_ret=(float(slow.ret) if slow is not None and slow.ret is not None else None),
         )
 
 
