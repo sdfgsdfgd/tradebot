@@ -1074,6 +1074,12 @@ class BotOrderBuilderMixin:
                     "ema_ready": bool(getattr(getattr(snap, "signal", None), "ema_ready", False)),
                 },
                 "entry_dir": getattr(snap, "entry_dir", None),
+                "regime4_state": str(getattr(snap, "regime4_state", "") or "") or None,
+                "hard_dir": (
+                    str(getattr(snap, "regime2_bear_hard_dir", None))
+                    if getattr(snap, "regime2_bear_hard_dir", None) in ("up", "down")
+                    else None
+                ),
                 "entry_branch": str(entry_branch) if entry_branch in ("a", "b") else None,
                 "branch_size_mult": float(branch_size_mult) if branch_size_mult is not None else None,
                 "spot_decision": decision_trace.as_payload(),
@@ -1205,7 +1211,44 @@ class BotOrderBuilderMixin:
                 "exec_policy": "LADDER",
                 "exec_mode": "OPTIMISTIC",
                 "chase_orders": bool(strat.get("chase_orders", True)),
+                "regime_router_ready": bool(getattr(snap, "regime_router_ready", False)),
+                "regime_router_climate": str(getattr(snap, "regime_router_climate", "") or "") or None,
+                "regime_router_host": str(getattr(snap, "regime_router_host", "") or "") or None,
+                "regime_router_entry_dir": (
+                    str(getattr(snap, "regime_router_entry_dir", None))
+                    if getattr(snap, "regime_router_entry_dir", None) in ("up", "down")
+                    else None
+                ),
+                "regime_router_host_managed": bool(getattr(snap, "regime_router_host_managed", False)),
+                "regime_router_bull_sovereign_ok": bool(getattr(snap, "regime_router_bull_sovereign_ok", False)),
+                "regime_router_dwell_days": (
+                    int(getattr(snap, "regime_router_dwell_days", 0))
+                    if getattr(snap, "regime_router_dwell_days", None) is not None
+                    else 0
+                ),
+                "regime_router_crash_ret": (
+                    float(getattr(snap, "regime_router_crash_ret"))
+                    if getattr(snap, "regime_router_crash_ret", None) is not None
+                    else None
+                ),
+                "regime_router_crash_maxdd": (
+                    float(getattr(snap, "regime_router_crash_maxdd"))
+                    if getattr(snap, "regime_router_crash_maxdd", None) is not None
+                    else None
+                ),
             }
+            def _health_json(raw: object) -> dict[str, object] | None:
+                if not isinstance(raw, dict):
+                    return None
+                payload: dict[str, object] = dict(raw)
+                for key, value in list(payload.items()):
+                    if isinstance(value, datetime):
+                        payload[str(key)] = value.isoformat()
+                return payload
+
+            journal["signal_bar_health"] = _health_json(getattr(snap, "bar_health", None))
+            journal["regime_bar_health"] = _health_json(getattr(snap, "regime_bar_health", None))
+            journal["regime2_bar_health"] = _health_json(getattr(snap, "regime2_bar_health", None))
             journal.update(_order_attempt_payload())
 
             order = _BotOrder(

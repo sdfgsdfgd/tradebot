@@ -134,6 +134,12 @@ class SpotSignalSnapshot:
     regime_router_entry_dir: str | None = None
     regime_router_host_managed: bool = False
     regime_router_bull_sovereign_ok: bool = False
+    regime_router_dwell_days: int = 0
+    regime_router_crash_ret: float | None = None
+    regime_router_crash_maxdd: float | None = None
+    regime_router_crash_rv: float | None = None
+    regime_router_fast_ret: float | None = None
+    regime_router_slow_ret: float | None = None
 # endregion
 
 
@@ -3369,6 +3375,24 @@ class SpotSignalEvaluator:
             ),
             regime_router_host_managed=bool(router_snap.host_managed),
             regime_router_bull_sovereign_ok=bool(router_snap.bull_sovereign_ok),
+            regime_router_dwell_days=int(getattr(router_snap, "dwell_days", 0) or 0),
+            regime_router_crash_ret=(
+                float(getattr(router_snap, "crash_ret", None)) if getattr(router_snap, "crash_ret", None) is not None else None
+            ),
+            regime_router_crash_maxdd=(
+                float(getattr(router_snap, "crash_maxdd", None))
+                if getattr(router_snap, "crash_maxdd", None) is not None
+                else None
+            ),
+            regime_router_crash_rv=(
+                float(getattr(router_snap, "crash_rv", None)) if getattr(router_snap, "crash_rv", None) is not None else None
+            ),
+            regime_router_fast_ret=(
+                float(getattr(router_snap, "fast_ret", None)) if getattr(router_snap, "fast_ret", None) is not None else None
+            ),
+            regime_router_slow_ret=(
+                float(getattr(router_snap, "slow_ret", None)) if getattr(router_snap, "slow_ret", None) is not None else None
+            ),
         )
         self._last_signal = signal
         self._last_snapshot = snap

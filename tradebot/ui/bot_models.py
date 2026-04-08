@@ -216,3 +216,13 @@ class _SignalSnapshot:
     regime_router_entry_dir: str | None = None
     regime_router_host_managed: bool = False
     regime_router_bull_sovereign_ok: bool = False
+    regime2_dir: str | None = None
+    regime2_bear_hard_dir: str | None = None
+    regime4_state: str | None = None
+    regime4_owner: str | None = None
+    regime_router_dwell_days: int | None = None
+    regime_router_crash_ret: float | None = None
+    regime_router_crash_maxdd: float | None = None
+    regime_router_crash_rv: float | None = None
+    regime_router_fast_ret: float | None = None
+    regime_router_slow_ret: float | None = None

@@ -4185,6 +4185,48 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             ),
             regime_router_host_managed=bool(getattr(snap, "regime_router_host_managed", False)),
             regime_router_bull_sovereign_ok=bool(getattr(snap, "regime_router_bull_sovereign_ok", False)),
+            regime2_dir=(
+                str(getattr(snap, "regime2_dir"))
+                if getattr(snap, "regime2_dir", None) in ("up", "down")
+                else None
+            ),
+            regime2_bear_hard_dir=(
+                str(getattr(snap, "regime2_bear_hard_dir"))
+                if getattr(snap, "regime2_bear_hard_dir", None) in ("up", "down")
+                else None
+            ),
+            regime4_state=str(getattr(snap, "regime4_state", "") or "") or None,
+            regime4_owner=str(getattr(snap, "regime4_owner", "") or "") or None,
+            regime_router_dwell_days=(
+                int(getattr(snap, "regime_router_dwell_days", 0))
+                if getattr(snap, "regime_router_dwell_days", None) is not None
+                else None
+            ),
+            regime_router_crash_ret=(
+                float(getattr(snap, "regime_router_crash_ret"))
+                if getattr(snap, "regime_router_crash_ret", None) is not None
+                else None
+            ),
+            regime_router_crash_maxdd=(
+                float(getattr(snap, "regime_router_crash_maxdd"))
+                if getattr(snap, "regime_router_crash_maxdd", None) is not None
+                else None
+            ),
+            regime_router_crash_rv=(
+                float(getattr(snap, "regime_router_crash_rv"))
+                if getattr(snap, "regime_router_crash_rv", None) is not None
+                else None
+            ),
+            regime_router_fast_ret=(
+                float(getattr(snap, "regime_router_fast_ret"))
+                if getattr(snap, "regime_router_fast_ret", None) is not None
+                else None
+            ),
+            regime_router_slow_ret=(
+                float(getattr(snap, "regime_router_slow_ret"))
+                if getattr(snap, "regime_router_slow_ret", None) is not None
+                else None
+            ),
             bar_health=bar_health,
             regime_bar_health=regime_bar_health,
             regime2_bar_health=regime2_bar_health,
