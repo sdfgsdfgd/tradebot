@@ -577,6 +577,24 @@ class BotJournal:
         if use_rth_value is not None:
             tokens.append("session=RTH" if bool(use_rth_value) else "session=FULL24")
 
+        if bool(strategy.get("regime_router")):
+            fast_raw = strategy.get("regime_router_fast_window_days")
+            slow_raw = strategy.get("regime_router_slow_window_days")
+            try:
+                fast_days = int(fast_raw) if fast_raw is not None else None
+            except (TypeError, ValueError):
+                fast_days = None
+            try:
+                slow_days = int(slow_raw) if slow_raw is not None else None
+            except (TypeError, ValueError):
+                slow_days = None
+            if fast_days is None and slow_days is None:
+                tokens.append("router=on")
+            else:
+                fast_label = str(fast_days) if fast_days is not None else "?"
+                slow_label = str(slow_days) if slow_days is not None else "?"
+                tokens.append(f"router=on({fast_label}/{slow_label}D)")
+
         regime_mode = str(_first(meta.get("regime_mode"), strategy.get("regime_mode")) or "").strip().lower()
         regime_bar = str(_first(meta.get("regime_bar_size"), strategy.get("regime_bar_size"), signal_bar) or "").strip()
         if regime_mode and not BotJournal._is_disabled(regime_mode):
@@ -933,6 +951,23 @@ class BotJournal:
                 health_faults.append("gap")
         if health_gate and health_faults:
             line1.append(f"health_gate={health_gate}({','.join(health_faults)})")
+
+        if "regime_router_ready" in detail:
+            line1.append(f"router_ready={BotJournal._pass_fail_badge(bool(detail.get('regime_router_ready')))}")
+        router_host = str(detail.get("regime_router_host") or "").strip()
+        if router_host:
+            line1.append(f"router_host={router_host}")
+        router_climate = str(detail.get("regime_router_climate") or "").strip()
+        if router_climate:
+            line1.append(f"climate={router_climate}")
+        router_entry = detail.get("regime_router_entry_dir")
+        if router_entry in ("up", "down"):
+            line1.append(f"router_entry={BotJournal._dir_badge(router_entry)}")
+        regime4_owner = str(detail.get("regime4_owner") or "").strip()
+        regime4_state = str(detail.get("regime4_state") or "").strip()
+        if regime4_owner or regime4_state:
+            label = f"{regime4_owner}:{regime4_state}" if regime4_owner and regime4_state else (regime4_owner or regime4_state)
+            line1.append(f"regime4={label}")
         line1_text = BotJournal._join_tokens(line1)
         lines: list[str] = [line1_text] if line1_text else []
 

@@ -84,11 +84,72 @@ class BotSignalRuntimeMixin:
             if instance.state != "RUNNING":
                 continue
 
+            tick_hold_override: str | None = None
+
             def _gate(status: str, data: dict | None = None) -> None:
+                nonlocal tick_hold_override
                 status_text = str(status or "")
+                prev_status = str(instance.last_gate_status or "")
+                if status_text.endswith("_HOLDING") and status_text != "HOLDING":
+                    tick_hold_override = status_text
+                if status_text == "HOLDING":
+                    if tick_hold_override:
+                        return
+                    if prev_status and prev_status != "HOLDING" and prev_status.endswith("_HOLDING"):
+                        return
+
+                volatile_gate_keys = {"now_wall_ts"}
+                volatile_health_keys = {
+                    "age_sec",
+                    "lag_bars",
+                    "lag_bars_wall",
+                    "heal_backoff_remaining_sec",
+                }
+                volatile_hist_keys = {"ts", "elapsed_sec"}
+
+                def _sanitize_fingerprint_payload(value: object) -> object:
+                    if isinstance(value, dict):
+                        out: dict[str, object] = {}
+                        for key, inner in value.items():
+                            name = str(key)
+                            if name in volatile_gate_keys:
+                                continue
+                            if name.endswith("_health") and isinstance(inner, dict):
+                                cleaned_health: dict[str, object] = {}
+                                for hk, hv in inner.items():
+                                    hname = str(hk)
+                                    if hname in volatile_health_keys:
+                                        continue
+                                    cleaned_health[hname] = _sanitize_fingerprint_payload(hv)
+                                out[name] = cleaned_health
+                                continue
+                            if name == "historical_request" and isinstance(inner, dict):
+                                cleaned_hist: dict[str, object] = {}
+                                for hk, hv in inner.items():
+                                    hname = str(hk)
+                                    if hname in volatile_hist_keys:
+                                        continue
+                                    cleaned_hist[hname] = _sanitize_fingerprint_payload(hv)
+                                out[name] = cleaned_hist
+                                continue
+                            out[name] = _sanitize_fingerprint_payload(inner)
+                        return out
+                    if isinstance(value, list):
+                        return [_sanitize_fingerprint_payload(item) for item in value]
+                    return value
+
+                fingerprint_payload = (
+                    json.dumps(
+                        _sanitize_fingerprint_payload(data),
+                        sort_keys=True,
+                        default=str,
+                    )
+                    if isinstance(data, dict)
+                    else ""
+                )
                 fingerprint = (
                     status_text,
-                    json.dumps(data, sort_keys=True, default=str) if isinstance(data, dict) else "",
+                    fingerprint_payload,
                 )
 
                 def _maybe_log_no_signal_progress() -> None:
@@ -587,6 +648,20 @@ class BotSignalRuntimeMixin:
                     {
                         "bar_ts": snap.bar_ts.isoformat(),
                         "symbol": symbol,
+                        "direction": open_dir,
+                        "items": len(open_items),
+                        "state": snap.signal.state,
+                        "entry_dir": snap.signal.entry_dir,
+                        "regime_dir": snap.signal.regime_dir,
+                        "shock_dir": snap.shock_dir,
+                        "bars_in_day": int(snap.bars_in_day),
+                        "rv": snap.rv,
+                        "regime4_owner": getattr(snap, "regime4_owner", None),
+                        "regime4_state": getattr(snap, "regime4_state", None),
+                        "regime_router_ready": bool(getattr(snap, "regime_router_ready", False)),
+                        "regime_router_climate": getattr(snap, "regime_router_climate", None),
+                        "regime_router_host": getattr(snap, "regime_router_host", None),
+                        "regime_router_entry_dir": getattr(snap, "regime_router_entry_dir", None),
                         "degraded_streams": degraded_regime_streams,
                         "regime_bar_health": regime_bar_health,
                         "regime2_bar_health": regime2_bar_health,
