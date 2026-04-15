@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 from statistics import mean, median, pstdev
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 
 from .engine import SupertrendEngine
 from .backtest.engine import run_backtest
@@ -894,6 +894,7 @@ class DailyRegimeRouterEngine:
     def __init__(self, *, config: RegimeRouterConfig) -> None:
         self._cfg = config
         self._completed_days: list[DailyBar] = []
+        self._completed_day_set: set[str] = set()
         self._current_day: str | None = None
         self._day_open = 0.0
         self._day_high = 0.0
@@ -910,18 +911,63 @@ class DailyRegimeRouterEngine:
         self._bull_sovereign_off_streak = 0
         self._bull_sovereign_raw_ok = False
 
+    def seed_completed_days(self, days: Iterable[object] | None) -> None:
+        """Seed completed daily bars (no lookahead).
+
+        This is intended for live signal evaluation where a daily router needs a long warmup
+        window, but intraday signal bars should stay short and responsive.
+        """
+        unique: dict[str, DailyBar] = {}
+        for bar in days or ():
+            day = str(getattr(bar, "ts", "") or "")[:10]
+            if not day:
+                continue
+            try:
+                unique[day] = DailyBar(
+                    ts=day,
+                    open=float(getattr(bar, "open")),
+                    high=float(getattr(bar, "high")),
+                    low=float(getattr(bar, "low")),
+                    close=float(getattr(bar, "close")),
+                )
+            except (TypeError, ValueError):
+                continue
+        seeded = [unique[key] for key in sorted(unique.keys())]
+        self._completed_days = seeded
+        self._completed_day_set = set(unique.keys())
+        self._current_day = None
+        self._day_open = 0.0
+        self._day_high = 0.0
+        self._day_low = 0.0
+        self._day_close = 0.0
+        self._active = None
+        self._pending = None
+        self._pending_days = 0
+        self._last_crash_features = None
+        self._last_fast_features = None
+        self._last_slow_features = None
+        self._bull_sovereign_active = False
+        self._bull_sovereign_on_streak = 0
+        self._bull_sovereign_off_streak = 0
+        self._bull_sovereign_raw_ok = False
+        self._recompute_state()
+
     def _finalize_day(self) -> None:
         if self._current_day is None:
             return
+        day = str(self._current_day)
+        if day in self._completed_day_set:
+            return
         self._completed_days.append(
             DailyBar(
-                ts=str(self._current_day),
+                ts=day,
                 open=float(self._day_open),
                 high=float(self._day_high),
                 low=float(self._day_low),
                 close=float(self._day_close),
             )
         )
+        self._completed_day_set.add(day)
         self._recompute_state()
 
     def _recompute_state(self) -> None:

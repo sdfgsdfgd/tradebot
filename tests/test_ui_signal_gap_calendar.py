@@ -108,6 +108,38 @@ def test_daily_full24_marks_stale_after_missed_trading_close() -> None:
     assert float(health["lag_bars"]) > float(health["stale_threshold_bars"])
 
 
+def test_rth_intraday_htf_carry_does_not_mark_stale_before_first_close() -> None:
+    screen = _screen()
+    health = screen._signal_bar_health(
+        bars=[_TsBar(datetime(2026, 4, 14, 15, 30))],
+        bar_size="30 mins",
+        now_ref=datetime(2026, 4, 15, 9, 35),
+        use_rth=True,
+        sec_type="STK",
+        source="TRADES",
+        strict_zero_gap=True,
+    )
+    assert health["expected_live"] is True
+    assert health["stale"] is False
+    assert float(health["lag_bars"]) <= float(health["stale_threshold_bars"])
+
+
+def test_rth_intraday_htf_marks_stale_after_missed_first_close() -> None:
+    screen = _screen()
+    health = screen._signal_bar_health(
+        bars=[_TsBar(datetime(2026, 4, 14, 15, 30))],
+        bar_size="30 mins",
+        now_ref=datetime(2026, 4, 15, 10, 5),
+        use_rth=True,
+        sec_type="STK",
+        source="TRADES",
+        strict_zero_gap=True,
+    )
+    assert health["expected_live"] is True
+    assert health["stale"] is True
+    assert float(health["lag_bars"]) > float(health["stale_threshold_bars"])
+
+
 def test_daily_holiday_gap_is_not_flagged() -> None:
     screen = _screen()
     stats = screen._signal_gap_stats(

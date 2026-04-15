@@ -794,20 +794,6 @@ class BotSignalRuntimeMixin:
             slow = self._ema_slow_period(strategy.get("ema_preset"))
             _register("signal", "entry_ema", slow)
 
-        if bool(strategy.get("regime_router")):
-            router_slow_days = self._int_from(strategy.get("regime_router_slow_window_days"), default=0, min_value=0)
-            if router_slow_days > 0:
-                bar_def = parse_bar_size(bar_size)
-                if bar_def is None or float(bar_def.duration.total_seconds()) <= 0.0:
-                    bars_per_day = 1
-                else:
-                    session_hours = 6.5 if bool(self._signal_use_rth(instance)) else 24.0
-                    bars_per_day = max(
-                        1,
-                        int(round((float(session_hours) * 3600.0) / float(bar_def.duration.total_seconds()))),
-                    )
-                _register("signal", "regime_router_daily", int(router_slow_days) * int(bars_per_day))
-
         strategy_instrument = "spot"
         strategy_instrument_fn = getattr(self, "_strategy_instrument", None)
         if callable(strategy_instrument_fn):

@@ -3226,6 +3226,23 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         )
         return _max_duration(base, str(floor)) if floor else base
 
+    @staticmethod
+    def _duration_for_days(days_needed: int) -> str:
+        try:
+            days = int(days_needed)
+        except (TypeError, ValueError):
+            days = 0
+        days = max(0, int(days))
+        if days <= 25:
+            return "1 M"
+        if days <= 50:
+            return "2 M"
+        if days <= 95:
+            return "3 M"
+        if days <= 180:
+            return "6 M"
+        return "1 Y"
+
     def _signal_min_duration_str(
         self,
         bar_size: str,
@@ -3236,17 +3253,6 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
     ) -> str | None:
         _ = bar_size
         floors: list[str] = []
-
-        def _duration_for_days(days_needed: int) -> str:
-            if days_needed <= 25:
-                return "1 M"
-            if days_needed <= 50:
-                return "2 M"
-            if days_needed <= 95:
-                return "3 M"
-            if days_needed <= 180:
-                return "6 M"
-            return "1 Y"
 
         if isinstance(filters, dict) and filters:
             from ..engine import normalize_shock_detector, normalize_shock_gate_mode
@@ -3269,15 +3275,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                         except (TypeError, ValueError):
                             days_needed = 20
                         days_needed = max(2, int(days_needed))
-                    floors.append(_duration_for_days(days_needed))
-
-        if isinstance(strategy, dict) and bool(strategy.get("regime_router")):
-            slow_days = self._int_from(strategy.get("regime_router_slow_window_days"), default=0, min_value=0)
-            if slow_days > 0:
-                warmup_days = int(slow_days) + 5
-                if bool(use_rth):
-                    warmup_days = int(math.ceil(float(slow_days) * (7.0 / 5.0))) + 7
-                floors.append(_duration_for_days(max(2, int(warmup_days))))
+                    floors.append(self._duration_for_days(days_needed))
 
         if not floors:
             return None
@@ -3310,8 +3308,8 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
     ) -> tuple[str, ...]:
         requested_rank = self._signal_duration_rank(str(duration))
         min_rank = self._signal_duration_rank(str(min_duration)) if min_duration else -1
-        week_rank = self._signal_duration_rank("1 W")
-        if requested_rank <= week_rank:
+        day_rank = self._signal_duration_rank("1 D")
+        if requested_rank <= day_rank:
             return ()
         fallbacks = ("3 M", "2 M", "1 M", "1 W", "2 D", "1 D")
         return tuple(
@@ -3401,11 +3399,11 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             return float("inf")
         age_sec = max(0.0, float((now_ref - last_bar_ts).total_seconds()))
         age_lag_bars = float(age_sec / bar_seconds)
-        if bool(use_rth) or bar_seconds < 3600.0:
+        if bar_seconds < 1800.0:
             return age_lag_bars
 
-        # For HTF full24 bars, measure lag by expected live slot transitions instead
-        # of raw wall-clock time so weekends/holidays do not false-trigger staleness.
+        # For HTF bars (RTH or full24), measure lag by expected live slot transitions instead
+        # of raw wall-clock time so overnight/weekends/holidays do not false-trigger staleness.
         tolerance_sec = min(60.0, max(1.0, bar_seconds * 0.02))
         probe_cap = max(4, int(math.ceil(stale_threshold_bars)) + 2)
         live_slots = 0
@@ -4486,9 +4484,47 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             regime2_supertrend_source_raw=regime2_supertrend_source_raw,
         )
 
+        regime_router_seed = None
+        regime_router_seed_health = None
+        if bool(strategy.get("regime_router")):
+            slow_days = self._int_from(
+                strategy.get("regime_router_slow_window_days"),
+                default=0,
+                min_value=0,
+            )
+
+            warmup_days = int(slow_days) + 5
+            if bool(use_rth) and slow_days > 0:
+                warmup_days = int(math.ceil(float(slow_days) * (7.0 / 5.0))) + 7
+            daily_duration = self._duration_for_days(max(2, int(warmup_days)))
+            _set_diag(
+                "regime_router_seed_fetch",
+                regime_router_seed_bar_size="1 day",
+                regime_router_seed_duration=str(daily_duration),
+                bar_health=self._signal_health_payload(bar_health),
+            )
+            regime_router_seed, regime_router_seed_health = await self._signal_fetch_bars(
+                contract=contract,
+                duration_str=str(daily_duration),
+                bar_size="1 day",
+                use_rth=use_rth,
+                now_ref=now_ref,
+                strict_zero_gap=False,
+                heal_if_stale=False,
+            )
+            if regime_router_seed is None or len(regime_router_seed) == 0:
+                _set_diag(
+                    "regime_router_seed_bars",
+                    regime_router_seed_bar_size="1 day",
+                    regime_router_seed_duration=str(daily_duration),
+                    bar_health=self._signal_health_payload(bar_health),
+                    regime_router_seed_health=self._signal_health_payload(regime_router_seed_health),
+                )
+
         bars_list = self._signal_series_list(bars)
         regime_bars_list = self._signal_series_list(regime_bars)
         regime2_bars_list = self._signal_series_list(regime2_bars)
+        regime_router_seed_list = self._signal_series_list(regime_router_seed)
         snapshot_key = (
             int(getattr(contract, "conId", 0) or 0),
             str(getattr(contract, "symbol", "") or "").strip().upper(),
@@ -4497,6 +4533,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             self._signal_series_signature(bars),
             self._signal_series_signature(regime_bars),
             self._signal_series_signature(regime2_bars),
+            self._signal_series_signature(regime_router_seed),
             self._stable_json_key(strategy),
             self._stable_json_key(filters or {}),
         )
@@ -4510,6 +4547,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                 bars_count=int(len(bars_list)),
                 regime_bars_count=int(len(regime_bars_list)),
                 regime2_bars_count=int(len(regime2_bars_list)),
+                regime_router_seed_count=int(len(regime_router_seed_list)),
                 bar_health=self._signal_health_payload(bar_health),
             )
             return cached_snapshot
@@ -4522,6 +4560,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             naive_ts_mode="et",
             regime_bars=regime_bars,
             regime2_bars=regime2_bars,
+            regime_router_seed_days=regime_router_seed,
         )
 
         _set_diag(

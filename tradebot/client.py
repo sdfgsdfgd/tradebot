@@ -2172,16 +2172,24 @@ class IBKRClient:
         if base <= 0:
             base = 0.001
         cleaned = " ".join(str(duration_str or "").strip().upper().split())
-        if cleaned.endswith("M") and " " not in cleaned:
-            prefix = cleaned[:-1]
+        if cleaned and " " not in cleaned and cleaned[-1].isalpha():
+            prefix, suffix = cleaned[:-1], cleaned[-1]
             if prefix.isdigit():
-                cleaned = f"{int(prefix)} M"
-        month_overrides = {
+                cleaned = f"{int(prefix)} {suffix}"
+        duration_overrides = {
+            "1 D": 25.0,
+            "2 D": 30.0,
+            "1 W": 45.0,
+            "2 W": 60.0,
             "1 M": 80.0,
             "2 M": 100.0,
             "3 M": 120.0,
+            # Router / daily readiness floors can require larger intraday windows.
+            "6 M": 180.0,
+            "1 Y": 240.0,
+            "2 Y": 300.0,
         }
-        override = month_overrides.get(cleaned)
+        override = duration_overrides.get(cleaned)
         if override is None:
             return float(base)
         return max(float(base), float(override))

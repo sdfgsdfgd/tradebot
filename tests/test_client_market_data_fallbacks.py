@@ -1943,7 +1943,7 @@ def test_request_historical_data_timeout_records_diagnostics(monkeypatch) -> Non
     out = asyncio.run(
         client._request_historical_data(
             contract,
-            duration_str="2 W",
+            duration_str="5 D",
             bar_size="10 mins",
             what_to_show="TRADES",
             use_rth=False,
@@ -1957,7 +1957,7 @@ def test_request_historical_data_timeout_records_diagnostics(monkeypatch) -> Non
     assert diag.get("error_type") == "TimeoutError"
     request = diag.get("request")
     assert isinstance(request, dict)
-    assert request.get("duration_str") == "2 W"
+    assert request.get("duration_str") == "5 D"
     assert request.get("bar_size") == "10 mins"
     assert request.get("what_to_show") == "TRADES"
     assert request.get("use_rth") is False
@@ -2000,6 +2000,25 @@ def test_request_historical_data_applies_month_duration_timeout_overrides() -> N
         diag = client.last_historical_request(contract)
         assert isinstance(diag, dict)
         assert float(diag.get("timeout_sec", 0.0) or 0.0) == float(expected_timeout)
+
+
+def test_historical_timeout_sec_normalizes_and_applies_overrides() -> None:
+    # Router warmup floors and heal fallbacks can require larger intraday history windows,
+    # which should not inherit the tiny base timeout.
+    assert IBKRClient._historical_timeout_sec("1 D") == 25.0
+    assert IBKRClient._historical_timeout_sec("1D") == 25.0
+    assert IBKRClient._historical_timeout_sec("2 D") == 30.0
+    assert IBKRClient._historical_timeout_sec("2D") == 30.0
+    assert IBKRClient._historical_timeout_sec("1 W") == 45.0
+    assert IBKRClient._historical_timeout_sec("1W") == 45.0
+    assert IBKRClient._historical_timeout_sec("2 W") == 60.0
+    assert IBKRClient._historical_timeout_sec("2W") == 60.0
+    assert IBKRClient._historical_timeout_sec("6 M") == 180.0
+    assert IBKRClient._historical_timeout_sec("6M") == 180.0
+    assert IBKRClient._historical_timeout_sec("1 Y") == 240.0
+    assert IBKRClient._historical_timeout_sec("1Y") == 240.0
+    assert IBKRClient._historical_timeout_sec("2 Y") == 300.0
+    assert IBKRClient._historical_timeout_sec("2Y") == 300.0
 
 
 def test_request_historical_data_for_stream_rejects_incomplete_full24_stitch() -> None:

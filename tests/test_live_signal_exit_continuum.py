@@ -578,7 +578,7 @@ def test_signal_preflight_requires_regime2_supertrend_warmup_for_tqqq_hf_style_p
     assert req["regime2_bars_min"] >= 60
 
 
-def test_signal_preflight_requires_router_daily_warmup_for_router_enabled_payload() -> None:
+def test_signal_preflight_does_not_require_router_daily_warmup_for_router_enabled_payload() -> None:
     harness = _EntryDayHarness()
     instance = _new_instance(
         strategy={
@@ -593,9 +593,10 @@ def test_signal_preflight_requires_router_daily_warmup_for_router_enabled_payloa
         filters={},
     )
     req = harness._signal_preflight_requirements(instance)
-    assert req["signal_bars_min"] >= 84 * 70
+    assert req["signal_bars_min"] >= 13
+    assert req["signal_bars_min"] < 1000
     active = list(req.get("active_requirements") or [])
-    assert any(str(item.get("name")) == "regime_router_daily" for item in active)
+    assert not any(str(item.get("name")) == "regime_router_daily" for item in active)
 
 
 def test_signal_filter_time_respects_runtime_et_wall_clock_bars() -> None:

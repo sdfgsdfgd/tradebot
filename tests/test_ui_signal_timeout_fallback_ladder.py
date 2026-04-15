@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 from types import SimpleNamespace
 
 from ib_insync import Stock
 
 from tradebot.client import OhlcvBar
+from tradebot.time_utils import now_et_naive
 from tradebot.ui.bot import BotScreen
 
 
@@ -41,10 +42,10 @@ def test_signal_timeout_fallback_ladder_for_6m_includes_3m_first() -> None:
     assert screen._signal_timeout_fallback_durations("6 M") == ("3 M", "2 M", "1 M", "1 W", "2 D", "1 D")
 
 
-def test_signal_timeout_fallback_ladder_stops_at_week_or_lower() -> None:
+def test_signal_timeout_fallback_ladder_stops_at_day_or_lower() -> None:
     screen = _screen()
-    assert screen._signal_timeout_fallback_durations("1 W") == ()
-    assert screen._signal_timeout_fallback_durations("2 D") == ()
+    assert screen._signal_timeout_fallback_durations("1 W") == ("2 D", "1 D")
+    assert screen._signal_timeout_fallback_durations("2 D") == ("1 D",)
     assert screen._signal_timeout_fallback_durations("1 D") == ()
 
 
@@ -58,13 +59,13 @@ def test_signal_duration_str_starts_at_floor_for_daily_shock() -> None:
     assert screen._signal_duration_str("10 mins", filters=filters) == "1 M"
 
 
-def test_signal_duration_str_starts_at_floor_for_regime_router() -> None:
+def test_signal_duration_str_does_not_inflate_for_regime_router() -> None:
     screen = _screen()
     strategy = {
         "regime_router": True,
         "regime_router_slow_window_days": 84,
     }
-    assert screen._signal_duration_str("5 mins", strategy=strategy, use_rth=True) == "6 M"
+    assert screen._signal_duration_str("5 mins", strategy=strategy, use_rth=True) == "1 W"
 
 
 def test_signal_strategy_payload_preserves_router_and_unknown_fields() -> None:
@@ -164,6 +165,120 @@ class _FallbackClient:
         con_id = int(getattr(contract, "conId", 0) or 0)
         return self._diag_by_con_id.get(con_id)
 
+    def proxy_error(self):
+        return None
+
+    def reconnect_phase(self):
+        return None
+
+
+class _SnapshotClient:
+    def __init__(self, *, daily_bars: int = 140, intraday_bars: int = 80) -> None:
+        self.daily_bars = int(daily_bars)
+        self.intraday_bars = int(intraday_bars)
+        self.calls: list[tuple[str, str]] = []
+
+    async def historical_bars_ohlcv(
+        self,
+        contract,
+        *,
+        duration_str: str,
+        bar_size: str,
+        use_rth: bool,
+        what_to_show: str,
+        cache_ttl_sec: float,
+    ):
+        _ = contract, what_to_show, cache_ttl_sec, use_rth
+        duration = str(duration_str).strip()
+        size = str(bar_size).strip()
+        self.calls.append((duration, size))
+        now_ref = now_et_naive()
+        if "day" in size.lower():
+            end_day = now_ref.date() - timedelta(days=1)
+            bars: list[OhlcvBar] = []
+            for idx in range(int(self.daily_bars)):
+                day = end_day - timedelta(days=int(self.daily_bars - idx - 1))
+                bars.append(
+                    OhlcvBar(
+                        ts=datetime.combine(day, datetime.min.time()),
+                        open=1.0,
+                        high=1.0,
+                        low=1.0,
+                        close=1.0,
+                        volume=1.0,
+                    )
+                )
+            return bars
+
+        step_mins = 5 if "5" in size else 10
+        bars = []
+        last_ts = now_ref - timedelta(minutes=max(2, step_mins + 1))
+        start_ts = last_ts - timedelta(minutes=step_mins * int(self.intraday_bars - 1))
+        for idx in range(int(self.intraday_bars)):
+            ts = start_ts + timedelta(minutes=step_mins * idx)
+            bars.append(OhlcvBar(ts=ts, open=1.0, high=1.0, low=1.0, close=1.0, volume=1.0))
+        return bars
+
+    def last_historical_request(self, contract):
+        _ = contract
+        return None
+
+    def proxy_error(self):
+        return None
+
+    def reconnect_phase(self):
+        return None
+
+
+def test_signal_snapshot_regime2_off_does_not_require_regime2_bars() -> None:
+    client = _SnapshotClient()
+    screen = _screen_with_client(client)
+    contract = Stock("SLV", "SMART", "USD")
+    contract.conId = 12301
+
+    snap = asyncio.run(
+        screen._signal_snapshot_for_contract(
+            contract=contract,
+            ema_preset_raw="5/13",
+            bar_size="5 mins",
+            use_rth=False,
+            regime_mode_raw="ema",
+            regime2_mode_raw="off",
+        )
+    )
+
+    assert snap is not None
+
+
+def test_signal_snapshot_regime_router_seeds_daily_and_keeps_intraday_short() -> None:
+    client = _SnapshotClient(daily_bars=160, intraday_bars=90)
+    screen = _screen_with_client(client)
+    contract = Stock("TQQQ", "SMART", "USD")
+    contract.conId = 12302
+
+    base_strategy = {
+        "regime_router": True,
+        "regime_router_fast_window_days": 63,
+        "regime_router_slow_window_days": 84,
+        "regime_router_min_dwell_days": 10,
+    }
+
+    snap = asyncio.run(
+        screen._signal_snapshot_for_contract(
+            contract=contract,
+            ema_preset_raw="5/13",
+            bar_size="5 mins",
+            use_rth=True,
+            regime_mode_raw="ema",
+            regime2_mode_raw="off",
+            base_strategy_raw=base_strategy,
+        )
+    )
+
+    assert snap is not None
+    assert ("1 W", "5 mins") in client.calls
+    assert ("6 M", "1 day") in client.calls
+
 
 def test_signal_fetch_bars_fallback_prefers_1m_before_1w() -> None:
     client = _FallbackClient(fail_durations={"3 M", "2 M"})
@@ -215,6 +330,32 @@ def test_signal_fetch_bars_fallback_reaches_1w_when_months_fail() -> None:
     assert bool(health.get("timeout_fallback_used")) is True
     assert str(health.get("timeout_fallback_from_duration")) == "3 M"
     assert list(health.get("timeout_fallback_attempts") or []) == ["2 M", "1 M", "1 W"]
+
+
+def test_signal_fetch_bars_fallback_downgrades_week_to_days() -> None:
+    client = _FallbackClient(fail_durations={"1 W"})
+    screen = _screen_with_client(client)
+    contract = Stock("SLV", "SMART", "USD")
+    contract.conId = 10004
+
+    _, health = asyncio.run(
+        screen._signal_fetch_bars(
+            contract=contract,
+            duration_str="1 W",
+            bar_size="10 mins",
+            use_rth=False,
+            now_ref=datetime(2026, 2, 20, 12, 5),
+            strict_zero_gap=False,
+            heal_if_stale=False,
+        )
+    )
+
+    assert client.calls == ["1 W", "2 D"]
+    assert isinstance(health, dict)
+    assert str(health.get("duration_str")) == "2 D"
+    assert bool(health.get("timeout_fallback_used")) is True
+    assert str(health.get("timeout_fallback_from_duration")) == "1 W"
+    assert list(health.get("timeout_fallback_attempts") or []) == ["2 D"]
 
 
 def test_signal_timeout_fallback_ladder_respects_min_duration_floor() -> None:
