@@ -3209,8 +3209,14 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         base = "2 W"
         if label.startswith(("1 min", "2 mins")):
             base = "2 D"
-        elif label.startswith(("5 mins", "10 mins", "15 mins", "30 mins")):
+        elif label.startswith(("5 mins", "10 mins", "15 mins")):
             base = "1 W"
+        elif label.startswith("30 min"):
+            # Regime2 often runs on 30m bars (RTH => ~13 bars/day). A 1W request can land
+            # just under the 60-bar supertrend warmup requirement depending on the time
+            # of week / partial days / holidays. Bump the default so PREWARM converges
+            # immediately instead of "waiting" for live closes.
+            base = "2 W"
         elif "hour" in label:
             base = "2 W"
         elif "day" in label:
