@@ -77,6 +77,7 @@ class _BotInstance:
     no_signal_snapshot_last_ping: datetime | None = None
     no_signal_unrecovered_last_ping: datetime | None = None
     prewarm_logged: bool = False
+    prewarm_wait_logged: bool = False
     quote_starvation_since: datetime | None = None
     quote_starvation_stage: str | None = None
     quote_starvation_last_repair_ts: datetime | None = None
