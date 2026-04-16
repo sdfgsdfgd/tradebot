@@ -386,6 +386,57 @@ class BotSignalRuntimeMixin:
             failed_filters_preview = [
                 name for name, ok in signal_filter_checks_preview.items() if not bool(ok)
             ]
+            if not bool(getattr(instance, "prewarm_logged", False)):
+                preflight_ready, preflight_payload = self._signal_preflight_status(instance=instance, snap=snap)
+                degraded_streams: list[str] = []
+                if stale_signal or gap_signal:
+                    degraded_streams.append("signal")
+                if regime_stale or regime_gap:
+                    degraded_streams.append("regime")
+                if regime2_stale or regime2_gap:
+                    degraded_streams.append("regime2")
+                diag = getattr(self, "_last_signal_snapshot_diag", None)
+                diag_dict = dict(diag) if isinstance(diag, dict) else {}
+                stage = str(diag_dict.get("stage") or "").strip()
+                if preflight_ready and not degraded_streams and stage in ("ok", "snapshot_cache_hit"):
+                    seed_health = diag_dict.get("regime_router_seed_health")
+                    seed_count = diag_dict.get("regime_router_seed_count")
+                    payload = dict(preflight_payload)
+                    payload.update(
+                        {
+                            "symbol": symbol,
+                            "bar_ts": snap.bar_ts.isoformat(),
+                            "bars_in_day": int(snap.bars_in_day),
+                            "state": snap.signal.state,
+                            "entry_dir": snap.signal.entry_dir,
+                            "regime_dir": snap.signal.regime_dir,
+                            "shock_dir": snap.shock_dir,
+                            "rv": float(snap.rv) if snap.rv is not None else None,
+                            "bar_health": bar_health,
+                            "regime_bar_health": regime_bar_health,
+                            "regime2_bar_health": regime2_bar_health,
+                            "regime2_dir": getattr(snap, "regime2_dir", None),
+                            "regime2_bear_hard_dir": getattr(snap, "regime2_bear_hard_dir", None),
+                            "regime4_owner": getattr(snap, "regime4_owner", None),
+                            "regime4_state": getattr(snap, "regime4_state", None),
+                            "regime_router_ready": bool(getattr(snap, "regime_router_ready", False)),
+                            "regime_router_host": getattr(snap, "regime_router_host", None),
+                            "regime_router_climate": getattr(snap, "regime_router_climate", None),
+                            "regime_router_entry_dir": getattr(snap, "regime_router_entry_dir", None),
+                            "regime_router_dwell_days": getattr(snap, "regime_router_dwell_days", None),
+                            "regime_router_crash_ret": getattr(snap, "regime_router_crash_ret", None),
+                            "regime_router_crash_maxdd": getattr(snap, "regime_router_crash_maxdd", None),
+                            "regime_router_crash_rv": getattr(snap, "regime_router_crash_rv", None),
+                            "regime_router_fast_ret": getattr(snap, "regime_router_fast_ret", None),
+                            "regime_router_slow_ret": getattr(snap, "regime_router_slow_ret", None),
+                            "regime_router_seed_count": int(seed_count) if seed_count is not None else None,
+                            "regime_router_seed_health": dict(seed_health) if isinstance(seed_health, dict) else None,
+                            "filter_checks": signal_filter_checks_preview,
+                            "failed_filters": failed_filters_preview,
+                        }
+                    )
+                    self._journal_write(event="GATE", instance=instance, reason="PREWARM_OK", data=payload)
+                    instance.prewarm_logged = True
             signal_fingerprint = (
                 str(snap.signal.state or ""),
                 str(snap.signal.entry_dir or ""),

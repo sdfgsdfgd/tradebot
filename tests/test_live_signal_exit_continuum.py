@@ -154,13 +154,7 @@ def test_historical_bars_ohlcv_empty_cache_expires_quickly() -> None:
     contract = Future(symbol="MES", lastTradeDateOrContractMonth="202603", exchange="CME", currency="USD")
     contract.conId = 2001
 
-    monotonic_calls = {"n": 0}
-
-    def _fake_monotonic() -> float:
-        monotonic_calls["n"] += 1
-        return 1000.0 if monotonic_calls["n"] < 4 else 1001.2
-
-    with patch("tradebot.client.time.monotonic", side_effect=_fake_monotonic):
+    with patch("tradebot.client.time.monotonic", return_value=1000.0):
         asyncio.run(
             client.historical_bars_ohlcv(
                 contract,
@@ -171,6 +165,18 @@ def test_historical_bars_ohlcv_empty_cache_expires_quickly() -> None:
                 cache_ttl_sec=30.0,
             )
         )
+    with patch("tradebot.client.time.monotonic", return_value=1000.5):
+        asyncio.run(
+            client.historical_bars_ohlcv(
+                contract,
+                duration_str="1 W",
+                bar_size="10 mins",
+                use_rth=False,
+                what_to_show="TRADES",
+                cache_ttl_sec=30.0,
+            )
+        )
+    with patch("tradebot.client.time.monotonic", return_value=1002.0):
         asyncio.run(
             client.historical_bars_ohlcv(
                 contract,
@@ -184,6 +190,177 @@ def test_historical_bars_ohlcv_empty_cache_expires_quickly() -> None:
 
     # Empty snapshots should use a short cache TTL so a second request can recover quickly.
     assert calls == 2
+
+
+def test_historical_bars_ohlcv_timeout_backoff_throttles_retries() -> None:
+    client = _new_client()
+    calls = 0
+    reconnects = 0
+
+    def _fake_request_reconnect() -> None:
+        nonlocal reconnects
+        reconnects += 1
+
+    async def _fake_request_for_stream(
+        contract,
+        *,
+        duration_str: str,
+        bar_size: str,
+        what_to_show: str,
+        use_rth: bool,
+    ):
+        nonlocal calls
+        calls += 1
+        con_id = int(getattr(contract, "conId", 0) or 0)
+        payload = {
+            "status": "timeout",
+            "ts": "2026-04-16T00:00:00-04:00",
+            "timeout_sec": 25.0,
+            "request": {
+                "duration_str": str(duration_str),
+                "bar_size": str(bar_size),
+                "what_to_show": str(what_to_show),
+                "use_rth": bool(use_rth),
+                "use_proxy": False,
+            },
+            "contract": {
+                "con_id": int(con_id),
+                "sec_type": str(getattr(contract, "secType", "") or "").strip().upper(),
+                "symbol": str(getattr(contract, "symbol", "") or "").strip().upper(),
+                "exchange": str(getattr(contract, "exchange", "") or "").strip().upper(),
+                "primary_exchange": str(getattr(contract, "primaryExchange", "") or "").strip().upper(),
+                "currency": str(getattr(contract, "currency", "") or "").strip().upper(),
+            },
+            "bars_count": 0,
+            "detail": "simulated timeout",
+        }
+        client._store_historical_request_payload(payload)
+        return []
+
+    client._request_reconnect = _fake_request_reconnect  # type: ignore[method-assign]
+    client._request_historical_data_for_stream = _fake_request_for_stream  # type: ignore[method-assign]
+
+    contract = Future(symbol="MES", lastTradeDateOrContractMonth="202603", exchange="CME", currency="USD")
+    contract.conId = 3001
+
+    with patch("tradebot.client.time.monotonic", return_value=1000.0):
+        asyncio.run(
+            client.historical_bars_ohlcv(
+                contract,
+                duration_str="1 W",
+                bar_size="10 mins",
+                use_rth=False,
+                what_to_show="TRADES",
+                cache_ttl_sec=30.0,
+            )
+        )
+    with patch("tradebot.client.time.monotonic", return_value=1001.0):
+        asyncio.run(
+            client.historical_bars_ohlcv(
+                contract,
+                duration_str="1 W",
+                bar_size="10 mins",
+                use_rth=False,
+                what_to_show="TRADES",
+                cache_ttl_sec=30.0,
+            )
+        )
+    with patch("tradebot.client.time.monotonic", return_value=1006.0):
+        asyncio.run(
+            client.historical_bars_ohlcv(
+                contract,
+                duration_str="1 W",
+                bar_size="10 mins",
+                use_rth=False,
+                what_to_show="TRADES",
+                cache_ttl_sec=30.0,
+            )
+        )
+    with patch("tradebot.client.time.monotonic", return_value=1017.0):
+        asyncio.run(
+            client.historical_bars_ohlcv(
+                contract,
+                duration_str="1 W",
+                bar_size="10 mins",
+                use_rth=False,
+                what_to_show="TRADES",
+                cache_ttl_sec=30.0,
+            )
+        )
+
+    assert calls == 3
+    assert reconnects == 1
+
+
+def test_historical_bars_ohlcv_backoff_is_duration_scoped() -> None:
+    client = _new_client()
+    calls: list[str] = []
+
+    async def _fake_request_for_stream(
+        contract,
+        *,
+        duration_str: str,
+        bar_size: str,
+        what_to_show: str,
+        use_rth: bool,
+    ):
+        _ = contract, bar_size, what_to_show, use_rth
+        calls.append(str(duration_str))
+        payload = {
+            "status": "timeout",
+            "ts": "2026-04-16T00:00:00-04:00",
+            "timeout_sec": 25.0,
+            "request": {
+                "duration_str": str(duration_str),
+                "bar_size": "10 mins",
+                "what_to_show": "TRADES",
+                "use_rth": False,
+                "use_proxy": False,
+            },
+            "contract": {
+                "con_id": 3002,
+                "sec_type": "FUT",
+                "symbol": "MES",
+                "exchange": "CME",
+                "primary_exchange": "CME",
+                "currency": "USD",
+            },
+            "bars_count": 0,
+            "detail": "simulated timeout",
+        }
+        client._store_historical_request_payload(payload)
+        return []
+
+    client._request_historical_data_for_stream = _fake_request_for_stream  # type: ignore[method-assign]
+
+    contract = Future(symbol="MES", lastTradeDateOrContractMonth="202603", exchange="CME", currency="USD")
+    contract.conId = 3002
+
+    with patch("tradebot.client.time.monotonic", return_value=1000.0):
+        asyncio.run(
+            client.historical_bars_ohlcv(
+                contract,
+                duration_str="1 W",
+                bar_size="10 mins",
+                use_rth=False,
+                what_to_show="TRADES",
+                cache_ttl_sec=30.0,
+            )
+        )
+    # If the backoff key ignores duration_str, this call would be suppressed.
+    with patch("tradebot.client.time.monotonic", return_value=1001.0):
+        asyncio.run(
+            client.historical_bars_ohlcv(
+                contract,
+                duration_str="2 D",
+                bar_size="10 mins",
+                use_rth=False,
+                what_to_show="TRADES",
+                cache_ttl_sec=30.0,
+            )
+        )
+
+    assert calls == ["1 W", "2 D"]
 
 
 class _ExitGateHarness(BotSignalRuntimeMixin):

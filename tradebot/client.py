@@ -701,6 +701,14 @@ class IBKRClient:
             tuple[str, int, str, str, bool, str, str],
             tuple[list[OhlcvBar], float] | tuple[list[OhlcvBar], float, float],
         ] = {}
+        # Coarse backoff for historical OHLCV requests keyed by request identity.
+        # NOTE: duration_str must be included so a timeout on "1 W" doesn't block the
+        # BotScreen timeout-fallback ladder from probing shorter windows ("2 D", "1 D").
+        # This prevents tight retry loops when IBKR is timing out or disconnected.
+        self._historical_bar_ohlcv_backoff: dict[
+            tuple[str, int, str, str, str, bool, str],
+            dict[str, float | int],
+        ] = {}
         self._front_future_cache: dict[tuple[str, str], tuple[Contract, float]] = {}
         self._future_root_name_cache: dict[str, tuple[str, float]] = {}
         self._update_callback: Callable[[], None] | None = None
@@ -2621,6 +2629,15 @@ class IBKRClient:
         con_id = int(getattr(contract, "conId", 0) or 0)
         sec_type = str(getattr(contract, "secType", "") or "")
         symbol = str(getattr(contract, "symbol", "") or "")
+        backoff_key = (
+            str(symbol),
+            int(con_id),
+            str(sec_type),
+            str(duration_str),
+            str(bar_size),
+            bool(use_rth),
+            str(what_to_show),
+        )
         key = (
             symbol,
             con_id,
@@ -2632,6 +2649,15 @@ class IBKRClient:
         )
         requested_ttl = max(0.0, float(cache_ttl_sec))
         empty_ttl_sec = 1.0
+
+        def _backoff_hit() -> bool:
+            state = self._historical_bar_ohlcv_backoff.get(backoff_key)
+            if not isinstance(state, dict):
+                return False
+            retry_after = float(state.get("retry_after_mono", 0.0) or 0.0)
+            if retry_after <= 0:
+                return False
+            return time.monotonic() < retry_after
 
         def _cached_bars(
             cached_entry: tuple[list[OhlcvBar], float] | tuple[list[OhlcvBar], float, float] | None,
@@ -2648,6 +2674,10 @@ class IBKRClient:
                 return list(bars)
             return None
 
+        if _backoff_hit():
+            cached_bars = _cached_bars(self._historical_bar_ohlcv_cache.get(key))
+            return cached_bars if cached_bars is not None else []
+
         cached_bars = _cached_bars(self._historical_bar_ohlcv_cache.get(key))
         if cached_bars is not None:
             return cached_bars
@@ -2655,6 +2685,9 @@ class IBKRClient:
         use_proxy = sec_type in ("STK", "OPT")
         lock = self._historical_proxy_lock if use_proxy else self._historical_lock
         async with lock:
+            if _backoff_hit():
+                cached_bars = _cached_bars(self._historical_bar_ohlcv_cache.get(key))
+                return cached_bars if cached_bars is not None else []
             cached_bars = _cached_bars(self._historical_bar_ohlcv_cache.get(key))
             if cached_bars is not None:
                 return cached_bars
@@ -2692,7 +2725,25 @@ class IBKRClient:
                     )
                 )
 
-            cache_ttl = min(requested_ttl, empty_ttl_sec) if not bars else requested_ttl
+            if bars:
+                self._historical_bar_ohlcv_backoff.pop(backoff_key, None)
+                cache_ttl = requested_ttl
+            else:
+                cache_ttl = min(requested_ttl, empty_ttl_sec)
+                diag = self.last_historical_request(contract)
+                status = str(diag.get("status", "") or "").strip().lower() if isinstance(diag, dict) else ""
+                if status in ("timeout", "connect_error", "request_error", "incomplete"):
+                    prev = self._historical_bar_ohlcv_backoff.get(backoff_key)
+                    failures = int(prev.get("failures", 0) or 0) + 1 if isinstance(prev, dict) else 1
+                    delay_sec = min(300.0, 5.0 * float(2 ** max(0, failures - 1)))
+                    retry_after_mono = float(time.monotonic() + delay_sec)
+                    self._historical_bar_ohlcv_backoff[backoff_key] = {
+                        "failures": int(failures),
+                        "retry_after_mono": retry_after_mono,
+                    }
+                    cache_ttl = max(float(cache_ttl), float(delay_sec))
+                    if failures >= 3:
+                        self._request_reconnect()
             self._historical_bar_ohlcv_cache[key] = (bars, time.monotonic(), cache_ttl)
             return list(bars)
 

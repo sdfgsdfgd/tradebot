@@ -912,6 +912,29 @@ class BotJournal:
         if "cooldown_ok" in detail:
             line1.append(f"cooldown_ok={BotJournal._bool_badge(bool(detail.get('cooldown_ok')))}")
         BotJournal._append_int(line1, label="bar_index", value=detail.get("bars_in_day"))
+        diag_stage = str(detail.get("diag_stage") or "").strip()
+        if diag_stage:
+            line1.append(f"diag={diag_stage}")
+
+        def _append_have_need(label: str, *, have_key: str, need_key: str) -> None:
+            have_raw = detail.get(have_key)
+            need_raw = detail.get(need_key)
+            try:
+                have = int(have_raw) if have_raw is not None else None
+            except (TypeError, ValueError):
+                have = None
+            try:
+                need = int(need_raw) if need_raw is not None else None
+            except (TypeError, ValueError):
+                need = None
+            if have is None or need is None:
+                return
+            line1.append(f"{label}={have}/{need}")
+
+        _append_have_need("sig", have_key="signal_have", need_key="signal_need")
+        _append_have_need("reg", have_key="regime_have", need_key="regime_need")
+        _append_have_need("reg2", have_key="regime2_have", need_key="regime2_need")
+        BotJournal._append_int(line1, label="seed", value=detail.get("regime_router_seed_count"))
         BotJournal._append_int(line1, label="positions", value=detail.get("items"))
         mode = detail.get("mode")
         if mode:
@@ -963,6 +986,12 @@ class BotJournal:
         router_entry = detail.get("regime_router_entry_dir")
         if router_entry in ("up", "down"):
             line1.append(f"router_entry={BotJournal._dir_badge(router_entry)}")
+        BotJournal._append_int(line1, label="dwell", value=detail.get("regime_router_dwell_days"))
+        BotJournal._append_float(line1, label="crash_ret", value=detail.get("regime_router_crash_ret"), fmt="+.3f")
+        BotJournal._append_float(line1, label="crash_dd", value=detail.get("regime_router_crash_maxdd"), fmt="+.3f")
+        BotJournal._append_float(line1, label="crash_rv", value=detail.get("regime_router_crash_rv"), fmt="+.3f")
+        BotJournal._append_float(line1, label="fast_ret", value=detail.get("regime_router_fast_ret"), fmt="+.3f")
+        BotJournal._append_float(line1, label="slow_ret", value=detail.get("regime_router_slow_ret"), fmt="+.3f")
         regime4_owner = str(detail.get("regime4_owner") or "").strip()
         regime4_state = str(detail.get("regime4_state") or "").strip()
         if regime4_owner or regime4_state:
@@ -1000,6 +1029,25 @@ class BotJournal:
             BotJournal._append_float(line2, label="stop", value=calc.get("stop_level"), fmt=".2f")
             BotJournal._append_float(line2, label="take_profit", value=calc.get("profit_level"), fmt=".2f")
             BotJournal._append_float(line2, label="trigger_ref", value=calc.get("exec_hit_ref"), fmt=".2f")
+
+        def _append_health(label: str, raw: object) -> None:
+            if not isinstance(raw, dict):
+                return
+            duration = str(raw.get("duration_str") or "").strip()
+            if duration:
+                line2.append(f"{label}_dur={duration}")
+            last_ts = raw.get("last_bar_ts")
+            if isinstance(last_ts, str) and len(last_ts) >= 16:
+                line2.append(f"{label}_last={last_ts[11:16]}")
+            if bool(raw.get("timeout_fallback_used")):
+                from_duration = str(raw.get("timeout_fallback_from_duration") or "").strip()
+                if from_duration:
+                    line2.append(f"{label}_fallback={from_duration}")
+
+        _append_health("sig", detail.get("bar_health"))
+        _append_health("reg", detail.get("regime_bar_health"))
+        _append_health("reg2", detail.get("regime2_bar_health"))
+        _append_health("seed", detail.get("regime_router_seed_health"))
 
         lifecycle = detail.get("spot_lifecycle")
         if isinstance(lifecycle, dict):

@@ -4568,9 +4568,11 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             bars_count=int(len(bars_list)),
             regime_bars_count=int(len(regime_bars_list)),
             regime2_bars_count=int(len(regime2_bars_list)),
+            regime_router_seed_count=int(len(regime_router_seed_list)),
             bar_health=self._signal_health_payload(bar_health),
             regime_bar_health=self._signal_health_payload(regime_health),
             regime2_bar_health=self._signal_health_payload(regime2_health),
+            regime_router_seed_health=self._signal_health_payload(regime_router_seed_health),
         )
         last_snap = self._signal_eval_last_snapshot(evaluator=evaluator, bars=bars_list)
         if last_snap is None:
@@ -4635,7 +4637,11 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             bars_count=int(len(bars_list)),
             regime_bars_count=int(len(regime_bars_list)),
             regime2_bars_count=int(len(regime2_bars_list)),
+            regime_router_seed_count=int(len(regime_router_seed_list)),
             bar_health=self._signal_health_payload(bar_health),
+            regime_bar_health=self._signal_health_payload(regime_health),
+            regime2_bar_health=self._signal_health_payload(regime2_health),
+            regime_router_seed_health=self._signal_health_payload(regime_router_seed_health),
             bar_ts=last_snap.bar_ts.isoformat() if isinstance(last_snap.bar_ts, datetime) else None,
         )
         snapshot = self._signal_snapshot_from_eval(
