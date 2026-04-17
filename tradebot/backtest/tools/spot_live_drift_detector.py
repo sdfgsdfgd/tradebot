@@ -20,6 +20,7 @@ import argparse
 import asyncio
 import csv
 import json
+import math
 import time
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -32,6 +33,7 @@ from ...config import load_config
 from ...engine import resolve_spot_regime2_spec, resolve_spot_regime_spec
 from ...signals import parse_bar_size
 from ...spot_engine import SpotSignalEvaluator, SpotSignalSnapshot
+from ...utils.bar_utils import trim_incomplete_last_bar
 
 
 def _parse_date(raw: str) -> date:
@@ -101,6 +103,19 @@ def _bar_close_ts(bar_ts: datetime, bar_size: str) -> datetime:
     if parsed is None:
         return bar_ts
     return bar_ts + parsed.duration
+
+
+def _duration_for_days(days_needed: int) -> str:
+    days = max(0, int(days_needed))
+    if days <= 25:
+        return "1 M"
+    if days <= 50:
+        return "2 M"
+    if days <= 95:
+        return "3 M"
+    if days <= 180:
+        return "6 M"
+    return "1 Y"
 
 
 def _probe_from_snap(snap: SpotSignalSnapshot) -> dict[str, object]:
@@ -210,6 +225,7 @@ async def _fetch_bars_trimmed(
     contract,
     spec: ReplaySpec,
     request_end_ts: datetime,
+    now_ref: datetime,
     trim_end_ts: datetime,
     cache: dict[tuple, list],
 ) -> list:
@@ -236,7 +252,8 @@ async def _fetch_bars_trimmed(
         bars.sort(key=lambda b: b.ts)
         cache[key] = list(bars)
     # Trim to the live snapshot bar_ts to avoid including post-snapshot bars.
-    return [b for b in bars if isinstance(getattr(b, "ts", None), datetime) and b.ts <= trim_end_ts]
+    trimmed = [b for b in bars if isinstance(getattr(b, "ts", None), datetime) and b.ts <= trim_end_ts]
+    return trim_incomplete_last_bar(trimmed, bar_size=str(spec.bar_size), now_ref=now_ref)
 
 
 async def main_async(argv: list[str] | None = None) -> int:
@@ -313,6 +330,7 @@ async def main_async(argv: list[str] | None = None) -> int:
         bar_size = str(strategy.get("signal_bar_size") or "5 mins").strip() or "5 mins"
         use_rth = bool(strategy.get("signal_use_rth", True))
         signal_end_ts = _bar_close_ts(bar_ts, bar_size)
+        use_regime_router = bool(strategy.get("regime_router"))
 
         _regime_mode, _regime_preset, regime_bar_size, use_mtf_regime = resolve_spot_regime_spec(
             bar_size=bar_size,
@@ -362,7 +380,32 @@ async def main_async(argv: list[str] | None = None) -> int:
             what_to_show=_pick_source(regime2_health, fallback=str(sig_spec.what_to_show)),
         )
 
-        for spec in (sig_spec, reg_spec if bool(use_mtf_regime) else None, reg2_spec if bool(use_mtf_regime2) else None):
+        seed_spec = None
+        seed_key = None
+        if use_regime_router:
+            slow_days_raw = strategy.get("regime_router_slow_window_days")
+            try:
+                slow_days = int(slow_days_raw) if slow_days_raw is not None else 0
+            except (TypeError, ValueError):
+                slow_days = 0
+            slow_days = max(0, int(slow_days))
+            warmup_days = int(slow_days) + 5
+            if bool(use_rth) and slow_days > 0:
+                warmup_days = int(math.ceil(float(slow_days) * (7.0 / 5.0))) + 7
+            seed_spec = ReplaySpec(
+                bar_size="1 day",
+                use_rth=bool(use_rth),
+                duration_str=_duration_for_days(max(2, int(warmup_days))),
+                what_to_show="TRADES",
+            )
+            seed_key = _spec_key(seed_spec)
+
+        for spec in (
+            sig_spec,
+            reg_spec if bool(use_mtf_regime) else None,
+            reg2_spec if bool(use_mtf_regime2) else None,
+            seed_spec,
+        ):
             if spec is None:
                 continue
             key = _spec_key(spec)
@@ -381,12 +424,15 @@ async def main_async(argv: list[str] | None = None) -> int:
                 "use_rth": use_rth,
                 "use_mtf_regime": bool(use_mtf_regime),
                 "use_mtf_regime2": bool(use_mtf_regime2),
+                "use_regime_router": bool(use_regime_router),
                 "sig_spec": sig_spec,
                 "reg_spec": reg_spec,
                 "reg2_spec": reg2_spec,
+                "seed_spec": seed_spec,
                 "sig_key": _spec_key(sig_spec),
                 "reg_key": _spec_key(reg_spec),
                 "reg2_key": _spec_key(reg2_spec),
+                "seed_key": seed_key,
             }
         )
 
@@ -425,22 +471,30 @@ async def main_async(argv: list[str] | None = None) -> int:
         use_rth = bool(item.get("use_rth", True))
         use_mtf_regime = bool(item.get("use_mtf_regime", False))
         use_mtf_regime2 = bool(item.get("use_mtf_regime2", False))
+        use_regime_router = bool(item.get("use_regime_router", False))
+        signal_end_ts = item.get("signal_end_ts") if isinstance(item.get("signal_end_ts"), datetime) else None
         sig_spec = item.get("sig_spec")
         reg_spec = item.get("reg_spec")
         reg2_spec = item.get("reg2_spec")
+        seed_spec = item.get("seed_spec")
         sig_key = item.get("sig_key")
         reg_key = item.get("reg_key")
         reg2_key = item.get("reg2_key")
+        seed_key = item.get("seed_key")
         if not isinstance(strategy, dict) or not isinstance(sig_spec, ReplaySpec) or not isinstance(sig_key, tuple):
             continue
 
-        request_end_ts = max_end_ts_by_key.get(sig_key) or _bar_close_ts(bar_ts, bar_size)
+        if signal_end_ts is None:
+            signal_end_ts = _bar_close_ts(bar_ts, bar_size)
+
+        request_end_ts = max_end_ts_by_key.get(sig_key) or signal_end_ts
         t0 = time.time()
         sig_bars = await _fetch_bars_trimmed(
             client=client,
             contract=contract,
             spec=sig_spec,
             request_end_ts=request_end_ts,
+            now_ref=signal_end_ts,
             trim_end_ts=bar_ts,
             cache=cache,
         )
@@ -450,6 +504,7 @@ async def main_async(argv: list[str] | None = None) -> int:
                 contract=contract,
                 spec=reg_spec,
                 request_end_ts=(max_end_ts_by_key.get(reg_key) or request_end_ts),
+                now_ref=signal_end_ts,
                 trim_end_ts=bar_ts,
                 cache=cache,
             )
@@ -462,12 +517,28 @@ async def main_async(argv: list[str] | None = None) -> int:
                 contract=contract,
                 spec=reg2_spec,
                 request_end_ts=(max_end_ts_by_key.get(reg2_key) or request_end_ts),
+                now_ref=signal_end_ts,
                 trim_end_ts=bar_ts,
                 cache=cache,
             )
             if bool(use_mtf_regime2) and isinstance(reg2_spec, ReplaySpec) and isinstance(reg2_key, tuple)
             else None
         )
+        regime_router_seed_days = (
+            await _fetch_bars_trimmed(
+                client=client,
+                contract=contract,
+                spec=seed_spec,
+                request_end_ts=(max_end_ts_by_key.get(seed_key) or request_end_ts),
+                now_ref=signal_end_ts,
+                trim_end_ts=bar_ts,
+                cache=cache,
+            )
+            if bool(use_regime_router) and isinstance(seed_spec, ReplaySpec) and isinstance(seed_key, tuple)
+            else None
+        )
+        if isinstance(regime_router_seed_days, list) and len(regime_router_seed_days) == 0:
+            regime_router_seed_days = None
 
         evaluator = SpotSignalEvaluator(
             strategy=strategy,
@@ -477,6 +548,7 @@ async def main_async(argv: list[str] | None = None) -> int:
             naive_ts_mode="et",
             regime_bars=regime_bars,
             regime2_bars=regime2_bars,
+            regime_router_seed_days=regime_router_seed_days,
         )
         replay_snap = _eval_last_snapshot(evaluator=evaluator, bars=sig_bars)
         dt = time.time() - t0
