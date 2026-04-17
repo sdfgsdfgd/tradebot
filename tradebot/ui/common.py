@@ -365,6 +365,7 @@ def _ticker_actionable_price(ticker: Ticker) -> float | None:
         getattr(ticker, "ask", None),
         getattr(ticker, "last", None),
     )
+    bid, ask = _sanitize_nbbo_extremes(bid, ask, ref_price=last)
     if bid is not None and ask is not None and bid <= ask:
         return (bid + ask) / 2.0
     if last is not None:
@@ -381,10 +382,12 @@ def _option_display_price(item: PortfolioItem, ticker: Ticker | None) -> float |
             getattr(ticker, "ask", None),
             getattr(ticker, "last", None),
         )
-        if bid is not None and ask is not None and bid <= ask:
-            return (bid + ask) / 2.0
         model = getattr(ticker, "modelGreeks", None)
         model_price = _quote_num_display(getattr(model, "optPrice", None)) if model else None
+        ref_price = model_price if model_price is not None else (portfolio_mark if portfolio_mark is not None else last)
+        bid, ask = _sanitize_nbbo_extremes(bid, ask, ref_price=ref_price)
+        if bid is not None and ask is not None and bid <= ask:
+            return (bid + ask) / 2.0
         if sec_type == "FOP":
             if model_price is not None:
                 return float(model_price)
@@ -712,6 +715,42 @@ def _sanitize_nbbo(
     )
 
 
+def _sanitize_nbbo_extremes(
+    bid: float | None,
+    ask: float | None,
+    *,
+    ref_price: float | None,
+    max_ref_mult: float = 2.5,
+    abs_floor: float = 5.0,
+) -> tuple[float | None, float | None]:
+    """Drop NBBO sides that are implausibly far from a reference price.
+
+    This is intentionally conservative: it only suppresses *extreme* quote spikes
+    (common on illiquid derivatives where a bogus ask can distort the midpoint).
+    """
+    ref = _quote_num_display(ref_price)
+    if ref is None:
+        return bid, ask
+    try:
+        mult = float(max_ref_mult)
+    except (TypeError, ValueError):
+        mult = 2.5
+    mult = max(1.25, float(mult))
+    try:
+        floor = float(abs_floor)
+    except (TypeError, ValueError):
+        floor = 5.0
+    floor = max(0.0, float(floor))
+
+    if ask is not None and ask > (ref * mult) and (ask - ref) > floor:
+        ask = None
+    if bid is not None and bid < (ref / mult) and (ref - bid) > floor:
+        bid = None
+    if bid is not None and ask is not None and bid > ask:
+        bid, ask = None, None
+    return bid, ask
+
+
 def _quote_health(
     *,
     bid: float | None,
@@ -1007,7 +1046,9 @@ def _exec_chase_quote_signature(
     ask: float | None,
     last: float | None,
 ) -> tuple[float | None, float | None, float | None]:
-    return _sanitize_nbbo(bid, ask, last)
+    clean_bid, clean_ask, clean_last = _sanitize_nbbo(bid, ask, last)
+    clean_bid, clean_ask = _sanitize_nbbo_extremes(clean_bid, clean_ask, ref_price=clean_last)
+    return clean_bid, clean_ask, clean_last
 
 
 def _exec_chase_should_reprice(
@@ -1043,10 +1084,13 @@ def _limit_price_for_mode(
     *,
     action: str,
     mode: str,
+    ref_price: float | None = None,
 ) -> float | None:
     bid = bid if bid is not None and bid > 0 else None
     ask = ask if ask is not None and ask > 0 else None
     last = last if last is not None and last > 0 else None
+    ref = ref_price if ref_price is not None and ref_price > 0 else last
+    bid, ask = _sanitize_nbbo_extremes(bid, ask, ref_price=ref)
     mid = _midpoint(bid, ask)
     cleaned = str(mode or "").strip().upper()
     if cleaned in ("CROSS", "RELENTLESS", "RELENTLESS_DELAY"):

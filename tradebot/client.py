@@ -2021,6 +2021,7 @@ class IBKRClient:
         self,
         contract: Contract,
         *,
+        end_ts: datetime | None = None,
         duration_str: str,
         bar_size: str,
         what_to_show: str,
@@ -2034,6 +2035,7 @@ class IBKRClient:
             status: str,
             *,
             req_contract: Contract,
+            end_ts_et: str,
             error: BaseException | None = None,
             detail: str | None = None,
             bars_count: int | None = None,
@@ -2050,6 +2052,7 @@ class IBKRClient:
                 "ts": request_ts,
                 "timeout_sec": float(timeout_sec),
                 "request": {
+                    "end_ts_et": str(end_ts_et),
                     "duration_str": str(duration_str),
                     "bar_size": str(bar_size),
                     "what_to_show": str(what_to_show),
@@ -2077,6 +2080,17 @@ class IBKRClient:
             self._store_historical_request_payload(payload)
 
         req_contract = self._historical_request_contract(contract, sec_type=sec_type)
+        end_ts_et_value = ""
+        end_date_time: object = ""
+        if isinstance(end_ts, datetime):
+            try:
+                end_date_time = _to_et_shared(end_ts, naive_ts_mode=NaiveTsMode.ET)
+                end_ts_et_value = (
+                    _to_et_shared(end_ts, naive_ts_mode=NaiveTsMode.ET).replace(tzinfo=None).isoformat()
+                )
+            except Exception:
+                end_date_time = ""
+                end_ts_et_value = str(end_ts)
         try:
             if use_proxy:
                 await self.connect_proxy()
@@ -2090,6 +2104,7 @@ class IBKRClient:
             _record(
                 "connect_error",
                 req_contract=req_contract,
+                end_ts_et=end_ts_et_value,
                 error=exc,
                 detail="historical connect failed",
             )
@@ -2100,7 +2115,7 @@ class IBKRClient:
             # request is canceled and cleaned up on timeout.
             bars = await ib.reqHistoricalDataAsync(
                 req_contract,
-                endDateTime="",
+                endDateTime=end_date_time,
                 durationStr=str(duration_str),
                 barSizeSetting=str(bar_size),
                 whatToShow=str(what_to_show),
@@ -2114,6 +2129,7 @@ class IBKRClient:
             _record(
                 "timeout",
                 req_contract=req_contract,
+                end_ts_et=end_ts_et_value,
                 error=exc,
                 detail=f"historical request timed out after {timeout_sec:.3f}s",
                 elapsed_sec=elapsed_sec,
@@ -2124,6 +2140,7 @@ class IBKRClient:
             _record(
                 "request_error",
                 req_contract=req_contract,
+                end_ts_et=end_ts_et_value,
                 error=exc,
                 detail="historical request failed",
                 elapsed_sec=elapsed_sec,
@@ -2145,6 +2162,7 @@ class IBKRClient:
                 _record(
                     "timeout",
                     req_contract=req_contract,
+                    end_ts_et=end_ts_et_value,
                     error=asyncio.TimeoutError(),
                     detail=f"historical request timed out after {timeout_sec:.3f}s",
                     bars_count=0,
@@ -2154,6 +2172,7 @@ class IBKRClient:
             _record(
                 "empty",
                 req_contract=req_contract,
+                end_ts_et=end_ts_et_value,
                 detail="historical response returned no bars",
                 bars_count=0,
                 elapsed_sec=elapsed_sec,
@@ -2162,6 +2181,7 @@ class IBKRClient:
         _record(
             "ok",
             req_contract=req_contract,
+            end_ts_et=end_ts_et_value,
             bars_count=bars_count,
             elapsed_sec=elapsed_sec,
         )
@@ -2280,6 +2300,7 @@ class IBKRClient:
         self,
         contract: Contract,
         *,
+        end_ts: datetime | None = None,
         duration_str: str,
         bar_size: str,
         what_to_show: str,
@@ -2290,6 +2311,7 @@ class IBKRClient:
         if bool(use_rth) or sec_type != "STK" or not self._is_intraday_bar_size(str(bar_size)):
             return await self._request_historical_data(
                 contract,
+                end_ts=end_ts,
                 duration_str=duration_str,
                 bar_size=bar_size,
                 what_to_show=what_to_show,
@@ -2303,6 +2325,7 @@ class IBKRClient:
 
         smart = await self._request_historical_data(
             smart_contract,
+            end_ts=end_ts,
             duration_str=duration_str,
             bar_size=bar_size,
             what_to_show=what_to_show,
@@ -2313,6 +2336,7 @@ class IBKRClient:
         overnight_contract.exchange = "OVERNIGHT"
         overnight = await self._request_historical_data(
             overnight_contract,
+            end_ts=end_ts,
             duration_str=duration_str,
             bar_size=bar_size,
             what_to_show=what_to_show,
@@ -2343,6 +2367,11 @@ class IBKRClient:
                 "ts": _now_et().isoformat(),
                 "timeout_sec": float(self._historical_timeout_sec(duration_str)),
                 "request": {
+                    "end_ts_et": (
+                        _to_et_shared(end_ts, naive_ts_mode=NaiveTsMode.ET).replace(tzinfo=None).isoformat()
+                        if isinstance(end_ts, datetime)
+                        else ""
+                    ),
                     "duration_str": str(duration_str),
                     "bar_size": str(bar_size),
                     "what_to_show": str(what_to_show),
@@ -2537,6 +2566,7 @@ class IBKRClient:
         self,
         contract: Contract,
         *,
+        end_ts: datetime | None = None,
         duration_str: str,
         bar_size: str,
         use_rth: bool,
@@ -2550,10 +2580,17 @@ class IBKRClient:
         con_id = int(getattr(contract, "conId", 0) or 0)
         sec_type = str(getattr(contract, "secType", "") or "")
         symbol = str(getattr(contract, "symbol", "") or "")
+        end_ts_key = ""
+        if isinstance(end_ts, datetime):
+            try:
+                end_ts_key = _to_et_shared(end_ts, naive_ts_mode=NaiveTsMode.ET).replace(tzinfo=None).isoformat()
+            except Exception:
+                end_ts_key = str(end_ts)
         key = (
             symbol,
             con_id,
             sec_type,
+            str(end_ts_key),
             str(bar_size),
             bool(use_rth),
             str(what_to_show),
@@ -2589,6 +2626,7 @@ class IBKRClient:
                 return cached_bars
             raw = await self._request_historical_data_for_stream(
                 contract,
+                end_ts=end_ts,
                 duration_str=str(duration_str),
                 bar_size=str(bar_size),
                 what_to_show=str(what_to_show),
@@ -2616,6 +2654,7 @@ class IBKRClient:
         self,
         contract: Contract,
         *,
+        end_ts: datetime | None = None,
         duration_str: str,
         bar_size: str,
         use_rth: bool,
@@ -2629,10 +2668,17 @@ class IBKRClient:
         con_id = int(getattr(contract, "conId", 0) or 0)
         sec_type = str(getattr(contract, "secType", "") or "")
         symbol = str(getattr(contract, "symbol", "") or "")
+        end_ts_key = ""
+        if isinstance(end_ts, datetime):
+            try:
+                end_ts_key = _to_et_shared(end_ts, naive_ts_mode=NaiveTsMode.ET).replace(tzinfo=None).isoformat()
+            except Exception:
+                end_ts_key = str(end_ts)
         backoff_key = (
             str(symbol),
             int(con_id),
             str(sec_type),
+            str(end_ts_key),
             str(duration_str),
             str(bar_size),
             bool(use_rth),
@@ -2642,6 +2688,7 @@ class IBKRClient:
             symbol,
             con_id,
             sec_type,
+            str(end_ts_key),
             str(bar_size),
             bool(use_rth),
             str(what_to_show),
@@ -2693,6 +2740,7 @@ class IBKRClient:
                 return cached_bars
             raw = await self._request_historical_data_for_stream(
                 contract,
+                end_ts=end_ts,
                 duration_str=str(duration_str),
                 bar_size=str(bar_size),
                 what_to_show=str(what_to_show),

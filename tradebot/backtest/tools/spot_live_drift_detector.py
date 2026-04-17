@@ -30,6 +30,7 @@ from ib_insync import Stock
 from ...client import IBKRClient
 from ...config import load_config
 from ...engine import resolve_spot_regime2_spec, resolve_spot_regime_spec
+from ...signals import parse_bar_size
 from ...spot_engine import SpotSignalEvaluator, SpotSignalSnapshot
 
 
@@ -93,6 +94,13 @@ def _eval_last_snapshot(*, evaluator: SpotSignalEvaluator, bars: list) -> SpotSi
         if snap is not None:
             last_snap = snap
     return last_snap
+
+
+def _bar_close_ts(bar_ts: datetime, bar_size: str) -> datetime:
+    parsed = parse_bar_size(str(bar_size))
+    if parsed is None:
+        return bar_ts
+    return bar_ts + parsed.duration
 
 
 def _probe_from_snap(snap: SpotSignalSnapshot) -> dict[str, object]:
@@ -201,15 +209,24 @@ async def _fetch_bars_trimmed(
     client: IBKRClient,
     contract,
     spec: ReplaySpec,
-    end_ts: datetime,
+    request_end_ts: datetime,
+    trim_end_ts: datetime,
     cache: dict[tuple, list],
 ) -> list:
-    key = (int(getattr(contract, "conId", 0) or 0), spec.bar_size, bool(spec.use_rth), spec.what_to_show, spec.duration_str)
+    key = (
+        int(getattr(contract, "conId", 0) or 0),
+        spec.bar_size,
+        bool(spec.use_rth),
+        spec.what_to_show,
+        spec.duration_str,
+        str(request_end_ts.isoformat()),
+    )
     if key in cache:
         bars = cache[key]
     else:
         bars = await client.historical_bars_ohlcv(
             contract,
+            end_ts=request_end_ts,
             duration_str=str(spec.duration_str),
             bar_size=str(spec.bar_size),
             use_rth=bool(spec.use_rth),
@@ -219,7 +236,7 @@ async def _fetch_bars_trimmed(
         bars.sort(key=lambda b: b.ts)
         cache[key] = list(bars)
     # Trim to the live snapshot bar_ts to avoid including post-snapshot bars.
-    return [b for b in bars if isinstance(getattr(b, "ts", None), datetime) and b.ts <= end_ts]
+    return [b for b in bars if isinstance(getattr(b, "ts", None), datetime) and b.ts <= trim_end_ts]
 
 
 async def main_async(argv: list[str] | None = None) -> int:
@@ -276,59 +293,55 @@ async def main_async(argv: list[str] | None = None) -> int:
     if args.limit and int(args.limit) > 0:
         candidates = candidates[: int(args.limit)]
 
-    print(f"journal={journal_path}")
-    print(f"symbol={symbol} event={event} range={start_d.isoformat()}→{end_d.isoformat()} rows={len(candidates)}")
-    if not candidates:
-        return 0
+    def _spec_key(spec: ReplaySpec) -> tuple[str, bool, str, str]:
+        return (str(spec.bar_size), bool(spec.use_rth), str(spec.what_to_show), str(spec.duration_str))
 
-    cfg = load_config()
-    client = IBKRClient(cfg)
-    await client.connect_proxy()
-    await client.connect()
-
-    contract = Stock(symbol, "SMART", "USD")
-    qualified = await client.qualify_proxy_contracts(contract)
-    if qualified:
-        contract = qualified[0]
-
-    cache: dict[tuple, list] = {}
-    drift_count = 0
-    ok_count = 0
-    t_all = time.time()
-
-    for i, item in enumerate(candidates, start=1):
-        row = item["row"]
-        data = item["data"]
-        order_journal = item["order_journal"]
-        bar_ts: datetime = item["bar_ts"]
+    prepared: list[dict[str, object]] = []
+    max_end_ts_by_key: dict[tuple[str, bool, str, str], datetime] = {}
+    for item in candidates:
+        data = item.get("data") if isinstance(item.get("data"), dict) else {}
+        order_journal = item.get("order_journal") if isinstance(item.get("order_journal"), dict) else None
+        bar_ts = item.get("bar_ts") if isinstance(item.get("bar_ts"), datetime) else None
+        if order_journal is None or bar_ts is None:
+            continue
 
         strategy = data.get("strategy") if isinstance(data.get("strategy"), dict) else None
         filters = data.get("filters") if isinstance(data.get("filters"), dict) else None
         if not isinstance(strategy, dict):
-            print(f"[{i:02d}/{len(candidates):02d}] SKIP missing strategy (bar_ts={bar_ts.isoformat()})")
             continue
 
         bar_size = str(strategy.get("signal_bar_size") or "5 mins").strip() or "5 mins"
         use_rth = bool(strategy.get("signal_use_rth", True))
+        signal_end_ts = _bar_close_ts(bar_ts, bar_size)
 
-        # Resolve regime / regime2 bar sizes the same way the UI does.
-        regime_mode, _regime_preset, regime_bar_size, use_mtf_regime = resolve_spot_regime_spec(
+        _regime_mode, _regime_preset, regime_bar_size, use_mtf_regime = resolve_spot_regime_spec(
             bar_size=bar_size,
             regime_mode_raw=strategy.get("regime_mode"),
             regime_ema_preset_raw=strategy.get("regime_ema_preset"),
             regime_bar_size_raw=strategy.get("regime_bar_size"),
         )
-        regime2_mode, _regime2_preset, regime2_bar_size, use_mtf_regime2 = resolve_spot_regime2_spec(
+        _regime2_mode, _regime2_preset, regime2_bar_size, use_mtf_regime2 = resolve_spot_regime2_spec(
             bar_size=bar_size,
             regime2_mode_raw=strategy.get("regime2_mode"),
             regime2_ema_preset_raw=strategy.get("regime2_ema_preset"),
             regime2_bar_size_raw=strategy.get("regime2_bar_size"),
         )
-        _ = (regime_mode, regime2_mode)  # keep local parity probes explicit
 
-        signal_health = order_journal.get("signal_bar_health") if isinstance(order_journal.get("signal_bar_health"), dict) else None
-        regime_health = order_journal.get("regime_bar_health") if isinstance(order_journal.get("regime_bar_health"), dict) else None
-        regime2_health = order_journal.get("regime2_bar_health") if isinstance(order_journal.get("regime2_bar_health"), dict) else None
+        signal_health = (
+            order_journal.get("signal_bar_health")
+            if isinstance(order_journal.get("signal_bar_health"), dict)
+            else None
+        )
+        regime_health = (
+            order_journal.get("regime_bar_health")
+            if isinstance(order_journal.get("regime_bar_health"), dict)
+            else None
+        )
+        regime2_health = (
+            order_journal.get("regime2_bar_health")
+            if isinstance(order_journal.get("regime2_bar_health"), dict)
+            else None
+        )
 
         sig_spec = ReplaySpec(
             bar_size=str(bar_size),
@@ -349,16 +362,110 @@ async def main_async(argv: list[str] | None = None) -> int:
             what_to_show=_pick_source(regime2_health, fallback=str(sig_spec.what_to_show)),
         )
 
+        for spec in (sig_spec, reg_spec if bool(use_mtf_regime) else None, reg2_spec if bool(use_mtf_regime2) else None):
+            if spec is None:
+                continue
+            key = _spec_key(spec)
+            prior = max_end_ts_by_key.get(key)
+            if prior is None or signal_end_ts > prior:
+                max_end_ts_by_key[key] = signal_end_ts
+
+        prepared.append(
+            {
+                "order_journal": order_journal,
+                "bar_ts": bar_ts,
+                "signal_end_ts": signal_end_ts,
+                "strategy": strategy,
+                "filters": filters,
+                "bar_size": bar_size,
+                "use_rth": use_rth,
+                "use_mtf_regime": bool(use_mtf_regime),
+                "use_mtf_regime2": bool(use_mtf_regime2),
+                "sig_spec": sig_spec,
+                "reg_spec": reg_spec,
+                "reg2_spec": reg2_spec,
+                "sig_key": _spec_key(sig_spec),
+                "reg_key": _spec_key(reg_spec),
+                "reg2_key": _spec_key(reg2_spec),
+            }
+        )
+
+    print(f"journal={journal_path}")
+    print(
+        f"symbol={symbol} event={event} range={start_d.isoformat()}→{end_d.isoformat()} "
+        f"rows={len(candidates)} prepared={len(prepared)} fetch_keys={len(max_end_ts_by_key)}"
+    )
+    if not prepared:
+        return 0
+
+    cfg = load_config()
+    client = IBKRClient(cfg)
+    await client.connect_proxy()
+    await client.connect()
+
+    contract = Stock(symbol, "SMART", "USD")
+    qualified = await client.qualify_proxy_contracts(contract)
+    if qualified:
+        contract = qualified[0]
+
+    cache: dict[tuple, list] = {}
+    drift_count = 0
+    ok_count = 0
+    t_all = time.time()
+
+    for i, item in enumerate(prepared, start=1):
+        order_journal = item.get("order_journal") if isinstance(item.get("order_journal"), dict) else {}
+        bar_ts = item.get("bar_ts") if isinstance(item.get("bar_ts"), datetime) else None
+        if bar_ts is None:
+            continue
+
+        strategy = item.get("strategy") if isinstance(item.get("strategy"), dict) else None
+        filters = item.get("filters") if isinstance(item.get("filters"), dict) else None
+        bar_size = str(item.get("bar_size") or "").strip() or "5 mins"
+        use_rth = bool(item.get("use_rth", True))
+        use_mtf_regime = bool(item.get("use_mtf_regime", False))
+        use_mtf_regime2 = bool(item.get("use_mtf_regime2", False))
+        sig_spec = item.get("sig_spec")
+        reg_spec = item.get("reg_spec")
+        reg2_spec = item.get("reg2_spec")
+        sig_key = item.get("sig_key")
+        reg_key = item.get("reg_key")
+        reg2_key = item.get("reg2_key")
+        if not isinstance(strategy, dict) or not isinstance(sig_spec, ReplaySpec) or not isinstance(sig_key, tuple):
+            continue
+
+        request_end_ts = max_end_ts_by_key.get(sig_key) or _bar_close_ts(bar_ts, bar_size)
         t0 = time.time()
-        sig_bars = await _fetch_bars_trimmed(client=client, contract=contract, spec=sig_spec, end_ts=bar_ts, cache=cache)
+        sig_bars = await _fetch_bars_trimmed(
+            client=client,
+            contract=contract,
+            spec=sig_spec,
+            request_end_ts=request_end_ts,
+            trim_end_ts=bar_ts,
+            cache=cache,
+        )
         regime_bars = (
-            await _fetch_bars_trimmed(client=client, contract=contract, spec=reg_spec, end_ts=bar_ts, cache=cache)
-            if bool(use_mtf_regime)
+            await _fetch_bars_trimmed(
+                client=client,
+                contract=contract,
+                spec=reg_spec,
+                request_end_ts=(max_end_ts_by_key.get(reg_key) or request_end_ts),
+                trim_end_ts=bar_ts,
+                cache=cache,
+            )
+            if bool(use_mtf_regime) and isinstance(reg_spec, ReplaySpec) and isinstance(reg_key, tuple)
             else None
         )
         regime2_bars = (
-            await _fetch_bars_trimmed(client=client, contract=contract, spec=reg2_spec, end_ts=bar_ts, cache=cache)
-            if bool(use_mtf_regime2)
+            await _fetch_bars_trimmed(
+                client=client,
+                contract=contract,
+                spec=reg2_spec,
+                request_end_ts=(max_end_ts_by_key.get(reg2_key) or request_end_ts),
+                trim_end_ts=bar_ts,
+                cache=cache,
+            )
+            if bool(use_mtf_regime2) and isinstance(reg2_spec, ReplaySpec) and isinstance(reg2_key, tuple)
             else None
         )
 
@@ -377,22 +484,22 @@ async def main_async(argv: list[str] | None = None) -> int:
         live_probe = _probe_from_live_order_journal(order_journal)
         if replay_snap is None:
             drift_count += 1
-            print(f"[{i:02d}/{len(candidates):02d}] DRIFT bar_ts={bar_ts.isoformat()} replay=None ({dt:.1f}s)")
+            print(f"[{i:02d}/{len(prepared):02d}] DRIFT bar_ts={bar_ts.isoformat()} replay=None ({dt:.1f}s)")
             continue
 
         replay_probe = _probe_from_snap(replay_snap)
         diffs = _diff_keys(live=live_probe, replay=replay_probe)
         if diffs:
             drift_count += 1
-            print(f"[{i:02d}/{len(candidates):02d}] DRIFT bar_ts={bar_ts.isoformat()} diffs={diffs} ({dt:.1f}s)")
+            print(f"[{i:02d}/{len(prepared):02d}] DRIFT bar_ts={bar_ts.isoformat()} diffs={diffs} ({dt:.1f}s)")
             for key in diffs:
                 print(f"  {key}: live={live_probe.get(key)!r} replay={replay_probe.get(key)!r}")
         else:
             ok_count += 1
-            print(f"[{i:02d}/{len(candidates):02d}] OK    bar_ts={bar_ts.isoformat()} ({dt:.1f}s)")
+            print(f"[{i:02d}/{len(prepared):02d}] OK    bar_ts={bar_ts.isoformat()} ({dt:.1f}s)")
 
     total = time.time() - t_all
-    print(f"ok={ok_count} drift={drift_count} total={len(candidates)} ({total:.1f}s)")
+    print(f"ok={ok_count} drift={drift_count} total={len(prepared)} ({total:.1f}s)")
     try:
         await client.disconnect()
     except Exception:
@@ -406,4 +513,3 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

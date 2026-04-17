@@ -3522,7 +3522,10 @@ class PositionsApp(App):
                 self._derivative_actionable_px_by_con_id.pop(int(option_con_id), None)
 
         if item.contract.secType == "FOP":
-            return None, False
+            display = _option_display_price(item, option_ticker)
+            if display is None or display <= 0:
+                return None, False
+            return float(display), True
         portfolio_mark = _safe_num(getattr(item, "marketPrice", None))
 
         under_con_id = self._option_underlying_con_id.get(option_con_id)
