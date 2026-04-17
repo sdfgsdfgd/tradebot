@@ -978,7 +978,11 @@ class PositionDetailScreen(Screen):
         mid = _midpoint(bid, ask)
         if contract.secType in ("OPT", "FOP"):
             now_mono = monotonic()
-            actionable = mid or last
+            actionable = (
+                _option_display_price(self._item, ticker)
+                if contract.secType == "FOP"
+                else (mid or last)
+            )
             if actionable is not None:
                 self._derivative_actionable_px = float(actionable)
                 self._derivative_actionable_px_until_mono = now_mono + float(
@@ -1727,7 +1731,8 @@ class PositionDetailScreen(Screen):
             mid = _midpoint(bid, ask)
             if contract.secType in ("OPT", "FOP"):
                 now_mono = monotonic()
-                actionable = mid or last
+                display_price = _option_display_price(self._item, self._ticker)
+                actionable = display_price if contract.secType == "FOP" else (mid or last)
                 if actionable is not None:
                     self._derivative_actionable_px = float(actionable)
                     self._derivative_actionable_px_until_mono = now_mono + float(
@@ -1737,7 +1742,7 @@ class PositionDetailScreen(Screen):
                 if actionable is None and sticky is not None:
                     price = float(sticky)
                 else:
-                    price = _option_display_price(self._item, self._ticker)
+                    price = display_price
             else:
                 price = _ticker_price(self._ticker) if self._ticker else None
             close = _ticker_close(self._ticker) if self._ticker else None
@@ -2068,7 +2073,14 @@ class PositionDetailScreen(Screen):
         ask = self._quote_num(self._ticker.ask) if self._ticker else None
         last = self._quote_num(self._ticker.last) if self._ticker else None
         mark = _option_display_price(self._item, self._ticker) if contract.secType in ("OPT", "FOP") else _mark_price(self._item)
-        last_ref = last if last is not None else (bid if bid is not None else (ask if ask is not None else mark))
+        if contract.secType == "FOP":
+            last_ref = (
+                mark
+                if mark is not None
+                else (last if last is not None else (bid if bid is not None else ask))
+            )
+        else:
+            last_ref = last if last is not None else (bid if bid is not None else (ask if ask is not None else mark))
         tick = _tick_size(contract, self._ticker, last_ref)
         mid_raw = _midpoint(bid, ask)
         fallback = _round_to_tick(last_ref, tick)

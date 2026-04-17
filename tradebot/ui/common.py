@@ -374,6 +374,7 @@ def _ticker_actionable_price(ticker: Ticker) -> float | None:
 
 def _option_display_price(item: PortfolioItem, ticker: Ticker | None) -> float | None:
     sec_type = str(getattr(getattr(item, "contract", None), "secType", "") or "").strip().upper()
+    portfolio_mark = _quote_num_display(getattr(item, "marketPrice", None))
     if ticker:
         bid, ask, last = _sanitize_nbbo(
             getattr(ticker, "bid", None),
@@ -382,10 +383,18 @@ def _option_display_price(item: PortfolioItem, ticker: Ticker | None) -> float |
         )
         if bid is not None and ask is not None and bid <= ask:
             return (bid + ask) / 2.0
-        if last is not None:
-            return float(last)
         model = getattr(ticker, "modelGreeks", None)
         model_price = _quote_num_display(getattr(model, "optPrice", None)) if model else None
+        if sec_type == "FOP":
+            if model_price is not None:
+                return float(model_price)
+            if portfolio_mark is not None:
+                return float(portfolio_mark)
+            if last is not None:
+                return float(last)
+        else:
+            if last is not None:
+                return float(last)
         if model_price is not None:
             return float(model_price)
         close = _ticker_close(ticker)
@@ -396,8 +405,7 @@ def _option_display_price(item: PortfolioItem, ticker: Ticker | None) -> float |
     else:
         close_value = None
 
-    portfolio_mark = _quote_num_display(getattr(item, "marketPrice", None))
-    if sec_type != "FOP" and portfolio_mark is not None:
+    if portfolio_mark is not None and (sec_type != "FOP" or ticker is not None):
         return float(portfolio_mark)
     return close_value
 
