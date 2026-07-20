@@ -583,7 +583,7 @@ def spot_riskoff_mode_from_filters(filters: Mapping[str, object] | object | None
 
 def spot_riskoff_end_hour(filters: Mapping[str, object] | object | None) -> int | None:
     """Resolve ET risk cutoff hour with legacy fallback support."""
-    return SpotPolicy.risk_entry_cutoff_hour_et(filters)
+    return SpotPolicyConfigView.from_sources(filters=filters).risk_entry_cutoff_hour_et
 
 
 def spot_policy_config_view(
@@ -592,7 +592,7 @@ def spot_policy_config_view(
     filters: Mapping[str, object] | object | None = None,
 ) -> SpotPolicyConfigView:
     """Return the sanitized/defaulted spot policy config view."""
-    return SpotPolicy.policy_config(strategy=strategy, filters=filters)
+    return SpotPolicyConfigView.from_sources(strategy=strategy, filters=filters)
 
 
 def spot_runtime_spec_view(
@@ -601,7 +601,7 @@ def spot_runtime_spec_view(
     filters: Mapping[str, object] | object | None = None,
 ) -> SpotRuntimeSpec:
     """Return sanitized/defaulted spot execution runtime knobs."""
-    return SpotPolicy.runtime_spec(strategy=strategy, filters=filters)
+    return SpotRuntimeSpec.from_sources(strategy=strategy, filters=filters)
 
 
 def spot_resolve_entry_action_qty(

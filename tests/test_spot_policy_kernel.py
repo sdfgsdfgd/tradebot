@@ -130,6 +130,22 @@ class SpotPolicyKernelTests(unittest.TestCase):
         self.assertEqual(cfg.shock_stop_loss_pct_mult, 1.0)
         self.assertEqual(cfg.spot_branch_a_size_mult, 1.0)
 
+    def test_engine_policy_views_use_typed_factories(self) -> None:
+        from tradebot.engine import spot_policy_config_view, spot_riskoff_end_hour, spot_runtime_spec_view
+        from tradebot.spot.policy import SpotRuntimeSpec
+
+        strategy = {"spot_spread": "0.25", "spot_resize_cooldown_bars": "3"}
+        filters = {"risk_entry_cutoff_hour_et": "15"}
+        self.assertEqual(
+            spot_policy_config_view(strategy=strategy, filters=filters),
+            SpotPolicyConfigView.from_sources(strategy=strategy, filters=filters),
+        )
+        self.assertEqual(
+            spot_runtime_spec_view(strategy=strategy, filters=filters),
+            SpotRuntimeSpec.from_sources(strategy=strategy, filters=filters),
+        )
+        self.assertEqual(spot_riskoff_end_hour(filters), 15)
+
     def test_calc_signed_qty_with_trace_captures_risk_pipeline(self) -> None:
         qty, trace = SpotPolicy.calc_signed_qty_with_trace(
             strategy={

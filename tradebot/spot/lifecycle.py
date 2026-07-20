@@ -34,7 +34,7 @@ from .fill_modes import (
 )
 from .graph import SpotPolicyGraph, canonical_exit_reason as graph_canonical_exit_reason
 from .graph import pick_exit_reason as graph_pick_exit_reason
-from .policy import SpotIntentDecision, SpotPolicy
+from .policy import SpotIntentDecision, SpotPolicy, SpotPolicyConfigView
 
 
 @dataclass(frozen=True)
@@ -69,7 +69,7 @@ class SpotDeferredEntryPlan:
 
 
 def _get(source: Mapping[str, object] | object | None, key: str, default: object = None) -> object:
-    return SpotPolicy._get(source, key, default)  # noqa: SLF001 - shared parser reuse by design
+    return SpotPolicyConfigView._get(source, key, default)  # noqa: SLF001 - shared parser reuse by design
 
 
 def _normalize_fill_mode(raw: object, *, default: str = SPOT_FILL_MODE_CLOSE) -> str:
@@ -1223,7 +1223,7 @@ def decide_open_position_intent(
         target_qty=int(effective_target),
     )
     if str(spot_intent.intent) == "resize":
-        cfg = SpotPolicy.policy_config(strategy=strategy, filters=None)
+        cfg = SpotPolicyConfigView.from_sources(strategy=strategy, filters=None)
         cooldown = max(0, int(cfg.spot_resize_cooldown_bars))
         if cooldown > 0:
             elapsed = _bars_elapsed(last_resize_bar_ts, bar_ts, bar_size=str(bar_size))

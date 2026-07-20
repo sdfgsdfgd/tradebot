@@ -16,9 +16,12 @@ from textual.widgets import DataTable, Footer, Header, Static
 
 from ..client import IBKRClient
 from .common import (
+    _SyntheticPortfolioItem,
     _fmt_expiry,
     _pct24_72_from_price,
     _price_pct_dual_text,
+    _price_direction_glyph,
+    _quote_age_ribbon,
     _safe_num,
     _ticker_price,
 )
@@ -39,17 +42,6 @@ class _FavoriteSeed:
 class _FavoriteRow:
     seed: _FavoriteSeed
     contract: Contract
-
-
-@dataclass(frozen=True)
-class _SyntheticPortfolioItem:
-    contract: Contract
-    position: float = 0.0
-    averageCost: float = 0.0
-    marketPrice: float = 0.0
-    marketValue: float = 0.0
-    unrealizedPNL: float = 0.0
-    realizedPNL: float = 0.0
 
 
 _FAVORITE_SEEDS: tuple[_FavoriteSeed, ...] = (
@@ -574,7 +566,7 @@ class FavoritesScreen(Screen):
             session_close_3ago=close_3ago,
         )
         text = _price_pct_dual_text(price, pct24, pct72, separator="·")
-        glyph = self._price_direction_glyph(pct24, pct72)
+        glyph = _price_direction_glyph(pct24, pct72)
         if glyph.plain:
             with_glyph = Text()
             with_glyph.append_text(glyph)
@@ -584,7 +576,7 @@ class FavoritesScreen(Screen):
             text = with_glyph
         if ticker_price is not None:
             age_sec = self._quote_age_seconds(con_id, ticker, price)
-            ribbon = self._quote_age_ribbon(age_sec)
+            ribbon = _quote_age_ribbon(age_sec)
             if ribbon.plain:
                 if text.plain:
                     text.append(" ", style="dim")
@@ -639,17 +631,6 @@ class FavoritesScreen(Screen):
             return Text("[D]", style="bold #ffcc84")
         return Text("")
 
-    @staticmethod
-    def _price_direction_glyph(pct24: float | None, pct72: float | None) -> Text:
-        ref = pct24 if pct24 is not None else pct72
-        if ref is None:
-            return Text("•", style="dim")
-        if ref > 0:
-            return Text("▲", style="bold green")
-        if ref < 0:
-            return Text("▼", style="bold red")
-        return Text("•", style="dim")
-
     def _quote_age_seconds(
         self,
         con_id: int,
@@ -675,20 +656,6 @@ class FavoritesScreen(Screen):
             self._quote_updated_mono_by_con_id[con_id] = now
             return 0.0
         return max(0.0, now - updated)
-
-    @staticmethod
-    def _quote_age_ribbon(age_sec: float | None) -> Text:
-        if age_sec is None:
-            return Text("")
-        if age_sec < 1.5:
-            return Text("▰▰▰▰", style="bold #73d89e")
-        if age_sec < 3.5:
-            return Text("▰▰▰▱", style="#6fc18f")
-        if age_sec < 6.0:
-            return Text("▰▰▱▱", style="#8fa2b3")
-        if age_sec < 10.0:
-            return Text("▰▱▱▱", style="#778797")
-        return Text("▱▱▱▱", style="#5e6a74")
 
     @staticmethod
     def _center_cell(value: Text | str, width: int) -> Text | str:

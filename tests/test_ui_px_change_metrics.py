@@ -3,8 +3,15 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 import pytest
+from ib_insync import Contract
 
-from tradebot.ui.common import _option_display_price, _pct24_72_from_price
+from tradebot.ui.common import (
+    _SyntheticPortfolioItem,
+    _option_display_price,
+    _pct24_72_from_price,
+    _price_direction_glyph,
+    _quote_age_ribbon,
+)
 
 
 def test_pct24_uses_latest_close_when_ticker_close_exists() -> None:
@@ -47,3 +54,20 @@ def test_option_display_price_ignores_snapshot_market_price_for_fop_without_quot
     item = SimpleNamespace(contract=SimpleNamespace(secType="FOP"), marketPrice=234.0)
 
     assert _option_display_price(item, None) is None
+
+
+def test_shared_quote_visuals_preserve_direction_and_freshness_contract() -> None:
+    assert _price_direction_glyph(1.0, -2.0).plain == "▲"
+    assert _price_direction_glyph(None, -2.0).plain == "▼"
+    assert _price_direction_glyph(None, None).plain == "•"
+    assert _quote_age_ribbon(None).plain == ""
+    assert _quote_age_ribbon(0.0).plain == "▰▰▰▰"
+    assert _quote_age_ribbon(10.0).plain == "▱▱▱▱"
+
+
+def test_shared_synthetic_portfolio_item_is_constructible_and_mutable() -> None:
+    item = _SyntheticPortfolioItem(contract=Contract(symbol="AAPL"))
+    item.position = 2.0
+
+    assert item.contract.symbol == "AAPL"
+    assert item.position == 2.0

@@ -75,11 +75,13 @@ def test_historical_full24_stitches_overnight_and_keeps_what_to_show_cache_separ
     async def _fake_request(
         contract,
         *,
+        end_ts: datetime | None = None,
         duration_str: str,
         bar_size: str,
         what_to_show: str,
         use_rth: bool,
     ):
+        _ = end_ts
         calls.append((str(getattr(contract, "exchange", "") or ""), str(what_to_show), bool(use_rth)))
         stamp_overnight = datetime(2026, 2, 8, 21, 15)
         stamp_rth = datetime(2026, 2, 9, 10, 0)
@@ -140,11 +142,13 @@ def test_historical_bars_ohlcv_empty_cache_expires_quickly() -> None:
     async def _fake_request(
         contract,
         *,
+        end_ts: datetime | None = None,
         duration_str: str,
         bar_size: str,
         what_to_show: str,
         use_rth: bool,
     ):
+        _ = end_ts
         nonlocal calls
         calls += 1
         return []
@@ -204,11 +208,13 @@ def test_historical_bars_ohlcv_timeout_backoff_throttles_retries() -> None:
     async def _fake_request_for_stream(
         contract,
         *,
+        end_ts: datetime | None = None,
         duration_str: str,
         bar_size: str,
         what_to_show: str,
         use_rth: bool,
     ):
+        _ = end_ts
         nonlocal calls
         calls += 1
         con_id = int(getattr(contract, "conId", 0) or 0)
@@ -299,12 +305,13 @@ def test_historical_bars_ohlcv_backoff_is_duration_scoped() -> None:
     async def _fake_request_for_stream(
         contract,
         *,
+        end_ts: datetime | None = None,
         duration_str: str,
         bar_size: str,
         what_to_show: str,
         use_rth: bool,
     ):
-        _ = contract, bar_size, what_to_show, use_rth
+        _ = contract, end_ts, bar_size, what_to_show, use_rth
         calls.append(str(duration_str))
         payload = {
             "status": "timeout",

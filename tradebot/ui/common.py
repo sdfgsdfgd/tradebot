@@ -7,15 +7,27 @@ Keep it dependency-light and free of IBKR side effects.
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 from datetime import datetime, time
 from time import monotonic
 
-from ib_insync import PnL, PortfolioItem, Ticker, Trade
+from ib_insync import Contract, PnL, PortfolioItem, Ticker, Trade
 from rich.text import Text
 
 from tradebot.ui.time_compat import now_et as _now_et
 
 _QUOTE_INFO_ERROR_CODES = {10167, 354, 10089, 10090, 10091, 10168}
+
+
+@dataclass
+class _SyntheticPortfolioItem:
+    contract: Contract
+    position: float = 0.0
+    averageCost: float = 0.0
+    marketPrice: float = 0.0
+    marketValue: float = 0.0
+    unrealizedPNL: float = 0.0
+    realizedPNL: float = 0.0
 
 # region Formatting Helpers
 def _fmt_expiry(raw: str) -> str:
@@ -35,6 +47,31 @@ def _fmt_qty(value: float) -> str:
 def _fmt_money(value: float) -> str:
     return f"{value:,.2f}"
 # endregion
+
+
+def _price_direction_glyph(pct24: float | None, pct72: float | None) -> Text:
+    ref = pct24 if pct24 is not None else pct72
+    if ref is None:
+        return Text("•", style="dim")
+    if ref > 0:
+        return Text("▲", style="bold green")
+    if ref < 0:
+        return Text("▼", style="bold red")
+    return Text("•", style="dim")
+
+
+def _quote_age_ribbon(age_sec: float | None) -> Text:
+    if age_sec is None:
+        return Text("")
+    if age_sec < 1.5:
+        return Text("▰▰▰▰", style="bold #73d89e")
+    if age_sec < 3.5:
+        return Text("▰▰▰▱", style="#6fc18f")
+    if age_sec < 6.0:
+        return Text("▰▰▱▱", style="#8fa2b3")
+    if age_sec < 10.0:
+        return Text("▰▱▱▱", style="#778797")
+    return Text("▱▱▱▱", style="#5e6a74")
 
 
 def _safe_float(value: object, *, abs_cap: float = 1e307) -> float | None:

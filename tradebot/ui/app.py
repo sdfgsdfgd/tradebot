@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import time
-from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from typing import cast
 
@@ -27,6 +26,7 @@ from .common import (
     _PROXY_ORDER,
     _SECTION_ORDER,
     _SECTION_TYPES,
+    _SyntheticPortfolioItem,
     _cost_basis,
     _fmt_money,
     _estimate_buying_power,
@@ -38,6 +38,7 @@ from .common import (
     _pnl_value,
     _portfolio_row,
     _portfolio_sort_key,
+    _quote_age_ribbon,
     _quote_status_line,
     _safe_float,
     _safe_num,
@@ -50,17 +51,6 @@ from .common import (
 from .favorites import FavoritesScreen
 from .positions import PositionDetailScreen
 from .store import PortfolioSnapshot
-
-
-@dataclass
-class _SyntheticPortfolioItem:
-    contract: Contract
-    position: float = 0.0
-    averageCost: float = 0.0
-    marketPrice: float = 0.0
-    marketValue: float = 0.0
-    unrealizedPNL: float = 0.0
-    realizedPNL: float = 0.0
 
 
 class _SearchDrawer(Static):
@@ -3190,7 +3180,7 @@ class PositionsApp(App):
             session_close_3ago=close_3ago,
         )
         age_sec = self._quote_age_seconds(con_id, ticker, price if price is not None else quote_price)
-        ribbon = self._quote_age_ribbon(age_sec)
+        ribbon = _quote_age_ribbon(age_sec)
         text = self._aligned_px_change_text(
             pct24=pct24,
             pct72=pct72,
@@ -3198,17 +3188,6 @@ class PositionsApp(App):
         )
         centered = self._center_cell(text, self._PX_24_72_COL_WIDTH)
         return centered if isinstance(centered, Text) else Text(str(centered))
-
-    @staticmethod
-    def _price_direction_glyph(pct24: float | None, pct72: float | None) -> Text:
-        ref = pct24 if pct24 is not None else pct72
-        if ref is None:
-            return Text("•", style="dim")
-        if ref > 0:
-            return Text("▲", style="bold green")
-        if ref < 0:
-            return Text("▼", style="bold red")
-        return Text("•", style="dim")
 
     @staticmethod
     def _pct_text_style(value: float | None) -> str:
@@ -3286,20 +3265,6 @@ class PositionsApp(App):
             self._quote_updated_mono_by_con_id[con_id] = now
             return 0.0
         return max(0.0, now - updated)
-
-    @staticmethod
-    def _quote_age_ribbon(age_sec: float | None) -> Text:
-        if age_sec is None:
-            return Text("")
-        if age_sec < 1.5:
-            return Text("▰▰▰▰", style="bold #73d89e")
-        if age_sec < 3.5:
-            return Text("▰▰▰▱", style="#6fc18f")
-        if age_sec < 6.0:
-            return Text("▰▰▱▱", style="#8fa2b3")
-        if age_sec < 10.0:
-            return Text("▰▱▱▱", style="#778797")
-        return Text("▱▱▱▱", style="#5e6a74")
 
     @staticmethod
     def _float_or_none(value: object) -> float | None:
