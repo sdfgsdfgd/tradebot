@@ -111,7 +111,9 @@
     "tests/test_live_signal_exit_continuum.py": "live-execution-orders",
     "tests/test_offline_cache_preflight.py": "backtest-data-cache",
     "tests/test_option_package_economics.py": "live-execution-orders",
+    "tests/test_option_package_risk.py": "live-execution-orders",
     "tests/test_option_search_qualification.py": "live-market-data-contracts",
+    "tests/test_order_admission_policy.py": "live-execution-orders",
     "tests/test_order_contract_normalize.py": "live-market-data-contracts",
     "tests/test_order_pricing_guards.py": "live-execution-orders",
     "tests/test_readme_retrievers.py": "operator-ui-observability",
@@ -326,10 +328,17 @@
       "evidence": [
         "tests/test_live_signal_exit_continuum.py",
         "tests/test_option_package_economics.py",
+        "tests/test_option_package_risk.py",
+        "tests/test_order_admission_policy.py",
         "tests/test_order_pricing_guards.py",
         "tests/test_ui_futures_detail_flow.py"
       ],
       "owner_surface": [
+        "tradebot/option_package.py",
+        "tradebot/order_admission.py",
+        "tradebot/ui/bot.py",
+        "tradebot/ui/bot_models.py",
+        "tradebot/ui/bot_order_builder.py",
         "tradebot/ui/bot_signal_runtime.py"
       ],
       "oracle": [

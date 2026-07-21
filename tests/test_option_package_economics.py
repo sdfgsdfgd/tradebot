@@ -202,6 +202,7 @@ def test_option_builder_stages_native_credit_bag_through_canonical_kernel(monkey
             for contract in contracts:
                 contract.conId = 1001 if float(contract.strike) == 100.0 else 1002
                 contract.minTick = 0.01
+                contract.multiplier = "100"
             return list(contracts)
 
         @staticmethod
@@ -304,6 +305,18 @@ def test_option_builder_stages_native_credit_bag_through_canonical_kernel(monkey
         (1001, 1, "SELL", "SMART"),
         (1002, 1, "BUY", "SMART"),
     ]
+    package_risk = getattr(staged, "package_risk", None)
+    assert package_risk is not None, "_BotOrder.package_risk is missing"
+    assert package_risk.as_payload() == {
+        "structure": "vertical_credit",
+        "right": "PUT",
+        "expiry": "20260209",
+        "width": 5.0,
+        "debit_value": -1.0,
+        "multiplier": 100.0,
+        "quantity": 1,
+        "max_loss": 400.0,
+    }
     assert len(calls) == 4
 
 

@@ -8,7 +8,7 @@ from datetime import date, datetime
 from ib_insync import Bag, ComboLeg, Contract, Option, Stock, Ticker
 
 from ..engine import normalize_spot_entry_signal, spot_resolve_entry_action_qty, spot_runtime_spec_view
-from ..option_package import option_package_debit_value
+from ..option_package import option_package_debit_value, option_package_risk
 from ..spot.lifecycle import decide_open_position_intent
 from ..time_utils import now_et as _now_et
 from ..time_utils import now_et_naive as _now_et_naive
@@ -586,6 +586,28 @@ class BotOrderBuilderMixin:
                     )
                 )
             bag = Bag(symbol=symbol, exchange="SMART", currency="USD", comboLegs=combo_legs)
+            package_risk = option_package_risk(
+                [
+                    (
+                        leg_order.action,
+                        str(getattr(leg_order.contract, "right", "") or ""),
+                        getattr(leg_order.contract, "strike", None),
+                        leg_order.ratio,
+                        str(
+                            getattr(
+                                leg_order.contract,
+                                "lastTradeDateOrContractMonth",
+                                "",
+                            )
+                            or ""
+                        ),
+                        getattr(leg_order.contract, "multiplier", None),
+                    )
+                    for leg_order in leg_orders
+                ],
+                debit_value=float(desired_debit),
+                quantity=1,
+            )
 
             order = _BotOrder(
                 instance_id=instance.instance_id,
@@ -597,6 +619,7 @@ class BotOrderBuilderMixin:
                 quantity=1,
                 limit_price=float(order_limit),
                 created_at=_now_et(),
+                package_risk=package_risk,
                 bid=order_bid,
                 ask=order_ask,
                 last=order_last,

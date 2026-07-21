@@ -31,6 +31,12 @@ from ..engine import (
     spot_riskoff_end_hour,
 )
 from ..option_package import option_package_debit_value
+from ..order_admission import (
+    OrderAdmissionFacts,
+    OrderAdmissionLeg,
+    OrderAdmissionRequest,
+    evaluate_order_admission,
+)
 from ..spot.graph import spot_dynamic_flip_hold_bars
 from ..spot.lifecycle import flip_exit_gate_blocked, flip_exit_hit
 from ..series import BarSeries, BarSeriesMeta
@@ -5030,6 +5036,102 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         except RuntimeError:
             loop = None
         try:
+            sec_type = str(
+                getattr(order.order_contract, "secType", "") or ""
+            ).strip().upper()
+            symbol = str(
+                getattr(order.order_contract, "symbol", "") or ""
+            ).strip().upper()
+            if sec_type == "BAG" and symbol == "XSP":
+                package_risk = order.package_risk
+                request = OrderAdmissionRequest(
+                    account=str(
+                        getattr(
+                            getattr(self._client, "_config", None),
+                            "account",
+                            "",
+                        )
+                        or ""
+                    ).strip(),
+                    product_domain=symbol,
+                    structure=(
+                        str(package_risk.structure)
+                        if package_risk is not None
+                        else ""
+                    ),
+                    sec_type=sec_type,
+                    symbol=symbol,
+                    currency=str(
+                        getattr(order.order_contract, "currency", "") or ""
+                    ).strip().upper(),
+                    exchange=str(
+                        getattr(order.order_contract, "exchange", "") or ""
+                    ).strip().upper(),
+                    action=str(order.action or "").strip().upper(),
+                    quantity=int(order.quantity),
+                    limit_price=float(order.limit_price),
+                    max_loss=(
+                        float(package_risk.max_loss)
+                        if package_risk is not None
+                        else None
+                    ),
+                    legs=tuple(
+                        OrderAdmissionLeg(
+                            con_id=int(
+                                getattr(leg.contract, "conId", 0) or 0
+                            ),
+                            ratio=int(leg.ratio),
+                            action=str(leg.action or "").strip().upper(),
+                            exchange=str(
+                                getattr(leg.contract, "exchange", "") or ""
+                            ).strip().upper(),
+                        )
+                        for leg in order.legs
+                    ),
+                )
+
+                facts = OrderAdmissionFacts()
+                if package_risk is not None:
+                    preview = await self._client.preview_limit_order(
+                        order.order_contract,
+                        order.action,
+                        order.quantity,
+                        order.limit_price,
+                        outside_rth=False,
+                    )
+                    facts = OrderAdmissionFacts(
+                        status=preview.status,
+                        init_margin_before=preview.init_margin_before,
+                        init_margin_change=preview.init_margin_change,
+                        init_margin_after=preview.init_margin_after,
+                        maintenance_margin_before=preview.maintenance_margin_before,
+                        maintenance_margin_change=preview.maintenance_margin_change,
+                        maintenance_margin_after=preview.maintenance_margin_after,
+                        equity_with_loan_before=preview.equity_with_loan_before,
+                        equity_with_loan_change=preview.equity_with_loan_change,
+                        equity_with_loan_after=preview.equity_with_loan_after,
+                        commission=preview.commission,
+                        min_commission=preview.min_commission,
+                        max_commission=preview.max_commission,
+                        commission_currency=preview.commission_currency,
+                        warning_text=preview.warning_text,
+                    )
+
+                decision = evaluate_order_admission(request, facts)
+                self._journal_write(
+                    event="ORDER_ADMISSION",
+                    order=order,
+                    reason=order.reason,
+                    data={"admission": decision.as_payload()},
+                )
+                if not decision.allow:
+                    order.status = "BLOCKED"
+                    order.error = decision.reason
+                    self._set_status(f"Order blocked: {decision.reason}")
+                    self._refresh_orders_table()
+                    self._render_bot()
+                    return
+
             self._journal_write(event="SENDING", order=order, reason=order.reason, data=None)
             trade = await self._client.place_limit_order(
                 order.order_contract,

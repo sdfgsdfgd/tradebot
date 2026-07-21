@@ -8,6 +8,7 @@ from datetime import date, datetime
 from ib_insync import Contract, Trade
 
 from ..engine import EmaDecisionSnapshot, RiskOverlaySnapshot
+from ..option_package import OptionPackageRisk
 
 _BOT_JOURNAL_FIELDS = (
     "ts_et",
@@ -142,6 +143,7 @@ class _BotOrder:
     quantity: int  # combo quantity (BAG) or contracts (single-leg)
     limit_price: float
     created_at: datetime
+    package_risk: OptionPackageRisk | None = None
     bid: float | None = None
     ask: float | None = None
     last: float | None = None

@@ -14,8 +14,10 @@ from unittest.mock import patch
 
 from ib_insync import Bag, ComboLeg, Contract, Future, Stock
 
-from tradebot.client import IBKRClient, _session_flags
+from tradebot.client import BrokerOrderPreview, IBKRClient, _session_flags
 from tradebot.config import IBKRConfig
+from tradebot.option_package import OptionPackageRisk
+from tradebot.order_admission import evaluate_order_admission
 from tradebot.spot.lifecycle import flip_exit_gate_blocked, signal_filter_checks
 
 _UI_DIR = Path(__file__).resolve().parents[1] / "tradebot" / "ui"
@@ -26,10 +28,11 @@ if "tradebot.ui" not in sys.modules:
 
 from tradebot.ui.bot_engine_runtime import BotEngineRuntimeMixin
 from tradebot.ui.bot_journal import BotJournal
-from tradebot.ui.bot_models import _BotInstance, _BotOrder
+from tradebot.ui.bot_models import _BotInstance, _BotLegOrder, _BotOrder
 from tradebot.ui.bot_order_builder import BotOrderBuilderMixin
 from tradebot.ui.bot_signal_runtime import BotSignalRuntimeMixin
 from tradebot.ui.bot import BotScreen
+import tradebot.ui.bot as bot_module
 import tradebot.ui.bot_signal_runtime as bot_signal_runtime_module
 
 
@@ -2190,6 +2193,283 @@ def test_resize_builder_defers_cooldown_timestamp_to_confirmed_fill() -> None:
     assert staged.signal_bar_ts == bar_ts
     assert staged.quantity == 1
     assert instance.last_resize_bar_ts == prior_ts
+
+
+def _admission_preview() -> BrokerOrderPreview:
+    return BrokerOrderPreview(
+        status="PreSubmitted",
+        init_margin_before=2200.0,
+        init_margin_change=500.0,
+        init_margin_after=1700.0,
+        maintenance_margin_before=1800.0,
+        maintenance_margin_change=400.0,
+        maintenance_margin_after=1400.0,
+        equity_with_loan_before=2200.0,
+        equity_with_loan_change=-2.5,
+        equity_with_loan_after=2197.5,
+        commission=2.5,
+        min_commission=1.0,
+        max_commission=3.0,
+        commission_currency="USD",
+        warning_text="",
+    )
+
+
+def _admission_xsp_order(
+    *,
+    package_risk: OptionPackageRisk | None,
+) -> _BotOrder:
+    short_contract = Contract(
+        secType="OPT",
+        conId=1001,
+        symbol="XSP",
+        exchange="SMART",
+        currency="USD",
+    )
+    long_contract = Contract(
+        secType="OPT",
+        conId=1002,
+        symbol="XSP",
+        exchange="SMART",
+        currency="USD",
+    )
+    bag = Bag(
+        symbol="XSP",
+        exchange="SMART",
+        currency="USD",
+        comboLegs=[
+            ComboLeg(conId=1001, ratio=1, action="SELL", exchange="SMART"),
+            ComboLeg(conId=1002, ratio=1, action="BUY", exchange="SMART"),
+        ],
+    )
+    return _BotOrder(
+        instance_id=1,
+        preset=None,
+        underlying=Stock(symbol="XSP", exchange="SMART", currency="USD"),
+        order_contract=bag,
+        legs=[
+            _BotLegOrder(contract=short_contract, action="SELL", ratio=1),
+            _BotLegOrder(contract=long_contract, action="BUY", ratio=1),
+        ],
+        action="BUY",
+        quantity=1,
+        limit_price=-1.0,
+        created_at=datetime(2026, 2, 9, 10, 0),
+        package_risk=package_risk,
+        intent="enter",
+        direction="up",
+        reason="enter",
+        signal_bar_ts=datetime(2026, 2, 9, 10, 0),
+    )
+
+
+class _AdmissionSendClient:
+    def __init__(self, preview: BrokerOrderPreview) -> None:
+        self._config = SimpleNamespace(account="DU2200")
+        self.preview = preview
+        self.calls: list[tuple[str, object, str, float, float, bool]] = []
+        self.trade = SimpleNamespace(
+            order=SimpleNamespace(orderId=9101, permId=0),
+        )
+
+    async def preview_limit_order(
+        self,
+        contract,
+        action: str,
+        quantity: float,
+        limit_price: float,
+        outside_rth: bool,
+    ):
+        self.calls.append(
+            (
+                "preview",
+                contract,
+                str(action),
+                float(quantity),
+                float(limit_price),
+                bool(outside_rth),
+            )
+        )
+        return self.preview
+
+    async def place_limit_order(
+        self,
+        contract,
+        action: str,
+        quantity: float,
+        limit_price: float,
+        outside_rth: bool,
+    ):
+        self.calls.append(
+            (
+                "place",
+                contract,
+                str(action),
+                float(quantity),
+                float(limit_price),
+                bool(outside_rth),
+            )
+        )
+        return self.trade
+
+
+class _AdmissionSendHarness:
+    def __init__(self, client: _AdmissionSendClient) -> None:
+        self._client = client
+        self._events: list[tuple[str, dict[str, object]]] = []
+        self._status = ""
+
+    def _journal_write(
+        self,
+        *,
+        event: str,
+        data: dict | None = None,
+        **_kwargs,
+    ) -> None:
+        self._events.append((str(event), dict(data or {})))
+
+    def _set_status(self, value: str, **_kwargs) -> None:
+        self._status = str(value)
+
+    def _refresh_orders_table(self) -> None:
+        return None
+
+    def _render_bot(self) -> None:
+        return None
+
+
+def test_automated_xsp_admission_denies_missing_staged_risk_before_preview_or_placement(
+    monkeypatch,
+) -> None:
+    captured: list[tuple[object, object]] = []
+
+    def _recording_evaluate(request, facts):
+        captured.append((request, facts))
+        return evaluate_order_admission(request, facts)
+
+    monkeypatch.setattr(
+        bot_module,
+        "evaluate_order_admission",
+        _recording_evaluate,
+        raising=False,
+    )
+
+    client = _AdmissionSendClient(_admission_preview())
+    harness = _AdmissionSendHarness(client)
+    order = _admission_xsp_order(package_risk=None)
+
+    asyncio.run(BotScreen._send_order(harness, order))
+
+    assert len(captured) == 1
+    request, facts = captured[0]
+    assert request.account == "DU2200"
+    assert request.product_domain == "XSP"
+    assert request.structure == ""
+    assert request.sec_type == "BAG"
+    assert request.symbol == "XSP"
+    assert request.currency == "USD"
+    assert request.exchange == "SMART"
+    assert request.action == "BUY"
+    assert request.quantity == 1
+    assert request.limit_price == -1.0
+    assert request.max_loss is None
+    assert [
+        (leg.con_id, leg.ratio, leg.action, leg.exchange)
+        for leg in request.legs
+    ] == [
+        (1001, 1, "SELL", "SMART"),
+        (1002, 1, "BUY", "SMART"),
+    ]
+    assert facts.status is None
+    assert client.calls == []
+    assert order.status == "BLOCKED"
+    assert order.order_id is None
+    assert order.trade is None
+    assert order.sent_at is None
+    assert [event for event, _data in harness._events] == ["ORDER_ADMISSION"]
+    admission = harness._events[0][1]["admission"]
+    assert admission["allow"] is False
+    assert admission["reason"] == "structure_invalid"
+    assert "structure_invalid" in harness._status
+
+
+def test_automated_xsp_admission_previews_then_places_only_when_admitted(
+    monkeypatch,
+) -> None:
+    captured: list[tuple[object, object]] = []
+
+    def _recording_evaluate(request, facts):
+        captured.append((request, facts))
+        return evaluate_order_admission(request, facts)
+
+    monkeypatch.setattr(
+        bot_module,
+        "evaluate_order_admission",
+        _recording_evaluate,
+        raising=False,
+    )
+
+    preview = _admission_preview()
+    client = _AdmissionSendClient(preview)
+    harness = _AdmissionSendHarness(client)
+    order = _admission_xsp_order(
+        package_risk=OptionPackageRisk(
+            structure="vertical_credit",
+            right="PUT",
+            expiry="20260209",
+            width=5.0,
+            debit_value=-1.0,
+            multiplier=100.0,
+            quantity=1,
+            max_loss=400.0,
+        )
+    )
+
+    asyncio.run(BotScreen._send_order(harness, order))
+
+    assert len(captured) == 1
+    request, facts = captured[0]
+    assert request.account == "DU2200"
+    assert request.product_domain == "XSP"
+    assert request.structure == "vertical_credit"
+    assert request.sec_type == "BAG"
+    assert request.symbol == "XSP"
+    assert request.currency == "USD"
+    assert request.exchange == "SMART"
+    assert request.action == "BUY"
+    assert request.quantity == 1
+    assert request.limit_price == -1.0
+    assert request.max_loss == 400.0
+    assert [
+        (leg.con_id, leg.ratio, leg.action, leg.exchange)
+        for leg in request.legs
+    ] == [
+        (1001, 1, "SELL", "SMART"),
+        (1002, 1, "BUY", "SMART"),
+    ]
+    for field_name in preview.__dataclass_fields__:
+        assert getattr(facts, field_name) == getattr(preview, field_name)
+
+    assert [call[0] for call in client.calls] == ["preview", "place"]
+    for _kind, contract, action, quantity, limit_price, outside_rth in client.calls:
+        assert contract is order.order_contract
+        assert action == "BUY"
+        assert quantity == 1.0
+        assert limit_price == -1.0
+        assert outside_rth is False
+
+    assert order.status == "WORKING"
+    assert order.order_id == 9101
+    assert order.trade is client.trade
+    assert order.sent_at is not None
+    assert [event for event, _data in harness._events] == [
+        "ORDER_ADMISSION",
+        "SENDING",
+        "SENT",
+    ]
+    admission = harness._events[0][1]["admission"]
+    assert admission["allow"] is True
+    assert admission["reason"] == "broker_preview_admitted"
 
 
 def test_resize_send_error_preserves_last_successful_cooldown_timestamp() -> None:
