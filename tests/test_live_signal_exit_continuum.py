@@ -12,7 +12,7 @@ from types import SimpleNamespace
 import types
 from unittest.mock import patch
 
-from ib_insync import Contract, Future, Stock
+from ib_insync import Bag, ComboLeg, Contract, Future, Stock
 
 from tradebot.client import IBKRClient, _session_flags
 from tradebot.config import IBKRConfig
@@ -2683,6 +2683,150 @@ def test_place_limit_order_fop_uses_detail_ticker_ladder_when_cache_empty() -> N
 
     _placed_contract, placed_order = fake_ib.calls[-1]
     assert abs(float(getattr(placed_order, "lmtPrice", 0.0)) - 115.5) < 1e-9
+
+
+def test_preview_limit_order_uses_canonical_xsp_credit_bag_without_placement() -> None:
+    class _FakeIB:
+        def __init__(self) -> None:
+            self.preview_calls: list[tuple[object, object]] = []
+            self.place_calls: list[tuple[object, object]] = []
+
+        async def whatIfOrderAsync(self, contract, order):
+            self.preview_calls.append((contract, order))
+            return SimpleNamespace(
+                status="PreSubmitted",
+                initMarginBefore="2200.00",
+                initMarginChange="500.00",
+                initMarginAfter="1700.00",
+                maintMarginBefore="1800.00",
+                maintMarginChange="400.00",
+                maintMarginAfter="1400.00",
+                equityWithLoanBefore="2200.00",
+                equityWithLoanChange="-2.50",
+                equityWithLoanAfter="2197.50",
+                commission="2.50",
+                minCommission="1.00",
+                maxCommission="3.00",
+                commissionCurrency="USD",
+                warningText="",
+            )
+
+        def placeOrder(self, contract, order):
+            self.place_calls.append((contract, order))
+            raise AssertionError("preview must not place an order")
+
+    client = _new_client()
+    fake_ib = _FakeIB()
+    client._ib = fake_ib  # type: ignore[assignment]
+
+    async def _fake_connect() -> None:
+        return None
+
+    client.connect = _fake_connect  # type: ignore[method-assign]
+
+    preview_limit_order = getattr(client, "preview_limit_order", None)
+    prepare_limit_order = getattr(client, "_prepare_limit_order", None)
+    assert callable(preview_limit_order), "IBKRClient.preview_limit_order is missing"
+    assert callable(prepare_limit_order), "IBKRClient._prepare_limit_order is missing"
+
+    prepare_calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
+
+    async def _tracked_prepare(*args, **kwargs):
+        prepare_calls.append((tuple(args), dict(kwargs)))
+        return await prepare_limit_order(*args, **kwargs)
+
+    client._prepare_limit_order = _tracked_prepare  # type: ignore[attr-defined, method-assign]
+
+    bag = Bag(
+        symbol="XSP",
+        exchange="SMART",
+        currency="USD",
+        comboLegs=[
+            ComboLeg(conId=1001, ratio=1, action="SELL", exchange="SMART"),
+            ComboLeg(conId=1002, ratio=1, action="BUY", exchange="SMART"),
+        ],
+    )
+    bag.minTick = 0.01
+
+    preview = asyncio.run(
+        preview_limit_order(
+            bag,
+            "BUY",
+            1,
+            -1.004,
+            outside_rth=False,
+        )
+    )
+
+    assert len(prepare_calls) == 1
+    assert len(fake_ib.preview_calls) == 1
+    assert fake_ib.place_calls == []
+
+    preview_contract, preview_order = fake_ib.preview_calls[0]
+    assert str(getattr(preview_contract, "secType", "")).upper() == "BAG"
+    assert str(getattr(preview_contract, "symbol", "")).upper() == "XSP"
+    assert [
+        (int(leg.conId), int(leg.ratio), str(leg.action), str(leg.exchange))
+        for leg in getattr(preview_contract, "comboLegs", [])
+    ] == [
+        (1001, 1, "SELL", "SMART"),
+        (1002, 1, "BUY", "SMART"),
+    ]
+    assert str(getattr(preview_order, "action", "")).upper() == "BUY"
+    assert float(getattr(preview_order, "totalQuantity", 0.0)) == 1.0
+    assert abs(float(getattr(preview_order, "lmtPrice", 0.0)) - (-1.00)) < 1e-9
+    assert str(getattr(preview_order, "tif", "")).upper() == "GTC"
+    assert bool(getattr(preview_order, "outsideRth", False)) is False
+
+    assert type(preview).__name__ == "BrokerOrderPreview"
+    assert preview.status == "PreSubmitted"
+    assert preview.init_margin_change == 500.0
+    assert preview.commission == 2.5
+    assert preview.commission_currency == "USD"
+    assert not hasattr(preview, "admitted")
+
+
+def test_order_preview_normalizes_provider_values_without_inventing_capacity() -> None:
+    normalizer = getattr(IBKRClient, "_normalize_order_preview", None)
+    assert callable(normalizer), "IBKRClient._normalize_order_preview is missing"
+
+    raw = SimpleNamespace(
+        status="  PreSubmitted  ",
+        initMarginBefore="2200.50",
+        initMarginChange="-500.25",
+        initMarginAfter="1.7976931348623157e+308",
+        maintMarginBefore="",
+        maintMarginChange="nan",
+        maintMarginAfter="1700.25",
+        equityWithLoanBefore="inf",
+        equityWithLoanChange="-10.50",
+        equityWithLoanAfter=None,
+        commission="2.75",
+        minCommission="1.00",
+        maxCommission="1.7976931348623157e+308",
+        commissionCurrency="USD",
+        warningText="  Margin impact estimate only  ",
+    )
+
+    preview = normalizer(raw)
+
+    assert type(preview).__name__ == "BrokerOrderPreview"
+    assert preview.status == "PreSubmitted"
+    assert preview.init_margin_before == 2200.5
+    assert preview.init_margin_change == -500.25
+    assert preview.init_margin_after is None
+    assert preview.maintenance_margin_before is None
+    assert preview.maintenance_margin_change is None
+    assert preview.maintenance_margin_after == 1700.25
+    assert preview.equity_with_loan_before is None
+    assert preview.equity_with_loan_change == -10.5
+    assert preview.equity_with_loan_after is None
+    assert preview.commission == 2.75
+    assert preview.min_commission == 1.0
+    assert preview.max_commission is None
+    assert preview.commission_currency == "USD"
+    assert preview.warning_text == "Margin impact estimate only"
+    assert not hasattr(preview, "admitted")
 
 
 def test_initial_exec_mode_escalates_stop_exit_retries() -> None:

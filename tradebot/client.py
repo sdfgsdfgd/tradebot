@@ -150,6 +150,25 @@ class OhlcvBar:
     low: float
     close: float
     volume: float
+
+
+@dataclass(frozen=True)
+class BrokerOrderPreview:
+    status: str | None = None
+    init_margin_before: float | None = None
+    init_margin_change: float | None = None
+    init_margin_after: float | None = None
+    maintenance_margin_before: float | None = None
+    maintenance_margin_change: float | None = None
+    maintenance_margin_after: float | None = None
+    equity_with_loan_before: float | None = None
+    equity_with_loan_change: float | None = None
+    equity_with_loan_after: float | None = None
+    commission: float | None = None
+    min_commission: float | None = None
+    max_commission: float | None = None
+    commission_currency: str | None = None
+    warning_text: str | None = None
 # endregion
 
 
@@ -1583,20 +1602,68 @@ class IBKRClient:
         """Snapshot quotes are disabled (they can incur per-snapshot fees)."""
         return None
 
-    async def place_limit_order(
+    @classmethod
+    def _normalize_order_preview(cls, state: object) -> BrokerOrderPreview:
+        def _text(attribute: str) -> str | None:
+            value = str(getattr(state, attribute, "") or "").strip()
+            return value or None
+
+        return BrokerOrderPreview(
+            status=_text("status"),
+            init_margin_before=cls._clean_pnl_stream_value(
+                getattr(state, "initMarginBefore", None)
+            ),
+            init_margin_change=cls._clean_pnl_stream_value(
+                getattr(state, "initMarginChange", None)
+            ),
+            init_margin_after=cls._clean_pnl_stream_value(
+                getattr(state, "initMarginAfter", None)
+            ),
+            maintenance_margin_before=cls._clean_pnl_stream_value(
+                getattr(state, "maintMarginBefore", None)
+            ),
+            maintenance_margin_change=cls._clean_pnl_stream_value(
+                getattr(state, "maintMarginChange", None)
+            ),
+            maintenance_margin_after=cls._clean_pnl_stream_value(
+                getattr(state, "maintMarginAfter", None)
+            ),
+            equity_with_loan_before=cls._clean_pnl_stream_value(
+                getattr(state, "equityWithLoanBefore", None)
+            ),
+            equity_with_loan_change=cls._clean_pnl_stream_value(
+                getattr(state, "equityWithLoanChange", None)
+            ),
+            equity_with_loan_after=cls._clean_pnl_stream_value(
+                getattr(state, "equityWithLoanAfter", None)
+            ),
+            commission=cls._clean_pnl_stream_value(
+                getattr(state, "commission", None)
+            ),
+            min_commission=cls._clean_pnl_stream_value(
+                getattr(state, "minCommission", None)
+            ),
+            max_commission=cls._clean_pnl_stream_value(
+                getattr(state, "maxCommission", None)
+            ),
+            commission_currency=_text("commissionCurrency"),
+            warning_text=_text("warningText"),
+        )
+
+    async def _prepare_limit_order(
         self,
         contract: Contract,
         action: str,
         quantity: float,
         limit_price: float,
         outside_rth: bool,
-    ) -> Trade:
-        await self.connect()
+    ) -> tuple[Contract, LimitOrder]:
         order_contract = contract
         tif = "GTC"
         outside_session = False
         include_overnight = False
-        if contract.secType == "STK":
+        sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
+        if sec_type == "STK":
             outside_session, include_overnight = _session_flags(_now_et())
             if include_overnight:
                 order_contract = copy.copy(contract)
@@ -1610,9 +1677,46 @@ class IBKRClient:
                 pass
         limit_price = self._normalize_limit_price_increment(order_contract, float(limit_price))
         order = LimitOrder(action, quantity, limit_price, tif=tif)
-        if contract.secType == "STK" and outside_rth and outside_session and not include_overnight:
+        if sec_type == "STK" and outside_rth and outside_session and not include_overnight:
             order.outsideRth = True
         order_contract = _normalize_order_contract(order_contract)
+        return order_contract, order
+
+    async def preview_limit_order(
+        self,
+        contract: Contract,
+        action: str,
+        quantity: float,
+        limit_price: float,
+        outside_rth: bool,
+    ) -> BrokerOrderPreview:
+        await self.connect()
+        order_contract, order = await self._prepare_limit_order(
+            contract,
+            action,
+            quantity,
+            limit_price,
+            outside_rth,
+        )
+        state = await self._ib.whatIfOrderAsync(order_contract, order)
+        return self._normalize_order_preview(state)
+
+    async def place_limit_order(
+        self,
+        contract: Contract,
+        action: str,
+        quantity: float,
+        limit_price: float,
+        outside_rth: bool,
+    ) -> Trade:
+        await self.connect()
+        order_contract, order = await self._prepare_limit_order(
+            contract,
+            action,
+            quantity,
+            limit_price,
+            outside_rth,
+        )
         return self._ib.placeOrder(order_contract, order)
 
     async def modify_limit_order(self, trade: Trade, limit_price: float) -> Trade:
