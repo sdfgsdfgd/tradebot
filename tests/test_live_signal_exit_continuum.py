@@ -1952,6 +1952,35 @@ def _new_order(
     )
 
 
+def _broker_trade(
+    *,
+    order_id: int,
+    perm_id: int,
+    status: str,
+    filled: float,
+    remaining: float,
+    done: bool,
+):
+    contract = Stock(symbol="SLV", exchange="SMART", currency="USD")
+    return SimpleNamespace(
+        order=SimpleNamespace(
+            orderId=int(order_id),
+            permId=int(perm_id),
+            lmtPrice=1.0,
+        ),
+        orderStatus=SimpleNamespace(
+            status=str(status),
+            whyHeld="",
+            filled=float(filled),
+            remaining=float(remaining),
+        ),
+        contract=contract,
+        log=[],
+        fills=[],
+        isDone=lambda: bool(done),
+    )
+
+
 def test_resize_builder_defers_cooldown_timestamp_to_confirmed_fill() -> None:
     class _Trace:
         signed_qty_final = 2
@@ -2322,6 +2351,154 @@ def test_engine_canceling_order_timeout_resumes_working_chase() -> None:
     assert order.status == "WORKING"
     assert order.cancel_requested_at is None
     assert any(event == "CANCEL_ACK_TIMEOUT" for event, _data in harness._events)
+
+
+def test_engine_rebinds_partial_working_order_before_reprice_after_reconnect() -> None:
+    stale_trade = _broker_trade(
+        order_id=777,
+        perm_id=456001,
+        status="Submitted",
+        filled=0.0,
+        remaining=1.0,
+        done=False,
+    )
+    rebound_trade = _broker_trade(
+        order_id=888,
+        perm_id=456001,
+        status="Submitted",
+        filled=0.5,
+        remaining=0.5,
+        done=False,
+    )
+
+    class _Client:
+        def __init__(self) -> None:
+            self.state_calls = 0
+            self.modified_trade = None
+
+        def current_order_state(self, *, order_id: int = 0, perm_id: int = 0):
+            self.state_calls += 1
+            assert int(order_id) == 777
+            assert int(perm_id) in (0, 456001)
+            return {
+                "order_id": 888,
+                "perm_id": 456001,
+                "effective_status": "Submitted",
+                "filled_qty": 0.5,
+                "remaining_qty": 0.5,
+                "executed_qty": 0.5,
+                "is_terminal": False,
+                "trade": rebound_trade,
+            }
+
+        @staticmethod
+        def pop_order_error(_order_id: int, *, max_age_sec: float = 120.0):
+            return None
+
+        async def modify_limit_order(self, trade, limit_price: float):
+            self.modified_trade = trade
+            trade.order.lmtPrice = float(limit_price)
+            return trade
+
+    class _RepriceHarness(_EngineHarness):
+        @staticmethod
+        def _order_quote_signature(_order: _BotOrder):
+            return (1.0, 1.0, 1.0)
+
+        async def _reprice_order(self, order: _BotOrder, *, mode: str) -> bool:
+            assert mode == "OPTIMISTIC"
+            order.limit_price = 1.05
+            return True
+
+    bar_ts = datetime(2026, 2, 9, 10, 0)
+    instance = _new_instance()
+    order = _new_order(status="Submitted", signal_bar_ts=bar_ts, order_id=777)
+    order.trade = stale_trade
+    client = _Client()
+    harness = _RepriceHarness(instance=instance, order=order, client=client)
+
+    asyncio.run(harness._chase_orders_tick())
+
+    assert client.state_calls == 1
+    assert order.order_id == 888
+    assert order.trade is rebound_trade
+    assert order.status == "WORKING"
+    assert client.modified_trade is rebound_trade
+    assert rebound_trade.orderStatus.filled == 0.5
+    assert rebound_trade.orderStatus.remaining == 0.5
+
+
+def test_engine_projects_rebound_terminal_fill_after_reconnect() -> None:
+    stale_trade = _broker_trade(
+        order_id=777,
+        perm_id=456001,
+        status="Submitted",
+        filled=0.0,
+        remaining=1.0,
+        done=False,
+    )
+    rebound_trade = _broker_trade(
+        order_id=888,
+        perm_id=456001,
+        status="Filled",
+        filled=1.0,
+        remaining=0.0,
+        done=True,
+    )
+
+    class _Client:
+        def __init__(self) -> None:
+            self.state_calls = 0
+            self.modify_calls = 0
+
+        def current_order_state(self, *, order_id: int = 0, perm_id: int = 0):
+            self.state_calls += 1
+            assert int(order_id) == 777
+            assert int(perm_id) in (0, 456001)
+            return {
+                "order_id": 888,
+                "perm_id": 456001,
+                "effective_status": "Filled",
+                "filled_qty": 1.0,
+                "remaining_qty": 0.0,
+                "executed_qty": 1.0,
+                "is_terminal": True,
+                "trade": rebound_trade,
+            }
+
+        @staticmethod
+        def pop_order_error(_order_id: int, *, max_age_sec: float = 120.0):
+            return None
+
+        async def modify_limit_order(self, trade, limit_price: float):
+            self.modify_calls += 1
+            return trade
+
+    prior_ts = datetime(2026, 2, 9, 9, 30)
+    bar_ts = datetime(2026, 2, 9, 10, 0)
+    instance = _new_instance()
+    instance.last_resize_bar_ts = prior_ts
+    order = _new_order(
+        status="Submitted",
+        signal_bar_ts=bar_ts,
+        intent="resize",
+        order_id=777,
+    )
+    order.trade = stale_trade
+    client = _Client()
+    harness = _EngineHarness(instance=instance, order=order, client=client)
+
+    asyncio.run(harness._chase_orders_tick())
+
+    assert client.state_calls == 1
+    assert client.modify_calls == 0
+    assert order.order_id == 888
+    assert order.trade is rebound_trade
+    assert order.status == "FILLED"
+    assert instance.last_resize_bar_ts == bar_ts
+    filled_payload = next(data for event, data in harness._events if event == "ORDER_FILLED")
+    assert filled_payload.get("resize_bar_ts") == bar_ts.isoformat()
+    assert filled_payload.get("resize_applied") is True
 
 
 def test_order_error_cache_pop_and_expiry() -> None:

@@ -201,14 +201,100 @@ class BotEngineRuntimeMixin:
                 updated = True
                 continue
 
+            broker_state: dict[str, object] | None = None
+            broker_effective_status = ""
+            broker_is_terminal = False
+            client = getattr(self, "_client", None)
+            current_order_state = getattr(client, "current_order_state", None)
+            if callable(current_order_state):
+                try:
+                    perm_id = int(
+                        getattr(getattr(trade, "order", None), "permId", 0) or 0
+                    )
+                except (TypeError, ValueError):
+                    perm_id = 0
+                try:
+                    candidate_state = current_order_state(
+                        order_id=int(order.order_id or 0),
+                        perm_id=int(perm_id),
+                    )
+                except Exception:
+                    candidate_state = None
+                if isinstance(candidate_state, dict):
+                    broker_state = candidate_state
+
+            if broker_state is not None:
+                rebound_trade = broker_state.get("trade")
+                if rebound_trade is not None:
+                    trade = rebound_trade
+                    order.trade = rebound_trade
+
+                try:
+                    rebound_order_id = int(broker_state.get("order_id") or 0)
+                except (TypeError, ValueError):
+                    rebound_order_id = 0
+                if rebound_order_id <= 0:
+                    try:
+                        rebound_order_id = int(
+                            getattr(getattr(trade, "order", None), "orderId", 0) or 0
+                        )
+                    except (TypeError, ValueError):
+                        rebound_order_id = 0
+                if rebound_order_id > 0:
+                    order.order_id = int(rebound_order_id)
+
+                broker_effective_status = str(
+                    broker_state.get("effective_status") or ""
+                ).strip()
+                broker_is_terminal = bool(broker_state.get("is_terminal"))
+
+                rebound_status = getattr(trade, "orderStatus", None)
+                if rebound_status is not None:
+                    try:
+                        existing_filled = float(
+                            getattr(rebound_status, "filled", 0.0) or 0.0
+                        )
+                    except (TypeError, ValueError):
+                        existing_filled = 0.0
+                    projected_filled = existing_filled
+                    for key in ("filled_qty", "executed_qty"):
+                        try:
+                            projected_filled = max(
+                                projected_filled,
+                                float(broker_state.get(key) or 0.0),
+                            )
+                        except (TypeError, ValueError):
+                            continue
+                    try:
+                        rebound_status.filled = float(max(0.0, projected_filled))
+                    except Exception:
+                        pass
+
+                    if "remaining_qty" in broker_state:
+                        try:
+                            projected_remaining = max(
+                                0.0,
+                                float(broker_state.get("remaining_qty") or 0.0),
+                            )
+                        except (TypeError, ValueError):
+                            projected_remaining = None
+                        if projected_remaining is not None:
+                            try:
+                                rebound_status.remaining = float(projected_remaining)
+                            except Exception:
+                                pass
+
             is_done = False
             try:
                 is_done = bool(trade.isDone())
             except Exception:
                 is_done = False
             status_raw = str(getattr(getattr(trade, "orderStatus", None), "status", "") or "")
-            status = status_raw.strip()
-            if status in ("Filled", "Cancelled", "ApiCancelled", "Inactive"):
+            status = broker_effective_status or status_raw.strip()
+            if (
+                status in ("Filled", "Cancelled", "ApiCancelled", "Inactive")
+                or broker_is_terminal
+            ):
                 is_done = True
 
             if is_done:
@@ -224,6 +310,8 @@ class BotEngineRuntimeMixin:
                     done_event = "ORDER_DONE"
                 if prev_status in ("WORKING", "CANCELING") and order.status != prev_status:
                     done_data: dict[str, object] = {"ib_status": status_raw}
+                    if broker_effective_status and broker_effective_status != status_raw.strip():
+                        done_data["ib_status_effective"] = broker_effective_status
                     if order.exec_mode:
                         done_data["exec_mode_last"] = str(order.exec_mode)
                     if order.sent_at is not None:
