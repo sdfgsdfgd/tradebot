@@ -30,6 +30,7 @@ from ..engine import (
     resolve_spot_regime_spec,
     spot_riskoff_end_hour,
 )
+from ..option_package import option_package_debit_value
 from ..spot.graph import spot_dynamic_flip_hold_bars
 from ..spot.lifecycle import flip_exit_gate_blocked, flip_exit_hit
 from ..series import BarSeries, BarSeriesMeta
@@ -3021,10 +3022,10 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             order.last = last
             return changed or mode_changed
 
-        debit_mid = 0.0
-        debit_bid = 0.0
-        debit_ask = 0.0
-        desired_debit = 0.0
+        mid_rows: list[tuple[str, int, float]] = []
+        bid_rows: list[tuple[str, int, float]] = []
+        ask_rows: list[tuple[str, int, float]] = []
+        desired_rows: list[tuple[str, int, float]] = []
         tick = None
         for leg in legs:
             ticker = await self._client.ensure_ticker(leg.contract, owner="bot")
@@ -3044,11 +3045,20 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                 return False
             leg_tick = _tick_size(leg.contract, ticker, leg_desired)
             tick = leg_tick if tick is None else min(tick, leg_tick)
-            sign = 1.0 if leg.action == "BUY" else -1.0
-            debit_mid += sign * float(leg_mid) * leg.ratio
-            debit_bid += sign * float(leg_bid) * leg.ratio
-            debit_ask += sign * float(leg_ask) * leg.ratio
-            desired_debit += sign * float(leg_desired) * leg.ratio
+            action = "BUY" if leg.action == "BUY" else "SELL"
+            mid_rows.append((action, leg.ratio, float(leg_mid)))
+            bid_rows.append((action, leg.ratio, float(leg_bid)))
+            ask_rows.append((action, leg.ratio, float(leg_ask)))
+            desired_rows.append((action, leg.ratio, float(leg_desired)))
+
+        debit_mid = option_package_debit_value(mid_rows)
+        debit_bid = option_package_debit_value(bid_rows)
+        debit_ask = option_package_debit_value(ask_rows)
+        desired_debit = option_package_debit_value(desired_rows)
+        assert debit_mid is not None
+        assert debit_bid is not None
+        assert debit_ask is not None
+        assert desired_debit is not None
 
         tick = tick or 0.01
         order.action = "BUY"

@@ -26,6 +26,7 @@ from .spot_context import SpotBarRequirement, load_spot_context_bars, spot_signa
 from .strategy import CreditSpreadStrategy, TradeSpec
 from ..series import BarSeries, bars_list
 from ..series_cache import series_cache_service
+from ..option_package import option_package_debit_value
 from ..spot.lifecycle import (
     apply_regime_gate,
     decide_flat_position_intent,
@@ -7023,7 +7024,7 @@ def _trade_value_from_spec(
         t = max(dte_days / 365.0, _min_time(cfg.backtest.bar_size))
     legs = spec.legs
     if len(legs) <= 1:
-        net = 0.0
+        rows: list[tuple[str, int, float]] = []
         for leg in legs:
             leg_iv = iv_for_strike(atm_iv, forward, leg.strike, surface_params)
             if is_future:
@@ -7037,20 +7038,26 @@ def _trade_value_from_spec(
                 price = quote.ask if leg.action == "SELL" else quote.bid
             else:
                 price = quote.mid
-            sign = 1 if leg.action == "SELL" else -1
-            net += sign * price * leg.qty
-        return net
+            action = "SELL" if leg.action == "SELL" else "BUY"
+            rows.append((action, leg.qty, price))
+        debit_value = option_package_debit_value(rows)
+        assert debit_value is not None
+        return -float(debit_value)
 
     # Multi-leg combos: apply a single bid/ask edge to the net mid instead of legging each spread.
-    net_mid = 0.0
+    mid_rows: list[tuple[str, int, float]] = []
     for leg in legs:
         leg_iv = iv_for_strike(atm_iv, forward, leg.strike, surface_params)
         if is_future:
             mid = black_76(forward, leg.strike, t, cfg.backtest.risk_free_rate, leg_iv, leg.right)
         else:
             mid = black_scholes(forward, leg.strike, t, cfg.backtest.risk_free_rate, leg_iv, leg.right)
-        sign = 1 if leg.action == "SELL" else -1
-        net_mid += sign * mid * leg.qty
+        action = "SELL" if leg.action == "SELL" else "BUY"
+        mid_rows.append((action, leg.qty, mid))
+
+    debit_mid = option_package_debit_value(mid_rows)
+    assert debit_mid is not None
+    net_mid = -float(debit_mid)
 
     abs_mid = abs(net_mid)
     quote = mid_edge_quote(abs_mid, cfg.synthetic.min_spread_pct, min_tick)
@@ -7319,16 +7326,18 @@ def _max_loss_estimate(trade: OptionTrade, spot: float) -> float | None:
 
 
 def _payoff_at_expiry(legs: list[OptionLeg], spot: float) -> float:
-    payoff = 0.0
+    rows: list[tuple[str, int, float]] = []
     for leg in legs:
         right = leg.right.upper()
         if right == "CALL":
             intrinsic = max(spot - leg.strike, 0.0)
         else:
             intrinsic = max(leg.strike - spot, 0.0)
-        sign = 1.0 if leg.action.upper() == "BUY" else -1.0
-        payoff += sign * intrinsic * leg.qty
-    return payoff
+        action = "BUY" if leg.action.upper() == "BUY" else "SELL"
+        rows.append((action, leg.qty, intrinsic))
+    payoff = option_package_debit_value(rows)
+    assert payoff is not None
+    return float(payoff)
 
 
 def _equity_after_entry(

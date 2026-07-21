@@ -8,6 +8,7 @@ from datetime import date, datetime
 from ib_insync import Bag, ComboLeg, Contract, Option, Stock, Ticker
 
 from ..engine import normalize_spot_entry_signal, spot_resolve_entry_action_qty, spot_runtime_spec_view
+from ..option_package import option_package_debit_value
 from ..spot.lifecycle import decide_open_position_intent
 from ..time_utils import now_et as _now_et
 from ..time_utils import now_et_naive as _now_et_naive
@@ -465,10 +466,10 @@ class BotOrderBuilderMixin:
                 return _fail("Order: no legs configured")
 
             # Compute net price in "debit units": BUY adds, SELL subtracts.
-            debit_mid = 0.0
-            debit_bid = 0.0
-            debit_ask = 0.0
-            desired_debit = 0.0
+            mid_rows: list[tuple[str, int, float]] = []
+            bid_rows: list[tuple[str, int, float]] = []
+            ask_rows: list[tuple[str, int, float]] = []
+            desired_rows: list[tuple[str, int, float]] = []
             tick = None
             for leg_order, (bid, ask, last, ticker) in zip(leg_orders, leg_quotes):
                 mid = _midpoint(bid, ask)
@@ -493,11 +494,22 @@ class BotOrderBuilderMixin:
                     )
                 leg_tick = _tick_size(leg_order.contract, ticker, leg_desired)
                 tick = leg_tick if tick is None else min(tick, leg_tick)
-                sign = 1.0 if leg_order.action == "BUY" else -1.0
-                debit_mid += sign * float(leg_mid) * leg_order.ratio
-                debit_bid += sign * float(leg_bid) * leg_order.ratio
-                debit_ask += sign * float(leg_ask) * leg_order.ratio
-                desired_debit += sign * float(leg_desired) * leg_order.ratio
+                action = "BUY" if leg_order.action == "BUY" else "SELL"
+                mid_rows.append((action, leg_order.ratio, float(leg_mid)))
+                bid_rows.append((action, leg_order.ratio, float(leg_bid)))
+                ask_rows.append((action, leg_order.ratio, float(leg_ask)))
+                desired_rows.append(
+                    (action, leg_order.ratio, float(leg_desired))
+                )
+
+            debit_mid = option_package_debit_value(mid_rows)
+            debit_bid = option_package_debit_value(bid_rows)
+            debit_ask = option_package_debit_value(ask_rows)
+            desired_debit = option_package_debit_value(desired_rows)
+            assert debit_mid is not None
+            assert debit_bid is not None
+            assert debit_ask is not None
+            assert desired_debit is not None
 
             tick = tick or 0.01
 

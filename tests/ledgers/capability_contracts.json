@@ -110,6 +110,7 @@
     "tests/test_engine_time_semantics.py": "market-time-series-semantics",
     "tests/test_live_signal_exit_continuum.py": "live-execution-orders",
     "tests/test_offline_cache_preflight.py": "backtest-data-cache",
+    "tests/test_option_package_economics.py": "live-execution-orders",
     "tests/test_option_search_qualification.py": "live-market-data-contracts",
     "tests/test_order_contract_normalize.py": "live-market-data-contracts",
     "tests/test_order_pricing_guards.py": "live-execution-orders",
@@ -324,6 +325,7 @@
       ],
       "evidence": [
         "tests/test_live_signal_exit_continuum.py",
+        "tests/test_option_package_economics.py",
         "tests/test_order_pricing_guards.py",
         "tests/test_ui_futures_detail_flow.py"
       ],

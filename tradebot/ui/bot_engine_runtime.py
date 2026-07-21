@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timedelta
 
+from ..option_package import option_package_debit_value
 from ..time_utils import now_et_naive as _now_et_naive
 from .common import (
     _EXEC_AUTO_TIMEOUT_SEC,
@@ -72,12 +73,9 @@ class BotEngineRuntimeMixin:
             return _exec_chase_quote_signature(bid, ask, last)
 
         if legs:
-            debit_mid = 0.0
-            debit_bid = 0.0
-            debit_ask = 0.0
-            has_mid = True
-            has_bid = True
-            has_ask = True
+            mid_rows: list[tuple[str, int, float | None]] = []
+            bid_rows: list[tuple[str, int, float | None]] = []
+            ask_rows: list[tuple[str, int, float | None]] = []
             for leg in legs:
                 con_id = int(getattr(getattr(leg, "contract", None), "conId", 0) or 0)
                 ticker = self._client.ticker_for_con_id(con_id) if con_id else None
@@ -87,24 +85,70 @@ class BotEngineRuntimeMixin:
                     getattr(ticker, "last", None) if ticker else None,
                 )
                 mid = _midpoint(bid, ask)
-                sign = 1.0 if str(getattr(leg, "action", "")).strip().upper() == "BUY" else -1.0
+                action = (
+                    "BUY"
+                    if str(getattr(leg, "action", "")).strip().upper() == "BUY"
+                    else "SELL"
+                )
                 ratio = int(getattr(leg, "ratio", 1) or 1)
-                if mid is None and last is None:
-                    has_mid = False
-                else:
-                    debit_mid += sign * float(mid if mid is not None else last) * ratio
-                if bid is None and mid is None and last is None:
-                    has_bid = False
-                else:
-                    debit_bid += sign * float(bid if bid is not None else (mid if mid is not None else last)) * ratio
-                if ask is None and mid is None and last is None:
-                    has_ask = False
-                else:
-                    debit_ask += sign * float(ask if ask is not None else (mid if mid is not None else last)) * ratio
-            out_bid = float(debit_bid) if has_bid else _safe_num(getattr(order, "bid", None))
-            out_ask = float(debit_ask) if has_ask else _safe_num(getattr(order, "ask", None))
-            out_last = float(debit_mid) if has_mid else _safe_num(getattr(order, "last", None))
-            return _exec_chase_quote_signature(out_bid, out_ask, out_last)
+                mid_value = mid if mid is not None else last
+                bid_value = (
+                    bid
+                    if bid is not None
+                    else (mid if mid is not None else last)
+                )
+                ask_value = (
+                    ask
+                    if ask is not None
+                    else (mid if mid is not None else last)
+                )
+                mid_rows.append(
+                    (
+                        action,
+                        ratio,
+                        None if mid_value is None else float(mid_value),
+                    )
+                )
+                bid_rows.append(
+                    (
+                        action,
+                        ratio,
+                        None if bid_value is None else float(bid_value),
+                    )
+                )
+                ask_rows.append(
+                    (
+                        action,
+                        ratio,
+                        None if ask_value is None else float(ask_value),
+                    )
+                )
+            debit_mid = option_package_debit_value(mid_rows)
+            debit_bid = option_package_debit_value(bid_rows)
+            debit_ask = option_package_debit_value(ask_rows)
+            out_bid = (
+                float(debit_bid)
+                if debit_bid is not None
+                else _safe_num(getattr(order, "bid", None))
+            )
+            out_ask = (
+                float(debit_ask)
+                if debit_ask is not None
+                else _safe_num(getattr(order, "ask", None))
+            )
+            out_last = (
+                float(debit_mid)
+                if debit_mid is not None
+                else _safe_num(getattr(order, "last", None))
+            )
+            # Native BAG credits are valid negative package prices. Preserve
+            # their sign for quote-change detection while still rejecting
+            # zero, NaN and otherwise non-numeric values.
+            return (
+                _safe_num(out_bid),
+                _safe_num(out_ask),
+                _safe_num(out_last),
+            )
 
         return _exec_chase_quote_signature(
             _safe_num(getattr(order, "bid", None)),
