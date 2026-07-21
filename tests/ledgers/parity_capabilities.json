@@ -363,7 +363,7 @@
       "backtest_surface": "last_resize_bar_ts advances only when _spot_apply_resize_trade returns applied=True",
       "live_surface": "last_resize_bar_ts advances only in BotEngineRuntimeMixin._chase_orders_tick after broker Filled",
       "evidence": [
-        "Order construction no longer advances resize cooldown while staging.",
+        "Behavioral builder receipt invokes BotOrderBuilderMixin._create_order_for_instance and proves staging a resize preserves the previous successful cooldown timestamp.",
         "Send failure preserves the previous successful resize timestamp.",
         "Cancelled, ApiCancelled and Inactive preserve the previous successful timestamp.",
         "Filled advances the timestamp to the resize signal bar and emits resize_applied.",

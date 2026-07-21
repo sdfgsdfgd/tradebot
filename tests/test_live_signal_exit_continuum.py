@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import asyncio
 import csv
-import inspect
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
@@ -1954,12 +1953,214 @@ def _new_order(
 
 
 def test_resize_builder_defers_cooldown_timestamp_to_confirmed_fill() -> None:
-    builder_source = inspect.getsource(BotOrderBuilderMixin._create_order_for_instance)
-    runtime_source = inspect.getsource(BotEngineRuntimeMixin._chase_orders_tick)
+    class _Trace:
+        signed_qty_final = 2
+        signed_qty_after_branch = 2
 
-    assert "instance.last_resize_bar_ts = signal_bar_ts" not in builder_source
-    assert 'status == "Filled" and intent == "resize"' in runtime_source
-    assert "instance.last_resize_bar_ts = signal_bar_ts" in runtime_source
+        @staticmethod
+        def as_payload() -> dict[str, object]:
+            return {"signed_qty_final": 2, "signed_qty_after_branch": 2}
+
+        def with_branch_scaling(self, **kwargs):
+            self.signed_qty_after_branch = int(kwargs.get("signed_qty_after_branch", 2))
+            return self
+
+    class _Intent:
+        order_qty = 1
+        order_action = "BUY"
+        target_qty = 2
+
+        @staticmethod
+        def as_payload() -> dict[str, object]:
+            return {
+                "order_qty": 1,
+                "order_action": "BUY",
+                "target_qty": 2,
+            }
+
+    class _Lifecycle:
+        intent = "resize"
+        reason = "resize_target"
+        spot_intent = _Intent()
+
+        @staticmethod
+        def as_payload() -> dict[str, object]:
+            return {"intent": "resize", "reason": "resize_target"}
+
+    contract = Stock(symbol="SLV", exchange="SMART", currency="USD")
+    contract.conId = 1001
+    contract.minTick = 0.01
+    ticker = SimpleNamespace(
+        contract=contract,
+        bid=10.00,
+        ask=10.02,
+        last=10.01,
+        minTick=0.01,
+        marketDataType=1,
+    )
+    bar_ts = datetime(2026, 2, 9, 10, 0)
+    prior_ts = datetime(2026, 2, 9, 9, 30)
+    snapshot = SimpleNamespace(
+        bar_ts=bar_ts,
+        close=10.01,
+        signal=SimpleNamespace(
+            state="up",
+            entry_dir="up",
+            regime_dir="up",
+            ema_ready=True,
+        ),
+        bars_in_day=12,
+        rv=0.10,
+        volume=1_000.0,
+        shock=False,
+        shock_dir=None,
+        risk=None,
+        atr=None,
+        or_high=None,
+        or_low=None,
+        or_ready=False,
+        entry_dir="up",
+        entry_branch=None,
+        shock_atr_pct=None,
+        shock_atr_vel_pct=None,
+        shock_atr_accel_pct=None,
+        bar_health=None,
+        regime_bar_health=None,
+        regime2_bar_health=None,
+    )
+
+    class _BuilderClient:
+        @staticmethod
+        async def ensure_ticker(_contract, *, owner: str):
+            assert owner == "bot"
+            return ticker
+
+        @staticmethod
+        def account_value(tag: str, currency: str | None = None):
+            value = 2_200.0 if tag == "NetLiquidation" else 1_800.0
+            return value, currency or "USD", None
+
+        @staticmethod
+        async def convert_currency_value(value, *, from_currency: str, to_currency: str):
+            assert from_currency == to_currency
+            return float(value), 1.0
+
+        @staticmethod
+        def proxy_error():
+            return None
+
+    class _BuilderHarness(BotOrderBuilderMixin):
+        def __init__(self) -> None:
+            self._client = _BuilderClient()
+            self._payload = None
+            self._tracked_conids: set[int] = set()
+            self._orders: list[_BotOrder] = []
+            self._events: list[tuple[str, dict]] = []
+            self._status = ""
+
+        @staticmethod
+        def _strategy_instrument(_strategy) -> str:
+            return "spot"
+
+        @staticmethod
+        async def _signal_contract(_instance, _symbol):
+            return contract
+
+        @staticmethod
+        def _signal_snapshot_kwargs(*args, **kwargs) -> dict[str, object]:
+            return {}
+
+        @staticmethod
+        async def _signal_snapshot_for_contract(*args, **kwargs):
+            return snapshot
+
+        @staticmethod
+        def _entry_direction_for_instance(_instance, _snapshot) -> str:
+            return "up"
+
+        @staticmethod
+        async def _spot_contract(_instance, _symbol):
+            return contract
+
+        @staticmethod
+        def _resolve_open_positions(*args, **kwargs):
+            return "spot", [SimpleNamespace(position=1.0)], "up"
+
+        @staticmethod
+        def _signal_bar_size(_instance) -> str:
+            return "1 hour"
+
+        def _add_order(self, order: _BotOrder) -> None:
+            self._orders.append(order)
+
+        def _journal_write(self, *, event: str, data: dict | None = None, **kwargs) -> None:
+            self._events.append((str(event), dict(data or {})))
+
+        def _render_status(self) -> None:
+            return None
+
+    instance = _new_instance(
+        strategy={
+            "instrument": "spot",
+            "entry_signal": "ema",
+            "ema_preset": "9/21",
+            "spot_resize_mode": "target",
+            "spot_sizing_mode": "fixed",
+            "spot_fixed_qty": 2,
+        }
+    )
+    instance.open_direction = "up"
+    instance.last_resize_bar_ts = prior_ts
+    harness = _BuilderHarness()
+
+    with (
+        patch(
+            "tradebot.ui.bot_order_builder.normalize_spot_entry_signal",
+            return_value="ema",
+        ),
+        patch(
+            "tradebot.ui.bot_order_builder.spot_runtime_spec_view",
+            return_value=SimpleNamespace(exit_mode="pct"),
+        ),
+        patch(
+            "tradebot.ui.bot_order_builder.spot_resolve_entry_action_qty",
+            return_value=("BUY", 1),
+        ),
+        patch(
+            "tradebot.ui.bot_order_builder.decide_open_position_intent",
+            return_value=_Lifecycle(),
+        ),
+        patch(
+            "tradebot.engine.spot_shock_exit_pct_multipliers",
+            return_value=(1.0, 1.0),
+        ),
+        patch(
+            "tradebot.engine.spot_scale_exit_pcts",
+            return_value=(None, None),
+        ),
+        patch(
+            "tradebot.engine.spot_calc_signed_qty_with_trace",
+            return_value=(2, _Trace()),
+        ),
+        patch("tradebot.engine.spot_branch_size_mult", return_value=1.0),
+        patch("tradebot.engine.spot_apply_branch_size_mult", return_value=2),
+    ):
+        asyncio.run(
+            harness._create_order_for_instance(
+                instance,
+                intent="resize",
+                direction="up",
+                signal_bar_ts=bar_ts,
+            )
+        )
+
+    assert len(harness._orders) == 1
+    staged = harness._orders[0]
+    assert staged.status == "STAGED"
+    assert staged.intent == "resize"
+    assert staged.signal_bar_ts == bar_ts
+    assert staged.quantity == 1
+    assert instance.last_resize_bar_ts == prior_ts
 
 
 def test_resize_send_error_preserves_last_successful_cooldown_timestamp() -> None:

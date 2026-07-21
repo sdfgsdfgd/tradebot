@@ -407,7 +407,7 @@ Source and references must be saturated before mutation, in this order:
 
 Dependency order begins immediately after Wave 1 verification:
 
-1. Native atomic multi-leg option execution: broker-qualified BAG/combination identity, ratios/actions/exchanges, debit-credit economics, what-if margin, atomic submit/modify/cancel/reconcile, partial/failure risk, and combo close/roll/rescue. Provider evidence must precede SPX/XSP or oil-family admission.
+1. Native atomic multi-leg option execution: broker-qualified BAG/combination identity, ratios/actions/exchanges, debit-credit economics, what-if margin, atomic submit/modify/cancel/reconcile, partial/failure risk, and combo close/roll/rescue. Provider evidence must precede each product and structure admission; XSP, full-size SPX, and MCL remain distinct qualification, settlement, liquidity, multiplier, and risk domains.
 2. Canonical strategy/execution model shared by research, backtest and live: intent, combo economics, costs, queue/latency/partial/reject/cancel assumptions, margin, assignment/exercise, rolls and rescue; broker/simulator mutation remains an intentional adapter.
 3. Weekly resumable research/promotion loop: walk-forward and regime/timeframe slices, robustness, turnover/capacity, tail loss, drawdown, ruin and margin stress, leakage/overfit and execution sensitivity; canonical caches and versioned benchmark tables.
 4. Evidence promotion ladder: candidate → deterministic replay → provider integration → paper/canary → bounded live, with backtest↔live calibration across decisions, orders, fills, PnL, latency, slippage, rejects, margin, assignment and rescue.
@@ -415,8 +415,9 @@ Dependency order begins immediately after Wave 1 verification:
 
 Safety constraints:
 - No guaranteed-profit claims.
-- Sub-$5k suitability is never assumed for full-size SPX or oil exposure.
-- Prefer broker-admitted defined-risk structures after qualification, permissions, multiplier, settlement, assignment, routing, liquidity and margin are proven.
+- No static account-size floor applies. The approximately USD 2,200 IBKR account is a first-class target profile; eligibility is account-, contract-, structure-, and order-specific and must be measured through qualification, permissions, broker what-if buying-power/margin impact, exact maximum loss, width and quantity, commissions, liquidity/fill/slippage, expiry/settlement/assignment/exercise behavior, and aggregate correlated/tail exposure.
+- Explicit targets include broker-native XSP vertical credit spreads, defined-risk short iron condors, multiple concurrent spread positions, and admitted rolling/rescue cycles. Keep XSP, full-size SPX, and MCL semantics distinct; reject only on measured constraints and never claim guaranteed or intrinsically safe income.
+- Research objective: discover robust, risk-controlled weekly-income candidates that genuinely fit the approximately USD 2,200 account, then promote them only through realistic backtest, deterministic replay, provider integration, paper/canary, bounded live, and backtest↔live calibration evidence.
 - Commit and push only after focused and broad receipts pass.
 
 Next cycle: recursively map existing combination-contract, option-leg, margin, backtest-strategy, optimizer and promotion surfaces before extending the machine denominator.
