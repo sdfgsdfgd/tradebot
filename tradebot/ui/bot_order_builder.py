@@ -1276,8 +1276,6 @@ class BotOrderBuilderMixin:
             instance.open_direction = str(direction)
             if signal_bar_ts is not None and intent_clean == "enter":
                 instance.last_entry_bar_ts = signal_bar_ts
-            if signal_bar_ts is not None and intent_clean == "resize":
-                instance.last_resize_bar_ts = signal_bar_ts
             if intent_clean == "enter":
                 _bump_entry_counters()
             self._add_order(order)

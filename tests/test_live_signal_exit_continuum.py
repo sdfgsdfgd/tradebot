@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import csv
+import inspect
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import json
@@ -1928,6 +1929,7 @@ def _new_order(
     *,
     status: str,
     signal_bar_ts: datetime,
+    intent: str = "exit",
     order_id: int | None = 777,
     why_held: str = "",
     log_messages: list[str] | None = None,
@@ -1945,10 +1947,101 @@ def _new_order(
         created_at=datetime(2026, 2, 9, 10, 0),
         status="WORKING",
         order_id=order_id,
-        intent="exit",
+        intent=str(intent),
         signal_bar_ts=signal_bar_ts,
         trade=_FakeTrade(status, why_held=why_held, log_messages=log_messages),
     )
+
+
+def test_resize_builder_defers_cooldown_timestamp_to_confirmed_fill() -> None:
+    builder_source = inspect.getsource(BotOrderBuilderMixin._create_order_for_instance)
+    runtime_source = inspect.getsource(BotEngineRuntimeMixin._chase_orders_tick)
+
+    assert "instance.last_resize_bar_ts = signal_bar_ts" not in builder_source
+    assert 'status == "Filled" and intent == "resize"' in runtime_source
+    assert "instance.last_resize_bar_ts = signal_bar_ts" in runtime_source
+
+
+def test_resize_send_error_preserves_last_successful_cooldown_timestamp() -> None:
+    class _FailingClient:
+        @staticmethod
+        async def place_limit_order(*args, **kwargs):
+            raise RuntimeError("send boom")
+
+    class _SendHarness:
+        def __init__(self, *, instance: _BotInstance) -> None:
+            self._client = _FailingClient()
+            self._instances = [instance]
+            self._events: list[tuple[str, dict]] = []
+            self._status = ""
+
+        def _journal_write(self, *, event: str, data: dict | None = None, **kwargs) -> None:
+            self._events.append((str(event), dict(data or {})))
+
+        def _set_status(self, value: str, **kwargs) -> None:
+            self._status = str(value)
+
+        def _refresh_orders_table(self) -> None:
+            return None
+
+        def _render_bot(self) -> None:
+            return None
+
+    prior_ts = datetime(2026, 2, 9, 9, 30)
+    bar_ts = datetime(2026, 2, 9, 10, 0)
+    instance = _new_instance()
+    instance.last_resize_bar_ts = prior_ts
+    order = _new_order(status="Submitted", signal_bar_ts=bar_ts, intent="resize")
+    order.status = "STAGED"
+    harness = _SendHarness(instance=instance)
+
+    asyncio.run(BotScreen._send_order(harness, order))
+
+    assert order.status == "ERROR"
+    assert instance.last_resize_bar_ts == prior_ts
+    assert any(event == "SEND_ERROR" for event, _data in harness._events)
+
+
+def test_engine_terminal_resize_failures_preserve_last_successful_cooldown_timestamp() -> None:
+    prior_ts = datetime(2026, 2, 9, 9, 30)
+    bar_ts = datetime(2026, 2, 9, 10, 0)
+    expected_status = {
+        "Cancelled": "CANCELLED",
+        "ApiCancelled": "CANCELLED",
+        "Inactive": "INACTIVE",
+    }
+
+    for broker_status, terminal_status in expected_status.items():
+        instance = _new_instance()
+        instance.last_resize_bar_ts = prior_ts
+        order = _new_order(
+            status=broker_status,
+            signal_bar_ts=bar_ts,
+            intent="resize",
+        )
+        harness = _EngineHarness(instance=instance, order=order)
+
+        asyncio.run(harness._chase_orders_tick())
+
+        assert order.status == terminal_status
+        assert instance.last_resize_bar_ts == prior_ts
+
+
+def test_engine_filled_resize_advances_cooldown_timestamp() -> None:
+    prior_ts = datetime(2026, 2, 9, 9, 30)
+    bar_ts = datetime(2026, 2, 9, 10, 0)
+    instance = _new_instance()
+    instance.last_resize_bar_ts = prior_ts
+    order = _new_order(status="Filled", signal_bar_ts=bar_ts, intent="resize")
+    harness = _EngineHarness(instance=instance, order=order)
+
+    asyncio.run(harness._chase_orders_tick())
+
+    assert order.status == "FILLED"
+    assert instance.last_resize_bar_ts == bar_ts
+    filled_payload = next(data for event, data in harness._events if event == "ORDER_FILLED")
+    assert filled_payload.get("resize_bar_ts") == bar_ts.isoformat()
+    assert filled_payload.get("resize_applied") is True
 
 
 def test_engine_inactive_exit_marks_retryable_and_sets_cooldown() -> None:

@@ -1,0 +1,384 @@
+{
+  "schema_version": 1,
+  "slice_id": "spot-decision-execution-v1",
+  "title": "Spot decision/execution backtest-live/UI parity denominator",
+  "milestone_commit": "9261954424c4f1fe6f40a38bc3cf8aa9245737b5",
+  "denominator_frozen": true,
+  "scoring": {
+    "semantic_alignment_pct": "(shared-covered + intentional-adapter) / all frozen capabilities",
+    "shared_coverage_pct": "shared-covered / all frozen capabilities",
+    "intentional_adapter_pct": "intentional-adapter / all frozen capabilities",
+    "unproven_pct": "unproven / all frozen capabilities",
+    "gap_pct": "parity-gap / all frozen capabilities"
+  },
+  "counts": {
+    "total": 20,
+    "shared_covered": 9,
+    "intentional_adapter": 6,
+    "unproven": 5,
+    "parity_gap": 0,
+    "aligned": 15,
+    "semantic_alignment_pct": 75.0,
+    "shared_coverage_pct": 45.0,
+    "intentional_adapter_pct": 30.0,
+    "unproven_pct": 25.0,
+    "gap_pct": 0.0
+  },
+  "capabilities": [
+    {
+      "id": "spot-v1.runtime-spec-normalization",
+      "subsystem": "runtime-configuration-state",
+      "capability": "Normalize fill modes, exit mode, costs, EOD, MTM and drawdown settings once for both environments.",
+      "classification": "shared-covered",
+      "status": "aligned",
+      "shared_surface": "SpotRuntimeSpec.from_sources",
+      "backtest_surface": "_spot_exec_profile",
+      "live_surface": "spot_runtime_spec_view callers",
+      "evidence": [
+        "tradebot/spot/policy.py::SpotRuntimeSpec.from_sources"
+      ],
+      "tests": [
+        "tests/test_spot_policy_kernel.py::test_engine_policy_views_use_typed_factories"
+      ],
+      "next": "Expand malformed-input and policy-pack precedence cases."
+    },
+    {
+      "id": "spot-v1.policy-config-normalization",
+      "subsystem": "runtime-configuration-state",
+      "capability": "Normalize sizing, risk overlay, resize and policy-pack inputs once.",
+      "classification": "shared-covered",
+      "status": "aligned",
+      "shared_surface": "SpotPolicyConfigView.from_sources",
+      "backtest_surface": "SpotPolicy policy callers",
+      "live_surface": "SpotPolicy policy callers",
+      "evidence": [
+        "tradebot/spot/policy.py::SpotPolicyConfigView.from_sources"
+      ],
+      "tests": [
+        "tests/test_spot_policy_kernel.py"
+      ],
+      "next": "Extract duplicated pack-aware source lookup only after parity receipts."
+    },
+    {
+      "id": "spot-v1.sizing-trace-kernel",
+      "subsystem": "policy-risk-sizing",
+      "capability": "Produce signed target quantity and complete deterministic risk/sizing trace.",
+      "classification": "shared-covered",
+      "status": "aligned",
+      "shared_surface": "SpotPolicy.calc_signed_qty_with_trace",
+      "backtest_surface": "_spot_try_open_entry and resize loop",
+      "live_surface": "BotOrderBuilderMixin._create_order_for_instance",
+      "evidence": [
+        "tradebot/spot/policy.py::SpotPolicy.calc_signed_qty_with_trace"
+      ],
+      "tests": [
+        "tests/test_spot_policy_kernel.py",
+        "tests/test_spot_policy_graph.py"
+      ],
+      "next": "Add paired adapter-input scenario receipts."
+    },
+    {
+      "id": "spot-v1.branch-size-scaling",
+      "subsystem": "policy-risk-sizing",
+      "capability": "Apply branch multiplier, min/max quantity and trace augmentation identically.",
+      "classification": "shared-covered",
+      "status": "aligned",
+      "shared_surface": "spot_apply_branch_size_mult",
+      "backtest_surface": "entry and resize paths",
+      "live_surface": "spot order builder",
+      "evidence": [
+        "tradebot/engine.py::spot_apply_branch_size_mult"
+      ],
+      "tests": [],
+      "next": "Add direct branch A/B and rounding parity vectors."
+    },
+    {
+      "id": "spot-v1.position-intent-resolution",
+      "subsystem": "policy-risk-sizing",
+      "capability": "Resolve hold, enter, exit, scale-in/out and flip-block semantics from current and target quantity.",
+      "classification": "shared-covered",
+      "status": "aligned",
+      "shared_surface": "SpotPolicy.resolve_position_intent",
+      "backtest_surface": "decide_open_position_intent",
+      "live_surface": "decide_open_position_intent",
+      "evidence": [
+        "tradebot/spot/policy.py::SpotPolicy.resolve_position_intent"
+      ],
+      "tests": [
+        "tests/test_spot_policy_kernel.py"
+      ],
+      "next": "Add negative-position scale-in/out matrix."
+    },
+    {
+      "id": "spot-v1.open-lifecycle-resolution",
+      "subsystem": "policy-risk-sizing",
+      "capability": "Resolve exit priority, adaptive resize target, cooldown and lifecycle payload once.",
+      "classification": "shared-covered",
+      "status": "aligned",
+      "shared_surface": "decide_open_position_intent",
+      "backtest_surface": "_spot_open_position_intent",
+      "live_surface": "Bot signal runtime and order builder",
+      "evidence": [
+        "tradebot/spot/lifecycle.py::decide_open_position_intent"
+      ],
+      "tests": [
+        "tests/test_spot_policy_graph.py",
+        "tests/test_spot_scenario_runner.py"
+      ],
+      "next": "Add paired exit-priority and resize-cooldown scenarios."
+    },
+    {
+      "id": "spot-v1.fill-due-time",
+      "subsystem": "market-time-series-semantics",
+      "capability": "Resolve close, next execution bar and next tradable-session due timestamps.",
+      "classification": "shared-covered",
+      "status": "aligned",
+      "shared_surface": "fill_due_ts",
+      "backtest_surface": "_spot_fill_due_ts UTC adapter",
+      "live_surface": "BotSignalRuntimeMixin._spot_fill_due_ts ET adapter",
+      "evidence": [
+        "tradebot/spot/lifecycle.py::fill_due_ts"
+      ],
+      "tests": [
+        "tests/test_backtest_trade_date_semantics.py",
+        "tests/test_live_signal_exit_continuum.py"
+      ],
+      "next": "Add identical instant-based UTC\u2194ET paired cases across DST."
+    },
+    {
+      "id": "spot-v1.deferred-entry-planning",
+      "subsystem": "market-time-series-semantics",
+      "capability": "Determine deferred/immediate entry, due timestamp and next-open eligibility.",
+      "classification": "shared-covered",
+      "status": "aligned",
+      "shared_surface": "deferred_entry_plan",
+      "backtest_surface": "lifecycle_deferred_entry_plan alias",
+      "live_surface": "lifecycle_deferred_entry_plan alias",
+      "evidence": [
+        "tradebot/spot/lifecycle.py::deferred_entry_plan"
+      ],
+      "tests": [
+        "tests/test_backtest_trade_date_semantics.py",
+        "tests/test_live_signal_exit_continuum.py"
+      ],
+      "next": "Add cross-adapter identical-plan fixture."
+    },
+    {
+      "id": "spot-v1.pending-next-open-decision",
+      "subsystem": "live-execution-orders",
+      "capability": "Resolve wait, trigger, cancel and clear decisions for pending entries/exits.",
+      "classification": "shared-covered",
+      "status": "aligned",
+      "shared_surface": "decide_pending_next_open",
+      "backtest_surface": "canonical exec loop pending state",
+      "live_surface": "BotSignalRuntimeMixin._auto_process_pending_next_open",
+      "evidence": [
+        "tradebot/spot/lifecycle.py::decide_pending_next_open"
+      ],
+      "tests": [
+        "tests/test_live_signal_exit_continuum.py"
+      ],
+      "next": "Add direct shared-function backtest/live state-vector receipts."
+    },
+    {
+      "id": "spot-v1.time-mode-adaptation",
+      "subsystem": "market-time-series-semantics",
+      "capability": "Represent equivalent scheduling semantics through UTC backtest and ET live timestamp conventions.",
+      "classification": "intentional-adapter",
+      "status": "aligned",
+      "shared_surface": "NaiveTsModeInput lifecycle functions",
+      "backtest_surface": "naive_ts_mode=utc",
+      "live_surface": "naive_ts_mode=et",
+      "evidence": [
+        "tradebot/spot/lifecycle.py",
+        "tradebot/time_utils.py"
+      ],
+      "tests": [
+        "tests/test_backtest_trade_date_semantics.py",
+        "tests/test_live_signal_exit_continuum.py"
+      ],
+      "next": "Prove equal instants around DST and overnight-session boundaries."
+    },
+    {
+      "id": "spot-v1.account-reference-adaptation",
+      "subsystem": "broker-connectivity-account",
+      "capability": "Supply normalized equity and spend-capacity references to shared sizing.",
+      "classification": "intentional-adapter",
+      "status": "aligned",
+      "shared_surface": "equity_ref and cash_ref sizing inputs",
+      "backtest_surface": "cash + liquidation and simulated cash",
+      "live_surface": "NetLiquidation and BuyingPower with FX conversion",
+      "evidence": [
+        "tradebot/backtest/engine.py::_spot_try_open_entry",
+        "tradebot/ui/bot_order_builder.py::BotOrderBuilderMixin._create_order_for_instance"
+      ],
+      "tests": [
+        "tests/test_live_signal_exit_continuum.py::test_account_value_currency_override_selects_requested_currency"
+      ],
+      "next": "Define a typed normalized account-capacity model and provider replay vectors."
+    },
+    {
+      "id": "spot-v1.execution-fill-adaptation",
+      "subsystem": "market-realism-parity",
+      "capability": "Convert a reference/quote into environment-appropriate execution truth.",
+      "classification": "intentional-adapter",
+      "status": "aligned",
+      "shared_surface": "runtime cost configuration",
+      "backtest_surface": "spot_exec_price deterministic spread/commission/slippage model",
+      "live_surface": "IBKR limit order and execution fills",
+      "evidence": [
+        "tradebot/engine.py::spot_exec_price",
+        "tradebot/client.py::IBKRClient.place_limit_order"
+      ],
+      "tests": [
+        "tests/test_live_signal_exit_continuum.py",
+        "tests/test_ui_futures_detail_flow.py"
+      ],
+      "next": "Capture read-only IB fill/order-state shapes and replay them."
+    },
+    {
+      "id": "spot-v1.order-submission-status-adaptation",
+      "subsystem": "live-execution-orders",
+      "capability": "Stage, submit, modify, cancel and reconcile effective broker order status.",
+      "classification": "intentional-adapter",
+      "status": "aligned",
+      "shared_surface": "lifecycle intent and order trace payload",
+      "backtest_surface": "immediate deterministic simulator mutation",
+      "live_surface": "BotScreen._send_order, IBKRClient and _chase_orders_tick",
+      "evidence": [
+        "tradebot/ui/bot.py::BotScreen._send_order",
+        "tradebot/ui/bot_engine_runtime.py::BotEngineRuntimeMixin._chase_orders_tick",
+        "tradebot/client.py::IBKRClient._effective_order_status"
+      ],
+      "tests": [
+        "tests/test_client_market_data_fallbacks.py",
+        "tests/test_ui_futures_detail_flow.py"
+      ],
+      "next": "Add spot-specific staged\u2192send-error/cancel/inactive/partial/fill scenarios."
+    },
+    {
+      "id": "spot-v1.resize-mutation-accounting-adaptation",
+      "subsystem": "backtest-simulation-accounting",
+      "capability": "Apply successful resize quantity/basis/account effects according to environment truth.",
+      "classification": "intentional-adapter",
+      "status": "aligned",
+      "shared_surface": "SpotLifecycleDecision resize delta",
+      "backtest_surface": "_spot_apply_resize_trade weighted basis and simulated cash/margin",
+      "live_surface": "broker position/fills and portfolio refresh",
+      "evidence": [
+        "tradebot/backtest/engine.py::_spot_apply_resize_trade",
+        "tradebot/ui/bot_engine_runtime.py::BotEngineRuntimeMixin._chase_orders_tick"
+      ],
+      "tests": [],
+      "next": "Add broker-replay partial/full resize position and basis receipts."
+    },
+    {
+      "id": "spot-v1.sizing-input-assembly-parity",
+      "subsystem": "policy-risk-sizing",
+      "capability": "Assemble equivalent action, price, stop, shock, regime and risk inputs before shared sizing.",
+      "classification": "unproven",
+      "status": "unproven",
+      "shared_surface": "spot_calc_signed_qty_with_trace signature",
+      "backtest_surface": "_spot_try_open_entry and resize block",
+      "live_surface": "BotOrderBuilderMixin._create_order_for_instance",
+      "evidence": [
+        "Both adapters call the shared sizing kernel."
+      ],
+      "tests": [],
+      "next": "Create canonical sizing-input payload and paired adapter extraction tests."
+    },
+    {
+      "id": "spot-v1.pending-state-mutation-parity",
+      "subsystem": "live-execution-orders",
+      "capability": "Apply shared pending decisions to adapter state without stale or double-triggered entries/exits.",
+      "classification": "unproven",
+      "status": "unproven",
+      "shared_surface": "SpotLifecycleDecision pending_clear flags",
+      "backtest_surface": "pending local variables in canonical exec loop",
+      "live_surface": "_clear_pending_entry/_exit and queue-order mutation",
+      "evidence": [
+        "Shared pending decision is consumed by both paths."
+      ],
+      "tests": [
+        "tests/test_live_signal_exit_continuum.py"
+      ],
+      "next": "Add identical pending-state transition tables for both adapters."
+    },
+    {
+      "id": "spot-v1.entry-basis-reconciliation",
+      "subsystem": "backtest-simulation-accounting",
+      "capability": "Maintain equivalent economic entry basis after fills and scale-ins.",
+      "classification": "unproven",
+      "status": "unproven",
+      "shared_surface": "position lifecycle trace",
+      "backtest_surface": "SpotTrade.entry_price weighted resize basis",
+      "live_surface": "execution fill, limit fallback and broker averageCost",
+      "evidence": [
+        "tradebot/backtest/engine.py::_spot_apply_resize_trade",
+        "tradebot/ui/bot_engine_runtime.py::BotEngineRuntimeMixin._chase_orders_tick"
+      ],
+      "tests": [],
+      "next": "Define normalized economic basis and test partial/multiple fills."
+    },
+    {
+      "id": "spot-v1.trace-projection-parity",
+      "subsystem": "operator-ui-observability",
+      "capability": "Expose equivalent sizing, intent, lifecycle, fill and accounting explanations.",
+      "classification": "unproven",
+      "status": "unproven",
+      "shared_surface": "SpotDecisionTrace and SpotLifecycleDecision payloads",
+      "backtest_surface": "trade decision_trace and lifecycle trace rows",
+      "live_surface": "order journal and gate payloads",
+      "evidence": [
+        "Both adapters persist shared decision/lifecycle payloads."
+      ],
+      "tests": [
+        "tests/test_spot_scenario_runner.py",
+        "tests/test_live_signal_exit_continuum.py::test_journal_gate_formats_filter_map_and_lifecycle_context"
+      ],
+      "next": "Normalize receipt schema and compare scenario snapshots."
+    },
+    {
+      "id": "spot-v1.exit-resize-adapter-receipts",
+      "subsystem": "verification-capability-evolution",
+      "capability": "Demonstrate paired backtest/live outcomes for exit and resize state transitions.",
+      "classification": "unproven",
+      "status": "unproven",
+      "shared_surface": "decide_open_position_intent",
+      "backtest_surface": "canonical execution loop",
+      "live_surface": "bot signal/order/runtime chain",
+      "evidence": [
+        "Source topology is saturated; paired receipts are absent."
+      ],
+      "tests": [],
+      "next": "Build deterministic adapter harness and optional Gateway replay suite."
+    },
+    {
+      "id": "spot-v1.resize-cooldown-fill-ownership",
+      "subsystem": "live-execution-orders",
+      "capability": "Advance resize cooldown timestamp only after the position resize succeeds.",
+      "classification": "intentional-adapter",
+      "status": "aligned",
+      "shared_surface": "decide_open_position_intent cooldown input",
+      "backtest_surface": "last_resize_bar_ts advances only when _spot_apply_resize_trade returns applied=True",
+      "live_surface": "last_resize_bar_ts advances only in BotEngineRuntimeMixin._chase_orders_tick after broker Filled",
+      "evidence": [
+        "Order construction no longer advances resize cooldown while staging.",
+        "Send failure preserves the previous successful resize timestamp.",
+        "Cancelled, ApiCancelled and Inactive preserve the previous successful timestamp.",
+        "Filled advances the timestamp to the resize signal bar and emits resize_applied.",
+        "Backtest advances only after _spot_apply_resize_trade returns applied=True.",
+        "Focused verification: 4 passed, 55 deselected, 1 warning in 0.40s",
+        "Affected-file verification: 59 passed, 1 warning in 0.43s",
+        "Default deterministic verification: 465 passed, 4 deselected, 1 warning in 9.87s"
+      ],
+      "tests": [
+        "tests/test_live_signal_exit_continuum.py::test_resize_builder_defers_cooldown_timestamp_to_confirmed_fill",
+        "tests/test_live_signal_exit_continuum.py::test_resize_send_error_preserves_last_successful_cooldown_timestamp",
+        "tests/test_live_signal_exit_continuum.py::test_engine_terminal_resize_failures_preserve_last_successful_cooldown_timestamp",
+        "tests/test_live_signal_exit_continuum.py::test_engine_filled_resize_advances_cooldown_timestamp"
+      ],
+      "next": "Extend successful-fill ownership receipts to partial fills, reconnect recovery and broker-position reconciliation."
+    }
+  ]
+}

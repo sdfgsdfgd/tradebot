@@ -303,3 +303,122 @@ A `.future.` row cannot become `covered` until it has executable evidence, resol
 - Root connectivity and safety conclusions remain unchanged.
 
 <!-- END: TRADEBOT_MECC_CONCLUSION_CHECK_V1 -->
+
+<!-- BEGIN: TRADEBOT_PARITY_COVERAGE_ATLAS_V1 -->
+
+<!-- anchor: @parity.coverage-atlas -->
+## Backtest ↔ Live/UI Parity Coverage Atlas v1
+
+- Pushed milestone: `9261954424c4f1fe6f40a38bc3cf8aa9245737b5` on `origin/main`.
+- Capability-contract closure: **14/28 (50.0%)**.
+- Test-ownership registration: **44/44 (100.0%)**.
+- Fine-grained semantic parity is scored in `@parity.first-slice-v1`; the umbrella atlas remains a separate contract-closure and ownership view.
+
+| MECC subsystem | Covered / total contracts | Closure | Open births | Owned test files | Test functions |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `runtime-configuration-state` | 1/2 | 50.0% | 1 | 1 | 2 |
+| `market-time-series-semantics` | 1/2 | 50.0% | 1 | 6 | 30 |
+| `signal-regime-intelligence` | 1/2 | 50.0% | 1 | 3 | 30 |
+| `policy-risk-sizing` | 1/2 | 50.0% | 1 | 2 | 31 |
+| `market-realism-parity` | 1/2 | 50.0% | 1 | 3 | 19 |
+| `broker-connectivity-account` | 3/4 | 75.0% | 1 | 4 | 86 |
+| `live-market-data-contracts` | 1/2 | 50.0% | 1 | 7 | 81 |
+| `live-execution-orders` | 1/2 | 50.0% | 1 | 3 | 112 |
+| `operator-ui-observability` | 1/2 | 50.0% | 1 | 6 | 16 |
+| `backtest-data-cache` | 1/2 | 50.0% | 1 | 4 | 34 |
+| `backtest-simulation-accounting` | 1/2 | 50.0% | 1 | 2 | 5 |
+| `research-optimization-calibration` | 1/2 | 50.0% | 1 | 2 | 3 |
+| `verification-capability-evolution` | 0/2 | 0.0% | 2 | 1 | 5 |
+
+### Coverage rules
+
+1. Contract closure measures ledger status only: `covered / all contracts`.
+2. Test ownership measures registry completeness only: discovered test files represented exactly once.
+3. Semantic-parity coverage will measure covered fine-grained parity capabilities after decomposition; its denominator must never be invented retrospectively to inflate progress.
+4. Each centralization wave must add or refine contracts before claiming percentage movement.
+
+<!-- anchor: @parity.shared-spines -->
+## First Recursive Parity Frontier
+
+Source and references must be saturated before mutation, in this order:
+
+1. Shared market facts and configuration: `SpotRuntimeSpec.from_sources`, signal/context inputs, time and fill-mode semantics.
+2. Shared decision truth: `SpotPolicy.resolve_position_intent` and `SpotPolicy.calc_signed_qty_with_trace`.
+3. Backtest adapter: `_run_spot_backtest_exec_loop` and its fill/accounting callees.
+4. Live/UI adapter: `BotSignalRuntimeMixin`, order-builder/reconciliation callers, and operator-visible state.
+5. Parity receipts: identical normalized inputs must produce equivalent intent, sizing, lifecycle, fill assumptions, and accounting explanations where environment-specific I/O is excluded.
+
+<!-- END: TRADEBOT_PARITY_COVERAGE_ATLAS_V1 -->
+
+<!-- BEGIN: TRADEBOT_PARITY_FIRST_SLICE_V1 -->
+
+<!-- anchor: @parity.first-slice-v1 -->
+## Frozen Spot Decision/Execution Parity Denominator v1
+
+- Milestone base: `9261954424c4f1fe6f40a38bc3cf8aa9245737b5`.
+- Frozen capabilities: **20**.
+- Semantic alignment: **15/20 (75.0%)**.
+- Shared-covered: **9/20 (45.0%)**.
+- Intentional adapters: **6/20 (30.0%)**.
+- Unproven: **5/20 (25.0%)**.
+- Confirmed gaps: **0/20 (0.0%)**.
+- Machine-readable source: `tests/ledgers/parity_capabilities.json`.
+
+| Capability | MECC subsystem | Classification | Status | Next |
+| --- | --- | --- | --- | --- |
+| `spot-v1.runtime-spec-normalization` | `runtime-configuration-state` | `shared-covered` | `aligned` | Expand malformed-input and policy-pack precedence cases. |
+| `spot-v1.policy-config-normalization` | `runtime-configuration-state` | `shared-covered` | `aligned` | Extract duplicated pack-aware source lookup only after parity receipts. |
+| `spot-v1.sizing-trace-kernel` | `policy-risk-sizing` | `shared-covered` | `aligned` | Add paired adapter-input scenario receipts. |
+| `spot-v1.branch-size-scaling` | `policy-risk-sizing` | `shared-covered` | `aligned` | Add direct branch A/B and rounding parity vectors. |
+| `spot-v1.position-intent-resolution` | `policy-risk-sizing` | `shared-covered` | `aligned` | Add negative-position scale-in/out matrix. |
+| `spot-v1.open-lifecycle-resolution` | `policy-risk-sizing` | `shared-covered` | `aligned` | Add paired exit-priority and resize-cooldown scenarios. |
+| `spot-v1.fill-due-time` | `market-time-series-semantics` | `shared-covered` | `aligned` | Add identical instant-based UTC↔ET paired cases across DST. |
+| `spot-v1.deferred-entry-planning` | `market-time-series-semantics` | `shared-covered` | `aligned` | Add cross-adapter identical-plan fixture. |
+| `spot-v1.pending-next-open-decision` | `live-execution-orders` | `shared-covered` | `aligned` | Add direct shared-function backtest/live state-vector receipts. |
+| `spot-v1.time-mode-adaptation` | `market-time-series-semantics` | `intentional-adapter` | `aligned` | Prove equal instants around DST and overnight-session boundaries. |
+| `spot-v1.account-reference-adaptation` | `broker-connectivity-account` | `intentional-adapter` | `aligned` | Define a typed normalized account-capacity model and provider replay vectors. |
+| `spot-v1.execution-fill-adaptation` | `market-realism-parity` | `intentional-adapter` | `aligned` | Capture read-only IB fill/order-state shapes and replay them. |
+| `spot-v1.order-submission-status-adaptation` | `live-execution-orders` | `intentional-adapter` | `aligned` | Add spot-specific staged→send-error/cancel/inactive/partial/fill scenarios. |
+| `spot-v1.resize-mutation-accounting-adaptation` | `backtest-simulation-accounting` | `intentional-adapter` | `aligned` | Add broker-replay partial/full resize position and basis receipts. |
+| `spot-v1.sizing-input-assembly-parity` | `policy-risk-sizing` | `unproven` | `unproven` | Create canonical sizing-input payload and paired adapter extraction tests. |
+| `spot-v1.pending-state-mutation-parity` | `live-execution-orders` | `unproven` | `unproven` | Add identical pending-state transition tables for both adapters. |
+| `spot-v1.entry-basis-reconciliation` | `backtest-simulation-accounting` | `unproven` | `unproven` | Define normalized economic basis and test partial/multiple fills. |
+| `spot-v1.trace-projection-parity` | `operator-ui-observability` | `unproven` | `unproven` | Normalize receipt schema and compare scenario snapshots. |
+| `spot-v1.exit-resize-adapter-receipts` | `verification-capability-evolution` | `unproven` | `unproven` | Build deterministic adapter harness and optional Gateway replay suite. |
+| `spot-v1.resize-cooldown-fill-ownership` | `live-execution-orders` | `intentional-adapter` | `aligned` | Extend successful-fill ownership receipts to partial fills, reconnect recovery and broker-position reconciliation. |
+
+### Wave 1 resolution: resize cooldown fill ownership
+
+- Live resize construction no longer advances cooldown while staging.
+- Broker `Filled` reconciliation is the sole live advancement point.
+- Send errors and terminal non-fill states preserve the prior successful timestamp.
+- Backtest continues to advance only after successful resize mutation.
+- Focused receipt: `4 passed, 55 deselected, 1 warning in 0.40s`.
+- Affected-file receipt: `59 passed, 1 warning in 0.43s`.
+- Deterministic receipt: `465 passed, 4 deselected, 1 warning in 9.87s`.
+- `spot-v1.resize-cooldown-fill-ownership` moved from `parity-gap` to aligned `intentional-adapter`.
+
+<!-- END: TRADEBOT_PARITY_FIRST_SLICE_V1 -->
+
+<!-- BEGIN: TRADEBOT_ARCHITECTURE_PRIORITY_QUEUE_V1 -->
+
+<!-- anchor: @architecture.priority-queue-v1 -->
+## Architecture Priority Queue v1
+
+Dependency order begins immediately after Wave 1 verification:
+
+1. Native atomic multi-leg option execution: broker-qualified BAG/combination identity, ratios/actions/exchanges, debit-credit economics, what-if margin, atomic submit/modify/cancel/reconcile, partial/failure risk, and combo close/roll/rescue. Provider evidence must precede SPX/XSP or oil-family admission.
+2. Canonical strategy/execution model shared by research, backtest and live: intent, combo economics, costs, queue/latency/partial/reject/cancel assumptions, margin, assignment/exercise, rolls and rescue; broker/simulator mutation remains an intentional adapter.
+3. Weekly resumable research/promotion loop: walk-forward and regime/timeframe slices, robustness, turnover/capacity, tail loss, drawdown, ruin and margin stress, leakage/overfit and execution sensitivity; canonical caches and versioned benchmark tables.
+4. Evidence promotion ladder: candidate → deterministic replay → provider integration → paper/canary → bounded live, with backtest↔live calibration across decisions, orders, fills, PnL, latency, slippage, rejects, margin, assignment and rescue.
+5. Ledger discipline: each umbrella names its canonical surface, intentional adapter, executable receipt, metric/denominator and promotion gate; semantic parity and contract coverage remain separate.
+
+Safety constraints:
+- No guaranteed-profit claims.
+- Sub-$5k suitability is never assumed for full-size SPX or oil exposure.
+- Prefer broker-admitted defined-risk structures after qualification, permissions, multiplier, settlement, assignment, routing, liquidity and margin are proven.
+- Commit and push only after focused and broad receipts pass.
+
+Next cycle: recursively map existing combination-contract, option-leg, margin, backtest-strategy, optimizer and promotion surfaces before extending the machine denominator.
+
+<!-- END: TRADEBOT_ARCHITECTURE_PRIORITY_QUEUE_V1 -->
