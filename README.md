@@ -98,3 +98,72 @@ Backtest docs live in `tradebot/backtest/README.md` (includes spot milestone reg
 - Realism pass (execution + costs): next-bar execution, intrabar TP/SL, spread/slippage/fees, ET day/session boundaries.
 - Out-of-sample / walk-forward selection + multi-year regime diversity checks.
 - Risk realism: intrabar drawdown / MAE/MFE and margin/position constraints.
+
+<!-- BEGIN: TRADEBOT_CAPABILITY_PYRAMID -->
+
+## Capability Pyramid And MECC Ledger
+
+Machine source: `tests/ledgers/capability_contracts.json`. Every test file has one primary MECC owner.
+
+### Run profiles
+
+| Profile | Command |
+| --- | --- |
+| Deterministic | `python -m pytest -q` |
+| Ledger structure | `python -m pytest tests/test_capability_contracts.py -q` |
+| Explicit IB canary | `TRADEBOT_RUN_LIVE_IB_GATEWAY=1 python -m pytest -o addopts='' -m live tests/live/test_ib_gateway_tunnel.py -q` |
+
+Live safety: the canary performs direct TCP inspection and disposable SSH forwarding to Mac `127.0.0.1:4001`; it preserves localhost-only `TrustedIPs` and submits no orders or market-data subscriptions.
+
+### MECC subsystem index
+
+| Subsystem | Family | Purpose |
+| --- | --- | --- |
+| `runtime-configuration-state` | `shared` | Own startup configuration, environment parsing, knobs, presets, persistent runtime identity, and reproducible launch state. |
+| `market-time-series-semantics` | `shared` | Own canonical timestamps, calendars, sessions, bar completeness, resampling meaning, and shared series identity. |
+| `signal-regime-intelligence` | `shared` | Own market observation, feature extraction, signal snapshots, regime routing, shock detection, and context requirements. |
+| `policy-risk-sizing` | `shared` | Own action decisions derived from market facts: hold, enter, exit, resize, risk overlays, limits, and quantities. |
+| `market-realism-parity` | `shared` | Own executable receipts proving simulated and live-intended semantics agree under realistic market and broker conditions. |
+| `broker-connectivity-account` | `live` | Own IB Gateway transport/session lifecycle, client IDs, reconnects, managed accounts, portfolio, account values, and broker PnL truth. |
+| `live-market-data-contracts` | `live` | Own contract qualification/search, exchange identity, subscriptions, quote provenance, freshness, delayed/frozen modes, and tick increments. |
+| `live-execution-orders` | `live` | Own executable orders, pricing, submission, modification, cancellation, reconciliation, fill progression, repricing, and recovery. |
+| `operator-ui-observability` | `live` | Own Textual presentation, controls, status surfaces, journal output, notices, layout, and operator-visible causal truth. |
+| `backtest-data-cache` | `backtest` | Own historical acquisition, cache keys and provenance, coverage, gap repair, stitching, persistence, and efficient reuse. |
+| `backtest-simulation-accounting` | `backtest` | Own simulated order/fill progression, trade lifecycle, equity/PnL accounting, summaries, and deterministic replay results. |
+| `research-optimization-calibration` | `research` | Own sweeps, fingerprints, parameter search, calibration, scenario comparison, predictive mining, and champion selection. |
+| `verification-capability-evolution` | `verification` | Own the MECC registry, structural validation, evidence ownership, explicit live canaries, benchmark results, and future-capability promotion. |
+
+### Capability contract index
+
+| Layer | Status | Contract ID | Subsystem |
+| --- | --- | --- | --- |
+| `unit` | `covered` | `unit.runtime.configuration-state` | `runtime-configuration-state` |
+| `unit` | `covered` | `unit.market.time-series-semantics` | `market-time-series-semantics` |
+| `unit` | `covered` | `unit.signal.regime-intelligence` | `signal-regime-intelligence` |
+| `unit` | `covered` | `unit.policy.risk-sizing` | `policy-risk-sizing` |
+| `integration-replay` | `covered` | `integration.replay.market-realism-parity` | `market-realism-parity` |
+| `unit` | `covered` | `unit.broker.connectivity-account` | `broker-connectivity-account` |
+| `unit` | `covered` | `unit.live.market-data-contracts` | `live-market-data-contracts` |
+| `unit` | `covered` | `unit.live.execution-orders` | `live-execution-orders` |
+| `unit` | `covered` | `unit.operator.ui-observability` | `operator-ui-observability` |
+| `unit` | `covered` | `unit.backtest.data-cache` | `backtest-data-cache` |
+| `integration-replay` | `covered` | `integration.replay.backtest.simulation-accounting` | `backtest-simulation-accounting` |
+| `unit` | `covered` | `unit.research.optimization-calibration` | `research-optimization-calibration` |
+| `unit` | `planned` | `unit.verification.capability-ledger` | `verification-capability-evolution` |
+| `e2e-live` | `covered` | `e2e.live.ib-gateway-ssh-tunnel` | `broker-connectivity-account` |
+| `e2e-live` | `covered` | `e2e.live.ib-gateway-direct-transport` | `broker-connectivity-account` |
+| `benchmark` | `planned` | `benchmark.future.live-backtest-drift-score` | `market-realism-parity` |
+| `unit` | `planned` | `unit.future.content-addressed-cache-provenance` | `backtest-data-cache` |
+| `integration-replay` | `planned` | `integration.replay.future.queue-latency-partial-fill-model` | `backtest-simulation-accounting` |
+| `benchmark` | `planned` | `benchmark.future.walk-forward-overfit-defence` | `research-optimization-calibration` |
+| `integration-provider` | `planned` | `integration.provider.future.entitlement-freshness-sla` | `live-market-data-contracts` |
+| `e2e-live` | `planned` | `e2e.live.future.shadow-order-digital-twin` | `live-execution-orders` |
+| `benchmark` | `planned` | `benchmark.future.online-regime-drift-calibration` | `signal-regime-intelligence` |
+| `unit` | `planned` | `unit.future.account-constraint-aware-sizing` | `policy-risk-sizing` |
+| `integration-replay` | `planned` | `integration.replay.future.causal-replay-journal` | `operator-ui-observability` |
+| `e2e-live` | `planned` | `e2e.live.future.tunnel-supervisor-failover` | `broker-connectivity-account` |
+| `integration-replay` | `planned` | `integration.replay.future.corporate-actions-roll-adjustments` | `market-time-series-semantics` |
+| `unit` | `planned` | `unit.future.reproducible-runtime-manifest` | `runtime-configuration-state` |
+| `benchmark` | `planned` | `benchmark.future.current-market-canary-dashboard` | `verification-capability-evolution` |
+
+<!-- END: TRADEBOT_CAPABILITY_PYRAMID -->

@@ -1,0 +1,797 @@
+{
+  "schema_version": 1,
+  "contract_schema": "./capability_schema.json",
+  "subsystem_taxonomy": [
+    {
+      "id": "runtime-configuration-state",
+      "name": "Runtime Configuration, Presets, And Durable State",
+      "family": "shared",
+      "purpose": "Own startup configuration, environment parsing, knobs, presets, persistent runtime identity, and reproducible launch state.",
+      "boundary": "Does not own trading decisions, broker sessions, market observations, or UI presentation."
+    },
+    {
+      "id": "market-time-series-semantics",
+      "name": "Market Time, Sessions, Bars, And Series Semantics",
+      "family": "shared",
+      "purpose": "Own canonical timestamps, calendars, sessions, bar completeness, resampling meaning, and shared series identity.",
+      "boundary": "Does not own cache storage, broker subscriptions, signals, or simulated fills."
+    },
+    {
+      "id": "signal-regime-intelligence",
+      "name": "Signals, Regimes, Shocks, And Market-State Intelligence",
+      "family": "shared",
+      "purpose": "Own market observation, feature extraction, signal snapshots, regime routing, shock detection, and context requirements.",
+      "boundary": "Produces facts and classifications; it does not choose position intent, size, or order action."
+    },
+    {
+      "id": "policy-risk-sizing",
+      "name": "Policy, Entry/Exit Gates, Risk, And Position Sizing",
+      "family": "shared",
+      "purpose": "Own action decisions derived from market facts: hold, enter, exit, resize, risk overlays, limits, and quantities.",
+      "boundary": "Does not ingest broker data, simulate fills, submit orders, or render operator UI."
+    },
+    {
+      "id": "market-realism-parity",
+      "name": "Current-Market Realism And Backtest/Live Parity",
+      "family": "shared",
+      "purpose": "Own executable receipts proving simulated and live-intended semantics agree under realistic market and broker conditions.",
+      "boundary": "Validates cross-system truth; it does not become the primary owner of the underlying production implementation."
+    },
+    {
+      "id": "broker-connectivity-account",
+      "name": "Broker Connectivity, Sessions, Accounts, Portfolio, And PnL Truth",
+      "family": "live",
+      "purpose": "Own IB Gateway transport/session lifecycle, client IDs, reconnects, managed accounts, portfolio, account values, and broker PnL truth.",
+      "boundary": "Does not own instrument discovery, quote-quality policy, order execution, or UI formatting."
+    },
+    {
+      "id": "live-market-data-contracts",
+      "name": "Live Market Data, Instrument Identity, And Contract Discovery",
+      "family": "live",
+      "purpose": "Own contract qualification/search, exchange identity, subscriptions, quote provenance, freshness, delayed/frozen modes, and tick increments.",
+      "boundary": "Does not own trading decisions, order state machines, account totals, or presentation-only rendering."
+    },
+    {
+      "id": "live-execution-orders",
+      "name": "Live Order Construction, Submission, Reconciliation, And Recovery",
+      "family": "live",
+      "purpose": "Own executable orders, pricing, submission, modification, cancellation, reconciliation, fill progression, repricing, and recovery.",
+      "boundary": "Does not own policy intent, raw market-data ingestion, account truth, or display-only UI."
+    },
+    {
+      "id": "operator-ui-observability",
+      "name": "Operator UI, Diagnostics, Journaling, And Explainability",
+      "family": "live",
+      "purpose": "Own Textual presentation, controls, status surfaces, journal output, notices, layout, and operator-visible causal truth.",
+      "boundary": "Does not own underlying broker, signal, policy, or order semantics merely because it displays them."
+    },
+    {
+      "id": "backtest-data-cache",
+      "name": "Backtest Data Acquisition, Cache Integrity, Repair, And Resampling",
+      "family": "backtest",
+      "purpose": "Own historical acquisition, cache keys and provenance, coverage, gap repair, stitching, persistence, and efficient reuse.",
+      "boundary": "Does not own shared calendar meaning, strategy decisions, simulated fills, or optimization search."
+    },
+    {
+      "id": "backtest-simulation-accounting",
+      "name": "Backtest Execution Simulation, Portfolio Accounting, And Results",
+      "family": "backtest",
+      "purpose": "Own simulated order/fill progression, trade lifecycle, equity/PnL accounting, summaries, and deterministic replay results.",
+      "boundary": "Does not own source-data caching, signal/policy definitions, or parameter-search methodology."
+    },
+    {
+      "id": "research-optimization-calibration",
+      "name": "Research, Calibration, Scenario Analysis, And Optimization",
+      "family": "research",
+      "purpose": "Own sweeps, fingerprints, parameter search, calibration, scenario comparison, predictive mining, and champion selection.",
+      "boundary": "Does not redefine simulator truth, production policy semantics, or cache correctness."
+    },
+    {
+      "id": "verification-capability-evolution",
+      "name": "Capability Ledgers, Test Ownership, Canaries, Benchmarks, And Evolution Gates",
+      "family": "verification",
+      "purpose": "Own the MECC registry, structural validation, evidence ownership, explicit live canaries, benchmark results, and future-capability promotion.",
+      "boundary": "Proves product capabilities but does not absorb their primary subsystem ownership."
+    }
+  ],
+  "test_ownership": {
+    "tests/live/test_ib_gateway_tunnel.py": "broker-connectivity-account",
+    "tests/test_backtest_data_timezone.py": "backtest-data-cache",
+    "tests/test_backtest_time_alignment.py": "market-time-series-semantics",
+    "tests/test_backtest_trade_date_semantics.py": "market-time-series-semantics",
+    "tests/test_backtest_trading_calendar.py": "market-time-series-semantics",
+    "tests/test_bar_series_contract.py": "backtest-data-cache",
+    "tests/test_bar_utils.py": "market-time-series-semantics",
+    "tests/test_cache_fetch_mend.py": "backtest-data-cache",
+    "tests/test_capability_contracts.py": "verification-capability-evolution",
+    "tests/test_client_market_data_fallbacks.py": "broker-connectivity-account",
+    "tests/test_daily_climate_router.py": "signal-regime-intelligence",
+    "tests/test_effective_filters_payload.py": "runtime-configuration-state",
+    "tests/test_engine_time_semantics.py": "market-time-series-semantics",
+    "tests/test_live_signal_exit_continuum.py": "live-execution-orders",
+    "tests/test_offline_cache_preflight.py": "backtest-data-cache",
+    "tests/test_option_search_qualification.py": "live-market-data-contracts",
+    "tests/test_order_contract_normalize.py": "live-market-data-contracts",
+    "tests/test_order_pricing_guards.py": "live-execution-orders",
+    "tests/test_readme_retrievers.py": "operator-ui-observability",
+    "tests/test_regime_router_exec_bar_state_persistence.py": "backtest-simulation-accounting",
+    "tests/test_spot_combo_full_signature.py": "research-optimization-calibration",
+    "tests/test_spot_context_requirements.py": "signal-regime-intelligence",
+    "tests/test_spot_fast_summary_parity.py": "market-realism-parity",
+    "tests/test_spot_policy_graph.py": "policy-risk-sizing",
+    "tests/test_spot_policy_kernel.py": "policy-risk-sizing",
+    "tests/test_spot_scenario_runner.py": "research-optimization-calibration",
+    "tests/test_spot_signal_time_mode.py": "signal-regime-intelligence",
+    "tests/test_spot_single_position_mode.py": "backtest-simulation-accounting",
+    "tests/test_time_utils_modes.py": "market-time-series-semantics",
+    "tests/test_ui_bot_live_unreal_consistency.py": "market-realism-parity",
+    "tests/test_ui_bot_stream_refresh.py": "operator-ui-observability",
+    "tests/test_ui_contract_binding.py": "live-market-data-contracts",
+    "tests/test_ui_favorites_md_indicator.py": "live-market-data-contracts",
+    "tests/test_ui_futures_detail_flow.py": "live-execution-orders",
+    "tests/test_ui_netliq_drift_estimation.py": "broker-connectivity-account",
+    "tests/test_ui_pnl_truth.py": "broker-connectivity-account",
+    "tests/test_ui_position_header_title.py": "operator-ui-observability",
+    "tests/test_ui_preset_crown_labels.py": "operator-ui-observability",
+    "tests/test_ui_presets_layout_toggle.py": "operator-ui-observability",
+    "tests/test_ui_px_change_metrics.py": "live-market-data-contracts",
+    "tests/test_ui_quote_status_line.py": "operator-ui-observability",
+    "tests/test_ui_search_contract_description.py": "live-market-data-contracts",
+    "tests/test_ui_signal_gap_calendar.py": "market-realism-parity",
+    "tests/test_ui_signal_timeout_fallback_ladder.py": "live-market-data-contracts"
+  },
+  "contracts": [
+    {
+      "id": "unit.runtime.configuration-state",
+      "subsystem": "runtime-configuration-state",
+      "layer": "unit",
+      "phase": "runtime-configuration-state",
+      "capability": "Configuration, preset payloads, and runtime state remain normalized and loadable.",
+      "fixtures": [
+        "current proof surfaces for runtime-configuration-state"
+      ],
+      "evidence": [
+        "tests/test_effective_filters_payload.py"
+      ],
+      "owner_surface": [
+        "tradebot/config.py"
+      ],
+      "oracle": [
+        "all evidence assigned to runtime-configuration-state passes",
+        "the capability remains within its MECC ownership boundary"
+      ],
+      "status": "covered",
+      "next": "Split unit.runtime.configuration-state only when narrower evidence and oracles exist."
+    },
+    {
+      "id": "unit.market.time-series-semantics",
+      "subsystem": "market-time-series-semantics",
+      "layer": "unit",
+      "phase": "market-time-series-semantics",
+      "capability": "Calendar, timestamp, bar-alignment, and series semantics remain canonical.",
+      "fixtures": [
+        "current proof surfaces for market-time-series-semantics"
+      ],
+      "evidence": [
+        "tests/test_backtest_time_alignment.py",
+        "tests/test_backtest_trade_date_semantics.py",
+        "tests/test_backtest_trading_calendar.py",
+        "tests/test_bar_utils.py",
+        "tests/test_engine_time_semantics.py",
+        "tests/test_time_utils_modes.py"
+      ],
+      "owner_surface": [
+        "tradebot/time_utils.py"
+      ],
+      "oracle": [
+        "all evidence assigned to market-time-series-semantics passes",
+        "the capability remains within its MECC ownership boundary"
+      ],
+      "status": "covered",
+      "next": "Split unit.market.time-series-semantics only when narrower evidence and oracles exist."
+    },
+    {
+      "id": "unit.signal.regime-intelligence",
+      "subsystem": "signal-regime-intelligence",
+      "layer": "unit",
+      "phase": "signal-regime-intelligence",
+      "capability": "Signals, shocks, regime routing, and required market context remain deterministic.",
+      "fixtures": [
+        "current proof surfaces for signal-regime-intelligence"
+      ],
+      "evidence": [
+        "tests/test_daily_climate_router.py",
+        "tests/test_spot_context_requirements.py",
+        "tests/test_spot_signal_time_mode.py"
+      ],
+      "owner_surface": [
+        "tradebot/spot_engine.py"
+      ],
+      "oracle": [
+        "all evidence assigned to signal-regime-intelligence passes",
+        "the capability remains within its MECC ownership boundary"
+      ],
+      "status": "covered",
+      "next": "Split unit.signal.regime-intelligence only when narrower evidence and oracles exist."
+    },
+    {
+      "id": "unit.policy.risk-sizing",
+      "subsystem": "policy-risk-sizing",
+      "layer": "unit",
+      "phase": "policy-risk-sizing",
+      "capability": "Policy graphs, entry/exit gates, risk overlays, and sizing traces remain correct.",
+      "fixtures": [
+        "current proof surfaces for policy-risk-sizing"
+      ],
+      "evidence": [
+        "tests/test_spot_policy_graph.py",
+        "tests/test_spot_policy_kernel.py"
+      ],
+      "owner_surface": [
+        "tradebot/spot/policy.py"
+      ],
+      "oracle": [
+        "all evidence assigned to policy-risk-sizing passes",
+        "the capability remains within its MECC ownership boundary"
+      ],
+      "status": "covered",
+      "next": "Split unit.policy.risk-sizing only when narrower evidence and oracles exist."
+    },
+    {
+      "id": "integration.replay.market-realism-parity",
+      "subsystem": "market-realism-parity",
+      "layer": "integration-replay",
+      "phase": "market-realism-parity",
+      "capability": "Shared backtest/live-intended semantics remain aligned for current market conditions.",
+      "fixtures": [
+        "current proof surfaces for market-realism-parity"
+      ],
+      "evidence": [
+        "tests/test_spot_fast_summary_parity.py",
+        "tests/test_ui_bot_live_unreal_consistency.py",
+        "tests/test_ui_signal_gap_calendar.py"
+      ],
+      "owner_surface": [
+        "tradebot/backtest/engine.py"
+      ],
+      "oracle": [
+        "all evidence assigned to market-realism-parity passes",
+        "the capability remains within its MECC ownership boundary"
+      ],
+      "status": "covered",
+      "next": "Split integration.replay.market-realism-parity only when narrower evidence and oracles exist."
+    },
+    {
+      "id": "unit.broker.connectivity-account",
+      "subsystem": "broker-connectivity-account",
+      "layer": "unit",
+      "phase": "broker-connectivity-account",
+      "capability": "Client-ID resilience, connection state, portfolio, account, and PnL truth remain correct.",
+      "fixtures": [
+        "current proof surfaces for broker-connectivity-account"
+      ],
+      "evidence": [
+        "tests/test_client_market_data_fallbacks.py",
+        "tests/test_ui_netliq_drift_estimation.py",
+        "tests/test_ui_pnl_truth.py"
+      ],
+      "owner_surface": [
+        "tradebot/client.py"
+      ],
+      "oracle": [
+        "all evidence assigned to broker-connectivity-account passes",
+        "the capability remains within its MECC ownership boundary"
+      ],
+      "status": "covered",
+      "next": "Split unit.broker.connectivity-account only when narrower evidence and oracles exist."
+    },
+    {
+      "id": "unit.live.market-data-contracts",
+      "subsystem": "live-market-data-contracts",
+      "layer": "unit",
+      "phase": "live-market-data-contracts",
+      "capability": "Contract identity, qualification, quote provenance, and fallback behaviour remain correct.",
+      "fixtures": [
+        "current proof surfaces for live-market-data-contracts"
+      ],
+      "evidence": [
+        "tests/test_option_search_qualification.py",
+        "tests/test_order_contract_normalize.py",
+        "tests/test_ui_contract_binding.py",
+        "tests/test_ui_favorites_md_indicator.py",
+        "tests/test_ui_px_change_metrics.py",
+        "tests/test_ui_search_contract_description.py",
+        "tests/test_ui_signal_timeout_fallback_ladder.py"
+      ],
+      "owner_surface": [
+        "tradebot/client.py"
+      ],
+      "oracle": [
+        "all evidence assigned to live-market-data-contracts passes",
+        "the capability remains within its MECC ownership boundary"
+      ],
+      "status": "covered",
+      "next": "Split unit.live.market-data-contracts only when narrower evidence and oracles exist."
+    },
+    {
+      "id": "unit.live.execution-orders",
+      "subsystem": "live-execution-orders",
+      "layer": "unit",
+      "phase": "live-execution-orders",
+      "capability": "Order construction, pricing, reconciliation, chasing, and recovery remain safe and deterministic.",
+      "fixtures": [
+        "current proof surfaces for live-execution-orders"
+      ],
+      "evidence": [
+        "tests/test_live_signal_exit_continuum.py",
+        "tests/test_order_pricing_guards.py",
+        "tests/test_ui_futures_detail_flow.py"
+      ],
+      "owner_surface": [
+        "tradebot/ui/bot_signal_runtime.py"
+      ],
+      "oracle": [
+        "all evidence assigned to live-execution-orders passes",
+        "the capability remains within its MECC ownership boundary"
+      ],
+      "status": "covered",
+      "next": "Split unit.live.execution-orders only when narrower evidence and oracles exist."
+    },
+    {
+      "id": "unit.operator.ui-observability",
+      "subsystem": "operator-ui-observability",
+      "layer": "unit",
+      "phase": "operator-ui-observability",
+      "capability": "The UI and diagnostics present actionable broker and bot truth without misleading operators.",
+      "fixtures": [
+        "current proof surfaces for operator-ui-observability"
+      ],
+      "evidence": [
+        "tests/test_readme_retrievers.py",
+        "tests/test_ui_bot_stream_refresh.py",
+        "tests/test_ui_position_header_title.py",
+        "tests/test_ui_preset_crown_labels.py",
+        "tests/test_ui_presets_layout_toggle.py",
+        "tests/test_ui_quote_status_line.py"
+      ],
+      "owner_surface": [
+        "tradebot/ui/app.py"
+      ],
+      "oracle": [
+        "all evidence assigned to operator-ui-observability passes",
+        "the capability remains within its MECC ownership boundary"
+      ],
+      "status": "covered",
+      "next": "Split unit.operator.ui-observability only when narrower evidence and oracles exist."
+    },
+    {
+      "id": "unit.backtest.data-cache",
+      "subsystem": "backtest-data-cache",
+      "layer": "unit",
+      "phase": "backtest-data-cache",
+      "capability": "Historical cache coverage, integrity, repair, stitching, and resampling remain correct.",
+      "fixtures": [
+        "current proof surfaces for backtest-data-cache"
+      ],
+      "evidence": [
+        "tests/test_backtest_data_timezone.py",
+        "tests/test_bar_series_contract.py",
+        "tests/test_cache_fetch_mend.py",
+        "tests/test_offline_cache_preflight.py"
+      ],
+      "owner_surface": [
+        "tradebot/backtest/data.py"
+      ],
+      "oracle": [
+        "all evidence assigned to backtest-data-cache passes",
+        "the capability remains within its MECC ownership boundary"
+      ],
+      "status": "covered",
+      "next": "Split unit.backtest.data-cache only when narrower evidence and oracles exist."
+    },
+    {
+      "id": "integration.replay.backtest.simulation-accounting",
+      "subsystem": "backtest-simulation-accounting",
+      "layer": "integration-replay",
+      "phase": "backtest-simulation-accounting",
+      "capability": "Backtest trade lifecycle, state persistence, and accounting remain reproducible.",
+      "fixtures": [
+        "current proof surfaces for backtest-simulation-accounting"
+      ],
+      "evidence": [
+        "tests/test_regime_router_exec_bar_state_persistence.py",
+        "tests/test_spot_single_position_mode.py"
+      ],
+      "owner_surface": [
+        "tradebot/backtest/engine.py"
+      ],
+      "oracle": [
+        "all evidence assigned to backtest-simulation-accounting passes",
+        "the capability remains within its MECC ownership boundary"
+      ],
+      "status": "covered",
+      "next": "Split integration.replay.backtest.simulation-accounting only when narrower evidence and oracles exist."
+    },
+    {
+      "id": "unit.research.optimization-calibration",
+      "subsystem": "research-optimization-calibration",
+      "layer": "unit",
+      "phase": "research-optimization-calibration",
+      "capability": "Scenario and sweep identities remain stable enough to support research evolution.",
+      "fixtures": [
+        "current proof surfaces for research-optimization-calibration"
+      ],
+      "evidence": [
+        "tests/test_spot_combo_full_signature.py",
+        "tests/test_spot_scenario_runner.py"
+      ],
+      "owner_surface": [
+        "tradebot/backtest/sweeps.py"
+      ],
+      "oracle": [
+        "all evidence assigned to research-optimization-calibration passes",
+        "the capability remains within its MECC ownership boundary"
+      ],
+      "status": "covered",
+      "next": "Split unit.research.optimization-calibration only when narrower evidence and oracles exist."
+    },
+    {
+      "id": "unit.verification.capability-ledger",
+      "subsystem": "verification-capability-evolution",
+      "layer": "unit",
+      "phase": "verification-capability-evolution",
+      "capability": "The MECC ledger, schema, README crosswalk, and evidence ownership become executable.",
+      "fixtures": [
+        "current proof surfaces for verification-capability-evolution"
+      ],
+      "evidence": [
+        "tests/test_capability_contracts.py"
+      ],
+      "owner_surface": [
+        "tests/test_capability_contracts.py"
+      ],
+      "oracle": [
+        "all evidence assigned to verification-capability-evolution passes",
+        "the capability remains within its MECC ownership boundary"
+      ],
+      "status": "planned",
+      "next": "Split unit.verification.capability-ledger only when narrower evidence and oracles exist."
+    },
+    {
+      "id": "e2e.live.ib-gateway-ssh-tunnel",
+      "subsystem": "broker-connectivity-account",
+      "layer": "e2e-live",
+      "phase": "broker-connectivity-account",
+      "capability": "A self-cleaning read-only canary proves q can reach the localhost-trusted Gateway and connect all three TradeBot clients.",
+      "fixtures": [
+        "current proof surfaces for broker-connectivity-account"
+      ],
+      "evidence": [
+        "tests/live/test_ib_gateway_tunnel.py::test_gateway_trust_is_localhost_only",
+        "tests/live/test_ib_gateway_tunnel.py::test_readonly_ib_protocol_through_ssh_tunnel",
+        "tests/live/test_ib_gateway_tunnel.py::test_tradebot_three_client_stack_through_ssh_tunnel"
+      ],
+      "owner_surface": [
+        "tradebot/client.py"
+      ],
+      "oracle": [
+        "Gateway trust remains exactly localhost-only",
+        "the tunneled read-only IB session exposes a valid server version and managed account",
+        "TradeBot main, proxy, and index clients connect with three distinct client IDs",
+        "the canary removes its SSH tunnel and temporary client-ID state"
+      ],
+      "status": "covered",
+      "next": "Evolve tunnel supervision only through the separate future failover contract."
+    },
+    {
+      "id": "e2e.live.ib-gateway-direct-transport",
+      "subsystem": "broker-connectivity-account",
+      "layer": "e2e-live",
+      "phase": "ibkr-direct-transport",
+      "capability": "q reaches the MacBook IB Gateway listener over direct LAN TCP without widening Gateway authorization.",
+      "fixtures": [
+        "q 192.168.1.4",
+        "MacBook 192.168.1.2",
+        "IB Gateway 4001"
+      ],
+      "evidence": [
+        "tests/live/test_ib_gateway_tunnel.py::test_direct_ib_gateway_transport_reachable"
+      ],
+      "owner_surface": [
+        "tradebot/client.py"
+      ],
+      "oracle": [
+        "q opens a TCP connection to the MacBook Gateway listener",
+        "the probe sends no IB order, market-data request, or Gateway mutation"
+      ],
+      "status": "covered",
+      "next": "Keep the direct transport probe non-mutating and retain the localhost authorization boundary."
+    },
+    {
+      "id": "benchmark.future.live-backtest-drift-score",
+      "subsystem": "market-realism-parity",
+      "layer": "benchmark",
+      "phase": "future-capability",
+      "capability": "Score behavioural drift between replayed live traces and backtest decisions/fills.",
+      "fixtures": [
+        "planned fixture for benchmark.future.live-backtest-drift-score"
+      ],
+      "evidence": [
+        "README.md"
+      ],
+      "owner_surface": [
+        "tradebot/backtest/engine.py"
+      ],
+      "oracle": [
+        "a measurable pass/fail outcome exists",
+        "promotion requires executable evidence"
+      ],
+      "status": "planned",
+      "next": "Design the smallest falsifiable TDD birth for benchmark.future.live-backtest-drift-score."
+    },
+    {
+      "id": "unit.future.content-addressed-cache-provenance",
+      "subsystem": "backtest-data-cache",
+      "layer": "unit",
+      "phase": "future-capability",
+      "capability": "Make every cache artifact reproducible from source request, session rules, repair history, and code version.",
+      "fixtures": [
+        "planned fixture for unit.future.content-addressed-cache-provenance"
+      ],
+      "evidence": [
+        "README.md"
+      ],
+      "owner_surface": [
+        "tradebot/backtest/data.py"
+      ],
+      "oracle": [
+        "a measurable pass/fail outcome exists",
+        "promotion requires executable evidence"
+      ],
+      "status": "planned",
+      "next": "Design the smallest falsifiable TDD birth for unit.future.content-addressed-cache-provenance."
+    },
+    {
+      "id": "integration.replay.future.queue-latency-partial-fill-model",
+      "subsystem": "backtest-simulation-accounting",
+      "layer": "integration-replay",
+      "phase": "future-capability",
+      "capability": "Model queue position, latency, partial fills, cancels, modifications, and broker rejection semantics.",
+      "fixtures": [
+        "planned fixture for integration.replay.future.queue-latency-partial-fill-model"
+      ],
+      "evidence": [
+        "README.md"
+      ],
+      "owner_surface": [
+        "tradebot/backtest/engine.py"
+      ],
+      "oracle": [
+        "a measurable pass/fail outcome exists",
+        "promotion requires executable evidence"
+      ],
+      "status": "planned",
+      "next": "Design the smallest falsifiable TDD birth for integration.replay.future.queue-latency-partial-fill-model."
+    },
+    {
+      "id": "benchmark.future.walk-forward-overfit-defence",
+      "subsystem": "research-optimization-calibration",
+      "layer": "benchmark",
+      "phase": "future-capability",
+      "capability": "Require walk-forward stability, multiple-testing controls, and regime-diverse out-of-sample survival.",
+      "fixtures": [
+        "planned fixture for benchmark.future.walk-forward-overfit-defence"
+      ],
+      "evidence": [
+        "README.md"
+      ],
+      "owner_surface": [
+        "tradebot/backtest/sweeps.py"
+      ],
+      "oracle": [
+        "a measurable pass/fail outcome exists",
+        "promotion requires executable evidence"
+      ],
+      "status": "planned",
+      "next": "Design the smallest falsifiable TDD birth for benchmark.future.walk-forward-overfit-defence."
+    },
+    {
+      "id": "integration.provider.future.entitlement-freshness-sla",
+      "subsystem": "live-market-data-contracts",
+      "layer": "integration-provider",
+      "phase": "future-capability",
+      "capability": "Continuously classify entitlement, freshness, delayed/frozen state, and quote degradation against explicit SLAs.",
+      "fixtures": [
+        "planned fixture for integration.provider.future.entitlement-freshness-sla"
+      ],
+      "evidence": [
+        "README.md"
+      ],
+      "owner_surface": [
+        "tradebot/client.py"
+      ],
+      "oracle": [
+        "a measurable pass/fail outcome exists",
+        "promotion requires executable evidence"
+      ],
+      "status": "planned",
+      "next": "Design a provider-boundary fixture that falsifies entitlement, freshness, delayed/frozen-state, and quote-degradation SLA handling."
+    },
+    {
+      "id": "e2e.live.future.shadow-order-digital-twin",
+      "subsystem": "live-execution-orders",
+      "layer": "e2e-live",
+      "phase": "future-capability",
+      "capability": "Run a non-submitting digital twin beside live execution to compare expected and broker-observed order evolution.",
+      "fixtures": [
+        "planned fixture for e2e.live.future.shadow-order-digital-twin"
+      ],
+      "evidence": [
+        "README.md"
+      ],
+      "owner_surface": [
+        "tradebot/ui/bot_signal_runtime.py"
+      ],
+      "oracle": [
+        "a measurable pass/fail outcome exists",
+        "promotion requires executable evidence"
+      ],
+      "status": "planned",
+      "next": "Design the smallest falsifiable TDD birth for e2e.live.future.shadow-order-digital-twin."
+    },
+    {
+      "id": "benchmark.future.online-regime-drift-calibration",
+      "subsystem": "signal-regime-intelligence",
+      "layer": "benchmark",
+      "phase": "future-capability",
+      "capability": "Detect regime-model drift and recalibrate without lookahead or unstable threshold churn.",
+      "fixtures": [
+        "planned fixture for benchmark.future.online-regime-drift-calibration"
+      ],
+      "evidence": [
+        "README.md"
+      ],
+      "owner_surface": [
+        "tradebot/spot_engine.py"
+      ],
+      "oracle": [
+        "a measurable pass/fail outcome exists",
+        "promotion requires executable evidence"
+      ],
+      "status": "planned",
+      "next": "Design the smallest falsifiable TDD birth for benchmark.future.online-regime-drift-calibration."
+    },
+    {
+      "id": "unit.future.account-constraint-aware-sizing",
+      "subsystem": "policy-risk-sizing",
+      "layer": "unit",
+      "phase": "future-capability",
+      "capability": "Include margin, buying power, concentration, currency, and broker-account constraints in sizing oracles.",
+      "fixtures": [
+        "planned fixture for unit.future.account-constraint-aware-sizing"
+      ],
+      "evidence": [
+        "README.md"
+      ],
+      "owner_surface": [
+        "tradebot/spot/policy.py"
+      ],
+      "oracle": [
+        "a measurable pass/fail outcome exists",
+        "promotion requires executable evidence"
+      ],
+      "status": "planned",
+      "next": "Design the smallest falsifiable TDD birth for unit.future.account-constraint-aware-sizing."
+    },
+    {
+      "id": "integration.replay.future.causal-replay-journal",
+      "subsystem": "operator-ui-observability",
+      "layer": "integration-replay",
+      "phase": "future-capability",
+      "capability": "Replay every decision from durable facts and produce a causal operator narrative with no hidden state.",
+      "fixtures": [
+        "planned fixture for integration.replay.future.causal-replay-journal"
+      ],
+      "evidence": [
+        "README.md"
+      ],
+      "owner_surface": [
+        "tradebot/ui/app.py"
+      ],
+      "oracle": [
+        "a measurable pass/fail outcome exists",
+        "promotion requires executable evidence"
+      ],
+      "status": "planned",
+      "next": "Design the smallest falsifiable TDD birth for integration.replay.future.causal-replay-journal."
+    },
+    {
+      "id": "e2e.live.future.tunnel-supervisor-failover",
+      "subsystem": "broker-connectivity-account",
+      "layer": "e2e-live",
+      "phase": "future-capability",
+      "capability": "Supervise SSH forwarding, detect stale tunnels, rotate client IDs, and recover without widening Gateway trust.",
+      "fixtures": [
+        "planned fixture for e2e.live.future.tunnel-supervisor-failover"
+      ],
+      "evidence": [
+        "README.md"
+      ],
+      "owner_surface": [
+        "tradebot/client.py"
+      ],
+      "oracle": [
+        "a measurable pass/fail outcome exists",
+        "promotion requires executable evidence"
+      ],
+      "status": "planned",
+      "next": "Design the smallest falsifiable TDD birth for e2e.live.future.tunnel-supervisor-failover."
+    },
+    {
+      "id": "integration.replay.future.corporate-actions-roll-adjustments",
+      "subsystem": "market-time-series-semantics",
+      "layer": "integration-replay",
+      "phase": "future-capability",
+      "capability": "Model splits, dividends, futures rolls, session changes, and symbol continuity without corrupting returns.",
+      "fixtures": [
+        "planned fixture for integration.replay.future.corporate-actions-roll-adjustments"
+      ],
+      "evidence": [
+        "README.md"
+      ],
+      "owner_surface": [
+        "tradebot/time_utils.py"
+      ],
+      "oracle": [
+        "a measurable pass/fail outcome exists",
+        "promotion requires executable evidence"
+      ],
+      "status": "planned",
+      "next": "Design the smallest falsifiable TDD birth for integration.replay.future.corporate-actions-roll-adjustments."
+    },
+    {
+      "id": "unit.future.reproducible-runtime-manifest",
+      "subsystem": "runtime-configuration-state",
+      "layer": "unit",
+      "phase": "future-capability",
+      "capability": "Capture dependency, configuration, preset, and data-version manifests for exact live/backtest reproduction.",
+      "fixtures": [
+        "planned fixture for unit.future.reproducible-runtime-manifest"
+      ],
+      "evidence": [
+        "README.md"
+      ],
+      "owner_surface": [
+        "tradebot/config.py"
+      ],
+      "oracle": [
+        "a measurable pass/fail outcome exists",
+        "promotion requires executable evidence"
+      ],
+      "status": "planned",
+      "next": "Design the smallest falsifiable TDD birth for unit.future.reproducible-runtime-manifest."
+    },
+    {
+      "id": "benchmark.future.current-market-canary-dashboard",
+      "subsystem": "verification-capability-evolution",
+      "layer": "benchmark",
+      "phase": "future-capability",
+      "capability": "Track realism, parity, data quality, execution quality, and capability drift over time.",
+      "fixtures": [
+        "planned fixture for benchmark.future.current-market-canary-dashboard"
+      ],
+      "evidence": [
+        "README.md"
+      ],
+      "owner_surface": [
+        "tests/test_capability_contracts.py"
+      ],
+      "oracle": [
+        "a measurable pass/fail outcome exists",
+        "promotion requires executable evidence"
+      ],
+      "status": "planned",
+      "next": "Design the smallest falsifiable TDD birth for benchmark.future.current-market-canary-dashboard."
+    }
+  ]
+}

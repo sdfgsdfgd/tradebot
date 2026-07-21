@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "tradebot-capability-contract.schema.json",
+  "title": "TradeBot capability contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "subsystem",
+    "layer",
+    "phase",
+    "capability",
+    "fixtures",
+    "evidence",
+    "owner_surface",
+    "oracle",
+    "status",
+    "next"
+  ],
+  "properties": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9_.-]+$"
+    },
+    "subsystem": {
+      "type": "string",
+      "enum": [
+        "runtime-configuration-state",
+        "market-time-series-semantics",
+        "signal-regime-intelligence",
+        "policy-risk-sizing",
+        "market-realism-parity",
+        "broker-connectivity-account",
+        "live-market-data-contracts",
+        "live-execution-orders",
+        "operator-ui-observability",
+        "backtest-data-cache",
+        "backtest-simulation-accounting",
+        "research-optimization-calibration",
+        "verification-capability-evolution"
+      ]
+    },
+    "layer": {
+      "type": "string",
+      "enum": [
+        "unit",
+        "integration-replay",
+        "integration-provider",
+        "e2e-live",
+        "benchmark"
+      ]
+    },
+    "phase": {
+      "type": "string"
+    },
+    "capability": {
+      "type": "string"
+    },
+    "fixtures": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "owner_surface": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "oracle": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "covered",
+        "planned",
+        "gap",
+        "wip"
+      ]
+    },
+    "next": {
+      "type": "string"
+    }
+  }
+}
