@@ -21,9 +21,9 @@ from .lifecycle import (
     decide_pending_next_open,
     pick_exit_reason,
 )
-from .graph import (
+from .graph import SpotPolicyGraph
+from .graph_core import (
     SpotGraphProfile,
-    SpotPolicyGraph,
     canonical_exit_reason,
     all_graph_profiles,
 )

@@ -247,6 +247,8 @@
         "tradebot/engines/risk.py",
         "tradebot/spot/gates.py",
         "tradebot/spot/graph.py",
+        "tradebot/spot/graph_core.py",
+        "tradebot/spot/graph_risk.py",
         "tradebot/spot/lifecycle.py",
         "tradebot/spot/policy.py"
       ],
