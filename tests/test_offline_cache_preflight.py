@@ -4,7 +4,7 @@ from datetime import date, datetime, time
 
 import pytest
 
-from tradebot.backtest.cache_ops_lib import main_resample
+from tradebot.backtest.cache_ops.cli import main_resample
 from tradebot.backtest.cli_utils import expected_cache_path
 from tradebot.backtest.cache import cache_path, read_cache, write_cache
 from tradebot.backtest.data import IBKRHistoricalData

@@ -4,7 +4,7 @@ from datetime import date, datetime, time, timedelta
 from pathlib import Path
 import time as pytime
 
-from .cache_ops_lib import ensure_cached_window_with_policy
+from .cache_ops import ensure_cached_window_with_policy
 from .cli_utils import expected_cache_path
 from .cache import cache_covers_window
 from .data import IBKRHistoricalData

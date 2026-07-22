@@ -428,6 +428,11 @@
       ],
       "owner_surface": [
         "tradebot/backtest/cache.py",
+        "tradebot/backtest/cache_ops/cli.py",
+        "tradebot/backtest/cache_ops/coverage.py",
+        "tradebot/backtest/cache_ops/repair.py",
+        "tradebot/backtest/cache_ops/resample.py",
+        "tradebot/backtest/cache_ops/sync.py",
         "tradebot/backtest/data.py"
       ],
       "oracle": [
