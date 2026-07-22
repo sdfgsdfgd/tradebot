@@ -10,8 +10,8 @@ from .evaluator_common import (
     SpotEntryCandidate,
     SpotEntryGateContext,
     SpotSignalSnapshot,
-    _get,
 )
+from .policy_contract import source_value as _get
 
 
 class SpotSignalRuntimeMixin:

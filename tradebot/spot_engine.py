@@ -17,7 +17,8 @@ from .engines.risk import RiskOverlaySnapshot, build_tr_pct_risk_overlay_engine
 from .engines.shock import build_shock_engine, normalize_shock_detector, normalize_shock_direction_source
 from .engines.signals import EmaDecisionEngine, EmaDecisionSnapshot, OrbDecisionEngine, SupertrendEngine
 from .signals import ema_periods
-from .spot.evaluator_common import BarLike, SpotSignalSnapshot, _bars_input_list, _get
+from .spot.evaluator_common import BarLike, SpotSignalSnapshot, _bars_input_list
+from .spot.policy_contract import source_value as _get
 from .spot.evaluator_policy import SpotSignalPolicyMixin
 from .spot.evaluator_regime import SpotSignalRegimeMixin
 from .spot.evaluator_runtime import SpotSignalRuntimeMixin

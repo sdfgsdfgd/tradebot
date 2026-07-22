@@ -7,8 +7,9 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date, datetime
 
-from ..engine import _filters_get, _parse_int
 from ..spot.policy import SpotPolicy
+from ..spot.policy_contract import parse_int as _parse_int
+from ..spot.policy_contract import source_value as _filters_get
 
 # region Risk Overlays (TR%)
 @dataclass(frozen=True)

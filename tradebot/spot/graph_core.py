@@ -5,6 +5,10 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 
+from .policy_contract import parse_float as _parse_float
+from .policy_contract import parse_int as _parse_int
+from .policy_contract import source_value as _get
+
 
 _DEFAULT_EXIT_PRIORITY: tuple[str, ...] = (
     "quote_starvation_kill",
@@ -30,34 +34,12 @@ _EXIT_REASON_ALIASES: dict[str, str] = {
 }
 
 
-def _get(source: Mapping[str, object] | object | None, key: str, default: object = None) -> object:
-    if source is None:
-        return default
-    if isinstance(source, Mapping):
-        return source.get(key, default)
-    return getattr(source, key, default)
-
-
 def _has(source: Mapping[str, object] | object | None, key: str) -> bool:
     if source is None:
         return False
     if isinstance(source, Mapping):
         return key in source
     return hasattr(source, key)
-
-
-def _parse_float(value: object, *, default: float) -> float:
-    try:
-        return float(value) if value is not None else float(default)
-    except (TypeError, ValueError):
-        return float(default)
-
-
-def _parse_int(value: object, *, default: int) -> int:
-    try:
-        return int(value) if value is not None else int(default)
-    except (TypeError, ValueError):
-        return int(default)
 
 
 def _pick_value(

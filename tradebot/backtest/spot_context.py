@@ -11,6 +11,8 @@ from ..engine import (
     resolve_spot_regime_spec,
 )
 from ..signals import ema_periods, parse_bar_size
+from ..spot.policy_contract import parse_int as _parse_int
+from ..spot.policy_contract import source_value as _get
 
 
 @dataclass(frozen=True)
@@ -48,24 +50,6 @@ class SpotContextBars:
 
 LoadRequirementFn = Callable[[SpotBarRequirement, datetime, datetime], object]
 MissingRequirementFn = Callable[[SpotBarRequirement, datetime, datetime], None]
-
-
-def _get(source: Mapping[str, object] | object | None, key: str, default: object = None) -> object:
-    if source is None:
-        return default
-    if isinstance(source, Mapping):
-        return source.get(key, default)
-    return getattr(source, key, default)
-
-
-def _parse_int(value: object, *, default: int, min_value: int | None = None) -> int:
-    try:
-        out = int(value) if value is not None else int(default)
-    except (TypeError, ValueError):
-        out = int(default)
-    if min_value is not None and out < int(min_value):
-        return int(min_value)
-    return int(out)
 
 
 def _normalize_exchange(value: object, *, default: str | None = None) -> str | None:

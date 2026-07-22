@@ -24,7 +24,7 @@ from .fill_modes import (
 )
 from .graph_core import spot_dynamic_flip_hold_bars
 from .policy import SpotPolicy
-from .policy_contract import SpotPolicyConfigView
+from .policy_contract import source_value as _get
 
 @dataclass(frozen=True)
 class SpotDeferredEntryPlan:
@@ -33,10 +33,6 @@ class SpotDeferredEntryPlan:
     due_ts: datetime | None
     allowed: bool
     reason: str
-
-
-def _get(source: Mapping[str, object] | object | None, key: str, default: object = None) -> object:
-    return SpotPolicyConfigView._get(source, key, default)  # noqa: SLF001 - shared parser reuse by design
 
 
 def _normalize_fill_mode(raw: object, *, default: str = SPOT_FILL_MODE_CLOSE) -> str:

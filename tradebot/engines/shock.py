@@ -8,8 +8,10 @@ from dataclasses import dataclass
 from datetime import date
 from typing import TYPE_CHECKING
 
-from ..engine import _filters_get, _parse_float, _parse_int
 from ..signals import ema_next
+from ..spot.policy_contract import parse_float as _parse_float
+from ..spot.policy_contract import parse_int as _parse_int
+from ..spot.policy_contract import source_value as _filters_get
 from .signals import SupertrendEngine
 
 # region Shock Gate / Engine Factory

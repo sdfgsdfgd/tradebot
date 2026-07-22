@@ -8,23 +8,11 @@ from datetime import date, datetime
 from ..time_utils import NaiveTsModeInput
 from ..time_utils import trade_date as _trade_date_shared
 from ..time_utils import trade_hour_et as _trade_hour_et_shared
-from .policy_contract import SpotDecisionTrace, SpotIntentDecision, SpotPolicyConfigView, SpotRuntimeSpec
+from .policy_contract import SpotIntentDecision, SpotPolicyConfigView, SpotRuntimeSpec, parse_int, source_value
 from .sizing import SpotSizingPolicy
 
 
 class SpotPolicy(SpotSizingPolicy):
-    @staticmethod
-    def _get(source: Mapping[str, object] | object | None, key: str, default: object = None) -> object:
-        return SpotPolicyConfigView._get(source, key, default)
-
-    @classmethod
-    def _parse_int(cls, value: object, *, default: int, min_value: int | None = None) -> int:
-        return SpotPolicyConfigView._parse_int(value, default=default, min_value=min_value)
-
-    @classmethod
-    def _parse_float(cls, value: object, *, default: float, min_value: float | None = None) -> float:
-        return SpotPolicyConfigView._parse_float(value, default=default, min_value=min_value)
-
     @staticmethod
     def _trade_date(ts: datetime, *, naive_ts_mode: NaiveTsModeInput = None) -> date:
         return _trade_date_shared(ts, naive_ts_mode=naive_ts_mode, default_naive_ts_mode="utc")
@@ -91,7 +79,7 @@ class SpotPolicy(SpotSizingPolicy):
         if entry_dir not in ("up", "down"):
             return None
 
-        raw_map = cls._get(strategy, "directional_spot")
+        raw_map = source_value(strategy, "directional_spot")
         leg = raw_map.get(entry_dir) if isinstance(raw_map, Mapping) else None
         if leg is not None:
             if isinstance(leg, Mapping):
@@ -102,7 +90,7 @@ class SpotPolicy(SpotSizingPolicy):
                 qty_raw = getattr(leg, "qty", None)
             action = str(action_raw or "").strip().upper()
             if action in ("BUY", "SELL"):
-                qty = cls._parse_int(qty_raw, default=1, min_value=1)
+                qty = parse_int(qty_raw, default=1, min_value=1)
                 return action, max(1, abs(int(qty)))
             if bool(needs_direction):
                 return None
@@ -187,11 +175,11 @@ class SpotPolicy(SpotSizingPolicy):
         if scaled_abs <= 0:
             scaled_abs = 1
 
-        max_qty = cls._parse_int(spot_max_qty, default=0, min_value=0)
+        max_qty = parse_int(spot_max_qty, default=0, min_value=0)
         if max_qty > 0:
             scaled_abs = min(int(scaled_abs), int(max_qty))
 
-        min_qty = cls._parse_int(spot_min_qty, default=1, min_value=1)
+        min_qty = parse_int(spot_min_qty, default=1, min_value=1)
         scaled_abs = max(max(1, int(min_qty)), int(scaled_abs))
         return int(q_sign) * int(scaled_abs)
 

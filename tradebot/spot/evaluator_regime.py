@@ -8,9 +8,9 @@ from .evaluator_common import (
     SpotEntryCandidate,
     SpotRegimeState,
     SpotSignalSelection,
-    _get,
 )
 from .gates import apply_regime_gate
+from .policy_contract import source_value as _get
 
 
 class SpotSignalRegimeMixin:

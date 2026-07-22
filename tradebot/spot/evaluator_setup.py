@@ -10,8 +10,8 @@ from .evaluator_common import (
     SpotGateBand,
     SpotRegimeGatePolicy,
     _bars_input_list,
-    _get,
 )
+from .policy_contract import source_value as _get
 
 
 def _optional_float(source: object, key: str, *, nonnegative: bool = False) -> float | None:

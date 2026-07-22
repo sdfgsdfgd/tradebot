@@ -9,6 +9,35 @@ from .fill_modes import SPOT_FILL_MODE_CLOSE, normalize_spot_fill_mode
 from .packs import resolve_pack
 
 
+def source_value(
+    source: Mapping[str, object] | object | None,
+    key: str,
+    default: object = None,
+) -> object:
+    """Read one config field from a mapping or typed config object."""
+    if source is None:
+        return default
+    if isinstance(source, Mapping):
+        return source.get(key, default)
+    return getattr(source, key, default)
+
+
+def parse_int(value: object, *, default: int, min_value: int | None = None) -> int:
+    try:
+        parsed = int(value) if value is not None else int(default)
+    except (TypeError, ValueError):
+        parsed = int(default)
+    return int(min_value) if min_value is not None and parsed < int(min_value) else int(parsed)
+
+
+def parse_float(value: object, *, default: float, min_value: float | None = None) -> float:
+    try:
+        parsed = float(value) if value is not None else float(default)
+    except (TypeError, ValueError):
+        parsed = float(default)
+    return float(min_value) if min_value is not None and parsed < float(min_value) else float(parsed)
+
+
 @dataclass(frozen=True)
 class SpotPolicyConfigView:
     """Sanitized/defaulted view of strategy+filter knobs used by spot policy."""
@@ -81,33 +110,8 @@ class SpotPolicyConfigView:
 
     risk_entry_cutoff_hour_et: int | None = None
 
-    @staticmethod
-    def _get(source: Mapping[str, object] | object | None, key: str, default: object = None) -> object:
-        if source is None:
-            return default
-        if isinstance(source, Mapping):
-            return source.get(key, default)
-        return getattr(source, key, default)
-
-    @classmethod
-    def _parse_int(cls, value: object, *, default: int, min_value: int | None = None) -> int:
-        try:
-            parsed = int(value) if value is not None else int(default)
-        except (TypeError, ValueError):
-            parsed = int(default)
-        if min_value is not None and parsed < int(min_value):
-            return int(min_value)
-        return int(parsed)
-
-    @classmethod
-    def _parse_float(cls, value: object, *, default: float, min_value: float | None = None) -> float:
-        try:
-            parsed = float(value) if value is not None else float(default)
-        except (TypeError, ValueError):
-            parsed = float(default)
-        if min_value is not None and parsed < float(min_value):
-            return float(min_value)
-        return float(parsed)
+    _parse_int = staticmethod(parse_int)
+    _parse_float = staticmethod(parse_float)
 
     @classmethod
     def _parse_optional_float(cls, value: object) -> float | None:
@@ -186,17 +190,17 @@ class SpotPolicyConfigView:
     def _risk_entry_cutoff_hour_et(cls, filters: Mapping[str, object] | object | None) -> int | None:
         if filters is None:
             return None
-        raw_cutoff_et = cls._get(filters, "risk_entry_cutoff_hour_et")
+        raw_cutoff_et = source_value(filters, "risk_entry_cutoff_hour_et")
         if raw_cutoff_et is not None:
             try:
                 return int(raw_cutoff_et)
             except (TypeError, ValueError):
                 return None
 
-        raw_start_et = cls._get(filters, "entry_start_hour_et")
-        raw_end_et = cls._get(filters, "entry_end_hour_et")
-        raw_start = cls._get(filters, "entry_start_hour")
-        raw_end = cls._get(filters, "entry_end_hour")
+        raw_start_et = source_value(filters, "entry_start_hour_et")
+        raw_end_et = source_value(filters, "entry_end_hour_et")
+        raw_start = source_value(filters, "entry_start_hour")
+        raw_end = source_value(filters, "entry_end_hour")
         if raw_start_et is None and raw_end_et is not None:
             try:
                 return int(raw_end_et)
@@ -493,7 +497,7 @@ def _policy_source_getters(
     missing = object()
 
     def _value(source, defaults, key: str, default: object = None) -> object:
-        raw = SpotPolicyConfigView._get(source, key, missing)
+        raw = source_value(source, key, missing)
         if raw is not missing:
             return raw
         if key in defaults:

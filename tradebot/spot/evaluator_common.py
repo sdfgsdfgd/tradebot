@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
@@ -155,14 +154,6 @@ def _bars_input_list(
     if values is None:
         return []
     return bars_list(values)
-
-
-def _get(obj: Mapping[str, object] | object | None, key: str, default: object = None):
-    if obj is None:
-        return default
-    if isinstance(obj, Mapping):
-        return obj.get(key, default)
-    return getattr(obj, key, default)
 
 
 # endregion

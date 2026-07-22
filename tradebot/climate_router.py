@@ -8,6 +8,7 @@ from statistics import mean, median, pstdev
 from collections.abc import Iterable, Mapping
 
 from .engines.signals import SupertrendEngine
+from .spot.policy_contract import source_value as _get
 
 
 @dataclass(frozen=True)
@@ -88,14 +89,6 @@ class RegimeRouterSnapshot:
     crash_rv: float | None = None
     fast_ret: float | None = None
     slow_ret: float | None = None
-
-
-def _get(source: Mapping[str, object] | object | None, key: str, default: object = None):
-    if source is None:
-        return default
-    if isinstance(source, Mapping):
-        return source.get(key, default)
-    return getattr(source, key, default)
 
 
 def regime_router_config(strategy: Mapping[str, object] | object | None) -> RegimeRouterConfig:

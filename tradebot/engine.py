@@ -95,38 +95,6 @@ def parse_time_hhmm(value: object, *, default: time | None = None) -> time | Non
         return default
     return time(hour=hour, minute=minute)
 # endregion
-# region Internal Parsing Helpers
-def _filters_get(filters: Mapping[str, object] | object | None, key: str):
-    if filters is None:
-        return None
-    if isinstance(filters, Mapping):
-        return filters.get(key)
-    return getattr(filters, key, None)
-
-
-def _parse_int(value: object, *, default: int, min_value: int | None = None) -> int:
-    try:
-        parsed = int(value) if value is not None else int(default)
-    except (TypeError, ValueError):
-        parsed = int(default)
-    if min_value is not None and parsed < int(min_value):
-        return int(min_value)
-    return int(parsed)
-
-
-def _parse_float(value: object, *, default: float, min_value: float | None = None) -> float:
-    try:
-        parsed = float(value) if value is not None else float(default)
-    except (TypeError, ValueError):
-        parsed = float(default)
-    if min_value is not None and parsed < float(min_value):
-        return float(min_value)
-    return float(parsed)
-
-
-# endregion
-
-
 # region Spot Strategy Parsing
 def normalize_spot_entry_signal(entry_signal_raw: object | None) -> str:
     entry_signal = str(entry_signal_raw or "ema").strip().lower()
