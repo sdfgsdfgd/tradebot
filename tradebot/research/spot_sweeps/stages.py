@@ -7,6 +7,7 @@ from pathlib import Path
 from ...backtest.config import (
     ConfigBundle,
 )
+from .milestones import _milestone_key
 from .support import (
     _claim_first_serial_force_worker_enabled,
     _claim_first_stage_enabled,
@@ -62,11 +63,7 @@ class SweepStages:
             if bool(needs_serial_plan)
             else None
         )
-        serial_plan_eff = (
-            self._plan_items_with_stage_ranks(serial_plan_eff_raw)
-            if bool(needs_serial_plan)
-            else []
-        )
+        serial_plan_eff = list(serial_plan_eff_raw or ()) if bool(needs_serial_plan) else []
 
         prefilter_here = bool(
             (int(jobs_req) <= 1 and not bool(claim_first_serial_worker))
@@ -75,106 +72,26 @@ class SweepStages:
         prefetched_tested = 0
         pending_plan = serial_plan_eff
         pending_cell_map: dict[int, tuple[str, str, str]] = {}
-        stage_manifest_plan_signature = ""
-        stage_manifest_window_signature = ""
-        stage_rank_status_updates: dict[int, str] = {}
-        stage_rank_status_priority = {
-            "pending": 0,
-            "cached_hit": 1,
-            "evaluated": 2,
-            "dominated": 3,
-        }
-
-        def _mark_stage_rank_status(rank_raw, status_raw: str) -> None:
-            try:
-                rank_i = int(rank_raw)
-            except (TypeError, ValueError):
-                return
-            if rank_i < 0:
-                return
-            status = str(status_raw or "").strip().lower()
-            if status not in self._STAGE_RANK_STATUS_VALUES:
-                return
-            prev = str(stage_rank_status_updates.get(int(rank_i), "")).strip().lower()
-            if stage_rank_status_priority.get(
-                status, -1
-            ) >= stage_rank_status_priority.get(prev, -1):
-                stage_rank_status_updates[int(rank_i)] = str(status)
-
-        def _flush_stage_rank_status_manifest() -> None:
-            if not stage_manifest_plan_signature or not stage_manifest_window_signature:
-                return
-            rank_rows = self._compress_rank_status_rows(stage_rank_status_updates)
-            if not rank_rows:
-                return
-            self._stage_rank_manifest_set_many(
-                stage_label=str(stage_label),
-                plan_signature=str(stage_manifest_plan_signature),
-                window_signature=str(stage_manifest_window_signature),
-                rows=list(rank_rows),
-            )
 
         if prefilter_here and serial_plan_eff:
-            stage_manifest_plan_signature = self._stage_rank_manifest_plan_signature(
-                stage_label=str(stage_label),
-                plan_all=serial_plan_eff,
-            )
-            stage_manifest_window_signature = (
-                self._stage_rank_manifest_window_signature(bars=bars)
-            )
-            unresolved_ranges = self._stage_rank_manifest_unresolved_ranges(
-                stage_label=str(stage_label),
-                plan_signature=str(stage_manifest_plan_signature),
-                window_signature=str(stage_manifest_window_signature),
-                total=len(serial_plan_eff),
-            )
-            if unresolved_ranges and not (
-                len(unresolved_ranges) == 1
-                and int(unresolved_ranges[0][0]) == 0
-                and int(unresolved_ranges[0][1]) >= int(len(serial_plan_eff) - 1)
-            ):
-                keep_indices: list[int] = []
-                for rank_lo, rank_hi in unresolved_ranges:
-                    lo_i = max(0, int(rank_lo))
-                    hi_i = min(int(len(serial_plan_eff) - 1), int(rank_hi))
-                    if hi_i < lo_i:
-                        continue
-                    keep_indices.extend(range(int(lo_i), int(hi_i) + 1))
-                pending_plan = [serial_plan_eff[int(i)] for i in keep_indices]
-                skipped_by_rank_manifest = max(
-                    0, int(len(serial_plan_eff) - len(pending_plan))
-                )
-                if skipped_by_rank_manifest > 0:
-                    prefetched_tested += int(skipped_by_rank_manifest)
-                    self.run_calls_total += int(skipped_by_rank_manifest)
-                    print(
-                        f"{stage_label} stage-rank manifest skipped={int(skipped_by_rank_manifest)} remaining={len(pending_plan)}",
-                        flush=True,
-                    )
-            else:
-                pending_plan = list(serial_plan_eff)
             pending_plan, cached_hits, pending_cell_map, prefetched_cache_tested = (
                 self._stage_partition_plan_by_cache(
                     stage_label=str(stage_label),
-                    plan_all=pending_plan,
+                    plan_all=serial_plan_eff,
                     bars=bars,
                 )
             )
             prefetched_tested += int(prefetched_cache_tested)
-            for _cell_key, cfg, row, note, meta_item in cached_hits:
-                if isinstance(meta_item, dict):
-                    _mark_stage_rank_status(meta_item.get("_stage_rank"), "cached_hit")
+            for _cell_key, cfg, row, note, _meta_item in cached_hits:
                 if isinstance(row, dict):
                     _on_row_local(cfg, row, note)
-            pending_plan, pending_cell_map, pruned_here, pruned_rank_status = (
+            pending_plan, pending_cell_map, pruned_here = (
                 self._prune_pending_plan_by_manifest(
                     stage_label=str(stage_label),
                     pending_plan=list(pending_plan),
                     pending_cell_map=dict(pending_cell_map),
                 )
             )
-            for rank_i, status in pruned_rank_status.items():
-                _mark_stage_rank_status(rank_i, str(status))
             prefetched_tested += int(pruned_here)
             if pending_plan:
                 ordered_indices = self._ordered_plan_indices_by_dimension_utility(
@@ -242,9 +159,6 @@ class SweepStages:
                 on_row=_on_row_local,
                 dedupe_by_milestone_key=bool(parallel_dedupe_by_milestone_key),
             )
-            for item in pending_plan:
-                _mark_stage_rank_status(self._plan_item_stage_rank(item), "evaluated")
-            _flush_stage_rank_status_manifest()
             self.run_calls_total += int(tested_parallel)
             return int(prefetched_tested) + int(tested_parallel)
 
@@ -278,9 +192,6 @@ class SweepStages:
                         for strategy_fp, axis_dim_fp, window_sig, _status in evaluated_rows
                     ],
                 )
-        for item in pending_plan:
-            _mark_stage_rank_status(self._plan_item_stage_rank(item), "evaluated")
-        _flush_stage_rank_status_manifest()
         for cfg, row, note in serial_rows:
             on_row(cfg, row, note)
         return int(prefetched_tested) + int(tested)
@@ -294,6 +205,22 @@ class SweepStages:
         report_every: int = 0,
         heartbeat_sec: float = 0.0,
     ) -> int:
+        unique_pairs: dict[str, tuple[ConfigBundle, str]] = {}
+        for cfg, note in cfg_pairs:
+            unique_pairs.setdefault(_milestone_key(cfg), (cfg, str(note)))
+        cfg_pairs = list(unique_pairs.values())
+        bar_sizes = {str(cfg.backtest.bar_size) for cfg, _note in cfg_pairs}
+        if len(bar_sizes) > 1:
+            raise SystemExit(f"{axis_tag} cfg grid mixes bar sizes: {', '.join(sorted(bar_sizes))}")
+        plan_bar_size = next(iter(bar_sizes), str(self.signal_bar_size))
+        if (
+            not self.args.cfg_stage
+            and bool(self.axis_progress_state.get("active"))
+            and str(self.axis_progress_state.get("axis_key") or "")
+            == str(axis_tag).strip().lower()
+        ):
+            self.axis_progress_state["total"] = len(cfg_pairs)
+
         if self.args.cfg_stage:
             payload_path = Path(str(self.args.cfg_stage))
             try:
@@ -320,11 +247,6 @@ class SweepStages:
                 dict(rec) for rec in cfg_records_raw if isinstance(rec, dict)
             ]
             cfg_catalog = self._cfg_catalog_from_payload(payload_raw)
-            rank_window_signature = self._cfg_stage_payload_signature(
-                axis_tag=str(payload_axis or axis_tag),
-                cfg_records=list(cfg_records),
-                cfg_catalog=dict(cfg_catalog),
-            )
 
             def _cfg_item_from_rank(rank: int) -> tuple[ConfigBundle, str, dict]:
                 rank_i = int(rank)
@@ -342,6 +264,11 @@ class SweepStages:
                 cfg_obj, note = decoded
                 return cfg_obj, str(note), {"_mr_rank": int(rank_i)}
 
+            worker_bar_size = (
+                str(_cfg_item_from_rank(0)[0].backtest.bar_size)
+                if cfg_records
+                else str(self.signal_bar_size)
+            )
             self._run_sharded_stage_worker(
                 stage_label=str(axis_tag),
                 worker_raw=self.args.cfg_worker,
@@ -349,17 +276,16 @@ class SweepStages:
                 out_path_raw=str(self.args.cfg_out or ""),
                 out_flag_name="cfg-out",
                 plan_all=None,
-                bars=self._bars_cached(self.signal_bar_size),
+                bars=self._bars_cached(worker_bar_size),
                 report_every=max(1, int(report_every)),
                 heartbeat_sec=float(heartbeat_sec),
                 plan_total=len(cfg_records),
                 plan_item_from_rank=_cfg_item_from_rank,
-                rank_manifest_window_signature=str(rank_window_signature),
                 rank_batch_size=256,
             )
             return -1
 
-        bars_stage = self._bars_cached(self.signal_bar_size)
+        bars_stage = self._bars_cached(plan_bar_size)
         plan_all: list[tuple[ConfigBundle, str, None]] = [
             (cfg, str(note), None) for cfg, note in cfg_pairs
         ]

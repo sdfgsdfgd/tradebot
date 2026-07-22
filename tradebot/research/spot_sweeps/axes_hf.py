@@ -9,8 +9,9 @@ from ...backtest.config import (
 from ...backtest.config_filters import _parse_filters
 from .milestones import (
     _filters_payload,
-    _milestone_key,
     _print_leaderboards,
+    _print_top,
+    _rank_cfg_rows,
     _score_row_pnl,
     _score_row_pnl_dd,
 )
@@ -39,49 +40,33 @@ class SweepHighFrequencyAxes:
             top_pnl: int,
             top_trades: int = 0,
         ) -> list[tuple[ConfigBundle, dict, str]]:
-            by_dd = sorted(items, key=lambda t: _score_row_pnl_dd(t[1]), reverse=True)[: int(top_pnl_dd)]
-            by_pnl = sorted(items, key=lambda t: _score_row_pnl(t[1]), reverse=True)[: int(top_pnl)]
-            by_trades = (
-                sorted(
-                    items,
-                    key=lambda t: (
-                        int(t[1].get("trades") or 0),
-                        float(t[1].get("pnl_over_dd") or float("-inf")),
-                        float(t[1].get("pnl") or float("-inf")),
+            return _rank_cfg_rows(
+                items,
+                scorers=[
+                    (_score_row_pnl_dd, int(top_pnl_dd)),
+                    (_score_row_pnl, int(top_pnl)),
+                    (
+                        lambda row: (
+                            int(row.get("trades") or 0),
+                            float(row.get("pnl_over_dd") or float("-inf")),
+                            float(row.get("pnl") or float("-inf")),
+                        ),
+                        int(top_trades),
                     ),
-                    reverse=True,
-                )[: int(top_trades)]
-                if int(top_trades) > 0
-                else []
+                ],
             )
-            seen: set[str] = set()
-            out: list[tuple[ConfigBundle, dict, str]] = []
-            for cfg, row, note in by_dd + by_pnl + by_trades:
-                key = _milestone_key(cfg)
-                if key in seen:
-                    continue
-                seen.add(key)
-                out.append((cfg, row, note))
-            return out
 
         def _print_top_trades(rows: list[dict], *, title: str, top_n: int) -> None:
-            ranked = sorted(rows, key=lambda r: int(r.get("trades") or 0), reverse=True)[: max(0, int(top_n))]
-            if not ranked:
-                return
-            print("")
-            print(f"{title} — Top by trades")
-            print("-" * max(18, len(title) + 15))
-            for idx, r in enumerate(ranked, 1):
-                trades = int(r.get("trades") or 0)
-                win = float(r.get("win_rate") or 0.0) * 100.0
-                pnl = float(r.get("pnl") or 0.0)
-                dd = float(r.get("dd") or 0.0)
-                pnl_dd = r.get("pnl_over_dd")
-                pnl_dd_s = f"{float(pnl_dd):6.2f}" if pnl_dd is not None else "  None"
-                roi = float(r.get("roi") or 0.0) * 100.0
-                dd_pct = float(r.get("dd_pct") or 0.0) * 100.0
-                note = str(r.get("note") or "")
-                print(f"{idx:2d}. tr={trades:4d} win={win:5.1f}% pnl={pnl:9.1f} dd={dd:8.1f} pnl/dd={pnl_dd_s} roi={roi:6.2f}% dd%={dd_pct:6.2f}% {note}")
+            _print_top(
+                rows,
+                title=f"{title} — Top by trades",
+                top_n=int(top_n),
+                sort_key=lambda row: (
+                    int(row.get("trades") or 0),
+                    float(row.get("pnl_over_dd") or float("-inf")),
+                    float(row.get("pnl") or float("-inf")),
+                ),
+            )
 
         # Stage 1: stop-loss + flip-profit baseline (keep it fast-runner-friendly).
         #
@@ -479,53 +464,34 @@ class SweepHighFrequencyAxes:
         _print_top_trades(rows4, title="HF scalper: expansion (close_eod)", top_n=int(self.args.top))
 
     def _sweep_hold(self) -> None:
-        bars_sig = self._bars_cached(self.signal_bar_size)
-        rows: list[dict] = []
+        base = self._base_bundle(bar_size=self.signal_bar_size, filters=None)
+        cfg_pairs: list[tuple[ConfigBundle, str]] = []
         for hold in (0, 1, 2, 3, 4, 6, 8):
-            cfg = self._base_bundle(bar_size=self.signal_bar_size, filters=None)
-            cfg = replace(cfg, strategy=replace(cfg.strategy, flip_exit_min_hold_bars=int(hold)))
-            row = self._run_cfg(cfg=cfg, bars=bars_sig)
-            if not row:
-                continue
+            cfg = replace(base, strategy=replace(base.strategy, flip_exit_min_hold_bars=int(hold)))
             note = f"hold={hold}"
-            row["note"] = note
-            self._record_milestone(cfg, row, note)
-            rows.append(row)
+            cfg_pairs.append((cfg, note))
+        rows: list[dict] = []
+        if self._run_cfg_pairs_grid(axis_tag="hold", cfg_pairs=cfg_pairs, rows=rows) < 0:
+            return
         _print_leaderboards(rows, title="Flip-exit min hold sweep", top_n=int(self.args.top))
 
     def _sweep_spot_short_risk_mult(self) -> None:
         """Sweep the short sizing multiplier (only affects spot_sizing_mode=risk_pct)."""
-        bars_sig = self._bars_cached(self.signal_bar_size)
         base = self._base_bundle(bar_size=self.signal_bar_size, filters=None)
-        base_row = self._run_cfg(cfg=base, bars=bars_sig)
-        if base_row:
-            base_row["note"] = "base"
-            self._record_milestone(base, base_row, "base")
-
         vals = [1.0, 0.8, 0.6, 0.4, 0.3, 0.25, 0.2, 0.15, 0.1, 0.05, 0.02, 0.01, 0.0]
-        rows: list[dict] = []
+        cfg_pairs = [(base, "base")]
         for mult in vals:
             cfg = replace(base, strategy=replace(base.strategy, spot_short_risk_mult=float(mult)))
-            row = self._run_cfg(cfg=cfg, bars=bars_sig)
-            if not row:
-                continue
             note = f"spot_short_risk_mult={mult:g}"
-            row["note"] = note
-            self._record_milestone(cfg, row, note)
-            rows.append(row)
-        if base_row:
-            rows.append(base_row)
+            cfg_pairs.append((cfg, note))
+        rows: list[dict] = []
+        if self._run_cfg_pairs_grid(axis_tag="spot_short_risk_mult", cfg_pairs=cfg_pairs, rows=rows) < 0:
+            return
         _print_leaderboards(rows, title="Spot short risk multiplier sweep", top_n=int(self.args.top))
 
     def _sweep_orb(self) -> None:
-        bars_15m = self._bars_cached("15 mins")
         base = self._base_bundle(bar_size="15 mins", filters=None)
-        base_row = self._run_cfg(cfg=base, bars=bars_15m)
-        if base_row:
-            base_row["note"] = "base"
-            self._record_milestone(base, base_row, "base")
-
-        rows: list[dict] = []
+        cfg_pairs: list[tuple[ConfigBundle, str]] = [(base, "base")]
         rr_vals = [0.618, 0.707, 0.786, 1.0, 1.272, 1.618, 2.0]
         vol_vals = [None, 1.2]
         window_vals = [15, 30, 60]
@@ -561,19 +527,14 @@ class SweepHighFrequencyAxes:
                                     spot_stop_loss_pct=None,
                                 ),
                             )
-                            row = self._run_cfg(
-                                cfg=cfg,
-                                bars=bars_15m,
-                            )
-                            if not row:
-                                continue
                             vol_note = "-" if vol_min is None else f"vol>={vol_min}@20"
                             note = f"ORB open={open_time} w={window_mins} {target_mode} rr={rr} tod={start_h:02d}-{end_h:02d} ET {vol_note}"
-                            row["note"] = note
-                            self._record_milestone(cfg, row, note)
-                            rows.append(row)
-        if base_row:
-            rows.append(base_row)
+                            cfg_pairs.append((cfg, note))
+        rows: list[dict] = []
+        if self._run_cfg_pairs_grid(
+            axis_tag="orb", cfg_pairs=cfg_pairs, rows=rows, report_every=50, heartbeat_sec=20.0
+        ) < 0:
+            return
         _print_leaderboards(rows, title="D) ORB sweep (open-time + window)", top_n=int(self.args.top))
 
     def _sweep_orb_joint(self) -> None:

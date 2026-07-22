@@ -5,6 +5,7 @@ from pathlib import Path
 import threading
 from types import SimpleNamespace
 
+from tradebot.backtest.data import ContractMeta
 from tradebot.research.spot_sweeps.catalog import (
     _COMBO_FULL_CARTESIAN_DIM_ORDER,
     _COMBO_FULL_PAIR_DIM_VARIANT_SPECS,
@@ -12,7 +13,9 @@ from tradebot.research.spot_sweeps.catalog import (
 from tradebot.research.spot_sweeps.fingerprints import (
     _combo_full_dimension_space_signature,
 )
+from tradebot.research.spot_sweeps.milestones import _rank_cfg_rows
 from tradebot.research.spot_sweeps.runtime import SpotSweepRuntime
+from tradebot.research.spot_sweeps.stages import SweepStages
 from tradebot.research.spot_sweeps.support import _bundle_base
 
 
@@ -89,6 +92,64 @@ def test_combo_full_progress_uses_executed_profile_space(monkeypatch) -> None:
     assert runtime._combo_full_context("full").dimension_signature == runtime._combo_full_context("").dimension_signature
 
 
+def test_cfg_payload_round_trip_preserves_backtest_timeframe() -> None:
+    runtime = object.__new__(SpotSweepRuntime)
+    runtime.meta = ContractMeta(
+        symbol="SLV", exchange="SMART", multiplier=1.0, min_tick=0.01
+    )
+    runtime.start = date(2025, 1, 8)
+    runtime.end = date(2025, 1, 10)
+    runtime.signal_bar_size = "1 hour"
+    runtime.use_rth = False
+    runtime.cache_dir = Path("db")
+    runtime.offline = True
+    cfg = _bundle_base(
+        symbol="SLV",
+        start=runtime.start,
+        end=runtime.end,
+        bar_size="15 mins",
+        use_rth=True,
+        cache_dir=runtime.cache_dir,
+        offline=True,
+        filters=None,
+        entry_signal="orb",
+    )
+
+    payload = runtime._compact_parallel_payload_cfg_refs(
+        {"cfgs": [runtime._encode_cfg_payload(cfg)]}
+    )
+    decoded = runtime._decode_cfg_payload(
+        payload["cfgs"][0],
+        cfg_catalog=runtime._cfg_catalog_from_payload(payload),
+    )
+
+    assert decoded is not None
+    restored, _note = decoded
+    assert restored.backtest.bar_size == "15 mins"
+    assert restored.backtest.use_rth is True
+
+
+def test_ranked_rows_use_stable_identity_for_metric_ties() -> None:
+    def score(row: dict) -> float:
+        return float(row["score"])
+
+    items = [("b", {"score": 1.0}, "B"), ("a", {"score": 1.0}, "A")]
+
+    ranked = _rank_cfg_rows(
+        items,
+        scorers=[(score, 2)],
+        key_fn=lambda key, _row, _note: key,
+    )
+    reversed_ranked = _rank_cfg_rows(
+        list(reversed(items)),
+        scorers=[(score, 2)],
+        key_fn=lambda key, _row, _note: key,
+    )
+
+    assert [key for key, _row, _note in ranked] == ["a", "b"]
+    assert reversed_ranked == ranked
+
+
 def test_cartesian_manifest_uses_one_cache_scope_and_invalidates_summary(tmp_path: Path) -> None:
     runtime = object.__new__(SpotSweepRuntime)
     runtime.run_min_trades = 7
@@ -135,3 +196,48 @@ def test_cartesian_manifest_uses_one_cache_scope_and_invalidates_summary(tmp_pat
     assert conn.execute(
         "SELECT DISTINCT stage_label FROM stage_unresolved_summary"
     ).fetchall() == [("combo|m7",)]
+
+
+def test_stage_grid_materializes_fully_cached_plan() -> None:
+    class Harness:
+        offline = False
+        run_calls_total = 0
+
+        def _stage_partition_plan_by_cache(self, **kwargs):
+            plan = list(kwargs["plan_all"])
+            assert plan == [("a", "A"), ("b", "B"), ("c", "C")]
+            self.run_calls_total += len(plan)
+            hits = [
+                ((key, "dimension", "window"), key, {"key": key}, note, None)
+                for key, note in plan
+            ]
+            return [], hits, {}, len(plan)
+
+        def _prune_pending_plan_by_manifest(self, **_kwargs):
+            return [], {}, 0
+
+        def _run_stage_serial(self, **kwargs):
+            assert kwargs["plan"] == []
+            return 0, []
+
+    harness = Harness()
+    rows: list[tuple[str, dict, str]] = []
+    tested = SweepStages._run_stage_cfg_rows(
+        harness,
+        stage_label="axis",
+        total=3,
+        jobs_req=1,
+        bars=[],
+        report_every=0,
+        on_row=lambda cfg, row, note: rows.append((cfg, row, note)),
+        serial_plan=[("a", "A"), ("b", "B"), ("c", "C")],
+        record_milestones=False,
+    )
+
+    assert tested == 3
+    assert harness.run_calls_total == 3
+    assert rows == [
+        ("a", {"key": "a"}, "A"),
+        ("b", {"key": "b"}, "B"),
+        ("c", {"key": "c"}, "C"),
+    ]

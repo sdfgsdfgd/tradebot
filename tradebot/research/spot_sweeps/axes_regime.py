@@ -65,17 +65,12 @@ class SweepRegimeAxes:
 
     def _sweep_regime2(self) -> None:
         base = self._base_bundle(bar_size=self.signal_bar_size, filters=None)
-        base_row = self._run_cfg(cfg=base)
-        if base_row:
-            base_row["note"] = "base"
-            self._record_milestone(base, base_row, "base")
-
         profile = _REGIME2_ST_PROFILE
         atr_periods = tuple(profile.get("atr_periods") or ())
         multipliers = tuple(profile.get("multipliers") or ())
         sources = tuple(profile.get("sources") or ())
         rows: list[dict] = []
-        cfg_pairs: list[tuple[ConfigBundle, str]] = []
+        cfg_pairs: list[tuple[ConfigBundle, str]] = [(base, "base")]
         for atr_p in atr_periods:
             for mult in multipliers:
                 for src in sources:
@@ -101,8 +96,6 @@ class SweepRegimeAxes:
         )
         if int(tested_total) < 0:
             return
-        if base_row:
-            rows.append(base_row)
         _print_leaderboards(
             rows,
             title="Dual regime sweep (regime2 Supertrend @ 4h)",
@@ -111,15 +104,9 @@ class SweepRegimeAxes:
 
     def _sweep_regime2_ema(self) -> None:
         """Confirm layer: EMA trend gate on a higher timeframe (4h/1d)."""
-        bars_sig = self._bars_cached(self.signal_bar_size)
         base = self._base_bundle(bar_size=self.signal_bar_size, filters=None)
-        base_row = self._run_cfg(cfg=base, bars=bars_sig)
-        if base_row:
-            base_row["note"] = "base"
-            self._record_milestone(base, base_row, "base")
-
         presets = ["3/7", "4/9", "5/10", "8/21", "9/21", "21/50"]
-        rows: list[dict] = []
+        cfg_pairs = [(base, "base")]
         for r2_bar in ("4 hours", "1 day"):
             for preset in presets:
                 cfg = replace(
@@ -131,26 +118,16 @@ class SweepRegimeAxes:
                         regime2_ema_preset=str(preset),
                     ),
                 )
-                row = self._run_cfg(cfg=cfg)
-                if not row:
-                    continue
                 note = f"r2=EMA({preset})@{r2_bar}"
-                row["note"] = note
-                self._record_milestone(cfg, row, note)
-                rows.append(row)
-        if base_row:
-            rows.append(base_row)
+                cfg_pairs.append((cfg, note))
+        rows: list[dict] = []
+        if self._run_cfg_pairs_grid(axis_tag="regime2_ema", cfg_pairs=cfg_pairs, rows=rows) < 0:
+            return
         _print_leaderboards(rows, title="Regime2 EMA sweep (trend confirm)", top_n=int(self.args.top))
 
     def _sweep_joint(self) -> None:
         """Targeted interaction hunt: sweep regime + regime2 together (keeps base filters)."""
-        bars_sig = self._bars_cached(self.signal_bar_size)
         base = self._base_bundle(bar_size=self.signal_bar_size, filters=None)
-        base_row = self._run_cfg(cfg=base, bars=bars_sig)
-        if base_row:
-            base_row["note"] = "base"
-            self._record_milestone(base, base_row, "base")
-
         # Keep this tight and focused; the point is to cover interaction edges that compact preset funnels can miss.
         regime_bar_sizes = ["4 hours"]
         regime_atr_periods = [10, 14, 21]
@@ -162,7 +139,7 @@ class SweepRegimeAxes:
         r2_multipliers = [0.2, 0.25, 0.3, 0.35, 0.4, 0.5]
         r2_sources = ["close", "hl2"]
 
-        rows: list[dict] = []
+        cfg_pairs = [(base, "base")]
         for rbar in regime_bar_sizes:
             for atr_p in regime_atr_periods:
                 for mult in regime_multipliers:
@@ -187,33 +164,25 @@ class SweepRegimeAxes:
                                                 regime2_supertrend_source=str(r2_src),
                                             ),
                                         )
-                                        row = self._run_cfg(cfg=cfg)
-                                        if not row:
-                                            continue
                                         note = f"ST({atr_p},{mult},{src})@{rbar} + ST2({r2_bar}:{r2_atr},{r2_mult},{r2_src})"
-                                        row["note"] = note
-                                        self._record_milestone(cfg, row, note)
-                                        rows.append(row)
-        if base_row:
-            rows.append(base_row)
+                                        cfg_pairs.append((cfg, note))
+        rows: list[dict] = []
+        if self._run_cfg_pairs_grid(
+            axis_tag="joint", cfg_pairs=cfg_pairs, rows=rows, report_every=100, heartbeat_sec=20.0
+        ) < 0:
+            return
         _print_leaderboards(rows, title="Joint sweep (regime × regime2)", top_n=int(self.args.top))
 
     def _sweep_micro_st(self) -> None:
         """Micro sweep around the current ST + ST2 neighborhood (tighter, more granular)."""
-        bars_sig = self._bars_cached(self.signal_bar_size)
         base = self._base_bundle(bar_size=self.signal_bar_size, filters=None)
-        base_row = self._run_cfg(cfg=base, bars=bars_sig)
-        if base_row:
-            base_row["note"] = "base"
-            self._record_milestone(base, base_row, "base")
-
         regime_atr_periods = [14, 21]
         regime_multipliers = [0.4, 0.45, 0.5, 0.55, 0.6]
 
         r2_atr_periods = [4, 5, 6]
         r2_multipliers = [0.2, 0.225, 0.25, 0.275, 0.3, 0.325, 0.35, 0.4]
 
-        rows: list[dict] = []
+        cfg_pairs = [(base, "base")]
         for atr_p in regime_atr_periods:
             for mult in regime_multipliers:
                 for r2_atr in r2_atr_periods:
@@ -234,27 +203,19 @@ class SweepRegimeAxes:
                                 regime2_supertrend_source="close",
                             ),
                         )
-                        row = self._run_cfg(cfg=cfg)
-                        if not row:
-                            continue
                         note = f"ST({atr_p},{mult},close) + ST2(4h:{r2_atr},{r2_mult},close)"
-                        row["note"] = note
-                        self._record_milestone(cfg, row, note)
-                        rows.append(row)
-        if base_row:
-            rows.append(base_row)
+                        cfg_pairs.append((cfg, note))
+        rows: list[dict] = []
+        if self._run_cfg_pairs_grid(
+            axis_tag="micro_st", cfg_pairs=cfg_pairs, rows=rows, report_every=50, heartbeat_sec=15.0
+        ) < 0:
+            return
         _print_leaderboards(rows, title="Micro ST sweep (granular mults)", top_n=int(self.args.top))
 
     def _sweep_flip_exit(self) -> None:
         """Targeted exit semantics: flip-exit mode + profit-only gating."""
-        bars_sig = self._bars_cached(self.signal_bar_size)
         base = self._base_bundle(bar_size=self.signal_bar_size, filters=None)
-        base_row = self._run_cfg(cfg=base, bars=bars_sig)
-        if base_row:
-            base_row["note"] = "base"
-            self._record_milestone(base, base_row, "base")
-
-        rows: list[dict] = []
+        cfg_pairs = [(base, "base")]
         for exit_on_flip in (True, False):
             for mode in ("entry", "state", "cross"):
                 for only_profit in (False, True):
@@ -269,30 +230,23 @@ class SweepRegimeAxes:
                                 flip_exit_min_hold_bars=int(hold),
                             ),
                         )
-                        row = self._run_cfg(cfg=cfg)
-                        if not row:
-                            continue
                         note = f"flip={'on' if exit_on_flip else 'off'} mode={mode} hold={hold} only_profit={int(only_profit)}"
-                        row["note"] = note
-                        self._record_milestone(cfg, row, note)
-                        rows.append(row)
-        if base_row:
-            rows.append(base_row)
+                        cfg_pairs.append((cfg, note))
+        rows: list[dict] = []
+        if self._run_cfg_pairs_grid(axis_tag="flip_exit", cfg_pairs=cfg_pairs, rows=rows) < 0:
+            return
         _print_leaderboards(rows, title="Flip-exit semantics sweep", top_n=int(self.args.top))
 
     def _sweep_confirm(self) -> None:
-        bars_sig = self._bars_cached(self.signal_bar_size)
-        rows: list[dict] = []
+        base = self._base_bundle(bar_size=self.signal_bar_size, filters=None)
+        cfg_pairs: list[tuple[ConfigBundle, str]] = []
         for confirm in (0, 1, 2, 3):
-            cfg = self._base_bundle(bar_size=self.signal_bar_size, filters=None)
-            cfg = replace(cfg, strategy=replace(cfg.strategy, entry_confirm_bars=int(confirm)))
-            row = self._run_cfg(cfg=cfg, bars=bars_sig)
-            if not row:
-                continue
+            cfg = replace(base, strategy=replace(base.strategy, entry_confirm_bars=int(confirm)))
             note = f"confirm={confirm}"
-            row["note"] = note
-            self._record_milestone(cfg, row, note)
-            rows.append(row)
+            cfg_pairs.append((cfg, note))
+        rows: list[dict] = []
+        if self._run_cfg_pairs_grid(axis_tag="confirm", cfg_pairs=cfg_pairs, rows=rows) < 0:
+            return
         _print_leaderboards(rows, title="Confirm-bars sweep (quality gate)", top_n=int(self.args.top))
 
     def _run_spread_profile(self, profile_name: str) -> None:
@@ -341,25 +295,19 @@ class SweepRegimeAxes:
         self._run_spread_profile("spread_down")
 
     def _sweep_slope(self) -> None:
-        bars_sig = self._bars_cached(self.signal_bar_size)
-        rows: list[dict] = []
+        cfg_pairs: list[tuple[ConfigBundle, str]] = []
         for slope in (None, 0.005, 0.01, 0.02, 0.03, 0.05):
             f = _mk_filters(ema_slope_min_pct=float(slope) if slope is not None else None)
             cfg = self._base_bundle(bar_size=self.signal_bar_size, filters=f)
-            row = self._run_cfg(cfg=cfg, bars=bars_sig)
-            if not row:
-                continue
             note = "-" if slope is None else f"slope>={slope}"
-            row["note"] = note
-            self._record_milestone(cfg, row, note)
-            rows.append(row)
+            cfg_pairs.append((cfg, note))
+        rows: list[dict] = []
+        if self._run_cfg_pairs_grid(axis_tag="slope", cfg_pairs=cfg_pairs, rows=rows) < 0:
+            return
         _print_leaderboards(rows, title="EMA slope sweep (quality gate)", top_n=int(self.args.top))
 
     def _sweep_slope_signed(self) -> None:
         """Directional slope gate: require EMA fast slope to be positive/negative by direction."""
-        bars_sig = self._bars_cached(self.signal_bar_size)
-        rows: list[dict] = []
-
         thr_vals = [None, 0.003, 0.005, 0.01, 0.02, 0.03, 0.05]
         variants: list[tuple[float | None, float | None, str]] = [(None, None, "signed_slope=off")]
         for up_thr in thr_vals:
@@ -373,6 +321,7 @@ class SweepRegimeAxes:
         for both_thr in (0.005, 0.01, 0.02, 0.03):
             variants.append((float(both_thr), float(both_thr), f"slope_signed>={both_thr:g} (both)"))
 
+        cfg_pairs: list[tuple[ConfigBundle, str]] = []
         for up_thr, down_thr, note in variants:
             f = _mk_filters(
                 overrides={
@@ -381,12 +330,10 @@ class SweepRegimeAxes:
                 }
             )
             cfg = self._base_bundle(bar_size=self.signal_bar_size, filters=f)
-            row = self._run_cfg(cfg=cfg, bars=bars_sig)
-            if not row:
-                continue
-            row["note"] = note
-            self._record_milestone(cfg, row, note)
-            rows.append(row)
+            cfg_pairs.append((cfg, note))
+        rows: list[dict] = []
+        if self._run_cfg_pairs_grid(axis_tag="slope_signed", cfg_pairs=cfg_pairs, rows=rows) < 0:
+            return
         _print_leaderboards(
             rows,
             title="EMA signed-slope sweep (directional permission)",
@@ -394,44 +341,32 @@ class SweepRegimeAxes:
         )
 
     def _sweep_cooldown(self) -> None:
-        bars_sig = self._bars_cached(self.signal_bar_size)
-        rows: list[dict] = []
+        cfg_pairs: list[tuple[ConfigBundle, str]] = []
         for cooldown in (0, 1, 2, 3, 4, 6, 8):
             f = _mk_filters(cooldown_bars=int(cooldown))
             cfg = self._base_bundle(bar_size=self.signal_bar_size, filters=f)
-            row = self._run_cfg(cfg=cfg, bars=bars_sig)
-            if not row:
-                continue
             note = f"cooldown={cooldown}"
-            row["note"] = note
-            self._record_milestone(cfg, row, note)
-            rows.append(row)
+            cfg_pairs.append((cfg, note))
+        rows: list[dict] = []
+        if self._run_cfg_pairs_grid(axis_tag="cooldown", cfg_pairs=cfg_pairs, rows=rows) < 0:
+            return
         _print_leaderboards(rows, title="Cooldown sweep (quality gate)", top_n=int(self.args.top))
 
     def _sweep_skip_open(self) -> None:
-        bars_sig = self._bars_cached(self.signal_bar_size)
-        rows: list[dict] = []
+        cfg_pairs: list[tuple[ConfigBundle, str]] = []
         for skip in (0, 1, 2, 3, 4, 6):
             f = _mk_filters(skip_first_bars=int(skip))
             cfg = self._base_bundle(bar_size=self.signal_bar_size, filters=f)
-            row = self._run_cfg(cfg=cfg, bars=bars_sig)
-            if not row:
-                continue
             note = f"skip_first={skip}"
-            row["note"] = note
-            self._record_milestone(cfg, row, note)
-            rows.append(row)
+            cfg_pairs.append((cfg, note))
+        rows: list[dict] = []
+        if self._run_cfg_pairs_grid(axis_tag="skip_open", cfg_pairs=cfg_pairs, rows=rows) < 0:
+            return
         _print_leaderboards(rows, title="Skip-open sweep (quality gate)", top_n=int(self.args.top))
 
     def _sweep_shock(self) -> None:
         """Shock overlay sweep (detectors, modes, and a few core threshold grids)."""
-        bars_sig = self._bars_cached(self.signal_bar_size)
         base = self._base_bundle(bar_size=self.signal_bar_size, filters=None)
-        base_row = self._run_cfg(cfg=base, bars=bars_sig)
-        if base_row:
-            base_row["note"] = "base"
-            self._record_milestone(base, base_row, "base")
-
         profile = _SHOCK_SWEEP_PROFILE
         modes = tuple(profile.get("modes") or ())
         dir_variants = tuple(profile.get("dir_variants") or ())
@@ -481,7 +416,7 @@ class SweepRegimeAxes:
             )
 
         rows: list[dict] = []
-        cfg_pairs: list[tuple[ConfigBundle, str]] = []
+        cfg_pairs: list[tuple[ConfigBundle, str]] = [(base, "base")]
         for detector, params, det_note in presets:
             for mode in modes:
                 for dir_src, dir_lb, dir_note in dir_variants:
@@ -545,9 +480,6 @@ class SweepRegimeAxes:
         )
         if int(tested_total) < 0:
             return
-
-        if base_row:
-            rows.append(base_row)
         _print_leaderboards(
             rows,
             title="Shock sweep (modes × detectors × thresholds)",
@@ -555,24 +487,21 @@ class SweepRegimeAxes:
         )
 
     def _sweep_loosen(self) -> None:
-        bars_sig = self._bars_cached(self.signal_bar_size)
-        rows: list[dict] = []
+        base = self._base_bundle(bar_size=self.signal_bar_size, filters=None)
+        cfg_pairs: list[tuple[ConfigBundle, str]] = []
         for close_eod in (False, True):
-            cfg = self._base_bundle(bar_size=self.signal_bar_size, filters=None)
             cfg = replace(
-                cfg,
+                base,
                 strategy=replace(
-                    cfg.strategy,
+                    base.strategy,
                     spot_close_eod=bool(close_eod),
                 ),
             )
-            row = self._run_cfg(cfg=cfg, bars=bars_sig)
-            if not row:
-                continue
             note = f"close_eod={int(close_eod)}"
-            row["note"] = note
-            self._record_milestone(cfg, row, note)
-            rows.append(row)
+            cfg_pairs.append((cfg, note))
+        rows: list[dict] = []
+        if self._run_cfg_pairs_grid(axis_tag="loosen", cfg_pairs=cfg_pairs, rows=rows) < 0:
+            return
         _print_leaderboards(
             rows,
             title="Loosenings sweep (single-position + EOD exit)",
@@ -581,13 +510,7 @@ class SweepRegimeAxes:
 
     def _sweep_tick(self) -> None:
         """Permission layer: Raschke-style $TICK width gate (daily, RTH only)."""
-        bars_sig = self._bars_cached(self.signal_bar_size)
         base = self._base_bundle(bar_size=self.signal_bar_size, filters=None)
-        base_row = self._run_cfg(cfg=base, bars=bars_sig)
-        if base_row:
-            base_row["note"] = "tick=off (base)"
-            self._record_milestone(base, base_row, "tick=off (base)")
-
         z_enters = [0.8, 1.0, 1.2]
         z_exits = [0.4, 0.5, 0.6]
         slope_lbs = [3, 5]
@@ -643,7 +566,7 @@ class SweepRegimeAxes:
             ),
         ]
 
-        rows: list[dict] = []
+        cfg_pairs: list[tuple[ConfigBundle, str]] = [(base, "tick=off (base)")]
         for dir_policy in dir_policies:
             for policy in policies:
                 for z_enter in z_enters:
@@ -673,15 +596,13 @@ class SweepRegimeAxes:
                                             regime2_supertrend_source=str(r2_over.get("regime2_supertrend_source") or "hl2"),
                                         ),
                                     )
-                                    row = self._run_cfg(cfg=cfg)
-                                    if not row:
-                                        continue
                                     note = (
                                         f"tick=raschke dir={dir_policy} policy={policy} z_in={z_enter} z_out={z_exit} slope={slope_lb} lb={lookback} {r2_note}"
                                     )
-                                    row["note"] = note
-                                    self._record_milestone(cfg, row, note)
-                                    rows.append(row)
-        if base_row:
-            rows.append(base_row)
+                                    cfg_pairs.append((cfg, note))
+        rows: list[dict] = []
+        if self._run_cfg_pairs_grid(
+            axis_tag="tick", cfg_pairs=cfg_pairs, rows=rows, report_every=50, heartbeat_sec=20.0
+        ) < 0:
+            return
         _print_leaderboards(rows, title="Tick gate sweep ($TICK width)", top_n=int(self.args.top))

@@ -33,7 +33,12 @@ from .support import (
 
 class SweepPlanning:
     def _cfg_from_strategy_filters_payload(
-        self, strategy_payload, filters_payload
+        self,
+        strategy_payload,
+        filters_payload,
+        *,
+        bar_size: str | None = None,
+        use_rth: bool | None = None,
     ) -> ConfigBundle | None:
         if not isinstance(strategy_payload, dict):
             return None
@@ -50,8 +55,8 @@ class SweepPlanning:
             strategy=strategy_obj,
             start=self.start,
             end=self.end,
-            bar_size=self.signal_bar_size,
-            use_rth=self.use_rth,
+            bar_size=str(bar_size or self.signal_bar_size),
+            use_rth=bool(self.use_rth if use_rth is None else use_rth),
             cache_dir=self.cache_dir,
             offline=self.offline,
         )
@@ -73,6 +78,10 @@ class SweepPlanning:
         extra: dict | None = None,
     ) -> dict:
         payload = {
+            "backtest": {
+                "bar_size": str(cfg.backtest.bar_size),
+                "use_rth": bool(cfg.backtest.use_rth),
+            },
             "strategy": _spot_strategy_payload(cfg, meta=self.meta),
             "filters": _filters_payload(cfg.strategy.filters),
         }
@@ -94,6 +103,9 @@ class SweepPlanning:
             return None
         strategy_payload = payload.get("strategy")
         filters_payload = payload.get("filters")
+        backtest_payload = payload.get("backtest")
+        if not isinstance(backtest_payload, dict):
+            backtest_payload = {}
         if filters_payload is not None and not isinstance(filters_payload, dict):
             filters_payload = None
         cfg_ref = str(payload.get("cfg_ref") or "").strip()
@@ -101,7 +113,16 @@ class SweepPlanning:
             resolved = cfg_catalog.get(cfg_ref)
             if isinstance(resolved, tuple) and len(resolved) == 2:
                 strategy_payload, filters_payload = resolved
-        cfg = self._cfg_from_strategy_filters_payload(strategy_payload, filters_payload)
+        cfg = self._cfg_from_strategy_filters_payload(
+            strategy_payload,
+            filters_payload,
+            bar_size=str(backtest_payload.get("bar_size") or self.signal_bar_size),
+            use_rth=(
+                bool(backtest_payload["use_rth"])
+                if "use_rth" in backtest_payload
+                else bool(self.use_rth)
+            ),
+        )
         if cfg is None:
             return None
         note = str(payload.get(note_key) or "").strip() or str(default_note)
@@ -129,33 +150,6 @@ class SweepPlanning:
                 dict(filters_payload) if isinstance(filters_payload, dict) else None,
             )
         return out
-
-    def _cfg_stage_payload_signature(
-        self,
-        *,
-        axis_tag: str,
-        cfg_records: list[dict],
-        cfg_catalog: dict[str, tuple[dict, dict | None]],
-    ) -> str:
-        hasher = hashlib.sha1()
-        hasher.update(str(_RUN_CFG_CACHE_ENGINE_VERSION).encode("utf-8"))
-        hasher.update(str(axis_tag).strip().lower().encode("utf-8"))
-        hasher.update(str(int(self.run_min_trades)).encode("utf-8"))
-        hasher.update(str(len(cfg_records)).encode("utf-8"))
-        hasher.update(str(len(cfg_catalog)).encode("utf-8"))
-        for rec in cfg_records:
-            if not isinstance(rec, dict):
-                hasher.update(str(rec).encode("utf-8"))
-                continue
-            cfg_ref = str(rec.get("cfg_ref") or "").strip()
-            if cfg_ref:
-                hasher.update(str(cfg_ref).encode("utf-8"))
-                continue
-            payload_sig = hashlib.sha1(
-                json.dumps(rec, sort_keys=True, default=str).encode("utf-8")
-            ).digest()
-            hasher.update(payload_sig)
-        return hasher.hexdigest()
 
     def _worker_records_from_kept(
         self, kept: list[tuple[ConfigBundle, dict, str, dict | None]]

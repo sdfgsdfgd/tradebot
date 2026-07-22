@@ -39,7 +39,7 @@ _AXIS_SURFACE_SPECS: tuple[AxisSurfaceSpec, ...] = (
         dimensional_cost_source="combo_full_cartesian_tight",
     ),
     AxisSurfaceSpec("volume", True, "Volume gate sweep (ratio threshold x EMA period).", total_hint_static=13),
-    AxisSurfaceSpec("rv", True, "Realized volatility gate sweep.", total_hint_static=29),
+    AxisSurfaceSpec("rv", True, "Realized volatility gate sweep.", total_hint_static=30),
     AxisSurfaceSpec("tod", True, "Time-of-day gate sweep (ET entry windows).", total_hint_static=29),
     AxisSurfaceSpec("weekday", False, "Weekday entry gating sweep."),
     AxisSurfaceSpec("exit_time", False, "Fixed ET flatten-time sweep.", total_hint_static=7),
@@ -98,7 +98,7 @@ _AXIS_SURFACE_SPECS: tuple[AxisSurfaceSpec, ...] = (
         "Secondary (regime2) Supertrend params/timeframe sweep.",
         total_hint_mode="regime2_profile",
     ),
-    AxisSurfaceSpec("regime2_ema", False, "Regime2 EMA confirm sweep.", total_hint_static=12),
+    AxisSurfaceSpec("regime2_ema", False, "Regime2 EMA confirm sweep.", total_hint_static=13),
     AxisSurfaceSpec("joint", True, "Targeted regime x regime2 interaction hunt."),
     AxisSurfaceSpec("micro_st", False, "Micro sweep around current ST/ST2 neighborhood."),
     AxisSurfaceSpec(

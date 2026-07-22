@@ -345,12 +345,27 @@ def _rank_cfg_rows(
     limit: int | None = None,
     key_fn=None,
 ) -> list[tuple[object, dict, str]]:
+    def _identity(item: tuple[object, dict, str]) -> str:
+        cfg, row, note = item
+        if callable(key_fn):
+            raw = key_fn(cfg, row, note)
+        elif isinstance(cfg, ConfigBundle):
+            raw = _milestone_key(cfg)
+        else:
+            raw = (note, row)
+        return raw if isinstance(raw, str) else json.dumps(raw, sort_keys=True, default=str)
+
+    stable_items = sorted(items, key=_identity)
     ranked: list[tuple[object, dict, str]] = []
     for score_fn, top_n in scorers:
         n = int(top_n)
         if n <= 0:
             continue
-        ranked.extend(sorted(items, key=lambda t, fn=score_fn: fn(t[1]), reverse=True)[:n])
+        ranked.extend(
+            sorted(stable_items, key=lambda t, fn=score_fn: fn(t[1]), reverse=True)[
+                :n
+            ]
+        )
     seen: set[str] = set()
     out: list[tuple[object, dict, str]] = []
     max_items = None if limit is None else max(0, int(limit))
@@ -401,7 +416,8 @@ def _print_top(rows: list[dict], *, title: str, top_n: int, sort_key) -> None:
     print("")
     print(title)
     print("-" * len(title))
-    rows_sorted = sorted(rows, key=sort_key, reverse=True)
+    rows_sorted = sorted(rows, key=lambda row: json.dumps(row, sort_keys=True, default=str))
+    rows_sorted.sort(key=sort_key, reverse=True)
     for idx, row in enumerate(rows_sorted[: max(1, int(top_n))], start=1):
         pnl = float(row.get("pnl") or 0.0)
         dd = float(row.get("dd") or 0.0)

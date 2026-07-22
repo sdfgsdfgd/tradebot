@@ -19,9 +19,6 @@ from ...backtest.sweeps import (
 from .cli import (
     default_jobs as _default_jobs,
 )
-from .fingerprints import (
-    _axis_dimension_fingerprint,
-)
 from .milestones import (
     _collect_milestone_items_from_payload,
     _merge_and_write_milestones,
@@ -59,25 +56,24 @@ class SweepParallelRuntime:
             filters_payload = node.get("filters")
             if isinstance(strategy_payload, dict):
                 filters_payload_norm = dict(filters_payload) if isinstance(filters_payload, dict) else None
+                backtest_payload = node.get("backtest")
+                if not isinstance(backtest_payload, dict):
+                    backtest_payload = {}
                 cfg_ref = _strategy_fingerprint(
                     strategy_payload,
                     filters=filters_payload_norm,
-                    signal_bar_size=str(self.signal_bar_size),
-                    signal_use_rth=bool(self.use_rth),
+                    signal_bar_size=str(
+                        backtest_payload.get("bar_size") or self.signal_bar_size
+                    ),
+                    signal_use_rth=bool(
+                        backtest_payload.get("use_rth", self.use_rth)
+                    ),
                 )
                 if cfg_ref not in catalog:
-                    cfg_obj = self._cfg_from_strategy_filters_payload(strategy_payload, filters_payload_norm)
-                    est_cost = 1.0
-                    axis_dim_fp: str | None = None
-                    if cfg_obj is not None:
-                        est_cost = float(self._cfg_eval_cost_hint(cfg_obj))
-                        axis_dim_fp = _axis_dimension_fingerprint(cfg_obj)
                     catalog[cfg_ref] = {
                         "cfg_ref": str(cfg_ref),
                         "strategy": dict(strategy_payload),
                         "filters": dict(filters_payload_norm) if isinstance(filters_payload_norm, dict) else None,
-                        "est_cost": float(est_cost),
-                        "axis_dim_fp": axis_dim_fp,
                     }
                 out_item = {k: _compact(v) for k, v in node.items() if k not in ("strategy", "filters", "cfg_ref")}
                 out_item["cfg_ref"] = str(cfg_ref)

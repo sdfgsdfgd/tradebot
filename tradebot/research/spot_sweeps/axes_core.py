@@ -159,16 +159,9 @@ class SweepCoreAxes:
         self.milestone_rows.append((cfg, row, str(note)))
 
     def _sweep_volume(self) -> None:
-        bars_sig = self._bars_cached(self.signal_bar_size)
-        base = self._base_bundle(bar_size=self.signal_bar_size, filters=None)
-        base_row = self._run_cfg(cfg=base, bars=bars_sig)
-        if base_row:
-            base_row["note"] = "base"
-            self._record_milestone(base, base_row, "base")
-
         ratios = [None, 1.0, 1.1, 1.2, 1.5]
         periods = [10, 20, 30]
-        rows: list[dict] = []
+        cfg_pairs: list[tuple[ConfigBundle, str]] = []
         for ratio in ratios:
             if ratio is None:
                 variants = [(None, None)]
@@ -177,70 +170,51 @@ class SweepCoreAxes:
             for ratio_min, ema_p in variants:
                 f = _mk_filters(volume_ratio_min=ratio_min, volume_ema_period=ema_p)
                 cfg = self._base_bundle(bar_size=self.signal_bar_size, filters=f)
-                row = self._run_cfg(cfg=cfg, bars=bars_sig)
-                if not row:
-                    continue
                 note = "-" if ratio_min is None else f"vol>={ratio_min}@{ema_p}"
-                row["note"] = note
-                self._record_milestone(cfg, row, note)
-                rows.append(row)
+                cfg_pairs.append((cfg, note))
+        rows: list[dict] = []
+        if self._run_cfg_pairs_grid(axis_tag="volume", cfg_pairs=cfg_pairs, rows=rows) < 0:
+            return
         _print_leaderboards(rows, title="A) Volume gate sweep", top_n=int(self.args.top))
 
     def _sweep_rv(self) -> None:
         """Orthogonal gate: annualized realized-vol (EWMA) band."""
-        bars_sig = self._bars_cached(self.signal_bar_size)
         base = self._base_bundle(bar_size=self.signal_bar_size, filters=None)
-        base_row = self._run_cfg(cfg=base, bars=bars_sig)
-        if base_row:
-            base_row["note"] = "base"
-            self._record_milestone(base, base_row, "base")
-
         rv_mins = [None, 0.25, 0.3, 0.35, 0.4, 0.45]
         rv_maxs = [None, 0.7, 0.8, 0.9, 1.0]
-        rows: list[dict] = []
+        cfg_pairs = [(base, "base")]
         for rv_min in rv_mins:
             for rv_max in rv_maxs:
                 if rv_min is None and rv_max is None:
                     continue
                 f = _mk_filters(rv_min=rv_min, rv_max=rv_max)
                 cfg = self._base_bundle(bar_size=self.signal_bar_size, filters=f)
-                row = self._run_cfg(cfg=cfg)
-                if not row:
-                    continue
                 note = f"rv_min={rv_min} rv_max={rv_max}"
-                row["note"] = note
-                self._record_milestone(cfg, row, note)
-                rows.append(row)
-        if base_row:
-            rows.append(base_row)
+                cfg_pairs.append((cfg, note))
+        rows: list[dict] = []
+        if self._run_cfg_pairs_grid(axis_tag="rv", cfg_pairs=cfg_pairs, rows=rows) < 0:
+            return
         _print_leaderboards(rows, title="RV gate sweep (annualized EWMA vol)", top_n=int(self.args.top))
 
     def _sweep_ema(self) -> None:
-        bars_sig = self._bars_cached(self.signal_bar_size)
         presets = ["2/4", "3/7", "4/9", "5/10", "8/21", "9/21"]
+        base = self._base_bundle(bar_size=self.signal_bar_size, filters=None)
+        cfg_pairs = [
+            (
+                replace(base, strategy=replace(base.strategy, ema_preset=str(preset))),
+                f"ema={preset}",
+            )
+            for preset in presets
+        ]
         rows: list[dict] = []
-        for preset in presets:
-            cfg = self._base_bundle(bar_size=self.signal_bar_size, filters=None)
-            cfg = replace(cfg, strategy=replace(cfg.strategy, ema_preset=str(preset)))
-            row = self._run_cfg(cfg=cfg, bars=bars_sig)
-            if not row:
-                continue
-            note = f"ema={preset}"
-            row["note"] = note
-            self._record_milestone(cfg, row, note)
-            rows.append(row)
+        if self._run_cfg_pairs_grid(axis_tag="ema", cfg_pairs=cfg_pairs, rows=rows) < 0:
+            return
         _print_leaderboards(rows, title="0) Timing sweep (EMA preset)", top_n=int(self.args.top))
 
     def _sweep_entry_mode(self) -> None:
         """Timing semantics: cross vs trend entries (+ small confirm grid)."""
-        bars_sig = self._bars_cached(self.signal_bar_size)
         base = self._base_bundle(bar_size=self.signal_bar_size, filters=None)
-        base_row = self._run_cfg(cfg=base, bars=bars_sig)
-        if base_row:
-            base_row["note"] = "base"
-            self._record_milestone(base, base_row, "base")
-
-        rows: list[dict] = []
+        cfg_pairs = [(base, "base")]
         for mode in ("cross", "trend"):
             for confirm in (0, 1, 2):
                 cfg = replace(
@@ -251,19 +225,14 @@ class SweepCoreAxes:
                         entry_confirm_bars=int(confirm),
                     ),
                 )
-                row = self._run_cfg(cfg=cfg)
-                if not row:
-                    continue
                 note = f"entry_mode={mode} confirm={confirm}"
-                row["note"] = note
-                self._record_milestone(cfg, row, note)
-                rows.append(row)
-        if base_row:
-            rows.append(base_row)
+                cfg_pairs.append((cfg, note))
+        rows: list[dict] = []
+        if self._run_cfg_pairs_grid(axis_tag="entry_mode", cfg_pairs=cfg_pairs, rows=rows) < 0:
+            return
         _print_leaderboards(rows, title="Entry mode sweep (cross vs trend)", top_n=int(self.args.top))
 
     def _sweep_tod(self) -> None:
-        bars_sig = self._bars_cached(self.signal_bar_size)
         windows = [
             (None, None, "base"),
             (9, 16, "RTH 9–16 ET"),
@@ -275,33 +244,25 @@ class SweepCoreAxes:
         for start_h in (16, 17, 18, 19, 20):
             for end_h in (2, 3, 4, 5, 6):
                 windows.append((start_h, end_h, f"{start_h:02d}–{end_h:02d} ET"))
-        rows: list[dict] = []
+        cfg_pairs: list[tuple[ConfigBundle, str]] = []
         for start_h, end_h, label in windows:
             f = _mk_filters(entry_start_hour_et=start_h, entry_end_hour_et=end_h)
             cfg = self._base_bundle(bar_size=self.signal_bar_size, filters=f)
-            row = self._run_cfg(cfg=cfg, bars=bars_sig)
-            if not row:
-                continue
-            row["note"] = label
-            self._record_milestone(cfg, row, label)
-            rows.append(row)
+            cfg_pairs.append((cfg, label))
+        rows: list[dict] = []
+        if self._run_cfg_pairs_grid(axis_tag="tod", cfg_pairs=cfg_pairs, rows=rows) < 0:
+            return
         _print_leaderboards(rows, title="B) Time-of-day gate sweep (ET)", top_n=int(self.args.top))
 
     def _sweep_chop_joint(self) -> None:
         """Joint chop filter stack: slope × cooldown × skip-open (keeps everything else fixed)."""
-        bars_sig = self._bars_cached(self.signal_bar_size)
         base = self._base_bundle(bar_size=self.signal_bar_size, filters=None)
-        base_row = self._run_cfg(cfg=base, bars=bars_sig)
-        if base_row:
-            base_row["note"] = "base"
-            self._record_milestone(base, base_row, "base")
-
         base_filters = base.strategy.filters
         slope_vals = [None, 0.005, 0.01, 0.02, 0.03]
         cooldown_vals = [0, 1, 2, 3, 4, 6]
         skip_vals = [0, 1, 2, 3]
 
-        rows: list[dict] = []
+        cfg_pairs = [(base, "base")]
         for slope in slope_vals:
             for cooldown in cooldown_vals:
                 for skip in skip_vals:
@@ -312,17 +273,12 @@ class SweepCoreAxes:
                     }
                     f = self._merge_filters(base_filters, overrides=overrides)
                     cfg = replace(base, strategy=replace(base.strategy, filters=f))
-                    row = self._run_cfg(cfg=cfg)
-                    if not row:
-                        continue
                     slope_note = "-" if slope is None else f"slope>={float(slope):g}"
                     note = f"{slope_note} | cooldown={cooldown} | skip={skip}"
-                    row["note"] = note
-                    self._record_milestone(cfg, row, note)
-                    rows.append(row)
-
-        if base_row:
-            rows.append(base_row)
+                    cfg_pairs.append((cfg, note))
+        rows: list[dict] = []
+        if self._run_cfg_pairs_grid(axis_tag="chop_joint", cfg_pairs=cfg_pairs, rows=rows) < 0:
+            return
         _print_leaderboards(
             rows,
             title="Chop joint sweep (slope × cooldown × skip-open)",
@@ -331,13 +287,7 @@ class SweepCoreAxes:
 
     def _sweep_weekdays(self) -> None:
         """Gate exploration: which UTC weekdays contribute to the edge."""
-        bars_sig = self._bars_cached(self.signal_bar_size)
         base = self._base_bundle(bar_size=self.signal_bar_size, filters=None)
-        base_row = self._run_cfg(cfg=base, bars=bars_sig)
-        if base_row:
-            base_row["note"] = "base"
-            self._record_milestone(base, base_row, "base")
-
         day_sets: list[tuple[tuple[int, ...], str]] = [
             ((0, 1, 2, 3, 4), "Mon-Fri"),
             ((0, 1, 2, 3), "Mon-Thu"),
@@ -348,29 +298,19 @@ class SweepCoreAxes:
             ((0, 1, 2, 3, 4, 5, 6), "All days"),
         ]
 
-        rows: list[dict] = []
+        cfg_pairs = [(base, "base")]
         for days, label in day_sets:
             cfg = replace(base, strategy=replace(base.strategy, entry_days=tuple(days)))
-            row = self._run_cfg(cfg=cfg)
-            if not row:
-                continue
             note = f"days={label}"
-            row["note"] = note
-            self._record_milestone(cfg, row, note)
-            rows.append(row)
-        if base_row:
-            rows.append(base_row)
+            cfg_pairs.append((cfg, note))
+        rows: list[dict] = []
+        if self._run_cfg_pairs_grid(axis_tag="weekday", cfg_pairs=cfg_pairs, rows=rows) < 0:
+            return
         _print_leaderboards(rows, title="Weekday sweep (UTC weekday gating)", top_n=int(self.args.top))
 
     def _sweep_exit_time(self) -> None:
         """Session-aware exit experiment: force a daily time-based flatten (ET)."""
-        bars_sig = self._bars_cached(self.signal_bar_size)
         base = self._base_bundle(bar_size=self.signal_bar_size, filters=None)
-        base_row = self._run_cfg(cfg=base, bars=bars_sig)
-        if base_row:
-            base_row["note"] = "base"
-            self._record_milestone(base, base_row, "base")
-
         times = [
             None,
             "04:00",
@@ -380,18 +320,14 @@ class SweepCoreAxes:
             "16:00",
             "17:00",
         ]
-        rows: list[dict] = []
+        cfg_pairs = [(base, "base")]
         for t in times:
             cfg = replace(base, strategy=replace(base.strategy, spot_exit_time_et=t))
-            row = self._run_cfg(cfg=cfg)
-            if not row:
-                continue
             note = "-" if t is None else f"exit_time={t} ET"
-            row["note"] = note
-            self._record_milestone(cfg, row, note)
-            rows.append(row)
-        if base_row:
-            rows.append(base_row)
+            cfg_pairs.append((cfg, note))
+        rows: list[dict] = []
+        if self._run_cfg_pairs_grid(axis_tag="exit_time", cfg_pairs=cfg_pairs, rows=rows) < 0:
+            return
         _print_leaderboards(rows, title="Exit-time sweep (ET flatten)", top_n=int(self.args.top))
 
     def _fmt_sweep_float(self, value: float, decimals: int | None) -> str:

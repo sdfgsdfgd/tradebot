@@ -57,13 +57,20 @@ class SweepWorkers:
                 raise SystemExit(f"--{out_flag_name} is required for {stage_label} worker mode.")
             out_path = Path(out_path_str)
             worker_id, workers = _parse_worker_shard(worker_raw, workers_raw, label=str(stage_label))
-            unresolved_ranges = self._cartesian_rank_manifest_unresolved_ranges(
-                stage_label=str(stage_label),
-                window_signature=str(manifest_window_signature),
-                total=int(total_ranks),
+            use_rank_manifest = bool(str(manifest_window_signature).strip())
+            unresolved_ranges = (
+                self._cartesian_rank_manifest_unresolved_ranges(
+                    stage_label=str(stage_label),
+                    window_signature=str(manifest_window_signature),
+                    total=int(total_ranks),
+                )
+                if use_rank_manifest
+                else ((0, int(total_ranks) - 1),)
             )
             unresolved_total = sum(max(0, int(rank_hi) - int(rank_lo) + 1) for rank_lo, rank_hi in unresolved_ranges)
-            dynamic_claim_mode = self._run_cfg_persistent_conn() is not None
+            dynamic_claim_mode = bool(
+                use_rank_manifest and self._run_cfg_persistent_conn() is not None
+            )
             worker_ranges: list[tuple[int, int]] = []
             local_total = 0
             if not bool(dynamic_claim_mode):
@@ -333,7 +340,7 @@ class SweepWorkers:
                     if rank_i in rank_status:
                         rank_status[int(rank_i)] = "evaluated"
                 rank_rows = self._compress_rank_status_rows(rank_status)
-                if rank_rows:
+                if use_rank_manifest and rank_rows:
                     self._cartesian_rank_manifest_set_many(
                         stage_label=str(stage_label),
                         window_signature=str(manifest_window_signature),
@@ -406,8 +413,6 @@ class SweepWorkers:
             window_sig = str(rank_manifest_window_signature or "").strip()
             if total_i <= 0:
                 raise SystemExit(f"{stage_label} lazy-rank worker requires positive total rank count.")
-            if not window_sig:
-                raise SystemExit(f"{stage_label} lazy-rank worker requires rank manifest window signature.")
             _run_sharded_stage_worker_lazy_rank(
                 total_ranks=int(total_i),
                 item_from_rank=plan_item_from_rank,
@@ -718,10 +723,9 @@ class SweepWorkers:
         list[tuple[ConfigBundle, str, dict | None]],
         dict[int, tuple[str, str, str]],
         int,
-        dict[int, str],
     ]:
         if not pending_plan or not pending_cell_map:
-            return pending_plan, pending_cell_map, 0, {}
+            return pending_plan, pending_cell_map, 0
 
         cells: list[tuple[str, str, str]] = []
         for idx in range(len(pending_plan)):
@@ -729,7 +733,7 @@ class SweepWorkers:
             if isinstance(cell_key, tuple) and len(cell_key) == 3:
                 cells.append((str(cell_key[0]), str(cell_key[1]), str(cell_key[2])))
         if not cells:
-            return pending_plan, pending_cell_map, 0, {}
+            return pending_plan, pending_cell_map, 0
 
         prior_status = self._stage_cell_status_get_many(stage_label=str(stage_label), cells=cells)
         frontier_by_dim_window = self._stage_frontier_get_many(
@@ -745,7 +749,6 @@ class SweepWorkers:
         kept_cell_map: dict[int, tuple[str, str, str]] = {}
         status_updates: list[tuple[str, str, str, str]] = []
         manifest_updates: list[tuple[str, str, str, str]] = []
-        pruned_rank_status: dict[int, str] = {}
         skipped = 0
 
         for idx, item in enumerate(pending_plan):
@@ -783,18 +786,6 @@ class SweepWorkers:
                 self._axis_progress_record(kept=False)
                 status_updates.append((strategy_fp, axis_dim_fp, window_sig, "cached_hit"))
                 manifest_updates.append((axis_dim_fp, window_sig, prune_strategy_fp, prune_manifest_status))
-                rank_i = self._plan_item_stage_rank(item)
-                if isinstance(rank_i, int):
-                    rank_status = "dominated" if str(prune_manifest_status) == "dominated" else "cached_hit"
-                    prev_status = str(pruned_rank_status.get(int(rank_i), "")).strip().lower()
-                    priority = {
-                        "pending": 0,
-                        "cached_hit": 1,
-                        "evaluated": 2,
-                        "dominated": 3,
-                    }
-                    if priority.get(str(rank_status), -1) >= priority.get(str(prev_status), -1):
-                        pruned_rank_status[int(rank_i)] = str(rank_status)
                 continue
 
             new_idx = len(kept_plan)
@@ -828,4 +819,4 @@ class SweepWorkers:
                 f"{stage_label} pre-shard prune skipped={int(skipped)} remaining={len(kept_plan)}",
                 flush=True,
             )
-        return kept_plan, kept_cell_map, int(skipped), dict(pruned_rank_status)
+        return kept_plan, kept_cell_map, int(skipped)
