@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import json
 import math
-import os
 import sqlite3
 import sys
 import threading
@@ -44,7 +43,7 @@ from .sweep_parallel import (
     _run_parallel_stage_kernel,
     _strip_flags,
 )
-from .sweeps import write_json
+from .sweeps import normalize_jobs, write_json
 from ..research.champions import load_current_champion_groups
 from ..research.multiwindow import (
     MultiwindowReport,
@@ -73,22 +72,11 @@ def spot_multitimeframe_main() -> None:
     if min_trades_per_year is not None and min_trades_per_year < 0:
         raise SystemExit("--min-trades-per-year must be >= 0")
 
-    def _default_jobs() -> int:
-        detected = os.cpu_count()
-        if detected is None:
-            return 1
-        try:
-            detected_i = int(detected)
-        except (TypeError, ValueError):
-            return 1
-        return max(1, detected_i)
-
     try:
         jobs = int(args.jobs) if args.jobs is not None else 0
     except (TypeError, ValueError):
         jobs = 0
-    jobs_eff = _default_jobs() if jobs <= 0 else min(int(jobs), _default_jobs())
-    jobs_eff = max(1, int(jobs_eff))
+    jobs_eff = normalize_jobs(jobs)
 
     milestones_path = Path(args.milestones)
     payload = json.loads(milestones_path.read_text())
@@ -904,7 +892,6 @@ def spot_multitimeframe_main() -> None:
             stage_label="multitimeframe",
             jobs=int(jobs_eff),
             total=len(candidates),
-            default_jobs=int(jobs_eff),
             offline=bool(offline),
             offline_error="--jobs>1 for multitimeframe requires --offline (avoid parallel IBKR sessions).",
             tmp_prefix="tradebot_multitimeframe_",

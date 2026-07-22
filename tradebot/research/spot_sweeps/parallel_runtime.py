@@ -13,12 +13,7 @@ from ...backtest.sweep_parallel import (
     _run_parallel_stage_kernel,
     _strip_flags,
 )
-from ...backtest.sweeps import (
-    write_json,
-)
-from .cli import (
-    default_jobs as _default_jobs,
-)
+from ...backtest.sweeps import normalize_jobs, write_json
 from .milestones import (
     _collect_milestone_items_from_payload,
     _merge_and_write_milestones,
@@ -226,7 +221,7 @@ class SweepParallelRuntime:
             if int(prefetched_i) <= 0:
                 return {}
             return {0: {"tested": int(prefetched_i), "kept": 0, "records": []}}
-        default_jobs_i = int(_default_jobs())
+        default_jobs_i = normalize_jobs(0)
         jobs_tuned = _tuned_parallel_jobs(
             stage_label=str(stage_label),
             jobs_requested=int(jobs),
@@ -246,7 +241,6 @@ class SweepParallelRuntime:
                 stage_label=str(stage_label),
                 jobs=int(jobs_tuned),
                 total=int(total),
-                default_jobs=int(default_jobs_i),
                 offline=bool(self.offline),
                 offline_error=f"--jobs>1 for {axis_name} requires --offline (avoid parallel IBKR sessions).",
                 tmp_prefix=str(worker_tmp_prefix),
@@ -329,7 +323,7 @@ class SweepParallelRuntime:
             if int(prefetched_i) <= 0:
                 return {}
             return {0: {"tested": int(prefetched_i), "kept": 0, "records": []}}
-        default_jobs_i = int(_default_jobs())
+        default_jobs_i = normalize_jobs(0)
         jobs_tuned = _tuned_parallel_jobs(
             stage_label=str(stage_label),
             jobs_requested=int(jobs),
@@ -345,7 +339,6 @@ class SweepParallelRuntime:
             stage_label=str(stage_label),
             jobs=int(jobs_tuned),
             total=int(total),
-            default_jobs=int(default_jobs_i),
             offline=bool(self.offline),
             offline_error=f"--jobs>1 for {axis_name or stage_label} requires --offline (avoid parallel IBKR sessions).",
             tmp_prefix=str(worker_tmp_prefix),
@@ -472,7 +465,7 @@ class SweepParallelRuntime:
             label=str(label),
             axes=axes,
             jobs_req=int(jobs_req),
-            axis_jobs_resolver=lambda axis_name: min(int(jobs_req), int(_default_jobs()))
+            axis_jobs_resolver=lambda axis_name: normalize_jobs(int(jobs_req))
             if axis_profile_by_name.get(str(axis_name), "single") == "scaled"
             else 1,
             tmp_prefix=str(tmp_prefix),

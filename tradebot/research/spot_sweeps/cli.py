@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import os
 
 from .catalog import (
     _AXIS_CHOICES,
@@ -285,17 +284,6 @@ def parse_spot_sweep_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--cfg-workers", type=int, default=None, help=argparse.SUPPRESS)
     parser.add_argument("--cfg-out", default=None, help=argparse.SUPPRESS)
     return parser.parse_args(argv)
-
-
-def default_jobs() -> int:
-    detected = os.cpu_count()
-    if detected is None:
-        return 1
-    try:
-        detected_i = int(detected)
-    except (TypeError, ValueError):
-        return 1
-    return max(1, detected_i)
 
 
 def resolve_run_min_trades(args: argparse.Namespace) -> int:

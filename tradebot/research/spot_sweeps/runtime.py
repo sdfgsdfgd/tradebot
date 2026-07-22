@@ -14,6 +14,7 @@ from ...backtest.config import (
     ConfigBundle,
 )
 from ...backtest.data import ContractMeta, IBKRHistoricalData
+from ...backtest.sweeps import normalize_jobs
 from ...chart_data.series import BarSeriesSignature
 from ...time_utils import now_et as _now_et
 from ...signals import parse_bar_size
@@ -22,11 +23,7 @@ from .catalog import (
     build_axis_registry,
     _write_spot_sweep_coverage_map,
 )
-from .cli import (
-    default_jobs as _default_jobs,
-    parse_spot_sweep_args,
-    resolve_run_min_trades as _resolve_run_min_trades,
-)
+from .cli import parse_spot_sweep_args, resolve_run_min_trades as _resolve_run_min_trades
 from .milestones import (
     _collect_milestone_items_from_rows,
     _merge_and_write_milestones,
@@ -78,9 +75,7 @@ class SpotSweepRuntime(
             jobs_raw = int(self.args.jobs) if self.args.jobs is not None else 0
         except (TypeError, ValueError):
             jobs_raw = 0
-        detected_jobs = _default_jobs()
-        self.jobs = detected_jobs if int(jobs_raw) <= 0 else min(int(jobs_raw), int(detected_jobs))
-        self.jobs = max(1, int(self.jobs))
+        self.jobs = normalize_jobs(jobs_raw)
 
         self.symbol = str(self.args.symbol).strip().upper()
         self.start = _parse_date(self.args.start)

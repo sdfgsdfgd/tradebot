@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from datetime import date
 
+import tradebot.backtest.sweep_parallel as sweep_parallel
 from tradebot.research.multiwindow import (
     MultiwindowReport,
     candidate_shortlist,
@@ -11,6 +12,36 @@ from tradebot.research.multiwindow import (
     parse_multiwindow_args,
     promotion_receipt,
 )
+
+
+def test_parallel_stage_kernel_owns_hardware_and_work_caps(monkeypatch) -> None:
+    launched: dict[str, object] = {}
+    monkeypatch.setattr(sweep_parallel, "normalize_jobs", lambda _jobs: 3)
+    monkeypatch.setattr(
+        sweep_parallel,
+        "_run_parallel_json_worker_plan",
+        lambda **kwargs: launched.update(kwargs) or {},
+    )
+
+    workers, payloads = sweep_parallel._run_parallel_stage_kernel(
+        stage_label="test",
+        jobs=99,
+        total=2,
+        offline=True,
+        offline_error="offline required",
+        tmp_prefix="test_",
+        worker_tag="worker",
+        out_prefix="out",
+        build_cmd=lambda _worker, _workers, _path: [],
+        capture_error="capture",
+        failure_label="failure",
+        missing_label="missing",
+        invalid_label="invalid",
+    )
+
+    assert workers == 2
+    assert launched["jobs_eff"] == 2
+    assert payloads == {}
 
 
 def test_multiwindow_cli_contract_preserves_defaults() -> None:

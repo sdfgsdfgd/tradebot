@@ -10,6 +10,8 @@ import time
 from pathlib import Path
 from typing import Callable
 
+from .sweeps import normalize_jobs
+
 
 def _strip_flag(argv: list[str], flag: str) -> list[str]:
     return [arg for arg in argv if arg != flag]
@@ -278,7 +280,6 @@ def _run_parallel_stage_kernel(
     stage_label: str,
     jobs: int,
     total: int,
-    default_jobs: int,
     offline: bool,
     offline_error: str,
     tmp_prefix: str,
@@ -296,7 +297,7 @@ def _run_parallel_stage_kernel(
 ) -> tuple[int, dict[int, dict]]:
     if not bool(offline):
         raise SystemExit(str(offline_error))
-    jobs_eff = min(int(jobs), int(default_jobs), int(total)) if int(total) > 0 else 1
+    jobs_eff = min(normalize_jobs(int(jobs)), int(total)) if int(total) > 0 else 1
     jobs_eff = max(1, int(jobs_eff))
     print(f"{stage_label} parallel: workers={jobs_eff} total={int(total)}", flush=True)
     payloads = _run_parallel_json_worker_plan(
