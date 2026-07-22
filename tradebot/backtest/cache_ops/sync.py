@@ -22,7 +22,7 @@ from ..data import IBKRHistoricalData
 from ..models import Bar
 from ..spot_context import SpotBarRequirement, spot_bar_requirements_from_strategy
 from ...engines.market import session_label_et as _session_label_et
-from ...research.champions import discover_current_champions
+from ...spot.champions import discover_current_champions
 from .coverage import (
     _audit_rows,
     _build_indices,

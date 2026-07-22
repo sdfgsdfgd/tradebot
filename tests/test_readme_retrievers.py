@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from tradebot.research.champions import (
+from tradebot.spot.champions import (
     current_champion_candidates,
     discover_current_champions,
 )

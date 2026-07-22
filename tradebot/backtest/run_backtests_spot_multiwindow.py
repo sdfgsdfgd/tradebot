@@ -44,7 +44,7 @@ from .sweep_parallel import (
     _strip_flags,
 )
 from .sweeps import normalize_jobs, write_json
-from ..research.champions import load_current_champion_groups
+from ..spot.champions import load_current_champion_groups
 from ..research.multiwindow import (
     MultiwindowReport,
     candidate_shortlist,

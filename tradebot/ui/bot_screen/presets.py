@@ -8,7 +8,7 @@ import re
 from rich.text import Text
 
 from ...engine import spot_riskoff_end_hour
-from ...research.champions import load_current_champion_groups
+from ...spot.champions import load_current_champion_groups
 from ..bot_models import _BotPreset, _PresetHeader
 from ..common import _pnl_text
 from .formatting import _clean_group_label, _filters_for_group, _fmt_pct, _version_tag

@@ -22,7 +22,7 @@ from ...spot.fill_modes import (
     SPOT_FILL_MODE_NEXT_TRADABLE_BAR,
     normalize_spot_fill_mode,
 )
-from ..champions import load_current_champion_groups
+from ...spot.champions import load_current_champion_groups
 
 
 def _milestone_metrics_from_row(row: dict) -> dict:
