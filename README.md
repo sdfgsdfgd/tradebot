@@ -40,7 +40,8 @@ Minimal IBKR TUI trading client & bot
 - `tradebot/ui/app.py` — Textual application shell and navigation.
 - `tradebot/ui/portfolio/` — portfolio search, account table, and market-value presentation.
 - `tradebot/ui/position_detail/` — position detail, charts, market context, and order controls.
-- `tradebot/engine.py` — core shared decision logic (UI/live + backtests).
+- `tradebot/engines/` — shared market, signal, risk, shock, and execution truth.
+- `tradebot/spot/` — canonical spot payload, policy, sizing, graph, and lifecycle semantics.
 - `tradebot/backtest/cache_ops/` — cache coverage, repair, resampling, sync, and CLI orchestration.
 - `tradebot/store.py` — in‑memory portfolio snapshot.
 - `tradebot/main.py` — entrypoint.

@@ -1,7 +1,7 @@
 import unittest
 from datetime import date, datetime, time
 
-from tradebot.backtest.trading_calendar import (
+from tradebot.engines.market import (
     SESSION_ORDER,
     expected_sessions,
     et_day_from_utc_naive,

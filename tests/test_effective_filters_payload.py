@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 from types import SimpleNamespace
 
-from tradebot.backtest.spot_codec import effective_filters_payload
+from tradebot.spot.codec import effective_filters_payload
 from tradebot.ui.bot import BotScreen
 
 
@@ -48,4 +48,3 @@ def test_ui_heal_strategy_filters_payload_removes_embedded_filters() -> None:
     assert "filters" not in strategy
     assert "ratsv_enabled" not in strategy
     assert strategy.get("ema_preset") == "5/13"
-

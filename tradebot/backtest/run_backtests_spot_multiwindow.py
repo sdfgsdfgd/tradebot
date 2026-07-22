@@ -25,7 +25,6 @@ from .multiwindow_helpers import (
     preflight_offline_cache_or_die as _mw_preflight_offline_cache_or_die,
 )
 from .spot_codec import (
-    effective_filters_payload as _codec_effective_filters_payload,
     filters_from_payload as _codec_filters_from_payload,
     make_bundle as _codec_make_bundle,
     metrics_from_summary as _codec_metrics_from_summary,
@@ -41,6 +40,7 @@ from .sweep_parallel import (
     _strip_flags,
 )
 from .sweeps import write_json
+from ..spot.codec import effective_filters_payload as _codec_effective_filters_payload
 from ..research.multiwindow import (
     MultiwindowReport,
     collect_multiwindow_rows,

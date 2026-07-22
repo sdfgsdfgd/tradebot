@@ -22,7 +22,7 @@ from ..cache import cache_path, read_cache, write_cache
 from ..data import IBKRHistoricalData
 from ..models import Bar
 from ..spot_context import SpotBarRequirement, spot_bar_requirements_from_strategy
-from ..trading_calendar import session_label_et as _session_label_et
+from ...engines.market import session_label_et as _session_label_et
 from .coverage import (
     _audit_rows,
     _build_indices,
