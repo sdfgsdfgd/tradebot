@@ -2,6 +2,11 @@
 
 from __future__ import annotations
 
+from ..order_reservation import (
+    OrderReservationCapacityRequest,
+    evaluate_order_reservation_capacity,
+)
+
 import asyncio
 from datetime import date, datetime
 
@@ -608,6 +613,32 @@ class BotOrderBuilderMixin:
                 debit_value=float(desired_debit),
                 quantity=1,
             )
+
+            if (
+                intent_clean == "enter"
+                and symbol == "XSP"
+                and package_risk is not None
+                and package_risk.structure == "vertical_credit"
+            ):
+                reservation_summary = self._order_reservation_summary()
+                capacity_decision = evaluate_order_reservation_capacity(
+                    OrderReservationCapacityRequest(
+                        account=reservation_summary.account,
+                        product_domain=symbol,
+                        sec_type=str(getattr(bag, "secType", "") or ""),
+                        structure=package_risk.structure,
+                        candidate_max_loss=package_risk.max_loss,
+                        available_capacity=strat.get(
+                            "xsp_reservation_capacity_usd"
+                        ),
+                    ),
+                    reservation_summary,
+                )
+                if not capacity_decision.allow:
+                    return _fail(
+                        f"Capacity: {capacity_decision.reason}",
+                        retry_reason=capacity_decision.reason,
+                    )
 
             order = _BotOrder(
                 instance_id=instance.instance_id,

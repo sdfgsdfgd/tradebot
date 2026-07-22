@@ -2338,6 +2338,22 @@ class _AdmissionSendHarness:
         return None
 
 
+class _ReservationSummaryHarness:
+    def __init__(self, orders: list[_BotOrder]) -> None:
+        self._client = SimpleNamespace(
+            _config=SimpleNamespace(account="DU2200"),
+        )
+        self._orders = list(orders)
+
+
+def _bot_reservation_summary(harness: _ReservationSummaryHarness):
+    summarize = getattr(BotScreen, "_order_reservation_summary", None)
+    assert callable(
+        summarize,
+    ), "BotScreen._order_reservation_summary is missing"
+    return summarize(harness)
+
+
 def test_automated_xsp_admission_denies_missing_staged_risk_before_preview_or_placement(
     monkeypatch,
 ) -> None:
@@ -2470,6 +2486,81 @@ def test_automated_xsp_admission_previews_then_places_only_when_admitted(
     admission = harness._events[0][1]["admission"]
     assert admission["allow"] is True
     assert admission["reason"] == "broker_preview_admitted"
+
+
+def test_bot_reservation_summary_maps_active_local_xsp_orders() -> None:
+    staged = _admission_xsp_order(
+        package_risk=OptionPackageRisk(
+            structure="vertical_credit",
+            right="PUT",
+            expiry="20260209",
+            width=5.0,
+            debit_value=-1.0,
+            multiplier=100.0,
+            quantity=1,
+            max_loss=400.0,
+        )
+    )
+    staged.status = "STAGED"
+
+    canceling = _admission_xsp_order(
+        package_risk=OptionPackageRisk(
+            structure="vertical_credit",
+            right="PUT",
+            expiry="20260209",
+            width=3.0,
+            debit_value=-0.5,
+            multiplier=100.0,
+            quantity=1,
+            max_loss=250.0,
+        )
+    )
+    canceling.status = "CANCELING"
+
+    terminal = _admission_xsp_order(
+        package_risk=OptionPackageRisk(
+            structure="vertical_credit",
+            right="PUT",
+            expiry="20260209",
+            width=10.0,
+            debit_value=-1.0,
+            multiplier=100.0,
+            quantity=1,
+            max_loss=900.0,
+        )
+    )
+    terminal.status = "FILLED"
+
+    summary = _bot_reservation_summary(
+        _ReservationSummaryHarness([staged, canceling, terminal])
+    )
+
+    assert summary.as_payload() == {
+        "account": "DU2200",
+        "active_count": 2,
+        "unknown_active_count": 0,
+        "reserved_max_loss": 650.0,
+        "complete": True,
+        "reason": "reservation_complete",
+    }
+
+
+def test_bot_reservation_summary_fails_closed_for_active_xsp_without_staged_risk() -> None:
+    order = _admission_xsp_order(package_risk=None)
+    order.status = "STAGED"
+
+    summary = _bot_reservation_summary(
+        _ReservationSummaryHarness([order])
+    )
+
+    assert summary.as_payload() == {
+        "account": "DU2200",
+        "active_count": 1,
+        "unknown_active_count": 1,
+        "reserved_max_loss": None,
+        "complete": False,
+        "reason": "active_risk_unknown",
+    }
 
 
 def test_resize_send_error_preserves_last_successful_cooldown_timestamp() -> None:

@@ -37,6 +37,11 @@ from ..order_admission import (
     OrderAdmissionRequest,
     evaluate_order_admission,
 )
+from ..order_reservation import (
+    OrderReservation,
+    OrderReservationSummary,
+    summarize_order_reservations,
+)
 from ..spot.graph import spot_dynamic_flip_hold_bars
 from ..spot.lifecycle import flip_exit_gate_blocked, flip_exit_hit
 from ..series import BarSeries, BarSeriesMeta
@@ -5282,6 +5287,56 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
             lines.append(Text(self._status, style="yellow"))
 
         self._status_panel.update(Text("\n").join(lines))
+
+    def _order_reservation_summary(self) -> OrderReservationSummary:
+        account = str(
+            getattr(
+                getattr(self._client, "_config", None),
+                "account",
+                "",
+            )
+            or ""
+        ).strip()
+
+        reservations: list[OrderReservation] = []
+        for order in self._orders:
+            contract = order.order_contract
+            sec_type = str(getattr(contract, "secType", "") or "").strip().upper()
+            symbol = str(getattr(contract, "symbol", "") or "").strip().upper()
+            package_risk = order.package_risk
+
+            structure = str(
+                getattr(package_risk, "structure", "") or ""
+            ).strip()
+            max_loss = (
+                getattr(package_risk, "max_loss", None)
+                if package_risk is not None
+                else None
+            )
+
+            if not structure and sec_type == "BAG" and symbol == "XSP":
+                try:
+                    signed_combo_price = float(order.limit_price)
+                except (TypeError, ValueError):
+                    signed_combo_price = 0.0
+                if signed_combo_price < 0:
+                    structure = "vertical_credit"
+
+            reservations.append(
+                OrderReservation(
+                    account=account,
+                    product_domain=symbol,
+                    sec_type=sec_type,
+                    structure=structure,
+                    status=str(order.status or ""),
+                    max_loss=max_loss,
+                )
+            )
+
+        return summarize_order_reservations(
+            reservations,
+            account=account,
+        )
 
     def _add_order(self, order: _BotOrder) -> None:
         self._orders.append(order)

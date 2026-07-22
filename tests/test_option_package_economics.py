@@ -255,6 +255,19 @@ def test_option_builder_stages_native_credit_bag_through_canonical_kernel(monkey
         def _reset_daily_counters_if_needed(_instance) -> None:
             return None
 
+        @staticmethod
+        def _order_reservation_summary():
+            from tradebot.order_reservation import OrderReservationSummary
+
+            return OrderReservationSummary(
+                account="DU2200",
+                active_count=0,
+                unknown_active_count=0,
+                reserved_max_loss=0.0,
+                complete=True,
+                reason="reservation_complete",
+            )
+
         def _add_order(self, order: _BotOrder) -> None:
             self._orders.append(order)
 
@@ -274,6 +287,7 @@ def test_option_builder_stages_native_credit_bag_through_canonical_kernel(monkey
             "entry_signal": "ema",
             "ema_preset": "9/21",
             "dte": 0,
+            "xsp_reservation_capacity_usd": 2200.0,
             "legs": [
                 {"action": "SELL", "right": "PUT", "moneyness_pct": 0.0, "qty": 1},
                 {"action": "BUY", "right": "PUT", "moneyness_pct": 5.0, "qty": 1},
@@ -318,6 +332,255 @@ def test_option_builder_stages_native_credit_bag_through_canonical_kernel(monkey
         "max_loss": 400.0,
     }
     assert len(calls) == 4
+
+
+_MISSING_XSP_RESERVATION_CAPACITY = object()
+
+
+def _run_xsp_capacity_builder_case(
+    monkeypatch,
+    *,
+    available_capacity=_MISSING_XSP_RESERVATION_CAPACITY,
+    reserved_max_loss: float = 650.0,
+):
+    from tradebot.order_reservation import (
+        OrderReservationSummary,
+        evaluate_order_reservation_capacity,
+    )
+
+    package_calls: list[list[tuple[str, int, float | None]]] = []
+    capacity_calls: list[tuple[object, object]] = []
+    monkeypatch.setattr(
+        bot_order_builder_module,
+        "option_package_debit_value",
+        _recording_kernel(package_calls),
+    )
+    monkeypatch.setattr(
+        bot_order_builder_module,
+        "_now_et",
+        lambda: datetime(2026, 2, 9, 10, 0),
+    )
+
+    def _record_capacity(request, summary):
+        capacity_calls.append((request, summary))
+        return evaluate_order_reservation_capacity(request, summary)
+
+    monkeypatch.setattr(
+        bot_order_builder_module,
+        "evaluate_order_reservation_capacity",
+        _record_capacity,
+        raising=False,
+    )
+
+    underlying = Stock(symbol="XSP", exchange="SMART", currency="USD")
+    underlying.conId = 900
+
+    class _Client:
+        @staticmethod
+        async def stock_option_chain(symbol: str):
+            assert symbol == "XSP"
+            return underlying, SimpleNamespace(
+                expirations=["20260209"],
+                strikes=[95.0, 100.0],
+                tradingClass="XSP",
+            )
+
+        @staticmethod
+        async def qualify_proxy_contracts(*contracts):
+            for contract in contracts:
+                contract.conId = 1001 if float(contract.strike) == 100.0 else 1002
+                contract.minTick = 0.01
+                contract.multiplier = "100"
+            return list(contracts)
+
+        @staticmethod
+        async def ensure_ticker(contract, *, owner: str):
+            assert owner == "bot"
+            if str(contract.secType).upper() == "STK":
+                return SimpleNamespace(
+                    contract=contract,
+                    bid=99.90,
+                    ask=100.10,
+                    last=100.00,
+                    minTick=0.01,
+                    marketDataType=1,
+                    marketPrice=lambda: 100.00,
+                )
+            if float(contract.strike) == 100.0:
+                bid, ask, last = 2.00, 2.20, 2.10
+            else:
+                bid, ask, last = 1.00, 1.20, 1.10
+            return SimpleNamespace(
+                contract=contract,
+                bid=bid,
+                ask=ask,
+                last=last,
+                minTick=0.01,
+                marketDataType=1,
+            )
+
+        @staticmethod
+        def proxy_error():
+            return None
+
+    summary = OrderReservationSummary(
+        account="DU2200",
+        active_count=2,
+        unknown_active_count=0,
+        reserved_max_loss=reserved_max_loss,
+        complete=True,
+        reason="reservation_complete",
+    )
+
+    class _Harness(BotOrderBuilderMixin):
+        def __init__(self) -> None:
+            self._client = _Client()
+            self._payload = None
+            self._tracked_conids: set[int] = set()
+            self._orders: list[_BotOrder] = []
+            self._status = ""
+            self._events: list[dict[str, object]] = []
+
+        @staticmethod
+        def _strategy_instrument(_strategy) -> str:
+            return "options"
+
+        @staticmethod
+        def _initial_exec_mode(**_kwargs) -> str:
+            return "MID"
+
+        @staticmethod
+        def _reset_daily_counters_if_needed(_instance) -> None:
+            return None
+
+        @staticmethod
+        def _order_reservation_summary():
+            return summary
+
+        def _add_order(self, order: _BotOrder) -> None:
+            self._orders.append(order)
+
+        def _render_status(self) -> None:
+            return None
+
+        def _journal_write(self, **kwargs) -> None:
+            self._events.append(dict(kwargs))
+
+    strategy = {
+        "instrument": "options",
+        "entry_signal": "ema",
+        "ema_preset": "9/21",
+        "dte": 0,
+        "legs": [
+            {"action": "SELL", "right": "PUT", "moneyness_pct": 0.0, "qty": 1},
+            {"action": "BUY", "right": "PUT", "moneyness_pct": 5.0, "qty": 1},
+        ],
+    }
+    if available_capacity is not _MISSING_XSP_RESERVATION_CAPACITY:
+        strategy["xsp_reservation_capacity_usd"] = available_capacity
+
+    instance = _BotInstance(
+        instance_id=1,
+        group="xsp-credit",
+        symbol="XSP",
+        strategy=strategy,
+        filters=None,
+    )
+    harness = _Harness()
+    signal_bar_ts = datetime(2026, 2, 9, 10, 0)
+
+    asyncio.run(
+        harness._create_order_for_instance(
+            instance,
+            intent="enter",
+            direction="up",
+            signal_bar_ts=signal_bar_ts,
+        )
+    )
+
+    return harness, instance, signal_bar_ts, package_calls, capacity_calls
+
+
+def test_option_builder_consumes_explicit_xsp_reservation_capacity_before_staging(
+    monkeypatch,
+) -> None:
+    harness, instance, signal_bar_ts, package_calls, capacity_calls = (
+        _run_xsp_capacity_builder_case(
+            monkeypatch,
+            available_capacity=2200.0,
+            reserved_max_loss=650.0,
+        )
+    )
+
+    assert len(capacity_calls) == 1, "native XSP builder did not evaluate reservation capacity"
+    request, summary = capacity_calls[0]
+    assert request.account == "DU2200"
+    assert request.product_domain == "XSP"
+    assert request.sec_type == "BAG"
+    assert request.structure == "vertical_credit"
+    assert request.candidate_max_loss == 400.0
+    assert request.available_capacity == 2200.0
+    assert summary.reserved_max_loss == 650.0
+    assert len(harness._orders) == 1
+    assert instance.touched_conids == {1001, 1002}
+    assert instance.entries_today == 1
+    assert instance.open_direction == "up"
+    assert instance.last_entry_bar_ts == signal_bar_ts
+    assert "Created order BUY BAG XSP" in harness._status
+    assert len(package_calls) == 4
+
+
+def test_option_builder_blocks_capacity_exceeded_before_any_staging_mutation(
+    monkeypatch,
+) -> None:
+    harness, instance, _signal_bar_ts, package_calls, capacity_calls = (
+        _run_xsp_capacity_builder_case(
+            monkeypatch,
+            available_capacity=1000.0,
+            reserved_max_loss=650.0,
+        )
+    )
+
+    assert len(capacity_calls) == 1, "native XSP builder did not evaluate reservation capacity"
+    request, summary = capacity_calls[0]
+    assert request.candidate_max_loss == 400.0
+    assert request.available_capacity == 1000.0
+    assert summary.reserved_max_loss == 650.0
+    assert harness._orders == []
+    assert instance.touched_conids == set()
+    assert instance.entries_today == 0
+    assert instance.open_direction is None
+    assert instance.last_entry_bar_ts is None
+    assert harness._status == "Capacity: capacity_exceeded"
+    assert instance.order_trigger_last_error == "Capacity: capacity_exceeded"
+    assert instance.order_trigger_retry_reason == "capacity_exceeded"
+    assert len(package_calls) == 4
+
+
+def test_option_builder_fails_closed_when_xsp_reservation_capacity_is_missing(
+    monkeypatch,
+) -> None:
+    harness, instance, _signal_bar_ts, package_calls, capacity_calls = (
+        _run_xsp_capacity_builder_case(
+            monkeypatch,
+            reserved_max_loss=650.0,
+        )
+    )
+
+    assert len(capacity_calls) == 1, "native XSP builder did not evaluate reservation capacity"
+    request, summary = capacity_calls[0]
+    assert request.candidate_max_loss == 400.0
+    assert request.available_capacity is None
+    assert summary.reserved_max_loss == 650.0
+    assert harness._orders == []
+    assert instance.touched_conids == set()
+    assert instance.entries_today == 0
+    assert instance.open_direction is None
+    assert instance.last_entry_bar_ts is None
+    assert harness._status == "Capacity: capacity_unavailable"
+    assert instance.order_trigger_last_error == "Capacity: capacity_unavailable"
+    assert instance.order_trigger_retry_reason == "capacity_unavailable"
+    assert len(package_calls) == 4
 
 
 def _surface() -> IVSurfaceParams:

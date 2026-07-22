@@ -116,6 +116,7 @@
     "tests/test_order_admission_policy.py": "live-execution-orders",
     "tests/test_order_contract_normalize.py": "live-market-data-contracts",
     "tests/test_order_pricing_guards.py": "live-execution-orders",
+    "tests/test_order_reservation_policy.py": "live-execution-orders",
     "tests/test_readme_retrievers.py": "operator-ui-observability",
     "tests/test_regime_router_exec_bar_state_persistence.py": "backtest-simulation-accounting",
     "tests/test_spot_combo_full_signature.py": "research-optimization-calibration",
@@ -331,11 +332,13 @@
         "tests/test_option_package_risk.py",
         "tests/test_order_admission_policy.py",
         "tests/test_order_pricing_guards.py",
+        "tests/test_order_reservation_policy.py",
         "tests/test_ui_futures_detail_flow.py"
       ],
       "owner_surface": [
         "tradebot/option_package.py",
         "tradebot/order_admission.py",
+        "tradebot/order_reservation.py",
         "tradebot/ui/bot.py",
         "tradebot/ui/bot_models.py",
         "tradebot/ui/bot_order_builder.py",
