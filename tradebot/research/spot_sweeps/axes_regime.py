@@ -3,15 +3,17 @@
 from __future__ import annotations
 
 from dataclasses import replace
+from typing import Literal
+
 from ...backtest.config import (
     ConfigBundle,
 )
 from .dimensions import _AXIS_DIMENSION_REGISTRY
 from .profiles import (
-    _REGIME2_ST_PROFILE,
-    _REGIME_ST_PROFILE,
     _SHOCK_SWEEP_PROFILE,
     _SPREAD_PROFILE_REGISTRY,
+    _SUPERTREND_SEARCH_PROFILE,
+    SupertrendVariant,
 )
 from .milestones import (
     _print_leaderboards,
@@ -21,33 +23,40 @@ from .support import (
 )
 
 
+def _with_supertrend(
+    base: ConfigBundle,
+    variant: SupertrendVariant,
+    *,
+    layer: Literal["primary", "confirmation"],
+) -> ConfigBundle:
+    if layer == "primary":
+        overrides = {
+            "regime_mode": "supertrend",
+            "regime_bar_size": variant.bar_size,
+            "supertrend_atr_period": variant.atr_period,
+            "supertrend_multiplier": variant.multiplier,
+            "supertrend_source": variant.source,
+        }
+    else:
+        overrides = {
+            "regime2_mode": "supertrend",
+            "regime2_bar_size": variant.bar_size,
+            "regime2_supertrend_atr_period": variant.atr_period,
+            "regime2_supertrend_multiplier": variant.multiplier,
+            "regime2_supertrend_source": variant.source,
+        }
+    return replace(base, strategy=replace(base.strategy, **overrides))
+
+
 class SweepRegimeAxes:
     def _sweep_regime(self) -> None:
         base = self._base_bundle(bar_size=self.signal_bar_size, filters=None)
-        profile = _REGIME_ST_PROFILE
-        regime_bar_sizes = tuple(profile.get("bars") or ())
-        atr_periods = tuple(profile.get("atr_periods") or ())
-        multipliers = tuple(profile.get("multipliers") or ())
-        sources = tuple(profile.get("sources") or ())
         rows: list[dict] = []
         cfg_pairs: list[tuple[ConfigBundle, str]] = []
-        for rbar in regime_bar_sizes:
-            for atr_p in atr_periods:
-                for mult in multipliers:
-                    for src in sources:
-                        cfg = replace(
-                            base,
-                            strategy=replace(
-                                base.strategy,
-                                regime_mode="supertrend",
-                                regime_bar_size=str(rbar),
-                                supertrend_atr_period=int(atr_p),
-                                supertrend_multiplier=float(mult),
-                                supertrend_source=str(src),
-                            ),
-                        )
-                        note = f"ST({atr_p},{mult},{src}) @{rbar}"
-                        cfg_pairs.append((cfg, note))
+        for gate in _SUPERTREND_SEARCH_PROFILE.variants("primary"):
+            cfg = _with_supertrend(base, gate, layer="primary")
+            note = f"ST({gate.atr_period},{gate.multiplier},{gate.source}) @{gate.bar_size}"
+            cfg_pairs.append((cfg, note))
         tested_total = self._run_cfg_pairs_grid(
             axis_tag="regime",
             cfg_pairs=cfg_pairs,
@@ -65,28 +74,12 @@ class SweepRegimeAxes:
 
     def _sweep_regime2(self) -> None:
         base = self._base_bundle(bar_size=self.signal_bar_size, filters=None)
-        profile = _REGIME2_ST_PROFILE
-        atr_periods = tuple(profile.get("atr_periods") or ())
-        multipliers = tuple(profile.get("multipliers") or ())
-        sources = tuple(profile.get("sources") or ())
         rows: list[dict] = []
         cfg_pairs: list[tuple[ConfigBundle, str]] = [(base, "base")]
-        for atr_p in atr_periods:
-            for mult in multipliers:
-                for src in sources:
-                    cfg = replace(
-                        base,
-                        strategy=replace(
-                            base.strategy,
-                            regime2_mode="supertrend",
-                            regime2_bar_size="4 hours",
-                            regime2_supertrend_atr_period=int(atr_p),
-                            regime2_supertrend_multiplier=float(mult),
-                            regime2_supertrend_source=str(src),
-                        ),
-                    )
-                    note = f"ST2(4h:{atr_p},{mult},{src})"
-                    cfg_pairs.append((cfg, note))
+        for gate in _SUPERTREND_SEARCH_PROFILE.variants("confirmation"):
+            cfg = _with_supertrend(base, gate, layer="confirmation")
+            note = f"ST2(4h:{gate.atr_period},{gate.multiplier},{gate.source})"
+            cfg_pairs.append((cfg, note))
         tested_total = self._run_cfg_pairs_grid(
             axis_tag="regime2",
             cfg_pairs=cfg_pairs,
@@ -129,43 +122,31 @@ class SweepRegimeAxes:
         """Targeted interaction hunt: sweep regime + regime2 together (keeps base filters)."""
         base = self._base_bundle(bar_size=self.signal_bar_size, filters=None)
         # Keep this tight and focused; the point is to cover interaction edges that compact preset funnels can miss.
-        regime_bar_sizes = ["4 hours"]
-        regime_atr_periods = [10, 14, 21]
-        regime_multipliers = [0.4, 0.5, 0.6]
-        regime_sources = ["close", "hl2"]
-
-        r2_bar_sizes = ["4 hours", "1 day"]
-        r2_atr_periods = [3, 4, 5, 6, 7, 10, 14]
-        r2_multipliers = [0.2, 0.25, 0.3, 0.35, 0.4, 0.5]
-        r2_sources = ["close", "hl2"]
-
         cfg_pairs = [(base, "base")]
-        for rbar in regime_bar_sizes:
-            for atr_p in regime_atr_periods:
-                for mult in regime_multipliers:
-                    for src in regime_sources:
-                        for r2_bar in r2_bar_sizes:
-                            for r2_atr in r2_atr_periods:
-                                for r2_mult in r2_multipliers:
-                                    for r2_src in r2_sources:
-                                        cfg = replace(
-                                            base,
-                                            strategy=replace(
-                                                base.strategy,
-                                                regime_mode="supertrend",
-                                                regime_bar_size=rbar,
-                                                supertrend_atr_period=int(atr_p),
-                                                supertrend_multiplier=float(mult),
-                                                supertrend_source=str(src),
-                                                regime2_mode="supertrend",
-                                                regime2_bar_size=str(r2_bar),
-                                                regime2_supertrend_atr_period=int(r2_atr),
-                                                regime2_supertrend_multiplier=float(r2_mult),
-                                                regime2_supertrend_source=str(r2_src),
-                                            ),
-                                        )
-                                        note = f"ST({atr_p},{mult},{src})@{rbar} + ST2({r2_bar}:{r2_atr},{r2_mult},{r2_src})"
-                                        cfg_pairs.append((cfg, note))
+        primary_gates = _SUPERTREND_SEARCH_PROFILE.variants(
+            "primary",
+            bars=("4 hours",),
+            atr_periods=(10, 14, 21),
+            multipliers=(0.4, 0.5, 0.6),
+        )
+        confirmation_gates = tuple(
+            _SUPERTREND_SEARCH_PROFILE.variants(
+                "confirmation",
+                bars=("4 hours", "1 day"),
+                atr_periods=(3, 4, 5, 6, 7, 10, 14),
+                multipliers=(0.2, 0.25, 0.3, 0.35, 0.4, 0.5),
+            )
+        )
+        for primary in primary_gates:
+            for confirmation in confirmation_gates:
+                cfg = _with_supertrend(base, primary, layer="primary")
+                cfg = _with_supertrend(cfg, confirmation, layer="confirmation")
+                note = (
+                    f"ST({primary.atr_period},{primary.multiplier},{primary.source})@{primary.bar_size} + "
+                    f"ST2({confirmation.bar_size}:{confirmation.atr_period},"
+                    f"{confirmation.multiplier},{confirmation.source})"
+                )
+                cfg_pairs.append((cfg, note))
         rows: list[dict] = []
         if self._run_cfg_pairs_grid(
             axis_tag="joint", cfg_pairs=cfg_pairs, rows=rows, report_every=100, heartbeat_sec=20.0
@@ -176,35 +157,31 @@ class SweepRegimeAxes:
     def _sweep_micro_st(self) -> None:
         """Micro sweep around the current ST + ST2 neighborhood (tighter, more granular)."""
         base = self._base_bundle(bar_size=self.signal_bar_size, filters=None)
-        regime_atr_periods = [14, 21]
-        regime_multipliers = [0.4, 0.45, 0.5, 0.55, 0.6]
-
-        r2_atr_periods = [4, 5, 6]
-        r2_multipliers = [0.2, 0.225, 0.25, 0.275, 0.3, 0.325, 0.35, 0.4]
-
         cfg_pairs = [(base, "base")]
-        for atr_p in regime_atr_periods:
-            for mult in regime_multipliers:
-                for r2_atr in r2_atr_periods:
-                    for r2_mult in r2_multipliers:
-                        cfg = replace(
-                            base,
-                            strategy=replace(
-                                base.strategy,
-                                regime_mode="supertrend",
-                                regime_bar_size="4 hours",
-                                supertrend_atr_period=int(atr_p),
-                                supertrend_multiplier=float(mult),
-                                supertrend_source="close",
-                                regime2_mode="supertrend",
-                                regime2_bar_size="4 hours",
-                                regime2_supertrend_atr_period=int(r2_atr),
-                                regime2_supertrend_multiplier=float(r2_mult),
-                                regime2_supertrend_source="close",
-                            ),
-                        )
-                        note = f"ST({atr_p},{mult},close) + ST2(4h:{r2_atr},{r2_mult},close)"
-                        cfg_pairs.append((cfg, note))
+        primary_gates = _SUPERTREND_SEARCH_PROFILE.variants(
+            "primary",
+            bars=("4 hours",),
+            atr_periods=(14, 21),
+            multipliers=(0.4, 0.45, 0.5, 0.55, 0.6),
+            sources=("close",),
+        )
+        confirmation_gates = tuple(
+            _SUPERTREND_SEARCH_PROFILE.variants(
+                "confirmation",
+                atr_periods=(4, 5, 6),
+                multipliers=(0.2, 0.225, 0.25, 0.275, 0.3, 0.325, 0.35, 0.4),
+                sources=("close",),
+            )
+        )
+        for primary in primary_gates:
+            for confirmation in confirmation_gates:
+                cfg = _with_supertrend(base, primary, layer="primary")
+                cfg = _with_supertrend(cfg, confirmation, layer="confirmation")
+                note = (
+                    f"ST({primary.atr_period},{primary.multiplier},close) + "
+                    f"ST2(4h:{confirmation.atr_period},{confirmation.multiplier},close)"
+                )
+                cfg_pairs.append((cfg, note))
         rows: list[dict] = []
         if self._run_cfg_pairs_grid(
             axis_tag="micro_st", cfg_pairs=cfg_pairs, rows=rows, report_every=50, heartbeat_sec=15.0

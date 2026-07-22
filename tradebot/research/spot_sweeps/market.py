@@ -29,10 +29,9 @@ from .catalog import (
 from .dimensions import _AXIS_DIMENSION_REGISTRY
 from .profiles import (
     _ATR_EXIT_PROFILE_REGISTRY,
-    _REGIME2_ST_PROFILE,
-    _REGIME_ST_PROFILE,
     _SHOCK_SWEEP_PROFILE,
     _SPREAD_PROFILE_REGISTRY,
+    _SUPERTREND_SEARCH_PROFILE,
 )
 from .milestones import (
     _filters_payload,
@@ -341,22 +340,11 @@ class SweepMarketData:
             if total > 0:
                 return int(total)
         if hint_mode == "regime_profile":
-            profile = _REGIME_ST_PROFILE
-            total = _cardinality(
-                len(tuple(profile.get("bars") or ())),
-                len(tuple(profile.get("atr_periods") or ())),
-                len(tuple(profile.get("multipliers") or ())),
-                len(tuple(profile.get("sources") or ())),
-            )
+            total = _SUPERTREND_SEARCH_PROFILE.cardinality("primary")
             if total > 0:
                 return int(total)
         if hint_mode == "regime2_profile":
-            profile = _REGIME2_ST_PROFILE
-            total = _cardinality(
-                len(tuple(profile.get("atr_periods") or ())),
-                len(tuple(profile.get("multipliers") or ())),
-                len(tuple(profile.get("sources") or ())),
-            )
+            total = _SUPERTREND_SEARCH_PROFILE.cardinality("confirmation")
             if total > 0:
                 return int(total)
         if hint_mode == "shock_profile":

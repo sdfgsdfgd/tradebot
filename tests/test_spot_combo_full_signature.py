@@ -90,6 +90,8 @@ def test_combo_full_progress_uses_executed_profile_space(monkeypatch) -> None:
         _cfg, _note, meta = space.plan_item_from_rank(rank)
         assert meta["_mr_rank"] == rank
     assert runtime._axis_total_hint("combo_full") == 33
+    assert runtime._axis_total_hint("regime") == 600
+    assert runtime._axis_total_hint("regime2") == 300
     assert runtime._combo_full_context("full").dimension_signature == runtime._combo_full_context("").dimension_signature
 
 

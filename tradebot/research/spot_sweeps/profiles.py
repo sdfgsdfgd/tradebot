@@ -2,7 +2,60 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterator, Sequence
+from dataclasses import dataclass
+from typing import Literal
+
 from .dimensions import _AXIS_DIMENSION_REGISTRY
+
+
+@dataclass(frozen=True)
+class SupertrendVariant:
+    bar_size: str
+    atr_period: int
+    multiplier: float
+    source: str
+
+
+@dataclass(frozen=True)
+class SupertrendSearchProfile:
+    """One search-space authority for primary and confirmation regime gates."""
+
+    atr_periods: tuple[int, ...]
+    multipliers: tuple[float, ...]
+    sources: tuple[str, ...]
+    primary_bars: tuple[str, ...] = ("4 hours", "1 day")
+    confirmation_bars: tuple[str, ...] = ("4 hours",)
+
+    def bars(self, layer: Literal["primary", "confirmation"]) -> tuple[str, ...]:
+        if layer == "primary":
+            return self.primary_bars
+        if layer == "confirmation":
+            return self.confirmation_bars
+        raise ValueError(f"Unknown Supertrend gate layer: {layer!r}")
+
+    def variants(
+        self,
+        layer: Literal["primary", "confirmation"],
+        *,
+        bars: Sequence[str] | None = None,
+        atr_periods: Sequence[int] | None = None,
+        multipliers: Sequence[float] | None = None,
+        sources: Sequence[str] | None = None,
+    ) -> Iterator[SupertrendVariant]:
+        for bar_size in (self.bars(layer) if bars is None else bars):
+            for atr_period in (self.atr_periods if atr_periods is None else atr_periods):
+                for multiplier in (self.multipliers if multipliers is None else multipliers):
+                    for source in (self.sources if sources is None else sources):
+                        yield SupertrendVariant(
+                            bar_size=str(bar_size),
+                            atr_period=int(atr_period),
+                            multiplier=float(multiplier),
+                            source=str(source),
+                        )
+
+    def cardinality(self, layer: Literal["primary", "confirmation"]) -> int:
+        return len(self.bars(layer)) * len(self.atr_periods) * len(self.multipliers) * len(self.sources)
 
 _ATR_EXIT_PROFILE_REGISTRY: dict[str, dict[str, object]] = {
     "atr": {
@@ -85,10 +138,9 @@ _PERM_JOINT_PROFILE: dict[str, tuple] = {
     "vol_variants": tuple(_AXIS_DIMENSION_REGISTRY.get("perm_joint", {}).get("vol_variants") or ()),
     "cadence_variants": tuple(_AXIS_DIMENSION_REGISTRY.get("perm_joint", {}).get("cadence_variants") or ()),
 }
-_REGIME_ST_PROFILE: dict[str, tuple] = {
-    "bars": ("4 hours", "1 day"),
-    "atr_periods": (2, 3, 4, 5, 6, 7, 10, 11, 14, 21),
-    "multipliers": (
+_SUPERTREND_SEARCH_PROFILE = SupertrendSearchProfile(
+    atr_periods=(2, 3, 4, 5, 6, 7, 10, 11, 14, 21),
+    multipliers=(
         0.05,
         0.075,
         0.1,
@@ -105,29 +157,8 @@ _REGIME_ST_PROFILE: dict[str, tuple] = {
         1.5,
         2.0,
     ),
-    "sources": ("close", "hl2"),
-}
-_REGIME2_ST_PROFILE: dict[str, tuple] = {
-    "atr_periods": (2, 3, 4, 5, 6, 7, 10, 11, 14, 21),
-    "multipliers": (
-        0.05,
-        0.075,
-        0.1,
-        0.125,
-        0.15,
-        0.2,
-        0.25,
-        0.3,
-        0.4,
-        0.5,
-        0.6,
-        0.8,
-        1.0,
-        1.5,
-        2.0,
-    ),
-    "sources": ("close", "hl2"),
-}
+    sources=("close", "hl2"),
+)
 _SHOCK_SWEEP_PROFILE: dict[str, tuple] = {
     "modes": tuple(_AXIS_DIMENSION_REGISTRY.get("shock", {}).get("modes") or ()),
     "dir_variants": tuple(_AXIS_DIMENSION_REGISTRY.get("shock", {}).get("dir_variants") or ()),
