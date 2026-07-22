@@ -10,6 +10,7 @@ from pathlib import Path
 from ..backtest.sweep_fingerprint import _strategy_fingerprint
 from ..backtest.sweep_parallel import _collect_parallel_payload_records
 from ..backtest.sweeps import utc_now_iso_z, write_json
+from ..spot.codec import effective_filters_payload
 
 
 @dataclass(frozen=True)
@@ -26,6 +27,7 @@ class MultiwindowReport:
     write_top: int
     out_path: Path
     cache_path: Path
+    track: str | None = None
 
 
 def score_key(item: dict) -> tuple:
@@ -45,12 +47,127 @@ def strategy_key(strategy: dict, *, filters: dict | None) -> str:
     return _strategy_fingerprint(strategy, filters=filters)
 
 
+def candidate_shortlist(
+    payload: dict,
+    *,
+    symbol: str,
+    bar_size: str,
+    use_rth: bool,
+    limit: int,
+    track: str = "auto",
+) -> list[dict]:
+    """Build a deterministic, diverse seed set for the stability gate."""
+    symbol_key = str(symbol).strip().upper()
+    bar_key = str(bar_size).strip().lower()
+    track_key = str(track or "auto").strip().upper()
+    candidates: list[dict] = []
+    groups = payload.get("groups") if isinstance(payload, dict) else None
+    for group in groups if isinstance(groups, list) else ():
+        if not isinstance(group, dict):
+            continue
+        group_track = str(group.get("_track") or payload.get("track") or "").strip().upper()
+        if track_key != "AUTO" and group_track and group_track != track_key:
+            continue
+        group_filters = group.get("filters") if isinstance(group.get("filters"), dict) else None
+        entries = group.get("entries")
+        for entry in entries if isinstance(entries, list) else ():
+            if not isinstance(entry, dict):
+                continue
+            strategy = entry.get("strategy")
+            metrics = entry.get("metrics")
+            if not isinstance(strategy, dict) or not isinstance(metrics, dict):
+                continue
+            entry_symbol = str(entry.get("symbol") or strategy.get("symbol") or "").strip().upper()
+            if entry_symbol != symbol_key:
+                continue
+            if str(strategy.get("instrument") or "spot").strip().lower() != "spot":
+                continue
+            if str(strategy.get("signal_bar_size") or "").strip().lower() != bar_key:
+                continue
+            if bool(strategy.get("signal_use_rth")) != bool(use_rth):
+                continue
+            candidates.append(
+                {
+                    "group_name": str(group.get("name") or ""),
+                    "filters": effective_filters_payload(
+                        group_filters=group_filters,
+                        strategy=strategy,
+                    ),
+                    "strategy": strategy,
+                    "metrics": metrics,
+                    "track": group_track or None,
+                }
+            )
+
+    def metric(candidate: dict, *names: str) -> float:
+        metrics = candidate.get("metrics") if isinstance(candidate.get("metrics"), dict) else {}
+        for name in names:
+            raw = metrics.get(name)
+            if raw is None:
+                continue
+            try:
+                return float(raw)
+            except (TypeError, ValueError):
+                continue
+        return float("-inf")
+
+    objectives = (
+        lambda candidate: metric(candidate, "roi_over_dd_pct", "pnl_over_dd"),
+        lambda candidate: metric(candidate, "roi", "pnl"),
+        lambda candidate: metric(candidate, "win_rate"),
+        lambda candidate: metric(candidate, "trades"),
+    )
+
+    # Duplicate rows are historical noise; retain the strongest evidence once.
+    best: dict[str, dict] = {}
+    for candidate in candidates:
+        key = strategy_key(candidate["strategy"], filters=candidate.get("filters"))
+        previous = best.get(key)
+        if previous is None or tuple(score(candidate) for score in objectives) > tuple(
+            score(previous) for score in objectives
+        ):
+            best[key] = candidate
+
+    keyed = sorted(best.items(), key=lambda item: item[0])
+    if not keyed:
+        return []
+    rankings = [
+        sorted(keyed, key=lambda item, score=score: (score(item[1]), item[0]), reverse=True)
+        for score in objectives
+    ]
+    fused = {key: 0.0 for key, _candidate in keyed}
+    for ranking in rankings:
+        for rank, (key, _candidate) in enumerate(ranking, start=1):
+            fused[key] += 1.0 / (60.0 + float(rank))
+
+    # Preserve each objective leader, then fill with consistently strong candidates.
+    ordered_keys: list[str] = []
+    for ranking in rankings:
+        leader = ranking[0][0]
+        if leader not in ordered_keys:
+            ordered_keys.append(leader)
+    for key, _candidate in sorted(
+        keyed,
+        key=lambda item: (fused[item[0]], item[0]),
+        reverse=True,
+    ):
+        if key not in ordered_keys:
+            ordered_keys.append(key)
+    return [best[key] for key in ordered_keys[: max(1, int(limit))]]
+
+
 def parse_multiwindow_args(argv: list[str] | None = None) -> argparse.Namespace:
     ap = argparse.ArgumentParser(prog="tradebot.backtest.multitimeframe")
     ap.add_argument("--milestones", required=True, help="Input spot milestones JSON to evaluate.")
     ap.add_argument("--symbol", default="TQQQ", help="Symbol to filter (default: TQQQ).")
     ap.add_argument("--bar-size", default="1 hour", help="Signal bar size filter (default: 1 hour).")
     ap.add_argument("--use-rth", action="store_true", help="Filter to RTH-only strategies.")
+    ap.add_argument(
+        "--track",
+        default="auto",
+        choices=("auto", "hf", "lf"),
+        help="HF/LF research lineage; auto preserves existing artifact metadata when available.",
+    )
     ap.add_argument(
         "--offline",
         action="store_true",
@@ -153,7 +270,10 @@ def emit_multiwindow_results(
     out_rows = sorted(out_rows, key=score_key, reverse=True)
     print("")
     print(f"Multiwindow results: {len(out_rows)} candidates passed filters.")
-    print(f"- symbol={report.symbol} bar={report.bar_size} rth={report.use_rth} offline={report.offline}")
+    print(
+        f"- symbol={report.symbol} track={report.track or 'unclassified'} "
+        f"bar={report.bar_size} rth={report.use_rth} offline={report.offline}"
+    )
     print(f"- windows={', '.join([f'{a.isoformat()}→{b.isoformat()}' for a,b in report.windows])}")
     extra = (
         f" min_trades_per_year={float(report.min_trades_per_year):g}"
@@ -205,24 +325,27 @@ def emit_multiwindow_results(
             "pnl_over_dd": float(primary.get("pnl_over_dd") or 0.0),
             "roi_over_dd_pct": float(primary.get("roi_over_dd_pct") or 0.0),
         }
-        groups_out.append(
-            {
-                "name": f"Spot ({report.symbol}) KINGMAKER #{idx:02d} roi/dd={metrics['roi_over_dd_pct']:.2f} "
-                f"roi={metrics['roi']*100:.1f}% dd%={metrics['max_drawdown_pct']*100:.1f}% "
-                f"win={metrics['win_rate']*100:.1f}% tr={metrics['trades']} pnl={metrics['pnl']:.1f}",
-                "filters": filters_payload,
-                "entries": [{"symbol": report.symbol, "metrics": metrics, "strategy": strategy}],
-                "_eval": {
-                    "stability": dict(stability),
-                    "windows": item.get("windows") or [],
-                },
-                "_key": key,
-            }
-        )
+        group = {
+            "name": f"Spot ({report.symbol}) KINGMAKER #{idx:02d} roi/dd={metrics['roi_over_dd_pct']:.2f} "
+            f"roi={metrics['roi']*100:.1f}% dd%={metrics['max_drawdown_pct']*100:.1f}% "
+            f"win={metrics['win_rate']*100:.1f}% tr={metrics['trades']} pnl={metrics['pnl']:.1f}",
+            "filters": filters_payload,
+            "entries": [{"symbol": report.symbol, "metrics": metrics, "strategy": strategy}],
+            "_eval": {
+                "stability": dict(stability),
+                "windows": item.get("windows") or [],
+            },
+            "_key": key,
+        }
+        if report.track:
+            group["_track"] = report.track
+        groups_out.append(group)
     out_payload = {
+        "schema": "tradebot.research.multiwindow.v1",
         "name": "multitimeframe_top",
         "generated_at": now,
         "source": str(report.milestones_path),
+        "track": report.track,
         "bar_size": report.bar_size,
         "use_rth": report.use_rth,
         "windows": [{"start": a.isoformat(), "end": b.isoformat()} for a, b in report.windows],

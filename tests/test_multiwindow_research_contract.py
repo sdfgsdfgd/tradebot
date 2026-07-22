@@ -3,7 +3,12 @@ from __future__ import annotations
 import json
 from datetime import date
 
-from tradebot.research.multiwindow import MultiwindowReport, emit_multiwindow_results, parse_multiwindow_args
+from tradebot.research.multiwindow import (
+    MultiwindowReport,
+    candidate_shortlist,
+    emit_multiwindow_results,
+    parse_multiwindow_args,
+)
 
 
 def test_multiwindow_cli_contract_preserves_defaults() -> None:
@@ -15,6 +20,7 @@ def test_multiwindow_cli_contract_preserves_defaults() -> None:
     assert args.jobs == 0
     assert args.top == 200
     assert args.min_trades == 200
+    assert args.track == "auto"
     assert not hasattr(args, "include_full")
     assert not hasattr(args, "allow_unlimited_stacking")
 
@@ -34,6 +40,7 @@ def test_multiwindow_report_preserves_operator_and_json_contract(tmp_path, capsy
         write_top=1,
         out_path=out_path,
         cache_path=tmp_path / "eval.sqlite3",
+        track="HF",
     )
     row = {
         "strategy": {"ema_preset": "5/13", "ema_entry_mode": "trend"},
@@ -66,10 +73,64 @@ def test_multiwindow_report_preserves_operator_and_json_contract(tmp_path, capsy
     )
 
     rendered = capsys.readouterr().out
-    assert "symbol=XSP bar=5 mins rth=True offline=True" in rendered
+    assert "symbol=XSP track=HF bar=5 mins rth=True offline=True" in rendered
     assert f"eval_cache={report.cache_path} hits=2 writes=1" in rendered
     payload = json.loads(out_path.read_text())
     assert payload["bar_size"] == "5 mins"
     assert payload["use_rth"] is True
     assert payload["groups"][0]["entries"][0]["symbol"] == "XSP"
+    assert payload["schema"] == "tradebot.research.multiwindow.v1"
+    assert payload["track"] == "HF"
+    assert payload["groups"][0]["_track"] == "HF"
     assert payload["groups"][0]["_eval"]["stability"]["min_roi_over_dd"] == 2.0
+
+
+def test_candidate_shortlist_reads_every_entry_and_preserves_objective_leaders() -> None:
+    def entry(name: str, *, ratio: float, pnl: float, win: float, trades: int) -> dict:
+        return {
+            "symbol": "XSP",
+            "strategy": {
+                "instrument": "spot",
+                "symbol": "XSP",
+                "signal_bar_size": "5 mins",
+                "signal_use_rth": True,
+                "ema_preset": name,
+            },
+            "metrics": {
+                "pnl_over_dd": ratio,
+                "pnl": pnl,
+                "win_rate": win,
+                "trades": trades,
+            },
+        }
+
+    payload = {
+        "track": "HF",
+        "groups": [
+            {
+                "name": "islands",
+                "entries": [
+                    entry("risk", ratio=10, pnl=10, win=0.5, trades=10),
+                    entry("return", ratio=2, pnl=100, win=0.5, trades=20),
+                    entry("quality", ratio=3, pnl=30, win=0.9, trades=30),
+                    entry("activity", ratio=4, pnl=40, win=0.6, trades=100),
+                ],
+            }
+        ],
+    }
+
+    shortlisted = candidate_shortlist(
+        payload,
+        symbol="XSP",
+        bar_size="5 mins",
+        use_rth=True,
+        limit=4,
+        track="hf",
+    )
+    assert {row["strategy"]["ema_preset"] for row in shortlisted} == {
+        "risk",
+        "return",
+        "quality",
+        "activity",
+    }
+    assert {row["track"] for row in shortlisted} == {"HF"}

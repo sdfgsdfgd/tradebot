@@ -40,9 +40,9 @@ from .sweep_parallel import (
     _strip_flags,
 )
 from .sweeps import write_json
-from ..spot.codec import effective_filters_payload as _codec_effective_filters_payload
 from ..research.multiwindow import (
     MultiwindowReport,
+    candidate_shortlist,
     collect_multiwindow_rows,
     emit_multiwindow_results,
     parse_multiwindow_args,
@@ -85,70 +85,31 @@ def spot_multitimeframe_main() -> None:
 
     milestones_path = Path(args.milestones)
     payload = json.loads(milestones_path.read_text())
-    groups = payload.get("groups") or []
     symbol = str(args.symbol).strip().upper()
     bar_size = str(args.bar_size).strip().lower()
     use_rth = bool(args.use_rth)
-
-    candidates: list[dict] = []
-    for group in groups:
-        if not isinstance(group, dict):
-            continue
-        filters_payload = group.get("filters")
-        entries = group.get("entries") or []
-        if not isinstance(entries, list) or not entries:
-            continue
-        entry = entries[0]
-        if not isinstance(entry, dict):
-            continue
-        strat = entry.get("strategy") or {}
-        metrics = entry.get("metrics") or {}
-        if not isinstance(strat, dict) or not isinstance(metrics, dict):
-            continue
-        if str(strat.get("instrument", "spot") or "spot").strip().lower() != "spot":
-            continue
-        if str(strat.get("symbol") or "").strip().upper() != symbol:
-            continue
-        if str(strat.get("signal_bar_size") or "").strip().lower() != bar_size:
-            continue
-        if bool(strat.get("signal_use_rth")) != use_rth:
-            continue
-        effective_filters = _codec_effective_filters_payload(
-            group_filters=filters_payload if isinstance(filters_payload, dict) else None,
-            strategy=strat,
-        )
-        candidates.append(
-            {
-                "group_name": str(group.get("name") or ""),
-                "filters": effective_filters,
-                "strategy": strat,
-                "metrics": metrics,
-            }
-        )
+    candidates = candidate_shortlist(
+        payload,
+        symbol=symbol,
+        bar_size=bar_size,
+        use_rth=use_rth,
+        limit=int(args.top),
+        track=str(args.track),
+    )
 
     if not candidates:
         raise SystemExit(f"No candidates found for {symbol} bar={bar_size} rth={use_rth} in {milestones_path}")
 
-    def _sort_key_seed(item: dict) -> tuple:
-        m = item.get("metrics") or {}
-        return (
-            float(m.get("pnl_over_dd") or float("-inf")),
-            float(m.get("pnl") or float("-inf")),
-            float(m.get("win_rate") or 0.0),
-            int(m.get("trades") or 0),
-        )
-
-    # Stage-local semantic dedupe: keep the strongest seed row per canonical strategy key.
-    best_candidates: dict[str, dict] = {}
-    for cand in candidates:
-        strategy_payload = cand.get("strategy") if isinstance(cand.get("strategy"), dict) else {}
-        filters_payload = cand.get("filters") if isinstance(cand.get("filters"), dict) else None
-        cand_key = strategy_key(strategy_payload, filters=filters_payload)
-        prev = best_candidates.get(cand_key)
-        if prev is None or _sort_key_seed(cand) > _sort_key_seed(prev):
-            best_candidates[cand_key] = cand
-
-    candidates = sorted(best_candidates.values(), key=_sort_key_seed, reverse=True)[: max(1, int(args.top))]
+    requested_track = str(args.track).strip().upper()
+    candidate_tracks = {str(cand.get("track") or "").strip().upper() for cand in candidates}
+    candidate_tracks.discard("")
+    report_track = (
+        requested_track
+        if requested_track != "AUTO"
+        else next(iter(candidate_tracks))
+        if len(candidate_tracks) == 1
+        else None
+    )
     jobs_eff = max(1, min(int(jobs_eff), len(candidates)))
     print(
         "multitimeframe prep "
@@ -194,6 +155,7 @@ def spot_multitimeframe_main() -> None:
         write_top=int(args.write_top or 0),
         out_path=Path(args.out),
         cache_path=multiwindow_cache_path,
+        track=report_track,
     )
 
     def _multiwindow_cache_conn() -> sqlite3.Connection | None:
