@@ -1,10 +1,20 @@
 from __future__ import annotations
 
 from datetime import date, datetime
+from pathlib import Path
 
-from tradebot.backtest.cache_ops_lib import _CacheFetchRequest, _build_fetch_batches, _fetch_single_request
+from tradebot.backtest.cache_ops.sync import (
+    _CacheFetchRequest,
+    _build_fetch_batches,
+    _fetch_single_request,
+    _repo_root,
+)
 from tradebot.backtest.cache import _read_cache_cached, cache_path, read_cache, write_cache
 from tradebot.backtest.models import Bar
+
+
+def test_cache_ops_repo_root_resolves_checkout() -> None:
+    assert _repo_root() == Path(__file__).resolve().parents[1]
 
 
 class _DummyProvider:
@@ -44,7 +54,7 @@ def test_fetch_single_request_auto_mends_existing_1min_gap(monkeypatch, tmp_path
         ],
     )
 
-    monkeypatch.setattr("tradebot.backtest.cache_ops_lib.IBKRHistoricalData", _DummyProvider)
+    monkeypatch.setattr("tradebot.backtest.cache_ops.sync.IBKRHistoricalData", _DummyProvider)
 
     def _fake_overlay_adaptive(**kwargs):
         by_ts = kwargs["by_ts"]
@@ -65,7 +75,7 @@ def test_fetch_single_request_auto_mends_existing_1min_gap(monkeypatch, tmp_path
         }
 
     monkeypatch.setattr(
-        "tradebot.backtest.cache_ops_lib._ibkr_overlay_adaptive",
+        "tradebot.backtest.cache_ops.sync._ibkr_overlay_adaptive",
         _fake_overlay_adaptive,
     )
 
@@ -110,13 +120,13 @@ def test_fetch_single_request_keeps_clean_cache_hit(monkeypatch, tmp_path) -> No
         ],
     )
 
-    monkeypatch.setattr("tradebot.backtest.cache_ops_lib.IBKRHistoricalData", _DummyProvider)
+    monkeypatch.setattr("tradebot.backtest.cache_ops.sync.IBKRHistoricalData", _DummyProvider)
 
     def _overlay_should_not_run(**kwargs):
         raise AssertionError("unexpected overlay for clean cache-hit")
 
     monkeypatch.setattr(
-        "tradebot.backtest.cache_ops_lib._ibkr_overlay_adaptive",
+        "tradebot.backtest.cache_ops.sync._ibkr_overlay_adaptive",
         _overlay_should_not_run,
     )
 

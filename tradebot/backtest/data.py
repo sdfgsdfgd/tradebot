@@ -377,7 +377,7 @@ class IBKRHistoricalData:
             if not _intraday_resample_preferred(bar_size):
                 return None
             try:
-                from .cache_ops_lib import resample_cached_window
+                from .cache_ops import resample_cached_window
 
                 rs_out = resample_cached_window(
                     data=self,

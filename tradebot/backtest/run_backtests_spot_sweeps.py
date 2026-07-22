@@ -60,7 +60,7 @@ from .spot_codec import (
     spot_strategy_payload as _codec_spot_strategy_payload,
     strategy_from_payload as _codec_strategy_from_payload,
 )
-from .cache_ops_lib import ensure_cached_window_with_policy
+from .cache_ops import ensure_cached_window_with_policy
 from .data import ContractMeta, IBKRHistoricalData
 from .engine import (
     _run_spot_backtest_summary,

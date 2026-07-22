@@ -1,11 +1,8 @@
-"""Thin CLI wrapper for unified cache operations.
-
-Core cache logic lives in `tradebot.backtest.cache_ops_lib`.
-"""
+"""Backtest cache-maintenance command entrypoint."""
 from __future__ import annotations
 
-from ..cache_ops_lib import main as _main
-from ..cache_ops_lib import main_audit_heal, main_fetch, main_repair, main_resample, main_sync
+from ..cache_ops.cli import main as _main
+from ..cache_ops.cli import main_audit_heal, main_fetch, main_repair, main_resample, main_sync
 
 __all__ = [
     "main",
