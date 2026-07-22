@@ -10,7 +10,7 @@ from tradebot.backtest.cache import cache_path, read_cache, write_cache
 from tradebot.backtest.data import IBKRHistoricalData
 from tradebot.backtest.models import Bar
 from tradebot.backtest.multiwindow_helpers import preflight_offline_cache_or_die
-from tradebot.backtest.run_backtests_spot_sweeps import _require_offline_cache_or_die
+from tradebot.research.spot_sweeps.support import _require_offline_cache_or_die
 
 
 def _bar(ts: datetime, px: float) -> Bar:

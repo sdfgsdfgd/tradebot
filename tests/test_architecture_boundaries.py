@@ -11,7 +11,6 @@ MAX_MODULE_LINES = 1_000
 # Shrink this set in the same commit that brings an owner below the limit.
 OVERSIZED_MODULE_DEBT = {
     "tradebot/backtest/engine.py",
-    "tradebot/backtest/run_backtests_spot_sweeps.py",
     "tradebot/client.py",
     "tradebot/ui/bot_order_builder.py",
     "tradebot/ui/bot_signal_runtime.py",

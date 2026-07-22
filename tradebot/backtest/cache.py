@@ -108,11 +108,24 @@ def cache_path(cache_dir: Path, symbol: str, start: datetime, end: datetime, bar
 
 
 def read_cache(path: Path) -> list[Bar]:
-    return list(_read_cache_cached(str(path)))
+    stat = path.stat()
+    return list(
+        _read_cache_cached(
+            str(path),
+            int(stat.st_mtime_ns),
+            int(stat.st_size),
+            int(stat.st_ino),
+        )
+    )
 
 
 @lru_cache(maxsize=32)
-def _read_cache_cached(path: str) -> tuple[Bar, ...]:
+def _read_cache_cached(
+    path: str,
+    _mtime_ns: int = 0,
+    _size: int = 0,
+    _inode: int = 0,
+) -> tuple[Bar, ...]:
     rows: list[Bar] = []
     with Path(path).open("r", newline="") as handle:
         reader = csv.DictReader(handle)
@@ -178,7 +191,6 @@ def write_cache(path: Path, bars: Iterable[Bar]) -> None:
                 }
             )
     os.replace(tmp, path)
-    _read_cache_cached.cache_clear()
 
 
 def find_covering_cache_path(

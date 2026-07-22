@@ -130,6 +130,65 @@ def test_load_cached_bar_series_prefers_canonical_resample_over_conflicting_same
     assert series.meta.source == "cache-resampled"
 
 
+def test_load_cached_bar_series_reuses_current_canonical_resample(monkeypatch) -> None:
+    start = datetime(2025, 1, 6, 14, 30)
+    end = datetime(2025, 1, 6, 14, 39)
+    one_min = _bars(start, n=10, minutes=1)
+    with TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        source = cache_path(root, "SLV", start, end, "1 min", use_rth=True)
+        source.parent.mkdir(parents=True, exist_ok=True)
+        write_cache(source, one_min)
+        data = IBKRHistoricalData()
+        first = data.load_cached_bar_series(
+            "SLV", None, start, end, "5 mins", True, root
+        )
+
+        def _unexpected_resample(*args, **kwargs):
+            raise AssertionError("current derived cache was needlessly rebuilt")
+
+        monkeypatch.setattr(
+            "tradebot.backtest.cache_ops.resample._resample_intraday_ohlcv",
+            _unexpected_resample,
+        )
+        second = data.load_cached_bar_series(
+            "SLV", None, start, end, "5 mins", True, root
+        )
+
+    assert second.as_list() == first.as_list()
+
+
+def test_load_cached_bar_series_rebuilds_resample_after_source_change() -> None:
+    start = datetime(2025, 1, 6, 14, 30)
+    end = datetime(2025, 1, 6, 14, 39)
+    with TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        source = cache_path(root, "SLV", start, end, "1 min", use_rth=True)
+        source.parent.mkdir(parents=True, exist_ok=True)
+        write_cache(source, _bars(start, n=10, minutes=1))
+        data = IBKRHistoricalData()
+        first = data.load_cached_bar_series(
+            "SLV", None, start, end, "5 mins", True, root
+        )
+        changed = [
+            Bar(
+                ts=bar.ts,
+                open=bar.open + 100.0,
+                high=bar.high + 100.0,
+                low=bar.low + 100.0,
+                close=bar.close + 100.0,
+                volume=bar.volume,
+            )
+            for bar in _bars(start, n=10, minutes=1)
+        ]
+        write_cache(source, changed)
+        second = data.load_cached_bar_series(
+            "SLV", None, start, end, "5 mins", True, root
+        )
+
+    assert second.as_list()[0].open == first.as_list()[0].open + 100.0
+
+
 def test_load_cached_bar_series_resamples_rth_4hours_from_session_open() -> None:
     start = datetime(2025, 1, 6, 14, 30)
     end = datetime(2025, 1, 6, 20, 59)

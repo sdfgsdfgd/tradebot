@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import os
 from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
@@ -9,12 +11,20 @@ from pathlib import Path
 
 from ...signals import parse_bar_size
 from ...time_utils import NaiveTsMode, to_et as _to_et_shared
-from ..cache import cache_path, ensure_offline_cached_window, read_cache, write_cache
+from ..cache import (
+    cache_path,
+    ensure_offline_cached_window,
+    find_overlapping_cache_paths,
+    read_cache,
+    write_cache,
+)
 from ..data import IBKRHistoricalData
 from ..models import Bar
 
 
 _EPOCH = datetime(1970, 1, 1)
+_RESAMPLE_CACHE_VERSION = 2
+
 
 @dataclass(frozen=True)
 class _ResampleStats:
@@ -32,6 +42,85 @@ class CacheResampleOutcome:
     dst_rows: int = 0
     dropped_incomplete: int = 0
     error: str | None = None
+
+
+def _file_revision(path: Path, cache_dir: Path) -> list[object]:
+    stat = path.stat()
+    try:
+        name = str(path.relative_to(cache_dir))
+    except ValueError:
+        name = str(path.resolve())
+    return [name, int(stat.st_mtime_ns), int(stat.st_size), int(stat.st_ino)]
+
+
+def _resample_revision(
+    path: Path,
+    *,
+    cache_dir: Path,
+    symbol: str,
+    start: datetime,
+    end: datetime,
+    dst_bar_size: str,
+    use_rth: bool,
+) -> dict[str, object]:
+    paths: set[Path] = set()
+    for src_bar_size in _cache_resample_source_candidates(dst_bar_size):
+        paths.update(
+            find_overlapping_cache_paths(
+                cache_dir=cache_dir,
+                symbol=symbol,
+                start=start,
+                end=end,
+                bar_size=src_bar_size,
+                use_rth=use_rth,
+            )
+        )
+    return {
+        "version": _RESAMPLE_CACHE_VERSION,
+        "request": [str(symbol), start.isoformat(), end.isoformat(), str(dst_bar_size), bool(use_rth)],
+        "target": _file_revision(path, cache_dir),
+        "sources": [_file_revision(source, cache_dir) for source in sorted(paths, key=str)],
+    }
+
+
+def _resample_cache_current(
+    path: Path,
+    *,
+    cache_dir: Path,
+    symbol: str,
+    start: datetime,
+    end: datetime,
+    dst_bar_size: str,
+    use_rth: bool,
+) -> bool:
+    manifest_path = path.with_suffix(path.suffix + ".resample.json")
+    if not path.exists() or not manifest_path.exists():
+        return False
+    try:
+        payload = json.loads(manifest_path.read_text())
+        expected = _resample_revision(
+            path, cache_dir=cache_dir, symbol=symbol, start=start, end=end, dst_bar_size=dst_bar_size, use_rth=use_rth
+        )
+    except (OSError, TypeError, ValueError, json.JSONDecodeError):
+        return False
+    return payload == expected
+
+
+def _write_resample_manifest(
+    path: Path,
+    *,
+    cache_dir: Path,
+    symbol: str,
+    start: datetime,
+    end: datetime,
+    dst_bar_size: str,
+    use_rth: bool,
+) -> None:
+    payload = _resample_revision(path, cache_dir=cache_dir, symbol=symbol, start=start, end=end, dst_bar_size=dst_bar_size, use_rth=use_rth)
+    manifest_path = path.with_suffix(path.suffix + ".resample.json")
+    tmp = manifest_path.with_suffix(manifest_path.suffix + f".tmp{os.getpid()}")
+    tmp.write_text(json.dumps(payload, sort_keys=True, separators=(",", ":")) + "\n")
+    os.replace(tmp, manifest_path)
 
 
 def _floor_bucket_start(ts: datetime, *, bucket: timedelta) -> datetime:
@@ -206,6 +295,21 @@ def resample_cached_window(
     src_bar_size: str | None = None,
 ) -> CacheResampleOutcome:
     dst_path = cache_path(cache_dir, symbol, start, end, dst_bar_size, use_rth)
+    current = (
+        None
+        if str(src_bar_size or "").strip()
+        else _resample_cache_current(
+            dst_path,
+            cache_dir=cache_dir,
+            symbol=symbol,
+            start=start,
+            end=end,
+            dst_bar_size=dst_bar_size,
+            use_rth=use_rth,
+        )
+    )
+    if current:
+        return CacheResampleOutcome(ok=True, dst_path=dst_path)
     src_candidates = (
         (str(src_bar_size).strip(),)
         if str(src_bar_size or "").strip()
@@ -265,6 +369,15 @@ def resample_cached_window(
 
         dst_path.parent.mkdir(parents=True, exist_ok=True)
         write_cache(dst_path, dst_bars)
+        _write_resample_manifest(
+            dst_path,
+            cache_dir=cache_dir,
+            symbol=symbol,
+            start=start,
+            end=end,
+            dst_bar_size=dst_bar_size,
+            use_rth=use_rth,
+        )
         return CacheResampleOutcome(
             ok=True,
             dst_path=dst_path,

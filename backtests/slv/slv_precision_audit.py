@@ -5,6 +5,8 @@ Runs canonical spot backtests (full trade capture) for selected candidates and
 computes entry-timing precision on 10m candles via local-extrema distance.
 """
 
+# ruff: noqa: E402 -- this standalone script adds the repository root before imports.
+
 from __future__ import annotations
 
 import argparse
@@ -27,11 +29,11 @@ if str(REPO_ROOT) not in sys.path:
 from tradebot.backtest.data import ContractMeta, IBKRHistoricalData
 from tradebot.backtest.engine import _run_spot_backtest, _spot_multiplier
 from tradebot.backtest.models import Bar, SpotTrade
-from tradebot.backtest.run_backtests_spot_sweeps import (
-    _filters_from_payload,
-    _load_bars,
-    _mk_bundle,
-    _strategy_from_payload,
+from tradebot.backtest.multiwindow_helpers import load_bars as _load_bars
+from tradebot.backtest.spot_codec import (
+    filters_from_payload as _filters_from_payload,
+    make_bundle as _mk_bundle,
+    strategy_from_payload as _strategy_from_payload,
 )
 from tradebot.backtest.sweeps import write_json
 
@@ -339,7 +341,6 @@ def _precision_stats(
         }
 
     d_sorted = sorted(dists)
-    e_sorted = sorted(edge_pos)
     mfe_sum = sum(mfe_vals)
     mae_sum = sum(mae_vals)
     n = float(len(dists))
