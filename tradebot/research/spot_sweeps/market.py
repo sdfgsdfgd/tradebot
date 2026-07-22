@@ -46,6 +46,7 @@ from .milestones import (
 )
 from .support import (
     _cardinality,
+    _require_offline_cache_or_die,
 )
 
 
@@ -105,6 +106,17 @@ class SweepMarketData:
 
     def _bars(self, bar_size: str) -> list:
         if self.offline:
+            _require_offline_cache_or_die(
+                data=self.data,
+                cache_dir=self.cache_dir,
+                symbol=self.symbol,
+                exchange=None,
+                start_dt=self.start_dt,
+                end_dt=self.end_dt,
+                bar_size=str(bar_size),
+                use_rth=self.use_rth,
+                cache_policy=self.cache_policy,
+            )
             series = self.data.load_cached_bar_series(
                 symbol=self.symbol,
                 exchange=None,

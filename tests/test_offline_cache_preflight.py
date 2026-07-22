@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, time
+from types import SimpleNamespace
 
 import pytest
 
@@ -9,6 +10,7 @@ from tradebot.backtest.cli_utils import expected_cache_path
 from tradebot.backtest.cache import cache_data_revision, cache_path, read_cache, write_cache
 from tradebot.backtest.data import IBKRHistoricalData
 from tradebot.backtest.models import Bar
+from tradebot.research.spot_sweeps.market import SweepMarketData
 from tradebot.research.spot_sweeps.support import _require_offline_cache_or_die
 
 
@@ -144,6 +146,37 @@ def test_sweeps_offline_preflight_auto_resamples_from_finer_cache(tmp_path) -> N
     )
     assert dst.exists()
     assert len(read_cache(dst)) > 0
+
+
+def test_sweep_market_data_applies_auto_policy_to_every_requested_timeframe(
+    tmp_path,
+) -> None:
+    _touch_overlap_segments_dense_1min(tmp_path)
+    data = IBKRHistoricalData()
+    runtime = SimpleNamespace(
+        offline=True,
+        data=data,
+        cache_dir=tmp_path,
+        cache_policy="auto",
+        symbol="SLV",
+        start_dt=datetime.combine(date(2025, 1, 1), time(0, 0)),
+        end_dt=datetime.combine(date(2025, 1, 2), time(23, 59)),
+        use_rth=False,
+    )
+    try:
+        bars = SweepMarketData._bars(runtime, "2 mins")
+    finally:
+        data.disconnect()
+
+    assert bars
+    assert expected_cache_path(
+        cache_dir=tmp_path,
+        symbol="SLV",
+        start_dt=runtime.start_dt,
+        end_dt=runtime.end_dt,
+        bar_size="2 mins",
+        use_rth=False,
+    ).exists()
 
 
 def test_sweeps_offline_preflight_reports_missing_ranges(tmp_path) -> None:

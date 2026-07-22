@@ -32,7 +32,6 @@ from .milestones import (
 )
 from .support import (
     _registry_float,
-    _require_offline_cache_or_die,
     _runtime_policy,
 )
 
@@ -117,30 +116,6 @@ class SpotSweepRuntime(
         if bool(self.args.write_milestones):
             self.run_min_trades = min(self.run_min_trades, int(self.args.milestone_min_trades))
         self.data = IBKRHistoricalData()
-        if self.offline:
-            _require_offline_cache_or_die(
-                data=self.data,
-                cache_dir=self.cache_dir,
-                symbol=self.symbol,
-                exchange=None,
-                start_dt=self.start_dt,
-                end_dt=self.end_dt,
-                bar_size=self.signal_bar_size,
-                use_rth=self.use_rth,
-                cache_policy=self.cache_policy,
-            )
-            if self.spot_exec_bar_size and str(self.spot_exec_bar_size) != str(self.signal_bar_size):
-                _require_offline_cache_or_die(
-                    data=self.data,
-                    cache_dir=self.cache_dir,
-                    symbol=self.symbol,
-                    exchange=None,
-                    start_dt=self.start_dt,
-                    end_dt=self.end_dt,
-                    bar_size=self.spot_exec_bar_size,
-                    use_rth=self.use_rth,
-                    cache_policy=self.cache_policy,
-                )
 
         if self.offline:
             is_future = self.symbol in ("MNQ", "MBT")
