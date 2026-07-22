@@ -31,7 +31,8 @@ from .gates import _bars_elapsed, _get, _normalize_fill_mode
 from .graph import SpotPolicyGraph
 from .graph_core import canonical_exit_reason as graph_canonical_exit_reason
 from .graph_core import pick_exit_reason as graph_pick_exit_reason
-from .policy import SpotIntentDecision, SpotPolicy, SpotPolicyConfigView
+from .policy import SpotPolicy
+from .policy_contract import SpotIntentDecision, SpotPolicyConfigView
 
 
 @dataclass(frozen=True)

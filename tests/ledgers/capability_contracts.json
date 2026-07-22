@@ -249,7 +249,9 @@
         "tradebot/spot/graph_core.py",
         "tradebot/spot/graph_risk.py",
         "tradebot/spot/lifecycle.py",
-        "tradebot/spot/policy.py"
+        "tradebot/spot/policy.py",
+        "tradebot/spot/policy_contract.py",
+        "tradebot/spot/sizing.py"
       ],
       "oracle": [
         "all evidence assigned to policy-risk-sizing passes",
@@ -720,7 +722,7 @@
         "README.md"
       ],
       "owner_surface": [
-        "tradebot/spot/policy.py"
+        "tradebot/spot/sizing.py"
       ],
       "oracle": [
         "a measurable pass/fail outcome exists",

@@ -27,7 +27,8 @@ from .graph_core import (
     canonical_exit_reason,
     all_graph_profiles,
 )
-from .policy import SpotDecisionTrace, SpotIntentDecision, SpotPolicy, SpotPolicyConfigView, SpotRuntimeSpec
+from .policy import SpotPolicy
+from .policy_contract import SpotDecisionTrace, SpotIntentDecision, SpotPolicyConfigView, SpotRuntimeSpec
 from .scenario import lifecycle_trace_row, why_not_exit_resize_report, write_rows_csv
 
 __all__ = [

@@ -22,7 +22,8 @@ from .fill_modes import (
     spot_fill_mode_is_deferred,
     spot_fill_mode_is_next_tradable,
 )
-from .policy import SpotPolicy, SpotPolicyConfigView
+from .policy import SpotPolicy
+from .policy_contract import SpotPolicyConfigView
 
 @dataclass(frozen=True)
 class SpotDeferredEntryPlan:
