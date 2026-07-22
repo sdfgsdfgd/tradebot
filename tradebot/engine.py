@@ -13,7 +13,8 @@ from collections.abc import Mapping
 from typing import TYPE_CHECKING, Iterable
 
 from .signals import parse_bar_size
-from .spot.policy import SpotDecisionTrace, SpotIntentDecision, SpotPolicy, SpotPolicyConfigView, SpotRuntimeSpec
+from .spot.policy import SpotPolicy
+from .spot.policy_contract import SpotDecisionTrace, SpotIntentDecision, SpotPolicyConfigView, SpotRuntimeSpec
 from .time_utils import (
     NaiveTsModeInput,
     normalize_naive_ts_mode as _normalize_naive_ts_mode_shared,
