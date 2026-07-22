@@ -1,8 +1,16 @@
 """Regime and shock-state advancement for spot signals."""
 from __future__ import annotations
 
-from ..engines.signals import SupertrendEngine
-from .evaluator_common import BarLike, SpotRegimeState
+from ..engine import spot_regime_apply_matches_direction
+from ..engines.signals import EmaDecisionSnapshot, SupertrendEngine
+from .evaluator_common import (
+    BarLike,
+    SpotEntryCandidate,
+    SpotRegimeState,
+    SpotSignalSelection,
+    _get,
+)
+from .gates import apply_regime_gate
 
 
 class SpotSignalRegimeMixin:
@@ -45,6 +53,244 @@ class SpotSignalRegimeMixin:
                 close=float(bar.close),
                 update_direction=False,
             )
+
+    def _advance_primary_regime_and_shock(
+        self,
+        *,
+        bar: BarLike,
+        signal: EmaDecisionSnapshot | None,
+    ) -> EmaDecisionSnapshot | None:
+        """Advance primary regime/shock engines and apply the primary direction gate."""
+        if self._supertrend_engine is not None:
+            intraday_shock = self._shock_engine is not None and self._shock_detector not in (
+                "daily_atr_pct",
+                "daily_drawdown",
+            )
+
+            def _advance(regime_bar: BarLike, *, mtf: bool) -> None:
+                values = {
+                    "high": float(regime_bar.high),
+                    "low": float(regime_bar.low),
+                    "close": float(regime_bar.close),
+                }
+                self._last_supertrend = self._supertrend_engine.update(**values)
+                if self._supertrend_shock_engine is not None:
+                    self._last_supertrend_shock = self._supertrend_shock_engine.update(**values)
+                if self._supertrend_cooling_engine is not None:
+                    self._last_supertrend_cooling = self._supertrend_cooling_engine.update(**values)
+                if intraday_shock:
+                    direction = (
+                        {"update_direction": self._shock_dir_source != "signal"}
+                        if mtf
+                        else {}
+                    )
+                    self._last_shock = self._shock_engine.update(**values, **direction)
+
+            if self._use_mtf_regime and self._regime_bars:
+                while (
+                    self._regime_idx < len(self._regime_bars)
+                    and self._regime_bars[self._regime_idx].ts <= bar.ts
+                ):
+                    _advance(self._regime_bars[self._regime_idx], mtf=True)
+                    self._regime_idx += 1
+            else:
+                _advance(bar, mtf=False)
+
+            gate = self._last_supertrend
+            shock_ready = bool(
+                self._last_shock is not None
+                and (
+                    self._shock_detector in ("daily_atr_pct", "daily_drawdown")
+                    or bool(getattr(self._last_shock, "ready", False))
+                )
+            )
+            shock_now = bool(
+                shock_ready and getattr(self._last_shock, "shock", False)
+            )
+            if (
+                self._shock_engine is not None
+                and self._last_shock is not None
+                and (
+                    self._supertrend_shock_engine is not None
+                    or self._supertrend_cooling_engine is not None
+                )
+            ):
+                cooling_raw = _get(
+                    self._filters,
+                    "shock_daily_cooling_atr_pct",
+                    None,
+                )
+                cooling_atr = (
+                    float(cooling_raw or 0.0) if cooling_raw is not None else None
+                )
+                atr_pct = getattr(self._last_shock, "atr_pct", None)
+                cooling_now = bool(
+                    not shock_now
+                    and cooling_atr is not None
+                    and atr_pct is not None
+                    and self._shock_detector == "daily_atr_pct"
+                    and shock_ready
+                    and float(atr_pct) >= float(cooling_atr)
+                )
+                if shock_now and self._last_supertrend_shock is not None:
+                    gate = self._last_supertrend_shock
+                elif cooling_now and self._last_supertrend_cooling is not None:
+                    gate = self._last_supertrend_cooling
+
+            regime_dir = gate.direction if gate is not None else None
+            regime_ready = bool(gate and gate.ready)
+            if (
+                bool(_get(self._filters, "shock_regime_override_dir", False))
+                and self._shock_engine is not None
+                and self._last_shock is not None
+            ):
+                if (
+                    shock_now
+                    and bool(getattr(self._last_shock, "direction_ready", False))
+                    and getattr(self._last_shock, "direction", None) in ("up", "down")
+                ):
+                    regime_dir = str(getattr(self._last_shock, "direction"))
+                    regime_ready = True
+
+            signal = apply_regime_gate(
+                signal,
+                regime_dir=regime_dir,
+                regime_ready=regime_ready,
+            )
+        elif self._use_mtf_regime and self._regime_engine is not None and self._regime_bars:
+            while (
+                self._regime_idx < len(self._regime_bars)
+                and self._regime_bars[self._regime_idx].ts <= bar.ts
+            ):
+                reg_bar = self._regime_bars[self._regime_idx]
+                if float(reg_bar.close) > 0:
+                    self._last_regime = self._regime_engine.update(float(reg_bar.close))
+                if self._shock_engine is not None and self._shock_detector not in (
+                    "daily_atr_pct",
+                    "daily_drawdown",
+                ):
+                    self._last_shock = self._shock_engine.update(
+                        high=float(reg_bar.high),
+                        low=float(reg_bar.low),
+                        close=float(reg_bar.close),
+                        update_direction=(self._shock_dir_source != "signal"),
+                    )
+                self._regime_idx += 1
+            signal = apply_regime_gate(
+                signal,
+                regime_dir=(
+                    self._last_regime.state
+                    if self._last_regime is not None
+                    else None
+                ),
+                regime_ready=bool(self._last_regime and self._last_regime.ema_ready),
+            )
+        elif (
+            self._shock_engine is not None
+            and self._shock_detector not in ("daily_atr_pct", "daily_drawdown")
+            and not self._use_mtf_regime
+        ):
+            self._last_shock = self._shock_engine.update(
+                high=float(bar.high),
+                low=float(bar.low),
+                close=float(bar.close),
+            )
+
+        if (
+            self._shock_engine is not None
+            and self._shock_detector == "atr_ratio"
+            and self._use_mtf_regime
+            and self._shock_dir_source == "signal"
+        ):
+            self._last_shock = self._shock_engine.update_direction(
+                close=float(bar.close)
+            )
+        if (
+            self._shock_engine is not None
+            and self._shock_detector in ("daily_atr_pct", "daily_drawdown")
+            and self._shock_dir_source == "signal"
+        ):
+            # Exec bars advance daily shock magnitude; signal bars only advance direction.
+            if hasattr(self._shock_engine, "update_direction"):
+                self._last_shock = self._shock_engine.update_direction(
+                    close=float(bar.close)
+                )
+            else:
+                self._last_shock = self._shock_engine.update(
+                    day=self._trade_date(bar.ts),
+                    high=float(bar.high),
+                    low=float(bar.low),
+                    close=float(bar.close),
+                    update_direction=True,
+                )
+        if (
+            self._shock_scale_engine is not None
+            and self._shock_scale_detector not in ("daily_atr_pct", "daily_drawdown")
+        ):
+            self._last_shock_scale = self._shock_scale_engine.update(
+                high=float(bar.high),
+                low=float(bar.low),
+                close=float(bar.close),
+                update_direction=False,
+            )
+        return signal
+
+    def _apply_confirmation_regime(
+        self,
+        *,
+        selection: SpotSignalSelection,
+        bar: BarLike,
+        close: float,
+        regime: SpotRegimeState,
+    ) -> SpotSignalSelection:
+        """Apply the configured confirmation/bear regime to one normalized signal."""
+        signal = selection.signal
+        candidate = selection.candidate
+        if (self._supertrend2_engine is not None or self._regime2_engine is not None) and (
+            spot_regime_apply_matches_direction(
+                apply_to_raw=_get(self._strategy, "regime2_apply_to", "both"),
+                entry_dir=getattr(signal, "entry_dir", None),
+            )
+        ):
+            signal = apply_regime_gate(
+                signal,
+                regime_dir=regime.fast_dir,
+                regime_ready=regime.fast_ready,
+            )
+
+        if signal is not None and self._regime2_bear_entry_mode == "supertrend":
+            signal, bear_direction = self._apply_regime2_bear_primary(
+                branch_key=str(selection.branch_key or "single"),
+                signal=signal,
+                bar=bar,
+                close=float(close),
+                regime=regime,
+            )
+            if bear_direction in ("up", "down"):
+                if self._dual_branch_enabled and candidate.branch not in ("a", "b"):
+                    candidate = SpotEntryCandidate(None)
+                else:
+                    branch = candidate.branch
+                    if branch not in ("a", "b") or getattr(signal, "entry_dir", None) != bear_direction:
+                        branch = None
+                    candidate = SpotEntryCandidate(str(bear_direction), branch)
+
+        if signal is None:
+            return SpotSignalSelection(None, candidate, selection.branch_key)
+
+        gated_direction = signal.entry_dir if signal.entry_dir in ("up", "down") else None
+        direction = candidate.direction if candidate.direction in ("up", "down") else None
+        branch = candidate.branch
+        if direction is None or direction != gated_direction:
+            direction = None
+            branch = None
+        elif not self._dual_branch_enabled:
+            branch = None
+        return SpotSignalSelection(
+            signal=signal,
+            candidate=SpotEntryCandidate(direction, branch),
+            branch_key=selection.branch_key,
+        )
 
     def _shock_view(self) -> tuple[bool | None, str | None, float | None]:
         def _atr_pct_from(snap: object | None) -> float | None:

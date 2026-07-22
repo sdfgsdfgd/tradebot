@@ -6,8 +6,10 @@ from tradebot.spot.evaluator_common import (
     SpotEntryCandidate,
     SpotEntryGateContext,
     SpotRegimeState,
+    SpotSignalSelection,
 )
 from tradebot.spot.evaluator_policy import SpotSignalPolicyMixin
+from tradebot.spot.evaluator_regime import SpotSignalRegimeMixin
 from tradebot.spot.evaluator_setup import _regime_gate_policy
 from tradebot.spot.gates import flip_exit_allowed
 from tradebot.spot.policy import SpotPolicy, SpotPolicyConfigView
@@ -39,6 +41,13 @@ class _GateRecorder(SpotSignalPolicyMixin):
 
     def _continuation_confidence_gate_blocks(self, *_args) -> bool:
         return self._record("continuation_confidence")
+
+
+class _ConfirmationRegimeHarness(SpotSignalRegimeMixin):
+    _supertrend2_engine = None
+    _regime2_engine = None
+    _regime2_bear_entry_mode = "off"
+    _dual_branch_enabled = True
 
 
 class SpotPolicyKernelTests(unittest.TestCase):
@@ -78,6 +87,27 @@ class SpotPolicyKernelTests(unittest.TestCase):
             ["crash", "router_damage", "crash_prearm", "branch_b_regime"],
         )
         self.assertEqual(result, SpotEntryCandidate(None, None, "branch_b_regime"))
+
+    def test_confirmation_regime_preserves_only_aligned_branch_selection(self) -> None:
+        signal = SimpleNamespace(entry_dir="up")
+        harness = _ConfirmationRegimeHarness()
+        bar = SimpleNamespace(ts=datetime(2026, 7, 22), open=1, high=1, low=1, close=1, volume=1)
+
+        aligned = harness._apply_confirmation_regime(
+            selection=SpotSignalSelection(signal, SpotEntryCandidate("up", "a"), "a"),
+            bar=bar,
+            close=1.0,
+            regime=SpotRegimeState(),
+        )
+        blocked = harness._apply_confirmation_regime(
+            selection=SpotSignalSelection(signal, SpotEntryCandidate(None, "a"), "a"),
+            bar=bar,
+            close=1.0,
+            regime=SpotRegimeState(),
+        )
+
+        self.assertEqual(aligned.candidate, SpotEntryCandidate("up", "a"))
+        self.assertEqual(blocked.candidate, SpotEntryCandidate(None))
 
     def test_flip_exit_allowed_enforces_canonical_hold_boundary(self) -> None:
         strategy = {

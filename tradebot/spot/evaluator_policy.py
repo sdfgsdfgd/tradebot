@@ -14,6 +14,7 @@ from .evaluator_common import (
     SpotEntryCandidate,
     SpotEntryGateContext,
     SpotRegimeState,
+    SpotSignalSelection,
     SpotSignalSnapshot,
 )
 
@@ -42,6 +43,57 @@ class SpotSignalPolicyMixin:
     @property
     def orb_engine(self) -> OrbDecisionEngine | None:
         return self._orb_engine
+
+    def _advance_entry_signal(self, *, bar: BarLike, close: float) -> SpotSignalSelection:
+        """Normalize EMA, dual-EMA, and ORB into one entry-selection contract."""
+        if self._signal_engine is not None:
+            signal = self._signal_engine.update(close)
+            return SpotSignalSelection(
+                signal=signal,
+                candidate=SpotEntryCandidate(
+                    self._branch_entry_dir(
+                        branch_key="single",
+                        signal=signal,
+                        close=float(close),
+                        min_signed_slope_pct=None,
+                        max_signed_slope_pct=None,
+                    )
+                ),
+                branch_key="single",
+            )
+
+        if (
+            self._signal_engine_a is not None
+            and self._signal_engine_b is not None
+            and bool(self._dual_branch_enabled)
+        ):
+            signal_a = self._signal_engine_a.update(close)
+            signal_b = self._signal_engine_b.update(close)
+            signal, direction, branch = self._select_dual_signal(
+                close=float(close),
+                signal_a=signal_a,
+                signal_b=signal_b,
+            )
+            branch_key = "a" if signal is signal_a else "b" if signal is signal_b else None
+            return SpotSignalSelection(
+                signal=signal,
+                candidate=SpotEntryCandidate(direction, branch),
+                branch_key=branch_key,
+            )
+
+        if self._orb_engine is not None:
+            signal = self._orb_engine.update(
+                ts=bar.ts,
+                high=float(bar.high),
+                low=float(bar.low),
+                close=float(bar.close),
+            )
+            return SpotSignalSelection(
+                signal=signal,
+                candidate=SpotEntryCandidate(signal.entry_dir if signal is not None else None),
+            )
+
+        return SpotSignalSelection(signal=None, candidate=SpotEntryCandidate(None))
 
     @staticmethod
     def _signed_fast_slope_pct(signal: EmaDecisionSnapshot, close: float) -> float | None:

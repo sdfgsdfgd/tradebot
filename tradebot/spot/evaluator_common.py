@@ -58,6 +58,15 @@ class SpotEntryCandidate:
 
 
 @dataclass(frozen=True)
+class SpotSignalSelection:
+    """One normalized result from every supported entry-signal family."""
+
+    signal: EmaDecisionSnapshot | None
+    candidate: SpotEntryCandidate
+    branch_key: str | None = None
+
+
+@dataclass(frozen=True)
 class SpotEntryGateContext:
     bar_ts: datetime
     regime: SpotRegimeState
