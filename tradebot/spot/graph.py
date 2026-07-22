@@ -40,6 +40,24 @@ from .graph_risk import (
 )
 
 
+def _entry_regime_context(
+    entry_context: Mapping[str, object] | None,
+) -> tuple[str, str, int | None]:
+    """Decode legacy transport names once at the policy-graph boundary."""
+    context = entry_context if isinstance(entry_context, Mapping) else {}
+    state = str(context.get("regime4_state") or "").strip().lower()
+    hard_dir = str(context.get("hard_dir") or "").strip().lower()
+    try:
+        release_age = (
+            int(context["release_age_bars"])
+            if context.get("release_age_bars") is not None
+            else None
+        )
+    except (TypeError, ValueError):
+        release_age = None
+    return state, hard_dir, release_age
+
+
 def _entry_policy_default(
     graph: SpotPolicyGraph,
     *,
@@ -87,15 +105,9 @@ def _entry_context_continuation_v1(
     entry_context: Mapping[str, object] | None,
 ) -> tuple[int, dict[str, object]]:
     context = entry_context if isinstance(entry_context, Mapping) else {}
-    state = str(context.get("regime4_state") or "").strip().lower()
+    state, hard_dir, release_age = _entry_regime_context(context)
     branch = str(context.get("branch") or "").strip().lower()
     shock_dir = str(context.get("shock_dir") or "").strip().lower()
-    hard_dir = str(context.get("hard_dir") or "").strip().lower()
-    release_age_raw = context.get("release_age_bars")
-    try:
-        release_age = int(release_age_raw) if release_age_raw is not None else None
-    except (TypeError, ValueError):
-        release_age = None
     flags = {
         "long_entry": str(entry_dir or "").strip().lower() == "up",
         "clean_downshock_mid_age": (
@@ -611,12 +623,14 @@ class SpotPolicyGraph:
         exit_policy: str,
         resize_policy: str,
         risk_overlay_policy: str,
+        block_trend_down_longs: bool = False,
     ) -> None:
         self.profile_name = str(profile_name)
         self.entry_policy = str(entry_policy)
         self.exit_policy = str(exit_policy)
         self.resize_policy = str(resize_policy)
         self.risk_overlay_policy = str(risk_overlay_policy)
+        self.block_trend_down_longs = bool(block_trend_down_longs)
 
     @classmethod
     def from_sources(
@@ -657,6 +671,9 @@ class SpotPolicyGraph:
             exit_policy=str(exit_policy),
             resize_policy=str(resize_policy),
             risk_overlay_policy=str(risk_overlay_policy),
+            block_trend_down_longs=bool(
+                _get(strategy, "regime4_trenddown_block_longs", False)
+            ),
         )
 
     def as_payload(self) -> dict[str, object]:
@@ -666,6 +683,7 @@ class SpotPolicyGraph:
             "exit_policy": str(self.exit_policy),
             "resize_policy": str(self.resize_policy),
             "risk_overlay_policy": str(self.risk_overlay_policy),
+            "block_trend_down_longs": bool(self.block_trend_down_longs),
         }
 
     def evaluate_entry_gate(
@@ -684,24 +702,50 @@ class SpotPolicyGraph:
         slope_vel_pct: float | None = None,
         slope_med_slow_pct: float | None = None,
         slope_vel_slow_pct: float | None = None,
+        entry_gate_bypass: bool = False,
     ) -> SpotEntryGateResult:
-        fn = _ENTRY_POLICY_REGISTRY.get(str(self.entry_policy), _entry_policy_default)
-        out = fn(
-            self,
-            strategy=strategy,
-            bar_ts=bar_ts,
-            entry_dir=entry_dir,
-            entry_context=entry_context,
-            shock_atr_pct=shock_atr_pct,
-            shock_atr_vel_pct=shock_atr_vel_pct,
-            shock_atr_accel_pct=shock_atr_accel_pct,
-            tr_ratio=tr_ratio,
-            tr_median_pct=tr_median_pct,
-            slope_med_pct=slope_med_pct,
-            slope_vel_pct=slope_vel_pct,
-            slope_med_slow_pct=slope_med_slow_pct,
-            slope_vel_slow_pct=slope_vel_slow_pct,
-        )
+        regime_state, hard_dir, _release_age = _entry_regime_context(entry_context)
+        if (
+            self.block_trend_down_longs
+            and entry_dir == "up"
+            and regime_state == "trend_down"
+            and hard_dir == "down"
+        ):
+            out = SpotEntryGateResult(
+                allow=False,
+                reason="regime4_trend_down",
+                gate="BLOCKED_REGIME4_TREND_DOWN",
+                trace={
+                    "policy": "regime_guard",
+                    "regime4_state": regime_state,
+                    "hard_dir": hard_dir,
+                },
+            )
+        elif entry_gate_bypass:
+            out = SpotEntryGateResult(
+                allow=True,
+                reason="entry_gate_bypass",
+                gate="ENTRY_GATE_BYPASS",
+                trace={"policy": "bypass"},
+            )
+        else:
+            fn = _ENTRY_POLICY_REGISTRY.get(str(self.entry_policy), _entry_policy_default)
+            out = fn(
+                self,
+                strategy=strategy,
+                bar_ts=bar_ts,
+                entry_dir=entry_dir,
+                entry_context=entry_context,
+                shock_atr_pct=shock_atr_pct,
+                shock_atr_vel_pct=shock_atr_vel_pct,
+                shock_atr_accel_pct=shock_atr_accel_pct,
+                tr_ratio=tr_ratio,
+                tr_median_pct=tr_median_pct,
+                slope_med_pct=slope_med_pct,
+                slope_vel_pct=slope_vel_pct,
+                slope_med_slow_pct=slope_med_slow_pct,
+                slope_vel_slow_pct=slope_vel_slow_pct,
+            )
         trace = dict(out.trace) if isinstance(out.trace, dict) else {}
         trace["graph"] = self.as_payload()
         return SpotEntryGateResult(allow=bool(out.allow), reason=str(out.reason), gate=str(out.gate), trace=trace)

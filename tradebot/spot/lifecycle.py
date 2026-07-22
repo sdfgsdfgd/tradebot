@@ -522,69 +522,39 @@ def decide_flat_position_intent(
             trace={"stage": "flat", "bar_ts": bar_ts.isoformat()},
         )
 
-    if (
-        bool(_get(strategy, "regime4_trenddown_block_longs", False))
-        and str(entry_dir) == "up"
-    ):
-        context = entry_context if isinstance(entry_context, Mapping) else {}
-        regime4_state = str(context.get("regime4_state") or "").strip().lower()
-        hard_dir = str(context.get("hard_dir") or "").strip().lower()
-        if regime4_state == "trend_down" and hard_dir == "down":
-            return SpotLifecycleDecision(
-                intent="hold",
-                reason="regime4_trend_down",
-                gate="BLOCKED_REGIME4_TREND_DOWN",
-                direction=str(entry_dir),
-                blocked=True,
-                fill_mode=str(fill_mode),
-                trace={
-                    "stage": "flat",
-                    "bar_ts": bar_ts.isoformat(),
-                    "fill_mode": str(fill_mode),
-                    "regime4_state": str(regime4_state),
-                    "hard_dir": str(hard_dir) if hard_dir else None,
-                },
-            )
-    graph_payload: dict[str, object]
-    if bool(entry_gate_bypass):
-        graph_payload = {
-            "allow": True,
-            "reason": "entry_gate_bypass",
-            "gate": "ENTRY_GATE_BYPASS",
-        }
-    else:
-        graph = policy_graph or SpotPolicyGraph.from_sources(strategy=strategy, filters=None)
-        entry_gate = graph.evaluate_entry_gate(
-            strategy=strategy,
-            bar_ts=bar_ts,
-            entry_dir=str(entry_dir) if entry_dir in ("up", "down") else None,
-            entry_context=entry_context,
-            shock_atr_pct=shock_atr_pct,
-            shock_atr_vel_pct=shock_atr_vel_pct,
-            shock_atr_accel_pct=shock_atr_accel_pct,
-            tr_ratio=tr_ratio,
-            tr_median_pct=tr_median_pct,
-            slope_med_pct=slope_med_pct,
-            slope_vel_pct=slope_vel_pct,
-            slope_med_slow_pct=slope_med_slow_pct,
-            slope_vel_slow_pct=slope_vel_slow_pct,
+    graph = policy_graph or SpotPolicyGraph.from_sources(strategy=strategy, filters=None)
+    entry_gate = graph.evaluate_entry_gate(
+        strategy=strategy,
+        bar_ts=bar_ts,
+        entry_dir=str(entry_dir) if entry_dir in ("up", "down") else None,
+        entry_context=entry_context,
+        shock_atr_pct=shock_atr_pct,
+        shock_atr_vel_pct=shock_atr_vel_pct,
+        shock_atr_accel_pct=shock_atr_accel_pct,
+        tr_ratio=tr_ratio,
+        tr_median_pct=tr_median_pct,
+        slope_med_pct=slope_med_pct,
+        slope_vel_pct=slope_vel_pct,
+        slope_med_slow_pct=slope_med_slow_pct,
+        slope_vel_slow_pct=slope_vel_slow_pct,
+        entry_gate_bypass=bool(entry_gate_bypass),
+    )
+    graph_payload = entry_gate.as_payload()
+    if not bool(entry_gate.allow):
+        return SpotLifecycleDecision(
+            intent="hold",
+            reason=str(entry_gate.reason or "graph_entry_gate"),
+            gate=str(entry_gate.gate or "BLOCKED_GRAPH_ENTRY"),
+            direction=str(entry_dir) if entry_dir in ("up", "down") else None,
+            fill_mode=str(fill_mode),
+            blocked=True,
+            trace={
+                "stage": "flat",
+                "bar_ts": bar_ts.isoformat(),
+                "fill_mode": str(fill_mode),
+                "graph_entry": graph_payload,
+            },
         )
-        graph_payload = entry_gate.as_payload()
-        if not bool(entry_gate.allow):
-            return SpotLifecycleDecision(
-                intent="hold",
-                reason=str(entry_gate.reason or "graph_entry_gate"),
-                gate=str(entry_gate.gate or "BLOCKED_GRAPH_ENTRY"),
-                direction=str(entry_dir) if entry_dir in ("up", "down") else None,
-                fill_mode=str(fill_mode),
-                blocked=True,
-                trace={
-                    "stage": "flat",
-                    "bar_ts": bar_ts.isoformat(),
-                    "fill_mode": str(fill_mode),
-                    "graph_entry": graph_payload,
-                },
-            )
     return SpotLifecycleDecision(
         intent="enter",
         reason="entry",

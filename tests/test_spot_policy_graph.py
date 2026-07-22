@@ -77,6 +77,37 @@ def test_lifecycle_flat_entry_uses_graph_gate() -> None:
     assert str(decision.gate) == "BLOCKED_GRAPH_ENTRY_SLOPE"
 
 
+def test_regime_guard_is_central_and_cannot_be_bypassed() -> None:
+    strategy = {"regime4_trenddown_block_longs": True}
+    context = {"regime4_state": "trend_down", "hard_dir": "down"}
+    graph = SpotPolicyGraph.from_sources(strategy=strategy, filters=None)
+
+    direct = graph.evaluate_entry_gate(
+        strategy=strategy,
+        bar_ts=datetime(2026, 2, 14, 10),
+        entry_dir="up",
+        entry_context=context,
+        entry_gate_bypass=True,
+    )
+    lifecycle = decide_flat_position_intent(
+        strategy=strategy,
+        bar_ts=datetime(2026, 2, 14, 10),
+        entry_dir="up",
+        entry_context=context,
+        allowed_directions=("up", "down"),
+        can_order_now=True,
+        preflight_ok=True,
+        filters_ok=True,
+        entry_capacity=True,
+        entry_gate_bypass=True,
+    )
+
+    assert direct.gate == "BLOCKED_REGIME4_TREND_DOWN"
+    assert lifecycle.gate == direct.gate
+    assert lifecycle.reason == "regime4_trend_down"
+    assert lifecycle.trace["graph_entry"]["trace"]["policy"] == "regime_guard"
+
+
 def test_graph_risk_overlay_compresses_qty() -> None:
     base_strategy = {
         "quantity": 1,
