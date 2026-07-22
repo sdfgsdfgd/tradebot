@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from statistics import mean, median, pstdev
 from collections.abc import Iterable, Mapping
 
-from .engine import SupertrendEngine
+from .engines.signals import SupertrendEngine
 
 
 @dataclass(frozen=True)

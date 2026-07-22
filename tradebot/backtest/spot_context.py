@@ -5,8 +5,8 @@ from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
+from ..engines.shock import normalize_shock_gate_mode
 from ..engine import (
-    normalize_shock_gate_mode,
     resolve_spot_regime2_spec,
     resolve_spot_regime_spec,
 )

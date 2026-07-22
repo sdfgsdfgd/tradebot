@@ -15,10 +15,9 @@ from .data import ContractMeta, IBKRHistoricalData
 from .models import Bar, EquityPoint, OptionTrade
 from .strategy import CreditSpreadStrategy
 from .synth import IVSurfaceParams
+from ..engines.signals import EmaDecisionEngine, SupertrendEngine
 from ..spot.lifecycle import apply_regime_gate, signal_filters_ok
 from ..engine import (
-    EmaDecisionEngine,
-    SupertrendEngine,
     _trade_date,
     annualized_ewma_vol,
     cooldown_ok_by_index,

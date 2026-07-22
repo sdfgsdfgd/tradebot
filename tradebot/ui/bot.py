@@ -3284,7 +3284,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         floors: list[str] = []
 
         if isinstance(filters, dict) and filters:
-            from ..engine import normalize_shock_detector, normalize_shock_gate_mode
+            from ..engines.shock import normalize_shock_detector, normalize_shock_gate_mode
 
             shock_mode = normalize_shock_gate_mode(filters)
             if shock_mode != "off":
@@ -3943,7 +3943,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
     ) -> str:
         if not isinstance(filters, dict) or "hour" not in str(regime_bar_size).strip().lower():
             return regime_duration
-        from ..engine import normalize_shock_gate_mode
+        from ..engines.shock import normalize_shock_gate_mode
 
         shock_gate_mode = normalize_shock_gate_mode(filters)
         if shock_gate_mode == "off":
@@ -4637,7 +4637,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
         # Non-negotiable readiness: if a daily shock detector is configured, do not emit a
         # snapshot until the daily engine is actually ready. Silent degradation here breaks
         # live-vs-backtest parity because shock gating/overlays won't engage.
-        from ..engine import normalize_shock_detector, normalize_shock_gate_mode
+        from ..engines.shock import normalize_shock_detector, normalize_shock_gate_mode
 
         shock_mode = normalize_shock_gate_mode(filters)
         if shock_mode != "off":
