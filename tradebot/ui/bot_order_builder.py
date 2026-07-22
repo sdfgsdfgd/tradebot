@@ -21,7 +21,12 @@ from ..engines.execution import (
     _sanitize_nbbo,
     _tick_size,
 )
-from ..option_package import normalize_option_legs, option_package_debit_value, option_package_risk
+from ..option_package import (
+    normalize_option_legs,
+    option_package_debit_value,
+    option_package_entry_intent,
+    option_package_risk,
+)
 from ..spot.lifecycle import decide_open_position_intent
 from ..time_utils import now_et as _now_et
 from ..time_utils import now_et_naive as _now_et_naive
@@ -487,6 +492,8 @@ class BotOrderBuilderMixin:
                 data=payload,
             )
 
+        entry_intent = None
+
         def _finalize_leg_orders(
             *,
             underlying: Contract,
@@ -554,6 +561,11 @@ class BotOrderBuilderMixin:
                         quote_payload=_quote_failure_payload(ticker=ticker, bid=bid, ask=ask, last=last),
                     )
                 limit = _round_to_tick(float(limit), tick)
+                single_quantity = single.ratio
+                if intent_clean == "enter":
+                    if entry_intent is None:
+                        return _fail("Order: option entry intent unavailable")
+                    single_quantity *= entry_intent.quantity
                 order = _BotOrder(
                     instance_id=instance.instance_id,
                     preset=None,
@@ -561,7 +573,7 @@ class BotOrderBuilderMixin:
                     order_contract=single.contract,
                     legs=leg_orders,
                     action=single.action,
-                    quantity=single.ratio,
+                    quantity=single_quantity,
                     limit_price=float(limit),
                     created_at=_now_et(),
                     bid=bid,
@@ -584,7 +596,9 @@ class BotOrderBuilderMixin:
                     if signal_bar_ts is not None:
                         instance.last_entry_bar_ts = signal_bar_ts
                     _bump_entry_counters()
-                _set_status(f"Created order {single.action} {single.ratio} {symbol} @ {limit:.2f}")
+                _set_status(
+                    f"Created order {single.action} {single_quantity} {symbol} @ {limit:.2f}"
+                )
                 return
 
             # Multi-leg combo: use IBKR's native encoding (can be negative for credits).
@@ -597,22 +611,13 @@ class BotOrderBuilderMixin:
                 return _fail("Quote: combo price is 0 (cannot price)")
 
             if intent_clean == "enter" and order_limit < 0:
-                min_credit_raw = strat.get("min_credit")
-                if min_credit_raw is None:
-                    min_credit = float(tick)
-                else:
-                    try:
-                        min_credit = float(min_credit_raw)
-                    except (TypeError, ValueError):
-                        return _fail(
-                            f"Order: invalid minimum credit {min_credit_raw!r}",
-                            quote_payload={
-                                "min_credit_raw": min_credit_raw,
-                                "debit_value": float(order_limit),
-                                "tick": float(tick),
-                            },
-                            retry_reason="minimum_credit_invalid",
-                        )
+                if entry_intent is None:
+                    return _fail("Order: option entry intent unavailable")
+                min_credit = (
+                    float(tick)
+                    if entry_intent.min_credit is None
+                    else entry_intent.min_credit
+                )
 
                 credit = -float(order_limit)
                 if credit < min_credit:
@@ -627,11 +632,16 @@ class BotOrderBuilderMixin:
                         retry_reason="minimum_credit_not_met",
                     )
 
-            try:
-                package_quantity = int(strat.get("quantity", 1) or 1)
-            except (TypeError, ValueError):
-                package_quantity = 1
-            package_quantity = max(1, package_quantity)
+            if intent_clean == "enter":
+                if entry_intent is None:
+                    return _fail("Order: option entry intent unavailable")
+                package_quantity = entry_intent.quantity
+            else:
+                try:
+                    package_quantity = int(strat.get("quantity", 1) or 1)
+                except (TypeError, ValueError):
+                    package_quantity = 1
+                package_quantity = max(1, package_quantity)
             combo_legs: list[ComboLeg] = []
             for leg_order, (_, _, _, ticker) in zip(leg_orders, leg_quotes):
                 con_id = int(getattr(leg_order.contract, "conId", 0) or 0)
@@ -1450,18 +1460,16 @@ class BotOrderBuilderMixin:
             raw = strat.get("legs", []) or []
             legs_raw = raw if isinstance(raw, list) else []
 
-        if not isinstance(legs_raw, list) or not legs_raw:
-            return _fail("Order: no legs configured")
         try:
-            normalized_legs = normalize_option_legs(legs_raw, path=legs_path)
+            entry_intent = option_package_entry_intent(
+                strat,
+                legs=legs_raw,
+                path=legs_path,
+            )
         except ValueError as exc:
             return _fail(f"Order: {exc}")
-
-        dte_raw = strat.get("dte", 0)
-        try:
-            dte = int(dte_raw or 0)
-        except (TypeError, ValueError):
-            dte = 0
+        normalized_legs = entry_intent.legs
+        dte = entry_intent.dte
 
         chain_info = await self._client.stock_option_chain(symbol)
         if not chain_info:

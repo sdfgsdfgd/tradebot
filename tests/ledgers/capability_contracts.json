@@ -888,6 +888,37 @@
         "malformed, non-finite, and structurally invalid legs fail atomically before provider interaction"
       ],
       "next": "Retain coverage while extending canonical strategy execution and promotion semantics."
+    },
+    {
+      "id": "unit.strategy.option-package-entry-intent",
+      "layer": "unit",
+      "subsystem": "live-execution-orders",
+      "phase": "strategy-option-package-entry-intent",
+      "capability": "Backtest and live option entries share one immutable pre-adapter package-intent law for selected ordered legs, DTE, package quantity, and minimum credit.",
+      "status": "covered",
+      "owner_surface": [
+        "tradebot/option_package.py",
+        "tradebot/backtest/strategy.py",
+        "tradebot/ui/bot_order_builder.py"
+      ],
+      "evidence": [
+        "tests/test_option_package_economics.py::test_option_package_entry_intent_is_frozen_strict_and_source_agnostic",
+        "tests/test_option_package_economics.py::test_backtest_and_live_option_entries_delegate_to_canonical_intent_before_resolution"
+      ],
+      "fixtures": [
+        "typed and mapping strategy sources",
+        "explicit selected-leg override with diagnostic path",
+        "backtest and live adapter projection spies",
+        "transport-guarded disposable real-dependency suite"
+      ],
+      "oracle": [
+        "selected legs preserve canonical order and reject missing or invalid collections atomically",
+        "DTE is a non-negative integer, package quantity is a positive integer, and minimum credit is optional finite non-negative numeric",
+        "backtest projection occurs before expiry and strike construction",
+        "live projection occurs before option-chain, qualification, quote, Greek, BAG, risk, reservation, or staging work",
+        "provider-owned expiry, listed strike, Greeks, qualification, quotes, tick fallback, risk, reservation, and lifecycle semantics remain adapter-owned"
+      ],
+      "next": "Extend the canonical strategy/execution model without absorbing provider-specific market and broker semantics."
     }
   ]
 }
