@@ -1,6 +1,7 @@
 """Shared bar-series contract used by backtest and runtime paths."""
 from __future__ import annotations
 
+import hashlib
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Generic, Iterable, Literal, Mapping, Sequence, TypeVar
@@ -16,6 +17,7 @@ BarSeriesTzMode = Literal[
     "unknown",
 ]
 BarSeriesSessionMode = Literal["rth", "full24", "mixed", "unknown"]
+BarSeriesSignature = tuple[int, str | None, str | None, str | None]
 
 
 @dataclass(frozen=True)
@@ -74,3 +76,34 @@ def bars_list(bars: BarSeries[BarT] | Sequence[BarT] | Iterable[BarT]) -> list[B
     if isinstance(bars, list):
         return bars
     return list(bars)
+
+
+def bar_series_signature(
+    bars: BarSeries[BarT] | Sequence[BarT],
+) -> BarSeriesSignature:
+    """Return an exact, stable identity for an immutable OHLCV tape."""
+    values = bars.bars if isinstance(bars, BarSeries) else bars
+    if not values:
+        return (0, None, None, None)
+
+    digest = hashlib.blake2b(digest_size=16)
+    for bar in values:
+        ts = getattr(bar, "ts", None)
+        parts = [
+            ts.isoformat() if isinstance(ts, datetime) else str(ts),
+            *(
+                float(getattr(bar, field_name)).hex()
+                for field_name in ("open", "high", "low", "close", "volume")
+            ),
+        ]
+        digest.update("\x1f".join(parts).encode("utf-8"))
+        digest.update(b"\x1e")
+
+    first_ts = getattr(values[0], "ts", None)
+    last_ts = getattr(values[-1], "ts", None)
+    return (
+        len(values),
+        first_ts.isoformat() if isinstance(first_ts, datetime) else str(first_ts),
+        last_ts.isoformat() if isinstance(last_ts, datetime) else str(last_ts),
+        digest.hexdigest(),
+    )

@@ -9,9 +9,10 @@ from dataclasses import asdict
 from ...backtest.config import ConfigBundle
 from ...backtest.spot_codec import filters_payload as _filters_payload
 from ...backtest.sweep_fingerprint import _canonicalize_fingerprint_value
+from ...chart_data.series import BarSeriesSignature
 from .catalog import _COMBO_FULL_CARTESIAN_DIM_ORDER
 
-_RUN_CFG_CACHE_ENGINE_VERSION = "spot_stage_v9"
+_RUN_CFG_CACHE_ENGINE_VERSION = "spot_stage_v10"
 _RANK_BIN_SIZE = 2048
 
 
@@ -30,9 +31,9 @@ def _axis_dimension_fingerprint(cfg: ConfigBundle) -> str:
 
 def _window_signature(
     *,
-    bars_sig: tuple[int, object | None, object | None],
-    regime_sig: tuple[int, object | None, object | None],
-    regime2_sig: tuple[int, object | None, object | None],
+    bars_sig: BarSeriesSignature,
+    regime_sig: BarSeriesSignature,
+    regime2_sig: BarSeriesSignature,
 ) -> str:
     raw = {
         "bars": tuple(bars_sig),

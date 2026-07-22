@@ -9,11 +9,12 @@ import time as pytime
 from ...backtest.config import ConfigBundle
 from ...backtest.engine import _run_spot_backtest_summary, _spot_prepare_summary_series_pack
 from ...backtest.sweep_parallel import _progress_line
+from ...chart_data.series import BarSeriesSignature
 from .fingerprints import _axis_dimension_fingerprint, _window_signature
 from .milestones import _milestone_key
 from .support import _registry_float, _runtime_policy
 
-_BarSignature = tuple[int, object | None, object | None]
+_BarSignature = BarSeriesSignature
 _ContextSignature = tuple[_BarSignature, _BarSignature, _BarSignature]
 _CacheKey = tuple[str, str, str]
 _PlanItem = tuple[ConfigBundle, str, dict | None]

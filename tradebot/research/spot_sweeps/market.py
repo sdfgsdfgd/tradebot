@@ -16,7 +16,7 @@ from ...backtest.sweeps import (
     write_json,
 )
 from ...chart_data.cache import series_cache_service
-from ...chart_data.series import bars_list
+from ...chart_data.series import BarSeriesSignature, bars_list
 from .catalog import (
     AxisExecutionSpec,
     _AXIS_EXECUTION_SPEC_BY_NAME,
@@ -274,16 +274,8 @@ class SweepMarketData:
         regime2_eff = self._regime2_bars_for(cfg) if regime2_bars is None else regime2_bars
         return bars_eff, regime_eff, regime2_eff
 
-    def _bars_signature(self, series: list | None) -> tuple[int, object | None, object | None]:
-        if not series:
-            return (0, None, None)
-        first = series[0]
-        last = series[-1]
-        return (
-            len(series),
-            getattr(first, "ts", None),
-            getattr(last, "ts", None),
-        )
+    def _bars_signature(self, series: list | None) -> BarSeriesSignature:
+        return _SERIES_CACHE.revision(series or ())
 
     def _axis_total_hint(self, axis_name: str) -> int | None:
         axis = str(axis_name).strip().lower()

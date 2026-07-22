@@ -3,10 +3,13 @@ from __future__ import annotations
 
 import pickle
 import sqlite3
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from pathlib import Path
 from threading import RLock
 from typing import Callable
+
+from .series import BarSeries, BarSeriesSignature, bar_series_signature
 
 Validator = Callable[[object], bool]
 
@@ -14,7 +17,28 @@ Validator = Callable[[object], bool]
 @dataclass
 class SeriesCacheService:
     _memory: dict[tuple[str, object], object] = field(default_factory=dict)
+    _revisions: OrderedDict[int, tuple[object, BarSeriesSignature]] = field(
+        default_factory=OrderedDict
+    )
     _lock: RLock = field(default_factory=RLock)
+
+    def revision(self, bars) -> BarSeriesSignature:
+        """Memoize exact tape identity; loaded bar sequences are immutable by contract."""
+        source = bars.bars if isinstance(bars, BarSeries) else bars
+        identity = id(source)
+        with self._lock:
+            cached = self._revisions.get(identity)
+            if cached is not None and cached[0] is source:
+                self._revisions.move_to_end(identity)
+                return cached[1]
+
+        revision = bar_series_signature(source)
+        with self._lock:
+            self._revisions[identity] = (source, revision)
+            self._revisions.move_to_end(identity)
+            while len(self._revisions) > 16:
+                self._revisions.popitem(last=False)
+        return revision
 
     def get(self, *, namespace: str, key: object) -> object | None:
         with self._lock:
@@ -29,6 +53,7 @@ class SeriesCacheService:
         with self._lock:
             if namespace is None:
                 self._memory.clear()
+                self._revisions.clear()
                 return
             ns = str(namespace)
             for key in [k for k in self._memory.keys() if k[0] == ns]:

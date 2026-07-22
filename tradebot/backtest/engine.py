@@ -28,7 +28,7 @@ from .spot_context import (
     spot_signal_warmup_days_from_strategy,
 )
 from ..chart_data.cache import series_cache_service
-from ..chart_data.series import BarSeries, bars_list
+from ..chart_data.series import BarSeries, BarSeriesSignature, bars_list
 from ..engines.risk import risk_overlay_policy_from_filters
 from ..engines.signals import EmaDecisionSnapshot
 from ..spot.gates import (
@@ -153,7 +153,7 @@ def _spot_exec_alignment(
     return out
 
 
-_SPOT_SERIES_PACK_CACHE_VERSION = "spot-series-pack-v3"
+_SPOT_SERIES_PACK_CACHE_VERSION = "spot-series-pack-v4"
 
 
 BarSeriesInput = Union[list[Bar], BarSeries[Bar]]
@@ -293,18 +293,8 @@ class _SpotEntryEvidence:
         )
 
 
-def _spot_bars_signature(bars: list[Bar] | None) -> tuple[object, ...]:
-    if not bars:
-        return (0, None, None, None, None)
-    first = bars[0]
-    last = bars[-1]
-    return (
-        int(len(bars)),
-        first.ts.isoformat(),
-        last.ts.isoformat(),
-        round(float(first.open), 8),
-        round(float(last.close), 8),
-    )
+def _spot_bars_signature(bars: list[Bar] | None) -> BarSeriesSignature:
+    return _SERIES_CACHE.revision(bars or ())
 
 
 def _spot_tick_gate_settings(

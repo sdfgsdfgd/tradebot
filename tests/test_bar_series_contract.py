@@ -301,3 +301,24 @@ def test_series_cache_service_roundtrip_memory_and_persistent() -> None:
             validator=lambda obj: isinstance(obj, dict),
         )
     assert loaded == value
+
+
+def test_series_cache_revision_covers_interior_market_data() -> None:
+    start = datetime(2025, 1, 6, 14, 30)
+    original = _bars(start, n=5, minutes=15)
+    corrected = list(original)
+    middle = corrected[2]
+    corrected[2] = Bar(
+        ts=middle.ts,
+        open=middle.open,
+        high=middle.high,
+        low=middle.low,
+        close=middle.close + 1.0,
+        volume=middle.volume,
+    )
+    cache = SeriesCacheService()
+
+    assert original[0] == corrected[0]
+    assert original[-1] == corrected[-1]
+    assert cache.revision(original) != cache.revision(corrected)
+    assert cache.revision(original) == cache.revision(original)

@@ -14,6 +14,7 @@ from ...backtest.config import (
     ConfigBundle,
 )
 from ...backtest.data import ContractMeta, IBKRHistoricalData
+from ...chart_data.series import BarSeriesSignature
 from ...time_utils import now_et as _now_et
 from ...signals import parse_bar_size
 from .catalog import (
@@ -254,11 +255,7 @@ class SpotSweepRuntime(
         self.run_cfg_fingerprint_cache: dict[
             str,
             tuple[
-                tuple[
-                    tuple[int, object | None, object | None],
-                    tuple[int, object | None, object | None],
-                    tuple[int, object | None, object | None],
-                ],
+                tuple[BarSeriesSignature, BarSeriesSignature, BarSeriesSignature],
                 dict | None,
             ],
         ] = {}
@@ -267,11 +264,7 @@ class SpotSweepRuntime(
         self.run_cfg_dim_index_loaded: dict[str, float] = {}
         self.run_cfg_dim_index_loaded_once = False
         self.run_cfg_window_sig_cache: dict[
-            tuple[
-                tuple[int, object | None, object | None],
-                tuple[int, object | None, object | None],
-                tuple[int, object | None, object | None],
-            ],
+            tuple[BarSeriesSignature, BarSeriesSignature, BarSeriesSignature],
             str,
         ] = {}
         self.cartesian_rank_manifest_compact_seen: dict[tuple[str, str], float] = {}
