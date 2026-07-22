@@ -25,7 +25,6 @@ OVERSIZED_MODULE_DEBT = {
     "tradebot/spot_engine.py",
     "tradebot/ui/app.py",
     "tradebot/ui/bot.py",
-    "tradebot/ui/bot_journal.py",
     "tradebot/ui/bot_order_builder.py",
     "tradebot/ui/bot_signal_runtime.py",
 }

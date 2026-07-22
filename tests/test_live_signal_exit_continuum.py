@@ -28,6 +28,7 @@ if "tradebot.ui" not in sys.modules:
 
 from tradebot.ui.bot_engine_runtime import BotEngineRuntimeMixin
 from tradebot.ui.bot_journal import BotJournal
+from tradebot.ui.bot_journal_diagnostics import JournalDiagnostics
 from tradebot.ui.bot_models import _BotInstance, _BotLegOrder, _BotOrder
 from tradebot.ui.bot_order_builder import BotOrderBuilderMixin
 from tradebot.ui.bot_signal_runtime import BotSignalRuntimeMixin
@@ -1319,8 +1320,8 @@ def test_active_knob_tokens_ignore_max_tokens_limit() -> None:
             "shock_scale_detector": "daily_atr_pct",
         },
     )
-    tokens_low_limit = BotJournal._active_knob_tokens(**kwargs, max_tokens=2)
-    tokens_high_limit = BotJournal._active_knob_tokens(**kwargs, max_tokens=99)
+    tokens_low_limit = JournalDiagnostics._active_knob_tokens(**kwargs, max_tokens=2)
+    tokens_high_limit = JournalDiagnostics._active_knob_tokens(**kwargs, max_tokens=99)
 
     assert tokens_low_limit == tokens_high_limit
     assert len(tokens_low_limit) > 2

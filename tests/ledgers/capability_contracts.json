@@ -378,6 +378,8 @@
       ],
       "owner_surface": [
         "tradebot/ui/app.py",
+        "tradebot/ui/bot_journal.py",
+        "tradebot/ui/bot_journal_diagnostics.py",
         "tradebot/ui/positions.py",
         "tradebot/ui/position_detail/chart.py",
         "tradebot/ui/position_detail/market.py",
