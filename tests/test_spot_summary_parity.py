@@ -3,9 +3,16 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta
 from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
 
 from tradebot.backtest.data import ContractMeta
-from tradebot.backtest.engine import _run_spot_backtest_exec_loop, _run_spot_backtest_exec_loop_summary
+from tradebot.backtest.engine import (
+    _run_spot_backtest_exec_loop,
+    _run_spot_backtest_exec_loop_summary,
+    _spot_resolve_run_bars,
+)
 from tradebot.backtest.models import Bar
 from tradebot.knobs.models import BacktestConfig, ConfigBundle, SpotLegConfig, SpotStrategyConfig, SyntheticConfig
 
@@ -65,6 +72,31 @@ def _tick_daily_bars(*, end_day: date, days: int) -> list[Bar]:
             )
         )
     return out
+
+
+def test_spot_run_bars_owns_resolution_selection_and_validation() -> None:
+    signal = _bars_5m(
+        start=datetime(2024, 1, 8, 14),
+        end=datetime(2024, 1, 8, 14, 10),
+        start_price=100.0,
+        end_price=101.0,
+    )
+    execution = signal[:1]
+    cfg = SimpleNamespace(
+        backtest=SimpleNamespace(bar_size="30 mins"),
+        strategy=SimpleNamespace(spot_exec_bar_size="5 mins"),
+    )
+
+    with pytest.raises(ValueError, match="exec_bars was not provided"):
+        _spot_resolve_run_bars(cfg, bars=signal)
+    assert _spot_resolve_run_bars(
+        cfg, bars=signal, exec_bars=execution
+    ).execution is execution
+
+    cfg.strategy.spot_exec_bar_size = "30 mins"
+    assert _spot_resolve_run_bars(
+        cfg, bars=signal, exec_bars=execution
+    ).execution is signal
 
 
 def test_spot_summary_matches_detailed_lifecycle_on_flip_reentry_path() -> None:

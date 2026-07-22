@@ -183,6 +183,17 @@ class _SpotSeriesPack(NamedTuple):
     exec_dates: list[date]
 
 
+class _SpotRunBars(NamedTuple):
+    """Canonical signal, execution, and context tapes for one spot run."""
+
+    signal: list[Bar]
+    execution: list[Bar]
+    regime: list[Bar] | None
+    regime2: list[Bar] | None
+    regime2_bear_hard: list[Bar] | None
+    tick: list[Bar] | None
+
+
 class _SpotPolicyRun(NamedTuple):
     """Immutable policy objects shared by every decision in one backtest."""
 
@@ -1662,6 +1673,45 @@ def _spot_emit_progress(progress_callback, **payload: object) -> None:
         return
 
 
+def _spot_resolve_run_bars(
+    cfg: ConfigBundle,
+    *,
+    bars: BarSeriesInput,
+    exec_bars: BarSeriesInput | None = None,
+    regime_bars: BarSeriesInput | None = None,
+    regime2_bars: BarSeriesInput | None = None,
+    regime2_bear_hard_bars: BarSeriesInput | None = None,
+    tick_bars: BarSeriesInput | None = None,
+) -> _SpotRunBars:
+    """Normalize tapes once and enforce the single/multi-resolution boundary."""
+    signal = _bars_input_list(bars)
+    execution = _bars_input_optional_list(exec_bars)
+    exec_bar_size = str(
+        getattr(cfg.strategy, "spot_exec_bar_size", "") or ""
+    ).strip()
+    if exec_bar_size and exec_bar_size != str(cfg.backtest.bar_size):
+        if execution is None:
+            raise ValueError(
+                "spot_exec_bar_size is set but exec_bars was not provided "
+                f"(signal={cfg.backtest.bar_size!r} exec={exec_bar_size!r})"
+            )
+        if not execution:
+            raise ValueError(
+                "spot_exec_bar_size is set but exec_bars is empty "
+                f"(signal={cfg.backtest.bar_size!r} exec={exec_bar_size!r})"
+            )
+    else:
+        execution = signal
+    return _SpotRunBars(
+        signal=signal,
+        execution=execution,
+        regime=_bars_input_optional_list(regime_bars),
+        regime2=_bars_input_optional_list(regime2_bars),
+        regime2_bear_hard=_bars_input_optional_list(regime2_bear_hard_bars),
+        tick=_bars_input_optional_list(tick_bars),
+    )
+
+
 def _run_spot_backtest(
     cfg: ConfigBundle,
     bars: BarSeriesInput,
@@ -1673,46 +1723,24 @@ def _run_spot_backtest(
     tick_bars: BarSeriesInput | None = None,
     exec_bars: BarSeriesInput | None = None,
 ) -> BacktestResult:
-    signal_bars = _bars_input_list(bars)
-    regime_bars_list = _bars_input_optional_list(regime_bars)
-    regime2_bars_list = _bars_input_optional_list(regime2_bars)
-    regime2_bear_hard_bars_list = _bars_input_optional_list(regime2_bear_hard_bars)
-    tick_bars_list = _bars_input_optional_list(tick_bars)
-    exec_bars_list = _bars_input_optional_list(exec_bars)
-
-    exec_bar_size = str(getattr(cfg.strategy, "spot_exec_bar_size", "") or "").strip()
-    if exec_bar_size and str(exec_bar_size) != str(cfg.backtest.bar_size):
-        if exec_bars_list is None:
-            raise ValueError(
-                "spot_exec_bar_size is set but exec_bars was not provided "
-                f"(signal={cfg.backtest.bar_size!r} exec={exec_bar_size!r})"
-            )
-        if not exec_bars_list:
-            raise ValueError(
-                "spot_exec_bar_size is set but exec_bars is empty "
-                f"(signal={cfg.backtest.bar_size!r} exec={exec_bar_size!r})"
-            )
-        return _run_spot_backtest_exec_loop(
-            cfg,
-            signal_bars=signal_bars,
-            exec_bars=exec_bars_list,
-            meta=meta,
-            regime_bars=regime_bars_list,
-            regime2_bars=regime2_bars_list,
-            regime2_bear_hard_bars=regime2_bear_hard_bars_list,
-            tick_bars=tick_bars_list,
-        )
-
-    # Canonical spot runner: single-res is just exec_bars=signal_bars.
+    run_bars = _spot_resolve_run_bars(
+        cfg,
+        bars=bars,
+        exec_bars=exec_bars,
+        regime_bars=regime_bars,
+        regime2_bars=regime2_bars,
+        regime2_bear_hard_bars=regime2_bear_hard_bars,
+        tick_bars=tick_bars,
+    )
     return _run_spot_backtest_exec_loop(
         cfg,
-        signal_bars=signal_bars,
-        exec_bars=signal_bars,
+        signal_bars=run_bars.signal,
+        exec_bars=run_bars.execution,
         meta=meta,
-        regime_bars=regime_bars_list,
-        regime2_bars=regime2_bars_list,
-        regime2_bear_hard_bars=regime2_bear_hard_bars_list,
-        tick_bars=tick_bars_list,
+        regime_bars=run_bars.regime,
+        regime2_bars=run_bars.regime2,
+        regime2_bear_hard_bars=run_bars.regime2_bear_hard,
+        tick_bars=run_bars.tick,
     )
 
 
@@ -1734,58 +1762,30 @@ def _run_spot_backtest_summary(
     Keeps semantics aligned with `_run_spot_backtest_exec_loop`, but skips building the
     full equity curve list (and a second aggregation pass over it).
     """
-    signal_bars = _bars_input_list(bars)
-    regime_bars_list = _bars_input_optional_list(regime_bars)
-    regime2_bars_list = _bars_input_optional_list(regime2_bars)
-    regime2_bear_hard_bars_list = _bars_input_optional_list(regime2_bear_hard_bars)
-    tick_bars_list = _bars_input_optional_list(tick_bars)
-    exec_bars_list = _bars_input_optional_list(exec_bars)
-
-    exec_bar_size = str(getattr(cfg.strategy, "spot_exec_bar_size", "") or "").strip()
+    run_bars = _spot_resolve_run_bars(
+        cfg,
+        bars=bars,
+        exec_bars=exec_bars,
+        regime_bars=regime_bars,
+        regime2_bars=regime2_bars,
+        regime2_bear_hard_bars=regime2_bear_hard_bars,
+        tick_bars=tick_bars,
+    )
     _spot_emit_progress(
         progress_callback,
         phase="summary.prepare",
-        signal_total=int(len(signal_bars)),
-        exec_total=int(
-            len(exec_bars_list)
-            if isinstance(exec_bars_list, list)
-            else len(signal_bars)
-        ),
+        signal_total=int(len(run_bars.signal)),
+        exec_total=int(len(run_bars.execution)),
     )
-    if exec_bar_size and str(exec_bar_size) != str(cfg.backtest.bar_size):
-        if exec_bars_list is None:
-            raise ValueError(
-                "spot_exec_bar_size is set but exec_bars was not provided "
-                f"(signal={cfg.backtest.bar_size!r} exec={exec_bar_size!r})"
-            )
-        if not exec_bars_list:
-            raise ValueError(
-                "spot_exec_bar_size is set but exec_bars is empty "
-                f"(signal={cfg.backtest.bar_size!r} exec={exec_bar_size!r})"
-            )
-        return _run_spot_backtest_exec_loop_summary(
-            cfg,
-            signal_bars=signal_bars,
-            exec_bars=exec_bars_list,
-            meta=meta,
-            regime_bars=regime_bars_list,
-            regime2_bars=regime2_bars_list,
-            regime2_bear_hard_bars=regime2_bear_hard_bars_list,
-            tick_bars=tick_bars_list,
-            prepared_series_pack=prepared_series_pack,
-            progress_callback=progress_callback,
-        )
-
-    # Canonical spot runner: single-res is just exec_bars=signal_bars.
     return _run_spot_backtest_exec_loop_summary(
         cfg,
-        signal_bars=signal_bars,
-        exec_bars=signal_bars,
+        signal_bars=run_bars.signal,
+        exec_bars=run_bars.execution,
         meta=meta,
-        regime_bars=regime_bars_list,
-        regime2_bars=regime2_bars_list,
-        regime2_bear_hard_bars=regime2_bear_hard_bars_list,
-        tick_bars=tick_bars_list,
+        regime_bars=run_bars.regime,
+        regime2_bars=run_bars.regime2,
+        regime2_bear_hard_bars=run_bars.regime2_bear_hard,
+        tick_bars=run_bars.tick,
         prepared_series_pack=prepared_series_pack,
         progress_callback=progress_callback,
     )

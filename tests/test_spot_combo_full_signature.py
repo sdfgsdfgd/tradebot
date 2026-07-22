@@ -109,6 +109,11 @@ def test_legacy_hf_scalp_axis_is_replaced_by_unified_hf_preset() -> None:
     assert "hf_timing_sniper" in _combo_full_preset_axes()
 
 
+def test_frontier_is_runtime_pruning_not_a_report_only_axis() -> None:
+    assert "frontier" not in _AXIS_CHOICES
+    assert "stage_frontier" in _SWEEP_RUNTIME_POLICY
+
+
 def test_axis_fingerprint_covers_complete_signal_identity() -> None:
     common = {
         "symbol": "SLV",

@@ -23,7 +23,6 @@ Legend: `sharded` = stage-level worker sharding inside the axis; `cached` = run_
 | `spot_short_risk_mult` | no | yes |  |
 | `orb` | no | yes |  |
 | `orb_joint` | no | yes |  |
-| `frontier` | no | yes |  |
 | `regime` | no | yes |  |
 | `regime2` | no | yes |  |
 | `regime2_ema` | no | yes |  |
