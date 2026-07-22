@@ -12,8 +12,10 @@ from tradebot.backtest.spot_context import SpotContextBars
 import tradebot.research.spot_sweeps.evaluation as sweep_evaluation
 from tradebot.research.spot_sweeps.axes_hf import _orb_candidates
 from tradebot.research.spot_sweeps.catalog import (
+    _AXIS_CHOICES,
     _COMBO_FULL_CARTESIAN_DIM_ORDER,
     _COMBO_FULL_PAIR_DIM_VARIANT_SPECS,
+    _combo_full_preset_axes,
 )
 from tradebot.research.spot_sweeps.fingerprints import (
     _axis_dimension_fingerprint,
@@ -80,7 +82,7 @@ def test_sweep_policy_is_not_mixed_into_strategy_dimensions() -> None:
     assert "jobs_tuner" in _SWEEP_RUNTIME_POLICY
 
 
-def test_ema_signal_presets_have_one_lane_catalog() -> None:
+def test_ema_signal_presets_have_one_canonical_catalog() -> None:
     assert _ema_signal_presets("tight") == ("2/4", "4/9")
     assert _ema_signal_presets("core") == (
         "2/4",
@@ -90,14 +92,21 @@ def test_ema_signal_presets_have_one_lane_catalog() -> None:
         "8/21",
         "9/21",
     )
-    assert _ema_signal_presets("hf") == (
+    assert _ema_signal_presets("combo") == (
+        "2/4",
         "3/7",
         "4/9",
+        "5/10",
         "5/13",
         "8/21",
         "9/21",
         "21/50",
     )
+
+
+def test_legacy_hf_scalp_axis_is_replaced_by_unified_hf_preset() -> None:
+    assert "hf_scalp" not in _AXIS_CHOICES
+    assert "hf_timing_sniper" in _combo_full_preset_axes()
 
 
 def test_axis_fingerprint_covers_complete_signal_identity() -> None:

@@ -4,13 +4,13 @@ from __future__ import annotations
 
 _EMA_SIGNAL_PRESET_LANES = (
     ("2/4", ("core", "combo", "tight")),
-    ("3/7", ("core", "hf", "combo")),
-    ("4/9", ("core", "hf", "combo", "tight")),
+    ("3/7", ("core", "combo")),
+    ("4/9", ("core", "combo", "tight")),
     ("5/10", ("core", "combo")),
-    ("5/13", ("hf",)),
-    ("8/21", ("core", "hf", "combo")),
-    ("9/21", ("core", "hf", "combo")),
-    ("21/50", ("hf", "combo")),
+    ("5/13", ("combo",)),
+    ("8/21", ("core", "combo")),
+    ("9/21", ("core", "combo")),
+    ("21/50", ("combo",)),
 )
 
 

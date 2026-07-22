@@ -19,7 +19,6 @@ Legend: `sharded` = stage-level worker sharding inside the axis; `cached` = run_
 | `atr_ultra` | no | yes |  |
 | `chop_joint` | no | yes |  |
 | `ptsl` | no | yes |  |
-| `hf_scalp` | no | yes |  |
 | `hold` | no | yes |  |
 | `spot_short_risk_mult` | no | yes |  |
 | `orb` | no | yes |  |

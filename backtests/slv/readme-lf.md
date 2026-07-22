@@ -326,6 +326,8 @@ Outcome (2026-01-30):
 ### v1 — hf_scalp axis (stop-only + flip-profit, with cadence knobs; exec=5m realism)
 Status: **DONE** (found many 1y high-activity winners; decade not yet positive)
 
+> Historical record: the executable `hf_scalp` axis was retired on 2026-07-23 after its useful search dimensions moved into the unified `combo_full` space. The commands below preserve experimental provenance; use `combo_full` (or its `hf_timing_sniper` preset) for supported research, without assuming byte-equivalent candidates.
+
 #### v1.0 — 1y candidate pool (>=1000 trades; pnl/dd>=0)
 ```bash
 python -u -m tradebot.backtest spot \

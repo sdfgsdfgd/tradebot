@@ -65,7 +65,6 @@ _AXIS_SURFACE_SPECS: tuple[AxisSurfaceSpec, ...] = (
         True,
         "Fixed-percent PT/SL exits sweep with flip/close_eod semantics (non-ATR).",
     ),
-    AxisSurfaceSpec("hf_scalp", False, "HF scalp cadence sweep."),
     AxisSurfaceSpec("hold", True, "Flip-exit minimum-hold-bars sweep.", total_hint_static=7),
     AxisSurfaceSpec(
         "spot_short_risk_mult",
