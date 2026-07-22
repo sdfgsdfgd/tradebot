@@ -2791,25 +2791,154 @@ def test_engine_inactive_exit_attaches_ib_reject_reason() -> None:
     assert "time-in-force GTC is invalid" in str(done_payload.get("ib_error_message") or "")
 
 
-def test_engine_canceling_order_timeout_resumes_working_chase() -> None:
-    bar_ts = datetime(2026, 2, 9, 10, 0)
-    instance = _new_instance()
-    order = _new_order(status="Submitted", signal_bar_ts=bar_ts)
-    order.status = "CANCELING"
-    order.cancel_requested_at = -999.0
-    order.trade = SimpleNamespace(
-        orderStatus=SimpleNamespace(status="Submitted", whyHeld=""),
-        log=[],
-        fills=[],
-        isDone=lambda: False,
+def test_engine_canceling_order_timeout_requires_broker_refresh_before_resume() -> None:
+    async def _run_case(
+        *,
+        current_status: str,
+        reconciled_status: str,
+    ):
+        trade = _broker_trade(
+            order_id=901,
+            perm_id=456901,
+            status="Submitted",
+            filled=0.0,
+            remaining=1.0,
+            done=False,
+        )
+        bar_ts = datetime(2026, 2, 9, 10, 0)
+        instance = _new_instance()
+        order = _new_order(
+            status="Submitted",
+            signal_bar_ts=bar_ts,
+            order_id=901,
+        )
+        order.status = "CANCELING"
+        order.cancel_requested_at = -999.0
+        order.sent_at = None
+        order.exec_mode = None
+        order.chase_last_reprice_ts = None
+        order.chase_quote_signature = None
+        order.trade = trade
+
+        class _Client:
+            def __init__(self) -> None:
+                self.current_calls = 0
+                self.reconcile_force_flags: list[bool] = []
+                self.modify_calls = 0
+
+            @staticmethod
+            def _payload(status: str):
+                return {
+                    "order_id": 901,
+                    "perm_id": 456901,
+                    "raw_status": str(status),
+                    "effective_status": str(status),
+                    "filled_qty": 0.0,
+                    "remaining_qty": 1.0,
+                    "executed_qty": 0.0,
+                    "open_present": True,
+                    "is_done": False,
+                    "is_terminal": False,
+                    "trade": trade,
+                }
+
+            def current_order_state(
+                self,
+                *,
+                order_id: int = 0,
+                perm_id: int = 0,
+            ):
+                assert int(order_id) == 901
+                assert int(perm_id) in (0, 456901)
+                self.current_calls += 1
+                return self._payload(current_status)
+
+            async def reconcile_order_state(
+                self,
+                *,
+                order_id: int = 0,
+                perm_id: int = 0,
+                force: bool = False,
+            ):
+                assert int(order_id) == 901
+                assert int(perm_id) in (0, 456901)
+                self.reconcile_force_flags.append(bool(force))
+                return self._payload(reconciled_status)
+
+            async def modify_limit_order(self, current_trade, limit_price: float):
+                self.modify_calls += 1
+                current_trade.order.lmtPrice = float(limit_price)
+                return current_trade
+
+            @staticmethod
+            def pop_order_error(
+                _order_id: int,
+                *,
+                max_age_sec: float = 120.0,
+            ):
+                return None
+
+        class _RepriceHarness(_EngineHarness):
+            def __init__(self, **kwargs) -> None:
+                super().__init__(**kwargs)
+                self.reprice_calls = 0
+
+            async def _reprice_order(self, target: _BotOrder, *, mode: str) -> bool:
+                self.reprice_calls += 1
+                target.exec_mode = str(mode)
+                target.limit_price = float(target.limit_price) + 0.05
+                return True
+
+        client = _Client()
+        harness = _RepriceHarness(
+            instance=instance,
+            order=order,
+            client=client,
+        )
+        await harness._chase_orders_tick()
+        return order, client, harness
+
+    explicit_order, explicit_client, explicit_harness = asyncio.run(
+        _run_case(
+            current_status="PendingCancel",
+            reconciled_status="PendingCancel",
+        )
     )
-    harness = _EngineHarness(instance=instance, order=order)
+    stale_order, stale_client, stale_harness = asyncio.run(
+        _run_case(
+            current_status="Submitted",
+            reconciled_status="PendingCancel",
+        )
+    )
+    active_order, active_client, active_harness = asyncio.run(
+        _run_case(
+            current_status="Submitted",
+            reconciled_status="Submitted",
+        )
+    )
 
-    asyncio.run(harness._chase_orders_tick())
+    assert explicit_order.status == "CANCELING"
+    assert explicit_order.cancel_requested_at is not None
+    assert explicit_client.current_calls == 1
+    assert explicit_client.reconcile_force_flags == []
+    assert explicit_harness.reprice_calls == 0
+    assert explicit_client.modify_calls == 0
 
-    assert order.status == "WORKING"
-    assert order.cancel_requested_at is None
-    assert any(event == "CANCEL_ACK_TIMEOUT" for event, _data in harness._events)
+    assert stale_order.status == "CANCELING"
+    assert stale_order.cancel_requested_at is not None
+    assert stale_client.current_calls == 1
+    assert stale_client.reconcile_force_flags == [True]
+    assert stale_harness.reprice_calls == 0
+    assert stale_client.modify_calls == 0
+
+    assert active_order.status == "WORKING"
+    assert active_order.cancel_requested_at is None
+    assert active_client.current_calls == 1
+    assert active_client.reconcile_force_flags == [True]
+    assert active_harness.reprice_calls == 1
+    assert active_client.modify_calls == 1
+    active_events = [event for event, _data in active_harness._events]
+    assert active_events.count("CANCEL_ACK_TIMEOUT") == 1
 
 
 def test_engine_rebinds_partial_working_order_before_reprice_after_reconnect() -> None:

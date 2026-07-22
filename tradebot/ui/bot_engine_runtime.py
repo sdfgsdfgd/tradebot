@@ -204,6 +204,7 @@ class BotEngineRuntimeMixin:
             broker_state: dict[str, object] | None = None
             broker_effective_status = ""
             broker_is_terminal = False
+            cancel_resume_verified = False
             client = getattr(self, "_client", None)
             current_order_state = getattr(client, "current_order_state", None)
             if callable(current_order_state):
@@ -222,6 +223,57 @@ class BotEngineRuntimeMixin:
                     candidate_state = None
                 if isinstance(candidate_state, dict):
                     broker_state = candidate_state
+
+            if order.status == "CANCELING":
+                cancel_since = (
+                    float(order.cancel_requested_at)
+                    if order.cancel_requested_at is not None
+                    else float(order.sent_at if order.sent_at is not None else now)
+                )
+                cancel_age = max(0.0, float(now) - float(cancel_since))
+                cached_cancel_status = (
+                    str(broker_state.get("effective_status") or "").strip()
+                    if isinstance(broker_state, dict)
+                    else ""
+                )
+                if (
+                    cancel_age >= float(_CANCEL_ACK_TIMEOUT_SEC)
+                    and cached_cancel_status != "PendingCancel"
+                ):
+                    reconcile_order_state = getattr(
+                        client,
+                        "reconcile_order_state",
+                        None,
+                    )
+                    if callable(reconcile_order_state):
+                        try:
+                            cancel_perm_id = int(
+                                getattr(
+                                    getattr(trade, "order", None),
+                                    "permId",
+                                    0,
+                                )
+                                or 0
+                            )
+                        except (TypeError, ValueError):
+                            cancel_perm_id = 0
+                        try:
+                            refreshed_state = await reconcile_order_state(
+                                order_id=int(order.order_id or 0),
+                                perm_id=int(cancel_perm_id),
+                                force=True,
+                            )
+                        except Exception:
+                            refreshed_state = None
+                        if isinstance(refreshed_state, dict):
+                            broker_state = refreshed_state
+                            refreshed_cancel_status = str(
+                                refreshed_state.get("effective_status") or ""
+                            ).strip()
+                            cancel_resume_verified = refreshed_cancel_status in (
+                                "Submitted",
+                                "PreSubmitted",
+                            )
 
             if broker_state is not None:
                 rebound_trade = broker_state.get("trade")
@@ -485,6 +537,8 @@ class BotEngineRuntimeMixin:
                 )
                 cancel_age = max(0.0, float(now) - float(cancel_since))
                 if cancel_age < float(_CANCEL_ACK_TIMEOUT_SEC):
+                    continue
+                if not cancel_resume_verified:
                     continue
                 order.status = "WORKING"
                 order.cancel_requested_at = None
