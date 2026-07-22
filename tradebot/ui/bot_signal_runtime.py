@@ -43,8 +43,9 @@ from ..spot.fill_modes import (
 )
 from ..time_utils import now_et as _now_et
 from ..time_utils import to_et as _to_et_shared
+from ..engines.execution import _quote_num_display, _sanitize_nbbo
 from .bot_models import _BotInstance
-from .common import _market_session_bucket, _quote_num_display, _safe_num, _sanitize_nbbo, _ticker_price
+from .common import _market_session_bucket, _safe_num, _ticker_price
 from ..option_package import option_profit_target_hit, option_stop_loss_hit
 
 _DEFAULT_ORDER_STAGE_TIMEOUT_SEC = 20.0

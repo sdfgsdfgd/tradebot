@@ -24,8 +24,8 @@ from .data import IBKRHistoricalData, ContractMeta
 from .models import Bar, EquityPoint, OptionLeg, OptionTrade, SpotTrade, SummaryStats
 from .spot_context import SpotBarRequirement, load_spot_context_bars, spot_signal_warmup_days_from_strategy
 from .strategy import CreditSpreadStrategy, TradeSpec
-from ..series import BarSeries, bars_list
-from ..series_cache import series_cache_service
+from ..chart_data.cache import series_cache_service
+from ..chart_data.series import BarSeries, bars_list
 from ..option_package import (
     option_package_debit_value,
     option_profit_target_hit,

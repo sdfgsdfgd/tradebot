@@ -6,8 +6,8 @@ from tempfile import TemporaryDirectory
 
 from tradebot.backtest.data import IBKRHistoricalData, cache_path, read_cache, write_cache
 from tradebot.backtest.models import Bar
-from tradebot.series import BarSeries, BarSeriesMeta
-from tradebot.series_cache import SeriesCacheService
+from tradebot.chart_data.cache import SeriesCacheService
+from tradebot.chart_data.series import BarSeries, BarSeriesMeta
 from tradebot.spot_engine import SpotSignalEvaluator
 
 

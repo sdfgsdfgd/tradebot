@@ -12,12 +12,14 @@ if "tradebot.ui" not in sys.modules:
     ui_pkg.__path__ = [str(_UI_DIR)]  # type: ignore[attr-defined]
     sys.modules["tradebot.ui"] = ui_pkg
 
-from tradebot.ui.common import (
+from tradebot.engines.execution import (
     _exec_chase_should_reprice,
     _limit_price_for_mode,
-    _quote_health,
     _sanitize_nbbo,
     _tick_size,
+)
+from tradebot.ui.common import (
+    _quote_health,
     _ticker_line,
 )
 

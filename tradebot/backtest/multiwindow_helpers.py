@@ -8,7 +8,7 @@ from .cache_ops_lib import ensure_cached_window_with_policy
 from .cli_utils import expected_cache_path
 from .data import IBKRHistoricalData, cache_covers_window
 from .spot_context import spot_bar_requirements_from_strategy
-from ..series import bars_list
+from ..chart_data.series import bars_list
 
 
 def load_bars(

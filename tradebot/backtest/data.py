@@ -14,7 +14,7 @@ from ib_insync import IB, ContFuture, Index, Stock, util
 from zoneinfo import ZoneInfo
 
 from .models import Bar
-from ..series import BarSeries, BarSeriesMeta
+from ..chart_data.series import BarSeries, BarSeriesMeta
 from ..config import load_config
 from ..signals import parse_bar_size
 from ..time_utils import (

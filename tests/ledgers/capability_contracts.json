@@ -102,6 +102,7 @@
     "tests/test_backtest_trading_calendar.py": "market-time-series-semantics",
     "tests/test_bar_series_contract.py": "backtest-data-cache",
     "tests/test_bar_utils.py": "market-time-series-semantics",
+    "tests/test_architecture_boundaries.py": "verification-capability-evolution",
     "tests/test_cache_fetch_mend.py": "backtest-data-cache",
     "tests/test_capability_contracts.py": "verification-capability-evolution",
     "tests/test_client_market_data_fallbacks.py": "broker-connectivity-account",
@@ -118,6 +119,7 @@
     "tests/test_order_pricing_guards.py": "live-execution-orders",
     "tests/test_order_reservation_policy.py": "live-execution-orders",
     "tests/test_readme_retrievers.py": "operator-ui-observability",
+    "tests/test_realtime_chart_data.py": "market-time-series-semantics",
     "tests/test_regime_router_exec_bar_state_persistence.py": "backtest-simulation-accounting",
     "tests/test_spot_combo_full_signature.py": "research-optimization-calibration",
     "tests/test_spot_context_requirements.py": "signal-regime-intelligence",
@@ -182,9 +184,11 @@
         "tests/test_backtest_trading_calendar.py",
         "tests/test_bar_utils.py",
         "tests/test_engine_time_semantics.py",
+        "tests/test_realtime_chart_data.py",
         "tests/test_time_utils_modes.py"
       ],
       "owner_surface": [
+        "tradebot/chart_data/realtime.py",
         "tradebot/time_utils.py"
       ],
       "oracle": [
@@ -460,9 +464,11 @@
         "current proof surfaces for verification-capability-evolution"
       ],
       "evidence": [
+        "tests/test_architecture_boundaries.py",
         "tests/test_capability_contracts.py"
       ],
       "owner_surface": [
+        "tests/test_architecture_boundaries.py",
         "tests/test_capability_contracts.py"
       ],
       "oracle": [

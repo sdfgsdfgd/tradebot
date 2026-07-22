@@ -21,7 +21,7 @@ from datetime import date, datetime, time
 from collections.abc import Mapping
 from typing import Protocol
 
-from .series import BarSeries, bars_list
+from .chart_data.series import BarSeries, bars_list
 from .engine import (
     EmaDecisionEngine,
     EmaDecisionSnapshot,

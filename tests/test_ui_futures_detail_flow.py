@@ -6,7 +6,7 @@ from time import monotonic
 
 from ib_insync import Contract, PortfolioItem
 
-from tradebot.ui.common import _exec_chase_mode
+from tradebot.engines.execution import EXECUTION_POLICY, _exec_chase_mode
 from tradebot.ui.positions import PositionDetailScreen, _DETAIL_CHASE_STATE_BY_ORDER
 
 
@@ -300,7 +300,7 @@ def test_relentless_spread_pressure_boosts_target() -> None:
     screen = PositionDetailScreen(SimpleNamespace(), _fut_item(contract), refresh_sec=0.25)
     ticker = SimpleNamespace(contract=contract, bid=100.0, ask=103.0, last=101.5)
 
-    screen._spread_samples.clear()
+    screen._chart.spread_samples.clear()
     baseline = screen._exec_price_for_mode(
         "RELENTLESS",
         "BUY",
@@ -314,7 +314,7 @@ def test_relentless_spread_pressure_boosts_target() -> None:
         no_progress_reprices=0,
         arrival_ref=101.5,
     )
-    screen._spread_samples.extend([0.25] * 24)
+    screen._chart.spread_samples.extend([0.25] * 24)
     pressure = screen._exec_price_for_mode(
         "RELENTLESS",
         "BUY",
@@ -729,19 +729,14 @@ def test_relentless_delay_settle_locks_winning_side_for_directional_relentless()
 
 
 def test_relentless_min_reprice_hyper_in_open_shock_when_no_progress() -> None:
-    _ensure_event_loop()
-    contract = Contract(secType="FUT", symbol="MNQ", exchange="CME", currency="USD")
-    contract.conId = 750150193
-    screen = PositionDetailScreen(SimpleNamespace(), _fut_item(contract), refresh_sec=0.25)
-
-    interval = screen._relentless_min_reprice_sec(
+    interval = EXECUTION_POLICY.reprice_interval(
         quote_stale=False,
         open_shock=True,
         no_progress_reprices=3,
         spread_pressure=1.0,
     )
 
-    assert interval <= float(screen._RELENTLESS_MIN_REPRICE_SEC_HYPER)
+    assert interval <= EXECUTION_POLICY.hyper_min_reprice_sec
 
 
 def test_align_front_future_rebinds_flat_search_item() -> None:

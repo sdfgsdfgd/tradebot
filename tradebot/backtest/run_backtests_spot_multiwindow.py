@@ -48,7 +48,7 @@ from .sweeps import (
     utc_now_iso_z,
     write_json,
 )
-from ..series_cache import series_cache_service
+from ..chart_data.cache import series_cache_service
 from ..time_utils import now_et as _now_et
 
 _SERIES_CACHE = series_cache_service()

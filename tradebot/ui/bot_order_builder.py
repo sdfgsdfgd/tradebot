@@ -13,6 +13,13 @@ from datetime import date, datetime
 from ib_insync import Bag, ComboLeg, Contract, Option, Stock, Ticker
 
 from ..engine import normalize_spot_entry_signal, spot_resolve_entry_action_qty, spot_runtime_spec_view
+from ..engines.execution import (
+    _limit_price_for_mode,
+    _midpoint,
+    _round_to_tick,
+    _sanitize_nbbo,
+    _tick_size,
+)
 from ..option_package import option_package_debit_value, option_package_risk
 from ..spot.lifecycle import decide_open_position_intent
 from ..time_utils import now_et as _now_et
@@ -20,12 +27,7 @@ from ..time_utils import now_et_naive as _now_et_naive
 from ..utils.date_utils import add_business_days
 from .bot_models import _BotInstance, _BotLegOrder, _BotOrder
 from .common import (
-    _limit_price_for_mode,
-    _midpoint,
-    _round_to_tick,
     _safe_num,
-    _sanitize_nbbo,
-    _tick_size,
     _ticker_price,
 )
 

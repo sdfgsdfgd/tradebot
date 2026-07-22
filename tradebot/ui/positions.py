@@ -4,9 +4,7 @@ from __future__ import annotations
 
 import asyncio
 from collections import deque
-from datetime import time as dtime
 import math
-import re
 import textwrap
 from time import monotonic
 
@@ -18,36 +16,46 @@ from textual.containers import Horizontal
 from textual.screen import Screen
 from textual.widgets import Footer, Header, Static
 
+from ..chart_data.realtime import (
+    RealtimeChartData,
+    resample,
+    tape_bin_max,
+    tape_bin_sum,
+    tape_series,
+)
 from ..client import IBKRClient
-from .common import (
-    _aggressive_price,
-    _append_digit,
-    _cost_basis,
-    _default_order_qty,
-    _exec_chase_mode,
-    _exec_chase_quote_signature,
-    _exec_chase_should_reprice,
+from ..engines.execution import (
     _EXEC_AUTO_TIMEOUT_SEC,
     _EXEC_LADDER_TIMEOUT_SEC,
     _EXEC_RELENTLESS_TIMEOUT_SEC,
+    EXECUTION_POLICY,
+    _aggressive_price,
+    _exec_chase_mode,
+    _exec_chase_quote_signature,
+    _exec_chase_should_reprice,
+    _limit_price_for_mode,
+    _midpoint,
+    _optimistic_price,
+    _quote_num_actionable,
+    _round_to_tick,
+    _tick_decimals,
+    _tick_size,
+)
+from .common import (
+    _append_digit,
+    _cost_basis,
+    _default_order_qty,
     _fmt_expiry,
     _fmt_money,
     _fmt_qty,
     _fmt_quote,
     _infer_multiplier,
-    _limit_price_for_mode,
     _market_data_label,
     _mark_price,
-    _midpoint,
     _option_display_price,
-    _optimistic_price,
     _parse_int,
-    _quote_num_actionable,
-    _round_to_tick,
     _safe_float,
     _safe_num,
-    _tick_decimals,
-    _tick_size,
     _trade_sort_key,
     _quote_status_line,
     _ticker_close,
@@ -89,29 +97,6 @@ class PositionDetailScreen(Screen):
     _VOL_MAGENTA_STYLES = ("#4e1e57", "#6f2380", "#922aaa", "#b534d8", "#ff3dee")
     _TREND_ROWS = 5
     _ORDER_PANEL_NOTICE_TTL_SEC = 5 * 60.0
-    _RELENTLESS_BASE_CROSS_SEC = 2.0
-    _RELENTLESS_STEP_SEC = 3.0
-    _RELENTLESS_STEP_SEC_SHOCK = 1.5
-    _RELENTLESS_MIN_REPRICE_SEC = 0.75
-    _RELENTLESS_MIN_REPRICE_SEC_SHOCK = 0.35
-    _RELENTLESS_MIN_REPRICE_SEC_HYPER = 0.25
-    _RELENTLESS_OPEN_SHOCK_WINDOW_SEC = 120.0
-    _RELENTLESS_STALE_TOP_AGE_SEC = 2.0
-    _RELENTLESS_SPREAD_PRESSURE_TRIGGER = 2.0
-    _RELENTLESS_SPREAD_PRESSURE_HYPER = 3.5
-    _RELENTLESS_MAX_EDGE_TICKS = 40
-    _RELENTLESS_DELAY_RECOVER_ATTEMPTS = 24
-    _RELENTLESS_DELAY_RECOVER_COOLDOWN_SEC = 0.35
-    _RELENTLESS_DELAY_RECOVER_WINDOW_SEC = 25.0
-    _RELENTLESS_DELAY_RECOVER_SETTLE_SEC = 2.0
-    _RELENTLESS_DELAY_FAVORABLE_PCT = 0.06
-    _RELENTLESS_DELAY_ADVERSE_PCT = 0.12
-    _RELENTLESS_DELAY_FAVORABLE_SPREAD_MULT = 0.8
-    _RELENTLESS_DELAY_ADVERSE_SPREAD_MULT = 2.0
-    _RELENTLESS_DELAY_FAVORABLE_MAX_TICKS = 20
-    _RELENTLESS_DELAY_ADVERSE_MAX_TICKS = 60
-    _RELENTLESS_DELAY_SHRINK_PER_REJECT = 0.75
-    _RELENTLESS_DELAY_PRICE_HINT_RE = re.compile(r"(?<!\d)(\d[\d,]*\.\d+)")
     _CHASE_PENDING_ACK_SEC = 0.9
     _CHASE_RECONCILE_INTERVAL_SEC = 0.9
     _CHASE_FORCE_RECONCILE_INTERVAL_SEC = 5.0
@@ -169,18 +154,10 @@ class PositionDetailScreen(Screen):
         self._chase_tasks: set[asyncio.Task] = set()
         self._chase_task_by_order: dict[int, asyncio.Task] = {}
         self._cancel_requested_at_by_order: dict[int, float] = {}
-        self._mid_samples: deque[float] = deque(maxlen=240)
-        self._mid_tape: deque[tuple[float, float]] = deque(maxlen=4096)
-        self._spread_samples: deque[float] = deque(maxlen=96)
-        self._size_samples: deque[float] = deque(maxlen=96)
-        self._size_tape: deque[tuple[float, float]] = deque(maxlen=4096)
-        self._vol_flow_tape: deque[tuple[float, float]] = deque(maxlen=4096)
-        self._pnl_samples: deque[float] = deque(maxlen=96)
-        self._slip_proxy_samples: deque[float] = deque(maxlen=96)
-        self._imbalance_samples: deque[float] = deque(maxlen=240)
-        self._vol_burst_samples: deque[float] = deque(maxlen=240)
-        self._imbalance_tape: deque[tuple[float, float]] = deque(maxlen=4096)
-        self._vol_burst_tape: deque[tuple[float, float]] = deque(maxlen=4096)
+        self._chart = RealtimeChartData(
+            window_sec=self._TREND_WINDOW_SEC,
+            retention_sec=self._TREND_RETENTION_SEC,
+        )
         self._trend_bins: list[float] = []
         self._aurora_preset = "normal"
         self._pos_prev_qty: float | None = None
@@ -197,11 +174,6 @@ class PositionDetailScreen(Screen):
             float | None,
             float | None,
         ] | None = None
-        self._flow_cum_attr: str | None = None
-        self._flow_cum_prev: float | None = None
-        self._flow_prev_price: float | None = None
-        self._flow_last_size: float | None = None
-        self._flow_last_price: float | None = None
         self._session_prev_close: float | None = session_closes[0] if session_closes else None
         self._session_close_3ago: float | None = session_closes[1] if session_closes else None
         self._closes_task: asyncio.Task | None = None
@@ -818,132 +790,6 @@ class PositionDetailScreen(Screen):
                 return payload
         return None
 
-    def _trim_tapes(self, now: float) -> None:
-        cutoff = now - max(float(self._TREND_RETENTION_SEC), float(self._TREND_WINDOW_SEC))
-        for tape in (
-            self._mid_tape,
-            self._size_tape,
-            self._vol_flow_tape,
-            self._imbalance_tape,
-            self._vol_burst_tape,
-        ):
-            while tape and tape[0][0] < cutoff:
-                tape.popleft()
-
-    def _record_mid_sample(self, mid: float, *, ts: float | None = None) -> None:
-        now = monotonic() if ts is None else float(ts)
-        mid_value = float(mid)
-        if self._mid_tape:
-            _last_ts, last_mid = self._mid_tape[-1]
-            tick = _tick_size(self._item.contract, self._ticker, mid_value)
-            eps = max(float(tick) * 0.01, 1e-9)
-            if abs(mid_value - float(last_mid)) <= eps:
-                self._mid_tape[-1] = (now, float(last_mid))
-                self._trim_tapes(now)
-                return
-        self._mid_samples.append(mid_value)
-        self._mid_tape.append((now, mid_value))
-        self._trim_tapes(now)
-
-    def _record_aurora_sample(
-        self,
-        *,
-        imbalance: float | None,
-        vol_burst: float | None,
-        ts: float | None = None,
-    ) -> None:
-        now = monotonic() if ts is None else float(ts)
-        if imbalance is not None:
-            imbalance_value = max(min(float(imbalance), 1.0), -1.0)
-            self._imbalance_samples.append(imbalance_value)
-            self._imbalance_tape.append((now, imbalance_value))
-        if vol_burst is not None and vol_burst >= 0:
-            burst_value = float(vol_burst)
-            self._vol_burst_samples.append(burst_value)
-            self._vol_burst_tape.append((now, burst_value))
-        self._trim_tapes(now)
-
-    def _record_volume_size(self, size: float | None, *, ts: float | None = None) -> None:
-        if size is None or size < 0:
-            return
-        now = monotonic() if ts is None else float(ts)
-        size_value = float(size)
-        self._size_samples.append(size_value)
-        self._size_tape.append((now, size_value))
-        self._trim_tapes(now)
-
-    def _record_volume_flow(self, flow: float | None, *, ts: float | None = None) -> None:
-        if flow is None:
-            return
-        flow_value = float(flow)
-        if abs(flow_value) <= 1e-12:
-            return
-        now = monotonic() if ts is None else float(ts)
-        self._vol_flow_tape.append((now, flow_value))
-        self._trim_tapes(now)
-
-    def _trade_volume_delta(self, ticker: Ticker) -> float | None:
-        if self._flow_cum_attr:
-            value = _safe_num(getattr(ticker, self._flow_cum_attr, None))
-            if value is None or value < 0:
-                self._flow_cum_attr = None
-                self._flow_cum_prev = None
-                return None
-            prev = self._flow_cum_prev
-            self._flow_cum_prev = float(value)
-            if prev is None:
-                return None
-            delta = float(value) - float(prev)
-            if delta < 0:
-                return None
-            return delta
-
-        for attr in ("rtTradeVolume", "rtVolume", "volume"):
-            value = _safe_num(getattr(ticker, attr, None))
-            if value is None or value < 0:
-                continue
-            self._flow_cum_attr = attr
-            self._flow_cum_prev = float(value)
-            return None
-        return None
-
-    def _trade_volume_fallback(self, *, last_size: float | None, last_price: float | None) -> float | None:
-        if last_size is None or last_size <= 0:
-            return None
-        prev_size = self._flow_last_size
-        prev_price = self._flow_last_price
-        self._flow_last_size = float(last_size)
-        self._flow_last_price = float(last_price) if last_price is not None else None
-        if prev_size is None:
-            return None
-        price_changed = (
-            last_price is not None
-            and prev_price is not None
-            and abs(float(last_price) - float(prev_price)) > 1e-9
-        )
-        if abs(float(last_size) - float(prev_size)) <= 1e-9 and not price_changed:
-            return None
-        return float(last_size)
-
-    def _flow_direction(self, *, price: float | None, imbalance: float | None) -> float:
-        if price is not None:
-            current = float(price)
-            prev = self._flow_prev_price
-            self._flow_prev_price = current
-            if prev is not None:
-                tick = _tick_size(self._item.contract, self._ticker, current)
-                eps = max(float(tick) * 0.01, 1e-9)
-                delta = current - float(prev)
-                if delta > eps:
-                    return 1.0
-                if delta < -eps:
-                    return -1.0
-        if imbalance is not None and abs(float(imbalance)) >= 0.05:
-            return 1.0 if float(imbalance) > 0 else -1.0
-        if imbalance is not None:
-            return 1.0 if float(imbalance) >= 0 else -1.0
-        return 1.0
-
     def _capture_tick_mid(self) -> None:
         self._sync_bound_tickers()
         ticker = self._ticker
@@ -997,10 +843,12 @@ class PositionDetailScreen(Screen):
         if mid is None:
             return
         now = monotonic()
-        prev_mid = float(self._mid_tape[-1][1]) if self._mid_tape else None
+        prev_mid = float(self._chart.mid_tape[-1][1]) if self._chart.mid_tape else None
         mid_value = float(mid)
-        self._record_mid_sample(mid_value, ts=now)
-        self._record_volume_size(last_size, ts=now)
+        tick = _tick_size(contract, ticker, mid_value)
+        epsilon = max(float(tick) * 0.01, 1e-9)
+        self._chart.record_mid(mid_value, epsilon=epsilon, ts=now)
+        self._chart.record_size(last_size, ts=now)
 
         imbalance = None
         total_size = float((bid_size or 0.0) + (ask_size or 0.0))
@@ -1009,14 +857,24 @@ class PositionDetailScreen(Screen):
                 float((bid_size or 0.0) - (ask_size or 0.0)) / total_size if total_size > 0 else 0.0
             )
         vol_burst = abs(mid_value - prev_mid) if prev_mid is not None else 0.0
-        self._record_aurora_sample(imbalance=imbalance, vol_burst=vol_burst, ts=now)
+        self._chart.record_aurora(imbalance=imbalance, vol_burst=vol_burst, ts=now)
 
-        flow_qty = self._trade_volume_delta(ticker)
+        flow_qty = self._chart.cumulative_volume_delta(
+            {
+                "rtTradeVolume": rt_trade_volume,
+                "rtVolume": rt_volume,
+                "volume": total_volume,
+            }
+        )
         if flow_qty is None:
-            flow_qty = self._trade_volume_fallback(last_size=last_size, last_price=last)
+            flow_qty = self._chart.fallback_volume_delta(last_size=last_size, last_price=last)
         if flow_qty is not None and flow_qty > 0:
-            direction = self._flow_direction(price=last or mid_value, imbalance=imbalance)
-            self._record_volume_flow(flow_qty * direction, ts=now)
+            direction = self._chart.flow_direction(
+                price=last or mid_value,
+                imbalance=imbalance,
+                epsilon=epsilon,
+            )
+            self._chart.record_flow(flow_qty * direction, ts=now)
         self._request_stream_render(sample=False)
 
     def _record_market_samples(
@@ -1031,16 +889,18 @@ class PositionDetailScreen(Screen):
         vol_burst: float | None,
     ) -> None:
         now = monotonic()
-        if mid is not None:
-            self._record_mid_sample(float(mid), ts=now)
-        if spread is not None and spread >= 0:
-            self._spread_samples.append(float(spread))
-        self._record_volume_size(size, ts=now)
-        if pnl is not None:
-            self._pnl_samples.append(float(pnl))
-        if slip_proxy is not None and slip_proxy >= 0:
-            self._slip_proxy_samples.append(float(slip_proxy))
-        self._record_aurora_sample(imbalance=imbalance, vol_burst=vol_burst, ts=now)
+        tick = _tick_size(self._item.contract, self._ticker, mid)
+        self._chart.record_market(
+            mid=mid,
+            mid_epsilon=max(float(tick) * 0.01, 1e-9),
+            spread=spread,
+            size=size,
+            pnl=pnl,
+            slip_proxy=slip_proxy,
+            imbalance=imbalance,
+            vol_burst=vol_burst,
+            ts=now,
+        )
 
     def _sparkline(self, values: deque[float], width: int) -> str:
         width = max(width, 1)
@@ -1061,108 +921,9 @@ class PositionDetailScreen(Screen):
             out.append(self._SPARK_CHARS[idx])
         return "".join(out).rjust(width)
 
-    @staticmethod
-    def _resample(points: list[float], width: int) -> list[float]:
-        width = max(width, 1)
-        if not points:
-            return []
-        if len(points) == 1 or width == 1:
-            return [points[-1]] * width
-        if len(points) == width:
-            return list(points)
-        step = float(len(points) - 1) / float(width - 1)
-        out: list[float] = []
-        for idx in range(width):
-            pos = step * float(idx)
-            lo = int(pos)
-            hi = min(lo + 1, len(points) - 1)
-            frac = pos - float(lo)
-            out.append(points[lo] + (points[hi] - points[lo]) * frac)
-        return out
-
-    def _trend_window_bounds(self) -> tuple[float, float]:
-        end = monotonic()
-        start = end - float(self._TREND_WINDOW_SEC)
-        return start, end
-
-    @staticmethod
-    def _tape_series(
-        tape: deque[tuple[float, float]], *, width: int, start: float, end: float
-    ) -> list[float]:
-        width = max(width, 1)
-        if not tape:
-            return []
-        points = list(tape)
-        if not points:
-            return []
-        start_idx = 0
-        while start_idx < len(points) and points[start_idx][0] < start:
-            start_idx += 1
-        if start_idx > 0:
-            window = [points[start_idx - 1], *points[start_idx:]]
-        else:
-            window = points
-        if not window:
-            return []
-        span = max(float(end - start), 1e-9)
-        step = span / float(width)
-        cursor = 0
-        out: list[float] = []
-        for idx in range(width):
-            target = float(start) + (step * float(idx + 1))
-            while cursor + 1 < len(window) and float(window[cursor + 1][0]) <= target:
-                cursor += 1
-            t0, v0 = window[cursor]
-            if cursor + 1 < len(window):
-                t1, v1 = window[cursor + 1]
-                if t1 > t0 and t0 <= target <= t1:
-                    frac = (target - t0) / (t1 - t0)
-                    out.append(float(v0) + ((float(v1) - float(v0)) * frac))
-                    continue
-            out.append(float(v0))
-        return out
-
-    @staticmethod
-    def _tape_bin_max(
-        tape: deque[tuple[float, float]], *, width: int, start: float, end: float
-    ) -> list[float]:
-        width = max(width, 1)
-        if not tape:
-            return []
-        span = max(float(end - start), 1e-9)
-        out = [0.0] * width
-        has_data = False
-        for ts, value in tape:
-            if ts < start or ts > end:
-                continue
-            ratio = (float(ts) - float(start)) / span
-            idx = max(0, min(width - 1, int(ratio * float(width))))
-            out[idx] = max(out[idx], float(value))
-            has_data = True
-        return out if has_data else []
-
-    @staticmethod
-    def _tape_bin_sum(
-        tape: deque[tuple[float, float]], *, width: int, start: float, end: float
-    ) -> list[float]:
-        width = max(width, 1)
-        if not tape:
-            return []
-        span = max(float(end - start), 1e-9)
-        out = [0.0] * width
-        has_data = False
-        for ts, value in tape:
-            if ts < start or ts > end:
-                continue
-            ratio = (float(ts) - float(start)) / span
-            idx = max(0, min(width - 1, int(ratio * float(width))))
-            out[idx] += float(value)
-            has_data = True
-        return out if has_data else []
-
     def _sparkline_smooth(self, values: deque[float], width: int) -> str:
         width = max(width, 1)
-        points = self._resample(list(values), width)
+        points = resample(list(values), width)
         if not points:
             return " " * width
         lo = min(points)
@@ -1212,13 +973,13 @@ class PositionDetailScreen(Screen):
         start, end = (
             (float(window_start), float(window_end))
             if window_start is not None and window_end is not None
-            else self._trend_window_bounds()
+            else self._chart.window_bounds()
         )
-        series = self._tape_series(self._mid_tape, width=width, start=start, end=end)
+        series = tape_series(self._chart.mid_tape, width=width, start=start, end=end)
         if not series:
             approx = max(2, int(round(self._TREND_WINDOW_SEC / max(self._refresh_sec, 0.1))))
-            fallback = list(self._mid_samples)[-approx:]
-            series = self._resample([float(value) for value in fallback], width) if fallback else []
+            fallback = list(self._chart.mid_samples)[-approx:]
+            series = resample([float(value) for value in fallback], width) if fallback else []
         if not series:
             blank = " " * width
             return ([blank for _ in range(rows)], rows // 2)
@@ -1330,9 +1091,11 @@ class PositionDetailScreen(Screen):
         start, end = (
             (float(window_start), float(window_end))
             if window_start is not None and window_end is not None
-            else self._trend_window_bounds()
+            else self._chart.window_bounds()
         )
-        flow_events = sum(1 for ts, _value in self._vol_flow_tape if start <= ts <= end)
+        flow_events = sum(
+            1 for ts, _value in self._chart.volume_flow_tape if start <= ts <= end
+        )
         density = float(flow_events) / float(width)
         micro_factor = 2
         if density >= 1.2:
@@ -1342,10 +1105,17 @@ class PositionDetailScreen(Screen):
         if density >= 3.5:
             micro_factor = 5
         micro_width = width * micro_factor
-        flow_micro = self._tape_bin_sum(self._vol_flow_tape, width=micro_width, start=start, end=end)
+        flow_micro = tape_bin_sum(
+            self._chart.volume_flow_tape,
+            width=micro_width,
+            start=start,
+            end=end,
+        )
 
         if not flow_micro:
-            size_events = sum(1 for ts, _value in self._size_tape if start <= ts <= end)
+            size_events = sum(
+                1 for ts, _value in self._chart.size_tape if start <= ts <= end
+            )
             size_density = float(size_events) / float(width)
             if size_density >= 1.2:
                 micro_factor = max(micro_factor, 3)
@@ -1354,13 +1124,21 @@ class PositionDetailScreen(Screen):
             if size_density >= 3.5:
                 micro_factor = max(micro_factor, 5)
             micro_width = width * micro_factor
-            size_micro = self._tape_series(self._size_tape, width=micro_width, start=start, end=end)
+            size_micro = tape_series(
+                self._chart.size_tape,
+                width=micro_width,
+                start=start,
+                end=end,
+            )
             if not size_micro:
-                size_micro = self._resample(list(self._size_samples), micro_width)
+                size_micro = resample(list(self._chart.size_samples), micro_width)
             if not size_micro:
                 return Text(" " * width, style="dim")
-            imbalance_micro = self._tape_series(
-                self._imbalance_tape, width=micro_width, start=start, end=end
+            imbalance_micro = tape_series(
+                self._chart.imbalance_tape,
+                width=micro_width,
+                start=start,
+                end=end,
             )
             if not imbalance_micro:
                 imbalance_micro = [0.0] * micro_width
@@ -1370,7 +1148,7 @@ class PositionDetailScreen(Screen):
                 flow_micro.append(float(size) * direction)
 
         if len(flow_micro) != micro_width:
-            flow_micro = self._resample([float(value) for value in flow_micro], micro_width)
+            flow_micro = resample([float(value) for value in flow_micro], micro_width)
         if len(flow_micro) > 2:
             smoothed = [float(flow_micro[0])]
             for idx in range(1, len(flow_micro) - 1):
@@ -1476,11 +1254,11 @@ class PositionDetailScreen(Screen):
         start, end = (
             (float(window_start), float(window_end))
             if window_start is not None and window_end is not None
-            else self._trend_window_bounds()
+            else self._chart.window_bounds()
         )
-        mids = self._tape_series(self._mid_tape, width=width + 1, start=start, end=end)
+        mids = tape_series(self._chart.mid_tape, width=width + 1, start=start, end=end)
         if len(mids) < 2:
-            mids = self._resample(list(self._mid_samples), width + 1)
+            mids = resample(list(self._chart.mid_samples), width + 1)
         if len(mids) < 2:
             return [0.0] * width
         deltas = [float(mids[idx] - mids[idx - 1]) for idx in range(1, len(mids))]
@@ -1495,7 +1273,7 @@ class PositionDetailScreen(Screen):
         for value in norm[1:]:
             prev = smooth[-1]
             smooth.append(prev + alpha * (value - prev))
-        return self._resample(smooth, width) if smooth else [0.0] * width
+        return resample(smooth, width) if smooth else [0.0] * width
 
     def _aurora_blended_imbalance(self, imbalance: float, drift: float) -> float:
         bias = max(0.0, min(self._AURORA_TAPE_BIAS, 1.0))
@@ -1519,10 +1297,10 @@ class PositionDetailScreen(Screen):
         return "#8aa0b6"
 
     def _aurora_now_style(self) -> str:
-        if self._imbalance_tape:
-            imbalance_now = float(self._imbalance_tape[-1][1])
-        elif self._imbalance_samples:
-            imbalance_now = float(self._imbalance_samples[-1])
+        if self._chart.imbalance_tape:
+            imbalance_now = float(self._chart.imbalance_tape[-1][1])
+        elif self._chart.imbalance_samples:
+            imbalance_now = float(self._chart.imbalance_samples[-1])
         else:
             return "#8aa0b6"
         drift_now = self._aurora_drift_series(1)[0]
@@ -1540,29 +1318,39 @@ class PositionDetailScreen(Screen):
         start, end = (
             (float(window_start), float(window_end))
             if window_start is not None and window_end is not None
-            else self._trend_window_bounds()
+            else self._chart.window_bounds()
         )
-        imbalances = self._tape_series(self._imbalance_tape, width=width, start=start, end=end)
+        imbalances = tape_series(
+            self._chart.imbalance_tape,
+            width=width,
+            start=start,
+            end=end,
+        )
         if not imbalances:
-            imbalances = self._resample(list(self._imbalance_samples), width)
+            imbalances = resample(list(self._chart.imbalance_samples), width)
         if not imbalances:
             imbalances = [0.0] * width
         elif len(imbalances) != width:
-            imbalances = self._resample(imbalances, width)
+            imbalances = resample(imbalances, width)
 
         drifts = self._aurora_drift_series(width, window_start=start, window_end=end)
         if not drifts:
             drifts = [0.0] * width
         elif len(drifts) != width:
-            drifts = self._resample(drifts, width)
+            drifts = resample(drifts, width)
 
-        bursts = self._tape_bin_max(self._vol_burst_tape, width=width, start=start, end=end)
+        bursts = tape_bin_max(
+            self._chart.vol_burst_tape,
+            width=width,
+            start=start,
+            end=end,
+        )
         if not bursts:
-            bursts = self._resample(list(self._vol_burst_samples), width)
+            bursts = resample(list(self._chart.vol_burst_samples), width)
         if not bursts:
             bursts = [0.0] * width
         elif len(bursts) != width:
-            bursts = self._resample(bursts, width)
+            bursts = resample(bursts, width)
 
         config = self._aurora_config()
         top_burst = max(bursts) if bursts else 0.0
@@ -1594,7 +1382,7 @@ class PositionDetailScreen(Screen):
 
     def _momentum_line(self, width: int) -> str:
         width = max(width, 1)
-        mids = list(self._mid_samples)[-(width + 1) :]
+        mids = list(self._chart.mid_samples)[-(width + 1) :]
         if len(mids) < 2:
             return self._MOMENTUM_CHARS[0] * width
         deltas = [mids[idx] - mids[idx - 1] for idx in range(1, len(mids))]
@@ -1762,7 +1550,7 @@ class PositionDetailScreen(Screen):
                 else None
             )
             if sample:
-                prev_mid = self._mid_samples[-1] if self._mid_samples else None
+                prev_mid = self._chart.mid_samples[-1] if self._chart.mid_samples else None
                 imbalance = None
                 if bid_size is not None or ask_size is not None:
                     total_size = float((bid_size or 0.0) + (ask_size or 0.0))
@@ -1913,7 +1701,7 @@ class PositionDetailScreen(Screen):
         headline.append(_fmt_quote(spread), style="cyan")
         position_row = self._position_beacon_row(position_qty, market_value_raw)
 
-        trend_window_start, trend_window_end = self._trend_window_bounds()
+        trend_window_start, trend_window_end = self._chart.window_bounds()
         aurora_label_row = Text("Aurora", style="#8aa0b6")
         aurora_row = self._mark_now(
             self._aurora_strip(
@@ -2107,14 +1895,14 @@ class PositionDetailScreen(Screen):
             (bid is not None and ask is not None and bid <= ask)
             or (last is not None)
         )
-        quote_stale = self._quote_is_stale_for_relentless(
+        quote_stale = EXECUTION_POLICY.quote_is_stale(
             ticker=self._ticker,
             bid=bid,
             ask=ask,
             last=last,
         )
-        open_shock = self._in_open_shock_window()
-        relentless_buy = self._relentless_price(
+        open_shock = EXECUTION_POLICY.in_open_shock(_now_et().time())
+        relentless_buy = EXECUTION_POLICY.relentless_price(
             action="BUY",
             bid=bid,
             ask=ask,
@@ -2125,8 +1913,9 @@ class PositionDetailScreen(Screen):
             open_shock=open_shock,
             no_progress_reprices=0,
             arrival_ref=mid_raw or last_ref,
+            recent_spreads=self._chart.spread_samples,
         )
-        relentless_sell = self._relentless_price(
+        relentless_sell = EXECUTION_POLICY.relentless_price(
             action="SELL",
             bid=bid,
             ask=ask,
@@ -2137,6 +1926,7 @@ class PositionDetailScreen(Screen):
             open_shock=open_shock,
             no_progress_reprices=0,
             arrival_ref=mid_raw or last_ref,
+            recent_spreads=self._chart.spread_samples,
         )
         relentless_delay_buy = self._exec_price_for_mode(
             "RELENTLESS_DELAY",
@@ -2295,7 +2085,10 @@ class PositionDetailScreen(Screen):
         )
         fill_meter = self._meter(fill_rate, 8)
         cancel_meter = self._meter(cancel_replace_rate, 8)
-        slip_spark = self._sparkline(self._slip_proxy_samples, max(min(inner - 21, 14), 8))
+        slip_spark = self._sparkline(
+            self._chart.slip_proxy_samples,
+            max(min(inner - 21, 14), 8),
+        )
 
         lines: list[Text] = [self._box_top("Orders", inner, style="#2f78c4")]
         metrics_row = Text("Fill Rate ")
@@ -2871,313 +2664,12 @@ class PositionDetailScreen(Screen):
         self._exec_custom_price = float(next_value)
         self._exec_custom_input = f"{self._exec_custom_price:.{_tick_decimals(tick)}f}"
 
-    @classmethod
-    def _in_open_shock_window(cls) -> bool:
-        now = _now_et().time()
-        if now < dtime(9, 30) or now >= dtime(16, 0):
-            return False
-        open_sec = (9 * 60 * 60) + (30 * 60)
-        now_sec = (now.hour * 60 * 60) + (now.minute * 60) + now.second
-        elapsed = max(0, now_sec - open_sec)
-        return elapsed <= int(cls._RELENTLESS_OPEN_SHOCK_WINDOW_SEC)
-
-    def _quote_is_stale_for_relentless(
-        self,
-        *,
-        ticker: Ticker | None,
-        bid: float | None,
-        ask: float | None,
-        last: float | None,
-    ) -> bool:
-        has_actionable = bool(
-            (bid is not None and ask is not None and bid <= ask)
-            or (last is not None)
-        )
-        if not has_actionable:
-            return True
-        if ticker is None:
-            return False
-        top_updated_mono = getattr(ticker, "tbTopQuoteUpdatedMono", None)
-        try:
-            top_age_sec = (
-                max(0.0, monotonic() - float(top_updated_mono))
-                if top_updated_mono is not None
-                else None
-            )
-        except (TypeError, ValueError):
-            top_age_sec = None
-        return bool(
-            top_age_sec is not None
-            and top_age_sec >= float(self._RELENTLESS_STALE_TOP_AGE_SEC)
-        )
-
-    def _relentless_spread_pressure(self, *, spread: float | None, tick: float) -> float:
-        if spread is None or spread <= 0 or tick <= 0:
-            return 1.0
-        recent = [float(value) for value in list(self._spread_samples)[-24:] if float(value) > 0]
-        if recent:
-            recent.sort()
-            baseline = float(recent[len(recent) // 2])
-        else:
-            baseline = float(spread)
-        baseline = max(float(tick), baseline)
-        return max(0.5, float(spread) / baseline)
-
-    def _relentless_min_reprice_sec(
-        self,
-        *,
-        quote_stale: bool,
-        open_shock: bool,
-        no_progress_reprices: int,
-        spread_pressure: float,
-    ) -> float:
-        if open_shock and (
-            no_progress_reprices >= 2
-            or spread_pressure >= float(self._RELENTLESS_SPREAD_PRESSURE_TRIGGER)
-        ):
-            return float(self._RELENTLESS_MIN_REPRICE_SEC_HYPER)
-        if quote_stale or open_shock:
-            return float(self._RELENTLESS_MIN_REPRICE_SEC_SHOCK)
-        if no_progress_reprices >= 4:
-            return float(self._RELENTLESS_MIN_REPRICE_SEC_SHOCK)
-        return float(self._RELENTLESS_MIN_REPRICE_SEC)
-
-    def _relentless_price(
-        self,
-        *,
-        action: str,
-        bid: float | None,
-        ask: float | None,
-        last_ref: float | None,
-        tick: float,
-        elapsed_sec: float,
-        quote_stale: bool,
-        open_shock: bool,
-        no_progress_reprices: int,
-        arrival_ref: float | None,
-        direction_sign_override: float | None = None,
-    ) -> float | None:
-        cross = _round_to_tick(ask if action == "BUY" else bid, tick)
-        if cross is None:
-            cross = _round_to_tick(last_ref, tick)
-        if cross is None:
-            return None
-        spread = (
-            float(ask) - float(bid)
-            if bid is not None and ask is not None and ask >= bid
-            else None
-        )
-        if spread is None or spread <= 0:
-            spread = float(tick) * 2.0
-        spread_pressure = self._relentless_spread_pressure(spread=spread, tick=tick)
-        spread_cap_mult = 24.0 if open_shock else 12.0
-        if spread_pressure >= float(self._RELENTLESS_SPREAD_PRESSURE_TRIGGER):
-            spread_cap_mult = max(spread_cap_mult, 18.0)
-        spread_cap = max(float(tick), float(tick) * spread_cap_mult)
-        step = max(float(tick), min(float(spread) / 3.0, spread_cap))
-        if spread_pressure >= float(self._RELENTLESS_SPREAD_PRESSURE_HYPER):
-            step = max(step, float(tick) * 2.0)
-
-        elapsed = max(0.0, float(elapsed_sec))
-        if elapsed < float(self._RELENTLESS_BASE_CROSS_SEC):
-            x = 0
-        else:
-            interval = (
-                float(self._RELENTLESS_STEP_SEC_SHOCK)
-                if open_shock
-                else float(self._RELENTLESS_STEP_SEC)
-            )
-            if quote_stale:
-                interval *= 0.5
-            if int(no_progress_reprices) >= 2:
-                interval *= 0.5
-            x = 1 + int((elapsed - float(self._RELENTLESS_BASE_CROSS_SEC)) // max(interval, 0.5))
-
-        if quote_stale:
-            x += 2
-        if open_shock:
-            x += 1
-        if int(no_progress_reprices) >= 1:
-            x += min(8, int(no_progress_reprices))
-        if spread_pressure >= float(self._RELENTLESS_SPREAD_PRESSURE_TRIGGER):
-            x += min(4, int(spread_pressure))
-        if spread_pressure >= float(self._RELENTLESS_SPREAD_PRESSURE_HYPER):
-            x = max(x, 6)
-
-        current_ref = _midpoint(bid, ask) or last_ref
-        if arrival_ref is not None and current_ref is not None:
-            adverse = (
-                float(current_ref) - float(arrival_ref)
-                if action == "BUY"
-                else float(arrival_ref) - float(current_ref)
-            )
-            if adverse >= float(spread) * 0.75:
-                x += 1
-            if adverse >= float(spread) * 1.5:
-                x += 2
-            if adverse >= float(spread) * 2.5:
-                x = max(x, 8)
-
-        if open_shock and int(no_progress_reprices) >= 3:
-            x = max(x, 6)
-
-        x = max(0, min(int(self._RELENTLESS_MAX_EDGE_TICKS), int(x)))
-        side_sign = 1.0 if action == "BUY" else -1.0
-        if direction_sign_override is not None and math.isfinite(float(direction_sign_override)):
-            side_sign = 1.0 if float(direction_sign_override) >= 0 else -1.0
-        target = float(cross) + (side_sign * float(step) * float(x))
-        return _round_to_tick(target, tick)
-
-    def _relentless_delay_cap_ticks(
-        self,
-        *,
-        anchor_price: float,
-        spread: float | None,
-        tick: float,
-        favorable: bool,
-        recoveries: int,
-    ) -> int:
-        if tick <= 0 or anchor_price <= 0:
-            return 1
-        pct_cap = (
-            float(anchor_price) * float(self._RELENTLESS_DELAY_FAVORABLE_PCT)
-            if favorable
-            else float(anchor_price) * float(self._RELENTLESS_DELAY_ADVERSE_PCT)
-        )
-        spread_mult = (
-            float(self._RELENTLESS_DELAY_FAVORABLE_SPREAD_MULT)
-            if favorable
-            else float(self._RELENTLESS_DELAY_ADVERSE_SPREAD_MULT)
-        )
-        hard_cap = (
-            max(1, int(self._RELENTLESS_DELAY_FAVORABLE_MAX_TICKS))
-            if favorable
-            else max(1, int(self._RELENTLESS_DELAY_ADVERSE_MAX_TICKS))
-        )
-        spread_cap = (
-            float(spread) * spread_mult
-            if spread is not None and spread > 0
-            else float(hard_cap) * float(tick)
-        )
-        cap_ticks = min(
-            float(pct_cap) / float(tick),
-            float(spread_cap) / float(tick),
-            float(hard_cap),
-        )
-        shrink_base = min(0.95, max(0.25, float(self._RELENTLESS_DELAY_SHRINK_PER_REJECT)))
-        shrink = float(shrink_base) ** max(0, int(recoveries) - 1)
-        shrunk_ticks = max(1.0, float(cap_ticks) * float(shrink))
-        return max(1, min(hard_cap, int(math.floor(shrunk_ticks))))
-
     @staticmethod
     def _cap_price_hint_from_trade(trade: Trade) -> float | None:
         cap = _safe_float(getattr(getattr(trade, "orderStatus", None), "mktCapPrice", None))
         if cap is None or cap <= 0:
             return None
         return float(cap)
-
-    @classmethod
-    def _price_hint_from_error_message(cls, message: str) -> float | None:
-        text = str(message or "").strip()
-        if not text:
-            return None
-        candidates: list[float] = []
-        for match in cls._RELENTLESS_DELAY_PRICE_HINT_RE.finditer(text):
-            token = str(match.group(1) or "").replace(",", "")
-            try:
-                value = float(token)
-            except (TypeError, ValueError):
-                continue
-            if value <= 0 or not math.isfinite(value):
-                continue
-            candidates.append(float(value))
-        if not candidates:
-            return None
-        return float(candidates[-1])
-
-    def _relentless_delay_price(
-        self,
-        *,
-        action: str,
-        bid: float | None,
-        ask: float | None,
-        last_ref: float | None,
-        tick: float,
-        ticker: Ticker | None,
-        elapsed_sec: float,
-        no_progress_reprices: int,
-        delay_recoveries: int = 0,
-        delay_anchor_price: float | None = None,
-        delay_sweep_anchor_price: float | None = None,
-    ) -> float | None:
-        cross = _round_to_tick(ask if action == "BUY" else bid, tick)
-        if cross is None:
-            cross = _round_to_tick(last_ref, tick)
-        if cross is None:
-            return None
-        mid = _round_to_tick(_midpoint(bid, ask), tick)
-        last_rounded = _round_to_tick(last_ref, tick)
-        base_ref = mid if mid is not None else (last_rounded if last_rounded is not None else cross)
-        anchor = _round_to_tick(_safe_float(delay_sweep_anchor_price), tick)
-        if anchor is None:
-            anchor = base_ref
-        if anchor is None or anchor <= 0:
-            return None
-        recoveries = max(1, int(delay_recoveries))
-        spread = (
-            float(ask) - float(bid)
-            if (ask is not None and bid is not None and ask >= bid)
-            else None
-        )
-        favorable_cap_ticks = self._relentless_delay_cap_ticks(
-            anchor_price=float(anchor),
-            spread=spread,
-            tick=tick,
-            favorable=True,
-            recoveries=recoveries,
-        )
-        adverse_cap_ticks = self._relentless_delay_cap_ticks(
-            anchor_price=float(anchor),
-            spread=spread,
-            tick=tick,
-            favorable=False,
-            recoveries=recoveries,
-        )
-        seq_step = 1 + ((recoveries - 1) // 2)
-        favorable_leg, leg_sign = self._relentless_delay_leg(action, recoveries)
-        leg_cap = favorable_cap_ticks if favorable_leg else adverse_cap_ticks
-        step_ticks = max(1, min(int(leg_cap), int(seq_step)))
-        target = float(anchor) + (leg_sign * float(tick) * float(step_ticks))
-        cap_hint = _safe_float(delay_anchor_price)
-        if cap_hint is not None and cap_hint > 0:
-            if action == "BUY":
-                target = min(float(target), float(cap_hint))
-            else:
-                target = max(float(target), float(cap_hint))
-        rounded = _round_to_tick(target, tick)
-        if rounded is None or rounded <= 0:
-            return None
-        return float(rounded)
-
-    def _relentless_delay_sweep_span(self) -> int:
-        span = max(2, int(self._RELENTLESS_DELAY_RECOVER_ATTEMPTS))
-        # Keep span even so wrap points preserve the favorable/adverse alternation.
-        if (span % 2) != 0:
-            span += 1
-        return int(span)
-
-    def _relentless_delay_next_step(self, *, prior_recoveries: int) -> int:
-        span = self._relentless_delay_sweep_span()
-        base = max(0, int(prior_recoveries))
-        return 1 + (base % span)
-
-    @staticmethod
-    def _relentless_delay_leg(action: str, recoveries: int) -> tuple[bool, float]:
-        step = max(1, int(recoveries))
-        favorable_leg = (step % 2) == 1
-        side_sign = 1.0 if str(action or "").strip().upper() == "BUY" else -1.0
-        leg_sign = (-1.0 * side_sign) if favorable_leg else side_sign
-        return favorable_leg, float(leg_sign)
 
     def _submit_order(self, action: str) -> None:
         contract = self._item.contract
@@ -3325,7 +2817,7 @@ class PositionDetailScreen(Screen):
                 return custom
             return _round_to_tick(last_ref, tick) if last_ref is not None else None
         if mode in ("RELENTLESS", "RELENTLESS_DELAY"):
-            quote_stale = self._quote_is_stale_for_relentless(
+            quote_stale = EXECUTION_POLICY.quote_is_stale(
                 ticker=self._ticker,
                 bid=bid,
                 ask=ask,
@@ -3340,7 +2832,7 @@ class PositionDetailScreen(Screen):
                 ticker=self._ticker,
                 elapsed_sec=0.0,
                 quote_stale=quote_stale,
-                open_shock=self._in_open_shock_window(),
+                open_shock=EXECUTION_POLICY.in_open_shock(_now_et().time()),
                 no_progress_reprices=0,
                 arrival_ref=_midpoint(bid, ask) or last_ref,
             )
@@ -3386,7 +2878,7 @@ class PositionDetailScreen(Screen):
                 return custom
             return _round_to_tick(last_ref, tick) if last_ref is not None else None
         if mode == "RELENTLESS":
-            return self._relentless_price(
+            return EXECUTION_POLICY.relentless_price(
                 action=action,
                 bid=bid,
                 ask=ask,
@@ -3397,13 +2889,14 @@ class PositionDetailScreen(Screen):
                 open_shock=bool(open_shock),
                 no_progress_reprices=int(no_progress_reprices),
                 arrival_ref=arrival_ref,
+                recent_spreads=self._chart.spread_samples,
             )
         if mode == "RELENTLESS_DELAY":
             if int(delay_recoveries) <= 0:
                 locked_sign = _safe_float(delay_locked_price_dir)
                 if locked_sign is not None and math.isfinite(float(locked_sign)):
                     locked_sign = 1.0 if float(locked_sign) >= 0 else -1.0
-                return self._relentless_price(
+                return EXECUTION_POLICY.relentless_price(
                     action=action,
                     bid=bid,
                     ask=ask,
@@ -3414,20 +2907,18 @@ class PositionDetailScreen(Screen):
                     open_shock=bool(open_shock),
                     no_progress_reprices=int(no_progress_reprices),
                     arrival_ref=arrival_ref,
+                    recent_spreads=self._chart.spread_samples,
                     direction_sign_override=locked_sign,
                 )
-            return self._relentless_delay_price(
+            return EXECUTION_POLICY.delay_price(
                 action=action,
                 bid=bid,
                 ask=ask,
                 last_ref=last_ref,
                 tick=tick,
-                ticker=ticker_ref,
-                elapsed_sec=elapsed_sec,
-                no_progress_reprices=int(no_progress_reprices),
-                delay_recoveries=int(delay_recoveries),
-                delay_anchor_price=delay_anchor_price,
-                delay_sweep_anchor_price=delay_sweep_anchor_price,
+                recoveries=int(delay_recoveries),
+                cap_price=delay_anchor_price,
+                sweep_anchor_price=delay_sweep_anchor_price,
             )
         value = _limit_price_for_mode(bid, ask, last_ref, action=action, mode=mode)
         if value is None:
@@ -3622,7 +3113,7 @@ class PositionDetailScreen(Screen):
                             first_202_ts = _safe_float(state.get("delay_first_202_ts"))
                             recover_window_sec = max(
                                 1.0,
-                                float(self._RELENTLESS_DELAY_RECOVER_WINDOW_SEC),
+                                EXECUTION_POLICY.delay_recover_window_sec,
                             )
                             if (
                                 first_202_ts is None
@@ -3630,17 +3121,15 @@ class PositionDetailScreen(Screen):
                                 or (float(loop_now) - float(first_202_ts)) > recover_window_sec
                             ):
                                 first_202_ts = float(loop_now)
-                            sweep_span = self._relentless_delay_sweep_span()
-                            next_recoveries = self._relentless_delay_next_step(
-                                prior_recoveries=prior_recoveries
-                            )
-                            favorable_leg, leg_sign = self._relentless_delay_leg(
+                            sweep_span = EXECUTION_POLICY.delay_sweep_span()
+                            next_recoveries = EXECUTION_POLICY.delay_next_step(prior_recoveries)
+                            favorable_leg, leg_sign = EXECUTION_POLICY.delay_leg(
                                 action,
                                 next_recoveries,
                             )
                             anchor_hint = (
                                 self._cap_price_hint_from_trade(trade)
-                                or self._price_hint_from_error_message(error_message)
+                                or EXECUTION_POLICY.price_hint_from_error(error_message)
                                 or _safe_float(state.get("delay_anchor_price"))
                             )
                             ticker_retry = self._client.ticker_for_con_id(con_id) if con_id else None
@@ -3710,13 +3199,13 @@ class PositionDetailScreen(Screen):
                                 last=last_retry,
                                 ticker=ticker_retry,
                                 elapsed_sec=float(loop_now - started),
-                                quote_stale=self._quote_is_stale_for_relentless(
+                                quote_stale=EXECUTION_POLICY.quote_is_stale(
                                     ticker=ticker_retry,
                                     bid=bid_retry,
                                     ask=ask_retry,
                                     last=last_retry,
                                 ),
-                                open_shock=self._in_open_shock_window(),
+                                open_shock=EXECUTION_POLICY.in_open_shock(_now_et().time()),
                                 no_progress_reprices=int(no_progress_reprices),
                                 arrival_ref=arrival_ref,
                                 delay_recoveries=next_recoveries,
@@ -3771,7 +3260,7 @@ class PositionDetailScreen(Screen):
                                         level="warn",
                                     )
                                     self._render_details_if_mounted(sample=False)
-                                    await asyncio.sleep(float(self._RELENTLESS_DELAY_RECOVER_COOLDOWN_SEC))
+                                    await asyncio.sleep(EXECUTION_POLICY.delay_recover_cooldown_sec)
                                     continue
                                 except Exception as exc:
                                     self._set_orders_notice(
@@ -3779,14 +3268,14 @@ class PositionDetailScreen(Screen):
                                         level="warn",
                                     )
                                     self._render_details_if_mounted(sample=False)
-                                    await asyncio.sleep(float(self._RELENTLESS_DELAY_RECOVER_COOLDOWN_SEC))
+                                    await asyncio.sleep(EXECUTION_POLICY.delay_recover_cooldown_sec)
                                     continue
                             self._set_orders_notice(
                                 f"RLT⚔Delay no retryable qty/price for #{order_ref}",
                                 level="warn",
                             )
                             self._render_details_if_mounted(sample=False)
-                            await asyncio.sleep(float(self._RELENTLESS_DELAY_RECOVER_COOLDOWN_SEC))
+                            await asyncio.sleep(EXECUTION_POLICY.delay_recover_cooldown_sec)
                             continue
                         error_prefix = f"IB {error_code}: " if error_code else "IB: "
                         self._set_orders_notice(
@@ -3831,7 +3320,7 @@ class PositionDetailScreen(Screen):
                                 first_202_ts = _safe_float(state.get("delay_first_202_ts"))
                                 recover_window_sec = max(
                                     1.0,
-                                    float(self._RELENTLESS_DELAY_RECOVER_WINDOW_SEC),
+                                    EXECUTION_POLICY.delay_recover_window_sec,
                                 )
                                 if (
                                     first_202_ts is None
@@ -3839,17 +3328,17 @@ class PositionDetailScreen(Screen):
                                     or (float(loop_now) - float(first_202_ts)) > recover_window_sec
                                 ):
                                     first_202_ts = float(loop_now)
-                                sweep_span = self._relentless_delay_sweep_span()
-                                next_recoveries = self._relentless_delay_next_step(
-                                    prior_recoveries=prior_recoveries
+                                sweep_span = EXECUTION_POLICY.delay_sweep_span()
+                                next_recoveries = EXECUTION_POLICY.delay_next_step(
+                                    prior_recoveries
                                 )
-                                favorable_leg, leg_sign = self._relentless_delay_leg(
+                                favorable_leg, leg_sign = EXECUTION_POLICY.delay_leg(
                                     action,
                                     next_recoveries,
                                 )
                                 anchor_hint = (
                                     self._cap_price_hint_from_trade(trade)
-                                    or self._price_hint_from_error_message(error_message)
+                                    or EXECUTION_POLICY.price_hint_from_error(error_message)
                                     or _safe_float(state.get("delay_anchor_price"))
                                 )
                                 order_price_now = _safe_num(
@@ -3896,7 +3385,7 @@ class PositionDetailScreen(Screen):
                                 self._set_orders_notice(self._exec_status, level="warn")
                                 last_modify_error_ts = loop_now
                                 self._render_details_if_mounted(sample=False)
-                                await asyncio.sleep(float(self._RELENTLESS_DELAY_RECOVER_COOLDOWN_SEC))
+                                await asyncio.sleep(EXECUTION_POLICY.delay_recover_cooldown_sec)
                                 continue
                             order_label = f"#{order_ref}"
                             status_label = status_raw or "Pending"
@@ -3970,13 +3459,15 @@ class PositionDetailScreen(Screen):
                 mode_now_clean = str(mode_now or "").strip().upper()
                 is_relentless = mode_now_clean in ("RELENTLESS", "RELENTLESS_DELAY")
                 is_relentless_delay = mode_now_clean == "RELENTLESS_DELAY"
-                quote_stale = self._quote_is_stale_for_relentless(
+                quote_stale = EXECUTION_POLICY.quote_is_stale(
                     ticker=ticker,
                     bid=bid,
                     ask=ask,
                     last=last,
                 ) if is_relentless else False
-                open_shock = self._in_open_shock_window() if is_relentless else False
+                open_shock = (
+                    EXECUTION_POLICY.in_open_shock(_now_et().time()) if is_relentless else False
+                )
                 spread_now = (
                     float(ask) - float(bid)
                     if (is_relentless and bid is not None and ask is not None and ask >= bid)
@@ -3985,7 +3476,11 @@ class PositionDetailScreen(Screen):
                 last_ref_now = last if last is not None else (bid if bid is not None else ask)
                 tick_now = _tick_size(trade.contract, ticker, last_ref_now) if is_relentless else 0.0
                 spread_pressure = (
-                    self._relentless_spread_pressure(spread=spread_now, tick=tick_now)
+                    EXECUTION_POLICY.spread_pressure(
+                        spread=spread_now,
+                        tick=tick_now,
+                        recent_spreads=self._chart.spread_samples,
+                    )
                     if is_relentless
                     else 1.0
                 )
@@ -3998,7 +3493,7 @@ class PositionDetailScreen(Screen):
                         last_live_probe_ts = loop_now
                 quote_sig = _exec_chase_quote_signature(bid, ask, last)
                 min_interval_sec = (
-                    self._relentless_min_reprice_sec(
+                    EXECUTION_POLICY.reprice_interval(
                         quote_stale=bool(quote_stale),
                         open_shock=bool(open_shock),
                         no_progress_reprices=int(no_progress_reprices),
@@ -4058,8 +3553,8 @@ class PositionDetailScreen(Screen):
                         and delay_last_202_ts is not None
                         and (float(loop_now) - float(delay_last_202_ts))
                         >= max(
-                            float(self._RELENTLESS_DELAY_RECOVER_SETTLE_SEC),
-                            float(self._RELENTLESS_DELAY_RECOVER_COOLDOWN_SEC),
+                            EXECUTION_POLICY.delay_recover_settle_sec,
+                            EXECUTION_POLICY.delay_recover_cooldown_sec,
                         )
                     ):
                         delay_last_leg_sign = _safe_float(chase_state.get("delay_last_leg_sign"))

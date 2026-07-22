@@ -24,6 +24,15 @@ from textual.widgets import DataTable, Footer, Header, Static
 from ..backtest.trading_calendar import full24_post_close_time_et, is_trading_day, session_label_et
 from ..backtest.spot_codec import effective_filters_payload as _effective_filters_payload
 from ..client import IBKRClient, _session_flags
+from ..engines.execution import (
+    _aggressive_price,
+    _limit_price_for_mode,
+    _midpoint,
+    _optimistic_price,
+    _round_to_tick,
+    _sanitize_nbbo,
+    _tick_size,
+)
 from ..engine import (
     normalize_spot_entry_signal,
     resolve_spot_regime2_spec,
@@ -44,8 +53,8 @@ from ..order_reservation import (
 )
 from ..spot.graph import spot_dynamic_flip_hold_bars
 from ..spot.lifecycle import flip_exit_gate_blocked, flip_exit_hit
-from ..series import BarSeries, BarSeriesMeta
-from ..series_cache import series_cache_service
+from ..chart_data.cache import series_cache_service
+from ..chart_data.series import BarSeries, BarSeriesMeta
 from ..signals import (
     direction_from_action_right,
     ema_state_direction,
@@ -68,13 +77,9 @@ from .common import (
     _fmt_money,
     _fmt_quote,
     _infer_multiplier,
-    _limit_price_for_mode,
     _market_data_label,
     _market_session_bucket,
     _market_session_label,
-    _midpoint,
-    _optimistic_price,
-    _aggressive_price,
     _parse_float,
     _parse_int,
     _portfolio_sort_key,
@@ -82,11 +87,8 @@ from .common import (
     _pct24_72_from_price,
     _pnl_text,
     _quote_status_line,
-    _round_to_tick,
     _safe_float,
     _safe_num,
-    _sanitize_nbbo,
-    _tick_size,
     _ticker_actionable_price,
     _ticker_close,
     _ticker_price,
