@@ -248,6 +248,16 @@ class BotEngineRuntimeMixin:
                 ).strip()
                 broker_is_terminal = bool(broker_state.get("is_terminal"))
 
+                for field_name in ("filled_qty", "remaining_qty", "executed_qty"):
+                    try:
+                        field_value = max(
+                            0.0,
+                            float(broker_state.get(field_name) or 0.0),
+                        )
+                    except (TypeError, ValueError):
+                        field_value = 0.0
+                    setattr(order, field_name, float(field_value))
+
                 rebound_status = getattr(trade, "orderStatus", None)
                 if rebound_status is not None:
                     try:
@@ -309,7 +319,12 @@ class BotEngineRuntimeMixin:
                     order.status = status.upper() if status else "DONE"
                     done_event = "ORDER_DONE"
                 if prev_status in ("WORKING", "CANCELING") and order.status != prev_status:
-                    done_data: dict[str, object] = {"ib_status": status_raw}
+                    done_data: dict[str, object] = {
+                        "ib_status": status_raw,
+                        "filled_qty": float(order.filled_qty),
+                        "remaining_qty": float(order.remaining_qty),
+                        "executed_qty": float(order.executed_qty),
+                    }
                     if broker_effective_status and broker_effective_status != status_raw.strip():
                         done_data["ib_status_effective"] = broker_effective_status
                     if order.exec_mode:

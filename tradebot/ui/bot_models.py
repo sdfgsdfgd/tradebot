@@ -161,6 +161,9 @@ class _BotOrder:
     chase_last_reprice_ts: float | None = None  # asyncio loop time (monotonic)
     chase_quote_signature: tuple[float | None, float | None, float | None] | None = None
     cancel_requested_at: float | None = None  # asyncio loop time (monotonic)
+    filled_qty: float = 0.0
+    remaining_qty: float = 0.0
+    executed_qty: float = 0.0
 
 
 @dataclass(frozen=True)

@@ -340,6 +340,7 @@
         "tradebot/order_admission.py",
         "tradebot/order_reservation.py",
         "tradebot/ui/bot.py",
+        "tradebot/ui/bot_engine_runtime.py",
         "tradebot/ui/bot_models.py",
         "tradebot/ui/bot_order_builder.py",
         "tradebot/ui/bot_signal_runtime.py"

@@ -2960,6 +2960,140 @@ def test_engine_projects_rebound_terminal_fill_after_reconnect() -> None:
     assert filled_payload.get("resize_applied") is True
 
 
+def test_engine_terminal_partial_package_cancel_preserves_fill_facts() -> None:
+    async def _run_case(*, filled_qty: float, remaining_qty: float):
+        trade = _broker_trade(
+            order_id=880,
+            perm_id=456880,
+            status="Cancelled",
+            filled=float(filled_qty),
+            remaining=float(remaining_qty),
+            done=True,
+        )
+        bag = Bag(
+            symbol="XSP",
+            exchange="SMART",
+            currency="USD",
+            comboLegs=[
+                ComboLeg(
+                    conId=1001,
+                    ratio=1,
+                    action="SELL",
+                    exchange="SMART",
+                ),
+                ComboLeg(
+                    conId=1002,
+                    ratio=1,
+                    action="BUY",
+                    exchange="SMART",
+                ),
+            ],
+        )
+        trade.contract = bag
+        trade.order.totalQuantity = 2
+        trade.order.action = "BUY"
+
+        bar_ts = datetime(2026, 2, 9, 10, 0)
+        instance = _new_instance()
+        order = _new_order(
+            status="Submitted",
+            signal_bar_ts=bar_ts,
+            intent="enter",
+            order_id=880,
+        )
+        order.status = "WORKING"
+        order.quantity = 2
+        order.action = "BUY"
+        order.intent = "enter"
+        order.order_contract = bag
+        order.underlying = Stock(
+            symbol="XSP",
+            exchange="SMART",
+            currency="USD",
+        )
+        order.trade = trade
+        order.sent_at = None
+        order.exec_mode = None
+        order.cancel_requested_at = None
+
+        class _Client:
+            def current_order_state(
+                self,
+                *,
+                order_id: int = 0,
+                perm_id: int = 0,
+            ):
+                assert int(order_id) == 880
+                assert int(perm_id) in (0, 456880)
+                return {
+                    "order_id": 880,
+                    "perm_id": 456880,
+                    "effective_status": "Cancelled",
+                    "filled_qty": float(filled_qty),
+                    "remaining_qty": float(remaining_qty),
+                    "executed_qty": float(filled_qty),
+                    "is_terminal": True,
+                    "trade": trade,
+                }
+
+            @staticmethod
+            def pop_order_error(
+                _order_id: int,
+                *,
+                max_age_sec: float = 120.0,
+            ):
+                return None
+
+            @staticmethod
+            async def modify_limit_order(current_trade, _limit_price: float):
+                return current_trade
+
+            @staticmethod
+            async def cancel_trade(_trade) -> None:
+                return None
+
+        harness = _EngineHarness(
+            instance=instance,
+            order=order,
+            client=_Client(),
+        )
+        await harness._chase_orders_tick()
+
+        payloads = [
+            data
+            for event, data in harness._events
+            if event == "ORDER_CANCELLED"
+        ]
+        assert len(payloads) == 1
+        return order, dict(payloads[0])
+
+    zero_order, zero_payload = asyncio.run(
+        _run_case(filled_qty=0.0, remaining_qty=2.0)
+    )
+    partial_order, partial_payload = asyncio.run(
+        _run_case(filled_qty=1.0, remaining_qty=1.0)
+    )
+
+    assert zero_order.status == "CANCELLED"
+    assert partial_order.status == "CANCELLED"
+    assert zero_order.quantity == partial_order.quantity == 2
+
+    assert getattr(zero_order, "filled_qty", None) == 0.0
+    assert getattr(zero_order, "remaining_qty", None) == 2.0
+    assert getattr(zero_order, "executed_qty", None) == 0.0
+    assert getattr(partial_order, "filled_qty", None) == 1.0
+    assert getattr(partial_order, "remaining_qty", None) == 1.0
+    assert getattr(partial_order, "executed_qty", None) == 1.0
+
+    assert zero_payload["filled_qty"] == 0.0
+    assert zero_payload["remaining_qty"] == 2.0
+    assert zero_payload["executed_qty"] == 0.0
+    assert partial_payload["filled_qty"] == 1.0
+    assert partial_payload["remaining_qty"] == 1.0
+    assert partial_payload["executed_qty"] == 1.0
+    assert zero_payload != partial_payload
+
+
 def test_order_error_cache_pop_and_expiry() -> None:
     client = _new_client()
     client._remember_order_error(1001, 201, "bad tif")
