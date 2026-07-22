@@ -111,6 +111,7 @@
     "tests/test_engine_time_semantics.py": "market-time-series-semantics",
     "tests/test_live_signal_exit_continuum.py": "live-execution-orders",
     "tests/test_live_execution_registry.py": "live-execution-orders",
+    "tests/test_multiwindow_research_contract.py": "research-optimization-calibration",
     "tests/test_offline_cache_preflight.py": "backtest-data-cache",
     "tests/test_option_package_economics.py": "live-execution-orders",
     "tests/test_option_package_risk.py": "live-execution-orders",
@@ -455,12 +456,14 @@
         "current proof surfaces for research-optimization-calibration"
       ],
       "evidence": [
+        "tests/test_multiwindow_research_contract.py",
         "tests/test_spot_combo_full_signature.py",
         "tests/test_spot_scenario_runner.py"
       ],
       "owner_surface": [
         "tradebot/backtest/sweeps.py",
-        "tradebot/research/climate.py"
+        "tradebot/research/climate.py",
+        "tradebot/research/multiwindow.py"
       ],
       "oracle": [
         "all evidence assigned to research-optimization-calibration passes",
