@@ -18,6 +18,8 @@ from .config_filters import _parse_filters
 from .data import ContractMeta
 from ..spot.codec import bool_from_payload
 
+from ..option_package import normalize_option_leg, normalize_option_legs
+
 _WDAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 _WDAY_TO_IDX = {"MON": 0, "TUE": 1, "WED": 2, "THU": 3, "FRI": 4, "SAT": 5, "SUN": 6}
 
@@ -61,19 +63,7 @@ def spot_leg_from_payload(raw) -> SpotLegConfig:
 
 
 def leg_from_payload(raw) -> LegConfig:
-    if not isinstance(raw, dict):
-        raise ValueError(f"leg must be an object, got: {raw!r}")
-    action = str(raw.get("action") or "").strip().upper()
-    right = str(raw.get("right") or "").strip().upper()
-    if action not in ("BUY", "SELL"):
-        raise ValueError(f"leg.action must be BUY/SELL, got: {action!r}")
-    if right not in ("PUT", "CALL"):
-        raise ValueError(f"leg.right must be PUT/CALL, got: {right!r}")
-    moneyness = float(raw.get("moneyness_pct") or 0.0)
-    qty = int(raw.get("qty") or 1)
-    if qty <= 0:
-        raise ValueError(f"leg.qty must be positive, got: {qty!r}")
-    return LegConfig(action=action, right=right, moneyness_pct=moneyness, qty=qty)
+    return normalize_option_leg(raw, path="leg")
 
 
 def filters_from_payload(raw) -> FiltersConfig | None:
@@ -131,16 +121,15 @@ def strategy_from_payload(strategy: dict, *, filters: FiltersConfig | None) -> S
             k = str(key).strip()
             if not k or not legs:
                 continue
-            if not isinstance(legs, list):
-                continue
-            parsed_legs[k] = tuple(leg_from_payload(leg) for leg in legs)
+            parsed_legs[k] = normalize_option_legs(
+                legs,
+                path=f"directional_legs.{k}",
+            )
         raw["directional_legs"] = parsed_legs or None
 
     legs = raw.get("legs")
     if legs is not None:
-        if not isinstance(legs, list):
-            raise ValueError(f"legs must be a list, got: {legs!r}")
-        raw["legs"] = tuple(leg_from_payload(leg) for leg in legs)
+        raw["legs"] = normalize_option_legs(legs, path="legs")
 
     allowed_keys = {field.name for field in fields(SpotStrategyConfig)}
     raw = {key: value for key, value in raw.items() if key in allowed_keys}

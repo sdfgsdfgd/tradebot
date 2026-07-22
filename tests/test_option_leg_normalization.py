@@ -1,0 +1,191 @@
+from __future__ import annotations
+
+import asyncio
+from types import SimpleNamespace
+
+import pytest
+
+import tradebot.option_package as option_package
+import tradebot.backtest.config_values as config_values
+import tradebot.backtest.spot_codec as spot_codec
+import tradebot.knobs.models as knob_models
+import tradebot.ui.bot_order_builder as bot_order_builder
+from tradebot.ui.bot_order_builder import BotOrderBuilderMixin
+
+
+def _valid_leg(**overrides):
+    raw = {
+        "action": "SELL",
+        "right": "PUT",
+        "moneyness_pct": 1.25,
+        "qty": 2,
+    }
+    raw.update(overrides)
+    return raw
+
+
+def test_option_package_owns_the_legacy_named_canonical_leg_model():
+    assert hasattr(option_package, "LegConfig")
+    assert hasattr(option_package, "OptionLegSpec")
+    assert option_package.OptionLegSpec is option_package.LegConfig
+    assert knob_models.LegConfig is option_package.LegConfig
+    assert option_package.LegConfig.__name__ == "LegConfig"
+
+    legacy = knob_models.LegConfig(
+        action="SELL",
+        right="PUT",
+        moneyness_pct=1.0,
+        qty=1,
+    )
+    assert legacy.delta is None
+
+
+def test_valid_leg_is_normalized_once_and_delta_survives_hydration():
+    raw = _valid_leg(
+        action=" sell ",
+        right=" put ",
+        moneyness_pct="1.25",
+        qty="2",
+        delta="-0.30",
+    )
+    expected = option_package.normalize_option_leg(raw, path="leg")
+
+    assert expected.action == "SELL"
+    assert expected.right == "PUT"
+    assert expected.moneyness_pct == pytest.approx(1.25)
+    assert expected.qty == 2
+    assert expected.delta == pytest.approx(-0.30)
+    assert config_values._parse_legs([raw]) == (expected,)
+    assert spot_codec.leg_from_payload(raw) == expected
+
+
+def test_omitted_quantity_defaults_to_one_but_explicit_null_is_rejected():
+    omitted = _valid_leg()
+    omitted.pop("qty")
+    assert option_package.normalize_option_leg(omitted, path="leg").qty == 1
+
+    raw = _valid_leg(qty=None)
+    with pytest.raises(ValueError, match="qty"):
+        option_package.normalize_option_leg(raw, path="leg")
+    with pytest.raises(ValueError, match="qty"):
+        config_values._parse_legs([raw])
+    with pytest.raises(ValueError, match="qty"):
+        spot_codec.leg_from_payload(raw)
+
+
+def test_missing_moneyness_is_rejected_by_every_ingestion_surface():
+    raw = _valid_leg()
+    raw.pop("moneyness_pct")
+
+    with pytest.raises(ValueError, match="moneyness_pct"):
+        option_package.normalize_option_leg(raw, path="leg")
+    with pytest.raises(ValueError, match="moneyness_pct"):
+        config_values._parse_legs([raw])
+    with pytest.raises(ValueError, match="moneyness_pct"):
+        spot_codec.leg_from_payload(raw)
+
+
+@pytest.mark.parametrize(
+    "value",
+    [None, "bad", float("nan"), float("inf"), float("-inf")],
+)
+def test_invalid_or_nonfinite_moneyness_is_rejected_everywhere(value):
+    raw = _valid_leg(moneyness_pct=value)
+
+    with pytest.raises(ValueError, match="moneyness_pct"):
+        option_package.normalize_option_leg(raw, path="leg")
+    with pytest.raises(ValueError, match="moneyness_pct"):
+        config_values._parse_legs([raw])
+    with pytest.raises(ValueError, match="moneyness_pct"):
+        spot_codec.leg_from_payload(raw)
+
+
+@pytest.mark.parametrize(
+    "value",
+    [None, "", "bad", 0, "0", -2, float("nan"), float("inf")],
+)
+def test_explicit_invalid_quantity_is_rejected_everywhere(value):
+    raw = _valid_leg(qty=value)
+
+    with pytest.raises(ValueError, match="qty"):
+        option_package.normalize_option_leg(raw, path="leg")
+    with pytest.raises(ValueError, match="qty"):
+        config_values._parse_legs([raw])
+    with pytest.raises(ValueError, match="qty"):
+        spot_codec.leg_from_payload(raw)
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["bad", 0, 1.1, -1.1, float("nan"), float("inf")],
+)
+def test_invalid_or_nonfinite_delta_is_rejected_everywhere(value):
+    raw = _valid_leg(delta=value)
+
+    with pytest.raises(ValueError, match="delta"):
+        option_package.normalize_option_leg(raw, path="leg")
+    with pytest.raises(ValueError, match="delta"):
+        config_values._parse_legs([raw])
+    with pytest.raises(ValueError, match="delta"):
+        spot_codec.leg_from_payload(raw)
+
+
+def test_leg_collection_preserves_order_and_fails_atomically():
+    first = _valid_leg(action="SELL", right="PUT", moneyness_pct=1.0)
+    second = _valid_leg(action="BUY", right="PUT", moneyness_pct=2.0)
+    normalized = option_package.normalize_option_legs(
+        [first, second],
+        path="legs",
+    )
+    assert [leg.action for leg in normalized] == ["SELL", "BUY"]
+
+    malformed = dict(second)
+    malformed.pop("moneyness_pct")
+    with pytest.raises(ValueError, match=r"legs\[2\].*moneyness_pct"):
+        option_package.normalize_option_legs(
+            [first, malformed],
+            path="legs",
+        )
+
+
+def test_directional_collections_reject_nonlist_branches_instead_of_skipping():
+    malformed = {"up": {"action": "SELL", "right": "PUT"}}
+
+    with pytest.raises(ValueError, match=r"directional_legs.*up.*list"):
+        config_values._parse_directional_legs(malformed)
+    with pytest.raises(ValueError, match=r"directional_legs.*up.*list"):
+        spot_codec.strategy_from_payload(
+            {"instrument": "options", "directional_legs": malformed},
+            filters=None,
+        )
+
+
+def test_all_ingestion_and_live_consumers_reference_the_shared_normalizers():
+    assert config_values.normalize_option_legs is option_package.normalize_option_legs
+    assert spot_codec.normalize_option_leg is option_package.normalize_option_leg
+    assert spot_codec.normalize_option_legs is option_package.normalize_option_legs
+    assert bot_order_builder.normalize_option_legs is option_package.normalize_option_legs
+
+
+def test_nonfinite_delta_is_rejected_before_any_provider_interaction():
+    class _NoProvider:
+        async def qualify_proxy_contracts(self, *contracts):
+            raise AssertionError("provider interaction occurred")
+
+    harness = SimpleNamespace(
+        _client=_NoProvider(),
+        _tracked_conids=set(),
+    )
+    result = asyncio.run(
+        BotOrderBuilderMixin._strike_by_delta(
+            harness,
+            symbol="XSP",
+            expiry="20260724",
+            right_char="P",
+            strikes=[100.0],
+            trading_class="XSP",
+            near_strike=100.0,
+            target_delta=float("nan"),
+        )
+    )
+    assert result is None

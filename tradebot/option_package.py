@@ -6,6 +6,96 @@ import math
 
 
 @dataclass(frozen=True)
+class LegConfig:
+    action: str
+    right: str
+    moneyness_pct: float
+    qty: int
+    delta: float | None = None
+
+
+OptionLegSpec = LegConfig
+
+
+def _option_leg_finite_float(value: object, *, path: str) -> float:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError):
+        raise ValueError(f"{path} must be a finite number") from None
+    if not math.isfinite(parsed):
+        raise ValueError(f"{path} must be a finite number")
+    return parsed
+
+
+def _option_leg_positive_int(value: object, *, path: str) -> int:
+    if isinstance(value, bool):
+        raise ValueError(f"{path} must be a positive integer")
+    if isinstance(value, int):
+        parsed = value
+    elif isinstance(value, float):
+        if not math.isfinite(value) or not value.is_integer():
+            raise ValueError(f"{path} must be a positive integer")
+        parsed = int(value)
+    elif isinstance(value, str):
+        cleaned = value.strip()
+        if not cleaned or not cleaned.lstrip("+-").isdigit():
+            raise ValueError(f"{path} must be a positive integer")
+        parsed = int(cleaned)
+    else:
+        raise ValueError(f"{path} must be a positive integer")
+    if parsed <= 0:
+        raise ValueError(f"{path} must be a positive integer")
+    return parsed
+
+
+def normalize_option_leg(raw: object, *, path: str = "leg") -> LegConfig:
+    if not isinstance(raw, dict):
+        raise ValueError(f"{path} must be an object")
+
+    action = str(raw.get("action") or "").strip().upper()
+    if action not in {"BUY", "SELL"}:
+        raise ValueError(f"{path}.action must be BUY or SELL")
+
+    right = str(raw.get("right") or "").strip().upper()
+    if right not in {"PUT", "CALL"}:
+        raise ValueError(f"{path}.right must be PUT or CALL")
+
+    if "moneyness_pct" not in raw:
+        raise ValueError(f"{path}.moneyness_pct is required")
+    moneyness_pct = _option_leg_finite_float(
+        raw.get("moneyness_pct"),
+        path=f"{path}.moneyness_pct",
+    )
+
+    qty = 1
+    if "qty" in raw:
+        qty = _option_leg_positive_int(raw.get("qty"), path=f"{path}.qty")
+
+    delta = None
+    if raw.get("delta") is not None:
+        delta = _option_leg_finite_float(raw.get("delta"), path=f"{path}.delta")
+        if not 0 < abs(delta) <= 1:
+            raise ValueError(f"{path}.delta must satisfy 0 < abs(delta) <= 1")
+
+    return LegConfig(
+        action=action,
+        right=right,
+        moneyness_pct=moneyness_pct,
+        qty=qty,
+        delta=delta,
+    )
+
+
+def normalize_option_legs(raw: object, *, path: str = "legs") -> tuple[LegConfig, ...]:
+    if not isinstance(raw, list):
+        raise ValueError(f"{path} must be a list")
+    return tuple(
+        normalize_option_leg(leg, path=f"{path}[{index}]")
+        for index, leg in enumerate(raw, start=1)
+    )
+
+
+@dataclass(frozen=True)
 class OptionPackageRisk:
     structure: str
     right: str

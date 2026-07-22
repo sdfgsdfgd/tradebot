@@ -8,6 +8,7 @@ from ..order_reservation import (
 )
 
 import asyncio
+import math
 from datetime import date, datetime
 
 from ib_insync import Bag, ComboLeg, Contract, Option, Stock, Ticker
@@ -20,7 +21,7 @@ from ..engines.execution import (
     _sanitize_nbbo,
     _tick_size,
 )
-from ..option_package import option_package_debit_value, option_package_risk
+from ..option_package import normalize_option_legs, option_package_debit_value, option_package_risk
 from ..spot.lifecycle import decide_open_position_intent
 from ..time_utils import now_et as _now_et
 from ..time_utils import now_et_naive as _now_et_naive
@@ -103,7 +104,7 @@ class BotOrderBuilderMixin:
             target = abs(float(target_delta))
         except (TypeError, ValueError):
             return None
-        if target <= 0 or target > 1:
+        if not math.isfinite(target) or target <= 0 or target > 1:
             return None
         try:
             strike_values = sorted(float(s) for s in strikes)
@@ -1410,7 +1411,8 @@ class BotOrderBuilderMixin:
             _set_status(f"Created order {action} {qty} {symbol} @ {limit:.2f} ({direction})")
             return
 
-        legs_raw: list[dict] | None = None
+        legs_raw: object = None
+        legs_path = "legs"
         if isinstance(strat.get("directional_legs"), dict):
             dmap = strat.get("directional_legs") or {}
             if direction not in ("up", "down"):
@@ -1435,10 +1437,12 @@ class BotOrderBuilderMixin:
                         )
             if direction in ("up", "down") and dmap.get(direction):
                 legs_raw = dmap.get(direction)
+                legs_path = f"directional_legs.{direction}"
             else:
                 for key in ("up", "down"):
                     if dmap.get(key):
                         legs_raw = dmap.get(key)
+                        legs_path = f"directional_legs.{key}"
                         direction = key
                         break
 
@@ -1448,6 +1452,10 @@ class BotOrderBuilderMixin:
 
         if not isinstance(legs_raw, list) or not legs_raw:
             return _fail("Order: no legs configured")
+        try:
+            normalized_legs = normalize_option_legs(legs_raw, path=legs_path)
+        except ValueError as exc:
+            return _fail(f"Order: {exc}")
 
         dte_raw = strat.get("dte", 0)
         try:
@@ -1476,27 +1484,12 @@ class BotOrderBuilderMixin:
         trading_class = getattr(chain, "tradingClass", None)
         option_candidates: list[Option] = []
         leg_specs: list[tuple[str, str, int, float, float | None]] = []
-        for leg_raw in legs_raw:
-            if not isinstance(leg_raw, dict):
-                return _fail("Order: invalid leg config")
-            action = str(leg_raw.get("action", "")).upper()
-            right = str(leg_raw.get("right", "")).upper()
-            if action not in ("BUY", "SELL") or right not in ("PUT", "CALL"):
-                return _fail("Order: invalid leg config")
-            try:
-                ratio = int(leg_raw.get("qty", 1) or 1)
-            except (TypeError, ValueError):
-                ratio = 1
-            ratio = max(1, abs(ratio))
-            try:
-                moneyness = float(leg_raw.get("moneyness_pct", 0.0) or 0.0)
-            except (TypeError, ValueError):
-                moneyness = 0.0
-            delta_target = leg_raw.get("delta")
-            try:
-                delta_target = float(delta_target) if delta_target is not None else None
-            except (TypeError, ValueError):
-                delta_target = None
+        for leg in normalized_legs:
+            action = leg.action
+            right = leg.right
+            ratio = leg.qty
+            moneyness = leg.moneyness_pct
+            delta_target = leg.delta
 
             target_strike = _strike_from_moneyness(spot, right, moneyness)
             right_char = "P" if right == "PUT" else "C"
