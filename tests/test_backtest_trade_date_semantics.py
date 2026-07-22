@@ -2,12 +2,11 @@ import unittest
 from dataclasses import dataclass
 from datetime import date, datetime
 
-from tradebot.backtest.engine import (
-    _spot_fill_due_ts,
-    _spot_next_open_due_ts,
-    _spot_next_open_entry_allowed,
-    _spot_pending_entry_should_cancel,
-    _trade_date,
+from tradebot.engine import _trade_date, spot_pending_entry_should_cancel as _spot_pending_entry_should_cancel
+from tradebot.spot.gates import (
+    fill_due_ts as _spot_fill_due_ts,
+    next_open_due_ts as _spot_next_open_due_ts,
+    next_open_entry_allowed as _spot_next_open_entry_allowed,
 )
 from tradebot.backtest.strategy import CreditSpreadStrategy
 
@@ -82,6 +81,7 @@ class BacktestTradeDateSemanticsTests(unittest.TestCase):
             strategy=strategy,
             signal_close_ts=datetime(2026, 2, 10, 2, 20),
             exec_bar_size="5 mins",
+            naive_ts_mode="utc",
         )
         self.assertEqual(due, datetime(2026, 2, 10, 2, 20))
 
@@ -96,6 +96,7 @@ class BacktestTradeDateSemanticsTests(unittest.TestCase):
             strategy=strategy,
             signal_close_ts=datetime(2026, 2, 10, 2, 20),
             exec_bar_size="5 mins",
+            naive_ts_mode="utc",
         )
         self.assertEqual(due, datetime(2026, 2, 10, 9, 0))
 
@@ -105,6 +106,7 @@ class BacktestTradeDateSemanticsTests(unittest.TestCase):
             fill_mode="next_bar",
             signal_close_ts=datetime(2026, 2, 10, 2, 21),
             exec_bar_size="5 mins",
+            naive_ts_mode="utc",
         )
         self.assertEqual(due, datetime(2026, 2, 10, 2, 25))
 
@@ -119,12 +121,14 @@ class BacktestTradeDateSemanticsTests(unittest.TestCase):
             fill_mode="next_open",
             signal_close_ts=datetime(2026, 2, 10, 2, 20),
             exec_bar_size="5 mins",
+            naive_ts_mode="utc",
         )
         due_canonical = _spot_fill_due_ts(
             strategy=strategy,
             fill_mode="next_tradable_bar",
             signal_close_ts=datetime(2026, 2, 10, 2, 20),
             exec_bar_size="5 mins",
+            naive_ts_mode="utc",
         )
         self.assertEqual(due_legacy, due_canonical)
 

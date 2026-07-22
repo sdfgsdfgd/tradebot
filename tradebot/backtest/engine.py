@@ -25,8 +25,6 @@ from ..spot.gates import (
     entry_capacity_ok as lifecycle_entry_capacity_ok,
     flip_exit_allowed,
     flip_exit_gate_blocked as lifecycle_flip_exit_gate_blocked,
-    next_open_due_ts as lifecycle_next_open_due_ts,
-    next_open_entry_allowed as lifecycle_next_open_entry_allowed,
     signal_filters_ok as lifecycle_signal_filters_ok,
 )
 from ..spot.lifecycle import decide_flat_position_intent, decide_open_position_intent, decide_pending_next_open
@@ -53,7 +51,6 @@ from ..engine import (
     spot_calc_signed_qty_with_trace,
     spot_hit_profit,
     spot_hit_stop,
-    spot_pending_entry_should_cancel,
     spot_exec_price as _spot_exec_price,
     spot_intrabar_exit,
     spot_intrabar_worst_ref,
@@ -170,6 +167,121 @@ class _SpotExecProfile(NamedTuple):
     slippage_per_share: float
     mark_to_market: str
     drawdown_mode: str
+
+
+@dataclass(frozen=True)
+class _SpotPendingEntry:
+    direction: str | None = None
+    branch: str | None = None
+    set_date: date | None = None
+    due_ts: datetime | None = None
+    hard_dir: str | None = None
+    hard_ready: bool = False
+    hard_release_age: int | None = None
+    regime4_state: str | None = None
+    regime4_transition_hot: bool = False
+    regime4_owner: str | None = None
+    guard_probe: dict[str, object] | None = None
+    guard_inputs: dict[str, object] | None = None
+
+    @property
+    def active(self) -> bool:
+        return self.direction in ("up", "down")
+
+    @classmethod
+    def from_signal(
+        cls,
+        *,
+        direction: str,
+        branch: str | None,
+        set_date: date,
+        due_ts: datetime,
+        snapshot: object | None,
+        guard_probe: dict[str, object] | None = None,
+        guard_inputs: dict[str, object] | None = None,
+    ) -> "_SpotPendingEntry":
+        hard_dir = getattr(snapshot, "regime2_bear_hard_dir", None)
+        release_age = getattr(snapshot, "regime2_bear_hard_release_age_bars", None)
+        return cls(
+            direction=str(direction),
+            branch=str(branch) if branch in ("a", "b") else None,
+            set_date=set_date,
+            due_ts=due_ts,
+            hard_dir=str(hard_dir) if hard_dir in ("up", "down") else None,
+            hard_ready=bool(getattr(snapshot, "regime2_bear_hard_ready", False)),
+            hard_release_age=int(release_age) if release_age is not None else None,
+            regime4_state=str(getattr(snapshot, "regime4_state", "") or "") or None,
+            regime4_transition_hot=bool(getattr(snapshot, "regime4_transition_hot", False)),
+            regime4_owner=str(getattr(snapshot, "regime4_owner", "") or "") or None,
+            guard_probe=dict(guard_probe) if isinstance(guard_probe, dict) else None,
+            guard_inputs=dict(guard_inputs) if isinstance(guard_inputs, dict) else None,
+        )
+
+
+@dataclass(frozen=True)
+class _SpotEntryEvidence:
+    snapshot: object | None
+    shock: bool | None
+    shock_dir: str | None
+    shock_atr_pct: float | None
+    riskoff: bool
+    riskpanic: bool
+    riskpop: bool
+    risk_snapshot: object | None
+    hard_dir: str | None
+    hard_ready: bool
+    hard_release_age: int | None
+    regime4_state: str | None
+    regime4_transition_hot: bool
+    regime4_owner: str | None
+    guard_probe: dict[str, object] | None = None
+    guard_inputs: dict[str, object] | None = None
+    local_extrema: dict[str, object] | None = None
+
+    @classmethod
+    def from_signal(
+        cls,
+        *,
+        snapshot: object | None,
+        shock: bool | None,
+        shock_dir: str | None,
+        shock_atr_pct: float | None,
+        riskoff: bool,
+        riskpanic: bool,
+        riskpop: bool,
+        risk_snapshot: object | None,
+        pending: _SpotPendingEntry | None = None,
+        guard_probe: dict[str, object] | None = None,
+        guard_inputs: dict[str, object] | None = None,
+        local_extrema: dict[str, object] | None = None,
+    ) -> "_SpotEntryEvidence":
+        source = pending if pending is not None else snapshot
+        hard_dir = getattr(source, "hard_dir", None) if pending is not None else getattr(source, "regime2_bear_hard_dir", None)
+        hard_ready = getattr(source, "hard_ready", False) if pending is not None else getattr(source, "regime2_bear_hard_ready", False)
+        release_age = (
+            getattr(source, "hard_release_age", None)
+            if pending is not None
+            else getattr(source, "regime2_bear_hard_release_age_bars", None)
+        )
+        return cls(
+            snapshot=snapshot,
+            shock=shock,
+            shock_dir=str(shock_dir) if shock_dir in ("up", "down") else None,
+            shock_atr_pct=float(shock_atr_pct) if shock_atr_pct is not None else None,
+            riskoff=bool(riskoff),
+            riskpanic=bool(riskpanic),
+            riskpop=bool(riskpop),
+            risk_snapshot=risk_snapshot,
+            hard_dir=str(hard_dir) if hard_dir in ("up", "down") else None,
+            hard_ready=bool(hard_ready),
+            hard_release_age=int(release_age) if release_age is not None else None,
+            regime4_state=str(getattr(source, "regime4_state", "") or "") or None,
+            regime4_transition_hot=bool(getattr(source, "regime4_transition_hot", False)),
+            regime4_owner=str(getattr(source, "regime4_owner", "") or "") or None,
+            guard_probe=dict(guard_probe) if isinstance(guard_probe, dict) else None,
+            guard_inputs=dict(guard_inputs) if isinstance(guard_inputs, dict) else None,
+            local_extrema=dict(local_extrema) if isinstance(local_extrema, dict) else None,
+        )
 
 
 def _spot_bars_signature(bars: list[Bar] | None) -> tuple[object, ...]:
@@ -766,66 +878,6 @@ def _spot_liquidation_value(
     return float(total)
 
 
-def _spot_riskoff_end_hour(filters) -> int | None:
-    return spot_riskoff_end_hour(filters)
-
-
-def _spot_apply_exit_accounting(
-    *,
-    cash: float,
-    margin_used: float,
-    qty: int,
-    exit_price: float,
-    margin_required: float,
-    multiplier: float,
-) -> tuple[float, float]:
-    next_cash = float(cash) + (int(qty) * float(exit_price)) * float(multiplier)
-    next_margin = max(0.0, float(margin_used) - float(margin_required))
-    return float(next_cash), float(next_margin)
-
-
-def _spot_exec_exit_and_account(
-    *,
-    qty: int,
-    exit_ref_price: float,
-    exit_time: datetime,
-    reason: str,
-    cash: float,
-    margin_used: float,
-    margin_required: float,
-    spread: float,
-    commission_per_share: float,
-    commission_min: float,
-    slippage_per_share: float,
-    multiplier: float,
-    apply_slippage: bool = True,
-    trade: SpotTrade | None = None,
-    trades: list[SpotTrade] | None = None,
-) -> tuple[float, float, float]:
-    side = "sell" if int(qty) > 0 else "buy"
-    exit_price = _spot_exec_price(
-        float(exit_ref_price),
-        side=side,
-        qty=int(qty),
-        spread=float(spread),
-        commission_per_share=float(commission_per_share),
-        commission_min=float(commission_min),
-        slippage_per_share=float(slippage_per_share),
-        apply_slippage=bool(apply_slippage),
-    )
-    if trade is not None and trades is not None:
-        _close_spot_trade(trade, exit_time, float(exit_price), reason, trades)
-    next_cash, next_margin = _spot_apply_exit_accounting(
-        cash=float(cash),
-        margin_used=float(margin_used),
-        qty=int(qty),
-        exit_price=float(exit_price),
-        margin_required=float(margin_required),
-        multiplier=float(multiplier),
-    )
-    return float(exit_price), float(next_cash), float(next_margin)
-
-
 def _spot_exec_exit_common(
     *,
     qty: int,
@@ -845,23 +897,21 @@ def _spot_exec_exit_common(
     trades: list[SpotTrade] | None = None,
 ) -> tuple[float, float, float]:
     apply_slippage_eff = (str(reason) != "profit") if apply_slippage is None else bool(apply_slippage)
-    return _spot_exec_exit_and_account(
+    exit_price = _spot_exec_price(
+        float(exit_ref_price),
+        side="sell" if int(qty) > 0 else "buy",
         qty=int(qty),
-        exit_ref_price=float(exit_ref_price),
-        exit_time=exit_time,
-        reason=str(reason),
-        cash=float(cash),
-        margin_used=float(margin_used),
-        margin_required=float(margin_required),
         spread=float(spread),
         commission_per_share=float(commission_per_share),
         commission_min=float(commission_min),
         slippage_per_share=float(slippage_per_share),
-        multiplier=float(multiplier),
         apply_slippage=bool(apply_slippage_eff),
-        trade=trade,
-        trades=trades,
     )
+    if trade is not None and trades is not None:
+        _close_spot_trade(trade, exit_time, float(exit_price), str(reason), trades)
+    next_cash = float(cash) + int(qty) * float(exit_price) * float(multiplier)
+    next_margin = max(0.0, float(margin_used) - float(margin_required))
+    return float(exit_price), float(next_cash), float(next_margin)
 
 
 def _spot_entry_accounting(
@@ -918,25 +968,6 @@ def _spot_branch_size_mult(*, policy: _SpotPolicyRun, entry_branch: str | None) 
     return 1.0
 
 
-def _spot_next_open_entry_allowed(
-    *,
-    signal_ts: datetime,
-    next_ts: datetime,
-    riskoff_today: bool,
-    riskoff_end_hour: int | None,
-    exit_mode: str,
-    atr_value: float | None,
-) -> bool:
-    return lifecycle_next_open_entry_allowed(
-        signal_ts=signal_ts,
-        next_ts=next_ts,
-        riskoff_today=bool(riskoff_today),
-        riskoff_end_hour=riskoff_end_hour,
-        exit_mode=str(exit_mode),
-        atr_value=float(atr_value) if atr_value is not None else None,
-    )
-
-
 def _spot_strategy_sec_type(*, strategy) -> str:
     raw = str(getattr(strategy, "spot_sec_type", "") or "").strip().upper()
     if raw:
@@ -945,39 +976,6 @@ def _spot_strategy_sec_type(*, strategy) -> str:
     if symbol in {"MNQ", "MES", "ES", "NQ", "YM", "RTY", "M2K"}:
         return "FUT"
     return "STK"
-
-
-def _spot_next_open_due_ts(
-    *,
-    strategy,
-    signal_close_ts: datetime,
-    exec_bar_size: str,
-    signal_use_rth: bool | None = None,
-    spot_sec_type: str | None = None,
-) -> datetime:
-    if isinstance(strategy, Mapping):
-        mode_raw = strategy.get("spot_next_open_session")
-        use_rth_raw = strategy.get("signal_use_rth", True)
-        sec_type_raw = strategy.get("spot_sec_type")
-    else:
-        mode_raw = getattr(strategy, "spot_next_open_session", None)
-        use_rth_raw = getattr(strategy, "signal_use_rth", True)
-        sec_type_raw = getattr(strategy, "spot_sec_type", None)
-    strategy_view = {
-        "spot_next_open_session": mode_raw,
-        "signal_use_rth": (
-            bool(signal_use_rth)
-            if signal_use_rth is not None
-            else bool(use_rth_raw)
-        ),
-        "spot_sec_type": str(spot_sec_type or sec_type_raw or _spot_strategy_sec_type(strategy=strategy)),
-    }
-    return lifecycle_next_open_due_ts(
-        signal_close_ts=signal_close_ts,
-        exec_bar_size=str(exec_bar_size or ""),
-        strategy=strategy_view,
-        naive_ts_mode="utc",
-    )
 
 
 def _spot_fill_due_ts(
@@ -1012,23 +1010,6 @@ def _spot_fill_due_ts(
         exec_bar_size=str(exec_bar_size or ""),
         strategy=strategy_view,
         naive_ts_mode="utc",
-    )
-
-
-def _spot_entry_capacity_ok(
-    *,
-    open_count: int,
-    max_entries_per_day: int,
-    entries_today: int,
-    weekday: int,
-    entry_days: tuple[int, ...] | list[int],
-) -> bool:
-    return lifecycle_entry_capacity_ok(
-        open_count=int(open_count),
-        max_entries_per_day=int(max_entries_per_day),
-        entries_today=int(entries_today),
-        weekday=int(weekday),
-        entry_days=entry_days,
     )
 
 
@@ -1138,7 +1119,7 @@ def _spot_flat_entry_decision_from_signal(
         shock_dir=shock_dir,
         entry_gate_bypass=bool(entry_gate_bypass),
     )
-    entry_capacity = _spot_entry_capacity_ok(
+    entry_capacity = lifecycle_entry_capacity_ok(
         open_count=int(open_count),
         max_entries_per_day=int(getattr(strategy, "max_entries_per_day", 0) or 0),
         entries_today=int(entries_today),
@@ -1246,84 +1227,34 @@ def _spot_exit_reason_from_lifecycle(
     return None
 
 
-def _spot_pending_entry_should_cancel(
-    *,
-    pending_dir: str,
-    pending_set_date: date | None,
-    exec_ts: datetime,
-    risk_overlay_enabled: bool,
-    riskoff_today: bool,
-    riskpanic_today: bool,
-    riskpop_today: bool,
-    riskoff_mode: str,
-    shock_dir_now: str | None,
-    riskoff_end_hour: int | None,
-) -> bool:
-    return spot_pending_entry_should_cancel(
-        pending_dir=pending_dir,
-        pending_set_date=pending_set_date,
-        exec_ts=exec_ts,
-        risk_overlay_enabled=risk_overlay_enabled,
-        riskoff_today=riskoff_today,
-        riskpanic_today=riskpanic_today,
-        riskpop_today=riskpop_today,
-        riskoff_mode=riskoff_mode,
-        shock_dir_now=shock_dir_now,
-        riskoff_end_hour=riskoff_end_hour,
-    )
-
-
 def _spot_try_open_entry(
     *,
     policy: _SpotPolicyRun,
     cfg: ConfigBundle,
     meta: ContractMeta,
-    entry_signal: str,
     entry_dir: str,
     entry_branch: str | None,
     entry_leg: SpotLegConfig,
     entry_time: datetime,
     entry_ref_price: float,
     mark_ref_price: float,
-    atr_value: float | None,
-    exit_mode: str,
     orb_engine,
-    filters,
-    shock_now: bool | None,
-    shock_dir_now: str | None,
-    shock_atr_pct_now: float | None,
-    shock_dir_down_streak_bars_now: int | None,
-    shock_drawdown_dist_on_pct_now: float | None,
-    shock_drawdown_dist_on_vel_pp_now: float | None,
-    shock_drawdown_dist_on_accel_pp_now: float | None,
-    shock_prearm_down_streak_bars_now: int | None,
-    shock_ramp_now: dict[str, object] | None = None,
-    signal_entry_dir_now: str | None,
-    signal_regime_dir_now: str | None,
-    regime2_dir_now: str | None,
-    regime2_ready_now: bool,
-    regime2_bear_hard_dir_now: str | None,
-    regime2_bear_hard_ready_now: bool,
-    regime2_bear_hard_release_age_bars_now: int | None,
-    regime4_state_now: str | None,
-    regime4_transition_hot_now: bool,
-    riskoff_today: bool,
-    riskpanic_today: bool,
-    riskpop_today: bool,
-    risk_snapshot,
-    entry_guard_probe_now: dict[str, object] | None = None,
-    entry_guard_inputs_now: dict[str, object] | None = None,
-    entry_local_extrema_probe_now: dict[str, object] | None = None,
+    evidence: _SpotEntryEvidence,
+    exec_profile: _SpotExecProfile,
     cash: float,
     margin_used: float,
     liquidation_value: float,
-    spread: float,
-    commission_per_share: float,
-    commission_min: float,
-    slippage_per_share: float,
-    mark_to_market: str,
-    regime4_owner_now: str | None = None,
 ) -> tuple[SpotTrade, float, float] | None:
+    snapshot = evidence.snapshot
+    filters = cfg.strategy.filters
+    entry_signal = normalize_spot_entry_signal(getattr(cfg.strategy, "entry_signal", "ema"))
+    exit_mode = str(exec_profile.exit_mode)
+    atr_value = getattr(snapshot, "atr", None)
+    signal = getattr(snapshot, "signal", None)
+    signal_entry_dir = getattr(snapshot, "entry_dir", None)
+    signal_regime_dir = getattr(signal, "regime_dir", None)
+    regime2_dir = getattr(snapshot, "regime2_dir", None)
+    regime2_ready = bool(getattr(snapshot, "regime2_ready", False))
     action = str(getattr(entry_leg, "action", "BUY") or "BUY").strip().upper()
     side = "buy" if action == "BUY" else "sell"
     lot = max(1, int(getattr(entry_leg, "qty", 1) or 1))
@@ -1335,10 +1266,10 @@ def _spot_try_open_entry(
         float(entry_ref_price),
         side=side,
         qty=int(base_signed_qty),
-        spread=float(spread),
-        commission_per_share=float(commission_per_share),
-        commission_min=float(commission_min),
-        slippage_per_share=float(slippage_per_share),
+        spread=float(exec_profile.spread),
+        commission_per_share=float(exec_profile.commission_per_share),
+        commission_min=float(exec_profile.commission_min),
+        slippage_per_share=float(exec_profile.slippage_per_share),
     )
 
     can_open = True
@@ -1405,7 +1336,7 @@ def _spot_try_open_entry(
     base_profit_target_pct = profit_target_pct
     base_stop_loss_pct = stop_loss_pct
 
-    shock_on = bool(shock_now) if shock_now is not None else False
+    shock_on = bool(evidence.shock) if evidence.shock is not None else False
     decision_trace_payload: dict[str, object] | None = None
     if can_open:
         sl_mult, pt_mult = spot_shock_exit_pct_multipliers(filters, shock=shock_on)
@@ -1426,23 +1357,23 @@ def _spot_try_open_entry(
             stop_price=stop_price,
             stop_loss_pct=stop_loss_pct,
             shock=bool(shock_on),
-            shock_dir=shock_dir_now,
-            shock_atr_pct=shock_atr_pct_now,
-            shock_dir_down_streak_bars=shock_dir_down_streak_bars_now,
-            shock_drawdown_dist_on_pct=shock_drawdown_dist_on_pct_now,
-            shock_drawdown_dist_on_vel_pp=shock_drawdown_dist_on_vel_pp_now,
-            shock_drawdown_dist_on_accel_pp=shock_drawdown_dist_on_accel_pp_now,
-            shock_prearm_down_streak_bars=shock_prearm_down_streak_bars_now,
-            shock_ramp=shock_ramp_now,
-            riskoff=bool(riskoff_today),
-            risk_dir=shock_dir_now,
-            riskpanic=bool(riskpanic_today),
-            riskpop=bool(riskpop_today),
-            risk=risk_snapshot,
-            signal_entry_dir=signal_entry_dir_now,
-            signal_regime_dir=signal_regime_dir_now,
-            regime2_dir=regime2_dir_now,
-            regime2_ready=bool(regime2_ready_now),
+            shock_dir=evidence.shock_dir,
+            shock_atr_pct=evidence.shock_atr_pct,
+            shock_dir_down_streak_bars=getattr(snapshot, "shock_dir_down_streak_bars", None),
+            shock_drawdown_dist_on_pct=getattr(snapshot, "shock_drawdown_dist_on_pct", None),
+            shock_drawdown_dist_on_vel_pp=getattr(snapshot, "shock_drawdown_dist_on_vel_pp", None),
+            shock_drawdown_dist_on_accel_pp=getattr(snapshot, "shock_drawdown_dist_on_accel_pp", None),
+            shock_prearm_down_streak_bars=getattr(snapshot, "shock_prearm_down_streak_bars", None),
+            shock_ramp=getattr(snapshot, "shock_ramp", None),
+            riskoff=evidence.riskoff,
+            risk_dir=evidence.shock_dir,
+            riskpanic=evidence.riskpanic,
+            riskpop=evidence.riskpop,
+            risk=evidence.risk_snapshot,
+            signal_entry_dir=signal_entry_dir,
+            signal_regime_dir=signal_regime_dir,
+            regime2_dir=regime2_dir,
+            regime2_ready=regime2_ready,
             equity_ref=float(cash) + float(liquidation_value),
             cash_ref=float(cash),
             policy_graph=policy.sizing_graph,
@@ -1472,18 +1403,18 @@ def _spot_try_open_entry(
                 current_qty=0,
                 target_qty=int(signed_qty),
                 spot_decision=decision_trace.as_payload(),
-                shock_atr_pct=float(shock_atr_pct_now) if shock_atr_pct_now is not None else None,
-                tr_ratio=float(getattr(risk_snapshot, "tr_ratio", 0.0))
-                if risk_snapshot is not None and getattr(risk_snapshot, "tr_ratio", None) is not None
+                shock_atr_pct=evidence.shock_atr_pct,
+                tr_ratio=float(getattr(evidence.risk_snapshot, "tr_ratio", 0.0))
+                if evidence.risk_snapshot is not None and getattr(evidence.risk_snapshot, "tr_ratio", None) is not None
                 else None,
-                tr_median_pct=float(getattr(risk_snapshot, "tr_median_pct", 0.0))
-                if risk_snapshot is not None and getattr(risk_snapshot, "tr_median_pct", None) is not None
+                tr_median_pct=float(getattr(evidence.risk_snapshot, "tr_median_pct", 0.0))
+                if evidence.risk_snapshot is not None and getattr(evidence.risk_snapshot, "tr_median_pct", None) is not None
                 else None,
-                slope_med_pct=float(getattr(risk_snapshot, "tr_median_delta_pct", 0.0))
-                if risk_snapshot is not None and getattr(risk_snapshot, "tr_median_delta_pct", None) is not None
+                slope_med_pct=float(getattr(evidence.risk_snapshot, "tr_median_delta_pct", 0.0))
+                if evidence.risk_snapshot is not None and getattr(evidence.risk_snapshot, "tr_median_delta_pct", None) is not None
                 else None,
-                slope_vel_pct=float(getattr(risk_snapshot, "tr_slope_vel_pct", 0.0))
-                if risk_snapshot is not None and getattr(risk_snapshot, "tr_slope_vel_pct", None) is not None
+                slope_vel_pct=float(getattr(evidence.risk_snapshot, "tr_slope_vel_pct", 0.0))
+                if evidence.risk_snapshot is not None and getattr(evidence.risk_snapshot, "tr_slope_vel_pct", None) is not None
                 else None,
             )
             intent_decision = lifecycle.spot_intent
@@ -1492,27 +1423,15 @@ def _spot_try_open_entry(
             else:
                 signed_qty = int(intent_decision.delta_qty)
                 decision_trace_payload = decision_trace.as_payload()
-                decision_trace_payload["regime2_bear_hard_dir"] = (
-                    str(regime2_bear_hard_dir_now) if regime2_bear_hard_dir_now in ("up", "down") else None
-                )
-                decision_trace_payload["regime2_bear_hard_ready"] = bool(regime2_bear_hard_ready_now)
-                decision_trace_payload["regime2_bear_hard_release_age_bars"] = (
-                    int(regime2_bear_hard_release_age_bars_now)
-                    if regime2_bear_hard_release_age_bars_now is not None
-                    else None
-                )
-                decision_trace_payload["regime4_state"] = str(regime4_state_now) if regime4_state_now else None
-                decision_trace_payload["regime4_transition_hot"] = bool(regime4_transition_hot_now)
-                decision_trace_payload["regime4_owner"] = str(regime4_owner_now) if regime4_owner_now else None
-                decision_trace_payload["entry_guard_probe"] = (
-                    dict(entry_guard_probe_now) if isinstance(entry_guard_probe_now, dict) else None
-                )
-                decision_trace_payload["entry_guard_inputs"] = (
-                    dict(entry_guard_inputs_now) if isinstance(entry_guard_inputs_now, dict) else None
-                )
-                decision_trace_payload["entry_local_extrema_probe"] = (
-                    dict(entry_local_extrema_probe_now) if isinstance(entry_local_extrema_probe_now, dict) else None
-                )
+                decision_trace_payload["regime2_bear_hard_dir"] = evidence.hard_dir
+                decision_trace_payload["regime2_bear_hard_ready"] = evidence.hard_ready
+                decision_trace_payload["regime2_bear_hard_release_age_bars"] = evidence.hard_release_age
+                decision_trace_payload["regime4_state"] = evidence.regime4_state
+                decision_trace_payload["regime4_transition_hot"] = evidence.regime4_transition_hot
+                decision_trace_payload["regime4_owner"] = evidence.regime4_owner
+                decision_trace_payload["entry_guard_probe"] = evidence.guard_probe
+                decision_trace_payload["entry_guard_inputs"] = evidence.guard_inputs
+                decision_trace_payload["entry_local_extrema_probe"] = evidence.local_extrema
                 decision_trace_payload["spot_intent"] = intent_decision.as_payload()
                 decision_trace_payload["spot_lifecycle"] = lifecycle.as_payload()
     else:
@@ -1525,10 +1444,10 @@ def _spot_try_open_entry(
         float(entry_ref_price),
         side=side,
         qty=int(signed_qty),
-        spread=float(spread),
-        commission_per_share=float(commission_per_share),
-        commission_min=float(commission_min),
-        slippage_per_share=float(slippage_per_share),
+        spread=float(exec_profile.spread),
+        commission_per_share=float(exec_profile.commission_per_share),
+        commission_min=float(exec_profile.commission_min),
+        slippage_per_share=float(exec_profile.slippage_per_share),
     )
 
     if entry_signal == "orb" and orb_engine is not None and entry_dir in ("up", "down"):
@@ -1573,8 +1492,8 @@ def _spot_try_open_entry(
         entry_price=float(entry_price),
         mark_ref_price=float(mark_ref_price),
         liquidation_value=float(liquidation_value),
-        spread=float(spread),
-        mark_to_market=str(mark_to_market),
+        spread=float(exec_profile.spread),
+        mark_to_market=str(exec_profile.mark_to_market),
         multiplier=float(meta.multiplier),
     )
     if not ok:
@@ -1596,16 +1515,6 @@ def _spot_try_open_entry(
     )
     candidate.margin_required = float(margin_required)
     return candidate, float(cash_after), float(margin_after)
-
-
-def _spot_apply_opened_trade(
-    *,
-    opened: tuple[SpotTrade, float, float],
-    open_trades: list[SpotTrade],
-) -> tuple[float, float]:
-    candidate, cash_after, margin_after = opened
-    open_trades.append(candidate)
-    return float(cash_after), float(margin_after)
 
 
 def _spot_apply_resize_trade(
@@ -2094,18 +2003,7 @@ def _run_spot_backtest_exec_loop(
             trade.decision_trace = trace
         return float(exit_price), float(next_cash), float(next_margin_used)
 
-    pending_entry_dir: str | None = None
-    pending_entry_branch: str | None = None
-    pending_entry_set_date: date | None = None
-    pending_entry_due_ts: datetime | None = None
-    pending_entry_regime2_bear_hard_dir: str | None = None
-    pending_entry_regime2_bear_hard_ready = False
-    pending_entry_regime2_bear_hard_release_age_bars: int | None = None
-    pending_entry_regime4_state: str | None = None
-    pending_entry_regime4_transition_hot = False
-    pending_entry_regime4_owner: str | None = None
-    pending_entry_guard_probe: dict[str, object] | None = None
-    pending_entry_guard_inputs: dict[str, object] | None = None
+    pending_entry = _SpotPendingEntry()
     pending_exit_all = False
     pending_exit_reason = ""
     pending_exit_due_ts: datetime | None = None
@@ -2123,7 +2021,7 @@ def _run_spot_backtest_exec_loop(
     riskoff_today = False
     riskpanic_today = False
     riskpop_today = False
-    riskoff_end_hour = _spot_riskoff_end_hour(filters) if risk_overlay_enabled else None
+    riskoff_end_hour = spot_riskoff_end_hour(filters) if risk_overlay_enabled else None
     last_entry_sig_idx: int | None = None
     last_resize_bar_ts: datetime | None = None
 
@@ -2195,15 +2093,15 @@ def _run_spot_backtest_exec_loop(
             riskpop_today = False
 
         pending_decision = None
-        if lifecycle_rows is not None or pending_entry_dir in ("up", "down") or bool(pending_exit_all):
+        if lifecycle_rows is not None or pending_entry.active or bool(pending_exit_all):
             open_dir_now = "up" if open_trades and int(open_trades[0].qty) > 0 else "down" if open_trades else None
             pending_decision = decide_pending_next_open(
                 now_ts=bar.ts,
                 has_open=bool(open_trades),
                 open_dir=open_dir_now,
-                pending_entry_dir=pending_entry_dir,
-                pending_entry_set_date=pending_entry_set_date,
-                pending_entry_due_ts=pending_entry_due_ts if pending_entry_dir in ("up", "down") else None,
+                pending_entry_dir=pending_entry.direction,
+                pending_entry_set_date=pending_entry.set_date,
+                pending_entry_due_ts=pending_entry.due_ts if pending_entry.active else None,
                 pending_exit_reason=pending_exit_reason,
                 pending_exit_due_ts=pending_exit_due_ts if bool(pending_exit_all) else None,
                 risk_overlay_enabled=bool(risk_overlay_enabled),
@@ -2255,8 +2153,8 @@ def _run_spot_backtest_exec_loop(
                 )
             open_trades = []
 
-        if pending_decision is not None and pending_decision.intent == "enter" and pending_entry_dir in ("up", "down"):
-            can_fill_pending = _spot_entry_capacity_ok(
+        if pending_decision is not None and pending_decision.intent == "enter" and pending_entry.active:
+            can_fill_pending = lifecycle_entry_capacity_ok(
                 open_count=len(open_trades),
                 max_entries_per_day=int(cfg.strategy.max_entries_per_day),
                 entries_today=int(entries_today),
@@ -2264,165 +2162,60 @@ def _run_spot_backtest_exec_loop(
                 entry_days=cfg.strategy.entry_days,
             )
             if can_fill_pending:
-                entry_dir = pending_entry_dir
-                entry_branch = pending_entry_branch if pending_entry_branch in ("a", "b") else None
-                entry_regime2_bear_hard_dir_now = pending_entry_regime2_bear_hard_dir
-                entry_regime2_bear_hard_ready_now = bool(pending_entry_regime2_bear_hard_ready)
-                entry_regime2_bear_hard_release_age_bars_now = pending_entry_regime2_bear_hard_release_age_bars
-                entry_regime4_state_now = pending_entry_regime4_state
-                entry_regime4_transition_hot_now = bool(pending_entry_regime4_transition_hot)
-                entry_regime4_owner_now = pending_entry_regime4_owner
-                entry_guard_probe_now = pending_entry_guard_probe
-                entry_guard_inputs_now = pending_entry_guard_inputs
-                pending_entry_dir = None
-                pending_entry_branch = None
-                pending_entry_set_date = None
-                pending_entry_due_ts = None
-                pending_entry_regime2_bear_hard_dir = None
-                pending_entry_regime2_bear_hard_ready = False
-                pending_entry_regime2_bear_hard_release_age_bars = None
-                pending_entry_regime4_state = None
-                pending_entry_regime4_transition_hot = False
-                pending_entry_regime4_owner = None
-                pending_entry_guard_probe = None
-                pending_entry_guard_inputs = None
+                filled_entry = pending_entry
+                pending_entry = _SpotPendingEntry()
 
                 entry_leg = _spot_entry_leg_for_direction(
                     strategy=cfg.strategy,
-                    entry_dir=entry_dir,
+                    entry_dir=filled_entry.direction,
                     needs_direction=needs_direction,
                 )
-                if entry_leg is not None and entry_dir in ("up", "down"):
+                if entry_leg is not None and filled_entry.direction in ("up", "down"):
                     liquidation_open = _spot_liquidation(float(bar.open))
-                    atr_value = float(last_sig_snap.atr) if last_sig_snap is not None and last_sig_snap.atr is not None else None
                     opened = _spot_try_open_entry(
                         policy=policy,
                         cfg=cfg,
                         meta=meta,
-                        entry_signal=entry_signal,
-                        entry_dir=entry_dir,
-                        entry_branch=entry_branch,
+                        entry_dir=filled_entry.direction,
+                        entry_branch=filled_entry.branch,
                         entry_leg=entry_leg,
                         entry_time=bar.ts,
                         entry_ref_price=float(bar.open),
                         mark_ref_price=float(bar.open),
-                        atr_value=atr_value,
-                        exit_mode=exit_mode,
                         orb_engine=orb_engine,
-                        filters=filters,
-                        shock_now=shock_now_prev,
-                        shock_dir_now=shock_dir_prev_now,
-                        shock_atr_pct_now=shock_atr_pct_prev_now,
-                        shock_dir_down_streak_bars_now=(
-                            int(getattr(last_sig_snap, "shock_dir_down_streak_bars", 0))
-                            if last_sig_snap is not None and getattr(last_sig_snap, "shock_dir_down_streak_bars", None) is not None
-                            else None
+                        evidence=_SpotEntryEvidence.from_signal(
+                            snapshot=last_sig_snap,
+                            shock=shock_now_prev,
+                            shock_dir=shock_dir_prev_now,
+                            shock_atr_pct=shock_atr_pct_prev_now,
+                            riskoff=riskoff_today,
+                            riskpanic=riskpanic_today,
+                            riskpop=riskpop_today,
+                            risk_snapshot=evaluator.last_risk if risk_overlay_enabled else None,
+                            pending=filled_entry,
+                            guard_probe=filled_entry.guard_probe,
+                            guard_inputs=filled_entry.guard_inputs,
+                            local_extrema=_spot_local_extrema_probe(
+                                bars=exec_bars,
+                                exec_idx=int(idx),
+                                ref_price=float(bar.open),
+                                bar_size=spot_exec_bar_size,
+                            ),
                         ),
-                        shock_drawdown_dist_on_pct_now=(
-                            float(getattr(last_sig_snap, "shock_drawdown_dist_on_pct", 0.0))
-                            if last_sig_snap is not None and getattr(last_sig_snap, "shock_drawdown_dist_on_pct", None) is not None
-                            else None
-                        ),
-                        shock_drawdown_dist_on_vel_pp_now=(
-                            float(getattr(last_sig_snap, "shock_drawdown_dist_on_vel_pp", 0.0))
-                            if last_sig_snap is not None and getattr(last_sig_snap, "shock_drawdown_dist_on_vel_pp", None) is not None
-                            else None
-                        ),
-                        shock_drawdown_dist_on_accel_pp_now=(
-                            float(getattr(last_sig_snap, "shock_drawdown_dist_on_accel_pp", 0.0))
-                            if last_sig_snap is not None
-                            and getattr(last_sig_snap, "shock_drawdown_dist_on_accel_pp", None) is not None
-                            else None
-                        ),
-                        shock_prearm_down_streak_bars_now=(
-                            int(getattr(last_sig_snap, "shock_prearm_down_streak_bars", 0))
-                            if last_sig_snap is not None
-                            and getattr(last_sig_snap, "shock_prearm_down_streak_bars", None) is not None
-                            else None
-                        ),
-                        shock_ramp_now=(
-                            dict(getattr(last_sig_snap, "shock_ramp"))
-                            if last_sig_snap is not None and isinstance(getattr(last_sig_snap, "shock_ramp", None), dict)
-                            else None
-                        ),
-                        signal_entry_dir_now=(
-                            str(getattr(last_sig_snap, "entry_dir", None))
-                            if last_sig_snap is not None and getattr(last_sig_snap, "entry_dir", None) in ("up", "down")
-                            else None
-                        ),
-                        signal_regime_dir_now=(
-                            str(getattr(getattr(last_sig_snap, "signal", None), "regime_dir", None))
-                            if last_sig_snap is not None
-                            and getattr(getattr(last_sig_snap, "signal", None), "regime_dir", None) in ("up", "down")
-                            else None
-                        ),
-                        regime2_dir_now=(
-                            str(getattr(last_sig_snap, "regime2_dir", None))
-                            if last_sig_snap is not None and getattr(last_sig_snap, "regime2_dir", None) in ("up", "down")
-                            else None
-                        ),
-                        regime2_ready_now=bool(getattr(last_sig_snap, "regime2_ready", False)) if last_sig_snap is not None else False,
-                        regime2_bear_hard_dir_now=(
-                            str(entry_regime2_bear_hard_dir_now)
-                            if entry_regime2_bear_hard_dir_now in ("up", "down")
-                            else None
-                        ),
-                        regime2_bear_hard_ready_now=bool(entry_regime2_bear_hard_ready_now),
-                        regime2_bear_hard_release_age_bars_now=(
-                            int(entry_regime2_bear_hard_release_age_bars_now)
-                            if entry_regime2_bear_hard_release_age_bars_now is not None
-                            else None
-                        ),
-                        regime4_state_now=str(entry_regime4_state_now) if entry_regime4_state_now else None,
-                        regime4_transition_hot_now=bool(entry_regime4_transition_hot_now),
-                        regime4_owner_now=str(entry_regime4_owner_now) if entry_regime4_owner_now else None,
-                        riskoff_today=bool(riskoff_today),
-                        riskpanic_today=bool(riskpanic_today),
-                        riskpop_today=bool(riskpop_today),
-                        risk_snapshot=evaluator.last_risk if risk_overlay_enabled else None,
-                        entry_guard_probe_now=entry_guard_probe_now,
-                        entry_guard_inputs_now=entry_guard_inputs_now,
-                        entry_local_extrema_probe_now=_spot_local_extrema_probe(
-                            bars=exec_bars,
-                            exec_idx=int(idx),
-                            ref_price=float(bar.open),
-                            bar_size=spot_exec_bar_size,
-                        ),
+                        exec_profile=exec_profile,
                         cash=float(cash),
                         margin_used=float(margin_used),
                         liquidation_value=float(liquidation_open),
-                        spread=float(spot_spread),
-                        commission_per_share=float(spot_commission),
-                        commission_min=float(spot_commission_min),
-                        slippage_per_share=float(spot_slippage),
-                        mark_to_market=str(spot_mark_to_market),
                     )
                     if opened is not None:
-                        cash, margin_used = _spot_apply_opened_trade(opened=opened, open_trades=open_trades)
+                        candidate, cash, margin_used = opened
+                        open_trades.append(candidate)
                         entries_today += 1
             else:
-                pending_entry_dir = None
-                pending_entry_branch = None
-                pending_entry_set_date = None
-                pending_entry_due_ts = None
-                pending_entry_regime2_bear_hard_dir = None
-                pending_entry_regime2_bear_hard_ready = False
-                pending_entry_regime2_bear_hard_release_age_bars = None
-                pending_entry_regime4_state = None
-                pending_entry_regime4_transition_hot = False
-                pending_entry_regime4_owner = None
+                pending_entry = _SpotPendingEntry()
 
         if pending_decision is not None and pending_decision.pending_clear_entry:
-            pending_entry_dir = None
-            pending_entry_branch = None
-            pending_entry_set_date = None
-            pending_entry_due_ts = None
-            pending_entry_regime2_bear_hard_dir = None
-            pending_entry_regime2_bear_hard_ready = False
-            pending_entry_regime2_bear_hard_release_age_bars = None
-            pending_entry_regime4_state = None
-            pending_entry_regime4_transition_hot = False
-            pending_entry_regime4_owner = None
+            pending_entry = _SpotPendingEntry()
 
         # Dynamic shock SL/PT: apply the shock multipliers to *open* trades using the shock
         # state from the prior execution bar (no lookahead within this bar).
@@ -2776,23 +2569,14 @@ def _run_spot_backtest_exec_loop(
                     pending_exit_all = True
                     pending_exit_reason = "flip"
                     pending_exit_due_ts = due_ts
-                    if lifecycle.queue_reentry_dir in ("up", "down") and pending_entry_dir is None:
-                        pending_entry_dir = str(lifecycle.queue_reentry_dir)
-                        pending_entry_branch = entry_signal_branch if entry_signal_branch in ("a", "b") else None
-                        pending_entry_set_date = bar_day
-                        pending_entry_due_ts = due_ts
-                        pending_entry_regime2_bear_hard_dir = (
-                            str(entry_regime2_bear_hard_dir) if entry_regime2_bear_hard_dir in ("up", "down") else None
+                    if lifecycle.queue_reentry_dir in ("up", "down") and not pending_entry.active:
+                        pending_entry = _SpotPendingEntry.from_signal(
+                            direction=str(lifecycle.queue_reentry_dir),
+                            branch=entry_signal_branch,
+                            set_date=bar_day,
+                            due_ts=due_ts,
+                            snapshot=sig_snap,
                         )
-                        pending_entry_regime2_bear_hard_ready = bool(entry_regime2_bear_hard_ready)
-                        pending_entry_regime2_bear_hard_release_age_bars = (
-                            int(entry_regime2_bear_hard_release_age_bars)
-                            if entry_regime2_bear_hard_release_age_bars is not None
-                            else None
-                        )
-                        pending_entry_regime4_state = str(entry_regime4_state) if entry_regime4_state else None
-                        pending_entry_regime4_transition_hot = bool(entry_regime4_transition_hot)
-                        pending_entry_regime4_owner = str(entry_regime4_owner) if entry_regime4_owner else None
                     still_open.append(trade)
                     continue
 
@@ -2855,7 +2639,7 @@ def _run_spot_backtest_exec_loop(
             cooldown_bars=filters.cooldown_bars if filters else 0,
         )
         effective_open = len(open_trades)
-        if pending_entry_dir is not None:
+        if pending_entry.active:
             effective_open += 1
         entry_plan = None
         if entry_ok and effective_open == 0:
@@ -2873,7 +2657,7 @@ def _run_spot_backtest_exec_loop(
             )
             if next_bar is None and entry_plan.deferred:
                 entry_plan = replace(entry_plan, due_ts=None, allowed=False, reason="no_next_bar")
-        next_open_ok = bool(entry_plan is not None and entry_plan.allowed and pending_entry_dir is None)
+        next_open_ok = bool(entry_plan is not None and entry_plan.allowed and not pending_entry.active)
         entry_decision = _spot_flat_entry_decision_from_signal(
             policy=policy,
             strategy=cfg.strategy,
@@ -2903,7 +2687,7 @@ def _run_spot_backtest_exec_loop(
             shock_dir=shock_dir,
             open_count=int(effective_open),
             entries_today=int(entries_today),
-            pending_exists=bool(pending_entry_dir is not None or pending_exit_all),
+            pending_exists=bool(pending_entry.active or pending_exit_all),
             next_open_allowed=bool(next_open_ok),
             exit_mode=exit_mode,
             atr_value=float(atr) if atr is not None else None,
@@ -3000,29 +2784,17 @@ def _run_spot_backtest_exec_loop(
                     can_schedule = bool(
                         entry_schedule.allowed
                         and entry_schedule.due_ts is not None
-                        and pending_entry_dir is None
+                        and not pending_entry.active
                     )
                     if can_schedule:
-                        pending_entry_dir = direction
-                        pending_entry_branch = entry_signal_branch if entry_signal_branch in ("a", "b") else None
-                        pending_entry_set_date = bar_day
-                        pending_entry_due_ts = entry_schedule.due_ts
-                        pending_entry_regime2_bear_hard_dir = (
-                            str(entry_regime2_bear_hard_dir) if entry_regime2_bear_hard_dir in ("up", "down") else None
-                        )
-                        pending_entry_regime2_bear_hard_ready = bool(entry_regime2_bear_hard_ready)
-                        pending_entry_regime2_bear_hard_release_age_bars = (
-                            int(entry_regime2_bear_hard_release_age_bars)
-                            if entry_regime2_bear_hard_release_age_bars is not None
-                            else None
-                        )
-                        pending_entry_regime4_state = str(entry_regime4_state) if entry_regime4_state else None
-                        pending_entry_regime4_transition_hot = bool(entry_regime4_transition_hot)
-                        pending_entry_guard_probe = (
-                            dict(entry_guard_probe_now) if isinstance(entry_guard_probe_now, dict) else None
-                        )
-                        pending_entry_guard_inputs = (
-                            dict(entry_guard_inputs_now) if isinstance(entry_guard_inputs_now, dict) else None
+                        pending_entry = _SpotPendingEntry.from_signal(
+                            direction=direction,
+                            branch=entry_signal_branch,
+                            set_date=bar_day,
+                            due_ts=entry_schedule.due_ts,
+                            snapshot=sig_snap,
+                            guard_probe=entry_guard_probe_now,
+                            guard_inputs=entry_guard_inputs_now,
                         )
                         last_entry_sig_idx = int(sig_idx)
                 else:
@@ -3031,93 +2803,39 @@ def _run_spot_backtest_exec_loop(
                         policy=policy,
                         cfg=cfg,
                         meta=meta,
-                        entry_signal=entry_signal,
                         entry_dir=direction,
                         entry_branch=entry_signal_branch if entry_signal_branch in ("a", "b") else None,
                         entry_leg=spot_leg,
                         entry_time=sig_bar.ts,
                         entry_ref_price=float(bar.close),
                         mark_ref_price=float(bar.close),
-                        atr_value=float(atr) if atr is not None else None,
-                        exit_mode=exit_mode,
                         orb_engine=orb_engine,
-                        filters=filters,
-                        shock_now=shock,
-                        shock_dir_now=shock_dir,
-                        shock_atr_pct_now=shock_atr_pct,
-                        shock_dir_down_streak_bars_now=(
-                            int(shock_dir_down_streak_bars) if shock_dir_down_streak_bars is not None else None
+                        evidence=_SpotEntryEvidence.from_signal(
+                            snapshot=sig_snap,
+                            shock=shock,
+                            shock_dir=shock_dir,
+                            shock_atr_pct=shock_atr_pct,
+                            riskoff=riskoff_today,
+                            riskpanic=riskpanic_today,
+                            riskpop=riskpop_today,
+                            risk_snapshot=evaluator.last_risk if risk_overlay_enabled else None,
+                            guard_probe=entry_guard_probe_now,
+                            guard_inputs=entry_guard_inputs_now,
+                            local_extrema=_spot_local_extrema_probe(
+                                bars=exec_bars,
+                                exec_idx=int(idx),
+                                ref_price=float(bar.close),
+                                bar_size=spot_exec_bar_size,
+                            ),
                         ),
-                        shock_drawdown_dist_on_pct_now=(
-                            float(shock_drawdown_dist_on_pct) if shock_drawdown_dist_on_pct is not None else None
-                        ),
-                        shock_drawdown_dist_on_vel_pp_now=(
-                            float(shock_drawdown_dist_on_vel_pp) if shock_drawdown_dist_on_vel_pp is not None else None
-                        ),
-                        shock_drawdown_dist_on_accel_pp_now=(
-                            float(getattr(last_sig_snap, "shock_drawdown_dist_on_accel_pp", 0.0))
-                            if last_sig_snap is not None
-                            and getattr(last_sig_snap, "shock_drawdown_dist_on_accel_pp", None) is not None
-                            else None
-                        ),
-                        shock_prearm_down_streak_bars_now=(
-                            int(getattr(last_sig_snap, "shock_prearm_down_streak_bars", 0))
-                            if last_sig_snap is not None
-                            and getattr(last_sig_snap, "shock_prearm_down_streak_bars", None) is not None
-                            else None
-                        ),
-                        shock_ramp_now=(
-                            dict(getattr(last_sig_snap, "shock_ramp"))
-                            if last_sig_snap is not None and isinstance(getattr(last_sig_snap, "shock_ramp", None), dict)
-                            else None
-                        ),
-                        signal_entry_dir_now=(
-                            str(entry_signal_dir) if entry_signal_dir in ("up", "down") else None
-                        ),
-                        signal_regime_dir_now=(
-                            str(entry_regime_dir) if entry_regime_dir in ("up", "down") else None
-                        ),
-                        regime2_dir_now=(
-                            str(entry_regime2_dir) if entry_regime2_dir in ("up", "down") else None
-                        ),
-                        regime2_ready_now=bool(entry_regime2_ready),
-                        regime2_bear_hard_dir_now=(
-                            str(entry_regime2_bear_hard_dir)
-                            if entry_regime2_bear_hard_dir in ("up", "down")
-                            else None
-                        ),
-                        regime2_bear_hard_ready_now=bool(entry_regime2_bear_hard_ready),
-                        regime2_bear_hard_release_age_bars_now=(
-                            int(entry_regime2_bear_hard_release_age_bars)
-                            if entry_regime2_bear_hard_release_age_bars is not None
-                            else None
-                        ),
-                        regime4_state_now=str(entry_regime4_state) if entry_regime4_state else None,
-                        regime4_transition_hot_now=bool(entry_regime4_transition_hot),
-                        regime4_owner_now=str(entry_regime4_owner) if entry_regime4_owner else None,
-                        riskoff_today=bool(riskoff_today),
-                        riskpanic_today=bool(riskpanic_today),
-                        riskpop_today=bool(riskpop_today),
-                        risk_snapshot=evaluator.last_risk if risk_overlay_enabled else None,
-                        entry_guard_probe_now=entry_guard_probe_now,
-                        entry_guard_inputs_now=entry_guard_inputs_now,
-                        entry_local_extrema_probe_now=_spot_local_extrema_probe(
-                            bars=exec_bars,
-                            exec_idx=int(idx),
-                            ref_price=float(bar.close),
-                            bar_size=spot_exec_bar_size,
-                        ),
+                        exec_profile=exec_profile,
                         cash=float(cash),
                         margin_used=float(margin_used),
                         liquidation_value=float(liquidation_close),
-                        spread=float(spot_spread),
-                        commission_per_share=float(spot_commission),
-                        commission_min=float(spot_commission_min),
-                        slippage_per_share=float(spot_slippage),
-                        mark_to_market=str(spot_mark_to_market),
                     )
                     if opened is not None:
-                        cash, margin_used = _spot_apply_opened_trade(opened=opened, open_trades=open_trades)
+                        candidate, cash, margin_used = opened
+                        open_trades.append(candidate)
                         entries_today += 1
                         last_entry_sig_idx = int(sig_idx)
 
