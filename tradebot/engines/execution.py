@@ -548,3 +548,81 @@ class ExecutionPolicy:
 
 
 EXECUTION_POLICY = ExecutionPolicy()
+
+
+def execution_mode_label(mode: str) -> str:
+    """Return the compact operator label for an execution mode."""
+
+    return {
+        "RELENTLESS": "RLT",
+        "RELENTLESS_DELAY": "RLT⚔Delay",
+        "OPTIMISTIC": "OPT",
+        "AGGRESSIVE": "AGG",
+    }.get(mode, mode)
+
+
+def execution_price(
+    contract: object,
+    ticker: object | None,
+    mode: str,
+    action: str,
+    *,
+    bid: float | None,
+    ask: float | None,
+    last: float | None,
+    fallback_price: float | None,
+    custom_price: float | None,
+    policy: ExecutionPolicy = EXECUTION_POLICY,
+    elapsed_sec: float = 0.0,
+    quote_stale: bool = False,
+    open_shock: bool = False,
+    no_progress_reprices: int = 0,
+    arrival_ref: float | None = None,
+    recent_spreads: Iterable[float] = (),
+    delay_recoveries: int = 0,
+    delay_anchor_price: float | None = None,
+    delay_sweep_anchor_price: float | None = None,
+    delay_locked_price_dir: float | None = None,
+) -> float | None:
+    """Price one limit-order mode from normalized market and policy inputs."""
+
+    last_ref = last if last is not None else (
+        bid if bid is not None else (ask if ask is not None else fallback_price)
+    )
+    tick = _tick_size(contract, ticker, last_ref)
+    if mode == "CUSTOM":
+        custom = _round_to_tick(custom_price, tick)
+        return custom if custom is not None else _round_to_tick(last_ref, tick)
+    if mode in ("RELENTLESS", "RELENTLESS_DELAY") and (
+        mode == "RELENTLESS" or int(delay_recoveries) <= 0
+    ):
+        direction = _finite_float(delay_locked_price_dir)
+        if direction is not None:
+            direction = 1.0 if direction >= 0 else -1.0
+        return policy.relentless_price(
+            action=action,
+            bid=bid,
+            ask=ask,
+            last_ref=last_ref,
+            tick=tick,
+            elapsed_sec=elapsed_sec,
+            quote_stale=bool(quote_stale),
+            open_shock=bool(open_shock),
+            no_progress_reprices=int(no_progress_reprices),
+            arrival_ref=arrival_ref,
+            recent_spreads=recent_spreads,
+            direction_sign_override=direction if mode == "RELENTLESS_DELAY" else None,
+        )
+    if mode == "RELENTLESS_DELAY":
+        return policy.delay_price(
+            action=action,
+            bid=bid,
+            ask=ask,
+            last_ref=last_ref,
+            tick=tick,
+            recoveries=int(delay_recoveries),
+            cap_price=delay_anchor_price,
+            sweep_anchor_price=delay_sweep_anchor_price,
+        )
+    value = _limit_price_for_mode(bid, ask, last_ref, action=action, mode=mode)
+    return _round_to_tick(value if value is not None else last_ref, tick)

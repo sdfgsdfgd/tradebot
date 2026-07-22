@@ -1,13 +1,15 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import replace
 from types import SimpleNamespace
 from time import monotonic
 
 from ib_insync import Contract, PortfolioItem
 
 from tradebot.engines.execution import EXECUTION_POLICY, _exec_chase_mode
-from tradebot.ui.positions import PositionDetailScreen, _DETAIL_CHASE_STATE_BY_ORDER
+from tradebot.live.execution import CHASE_STATE_BY_ORDER
+from tradebot.ui.positions import PositionDetailScreen
 
 
 def _fut_item(contract: Contract, *, position: float = 0.0, market_price: float = 5000.0) -> PortfolioItem:
@@ -528,7 +530,7 @@ def test_relentless_delay_locked_direction_biases_relentless_continuation() -> N
 
 def test_relentless_delay_first_202_reanchors_to_rejected_price() -> None:
     _ensure_event_loop()
-    _DETAIL_CHASE_STATE_BY_ORDER.clear()
+    CHASE_STATE_BY_ORDER.clear()
     contract = Contract(secType="FOP", symbol="MNQ", exchange="CME", currency="USD")
     contract.conId = 750150193
     contract.minTick = 0.5
@@ -589,11 +591,14 @@ def test_relentless_delay_first_202_reanchors_to_rejected_price() -> None:
     )
     client = _Client()
     screen = PositionDetailScreen(client, _fut_item(contract, market_price=110.5), refresh_sec=0.25)
-    screen._RELENTLESS_DELAY_RECOVER_COOLDOWN_SEC = 0.0
-    screen._RELENTLESS_MIN_REPRICE_SEC = 0.0
-    screen._RELENTLESS_MIN_REPRICE_SEC_SHOCK = 0.0
-    screen._RELENTLESS_MIN_REPRICE_SEC_HYPER = 0.0
-    screen._set_chase_state(
+    screen._policy = replace(
+        EXECUTION_POLICY,
+        delay_recover_cooldown_sec=0.0,
+        min_reprice_sec=0.0,
+        shock_min_reprice_sec=0.0,
+        hyper_min_reprice_sec=0.0,
+    )
+    screen._execution.update_state(
         order_id=612,
         perm_id=0,
         updates={
@@ -603,7 +608,7 @@ def test_relentless_delay_first_202_reanchors_to_rejected_price() -> None:
         },
     )
     captured_updates: list[dict[str, object]] = []
-    original_set_chase_state = screen._set_chase_state
+    original_set_chase_state = screen._execution.update_state
 
     def _capture_set_chase_state(
         *,
@@ -615,11 +620,11 @@ def test_relentless_delay_first_202_reanchors_to_rejected_price() -> None:
             captured_updates.append(dict(updates))
         return original_set_chase_state(order_id=order_id, perm_id=perm_id, updates=updates)
 
-    screen._set_chase_state = _capture_set_chase_state  # type: ignore[method-assign]
+    screen._execution.update_state = _capture_set_chase_state  # type: ignore[method-assign]
     try:
         asyncio.run(screen._chase_until_filled(trade, "BUY", mode="RELENTLESS_DELAY"))
     finally:
-        _DETAIL_CHASE_STATE_BY_ORDER.clear()
+        CHASE_STATE_BY_ORDER.clear()
 
     sweep_updates = [
         payload
@@ -633,7 +638,7 @@ def test_relentless_delay_first_202_reanchors_to_rejected_price() -> None:
 
 def test_relentless_delay_settle_locks_winning_side_for_directional_relentless() -> None:
     _ensure_event_loop()
-    _DETAIL_CHASE_STATE_BY_ORDER.clear()
+    CHASE_STATE_BY_ORDER.clear()
     contract = Contract(secType="FOP", symbol="MNQ", exchange="CME", currency="USD")
     contract.conId = 750150193
     contract.minTick = 0.5
@@ -689,11 +694,14 @@ def test_relentless_delay_settle_locks_winning_side_for_directional_relentless()
     client = _Client()
     screen = PositionDetailScreen(client, _fut_item(contract, market_price=110.5), refresh_sec=0.25)
     screen._CHASE_MODIFY_ERROR_BACKOFF_SEC = 0.0
-    screen._RELENTLESS_MIN_REPRICE_SEC = 0.0
-    screen._RELENTLESS_MIN_REPRICE_SEC_SHOCK = 0.0
-    screen._RELENTLESS_MIN_REPRICE_SEC_HYPER = 0.0
-    screen._RELENTLESS_DELAY_RECOVER_COOLDOWN_SEC = 0.0
-    screen._set_chase_state(
+    screen._policy = replace(
+        EXECUTION_POLICY,
+        min_reprice_sec=0.0,
+        shock_min_reprice_sec=0.0,
+        hyper_min_reprice_sec=0.0,
+        delay_recover_cooldown_sec=0.0,
+    )
+    screen._execution.update_state(
         order_id=613,
         perm_id=0,
         updates={
@@ -705,7 +713,7 @@ def test_relentless_delay_settle_locks_winning_side_for_directional_relentless()
         },
     )
     captured_updates: list[dict[str, object]] = []
-    original_set_chase_state = screen._set_chase_state
+    original_set_chase_state = screen._execution.update_state
 
     def _capture_set_chase_state(
         *,
@@ -717,11 +725,11 @@ def test_relentless_delay_settle_locks_winning_side_for_directional_relentless()
             captured_updates.append(dict(updates))
         return original_set_chase_state(order_id=order_id, perm_id=perm_id, updates=updates)
 
-    screen._set_chase_state = _capture_set_chase_state  # type: ignore[method-assign]
+    screen._execution.update_state = _capture_set_chase_state  # type: ignore[method-assign]
     try:
         asyncio.run(screen._chase_until_filled(trade, "SELL", mode="RELENTLESS_DELAY"))
     finally:
-        _DETAIL_CHASE_STATE_BY_ORDER.clear()
+        CHASE_STATE_BY_ORDER.clear()
 
     assert modified_prices
     assert float(modified_prices[0]) > 106.0
@@ -1052,10 +1060,13 @@ def test_relentless_delay_recovers_from_ib202_before_repricing() -> None:
     client = _Client()
     screen = PositionDetailScreen(client, _fut_item(contract, market_price=110.5), refresh_sec=0.25)
     screen._CHASE_MODIFY_ERROR_BACKOFF_SEC = 0.0
-    screen._RELENTLESS_MIN_REPRICE_SEC = 0.0
-    screen._RELENTLESS_MIN_REPRICE_SEC_SHOCK = 0.0
-    screen._RELENTLESS_MIN_REPRICE_SEC_HYPER = 0.0
-    screen._RELENTLESS_DELAY_RECOVER_COOLDOWN_SEC = 0.0
+    screen._policy = replace(
+        EXECUTION_POLICY,
+        min_reprice_sec=0.0,
+        shock_min_reprice_sec=0.0,
+        hyper_min_reprice_sec=0.0,
+        delay_recover_cooldown_sec=0.0,
+    )
 
     asyncio.run(screen._chase_until_filled(trade, "BUY", mode="RELENTLESS_DELAY"))
 
@@ -1153,12 +1164,15 @@ def test_relentless_delay_wraps_202_sweep_instead_of_halting_at_attempt_cap() ->
     )
     client = _Client()
     screen = PositionDetailScreen(client, _fut_item(contract, market_price=110.5), refresh_sec=0.25)
-    screen._RELENTLESS_DELAY_RECOVER_ATTEMPTS = 4
-    screen._RELENTLESS_DELAY_RECOVER_COOLDOWN_SEC = 0.0
+    screen._policy = replace(
+        EXECUTION_POLICY,
+        delay_recover_attempts=4,
+        delay_recover_cooldown_sec=0.0,
+    )
 
     asyncio.run(screen._chase_until_filled(trade, "BUY", mode="RELENTLESS_DELAY"))
 
-    assert client.place_calls > int(screen._RELENTLESS_DELAY_RECOVER_ATTEMPTS)
+    assert client.place_calls > screen._policy.delay_recover_attempts
     notice = screen._orders_notice_line()
     if notice is not None:
         assert "Chase halted" not in notice.plain
@@ -1375,7 +1389,7 @@ def test_order_line_shows_effective_status_hint_when_diverged() -> None:
         order=SimpleNamespace(orderId=321, permId=0, action="BUY", totalQuantity=1, orderType="LMT", lmtPrice=100.0),
         orderStatus=SimpleNamespace(status="PendingSubmission", filled=0.0, remaining=1.0),
     )
-    screen._set_chase_state(
+    screen._execution.update_state(
         order_id=321,
         perm_id=0,
         updates={
@@ -1389,7 +1403,7 @@ def test_order_line_shows_effective_status_hint_when_diverged() -> None:
 
     assert "PendingSu" in line.plain
     assert "~Submitted" in line.plain
-    screen._clear_chase_state(order_id=321, perm_id=0)
+    screen._execution.clear_state(order_id=321, perm_id=0)
 
 
 def test_order_line_uses_client_current_effective_status_hint() -> None:
@@ -1456,7 +1470,7 @@ def test_cancel_order_surfaces_cancel_not_found_error() -> None:
 
 def test_action_cancel_order_halts_relentless_chase_repricing_before_ack() -> None:
     _ensure_event_loop()
-    _DETAIL_CHASE_STATE_BY_ORDER.clear()
+    CHASE_STATE_BY_ORDER.clear()
     contract = Contract(secType="FUT", symbol="MNQ", exchange="CME", currency="USD")
     contract.conId = 750150193
 
@@ -1534,9 +1548,12 @@ def test_action_cancel_order_halts_relentless_chase_repricing_before_ack() -> No
     screen = PositionDetailScreen(client, _fut_item(contract), refresh_sec=0.25)
     screen._render_details = lambda *args, **kwargs: None  # type: ignore[method-assign]
     screen._render_details_if_mounted = lambda *args, **kwargs: None  # type: ignore[method-assign]
-    screen._RELENTLESS_MIN_REPRICE_SEC = 0.1
-    screen._RELENTLESS_MIN_REPRICE_SEC_SHOCK = 0.1
-    screen._RELENTLESS_MIN_REPRICE_SEC_HYPER = 0.1
+    screen._policy = replace(
+        EXECUTION_POLICY,
+        min_reprice_sec=0.1,
+        shock_min_reprice_sec=0.1,
+        hyper_min_reprice_sec=0.1,
+    )
     screen._active_panel = "orders"
     screen._orders_rows = [trade]
     screen._orders_selected = 0
@@ -1544,7 +1561,7 @@ def test_action_cancel_order_halts_relentless_chase_repricing_before_ack() -> No
     async def _run() -> tuple[int, int]:
         chase = asyncio.create_task(screen._chase_until_filled(trade, "SELL", mode="RELENTLESS"))
         screen._chase_tasks.add(chase)
-        screen._register_chase_task(chase, order_id=360, perm_id=0)
+        screen._execution.register_task(chase, order_id=360, perm_id=0)
         await asyncio.sleep(0.9)
         before = int(client.modify_calls)
         screen.action_cancel_order()
@@ -1566,12 +1583,12 @@ def test_action_cancel_order_halts_relentless_chase_repricing_before_ack() -> No
 
 def test_chase_state_survives_order_id_transition_from_perm_id() -> None:
     _ensure_event_loop()
-    _DETAIL_CHASE_STATE_BY_ORDER.clear()
+    CHASE_STATE_BY_ORDER.clear()
     contract = Contract(secType="FUT", symbol="1OZ", exchange="COMEX", currency="USD")
     contract.conId = 753716628
     screen = PositionDetailScreen(SimpleNamespace(), _fut_item(contract), refresh_sec=0.25)
 
-    screen._set_chase_state(
+    screen._execution.update_state(
         order_id=0,
         perm_id=456001,
         updates={
@@ -1581,7 +1598,7 @@ def test_chase_state_survives_order_id_transition_from_perm_id() -> None:
             "mods": 0,
         },
     )
-    screen._set_chase_state(
+    screen._execution.update_state(
         order_id=2619,
         perm_id=456001,
         updates={
@@ -1599,8 +1616,8 @@ def test_chase_state_survives_order_id_transition_from_perm_id() -> None:
 
     assert "Chase #2619" in line.plain
     assert "AUTO->MID" in line.plain
-    assert _DETAIL_CHASE_STATE_BY_ORDER.get(2619) is _DETAIL_CHASE_STATE_BY_ORDER.get(456001)
-    screen._clear_chase_state(order_id=2619, perm_id=456001)
+    assert CHASE_STATE_BY_ORDER.get(2619) is CHASE_STATE_BY_ORDER.get(456001)
+    screen._execution.clear_state(order_id=2619, perm_id=456001)
 
 
 def test_place_order_surfaces_chase_task_exception_in_order_feed() -> None:

@@ -25,14 +25,10 @@ from ..chart_data.realtime import (
 )
 from ..client import IBKRClient
 from ..engines.execution import (
-    _EXEC_AUTO_TIMEOUT_SEC,
-    _EXEC_LADDER_TIMEOUT_SEC,
-    _EXEC_RELENTLESS_TIMEOUT_SEC,
     EXECUTION_POLICY,
     _aggressive_price,
-    _exec_chase_mode,
-    _exec_chase_quote_signature,
-    _exec_chase_should_reprice,
+    execution_mode_label,
+    execution_price,
     _limit_price_for_mode,
     _midpoint,
     _optimistic_price,
@@ -41,6 +37,7 @@ from ..engines.execution import (
     _tick_decimals,
     _tick_size,
 )
+from ..live.execution import LiveOrderExecution, order_ids
 from .common import (
     _append_digit,
     _cost_basis,
@@ -63,8 +60,6 @@ from .common import (
     _unrealized_pnl_values,
 )
 from .time_compat import now_et as _now_et
-
-_DETAIL_CHASE_STATE_BY_ORDER: dict[int, dict[str, object]] = {}
 
 class PositionDetailScreen(Screen):
     BINDINGS = [
@@ -101,7 +96,6 @@ class PositionDetailScreen(Screen):
     _CHASE_RECONCILE_INTERVAL_SEC = 0.9
     _CHASE_FORCE_RECONCILE_INTERVAL_SEC = 5.0
     _CHASE_MODIFY_ERROR_BACKOFF_SEC = 1.0
-    _CANCEL_REQUEST_TTL_SEC = 90.0
     _STREAM_RENDER_DEBOUNCE_SEC = 0.08
     _MD_PROBE_BANNER_TTL_SEC = 10.0
     _DERIVATIVE_ACTIONABLE_STICKY_SEC = 40.0
@@ -152,8 +146,14 @@ class PositionDetailScreen(Screen):
         self._orders_notice: tuple[float, str, str] | None = None
         self._refresh_task = None
         self._chase_tasks: set[asyncio.Task] = set()
-        self._chase_task_by_order: dict[int, asyncio.Task] = {}
-        self._cancel_requested_at_by_order: dict[int, float] = {}
+        self._policy = EXECUTION_POLICY
+        self._execution = LiveOrderExecution(
+            client=client,
+            error_max_age_sec=self._ORDER_PANEL_NOTICE_TTL_SEC,
+            price_for_mode=self._exec_price_for_mode,
+            recent_spreads=lambda: self._chart.spread_samples,
+            on_update=self._on_chase_update,
+        )
         self._chart = RealtimeChartData(
             window_sec=self._TREND_WINDOW_SEC,
             retention_sec=self._TREND_RETENTION_SEC,
@@ -422,9 +422,9 @@ class PositionDetailScreen(Screen):
             self._set_orders_notice(self._exec_status, level="warn")
             self._render_details(sample=False)
             return
-        order_id_raw, perm_id_raw = self._trade_order_ids(trade)
-        self._mark_cancel_requested(order_id=order_id_raw, perm_id=perm_id_raw)
-        self._cancel_chase_for_ids(order_id=order_id_raw, perm_id=perm_id_raw)
+        order_id_raw, perm_id_raw = order_ids(trade)
+        self._execution.mark_cancel_requested(order_id=order_id_raw, perm_id=perm_id_raw)
+        self._execution.cancel_task(order_id=order_id_raw, perm_id=perm_id_raw)
         order_id = order_id_raw or perm_id_raw or 0
         self._exec_status = f"Canceling #{order_id}"
         self._set_orders_notice(self._exec_status, level="warn")
@@ -704,6 +704,18 @@ class PositionDetailScreen(Screen):
             cleaned_level = "info"
         self._orders_notice = (monotonic(), cleaned_level, text)
 
+    def _on_chase_update(
+        self,
+        status: str | None,
+        notice: str | None,
+        level: str,
+    ) -> None:
+        if status is not None:
+            self._exec_status = status
+        if notice is not None:
+            self._set_orders_notice(notice, level=level)
+        self._render_details_if_mounted(sample=False)
+
     def _orders_notice_line(self) -> Text | None:
         payload = self._orders_notice
         if payload is None:
@@ -724,71 +736,6 @@ class PositionDetailScreen(Screen):
         line.append(str(message), style=style)
         return line
 
-    def _consume_order_error(self, order_id: int, perm_id: int = 0) -> tuple[int, str] | None:
-        candidate_ids: list[int] = []
-        for raw_id in (order_id, perm_id):
-            try:
-                candidate = int(raw_id or 0)
-            except (TypeError, ValueError):
-                candidate = 0
-            if candidate <= 0 or candidate in candidate_ids:
-                continue
-            candidate_ids.append(int(candidate))
-        if not candidate_ids:
-            return None
-        pop_order_error = getattr(self._client, "pop_order_error", None)
-        if not callable(pop_order_error):
-            return None
-
-        def _pop_error(order_ref: int):
-            try:
-                return pop_order_error(
-                    int(order_ref),
-                    max_age_sec=float(self._ORDER_PANEL_NOTICE_TTL_SEC),
-                )
-            except TypeError:
-                try:
-                    return pop_order_error(int(order_ref))
-                except Exception:
-                    return None
-            except Exception:
-                return None
-
-        payload = None
-        for candidate in candidate_ids:
-            payload = _pop_error(int(candidate))
-            if isinstance(payload, dict):
-                break
-        if not isinstance(payload, dict):
-            return None
-        try:
-            code = int(payload.get("code") or 0)
-        except (TypeError, ValueError):
-            code = 0
-        message = str(payload.get("message") or "").strip()
-        if not message:
-            return None
-        return code, message
-
-    async def _await_order_error(
-        self,
-        order_id: int,
-        perm_id: int = 0,
-        *,
-        attempts: int = 4,
-        interval_sec: float = 0.1,
-    ) -> tuple[int, str] | None:
-        payload = self._consume_order_error(order_id, perm_id)
-        if payload is not None:
-            return payload
-        loops = max(0, int(attempts) - 1)
-        pause = max(0.01, float(interval_sec))
-        for _ in range(loops):
-            await asyncio.sleep(pause)
-            payload = self._consume_order_error(order_id, perm_id)
-            if payload is not None:
-                return payload
-        return None
 
     def _capture_tick_mid(self) -> None:
         self._sync_bound_tickers()
@@ -1405,19 +1352,7 @@ class PositionDetailScreen(Screen):
 
     @staticmethod
     def _exec_mode_label(mode: str) -> str:
-        if mode == "AUTO":
-            return "AUTO"
-        if mode == "RELENTLESS":
-            return "RLT"
-        if mode == "RELENTLESS_DELAY":
-            return "RLT⚔Delay"
-        if mode == "CUSTOM":
-            return "CUSTOM"
-        if mode == "OPTIMISTIC":
-            return "OPT"
-        if mode == "AGGRESSIVE":
-            return "AGG"
-        return mode
+        return execution_mode_label(mode)
 
     def _selected_exec_mode(self) -> str:
         selected = self._exec_rows[self._exec_selected]
@@ -1895,14 +1830,14 @@ class PositionDetailScreen(Screen):
             (bid is not None and ask is not None and bid <= ask)
             or (last is not None)
         )
-        quote_stale = EXECUTION_POLICY.quote_is_stale(
+        quote_stale = self._policy.quote_is_stale(
             ticker=self._ticker,
             bid=bid,
             ask=ask,
             last=last,
         )
-        open_shock = EXECUTION_POLICY.in_open_shock(_now_et().time())
-        relentless_buy = EXECUTION_POLICY.relentless_price(
+        open_shock = self._policy.in_open_shock(_now_et().time())
+        relentless_buy = self._policy.relentless_price(
             action="BUY",
             bid=bid,
             ask=ask,
@@ -1915,7 +1850,7 @@ class PositionDetailScreen(Screen):
             arrival_ref=mid_raw or last_ref,
             recent_spreads=self._chart.spread_samples,
         )
-        relentless_sell = EXECUTION_POLICY.relentless_price(
+        relentless_sell = self._policy.relentless_price(
             action="SELL",
             bid=bid,
             ask=ask,
@@ -2179,101 +2114,6 @@ class PositionDetailScreen(Screen):
         lines.append(self._box_bottom(inner, style="#2f78c4"))
         self._detail_right.update(Text("\n").join(lines))
 
-    def _trade_order_id(self, trade: Trade) -> int:
-        order_id, perm_id = self._trade_order_ids(trade)
-        return order_id or perm_id
-
-    @staticmethod
-    def _trade_order_ids(trade: Trade) -> tuple[int, int]:
-        order = getattr(trade, "order", None)
-        try:
-            order_id = int(getattr(order, "orderId", 0) or 0)
-        except (TypeError, ValueError):
-            order_id = 0
-        try:
-            perm_id = int(getattr(order, "permId", 0) or 0)
-        except (TypeError, ValueError):
-            perm_id = 0
-        return max(0, order_id), max(0, perm_id)
-
-    def _latest_trade_for_ids(
-        self,
-        *,
-        order_id: int,
-        perm_id: int,
-        fallback: Trade,
-    ) -> Trade:
-        lookup = getattr(self._client, "trade_for_order_ids", None)
-        if not callable(lookup):
-            return fallback
-        try:
-            refreshed = lookup(
-                order_id=int(order_id),
-                perm_id=int(perm_id),
-                include_closed=True,
-            )
-        except TypeError:
-            try:
-                refreshed = lookup(int(order_id), int(perm_id))
-            except Exception:
-                refreshed = None
-        except Exception:
-            refreshed = None
-        if refreshed is None:
-            return fallback
-        return refreshed
-
-    async def _client_reconcile_order_state(
-        self,
-        *,
-        order_id: int,
-        perm_id: int,
-        force: bool = False,
-    ) -> dict[str, object] | None:
-        reconcile = getattr(self._client, "reconcile_order_state", None)
-        if not callable(reconcile):
-            return None
-        try:
-            payload = await reconcile(
-                order_id=int(order_id),
-                perm_id=int(perm_id),
-                force=bool(force),
-            )
-        except TypeError:
-            try:
-                payload = await reconcile(int(order_id), int(perm_id))
-            except Exception:
-                payload = None
-        except Exception:
-            payload = None
-        if not isinstance(payload, dict):
-            return None
-        return payload
-
-    def _client_current_order_state(
-        self,
-        *,
-        order_id: int,
-        perm_id: int,
-    ) -> dict[str, object] | None:
-        current_state = getattr(self._client, "current_order_state", None)
-        if not callable(current_state):
-            return None
-        try:
-            payload = current_state(
-                order_id=int(order_id),
-                perm_id=int(perm_id),
-            )
-        except TypeError:
-            try:
-                payload = current_state(int(order_id), int(perm_id))
-            except Exception:
-                payload = None
-        except Exception:
-            payload = None
-        if not isinstance(payload, dict):
-            return None
-        return payload
 
     @staticmethod
     def _status_compact(status: str) -> str:
@@ -2281,91 +2121,6 @@ class PositionDetailScreen(Screen):
         if not text:
             return "n/a"
         return text.replace("PreSubmitted", "PreSub")[:9]
-
-    @staticmethod
-    def _state_order_keys(*, order_id: int, perm_id: int) -> list[int]:
-        keys: list[int] = []
-        if int(order_id or 0) > 0:
-            keys.append(int(order_id))
-        if int(perm_id or 0) > 0 and int(perm_id) not in keys:
-            keys.append(int(perm_id))
-        return keys
-
-    def _chase_state_for_ids(self, *, order_id: int, perm_id: int) -> dict[str, object] | None:
-        for key in self._state_order_keys(order_id=order_id, perm_id=perm_id):
-            state = _DETAIL_CHASE_STATE_BY_ORDER.get(int(key))
-            if isinstance(state, dict):
-                return state
-        return None
-
-    def _register_chase_task(self, task: asyncio.Task, *, order_id: int, perm_id: int) -> None:
-        for key in self._state_order_keys(order_id=order_id, perm_id=perm_id):
-            self._chase_task_by_order[int(key)] = task
-
-    def _unregister_chase_task(self, task: asyncio.Task) -> None:
-        for key, value in list(self._chase_task_by_order.items()):
-            if value is task:
-                self._chase_task_by_order.pop(int(key), None)
-
-    def _cancel_chase_for_ids(self, *, order_id: int, perm_id: int) -> None:
-        tasks: set[asyncio.Task] = set()
-        for key in self._state_order_keys(order_id=order_id, perm_id=perm_id):
-            task = self._chase_task_by_order.get(int(key))
-            if task is not None:
-                tasks.add(task)
-        for task in tasks:
-            if not task.done():
-                task.cancel()
-
-    def _mark_cancel_requested(self, *, order_id: int, perm_id: int) -> None:
-        ts = monotonic()
-        for key in self._state_order_keys(order_id=order_id, perm_id=perm_id):
-            self._cancel_requested_at_by_order[int(key)] = float(ts)
-
-    def _clear_cancel_requested(self, *, order_id: int, perm_id: int) -> None:
-        for key in self._state_order_keys(order_id=order_id, perm_id=perm_id):
-            self._cancel_requested_at_by_order.pop(int(key), None)
-
-    def _cancel_requested_for_ids(self, *, order_id: int, perm_id: int) -> bool:
-        now = monotonic()
-        ttl = max(1.0, float(self._CANCEL_REQUEST_TTL_SEC))
-        for key in self._state_order_keys(order_id=order_id, perm_id=perm_id):
-            ts = self._cancel_requested_at_by_order.get(int(key))
-            if ts is None:
-                continue
-            if (now - float(ts)) <= ttl:
-                return True
-            self._cancel_requested_at_by_order.pop(int(key), None)
-        return False
-
-    def _set_chase_state(
-        self,
-        *,
-        order_id: int,
-        perm_id: int,
-        updates: dict[str, object] | None = None,
-    ) -> dict[str, object] | None:
-        keys = self._state_order_keys(order_id=order_id, perm_id=perm_id)
-        if not keys:
-            return None
-        state = self._chase_state_for_ids(order_id=order_id, perm_id=perm_id)
-        if state is None:
-            state = {}
-        if updates:
-            state.update(dict(updates))
-        for key in keys:
-            _DETAIL_CHASE_STATE_BY_ORDER[int(key)] = state
-        return state
-
-    def _clear_chase_state(self, *, order_id: int, perm_id: int) -> None:
-        keys = self._state_order_keys(order_id=order_id, perm_id=perm_id)
-        state = self._chase_state_for_ids(order_id=order_id, perm_id=perm_id)
-        if isinstance(state, dict):
-            for key, value in list(_DETAIL_CHASE_STATE_BY_ORDER.items()):
-                if value is state:
-                    _DETAIL_CHASE_STATE_BY_ORDER.pop(int(key), None)
-        for key in keys:
-            _DETAIL_CHASE_STATE_BY_ORDER.pop(int(key), None)
 
     def _armed_mode_line(self) -> Text:
         selected = self._selected_exec_mode()
@@ -2386,9 +2141,9 @@ class PositionDetailScreen(Screen):
 
     def _active_chase_line(self, trades: list[Trade]) -> Text:
         for trade in trades:
-            order_id, perm_id = self._trade_order_ids(trade)
+            order_id, perm_id = order_ids(trade)
             display_id = order_id or perm_id
-            state = self._chase_state_for_ids(order_id=order_id, perm_id=perm_id)
+            state = self._execution.state(order_id=order_id, perm_id=perm_id)
             if not isinstance(state, dict):
                 continue
             selected = str(state.get("selected") or "-")
@@ -2410,8 +2165,8 @@ class PositionDetailScreen(Screen):
         return Text("Chase idle", style="dim")
 
     def _order_mode_for_trade(self, trade: Trade) -> str:
-        order_id, perm_id = self._trade_order_ids(trade)
-        state = self._chase_state_for_ids(order_id=order_id, perm_id=perm_id)
+        order_id, perm_id = order_ids(trade)
+        state = self._execution.state(order_id=order_id, perm_id=perm_id)
         if not isinstance(state, dict):
             return "-"
         selected = str(state.get("selected") or "-")
@@ -2433,8 +2188,8 @@ class PositionDetailScreen(Screen):
     ) -> dict[int, dict[str, object]]:
         snapshot: dict[int, dict[str, object]] = {}
         for trade in trades:
-            order_id, perm_id = self._trade_order_ids(trade)
-            keys = self._state_order_keys(order_id=order_id, perm_id=perm_id)
+            order_id, perm_id = order_ids(trade)
+            keys = self._execution.keys(order_id=order_id, perm_id=perm_id)
             if not keys:
                 continue
             if all(int(key) in snapshot for key in keys):
@@ -2442,7 +2197,7 @@ class PositionDetailScreen(Screen):
             raw_status = str(getattr(getattr(trade, "orderStatus", None), "status", "") or "").strip()
             if not self._should_probe_effective_status(raw_status):
                 continue
-            payload = self._client_current_order_state(order_id=order_id, perm_id=perm_id)
+            payload = self._execution.current_order_state(order_id=order_id, perm_id=perm_id)
             if not isinstance(payload, dict):
                 continue
             for key in keys:
@@ -2455,16 +2210,16 @@ class PositionDetailScreen(Screen):
         *,
         state_snapshot: dict[int, dict[str, object]] | None = None,
     ) -> str | None:
-        order_id, perm_id = self._trade_order_ids(trade)
+        order_id, perm_id = order_ids(trade)
         raw_status = str(getattr(getattr(trade, "orderStatus", None), "status", "") or "").strip()
-        state = self._chase_state_for_ids(order_id=order_id, perm_id=perm_id)
+        state = self._execution.state(order_id=order_id, perm_id=perm_id)
         if isinstance(state, dict):
             effective = str(state.get("effective_status") or "").strip()
             if effective and effective != raw_status:
                 return effective
         payload = None
         if isinstance(state_snapshot, dict):
-            for key in self._state_order_keys(order_id=order_id, perm_id=perm_id):
+            for key in self._execution.keys(order_id=order_id, perm_id=perm_id):
                 candidate = state_snapshot.get(int(key))
                 if isinstance(candidate, dict):
                     payload = candidate
@@ -2472,7 +2227,7 @@ class PositionDetailScreen(Screen):
             if payload is None and not self._should_probe_effective_status(raw_status):
                 return None
         if payload is None:
-            payload = self._client_current_order_state(order_id=order_id, perm_id=perm_id)
+            payload = self._execution.current_order_state(order_id=order_id, perm_id=perm_id)
         if isinstance(payload, dict):
             effective = str(payload.get("effective_status") or "").strip()
             if effective and effective != raw_status:
@@ -2528,19 +2283,24 @@ class PositionDetailScreen(Screen):
         return self._orders_rows[idx]
 
     async def _cancel_order(self, trade: Trade) -> None:
-        order_id, perm_id = self._trade_order_ids(trade)
+        order_id, perm_id = order_ids(trade)
         order_ref = int(order_id or perm_id or 0)
-        self._mark_cancel_requested(order_id=order_id, perm_id=perm_id)
+        self._execution.mark_cancel_requested(order_id=order_id, perm_id=perm_id)
         try:
             await self._client.cancel_trade(trade)
         except Exception as exc:
             self._exec_status = f"Cancel error: {exc}"
             self._set_orders_notice(self._exec_status, level="error")
-            self._clear_cancel_requested(order_id=order_id, perm_id=perm_id)
+            self._execution.clear_cancel_requested(order_id=order_id, perm_id=perm_id)
             self._render_details(sample=False)
             return
         error_payload = (
-            await self._await_order_error(order_id, perm_id, attempts=4, interval_sec=0.1)
+            await self._execution.await_order_error(
+                order_id,
+                perm_id,
+                attempts=4,
+                interval_sec=0.1,
+            )
             if order_ref
             else None
         )
@@ -2559,9 +2319,12 @@ class PositionDetailScreen(Screen):
             ack_status = ""
             if order_ref:
                 for attempt in range(5):
-                    payload = self._client_current_order_state(order_id=order_id, perm_id=perm_id)
+                    payload = self._execution.current_order_state(
+                        order_id=order_id,
+                        perm_id=perm_id,
+                    )
                     if not isinstance(payload, dict) and attempt >= 2:
-                        payload = await self._client_reconcile_order_state(
+                        payload = await self._execution.reconcile_order_state(
                             order_id=order_id,
                             perm_id=perm_id,
                             force=bool(attempt >= 4),
@@ -2592,7 +2355,7 @@ class PositionDetailScreen(Screen):
                 "Filled",
             )
         if should_clear_cancel_intent:
-            self._clear_cancel_requested(order_id=order_id, perm_id=perm_id)
+            self._execution.clear_cancel_requested(order_id=order_id, perm_id=perm_id)
         self._render_details(sample=False)
 
     def _handle_digit(self, char: str) -> None:
@@ -2664,12 +2427,6 @@ class PositionDetailScreen(Screen):
         self._exec_custom_price = float(next_value)
         self._exec_custom_input = f"{self._exec_custom_price:.{_tick_decimals(tick)}f}"
 
-    @staticmethod
-    def _cap_price_hint_from_trade(trade: Trade) -> float | None:
-        cap = _safe_float(getattr(getattr(trade, "orderStatus", None), "mktCapPrice", None))
-        if cap is None or cap <= 0:
-            return None
-        return float(cap)
 
     def _submit_order(self, action: str) -> None:
         contract = self._item.contract
@@ -2726,7 +2483,7 @@ class PositionDetailScreen(Screen):
                 applied_price = float(price)
             mode_label = self._exec_mode_label(mode)
             self._exec_status = f"Sent {action} {qty} @ {float(applied_price):.2f} [{mode_label}]"
-            order_id, perm_id = self._trade_order_ids(trade)
+            order_id, perm_id = order_ids(trade)
             order_ref = order_id or perm_id
             if order_ref:
                 self._set_orders_notice(
@@ -2759,7 +2516,7 @@ class PositionDetailScreen(Screen):
                             "delay_locked_price_dir": None,
                         }
                     )
-                self._set_chase_state(
+                self._execution.update_state(
                     order_id=order_id,
                     perm_id=perm_id,
                     updates=updates,
@@ -2771,7 +2528,7 @@ class PositionDetailScreen(Screen):
             if loop is not None:
                 task = loop.create_task(self._chase_until_filled(trade, action, mode=mode))
                 self._chase_tasks.add(task)
-                self._register_chase_task(task, order_id=order_id, perm_id=perm_id)
+                self._execution.register_task(task, order_id=order_id, perm_id=perm_id)
 
                 def _on_chase_done(
                     done_task: asyncio.Task,
@@ -2780,7 +2537,7 @@ class PositionDetailScreen(Screen):
                     seed_perm_id: int = perm_id,
                 ) -> None:
                     self._chase_tasks.discard(done_task)
-                    self._unregister_chase_task(done_task)
+                    self._execution.unregister_task(done_task)
                     if done_task.cancelled():
                         return
                     try:
@@ -2817,7 +2574,7 @@ class PositionDetailScreen(Screen):
                 return custom
             return _round_to_tick(last_ref, tick) if last_ref is not None else None
         if mode in ("RELENTLESS", "RELENTLESS_DELAY"):
-            quote_stale = EXECUTION_POLICY.quote_is_stale(
+            quote_stale = self._policy.quote_is_stale(
                 ticker=self._ticker,
                 bid=bid,
                 ask=ask,
@@ -2832,7 +2589,7 @@ class PositionDetailScreen(Screen):
                 ticker=self._ticker,
                 elapsed_sec=0.0,
                 quote_stale=quote_stale,
-                open_shock=EXECUTION_POLICY.in_open_shock(_now_et().time()),
+                open_shock=self._policy.in_open_shock(_now_et().time()),
                 no_progress_reprices=0,
                 arrival_ref=_midpoint(bid, ask) or last_ref,
             )
@@ -2870,824 +2627,43 @@ class PositionDetailScreen(Screen):
         last = last if last is not None else (self._quote_num(self._ticker.last) if self._ticker else None)
         ticker_ref = ticker or self._ticker
         mark = _option_display_price(self._item, ticker_ref) if self._item.contract.secType in ("OPT", "FOP") else _mark_price(self._item)
-        last_ref = last if last is not None else (bid if bid is not None else (ask if ask is not None else mark))
-        tick = _tick_size(self._item.contract, ticker_ref, last_ref)
-        if mode == "CUSTOM":
-            custom = _round_to_tick(self._exec_custom_price, tick)
-            if custom is not None:
-                return custom
-            return _round_to_tick(last_ref, tick) if last_ref is not None else None
-        if mode == "RELENTLESS":
-            return EXECUTION_POLICY.relentless_price(
-                action=action,
-                bid=bid,
-                ask=ask,
-                last_ref=last_ref,
-                tick=tick,
-                elapsed_sec=elapsed_sec,
-                quote_stale=bool(quote_stale),
-                open_shock=bool(open_shock),
-                no_progress_reprices=int(no_progress_reprices),
-                arrival_ref=arrival_ref,
-                recent_spreads=self._chart.spread_samples,
-            )
-        if mode == "RELENTLESS_DELAY":
-            if int(delay_recoveries) <= 0:
-                locked_sign = _safe_float(delay_locked_price_dir)
-                if locked_sign is not None and math.isfinite(float(locked_sign)):
-                    locked_sign = 1.0 if float(locked_sign) >= 0 else -1.0
-                return EXECUTION_POLICY.relentless_price(
-                    action=action,
-                    bid=bid,
-                    ask=ask,
-                    last_ref=last_ref,
-                    tick=tick,
-                    elapsed_sec=elapsed_sec,
-                    quote_stale=bool(quote_stale),
-                    open_shock=bool(open_shock),
-                    no_progress_reprices=int(no_progress_reprices),
-                    arrival_ref=arrival_ref,
-                    recent_spreads=self._chart.spread_samples,
-                    direction_sign_override=locked_sign,
-                )
-            return EXECUTION_POLICY.delay_price(
-                action=action,
-                bid=bid,
-                ask=ask,
-                last_ref=last_ref,
-                tick=tick,
-                recoveries=int(delay_recoveries),
-                cap_price=delay_anchor_price,
-                sweep_anchor_price=delay_sweep_anchor_price,
-            )
-        value = _limit_price_for_mode(bid, ask, last_ref, action=action, mode=mode)
-        if value is None:
-            return _round_to_tick(last_ref, tick) if last_ref is not None else None
-        return _round_to_tick(float(value), tick)
+        return execution_price(
+            self._item.contract,
+            ticker_ref,
+            mode,
+            action,
+            bid=bid,
+            ask=ask,
+            last=last,
+            fallback_price=mark,
+            custom_price=self._exec_custom_price,
+            policy=self._policy,
+            elapsed_sec=elapsed_sec,
+            quote_stale=quote_stale,
+            open_shock=open_shock,
+            no_progress_reprices=no_progress_reprices,
+            arrival_ref=arrival_ref,
+            recent_spreads=self._chart.spread_samples,
+            delay_recoveries=delay_recoveries,
+            delay_anchor_price=delay_anchor_price,
+            delay_sweep_anchor_price=delay_sweep_anchor_price,
+            delay_locked_price_dir=delay_locked_price_dir,
+        )
 
-    async def _chase_until_filled(self, trade: Trade, action: str, *, mode: str = "AUTO") -> None:
-        order_id, perm_id = self._trade_order_ids(trade)
-        con_id = int(getattr(getattr(trade, "contract", None), "conId", 0) or 0)
-        chase_owner = f"details-chase:{order_id or perm_id or con_id or id(trade)}"
-        try:
-            await self._client.ensure_ticker(trade.contract, owner=chase_owner)
-        except Exception:
-            pass
-        started = asyncio.get_running_loop().time()
-        last_reprice_ts: float | None = None
-        prev_mode: str | None = None
-        prev_quote_sig: tuple[float | None, float | None, float | None] | None = None
-        selected_label = self._exec_mode_label(mode)
-        selected_mode_clean = str(mode or "").strip().upper()
-        selected_is_delay_mode = selected_mode_clean == "RELENTLESS_DELAY"
-        arrival_ref: float | None = None
-        no_progress_reprices = 0
-        last_filled_qty = 0.0
-        last_live_probe_ts: float | None = None
-        last_reconcile_ts: float | None = None
-        last_force_reconcile_ts: float | None = None
-        last_modify_error_ts: float | None = None
-        pending_since_ts: float | None = None
-        try:
-            while True:
-                trade = self._latest_trade_for_ids(
-                    order_id=order_id,
-                    perm_id=perm_id,
-                    fallback=trade,
-                )
-                live_order_id, live_perm_id = self._trade_order_ids(trade)
-                if live_order_id > 0:
-                    order_id = int(live_order_id)
-                if live_perm_id > 0:
-                    perm_id = int(live_perm_id)
-                live_con_id = int(getattr(getattr(trade, "contract", None), "conId", 0) or 0)
-                if live_con_id > 0:
-                    con_id = int(live_con_id)
-                current_task = asyncio.current_task()
-                if current_task is not None:
-                    self._register_chase_task(
-                        current_task,
-                        order_id=order_id,
-                        perm_id=perm_id,
-                    )
-                loop_now = asyncio.get_running_loop().time()
-                status_raw = str(getattr(getattr(trade, "orderStatus", None), "status", "") or "").strip()
-                status_effective = status_raw
-                live_state_payload = (
-                    self._client_current_order_state(order_id=order_id, perm_id=perm_id)
-                    if (order_id or perm_id)
-                    else None
-                )
-                if isinstance(live_state_payload, dict):
-                    live_trade = live_state_payload.get("trade")
-                    if isinstance(live_trade, Trade):
-                        trade = live_trade
-                        live_order_id, live_perm_id = self._trade_order_ids(trade)
-                        if live_order_id > 0:
-                            order_id = int(live_order_id)
-                        if live_perm_id > 0:
-                            perm_id = int(live_perm_id)
-                    effective_live = str(
-                        live_state_payload.get("effective_status") or ""
-                    ).strip()
-                    if effective_live:
-                        status_effective = effective_live
-                terminal_statuses = ("Filled", "Cancelled", "ApiCancelled", "Inactive")
-                repricable_statuses = ("PreSubmitted", "Submitted")
-                pending_statuses = ("PendingSubmit", "PendingSubmission", "ApiPending")
-                cancel_requested = self._cancel_requested_for_ids(
-                    order_id=order_id,
-                    perm_id=perm_id,
-                )
-                if status_raw in pending_statuses:
-                    if pending_since_ts is None:
-                        pending_since_ts = loop_now
-                else:
-                    pending_since_ts = None
-                pending_age = (
-                    max(0.0, loop_now - pending_since_ts)
-                    if pending_since_ts is not None
-                    else 0.0
-                )
-                reconcile_payload: dict[str, object] | None = None
-                if order_id or perm_id:
-                    should_reconcile = False
-                    force_reconcile = False
-                    if status_raw in pending_statuses and pending_age >= float(self._CHASE_PENDING_ACK_SEC):
-                        if (
-                            last_reconcile_ts is None
-                            or (loop_now - last_reconcile_ts) >= float(self._CHASE_RECONCILE_INTERVAL_SEC)
-                        ):
-                            should_reconcile = True
-                            force_candidate = bool(
-                                pending_age >= (float(self._CHASE_PENDING_ACK_SEC) * 2.0)
-                            )
-                            if force_candidate:
-                                force_reconcile = bool(
-                                    last_force_reconcile_ts is None
-                                    or (
-                                        (loop_now - last_force_reconcile_ts)
-                                        >= float(self._CHASE_FORCE_RECONCILE_INTERVAL_SEC)
-                                    )
-                                )
-                    if should_reconcile:
-                        reconcile_payload = await self._client_reconcile_order_state(
-                            order_id=order_id,
-                            perm_id=perm_id,
-                            force=bool(force_reconcile),
-                        )
-                        last_reconcile_ts = loop_now
-                        if force_reconcile:
-                            last_force_reconcile_ts = loop_now
-                if reconcile_payload is not None:
-                    reconciled_trade = reconcile_payload.get("trade")
-                    if isinstance(reconciled_trade, Trade):
-                        trade = reconciled_trade
-                        live_order_id, live_perm_id = self._trade_order_ids(trade)
-                        if live_order_id > 0:
-                            order_id = int(live_order_id)
-                        if live_perm_id > 0:
-                            perm_id = int(live_perm_id)
-                    status_effective = str(
-                        reconcile_payload.get("effective_status") or status_effective
-                    ).strip() or status_effective
-                try:
-                    filled_now = float(getattr(getattr(trade, "orderStatus", None), "filled", 0.0) or 0.0)
-                except (TypeError, ValueError):
-                    filled_now = 0.0
-                if reconcile_payload is not None:
-                    try:
-                        reconciled_filled = float(reconcile_payload.get("filled_qty") or 0.0)
-                    except (TypeError, ValueError):
-                        reconciled_filled = 0.0
-                    if reconciled_filled > filled_now:
-                        filled_now = float(reconciled_filled)
-                if isinstance(live_state_payload, dict):
-                    try:
-                        live_filled = float(live_state_payload.get("filled_qty") or 0.0)
-                    except (TypeError, ValueError):
-                        live_filled = 0.0
-                    if live_filled > filled_now:
-                        filled_now = float(live_filled)
-                prev_filled_qty = float(last_filled_qty)
-                fill_progress = bool(filled_now > (prev_filled_qty + 1e-9))
-                if fill_progress:
-                    last_filled_qty = float(filled_now)
-                    no_progress_reprices = 0
-                is_done = False
-                try:
-                    is_done = bool(trade.isDone())
-                except Exception:
-                    is_done = False
-                reconcile_terminal = bool(reconcile_payload and reconcile_payload.get("is_terminal"))
-                live_terminal = bool(live_state_payload and live_state_payload.get("is_terminal"))
-                if (
-                    status_effective in terminal_statuses
-                    or status_raw in terminal_statuses
-                    or is_done
-                    or reconcile_terminal
-                    or live_terminal
-                ):
-                    order_ref = int(order_id or perm_id or 0)
-                    order_label = f"#{order_ref}" if order_ref else "order"
-                    error_payload = (
-                        self._consume_order_error(order_id, perm_id)
-                        if order_ref
-                        else None
-                    )
-                    status_label = status_effective or status_raw
-                    if not status_label:
-                        status_label = "Done"
-                    elif is_done and status_label not in terminal_statuses:
-                        status_label = f"Done ({status_label})"
-                    if status_raw and status_effective and status_effective != status_raw:
-                        status_label = f"{status_label} [{status_raw}]"
-                    if error_payload is not None:
-                        error_code, error_message = error_payload
-                        if selected_is_delay_mode and error_code == 202 and not cancel_requested:
-                            state = self._chase_state_for_ids(order_id=order_id, perm_id=perm_id) or {}
-                            try:
-                                prior_recoveries = int(state.get("delay_recoveries") or 0)
-                            except (TypeError, ValueError):
-                                prior_recoveries = 0
-                            first_202_ts = _safe_float(state.get("delay_first_202_ts"))
-                            recover_window_sec = max(
-                                1.0,
-                                EXECUTION_POLICY.delay_recover_window_sec,
-                            )
-                            if (
-                                first_202_ts is None
-                                or first_202_ts <= 0
-                                or (float(loop_now) - float(first_202_ts)) > recover_window_sec
-                            ):
-                                first_202_ts = float(loop_now)
-                            sweep_span = EXECUTION_POLICY.delay_sweep_span()
-                            next_recoveries = EXECUTION_POLICY.delay_next_step(prior_recoveries)
-                            favorable_leg, leg_sign = EXECUTION_POLICY.delay_leg(
-                                action,
-                                next_recoveries,
-                            )
-                            anchor_hint = (
-                                self._cap_price_hint_from_trade(trade)
-                                or EXECUTION_POLICY.price_hint_from_error(error_message)
-                                or _safe_float(state.get("delay_anchor_price"))
-                            )
-                            ticker_retry = self._client.ticker_for_con_id(con_id) if con_id else None
-                            bid_retry = (
-                                self._quote_num(getattr(ticker_retry, "bid", None))
-                                if ticker_retry
-                                else None
-                            )
-                            ask_retry = (
-                                self._quote_num(getattr(ticker_retry, "ask", None))
-                                if ticker_retry
-                                else None
-                            )
-                            last_retry = (
-                                self._quote_num(getattr(ticker_retry, "last", None))
-                                if ticker_retry
-                                else None
-                            )
-                            order_price_now = _safe_num(
-                                getattr(getattr(trade, "order", None), "lmtPrice", None)
-                            )
-                            sweep_anchor = _safe_float(state.get("delay_sweep_anchor_price"))
-                            if (
-                                prior_recoveries <= 0
-                                and order_price_now is not None
-                                and order_price_now > 0
-                            ):
-                                sweep_anchor = float(order_price_now)
-                            if sweep_anchor is None or sweep_anchor <= 0:
-                                sweep_anchor = order_price_now
-                            if sweep_anchor is None or sweep_anchor <= 0:
-                                last_ref_retry = (
-                                    last_retry
-                                    if last_retry is not None
-                                    else (bid_retry if bid_retry is not None else ask_retry)
-                                )
-                                tick_retry = _tick_size(trade.contract, ticker_retry, last_ref_retry)
-                                sweep_anchor = _round_to_tick(
-                                    _midpoint(bid_retry, ask_retry) or last_ref_retry,
-                                    tick_retry,
-                                )
-                            delay_updates_base: dict[str, object] = {
-                                "selected": selected_label,
-                                "active": self._exec_mode_label("RELENTLESS_DELAY"),
-                                "delay_recoveries": next_recoveries,
-                                "delay_first_202_ts": float(first_202_ts),
-                                "delay_last_202_ts": float(loop_now),
-                                "delay_last_leg_sign": float(leg_sign),
-                                "delay_last_leg_name": "FAV" if favorable_leg else "ADV",
-                                "delay_locked_price_dir": None,
-                            }
-                            if anchor_hint is not None and anchor_hint > 0:
-                                delay_updates_base["delay_anchor_price"] = float(anchor_hint)
-                            if sweep_anchor is not None and sweep_anchor > 0:
-                                delay_updates_base["delay_sweep_anchor_price"] = float(sweep_anchor)
-                            if order_id or perm_id:
-                                self._set_chase_state(
-                                    order_id=order_id,
-                                    perm_id=perm_id,
-                                    updates=delay_updates_base,
-                                )
-                            retry_price = self._exec_price_for_mode(
-                                "RELENTLESS_DELAY",
-                                action,
-                                bid=bid_retry,
-                                ask=ask_retry,
-                                last=last_retry,
-                                ticker=ticker_retry,
-                                elapsed_sec=float(loop_now - started),
-                                quote_stale=EXECUTION_POLICY.quote_is_stale(
-                                    ticker=ticker_retry,
-                                    bid=bid_retry,
-                                    ask=ask_retry,
-                                    last=last_retry,
-                                ),
-                                open_shock=EXECUTION_POLICY.in_open_shock(_now_et().time()),
-                                no_progress_reprices=int(no_progress_reprices),
-                                arrival_ref=arrival_ref,
-                                delay_recoveries=next_recoveries,
-                                delay_anchor_price=anchor_hint,
-                                delay_sweep_anchor_price=sweep_anchor,
-                            )
-                            if retry_price is None:
-                                retry_price = _safe_num(
-                                    getattr(getattr(trade, "order", None), "lmtPrice", None)
-                                )
-                            try:
-                                qty_retry = float(
-                                    getattr(getattr(trade, "order", None), "totalQuantity", 0.0) or 0.0
-                                )
-                            except (TypeError, ValueError):
-                                qty_retry = 0.0
-                            if retry_price is not None and qty_retry > 0:
-                                try:
-                                    replacement = await self._client.place_limit_order(
-                                        trade.contract,
-                                        action,
-                                        qty_retry,
-                                        float(retry_price),
-                                        str(getattr(trade.contract, "secType", "") or "").strip().upper() == "STK",
-                                    )
-                                    trade = replacement
-                                    live_order_id, live_perm_id = self._trade_order_ids(trade)
-                                    if live_order_id > 0:
-                                        order_id = int(live_order_id)
-                                    if live_perm_id > 0:
-                                        perm_id = int(live_perm_id)
-                                    order_ref = int(order_id or perm_id or 0)
-                                    updates = dict(delay_updates_base)
-                                    updates["target_price"] = float(retry_price)
-                                    self._set_chase_state(
-                                        order_id=order_id,
-                                        perm_id=perm_id,
-                                        updates=updates,
-                                    )
-                                    hint_text = (
-                                        f" cap {float(anchor_hint):.2f}"
-                                        if anchor_hint is not None and anchor_hint > 0
-                                        else ""
-                                    )
-                                    leg_text = "FAV" if favorable_leg else "ADV"
-                                    self._exec_status = (
-                                        f"RLT⚔Delay sweep #{order_ref} @ {float(retry_price):.2f}"
-                                        f" {leg_text} step {next_recoveries}/{sweep_span}{hint_text}"
-                                    )
-                                    self._set_orders_notice(
-                                        self._exec_status,
-                                        level="warn",
-                                    )
-                                    self._render_details_if_mounted(sample=False)
-                                    await asyncio.sleep(EXECUTION_POLICY.delay_recover_cooldown_sec)
-                                    continue
-                                except Exception as exc:
-                                    self._set_orders_notice(
-                                        f"RLT⚔Delay retry failed #{order_ref}: {exc}",
-                                        level="warn",
-                                    )
-                                    self._render_details_if_mounted(sample=False)
-                                    await asyncio.sleep(EXECUTION_POLICY.delay_recover_cooldown_sec)
-                                    continue
-                            self._set_orders_notice(
-                                f"RLT⚔Delay no retryable qty/price for #{order_ref}",
-                                level="warn",
-                            )
-                            self._render_details_if_mounted(sample=False)
-                            await asyncio.sleep(EXECUTION_POLICY.delay_recover_cooldown_sec)
-                            continue
-                        error_prefix = f"IB {error_code}: " if error_code else "IB: "
-                        self._set_orders_notice(
-                            f"{order_label} {status_label}: {error_prefix}{error_message}",
-                            level="error",
-                        )
-                    elif status_raw in ("Cancelled", "ApiCancelled", "Inactive"):
-                        why_held = str(
-                            getattr(getattr(trade, "orderStatus", None), "whyHeld", "") or ""
-                        ).strip()
-                        if why_held:
-                            self._set_orders_notice(
-                                f"{order_label} {status_raw}: {why_held}",
-                                level="warn",
-                            )
-                        else:
-                            self._set_orders_notice(
-                                f"{order_label} {status_raw}",
-                                level="warn",
-                            )
-                    elif status_effective == "Filled" or status_raw == "Filled":
-                        self._set_orders_notice(f"Filled {order_label}", level="info")
-                    elif is_done:
-                        self._set_orders_notice(f"{order_label} {status_label}", level="warn")
-                    self._clear_cancel_requested(order_id=order_id, perm_id=perm_id)
-                    self._clear_chase_state(order_id=order_id, perm_id=perm_id)
-                    self._render_details_if_mounted(sample=False)
-                    return
-
-                order_ref = int(order_id or perm_id or 0)
-                if order_ref:
-                    error_payload = self._consume_order_error(order_id, perm_id)
-                    if error_payload is not None:
-                        error_code, error_message = error_payload
-                        if error_code in (110, 201, 202, 10147, 10148, 10149):
-                            if selected_is_delay_mode and error_code == 202:
-                                state = self._chase_state_for_ids(order_id=order_id, perm_id=perm_id) or {}
-                                try:
-                                    prior_recoveries = int(state.get("delay_recoveries") or 0)
-                                except (TypeError, ValueError):
-                                    prior_recoveries = 0
-                                first_202_ts = _safe_float(state.get("delay_first_202_ts"))
-                                recover_window_sec = max(
-                                    1.0,
-                                    EXECUTION_POLICY.delay_recover_window_sec,
-                                )
-                                if (
-                                    first_202_ts is None
-                                    or first_202_ts <= 0
-                                    or (float(loop_now) - float(first_202_ts)) > recover_window_sec
-                                ):
-                                    first_202_ts = float(loop_now)
-                                sweep_span = EXECUTION_POLICY.delay_sweep_span()
-                                next_recoveries = EXECUTION_POLICY.delay_next_step(
-                                    prior_recoveries
-                                )
-                                favorable_leg, leg_sign = EXECUTION_POLICY.delay_leg(
-                                    action,
-                                    next_recoveries,
-                                )
-                                anchor_hint = (
-                                    self._cap_price_hint_from_trade(trade)
-                                    or EXECUTION_POLICY.price_hint_from_error(error_message)
-                                    or _safe_float(state.get("delay_anchor_price"))
-                                )
-                                order_price_now = _safe_num(
-                                    getattr(getattr(trade, "order", None), "lmtPrice", None)
-                                )
-                                sweep_anchor = _safe_float(state.get("delay_sweep_anchor_price"))
-                                if (
-                                    prior_recoveries <= 0
-                                    and order_price_now is not None
-                                    and order_price_now > 0
-                                ):
-                                    sweep_anchor = float(order_price_now)
-                                if sweep_anchor is None or sweep_anchor <= 0:
-                                    sweep_anchor = order_price_now
-                                updates: dict[str, object] = {
-                                    "selected": selected_label,
-                                    "active": self._exec_mode_label("RELENTLESS_DELAY"),
-                                    "delay_recoveries": next_recoveries,
-                                    "delay_first_202_ts": float(first_202_ts),
-                                    "delay_last_202_ts": float(loop_now),
-                                    "delay_last_leg_sign": float(leg_sign),
-                                    "delay_last_leg_name": "FAV" if favorable_leg else "ADV",
-                                    "delay_locked_price_dir": None,
-                                }
-                                if anchor_hint is not None and anchor_hint > 0:
-                                    updates["delay_anchor_price"] = float(anchor_hint)
-                                if sweep_anchor is not None and sweep_anchor > 0:
-                                    updates["delay_sweep_anchor_price"] = float(sweep_anchor)
-                                self._set_chase_state(
-                                    order_id=order_id,
-                                    perm_id=perm_id,
-                                    updates=updates,
-                                )
-                                hint_text = (
-                                    f" cap {float(anchor_hint):.2f}"
-                                    if anchor_hint is not None and anchor_hint > 0
-                                    else ""
-                                )
-                                leg_text = "FAV" if favorable_leg else "ADV"
-                                self._exec_status = (
-                                    f"RLT⚔Delay sweep #{order_ref} "
-                                    f"{leg_text} step {next_recoveries}/{sweep_span}{hint_text}"
-                                )
-                                self._set_orders_notice(self._exec_status, level="warn")
-                                last_modify_error_ts = loop_now
-                                self._render_details_if_mounted(sample=False)
-                                await asyncio.sleep(EXECUTION_POLICY.delay_recover_cooldown_sec)
-                                continue
-                            order_label = f"#{order_ref}"
-                            status_label = status_raw or "Pending"
-                            error_prefix = f"IB {error_code}: " if error_code else "IB: "
-                            level = "warn" if error_code in (10147, 10148, 10149) else "error"
-                            self._exec_status = (
-                                f"Chase halted {order_label} {status_label}: {error_prefix}{error_message}"
-                            )
-                            self._set_orders_notice(
-                                f"{order_label} {status_label}: {error_prefix}{error_message}",
-                                level=level,
-                            )
-                            self._clear_chase_state(order_id=order_id, perm_id=perm_id)
-                            self._render_details_if_mounted(sample=False)
-                            return
-
-                elapsed = loop_now - started
-                mode_now = _exec_chase_mode(elapsed, selected_mode=mode)
-                if mode_now is None:
-                    try:
-                        self._mark_cancel_requested(order_id=order_id, perm_id=perm_id)
-                        await self._client.cancel_trade(trade)
-                        live_order_id, live_perm_id = self._trade_order_ids(trade)
-                        if live_order_id > 0:
-                            order_id = int(live_order_id)
-                        if live_perm_id > 0:
-                            perm_id = int(live_perm_id)
-                        order_ref = int(order_id or perm_id or 0)
-                        mode_clean = str(mode or "").strip().upper()
-                        if mode_clean in ("RELENTLESS", "RELENTLESS_DELAY"):
-                            timeout_sec = float(_EXEC_RELENTLESS_TIMEOUT_SEC)
-                        elif mode_clean in ("AUTO", "LADDER"):
-                            timeout_sec = float(_EXEC_AUTO_TIMEOUT_SEC)
-                        else:
-                            timeout_sec = float(_EXEC_LADDER_TIMEOUT_SEC)
-                        self._exec_status = (
-                            f"Timeout cancel sent #{order_ref} (> {timeout_sec:.0f}s)"
-                        )
-                        self._set_orders_notice(self._exec_status, level="warn")
-                        error_payload = (
-                            await self._await_order_error(
-                                int(order_id),
-                                int(perm_id),
-                                attempts=3,
-                                interval_sec=0.1,
-                            )
-                            if order_ref
-                            else None
-                        )
-                        if error_payload is not None:
-                            error_code, error_message = error_payload
-                            error_prefix = f"IB {error_code}: " if error_code else "IB: "
-                            level = "warn" if error_code in (10147, 10148, 10149) else "error"
-                            self._exec_status = (
-                                f"Timeout cancel #{order_ref}: {error_prefix}{error_message}"
-                            )
-                            self._set_orders_notice(self._exec_status, level=level)
-                    except Exception as exc:
-                        self._exec_status = f"Timeout cancel error: {exc}"
-                        self._set_orders_notice(self._exec_status, level="error")
-                    self._clear_chase_state(order_id=order_id, perm_id=perm_id)
-                    self._render_details_if_mounted(sample=False)
-                    return
-
-                ticker = self._client.ticker_for_con_id(con_id) if con_id else None
-                bid = self._quote_num(getattr(ticker, "bid", None)) if ticker else None
-                ask = self._quote_num(getattr(ticker, "ask", None)) if ticker else None
-                last = self._quote_num(getattr(ticker, "last", None)) if ticker else None
-                if arrival_ref is None:
-                    arrival_ref = _midpoint(bid, ask) or last
-                mode_now_clean = str(mode_now or "").strip().upper()
-                is_relentless = mode_now_clean in ("RELENTLESS", "RELENTLESS_DELAY")
-                is_relentless_delay = mode_now_clean == "RELENTLESS_DELAY"
-                quote_stale = EXECUTION_POLICY.quote_is_stale(
-                    ticker=ticker,
-                    bid=bid,
-                    ask=ask,
-                    last=last,
-                ) if is_relentless else False
-                open_shock = (
-                    EXECUTION_POLICY.in_open_shock(_now_et().time()) if is_relentless else False
-                )
-                spread_now = (
-                    float(ask) - float(bid)
-                    if (is_relentless and bid is not None and ask is not None and ask >= bid)
-                    else None
-                )
-                last_ref_now = last if last is not None else (bid if bid is not None else ask)
-                tick_now = _tick_size(trade.contract, ticker, last_ref_now) if is_relentless else 0.0
-                spread_pressure = (
-                    EXECUTION_POLICY.spread_pressure(
-                        spread=spread_now,
-                        tick=tick_now,
-                        recent_spreads=self._chart.spread_samples,
-                    )
-                    if is_relentless
-                    else 1.0
-                )
-                if is_relentless and quote_stale:
-                    if last_live_probe_ts is None or (loop_now - last_live_probe_ts) >= 4.0:
-                        try:
-                            await self._client.refresh_live_snapshot_once(trade.contract)
-                        except Exception:
-                            pass
-                        last_live_probe_ts = loop_now
-                quote_sig = _exec_chase_quote_signature(bid, ask, last)
-                min_interval_sec = (
-                    EXECUTION_POLICY.reprice_interval(
-                        quote_stale=bool(quote_stale),
-                        open_shock=bool(open_shock),
-                        no_progress_reprices=int(no_progress_reprices),
-                        spread_pressure=float(spread_pressure),
-                    )
-                    if is_relentless
-                    else 5.0
-                )
-                should_reprice = _exec_chase_should_reprice(
-                    now_sec=loop_now,
-                    last_reprice_sec=last_reprice_ts,
-                    mode_now=str(mode_now),
-                    prev_mode=prev_mode,
-                    quote_signature=quote_sig,
-                    prev_quote_signature=prev_quote_sig,
-                    min_interval_sec=float(min_interval_sec),
-                )
-                working_status = status_effective or status_raw
-                if cancel_requested:
-                    should_reprice = False
-                if should_reprice and working_status not in repricable_statuses:
-                    should_reprice = False
-                if (
-                    should_reprice
-                    and last_modify_error_ts is not None
-                    and (loop_now - last_modify_error_ts) < float(self._CHASE_MODIFY_ERROR_BACKOFF_SEC)
-                ):
-                    should_reprice = False
-                prev_mode = str(mode_now)
-                prev_quote_sig = quote_sig
-                if order_id or perm_id:
-                    state_updates: dict[str, object] = {
-                        "selected": selected_label,
-                        "active": self._exec_mode_label(str(mode_now)),
-                    }
-                    if status_effective and status_effective != status_raw:
-                        state_updates["effective_status"] = status_effective
-                    self._set_chase_state(
-                        order_id=order_id,
-                        perm_id=perm_id,
-                        updates=state_updates,
-                    )
-
-                if should_reprice:
-                    chase_state = self._chase_state_for_ids(order_id=order_id, perm_id=perm_id) or {}
-                    try:
-                        delay_recoveries = int(chase_state.get("delay_recoveries") or 0)
-                    except (TypeError, ValueError):
-                        delay_recoveries = 0
-                    delay_anchor_price = _safe_float(chase_state.get("delay_anchor_price"))
-                    delay_sweep_anchor_price = _safe_float(chase_state.get("delay_sweep_anchor_price"))
-                    delay_last_202_ts = _safe_float(chase_state.get("delay_last_202_ts"))
-                    delay_locked_price_dir = _safe_float(chase_state.get("delay_locked_price_dir"))
-                    if (
-                        is_relentless_delay
-                        and delay_recoveries > 0
-                        and delay_last_202_ts is not None
-                        and (float(loop_now) - float(delay_last_202_ts))
-                        >= max(
-                            EXECUTION_POLICY.delay_recover_settle_sec,
-                            EXECUTION_POLICY.delay_recover_cooldown_sec,
-                        )
-                    ):
-                        delay_last_leg_sign = _safe_float(chase_state.get("delay_last_leg_sign"))
-                        lock_dir = (
-                            (1.0 if float(delay_last_leg_sign) >= 0 else -1.0)
-                            if delay_last_leg_sign is not None
-                            else None
-                        )
-                        delay_recoveries = 0
-                        delay_anchor_price = None
-                        delay_sweep_anchor_price = None
-                        delay_locked_price_dir = lock_dir
-                        if order_id or perm_id:
-                            updates: dict[str, object] = {
-                                "delay_recoveries": 0,
-                                "delay_anchor_price": None,
-                                "delay_sweep_anchor_price": None,
-                                "delay_first_202_ts": None,
-                                "delay_last_202_ts": None,
-                                "delay_last_leg_sign": None,
-                                "delay_last_leg_name": None,
-                            }
-                            if lock_dir is None:
-                                updates["delay_locked_price_dir"] = None
-                            else:
-                                updates["delay_locked_price_dir"] = float(lock_dir)
-                            self._set_chase_state(
-                                order_id=order_id,
-                                perm_id=perm_id,
-                                updates=updates,
-                            )
-                        if lock_dir is not None:
-                            leg_text = "up" if float(lock_dir) > 0 else "down"
-                            self._set_orders_notice(
-                                f"RLT⚔Delay lock engaged ({leg_text} side) after 202 settle",
-                                level="info",
-                            )
-                    price = self._exec_price_for_mode(
-                        str(mode_now),
-                        action,
-                        bid=bid,
-                        ask=ask,
-                        last=last,
-                        ticker=ticker,
-                        elapsed_sec=float(elapsed),
-                        quote_stale=bool(quote_stale),
-                        open_shock=bool(open_shock),
-                        no_progress_reprices=int(no_progress_reprices),
-                        arrival_ref=arrival_ref,
-                        delay_recoveries=int(delay_recoveries) if is_relentless_delay else 0,
-                        delay_anchor_price=delay_anchor_price if is_relentless_delay else None,
-                        delay_sweep_anchor_price=(
-                            delay_sweep_anchor_price if is_relentless_delay else None
-                        ),
-                        delay_locked_price_dir=(
-                            delay_locked_price_dir if is_relentless_delay else None
-                        ),
-                    )
-                    if (order_id or perm_id) and price is not None:
-                        self._set_chase_state(
-                            order_id=order_id,
-                            perm_id=perm_id,
-                            updates={
-                                "selected": selected_label,
-                                "active": self._exec_mode_label(str(mode_now)),
-                                "target_price": float(price),
-                            },
-                        )
-                else:
-                    price = None
-                if price is not None:
-                    current_price = _safe_num(getattr(getattr(trade, "order", None), "lmtPrice", None))
-                    compare_tick = _tick_size(trade.contract, ticker, price) or 0.01
-                    if (
-                        current_price is not None
-                        and abs(float(price) - float(current_price))
-                        <= max(float(compare_tick) * 0.5, 1e-9)
-                    ):
-                        last_reprice_ts = loop_now
-                        price = None
-                if price is not None:
-                    try:
-                        trade = await self._client.modify_limit_order(trade, float(price))
-                        applied_price = _safe_num(getattr(getattr(trade, "order", None), "lmtPrice", None))
-                        if applied_price is None or applied_price <= 0:
-                            applied_price = float(price)
-                        live_order_id, live_perm_id = self._trade_order_ids(trade)
-                        if live_order_id > 0:
-                            order_id = int(live_order_id)
-                        if live_perm_id > 0:
-                            perm_id = int(live_perm_id)
-                        order_ref = int(order_id or perm_id or 0)
-                        mode_label = self._exec_mode_label(str(mode_now))
-                        mods = 1
-                        if order_ref:
-                            state = self._chase_state_for_ids(order_id=order_id, perm_id=perm_id) or {}
-                            try:
-                                mods = int(state.get("mods") or 0) + 1
-                            except (TypeError, ValueError):
-                                mods = 1
-                            self._set_chase_state(
-                                order_id=order_id,
-                                perm_id=perm_id,
-                                updates={
-                                    "selected": selected_label,
-                                    "active": mode_label,
-                                    "target_price": float(applied_price),
-                                    "mods": mods,
-                                },
-                            )
-                        mode_view = f"{selected_label}->{mode_label}" if selected_label == "AUTO" else mode_label
-                        order_label = f"#{order_ref}" if order_ref else "order"
-                        self._exec_status = (
-                            f"Chasing {order_label} [{mode_view}] @ {float(applied_price):.2f} mod#{mods}"
-                        )
-                        last_reprice_ts = loop_now
-                        last_modify_error_ts = None
-                        if not fill_progress:
-                            no_progress_reprices += 1
-                    except Exception as exc:
-                        last_modify_error_ts = loop_now
-                        self._exec_status = f"Chase error: {exc}"
-                        self._set_orders_notice(self._exec_status, level="error")
-                    self._render_details_if_mounted(sample=False)
-
-                await asyncio.sleep(0.25)
-        finally:
-            current_task = asyncio.current_task()
-            if current_task is not None:
-                self._unregister_chase_task(current_task)
-            self._clear_chase_state(order_id=order_id, perm_id=perm_id)
-            if con_id:
-                try:
-                    self._client.release_ticker(con_id, owner=chase_owner)
-                except Exception:
-                    pass
+    async def _chase_until_filled(
+        self,
+        trade: Trade,
+        action: str,
+        *,
+        mode: str = "AUTO",
+    ) -> None:
+        await self._execution.chase(
+            trade,
+            action,
+            mode=mode,
+            policy=self._policy,
+            pending_ack_sec=self._CHASE_PENDING_ACK_SEC,
+            reconcile_interval_sec=self._CHASE_RECONCILE_INTERVAL_SEC,
+            force_reconcile_interval_sec=self._CHASE_FORCE_RECONCILE_INTERVAL_SEC,
+            modify_error_backoff_sec=self._CHASE_MODIFY_ERROR_BACKOFF_SEC,
+        )

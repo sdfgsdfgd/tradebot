@@ -33,6 +33,7 @@ from ib_insync import (
 
 from .backtest.trading_calendar import expected_sessions, session_label_et
 from .config import IBKRConfig
+from .live.execution import order_ids
 from .time_utils import NaiveTsMode, now_et as _now_et, now_et_naive as _now_et_naive, to_et as _to_et_shared
 
 # region Constants
@@ -1749,19 +1750,6 @@ class IBKRClient:
         return trades
 
     @staticmethod
-    def _trade_order_ids(trade: Trade) -> tuple[int, int]:
-        order = getattr(trade, "order", None)
-        try:
-            order_id = int(getattr(order, "orderId", 0) or 0)
-        except (TypeError, ValueError):
-            order_id = 0
-        try:
-            perm_id = int(getattr(order, "permId", 0) or 0)
-        except (TypeError, ValueError):
-            perm_id = 0
-        return max(0, order_id), max(0, perm_id)
-
-    @staticmethod
     def _ids_match(
         *,
         order_id: int,
@@ -1798,7 +1786,7 @@ class IBKRClient:
         except Exception:
             trades = []
         for trade in reversed(list(trades or [])):
-            candidate_order_id, candidate_perm_id = self._trade_order_ids(trade)
+            candidate_order_id, candidate_perm_id = order_ids(trade)
             if self._ids_match(
                 order_id=wanted_order_id,
                 perm_id=wanted_perm_id,
@@ -1816,7 +1804,7 @@ class IBKRClient:
         except Exception:
             trades = []
         for trade in trades or []:
-            candidate_order_id, candidate_perm_id = self._trade_order_ids(trade)
+            candidate_order_id, candidate_perm_id = order_ids(trade)
             if self._ids_match(
                 order_id=order_id,
                 perm_id=perm_id,
@@ -1930,7 +1918,7 @@ class IBKRClient:
                 is_done = bool(trade.isDone())
             except Exception:
                 is_done = False
-            trade_order_id, trade_perm_id = self._trade_order_ids(trade)
+            trade_order_id, trade_perm_id = order_ids(trade)
             if order_id <= 0:
                 order_id = trade_order_id
             if perm_id <= 0:
