@@ -23,6 +23,93 @@ from .profiles import _PERM_JOINT_PROFILE
 from .support import _mk_filters
 
 
+# Champion policy catalogs: data lives up front; preset methods only shape dimensions.
+_LF_SHOCK_RATIOS: tuple[tuple[float, float], ...] = (
+    (1.300, 1.200),
+    (1.325, 1.225),
+    (1.350, 1.250),
+    (1.355, 1.255),
+)
+_LF_SHOCK_POLICY: dict[str, object] = {
+    "shock_gate_mode": "surf",
+    "shock_detector": "tr_ratio",
+    "shock_atr_fast_period": 7,
+    "shock_atr_slow_period": 50,
+    "shock_min_atr_pct": 7.0,
+    "shock_direction_source": "signal",
+    "shock_direction_lookback": 1,
+    "shock_stop_loss_pct_mult": 0.75,
+    "shock_profit_target_pct_mult": 1.0,
+}
+_HF_TIMING_FILTERS: dict[str, object] = {
+    "ratsv_enabled": True,
+    "ratsv_slope_slow_window_bars": 11,
+}
+_HF_TIMING_STRATEGY: dict[str, object] = {
+    "regime_mode": "supertrend",
+    "regime_bar_size": "1 day",
+    "supertrend_atr_period": 14,
+    "supertrend_multiplier": 0.6,
+    "supertrend_source": "hl2",
+    "regime2_mode": "off",
+    "regime2_bar_size": None,
+    "spot_policy_graph": "aggressive",
+    "spot_risk_overlay_policy": "trend_bias",
+    "spot_resize_mode": "target",
+    "spot_resize_min_delta_qty": 3,
+    "spot_resize_max_step_qty": 2,
+    "spot_resize_cooldown_bars": 6,
+    "spot_resize_adaptive_mode": "hybrid",
+    "spot_resize_adaptive_min_mult": 0.90,
+    "spot_graph_overlay_atr_hi_pct": 8.0,
+    "exit_on_signal_flip": True,
+    "flip_exit_mode": "cross",
+    "flip_exit_gate_mode": "regime_or_permission",
+    "flip_exit_min_hold_bars": 0,
+    "flip_exit_only_if_profit": False,
+}
+_HF_TIMING_MODE_PROFILES: tuple[tuple[str, dict[str, object], dict[str, object]], ...] = (
+    (
+        "overlay_only_hybrid_baseline",
+        _HF_TIMING_FILTERS,
+        {
+            **_HF_TIMING_STRATEGY,
+            "spot_resize_adaptive_max_mult": 1.40,
+            "spot_resize_adaptive_slope_ref_pct": 0.06,
+            "spot_resize_adaptive_vel_ref_pct": 0.04,
+            "spot_resize_adaptive_tr_ratio_ref": 1.00,
+            "spot_graph_overlay_atr_hi_min_mult": 0.85,
+            "spot_graph_overlay_trend_boost_max": 1.35,
+            "spot_graph_overlay_slope_ref_pct": 0.06,
+            "spot_graph_overlay_tr_ratio_ref": 1.05,
+            "spot_graph_overlay_trend_floor_mult": 0.90,
+        },
+    ),
+    (
+        "overlay_only_hybrid_predref",
+        _HF_TIMING_FILTERS,
+        {
+            **_HF_TIMING_STRATEGY,
+            "spot_resize_adaptive_max_mult": 1.60,
+            "spot_resize_adaptive_atr_target_pct": 8.0,
+            "spot_resize_adaptive_atr_vel_ref_pct": 0.25,
+            "spot_resize_adaptive_slope_ref_pct": 0.055,
+            "spot_resize_adaptive_vel_ref_pct": 0.032,
+            "spot_resize_adaptive_tr_ratio_ref": 0.98,
+            "spot_exit_flip_hold_tr_ratio_min": 1.00,
+            "spot_exit_flip_hold_slow_slope_min_pct": 0.000002,
+            "spot_exit_flip_hold_slow_slope_vel_min_pct": 0.000001,
+            "spot_graph_overlay_atr_hi_min_mult": 0.84,
+            "spot_graph_overlay_atr_vel_ref_pct": 0.25,
+            "spot_graph_overlay_trend_boost_max": 1.75,
+            "spot_graph_overlay_slope_ref_pct": 0.055,
+            "spot_graph_overlay_tr_ratio_ref": 1.00,
+            "spot_graph_overlay_trend_floor_mult": 0.88,
+        },
+    ),
+)
+
+
 class ComboPresetContext:
     """Own dimension mutations; runtime execution remains outside the search-space model."""
 
@@ -439,72 +526,20 @@ class ComboPresetContext:
             "shock",
             [
                 ("shock=off", {"shock_gate_mode": "off"}),
-                (
-                    "shock=tr_ratio on=1.300 off=1.200",
-                    {
-                        "shock_gate_mode": "surf",
-                        "shock_detector": "tr_ratio",
-                        "shock_atr_fast_period": 7,
-                        "shock_atr_slow_period": 50,
-                        "shock_on_ratio": 1.300,
-                        "shock_off_ratio": 1.200,
-                        "shock_min_atr_pct": 7.0,
-                        "shock_direction_source": "signal",
-                        "shock_direction_lookback": 1,
-                        "shock_stop_loss_pct_mult": 0.75,
-                        "shock_profit_target_pct_mult": 1.0,
-                    },
-                ),
-                (
-                    "shock=tr_ratio on=1.325 off=1.225",
-                    {
-                        "shock_gate_mode": "surf",
-                        "shock_detector": "tr_ratio",
-                        "shock_atr_fast_period": 7,
-                        "shock_atr_slow_period": 50,
-                        "shock_on_ratio": 1.325,
-                        "shock_off_ratio": 1.225,
-                        "shock_min_atr_pct": 7.0,
-                        "shock_direction_source": "signal",
-                        "shock_direction_lookback": 1,
-                        "shock_stop_loss_pct_mult": 0.75,
-                        "shock_profit_target_pct_mult": 1.0,
-                    },
-                ),
-                (
-                    "shock=tr_ratio on=1.350 off=1.250",
-                    {
-                        "shock_gate_mode": "surf",
-                        "shock_detector": "tr_ratio",
-                        "shock_atr_fast_period": 7,
-                        "shock_atr_slow_period": 50,
-                        "shock_on_ratio": 1.350,
-                        "shock_off_ratio": 1.250,
-                        "shock_min_atr_pct": 7.0,
-                        "shock_direction_source": "signal",
-                        "shock_direction_lookback": 1,
-                        "shock_stop_loss_pct_mult": 0.75,
-                        "shock_profit_target_pct_mult": 1.0,
-                    },
-                ),
-                (
-                    "shock=tr_ratio on=1.355 off=1.255",
-                    {
-                        "shock_gate_mode": "surf",
-                        "shock_detector": "tr_ratio",
-                        "shock_atr_fast_period": 7,
-                        "shock_atr_slow_period": 50,
-                        "shock_on_ratio": 1.355,
-                        "shock_off_ratio": 1.255,
-                        "shock_min_atr_pct": 7.0,
-                        "shock_direction_source": "signal",
-                        "shock_direction_lookback": 1,
-                        "shock_stop_loss_pct_mult": 0.75,
-                        "shock_profit_target_pct_mult": 1.0,
-                    },
+                *(
+                    (
+                        f"shock=tr_ratio on={on_ratio:.3f} off={off_ratio:.3f}",
+                        {
+                            **_LF_SHOCK_POLICY,
+                            "shock_on_ratio": on_ratio,
+                            "shock_off_ratio": off_ratio,
+                        },
+                    )
+                    for on_ratio, off_ratio in _LF_SHOCK_RATIOS
                 ),
             ],
         )
+
     def _preset_hf_timing_sniper(self) -> None:
         base = self.base
         hf_profiles = self.timing_profiles_loader(variants_key="hf_profile_variants")
@@ -614,92 +649,7 @@ class ComboPresetContext:
             base_rows = list(hf_profiles[:1])
         timing_rows: list[tuple[str, dict[str, object], dict[str, object]]] = []
         seen_labels: set[str] = set()
-        base_mode_profiles: tuple[tuple[str, dict[str, object], dict[str, object]], ...] = (
-            (
-                "overlay_only_hybrid_baseline",
-                {
-                    "ratsv_enabled": True,
-                    "ratsv_slope_slow_window_bars": 11,
-                },
-                {
-                    "regime_mode": "supertrend",
-                    "regime_bar_size": "1 day",
-                    "supertrend_atr_period": 14,
-                    "supertrend_multiplier": 0.6,
-                    "supertrend_source": "hl2",
-                    "regime2_mode": "off",
-                    "regime2_bar_size": None,
-                    "spot_policy_graph": "aggressive",
-                    "spot_risk_overlay_policy": "trend_bias",
-                    "spot_resize_mode": "target",
-                    "spot_resize_min_delta_qty": 3,
-                    "spot_resize_max_step_qty": 2,
-                    "spot_resize_cooldown_bars": 6,
-                    "spot_resize_adaptive_mode": "hybrid",
-                    "spot_resize_adaptive_min_mult": 0.90,
-                    "spot_resize_adaptive_max_mult": 1.40,
-                    "spot_resize_adaptive_slope_ref_pct": 0.06,
-                    "spot_resize_adaptive_vel_ref_pct": 0.04,
-                    "spot_resize_adaptive_tr_ratio_ref": 1.00,
-                    "spot_graph_overlay_atr_hi_pct": 8.0,
-                    "spot_graph_overlay_atr_hi_min_mult": 0.85,
-                    "spot_graph_overlay_trend_boost_max": 1.35,
-                    "spot_graph_overlay_slope_ref_pct": 0.06,
-                    "spot_graph_overlay_tr_ratio_ref": 1.05,
-                    "spot_graph_overlay_trend_floor_mult": 0.90,
-                    "exit_on_signal_flip": True,
-                    "flip_exit_mode": "cross",
-                    "flip_exit_gate_mode": "regime_or_permission",
-                    "flip_exit_min_hold_bars": 0,
-                    "flip_exit_only_if_profit": False,
-                },
-            ),
-            (
-                "overlay_only_hybrid_predref",
-                {
-                    "ratsv_enabled": True,
-                    "ratsv_slope_slow_window_bars": 11,
-                },
-                {
-                    "regime_mode": "supertrend",
-                    "regime_bar_size": "1 day",
-                    "supertrend_atr_period": 14,
-                    "supertrend_multiplier": 0.6,
-                    "supertrend_source": "hl2",
-                    "regime2_mode": "off",
-                    "regime2_bar_size": None,
-                    "spot_policy_graph": "aggressive",
-                    "spot_risk_overlay_policy": "trend_bias",
-                    "spot_resize_mode": "target",
-                    "spot_resize_min_delta_qty": 3,
-                    "spot_resize_max_step_qty": 2,
-                    "spot_resize_cooldown_bars": 6,
-                    "spot_resize_adaptive_mode": "hybrid",
-                    "spot_resize_adaptive_min_mult": 0.90,
-                    "spot_resize_adaptive_max_mult": 1.60,
-                    "spot_resize_adaptive_atr_target_pct": 8.0,
-                    "spot_resize_adaptive_atr_vel_ref_pct": 0.25,
-                    "spot_resize_adaptive_slope_ref_pct": 0.055,
-                    "spot_resize_adaptive_vel_ref_pct": 0.032,
-                    "spot_resize_adaptive_tr_ratio_ref": 0.98,
-                    "spot_exit_flip_hold_tr_ratio_min": 1.00,
-                    "spot_exit_flip_hold_slow_slope_min_pct": 0.000002,
-                    "spot_exit_flip_hold_slow_slope_vel_min_pct": 0.000001,
-                    "spot_graph_overlay_atr_hi_pct": 8.0,
-                    "spot_graph_overlay_atr_hi_min_mult": 0.84,
-                    "spot_graph_overlay_atr_vel_ref_pct": 0.25,
-                    "spot_graph_overlay_trend_boost_max": 1.75,
-                    "spot_graph_overlay_slope_ref_pct": 0.055,
-                    "spot_graph_overlay_tr_ratio_ref": 1.00,
-                    "spot_graph_overlay_trend_floor_mult": 0.88,
-                    "exit_on_signal_flip": True,
-                    "flip_exit_mode": "cross",
-                    "flip_exit_gate_mode": "regime_or_permission",
-                    "flip_exit_min_hold_bars": 0,
-                    "flip_exit_only_if_profit": False,
-                },
-            ),
-        )
+        base_mode_profiles = _HF_TIMING_MODE_PROFILES
         bridge_only = str(os.environ.get("TB_HF_TIMING_SNIPER_BRIDGE", "") or "").strip().lower() in (
             "1",
             "true",

@@ -323,6 +323,9 @@ def test_combo_full_progress_uses_executed_profile_space(monkeypatch) -> None:
     assert runtime._axis_total_hint("regime") == 600
     assert runtime._axis_total_hint("regime2") == 300
     assert runtime._combo_full_context("full").dimension_signature == runtime._combo_full_context("").dimension_signature
+    lf_space = runtime._combo_full_context("lf_shock_sniper")
+    assert lf_space.total == 10
+    assert lf_space.dimension_signature == "c69ba2ad76b43accf1c11f352f54f659a3309218"
 
 
 def test_cfg_payload_round_trip_preserves_backtest_timeframe() -> None:
