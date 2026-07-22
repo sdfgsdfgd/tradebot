@@ -9,6 +9,8 @@ from ..signals import parse_bar_size
 from ..spot.fill_modes import SPOT_FILL_MODE_CLOSE, normalize_spot_fill_mode
 from .cli_utils import parse_date as _parse_date_impl
 
+from ..option_package import normalize_option_legs
+
 
 _WEEKDAYS = {
     "MON": 0,
@@ -166,33 +168,17 @@ def _parse_directional_legs(raw) -> dict[str, tuple[LegConfig, ...]] | None:
         legs_raw = raw.get(key)
         if not legs_raw:
             continue
-        parsed[key] = _parse_legs(legs_raw) or ()
+        parsed[key] = normalize_option_legs(
+            legs_raw,
+            path=f"directional_legs.{key}",
+        )
     return parsed or None
 
 
 def _parse_legs(raw) -> tuple[LegConfig, ...] | None:
     if not raw:
         return None
-    if not isinstance(raw, list):
-        raise ValueError("legs must be a list")
-    legs: list[LegConfig] = []
-    for idx, leg in enumerate(raw, start=1):
-        if not isinstance(leg, dict):
-            raise ValueError(f"legs[{idx}] must be an object")
-        action = str(leg.get("action", "")).strip().upper()
-        if action not in ("BUY", "SELL"):
-            raise ValueError(f"legs[{idx}].action must be BUY or SELL")
-        right = str(leg.get("right", "")).strip().upper()
-        if right not in ("PUT", "CALL"):
-            raise ValueError(f"legs[{idx}].right must be PUT or CALL")
-        if "moneyness_pct" not in leg:
-            raise ValueError(f"legs[{idx}] requires moneyness_pct")
-        moneyness = float(leg["moneyness_pct"])
-        qty = int(leg.get("qty", 1))
-        if qty <= 0:
-            raise ValueError(f"legs[{idx}].qty must be positive")
-        legs.append(LegConfig(action=action, right=right, moneyness_pct=moneyness, qty=qty))
-    return tuple(legs)
+    return normalize_option_legs(raw, path="legs")
 
 
 def _parse_entry_signal(value) -> str:

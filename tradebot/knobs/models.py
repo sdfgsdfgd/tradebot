@@ -12,6 +12,8 @@ from datetime import date
 from pathlib import Path
 from typing import Union
 
+from ..option_package import LegConfig, OptionLegSpec
+
 
 @dataclass(frozen=True)
 class BacktestConfig:
@@ -37,14 +39,6 @@ class SyntheticConfig:
     term_slope: float
     skew: float
     min_spread_pct: float
-
-
-@dataclass(frozen=True)
-class LegConfig:
-    action: str
-    right: str
-    moneyness_pct: float
-    qty: int
 
 
 @dataclass(frozen=True)

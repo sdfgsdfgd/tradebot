@@ -145,7 +145,8 @@
     "tests/test_ui_quote_status_line.py": "operator-ui-observability",
     "tests/test_ui_search_contract_description.py": "live-market-data-contracts",
     "tests/test_ui_signal_gap_calendar.py": "market-realism-parity",
-    "tests/test_ui_signal_timeout_fallback_ladder.py": "live-market-data-contracts"
+    "tests/test_ui_signal_timeout_fallback_ladder.py": "live-market-data-contracts",
+    "tests/test_option_leg_normalization.py": "live-execution-orders"
   },
   "contracts": [
     {
@@ -827,6 +828,33 @@
       ],
       "status": "planned",
       "next": "Design the smallest falsifiable TDD birth for benchmark.future.current-market-canary-dashboard."
+    },
+    {
+      "id": "unit.strategy.option-leg-normalization",
+      "layer": "unit",
+      "subsystem": "live-execution-orders",
+      "phase": "strategy-option-leg-normalization",
+      "capability": "Option-leg configuration, payload hydration, and live construction share one strict typed normalization law.",
+      "status": "covered",
+      "owner_surface": [
+        "tradebot/option_package.py",
+        "tradebot/knobs/models.py",
+        "tradebot/backtest/config_values.py",
+        "tradebot/backtest/spot_codec.py",
+        "tradebot/ui/bot_order_builder.py"
+      ],
+      "evidence": [
+        "tests/test_option_leg_normalization.py",
+        "tests/test_option_package_economics.py"
+      ],
+      "fixtures": [
+        "canonical scalar, atomic collection, typed delta, consumer delegation, and pre-provider rejection cases"
+      ],
+      "oracle": [
+        "all option-leg ingestion and live-construction consumers delegate to the shared canonical normalizers",
+        "malformed, non-finite, and structurally invalid legs fail atomically before provider interaction"
+      ],
+      "next": "Retain coverage while extending canonical strategy execution and promotion semantics."
     }
   ]
 }
