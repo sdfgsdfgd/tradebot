@@ -1,14 +1,18 @@
 from __future__ import annotations
 
+import json
 from dataclasses import replace
 from datetime import date, datetime
 from pathlib import Path
 import threading
 from types import SimpleNamespace
 
+import pytest
+
 from tradebot.backtest.data import ContractMeta
 from tradebot.backtest.models import SummaryStats
 from tradebot.backtest.spot_context import SpotContextBars
+import tradebot.backtest.sweep_parallel as sweep_parallel
 import tradebot.research.spot_sweeps.evaluation as sweep_evaluation
 from tradebot.research.spot_sweeps.axes_hf import _orb_candidates
 from tradebot.research.spot_sweeps.catalog import (
@@ -29,7 +33,10 @@ from tradebot.research.spot_sweeps.dimensions import (
     _SWEEP_RUNTIME_POLICY,
     _ema_signal_presets,
 )
-from tradebot.research.spot_sweeps.milestones import _rank_cfg_rows
+from tradebot.research.spot_sweeps.cli import parse_spot_sweep_args
+import tradebot.research.spot_sweeps.combo as sweep_combo
+from tradebot.research.spot_sweeps.combo import SweepCartesian, _objective_shortlist
+from tradebot.research.spot_sweeps.milestones import _rank_cfg_rows, _spot_strategy_payload
 from tradebot.research.spot_sweeps.runtime import SpotSweepRuntime
 from tradebot.research.spot_sweeps.stages import SweepStages
 from tradebot.research.spot_sweeps.support import _bundle_base
@@ -68,6 +75,282 @@ def test_combo_full_signature_changes_when_variant_payload_changes() -> None:
     sig_a = _signature(timing_rank_min=0.0240, pair_payload={})
     sig_b = _signature(timing_rank_min=0.0245, pair_payload={})
     assert sig_a != sig_b
+
+
+def test_parallel_stage_kernel_owns_hardware_and_work_caps(monkeypatch) -> None:
+    launched: dict[str, object] = {}
+    monkeypatch.setattr(sweep_parallel, "normalize_jobs", lambda _jobs: 3)
+    monkeypatch.setattr(
+        sweep_parallel,
+        "_run_parallel_json_worker_plan",
+        lambda **kwargs: launched.update(kwargs) or {},
+    )
+
+    workers, payloads = sweep_parallel._run_parallel_stage_kernel(
+        stage_label="test",
+        jobs=99,
+        total=2,
+        offline=True,
+        offline_error="offline required",
+        tmp_prefix="test_",
+        worker_tag="worker",
+        out_prefix="out",
+        build_cmd=lambda _worker, _workers, _path: [],
+        capture_error="capture",
+        failure_label="failure",
+        missing_label="missing",
+        invalid_label="invalid",
+    )
+
+    assert workers == 2
+    assert launched["jobs_eff"] == 2
+    assert payloads == {}
+
+
+def test_combo_full_stability_is_one_pipeline_contract() -> None:
+    args = parse_spot_sweep_args(
+        [
+            "--axis",
+            "combo_full",
+            "--track",
+            "lf",
+            "--stability-window",
+            "2024-01-01:2026-01-01",
+            "--stability-window",
+            "2025-01-01:2026-01-01",
+            "--promote",
+        ]
+    )
+
+    assert args.stability_window == [
+        "2024-01-01:2026-01-01",
+        "2025-01-01:2026-01-01",
+    ]
+    assert args.stability_top == 200
+    assert args.stability_write_top == 200
+    assert args.promotion_objective == "stability"
+    assert args.promote is True
+
+
+def test_stability_options_are_rejected_outside_full_combo() -> None:
+    with pytest.raises(SystemExit):
+        parse_spot_sweep_args(["--axis", "all", "--stability-window", "2025-01-01:2026-01-01"])
+
+
+def test_combo_full_shortlist_preserves_distinct_economic_leaders() -> None:
+    def candidate(name: str, **metrics):
+        cfg = _bundle_base(
+            symbol="SLV",
+            start=date(2025, 1, 8),
+            end=date(2025, 1, 10),
+            bar_size="15 mins",
+            use_rth=False,
+            cache_dir=Path("db"),
+            offline=True,
+            filters=None,
+            entry_signal="ema",
+        )
+        cfg = replace(cfg, strategy=replace(cfg.strategy, ema_preset=name))
+        return cfg, metrics, name
+
+    candidates = [
+        candidate("2/4", pnl_over_dd=10, pnl=10, win_rate=0.5, trades=10),
+        candidate("3/7", pnl_over_dd=2, pnl=100, win_rate=0.5, trades=20),
+        candidate("4/9", pnl_over_dd=3, pnl=30, win_rate=0.9, trades=30),
+        candidate("5/13", pnl_over_dd=4, pnl=40, win_rate=0.6, trades=100),
+    ]
+
+    shortlisted = _objective_shortlist(candidates, limit=4)
+
+    assert {cfg.strategy.ema_preset for cfg, _row, _note in shortlisted} == {
+        "2/4",
+        "3/7",
+        "4/9",
+        "5/13",
+    }
+
+
+def test_combo_full_seed_source_decodes_every_matching_lane_entry() -> None:
+    runtime = object.__new__(SpotSweepRuntime)
+    runtime.symbol = "SLV"
+    runtime.start = date(2025, 1, 1)
+    runtime.end = date(2026, 1, 1)
+    runtime.signal_bar_size = "10 mins"
+    runtime.use_rth = False
+    runtime.cache_dir = Path("db")
+    runtime.offline = True
+    base = _bundle_base(
+        symbol="SLV",
+        start=runtime.start,
+        end=runtime.end,
+        bar_size="10 mins",
+        use_rth=False,
+        cache_dir=runtime.cache_dir,
+        offline=True,
+        filters=None,
+    )
+    strategy = _spot_strategy_payload(base, meta=ContractMeta("SLV", "SMART", 1.0, 0.01))
+    runtime.milestones = {
+        "groups": [
+            {
+                "name": "candidate island",
+                "filters": {"rv_min": 0.1},
+                "entries": [
+                    {
+                        "symbol": "SLV",
+                        "metrics": {"pnl": pnl, "pnl_over_dd": pnl / 10.0},
+                        "strategy": {
+                            **strategy,
+                            "ema_preset": preset,
+                            "signal_use_rth": "false",
+                            "filters": {"rv_max": 0.5},
+                        },
+                    }
+                    for preset, pnl in (("2/4", 100.0), ("3/7", 80.0))
+                ],
+            }
+        ]
+    }
+
+    candidates = runtime._combo_full_seed_candidates()
+
+    assert {cfg.strategy.ema_preset for cfg, _metrics, _note in candidates} == {"2/4", "3/7"}
+    assert all(cfg.strategy.filters.rv_min == 0.1 for cfg, _metrics, _note in candidates)
+    assert all(cfg.strategy.filters.rv_max == 0.5 for cfg, _metrics, _note in candidates)
+
+
+def test_combo_full_stability_reuses_exact_windows_and_canonical_evaluator(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    windows = (
+        {"start": "2024-01-01", "end": "2025-01-01", "pnl": 10.0, "pnl_over_dd": 1.0},
+        {"start": "2025-01-01", "end": "2026-01-01", "pnl": 10.0, "pnl_over_dd": 1.0},
+    )
+    monkeypatch.setattr(
+        sweep_combo,
+        "load_current_champion_groups",
+        lambda **_kwargs: (
+            [
+                {
+                    "_track": "LF",
+                    "entries": [
+                        {
+                            "strategy": {
+                                "signal_bar_size": "15 mins",
+                                "signal_use_rth": "false",
+                            }
+                        }
+                    ],
+                    "_eval": {"windows": list(windows)},
+                }
+            ],
+            [],
+        ),
+    )
+
+    class FakeRuntime(SweepCartesian):
+        evaluated: list[tuple[str, date, date]] = []
+
+        def __init__(self, args) -> None:
+            self.args = args
+            self.offline = False
+            self.run_cfg_persistent_conn = None
+            self.data = SimpleNamespace(disconnect=lambda: None)
+
+        def _run_cfg(self, *, cfg):
+            self.evaluated.append(
+                (str(cfg.strategy.ema_preset), cfg.backtest.start, cfg.backtest.end)
+            )
+            strength = {"2/4": 4.0, "3/7": 2.0}.get(cfg.strategy.ema_preset, -1.0)
+            return {
+                "trades": 50,
+                "win_rate": 0.6,
+                "pnl": 100.0 * strength,
+                "dd": 100.0,
+                "roi": strength,
+                "dd_pct": 1.0,
+                "pnl_over_dd": strength,
+            }
+
+        def _run_cfg_pairs_grid(self, *, cfg_pairs, rows, on_row, **_kwargs):
+            for cfg, note in cfg_pairs:
+                row = self._run_cfg(cfg=cfg)
+                if row is not None:
+                    rows.append(row)
+                    on_row(cfg, row, note)
+            return len(cfg_pairs)
+
+        def _run_cfg_persistent_flush_pending(self, *, force: bool = False) -> None:
+            assert force is True
+
+    out = tmp_path / "stability.json"
+    args = SimpleNamespace(
+        stability_window=[
+            "2024-01-01:2025-01-01",
+            "2025-01-01:2026-01-01",
+        ],
+        stability_top=3,
+        stability_min_trades_per_year=None,
+        stability_out=str(out),
+        promote=False,
+        promotion_objective="stability",
+        promotion_version="",
+        track="lf",
+        min_trades=1,
+        combo_full_preset="profile",
+    )
+    runtime = FakeRuntime(args)
+    runtime.symbol = "SLV"
+    runtime.start = date(2025, 1, 1)
+    runtime.end = date(2026, 1, 1)
+    runtime.signal_bar_size = "15 mins"
+    runtime.use_rth = False
+    runtime.cache_dir = tmp_path
+    runtime.cache_policy = "strict"
+    runtime.meta = ContractMeta("SLV", "SMART", 1.0, 0.01)
+    configs = []
+    for preset, pnl in (("2/4", 100.0), ("3/7", 80.0), ("4/9", 20.0)):
+        cfg = _bundle_base(
+            symbol="SLV",
+            start=runtime.start,
+            end=runtime.end,
+            bar_size="15 mins",
+            use_rth=False,
+            cache_dir=tmp_path,
+            offline=False,
+            filters=None,
+        )
+        cfg = replace(cfg, strategy=replace(cfg.strategy, ema_preset=preset))
+        configs.append((cfg, {"pnl": pnl, "pnl_over_dd": pnl / 10.0}, preset))
+
+    runtime._combo_full_stability(configs)
+
+    payload = json.loads(out.read_text())
+    assert payload["schema"] == "tradebot.research.stability.v1"
+    assert payload["windows"] == [
+        {"start": "2024-01-01", "end": "2025-01-01"},
+        {"start": "2025-01-01", "end": "2026-01-01"},
+    ]
+    assert payload["groups"][0]["entries"][0]["strategy"]["ema_preset"] == "2/4"
+    assert payload["groups"][0]["_eval"]["promotion"]["eligible"] is True
+    assert {
+        group["entries"][0]["strategy"]["ema_preset"] for group in payload["groups"]
+    } == {"2/4", "3/7", "4/9"}
+    losing = next(
+        group
+        for group in payload["groups"]
+        if group["entries"][0]["strategy"]["ema_preset"] == "4/9"
+    )
+    assert losing["_eval"]["promotion"]["eligible"] is False
+    assert set(FakeRuntime.evaluated) == {
+        ("2/4", date(2024, 1, 1), date(2025, 1, 1)),
+        ("2/4", date(2025, 1, 1), date(2026, 1, 1)),
+        ("3/7", date(2024, 1, 1), date(2025, 1, 1)),
+        ("3/7", date(2025, 1, 1), date(2026, 1, 1)),
+        ("4/9", date(2024, 1, 1), date(2025, 1, 1)),
+        ("4/9", date(2025, 1, 1), date(2026, 1, 1)),
+    }
 
 
 def test_combo_full_signature_is_stable_for_reordered_dict_keys() -> None:
@@ -113,6 +396,7 @@ def test_legacy_hf_scalp_axis_is_replaced_by_unified_hf_preset() -> None:
 def test_combo_full_presets_explore_only_their_declared_dimensions() -> None:
     expected = {
         "full": _COMBO_FULL_CARTESIAN_DIM_ORDER,
+        "baseline": (),
         "profile": ("timing_profile",),
         "gate": ("perm", "tod", "vol", "cadence"),
         "ema": ("direction", "perm", "tod", "vol"),
@@ -361,8 +645,65 @@ def test_cfg_payload_round_trip_preserves_backtest_timeframe() -> None:
 
     assert decoded is not None
     restored, _note = decoded
+    assert restored.backtest.start == date(2025, 1, 8)
+    assert restored.backtest.end == date(2025, 1, 10)
     assert restored.backtest.bar_size == "15 mins"
     assert restored.backtest.use_rth is True
+
+
+def test_cfg_grid_workers_keep_parent_axis_and_internal_stage() -> None:
+    runtime = object.__new__(SpotSweepRuntime)
+    runtime.args = SimpleNamespace(cfg_stage=None, axis="combo_full")
+    runtime.axis_progress_state = {"active": False}
+    runtime.signal_bar_size = "15 mins"
+    runtime.use_rth = False
+    runtime.jobs = 4
+    runtime.run_min_trades = 12
+    runtime.start = date(2025, 1, 8)
+    runtime.end = date(2025, 1, 10)
+    runtime.cache_dir = Path("db")
+    runtime.offline = True
+    runtime.meta = ContractMeta("SLV", "SMART", 1.0, 0.01)
+    runtime._bars_cached = lambda _bar_size: []
+    captured: dict[str, object] = {}
+    runtime._run_parallel_stage_with_payload = (
+        lambda **kwargs: captured.update(kwargs) or {}
+    )
+
+    def run_stage(**kwargs):
+        kwargs["parallel_payloads_builder"](kwargs["serial_plan"])
+        return len(kwargs["serial_plan"])
+
+    runtime._run_stage_cfg_rows = run_stage
+    cfg = _bundle_base(
+        symbol="SLV",
+        start=runtime.start,
+        end=runtime.end,
+        bar_size=runtime.signal_bar_size,
+        use_rth=False,
+        cache_dir=runtime.cache_dir,
+        offline=True,
+        filters=None,
+    )
+
+    tested = runtime._run_cfg_pairs_grid(
+        axis_tag="combo_full_stability",
+        cfg_pairs=[(cfg, "candidate")],
+        rows=[],
+    )
+
+    assert tested == 1
+    assert captured["axis_name"] == "combo_full"
+    assert captured["stage_label"] == "combo_full_stability"
+    assert captured["strip_flags"] == ("--promote",)
+    assert captured["stage_args"] == (
+        "--start",
+        "2025-01-08",
+        "--end",
+        "2025-01-10",
+        "--base",
+        "default",
+    )
 
 
 def test_orb_sweeps_share_one_mechanics_space() -> None:

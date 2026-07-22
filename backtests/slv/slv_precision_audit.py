@@ -26,10 +26,9 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from tradebot.backtest.data import ContractMeta, IBKRHistoricalData
+from tradebot.backtest.data import ContractMeta, IBKRHistoricalData, load_bars as _load_bars
 from tradebot.backtest.engine import _run_spot_backtest, _spot_multiplier
 from tradebot.backtest.models import Bar, SpotTrade
-from tradebot.backtest.multiwindow_helpers import load_bars as _load_bars
 from tradebot.backtest.spot_codec import (
     filters_from_payload as _filters_from_payload,
     make_bundle as _mk_bundle,

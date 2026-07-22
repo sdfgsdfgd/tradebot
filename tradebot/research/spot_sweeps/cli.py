@@ -186,6 +186,56 @@ def parse_spot_sweep_args(argv: list[str] | None = None) -> argparse.Namespace:
         help="How many leaderboard rows to print per sweep.",
     )
     parser.add_argument(
+        "--stability-window",
+        action="append",
+        default=[],
+        metavar="START:END",
+        help=(
+            "combo_full: evaluate the objective-diverse shortlist on this exact window; "
+            "repeat for every promotion window. --promote reuses incumbent windows when omitted."
+        ),
+    )
+    parser.add_argument(
+        "--stability-top",
+        type=int,
+        default=200,
+        help="combo_full: maximum objective-diverse candidates entering the stability gate.",
+    )
+    parser.add_argument(
+        "--stability-write-top",
+        type=int,
+        default=200,
+        help="combo_full: maximum stable finalists written (promotion retains its full shortlist).",
+    )
+    parser.add_argument(
+        "--stability-min-trades-per-year",
+        type=float,
+        default=None,
+        help="combo_full: optional annualized trade floor applied independently to every stability window.",
+    )
+    parser.add_argument(
+        "--stability-out",
+        default="backtests/out/spot_stability.json",
+        help="combo_full: stability evidence artifact written after the final gate.",
+    )
+    parser.add_argument(
+        "--promote",
+        action="store_true",
+        default=False,
+        help="combo_full: atomically advance the selected HF/LF crown only when its receipt passes.",
+    )
+    parser.add_argument(
+        "--promotion-objective",
+        choices=("stability", "ratio_all", "pnl_all"),
+        default="stability",
+        help="Crown law: improve worst-window ratio, every-window ratio, or every-window PnL.",
+    )
+    parser.add_argument(
+        "--promotion-version",
+        default="",
+        help="Optional human crown version; defaults to the stability artifact timestamp.",
+    )
+    parser.add_argument(
         "--write-milestones",
         action="store_true",
         default=False,
@@ -235,7 +285,10 @@ def parse_spot_sweep_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--seed-milestones",
         default=None,
-        help=("Optional milestones JSON used as champion source override for --base champion/champion_pnl."),
+        help=(
+            "Optional milestone/candidate JSON used by --base champion; combo_full stability "
+            "evaluates every matching entry from the same source."
+        ),
     )
     parser.add_argument(
         "--axis",
@@ -283,7 +336,14 @@ def parse_spot_sweep_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--cfg-worker", type=int, default=None, help=argparse.SUPPRESS)
     parser.add_argument("--cfg-workers", type=int, default=None, help=argparse.SUPPRESS)
     parser.add_argument("--cfg-out", default=None, help=argparse.SUPPRESS)
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    if (args.stability_window or args.promote) and args.axis != "combo_full":
+        parser.error("--stability-window/--promote require --axis combo_full")
+    if args.stability_top < 1:
+        parser.error("--stability-top must be at least 1")
+    if args.stability_write_top < 1:
+        parser.error("--stability-write-top must be at least 1")
+    return args
 
 
 def resolve_run_min_trades(args: argparse.Namespace) -> int:

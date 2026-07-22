@@ -4,7 +4,21 @@ from __future__ import annotations
 
 import hashlib
 import json
-from datetime import timedelta
+import math
+from dataclasses import replace
+from datetime import date, datetime, time, timedelta
+from pathlib import Path
+
+from ...backtest.cli_utils import parse_window
+from ...backtest.config import ConfigBundle
+from ...backtest.spot_context import spot_bar_requirements_from_strategy
+from ...backtest.sweeps import utc_now_iso_z, write_json
+from ...spot.champions import (
+    load_current_champion_groups,
+    promote_champion,
+    promotion_receipt,
+)
+from ...spot.codec import bool_from_payload
 from .combo_presets import ComboPresetContext
 from .catalog import (
     _COMBO_FULL_CARTESIAN_DIM_ORDER,
@@ -18,11 +32,108 @@ from .fingerprints import (
     _RUN_CFG_CACHE_ENGINE_VERSION,
 )
 from .milestones import (
+    _collect_milestone_items_from_payload,
+    _filters_payload,
+    _milestone_key,
     _print_leaderboards,
+    _spot_strategy_payload,
 )
 from .support import (
     _require_offline_cache_or_die,
 )
+
+
+# region Full-combo finalist and crown policy
+def _metric(row: dict, key: str) -> float:
+    try:
+        return float(row.get(key) or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _objective_shortlist(
+    candidates: list[tuple[object, dict, str]],
+    *,
+    limit: int,
+) -> list[tuple[object, dict, str]]:
+    """Preserve each economic leader, then rank broad strength across objectives."""
+    best: dict[str, tuple[object, dict, str]] = {}
+    for cfg, row, note in candidates:
+        key = _milestone_key(cfg)
+        previous = best.get(key)
+        score = (
+            _metric(row, "pnl_over_dd"),
+            _metric(row, "pnl"),
+            _metric(row, "win_rate"),
+            _metric(row, "trades"),
+        )
+        if previous is None or score > (
+            _metric(previous[1], "pnl_over_dd"),
+            _metric(previous[1], "pnl"),
+            _metric(previous[1], "win_rate"),
+            _metric(previous[1], "trades"),
+        ):
+            best[key] = (cfg, row, note)
+    keyed = sorted(best.items())
+    if not keyed:
+        return []
+    objectives = (
+        lambda row: _metric(row, "pnl_over_dd"),
+        lambda row: _metric(row, "pnl"),
+        lambda row: _metric(row, "win_rate"),
+        lambda row: _metric(row, "trades"),
+    )
+    rankings = [
+        sorted(keyed, key=lambda item, score=score: (score(item[1][1]), item[0]), reverse=True)
+        for score in objectives
+    ]
+    fused = {key: 0.0 for key, _candidate in keyed}
+    for ranking in rankings:
+        for rank, (key, _candidate) in enumerate(ranking, start=1):
+            fused[key] += 1.0 / (60.0 + float(rank))
+    ordered: list[str] = []
+    for ranking in rankings:
+        if ranking[0][0] not in ordered:
+            ordered.append(ranking[0][0])
+    ordered.extend(
+        key
+        for key, _candidate in sorted(
+            keyed,
+            key=lambda item: (fused[item[0]], item[0]),
+            reverse=True,
+        )
+        if key not in ordered
+    )
+    return [best[key] for key in ordered[: max(1, int(limit))]]
+
+
+def _stability_score(item: dict) -> tuple:
+    stability = item.get("stability") if isinstance(item.get("stability"), dict) else {}
+    primary = item.get("primary") if isinstance(item.get("primary"), dict) else {}
+    return (
+        _metric(stability, "min_roi_over_dd"),
+        _metric(stability, "min_pnl"),
+        _metric(primary, "roi_over_dd_pct"),
+        _metric(primary, "pnl"),
+    )
+
+
+def _required_trades(
+    start: date,
+    end: date,
+    *,
+    minimum: int,
+    per_year: float | None,
+) -> int:
+    annualized = (
+        int(math.ceil(max(1, (end - start).days + 1) / 365.25 * float(per_year)))
+        if per_year is not None
+        else 0
+    )
+    return max(int(minimum), annualized)
+
+
+# endregion
 
 
 class SweepCartesian:
@@ -113,6 +224,407 @@ class SweepCartesian:
 
         preset_context.apply(combo_full_preset)
         return preset_context
+
+    def _combo_full_seed_candidates(self) -> list[tuple[ConfigBundle, dict, str]]:
+        """Decode every matching seed entry through the canonical spot codec."""
+        payload = getattr(self, "milestones", None)
+        if not isinstance(payload, dict):
+            return []
+        candidates: list[tuple[ConfigBundle, dict, str]] = []
+        for item in _collect_milestone_items_from_payload(payload, symbol=self.symbol):
+            strategy = item.get("strategy")
+            if not isinstance(strategy, dict):
+                continue
+            bar_size = str(strategy.get("signal_bar_size") or self.signal_bar_size).strip()
+            use_rth = bool_from_payload(
+                strategy.get("signal_use_rth"),
+                default=self.use_rth,
+            )
+            if bar_size.lower() != str(self.signal_bar_size).strip().lower() or use_rth != bool(self.use_rth):
+                continue
+            cfg = self._cfg_from_strategy_filters_payload(
+                strategy,
+                item.get("filters"),
+                bar_size=bar_size,
+                use_rth=use_rth,
+            )
+            metrics = item.get("metrics")
+            if cfg is not None and isinstance(metrics, dict):
+                candidates.append((cfg, dict(metrics), str(item.get("note") or "seed")))
+        return candidates
+
+    def _combo_full_stability(
+        self,
+        candidates: list[tuple[ConfigBundle, dict, str]],
+    ) -> None:
+        """Gate the full-combo shortlist and optionally advance one machine crown."""
+        raw_windows = tuple(getattr(self.args, "stability_window", ()) or ())
+        promote = bool(getattr(self.args, "promote", False))
+        if not raw_windows and not promote:
+            return
+
+        seeded = self._combo_full_seed_candidates()
+        if seeded:
+            candidates = [*candidates, *seeded]
+            print(f"combo_full stability: added {len(seeded)} seed candidates", flush=True)
+
+        requested_track = str(getattr(self.args, "track", "auto") or "auto").strip().upper()
+        track_filter = None if requested_track == "AUTO" else (requested_track,)
+        incumbent_groups, warnings = load_current_champion_groups(
+            symbols=(self.symbol,),
+            tracks=track_filter,
+        )
+        for warning in warnings:
+            print(f"champion source warning: {warning}", flush=True)
+
+        def _matches_lane(group: dict) -> bool:
+            entries = group.get("entries") if isinstance(group.get("entries"), list) else []
+            entry = next((row for row in entries if isinstance(row, dict)), None)
+            strategy = entry.get("strategy") if isinstance(entry, dict) else None
+            if not isinstance(strategy, dict):
+                return False
+            use_rth = bool_from_payload(
+                strategy.get("signal_use_rth"),
+                default=self.use_rth,
+            )
+            return (
+                str(strategy.get("signal_bar_size") or "").strip().lower()
+                == str(self.signal_bar_size).strip().lower()
+                and use_rth == bool(self.use_rth)
+            )
+
+        lane_groups = [group for group in incumbent_groups if _matches_lane(group)]
+        lane_tracks = {str(group.get("_track") or "").strip().upper() for group in lane_groups}
+        if requested_track == "AUTO" and len(lane_tracks) == 1:
+            requested_track = next(iter(lane_tracks))
+            lane_groups = [
+                group
+                for group in lane_groups
+                if str(group.get("_track") or "").strip().upper() == requested_track
+            ]
+        if promote and requested_track not in {"HF", "LF"}:
+            raise SystemExit("--promote requires --track hf|lf when the current lane is ambiguous")
+        incumbent = lane_groups[0] if len(lane_groups) == 1 else None
+        incumbent_eval = (
+            incumbent.get("_eval")
+            if isinstance(incumbent, dict) and isinstance(incumbent.get("_eval"), dict)
+            else {}
+        )
+        incumbent_windows = tuple(
+            row
+            for row in incumbent_eval.get("windows", ())
+            if isinstance(row, dict)
+        )
+
+        try:
+            windows = [parse_window(raw) for raw in raw_windows]
+        except (TypeError, ValueError) as exc:
+            raise SystemExit(str(exc)) from exc
+        if not windows and promote:
+            windows = [
+                (date.fromisoformat(str(row["start"])), date.fromisoformat(str(row["end"])))
+                for row in incumbent_windows
+            ]
+        if not windows:
+            raise SystemExit("combo_full stability requires --stability-window or incumbent promotion windows")
+        if any(end < start for start, end in windows):
+            raise SystemExit("combo_full stability windows must end on or after their start")
+
+        shortlist = _objective_shortlist(
+            candidates,
+            limit=max(1, int(getattr(self.args, "stability_top", 200) or 200)),
+        )
+        if not shortlist:
+            print("combo_full stability: no eligible primary-window candidates", flush=True)
+            return
+        requirements = {
+            _milestone_key(cfg): tuple(
+                spot_bar_requirements_from_strategy(
+                    strategy=cfg.strategy,
+                    default_symbol=str(cfg.strategy.symbol),
+                    default_exchange=cfg.strategy.exchange,
+                    default_signal_bar_size=str(cfg.backtest.bar_size),
+                    default_signal_use_rth=bool(cfg.backtest.use_rth),
+                    include_signal=True,
+                )
+            )
+            for cfg, _row, _note in shortlist
+        }
+        rows_by_key: dict[str, list[dict]] = {
+            _milestone_key(cfg): [] for cfg, _row, _note in shortlist
+        }
+        active = set(rows_by_key)
+        per_year_raw = getattr(self.args, "stability_min_trades_per_year", None)
+        try:
+            per_year = float(per_year_raw) if per_year_raw is not None else None
+        except (TypeError, ValueError) as exc:
+            raise SystemExit("--stability-min-trades-per-year must be a non-negative number") from exc
+        if per_year is not None and (not math.isfinite(per_year) or per_year < 0.0):
+            raise SystemExit("--stability-min-trades-per-year must be a non-negative number")
+        window_plan = sorted(
+            enumerate(windows),
+            key=lambda item: (
+                -_required_trades(
+                    item[1][0],
+                    item[1][1],
+                    minimum=int(self.args.min_trades),
+                    per_year=per_year,
+                ),
+                (item[1][1] - item[1][0]).days,
+                item[0],
+            ),
+        )
+        print(
+            "combo_full stability: "
+            f"shortlist={len(shortlist)} windows={len(windows)} "
+            f"track={requested_track if requested_track in {'HF', 'LF'} else 'unclassified'}",
+            flush=True,
+        )
+
+        for window_position, (window_index, (window_start, window_end)) in enumerate(
+            window_plan,
+            start=1,
+        ):
+            window_candidates = [
+                item for item in shortlist if _milestone_key(item[0]) in active
+            ]
+            if not window_candidates:
+                break
+            required = _required_trades(
+                window_start,
+                window_end,
+                minimum=int(self.args.min_trades),
+                per_year=per_year,
+            )
+            unique_requirements = {
+                (
+                    req.symbol,
+                    req.exchange,
+                    req.bar_size,
+                    req.use_rth,
+                    req.warmup_days,
+                ): req
+                for cfg, _row, _note in window_candidates
+                for req in requirements[_milestone_key(cfg)]
+            }
+            warmup_days = max(
+                (max(0, int(req.warmup_days)) for req in unique_requirements.values()),
+                default=0,
+            )
+            warm_start = window_start - timedelta(days=warmup_days)
+            if self.offline:
+                for req in unique_requirements.values():
+                    _require_offline_cache_or_die(
+                        data=self.data,
+                        cache_dir=self.cache_dir,
+                        symbol=str(req.symbol),
+                        exchange=req.exchange,
+                        start_dt=datetime.combine(
+                            window_start - timedelta(days=max(0, int(req.warmup_days))),
+                            time(0, 0),
+                        ),
+                        end_dt=datetime.combine(window_end, time(23, 59)),
+                        bar_size=str(req.bar_size),
+                        use_rth=bool(req.use_rth),
+                        cache_policy=self.cache_policy,
+                    )
+
+            child_args = type(self.args)(**vars(self.args))
+            child_args.start = warm_start.isoformat()
+            child_args.end = window_end.isoformat()
+            child_args.min_trades = required
+            child_args.jobs = getattr(self, "jobs", 1) if self.offline else 1
+            child_args.base = "default"
+            child_args.seed_milestones = None
+            child_args.write_milestones = False
+            child_args.promote = False
+            child_args.stability_window = []
+            child_args.combo_full_cartesian_stage = None
+            child_args.combo_full_cartesian_worker = None
+            child_args.combo_full_cartesian_workers = None
+            child_args.combo_full_cartesian_out = None
+            child_args.combo_full_cartesian_run_min_trades = None
+            child_args.cfg_stage = None
+            child_args.cfg_worker = None
+            child_args.cfg_workers = None
+            child_args.cfg_out = None
+            child = type(self)(child_args)
+            try:
+                evaluated: dict[str, dict] = {}
+                window_cfgs: list[tuple[ConfigBundle, str]] = []
+                for cfg, _primary_row, _note in window_candidates:
+                    key = _milestone_key(cfg)
+                    window_cfgs.append(
+                        (
+                            replace(
+                                cfg,
+                                backtest=replace(
+                                    cfg.backtest,
+                                    start=window_start,
+                                    end=window_end,
+                                ),
+                            ),
+                            key,
+                        )
+                    )
+
+                def _capture_window(cfg: ConfigBundle, row: dict, _note: str) -> None:
+                    evaluated[_milestone_key(cfg)] = row
+
+                child._run_cfg_pairs_grid(
+                    axis_tag="combo_full_stability",
+                    cfg_pairs=window_cfgs,
+                    rows=[],
+                    on_row=_capture_window,
+                    report_every=max(1, len(window_cfgs) // 20),
+                    heartbeat_sec=30.0,
+                )
+                for cfg, _primary_row, _note in window_candidates:
+                    key = _milestone_key(cfg)
+                    row = evaluated.get(key)
+                    if row is None:
+                        active.discard(key)
+                        continue
+                    ratio = (
+                        _metric(row, "roi") / _metric(row, "dd_pct")
+                        if _metric(row, "dd_pct") > 0.0
+                        else _metric(row, "pnl_over_dd")
+                    )
+                    rows_by_key[key].append(
+                        {
+                            "start": window_start.isoformat(),
+                            "end": window_end.isoformat(),
+                            **row,
+                            "roi_over_dd_pct": ratio,
+                            "_window_index": int(window_index),
+                        }
+                    )
+            finally:
+                child._run_cfg_persistent_flush_pending(force=True)
+                if child.run_cfg_persistent_conn is not None:
+                    child.run_cfg_persistent_conn.close()
+                child.data.disconnect()
+            print(
+                f"combo_full stability window {window_position}/{len(windows)} "
+                f"{window_start.isoformat()}->{window_end.isoformat()} "
+                f"required_trades={required} survivors={len(active)}",
+                flush=True,
+            )
+
+        results: list[dict] = []
+        for cfg, _primary_row, note in shortlist:
+            key = _milestone_key(cfg)
+            if key not in active:
+                continue
+            window_rows = [
+                {name: value for name, value in row.items() if name != "_window_index"}
+                for row in sorted(
+                    rows_by_key[key],
+                    key=lambda row: int(row["_window_index"]),
+                )
+            ]
+            if len(window_rows) != len(windows):
+                continue
+            stability = {
+                "min_pnl_over_dd": min(_metric(row, "pnl_over_dd") for row in window_rows),
+                "min_pnl": min(_metric(row, "pnl") for row in window_rows),
+                "min_roi_over_dd": min(_metric(row, "roi_over_dd_pct") for row in window_rows),
+                "min_roi": min(_metric(row, "roi") for row in window_rows),
+            }
+            results.append(
+                {
+                    "key": key,
+                    "cfg": cfg,
+                    "note": note,
+                    "primary": window_rows[0],
+                    "stability": stability,
+                    "windows": window_rows,
+                    "promotion": promotion_receipt(
+                        window_rows,
+                        incumbent_windows,
+                        objective=str(self.args.promotion_objective),
+                    ),
+                }
+            )
+        results.sort(key=_stability_score, reverse=True)
+
+        generated_at = utc_now_iso_z()
+        write_top = max(1, int(getattr(self.args, "stability_write_top", 200) or 200))
+        written_results = results if promote else results[:write_top]
+        groups: list[dict] = []
+        for rank, item in enumerate(written_results, start=1):
+            cfg = item["cfg"]
+            primary = item["primary"]
+            group = {
+                "name": (
+                    f"Spot ({self.symbol}) STABILITY #{rank:02d} "
+                    f"roi/dd={_metric(primary, 'roi_over_dd_pct'):.2f} "
+                    f"pnl={_metric(primary, 'pnl'):.1f} "
+                    f"tr={int(_metric(primary, 'trades'))}"
+                ),
+                "filters": _filters_payload(cfg.strategy.filters),
+                "entries": [
+                    {
+                        "symbol": self.symbol,
+                        "metrics": primary,
+                        "strategy": _spot_strategy_payload(cfg, meta=self.meta),
+                    }
+                ],
+                "_key": item["key"],
+                "_eval": {
+                    "stability": item["stability"],
+                    "windows": item["windows"],
+                    "promotion": item["promotion"],
+                },
+            }
+            if requested_track in {"HF", "LF"}:
+                group["_track"] = requested_track
+            groups.append(group)
+        output = Path(str(self.args.stability_out))
+        payload = {
+            "schema": "tradebot.research.stability.v1",
+            "name": "combo_full_stability",
+            "generated_at": generated_at,
+            "symbol": self.symbol,
+            "track": requested_track if requested_track in {"HF", "LF"} else None,
+            "source": {
+                "axis": "combo_full",
+                "preset": str(getattr(self.args, "combo_full_preset", "") or "full"),
+                "start": self.start.isoformat(),
+                "end": self.end.isoformat(),
+                "shortlist": len(shortlist),
+            },
+            "windows": [
+                {"start": start.isoformat(), "end": end.isoformat()}
+                for start, end in windows
+            ],
+            "groups": groups,
+        }
+        write_json(output, payload, sort_keys=False)
+        print(f"Wrote {output} ({len(groups)} stable finalists).", flush=True)
+
+        if not promote:
+            return
+        winner = next(
+            (
+                group
+                for group in groups
+                if bool(group.get("_eval", {}).get("promotion", {}).get("eligible"))
+            ),
+            None,
+        )
+        if winner is None:
+            raise SystemExit("No stable finalist passed the incumbent promotion receipt")
+        declaration = promote_champion(
+            root=Path(__file__).resolve().parents[3],
+            symbol=self.symbol,
+            track=requested_track,
+            version=str(self.args.promotion_version or generated_at),
+            artifact_path=output,
+            strategy_key=str(winner["_key"]),
+            receipt=dict(winner["_eval"]["promotion"]),
+        )
+        print(f"Promoted {self.symbol} {requested_track} crown: {declaration}", flush=True)
 
     def _sweep_combo_full(self) -> None:
         """Unified tight Cartesian sweep over centralized combo dimensions."""
@@ -222,6 +734,7 @@ class SweepCartesian:
             self._record_milestone(base, base_row, "base")
 
         rows: list[dict] = []
+        candidates: list[tuple[ConfigBundle, dict, str]] = []
         combo_stage_args = tuple(("--combo-full-preset", str(combo_full_preset)) if combo_full_preset else ())
         combo_manifest_window_sig = _combo_full_worker_stage_window_signature()
 
@@ -239,6 +752,10 @@ class SweepCartesian:
             prefetched_i = max(0, int(total) - int(unresolved_i))
             return int(unresolved_i), int(prefetched_i)
 
+        def _capture_candidate(cfg: ConfigBundle, row: dict, note: str) -> None:
+            rows.append(row)
+            candidates.append((cfg, row, note))
+
         tested_total = self._run_stage_cfg_rows(
             stage_label="combo_full_cartesian",
             total=int(total),
@@ -246,7 +763,7 @@ class SweepCartesian:
             bars=bars_sig,
             report_every=200,
             heartbeat_sec=30.0,
-            on_row=lambda _cfg, row, _note: rows.append(row),
+            on_row=_capture_candidate,
             serial_plan_builder=preset_context.iter_plan,
             parallel_payloads_builder=lambda: (
                 lambda unresolved_i, prefetched_i: self._run_parallel_stage(
@@ -287,6 +804,7 @@ class SweepCartesian:
         )
         if base_row:
             rows.append(base_row)
+            candidates.append((base, base_row, "base"))
         print(
             f"combo_full Cartesian tested={int(tested_total)} kept={len(rows)} min_trades={int(self.run_min_trades)}",
             flush=True,
@@ -296,3 +814,4 @@ class SweepCartesian:
             title="combo_full sweep (unified tight Cartesian)",
             top_n=int(self.args.top),
         )
+        self._combo_full_stability(candidates)

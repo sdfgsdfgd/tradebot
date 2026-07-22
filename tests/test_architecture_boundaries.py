@@ -18,6 +18,11 @@ OVERSIZED_MODULE_DEBT = {
 
 # Existing ownership inversions only. New inversions and stale exemptions fail.
 BACKTEST_IMPORT_DEBT: set[tuple[str, str]] = set()
+RETIRED_RESEARCH_SURFACES = {
+    "tradebot/backtest/multiwindow_helpers.py",
+    "tradebot/backtest/run_backtests_spot_multiwindow.py",
+    "tradebot/research/multiwindow.py",
+}
 
 
 def _production_modules() -> list[Path]:
@@ -71,3 +76,7 @@ def test_backtest_dependency_debt_only_shrinks() -> None:
         f"Backtest ownership debt changed: unexpected={sorted(violations - BACKTEST_IMPORT_DEBT)}, "
         f"resolved_but_still_allowlisted={sorted(BACKTEST_IMPORT_DEBT - violations)}"
     )
+
+
+def test_full_combo_remains_the_only_spot_stability_pipeline() -> None:
+    assert not {path for path in RETIRED_RESEARCH_SURFACES if (ROOT / path).exists()}

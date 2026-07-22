@@ -17,7 +17,10 @@ from ...backtest.spot_codec import (
 )
 from ...backtest.sweep_fingerprint import _strategy_fingerprint
 from ...backtest.sweeps import utc_now_iso_z, write_json
-from ...spot.codec import effective_filters_payload as _codec_effective_filters_payload
+from ...spot.codec import (
+    bool_from_payload,
+    effective_filters_payload as _codec_effective_filters_payload,
+)
 from ...spot.fill_modes import (
     SPOT_FILL_MODE_NEXT_TRADABLE_BAR,
     normalize_spot_fill_mode,
@@ -469,7 +472,7 @@ def _milestone_entry_for(
             continue
         if str(strategy.get("signal_bar_size") or "").strip().lower() != str(signal_bar_size).strip().lower():
             continue
-        if bool(strategy.get("signal_use_rth")) != bool(use_rth):
+        if bool_from_payload(strategy.get("signal_use_rth")) != bool(use_rth):
             continue
         if prefer_realism:
             fill_mode = normalize_spot_fill_mode(strategy.get("spot_entry_fill_mode"), default="close")

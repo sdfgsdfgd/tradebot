@@ -19,18 +19,20 @@ We are explicitly targeting the new contract:
 ### Canonical command equivalents (current architecture)
 Historical command logs below are normalized to these current wrappers:
 - Spot sweeps/evolution: `python -m tradebot.backtest spot ...`
-- Multiwindow kingmaker eval: `python -m tradebot.backtest spot_multitimeframe ...`
-- Legacy alias still accepted: `python -m tradebot.backtest multitimeframe ...`
+- Stability/kingmaker/promotion: `python -m tradebot.backtest spot --axis combo_full ... --stability-window ...`
+
+Historical `spot_multitimeframe` commands below remain provenance, not current CLI examples.
 
 Current LF champion replay (v31.2):
 ```bash
-python -m tradebot.backtest spot_multitimeframe \
-  --milestones [PURGED false-timebars artifact] \
-  --symbol SLV --bar-size "10 mins" --offline --cache-dir db \
-  --top 1 --min-trades 0 \
-  --window 2016-01-08:2026-01-08 \
-  --window 2024-01-08:2026-01-08 \
-  --window 2025-01-08:2026-01-08
+python -m tradebot.backtest spot --axis combo_full --combo-full-preset baseline \
+  --base champion --track lf --symbol SLV --bar-size "10 mins" \
+  --start 2016-01-08 --end 2026-01-08 --offline --cache-dir db --min-trades 0 \
+  --stability-window 2016-01-08:2026-01-08 \
+  --stability-window 2024-01-08:2026-01-08 \
+  --stability-window 2025-01-08:2026-01-08 \
+  --stability-top 1 --stability-write-top 1 \
+  --stability-out backtests/out/slv_lf_current_smoke.json
 ```
 
 ### CURRENT (v31.2) — FULL24 10m single-position parity dethrone (single-process verified)

@@ -31,7 +31,9 @@ def fmt_duration(seconds: float | None) -> str:
 def write_json(path: Path, payload: object, *, indent: int = 2, sort_keys: bool = False) -> None:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=indent, sort_keys=sort_keys))
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.tmp")
+    temporary.write_text(json.dumps(payload, indent=indent, sort_keys=sort_keys))
+    os.replace(temporary, path)
 
 
 # endregion

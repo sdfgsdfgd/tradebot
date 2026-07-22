@@ -10,17 +10,20 @@ Canonical execution paths:
 
 Current HF champion replay (v28 base short-mult retune sweet spot; 2Y-scoped):
 ```bash
-python -m tradebot.backtest spot_multitimeframe \
-  --milestones backtests/slv/archive/champion_history_20260214/slv_hf_champions_v28_exception_ddshock_lb10_on10_off5_depth1p25pp_streak1_shortmult0p028_20260222.json \
-  --symbol SLV --bar-size "10 mins" --spot-exec-bar-size "5 mins" --offline --cache-dir db \
-  --top 1 --min-trades 0 \
-  --window 2024-02-14:2026-02-14 \
-  --window 2025-02-14:2026-02-14
+python -m tradebot.backtest spot --axis combo_full --combo-full-preset baseline \
+  --base champion --track hf --symbol SLV --bar-size "10 mins" \
+  --start 2024-02-14 --end 2026-02-14 --offline --cache-dir db --min-trades 0 \
+  --stability-window 2024-02-14:2026-02-14 \
+  --stability-window 2025-02-14:2026-02-14 \
+  --stability-top 1 --stability-write-top 1 \
+  --stability-out backtests/out/slv_hf_current_smoke.json
 ```
 
 Historical evolution commands below are normalized to current wrappers:
 - Spot sweeps/evolution: `python -m tradebot.backtest spot ...`
-- Multiwindow kingmaker eval: `python -m tradebot.backtest spot_multitimeframe ...`
+- Stability/kingmaker/promotion: `python -m tradebot.backtest spot --axis combo_full ... --stability-window ...`
+
+Historical `spot_multitimeframe` commands below remain provenance, not current CLI examples.
 
 ## Current Champions (stack)
 

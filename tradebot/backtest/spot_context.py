@@ -11,6 +11,7 @@ from ..engine import (
     resolve_spot_regime_spec,
 )
 from ..signals import ema_periods, parse_bar_size
+from ..spot.codec import bool_from_payload
 from ..spot.policy_contract import parse_int as _parse_int
 from ..spot.policy_contract import source_value as _get
 
@@ -96,8 +97,10 @@ def spot_signal_warmup_days_from_strategy(
     signal_bar_size = str(_get(strategy, "signal_bar_size", default_signal_bar_size) or default_signal_bar_size).strip()
     if not signal_bar_size:
         signal_bar_size = str(default_signal_bar_size)
-    signal_use_rth_raw = _get(strategy, "signal_use_rth", None)
-    signal_use_rth = bool(default_signal_use_rth if signal_use_rth_raw is None else signal_use_rth_raw)
+    signal_use_rth = bool_from_payload(
+        _get(strategy, "signal_use_rth", None),
+        default=default_signal_use_rth,
+    )
     filters = _get(strategy, "filters", None)
 
     bars_needed = 0

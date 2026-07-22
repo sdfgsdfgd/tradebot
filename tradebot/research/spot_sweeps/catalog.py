@@ -202,6 +202,10 @@ _COMBO_FULL_COVERAGE_TIER_REGISTRY: dict[str, dict[str, object]] = {
     },
 }
 _COMBO_FULL_PRESET_ALIAS_REGISTRY: dict[str, dict[str, object]] = {
+    "baseline": {
+        "tier": "custom",
+        "freeze_dims": _freeze_all_except(),
+    },
     "squeeze": {
         "tier": "regime",
         "customizer": "squeeze",
@@ -679,7 +683,7 @@ def _spot_sweeps_help_epilog() -> str:
             "  - --cache-dir stores bar cache plus run_cfg cache DB (spot_sweeps_run_cfg_cache.sqlite3).",
             "  - --write-milestones emits UI preset candidates filtered by milestone thresholds.",
             "  - --track keeps promoted HF/LF lanes distinct; ambiguous auto-selection fails closed.",
-            "  - --seed-milestones explicitly overrides the promoted champion source.",
+            "  - --seed-milestones overrides the base and supplies matching combo_full stability candidates.",
             "",
             *base_lines,
             "",

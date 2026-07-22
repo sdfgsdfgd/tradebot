@@ -16,6 +16,7 @@ from .config import (
 )
 from .config_filters import _parse_filters
 from .data import ContractMeta
+from ..spot.codec import bool_from_payload
 
 _WDAYS = ("Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun")
 _WDAY_TO_IDX = {"MON": 0, "TUE": 1, "WED": 2, "THU": 3, "FRI": 4, "SAT": 5, "SUN": 6}
@@ -96,11 +97,7 @@ def strategy_from_payload(strategy: dict, *, filters: FiltersConfig | None) -> S
     instrument = str(raw.get("instrument", "spot") or "spot").strip().lower()
     sec_type = str(raw.get("spot_sec_type") or "STK").strip().upper()
     mode_raw = str(raw.get("spot_next_open_session") or "").strip()
-    use_rth_raw = raw.get("signal_use_rth")
-    if isinstance(use_rth_raw, str):
-        use_rth = use_rth_raw.strip().lower() in ("1", "true", "yes", "on")
-    else:
-        use_rth = bool(use_rth_raw)
+    use_rth = bool_from_payload(raw.get("signal_use_rth"))
     if instrument == "spot" and sec_type == "STK" and not use_rth and not mode_raw:
         raw["spot_next_open_session"] = "tradable_24x5"
 

@@ -15,10 +15,9 @@ from copy import deepcopy
 from datetime import date, datetime, time, timedelta
 from pathlib import Path
 
-from ..data import ContractMeta, IBKRHistoricalData
+from ..data import ContractMeta, IBKRHistoricalData, load_bars
 from ..engine import _run_spot_backtest, _spot_multiplier
 from ..models import SpotTrade
-from ..multiwindow_helpers import load_bars
 from ...spot.codec import effective_filters_payload
 from ..spot_codec import filters_from_payload, make_bundle, strategy_from_payload
 from ..spot_context import load_spot_context_bars, spot_signal_warmup_days_from_strategy

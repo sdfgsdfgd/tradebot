@@ -342,6 +342,17 @@ class SpotSweepRuntime(
             f"slip={self.spot_slippage:g} sizing={self.sizing_mode} risk={self.spot_risk_pct:g} max_notional={self.spot_max_notional_pct:g})"
         )
 
+        # Generic config workers are transport, not axes; dispatch them before
+        # the requested axis so every research pipeline reuses one worker path.
+        if self.args.cfg_stage:
+            try:
+                cfg_stage_payload = json.loads(Path(str(self.args.cfg_stage)).read_text())
+                cfg_stage_axis = str(cfg_stage_payload.get("axis_tag") or "cfg_stage")
+            except (OSError, json.JSONDecodeError, AttributeError) as exc:
+                raise SystemExit(f"Invalid cfg_stage payload: {self.args.cfg_stage}") from exc
+            self._run_cfg_pairs_grid(axis_tag=cfg_stage_axis, cfg_pairs=[], rows=[])
+            return
+
         if axis == "all" and self.jobs > 1:
             axis_plan = _axis_mode_plan(mode="axis_all")
             self._run_axis_plan_parallel_if_requested(

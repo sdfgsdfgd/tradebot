@@ -7,8 +7,8 @@ Profiles:
 - precision_guard: km50/km52-centered quality pocket with narrow crisis overlays.
 - hour_expansion: FULL24 hour-window expansion with selective protection overlays.
 
-This script intentionally calls canonical `spot_multitimeframe` so we keep
-cache/sharding/engine behavior identical to the main backtest stack.
+Historical candidate profiles remain here; canonical `spot --axis combo_full`
+owns evaluation, cache identity, stability scoring, and promotion.
 """
 
 from __future__ import annotations
@@ -221,7 +221,7 @@ def _pick_group(
     raise SystemExit(f"Could not find KINGMAKER #{int(kingmaker_id):02d} in {label}.")
 
 
-def _run_multitimeframe(
+def _run_stability(
     *,
     repo_root: Path,
     milestones: Path,
@@ -234,20 +234,29 @@ def _run_multitimeframe(
     top: int,
     min_trades: int,
     min_trades_per_year: float | None,
-    min_win: float,
     windows: list[str],
-    require_positive_pnl: bool,
     out_path: Path,
     log_path: Path,
 ) -> None:
+    start, end = _parse_window(windows[0])
     cmd = [
         sys.executable,
         "-u",
         "-m",
         "tradebot.backtest",
-        "spot_multitimeframe",
-        "--milestones",
+        "spot",
+        "--axis",
+        "combo_full",
+        "--combo-full-preset",
+        "baseline",
+        "--base",
+        "champion",
+        "--seed-milestones",
         str(milestones),
+        "--start",
+        start,
+        "--end",
+        end,
         "--symbol",
         str(symbol),
         "--bar-size",
@@ -260,23 +269,21 @@ def _run_multitimeframe(
         str(int(top)),
         "--min-trades",
         str(int(min_trades)),
-        "--min-win",
-        str(float(min_win)),
-        "--write-top",
+        "--stability-top",
         str(int(top)),
-        "--out",
+        "--stability-write-top",
+        str(int(top)),
+        "--stability-out",
         str(out_path),
     ]
     if use_rth:
         cmd.append("--use-rth")
     if offline:
         cmd.append("--offline")
-    if require_positive_pnl:
-        cmd.append("--require-positive-pnl")
     if min_trades_per_year is not None:
-        cmd.extend(["--min-trades-per-year", str(float(min_trades_per_year))])
+        cmd.extend(["--stability-min-trades-per-year", str(float(min_trades_per_year))])
     for window in windows:
-        cmd.extend(["--window", str(window)])
+        cmd.extend(["--stability-window", str(window)])
     _run_and_tee(cmd=cmd, cwd=repo_root, log_path=log_path)
 
 
@@ -294,7 +301,6 @@ def _evaluate_payload_by_lane(
     windows: list[str],
     min_trades: int,
     min_trades_per_year: float | None,
-    require_positive_pnl: bool,
     lane_mode: str,
     top_keep: int | None = None,
 ) -> dict:
@@ -341,7 +347,7 @@ def _evaluate_payload_by_lane(
             notes=[f"lane={lane_name}", f"count={len(groups_lane)}"],
         )
         _write_json(lane_in, lane_payload)
-        _run_multitimeframe(
+        _run_stability(
             repo_root=repo_root,
             milestones=lane_in,
             symbol=symbol,
@@ -353,9 +359,7 @@ def _evaluate_payload_by_lane(
             top=len(groups_lane),
             min_trades=int(min_trades),
             min_trades_per_year=min_trades_per_year,
-            min_win=0.0,
             windows=windows,
-            require_positive_pnl=bool(require_positive_pnl),
             out_path=lane_out,
             log_path=lane_log,
         )
@@ -2184,7 +2188,6 @@ def _profile_run(
     lane_mode: str,
 ) -> None:
     stage_windows_payload = _windows_from_strings([stage_window])
-    promo_windows_payload = _windows_from_strings(promotion_windows)
 
     if profile == "hyper10":
         stage_a_groups = _hyper10_stage_a(symbol=symbol, base_strategy=seed_strategy, base_filters=seed_filters)
@@ -2250,7 +2253,6 @@ def _profile_run(
         windows=[stage_window],
         min_trades=stage_min_trades,
         min_trades_per_year=stage_min_tpy,
-        require_positive_pnl=False,
         lane_mode=lane_mode,
         top_keep=None,
     )
@@ -2287,7 +2289,6 @@ def _profile_run(
         windows=[stage_window],
         min_trades=stage_min_trades,
         min_trades_per_year=stage_min_tpy,
-        require_positive_pnl=False,
         lane_mode=lane_mode,
         top_keep=stage_b_top_keep,
     )
@@ -2322,7 +2323,6 @@ def _profile_run(
         windows=promotion_windows,
         min_trades=promotion_min_trades,
         min_trades_per_year=promotion_min_tpy,
-        require_positive_pnl=True,
         lane_mode=lane_mode,
         top_keep=80,
     )

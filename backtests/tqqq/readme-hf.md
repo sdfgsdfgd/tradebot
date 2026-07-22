@@ -23,7 +23,9 @@ Sovereignty contract (current phase):
 
 Canonical execution paths:
 - Spot sweeps/evolution: `python -m tradebot.backtest spot ...`
-- Multiwindow kingmaker eval: `python -m tradebot.backtest spot_multitimeframe ...`
+- Stability/kingmaker/promotion: `python -m tradebot.backtest spot --axis combo_full ... --stability-window ...`
+
+Historical `spot_multitimeframe` commands below remain provenance, not current CLI examples.
 
 ## Climate Router Log
 

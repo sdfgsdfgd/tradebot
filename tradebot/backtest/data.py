@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo
 
 from .config import ConfigBundle
 from .models import Bar
-from ..chart_data.series import BarSeries, BarSeriesMeta
+from ..chart_data.series import BarSeries, BarSeriesMeta, bars_list
 from ..config import load_config
 from ..signals import parse_bar_size
 from ..time_utils import (
@@ -817,3 +817,30 @@ def _normalize_bars(bars: list[Bar], *, symbol: str, bar_size: str, use_rth: boo
             )
         )
     return out
+
+
+def load_bars(
+    data: IBKRHistoricalData,
+    *,
+    symbol: str,
+    exchange: str | None,
+    start_dt: datetime,
+    end_dt: datetime,
+    bar_size: str,
+    use_rth: bool,
+    cache_dir: Path,
+    offline: bool,
+) -> list[Bar]:
+    """Load one canonical historical tape through the selected data policy."""
+    loader = data.load_cached_bar_series if offline else data.load_or_fetch_bar_series
+    return bars_list(
+        loader(
+            symbol=symbol,
+            exchange=exchange,
+            start=start_dt,
+            end=end_dt,
+            bar_size=bar_size,
+            use_rth=use_rth,
+            cache_dir=cache_dir,
+        )
+    )

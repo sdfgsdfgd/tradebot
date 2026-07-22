@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import math
+from dataclasses import replace
+from datetime import date
 from ...backtest.config import (
     ConfigBundle,
 )
@@ -11,6 +13,10 @@ from ...backtest.spot_codec import (
     filters_from_payload as _codec_filters_from_payload,
     make_bundle as _codec_make_bundle,
     strategy_from_payload as _codec_strategy_from_payload,
+)
+from ...spot.codec import (
+    bool_from_payload,
+    effective_filters_payload as _codec_effective_filters_payload,
 )
 from .fingerprints import (
     _axis_dimension_fingerprint,
@@ -39,8 +45,12 @@ class SweepPlanning:
         if not isinstance(strategy_payload, dict):
             return None
         try:
+            effective_filters = _codec_effective_filters_payload(
+                group_filters=filters_payload if isinstance(filters_payload, dict) else None,
+                strategy=strategy_payload,
+            )
             filters_obj = _codec_filters_from_payload(
-                filters_payload if isinstance(filters_payload, dict) else None
+                effective_filters if isinstance(effective_filters, dict) else None
             )
             strategy_obj = _codec_strategy_from_payload(
                 strategy_payload, filters=filters_obj
@@ -75,6 +85,8 @@ class SweepPlanning:
     ) -> dict:
         payload = {
             "backtest": {
+                "start": cfg.backtest.start.isoformat(),
+                "end": cfg.backtest.end.isoformat(),
                 "bar_size": str(cfg.backtest.bar_size),
                 "use_rth": bool(cfg.backtest.use_rth),
             },
@@ -114,12 +126,23 @@ class SweepPlanning:
             filters_payload,
             bar_size=str(backtest_payload.get("bar_size") or self.signal_bar_size),
             use_rth=(
-                bool(backtest_payload["use_rth"])
+                bool_from_payload(backtest_payload["use_rth"])
                 if "use_rth" in backtest_payload
                 else bool(self.use_rth)
             ),
         )
         if cfg is None:
+            return None
+        try:
+            cfg = replace(
+                cfg,
+                backtest=replace(
+                    cfg.backtest,
+                    start=date.fromisoformat(str(backtest_payload.get("start") or self.start)),
+                    end=date.fromisoformat(str(backtest_payload.get("end") or self.end)),
+                ),
+            )
+        except ValueError:
             return None
         note = str(payload.get(note_key) or "").strip() or str(default_note)
         return cfg, note

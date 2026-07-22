@@ -27,10 +27,15 @@ from .support import (
 
 
 class SweepParallelRuntime:
-    def _stage_parallel_base_cli(self, *, flags_with_values: tuple[str, ...]) -> list[str]:
+    def _stage_parallel_base_cli(
+        self,
+        *,
+        flags: tuple[str, ...] = (),
+        flags_with_values: tuple[str, ...],
+    ) -> list[str]:
         return _strip_flags(
             list(sys.argv[1:]),
-            flags=("--write-milestones", "--merge-milestones"),
+            flags=("--write-milestones", "--merge-milestones", *flags),
             flags_with_values=(
                 "--axis",
                 "--jobs",
@@ -199,10 +204,15 @@ class SweepParallelRuntime:
         failure_label: str,
         missing_label: str,
         invalid_label: str,
+        strip_flags: tuple[str, ...] = (),
+        stage_args: tuple[str, ...] = (),
         planner_stage_label: str | None = None,
         prefetched_tested_if_empty: int = 0,
     ) -> dict[int, dict]:
-        base_cli = self._stage_parallel_base_cli(flags_with_values=strip_flags_with_values)
+        base_cli = self._stage_parallel_base_cli(
+            flags=strip_flags,
+            flags_with_values=strip_flags_with_values,
+        )
         planner_stage_key = str(planner_stage_label or stage_label).strip().lower()
         planner_cfg = _runtime_policy("planner_heartbeat")
         monitor_interval_sec = max(5.0, float(_registry_float(planner_cfg.get("monitor_interval_sec"), 30.0)))
@@ -257,6 +267,7 @@ class SweepParallelRuntime:
                     str(axis_name),
                     "--jobs",
                     "1",
+                    *stage_args,
                     str(stage_flag),
                     str(payload_path),
                     str(worker_flag),

@@ -202,6 +202,7 @@ class SweepStages:
         axis_tag: str,
         cfg_pairs: list[tuple[ConfigBundle, str]],
         rows: list[dict],
+        on_row=None,
         report_every: int = 0,
         heartbeat_sec: float = 0.0,
     ) -> int:
@@ -213,6 +214,12 @@ class SweepStages:
         if len(bar_sizes) > 1:
             raise SystemExit(f"{axis_tag} cfg grid mixes bar sizes: {', '.join(sorted(bar_sizes))}")
         plan_bar_size = next(iter(bar_sizes), str(self.signal_bar_size))
+
+        def _capture(cfg: ConfigBundle, row: dict, note: str) -> None:
+            rows.append(row)
+            if callable(on_row):
+                on_row(cfg, row, note)
+
         if (
             not self.args.cfg_stage
             and bool(self.axis_progress_state.get("active"))
@@ -293,7 +300,7 @@ class SweepStages:
         def _cfg_pairs_parallel_payloads(pending_plan_items) -> dict[int, dict]:
             pending_cfgs = list(pending_plan_items or ())
             return self._run_parallel_stage_with_payload(
-                axis_name=str(axis_tag),
+                axis_name=str(self.args.axis),
                 stage_label=str(axis_tag),
                 total=len(pending_cfgs),
                 jobs=int(self.jobs),
@@ -314,11 +321,31 @@ class SweepStages:
                 workers_flag="--cfg-workers",
                 out_flag="--cfg-out",
                 strip_flags_with_values=(
+                    "--start",
+                    "--end",
+                    "--base",
+                    "--seed-milestones",
+                    "--stability-window",
+                    "--stability-top",
+                    "--stability-write-top",
+                    "--stability-min-trades-per-year",
+                    "--stability-out",
+                    "--promotion-objective",
+                    "--promotion-version",
                     "--cfg-stage",
                     "--cfg-worker",
                     "--cfg-workers",
                     "--cfg-out",
                     "--combo-full-cartesian-run-min-trades",
+                ),
+                strip_flags=("--promote",),
+                stage_args=(
+                    "--start",
+                    self.start.isoformat(),
+                    "--end",
+                    self.end.isoformat(),
+                    "--base",
+                    "default",
                 ),
                 run_min_trades_flag="--combo-full-cartesian-run-min-trades",
                 run_min_trades=int(self.run_min_trades),
@@ -335,7 +362,7 @@ class SweepStages:
             bars=bars_stage,
             report_every=max(1, int(report_every)),
             heartbeat_sec=float(heartbeat_sec),
-            on_row=lambda _cfg, row, _note: rows.append(row),
+            on_row=_capture,
             serial_plan=plan_all,
             parallel_payloads_builder=_cfg_pairs_parallel_payloads,
             parallel_payload_supports_plan=True,

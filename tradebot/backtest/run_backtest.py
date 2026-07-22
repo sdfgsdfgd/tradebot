@@ -3,7 +3,7 @@
 This keeps the workflow streamlined while preserving the key workflows:
 - `python -m tradebot.backtest --config ...` (single run)
 - `python -m tradebot.backtest spot ...` (spot sweeps / evolution)
-- `python -m tradebot.backtest spot_multitimeframe ...` (spot multi-window stability eval)
+- `python -m tradebot.backtest spot ... --stability-window ...` (search + stability + promotion)
 - `python -m tradebot.backtest options_leaderboard ...` (options sweeps → leaderboard.json)
 """
 
@@ -29,13 +29,11 @@ def _print_help() -> None:
     print("Usage:")
     print("  python -m tradebot.backtest --config <path> [--no-write] [--calibrate]")
     print("  python -m tradebot.backtest spot <args...>")
-    print("  python -m tradebot.backtest spot_multitimeframe <args...>")
     print("  python -m tradebot.backtest options_leaderboard <args...>")
     print("")
     print("Aliases:")
     print("  python -m tradebot.backtest run ...       # alias for --config runner")
     print("  python -m tradebot.backtest evolve ...    # alias for spot")
-    print("  python -m tradebot.backtest multitimeframe ...   # alias for spot_multitimeframe")
     print("  python -m tradebot.backtest leaderboard ...      # alias for options_leaderboard")
     print("")
 
@@ -69,13 +67,6 @@ def main() -> None:
 
         with _argv([sys.argv[0]] + rest):
             run_backtest_spot.main()
-        return
-
-    if cmd in ("spot_multitimeframe", "multitimeframe", "multiwindow", "kingmaker"):
-        from . import run_backtest_spot
-
-        with _argv([sys.argv[0]] + rest):
-            run_backtest_spot.spot_multitimeframe_main()
         return
 
     if cmd in ("options_leaderboard", "leaderboard", "generate_leaderboard", "lb", "options"):

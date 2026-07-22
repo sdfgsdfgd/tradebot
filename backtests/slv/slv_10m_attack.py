@@ -4,11 +4,10 @@
 Pipeline:
 1) Stage A discovery (96 combos): slow-bias + fast-entry core.
 2) Stage B discovery (216 combos): aggressive-precise risk layer on Stage A top-6.
-3) Promotion: 10y/2y/1y multiwindow with min_trades_per_year=500.
+3) Promotion: full-combo stability over 10y/2y/1y windows.
 
-This script intentionally reuses canonical engine paths by invoking:
-- `python -m tradebot.backtest spot_multitimeframe ...`
-so cache reuse, worker sharding (`--jobs`), and scoring stay identical.
+Candidate grids remain historical research recipes; evaluation, cache identity,
+stability scoring, and promotion belong to canonical `spot --axis combo_full`.
 """
 
 from __future__ import annotations
@@ -142,7 +141,7 @@ def _run_and_tee(*, cmd: list[str], cwd: Path, log_path: Path) -> None:
         raise SystemExit(f"Command failed with exit code {rc}: {shlex.join(cmd)}")
 
 
-def _run_multitimeframe(
+def _run_stability(
     *,
     repo_root: Path,
     milestones: Path,
@@ -154,22 +153,31 @@ def _run_multitimeframe(
     jobs: int,
     top: int,
     min_trades: int,
-    min_win: float,
     windows: list[str],
     write_top: int,
     out_path: Path,
     log_path: Path,
     min_trades_per_year: float | None = None,
-    require_positive_pnl: bool = False,
 ) -> None:
+    start, end = _parse_window(windows[0])
     cmd = [
         sys.executable,
         "-u",
         "-m",
         "tradebot.backtest",
-        "spot_multitimeframe",
-        "--milestones",
+        "spot",
+        "--axis",
+        "combo_full",
+        "--combo-full-preset",
+        "baseline",
+        "--base",
+        "champion",
+        "--seed-milestones",
         str(milestones),
+        "--start",
+        start,
+        "--end",
+        end,
         "--symbol",
         str(symbol),
         "--bar-size",
@@ -182,23 +190,21 @@ def _run_multitimeframe(
         str(int(top)),
         "--min-trades",
         str(int(min_trades)),
-        "--min-win",
-        str(float(min_win)),
-        "--write-top",
+        "--stability-top",
+        str(int(top)),
+        "--stability-write-top",
         str(int(write_top)),
-        "--out",
+        "--stability-out",
         str(out_path),
     ]
     if use_rth:
         cmd.append("--use-rth")
     if offline:
         cmd.append("--offline")
-    if require_positive_pnl:
-        cmd.append("--require-positive-pnl")
     if min_trades_per_year is not None:
-        cmd.extend(["--min-trades-per-year", str(float(min_trades_per_year))])
+        cmd.extend(["--stability-min-trades-per-year", str(float(min_trades_per_year))])
     for window in windows:
-        cmd.extend(["--window", str(window)])
+        cmd.extend(["--stability-window", str(window)])
     _run_and_tee(cmd=cmd, cwd=repo_root, log_path=log_path)
 
 
@@ -458,7 +464,7 @@ def main() -> None:
     ap.add_argument("--seed-milestones", default=default_seed)
     ap.add_argument("--out-dir", default=default_out_dir)
     ap.add_argument("--cache-dir", default="db")
-    ap.add_argument("--jobs", type=int, default=0, help="spot_multitimeframe workers (0 = auto).")
+    ap.add_argument("--jobs", type=int, default=0, help="Canonical combo_full workers (0 = auto).")
     ap.add_argument("--offline", action=argparse.BooleanOptionalAction, default=True)
     ap.add_argument("--run-id", default=None, help="Output prefix. Default uses timestamp.")
 
@@ -477,7 +483,6 @@ def main() -> None:
     ap.add_argument("--promotion-min-trades", type=int, default=0)
     ap.add_argument("--promotion-min-trades-per-year", type=float, default=500.0)
     ap.add_argument("--promotion-write-top", type=int, default=80)
-    ap.add_argument("--promotion-require-positive", action="store_true", default=False)
     args = ap.parse_args()
 
     repo_root = Path(__file__).resolve().parents[2]
@@ -528,7 +533,7 @@ def main() -> None:
     )
     print(f"Stage A candidates written: {stage_a_candidates_path} (count={len(stage_a_groups)})")
 
-    _run_multitimeframe(
+    _run_stability(
         repo_root=repo_root,
         milestones=stage_a_candidates_path,
         symbol=symbol,
@@ -539,7 +544,6 @@ def main() -> None:
         jobs=int(args.jobs),
         top=len(stage_a_groups),
         min_trades=int(args.stage_a_min_trades),
-        min_win=0.0,
         windows=[f"{stage_start}:{stage_end}"],
         write_top=max(1, int(args.stage_a_top_k)),
         out_path=stage_a_top_path,
@@ -568,7 +572,7 @@ def main() -> None:
     )
     print(f"Stage B candidates written: {stage_b_candidates_path} (count={len(stage_b_groups)})")
 
-    _run_multitimeframe(
+    _run_stability(
         repo_root=repo_root,
         milestones=stage_b_candidates_path,
         symbol=symbol,
@@ -579,7 +583,6 @@ def main() -> None:
         jobs=int(args.jobs),
         top=len(stage_b_groups),
         min_trades=int(args.stage_b_min_trades),
-        min_win=0.0,
         windows=[f"{stage_start}:{stage_end}"],
         write_top=max(1, int(args.stage_b_write_top)),
         out_path=stage_b_top_path,
@@ -590,7 +593,7 @@ def main() -> None:
     if stage_b_top_count <= 0:
         raise SystemExit("Stage B produced no shortlisted candidates; aborting promotion.")
 
-    _run_multitimeframe(
+    _run_stability(
         repo_root=repo_root,
         milestones=stage_b_top_path,
         symbol=symbol,
@@ -601,13 +604,11 @@ def main() -> None:
         jobs=int(args.jobs),
         top=stage_b_top_count,
         min_trades=int(args.promotion_min_trades),
-        min_win=0.0,
         windows=[str(w) for w in promotion_windows],
         write_top=max(1, int(args.promotion_write_top)),
         out_path=promotion_top_path,
         log_path=promotion_log_path,
         min_trades_per_year=float(args.promotion_min_trades_per_year),
-        require_positive_pnl=bool(args.promotion_require_positive),
     )
     promotion_count = _groups_count(promotion_top_path)
     print(f"Promotion output written: {promotion_top_path} (count={promotion_count})")

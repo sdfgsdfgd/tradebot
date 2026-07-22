@@ -9,21 +9,27 @@ This file is the dedicated TQQQ low-frequency evolution track, split out from `t
 ### CURRENT (v34) - exec=5m RTH stability-first champion
 - Preset file: `backtests/out/tqqq_exec5m_v34_shock_alpha_refine_wide_30m_10y2y1y_mintr100_top100.json`
 
-## Spot (TQQQ) - CURRENT champ (v39) quick reproduce
+## Spot (TQQQ) - CURRENT loadable champ (v34) quick reproduce
 This is the canonical “champ smoke test” we use to ensure refactors do **not** change outcomes.
 
 ```bash
-python -m tradebot.backtest spot_multitimeframe --milestones backtests/out/tqqq_exec5m_v39_champ_only_milestone.json \
-  --symbol TQQQ --bar-size "30 mins" --use-rth --offline --cache-dir db --top 1 \
-  --require-positive-pnl --min-trades 100 \
-  --window 2016-01-01:2026-01-19 --window 2024-01-01:2026-01-19 --window 2025-01-01:2026-01-19 \
-  --write-top 1 --out backtests/out/tqqq_exec5m_v39_smoke.json
+python -m tradebot.backtest spot --axis combo_full --combo-full-preset baseline \
+  --base champion --track lf --symbol TQQQ --bar-size "30 mins" --use-rth \
+  --start 2016-01-01 --end 2026-01-19 --offline --cache-dir db --min-trades 100 \
+  --stability-window 2016-01-01:2026-01-19 \
+  --stability-window 2024-01-01:2026-01-19 \
+  --stability-window 2025-01-01:2026-01-19 \
+  --stability-top 1 --stability-write-top 1 \
+  --stability-out backtests/out/tqqq_exec5m_v34_smoke.json
 ```
 
 Expected exact window metrics:
-- 10y: roi `0.7661621433749934`, dd_pct `0.16742622768750137`, pnl `76616.21433749935`, trades `1056`
-- 2y:  roi `0.3890170079999965`, dd_pct `0.04597323175000027`, pnl `38901.70079999965`, trades `204`
-- 1y:  roi `0.18073676349999787`, dd_pct `0.03868206800000058`, pnl `18073.676349999787`, trades `105`
+- 10y: roi `0.6287874336874941`, dd_pct `0.1643413912500003`, pnl `62878.74336874941`, trades `1054`
+- 2y:  roi `0.3008267522499967`, dd_pct `0.045420233000000296`, pnl `30082.67522499967`, trades `205`
+- 1y:  roi `0.14098569743749803`, dd_pct `0.03944176150000014`, pnl `14098.569743749802`, trades `107`
+
+Historical `spot_multitimeframe` commands below are preserved as provenance; their
+current equivalent is `spot --axis combo_full ... --stability-window ...`.
 
 ## Migrated TQQQ Champion + Evolution Log (historical)
 

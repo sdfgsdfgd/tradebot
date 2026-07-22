@@ -15,6 +15,7 @@ from ..time_utils import NaiveTsModeInput
 from ..time_utils import normalize_naive_ts_mode as _normalize_naive_ts_mode
 from ..time_utils import to_et as _to_et
 from ..time_utils import to_utc_naive as _to_utc_naive
+from .codec import bool_from_payload
 from .fill_modes import (
     SPOT_FILL_MODE_CLOSE,
     SPOT_FILL_MODE_NEXT_BAR,
@@ -246,11 +247,10 @@ def next_open_due_ts(
     due_from_et = _to_et_naive(due_from, naive_ts_mode=naive_ts_mode)
     mode = normalize_next_open_session_mode(_get(strategy, "spot_next_open_session", "auto"), default="auto")
     sec_type = str(_get(strategy, "spot_sec_type", "STK") or "STK").strip().upper()
-    signal_use_rth_raw = _get(strategy, "signal_use_rth", True)
-    if isinstance(signal_use_rth_raw, str):
-        signal_use_rth = signal_use_rth_raw.strip().lower() not in ("0", "false", "off", "no")
-    else:
-        signal_use_rth = bool(signal_use_rth_raw)
+    signal_use_rth = bool_from_payload(
+        _get(strategy, "signal_use_rth", None),
+        default=True,
+    )
     aligned_et = _spot_align_exec_open_et(
         ts=due_from_et,
         span=span,
