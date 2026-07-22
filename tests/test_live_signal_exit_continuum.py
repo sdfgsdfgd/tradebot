@@ -2488,6 +2488,94 @@ def test_automated_xsp_admission_previews_then_places_only_when_admitted(
     assert admission["reason"] == "broker_preview_admitted"
 
 
+def test_automated_xsp_atomic_close_previews_then_places_with_exit_intent(
+    monkeypatch,
+) -> None:
+    captured: list[tuple[object, object]] = []
+
+    def _recording_evaluate(request, facts):
+        captured.append((request, facts))
+        return evaluate_order_admission(request, facts)
+
+    monkeypatch.setattr(
+        bot_module,
+        "evaluate_order_admission",
+        _recording_evaluate,
+        raising=False,
+    )
+
+    preview = _admission_preview()
+    client = _AdmissionSendClient(preview)
+    harness = _AdmissionSendHarness(client)
+    order = _admission_xsp_order(
+        package_risk=OptionPackageRisk(
+            structure="vertical_debit",
+            right="PUT",
+            expiry="20260209",
+            width=5.0,
+            debit_value=0.90,
+            multiplier=100.0,
+            quantity=1,
+            max_loss=90.0,
+        )
+    )
+    order.intent = "exit"
+    order.reason = "exit"
+    order.limit_price = 0.90
+    order.legs[0].action = "BUY"
+    order.legs[1].action = "SELL"
+    order.order_contract.comboLegs[0].action = "BUY"
+    order.order_contract.comboLegs[1].action = "SELL"
+
+    asyncio.run(BotScreen._send_order(harness, order))
+
+    assert len(captured) == 1
+    request, facts = captured[0]
+    assert getattr(request, "intent", None) == "exit"
+    assert request.account == "DU2200"
+    assert request.product_domain == "XSP"
+    assert request.structure == "vertical_debit"
+    assert request.sec_type == "BAG"
+    assert request.symbol == "XSP"
+    assert request.currency == "USD"
+    assert request.exchange == "SMART"
+    assert request.action == "BUY"
+    assert request.quantity == 1
+    assert request.limit_price == 0.90
+    assert request.max_loss == 90.0
+    assert [
+        (leg.con_id, leg.ratio, leg.action, leg.exchange)
+        for leg in request.legs
+    ] == [
+        (1001, 1, "BUY", "SMART"),
+        (1002, 1, "SELL", "SMART"),
+    ]
+    for field_name in preview.__dataclass_fields__:
+        assert getattr(facts, field_name) == getattr(preview, field_name)
+
+    assert [call[0] for call in client.calls] == ["preview", "place"]
+    for _kind, contract, action, quantity, limit_price, outside_rth in client.calls:
+        assert contract is order.order_contract
+        assert action == "BUY"
+        assert quantity == 1.0
+        assert limit_price == 0.90
+        assert outside_rth is False
+
+    assert order.status == "WORKING"
+    assert order.order_id == 9101
+    assert order.trade is client.trade
+    assert order.sent_at is not None
+    assert [event for event, _data in harness._events] == [
+        "ORDER_ADMISSION",
+        "SENDING",
+        "SENT",
+    ]
+    admission = harness._events[0][1]["admission"]
+    assert admission["allow"] is True
+    assert admission["reason"] == "broker_preview_admitted"
+    assert admission["trace"]["intent"] == "exit"
+
+
 def test_bot_reservation_summary_maps_active_local_xsp_orders() -> None:
     staged = _admission_xsp_order(
         package_risk=OptionPackageRisk(

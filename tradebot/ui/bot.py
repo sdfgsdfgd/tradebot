@@ -5058,6 +5058,7 @@ class BotScreen(BotOrderBuilderMixin, BotSignalRuntimeMixin, BotEngineRuntimeMix
                         )
                         or ""
                     ).strip(),
+                    intent=str(order.intent or "enter").strip().lower(),
                     product_domain=symbol,
                     structure=(
                         str(package_risk.structure)

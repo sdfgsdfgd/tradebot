@@ -15,6 +15,7 @@ class OrderAdmissionLeg:
 @dataclass(frozen=True)
 class OrderAdmissionRequest:
     account: str
+    intent: str
     product_domain: str
     structure: str
     sec_type: str
@@ -75,6 +76,7 @@ def _trace(
 ) -> dict[str, object]:
     return {
         "account": str(request.account or "").strip(),
+        "intent": str(request.intent or "").strip().lower(),
         "product_domain": _token(request.product_domain),
         "structure": str(request.structure or "").strip().lower(),
         "sec_type": _token(request.sec_type),
@@ -107,9 +109,7 @@ def _decision(
     )
 
 
-def _xsp_credit_bag_identity_valid(request: OrderAdmissionRequest) -> bool:
-    if str(request.structure or "").strip().lower() != "vertical_credit":
-        return False
+def _xsp_bag_common_identity_valid(request: OrderAdmissionRequest) -> bool:
     if _token(request.sec_type) != "BAG":
         return False
     if _token(request.currency) != "USD":
@@ -119,9 +119,6 @@ def _xsp_credit_bag_identity_valid(request: OrderAdmissionRequest) -> bool:
     if _token(request.action) != "BUY":
         return False
     if int(request.quantity) <= 0:
-        return False
-    limit_price = _finite(request.limit_price)
-    if limit_price is None or limit_price >= 0:
         return False
     if len(request.legs) != 2:
         return False
@@ -141,10 +138,29 @@ def _xsp_credit_bag_identity_valid(request: OrderAdmissionRequest) -> bool:
     return sorted(actions) == ["BUY", "SELL"] and len(con_ids) == 2
 
 
+def _xsp_credit_bag_identity_valid(request: OrderAdmissionRequest) -> bool:
+    if str(request.structure or "").strip().lower() != "vertical_credit":
+        return False
+    limit_price = _finite(request.limit_price)
+    if limit_price is None or limit_price >= 0:
+        return False
+    return _xsp_bag_common_identity_valid(request)
+
+
+def _xsp_debit_bag_exit_identity_valid(request: OrderAdmissionRequest) -> bool:
+    if str(request.structure or "").strip().lower() != "vertical_debit":
+        return False
+    limit_price = _finite(request.limit_price)
+    if limit_price is None or limit_price <= 0:
+        return False
+    return _xsp_bag_common_identity_valid(request)
+
+
 def evaluate_order_admission(
     request: OrderAdmissionRequest,
     facts: OrderAdmissionFacts,
 ) -> OrderAdmissionDecision:
+    intent = str(request.intent or "").strip().lower()
     product_domain = _token(request.product_domain)
     symbol = _token(request.symbol)
 
@@ -159,7 +175,14 @@ def evaluate_order_admission(
             reason="product_policy_unavailable",
         )
 
-    if not _xsp_credit_bag_identity_valid(request):
+    if intent == "enter":
+        identity_valid = _xsp_credit_bag_identity_valid(request)
+    elif intent == "exit":
+        identity_valid = _xsp_debit_bag_exit_identity_valid(request)
+    else:
+        return _decision(request, facts, allow=False, reason="intent_invalid")
+
+    if not identity_valid:
         return _decision(request, facts, allow=False, reason="structure_invalid")
 
     max_loss = _finite(request.max_loss)

@@ -25,6 +25,7 @@ def _complete_xsp_request(module):
     request_type = _require_owner(module, "OrderAdmissionRequest")
     return request_type(
         account="DU2200",
+        intent="enter",
         product_domain="XSP",
         structure="vertical_credit",
         sec_type="BAG",
@@ -85,6 +86,7 @@ def test_complete_xsp_credit_bag_is_admitted_from_empirical_preview_without_stat
     assert payload["reason"] == "broker_preview_admitted"
     assert payload["trace"] == {
         "account": "DU2200",
+        "intent": "enter",
         "product_domain": "XSP",
         "structure": "vertical_credit",
         "sec_type": "BAG",
@@ -103,9 +105,48 @@ def test_complete_xsp_credit_bag_is_admitted_from_empirical_preview_without_stat
     }
 
 
+def test_complete_xsp_vertical_debit_exit_is_admitted_from_empirical_preview() -> None:
+    module = _policy_module()
+    leg_type = _require_owner(module, "OrderAdmissionLeg")
+    request_type = _require_owner(module, "OrderAdmissionRequest")
+    evaluate = _require_owner(module, "evaluate_order_admission")
+
+    decision = evaluate(
+        request_type(
+            account="DU2200",
+            intent="exit",
+            product_domain="XSP",
+            structure="vertical_debit",
+            sec_type="BAG",
+            symbol="XSP",
+            currency="USD",
+            exchange="SMART",
+            action="BUY",
+            quantity=1,
+            limit_price=0.90,
+            max_loss=90.00,
+            legs=(
+                leg_type(con_id=1001, ratio=1, action="BUY", exchange="SMART"),
+                leg_type(con_id=1002, ratio=1, action="SELL", exchange="SMART"),
+            ),
+        ),
+        _complete_preview_facts(
+            module,
+            init_margin_change=-400.00,
+            maintenance_margin_change=-300.00,
+        ),
+    )
+
+    assert decision.allow is True
+    assert decision.reason == "broker_preview_admitted"
+    assert decision.as_payload()["trace"]["intent"] == "exit"
+    assert decision.as_payload()["trace"]["structure"] == "vertical_debit"
+
+
 @pytest.mark.parametrize(
     ("request_changes", "fact_changes", "expected_reason"),
     [
+        ({"intent": "resize"}, {}, "intent_invalid"),
         ({"max_loss": None}, {}, "max_loss_unknown"),
         ({}, {"init_margin_change": None}, "preview_incomplete"),
         ({}, {"equity_with_loan_after": None}, "preview_incomplete"),
@@ -126,6 +167,7 @@ def test_order_admission_fails_closed_with_explicit_evidence_reason(
     base_request = _complete_xsp_request(module)
     request_values = {
         "account": base_request.account,
+        "intent": base_request.intent,
         "product_domain": base_request.product_domain,
         "structure": base_request.structure,
         "sec_type": base_request.sec_type,
