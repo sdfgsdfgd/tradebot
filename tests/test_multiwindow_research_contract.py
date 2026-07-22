@@ -15,6 +15,8 @@ def test_multiwindow_cli_contract_preserves_defaults() -> None:
     assert args.jobs == 0
     assert args.top == 200
     assert args.min_trades == 200
+    assert not hasattr(args, "include_full")
+    assert not hasattr(args, "allow_unlimited_stacking")
 
 
 def test_multiwindow_report_preserves_operator_and_json_contract(tmp_path, capsys) -> None:
@@ -36,16 +38,22 @@ def test_multiwindow_report_preserves_operator_and_json_contract(tmp_path, capsy
     row = {
         "strategy": {"ema_preset": "5/13", "ema_entry_mode": "trend"},
         "filters": {"rv_min": 0.1},
-        "stability_min_roi_dd": 2.0,
-        "stability_min_roi": 0.1,
-        "full_roi_over_dd_pct": 3.0,
-        "full_roi": 0.2,
-        "full_pnl": 200.0,
-        "full_dd": 50.0,
-        "full_dd_pct": 0.05,
-        "full_pnl_over_dd": 4.0,
-        "full_win": 0.6,
-        "full_trades": 30,
+        "stability": {
+            "min_roi_over_dd": 2.0,
+            "min_roi": 0.1,
+            "min_pnl_over_dd": 2.0,
+            "min_pnl": 100.0,
+        },
+        "primary": {
+            "roi_over_dd_pct": 3.0,
+            "roi": 0.2,
+            "pnl": 200.0,
+            "dd": 50.0,
+            "dd_pct": 0.05,
+            "pnl_over_dd": 4.0,
+            "win_rate": 0.6,
+            "trades": 30,
+        },
         "windows": [],
     }
 
@@ -64,3 +72,4 @@ def test_multiwindow_report_preserves_operator_and_json_contract(tmp_path, capsy
     assert payload["bar_size"] == "5 mins"
     assert payload["use_rth"] is True
     assert payload["groups"][0]["entries"][0]["symbol"] == "XSP"
+    assert payload["groups"][0]["_eval"]["stability"]["min_roi_over_dd"] == 2.0

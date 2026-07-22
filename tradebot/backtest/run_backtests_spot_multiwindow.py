@@ -54,13 +54,11 @@ from ..time_utils import now_et as _now_et
 _SERIES_CACHE = series_cache_service()
 _SWEEP_MULTIWINDOW_BARS_NAMESPACE = "spot.sweeps.multiwindow.bars"
 # Bump whenever evaluation semantics change so stale cached rows don't mask runtime fixes.
-_MULTIWINDOW_CACHE_ENGINE_VERSION = "spot_multiwindow_v12"
+_MULTIWINDOW_CACHE_ENGINE_VERSION = "spot_multiwindow_v13"
 
 
 def spot_multitimeframe_main() -> None:
     args = parse_multiwindow_args()
-    if bool(args.allow_unlimited_stacking):
-        print("[compat] --allow-unlimited-stacking is deprecated and ignored for spot multitimeframe eval.", flush=True)
     try:
         min_trades_per_year = float(args.min_trades_per_year) if args.min_trades_per_year is not None else None
     except (TypeError, ValueError):
@@ -596,7 +594,7 @@ def spot_multitimeframe_main() -> None:
 
         if not per_window_staged:
             return _cache_and_return(None)
-        # Keep output semantics stable: primary window remains the original first window.
+        # The first requested window is the primary comparison; all windows define stability.
         per_window = [row for _, row in sorted(per_window_staged, key=lambda item: item[0])]
         min_pnl_dd = min(float(x["pnl_over_dd"]) for x in per_window)
         min_pnl = min(float(x["pnl"]) for x in per_window)
@@ -609,18 +607,13 @@ def spot_multitimeframe_main() -> None:
             "strategy": strategy_payload,
             "filters": filters_payload,
             "seed_group_name": cand.get("group_name"),
-            "full_trades": int(primary.get("trades") or 0),
-            "full_win": float(primary.get("win_rate") or 0.0),
-            "full_pnl": float(primary.get("pnl") or 0.0),
-            "full_dd": float(primary.get("dd") or 0.0),
-            "full_pnl_over_dd": float(primary.get("pnl_over_dd") or 0.0),
-            "full_roi": float(primary.get("roi") or 0.0),
-            "full_dd_pct": float(primary.get("dd_pct") or 0.0),
-            "full_roi_over_dd_pct": float(primary.get("roi_over_dd_pct") or 0.0),
-            "stability_min_pnl_dd": min_pnl_dd,
-            "stability_min_pnl": min_pnl,
-            "stability_min_roi_dd": min_roi_dd,
-            "stability_min_roi": min_roi,
+            "primary": primary,
+            "stability": {
+                "min_pnl_over_dd": min_pnl_dd,
+                "min_pnl": min_pnl,
+                "min_roi_over_dd": min_roi_dd,
+                "min_roi": min_roi,
+            },
             "windows": per_window,
             }
         )

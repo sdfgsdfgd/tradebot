@@ -29,13 +29,15 @@ class MultiwindowReport:
 
 
 def score_key(item: dict) -> tuple:
+    stability = item.get("stability") if isinstance(item.get("stability"), dict) else {}
+    primary = item.get("primary") if isinstance(item.get("primary"), dict) else {}
     return (
-        float(item.get("stability_min_roi_dd") or item.get("stability_min_pnl_dd") or float("-inf")),
-        float(item.get("stability_min_roi") or item.get("stability_min_pnl") or float("-inf")),
-        float(item.get("full_roi_over_dd_pct") or item.get("full_pnl_over_dd") or float("-inf")),
-        float(item.get("full_roi") or item.get("full_pnl") or float("-inf")),
-        float(item.get("full_win") or 0.0),
-        int(item.get("full_trades") or 0),
+        float(stability.get("min_roi_over_dd") or stability.get("min_pnl_over_dd") or float("-inf")),
+        float(stability.get("min_roi") or stability.get("min_pnl") or float("-inf")),
+        float(primary.get("roi_over_dd_pct") or primary.get("pnl_over_dd") or float("-inf")),
+        float(primary.get("roi") or primary.get("pnl") or float("-inf")),
+        float(primary.get("win_rate") or 0.0),
+        int(primary.get("trades") or 0),
     )
 
 
@@ -82,12 +84,6 @@ def parse_multiwindow_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     ap.add_argument("--min-win", type=float, default=0.0, help="Min win rate per window (0..1).")
     ap.add_argument(
-        "--allow-unlimited-stacking",
-        action="store_true",
-        default=False,
-        help="Deprecated no-op for spot; kept only for CLI compatibility.",
-    )
-    ap.add_argument(
         "--require-close-eod",
         action="store_true",
         default=False,
@@ -104,11 +100,6 @@ def parse_multiwindow_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="append",
         default=[],
         help="Evaluation window formatted YYYY-MM-DD:YYYY-MM-DD. Repeatable.",
-    )
-    ap.add_argument(
-        "--include-full",
-        action="store_true",
-        help="Also evaluate the full window from the milestones payload notes (best-effort).",
     )
     ap.add_argument(
         "--write-top",
@@ -179,12 +170,14 @@ def emit_multiwindow_results(
     show = min(20, len(out_rows))
     for rank, item in enumerate(out_rows[:show], start=1):
         st = item["strategy"]
+        primary = item["primary"]
+        stability = item["stability"]
         print(
-            f"{rank:2d}. stability(min roi/dd)={item.get('stability_min_roi_dd', 0.0):.2f} "
-            f"full roi/dd={item.get('full_roi_over_dd_pct', 0.0):.2f} "
-            f"roi={item.get('full_roi', 0.0)*100:.1f}% dd%={item.get('full_dd_pct', 0.0)*100:.1f}% "
-            f"pnl={item['full_pnl']:.1f} "
-            f"win={item['full_win']*100:.1f}% tr={item['full_trades']} "
+            f"{rank:2d}. stability(min roi/dd)={stability.get('min_roi_over_dd', 0.0):.2f} "
+            f"primary roi/dd={primary.get('roi_over_dd_pct', 0.0):.2f} "
+            f"roi={primary.get('roi', 0.0)*100:.1f}% dd%={primary.get('dd_pct', 0.0)*100:.1f}% "
+            f"pnl={primary.get('pnl', 0.0):.1f} "
+            f"win={primary.get('win_rate', 0.0)*100:.1f}% tr={primary.get('trades', 0)} "
             f"ema={st.get('ema_preset')} {st.get('ema_entry_mode')} "
             f"regime={st.get('regime_mode')} rbar={st.get('regime_bar_size')}"
         )
@@ -200,15 +193,17 @@ def emit_multiwindow_results(
         strategy.setdefault("signal_use_rth", report.use_rth)
         filters_payload = item.get("filters")
         key = strategy_key(strategy, filters=filters_payload)
+        primary = item["primary"]
+        stability = item["stability"]
         metrics = {
-            "pnl": float(item.get("full_pnl") or 0.0),
-            "roi": float(item.get("full_roi") or 0.0),
-            "win_rate": float(item.get("full_win") or 0.0),
-            "trades": int(item.get("full_trades") or 0),
-            "max_drawdown": float(item.get("full_dd") or 0.0),
-            "max_drawdown_pct": float(item.get("full_dd_pct") or 0.0),
-            "pnl_over_dd": float(item.get("full_pnl_over_dd") or 0.0),
-            "roi_over_dd_pct": float(item.get("full_roi_over_dd_pct") or 0.0),
+            "pnl": float(primary.get("pnl") or 0.0),
+            "roi": float(primary.get("roi") or 0.0),
+            "win_rate": float(primary.get("win_rate") or 0.0),
+            "trades": int(primary.get("trades") or 0),
+            "max_drawdown": float(primary.get("dd") or 0.0),
+            "max_drawdown_pct": float(primary.get("dd_pct") or 0.0),
+            "pnl_over_dd": float(primary.get("pnl_over_dd") or 0.0),
+            "roi_over_dd_pct": float(primary.get("roi_over_dd_pct") or 0.0),
         }
         groups_out.append(
             {
@@ -218,10 +213,7 @@ def emit_multiwindow_results(
                 "filters": filters_payload,
                 "entries": [{"symbol": report.symbol, "metrics": metrics, "strategy": strategy}],
                 "_eval": {
-                    "stability_min_pnl_dd": float(item.get("stability_min_pnl_dd") or 0.0),
-                    "stability_min_pnl": float(item.get("stability_min_pnl") or 0.0),
-                    "stability_min_roi_dd": float(item.get("stability_min_roi_dd") or 0.0),
-                    "stability_min_roi": float(item.get("stability_min_roi") or 0.0),
+                    "stability": dict(stability),
                     "windows": item.get("windows") or [],
                 },
                 "_key": key,
