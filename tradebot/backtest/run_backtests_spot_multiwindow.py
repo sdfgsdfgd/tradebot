@@ -1,13 +1,11 @@
 """Spot multi-window stability eval (kingmaker) entrypoint.
 
-This module now owns the physical implementation for the `spot_multitimeframe`
-workflow. A thin compatibility wrapper remains in
-`run_backtests_spot_sweeps.py`.
+This module owns evaluation, cache, sharding, and data orchestration for the
+`spot_multitimeframe` workflow.
 """
 
 from __future__ import annotations
 
-import argparse
 import hashlib
 import json
 import math
@@ -36,17 +34,19 @@ from .spot_codec import (
 from .spot_context import SpotBarRequirement, load_spot_context_bars, spot_signal_warmup_days_from_strategy
 from .data import ContractMeta, IBKRHistoricalData
 from .engine import _run_spot_backtest_summary, _spot_multiplier
-from .sweep_fingerprint import _strategy_fingerprint
 from .sweep_parallel import (
-    _collect_parallel_payload_records,
     _parse_worker_shard,
     _progress_line,
     _run_parallel_stage_kernel,
     _strip_flags,
 )
-from .sweeps import (
-    utc_now_iso_z,
-    write_json,
+from .sweeps import write_json
+from ..research.multiwindow import (
+    MultiwindowReport,
+    collect_multiwindow_rows,
+    emit_multiwindow_results,
+    parse_multiwindow_args,
+    strategy_key,
 )
 from ..chart_data.cache import series_cache_service
 from ..time_utils import now_et as _now_et
@@ -56,109 +56,9 @@ _SWEEP_MULTIWINDOW_BARS_NAMESPACE = "spot.sweeps.multiwindow.bars"
 # Bump whenever evaluation semantics change so stale cached rows don't mask runtime fixes.
 _MULTIWINDOW_CACHE_ENGINE_VERSION = "spot_multiwindow_v12"
 
-def _score_key(item: dict) -> tuple:
-    return (
-        float(item.get("stability_min_roi_dd") or item.get("stability_min_pnl_dd") or float("-inf")),
-        float(item.get("stability_min_roi") or item.get("stability_min_pnl") or float("-inf")),
-        float(item.get("full_roi_over_dd_pct") or item.get("full_pnl_over_dd") or float("-inf")),
-        float(item.get("full_roi") or item.get("full_pnl") or float("-inf")),
-        float(item.get("full_win") or 0.0),
-        int(item.get("full_trades") or 0),
-    )
 
-
-def _strategy_key(strategy: dict, *, filters: dict | None) -> str:
-    return _strategy_fingerprint(strategy, filters=filters)
-
-
-# endregion
-
-
-# region CLI
 def spot_multitimeframe_main() -> None:
-    ap = argparse.ArgumentParser(prog="tradebot.backtest.multitimeframe")
-    ap.add_argument("--milestones", required=True, help="Input spot milestones JSON to evaluate.")
-    ap.add_argument("--symbol", default="TQQQ", help="Symbol to filter (default: TQQQ).")
-    ap.add_argument("--bar-size", default="1 hour", help="Signal bar size filter (default: 1 hour).")
-    ap.add_argument("--use-rth", action="store_true", help="Filter to RTH-only strategies.")
-    ap.add_argument(
-        "--offline",
-        action="store_true",
-        help=(
-            "Use cached bars at evaluation time. "
-            "With --cache-policy=auto, preflight may hydrate missing caches before run."
-        ),
-    )
-    ap.add_argument(
-        "--cache-policy",
-        default="auto",
-        choices=("auto", "strict"),
-        help=(
-            "Offline cache preflight policy. "
-            "auto = hydrate via cache manager (resample-from-cache or fetch) before evaluating; "
-            "strict = fail on any missing cache."
-        ),
-    )
-    ap.add_argument("--cache-dir", default="db", help="Bars cache dir (default: db).")
-    ap.add_argument("--jobs", type=int, default=0, help="Worker processes (0 = auto). Requires --offline for >1.")
-    ap.add_argument("--top", type=int, default=200, help="How many candidates to evaluate (after sorting).")
-    ap.add_argument("--min-trades", type=int, default=200, help="Min trades per window.")
-    ap.add_argument(
-        "--min-trades-per-year",
-        type=float,
-        default=None,
-        help=(
-            "Min trades per year per window (e.g. 500 => 1y>=500, 2y>=1000, 10y>=5000). "
-            "Enforced as ceil(window_years * min_trades_per_year)."
-        ),
-    )
-    ap.add_argument("--min-win", type=float, default=0.0, help="Min win rate per window (0..1).")
-    ap.add_argument(
-        "--allow-unlimited-stacking",
-        action="store_true",
-        default=False,
-        help="Deprecated no-op for spot; kept only for CLI compatibility.",
-    )
-    ap.add_argument(
-        "--require-close-eod",
-        action="store_true",
-        default=False,
-        help="Require spot_close_eod=true (forces strategies to close at end of day).",
-    )
-    ap.add_argument(
-        "--require-positive-pnl",
-        action="store_true",
-        default=False,
-        help="Require pnl>0 in every evaluation window.",
-    )
-    ap.add_argument(
-        "--window",
-        action="append",
-        default=[],
-        help="Evaluation window formatted YYYY-MM-DD:YYYY-MM-DD. Repeatable.",
-    )
-    ap.add_argument(
-        "--include-full",
-        action="store_true",
-        help="Also evaluate the full window from the milestones payload notes (best-effort).",
-    )
-    ap.add_argument(
-        "--write-top",
-        type=int,
-        default=0,
-        help="Write a small milestones JSON of the top K stability winners (0 disables).",
-    )
-    ap.add_argument(
-        "--out",
-        default="backtests/out/multitimeframe_top.json",
-        help="Output file for --write-top (default: backtests/out/multitimeframe_top.json).",
-    )
-    # Internal flags (used by parallel worker sharding).
-    ap.add_argument("--multitimeframe-worker", type=int, default=None, help=argparse.SUPPRESS)
-    ap.add_argument("--multitimeframe-workers", type=int, default=None, help=argparse.SUPPRESS)
-    ap.add_argument("--multitimeframe-out", default=None, help=argparse.SUPPRESS)
-
-    args = ap.parse_args()
+    args = parse_multiwindow_args()
     if bool(args.allow_unlimited_stacking):
         print("[compat] --allow-unlimited-stacking is deprecated and ignored for spot multitimeframe eval.", flush=True)
     try:
@@ -245,7 +145,7 @@ def spot_multitimeframe_main() -> None:
     for cand in candidates:
         strategy_payload = cand.get("strategy") if isinstance(cand.get("strategy"), dict) else {}
         filters_payload = cand.get("filters") if isinstance(cand.get("filters"), dict) else None
-        cand_key = _strategy_key(strategy_payload, filters=filters_payload)
+        cand_key = strategy_key(strategy_payload, filters=filters_payload)
         prev = best_candidates.get(cand_key)
         if prev is None or _sort_key_seed(cand) > _sort_key_seed(prev):
             best_candidates[cand_key] = cand
@@ -283,6 +183,20 @@ def spot_multitimeframe_main() -> None:
     multiwindow_cache_hits = 0
     multiwindow_cache_writes = 0
     _MULTIWINDOW_CACHE_MISS = object()
+    report = MultiwindowReport(
+        symbol=symbol,
+        bar_size=str(args.bar_size),
+        use_rth=use_rth,
+        offline=offline,
+        windows=tuple(windows),
+        min_trades=int(args.min_trades),
+        min_win=float(args.min_win),
+        min_trades_per_year=min_trades_per_year,
+        milestones_path=milestones_path,
+        write_top=int(args.write_top or 0),
+        out_path=Path(args.out),
+        cache_path=multiwindow_cache_path,
+    )
 
     def _multiwindow_cache_conn() -> sqlite3.Connection | None:
         nonlocal multiwindow_cache_conn, multiwindow_cache_enabled
@@ -317,7 +231,7 @@ def spot_multitimeframe_main() -> None:
     def _multiwindow_cache_key(*, strategy_payload: dict, filters_payload: dict | None) -> str:
         raw = {
             "version": str(_MULTIWINDOW_CACHE_ENGINE_VERSION),
-            "strategy_key": _strategy_key(strategy_payload, filters=filters_payload),
+            "strategy_key": strategy_key(strategy_payload, filters=filters_payload),
             "windows": _multiwindow_windows_signature(),
             "min_trades": int(args.min_trades),
             "min_trades_per_year": float(min_trades_per_year) if min_trades_per_year is not None else None,
@@ -691,7 +605,7 @@ def spot_multitimeframe_main() -> None:
         primary = per_window[0] if per_window else {}
         return _cache_and_return(
             {
-            "key": _strategy_key(strategy_payload, filters=filters_payload),
+            "key": strategy_key(strategy_payload, filters=filters_payload),
             "strategy": strategy_payload,
             "filters": filters_payload,
             "seed_group_name": cand.get("group_name"),
@@ -914,107 +828,7 @@ def spot_multitimeframe_main() -> None:
                 last_report = float(now_after)
         return tested, out_rows
 
-    def _emit_multitimeframe_results(*, out_rows: list[dict], tested_total: int | None = None, workers: int | None = None) -> None:
-        out_rows = sorted(out_rows, key=_score_key, reverse=True)
-        print("")
-        print(f"Multiwindow results: {len(out_rows)} candidates passed filters.")
-        print(f"- symbol={symbol} bar={args.bar_size} rth={use_rth} offline={offline}")
-        print(f"- windows={', '.join([f'{a.isoformat()}→{b.isoformat()}' for a,b in windows])}")
-        extra = f" min_trades_per_year={float(min_trades_per_year):g}" if min_trades_per_year is not None else ""
-        print(f"- min_trades={int(args.min_trades)} min_win={float(args.min_win):0.2f}{extra}")
-        if tested_total is not None and workers is not None:
-            print(f"- workers={int(workers)} tested_total={int(tested_total)}")
-        if bool(multiwindow_cache_enabled):
-            print(
-                f"- eval_cache={multiwindow_cache_path} hits={int(multiwindow_cache_hits)} writes={int(multiwindow_cache_writes)}",
-                flush=True,
-            )
-        print("")
 
-        show = min(20, len(out_rows))
-        for rank, item in enumerate(out_rows[:show], start=1):
-            st = item["strategy"]
-            print(
-                f"{rank:2d}. stability(min roi/dd)={item.get('stability_min_roi_dd', 0.0):.2f} "
-                f"full roi/dd={item.get('full_roi_over_dd_pct', 0.0):.2f} "
-                f"roi={item.get('full_roi', 0.0)*100:.1f}% dd%={item.get('full_dd_pct', 0.0)*100:.1f}% "
-                f"pnl={item['full_pnl']:.1f} "
-                f"win={item['full_win']*100:.1f}% tr={item['full_trades']} "
-                f"ema={st.get('ema_preset')} {st.get('ema_entry_mode')} "
-                f"regime={st.get('regime_mode')} rbar={st.get('regime_bar_size')}"
-            )
-
-        if int(args.write_top or 0) <= 0:
-            return
-        top_k = max(1, int(args.write_top))
-        now = utc_now_iso_z()
-        groups_out: list[dict] = []
-        for idx, item in enumerate(out_rows[:top_k], start=1):
-            strategy = dict(item["strategy"])
-            strategy.setdefault("signal_bar_size", str(args.bar_size))
-            strategy.setdefault("signal_use_rth", bool(use_rth))
-            filters_payload = item.get("filters")
-            key = _strategy_key(strategy, filters=filters_payload)
-            metrics = {
-                "pnl": float(item.get("full_pnl") or 0.0),
-                "roi": float(item.get("full_roi") or 0.0),
-                "win_rate": float(item.get("full_win") or 0.0),
-                "trades": int(item.get("full_trades") or 0),
-                "max_drawdown": float(item.get("full_dd") or 0.0),
-                "max_drawdown_pct": float(item.get("full_dd_pct") or 0.0),
-                "pnl_over_dd": float(item.get("full_pnl_over_dd") or 0.0),
-                "roi_over_dd_pct": float(item.get("full_roi_over_dd_pct") or 0.0),
-            }
-            groups_out.append(
-                {
-                    "name": f"Spot ({symbol}) KINGMAKER #{idx:02d} roi/dd={metrics['roi_over_dd_pct']:.2f} "
-                    f"roi={metrics['roi']*100:.1f}% dd%={metrics['max_drawdown_pct']*100:.1f}% "
-                    f"win={metrics['win_rate']*100:.1f}% tr={metrics['trades']} pnl={metrics['pnl']:.1f}",
-                    "filters": filters_payload,
-                    "entries": [{"symbol": symbol, "metrics": metrics, "strategy": strategy}],
-                    "_eval": {
-                        "stability_min_pnl_dd": float(item.get("stability_min_pnl_dd") or 0.0),
-                        "stability_min_pnl": float(item.get("stability_min_pnl") or 0.0),
-                        "stability_min_roi_dd": float(item.get("stability_min_roi_dd") or 0.0),
-                        "stability_min_roi": float(item.get("stability_min_roi") or 0.0),
-                        "windows": item.get("windows") or [],
-                    },
-                    "_key": key,
-                }
-            )
-        out_payload = {
-            "name": "multitimeframe_top",
-            "generated_at": now,
-            "source": str(milestones_path),
-            "bar_size": str(args.bar_size),
-            "use_rth": bool(use_rth),
-            "windows": [{"start": a.isoformat(), "end": b.isoformat()} for a, b in windows],
-            "groups": groups_out,
-        }
-        out_path = Path(args.out)
-        write_json(out_path, out_payload, sort_keys=False)
-        print(f"\nWrote {out_path} (top={top_k}).")
-
-    def _collect_multitimeframe_rows_from_payloads(*, payloads: dict[int, dict]) -> tuple[int, list[dict]]:
-        out_rows: list[dict] = []
-
-        def _decode_row(rec: dict) -> dict | None:
-            return dict(rec) if isinstance(rec, dict) else None
-
-        def _row_key(row: dict) -> str:
-            strategy = row.get("strategy") if isinstance(row.get("strategy"), dict) else {}
-            filters_payload = row.get("filters") if isinstance(row.get("filters"), dict) else None
-            return _strategy_key(strategy, filters=filters_payload)
-
-        tested_total = _collect_parallel_payload_records(
-            payloads=payloads,
-            records_key="rows",
-            tested_key="tested",
-            decode_record=_decode_row,
-            on_record=lambda row: out_rows.append(dict(row)),
-            dedupe_key=_row_key,
-        )
-        return int(tested_total), out_rows
 
     if args.multitimeframe_worker is not None:
         if not offline:
@@ -1108,9 +922,17 @@ def spot_multitimeframe_main() -> None:
             status_heartbeat_sec=10.0,
         )
 
-        tested_total, out_rows = _collect_multitimeframe_rows_from_payloads(payloads=payloads)
+        tested_total, out_rows = collect_multiwindow_rows(payloads=payloads)
 
-        _emit_multitimeframe_results(out_rows=out_rows, tested_total=tested_total, workers=jobs_eff)
+        emit_multiwindow_results(
+            report=report,
+            out_rows=out_rows,
+            tested_total=tested_total,
+            workers=jobs_eff,
+            cache_enabled=multiwindow_cache_enabled,
+            cache_hits=multiwindow_cache_hits,
+            cache_writes=multiwindow_cache_writes,
+        )
 
         return
 
@@ -1147,7 +969,13 @@ def spot_multitimeframe_main() -> None:
     if not offline:
         data.disconnect()
 
-    _emit_multitimeframe_results(out_rows=out_rows)
+    emit_multiwindow_results(
+        report=report,
+        out_rows=out_rows,
+        cache_enabled=multiwindow_cache_enabled,
+        cache_hits=multiwindow_cache_hits,
+        cache_writes=multiwindow_cache_writes,
+    )
 
 multitimeframe_main = spot_multitimeframe_main
 
