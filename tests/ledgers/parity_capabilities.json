@@ -40,7 +40,7 @@
       "tests": [
         "tests/test_spot_policy_kernel.py::test_engine_policy_views_use_typed_factories"
       ],
-      "next": "Expand malformed-input and policy-pack precedence cases."
+      "next": "Keep malformed execution-knob and pack-precedence receipts current as packs evolve."
     },
     {
       "id": "spot-v1.policy-config-normalization",
@@ -57,7 +57,7 @@
       "tests": [
         "tests/test_spot_policy_kernel.py"
       ],
-      "next": "Extract duplicated pack-aware source lookup only after parity receipts."
+      "next": "Keep explicit-None and strategy/filter/pack precedence receipts current as packs evolve."
     },
     {
       "id": "spot-v1.sizing-trace-kernel",

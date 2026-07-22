@@ -306,6 +306,50 @@ class SpotPolicyKernelTests(unittest.TestCase):
         self.assertEqual(cfg.shock_stop_loss_pct_mult, 1.0)
         self.assertEqual(cfg.spot_branch_a_size_mult, 1.0)
 
+    def test_policy_sources_share_explicit_pack_and_default_precedence(self) -> None:
+        from tradebot.spot.policy import SpotRuntimeSpec
+
+        packed = SpotPolicyConfigView.from_sources(
+            strategy={"spot_policy_pack": "defensive"},
+        )
+        self.assertEqual(packed.spot_policy_pack, "defensive")
+        self.assertEqual(packed.spot_resize_mode, "target")
+        self.assertFalse(packed.spot_resize_allow_scale_in)
+        self.assertEqual(packed.riskoff_mode, "directional")
+
+        explicit = SpotPolicyConfigView.from_sources(
+            strategy={
+                "spot_policy_pack": "defensive",
+                "spot_resize_mode": None,
+            },
+            filters={"riskoff_mode": None},
+        )
+        self.assertEqual(explicit.spot_resize_mode, "off")
+        self.assertEqual(explicit.riskoff_mode, "hygiene")
+
+        filter_selected = SpotPolicyConfigView.from_sources(
+            strategy={},
+            filters={"spot_policy_pack": "defensive"},
+        )
+        self.assertEqual(filter_selected.spot_policy_pack, "defensive")
+        self.assertEqual(filter_selected.spot_resize_min_delta_qty, 2)
+
+        runtime = SpotRuntimeSpec.from_sources(
+            strategy={
+                "spot_policy_pack": "defensive",
+                "spot_spread": "malformed",
+                "spot_close_eod": "yes",
+            },
+        )
+        self.assertEqual(runtime.spot_policy_pack, "defensive")
+        self.assertEqual(runtime.spread, 0.0)
+        self.assertTrue(runtime.close_eod)
+        self.assertIsNone(
+            SpotRuntimeSpec.from_sources(
+                strategy={"spot_policy_pack": "unknown"},
+            ).spot_policy_pack
+        )
+
     def test_engine_policy_views_use_typed_factories(self) -> None:
         from tradebot.engine import spot_policy_config_view, spot_riskoff_end_hour, spot_runtime_spec_view
         from tradebot.spot.policy import SpotRuntimeSpec

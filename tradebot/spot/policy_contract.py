@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import asdict, dataclass, replace
 
 from .fill_modes import SPOT_FILL_MODE_CLOSE, normalize_spot_fill_mode
@@ -216,24 +216,10 @@ class SpotPolicyConfigView:
         strategy: Mapping[str, object] | object | None = None,
         filters: Mapping[str, object] | object | None = None,
     ) -> SpotPolicyConfigView:
-        pack = resolve_pack(strategy=strategy, filters=filters)
-        missing = object()
-
-        def _sget(key: str, default: object = None) -> object:
-            raw = cls._get(strategy, key, missing)
-            if raw is not missing:
-                return raw
-            if pack is not None and key in pack.strategy_defaults:
-                return pack.strategy_defaults[key]
-            return default
-
-        def _fget(key: str, default: object = None) -> object:
-            raw = cls._get(filters, key, missing)
-            if raw is not missing:
-                return raw
-            if pack is not None and key in pack.filter_defaults:
-                return pack.filter_defaults[key]
-            return default
+        pack_name, _sget, _fget = _policy_source_getters(
+            strategy=strategy,
+            filters=filters,
+        )
 
         quantity_mult = max(1, cls._parse_int(_sget("quantity", 1), default=1, min_value=1))
         sizing_mode = cls._normalize_sizing_mode(_sget("spot_sizing_mode", "fixed"))
@@ -432,7 +418,7 @@ class SpotPolicyConfigView:
                     risk_entry_cutoff_hour_et = None
 
         return cls(
-            spot_policy_pack=str(pack.name) if pack is not None else None,
+            spot_policy_pack=pack_name,
             quantity_mult=int(quantity_mult),
             sizing_mode=str(sizing_mode),
             spot_notional_pct=float(spot_notional_pct),
@@ -497,6 +483,32 @@ class SpotPolicyConfigView:
         )
 
 
+def _policy_source_getters(
+    *,
+    strategy: Mapping[str, object] | object | None,
+    filters: Mapping[str, object] | object | None,
+) -> tuple[str | None, Callable[..., object], Callable[..., object]]:
+    """One precedence law: explicit input, then pack default, then caller default."""
+    pack = resolve_pack(strategy=strategy, filters=filters)
+    missing = object()
+
+    def _value(source, defaults, key: str, default: object = None) -> object:
+        raw = SpotPolicyConfigView._get(source, key, missing)
+        if raw is not missing:
+            return raw
+        if key in defaults:
+            return defaults[key]
+        return default
+
+    strategy_defaults = pack.strategy_defaults if pack is not None else {}
+    filter_defaults = pack.filter_defaults if pack is not None else {}
+    return (
+        str(pack.name) if pack is not None else None,
+        lambda key, default=None: _value(strategy, strategy_defaults, key, default),
+        lambda key, default=None: _value(filters, filter_defaults, key, default),
+    )
+
+
 @dataclass(frozen=True)
 class SpotRuntimeSpec:
     """Sanitized/defaulted runtime execution knobs shared across backtest + live."""
@@ -546,16 +558,10 @@ class SpotRuntimeSpec:
         strategy: Mapping[str, object] | object | None = None,
         filters: Mapping[str, object] | object | None = None,
     ) -> SpotRuntimeSpec:
-        pack = resolve_pack(strategy=strategy, filters=filters)
-        missing = object()
-
-        def _sget(key: str, default: object = None) -> object:
-            raw = SpotPolicyConfigView._get(strategy, key, missing)
-            if raw is not missing:
-                return raw
-            if pack is not None and key in pack.strategy_defaults:
-                return pack.strategy_defaults[key]
-            return default
+        pack_name, _sget, _ = _policy_source_getters(
+            strategy=strategy,
+            filters=filters,
+        )
 
         spread = max(0.0, SpotPolicyConfigView._parse_float(_sget("spot_spread"), default=0.0))
         commission_per_share = max(
@@ -569,7 +575,7 @@ class SpotRuntimeSpec:
         )
 
         return cls(
-            spot_policy_pack=str(pack.name) if pack is not None else None,
+            spot_policy_pack=pack_name,
             entry_fill_mode=str(cls._normalize_fill_mode(_sget("spot_entry_fill_mode", "close"))),
             flip_exit_fill_mode=str(cls._normalize_fill_mode(_sget("spot_flip_exit_fill_mode", "close"))),
             exit_mode=str(cls._normalize_exit_mode(_sget("spot_exit_mode", "pct"))),
