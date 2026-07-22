@@ -10,6 +10,7 @@ from ...backtest.config import (
 )
 from ...backtest.config_filters import _parse_filters
 from ...spot.fill_modes import SPOT_FILL_MODE_NEXT_TRADABLE_BAR
+from .dimensions import _ema_signal_presets
 from .profiles import (
     _ATR_EXIT_PROFILE_REGISTRY,
 )
@@ -197,14 +198,13 @@ class SweepCoreAxes:
         _print_leaderboards(rows, title="RV gate sweep (annualized EWMA vol)", top_n=int(self.args.top))
 
     def _sweep_ema(self) -> None:
-        presets = ["2/4", "3/7", "4/9", "5/10", "8/21", "9/21"]
         base = self._base_bundle(bar_size=self.signal_bar_size, filters=None)
         cfg_pairs = [
             (
                 replace(base, strategy=replace(base.strategy, ema_preset=str(preset))),
                 f"ema={preset}",
             )
-            for preset in presets
+            for preset in _ema_signal_presets("core")
         ]
         rows: list[dict] = []
         if self._run_cfg_pairs_grid(axis_tag="ema", cfg_pairs=cfg_pairs, rows=rows) < 0:

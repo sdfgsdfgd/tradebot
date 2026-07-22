@@ -2,6 +2,40 @@
 
 from __future__ import annotations
 
+_EMA_SIGNAL_PRESET_LANES = (
+    ("2/4", ("core", "combo", "tight")),
+    ("3/7", ("core", "hf", "combo")),
+    ("4/9", ("core", "hf", "combo", "tight")),
+    ("5/10", ("core", "combo")),
+    ("5/13", ("hf",)),
+    ("8/21", ("core", "hf", "combo")),
+    ("9/21", ("core", "hf", "combo")),
+    ("21/50", ("hf", "combo")),
+)
+
+
+def _ema_signal_presets(lane: str) -> tuple[str, ...]:
+    key = str(lane).strip().lower()
+    return tuple(preset for preset, lanes in _EMA_SIGNAL_PRESET_LANES if key in lanes)
+
+
+def _ema_signal_variants(
+    lane: str, *, entry_mode: str = "cross"
+) -> tuple[tuple[str, dict[str, object]], ...]:
+    mode = str(entry_mode).strip().lower()
+    return tuple(
+        (
+            f"ema={preset} {mode}",
+            {
+                "entry_signal": "ema",
+                "ema_preset": preset,
+                "ema_entry_mode": mode,
+            },
+        )
+        for preset in _ema_signal_presets(lane)
+    )
+
+
 _PERMISSION_TOD_HOURS = ((9, 16), (10, 15), (11, 16), (17, 3), (17, 4), (17, 5), (18, 3), (18, 4), (18, 5), (19, 3), (19, 4), (19, 5))
 _PERMISSION_TOD_WINDOWS = (
     (None, None, "tod=base", {}), (None, None, "tod=off", {"entry_start_hour_et": None, "entry_end_hour_et": None}),
@@ -305,16 +339,7 @@ _AXIS_DIMENSION_REGISTRY: dict[str, dict[str, object]] = {
     },
     "combo_full_cartesian_tight": {
         # Unified tight Cartesian for combo_full: all dimensions are crossed in one core.
-        "direction_variants": (
-            (
-                "ema=2/4 cross",
-                {"entry_signal": "ema", "ema_preset": "2/4", "ema_entry_mode": "cross"},
-            ),
-            (
-                "ema=4/9 cross",
-                {"entry_signal": "ema", "ema_preset": "4/9", "ema_entry_mode": "cross"},
-            ),
-        ),
+        "direction_variants": _ema_signal_variants("tight"),
         "confirm_bars": (0, 1),
         "perm_variants": (
             (

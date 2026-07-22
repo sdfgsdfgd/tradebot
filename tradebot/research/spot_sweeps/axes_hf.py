@@ -8,6 +8,7 @@ from ...backtest.config import (
     ConfigBundle,
 )
 from ...backtest.config_filters import _parse_filters
+from .dimensions import _ema_signal_presets
 from .milestones import (
     _filters_payload,
     _print_leaderboards,
@@ -113,7 +114,7 @@ class SweepHighFrequencyAxes:
         #
         # Note: v1 used very tight stops (sub-0.6%), which produced many 1y winners but was negative over 10y for
         # every candidate. v2 widens the stop grid + EMA presets to reduce whipsaw and improve decade stability.
-        ema_presets = ["3/7", "4/9", "5/13", "8/21", "9/21", "21/50"]
+        ema_presets = _ema_signal_presets("hf")
         stop_only_vals = [0.0060, 0.0080, 0.0100, 0.0120, 0.0150, 0.0200]
         flip_hold_vals = [0, 2, 4]
         # Keep stages 1-3 single-position, then expand close_eod on a tiny shortlist.

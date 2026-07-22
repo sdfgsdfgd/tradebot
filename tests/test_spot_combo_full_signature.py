@@ -19,6 +19,7 @@ from tradebot.research.spot_sweeps.dimensions import (
     _AXIS_DIMENSION_REGISTRY,
     _SWEEP_COST_MODEL,
     _SWEEP_RUNTIME_POLICY,
+    _ema_signal_presets,
 )
 from tradebot.research.spot_sweeps.milestones import _rank_cfg_rows
 from tradebot.research.spot_sweeps.runtime import SpotSweepRuntime
@@ -72,6 +73,26 @@ def test_sweep_policy_is_not_mixed_into_strategy_dimensions() -> None:
     assert "cost_model" not in _AXIS_DIMENSION_REGISTRY
     assert "base" in _SWEEP_COST_MODEL
     assert "jobs_tuner" in _SWEEP_RUNTIME_POLICY
+
+
+def test_ema_signal_presets_have_one_lane_catalog() -> None:
+    assert _ema_signal_presets("tight") == ("2/4", "4/9")
+    assert _ema_signal_presets("core") == (
+        "2/4",
+        "3/7",
+        "4/9",
+        "5/10",
+        "8/21",
+        "9/21",
+    )
+    assert _ema_signal_presets("hf") == (
+        "3/7",
+        "4/9",
+        "5/13",
+        "8/21",
+        "9/21",
+        "21/50",
+    )
 
 
 def test_axis_fingerprint_covers_complete_signal_identity() -> None:

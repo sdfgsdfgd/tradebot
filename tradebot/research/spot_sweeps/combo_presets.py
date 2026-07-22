@@ -16,7 +16,7 @@ from .catalog import (
     _combo_full_preset_customizer,
     _combo_full_preset_spec,
 )
-from .dimensions import _AXIS_DIMENSION_REGISTRY
+from .dimensions import _AXIS_DIMENSION_REGISTRY, _ema_signal_variants
 from .fingerprints import _combo_full_dimension_space_signature
 from .milestones import _filters_payload
 from .profiles import _PERM_JOINT_PROFILE
@@ -224,19 +224,7 @@ class ComboPresetContext:
         )
 
     def _ema_direction_rows(self) -> list[tuple[str, dict[str, object]]]:
-        rows: list[tuple[str, dict[str, object]]] = []
-        for preset in ("2/4", "3/7", "4/9", "5/10", "8/21", "9/21", "21/50"):
-            rows.append(
-                (
-                    f"ema={preset} cross",
-                    {
-                        "entry_signal": "ema",
-                        "ema_preset": str(preset),
-                        "ema_entry_mode": "cross",
-                    },
-                )
-            )
-        return rows
+        return list(_ema_signal_variants("combo"))
 
     def _atr_exit_rows(self, *, with_close_eod: bool = False) -> list[tuple[str, dict[str, object]]]:
         rows: list[tuple[str, dict[str, object]]] = []
