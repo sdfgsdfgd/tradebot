@@ -7,7 +7,8 @@ from datetime import date, datetime
 
 from ib_insync import Contract, Trade
 
-from ..engine import EmaDecisionSnapshot, RiskOverlaySnapshot
+from ..engines.risk import RiskOverlaySnapshot
+from ..engines.signals import EmaDecisionSnapshot
 from ..option_package import OptionPackageRisk
 
 _BOT_JOURNAL_FIELDS = (

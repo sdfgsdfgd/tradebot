@@ -6,10 +6,9 @@ import asyncio
 import json
 from datetime import datetime, time, timedelta
 
+from ..engines.shock import normalize_shock_detector, normalize_shock_gate_mode
 from ..engine import (
     cooldown_ok_by_time,
-    normalize_shock_detector,
-    normalize_shock_gate_mode,
     normalize_spot_entry_signal,
     parse_time_hhmm,
     resolve_spot_regime2_spec,

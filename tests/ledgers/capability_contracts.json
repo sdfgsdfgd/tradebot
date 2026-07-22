@@ -218,6 +218,8 @@
         "tests/test_spot_signal_time_mode.py"
       ],
       "owner_surface": [
+        "tradebot/engines/shock.py",
+        "tradebot/engines/signals.py",
         "tradebot/spot_engine.py"
       ],
       "oracle": [
@@ -241,6 +243,7 @@
         "tests/test_spot_policy_kernel.py"
       ],
       "owner_surface": [
+        "tradebot/engines/risk.py",
         "tradebot/spot/policy.py"
       ],
       "oracle": [

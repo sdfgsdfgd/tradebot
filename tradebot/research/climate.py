@@ -16,7 +16,7 @@ from ..backtest.spot_codec import (
     strategy_from_payload,
 )
 from ..climate_router import DailyBar, host_policy, year_slice
-from ..engine import SupertrendEngine
+from ..engines.signals import SupertrendEngine
 
 
 def load_daily_bars_from_intraday_csv(path: Path) -> list[DailyBar]:
