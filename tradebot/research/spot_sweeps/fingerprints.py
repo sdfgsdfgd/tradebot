@@ -10,13 +10,9 @@ from ...backtest.config import ConfigBundle
 from ...backtest.spot_codec import filters_payload as _filters_payload
 from ...backtest.sweep_fingerprint import _canonicalize_fingerprint_value
 from .catalog import _COMBO_FULL_CARTESIAN_DIM_ORDER
-from .dimensions import _AXIS_DIMENSION_REGISTRY
 
 _RUN_CFG_CACHE_ENGINE_VERSION = "spot_stage_v9"
 _RANK_BIN_SIZE = 2048
-_AXIS_DIMENSION_FINGERPRINT_KEYS: tuple[str, ...] = tuple(
-    str(k) for k in (tuple(_AXIS_DIMENSION_REGISTRY.get("cache", {}).get("dimension_keys") or ())) if str(k).strip()
-)
 
 
 def _axis_dimension_fingerprint(cfg: ConfigBundle) -> str:

@@ -10,8 +10,8 @@ from .fingerprints import (
     _RANK_BIN_SIZE,
 )
 from .support import (
-    _cache_config,
     _registry_float,
+    _runtime_policy,
 )
 
 
@@ -463,7 +463,7 @@ class SweepPlannerStore:
     def _dimension_upper_bound_score(self, frontier_row: dict[str, object] | None) -> float:
         if not isinstance(frontier_row, dict):
             return 0.0
-        cfg = _cache_config("dimension_upper_bound")
+        cfg = _runtime_policy("dimension_upper_bound")
         min_eval_count = max(1, int(_registry_float(cfg.get("min_eval_count"), 6.0)))
         low_ceiling_max_keep_count = max(0, int(_registry_float(cfg.get("low_ceiling_max_keep_count"), 0.0)))
         low_ceiling_max_best_pnl = float(_registry_float(cfg.get("low_ceiling_max_best_pnl"), 0.0))

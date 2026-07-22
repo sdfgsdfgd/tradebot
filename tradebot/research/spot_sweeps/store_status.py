@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import time as pytime
 from .support import (
-    _cache_config,
     _registry_float,
+    _runtime_policy,
 )
 
 
@@ -250,7 +250,7 @@ class SweepStatusStore:
             return None
         if total_i <= 0 or not stage_key or not window_key or (manifest_key == "stage_cell" and not plan_key):
             return None
-        cfg = _cache_config("stage_unresolved_summary")
+        cfg = _runtime_policy("stage_unresolved_summary")
         ttl_sec = max(0.0, float(_registry_float(cfg.get("ttl_sec"), 21600.0)))
         now_ts = float(pytime.time())
         row = None
@@ -501,7 +501,7 @@ class SweepStatusStore:
         window_key = str(window_signature).strip()
         if not stage_key or not window_key:
             return []
-        cfg = _cache_config("cartesian_rank_manifest")
+        cfg = _runtime_policy("cartesian_rank_manifest")
         compact_min_rows = max(
             64,
             int(

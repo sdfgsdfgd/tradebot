@@ -21,9 +21,9 @@ from .milestones import (
 )
 from .support import (
     _axis_cost_hint,
-    _cache_config,
     _cost_model_weight,
     _registry_float,
+    _runtime_policy,
 )
 
 
@@ -455,7 +455,7 @@ class SweepPlanning:
         if not isinstance(row, dict):
             return 0.0
         cfg_eff = (
-            cfg if isinstance(cfg, dict) else _cache_config("dimension_value_utility")
+            cfg if isinstance(cfg, dict) else _runtime_policy("dimension_value_utility")
         )
         min_eval_count = int(_registry_float(cfg_eff.get("min_eval_count"), 6.0))
         weight_keep = float(_registry_float(cfg_eff.get("weight_keep_rate"), 0.70))
@@ -609,7 +609,7 @@ class SweepPlanning:
             if runtime_cells
             else {}
         )
-        dim_utility_cfg = _cache_config("dimension_value_utility")
+        dim_utility_cfg = _runtime_policy("dimension_value_utility")
         dim_utility_by_cell = (
             self._dimension_value_utility_get_many(
                 stage_label=str(stage_key), cells=utility_cells
@@ -777,7 +777,7 @@ class SweepPlanning:
         total = len(plan_all)
         if total <= 1 or not stage_key:
             return list(range(total))
-        utility_cfg = _cache_config("dimension_value_utility")
+        utility_cfg = _runtime_policy("dimension_value_utility")
         utility_cells: list[tuple[str, str, str]] = []
         item_meta: list[tuple[int, str, tuple[tuple[str, str], ...], int | None]] = []
         for idx, item in enumerate(plan_all):

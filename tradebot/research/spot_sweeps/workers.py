@@ -20,8 +20,8 @@ from .milestones import (
     _milestone_key,
 )
 from .support import (
-    _cache_config,
     _registry_float,
+    _runtime_policy,
 )
 
 
@@ -143,7 +143,7 @@ class SweepWorkers:
                     ),
                 )
             claim_span_i = int(claim_span_default)
-            claim_cfg = _cache_config("claim_span_tuner")
+            claim_cfg = _runtime_policy("claim_span_tuner")
             if bool(_registry_float(claim_cfg.get("enabled"), 1.0) > 0.0):
                 target_claims = max(
                     2,

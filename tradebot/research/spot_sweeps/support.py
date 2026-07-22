@@ -17,7 +17,7 @@ from ...backtest.config import (
 )
 from ...backtest.config_filters import _parse_filters
 from ...backtest.data import IBKRHistoricalData
-from .dimensions import _AXIS_DIMENSION_REGISTRY
+from .dimensions import _AXIS_DIMENSION_REGISTRY, _SWEEP_COST_MODEL, _SWEEP_RUNTIME_POLICY
 from .milestones import _filters_payload
 
 
@@ -216,11 +216,8 @@ def _registry_float(raw: object, default: float) -> float:
         return float(default)
 
 
-def _cache_config(section: str) -> dict[str, object]:
-    cache_cfg = _AXIS_DIMENSION_REGISTRY.get("cache", {})
-    if not isinstance(cache_cfg, dict):
-        return {}
-    raw = cache_cfg.get(str(section))
+def _runtime_policy(section: str) -> dict[str, object]:
+    raw = _SWEEP_RUNTIME_POLICY.get(str(section))
     return dict(raw) if isinstance(raw, dict) else {}
 
 
@@ -236,7 +233,7 @@ def _cfg_label_set(raw: object) -> set[str]:
 
 
 def _claim_first_stage_enabled(*, stage_label: str, total: int) -> bool:
-    cfg = _cache_config("claim_first_planner")
+    cfg = _runtime_policy("claim_first_planner")
     if not bool(_registry_float(cfg.get("enabled"), 1.0) > 0.0):
         return False
     min_total = max(1, int(_registry_float(cfg.get("min_total"), 512.0)))
@@ -249,7 +246,7 @@ def _claim_first_stage_enabled(*, stage_label: str, total: int) -> bool:
 
 
 def _claim_first_serial_force_worker_enabled() -> bool:
-    cfg = _cache_config("claim_first_planner")
+    cfg = _runtime_policy("claim_first_planner")
     return bool(_registry_float(cfg.get("serial_force_worker"), 1.0) > 0.0)
 
 
@@ -265,7 +262,7 @@ def _tuned_parallel_jobs(
     default_i = max(1, int(default_jobs))
     jobs_eff = min(int(jobs_req_i), int(default_i), int(total_i)) if int(total_i) > 0 else 1
     jobs_eff = max(1, int(jobs_eff))
-    cfg = _cache_config("jobs_tuner")
+    cfg = _runtime_policy("jobs_tuner")
     if not bool(_registry_float(cfg.get("enabled"), 1.0) > 0.0):
         return int(jobs_eff)
     min_items = max(1, int(_registry_float(cfg.get("min_items_per_worker"), 64.0)))
@@ -307,10 +304,7 @@ def _axis_cost_hint(axis_name: str, key: str, default: float) -> float:
 
 
 def _cost_model_weight(name: str, default: float) -> float:
-    dims = _AXIS_DIMENSION_REGISTRY.get("cost_model", {})
-    if isinstance(dims, dict):
-        return _registry_float(dims.get(str(name)), default)
-    return float(default)
+    return _registry_float(_SWEEP_COST_MODEL.get(str(name)), default)
 
 
 def _combo_full_dim_size_from_registry(*, dims: dict[str, object], dim_key: str) -> int:

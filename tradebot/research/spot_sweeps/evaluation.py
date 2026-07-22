@@ -11,7 +11,7 @@ from ...backtest.engine import _run_spot_backtest_summary, _spot_prepare_summary
 from ...backtest.sweep_parallel import _progress_line
 from .fingerprints import _axis_dimension_fingerprint, _window_signature
 from .milestones import _milestone_key
-from .support import _cache_config, _registry_float
+from .support import _registry_float, _runtime_policy
 
 _BarSignature = tuple[int, object | None, object | None]
 _ContextSignature = tuple[_BarSignature, _BarSignature, _BarSignature]
@@ -603,15 +603,15 @@ class SweepEvaluation:
         eval_phase_lock = threading.Lock()
         sweep_heartbeat_stop = threading.Event()
         sweep_heartbeat_thread: threading.Thread | None = None
-        dim_util_cfg = _cache_config("dimension_value_utility")
-        dim_upper_cfg = _cache_config("dimension_upper_bound")
+        dim_util_cfg = _runtime_policy("dimension_value_utility")
+        dim_upper_cfg = _runtime_policy("dimension_upper_bound")
         dim_util_write_min_total = max(0, int(_registry_float(dim_util_cfg.get("write_min_total"), 128.0)))
         dim_upper_write_min_total = max(0, int(_registry_float(dim_upper_cfg.get("write_min_total"), 96.0)))
         dim_util_write_sample_mod = max(1, int(_registry_float(dim_util_cfg.get("write_sample_mod"), 1.0)))
         dim_upper_write_sample_mod = max(1, int(_registry_float(dim_upper_cfg.get("write_sample_mod"), 1.0)))
         allow_dim_util_writes = bool(frontier_stage_label and (total_i is None or int(total_i) >= int(dim_util_write_min_total)))
         allow_dim_upper_writes = bool(frontier_stage_label and (total_i is None or int(total_i) >= int(dim_upper_write_min_total)))
-        series_pack_prewarm_cfg = _cache_config("series_pack_prewarm")
+        series_pack_prewarm_cfg = _runtime_policy("series_pack_prewarm")
         series_pack_prewarm_enabled = bool(_registry_float(series_pack_prewarm_cfg.get("enabled"), 1.0) > 0.0)
         series_pack_prewarm_min_total = max(0, int(_registry_float(series_pack_prewarm_cfg.get("min_total"), 32.0)))
         series_pack_prewarm_max_unique = max(1, int(_registry_float(series_pack_prewarm_cfg.get("max_unique"), 4096.0)))

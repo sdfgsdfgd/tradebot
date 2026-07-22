@@ -17,8 +17,8 @@ from .milestones import (
     _milestone_key,
 )
 from .support import (
-    _cache_config,
     _registry_float,
+    _runtime_policy,
 )
 
 
@@ -36,7 +36,7 @@ class SweepFrontierStore:
         window_key = str(window_signature).strip()
         if not stage_key or not window_key:
             return []
-        cfg = _cache_config("rank_dominance_stamp")
+        cfg = _runtime_policy("rank_dominance_stamp")
         compact_min_rows = max(
             64, int(_registry_float(cfg.get("compact_min_rows"), 512.0))
         )
@@ -280,7 +280,7 @@ class SweepFrontierStore:
         window_key = str(window_signature).strip()
         if not stage_key or not window_key:
             return None
-        cfg = _cache_config("cartesian_rank_manifest")
+        cfg = _runtime_policy("cartesian_rank_manifest")
         pending_ttl_sec = max(
             0.0, float(_registry_float(cfg.get("pending_ttl_sec"), 86400.0))
         )
@@ -636,7 +636,7 @@ class SweepFrontierStore:
     ) -> bool:
         if not isinstance(frontier_row, dict):
             return False
-        cfg = _cache_config("stage_frontier")
+        cfg = _runtime_policy("stage_frontier")
         min_eval_count = max(1, int(_registry_float(cfg.get("min_eval_count"), 3.0)))
         max_keep_count = max(0, int(_registry_float(cfg.get("max_keep_count"), 0.0)))
         max_best_pnl = float(_registry_float(cfg.get("max_best_pnl"), 0.0))

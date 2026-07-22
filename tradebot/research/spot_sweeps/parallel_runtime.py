@@ -25,8 +25,8 @@ from .milestones import (
 )
 from .parallel import _run_axis_subprocess_plan
 from .support import (
-    _cache_config,
     _registry_float,
+    _runtime_policy,
     _tuned_parallel_jobs,
 )
 
@@ -104,7 +104,7 @@ class SweepParallelRuntime:
         stage_label: str,
         stage_total: int,
     ):
-        cfg = _cache_config("planner_heartbeat")
+        cfg = _runtime_policy("planner_heartbeat")
         stale_after_sec = max(30.0, float(_registry_float(cfg.get("stale_after_sec"), 180.0)))
         bootstrap_grace_sec = max(
             30.0,
@@ -209,7 +209,7 @@ class SweepParallelRuntime:
     ) -> dict[int, dict]:
         base_cli = self._stage_parallel_base_cli(flags_with_values=strip_flags_with_values)
         planner_stage_key = str(planner_stage_label or stage_label).strip().lower()
-        planner_cfg = _cache_config("planner_heartbeat")
+        planner_cfg = _runtime_policy("planner_heartbeat")
         monitor_interval_sec = max(5.0, float(_registry_float(planner_cfg.get("monitor_interval_sec"), 30.0)))
         max_stale_retries = max(0, int(_registry_float(planner_cfg.get("max_stale_retries"), 1.0)))
         probe = self._planner_parallel_status_probe(
@@ -312,7 +312,7 @@ class SweepParallelRuntime:
     ) -> dict[int, dict]:
         base_cli = self._stage_parallel_base_cli(flags_with_values=strip_flags_with_values)
         planner_stage_key = str(planner_stage_label or stage_label).strip().lower()
-        planner_cfg = _cache_config("planner_heartbeat")
+        planner_cfg = _runtime_policy("planner_heartbeat")
         monitor_interval_sec = max(5.0, float(_registry_float(planner_cfg.get("monitor_interval_sec"), 30.0)))
         max_stale_retries = max(0, int(_registry_float(planner_cfg.get("max_stale_retries"), 1.0)))
         probe = self._planner_parallel_status_probe(

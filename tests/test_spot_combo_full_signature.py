@@ -12,7 +12,13 @@ from tradebot.research.spot_sweeps.catalog import (
     _COMBO_FULL_PAIR_DIM_VARIANT_SPECS,
 )
 from tradebot.research.spot_sweeps.fingerprints import (
+    _axis_dimension_fingerprint,
     _combo_full_dimension_space_signature,
+)
+from tradebot.research.spot_sweeps.dimensions import (
+    _AXIS_DIMENSION_REGISTRY,
+    _SWEEP_COST_MODEL,
+    _SWEEP_RUNTIME_POLICY,
 )
 from tradebot.research.spot_sweeps.milestones import _rank_cfg_rows
 from tradebot.research.spot_sweeps.runtime import SpotSweepRuntime
@@ -59,6 +65,30 @@ def test_combo_full_signature_is_stable_for_reordered_dict_keys() -> None:
     sig_a = _signature(timing_rank_min=0.0240, pair_payload={"alpha": 1, "beta": 2})
     sig_b = _signature(timing_rank_min=0.0240, pair_payload={"beta": 2, "alpha": 1})
     assert sig_a == sig_b
+
+
+def test_sweep_policy_is_not_mixed_into_strategy_dimensions() -> None:
+    assert "cache" not in _AXIS_DIMENSION_REGISTRY
+    assert "cost_model" not in _AXIS_DIMENSION_REGISTRY
+    assert "base" in _SWEEP_COST_MODEL
+    assert "jobs_tuner" in _SWEEP_RUNTIME_POLICY
+
+
+def test_axis_fingerprint_covers_complete_signal_identity() -> None:
+    common = {
+        "symbol": "SLV",
+        "start": date(2025, 1, 8),
+        "end": date(2025, 1, 10),
+        "bar_size": "15 mins",
+        "use_rth": False,
+        "cache_dir": Path("db"),
+        "offline": True,
+        "filters": None,
+    }
+
+    assert _axis_dimension_fingerprint(
+        _bundle_base(entry_signal="ema", **common)
+    ) != _axis_dimension_fingerprint(_bundle_base(entry_signal="orb", **common))
 
 
 def test_combo_full_progress_uses_executed_profile_space(monkeypatch) -> None:

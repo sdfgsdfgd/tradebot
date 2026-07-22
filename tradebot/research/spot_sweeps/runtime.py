@@ -33,9 +33,9 @@ from .milestones import (
     load_current_champion_milestones,
 )
 from .support import (
-    _cache_config,
     _registry_float,
     _require_offline_cache_or_die,
+    _runtime_policy,
 )
 
 from .store_cache import SweepCacheStore
@@ -286,7 +286,7 @@ class SpotSweepRuntime(
         self.run_cfg_persistent_lock = threading.Lock()
         self.run_cfg_persistent_pending: dict[str, tuple[str, dict | None]] = {}
         self.run_cfg_persistent_last_flush_ts = float(pytime.perf_counter())
-        run_cfg_persistent_cfg = _cache_config("run_cfg_persistent")
+        run_cfg_persistent_cfg = _runtime_policy("run_cfg_persistent")
         self.run_cfg_persistent_batch_write_size = max(
             1,
             int(_registry_float(run_cfg_persistent_cfg.get("batch_write_size"), 256.0)),
