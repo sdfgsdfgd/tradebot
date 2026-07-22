@@ -7,7 +7,7 @@ import sys
 from types import SimpleNamespace
 import types
 
-from tradebot.option_package import option_package_debit_value
+from tradebot.option_package import option_package_debit_value, option_package_risk
 
 from ib_insync import Bag, Option, Stock
 import pytest
@@ -813,6 +813,42 @@ def test_backtest_package_value_explicitly_inverts_canonical_debit_value(monkeyp
 
     assert value == pytest.approx(0.95)
     assert calls == [[("SELL", 1, 2.0), ("BUY", 1, 1.0)]]
+
+
+def test_backtest_multi_quantity_credit_vertical_risk_matches_canonical_package_economics() -> None:
+    quantity = 2
+    multiplier = 100.0
+    canonical = option_package_risk(
+        [
+            ("SELL", "PUT", 100.0, quantity, "20260724", multiplier),
+            ("BUY", "PUT", 95.0, quantity, "20260724", multiplier),
+        ],
+        debit_value=-2.0,
+        quantity=1,
+    )
+    assert canonical is not None
+
+    trade = SimpleNamespace(
+        legs=[
+            OptionLeg(action="SELL", right="PUT", strike=100.0, qty=quantity),
+            OptionLeg(action="BUY", right="PUT", strike=95.0, qty=quantity),
+        ],
+        entry_price=2.0,
+        max_loss=None,
+        stop_loss=0.5,
+    )
+
+    assert canonical.max_loss == pytest.approx(800.0)
+    assert backtest_engine._max_loss_estimate(trade, 100.0) == pytest.approx(8.0)
+
+    exact_max_loss = backtest_engine._max_loss(trade)
+
+    assert exact_max_loss == pytest.approx(canonical.max_loss / multiplier)
+    assert backtest_engine._margin_required(trade, 100.0, multiplier) == pytest.approx(
+        canonical.max_loss
+    )
+    trade.max_loss = exact_max_loss
+    assert backtest_engine._hit_stop(trade, 4.0, "max_loss", 100.0) is False
 
 
 def test_expiry_payoff_consumes_canonical_debit_value_without_inversion(monkeypatch) -> None:

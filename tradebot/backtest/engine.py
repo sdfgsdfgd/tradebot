@@ -7286,7 +7286,7 @@ def _max_loss(trade: OptionTrade) -> float | None:
         return None
     width = abs(a.strike - b.strike)
     if trade.entry_price >= 0:
-        return max(0.0, width - trade.entry_price)
+        return max(0.0, (width * a.qty) - trade.entry_price)
     return abs(trade.entry_price)
 
 
