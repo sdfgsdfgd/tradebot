@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-import re
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
@@ -23,6 +22,7 @@ from ..data import IBKRHistoricalData
 from ..models import Bar
 from ..spot_context import SpotBarRequirement, spot_bar_requirements_from_strategy
 from ...engines.market import session_label_et as _session_label_et
+from ...research.champions import discover_current_champions
 from .coverage import (
     _audit_rows,
     _build_indices,
@@ -126,37 +126,8 @@ def _parse_fetch_request(raw: str) -> _CacheFetchRequest:
     )
 
 
-def _extract_current_json_from_readme(readme_path: Path) -> Path | None:
-    if not readme_path.exists():
-        return None
-    text = readme_path.read_text(encoding="utf-8")
-    head = re.search(r"^###\s+CURRENT(?:\s+\(v[^)]+\))?", text, flags=re.MULTILINE | re.IGNORECASE)
-    if not head:
-        return None
-    tail = text[head.end() :]
-    next_head = re.search(r"^###\s+", tail, flags=re.MULTILINE)
-    section = tail[: next_head.start()] if next_head else tail
-    match = re.search(r"`(?P<path>(?:tradebot|backtests)/[^`]+\.json)`", section)
-    if match is None:
-        match = re.search(r"(?P<path>(?:tradebot|backtests)/[^\s)]+\.json)", section)
-    if match is None:
-        return None
-    path = (_repo_root() / str(match.group("path")).strip()).resolve()
-    return path if path.exists() else None
-
-
 def _discover_current_champion_jsons() -> list[Path]:
-    repo_root = _repo_root()
-    out: list[Path] = []
-    slv_lf = _extract_current_json_from_readme(repo_root / "backtests" / "slv" / "readme-lf.md")
-    slv_hf = _extract_current_json_from_readme(repo_root / "backtests" / "slv" / "readme-hf.md")
-    tqqq = (repo_root / "tradebot" / "backtest" / "spot_champions.json").resolve()
-    if slv_lf is not None:
-        out.append(slv_lf)
-    if slv_hf is not None:
-        out.append(slv_hf)
-    if tqqq.exists():
-        out.append(tqqq)
+    out = [ref.artifact_path for ref in discover_current_champions()]
     if not out:
         raise SystemExit("Unable to resolve current champion JSON paths from README files.")
     return out

@@ -578,8 +578,8 @@ class _SpotSweepsHelpFormatter(argparse.RawTextHelpFormatter):
 
 _BASE_HELP_NOTES: dict[str, str] = {
     "default": "Minimal baseline profile (EMA 2/4, fixed pct exits, no extra gates).",
-    "champion": "Loads highest pnl/dd winner from spot milestones for current symbol/bar/rth (preferred).",
-    "champion_pnl": "Loads highest pnl winner from spot milestones for current symbol/bar/rth.",
+    "champion": "Loads the promoted HF/LF crown matching symbol/bar/session, ranked by pnl/dd.",
+    "champion_pnl": "Loads the promoted HF/LF crown matching symbol/bar/session, ranked by pnl.",
     "dual_regime": "Regime + regime2 baseline profile used for dual-regime refinement flows.",
 }
 
@@ -905,7 +905,8 @@ def _spot_sweeps_help_epilog() -> str:
             "  - Parallel worker modes require --offline to avoid concurrent IBKR sessions.",
             "  - --cache-dir stores bar cache plus run_cfg cache DB (spot_sweeps_run_cfg_cache.sqlite3).",
             "  - --write-milestones emits UI preset candidates filtered by milestone thresholds.",
-            "  - --seed-milestones can override champion source for champion/champion_pnl base modes.",
+            "  - --track keeps promoted HF/LF lanes distinct; ambiguous auto-selection fails closed.",
+            "  - --seed-milestones explicitly overrides the promoted champion source.",
             "",
             *base_lines,
             "",

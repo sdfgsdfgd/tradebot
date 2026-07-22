@@ -110,7 +110,6 @@ class BotScreen(
         base = Path(__file__).resolve().parents[1]
         self._leaderboard_path = base / "backtest" / "leaderboard.json"
         self._spot_milestones_path = base / "backtest" / "spot_milestones.json"
-        self._spot_champions_path = base / "backtest" / "spot_champions.json"
         self._group_eval_by_name: dict[str, dict] = {}
         self._payload: dict | None = None
         self._presets: list[_BotPreset] = []

@@ -2,22 +2,15 @@
 
 from __future__ import annotations
 
-import json
 import math
 import re
-from pathlib import Path
 
 from rich.text import Text
 
 from ...engine import spot_riskoff_end_hour
+from ...research.champions import load_current_champion_groups
 from ..bot_models import _BotPreset, _PresetHeader
 from ..common import _pnl_text
-from ..readme_retrievers import (
-    extract_current_slv_hf_json_candidates,
-    extract_current_slv_lf_json_candidates,
-    extract_current_tqqq_hf_json_candidates,
-    extract_current_tqqq_lf_json_candidates,
-)
 from .formatting import _clean_group_label, _filters_for_group, _fmt_pct, _version_tag
 
 
@@ -32,181 +25,20 @@ class BotPresetsMixin:
         - `backtests/slv/readme-hf.md` (SLV HF spot champ)
         """
 
-        repo_root = Path(__file__).resolve().parents[3]
-        warnings: list[str] = []
-
-        def _read_text(path: Path) -> str | None:
-            try:
-                return path.read_text()
-            except Exception:
-                return None
-
-        def _resolve_existing_json(rel_path: str) -> Path | None:
-            candidate = repo_root / rel_path
-            return candidate if candidate.exists() else None
-
-        def _resolve_current(
-            *,
-            label: str,
-            candidates: list[tuple[str | None, str | None]],
-        ) -> tuple[str | None, Path | None]:
-            lead_version = candidates[0][0] if candidates else None
-            lead_path = _resolve_existing_json(candidates[0][1]) if candidates and candidates[0][1] else None
-            for version, rel_path in candidates:
-                if not rel_path:
-                    continue
-                resolved = _resolve_existing_json(rel_path)
-                if resolved is None:
-                    continue
-                if lead_path is None and lead_version and version and version != lead_version:
-                    warnings.append(
-                        f"{label} crown {_version_tag(lead_version) or '?'} missing; loaded {_version_tag(version) or '?'}"
-                    )
-                return version, resolved
-            return lead_version, lead_path
-
-        def _pick_group(payload: dict) -> dict | None:
-            groups = payload.get("groups", [])
-            if not isinstance(groups, list) or not groups:
-                return None
-            for group in groups:
-                if not isinstance(group, dict):
-                    continue
-                name = str(group.get("name") or "")
-                if "KINGMAKER #01" in name:
-                    return group
-            first = groups[0]
-            return first if isinstance(first, dict) else None
-
-        def _load_champion_group(
-            *,
-            symbol: str,
-            version: str | None,
-            path: Path,
-            track: str,
-        ) -> dict | None:
-            try:
-                payload = json.loads(path.read_text())
-            except Exception:
-                return None
-            if not isinstance(payload, dict):
-                return None
-            group = _pick_group(payload)
-            if not isinstance(group, dict):
-                return None
-            group = dict(group)
-            group["_source"] = f"champion:{symbol}:{track}:v{version or '?'}"
-            group["_track"] = track
-            group["_version"] = version
-            entries = group.get("entries")
-            if isinstance(entries, list):
-                hydrated_entries: list[dict] = []
-                for raw_entry in entries:
-                    if not isinstance(raw_entry, dict):
-                        continue
-                    entry = dict(raw_entry)
-                    strategy_raw = entry.get("strategy")
-                    if isinstance(strategy_raw, dict):
-                        strategy = dict(strategy_raw)
-                        mode_raw = str(strategy.get("spot_next_open_session") or "").strip()
-                        sec_type = str(strategy.get("spot_sec_type") or "STK").strip().upper()
-                        instrument = str(strategy.get("instrument") or "").strip().lower()
-                        use_rth_raw = strategy.get("signal_use_rth")
-                        if isinstance(use_rth_raw, str):
-                            use_rth = use_rth_raw.strip().lower() in ("1", "true", "yes", "on")
-                        else:
-                            use_rth = bool(use_rth_raw)
-                        if (
-                            instrument == "spot"
-                            and sec_type == "STK"
-                            and not use_rth
-                            and not mode_raw
-                        ):
-                            strategy["spot_next_open_session"] = "tradable_24x5"
-                        entry["strategy"] = strategy
-                    hydrated_entries.append(entry)
-                group["entries"] = hydrated_entries
-
-            name = str(group.get("name") or "")
-            spot_tag = f"Spot ({symbol})"
-            version_tag = _version_tag(version)
-            if spot_tag in name and version_tag and not re.search(rf"\b{re.escape(version_tag)}\b", name, flags=re.IGNORECASE):
-                group["name"] = name.replace(spot_tag, f"{spot_tag} {version_tag}", 1)
-            return group
-
-        groups: list[dict] = []
-        self._spot_champ_version = None
-
-        # TQQQ LF CURRENT (from backtests/tqqq/readme-lf.md)
-        tqqq_lf_readme_path = repo_root / "backtests" / "tqqq" / "readme-lf.md"
-        tqqq_lf_readme = _read_text(tqqq_lf_readme_path)
-        tqqq_ver: str | None = None
-        tqqq_path: Path | None = None
-        if tqqq_lf_readme:
-            tqqq_ver, tqqq_path = _resolve_current(
-                label="TQQQ LF",
-                candidates=extract_current_tqqq_lf_json_candidates(tqqq_lf_readme),
-            )
-
-        if tqqq_ver and tqqq_path:
-            group = _load_champion_group(symbol="TQQQ", version=tqqq_ver, path=tqqq_path, track="LF")
-            if group is not None:
-                self._spot_champ_version = tqqq_ver
-                groups.append(group)
-
-        # TQQQ HF CURRENT (from backtests/tqqq/readme-hf.md)
-        tqqq_hf_readme_path = repo_root / "backtests" / "tqqq" / "readme-hf.md"
-        tqqq_hf_readme = _read_text(tqqq_hf_readme_path)
-        tqqq_hf_ver: str | None = None
-        tqqq_hf_path: Path | None = None
-        if tqqq_hf_readme:
-            tqqq_hf_ver, tqqq_hf_path = _resolve_current(
-                label="TQQQ HF",
-                candidates=extract_current_tqqq_hf_json_candidates(tqqq_hf_readme),
-            )
-
-        if tqqq_hf_path:
-            group = _load_champion_group(symbol="TQQQ", version=tqqq_hf_ver, path=tqqq_hf_path, track="HF")
-            if group is not None:
-                name = str(group.get("name") or "")
-                if name and "[HF]" not in name:
-                    group["name"] = f"{name} [HF]"
-                groups.append(group)
-
-        # SLV CURRENT (from backtests/slv/readme-lf.md)
-        slv_readme_path = repo_root / "backtests" / "slv" / "readme-lf.md"
-        slv_readme = _read_text(slv_readme_path)
-        slv_ver: str | None = None
-        slv_path: Path | None = None
-        if slv_readme:
-            slv_ver, slv_path = _resolve_current(
-                label="SLV LF",
-                candidates=extract_current_slv_lf_json_candidates(slv_readme),
-            )
-
-        if slv_path:
-            group = _load_champion_group(symbol="SLV", version=slv_ver, path=slv_path, track="LF")
-            if group is not None:
-                groups.append(group)
-
-        # SLV HF CURRENT (from backtests/slv/readme-hf.md)
-        slv_hf_readme_path = repo_root / "backtests" / "slv" / "readme-hf.md"
-        slv_hf_readme = _read_text(slv_hf_readme_path)
-        slv_hf_ver: str | None = None
-        slv_hf_path: Path | None = None
-        if slv_hf_readme:
-            slv_hf_ver, slv_hf_path = _resolve_current(
-                label="SLV HF",
-                candidates=extract_current_slv_hf_json_candidates(slv_hf_readme),
-            )
-
-        if slv_hf_path:
-            group = _load_champion_group(symbol="SLV", version=slv_hf_ver, path=slv_hf_path, track="HF")
-            if group is not None:
-                name = str(group.get("name") or "")
-                if name and "[HF]" not in name:
-                    group["name"] = f"{name} [HF]"
-                groups.append(group)
+        groups, warnings = load_current_champion_groups(symbols=("TQQQ", "SLV"))
+        self._spot_champ_version = next(
+            (
+                str(group.get("_version"))
+                for group in groups
+                if group.get("_track") == "LF"
+                and any(
+                    isinstance(entry, dict)
+                    and str(entry.get("symbol") or "").strip().upper() == "TQQQ"
+                    for entry in group.get("entries") or ()
+                )
+            ),
+            None,
+        )
 
         has_champions = bool(groups)
         if warnings:

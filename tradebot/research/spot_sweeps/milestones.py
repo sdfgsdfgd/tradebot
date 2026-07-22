@@ -22,6 +22,7 @@ from ...spot.fill_modes import (
     SPOT_FILL_MODE_NEXT_TRADABLE_BAR,
     normalize_spot_fill_mode,
 )
+from ..champions import load_current_champion_groups
 
 
 def _milestone_metrics_from_row(row: dict) -> dict:
@@ -437,13 +438,6 @@ def _print_leaderboards(rows: list[dict], *, title: str, top_n: int) -> None:
     _print_top(rows, title=f"{title} — Top by pnl", top_n=top_n, sort_key=_score_row_pnl)
 
 
-def _load_spot_milestones() -> dict | None:
-    path = Path(__file__).resolve().parent / "spot_milestones.json"
-    if not path.exists():
-        return None
-    return json.loads(path.read_text())
-
-
 def _milestone_entry_for(
     milestones: dict | None,
     *,
@@ -507,6 +501,61 @@ def _milestone_entry_for(
         return _score_row_pnl_dd(m)
 
     return sorted(candidates, key=_score, reverse=True)[0]
+
+
+def load_current_champion_milestones(
+    *,
+    symbol: str,
+    signal_bar_size: str,
+    use_rth: bool,
+    track: str,
+    prefer_realism: bool,
+) -> tuple[dict, str, list[str]]:
+    requested_track = str(track or "auto").strip().upper()
+    track_filter = None if requested_track == "AUTO" else (requested_track,)
+    groups, warnings = load_current_champion_groups(
+        symbols=(str(symbol).strip().upper(),),
+        tracks=track_filter,
+    )
+    matching = [
+        group
+        for group in groups
+        if _milestone_entry_for(
+            {"groups": [group]},
+            symbol=symbol,
+            signal_bar_size=signal_bar_size,
+            use_rth=use_rth,
+            sort_by="pnl_dd",
+            prefer_realism=prefer_realism,
+        )
+        is not None
+    ]
+    matched_tracks = sorted(
+        {str(group.get("_track") or "").strip().upper() for group in matching}
+    )
+    if not matching:
+        raise ValueError(
+            f"no promoted {requested_track} champion matches "
+            f"{str(symbol).upper()} bar={signal_bar_size!r} rth={bool(use_rth)}"
+        )
+    if requested_track == "AUTO" and len(matched_tracks) != 1:
+        raise ValueError(
+            f"promoted champion is ambiguous across {', '.join(matched_tracks)}; "
+            "select --track lf or --track hf"
+        )
+    selected_track = matched_tracks[0]
+    return (
+        {
+            "name": f"current_{selected_track.lower()}_champion",
+            "groups": [
+                group
+                for group in matching
+                if str(group.get("_track") or "").strip().upper() == selected_track
+            ],
+        },
+        selected_track,
+        warnings,
+    )
 
 
 def _apply_milestone_base(cfg: ConfigBundle, *, strategy: dict, filters: dict | None) -> ConfigBundle:

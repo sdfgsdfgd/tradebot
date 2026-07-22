@@ -226,7 +226,7 @@ def main_fetch(argv: list[str]) -> None:
     ap.add_argument(
         "--champion-current",
         action="store_true",
-        help="Auto-include current champion payloads from README + spot_champions.json.",
+        help="Auto-include every promoted HF/LF champion declared by the backtest READMEs.",
     )
     ap.add_argument("--cache-dir", default="db")
     ap.add_argument("--threads", type=int, default=8, help="Threaded cache requests (effective cap defaults to 2).")

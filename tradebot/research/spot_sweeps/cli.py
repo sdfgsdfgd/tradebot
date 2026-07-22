@@ -79,9 +79,18 @@ def parse_spot_sweep_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--base",
-        default="champion",
+        default="default",
         choices=("default", "champion", "champion_pnl", "dual_regime"),
         help="Base profile to mutate before running the selected axis (see Base Profiles below).",
+    )
+    parser.add_argument(
+        "--track",
+        default="auto",
+        choices=("auto", "lf", "hf"),
+        help=(
+            "Promoted champion lane for --base champion/champion_pnl. "
+            "Auto is accepted only when symbol/bar/session identify one lane."
+        ),
     )
     parser.add_argument(
         "--close-eod",

@@ -28,9 +28,9 @@ from .cli import (
 )
 from .milestones import (
     _collect_milestone_items_from_rows,
-    _load_spot_milestones,
     _merge_and_write_milestones,
     _milestone_entry_for,
+    load_current_champion_milestones,
 )
 from .support import (
     _cache_config,
@@ -164,32 +164,50 @@ class SpotSweepRuntime(
             except Exception as exc:
                 raise SystemExit("IBKR API connection failed. Start IB Gateway / TWS (or run with --offline after prefetching cached bars).") from exc
 
-        self.milestones = _load_spot_milestones()
-        # Seeded runs: if a seed milestones file includes a matching strategy for this symbol/bar/rth,
-        # prefer it as the "champion" source so we don't have to mutate spot_milestones.json.
-        if self.args.seed_milestones:
+        self.milestones: dict | None = None
+        self.champion_track: str | None = None
+        base_name = str(self.args.base).strip().lower()
+        if self.args.seed_milestones and base_name in ("champion", "champion_pnl"):
+            seed_path = Path(str(self.args.seed_milestones))
             try:
-                seed_path = Path(self.args.seed_milestones)
-            except Exception:
-                seed_path = None
-            if seed_path and seed_path.exists():
-                try:
-                    seed_payload = json.loads(seed_path.read_text())
-                except Exception:
-                    seed_payload = None
-                if isinstance(seed_payload, dict):
-                    base_name = str(self.args.base).strip().lower()
-                    if base_name in ("champion", "champion_pnl"):
-                        has_match = _milestone_entry_for(
-                            seed_payload,
-                            symbol=self.symbol,
-                            signal_bar_size=str(self.signal_bar_size),
-                            use_rth=self.use_rth,
-                            sort_by="pnl_dd",
-                            prefer_realism=self.realism2,
-                        )
-                        if has_match is not None:
-                            self.milestones = seed_payload
+                seed_payload = json.loads(seed_path.read_text())
+            except (OSError, json.JSONDecodeError) as exc:
+                raise SystemExit(f"Unable to load --seed-milestones {seed_path}: {exc}") from exc
+            has_match = _milestone_entry_for(
+                seed_payload if isinstance(seed_payload, dict) else None,
+                symbol=self.symbol,
+                signal_bar_size=str(self.signal_bar_size),
+                use_rth=self.use_rth,
+                sort_by="pnl" if base_name == "champion_pnl" else "pnl_dd",
+                prefer_realism=self.realism2,
+            )
+            if has_match is None:
+                raise SystemExit(
+                    f"Seed milestones have no matching champion for {self.symbol} "
+                    f"bar={self.signal_bar_size!r} rth={self.use_rth}"
+                )
+            self.milestones = seed_payload
+            self.champion_track = "SEED"
+        elif base_name in ("champion", "champion_pnl"):
+            try:
+                self.milestones, self.champion_track, warnings = (
+                    load_current_champion_milestones(
+                        symbol=self.symbol,
+                        signal_bar_size=str(self.signal_bar_size),
+                        use_rth=self.use_rth,
+                        track=str(self.args.track),
+                        prefer_realism=self.realism2,
+                    )
+                )
+            except ValueError as exc:
+                raise SystemExit(str(exc)) from exc
+            for warning in warnings:
+                print(f"champion source warning: {warning}", flush=True)
+            print(
+                f"champion source: symbol={self.symbol} track={self.champion_track} "
+                f"bar={self.signal_bar_size} rth={self.use_rth}",
+                flush=True,
+            )
 
         self.run_calls_total = 0
         self.run_cfg_cache: dict[tuple, dict | None] = {}
