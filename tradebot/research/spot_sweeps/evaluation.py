@@ -5,9 +5,11 @@ from __future__ import annotations
 import hashlib
 import threading
 import time as pytime
+from dataclasses import dataclass
 
 from ...backtest.config import ConfigBundle
 from ...backtest.engine import _run_spot_backtest_summary, _spot_prepare_summary_series_pack
+from ...backtest.spot_context import SpotContextBars
 from ...backtest.sweep_parallel import _progress_line
 from ...chart_data.series import BarSeriesSignature
 from .fingerprints import _axis_dimension_fingerprint, _window_signature
@@ -15,11 +17,16 @@ from .milestones import _milestone_key
 from .support import _registry_float, _runtime_policy
 
 _BarSignature = BarSeriesSignature
-_ContextSignature = tuple[_BarSignature, _BarSignature, _BarSignature]
+_ContextSignature = tuple[tuple[str, _BarSignature], ...]
 _CacheKey = tuple[str, str, str]
 _PlanItem = tuple[ConfigBundle, str, dict | None]
 _CachedHit = tuple[_CacheKey, ConfigBundle, dict | None, str, dict | None]
-_PreparedContext = tuple[list, list | None, list | None, list | None, list | None, object | None]
+
+
+@dataclass(frozen=True)
+class _PreparedContext:
+    bars: SpotContextBars
+    series_pack: object | None
 
 
 class SweepEvaluation:
@@ -28,21 +35,15 @@ class SweepEvaluation:
         *,
         cfg: ConfigBundle,
         bars: list | None = None,
-        regime_bars: list | None = None,
-        regime2_bars: list | None = None,
+        context: SpotContextBars | None = None,
         update_dim_index: bool = True,
     ) -> tuple[_ContextSignature, _CacheKey, str, str]:
-        bars_eff, regime_eff, regime2_eff = self._context_bars_for_cfg(
-            cfg=cfg,
-            bars=bars,
-            regime_bars=regime_bars,
-            regime2_bars=regime2_bars,
-        )
+        context_eff = context or self._context_bars_for_cfg(cfg=cfg, bars=bars)
         cfg_key = _milestone_key(cfg)
-        bars_sig = self._bars_signature(bars_eff)
-        regime_sig = self._bars_signature(regime_eff)
-        regime2_sig = self._bars_signature(regime2_eff)
-        ctx_sig = (bars_sig, regime_sig, regime2_sig)
+        ctx_sig = tuple(
+            (kind, self._bars_signature(series))
+            for kind, series in context_eff.items()
+        )
 
         axis_dim_fp = self.run_cfg_axis_fp_cache.get(cfg_key)
         if axis_dim_fp is None:
@@ -63,11 +64,7 @@ class SweepEvaluation:
 
         window_sig = self.run_cfg_window_sig_cache.get(ctx_sig)
         if window_sig is None:
-            window_sig = _window_signature(
-                bars_sig=bars_sig,
-                regime_sig=regime_sig,
-                regime2_sig=regime2_sig,
-            )
+            window_sig = _window_signature(context_sig=ctx_sig)
             self.run_cfg_window_sig_cache[ctx_sig] = str(window_sig)
 
         cache_key = (
@@ -453,8 +450,6 @@ class SweepEvaluation:
         *,
         cfg: ConfigBundle,
         bars: list | None = None,
-        regime_bars: list | None = None,
-        regime2_bars: list | None = None,
         prepared_context: _PreparedContext | None = None,
         progress_callback=None,
     ) -> dict | None:
@@ -468,28 +463,15 @@ class SweepEvaluation:
             except Exception:
                 return
 
-        prepared_pack = None
-        tick_bars = None
-        exec_bars = None
-        if isinstance(prepared_context, tuple) and len(prepared_context) >= 6 and isinstance(prepared_context[0], list):
-            bars_eff = prepared_context[0]
-            regime_eff = prepared_context[1] if isinstance(prepared_context[1], list) else None
-            regime2_eff = prepared_context[2] if isinstance(prepared_context[2], list) else None
-            tick_bars = prepared_context[3] if isinstance(prepared_context[3], list) else None
-            exec_bars = prepared_context[4] if isinstance(prepared_context[4], list) else None
-            prepared_pack = prepared_context[5]
+        if isinstance(prepared_context, _PreparedContext):
+            context = prepared_context.bars
+            prepared_pack = prepared_context.series_pack
         else:
-            bars_eff, regime_eff, regime2_eff = self._context_bars_for_cfg(
-                cfg=cfg,
-                bars=bars,
-                regime_bars=regime_bars,
-                regime2_bars=regime2_bars,
-            )
+            context = self._context_bars_for_cfg(cfg=cfg, bars=bars)
+            prepared_pack = None
         ctx_sig, cache_key, axis_dim_fp, persistent_key = self._run_cfg_cache_coords(
             cfg=cfg,
-            bars=bars_eff,
-            regime_bars=regime_eff,
-            regime2_bars=regime2_eff,
+            context=context,
             update_dim_index=True,
         )
         cfg_key = str(cache_key[0])
@@ -508,30 +490,36 @@ class SweepEvaluation:
             row = self._materialize_cache_hit(persisted, ctx_sig=ctx_sig, cache_key=cache_key, source="persistent")
             _emit_cfg_progress(phase="cfg.cache_hit", cached=True, kept=bool(row))
             return row
-        if tick_bars is None:
-            tick_bars = self._tick_bars_for(cfg)
-        if exec_bars is None:
-            exec_size = str(getattr(cfg.strategy, "spot_exec_bar_size", "") or "").strip()
-            if exec_size and str(exec_size) != str(cfg.backtest.bar_size):
-                exec_bars = self._bars_cached(exec_size)
         _emit_cfg_progress(
             phase="cfg.context_ready",
             cached=False,
-            signal_total=int(len(bars_eff) if isinstance(bars_eff, list) else 0),
-            regime_total=int(len(regime_eff) if isinstance(regime_eff, list) else 0),
-            regime2_total=int(len(regime2_eff) if isinstance(regime2_eff, list) else 0),
-            tick_total=int(len(tick_bars) if isinstance(tick_bars, list) else 0),
-            exec_total=int(len(exec_bars) if isinstance(exec_bars, list) else int(len(bars_eff) if isinstance(bars_eff, list) else 0)),
+            signal_total=int(len(context.signal_bars) if isinstance(context.signal_bars, list) else 0),
+            regime_total=int(len(context.regime_bars) if isinstance(context.regime_bars, list) else 0),
+            regime2_total=int(len(context.regime2_bars) if isinstance(context.regime2_bars, list) else 0),
+            regime2_bear_hard_total=int(
+                len(context.regime2_bear_hard_bars)
+                if isinstance(context.regime2_bear_hard_bars, list)
+                else 0
+            ),
+            tick_total=int(len(context.tick_bars) if isinstance(context.tick_bars, list) else 0),
+            exec_total=int(
+                len(context.exec_bars)
+                if isinstance(context.exec_bars, list)
+                else len(context.signal_bars)
+                if isinstance(context.signal_bars, list)
+                else 0
+            ),
         )
         eval_started = pytime.perf_counter()
         s = _run_spot_backtest_summary(
             cfg,
-            bars_eff,
+            context.signal_bars,
             self.meta,
-            regime_bars=regime_eff,
-            regime2_bars=regime2_eff,
-            tick_bars=tick_bars,
-            exec_bars=exec_bars,
+            regime_bars=context.regime_bars,
+            regime2_bars=context.regime2_bars,
+            regime2_bear_hard_bars=context.regime2_bear_hard_bars,
+            tick_bars=context.tick_bars,
+            exec_bars=context.exec_bars,
             prepared_series_pack=prepared_pack,
             progress_callback=progress_callback,
         )
@@ -778,42 +766,28 @@ class SweepEvaluation:
 
                 prepared_context = None
                 if bool(use_prepared_context):
+                    context_pc = self._context_bars_for_cfg(cfg=cfg, bars=bars)
                     _ctx_sig_pc, cache_key_pc, _axis_dim_fp_pc, _persistent_key_pc = self._run_cfg_cache_coords(
                         cfg=cfg,
-                        bars=bars,
+                        context=context_pc,
                         update_dim_index=False,
                     )
                     prepared_context = prepared_context_by_cache_key.get(cache_key_pc)
                     if prepared_context is None and len(prepared_context_by_cache_key) < int(series_pack_prewarm_max_unique):
-                        bars_eff_pc, regime_eff_pc, regime2_eff_pc = self._context_bars_for_cfg(
-                            cfg=cfg,
-                            bars=bars,
-                            regime_bars=None,
-                            regime2_bars=None,
-                        )
-                        tick_bars_pc = self._tick_bars_for(cfg)
-                        exec_bars_pc = None
-                        exec_size_pc = str(getattr(cfg.strategy, "spot_exec_bar_size", "") or "").strip()
-                        if exec_size_pc and str(exec_size_pc) != str(cfg.backtest.bar_size):
-                            exec_bars_pc = self._bars_cached(exec_size_pc)
                         pack_hash, prepared_pack = _spot_prepare_summary_series_pack(
                             cfg=cfg,
-                            signal_bars=bars_eff_pc,
-                            tick_bars=tick_bars_pc,
-                            exec_bars=exec_bars_pc,
+                            signal_bars=context_pc.signal_bars,
+                            tick_bars=context_pc.tick_bars,
+                            exec_bars=context_pc.exec_bars,
                         )
                         if pack_hash:
                             if pack_hash in prepared_series_pack_by_hash:
                                 prepared_pack = prepared_series_pack_by_hash.get(pack_hash)
                             elif len(prepared_series_pack_by_hash) < int(series_pack_prewarm_max_unique):
                                 prepared_series_pack_by_hash[str(pack_hash)] = prepared_pack
-                        prepared_context = (
-                            bars_eff_pc,
-                            regime_eff_pc,
-                            regime2_eff_pc,
-                            tick_bars_pc,
-                            exec_bars_pc,
-                            prepared_pack,
+                        prepared_context = _PreparedContext(
+                            bars=context_pc,
+                            series_pack=prepared_pack,
                         )
                         prepared_context_by_cache_key[cache_key_pc] = prepared_context
 

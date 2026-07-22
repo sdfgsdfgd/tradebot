@@ -9,6 +9,11 @@ from ...backtest.config import (
     FiltersConfig,
 )
 from ...backtest.config_filters import _parse_filters
+from ...backtest.spot_context import (
+    SpotBarRequirement,
+    SpotContextBars,
+    load_spot_context_bars,
+)
 from ...backtest.sweep_parallel import (
     _progress_line,
 )
@@ -137,27 +142,6 @@ class SweepMarketData:
         _SERIES_CACHE.set(namespace=_SWEEP_BARS_NAMESPACE, key=key, value=loaded)
         return loaded
 
-    def _regime_bars_for(self, cfg: ConfigBundle) -> list | None:
-        regime_bar = str(getattr(cfg.strategy, "regime_bar_size", "") or "").strip() or str(cfg.backtest.bar_size)
-        if str(regime_bar) == str(cfg.backtest.bar_size):
-            return None
-        bars = self._bars_cached(regime_bar)
-        if not bars:
-            raise SystemExit(f"No {regime_bar} regime bars returned (IBKR).")
-        return bars
-
-    def _regime2_bars_for(self, cfg: ConfigBundle) -> list | None:
-        mode = str(getattr(cfg.strategy, "regime2_mode", "off") or "off").strip().lower()
-        if mode == "off":
-            return None
-        regime_bar = str(getattr(cfg.strategy, "regime2_bar_size", "") or "").strip() or str(cfg.backtest.bar_size)
-        if str(regime_bar) == str(cfg.backtest.bar_size):
-            return None
-        bars = self._bars_cached(regime_bar)
-        if not bars:
-            raise SystemExit(f"No {regime_bar} regime2 bars returned (IBKR).")
-        return bars
-
     def _tick_bars_for(self, cfg: ConfigBundle) -> list | None:
         tick_mode = str(getattr(cfg.strategy, "tick_gate_mode", "off") or "off").strip().lower()
         if tick_mode == "off":
@@ -214,12 +198,16 @@ class SweepMarketData:
         def _from_cache(symbol: str, exchange: str) -> list | None:
             cache_key = (str(symbol), str(exchange), bool(self.offline))
             cached = _SERIES_CACHE.get(namespace=_SWEEP_TICK_NAMESPACE, key=cache_key)
-            if not isinstance(cached, tuple) or len(cached) != 2:
+            if not isinstance(cached, tuple) or len(cached) != 3:
                 return None
-            cached_start, cached_bars = cached
-            if not isinstance(cached_start, datetime) or not isinstance(cached_bars, list):
+            cached_start, cached_end, cached_bars = cached
+            if (
+                not isinstance(cached_start, datetime)
+                or not isinstance(cached_end, datetime)
+                or not isinstance(cached_bars, list)
+            ):
                 return None
-            if cached_start <= tick_start_dt:
+            if cached_start <= tick_start_dt and cached_end >= self.end_dt:
                 return cached_bars
             return None
 
@@ -257,7 +245,7 @@ class SweepMarketData:
         _SERIES_CACHE.set(
             namespace=_SWEEP_TICK_NAMESPACE,
             key=cache_key,
-            value=(tick_start_dt, tick_bars),
+            value=(tick_start_dt, self.end_dt, tick_bars),
         )
         return tick_bars
 
@@ -266,13 +254,31 @@ class SweepMarketData:
         *,
         cfg: ConfigBundle,
         bars: list | None = None,
-        regime_bars: list | None = None,
-        regime2_bars: list | None = None,
-    ) -> tuple[list, list | None, list | None]:
+    ) -> SpotContextBars:
         bars_eff = bars if bars is not None else self._bars_cached(str(cfg.backtest.bar_size))
-        regime_eff = self._regime_bars_for(cfg) if regime_bars is None else regime_bars
-        regime2_eff = self._regime2_bars_for(cfg) if regime2_bars is None else regime2_bars
-        return bars_eff, regime_eff, regime2_eff
+
+        def _load(req: SpotBarRequirement, _start: datetime, _end: datetime):
+            # Sweep windows intentionally retain their historical scoring range;
+            # only $TICK carries its established explicit warm-up window here.
+            if req.kind == "tick":
+                return self._tick_bars_for(cfg)
+            return self._bars_cached(str(req.bar_size))
+
+        def _missing(req: SpotBarRequirement, _start: datetime, _end: datetime) -> None:
+            raise SystemExit(f"No {req.bar_size} {req.kind} bars returned (IBKR).")
+
+        return load_spot_context_bars(
+            strategy=cfg.strategy,
+            signal_bars=bars_eff,
+            default_symbol=str(cfg.strategy.symbol),
+            default_exchange=cfg.strategy.exchange,
+            default_signal_bar_size=str(cfg.backtest.bar_size),
+            default_signal_use_rth=bool(cfg.backtest.use_rth),
+            start_dt=self.start_dt,
+            end_dt=self.end_dt,
+            load_requirement=_load,
+            on_missing=_missing,
+        )
 
     def _bars_signature(self, series: list | None) -> BarSeriesSignature:
         return _SERIES_CACHE.revision(series or ())

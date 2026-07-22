@@ -1,11 +1,15 @@
 from __future__ import annotations
 
-from datetime import date
+from dataclasses import replace
+from datetime import date, datetime
 from pathlib import Path
 import threading
 from types import SimpleNamespace
 
 from tradebot.backtest.data import ContractMeta
+from tradebot.backtest.models import SummaryStats
+from tradebot.backtest.spot_context import SpotContextBars
+import tradebot.research.spot_sweeps.evaluation as sweep_evaluation
 from tradebot.research.spot_sweeps.axes_hf import _orb_candidates
 from tradebot.research.spot_sweeps.catalog import (
     _COMBO_FULL_CARTESIAN_DIM_ORDER,
@@ -14,6 +18,7 @@ from tradebot.research.spot_sweeps.catalog import (
 from tradebot.research.spot_sweeps.fingerprints import (
     _axis_dimension_fingerprint,
     _combo_full_dimension_space_signature,
+    _window_signature,
 )
 from tradebot.research.spot_sweeps.dimensions import (
     _AXIS_DIMENSION_REGISTRY,
@@ -110,6 +115,133 @@ def test_axis_fingerprint_covers_complete_signal_identity() -> None:
     assert _axis_dimension_fingerprint(
         _bundle_base(entry_signal="ema", **common)
     ) != _axis_dimension_fingerprint(_bundle_base(entry_signal="orb", **common))
+
+
+def test_sweep_context_owns_every_causal_bar_tape() -> None:
+    runtime = object.__new__(SpotSweepRuntime)
+    runtime.start_dt = datetime(2025, 1, 8)
+    runtime.end_dt = datetime(2025, 1, 10, 23, 59)
+    loaded: dict[str, list[str]] = {}
+    runtime._bars_cached = lambda bar_size: loaded.setdefault(
+        str(bar_size), [str(bar_size)]
+    )
+    runtime._tick_bars_for = lambda _cfg: ["tick"]
+    cfg = _bundle_base(
+        symbol="SLV",
+        start=date(2025, 1, 8),
+        end=date(2025, 1, 10),
+        bar_size="15 mins",
+        use_rth=False,
+        cache_dir=Path("db"),
+        offline=True,
+        filters=None,
+    )
+    cfg = replace(
+        cfg,
+        strategy=replace(
+            cfg.strategy,
+            regime2_mode="supertrend",
+            regime2_bar_size="30 mins",
+            regime2_bear_hard_mode="supertrend",
+            regime2_bear_hard_bar_size="1 day",
+            spot_exec_bar_size="1 min",
+            tick_gate_mode="raschke",
+        ),
+    )
+
+    context = runtime._context_bars_for_cfg(cfg=cfg, bars=["signal"])
+
+    assert dict(context.items()) == {
+        "signal": ["signal"],
+        "regime": ["4 hours"],
+        "regime2": ["30 mins"],
+        "regime2_bear_hard": ["1 day"],
+        "tick": ["tick"],
+        "exec": ["1 min"],
+    }
+
+
+def test_sweep_window_signature_covers_every_causal_bar_role() -> None:
+    kinds = (
+        "signal",
+        "regime",
+        "regime2",
+        "regime2_bear_hard",
+        "tick",
+        "exec",
+    )
+    base = tuple((kind, (1, "first", "last", "base")) for kind in kinds)
+    signatures = {_window_signature(context_sig=base)}
+    for changed_kind in kinds:
+        signatures.add(
+            _window_signature(
+                context_sig=tuple(
+                    (kind, (1, "first", "last", "changed" if kind == changed_kind else "base"))
+                    for kind in kinds
+                )
+            )
+        )
+
+    assert len(signatures) == len(kinds) + 1
+
+
+def test_sweep_evaluation_hands_every_causal_tape_to_engine(monkeypatch) -> None:
+    runtime = object.__new__(SpotSweepRuntime)
+    context = SpotContextBars(
+        signal_bars=["signal"],
+        regime_bars=["regime"],
+        regime2_bars=["regime2"],
+        regime2_bear_hard_bars=["hard"],
+        tick_bars=["tick"],
+        exec_bars=["exec"],
+    )
+    runtime.run_calls_total = 0
+    runtime.run_cfg_fingerprint_cache = {}
+    runtime.run_cfg_cache = {}
+    runtime._RUN_CFG_CACHE_MISS = object()
+    runtime._context_bars_for_cfg = lambda **_kwargs: context
+    runtime._run_cfg_cache_coords = lambda **_kwargs: (
+        (("signal", (1, None, None, "revision")),),
+        ("strategy", "axis", "window"),
+        "axis",
+        "persistent",
+    )
+    runtime._run_cfg_persistent_get = lambda **_kwargs: runtime._RUN_CFG_CACHE_MISS
+    runtime._run_cfg_persistent_set = lambda **_kwargs: None
+    runtime._run_cfg_dimension_index_set = lambda **_kwargs: None
+    runtime._axis_progress_record = lambda **_kwargs: None
+    runtime.run_cfg_persistent_writes = 0
+    runtime.run_min_trades = 0
+    runtime.meta = ContractMeta("SLV", "SMART", 1.0, 0.01)
+    captured: dict[str, object] = {}
+
+    def _summary(*args, **kwargs):
+        captured.update({"args": args, "kwargs": kwargs})
+        return SummaryStats(1, 1, 0, 1.0, 10.0, 0.1, 10.0, 0.0, 1.0, 0.01, 1.0)
+
+    monkeypatch.setattr(sweep_evaluation, "_run_spot_backtest_summary", _summary)
+    cfg = _bundle_base(
+        symbol="SLV",
+        start=date(2025, 1, 8),
+        end=date(2025, 1, 10),
+        bar_size="15 mins",
+        use_rth=False,
+        cache_dir=Path("db"),
+        offline=True,
+        filters=None,
+    )
+
+    assert runtime._run_cfg(cfg=cfg) is not None
+    assert captured["args"][1] == context.signal_bars
+    assert captured["kwargs"] == {
+        "regime_bars": context.regime_bars,
+        "regime2_bars": context.regime2_bars,
+        "regime2_bear_hard_bars": context.regime2_bear_hard_bars,
+        "tick_bars": context.tick_bars,
+        "exec_bars": context.exec_bars,
+        "prepared_series_pack": None,
+        "progress_callback": None,
+    }
 
 
 def test_combo_full_progress_uses_executed_profile_space(monkeypatch) -> None:

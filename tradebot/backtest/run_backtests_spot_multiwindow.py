@@ -30,7 +30,12 @@ from .spot_codec import (
     metrics_from_summary as _codec_metrics_from_summary,
     strategy_from_payload as _codec_strategy_from_payload,
 )
-from .spot_context import SpotBarRequirement, load_spot_context_bars, spot_signal_warmup_days_from_strategy
+from .spot_context import (
+    SpotBarRequirement,
+    SpotContextBars,
+    load_spot_context_bars,
+    spot_signal_warmup_days_from_strategy,
+)
 from .data import ContractMeta, IBKRHistoricalData
 from .engine import _run_spot_backtest_summary, _spot_multiplier
 from .sweep_parallel import (
@@ -56,7 +61,7 @@ from ..time_utils import now_et as _now_et
 _SERIES_CACHE = series_cache_service()
 _SWEEP_MULTIWINDOW_BARS_NAMESPACE = "spot.sweeps.multiwindow.bars"
 # Bump whenever evaluation semantics change so stale cached rows don't mask runtime fixes.
-_MULTIWINDOW_CACHE_ENGINE_VERSION = "spot_multiwindow_v14"
+_MULTIWINDOW_CACHE_ENGINE_VERSION = "spot_multiwindow_v15"
 
 
 def spot_multitimeframe_main() -> None:
@@ -343,10 +348,11 @@ def spot_multitimeframe_main() -> None:
     def _load_window_context_bars(
         *,
         bundle: ConfigBundle,
+        signal_bars: list,
         start_dt: datetime,
         end_dt: datetime,
         load_bars_cached,
-    ) -> tuple[list | None, list | None, list | None, list | None]:
+    ) -> SpotContextBars:
         def _load_requirement(req: SpotBarRequirement, req_start: datetime, req_end: datetime):
             return load_bars_cached(
                 symbol=req.symbol,
@@ -376,6 +382,7 @@ def spot_multitimeframe_main() -> None:
 
         context = load_spot_context_bars(
             strategy=bundle.strategy,
+            signal_bars=signal_bars,
             default_symbol=str(bundle.strategy.symbol),
             default_exchange=bundle.strategy.exchange,
             default_signal_bar_size=str(bundle.backtest.bar_size),
@@ -385,7 +392,7 @@ def spot_multitimeframe_main() -> None:
             load_requirement=_load_requirement,
             on_missing=_on_missing,
         )
-        return context.regime_bars, context.regime2_bars, context.tick_bars, context.exec_bars
+        return context
 
     def _evaluate_candidate_multiwindow(
         cand: dict,
@@ -511,8 +518,9 @@ def spot_multitimeframe_main() -> None:
                     offline=bundle.backtest.offline,
                 )
 
-            regime_bars, regime2_bars, tick_bars, exec_bars = _load_window_context_bars(
+            context = _load_window_context_bars(
                 bundle=bundle,
+                signal_bars=bars_sig,
                 start_dt=start_dt,
                 end_dt=end_dt,
                 load_bars_cached=load_bars_cached,
@@ -524,10 +532,19 @@ def spot_multitimeframe_main() -> None:
                 window_start=wstart.isoformat(),
                 window_end=wend.isoformat(),
                 signal_total=int(len(bars_sig)),
-                regime_total=int(len(regime_bars) if isinstance(regime_bars, list) else 0),
-                regime2_total=int(len(regime2_bars) if isinstance(regime2_bars, list) else 0),
-                tick_total=int(len(tick_bars) if isinstance(tick_bars, list) else 0),
-                exec_total=int(len(exec_bars) if isinstance(exec_bars, list) else int(len(bars_sig))),
+                regime_total=int(len(context.regime_bars) if isinstance(context.regime_bars, list) else 0),
+                regime2_total=int(len(context.regime2_bars) if isinstance(context.regime2_bars, list) else 0),
+                regime2_bear_hard_total=int(
+                    len(context.regime2_bear_hard_bars)
+                    if isinstance(context.regime2_bear_hard_bars, list)
+                    else 0
+                ),
+                tick_total=int(len(context.tick_bars) if isinstance(context.tick_bars, list) else 0),
+                exec_total=int(
+                    len(context.exec_bars)
+                    if isinstance(context.exec_bars, list)
+                    else len(context.signal_bars)
+                ),
             )
 
             def _engine_progress(event: dict | None) -> None:
@@ -543,12 +560,13 @@ def spot_multitimeframe_main() -> None:
 
             summary = _run_spot_backtest_summary(
                 bundle,
-                bars_sig,
+                context.signal_bars,
                 _resolve_meta(bundle, data=data),
-                regime_bars=regime_bars,
-                regime2_bars=regime2_bars,
-                tick_bars=tick_bars,
-                exec_bars=exec_bars,
+                regime_bars=context.regime_bars,
+                regime2_bars=context.regime2_bars,
+                regime2_bear_hard_bars=context.regime2_bear_hard_bars,
+                tick_bars=context.tick_bars,
+                exec_bars=context.exec_bars,
                 progress_callback=_engine_progress,
             )
             m = _codec_metrics_from_summary(summary)

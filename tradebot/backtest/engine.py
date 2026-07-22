@@ -24,6 +24,7 @@ from .models import (
 )
 from .spot_context import (
     SpotBarRequirement,
+    SpotContextBars,
     load_spot_context_bars,
     spot_signal_warmup_days_from_strategy,
 )
@@ -738,15 +739,10 @@ def _load_spot_backtest_context_bars(
     *,
     data: IBKRHistoricalData,
     cfg: ConfigBundle,
+    signal_bars: BarSeries[Bar],
     start_dt: datetime,
     end_dt: datetime,
-) -> tuple[
-    BarSeries[Bar] | None,
-    BarSeries[Bar] | None,
-    BarSeries[Bar] | None,
-    BarSeries[Bar] | None,
-    BarSeries[Bar] | None,
-]:
+) -> SpotContextBars:
     def _load_requirement(
         req: SpotBarRequirement, req_start: datetime, req_end: datetime
     ):
@@ -789,6 +785,7 @@ def _load_spot_backtest_context_bars(
 
     context = load_spot_context_bars(
         strategy=cfg.strategy,
+        signal_bars=signal_bars,
         default_symbol=str(cfg.strategy.symbol),
         default_exchange=cfg.strategy.exchange,
         default_signal_bar_size=str(cfg.backtest.bar_size),
@@ -797,13 +794,7 @@ def _load_spot_backtest_context_bars(
         end_dt=end_dt,
         load_requirement=_load_requirement,
     )
-    return (
-        context.regime_bars,
-        context.regime2_bars,
-        context.regime2_bear_hard_bars,
-        context.tick_bars,
-        context.exec_bars,
-    )
+    return context
 
 
 def run_backtest(cfg: ConfigBundle) -> BacktestResult:
@@ -852,24 +843,23 @@ def run_backtest(cfg: ConfigBundle) -> BacktestResult:
     meta = _resolve_backtest_contract_meta(data=data, cfg=cfg)
 
     if cfg.strategy.instrument == "spot":
-        regime_bars, regime2_bars, regime2_bear_hard_bars, tick_bars, exec_bars = (
-            _load_spot_backtest_context_bars(
-                data=data,
-                cfg=cfg,
-                start_dt=start_dt,
-                end_dt=end_dt,
-            )
+        context = _load_spot_backtest_context_bars(
+            data=data,
+            cfg=cfg,
+            signal_bars=bar_series,
+            start_dt=start_dt,
+            end_dt=end_dt,
         )
 
         result = _run_spot_backtest(
             cfg,
-            bar_series,
+            context.signal_bars,
             meta,
-            regime_bars=regime_bars,
-            regime2_bars=regime2_bars,
-            regime2_bear_hard_bars=regime2_bear_hard_bars,
-            tick_bars=tick_bars,
-            exec_bars=exec_bars,
+            regime_bars=context.regime_bars,
+            regime2_bars=context.regime2_bars,
+            regime2_bear_hard_bars=context.regime2_bear_hard_bars,
+            tick_bars=context.tick_bars,
+            exec_bars=context.exec_bars,
         )
         data.disconnect()
         return result

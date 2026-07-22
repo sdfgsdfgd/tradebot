@@ -322,6 +322,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         ctx = load_spot_context_bars(
             strategy=bundle.strategy,
+            signal_bars=bars_sig,
             default_symbol=str(bundle.strategy.symbol),
             default_exchange=bundle.strategy.exchange,
             default_signal_bar_size=str(bundle.backtest.bar_size),

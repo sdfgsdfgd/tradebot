@@ -255,7 +255,7 @@ class SpotSweepRuntime(
         self.run_cfg_fingerprint_cache: dict[
             str,
             tuple[
-                tuple[BarSeriesSignature, BarSeriesSignature, BarSeriesSignature],
+                tuple[tuple[str, BarSeriesSignature], ...],
                 dict | None,
             ],
         ] = {}
@@ -264,7 +264,7 @@ class SpotSweepRuntime(
         self.run_cfg_dim_index_loaded: dict[str, float] = {}
         self.run_cfg_dim_index_loaded_once = False
         self.run_cfg_window_sig_cache: dict[
-            tuple[BarSeriesSignature, BarSeriesSignature, BarSeriesSignature],
+            tuple[tuple[str, BarSeriesSignature], ...],
             str,
         ] = {}
         self.cartesian_rank_manifest_compact_seen: dict[tuple[str, str], float] = {}

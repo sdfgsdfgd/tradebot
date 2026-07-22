@@ -25,11 +25,25 @@ class SpotBarRequirement:
 
 @dataclass(frozen=True)
 class SpotContextBars:
+    """Complete market-data context that can causally affect one spot run."""
+
+    signal_bars: object
     regime_bars: object | None = None
     regime2_bars: object | None = None
     regime2_bear_hard_bars: object | None = None
     tick_bars: object | None = None
     exec_bars: object | None = None
+
+    def items(self) -> tuple[tuple[str, object | None], ...]:
+        """Stable semantic order for cache identities and engine handoff."""
+        return (
+            ("signal", self.signal_bars),
+            ("regime", self.regime_bars),
+            ("regime2", self.regime2_bars),
+            ("regime2_bear_hard", self.regime2_bear_hard_bars),
+            ("tick", self.tick_bars),
+            ("exec", self.exec_bars),
+        )
 
 
 LoadRequirementFn = Callable[[SpotBarRequirement, datetime, datetime], object]
@@ -350,6 +364,7 @@ def spot_bar_requirements_from_strategy(
 def load_spot_context_bars(
     *,
     strategy: Mapping[str, object] | object,
+    signal_bars: object,
     default_symbol: str,
     default_exchange: str | None,
     default_signal_bar_size: str,
@@ -383,6 +398,7 @@ def load_spot_context_bars(
         by_kind[str(req.kind)] = loaded
 
     return SpotContextBars(
+        signal_bars=signal_bars,
         regime_bars=by_kind.get("regime"),
         regime2_bars=by_kind.get("regime2"),
         regime2_bear_hard_bars=by_kind.get("regime2_bear_hard"),
