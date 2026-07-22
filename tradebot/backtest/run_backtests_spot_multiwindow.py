@@ -40,6 +40,7 @@ from .sweep_parallel import (
     _strip_flags,
 )
 from .sweeps import write_json
+from ..research.champions import load_current_champion_groups
 from ..research.multiwindow import (
     MultiwindowReport,
     candidate_shortlist,
@@ -110,6 +111,24 @@ def spot_multitimeframe_main() -> None:
         if len(candidate_tracks) == 1
         else None
     )
+    incumbent_source: str | None = None
+    incumbent_windows: tuple[dict, ...] = ()
+    if report_track:
+        incumbent_groups, incumbent_warnings = load_current_champion_groups(
+            symbols=(symbol,),
+            tracks=(report_track,),
+        )
+        for warning in incumbent_warnings:
+            print(f"incumbent warning: {warning}", flush=True)
+        if incumbent_groups:
+            incumbent = incumbent_groups[0]
+            evaluation = incumbent.get("_eval") if isinstance(incumbent.get("_eval"), dict) else {}
+            raw_windows = evaluation.get("windows")
+            incumbent_windows = tuple(
+                row for row in raw_windows if isinstance(row, dict)
+            ) if isinstance(raw_windows, list) else ()
+            if incumbent_windows:
+                incumbent_source = str(incumbent.get("_source") or "") or None
     jobs_eff = max(1, min(int(jobs_eff), len(candidates)))
     print(
         "multitimeframe prep "
@@ -121,6 +140,11 @@ def spot_multitimeframe_main() -> None:
     windows: list[tuple[date, date]] = []
     for raw in args.window or []:
         windows.append(_parse_window(raw))
+    if not windows and incumbent_windows:
+        windows = [
+            (_parse_date(str(row["start"])), _parse_date(str(row["end"])))
+            for row in incumbent_windows
+        ]
     if not windows:
         windows = [
             (_parse_date("2023-01-01"), _parse_date("2024-01-01")),
@@ -156,6 +180,8 @@ def spot_multitimeframe_main() -> None:
         out_path=Path(args.out),
         cache_path=multiwindow_cache_path,
         track=report_track,
+        incumbent_source=incumbent_source,
+        incumbent_windows=incumbent_windows,
     )
 
     def _multiwindow_cache_conn() -> sqlite3.Connection | None:

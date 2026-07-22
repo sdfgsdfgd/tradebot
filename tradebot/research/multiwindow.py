@@ -28,6 +28,8 @@ class MultiwindowReport:
     out_path: Path
     cache_path: Path
     track: str | None = None
+    incumbent_source: str | None = None
+    incumbent_windows: tuple[dict, ...] = ()
 
 
 def score_key(item: dict) -> tuple:
@@ -41,6 +43,82 @@ def score_key(item: dict) -> tuple:
         float(primary.get("win_rate") or 0.0),
         int(primary.get("trades") or 0),
     )
+
+
+def promotion_receipt(
+    candidate_windows: list[dict],
+    incumbent_windows: tuple[dict, ...],
+) -> dict | None:
+    """Compare exact windows without pretending every HF/LF lane has one policy."""
+    incumbent = {
+        (str(row.get("start") or ""), str(row.get("end") or "")): row
+        for row in incumbent_windows
+        if isinstance(row, dict) and row.get("start") and row.get("end")
+    }
+    if not incumbent:
+        return None
+    candidate = {
+        (str(row.get("start") or ""), str(row.get("end") or "")): row
+        for row in candidate_windows
+        if isinstance(row, dict) and row.get("start") and row.get("end")
+    }
+
+    def number(row: dict, *keys: str) -> float:
+        for key in keys:
+            raw = row.get(key)
+            if raw is None:
+                continue
+            try:
+                return float(raw)
+            except (TypeError, ValueError):
+                continue
+        return 0.0
+
+    windows: list[dict] = []
+    for key, baseline in incumbent.items():
+        current = candidate.get(key)
+        if current is None:
+            continue
+        candidate_ratio = number(current, "roi_over_dd_pct", "pnl_over_dd")
+        incumbent_ratio = number(baseline, "roi_over_dd_pct", "pnl_over_dd")
+        candidate_pnl = number(current, "pnl")
+        incumbent_pnl = number(baseline, "pnl")
+        candidate_trades = int(number(current, "trades"))
+        incumbent_trades = int(number(baseline, "trades"))
+        windows.append(
+            {
+                "start": key[0],
+                "end": key[1],
+                "ratio_delta": candidate_ratio - incumbent_ratio,
+                "pnl_delta": candidate_pnl - incumbent_pnl,
+                "trade_delta": candidate_trades - incumbent_trades,
+                "candidate_ratio": candidate_ratio,
+                "incumbent_ratio": incumbent_ratio,
+            }
+        )
+
+    complete = len(windows) == len(incumbent)
+    ratio_deltas = [float(row["ratio_delta"]) for row in windows]
+    pnl_deltas = [float(row["pnl_delta"]) for row in windows]
+    trade_deltas = [int(row["trade_delta"]) for row in windows]
+    candidate_floor = min((float(row["candidate_ratio"]) for row in windows), default=0.0)
+    incumbent_floor = min((float(row["incumbent_ratio"]) for row in windows), default=0.0)
+    return {
+        "complete": complete,
+        "matched_windows": len(windows),
+        "incumbent_windows": len(incumbent),
+        "positive_all": complete
+        and all(number(candidate[key], "pnl") > 0.0 for key in incumbent),
+        "ratio_dominates_all": complete
+        and all(delta >= 0.0 for delta in ratio_deltas)
+        and any(delta > 0.0 for delta in ratio_deltas),
+        "pnl_dominates_all": complete
+        and all(delta >= 0.0 for delta in pnl_deltas)
+        and any(delta > 0.0 for delta in pnl_deltas),
+        "activity_preserved_all": complete and all(delta >= 0 for delta in trade_deltas),
+        "floor_delta": candidate_floor - incumbent_floor if complete else None,
+        "windows": windows,
+    }
 
 
 def strategy_key(strategy: dict, *, filters: dict | None) -> str:
@@ -166,7 +244,10 @@ def parse_multiwindow_args(argv: list[str] | None = None) -> argparse.Namespace:
         "--track",
         default="auto",
         choices=("auto", "hf", "lf"),
-        help="HF/LF research lineage; auto preserves existing artifact metadata when available.",
+        help=(
+            "HF/LF research lineage and current-crown comparison windows; "
+            "auto preserves existing artifact metadata when available."
+        ),
     )
     ap.add_argument(
         "--offline",
@@ -274,6 +355,8 @@ def emit_multiwindow_results(
         f"- symbol={report.symbol} track={report.track or 'unclassified'} "
         f"bar={report.bar_size} rth={report.use_rth} offline={report.offline}"
     )
+    if report.incumbent_source:
+        print(f"- incumbent={report.incumbent_source}")
     print(f"- windows={', '.join([f'{a.isoformat()}→{b.isoformat()}' for a,b in report.windows])}")
     extra = (
         f" min_trades_per_year={float(report.min_trades_per_year):g}"
@@ -292,6 +375,12 @@ def emit_multiwindow_results(
         st = item["strategy"]
         primary = item["primary"]
         stability = item["stability"]
+        promotion = promotion_receipt(item.get("windows") or [], report.incumbent_windows)
+        promotion_label = ""
+        if promotion is not None:
+            floor_delta = promotion.get("floor_delta")
+            floor_text = f"{float(floor_delta):+.3f}" if floor_delta is not None else "partial"
+            promotion_label = f" dethrone_floor={floor_text}"
         print(
             f"{rank:2d}. stability(min roi/dd)={stability.get('min_roi_over_dd', 0.0):.2f} "
             f"primary roi/dd={primary.get('roi_over_dd_pct', 0.0):.2f} "
@@ -300,6 +389,7 @@ def emit_multiwindow_results(
             f"win={primary.get('win_rate', 0.0)*100:.1f}% tr={primary.get('trades', 0)} "
             f"ema={st.get('ema_preset')} {st.get('ema_entry_mode')} "
             f"regime={st.get('regime_mode')} rbar={st.get('regime_bar_size')}"
+            f"{promotion_label}"
         )
 
     if report.write_top <= 0:
@@ -315,6 +405,7 @@ def emit_multiwindow_results(
         key = strategy_key(strategy, filters=filters_payload)
         primary = item["primary"]
         stability = item["stability"]
+        promotion = promotion_receipt(item.get("windows") or [], report.incumbent_windows)
         metrics = {
             "pnl": float(primary.get("pnl") or 0.0),
             "roi": float(primary.get("roi") or 0.0),
@@ -339,6 +430,8 @@ def emit_multiwindow_results(
         }
         if report.track:
             group["_track"] = report.track
+        if promotion is not None:
+            group["_eval"]["promotion"] = promotion
         groups_out.append(group)
     out_payload = {
         "schema": "tradebot.research.multiwindow.v1",
@@ -346,6 +439,7 @@ def emit_multiwindow_results(
         "generated_at": now,
         "source": str(report.milestones_path),
         "track": report.track,
+        "incumbent": report.incumbent_source,
         "bar_size": report.bar_size,
         "use_rth": report.use_rth,
         "windows": [{"start": a.isoformat(), "end": b.isoformat()} for a, b in report.windows],

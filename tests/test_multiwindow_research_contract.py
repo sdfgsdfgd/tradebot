@@ -8,6 +8,7 @@ from tradebot.research.multiwindow import (
     candidate_shortlist,
     emit_multiwindow_results,
     parse_multiwindow_args,
+    promotion_receipt,
 )
 
 
@@ -134,3 +135,52 @@ def test_candidate_shortlist_reads_every_entry_and_preserves_objective_leaders()
         "activity",
     }
     assert {row["track"] for row in shortlisted} == {"HF"}
+
+
+def test_promotion_receipt_compares_only_exact_incumbent_windows() -> None:
+    incumbent = (
+        {
+            "start": "2024-01-01",
+            "end": "2025-01-01",
+            "pnl": 100.0,
+            "pnl_over_dd": 2.0,
+            "trades": 20,
+        },
+        {
+            "start": "2025-01-01",
+            "end": "2026-01-01",
+            "pnl": 120.0,
+            "pnl_over_dd": 3.0,
+            "trades": 30,
+        },
+    )
+    candidate = [
+        {
+            "start": "2024-01-01",
+            "end": "2025-01-01",
+            "pnl": 110.0,
+            "pnl_over_dd": 2.5,
+            "trades": 21,
+        },
+        {
+            "start": "2025-01-01",
+            "end": "2026-01-01",
+            "pnl": 130.0,
+            "pnl_over_dd": 3.5,
+            "trades": 31,
+        },
+    ]
+
+    receipt = promotion_receipt(candidate, incumbent)
+    assert receipt is not None
+    assert receipt["complete"] is True
+    assert receipt["positive_all"] is True
+    assert receipt["ratio_dominates_all"] is True
+    assert receipt["pnl_dominates_all"] is True
+    assert receipt["activity_preserved_all"] is True
+    assert receipt["floor_delta"] == 0.5
+
+    partial = promotion_receipt(candidate[:1], incumbent)
+    assert partial is not None
+    assert partial["complete"] is False
+    assert partial["floor_delta"] is None
